@@ -24,6 +24,7 @@ import pandas as pd
 import pymc as pm
 import pytest
 import xarray as xr
+from rich.table import Table
 
 from pymc_marketing.model_builder import (
     DifferentModelError,
@@ -794,3 +795,13 @@ def test_load_from_idata_errors(request, fixture_name, match) -> None:
     idata = request.getfixturevalue(fixture_name)
     with pytest.raises(DifferentModelError, match=match):
         ModelBuilderTest.load_from_idata(idata)
+
+
+def test_table() -> None:
+    model = ModelBuilderTest()
+    match = "The model hasn't been built yet"
+    with pytest.raises(RuntimeError, match=match):
+        model.table()
+
+    model.build_model(pd.DataFrame({"input": [1, 2, 3]}), pd.Series([1, 2, 3]))
+    assert isinstance(model.table(), Table)

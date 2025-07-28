@@ -18,12 +18,12 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
+from pymc_extras.prior import Prior
 
 from pymc_marketing.clv.models.gamma_gamma import (
     GammaGammaModel,
     GammaGammaModelIndividual,
 )
-from pymc_marketing.prior import Prior
 from tests.conftest import mock_fit_MAP, set_model_fit
 
 
@@ -82,17 +82,26 @@ class BaseTestGammaGammaModel:
 class TestGammaGammaModel(BaseTestGammaGammaModel):
     def test_missing_columns(self):
         data_invalid = self.data.drop(columns="customer_id")
-        with pytest.raises(ValueError, match="Required column customer_id missing"):
+        with pytest.raises(
+            ValueError,
+            match=r"The following required columns are missing from the input data: \['customer_id'\]",
+        ):
             GammaGammaModel(data=data_invalid)
 
         data_invalid = self.data.drop(columns="frequency")
 
-        with pytest.raises(ValueError, match="Required column frequency missing"):
+        with pytest.raises(
+            ValueError,
+            match=r"The following required columns are missing from the input data: \['frequency'\]",
+        ):
             GammaGammaModel(data=data_invalid)
 
         data_invalid = self.data.drop(columns="monetary_value")
 
-        with pytest.raises(ValueError, match="Required column monetary_value missing"):
+        with pytest.raises(
+            ValueError,
+            match=r"The following required columns are missing from the input data: \['monetary_value'\]",
+        ):
             GammaGammaModel(data=data_invalid)
 
     @pytest.mark.parametrize(
@@ -311,13 +320,17 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
     def test_missing_columns(self):
         # Create a version of the data that's missing the 'customer_id' column
         data_invalid = self.individual_data.drop(columns="customer_id")
-        with pytest.raises(ValueError, match="Required column customer_id missing"):
+        with pytest.raises(
+            ValueError,
+            match=r"The following required columns are missing from the input data: \['customer_id'\]",
+        ):
             GammaGammaModelIndividual(data=data_invalid)
 
         data_invalid = self.individual_data.drop(columns="individual_transaction_value")
 
         with pytest.raises(
-            ValueError, match="Required column individual_transaction_value missing"
+            ValueError,
+            match=r"The following required columns are missing from the input data: \['individual_transaction_value'\]",
         ):
             GammaGammaModelIndividual(data=data_invalid)
 

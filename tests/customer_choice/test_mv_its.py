@@ -19,6 +19,7 @@ import pandas as pd
 import pytest
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
+from pymc_extras.prior import Prior
 from xarray import DataArray
 
 from pymc_marketing.customer_choice import (
@@ -26,7 +27,6 @@ from pymc_marketing.customer_choice import (
     generate_saturated_data,
     generate_unsaturated_data,
 )
-from pymc_marketing.prior import Prior
 
 seed = sum(map(ord, "CustomerChoice"))
 rng = np.random.default_rng(seed)

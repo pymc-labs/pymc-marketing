@@ -45,7 +45,12 @@ def y_data():
 def get_yaml_files():
     """Get all YAML files from the data/config_files directory."""
     config_dir = Path("data/config_files")
-    return [str(file) for file in config_dir.glob("*.yml") if "wrong_" not in file.name]
+    return [
+        str(file)
+        for file in config_dir.glob("*.yml")
+        if "wrong_" not in file.name
+        and "multi_dimensional_example_model.yml" not in file.name
+    ]
 
 
 @pytest.mark.parametrize("config_path", get_yaml_files())

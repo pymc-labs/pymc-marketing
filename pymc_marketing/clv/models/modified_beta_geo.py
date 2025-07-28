@@ -14,6 +14,7 @@
 """Modified Beta-Geometric Negative Binomial Distribution (MBG/NBD) model for a non-contractual customer population across continuous time."""  # noqa: E501
 
 from collections.abc import Sequence
+from typing import Literal
 
 import numpy as np
 import pandas as pd
@@ -57,6 +58,10 @@ class ModifiedBetaGeoModel(BetaGeoModel):
             * `b`: Shape parameter of dropout process; defaults to `1-phi_dropout` * `kappa_dropout`
             * `phi_dropout`: Nested prior for a and b priors; defaults to `Prior("Uniform", lower=0, upper=1)`
             * `kappa_dropout`: Nested prior for a and b priors; defaults to `Prior("Pareto", alpha=1, m=1)`
+            * `purchase_covariates`: Coefficients for purchase rate covariates; defaults to `Normal(0, 1)`
+            * `dropout_covariates`: Coefficients for dropout covariates; defaults to `Normal.dist(0, 1)`
+            * `purchase_covariate_cols`: List containing column names of covariates for customer purchase rates.
+            * `dropout_covariate_cols`: List containing column names of covariates for customer dropouts.
     sampler_config : dict, optional
         Dictionary of sampler parameters. Defaults to *None*.
 
@@ -64,7 +69,7 @@ class ModifiedBetaGeoModel(BetaGeoModel):
     --------
     .. code-block:: python
 
-        from pymc_marketing.prior import Prior
+        from pymc_extras.prior import Prior
         from pymc_marketing.clv import ModifiedBetaGeoModel, rfm_summary
 
         # customer identifiers and purchase datetimes
@@ -139,29 +144,131 @@ class ModifiedBetaGeoModel(BetaGeoModel):
     def build_model(self) -> None:  # type: ignore[override]
         """Build the model."""
         coords = {
+            "purchase_covariate": self.purchase_covariate_cols,
+            "dropout_covariate": self.dropout_covariate_cols,
             "customer_id": self.data["customer_id"],
             "obs_var": ["recency", "frequency"],
         }
         with pm.Model(coords=coords) as self.model:
             # purchase rate priors
-            alpha = self.model_config["alpha"].create_variable("alpha")
-            r = self.model_config["r"].create_variable("r")
+            if self.purchase_covariate_cols:
+                purchase_data = pm.Data(
+                    "purchase_data",
+                    self.data[self.purchase_covariate_cols],
+                    dims=["customer_id", "purchase_covariate"],
+                )
+                self.model_config["purchase_coefficient"].dims = "purchase_covariate"
+                purchase_coefficient_alpha = self.model_config[
+                    "purchase_coefficient"
+                ].create_variable("purchase_coefficient_alpha")
+
+                alpha_scale = self.model_config["alpha"].create_variable("alpha_scale")
+                alpha = pm.Deterministic(
+                    "alpha",
+                    (
+                        alpha_scale
+                        * pm.math.exp(
+                            -pm.math.dot(purchase_data, purchase_coefficient_alpha)
+                        )
+                    ),
+                    dims="customer_id",
+                )
+            else:
+                alpha = self.model_config["alpha"].create_variable("alpha")
 
             # dropout priors
             if "a" in self.model_config and "b" in self.model_config:
-                a = self.model_config["a"].create_variable("a")
-                b = self.model_config["b"].create_variable("b")
+                if self.dropout_covariate_cols:
+                    dropout_data = pm.Data(
+                        "dropout_data",
+                        self.data[self.dropout_covariate_cols],
+                        dims=["customer_id", "dropout_covariate"],
+                    )
+
+                    self.model_config["dropout_coefficient"].dims = "dropout_covariate"
+                    dropout_coefficient_a = self.model_config[
+                        "dropout_coefficient"
+                    ].create_variable("dropout_coefficient_a")
+                    dropout_coefficient_b = self.model_config[
+                        "dropout_coefficient"
+                    ].create_variable("dropout_coefficient_b")
+
+                    a_scale = self.model_config["a"].create_variable("a_scale")
+                    b_scale = self.model_config["b"].create_variable("b_scale")
+                    a = pm.Deterministic(
+                        "a",
+                        a_scale
+                        * pm.math.exp(pm.math.dot(dropout_data, dropout_coefficient_a)),
+                        dims="customer_id",
+                    )
+                    b = pm.Deterministic(
+                        "b",
+                        b_scale
+                        * pm.math.exp(pm.math.dot(dropout_data, dropout_coefficient_b)),
+                        dims="customer_id",
+                    )
+                else:
+                    a = self.model_config["a"].create_variable("a")
+                    b = self.model_config["b"].create_variable("b")
             else:
                 # hierarchical pooling of dropout rate priors
-                phi_dropout = self.model_config["phi_dropout"].create_variable(
-                    "phi_dropout"
-                )
-                kappa_dropout = self.model_config["kappa_dropout"].create_variable(
-                    "kappa_dropout"
-                )
+                if self.dropout_covariate_cols:
+                    dropout_data = pm.Data(
+                        "dropout_data",
+                        self.data[self.dropout_covariate_cols],
+                        dims=["customer_id", "dropout_covariate"],
+                    )
 
-                a = pm.Deterministic("a", phi_dropout * kappa_dropout)
-                b = pm.Deterministic("b", (1.0 - phi_dropout) * kappa_dropout)
+                    self.model_config["dropout_coefficient"].dims = "dropout_covariate"
+                    dropout_coefficient_a = self.model_config[
+                        "dropout_coefficient"
+                    ].create_variable("dropout_coefficient_a")
+                    dropout_coefficient_b = self.model_config[
+                        "dropout_coefficient"
+                    ].create_variable("dropout_coefficient_b")
+
+                    phi_dropout = self.model_config["phi_dropout"].create_variable(
+                        "phi_dropout"
+                    )
+                    kappa_dropout = self.model_config["kappa_dropout"].create_variable(
+                        "kappa_dropout"
+                    )
+
+                    a_scale = pm.Deterministic(
+                        "a_scale",
+                        phi_dropout * kappa_dropout,
+                    )
+                    b_scale = pm.Deterministic(
+                        "b_scale",
+                        (1.0 - phi_dropout) * kappa_dropout,
+                    )
+
+                    a = pm.Deterministic(
+                        "a",
+                        a_scale
+                        * pm.math.exp(pm.math.dot(dropout_data, dropout_coefficient_a)),
+                        dims="customer_id",
+                    )
+                    b = pm.Deterministic(
+                        "b",
+                        b_scale
+                        * pm.math.exp(pm.math.dot(dropout_data, dropout_coefficient_b)),
+                        dims="customer_id",
+                    )
+
+                else:
+                    phi_dropout = self.model_config["phi_dropout"].create_variable(
+                        "phi_dropout"
+                    )
+                    kappa_dropout = self.model_config["kappa_dropout"].create_variable(
+                        "kappa_dropout"
+                    )
+
+                    a = pm.Deterministic("a", phi_dropout * kappa_dropout)
+                    b = pm.Deterministic("b", (1.0 - phi_dropout) * kappa_dropout)
+
+            # r remains unchanged with or without covariates
+            r = self.model_config["r"].create_variable("r")
 
             ModifiedBetaGeoNBD(
                 name="recency_frequency",
@@ -346,10 +453,11 @@ class ModifiedBetaGeoModel(BetaGeoModel):
         *,
         T: int | np.ndarray | pd.Series | None = None,
         random_seed: RandomState | None = None,
-        var_names: Sequence[str] = ("dropout", "purchase_rate"),
+        var_names: Sequence[
+            Literal["dropout", "purchase_rate", "recency_frequency"]
+        ] = ("dropout", "purchase_rate", "recency_frequency"),
         n_samples: int = 1000,
     ) -> xarray.Dataset:
-        # TODO: This is extraneous now, until a new distribution block is added.
         """Compute posterior predictive samples of dropout, purchase rate and frequency/recency of new customers."""
         if data is None:
             data = self.data
@@ -369,14 +477,30 @@ class ModifiedBetaGeoModel(BetaGeoModel):
         coords = self.model.coords.copy()  # type: ignore
         coords["customer_id"] = data["customer_id"]
 
-        with pm.Model(coords=coords):
-            a = pm.HalfFlat("a")
-            b = pm.HalfFlat("b")
-            alpha = pm.HalfFlat("alpha")
-            r = pm.HalfFlat("r")
+        with pm.Model(coords=coords) as pred_model:
+            if self.purchase_covariate_cols:
+                alpha = pm.Flat("alpha", dims=["customer_id"])
+            else:
+                alpha = pm.Flat("alpha")
 
-            pm.Beta("dropout", alpha=a, beta=b)
-            pm.Gamma("purchase_rate", alpha=r, beta=alpha)
+            if self.dropout_covariate_cols:
+                a = pm.Flat("a", dims=["customer_id"])
+                b = pm.Flat("b", dims=["customer_id"])
+            else:
+                a = pm.Flat("a")
+                b = pm.Flat("b")
+
+            r = pm.Flat("r")
+
+            pm.Beta(
+                "dropout", alpha=a, beta=b, dims=pred_model.named_vars_to_dims.get("a")
+            )
+            pm.Gamma(
+                "purchase_rate",
+                alpha=r,
+                beta=alpha,
+                dims=pred_model.named_vars_to_dims.get("alpha"),
+            )
 
             ModifiedBetaGeoNBD(
                 name="recency_frequency",
