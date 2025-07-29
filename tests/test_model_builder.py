@@ -27,9 +27,11 @@ import xarray as xr
 from rich.table import Table
 
 from pymc_marketing.model_builder import (
-    RegressionModelBuilder,
+    BaseModelBuilder,
     DifferentModelError,
     ModelBuilder,
+    RegressionModelBuilder,
+    _handle_deprecate_pred_argument,
     create_sample_kwargs,
 )
 
@@ -90,6 +92,67 @@ def not_fitted_model_instance():
         sampler_config=sampler_config,
         test_parameter="test_paramter",
     )
+
+
+@pytest.fixture(scope="module")
+def toy_data(toy_X, toy_y):
+    """Create a combined dataset for DataModelBuilderTest."""
+    data = toy_X.copy()
+    data["output"] = toy_y
+    return data
+
+
+@pytest.fixture(scope="module")
+def fitted_data_model_instance(toy_data, mock_pymc_sample):
+    sampler_config = {
+        "draws": 100,
+        "tune": 100,
+        "chains": 2,
+        "target_accept": 0.95,
+    }
+    model_config = {
+        "a": {"loc": 0, "scale": 10, "dims": ("numbers",)},
+        "b": {"loc": 0, "scale": 10},
+        "obs_error": 2,
+    }
+    model = DataModelBuilderTest(
+        data=toy_data,
+        model_config=model_config,
+        sampler_config=sampler_config,
+        test_parameter="test_parameter",
+    )
+    model.fit(
+        chains=1,
+        draws=100,
+        tune=100,
+    )
+    return model
+
+
+@pytest.fixture(scope="module")
+def fitted_base_model_instance(mock_pymc_sample):
+    sampler_config = {
+        "draws": 100,
+        "tune": 100,
+        "chains": 2,
+        "target_accept": 0.95,
+    }
+    model_config = {
+        "mu_loc": 0,
+        "mu_scale": 1,
+        "sigma_scale": 1,
+    }
+    model = BaseModelBuilderTest(
+        model_config=model_config,
+        sampler_config=sampler_config,
+        test_parameter="test_parameter",
+    )
+    model.fit(
+        chains=1,
+        draws=100,
+        tune=100,
+    )
+    return model
 
 
 class ModelBuilderTest(RegressionModelBuilder):
@@ -168,6 +231,118 @@ class ModelBuilderTest(RegressionModelBuilder):
         }
 
 
+class DataModelBuilderTest(ModelBuilder):
+    """Test class for ModelBuilder that takes data at initialization."""
+
+    def __init__(
+        self, data, model_config=None, sampler_config=None, test_parameter=None
+    ):
+        self.test_parameter = test_parameter
+        super().__init__(
+            data=data, model_config=model_config, sampler_config=sampler_config
+        )
+
+    _model_type = "data_test_model"
+    version = "0.1"
+
+    def build_model(self, **kwargs):
+        # Simplified model to avoid compilation issues
+        with pm.Model() as self.model:
+            # Very simple model to avoid compilation issues
+            pm.Normal("test", 0, 1)
+
+    def create_idata_attrs(self):
+        attrs = super().create_idata_attrs()
+        attrs["test_parameter"] = json.dumps(self.test_parameter)
+        return attrs
+
+    @property
+    def _serializable_model_config(self):
+        return self.model_config
+
+    @property
+    def default_model_config(self) -> dict:
+        return {
+            "a": {"loc": 0, "scale": 10, "dims": ("numbers",)},
+            "b": {"loc": 0, "scale": 10},
+            "obs_error": 2,
+        }
+
+    @property
+    def default_sampler_config(self) -> dict:
+        return {
+            "draws": 1_000,
+            "tune": 1_000,
+            "chains": 3,
+            "target_accept": 0.95,
+        }
+
+
+class BaseModelBuilderTest(BaseModelBuilder):
+    """Test class for BaseModelBuilder."""
+
+    def __init__(self, model_config=None, sampler_config=None, test_parameter=None):
+        self.test_parameter = test_parameter
+        super().__init__(model_config=model_config, sampler_config=sampler_config)
+
+    _model_type = "base_test_model"
+    version = "0.1"
+
+    def build_model(self, **kwargs):
+        # This is a simple model for testing BaseModelBuilder
+        with pm.Model() as self.model:
+            # Very simple model to avoid compilation issues
+            pm.Normal("test", 0, 1)
+
+    def build_from_idata(self, idata: az.InferenceData) -> None:
+        self.build_model()
+
+    def create_idata_attrs(self):
+        attrs = super().create_idata_attrs()
+        attrs["test_parameter"] = json.dumps(self.test_parameter)
+        return attrs
+
+    @property
+    def _serializable_model_config(self):
+        return self.model_config
+
+    @property
+    def default_model_config(self) -> dict:
+        return {"mu_loc": 0, "mu_scale": 1, "sigma_scale": 1}
+
+    @property
+    def default_sampler_config(self) -> dict:
+        return {
+            "draws": 1_000,
+            "tune": 1_000,
+            "chains": 3,
+            "target_accept": 0.95,
+        }
+
+    def fit(self, **kwargs):
+        """Override fit method for BaseModelBuilderTest."""
+        if not hasattr(self, "model"):
+            self.build_model()
+
+        sampler_kwargs = create_sample_kwargs(
+            self.sampler_config,
+            kwargs.get("progressbar"),
+            kwargs.get("random_seed"),
+            **kwargs,
+        )
+        with self.model:
+            idata = pm.sample(**sampler_kwargs)
+
+        if self.idata:
+            self.idata = self.idata.copy()
+            self.idata.extend(idata, join="right")
+        else:
+            self.idata = idata
+
+        self.set_idata_attrs(self.idata)
+        return self.idata
+
+
 def test_model_and_sampler_config():
     default = ModelBuilderTest()
     assert default.model_config == default.default_model_config
@@ -180,6 +355,68 @@ def test_model_and_sampler_config():
     assert nondefault.sampler_config != nondefault.default_sampler_config
     assert nondefault.model_config == default.model_config | {"obs_error": 3}
     assert nondefault.sampler_config == default.sampler_config | {"draws": 42}
+
+
+def test_data_model_builder_config():
+    """Test DataModelBuilderTest configuration."""
+    toy_data = pd.DataFrame({"input": [1, 2, 3], "output": [2, 4, 6]})
+    default = DataModelBuilderTest(data=toy_data)
+    assert default.model_config == default.default_model_config
+    assert default.sampler_config == default.default_sampler_config
+    assert default.data.equals(toy_data)
+
+    nondefault = DataModelBuilderTest(
+        data=toy_data, model_config={"obs_error": 3}, sampler_config={"draws": 42}
+    )
+    assert nondefault.model_config != nondefault.default_model_config
+    assert nondefault.sampler_config != default.default_sampler_config
+    assert nondefault.model_config == default.model_config | {"obs_error": 3}
+    assert nondefault.sampler_config == default.sampler_config | {"draws": 42}
+
+
+def test_base_model_builder_config():
+    """Test BaseModelBuilderTest configuration."""
+    default = BaseModelBuilderTest()
+    assert default.model_config == default.default_model_config
+    assert default.sampler_config == default.default_sampler_config
+
+    nondefault = BaseModelBuilderTest(
+        model_config={"mu_loc": 5}, sampler_config={"draws": 42}
+    )
+    assert nondefault.model_config != nondefault.default_model_config
+    assert nondefault.sampler_config != default.default_sampler_config
+    assert nondefault.model_config == default.model_config | {"mu_loc": 5}
+    assert nondefault.sampler_config == default.sampler_config | {"draws": 42}
+
+
+def test_handle_deprecate_pred_argument():
+    """Test the _handle_deprecate_pred_argument utility function."""
+    kwargs = {}
+
+    # Test normal case
+    result = _handle_deprecate_pred_argument("test_value", "test", kwargs)
+    assert result == "test_value"
+
+    # Test deprecated argument
+    kwargs = {"test_pred": "deprecated_value"}
+    with pytest.warns(DeprecationWarning, match="test_pred is deprecated"):
+        result = _handle_deprecate_pred_argument(None, "test", kwargs)
+    assert result == "deprecated_value"
+    assert "test_pred" not in kwargs  # Should be removed
+
+    # Test both arguments provided
+    kwargs = {"test_pred": "deprecated_value"}
+    with pytest.raises(ValueError, match="Both test and test_pred cannot be provided"):
+        _handle_deprecate_pred_argument("test_value", "test", kwargs)
+
+    # Test none allowed (without deprecated argument)
+    kwargs = {}
+    result = _handle_deprecate_pred_argument(None, "test", kwargs, none_allowed=True)
+    assert result is None
+
+    # Test none not allowed
+    with pytest.raises(ValueError, match="Please provide test"):
+        _handle_deprecate_pred_argument(None, "test", kwargs, none_allowed=False)
 
 
 def test_save_input_params(fitted_model_instance):
@@ -210,6 +447,52 @@ def test_save_load(fitted_model_instance):
     temp.close()
 
 
+def test_data_model_builder_save_load(fitted_data_model_instance):
+    """Test save/load functionality for DataModelBuilderTest."""
+    temp = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False)
+    fitted_data_model_instance.save(temp.name)
+
+    test_builder2 = DataModelBuilderTest.load(temp.name)
+
+    assert fitted_data_model_instance.idata.groups() == test_builder2.idata.groups()
+    assert fitted_data_model_instance.id == test_builder2.id
+    assert fitted_data_model_instance.model_config == test_builder2.model_config
+    assert fitted_data_model_instance.sampler_config == test_builder2.sampler_config
+
+    # Handle data comparison - it might be converted to xarray during save/load
+    original_data = fitted_data_model_instance.data
+    loaded_data = test_builder2.data
+
+    # Convert both to xarray for comparison
+    if hasattr(original_data, "to_xarray"):
+        original_xarray = original_data.to_xarray()
+    else:
+        original_xarray = original_data
+
+    if hasattr(loaded_data, "to_xarray"):
+        loaded_xarray = loaded_data.to_xarray()
+    else:
+        loaded_xarray = loaded_data
+
+    assert original_xarray.identical(loaded_xarray)
+
+    temp.close()
+
+
+def test_base_model_builder_save_load(fitted_base_model_instance):
+    """Test save/load functionality for BaseModelBuilderTest."""
+    temp = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False)
+    fitted_base_model_instance.save(temp.name)
+
+    test_builder2 = BaseModelBuilderTest.load(temp.name)
+
+    assert fitted_base_model_instance.idata.groups() == test_builder2.idata.groups()
+    assert fitted_base_model_instance.id == test_builder2.id
+    assert fitted_base_model_instance.model_config == test_builder2.model_config
+    assert fitted_base_model_instance.sampler_config == test_builder2.sampler_config
+    temp.close()
+
+
 def test_initial_build_and_fit(
     fitted_model_instance, check_idata=True
 ) -> RegressionModelBuilder:
@@ -231,6 +514,25 @@ def test_empty_sampler_config_fit(toy_X, toy_y, mock_pymc_sample):
     model_builder.idata = model_builder.fit(
         X=toy_X, y=toy_y, chains=1, draws=100, tune=100
     )
+    assert model_builder.idata is not None
+    assert "posterior" in model_builder.idata.groups()
+
+
+def test_data_model_builder_fit(toy_data, mock_pymc_sample):
+    """Test fitting for DataModelBuilderTest."""
+    sampler_config = {}
+    model_builder = DataModelBuilderTest(data=toy_data, sampler_config=sampler_config)
+    model_builder.idata = model_builder.fit(chains=1, draws=100, tune=100)
+    assert model_builder.idata is not None
+    assert "posterior" in model_builder.idata.groups()
+    assert "fit_data" in model_builder.idata.groups()
+
+
+def test_base_model_builder_fit(mock_pymc_sample):
+    """Test fitting for BaseModelBuilderTest."""
+    sampler_config = {}
+    model_builder = BaseModelBuilderTest(sampler_config=sampler_config)
+    model_builder.idata = model_builder.fit(chains=1, draws=100, tune=100)
     assert model_builder.idata is not None
     assert "posterior" in model_builder.idata.groups()
 
@@ -345,6 +647,65 @@ def test_id():
     ).hexdigest()[:16]
 
     assert model_builder.id == expected_id
+
+
+def test_model_io_functionality():
+    """Test ModelIO mixin functionality."""
+    # Test with different model types
+    regression_model = ModelBuilderTest()
+    data_model = DataModelBuilderTest(data=pd.DataFrame({"input": [1], "output": [2]}))
+    base_model = BaseModelBuilderTest()
+
+    # Test that all have unique IDs
+    ids = [regression_model.id, data_model.id, base_model.id]
+    assert len(set(ids)) == 3
+
+    # Test that all have proper model types
+    assert regression_model._model_type == "test_model"
+    assert data_model._model_type == "data_test_model"
+    assert base_model._model_type == "base_test_model"
+
+    # Test that all have proper versions
+    assert regression_model.version == "0.1"
+    assert data_model.version == "0.1"
+    assert base_model.version == "0.1"
+
+
+def test_model_io_attrs_creation():
+    """Test ModelIO attrs creation functionality."""
+    model = ModelBuilderTest(test_parameter="test_parameter")
+    attrs = model.create_idata_attrs()
+
+    required_keys = {"id", "model_type", "version", "sampler_config", "model_config"}
+    assert all(key in attrs for key in required_keys)
+    assert attrs["model_type"] == "test_model"
+    assert attrs["version"] == "0.1"
+    assert attrs["test_parameter"] == '"test_parameter"'
+
+
+def test_model_io_set_idata_attrs():
+    """Test ModelIO set_idata_attrs functionality."""
+    model = ModelBuilderTest(test_parameter="test_parameter")
+
+    # Create a simple model without complex operations
+    with pm.Model() as simple_model:
+        pm.Normal("test", 0, 1)
+
+    # Create fake idata
+    fake_idata = pm.sample_prior_predictive(
+        draws=10, model=simple_model, random_seed=1234
+    )
+    fake_idata.add_groups(dict(posterior=fake_idata.prior))
+
+    # Test setting attrs
+    result_idata = model.set_idata_attrs(fake_idata)
+    assert result_idata.attrs["id"] == model.id
+    assert result_idata.attrs["model_type"] == model._model_type
+    assert result_idata.attrs["version"] == model.version
+
+    # Test error when no idata provided
+    with pytest.raises(RuntimeError, match="No idata provided to set attrs on"):
+        model.set_idata_attrs(None)
 
 
 @pytest.mark.parametrize("name", ["prior_predictive", "posterior_predictive"])
@@ -476,6 +837,34 @@ def test_insufficient_attrs() -> None:
     match = "__init__ has parameters that are not in the attrs"
     with pytest.raises(ValueError, match=match):
         model.sample_prior_predictive(X=X_pred)
+
+
+def test_abstract_methods():
+    """Test that abstract methods are properly enforced."""
+    # Test that we can't instantiate BaseModelBuilder directly
+    with pytest.raises(TypeError):
+        BaseModelBuilder()
+
+    # Test that we can't instantiate ModelBuilder directly
+    with pytest.raises(TypeError):
+        ModelBuilder(data=None)
+
+    # Test that we can't instantiate RegressionModelBuilder directly
+    with pytest.raises(TypeError):
+        RegressionModelBuilder()
+
+
+def test_requires_model_decorator():
+    """Test the requires_model decorator."""
+    model = ModelBuilderTest()
+
+    # Test that graphviz fails before model is built
+    with pytest.raises(RuntimeError, match="The model hasn't been built yet"):
+        model.graphviz()
+
+    # Test that it works after model is built
+    model.build_model(pd.DataFrame({"input": [1, 2, 3]}), pd.Series([1, 2, 3]))
+    assert isinstance(model.graphviz(), graphviz.graphs.Digraph)
 
 
 def test_incorrect_set_idata_attrs_override() -> None:
@@ -618,6 +1007,43 @@ def test_unmatched_index(toy_X, toy_y) -> None:
     match = "Index of X and y must match"
     with pytest.raises(ValueError, match=match):
         model.fit(toy_X, toy_y)
+
+
+def test_regression_model_builder_data_validation():
+    """Test data validation in RegressionModelBuilder."""
+    model = ModelBuilderTest()
+
+    # Test _validate_data method
+    X = np.array([[1, 2], [3, 4]])
+    y = np.array([1, 2])
+
+    # Test with X and y
+    X_valid, y_valid = model._validate_data(X, y)
+    assert isinstance(X_valid, np.ndarray)
+    assert isinstance(y_valid, np.ndarray)
+
+    # Test with only X
+    X_valid_only = model._validate_data(X)
+    assert isinstance(X_valid_only, np.ndarray)
+
+    # Test with pandas DataFrame and Series
+    X_df = pd.DataFrame(X, columns=["a", "b"])
+    y_series = pd.Series(y)
+    X_valid_df, y_valid_series = model._validate_data(X_df, y_series)
+    assert isinstance(X_valid_df, np.ndarray)
+    assert isinstance(y_valid_series, np.ndarray)
+
+
+def test_regression_model_builder_output_var_conflict(toy_X, toy_y):
+    """Test that RegressionModelBuilder detects output variable conflicts."""
+    model = ModelBuilderTest()
+
+    # Create X with conflicting output variable name
+    X_with_output = toy_X.copy()
+    X_with_output["output"] = toy_y
+
+    with pytest.raises(ValueError, match="X includes a column named 'output'"):
+        model.fit(X_with_output, toy_y)
 
 
 def test_graphviz(toy_X, toy_y):
@@ -809,3 +1235,52 @@ def test_table() -> None:
 
     model.build_model(pd.DataFrame({"input": [1, 2, 3]}), pd.Series([1, 2, 3]))
     assert isinstance(model.table(), Table)
+
+
+def test_idata_accessors():
+    """Test the idata accessor properties."""
+    model = ModelBuilderTest()
+
+    # Test that accessors fail when no idata is available
+    with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
+        model.posterior
+
+    with pytest.raises(RuntimeError, match="The model hasn't been sampled yet"):
+        model.prior
+
+    with pytest.raises(RuntimeError, match="The model hasn't been sampled yet"):
+        model.prior_predictive
+
+    with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
+        model.posterior_predictive
+
+    with pytest.raises(
+        RuntimeError, match="Call the 'sample_posterior_predictive' method"
+    ):
+        model.predictions
+
+    # Test fit_result accessor
+    with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
+        model.fit_result
+
+
+def test_model_config_formatting_edge_cases():
+    """Test edge cases in model config formatting."""
+    model = ModelBuilderTest()
+
+    # Test with empty config
+    empty_config = {}
+    formatted = model._model_config_formatting(empty_config)
+    assert formatted == {}
+
+    # Test with nested dicts but no lists
+    simple_config = {"a": {"b": "c"}}
+    formatted = model._model_config_formatting(simple_config)
+    assert formatted == simple_config
+
+    # Test with mixed types
+    mixed_config = {"a": {"dims": ["x", "y"], "loc": [1, 2], "scale": 10}}
+    formatted = model._model_config_formatting(mixed_config)
+    assert formatted["a"]["dims"] == ("x", "y")
+    assert isinstance(formatted["a"]["loc"], np.ndarray)
+    assert formatted["a"]["scale"] == 10
