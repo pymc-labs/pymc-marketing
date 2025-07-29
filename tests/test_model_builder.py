@@ -858,6 +858,10 @@ def test_requires_model_decorator():
     """Test the requires_model decorator."""
     model = ModelBuilderTest()
 
+    # match = "The model hasn't been built yet"
+    # with pytest.raises(RuntimeError, match=match):
+    #     model.graphviz()
+
     # Test that graphviz fails before model is built
     with pytest.raises(RuntimeError, match="The model hasn't been built yet"):
         model.graphviz()

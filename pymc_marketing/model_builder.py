@@ -600,7 +600,6 @@ class BaseModelBuilder(ABC, ModelIO):
 
         """
 
-    @requires_model
     def graphviz(self, **kwargs):
         """Get the graphviz representation of the model.
 
