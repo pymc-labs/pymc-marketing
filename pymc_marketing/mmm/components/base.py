@@ -88,6 +88,27 @@ class MissingDataParameter(Exception):
         super().__init__(msg)
 
 
+def index_variable(var, dims, idx) -> TensorVariable:
+    """Index a variable based on the provided dimensions and index.
+
+    Parameters
+    ----------
+    var : TensorVariable
+        The variable to index.
+    dims : tuple[str, ...]
+        The dims of the variable.
+    idx : dict[str, pt.TensorLike]
+        The index to use for the variable.
+
+    Returns
+    -------
+    TensorVariable
+        The indexed variable.
+
+    """
+    return var[tuple(idx[dim] if dim in idx else slice(None) for dim in dims)]
+
+
 class Transformation:
     """Base class for adstock and saturation functions.
 
@@ -338,9 +359,18 @@ class Transformation:
         return tuple(list({str(dim): None for dims in parameter_dims for dim in dims}))
 
     def _create_distributions(
-        self, dims: Dims | None = None
+        self,
+        dims: Dims | None = None,
+        idx: dict[str, pt.TensorLike] | None = None,
     ) -> dict[str, TensorVariable]:
-        dim_handler = create_dim_handler(dims or self._infer_output_core_dims())
+        if isinstance(dims, str):
+            dims = (dims,)
+
+        dims = dims or self.combined_dims
+        if idx is not None:
+            dims = ("N", *dims)
+
+        dim_handler = create_dim_handler(dims)
 
         def create_variable(parameter_name: str, variable_name: str) -> TensorVariable:
             dist = self.function_priors[parameter_name]
@@ -348,7 +378,15 @@ class Transformation:
                 return dist
 
             var = dist.create_variable(variable_name)
-            return dim_handler(var, dist.dims)
+
+            dist_dims = dist.dims
+            if idx is not None and any(dim in idx for dim in dist_dims):
+                var = index_variable(var, dist.dims, idx)
+
+                dist_dims = [dim for dim in dist_dims if dim not in idx]
+                dist_dims = ("N", *dist_dims)
+
+            return dim_handler(var, dist_dims)
 
         return {
             parameter_name: create_variable(parameter_name, variable_name)
@@ -566,7 +604,12 @@ class Transformation:
             hdi_kwargs=hdi_kwargs,
         )
 
-    def apply(self, x: pt.TensorLike, dims: Dims | None = None) -> TensorVariable:
+    def apply(
+        self,
+        x: pt.TensorLike,
+        dims: Dims | None = None,
+        idx: dict[str, pt.TensorLike] | None = None,
+    ) -> TensorVariable:
         """Call within a model context.
 
         Used internally of the MMM to apply the transformation to the data.
@@ -599,7 +642,7 @@ class Transformation:
                 transformed_data = transformation.apply(data, dims="channel")
 
         """
-        kwargs = self._create_distributions(dims=dims)
+        kwargs = self._create_distributions(dims=dims, idx=idx)
         return self.function(x, **kwargs)
 
 
