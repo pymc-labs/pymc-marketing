@@ -600,6 +600,7 @@ class BaseModelBuilder(ABC, ModelIO):
 
         """
 
+    @requires_model
     def graphviz(self, **kwargs):
         """Get the graphviz representation of the model.
 
@@ -614,6 +615,23 @@ class BaseModelBuilder(ABC, ModelIO):
 
         """
         return pm.model_to_graphviz(self.model, **kwargs)
+
+    @requires_model
+    def table(self, **model_table_kwargs) -> Table:
+        """Get the summary table of the model.
+
+        Parameters
+        ----------
+        **model_table_kwargs
+            Keyword arguments for the `model_table` function
+
+        Returns
+        -------
+        rich.table.Table
+            A rich table containing the summary of the model.
+
+        """
+        return model_table(self.model, **model_table_kwargs)
 
     @property
     def fit_result(self) -> xr.Dataset:
@@ -750,7 +768,7 @@ class ModelBuilder(BaseModelBuilder):
         Examples
         --------
         >>> model = MyModel()
-        >>> idata = model.fit(X,y)
+        >>> idata = model.fit(X, y)
         Auto-assigning NUTS sampler...
         Initializing NUTS using jitter+adapt_diag...
 
