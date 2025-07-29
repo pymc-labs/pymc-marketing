@@ -529,10 +529,8 @@ def test_adds_date_column_if_missing(dummy_mmm_model):
     # Make sure the column is missing initially
     assert "date" not in df_lift_test.columns
 
-    # patch df with date if missing (simulate your fix)
-    if dummy_mmm_model.time_varying_media and "date" not in df_lift_test.columns:
-        df_lift_test["date"] = pd.to_datetime(
-            [dummy_mmm_model.model_coords["date"][0]] * len(df_lift_test)
-        )
-
+    # Run the method (it should handle date patching internally)
     dummy_mmm_model.add_lift_test_measurements(df_lift_test)
+
+    # Check if the date was added inside the function
+    assert dummy_mmm_model._last_lift_test_df["date"].notna().all()

@@ -2101,6 +2101,9 @@ class MMM(
             # By adding this we make sure the model_coords match
             df_lift_test["date"] = pd.to_datetime(self.model_coords["date"][0])
 
+        # Store df_lift_test for testing purposes
+        self._last_lift_test_df = df_lift_test
+
         df_lift_test_scaled = scale_lift_measurements(
             df_lift_test=df_lift_test,
             channel_col="channel",
