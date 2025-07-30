@@ -19,6 +19,7 @@ import pandas as pd
 import pymc as pm
 import pytest
 from arviz import InferenceData
+from pymc_extras.prior import Prior
 from xarray import DataArray, Dataset
 
 from pymc_marketing.clv.models import (
@@ -27,7 +28,6 @@ from pymc_marketing.clv.models import (
     ModifiedBetaGeoModel,
     ParetoNBDModel,
 )
-from pymc_marketing.prior import Prior
 
 
 def pytest_addoption(parser):

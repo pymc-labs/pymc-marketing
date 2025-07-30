@@ -28,6 +28,7 @@ import pymc as pm
 import pytensor.tensor as pt
 import seaborn as sns
 from pydantic import Field, InstanceOf, validate_call
+from pymc_extras.prior import Prior
 from scipy.optimize import OptimizeResult
 from xarray import DataArray, Dataset
 
@@ -59,7 +60,6 @@ from pymc_marketing.mmm.validating import ValidateControlColumns
 from pymc_marketing.model_builder import _handle_deprecate_pred_argument
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.model_graph import deterministics_to_flat
-from pymc_marketing.prior import Prior
 
 __all__ = ["MMM", "BaseMMM"]
 
@@ -451,7 +451,7 @@ class BaseMMM(BaseValidateMMM):
                 LogisticSaturation
                 MMM,
             )
-            from pymc_marketing.prior import Prior
+            from pymc_extras.prior import Prior
 
             custom_config = {
                 "intercept": Prior("Normal", mu=0, sigma=2),
@@ -980,7 +980,7 @@ class MMM(
             LogisticSaturation
             MMM,
         )
-        from pymc_marketing.prior import Prior
+        from pymc_extras.prior import Prior
 
         my_model_config = {
             "saturation_beta": Prior("LogNormal", mu=np.array([2, 1]), sigma=1),
@@ -2093,6 +2093,16 @@ class MMM(
             raise KeyError(
                 "The 'channel' column is required to map the lift measurements to the model."
             )
+
+        if self.time_varying_media and "date" not in df_lift_test.columns:
+            # `time_varying_media=True` parameter requires the date in the df_lift_test DataFrame.
+            # The `add_lift_test_measurements` method itself doesn't need a date
+            # We need to make sure the `date` coord is present in model_coords
+            # By adding this we make sure the model_coords match
+            df_lift_test["date"] = pd.to_datetime(self.model_coords["date"][0])
+
+        # Store df_lift_test for testing purposes
+        self._last_lift_test_df = df_lift_test
 
         df_lift_test_scaled = scale_lift_measurements(
             df_lift_test=df_lift_test,

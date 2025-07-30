@@ -20,10 +20,10 @@ import pymc as pm
 import pytest
 import xarray as xr
 from lifetimes.fitters.beta_geo_fitter import BetaGeoFitter
+from pymc_extras.prior import Prior
 
 from pymc_marketing.clv.distributions import BetaGeoNBD
 from pymc_marketing.clv.models.beta_geo import BetaGeoModel
-from pymc_marketing.prior import Prior
 from tests.conftest import create_mock_fit, mock_sample, set_model_fit
 
 
@@ -142,22 +142,34 @@ class TestBetaGeoModel:
     def test_missing_cols(self):
         data_invalid = self.data.drop(columns="customer_id")
 
-        with pytest.raises(ValueError, match="Required column customer_id missing"):
+        with pytest.raises(
+            ValueError,
+            match=r"The following required columns are missing from the input data: \['customer_id'\]",
+        ):
             BetaGeoModel(data=data_invalid)
 
         data_invalid = self.data.drop(columns="frequency")
 
-        with pytest.raises(ValueError, match="Required column frequency missing"):
+        with pytest.raises(
+            ValueError,
+            match=r"The following required columns are missing from the input data: \['frequency'\]",
+        ):
             BetaGeoModel(data=data_invalid)
 
         data_invalid = self.data.drop(columns="recency")
 
-        with pytest.raises(ValueError, match="Required column recency missing"):
+        with pytest.raises(
+            ValueError,
+            match=r"The following required columns are missing from the input data: \['recency'\]",
+        ):
             BetaGeoModel(data=data_invalid)
 
         data_invalid = self.data.drop(columns="T")
 
-        with pytest.raises(ValueError, match="Required column T missing"):
+        with pytest.raises(
+            ValueError,
+            match=r"The following required columns are missing from the input data: \['T'\]",
+        ):
             BetaGeoModel(data=data_invalid)
 
     def test_customer_id_duplicate(self):
