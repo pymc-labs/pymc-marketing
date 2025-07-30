@@ -604,7 +604,7 @@ class BaseMMM(BaseValidateMMM):
             )
 
             target_raw = pm.Data(
-                name="target_raw",
+                name="target_data",
                 value=self.preprocessed_data["y"],
                 dims="date",
             )
