@@ -53,6 +53,7 @@ from pymc_marketing.mmm.lift_test import (
 )
 from pymc_marketing.mmm.plot import MMMPlotSuite
 from pymc_marketing.mmm.scaling import Scaling, VariableScaling
+from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
 from pymc_marketing.mmm.tvp import infer_time_index
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
 from pymc_marketing.mmm.utils import (
@@ -1432,6 +1433,28 @@ class MMM(ModelBuilder):
             )
 
         return posterior_predictive_samples
+
+    @property
+    def sensitivity(self) -> SensitivityAnalysis:
+        """Access sensitivity analysis functionality.
+
+        Returns a SensitivityAnalysis instance that can be used to run
+        counterfactual sweeps on the model.
+
+        Returns
+        -------
+        SensitivityAnalysis
+            An instance configured with this MMM model.
+
+        Examples
+        --------
+        >>> mmm.sensitivity.run_sweep(
+        ...     var_names=["channel_1", "channel_2"],
+        ...     sweep_values=np.linspace(0.5, 2.0, 10),
+        ...     sweep_type="multiplicative",
+        ... )
+        """
+        return SensitivityAnalysis(mmm=self)
 
     def _make_channel_transform(
         self, df_lift_test: pd.DataFrame
