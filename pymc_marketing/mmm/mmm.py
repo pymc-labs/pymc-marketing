@@ -1983,12 +1983,34 @@ class MMM(
                 date=slice(self.adstock.l_max, None)
             )
 
+        intercept_condition = (
+            "intercept" in sample_posterior_predictive_kwargs.get("var_names", [])
+            and not self.time_varying_intercept
+        )
+
         if original_scale:
+            # We need to expand the intercept to the date dimension
+            # because the target transformer is applied to the date dimension
+            if intercept_condition:
+                posterior_predictive_samples["intercept"] = (
+                    posterior_predictive_samples["intercept"]
+                    .expand_dims(
+                        dim={"date": posterior_predictive_samples["date"]}, axis=0
+                    )
+                    .rename("intercept")
+                )
+
             posterior_predictive_samples = apply_sklearn_transformer_across_dim(
                 data=posterior_predictive_samples,
                 func=self.get_target_transformer().inverse_transform,
                 dim_name="date",
             )
+
+            # We need to remove the date dimension after the inverse transform
+            if intercept_condition:
+                posterior_predictive_samples["intercept"] = (
+                    posterior_predictive_samples["intercept"].isel(date=0)
+                )
 
         return posterior_predictive_samples
 
