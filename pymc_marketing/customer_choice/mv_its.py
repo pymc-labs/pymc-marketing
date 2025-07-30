@@ -26,6 +26,7 @@ from matplotlib.axes import Axes
 from pymc_extras.prior import Prior
 from xarray import DataArray
 
+from pymc_marketing.mmm.additive_effect import MuEffect
 from pymc_marketing.model_builder import ModelBuilder, create_idata_accessor
 from pymc_marketing.model_config import parse_model_config
 
@@ -68,6 +69,10 @@ class MVITS(ModelBuilder):
 
         model_config = model_config or {}
         model_config = parse_model_config(model_config)
+
+        self.mu_effects: list[MuEffect] = []
+        # extras dims for the likelihood
+        self.dims = ("existing_product",)
 
         super().__init__(model_config=model_config, sampler_config=sampler_config)
 
@@ -264,7 +269,7 @@ class MVITS(ModelBuilder):
         """
         self._generate_and_preprocess_model_data(X, y)  # type: ignore
 
-        with pm.Model(coords=self.coords) as model:
+        with pm.Model(coords=self.coords) as self.model:
             # data
             _existing_sales = pm.Data(
                 "existing_sales",
@@ -276,6 +281,9 @@ class MVITS(ModelBuilder):
                 y if not isinstance(y, pd.Series) else y.values,
                 dims="time",
             )
+
+            for mu_effect in self.mu_effects:
+                mu_effect.create_data(self)
 
             # priors
             intercept = self.model_config["intercept"].create_variable(name="intercept")
@@ -301,11 +309,13 @@ class MVITS(ModelBuilder):
                 pm.Deterministic("new sales", beta_all[-1])
 
             # expectation
-            mu = pm.Deterministic(
-                "mu",
-                intercept[None, :] - y[:, None] * beta[None, :],
-                dims=("time", "existing_product"),
-            )
+
+            mu = intercept[None, :] - y[:, None] * beta[None, :]
+
+            for mu_effect in self.mu_effects:
+                mu += mu_effect.create_effect(self)
+
+            mu = pm.Deterministic("mu", mu, dims=("time", "existing_product"))
 
             # likelihood
             self.model_config["likelihood"].create_likelihood_variable(
@@ -313,8 +323,6 @@ class MVITS(ModelBuilder):
                 mu=mu,
                 observed=_existing_sales,
             )
-
-        self.model = model
 
     def _data_setter(
         self,
