@@ -295,7 +295,7 @@ class ModelIO:
             raise ValueError(msg)
 
         init_parameters: set[str] = set(signature(self.__init__).parameters.keys())  # type: ignore
-        # Remove since this will be stored in the fit_data group of InferenceData
+        # Remove data attr since it will be stored in the fit_data group of InferenceData
         init_parameters -= {"data"}
 
         if missing_keys := init_parameters - attrs_keys:
@@ -472,6 +472,7 @@ class ModelIO:
 
         """
         # needs to be converted, because json.loads was changing tuple to list
+        # TODO: Replace with cls.attrs_to_init_kwargs(idata.attrs)?
         init_kwargs = cls.idata_to_init_kwargs(idata)
 
         with warnings.catch_warnings():
@@ -480,9 +481,22 @@ class ModelIO:
 
         model.idata = idata
         model.build_from_idata(idata)
+        # TODO: Why is this no longer needed for RegressionModelBuilder?
+        # model.post_sample_model_transformation()
 
         if not check:
             return model
+
+        if (model_version := model.version) != (
+            loaded_version := idata.attrs["version"]
+        ):
+            msg = (
+                f"The model version ({loaded_version}) in the InferenceData does not "
+                f"match the model version ({model_version}). "
+                "There was no error loading the inference data, but the model structure "
+                "is different. "
+            )
+            raise DifferentModelError(msg)
 
         if model.id != idata.attrs["id"]:
             msg = (
@@ -600,6 +614,7 @@ class BaseModelBuilder(ABC, ModelIO):
 
         """
 
+    @requires_model
     def graphviz(self, **kwargs):
         """Get the graphviz representation of the model.
 

@@ -64,7 +64,7 @@ def fitted_model_instance(toy_X, toy_y, mock_pymc_sample):
         "b": {"loc": 0, "scale": 10},
         "obs_error": 2,
     }
-    model = ModelBuilderTest(
+    model = RegressionModelBuilderTest(
         model_config=model_config,
         sampler_config=sampler_config,
         test_parameter="test_parameter",
@@ -87,7 +87,7 @@ def not_fitted_model_instance():
         "b": {"loc": 0, "scale": 10},
         "obs_error": 2,
     }
-    return ModelBuilderTest(
+    return RegressionModelBuilderTest(
         model_config=model_config,
         sampler_config=sampler_config,
         test_parameter="test_paramter",
@@ -96,7 +96,7 @@ def not_fitted_model_instance():
 
 @pytest.fixture(scope="module")
 def toy_data(toy_X, toy_y):
-    """Create a combined dataset for DataModelBuilderTest."""
+    """Create a combined dataset for DataRegressionModelBuilderTest."""
     data = toy_X.copy()
     data["output"] = toy_y
     return data
@@ -115,7 +115,7 @@ def fitted_data_model_instance(toy_data, mock_pymc_sample):
         "b": {"loc": 0, "scale": 10},
         "obs_error": 2,
     }
-    model = DataModelBuilderTest(
+    model = DataRegressionModelBuilderTest(
         data=toy_data,
         model_config=model_config,
         sampler_config=sampler_config,
@@ -142,7 +142,7 @@ def fitted_base_model_instance(mock_pymc_sample):
         "mu_scale": 1,
         "sigma_scale": 1,
     }
-    model = BaseModelBuilderTest(
+    model = BaseRegressionModelBuilderTest(
         model_config=model_config,
         sampler_config=sampler_config,
         test_parameter="test_parameter",
@@ -155,7 +155,9 @@ def fitted_base_model_instance(mock_pymc_sample):
     return model
 
 
-class ModelBuilderTest(RegressionModelBuilder):
+class RegressionModelBuilderTest(RegressionModelBuilder):
+    """Test class for RegressionModelBuilder that only takes model and sampler configs at initialization."""
+
     def __init__(self, model_config=None, sampler_config=None, test_parameter=None):
         self.test_parameter = test_parameter
         super().__init__(model_config=model_config, sampler_config=sampler_config)
@@ -165,8 +167,6 @@ class ModelBuilderTest(RegressionModelBuilder):
 
     def build_model(self, X: pd.DataFrame, y: pd.Series):
         coords = {"numbers": np.arange(len(X))}
-
-        y = y if isinstance(y, np.ndarray) else y.values
 
         with pm.Model(coords=coords) as self.model:
             x = pm.Data("x", X["input"].values)
@@ -231,8 +231,8 @@ class ModelBuilderTest(RegressionModelBuilder):
         }
 
 
-class DataModelBuilderTest(ModelBuilder):
-    """Test class for ModelBuilder that takes data at initialization."""
+class DataRegressionModelBuilderTest(ModelBuilder):
+    """Test class for ModelBuilder that also takes data at initialization."""
 
     def __init__(
         self, data, model_config=None, sampler_config=None, test_parameter=None
@@ -278,7 +278,7 @@ class DataModelBuilderTest(ModelBuilder):
         }
 
 
-class BaseModelBuilderTest(BaseModelBuilder):
+class BaseRegressionModelBuilderTest(BaseModelBuilder):
     """Test class for BaseModelBuilder."""
 
     def __init__(self, model_config=None, sampler_config=None, test_parameter=None):
@@ -320,7 +320,7 @@ class BaseModelBuilderTest(BaseModelBuilder):
         }
 
     def fit(self, **kwargs):
-        """Override fit method for BaseModelBuilderTest."""
+        """Override fit method for BaseRegressionModelBuilderTest."""
         if not hasattr(self, "model"):
             self.build_model()
 
@@ -344,11 +344,11 @@ class BaseModelBuilderTest(BaseModelBuilder):
 
 
 def test_model_and_sampler_config():
-    default = ModelBuilderTest()
+    default = RegressionModelBuilderTest()
     assert default.model_config == default.default_model_config
     assert default.sampler_config == default.default_sampler_config
 
-    nondefault = ModelBuilderTest(
+    nondefault = RegressionModelBuilderTest(
         model_config={"obs_error": 3}, sampler_config={"draws": 42}
     )
     assert nondefault.model_config != nondefault.default_model_config
@@ -358,14 +358,14 @@ def test_model_and_sampler_config():
 
 
 def test_data_model_builder_config():
-    """Test DataModelBuilderTest configuration."""
+    """Test DataRegressionModelBuilderTest configuration."""
     toy_data = pd.DataFrame({"input": [1, 2, 3], "output": [2, 4, 6]})
-    default = DataModelBuilderTest(data=toy_data)
+    default = DataRegressionModelBuilderTest(data=toy_data)
     assert default.model_config == default.default_model_config
     assert default.sampler_config == default.default_sampler_config
     assert default.data.equals(toy_data)
 
-    nondefault = DataModelBuilderTest(
+    nondefault = DataRegressionModelBuilderTest(
         data=toy_data, model_config={"obs_error": 3}, sampler_config={"draws": 42}
     )
     assert nondefault.model_config != nondefault.default_model_config
@@ -375,12 +375,12 @@ def test_data_model_builder_config():
 
 
 def test_base_model_builder_config():
-    """Test BaseModelBuilderTest configuration."""
-    default = BaseModelBuilderTest()
+    """Test BaseRegressionModelBuilderTest configuration."""
+    default = BaseRegressionModelBuilderTest()
     assert default.model_config == default.default_model_config
     assert default.sampler_config == default.default_sampler_config
 
-    nondefault = BaseModelBuilderTest(
+    nondefault = BaseRegressionModelBuilderTest(
         model_config={"mu_loc": 5}, sampler_config={"draws": 42}
     )
     assert nondefault.model_config != nondefault.default_model_config
@@ -432,7 +432,7 @@ def test_save_load(fitted_model_instance):
     temp = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False)
     fitted_model_instance.save(temp.name)
 
-    test_builder2 = ModelBuilderTest.load(temp.name)
+    test_builder2 = RegressionModelBuilderTest.load(temp.name)
 
     assert fitted_model_instance.idata.groups() == test_builder2.idata.groups()
     assert fitted_model_instance.id == test_builder2.id
@@ -448,11 +448,11 @@ def test_save_load(fitted_model_instance):
 
 
 def test_data_model_builder_save_load(fitted_data_model_instance):
-    """Test save/load functionality for DataModelBuilderTest."""
+    """Test save/load functionality for DataRegressionModelBuilderTest."""
     temp = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False)
     fitted_data_model_instance.save(temp.name)
 
-    test_builder2 = DataModelBuilderTest.load(temp.name)
+    test_builder2 = DataRegressionModelBuilderTest.load(temp.name)
 
     assert fitted_data_model_instance.idata.groups() == test_builder2.idata.groups()
     assert fitted_data_model_instance.id == test_builder2.id
@@ -480,11 +480,11 @@ def test_data_model_builder_save_load(fitted_data_model_instance):
 
 
 def test_base_model_builder_save_load(fitted_base_model_instance):
-    """Test save/load functionality for BaseModelBuilderTest."""
+    """Test save/load functionality for BaseRegressionModelBuilderTest."""
     temp = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False)
     fitted_base_model_instance.save(temp.name)
 
-    test_builder2 = BaseModelBuilderTest.load(temp.name)
+    test_builder2 = BaseRegressionModelBuilderTest.load(temp.name)
 
     assert fitted_base_model_instance.idata.groups() == test_builder2.idata.groups()
     assert fitted_base_model_instance.id == test_builder2.id
@@ -502,7 +502,7 @@ def test_initial_build_and_fit(
 
 
 def test_save_without_fit_raises_runtime_error():
-    model_builder = ModelBuilderTest()
+    model_builder = RegressionModelBuilderTest()
     match = "The model hasn't been fit yet"
     with pytest.raises(RuntimeError, match=match):
         model_builder.save("saved_model")
@@ -510,7 +510,7 @@ def test_save_without_fit_raises_runtime_error():
 
 def test_empty_sampler_config_fit(toy_X, toy_y, mock_pymc_sample):
     sampler_config = {}
-    model_builder = ModelBuilderTest(sampler_config=sampler_config)
+    model_builder = RegressionModelBuilderTest(sampler_config=sampler_config)
     model_builder.idata = model_builder.fit(
         X=toy_X, y=toy_y, chains=1, draws=100, tune=100
     )
@@ -519,9 +519,11 @@ def test_empty_sampler_config_fit(toy_X, toy_y, mock_pymc_sample):
 
 
 def test_data_model_builder_fit(toy_data, mock_pymc_sample):
-    """Test fitting for DataModelBuilderTest."""
+    """Test fitting for DataRegressionModelBuilderTest."""
     sampler_config = {}
-    model_builder = DataModelBuilderTest(data=toy_data, sampler_config=sampler_config)
+    model_builder = DataRegressionModelBuilderTest(
+        data=toy_data, sampler_config=sampler_config
+    )
     model_builder.idata = model_builder.fit(chains=1, draws=100, tune=100)
     assert model_builder.idata is not None
     assert "posterior" in model_builder.idata.groups()
@@ -529,9 +531,9 @@ def test_data_model_builder_fit(toy_data, mock_pymc_sample):
 
 
 def test_base_model_builder_fit(mock_pymc_sample):
-    """Test fitting for BaseModelBuilderTest."""
+    """Test fitting for BaseRegressionModelBuilderTest."""
     sampler_config = {}
-    model_builder = BaseModelBuilderTest(sampler_config=sampler_config)
+    model_builder = BaseRegressionModelBuilderTest(sampler_config=sampler_config)
     model_builder.idata = model_builder.fit(chains=1, draws=100, tune=100)
     assert model_builder.idata is not None
     assert "posterior" in model_builder.idata.groups()
@@ -555,7 +557,7 @@ def test_fit(fitted_model_instance):
 
 
 def test_fit_no_t(toy_X, mock_pymc_sample):
-    model_builder = ModelBuilderTest()
+    model_builder = RegressionModelBuilderTest()
     model_builder.idata = model_builder.fit(X=toy_X, chains=1, draws=100, tune=100)
     assert model_builder.model is not None
     assert model_builder.idata is not None
@@ -564,7 +566,7 @@ def test_fit_no_t(toy_X, mock_pymc_sample):
 
 def test_fit_dup_Y(toy_X, toy_y):
     toy_X = pd.concat((toy_X, toy_y), axis=1)
-    model_builder = ModelBuilderTest()
+    model_builder = RegressionModelBuilderTest()
 
     with pytest.raises(
         ValueError,
@@ -574,13 +576,13 @@ def test_fit_dup_Y(toy_X, toy_y):
 
 
 def test_fit_result_error():
-    model = ModelBuilderTest()
+    model = RegressionModelBuilderTest()
     with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
         model.fit_result
 
 
 def test_set_fit_result(toy_X, toy_y):
-    model = ModelBuilderTest()
+    model = RegressionModelBuilderTest()
     model.build_model(X=toy_X, y=toy_y)
     model.idata = None
     fake_fit = pm.sample_prior_predictive(draws=50, model=model.model, random_seed=1234)
@@ -632,14 +634,14 @@ def test_model_config_formatting():
             ],
         },
     }
-    model_builder = ModelBuilderTest()
+    model_builder = RegressionModelBuilderTest()
     converted_model_config = model_builder._model_config_formatting(model_config)
     np.testing.assert_equal(converted_model_config["a"]["dims"], ("x",))
     np.testing.assert_equal(converted_model_config["a"]["loc"], np.array([0, 0]))
 
 
 def test_id():
-    model_builder = ModelBuilderTest()
+    model_builder = RegressionModelBuilderTest()
     expected_id = hashlib.sha256(
         str(model_builder.model_config.values()).encode()
         + model_builder.version.encode()
@@ -652,9 +654,11 @@ def test_id():
 def test_model_io_functionality():
     """Test ModelIO mixin functionality."""
     # Test with different model types
-    regression_model = ModelBuilderTest()
-    data_model = DataModelBuilderTest(data=pd.DataFrame({"input": [1], "output": [2]}))
-    base_model = BaseModelBuilderTest()
+    regression_model = RegressionModelBuilderTest()
+    data_model = DataRegressionModelBuilderTest(
+        data=pd.DataFrame({"input": [1], "output": [2]})
+    )
+    base_model = BaseRegressionModelBuilderTest()
 
     # Test that all have unique IDs
     ids = [regression_model.id, data_model.id, base_model.id]
@@ -673,7 +677,7 @@ def test_model_io_functionality():
 
 def test_model_io_attrs_creation():
     """Test ModelIO attrs creation functionality."""
-    model = ModelBuilderTest(test_parameter="test_parameter")
+    model = RegressionModelBuilderTest(test_parameter="test_parameter")
     attrs = model.create_idata_attrs()
 
     required_keys = {"id", "model_type", "version", "sampler_config", "model_config"}
@@ -685,7 +689,7 @@ def test_model_io_attrs_creation():
 
 def test_model_io_set_idata_attrs():
     """Test ModelIO set_idata_attrs functionality."""
-    model = ModelBuilderTest(test_parameter="test_parameter")
+    model = RegressionModelBuilderTest(test_parameter="test_parameter")
 
     # Create a simple model without complex operations
     with pm.Model() as simple_model:
@@ -747,8 +751,8 @@ def test_prediction_kwarg(fitted_model_instance, toy_X):
 
 
 @pytest.fixture(scope="module")
-def model_with_prior_predictive(toy_X) -> ModelBuilderTest:
-    model = ModelBuilderTest()
+def model_with_prior_predictive(toy_X) -> RegressionModelBuilderTest:
+    model = RegressionModelBuilderTest()
     model.sample_prior_predictive(toy_X)
     return model
 
@@ -779,7 +783,7 @@ def test_fit_after_prior_keeps_prior(
 
 
 def test_second_fit(toy_X, toy_y, mock_pymc_sample):
-    model = ModelBuilderTest()
+    model = RegressionModelBuilderTest()
 
     model.fit(X=toy_X, y=toy_y, chains=1, draws=100, tune=100)
     assert "posterior" in model.idata
@@ -828,6 +832,13 @@ class InsufficientModel(RegressionModelBuilder):
     def _serializable_model_config(self) -> dict[str, int | float | dict]:
         return {}
 
+    def _data_setter(
+        self,
+        X,
+        y,
+    ) -> None:
+        pass
+
 
 def test_insufficient_attrs() -> None:
     model = InsufficientModel()
@@ -856,11 +867,7 @@ def test_abstract_methods():
 
 def test_requires_model_decorator():
     """Test the requires_model decorator."""
-    model = ModelBuilderTest()
-
-    # match = "The model hasn't been built yet"
-    # with pytest.raises(RuntimeError, match=match):
-    #     model.graphviz()
+    model = RegressionModelBuilderTest()
 
     # Test that graphviz fails before model is built
     with pytest.raises(RuntimeError, match="The model hasn't been built yet"):
@@ -963,7 +970,7 @@ def test_fit_random_seed_reproducibility(toy_X, toy_y, create_random_seed) -> No
         "draws": 10,
         "tune": 5,
     }
-    model = ModelBuilderTest(sampler_config=sampler_config)
+    model = RegressionModelBuilderTest(sampler_config=sampler_config)
 
     idata = model.fit(toy_X, toy_y, random_seed=create_random_seed())
     idata2 = model.fit(toy_X, toy_y, random_seed=create_random_seed())
@@ -982,7 +989,7 @@ def test_fit_sampler_config_seed_reproducibility(toy_X, toy_y) -> None:
         "tune": 5,
         "random_seed": 42,
     }
-    model = ModelBuilderTest(sampler_config=sampler_config)
+    model = RegressionModelBuilderTest(sampler_config=sampler_config)
 
     idata = model.fit(toy_X, toy_y)
     idata2 = model.fit(toy_X, toy_y)
@@ -997,7 +1004,7 @@ def test_fit_sampler_config_with_rng_fails(toy_X, toy_y, mock_pymc_sample) -> No
         "tune": 5,
         "random_seed": np.random.default_rng(42),
     }
-    model = ModelBuilderTest(sampler_config=sampler_config)
+    model = RegressionModelBuilderTest(sampler_config=sampler_config)
 
     match = "Object of type Generator is not JSON serializable"
     with pytest.raises(TypeError, match=match):
@@ -1005,7 +1012,7 @@ def test_fit_sampler_config_with_rng_fails(toy_X, toy_y, mock_pymc_sample) -> No
 
 
 def test_unmatched_index(toy_X, toy_y) -> None:
-    model = ModelBuilderTest()
+    model = RegressionModelBuilderTest()
     toy_X = toy_X.copy()
     toy_X.index = toy_X.index + 1
     match = "Index of X and y must match"
@@ -1015,7 +1022,7 @@ def test_unmatched_index(toy_X, toy_y) -> None:
 
 def test_regression_model_builder_data_validation():
     """Test data validation in RegressionModelBuilder."""
-    model = ModelBuilderTest()
+    model = RegressionModelBuilderTest()
 
     # Test _validate_data method
     X = np.array([[1, 2], [3, 4]])
@@ -1040,7 +1047,7 @@ def test_regression_model_builder_data_validation():
 
 def test_regression_model_builder_output_var_conflict(toy_X, toy_y):
     """Test that RegressionModelBuilder detects output variable conflicts."""
-    model = ModelBuilderTest()
+    model = RegressionModelBuilderTest()
 
     # Create X with conflicting output variable name
     X_with_output = toy_X.copy()
@@ -1052,11 +1059,10 @@ def test_regression_model_builder_output_var_conflict(toy_X, toy_y):
 
 def test_graphviz(toy_X, toy_y):
     """Test pymc.graphviz utility on model before and after being built"""
-    model = ModelBuilderTest()
+    model = RegressionModelBuilderTest()
 
-    with pytest.raises(
-        AttributeError, match="'ModelBuilderTest' object has no attribute 'model'"
-    ):
+    # Test that graphviz fails before model is built
+    with pytest.raises(RuntimeError, match="The model hasn't been built yet"):
         model.graphviz()
 
     model.build_model(X=toy_X, y=toy_y)
@@ -1205,6 +1211,7 @@ def stale_idata(fitted_model_instance) -> az.InferenceData:
 @pytest.fixture(scope="module")
 def different_configuration_idata(fitted_model_instance) -> az.InferenceData:
     idata = fitted_model_instance.idata.copy()
+
     model_config = json.loads(idata.attrs["model_config"])
     model_config["a"] = {"loc": 1, "scale": 15, "dims": ("numbers",)}
     idata.attrs["model_config"] = json.dumps(model_config)
@@ -1228,11 +1235,11 @@ def different_configuration_idata(fitted_model_instance) -> az.InferenceData:
 def test_load_from_idata_errors(request, fixture_name, match) -> None:
     idata = request.getfixturevalue(fixture_name)
     with pytest.raises(DifferentModelError, match=match):
-        ModelBuilderTest.load_from_idata(idata)
+        RegressionModelBuilderTest.load_from_idata(idata, check=True)
 
 
 def test_table() -> None:
-    model = ModelBuilderTest()
+    model = RegressionModelBuilderTest()
     match = "The model hasn't been built yet"
     with pytest.raises(RuntimeError, match=match):
         model.table()
@@ -1243,7 +1250,7 @@ def test_table() -> None:
 
 def test_idata_accessors():
     """Test the idata accessor properties."""
-    model = ModelBuilderTest()
+    model = RegressionModelBuilderTest()
 
     # Test that accessors fail when no idata is available
     with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
@@ -1270,7 +1277,7 @@ def test_idata_accessors():
 
 def test_model_config_formatting_edge_cases():
     """Test edge cases in model config formatting."""
-    model = ModelBuilderTest()
+    model = RegressionModelBuilderTest()
 
     # Test with empty config
     empty_config = {}
