@@ -28,7 +28,7 @@ from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.mmm.utils import create_index
 
 
-class MMM(Protocol):
+class Model(Protocol):
     """Protocol MMM."""
 
     @property
@@ -43,30 +43,34 @@ class MMM(Protocol):
 class MuEffect(Protocol):
     """Protocol for arbitrary additive mu effect."""
 
-    def create_data(self, mmm: MMM) -> None:
+    def create_data(self, mmm: Model) -> None:
         """Create the required data in the model."""
 
-    def create_effect(self, mmm: MMM) -> pt.TensorVariable:
+    def create_effect(self, mmm: Model) -> pt.TensorVariable:
         """Create the additive effect in the model."""
 
-    def set_data(self, mmm: MMM, model: pm.Model, X: xr.Dataset) -> None:
+    def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
         """Set the data for new predictions."""
 
 
 class FourierEffect:
     """Fourier seasonality additive effect for MMM."""
 
-    def __init__(self, fourier: FourierBase):
+    def __init__(self, fourier: FourierBase, date_dim_name: str = "date"):
         """Initialize the Fourier effect.
 
         Parameters
         ----------
         fourier : FourierBase
+            The FourierBase instance to use for the effect.
+        date_dim_name : str, optional
+            The name of the date dimension in the model, by default "date".
 
         """
         self.fourier = fourier
+        self.date_dim_name: str = date_dim_name
 
-    def create_data(self, mmm: MMM) -> None:
+    def create_data(self, mmm: Model) -> None:
         """Create the required data in the model.
 
         Parameters
@@ -77,16 +81,16 @@ class FourierEffect:
         model = mmm.model
 
         # Get dates from model coordinates
-        dates = pd.to_datetime(model.coords["date"])
+        dates = pd.to_datetime(model.coords[self.date_dim_name])
 
         # Add weekday data to the model
         pm.Data(
             f"{self.fourier.prefix}_day",
             self.fourier._get_days_in_period(dates).to_numpy(),
-            dims="date",
+            dims=self.date_dim_name,
         )
 
-    def create_effect(self, mmm: MMM) -> pt.TensorVariable:
+    def create_effect(self, mmm: Model) -> pt.TensorVariable:
         """Create the Fourier effect in the model.
 
         Parameters
@@ -107,7 +111,7 @@ class FourierEffect:
 
         # Create a deterministic variable for the effect
         dims = (dim for dim in mmm.dims if dim in self.fourier.prior.dims)
-        fourier_dims = ("date", *dims)
+        fourier_dims = (self.date_dim_name, *dims)
         fourier_effect_det = pm.Deterministic(
             f"{self.fourier.prefix}_effect",
             fourier_effect,
@@ -115,10 +119,10 @@ class FourierEffect:
         )
 
         # Handle dimensions for the MMM model
-        dim_handler = create_dim_handler(("date", *mmm.dims))
+        dim_handler = create_dim_handler((self.date_dim_name, *mmm.dims))
         return dim_handler(fourier_effect_det, fourier_dims)
 
-    def set_data(self, mmm: MMM, model: pm.Model, X: xr.Dataset) -> None:
+    def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
         """Set the data for new predictions.
 
         Parameters
@@ -131,7 +135,7 @@ class FourierEffect:
             The dataset for prediction
         """
         # Get dates from the new dataset
-        new_dates = pd.to_datetime(model.coords["date"])
+        new_dates = pd.to_datetime(model.coords[self.date_dim_name])
 
         # Update the data
         new_data = {
@@ -243,12 +247,13 @@ class LinearTrendEffect:
 
     """
 
-    def __init__(self, trend: LinearTrend, prefix: str):
+    def __init__(self, trend: LinearTrend, prefix: str, date_dim_name: str = "date"):
         self.trend = trend
         self.prefix = prefix
         self.linear_trend_first_date: pd.Timestamp
+        self.date_dim_name: str = date_dim_name
 
-    def create_data(self, mmm: MMM) -> None:
+    def create_data(self, mmm: Model) -> None:
         """Create the required data in the model.
 
         Parameters
@@ -259,13 +264,13 @@ class LinearTrendEffect:
         model: pm.Model = mmm.model
 
         # Create time index data (normalized between 0 and 1)
-        dates = pd.to_datetime(model.coords["date"])
+        dates = pd.to_datetime(model.coords[self.date_dim_name])
         self.linear_trend_first_date = dates[0]
         t = (dates - self.linear_trend_first_date).days.astype(float)
 
-        pm.Data(f"{self.prefix}_t", t, dims="date")
+        pm.Data(f"{self.prefix}_t", t, dims=self.date_dim_name)
 
-    def create_effect(self, mmm: MMM) -> pt.TensorVariable:
+    def create_effect(self, mmm: Model) -> pt.TensorVariable:
         """Create the trend effect in the model.
 
         Parameters
@@ -289,8 +294,11 @@ class LinearTrendEffect:
         trend_effect = self.trend.apply(t)
 
         # Create deterministic for the trend effect
-        trend_dims = ("date", *self.trend.dims)  # type: ignore
-        trend_non_broadcastable_dims = ("date", *self.trend.non_broadcastable_dims)
+        trend_dims = (self.date_dim_name, *self.trend.dims)  # type: ignore
+        trend_non_broadcastable_dims = (
+            self.date_dim_name,
+            *self.trend.non_broadcastable_dims,
+        )
         trend_effect = pm.Deterministic(
             f"{self.prefix}_effect_contribution",
             trend_effect[create_index(trend_dims, trend_non_broadcastable_dims)],
@@ -298,10 +306,10 @@ class LinearTrendEffect:
         )
 
         # Return the trend effect
-        dim_handler = create_dim_handler(("date", *mmm.dims))
+        dim_handler = create_dim_handler((self.date_dim_name, *mmm.dims))
         return dim_handler(trend_effect, trend_non_broadcastable_dims)
 
-    def set_data(self, mmm: MMM, model: pm.Model, X: xr.Dataset) -> None:
+    def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
         """Set the data for new predictions.
 
         Parameters
@@ -314,7 +322,7 @@ class LinearTrendEffect:
             The dataset for prediction.
         """
         # Create normalized time index for new data
-        new_dates = pd.to_datetime(model.coords["date"])
+        new_dates = pd.to_datetime(model.coords[self.date_dim_name])
         t = (new_dates - self.linear_trend_first_date).days.astype(float)
 
         # Update the data
@@ -338,6 +346,8 @@ class EventAdditiveEffect(BaseModel):
     reference_date : str
         The arbitrary reference date to calculate distance from events in days. Default
         is "2025-01-01".
+    date_dim_name : str
+        The name of the date dimension in the model. Default is "date".
 
     """
 
@@ -345,6 +355,7 @@ class EventAdditiveEffect(BaseModel):
     prefix: str
     effect: EventEffect
     reference_date: str = "2025-01-01"
+    date_dim_name: str = "date"
 
     def model_post_init(self, context: Any, /) -> None:
         """Post initialization of the model."""
@@ -365,7 +376,7 @@ class EventAdditiveEffect(BaseModel):
         """The end dates of the events."""
         return pd.to_datetime(self.df_events["end_date"])
 
-    def create_data(self, mmm: MMM) -> None:
+    def create_data(self, mmm: Model) -> None:
         """Create the required data in the model.
 
         Parameters
@@ -376,7 +387,7 @@ class EventAdditiveEffect(BaseModel):
         """
         model: pm.Model = mmm.model
 
-        model_dates = pd.to_datetime(model.coords["date"])
+        model_dates = pd.to_datetime(model.coords[self.date_dim_name])
 
         model.add_coord(self.prefix, self.df_events["name"].to_numpy())
 
@@ -384,7 +395,7 @@ class EventAdditiveEffect(BaseModel):
             pm.Data(
                 "days",
                 days_from_reference(model_dates, self.reference_date),
-                dims="date",
+                dims=self.date_dim_name,
             )
 
         pm.Data(
@@ -398,7 +409,7 @@ class EventAdditiveEffect(BaseModel):
             dims=self.prefix,
         )
 
-    def create_effect(self, mmm: MMM) -> pt.TensorVariable:
+    def create_effect(self, mmm: Model) -> pt.TensorVariable:
         """Create the event effect in the model.
 
         Parameters
@@ -430,15 +441,15 @@ class EventAdditiveEffect(BaseModel):
         total_effect = pm.Deterministic(
             f"{self.prefix}_total_effect",
             event_effect.sum(axis=1),
-            dims="date",
+            dims=self.date_dim_name,
         )
 
-        dim_handler = create_dim_handler(("date", *mmm.dims))
-        return dim_handler(total_effect, "date")
+        dim_handler = create_dim_handler((self.date_dim_name, *mmm.dims))
+        return dim_handler(total_effect, self.date_dim_name)
 
-    def set_data(self, mmm: MMM, model: pm.Model, X: xr.Dataset) -> None:
+    def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
         """Set the data for new predictions."""
-        new_dates = pd.to_datetime(model.coords["date"])
+        new_dates = pd.to_datetime(model.coords[self.date_dim_name])
 
         new_data = {
             "days": days_from_reference(new_dates, self.reference_date),

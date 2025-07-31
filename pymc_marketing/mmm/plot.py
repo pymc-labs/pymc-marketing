@@ -1243,3 +1243,115 @@ class MMMPlotSuite:
 
         fig.tight_layout()
         return fig, axes
+
+    def plot_sensitivity_analysis(
+        self,
+        hdi_prob: float = 0.94,
+        ax: plt.Axes | None = None,
+        marginal: bool = False,
+        percentage: bool = False,
+    ) -> plt.Axes:
+        """
+        Plot the counterfactual uplift or marginal effects curve.
+
+        Parameters
+        ----------
+        results : xr.Dataset
+            The dataset containing the results of the sweep.
+        hdi_prob : float, optional
+            The probability for computing the highest density interval (HDI). Default is 0.94.
+        ax : Optional[plt.Axes], optional
+            An optional matplotlib Axes on which to plot. If None, a new Axes is created.
+        marginal : bool, optional
+            If True, plot marginal effects. If False (default), plot uplift.
+        percentage : bool, optional
+            If True, plot the results on the y-axis as percentages, instead of absolute
+            values. Default is False.
+
+        Returns
+        -------
+        plt.Axes
+            The Axes object with the plot.
+        """
+        if ax is None:
+            _, ax = plt.subplots(figsize=(10, 6))
+
+        if percentage and marginal:
+            raise ValueError("Not implemented marginal effects in percentage scale.")
+
+        # Check if sensitivity analysis results exist in idata
+        if not hasattr(self.idata, "sensitivity_analysis"):
+            raise ValueError(
+                "No sensitivity analysis results found in 'self.idata'. "
+                "Please run the sensitivity analysis first using 'mmm.sensitivity.run_sweep()' method."
+            )
+
+        # grab sensitivity analysis results from idata
+        results = self.idata.sensitivity_analysis
+
+        x = results.sweep.values
+        if marginal:
+            y = results.marginal_effects.mean(dim=["chain", "draw"]).sum(dim="date")
+            y_hdi = results.marginal_effects.sum(dim="date")
+            color = "C1"
+            label = "Posterior mean marginal effect"
+            title = "Marginal effects plot"
+            ylabel = r"Marginal effect, $\frac{d\mathbb{E}[Y]}{dX}$"
+        else:
+            if percentage:
+                actual = self.idata.posterior_predictive["y"]
+                y = results.y.mean(dim=["chain", "draw"]).sum(dim="date") / actual.mean(
+                    dim=["chain", "draw"]
+                ).sum(dim="date")
+                y_hdi = results.y.sum(dim="date") / actual.sum(dim="date")
+            else:
+                y = results.y.mean(dim=["chain", "draw"]).sum(dim="date")
+                y_hdi = results.y.sum(dim="date")
+            color = "C0"
+            label = "Posterior mean"
+            title = "Sensitivity analysis plot"
+            ylabel = "Total uplift (sum over dates)"
+
+        ax.plot(x, y, label=label, color=color)
+
+        az.plot_hdi(
+            x,
+            y_hdi,
+            hdi_prob=hdi_prob,
+            color=color,
+            fill_kwargs={"alpha": 0.5, "label": f"{hdi_prob * 100:.0f}% HDI"},
+            plot_kwargs={"color": color, "alpha": 0.5},
+            smooth=False,
+            ax=ax,
+        )
+
+        ax.set(title=title)
+        if results.sweep_type == "absolute":
+            ax.set_xlabel(f"Absolute value of: {results.var_names}")
+        else:
+            ax.set_xlabel(
+                f"{results.sweep_type.capitalize()} change of: {results.var_names}"
+            )
+        ax.set_ylabel(ylabel)
+        plt.legend()
+
+        # Set y-axis limits based on the sign of y values
+        y_values = y.values if hasattr(y, "values") else np.array(y)
+        if np.all(y_values < 0):
+            ax.set_ylim(top=0)
+        elif np.all(y_values > 0):
+            ax.set_ylim(bottom=0)
+
+        ax.yaxis.set_major_formatter(
+            plt.FuncFormatter(lambda x, _: f"{x:.1%}" if percentage else f"{x:,.1f}")
+        )
+
+        # Add reference lines
+        if results.sweep_type == "multiplicative":
+            ax.axvline(x=1, color="k", linestyle="--", alpha=0.5)
+            if not marginal:
+                ax.axhline(y=0, color="k", linestyle="--", alpha=0.5)
+        elif results.sweep_type == "additive":
+            ax.axvline(x=0, color="k", linestyle="--", alpha=0.5)
+
+        return ax

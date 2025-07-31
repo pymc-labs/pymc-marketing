@@ -1983,12 +1983,34 @@ class MMM(
                 date=slice(self.adstock.l_max, None)
             )
 
+        intercept_condition = (
+            "intercept" in sample_posterior_predictive_kwargs.get("var_names", [])
+            and not self.time_varying_intercept
+        )
+
         if original_scale:
+            # We need to expand the intercept to the date dimension
+            # because the target transformer is applied to the date dimension
+            if intercept_condition:
+                posterior_predictive_samples["intercept"] = (
+                    posterior_predictive_samples["intercept"]
+                    .expand_dims(
+                        dim={"date": posterior_predictive_samples["date"]}, axis=0
+                    )
+                    .rename("intercept")
+                )
+
             posterior_predictive_samples = apply_sklearn_transformer_across_dim(
                 data=posterior_predictive_samples,
                 func=self.get_target_transformer().inverse_transform,
                 dim_name="date",
             )
+
+            # We need to remove the date dimension after the inverse transform
+            if intercept_condition:
+                posterior_predictive_samples["intercept"] = (
+                    posterior_predictive_samples["intercept"].isel(date=0)
+                )
 
         return posterior_predictive_samples
 
@@ -2093,6 +2115,16 @@ class MMM(
             raise KeyError(
                 "The 'channel' column is required to map the lift measurements to the model."
             )
+
+        if self.time_varying_media and "date" not in df_lift_test.columns:
+            # `time_varying_media=True` parameter requires the date in the df_lift_test DataFrame.
+            # The `add_lift_test_measurements` method itself doesn't need a date
+            # We need to make sure the `date` coord is present in model_coords
+            # By adding this we make sure the model_coords match
+            df_lift_test["date"] = pd.to_datetime(self.model_coords["date"][0])
+
+        # Store df_lift_test for testing purposes
+        self._last_lift_test_df = df_lift_test
 
         df_lift_test_scaled = scale_lift_measurements(
             df_lift_test=df_lift_test,
