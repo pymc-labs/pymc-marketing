@@ -16,7 +16,6 @@
 import json
 import warnings
 from collections.abc import Sequence
-from pathlib import Path
 from typing import Literal, cast
 
 import arviz as az
@@ -27,7 +26,7 @@ from pymc.backends import NDArray
 from pymc.backends.base import MultiTrace
 from pymc.model.core import Model
 
-from pymc_marketing.model_builder import ModelBuilder
+from pymc_marketing.model_builder import DifferentModelError, ModelBuilder
 from pymc_marketing.model_config import ModelConfig, parse_model_config
 
 
@@ -59,12 +58,14 @@ class CLVModel(ModelBuilder):
 
             model_config[new_key] = model_config.pop(key)
 
-        model_config = parse_model_config(
-            model_config,
+        super().__init__(data, model_config, sampler_config)
+
+        # Parse model config after merging with defaults
+        self.model_config = parse_model_config(
+            self.model_config,
             non_distributions=non_distributions,
         )
 
-        super().__init__(model_config, sampler_config)
         self.data = data
 
     @staticmethod
@@ -267,6 +268,36 @@ class CLVModel(ModelBuilder):
             "sampler_config": json.loads(idata.attrs["sampler_config"]),
         }
 
+    @classmethod
+    def build_from_idata(cls, idata: az.InferenceData) -> None:
+        """Build the model from the InferenceData object."""
+        dataset = idata.fit_data.to_dataframe()
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                category=DeprecationWarning,
+            )
+            model = cls(
+                dataset,
+                model_config=json.loads(idata.attrs["model_config"]),  # type: ignore
+                sampler_config=json.loads(idata.attrs["sampler_config"]),
+            )
+
+        model.idata = idata
+        model._rename_posterior_variables()
+
+        model.build_model()  # type: ignore
+        if model.id != idata.attrs["id"]:
+            msg = (
+                "The model id in the InferenceData does not match the model id. "
+                "There was no error loading the inference data, but the model may "
+                "be different. "
+                "Investigate if the model structure or configuration has changed."
+            )
+            raise DifferentModelError(msg)
+        return model
+
+    # TODO: Remove in 2026Q1?
     def _rename_posterior_variables(self):
         """Rename variables in the posterior group to remove the _prior suffix.
 

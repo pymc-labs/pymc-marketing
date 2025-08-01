@@ -547,12 +547,14 @@ class BaseModelBuilder(ABC, ModelIO):
             sampler_config = {}
         if model_config is None:
             model_config = {}
+
         self.sampler_config = (
             self.default_sampler_config | sampler_config
         )  # Parameters for fit sampling
         self.model_config = (
             self.default_model_config | model_config
         )  # parameters for priors etc.
+
         self.model: pm.Model
         self.idata: az.InferenceData | None = None  # idata is generated during fitting
         self.is_fitted_ = False

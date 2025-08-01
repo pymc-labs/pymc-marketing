@@ -264,7 +264,7 @@ class TestCLVModel:
 
         loaded_model = CLVModelTest.load(save_path)
 
-        assert "alpha_prior" in loaded_model.idata.posterior
+        assert "alpha" in loaded_model.idata.posterior
         assert "alpha_prior" not in loaded_model.idata.posterior
 
         os.remove("test_model")
