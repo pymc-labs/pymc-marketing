@@ -256,6 +256,18 @@ class DataRegressionModelBuilderTest(ModelBuilder):
         attrs["test_parameter"] = json.dumps(self.test_parameter)
         return attrs
 
+    @classmethod
+    def idata_to_init_kwargs(cls, idata: az.InferenceData):
+        """Convert the model configuration and sampler configuration from the InferenceData to keyword arguments.
+
+        This overrides the ModelIOMixin.idata_to_init_kwargs method to add data as a keyword argument.
+
+        """
+        kwargs = cls.attrs_to_init_kwargs(idata.attrs)
+        kwargs["data"] = idata.fit_data
+
+        return kwargs
+
     @property
     def _serializable_model_config(self):
         return self.model_config

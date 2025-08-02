@@ -164,7 +164,7 @@ class DifferentModelError(Exception):
     """Error raised when a model loaded is different than one saved."""
 
 
-class ModelIOMixin:
+class ModelIO:
     """Mixin to handle saving and loading of models."""
 
     _model_type: str
@@ -443,9 +443,7 @@ class ModelIOMixin:
             raise DifferentModelError(error_msg) from e
 
     @classmethod
-    def load_from_idata(
-        cls, idata: az.InferenceData, check: bool = True
-    ) -> "ModelIOMixin":
+    def load_from_idata(cls, idata: az.InferenceData, check: bool = True) -> "ModelIO":
         """Create a ModelBuilder instance from an InferenceData object.
 
         This class method has a few steps:
@@ -473,8 +471,6 @@ class ModelIOMixin:
             If the model id in the InferenceData does not match the model id built.
 
         """
-        # needs to be converted, because json.loads was changing tuple to list
-        # TODO: Replace with cls.attrs_to_init_kwargs(idata.attrs)?
         init_kwargs = cls.idata_to_init_kwargs(idata)
 
         with warnings.catch_warnings():
@@ -483,8 +479,6 @@ class ModelIOMixin:
 
         model.idata = idata
         model.build_from_idata(idata)
-        # TODO: Why is this no longer needed for RegressionModelBuilder?
-        # model.post_sample_model_transformation()
 
         if not check:
             return model
@@ -512,7 +506,7 @@ class ModelIOMixin:
         return model
 
 
-class BaseModelBuilder(ABC, ModelIOMixin):
+class BaseModelBuilder(ABC, ModelIO):
     """Base class containing primitives for inference data, model configuration, sampling, and saving/loading.
 
     Inherit from this class to build APIs for pymc-marketing models. Child classes must implement the following methods:
@@ -520,6 +514,8 @@ class BaseModelBuilder(ABC, ModelIOMixin):
     - default_sampler_config: Returns a dictionary of default sampler configuration.
     - build_model: Builds the model based on the provided data and model configuration.
     - build_from_idata: Builds the model from an InferenceData object.
+    - create_fit_data: Creates the fit_data group based on the input data.
+    - fit: Fits the model based on the provided data, mode and sampler configurations.
 
     """
 
@@ -713,23 +709,16 @@ class BaseModelBuilder(ABC, ModelIOMixin):
     )
 
 
+# TODO: CLVModel inherits from this class, but all methods are being overridden.
 class ModelBuilder(BaseModelBuilder):
     """Generalized ModelBuilder class to create APIs for frameworks other than regression modeling.
 
-    Unlike RegressionModelBuilder, this class takes data at initialization.
+    This class takes data at initialization. Override ModelIO.idata_to_init_kwargs in child classes to do so.
     """
 
     def __init__(self, data, model_config=None, sampler_config=None):
         self.data = data
         super().__init__(model_config, sampler_config)
-
-    @classmethod
-    def idata_to_init_kwargs(cls, idata: az.InferenceData) -> dict[str, Any]:
-        """Convert the model configuration and sampler configuration from the InferenceData to keyword arguments."""
-        kwargs = cls.attrs_to_init_kwargs(idata.attrs)
-        kwargs["data"] = idata.fit_data
-
-        return kwargs
 
     @abstractmethod
     def build_model(
@@ -941,7 +930,7 @@ class RegressionModelBuilder(BaseModelBuilder):
         X = dataset.drop(columns=[self.output_var])
         y = dataset[self.output_var]
 
-        self.build_model(X, y)
+        self.build_model(X, y)  # type: ignore
 
     def create_fit_data(
         self,
@@ -964,7 +953,7 @@ class RegressionModelBuilder(BaseModelBuilder):
 
     def post_sample_model_transformation(self) -> None:
         """Perform transformation on the model after sampling."""
-        return
+        pass
 
     def fit(
         self,

@@ -262,11 +262,10 @@ class CLVModel(ModelBuilder):
     @classmethod
     def idata_to_init_kwargs(cls, idata: az.InferenceData) -> dict:
         """Create the initialization kwargs from an InferenceData object."""
-        return {
-            "data": idata.fit_data.to_dataframe(),
-            "model_config": json.loads(idata.attrs["model_config"]),
-            "sampler_config": json.loads(idata.attrs["sampler_config"]),
-        }
+        kwargs = cls.attrs_to_init_kwargs(idata.attrs)
+        kwargs["data"] = idata.fit_data.to_dataframe()
+
+        return kwargs
 
     @classmethod
     def build_from_idata(cls, idata: az.InferenceData) -> None:
