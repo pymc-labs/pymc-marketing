@@ -11,7 +11,7 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Base class responsible of the high level API for model building, fitting saving and loading."""
+"""Base class containing API primitives for model building, fitting, saving, and loading."""
 
 import hashlib
 import json
@@ -164,7 +164,7 @@ class DifferentModelError(Exception):
     """Error raised when a model loaded is different than one saved."""
 
 
-class ModelIO:
+class ModelIOMixin:
     """Mixin to handle saving and loading of models."""
 
     _model_type: str
@@ -443,7 +443,9 @@ class ModelIO:
             raise DifferentModelError(error_msg) from e
 
     @classmethod
-    def load_from_idata(cls, idata: az.InferenceData, check: bool = True) -> "ModelIO":
+    def load_from_idata(
+        cls, idata: az.InferenceData, check: bool = True
+    ) -> "ModelIOMixin":
         """Create a ModelBuilder instance from an InferenceData object.
 
         This class method has a few steps:
@@ -510,11 +512,16 @@ class ModelIO:
         return model
 
 
-class BaseModelBuilder(ABC, ModelIO):
-    """Base class for building models with PyMC Marketing.
+class BaseModelBuilder(ABC, ModelIOMixin):
+    """Base class containing primitives for inference data, model configuration, sampling, and saving/loading.
 
-    It provides an easy-to-use API (similar to scikit-learn) for models
-    and help with deployment.
+    Inherit from this class to build APIs for pymc-marketing models.
+    Child classes must implement the following abstract methods:
+    - default_model_config: Returns a dictionary of default model configuration.
+    - default_sampler_config: Returns a dictionary of default sampler configuration.
+    - build_model: Builds the model based on the provided data and model configuration.
+    - build_from_idata: Builds the model from an InferenceData object.
+
     """
 
     _model_type = "BaseClass"
@@ -708,7 +715,10 @@ class BaseModelBuilder(ABC, ModelIO):
 
 
 class ModelBuilder(BaseModelBuilder):
-    """ModelBuilder that takes data at initialization."""
+    """Generalized ModelBuilder class to create APIs for frameworks other than regression.
+
+    Unlike RegressionModelBuilder, this class takes data at initialization.
+    """
 
     def __init__(self, data, model_config=None, sampler_config=None):
         self.data = data
@@ -759,16 +769,12 @@ class ModelBuilder(BaseModelBuilder):
         random_seed: RandomState | None = None,
         **kwargs: Any,
     ) -> az.InferenceData:
-        """Fit a model using the data passed as a parameter.
+        """Fit a model using the data provided at initialization.
 
         Sets attrs to inference data of the model.
 
         Parameters
         ----------
-        X : array-like | array, shape (n_obs, n_features)
-            The training input samples. If scikit-learn is available, array-like, otherwise array.
-        y : array-like | array, shape (n_obs,)
-            The target values (real numbers). If scikit-learn is available, array-like, otherwise array.
         progressbar : bool, optional
             Specifies whether the fit progress bar should be displayed. Defaults to True.
         random_seed : Optional[RandomState]
@@ -784,7 +790,7 @@ class ModelBuilder(BaseModelBuilder):
         Examples
         --------
         >>> model = MyModel()
-        >>> idata = model.fit(X, y)
+        >>> idata = model.fit()
         Auto-assigning NUTS sampler...
         Initializing NUTS using jitter+adapt_diag...
 
@@ -824,7 +830,12 @@ class ModelBuilder(BaseModelBuilder):
 
 
 class RegressionModelBuilder(BaseModelBuilder):
-    """Regression based ModelBuilder class."""
+    """ModelBuilder class providing an easy-to-use API similar to scikit-learn for regression models.
+
+    Training data is provided in the fit method and must follow the following convention:
+    - X: Matrix containing predictor variables
+    - y: Target variable array
+    """
 
     def _validate_data(self, X, y=None):
         if y is not None:
