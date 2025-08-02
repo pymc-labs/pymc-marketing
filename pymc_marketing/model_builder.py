@@ -515,8 +515,7 @@ class ModelIOMixin:
 class BaseModelBuilder(ABC, ModelIOMixin):
     """Base class containing primitives for inference data, model configuration, sampling, and saving/loading.
 
-    Inherit from this class to build APIs for pymc-marketing models.
-    Child classes must implement the following abstract methods:
+    Inherit from this class to build APIs for pymc-marketing models. Child classes must implement the following methods:
     - default_model_config: Returns a dictionary of default model configuration.
     - default_sampler_config: Returns a dictionary of default sampler configuration.
     - build_model: Builds the model based on the provided data and model configuration.
@@ -715,7 +714,7 @@ class BaseModelBuilder(ABC, ModelIOMixin):
 
 
 class ModelBuilder(BaseModelBuilder):
-    """Generalized ModelBuilder class to create APIs for frameworks other than regression.
+    """Generalized ModelBuilder class to create APIs for frameworks other than regression modeling.
 
     Unlike RegressionModelBuilder, this class takes data at initialization.
     """
