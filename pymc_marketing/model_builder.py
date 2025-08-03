@@ -525,7 +525,7 @@ class ModelIO:
         return model
 
 
-class BaseModelBuilder(ABC, ModelIO):
+class ModelBuilder(ABC, ModelIO):
     """Base class containing primitives for inference data, model configuration, sampling, and saving/loading.
 
     Inherit from this class to build APIs for pymc-marketing models. Child classes must implement the following methods:
@@ -728,114 +728,7 @@ class BaseModelBuilder(ABC, ModelIO):
     )
 
 
-class ModelBuilder(BaseModelBuilder):
-    """Generalized ModelBuilder class to create APIs for frameworks other than regression modeling.
-
-    This class takes data at initialization. Override ModelIO.idata_to_init_kwargs in child classes to do so.
-    """
-
-    def __init__(self, data, model_config=None, sampler_config=None):
-        self.data = data
-        super().__init__(model_config, sampler_config)
-
-    @abstractmethod
-    def build_model(
-        self,
-        **kwargs,
-    ) -> None:
-        """Create an instance of `pm.Model` based on provided data and model_config.
-
-        It attaches the model to self.model.
-
-        Parameters
-        ----------
-        kwargs : dict
-            Additional keyword arguments that may be used for model configuration.
-
-        See Also
-        --------
-        default_model_config : returns default model config
-
-        Returns
-        -------
-        None
-
-        """
-
-    def create_fit_data(self) -> xr.Dataset:
-        """Create the fit_data group based on the input data."""
-        if isinstance(self.data, pd.DataFrame):
-            return self.data.to_xarray()
-
-        return self.data
-
-    def fit(
-        self,
-        progressbar: bool | None = None,
-        random_seed: RandomState | None = None,
-        **kwargs: Any,
-    ) -> az.InferenceData:
-        """Fit a model using the data provided at initialization.
-
-        Sets attrs to inference data of the model.
-
-        Parameters
-        ----------
-        progressbar : bool, optional
-            Specifies whether the fit progress bar should be displayed. Defaults to True.
-        random_seed : Optional[RandomState]
-            Provides sampler with initial random seed for obtaining reproducible samples.
-        **kwargs : Any
-            Custom sampler settings can be provided in form of keyword arguments.
-
-        Returns
-        -------
-        self : az.InferenceData
-            Returns inference data of the fitted model.
-
-        Examples
-        --------
-        >>> model = MyModel()
-        >>> idata = model.fit()
-        Auto-assigning NUTS sampler...
-        Initializing NUTS using jitter+adapt_diag...
-
-        """
-        if not hasattr(self, "model"):
-            self.build_model()
-
-        sampler_kwargs = create_sample_kwargs(
-            self.sampler_config,
-            progressbar,
-            random_seed,
-            **kwargs,
-        )
-        with self.model:
-            idata = pm.sample(**sampler_kwargs)
-
-        if self.idata:
-            self.idata = self.idata.copy()
-            self.idata.extend(idata, join="right")
-        else:
-            self.idata = idata
-
-        if "fit_data" in self.idata:
-            del self.idata.fit_data
-
-        fit_data = self.create_fit_data()
-
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                category=UserWarning,
-                message="The group fit_data is not defined in the InferenceData scheme",
-            )
-            self.idata.add_groups(fit_data=fit_data)
-        self.set_idata_attrs(self.idata)
-        return self.idata  # type: ignore
-
-
-class RegressionModelBuilder(BaseModelBuilder):
+class RegressionModelBuilder(ModelBuilder):
     """ModelBuilder class providing an easy-to-use API similar to scikit-learn for regression models.
 
     Training data is provided in the fit method and must follow the following convention:

@@ -28,7 +28,6 @@ import xarray as xr
 from rich.table import Table
 
 from pymc_marketing.model_builder import (
-    BaseModelBuilder,
     DifferentModelError,
     ModelBuilder,
     RegressionModelBuilder,
@@ -53,7 +52,7 @@ def toy_y(toy_X):
 
 
 @pytest.fixture(scope="module")
-def fitted_model_instance(toy_X, toy_y, mock_pymc_sample):
+def fitted_regression_model_instance(toy_X, toy_y, mock_pymc_sample):
     sampler_config = {
         "draws": 100,
         "tune": 100,
@@ -81,7 +80,7 @@ def fitted_model_instance(toy_X, toy_y, mock_pymc_sample):
 
 
 @pytest.fixture(scope="module")
-def not_fitted_model_instance():
+def not_fitted_regression_model_instance():
     sampler_config = {"draws": 100, "tune": 100, "chains": 2, "target_accept": 0.95}
     model_config = {
         "a": {"loc": 0, "scale": 10, "dims": ("numbers",)},
@@ -104,7 +103,7 @@ def toy_data(toy_X, toy_y):
 
 
 @pytest.fixture(scope="module")
-def fitted_data_model_instance(toy_data, mock_pymc_sample):
+def fitted_base_model_instance(toy_data, mock_pymc_sample):
     sampler_config = {
         "draws": 100,
         "tune": 100,
@@ -116,34 +115,12 @@ def fitted_data_model_instance(toy_data, mock_pymc_sample):
         "b": {"loc": 0, "scale": 10},
         "obs_error": 2,
     }
-    model = DataRegressionModelBuilderTest(
-        data=toy_data,
-        model_config=model_config,
-        sampler_config=sampler_config,
-        test_parameter="test_parameter",
-    )
-    model.fit(
-        chains=1,
-        draws=100,
-        tune=100,
-    )
-    return model
-
-
-@pytest.fixture(scope="module")
-def fitted_base_model_instance(mock_pymc_sample):
-    sampler_config = {
-        "draws": 100,
-        "tune": 100,
-        "chains": 2,
-        "target_accept": 0.95,
-    }
     model_config = {
         "mu_loc": 0,
         "mu_scale": 1,
         "sigma_scale": 1,
     }
-    model = BaseRegressionModelBuilderTest(
+    model = ModelBuilderTest(
         model_config=model_config,
         sampler_config=sampler_config,
         test_parameter="test_parameter",
@@ -157,7 +134,7 @@ def fitted_base_model_instance(mock_pymc_sample):
 
 
 class RegressionModelBuilderTest(RegressionModelBuilder):
-    """Test class for RegressionModelBuilder that only takes model and sampler configs at initialization."""
+    """Test class for RegressionModelBuilder with X and y data arguments."""
 
     def __init__(self, model_config=None, sampler_config=None, test_parameter=None):
         self.test_parameter = test_parameter
@@ -232,67 +209,8 @@ class RegressionModelBuilderTest(RegressionModelBuilder):
         }
 
 
-class DataRegressionModelBuilderTest(ModelBuilder):
-    """Test class for ModelBuilder that also takes data at initialization."""
-
-    def __init__(
-        self, data, model_config=None, sampler_config=None, test_parameter=None
-    ):
-        self.test_parameter = test_parameter
-        super().__init__(
-            data=data, model_config=model_config, sampler_config=sampler_config
-        )
-
-    _model_type = "data_test_model"
-    version = "0.1"
-
-    def build_model(self, **kwargs):
-        # Simplified model to avoid compilation issues
-        with pm.Model() as self.model:
-            # Very simple model to avoid compilation issues
-            pm.Normal("test", 0, 1)
-
-    def create_idata_attrs(self):
-        attrs = super().create_idata_attrs()
-        attrs["test_parameter"] = json.dumps(self.test_parameter)
-        return attrs
-
-    @classmethod
-    def idata_to_init_kwargs(cls, idata: az.InferenceData):
-        """Convert the model configuration and sampler configuration from the InferenceData to keyword arguments.
-
-        This overrides the ModelIOMixin.idata_to_init_kwargs method to add data as a keyword argument.
-
-        """
-        kwargs = cls.attrs_to_init_kwargs(idata.attrs)
-        kwargs["data"] = idata.fit_data
-
-        return kwargs
-
-    @property
-    def _serializable_model_config(self):
-        return self.model_config
-
-    @property
-    def default_model_config(self) -> dict:
-        return {
-            "a": {"loc": 0, "scale": 10, "dims": ("numbers",)},
-            "b": {"loc": 0, "scale": 10},
-            "obs_error": 2,
-        }
-
-    @property
-    def default_sampler_config(self) -> dict:
-        return {
-            "draws": 1_000,
-            "tune": 1_000,
-            "chains": 3,
-            "target_accept": 0.95,
-        }
-
-
-class BaseRegressionModelBuilderTest(BaseModelBuilder):
-    """Test class for BaseModelBuilder."""
+class ModelBuilderTest(ModelBuilder):
+    """Test class for ModelBuilder base class."""
 
     def __init__(self, model_config=None, sampler_config=None, test_parameter=None):
         self.test_parameter = test_parameter
@@ -302,7 +220,7 @@ class BaseRegressionModelBuilderTest(BaseModelBuilder):
     version = "0.1"
 
     def build_model(self, **kwargs):
-        # This is a simple model for testing BaseModelBuilder
+        # This is a simple model for testing the ModelBuilder base class
         with pm.Model() as self.model:
             # Very simple model to avoid compilation issues
             pm.Normal("test", 0, 1)
@@ -333,7 +251,7 @@ class BaseRegressionModelBuilderTest(BaseModelBuilder):
         }
 
     def fit(self, **kwargs):
-        """Override fit method for BaseRegressionModelBuilderTest."""
+        """Override fit method for ModelBuilderTest."""
         if not hasattr(self, "model"):
             self.build_model()
 
@@ -370,16 +288,14 @@ def test_model_and_sampler_config():
     assert nondefault.sampler_config == default.sampler_config | {"draws": 42}
 
 
-def test_data_model_builder_config():
-    """Test DataRegressionModelBuilderTest configuration."""
-    toy_data = pd.DataFrame({"input": [1, 2, 3], "output": [2, 4, 6]})
-    default = DataRegressionModelBuilderTest(data=toy_data)
+def test_base_model_builder_config():
+    """ModelBuilderTest configuration."""
+    default = ModelBuilderTest()
     assert default.model_config == default.default_model_config
     assert default.sampler_config == default.default_sampler_config
-    assert default.data.equals(toy_data)
 
-    nondefault = DataRegressionModelBuilderTest(
-        data=toy_data, model_config={"obs_error": 3}, sampler_config={"draws": 42}
+    nondefault = ModelBuilderTest(
+        model_config={"obs_error": 3}, sampler_config={"draws": 42}
     )
     assert nondefault.model_config != nondefault.default_model_config
     assert nondefault.sampler_config != default.default_sampler_config
@@ -387,13 +303,13 @@ def test_data_model_builder_config():
     assert nondefault.sampler_config == default.sampler_config | {"draws": 42}
 
 
-def test_base_model_builder_config():
-    """Test BaseRegressionModelBuilderTest configuration."""
-    default = BaseRegressionModelBuilderTest()
+def test_regression_model_builder_config():
+    """RegressionModelBuilderTest configuration."""
+    default = RegressionModelBuilderTest()
     assert default.model_config == default.default_model_config
     assert default.sampler_config == default.default_sampler_config
 
-    nondefault = BaseRegressionModelBuilderTest(
+    nondefault = RegressionModelBuilderTest(
         model_config={"mu_loc": 5}, sampler_config={"draws": 42}
     )
     assert nondefault.model_config != nondefault.default_model_config
@@ -432,72 +348,47 @@ def test_handle_deprecate_pred_argument():
         _handle_deprecate_pred_argument(None, "test", kwargs, none_allowed=False)
 
 
-def test_save_input_params(fitted_model_instance):
-    assert fitted_model_instance.idata.attrs["test_parameter"] == '"test_parameter"'
+def test_save_input_params(fitted_regression_model_instance):
+    assert (
+        fitted_regression_model_instance.idata.attrs["test_parameter"]
+        == '"test_parameter"'
+    )
 
 
-def test_has_pymc_marketing_version(fitted_model_instance):
-    assert "pymc_marketing_version" in fitted_model_instance.posterior.attrs
+def test_has_pymc_marketing_version(fitted_regression_model_instance):
+    assert "pymc_marketing_version" in fitted_regression_model_instance.posterior.attrs
 
 
-def test_save_load(fitted_model_instance):
+def test_regression_model_save_load(fitted_regression_model_instance):
     rng = np.random.default_rng(42)
     temp = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False)
-    fitted_model_instance.save(temp.name)
+    fitted_regression_model_instance.save(temp.name)
 
     test_builder2 = RegressionModelBuilderTest.load(temp.name)
 
-    assert fitted_model_instance.idata.groups() == test_builder2.idata.groups()
-    assert fitted_model_instance.id == test_builder2.id
-    assert fitted_model_instance.model_config == test_builder2.model_config
-    assert fitted_model_instance.sampler_config == test_builder2.sampler_config
+    assert (
+        fitted_regression_model_instance.idata.groups() == test_builder2.idata.groups()
+    )
+    assert fitted_regression_model_instance.id == test_builder2.id
+    assert fitted_regression_model_instance.model_config == test_builder2.model_config
+    assert (
+        fitted_regression_model_instance.sampler_config == test_builder2.sampler_config
+    )
 
     x_pred = rng.uniform(low=0, high=1, size=100)
     prediction_data = pd.DataFrame({"input": x_pred})
-    pred1 = fitted_model_instance.predict(prediction_data)
+    pred1 = fitted_regression_model_instance.predict(prediction_data)
     pred2 = test_builder2.predict(prediction_data)
     assert pred1.shape == pred2.shape
     temp.close()
 
 
-def test_data_model_builder_save_load(fitted_data_model_instance):
-    """Test save/load functionality for DataRegressionModelBuilderTest."""
-    temp = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False)
-    fitted_data_model_instance.save(temp.name)
-
-    test_builder2 = DataRegressionModelBuilderTest.load(temp.name)
-
-    assert fitted_data_model_instance.idata.groups() == test_builder2.idata.groups()
-    assert fitted_data_model_instance.id == test_builder2.id
-    assert fitted_data_model_instance.model_config == test_builder2.model_config
-    assert fitted_data_model_instance.sampler_config == test_builder2.sampler_config
-
-    # Handle data comparison - it might be converted to xarray during save/load
-    original_data = fitted_data_model_instance.data
-    loaded_data = test_builder2.data
-
-    # Convert both to xarray for comparison
-    if hasattr(original_data, "to_xarray"):
-        original_xarray = original_data.to_xarray()
-    else:
-        original_xarray = original_data
-
-    if hasattr(loaded_data, "to_xarray"):
-        loaded_xarray = loaded_data.to_xarray()
-    else:
-        loaded_xarray = loaded_data
-
-    assert original_xarray.identical(loaded_xarray)
-
-    temp.close()
-
-
-def test_base_model_builder_save_load(fitted_base_model_instance):
+def test_base_model_save_load(fitted_base_model_instance):
     """Test save/load functionality for BaseRegressionModelBuilderTest."""
     temp = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False)
     fitted_base_model_instance.save(temp.name)
 
-    test_builder2 = BaseRegressionModelBuilderTest.load(temp.name)
+    test_builder2 = ModelBuilderTest.load(temp.name)
 
     assert fitted_base_model_instance.idata.groups() == test_builder2.idata.groups()
     assert fitted_base_model_instance.id == test_builder2.id
@@ -507,11 +398,11 @@ def test_base_model_builder_save_load(fitted_base_model_instance):
 
 
 def test_initial_build_and_fit(
-    fitted_model_instance, check_idata=True
+    fitted_regression_model_instance, check_idata=True
 ) -> RegressionModelBuilder:
     if check_idata:
-        assert fitted_model_instance.idata is not None
-        assert "posterior" in fitted_model_instance.idata.groups()
+        assert fitted_regression_model_instance.idata is not None
+        assert "posterior" in fitted_regression_model_instance.idata.groups()
 
 
 def test_save_without_fit_raises_runtime_error():
@@ -521,24 +412,26 @@ def test_save_without_fit_raises_runtime_error():
         model_builder.save("saved_model")
 
 
-def test_save_with_kwargs(fitted_model_instance):
+def test_save_with_kwargs(fitted_regression_model_instance):
     """Test that kwargs are properly passed to to_netcdf"""
     import unittest.mock as mock
 
-    with mock.patch.object(fitted_model_instance.idata, "to_netcdf") as mock_to_netcdf:
+    with mock.patch.object(
+        fitted_regression_model_instance.idata, "to_netcdf"
+    ) as mock_to_netcdf:
         temp = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False)
 
         # Test with kwargs supported by InferenceData.to_netcdf()
         kwargs = {"engine": "netcdf4", "groups": ["posterior", "log_likelihood"]}
 
-        fitted_model_instance.save(temp.name, **kwargs)
+        fitted_regression_model_instance.save(temp.name, **kwargs)
 
         # Verify to_netcdf was called with the correct arguments
         mock_to_netcdf.assert_called_once_with(temp.name, **kwargs)
         temp.close()
 
 
-def test_save_with_kwargs_integration(fitted_model_instance):
+def test_save_with_kwargs_integration(fitted_regression_model_instance):
     """Test save function with actual kwargs (integration test)"""
 
     temp = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False)
@@ -547,7 +440,7 @@ def test_save_with_kwargs_integration(fitted_model_instance):
 
     try:
         # Test with specific groups - this tests that kwargs are passed through
-        fitted_model_instance.save(temp_path, groups=["posterior"])
+        fitted_regression_model_instance.save(temp_path, groups=["posterior"])
 
         # Verify file was created successfully
         assert os.path.exists(temp_path)
@@ -566,7 +459,7 @@ def test_save_with_kwargs_integration(fitted_model_instance):
             os.unlink(temp_path)
 
 
-def test_save_kwargs_backward_compatibility(fitted_model_instance):
+def test_save_kwargs_backward_compatibility(fitted_regression_model_instance):
     """Test that save function still works without kwargs (backward compatibility)"""
     temp = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False)
     temp_path = temp.name
@@ -574,7 +467,7 @@ def test_save_kwargs_backward_compatibility(fitted_model_instance):
 
     try:
         # Test without any kwargs (original behavior)
-        fitted_model_instance.save(temp_path)
+        fitted_regression_model_instance.save(temp_path)
 
         # Verify file was created and can be loaded
         assert os.path.exists(temp_path)
@@ -598,40 +491,29 @@ def test_empty_sampler_config_fit(toy_X, toy_y, mock_pymc_sample):
     assert "posterior" in model_builder.idata.groups()
 
 
-def test_data_model_builder_fit(toy_data, mock_pymc_sample):
-    """Test fitting for DataRegressionModelBuilderTest."""
+def test_base_model_builder_fit(mock_pymc_sample):
+    """Test fitting for ModelBuilderTest."""
     sampler_config = {}
-    model_builder = DataRegressionModelBuilderTest(
-        data=toy_data, sampler_config=sampler_config
-    )
+    model_builder = ModelBuilderTest(sampler_config=sampler_config)
     model_builder.idata = model_builder.fit(chains=1, draws=100, tune=100)
     assert model_builder.idata is not None
     assert "posterior" in model_builder.idata.groups()
     assert "fit_data" in model_builder.idata.groups()
 
 
-def test_base_model_builder_fit(mock_pymc_sample):
-    """Test fitting for BaseRegressionModelBuilderTest."""
-    sampler_config = {}
-    model_builder = BaseRegressionModelBuilderTest(sampler_config=sampler_config)
-    model_builder.idata = model_builder.fit(chains=1, draws=100, tune=100)
-    assert model_builder.idata is not None
-    assert "posterior" in model_builder.idata.groups()
-
-
-def test_fit(fitted_model_instance):
+def test_fit(fitted_regression_model_instance):
     rng = np.random.default_rng(42)
-    assert fitted_model_instance.idata is not None
-    assert "posterior" in fitted_model_instance.idata.groups()
-    assert fitted_model_instance.idata.posterior.sizes["draw"] == 100
+    assert fitted_regression_model_instance.idata is not None
+    assert "posterior" in fitted_regression_model_instance.idata.groups()
+    assert fitted_regression_model_instance.idata.posterior.sizes["draw"] == 100
 
     prediction_data = pd.DataFrame({"input": rng.uniform(low=0, high=1, size=100)})
-    fitted_model_instance.predict(prediction_data)
-    post_pred = fitted_model_instance.sample_posterior_predictive(
+    fitted_regression_model_instance.predict(prediction_data)
+    post_pred = fitted_regression_model_instance.sample_posterior_predictive(
         prediction_data, extend_idata=True, combined=True
     )
     assert (
-        post_pred[fitted_model_instance.output_var].shape[0]
+        post_pred[fitted_regression_model_instance.output_var].shape[0]
         == prediction_data.input.shape[0]
     )
 
@@ -678,30 +560,32 @@ def test_set_fit_result(toy_X, toy_y):
     sys.platform == "win32",
     reason="Permissions for temp files not granted on windows CI.",
 )
-def test_predict(fitted_model_instance):
+def test_predict(fitted_regression_model_instance):
     rng = np.random.default_rng(42)
     x_pred = rng.uniform(low=0, high=1, size=100)
     prediction_data = pd.DataFrame({"input": x_pred})
-    pred = fitted_model_instance.predict(prediction_data)
+    pred = fitted_regression_model_instance.predict(prediction_data)
     # Perform elementwise comparison using numpy
     assert isinstance(pred, np.ndarray)
     assert len(pred) > 0
 
 
 @pytest.mark.parametrize("combined", [True, False])
-def test_sample_posterior_predictive(fitted_model_instance, combined):
+def test_sample_posterior_predictive(fitted_regression_model_instance, combined):
     rng = np.random.default_rng(42)
     n_pred = 100
     x_pred = rng.uniform(low=0, high=1, size=n_pred)
     prediction_data = pd.DataFrame({"input": x_pred})
-    pred = fitted_model_instance.sample_posterior_predictive(
+    pred = fitted_regression_model_instance.sample_posterior_predictive(
         prediction_data, combined=combined, extend_idata=True
     )
-    chains = fitted_model_instance.idata.posterior.sizes["chain"]
-    draws = fitted_model_instance.idata.posterior.sizes["draw"]
+    chains = fitted_regression_model_instance.idata.posterior.sizes["chain"]
+    draws = fitted_regression_model_instance.idata.posterior.sizes["draw"]
     expected_shape = (n_pred, chains * draws) if combined else (chains, draws, n_pred)
-    assert pred[fitted_model_instance.output_var].shape == expected_shape
-    assert np.issubdtype(pred[fitted_model_instance.output_var].dtype, np.floating)
+    assert pred[fitted_regression_model_instance.output_var].shape == expected_shape
+    assert np.issubdtype(
+        pred[fitted_regression_model_instance.output_var].dtype, np.floating
+    )
 
 
 def test_model_config_formatting():
@@ -735,23 +619,18 @@ def test_model_io_functionality():
     """Test ModelIO mixin functionality."""
     # Test with different model types
     regression_model = RegressionModelBuilderTest()
-    data_model = DataRegressionModelBuilderTest(
-        data=pd.DataFrame({"input": [1], "output": [2]})
-    )
-    base_model = BaseRegressionModelBuilderTest()
+    base_model = ModelBuilderTest()
 
     # Test that all have unique IDs
-    ids = [regression_model.id, data_model.id, base_model.id]
-    assert len(set(ids)) == 3
+    ids = [regression_model.id, base_model.id]
+    assert len(set(ids)) == 2
 
     # Test that all have proper model types
     assert regression_model._model_type == "test_model"
-    assert data_model._model_type == "data_test_model"
     assert base_model._model_type == "base_test_model"
 
     # Test that all have proper versions
     assert regression_model.version == "0.1"
-    assert data_model.version == "0.1"
     assert base_model.version == "0.1"
 
 
@@ -794,11 +673,11 @@ def test_model_io_set_idata_attrs():
 
 @pytest.mark.parametrize("name", ["prior_predictive", "posterior_predictive"])
 def test_sample_xxx_predictive_keeps_second(
-    fitted_model_instance, toy_X, name: str
+    fitted_regression_model_instance, toy_X, name: str
 ) -> None:
     rng = np.random.default_rng(42)
     method_name = f"sample_{name}"
-    method = getattr(fitted_model_instance, method_name)
+    method = getattr(fitted_regression_model_instance, method_name)
 
     X_pred = toy_X
 
@@ -814,18 +693,18 @@ def test_sample_xxx_predictive_keeps_second(
     with pytest.raises(AssertionError):
         xr.testing.assert_allclose(first_sample, second_sample)
 
-    sample = getattr(fitted_model_instance.idata, name)
+    sample = getattr(fitted_regression_model_instance.idata, name)
     xr.testing.assert_allclose(sample, second_sample)
 
 
-def test_prediction_kwarg(fitted_model_instance, toy_X):
-    result = fitted_model_instance.sample_posterior_predictive(
+def test_prediction_kwarg(fitted_regression_model_instance, toy_X):
+    result = fitted_regression_model_instance.sample_posterior_predictive(
         toy_X,
         extend_idata=True,
         predictions=True,
     )
-    assert "predictions" in fitted_model_instance.idata
-    assert "predictions_constant_data" in fitted_model_instance.idata
+    assert "predictions" in fitted_regression_model_instance.idata
+    assert "predictions_constant_data" in fitted_regression_model_instance.idata
 
     assert isinstance(result, xr.Dataset)
 
@@ -932,10 +811,6 @@ def test_insufficient_attrs() -> None:
 
 def test_abstract_methods():
     """Test that abstract methods are properly enforced."""
-    # Test that we can't instantiate BaseModelBuilder directly
-    with pytest.raises(TypeError):
-        BaseModelBuilder()
-
     # Test that we can't instantiate ModelBuilder directly
     with pytest.raises(TypeError):
         ModelBuilder(data=None)
@@ -1158,33 +1033,35 @@ def test_graphviz(toy_X, toy_y):
 )
 def test_X_pred_posterior_deprecation(
     method_name,
-    fitted_model_instance,
+    fitted_regression_model_instance,
     toy_X,
 ) -> None:
-    if "posterior_predictive" in fitted_model_instance.idata:
-        del fitted_model_instance.idata.posterior_predictive
+    if "posterior_predictive" in fitted_regression_model_instance.idata:
+        del fitted_regression_model_instance.idata.posterior_predictive
 
     with pytest.warns(DeprecationWarning, match="X_pred is deprecated"):
-        method = getattr(fitted_model_instance, method_name)
+        method = getattr(fitted_regression_model_instance, method_name)
         method(X_pred=toy_X)
 
-    assert isinstance(fitted_model_instance.posterior_predictive, xr.Dataset)
+    assert isinstance(fitted_regression_model_instance.posterior_predictive, xr.Dataset)
 
 
-def test_X_pred_prior_deprecation(fitted_model_instance, toy_X, toy_y) -> None:
-    if "prior" in fitted_model_instance.idata:
-        del fitted_model_instance.idata.prior
-    if "prior_predictive" in fitted_model_instance.idata:
-        del fitted_model_instance.idata.prior_predictive
+def test_X_pred_prior_deprecation(
+    fitted_regression_model_instance, toy_X, toy_y
+) -> None:
+    if "prior" in fitted_regression_model_instance.idata:
+        del fitted_regression_model_instance.idata.prior
+    if "prior_predictive" in fitted_regression_model_instance.idata:
+        del fitted_regression_model_instance.idata.prior_predictive
 
     with pytest.warns(DeprecationWarning, match="X_pred is deprecated"):
-        fitted_model_instance.sample_prior_predictive(X_pred=toy_X)
+        fitted_regression_model_instance.sample_prior_predictive(X_pred=toy_X)
 
     with pytest.warns(DeprecationWarning, match="y_pred is deprecated"):
-        fitted_model_instance.sample_prior_predictive(toy_X, y_pred=toy_y)
+        fitted_regression_model_instance.sample_prior_predictive(toy_X, y_pred=toy_y)
 
-    assert isinstance(fitted_model_instance.prior, xr.Dataset)
-    assert isinstance(fitted_model_instance.prior_predictive, xr.Dataset)
+    assert isinstance(fitted_regression_model_instance.prior, xr.Dataset)
+    assert isinstance(fitted_regression_model_instance.prior_predictive, xr.Dataset)
 
 
 class XarrayModel(RegressionModelBuilder):
@@ -1281,16 +1158,16 @@ def test_xarray_model_builder(X_is_array, xarray_X, xarray_y, mock_pymc_sample) 
 
 
 @pytest.fixture(scope="module")
-def stale_idata(fitted_model_instance) -> az.InferenceData:
-    idata = fitted_model_instance.idata.copy()
+def stale_idata(fitted_regression_model_instance) -> az.InferenceData:
+    idata = fitted_regression_model_instance.idata.copy()
     idata.attrs["version"] = "0.0.1"
 
     return idata
 
 
 @pytest.fixture(scope="module")
-def different_configuration_idata(fitted_model_instance) -> az.InferenceData:
-    idata = fitted_model_instance.idata.copy()
+def different_configuration_idata(fitted_regression_model_instance) -> az.InferenceData:
+    idata = fitted_regression_model_instance.idata.copy()
 
     model_config = json.loads(idata.attrs["model_config"])
     model_config["a"] = {"loc": 1, "scale": 15, "dims": ("numbers",)}

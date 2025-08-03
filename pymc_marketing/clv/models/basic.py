@@ -25,11 +25,11 @@ from pymc.backends import NDArray
 from pymc.backends.base import MultiTrace
 from pymc.model.core import Model
 
-from pymc_marketing.model_builder import BaseModelBuilder, DifferentModelError
+from pymc_marketing.model_builder import DifferentModelError, ModelBuilder
 from pymc_marketing.model_config import ModelConfig, parse_model_config
 
 
-class CLVModel(BaseModelBuilder):
+class CLVModel(ModelBuilder):
     """CLV Model base class."""
 
     _model_type = "CLVModel"
