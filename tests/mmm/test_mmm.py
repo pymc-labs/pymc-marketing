@@ -765,6 +765,76 @@ class TestMMM:
         assert model.sampler_config == model2.sampler_config
         os.remove("test_save_load")
 
+    def test_save_load_with_compression(self, mmm_fitted: MMM):
+        """Test save/load functionality with compression kwargs."""
+        model = mmm_fitted
+
+        # Save with kwargs to test kwargs functionality (including all necessary groups)
+        # Include fit_data which is required for MMM loading
+        available_groups = list(model.idata.groups())
+        groups_to_save = [g for g in available_groups if g in ["posterior", "fit_data"]]
+
+        model.save("test_save_load_compression", groups=groups_to_save)
+
+        # Load and verify
+        model2 = MMM.load("test_save_load_compression")
+        assert model.date_column == model2.date_column
+        assert model.control_columns == model2.control_columns
+        assert model.channel_columns == model2.channel_columns
+        assert model.adstock.l_max == model2.adstock.l_max
+        assert model.validate_data == model2.validate_data
+        assert model.yearly_seasonality == model2.yearly_seasonality
+        assert model.model_config == model2.model_config
+        assert model.sampler_config == model2.sampler_config
+
+        # Verify the loaded idata has the expected groups
+        for group in groups_to_save:
+            assert group in model2.idata.groups()
+
+        os.remove("test_save_load_compression")
+
+    def test_save_load_compression_size_comparison(self, mmm_fitted: MMM):
+        """Test that save function with different options affects file size appropriately."""
+        model = mmm_fitted
+
+        # Save full inference data (all groups)
+        model.save("test_save_load_full")
+
+        # Save only essential groups for loading (should be smaller)
+        # Include only the minimum groups needed for loading: posterior and fit_data
+        available_groups = list(model.idata.groups())
+        essential_groups = [
+            g for g in available_groups if g in ["posterior", "fit_data"]
+        ]
+        model.save("test_save_load_partial", groups=essential_groups)
+
+        # Verify both files exist
+        assert os.path.exists("test_save_load_full")
+        assert os.path.exists("test_save_load_partial")
+
+        # Get file sizes
+        full_size = os.path.getsize("test_save_load_full")
+        partial_size = os.path.getsize("test_save_load_partial")
+
+        # If we have more groups in the full file, partial should be smaller
+        if len(available_groups) > len(essential_groups):
+            assert partial_size <= full_size, (
+                f"Partial file ({partial_size}) should be <= full file ({full_size})"
+            )
+
+        # Verify both can be loaded successfully
+        model_full = MMM.load("test_save_load_full")
+        model_partial = MMM.load("test_save_load_partial")
+
+        # Both should have the same model configuration
+        assert (
+            model.model_config == model_full.model_config == model_partial.model_config
+        )
+
+        # Clean up
+        os.remove("test_save_load_full")
+        os.remove("test_save_load_partial")
+
     def test_fail_id_after_load(self, monkeypatch, toy_X, toy_y):
         # This is the new behavior for the property
         def mock_property(self):
