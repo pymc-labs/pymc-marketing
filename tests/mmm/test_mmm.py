@@ -765,6 +765,63 @@ class TestMMM:
         assert model.sampler_config == model2.sampler_config
         os.remove("test_save_load")
 
+    def test_save_load_with_kwargs(self, mmm_fitted: MMM):
+        """Test save/load functionality with kwargs (engine and groups)."""
+        model = mmm_fitted
+
+        # Use kwargs to test functionality - ArviZ supports engine and groups
+        # Note: ArviZ's to_netcdf has limited compression support compared to xarray
+        compression_kwargs = {
+            "engine": "h5netcdf",  # Alternative engine that may have better compression
+        }
+
+        model.save("test_save_load_kwargs", **compression_kwargs)
+
+        # Load and verify
+        model2 = MMM.load("test_save_load_kwargs")
+        assert model.date_column == model2.date_column
+        assert model.control_columns == model2.control_columns
+        assert model.channel_columns == model2.channel_columns
+        assert model.adstock.l_max == model2.adstock.l_max
+        assert model.validate_data == model2.validate_data
+        assert model.yearly_seasonality == model2.yearly_seasonality
+        assert model.model_config == model2.model_config
+        assert model.sampler_config == model2.sampler_config
+
+        os.remove("test_save_load_kwargs")
+
+    def test_save_load_engine_comparison(self, mmm_fitted: MMM):
+        """Test save/load with different engines and kwargs options."""
+        model = mmm_fitted
+
+        # Save with default engine
+        model.save("test_save_load_default")
+
+        # Save with h5netcdf engine (demonstrates kwargs functionality)
+        engine_kwargs = {
+            "engine": "h5netcdf",
+        }
+        model.save("test_save_load_h5netcdf", **engine_kwargs)
+
+        # Verify both files exist
+        assert os.path.exists("test_save_load_default")
+        assert os.path.exists("test_save_load_h5netcdf")
+
+        # Verify both can be loaded successfully and have the same data
+        model_default = MMM.load("test_save_load_default")
+        model_h5netcdf = MMM.load("test_save_load_h5netcdf")
+
+        # Both should have the same model configuration
+        assert (
+            model.model_config
+            == model_default.model_config
+            == model_h5netcdf.model_config
+        )
+
+        # Clean up
+        os.remove("test_save_load_default")
+        os.remove("test_save_load_h5netcdf")
+
     def test_fail_id_after_load(self, monkeypatch, toy_X, toy_y):
         # This is the new behavior for the property
         def mock_property(self):
