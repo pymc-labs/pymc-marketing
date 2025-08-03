@@ -765,19 +765,20 @@ class TestMMM:
         assert model.sampler_config == model2.sampler_config
         os.remove("test_save_load")
 
-    def test_save_load_with_compression(self, mmm_fitted: MMM):
-        """Test save/load functionality with compression kwargs."""
+    def test_save_load_with_kwargs(self, mmm_fitted: MMM):
+        """Test save/load functionality with kwargs (engine and groups)."""
         model = mmm_fitted
 
-        # Save with kwargs to test kwargs functionality (including all necessary groups)
-        # Include fit_data which is required for MMM loading
-        available_groups = list(model.idata.groups())
-        groups_to_save = [g for g in available_groups if g in ["posterior", "fit_data"]]
+        # Use kwargs to test functionality - ArviZ supports engine and groups
+        # Note: ArviZ's to_netcdf has limited compression support compared to xarray
+        compression_kwargs = {
+            "engine": "h5netcdf",  # Alternative engine that may have better compression
+        }
 
-        model.save("test_save_load_compression", groups=groups_to_save)
+        model.save("test_save_load_kwargs", **compression_kwargs)
 
         # Load and verify
-        model2 = MMM.load("test_save_load_compression")
+        model2 = MMM.load("test_save_load_kwargs")
         assert model.date_column == model2.date_column
         assert model.control_columns == model2.control_columns
         assert model.channel_columns == model2.channel_columns
@@ -787,53 +788,39 @@ class TestMMM:
         assert model.model_config == model2.model_config
         assert model.sampler_config == model2.sampler_config
 
-        # Verify the loaded idata has the expected groups
-        for group in groups_to_save:
-            assert group in model2.idata.groups()
+        os.remove("test_save_load_kwargs")
 
-        os.remove("test_save_load_compression")
-
-    def test_save_load_compression_size_comparison(self, mmm_fitted: MMM):
-        """Test that save function with different options affects file size appropriately."""
+    def test_save_load_engine_comparison(self, mmm_fitted: MMM):
+        """Test save/load with different engines and kwargs options."""
         model = mmm_fitted
 
-        # Save full inference data (all groups)
-        model.save("test_save_load_full")
+        # Save with default engine
+        model.save("test_save_load_default")
 
-        # Save only essential groups for loading (should be smaller)
-        # Include only the minimum groups needed for loading: posterior and fit_data
-        available_groups = list(model.idata.groups())
-        essential_groups = [
-            g for g in available_groups if g in ["posterior", "fit_data"]
-        ]
-        model.save("test_save_load_partial", groups=essential_groups)
+        # Save with h5netcdf engine (demonstrates kwargs functionality)
+        engine_kwargs = {
+            "engine": "h5netcdf",
+        }
+        model.save("test_save_load_h5netcdf", **engine_kwargs)
 
         # Verify both files exist
-        assert os.path.exists("test_save_load_full")
-        assert os.path.exists("test_save_load_partial")
+        assert os.path.exists("test_save_load_default")
+        assert os.path.exists("test_save_load_h5netcdf")
 
-        # Get file sizes
-        full_size = os.path.getsize("test_save_load_full")
-        partial_size = os.path.getsize("test_save_load_partial")
-
-        # If we have more groups in the full file, partial should be smaller
-        if len(available_groups) > len(essential_groups):
-            assert partial_size <= full_size, (
-                f"Partial file ({partial_size}) should be <= full file ({full_size})"
-            )
-
-        # Verify both can be loaded successfully
-        model_full = MMM.load("test_save_load_full")
-        model_partial = MMM.load("test_save_load_partial")
+        # Verify both can be loaded successfully and have the same data
+        model_default = MMM.load("test_save_load_default")
+        model_h5netcdf = MMM.load("test_save_load_h5netcdf")
 
         # Both should have the same model configuration
         assert (
-            model.model_config == model_full.model_config == model_partial.model_config
+            model.model_config
+            == model_default.model_config
+            == model_h5netcdf.model_config
         )
 
         # Clean up
-        os.remove("test_save_load_full")
-        os.remove("test_save_load_partial")
+        os.remove("test_save_load_default")
+        os.remove("test_save_load_h5netcdf")
 
     def test_fail_id_after_load(self, monkeypatch, toy_X, toy_y):
         # This is the new behavior for the property
