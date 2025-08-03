@@ -372,7 +372,10 @@ class ModelIO:
 
     @classmethod
     def attrs_to_init_kwargs(cls, attrs) -> dict[str, Any]:
-        """Convert the model configuration and sampler configuration from the attributes to keyword arguments."""
+        """Convert the model configuration and sampler configuration from the attributes to keyword arguments.
+
+        This method must be overridden in child classes if additional keyword arguments are needed.
+        """
         return {
             "model_config": cls._model_config_formatting(
                 json.loads(attrs["model_config"])
@@ -382,7 +385,10 @@ class ModelIO:
 
     @classmethod
     def idata_to_init_kwargs(cls, idata: az.InferenceData) -> dict[str, Any]:
-        """Convert the model configuration and sampler configuration from the InferenceData to keyword arguments."""
+        """Create  the model configuration and sampler configuration from the InferenceData to keyword arguments.
+
+        This method must be overridden in child classes if data is needed as a keyword argument.
+        """
         return cls.attrs_to_init_kwargs(idata.attrs)
 
     @abstractmethod
@@ -709,7 +715,6 @@ class BaseModelBuilder(ABC, ModelIO):
     )
 
 
-# TODO: CLVModel inherits from this class, but all methods are being overridden.
 class ModelBuilder(BaseModelBuilder):
     """Generalized ModelBuilder class to create APIs for frameworks other than regression modeling.
 

@@ -13,7 +13,6 @@
 #   limitations under the License.
 """CLV Model base class."""
 
-import json
 import warnings
 from collections.abc import Sequence
 from typing import Literal, cast
@@ -26,11 +25,11 @@ from pymc.backends import NDArray
 from pymc.backends.base import MultiTrace
 from pymc.model.core import Model
 
-from pymc_marketing.model_builder import DifferentModelError, ModelBuilder
+from pymc_marketing.model_builder import BaseModelBuilder, DifferentModelError
 from pymc_marketing.model_config import ModelConfig, parse_model_config
 
 
-class CLVModel(ModelBuilder):
+class CLVModel(BaseModelBuilder):
     """CLV Model base class."""
 
     _model_type = "CLVModel"
@@ -44,6 +43,7 @@ class CLVModel(ModelBuilder):
         sampler_config: dict | None = None,
         non_distributions: list[str] | None = None,
     ):
+        self.data = data
         model_config = model_config or {}
 
         deprecated_keys = [key for key in model_config if key.endswith("_prior")]
@@ -58,7 +58,7 @@ class CLVModel(ModelBuilder):
 
             model_config[new_key] = model_config.pop(key)
 
-        super().__init__(data, model_config, sampler_config)
+        super().__init__(model_config, sampler_config)
 
         # Parse model config after merging with defaults
         self.model_config = parse_model_config(
@@ -270,17 +270,13 @@ class CLVModel(ModelBuilder):
     @classmethod
     def build_from_idata(cls, idata: az.InferenceData) -> None:
         """Build the model from the InferenceData object."""
-        dataset = idata.fit_data.to_dataframe()
+        kwargs = cls.idata_to_init_kwargs(idata)
         with warnings.catch_warnings():
             warnings.filterwarnings(
                 "ignore",
                 category=DeprecationWarning,
             )
-            model = cls(
-                dataset,
-                model_config=json.loads(idata.attrs["model_config"]),  # type: ignore
-                sampler_config=json.loads(idata.attrs["sampler_config"]),
-            )
+            model = cls(**kwargs)
 
         model.idata = idata
         model._rename_posterior_variables()
