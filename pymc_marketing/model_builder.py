@@ -456,13 +456,20 @@ class ModelBuilder(ABC):
         idata.attrs = attrs
         return idata
 
-    def save(self, fname: str) -> None:
+    def save(self, fname: str, **kwargs) -> None:
         """Save the model's inference data to a file.
 
         Parameters
         ----------
         fname : str
             The name and path of the file to save the inference data with model parameters.
+        **kwargs
+            Additional keyword arguments to pass to arviz.InferenceData.to_netcdf().
+            Common options include:
+            - engine : str, optional (default "netcdf4")
+                Library to use for writing files.
+            - groups : list of str, optional
+                Groups to save to netcdf. If None, all groups are saved.
 
         Returns
         -------
@@ -483,14 +490,20 @@ class ModelBuilder(ABC):
         >>>         super().__init__()
         >>> model = MyModel()
         >>> model.fit(X, y)
+        >>> # Basic save
+        >>> model.save("model_results.nc")
+        >>>
+        >>> # Save with specific options
         >>> model.save(
-        ...     "model_results.nc"
-        ... )  # This will call the overridden method in MyModel
+        ...     "model_results.nc",
+        ...     engine="netcdf4",
+        ...     groups=["posterior", "log_likelihood"],
+        ... )
 
         """
         if self.idata is not None and "posterior" in self.idata:
             file = Path(str(fname))
-            self.idata.to_netcdf(str(file))
+            self.idata.to_netcdf(str(file), **kwargs)
         else:
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
 
