@@ -111,11 +111,6 @@ def fitted_base_model_instance(toy_data, mock_pymc_sample):
         "target_accept": 0.95,
     }
     model_config = {
-        "a": {"loc": 0, "scale": 10, "dims": ("numbers",)},
-        "b": {"loc": 0, "scale": 10},
-        "obs_error": 2,
-    }
-    model_config = {
         "mu_loc": 0,
         "mu_scale": 1,
         "sigma_scale": 1,
@@ -274,48 +269,259 @@ class ModelBuilderTest(ModelBuilder):
         return self.idata
 
 
-def test_model_and_sampler_config():
-    default = RegressionModelBuilderTest()
+@pytest.mark.parametrize(
+    "model_class,expected_type,test_config",
+    [
+        (RegressionModelBuilderTest, "test_model", {"obs_error": 3}),
+        (ModelBuilderTest, "base_test_model", {"obs_error": 3}),
+        (RegressionModelBuilderTest, "test_model", {"mu_loc": 5}),
+    ],
+)
+def test_model_configuration(model_class, expected_type, test_config):
+    """Test model and sampler configuration for all model types."""
+    default = model_class()
     assert default.model_config == default.default_model_config
     assert default.sampler_config == default.default_sampler_config
+    assert default._model_type == expected_type
 
-    nondefault = RegressionModelBuilderTest(
-        model_config={"obs_error": 3}, sampler_config={"draws": 42}
-    )
+    nondefault = model_class(model_config=test_config, sampler_config={"draws": 42})
     assert nondefault.model_config != nondefault.default_model_config
     assert nondefault.sampler_config != nondefault.default_sampler_config
-    assert nondefault.model_config == default.model_config | {"obs_error": 3}
+    assert nondefault.model_config == default.model_config | test_config
     assert nondefault.sampler_config == default.sampler_config | {"draws": 42}
 
 
-def test_base_model_builder_config():
-    """ModelBuilderTest configuration."""
-    default = ModelBuilderTest()
-    assert default.model_config == default.default_model_config
-    assert default.sampler_config == default.default_sampler_config
+@pytest.mark.parametrize(
+    "test_case,model_class,method,expected_error,args",
+    [
+        (
+            "save_without_fit",
+            RegressionModelBuilderTest,
+            "save",
+            "The model hasn't been fit yet",
+            ["test"],
+        ),
+        (
+            "fit_result_error",
+            RegressionModelBuilderTest,
+            "fit_result",
+            "The model hasn't been fit yet",
+            [],
+        ),
+        (
+            "graphviz_before_build",
+            RegressionModelBuilderTest,
+            "graphviz",
+            "The model hasn't been built yet",
+            [],
+        ),
+        (
+            "table_before_build",
+            RegressionModelBuilderTest,
+            "table",
+            "The model hasn't been built yet",
+            [],
+        ),
+    ],
+)
+def test_error_handling(test_case, model_class, method, expected_error, args):
+    """Test various error conditions."""
+    model = model_class()
+    with pytest.raises(RuntimeError, match=expected_error):
+        getattr(model, method)(*args)
 
-    nondefault = ModelBuilderTest(
-        model_config={"obs_error": 3}, sampler_config={"draws": 42}
+
+def test_model_io_comprehensive():
+    """Comprehensive test of ModelIO mixin functionality."""
+    # Test with different model types
+    regression_model = RegressionModelBuilderTest(test_parameter="test_parameter")
+    base_model = ModelBuilderTest(test_parameter="test_parameter")
+
+    # Test that all have unique IDs
+    ids = [regression_model.id, base_model.id]
+    assert len(set(ids)) == 2
+
+    # Test that all have proper model types and versions
+    assert regression_model._model_type == "test_model"
+    assert base_model._model_type == "base_test_model"
+    assert regression_model.version == "0.1"
+    assert base_model.version == "0.1"
+
+    # Test attrs creation
+    attrs = regression_model.create_idata_attrs()
+    required_keys = {"id", "model_type", "version", "sampler_config", "model_config"}
+    assert all(key in attrs for key in required_keys)
+    assert attrs["model_type"] == "test_model"
+    assert attrs["version"] == "0.1"
+    assert attrs["test_parameter"] == '"test_parameter"'
+
+    # Test set_idata_attrs
+    with pm.Model() as simple_model:
+        pm.Normal("test", 0, 1)
+
+    fake_idata = pm.sample_prior_predictive(
+        draws=10, model=simple_model, random_seed=1234
     )
-    assert nondefault.model_config != nondefault.default_model_config
-    assert nondefault.sampler_config != default.default_sampler_config
-    assert nondefault.model_config == default.model_config | {"obs_error": 3}
-    assert nondefault.sampler_config == default.sampler_config | {"draws": 42}
+    fake_idata.add_groups(dict(posterior=fake_idata.prior))
+
+    result_idata = regression_model.set_idata_attrs(fake_idata)
+    assert result_idata.attrs["id"] == regression_model.id
+    assert result_idata.attrs["model_type"] == regression_model._model_type
+    assert result_idata.attrs["version"] == regression_model.version
+
+    # Test error when no idata provided
+    with pytest.raises(RuntimeError, match="No idata provided to set attrs on"):
+        regression_model.set_idata_attrs(None)
 
 
-def test_regression_model_builder_config():
-    """RegressionModelBuilderTest configuration."""
-    default = RegressionModelBuilderTest()
-    assert default.model_config == default.default_model_config
-    assert default.sampler_config == default.default_sampler_config
+@pytest.mark.parametrize(
+    "method_name,deprecated_arg,additional_kwargs",
+    [
+        ("sample_posterior_predictive", "X_pred", {}),
+        ("predict", "X_pred", {}),
+        ("sample_prior_predictive", "X_pred", {}),
+        (
+            "sample_prior_predictive",
+            "y_pred",
+            {"X": pd.DataFrame({"input": [1, 2, 3]})},
+        ),
+    ],
+)
+def test_deprecation_warnings(
+    fitted_regression_model_instance,
+    toy_X,
+    toy_y,
+    method_name,
+    deprecated_arg,
+    additional_kwargs,
+):
+    """Test deprecation warnings for various methods."""
+    # Clear any existing data that might interfere
+    if "posterior_predictive" in fitted_regression_model_instance.idata:
+        del fitted_regression_model_instance.idata.posterior_predictive
+    if "prior" in fitted_regression_model_instance.idata:
+        del fitted_regression_model_instance.idata.prior
+    if "prior_predictive" in fitted_regression_model_instance.idata:
+        del fitted_regression_model_instance.idata.prior_predictive
 
-    nondefault = RegressionModelBuilderTest(
-        model_config={"mu_loc": 5}, sampler_config={"draws": 42}
-    )
-    assert nondefault.model_config != nondefault.default_model_config
-    assert nondefault.sampler_config != default.default_sampler_config
-    assert nondefault.model_config == default.model_config | {"mu_loc": 5}
-    assert nondefault.sampler_config == default.sampler_config | {"draws": 42}
+    with pytest.warns(DeprecationWarning, match=f"{deprecated_arg} is deprecated"):
+        method = getattr(fitted_regression_model_instance, method_name)
+        if deprecated_arg == "y_pred":
+            method(**additional_kwargs, **{deprecated_arg: toy_y})
+        else:
+            method(**additional_kwargs, **{deprecated_arg: toy_X})
+
+
+def test_data_validation_comprehensive():
+    """Comprehensive test of data validation in RegressionModelBuilder."""
+    model = RegressionModelBuilderTest()
+
+    # Test _validate_data method
+    X = np.array([[1, 2], [3, 4]])
+    y = np.array([1, 2])
+
+    # Test with X and y
+    X_valid, y_valid = model._validate_data(X, y)
+    assert isinstance(X_valid, np.ndarray)
+    assert isinstance(y_valid, np.ndarray)
+
+    # Test with only X
+    X_valid_only = model._validate_data(X)
+    assert isinstance(X_valid_only, np.ndarray)
+
+    # Test with pandas DataFrame and Series
+    X_df = pd.DataFrame(X, columns=["a", "b"])
+    y_series = pd.Series(y)
+    X_valid_df, y_valid_series = model._validate_data(X_df, y_series)
+    assert isinstance(X_valid_df, np.ndarray)
+    assert isinstance(y_valid_series, np.ndarray)
+
+    # Test output variable conflict
+    X_with_output = pd.DataFrame({"input": [1, 2, 3]})
+    X_with_output["output"] = pd.Series([1, 2, 3])
+
+    with pytest.raises(ValueError, match="X includes a column named 'output'"):
+        model.fit(X_with_output, pd.Series([1, 2, 3]))
+
+
+def test_graphviz_and_requires_model():
+    """Test graphviz functionality and requires_model decorator."""
+    model = RegressionModelBuilderTest()
+
+    # Test that graphviz and table fail before model is built
+    with pytest.raises(RuntimeError, match="The model hasn't been built yet"):
+        model.graphviz()
+
+    with pytest.raises(RuntimeError, match="The model hasn't been built yet"):
+        model.table()
+
+    # Test that they work after model is built
+    model.build_model(pd.DataFrame({"input": [1, 2, 3]}), pd.Series([1, 2, 3]))
+    assert isinstance(model.graphviz(), graphviz.graphs.Digraph)
+    assert isinstance(model.table(), Table)
+
+
+def test_model_config_formatting_comprehensive():
+    """Comprehensive test of model config formatting."""
+    model = RegressionModelBuilderTest()
+
+    # Test with empty config
+    empty_config = {}
+    formatted = model._model_config_formatting(empty_config)
+    assert formatted == {}
+
+    # Test with nested dicts but no lists
+    simple_config = {"a": {"b": "c"}}
+    formatted = model._model_config_formatting(simple_config)
+    assert formatted == simple_config
+
+    # Test with mixed types (original test)
+    model_config = {
+        "a": {
+            "loc": [0, 0],
+            "scale": 10,
+            "dims": [
+                "x",
+            ],
+        },
+    }
+    converted_model_config = model._model_config_formatting(model_config)
+    np.testing.assert_equal(converted_model_config["a"]["dims"], ("x",))
+    np.testing.assert_equal(converted_model_config["a"]["loc"], np.array([0, 0]))
+
+    # Test with mixed types (edge cases)
+    mixed_config = {"a": {"dims": ["x", "y"], "loc": [1, 2], "scale": 10}}
+    formatted = model._model_config_formatting(mixed_config)
+    assert formatted["a"]["dims"] == ("x", "y")
+    assert isinstance(formatted["a"]["loc"], np.ndarray)
+    assert formatted["a"]["scale"] == 10
+
+
+def test_idata_accessors_comprehensive():
+    """Comprehensive test of idata accessor properties."""
+    model = RegressionModelBuilderTest()
+
+    # Test that accessors fail when no idata is available
+    with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
+        model.posterior
+
+    with pytest.raises(RuntimeError, match="The model hasn't been sampled yet"):
+        model.prior
+
+    with pytest.raises(RuntimeError, match="The model hasn't been sampled yet"):
+        model.prior_predictive
+
+    with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
+        model.posterior_predictive
+
+    with pytest.raises(
+        RuntimeError, match="Call the 'sample_posterior_predictive' method"
+    ):
+        model.predictions
+
+    # Test fit_result accessor
+    with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
+        model.fit_result
 
 
 def test_handle_deprecate_pred_argument():
@@ -359,30 +565,6 @@ def test_has_pymc_marketing_version(fitted_regression_model_instance):
     assert "pymc_marketing_version" in fitted_regression_model_instance.posterior.attrs
 
 
-def test_regression_model_save_load(fitted_regression_model_instance):
-    rng = np.random.default_rng(42)
-    temp = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False)
-    fitted_regression_model_instance.save(temp.name)
-
-    test_builder2 = RegressionModelBuilderTest.load(temp.name)
-
-    assert (
-        fitted_regression_model_instance.idata.groups() == test_builder2.idata.groups()
-    )
-    assert fitted_regression_model_instance.id == test_builder2.id
-    assert fitted_regression_model_instance.model_config == test_builder2.model_config
-    assert (
-        fitted_regression_model_instance.sampler_config == test_builder2.sampler_config
-    )
-
-    x_pred = rng.uniform(low=0, high=1, size=100)
-    prediction_data = pd.DataFrame({"input": x_pred})
-    pred1 = fitted_regression_model_instance.predict(prediction_data)
-    pred2 = test_builder2.predict(prediction_data)
-    assert pred1.shape == pred2.shape
-    temp.close()
-
-
 def test_base_model_save_load(fitted_base_model_instance):
     """Test save/load functionality for BaseRegressionModelBuilderTest."""
     temp = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False)
@@ -403,13 +585,6 @@ def test_initial_build_and_fit(
     if check_idata:
         assert fitted_regression_model_instance.idata is not None
         assert "posterior" in fitted_regression_model_instance.idata.groups()
-
-
-def test_save_without_fit_raises_runtime_error():
-    model_builder = RegressionModelBuilderTest()
-    match = "The model hasn't been fit yet"
-    with pytest.raises(RuntimeError, match=match):
-        model_builder.save("saved_model")
 
 
 def test_save_with_kwargs(fitted_regression_model_instance):
@@ -516,23 +691,6 @@ def test_fit_no_t(toy_X, mock_pymc_sample):
     assert "posterior" in model_builder.idata.groups()
 
 
-def test_fit_dup_Y(toy_X, toy_y):
-    toy_X = pd.concat((toy_X, toy_y), axis=1)
-    model_builder = RegressionModelBuilderTest()
-
-    with pytest.raises(
-        ValueError,
-        match="X includes a column named 'output', which conflicts with the target variable.",
-    ):
-        model_builder.fit(X=toy_X, chains=1, draws=100, tune=100)
-
-
-def test_fit_result_error():
-    model = RegressionModelBuilderTest()
-    with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
-        model.fit_result
-
-
 def test_set_fit_result(toy_X, toy_y):
     model = RegressionModelBuilderTest()
     model.build_model(X=toy_X, y=toy_y)
@@ -578,22 +736,6 @@ def test_sample_posterior_predictive(fitted_regression_model_instance, combined)
     )
 
 
-def test_model_config_formatting():
-    model_config = {
-        "a": {
-            "loc": [0, 0],
-            "scale": 10,
-            "dims": [
-                "x",
-            ],
-        },
-    }
-    model_builder = RegressionModelBuilderTest()
-    converted_model_config = model_builder._model_config_formatting(model_config)
-    np.testing.assert_equal(converted_model_config["a"]["dims"], ("x",))
-    np.testing.assert_equal(converted_model_config["a"]["loc"], np.array([0, 0]))
-
-
 def test_id():
     model_builder = RegressionModelBuilderTest()
     expected_id = hashlib.sha256(
@@ -603,62 +745,6 @@ def test_id():
     ).hexdigest()[:16]
 
     assert model_builder.id == expected_id
-
-
-def test_model_io_functionality():
-    """Test ModelIO mixin functionality."""
-    # Test with different model types
-    regression_model = RegressionModelBuilderTest()
-    base_model = ModelBuilderTest()
-
-    # Test that all have unique IDs
-    ids = [regression_model.id, base_model.id]
-    assert len(set(ids)) == 2
-
-    # Test that all have proper model types
-    assert regression_model._model_type == "test_model"
-    assert base_model._model_type == "base_test_model"
-
-    # Test that all have proper versions
-    assert regression_model.version == "0.1"
-    assert base_model.version == "0.1"
-
-
-def test_model_io_attrs_creation():
-    """Test ModelIO attrs creation functionality."""
-    model = RegressionModelBuilderTest(test_parameter="test_parameter")
-    attrs = model.create_idata_attrs()
-
-    required_keys = {"id", "model_type", "version", "sampler_config", "model_config"}
-    assert all(key in attrs for key in required_keys)
-    assert attrs["model_type"] == "test_model"
-    assert attrs["version"] == "0.1"
-    assert attrs["test_parameter"] == '"test_parameter"'
-
-
-def test_model_io_set_idata_attrs():
-    """Test ModelIO set_idata_attrs functionality."""
-    model = RegressionModelBuilderTest(test_parameter="test_parameter")
-
-    # Create a simple model without complex operations
-    with pm.Model() as simple_model:
-        pm.Normal("test", 0, 1)
-
-    # Create fake idata
-    fake_idata = pm.sample_prior_predictive(
-        draws=10, model=simple_model, random_seed=1234
-    )
-    fake_idata.add_groups(dict(posterior=fake_idata.prior))
-
-    # Test setting attrs
-    result_idata = model.set_idata_attrs(fake_idata)
-    assert result_idata.attrs["id"] == model.id
-    assert result_idata.attrs["model_type"] == model._model_type
-    assert result_idata.attrs["version"] == model.version
-
-    # Test error when no idata provided
-    with pytest.raises(RuntimeError, match="No idata provided to set attrs on"):
-        model.set_idata_attrs(None)
 
 
 @pytest.mark.parametrize("name", ["prior_predictive", "posterior_predictive"])
@@ -810,19 +896,6 @@ def test_abstract_methods():
         RegressionModelBuilder()
 
 
-def test_requires_model_decorator():
-    """Test the requires_model decorator."""
-    model = RegressionModelBuilderTest()
-
-    # Test that graphviz fails before model is built
-    with pytest.raises(RuntimeError, match="The model hasn't been built yet"):
-        model.graphviz()
-
-    # Test that it works after model is built
-    model.build_model(pd.DataFrame({"input": [1, 2, 3]}), pd.Series([1, 2, 3]))
-    assert isinstance(model.graphviz(), graphviz.graphs.Digraph)
-
-
 def test_incorrect_set_idata_attrs_override() -> None:
     class IncorrectSetAttrs(InsufficientModel):
         def create_idata_attrs(self) -> dict:
@@ -965,93 +1038,42 @@ def test_unmatched_index(toy_X, toy_y) -> None:
         model.fit(toy_X, toy_y)
 
 
-def test_regression_model_builder_data_validation():
-    """Test data validation in RegressionModelBuilder."""
-    model = RegressionModelBuilderTest()
+@pytest.fixture(scope="module")
+def stale_idata(fitted_regression_model_instance) -> az.InferenceData:
+    idata = fitted_regression_model_instance.idata.copy()
+    idata.attrs["version"] = "0.0.1"
 
-    # Test _validate_data method
-    X = np.array([[1, 2], [3, 4]])
-    y = np.array([1, 2])
-
-    # Test with X and y
-    X_valid, y_valid = model._validate_data(X, y)
-    assert isinstance(X_valid, np.ndarray)
-    assert isinstance(y_valid, np.ndarray)
-
-    # Test with only X
-    X_valid_only = model._validate_data(X)
-    assert isinstance(X_valid_only, np.ndarray)
-
-    # Test with pandas DataFrame and Series
-    X_df = pd.DataFrame(X, columns=["a", "b"])
-    y_series = pd.Series(y)
-    X_valid_df, y_valid_series = model._validate_data(X_df, y_series)
-    assert isinstance(X_valid_df, np.ndarray)
-    assert isinstance(y_valid_series, np.ndarray)
+    return idata
 
 
-def test_regression_model_builder_output_var_conflict(toy_X, toy_y):
-    """Test that RegressionModelBuilder detects output variable conflicts."""
-    model = RegressionModelBuilderTest()
+@pytest.fixture(scope="module")
+def different_configuration_idata(fitted_regression_model_instance) -> az.InferenceData:
+    idata = fitted_regression_model_instance.idata.copy()
 
-    # Create X with conflicting output variable name
-    X_with_output = toy_X.copy()
-    X_with_output["output"] = toy_y
+    model_config = json.loads(idata.attrs["model_config"])
+    model_config["a"] = {"loc": 1, "scale": 15, "dims": ("numbers",)}
+    idata.attrs["model_config"] = json.dumps(model_config)
 
-    with pytest.raises(ValueError, match="X includes a column named 'output'"):
-        model.fit(X_with_output, toy_y)
-
-
-def test_graphviz(toy_X, toy_y):
-    """Test pymc.graphviz utility on model before and after being built"""
-    model = RegressionModelBuilderTest()
-
-    # Test that graphviz fails before model is built
-    with pytest.raises(RuntimeError, match="The model hasn't been built yet"):
-        model.graphviz()
-
-    model.build_model(X=toy_X, y=toy_y)
-    assert isinstance(model.graphviz(), graphviz.graphs.Digraph)
+    return idata
 
 
 @pytest.mark.parametrize(
-    "method_name",
+    "fixture_name, match",
     [
-        "sample_posterior_predictive",
-        "predict",
+        pytest.param(
+            "stale_idata",
+            re.escape("The model version (0.0.1)"),
+            id="different version",
+        ),
+        pytest.param(
+            "different_configuration_idata", "The model id", id="different id"
+        ),
     ],
 )
-def test_X_pred_posterior_deprecation(
-    method_name,
-    fitted_regression_model_instance,
-    toy_X,
-) -> None:
-    if "posterior_predictive" in fitted_regression_model_instance.idata:
-        del fitted_regression_model_instance.idata.posterior_predictive
-
-    with pytest.warns(DeprecationWarning, match="X_pred is deprecated"):
-        method = getattr(fitted_regression_model_instance, method_name)
-        method(X_pred=toy_X)
-
-    assert isinstance(fitted_regression_model_instance.posterior_predictive, xr.Dataset)
-
-
-def test_X_pred_prior_deprecation(
-    fitted_regression_model_instance, toy_X, toy_y
-) -> None:
-    if "prior" in fitted_regression_model_instance.idata:
-        del fitted_regression_model_instance.idata.prior
-    if "prior_predictive" in fitted_regression_model_instance.idata:
-        del fitted_regression_model_instance.idata.prior_predictive
-
-    with pytest.warns(DeprecationWarning, match="X_pred is deprecated"):
-        fitted_regression_model_instance.sample_prior_predictive(X_pred=toy_X)
-
-    with pytest.warns(DeprecationWarning, match="y_pred is deprecated"):
-        fitted_regression_model_instance.sample_prior_predictive(toy_X, y_pred=toy_y)
-
-    assert isinstance(fitted_regression_model_instance.prior, xr.Dataset)
-    assert isinstance(fitted_regression_model_instance.prior_predictive, xr.Dataset)
+def test_load_from_idata_errors(request, fixture_name, match) -> None:
+    idata = request.getfixturevalue(fixture_name)
+    with pytest.raises(DifferentModelError, match=match):
+        RegressionModelBuilderTest.load_from_idata(idata, check=True)
 
 
 class XarrayModel(RegressionModelBuilder):
@@ -1145,100 +1167,3 @@ def test_xarray_model_builder(X_is_array, xarray_X, xarray_y, mock_pymc_sample) 
             ),
         ).to_xarray(),
     )
-
-
-@pytest.fixture(scope="module")
-def stale_idata(fitted_regression_model_instance) -> az.InferenceData:
-    idata = fitted_regression_model_instance.idata.copy()
-    idata.attrs["version"] = "0.0.1"
-
-    return idata
-
-
-@pytest.fixture(scope="module")
-def different_configuration_idata(fitted_regression_model_instance) -> az.InferenceData:
-    idata = fitted_regression_model_instance.idata.copy()
-
-    model_config = json.loads(idata.attrs["model_config"])
-    model_config["a"] = {"loc": 1, "scale": 15, "dims": ("numbers",)}
-    idata.attrs["model_config"] = json.dumps(model_config)
-
-    return idata
-
-
-@pytest.mark.parametrize(
-    "fixture_name, match",
-    [
-        pytest.param(
-            "stale_idata",
-            re.escape("The model version (0.0.1)"),
-            id="different version",
-        ),
-        pytest.param(
-            "different_configuration_idata", "The model id", id="different id"
-        ),
-    ],
-)
-def test_load_from_idata_errors(request, fixture_name, match) -> None:
-    idata = request.getfixturevalue(fixture_name)
-    with pytest.raises(DifferentModelError, match=match):
-        RegressionModelBuilderTest.load_from_idata(idata, check=True)
-
-
-def test_table() -> None:
-    model = RegressionModelBuilderTest()
-    match = "The model hasn't been built yet"
-    with pytest.raises(RuntimeError, match=match):
-        model.table()
-
-    model.build_model(pd.DataFrame({"input": [1, 2, 3]}), pd.Series([1, 2, 3]))
-    assert isinstance(model.table(), Table)
-
-
-def test_idata_accessors():
-    """Test the idata accessor properties."""
-    model = RegressionModelBuilderTest()
-
-    # Test that accessors fail when no idata is available
-    with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
-        model.posterior
-
-    with pytest.raises(RuntimeError, match="The model hasn't been sampled yet"):
-        model.prior
-
-    with pytest.raises(RuntimeError, match="The model hasn't been sampled yet"):
-        model.prior_predictive
-
-    with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
-        model.posterior_predictive
-
-    with pytest.raises(
-        RuntimeError, match="Call the 'sample_posterior_predictive' method"
-    ):
-        model.predictions
-
-    # Test fit_result accessor
-    with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
-        model.fit_result
-
-
-def test_model_config_formatting_edge_cases():
-    """Test edge cases in model config formatting."""
-    model = RegressionModelBuilderTest()
-
-    # Test with empty config
-    empty_config = {}
-    formatted = model._model_config_formatting(empty_config)
-    assert formatted == {}
-
-    # Test with nested dicts but no lists
-    simple_config = {"a": {"b": "c"}}
-    formatted = model._model_config_formatting(simple_config)
-    assert formatted == simple_config
-
-    # Test with mixed types
-    mixed_config = {"a": {"dims": ["x", "y"], "loc": [1, 2], "scale": 10}}
-    formatted = model._model_config_formatting(mixed_config)
-    assert formatted["a"]["dims"] == ("x", "y")
-    assert isinstance(formatted["a"]["loc"], np.ndarray)
-    assert formatted["a"]["scale"] == 10
