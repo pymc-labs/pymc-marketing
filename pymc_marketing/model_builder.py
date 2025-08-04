@@ -11,7 +11,7 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Base class containing API primitives for model building, fitting, saving, and loading."""
+"""Base classes containing primitives and high-level API for model building, fitting, saving, and loading."""
 
 import hashlib
 import json
@@ -526,15 +526,16 @@ class ModelIO:
 
 
 class ModelBuilder(ABC, ModelIO):
-    """Base class containing primitives for inference data, model configuration, sampling, and saving/loading.
+    """Base class for building PyMC-Marketing models.
 
-    Inherit from this class to build APIs for pymc-marketing models. Child classes must implement the following methods:
-    - default_model_config: Returns a dictionary of default model configuration.
-    - default_sampler_config: Returns a dictionary of default sampler configuration.
+    Child classes must implement the following methods:
+    - default_model_config: Returns a dictionary for default model configuration.
+    - default_sampler_config: Returns a dictionary for default sampler configuration.
     - build_model: Builds the model based on the provided data and model configuration.
-    - build_from_idata: Builds the model from an InferenceData object.
-    - create_fit_data: Creates the fit_data group based on the input data.
-    - fit: Fits the model based on the provided data, mode and sampler configurations.
+    - build_from_idata: Builds the model from an InferenceData object. Needed for loading models.
+    - fit: Fits the model based on the provided data and sampler configurations.
+    - attrs_to_init_kwargs: Override to add additional init keyword arguments.
+    - _serializable_model_config: Needed for saving and loading the model.
 
     """
 
@@ -649,7 +650,7 @@ class ModelBuilder(ABC, ModelIO):
         Parameters
         ----------
         kwargs : dict
-            Additional keyword arguments that may be used for model configuration.
+            data arguments for model configuration.
 
         See Also
         --------
@@ -661,11 +662,12 @@ class ModelBuilder(ABC, ModelIO):
 
         """
 
+    # TODO: Convert from abstract method into a base fitter for all models.
     @abstractmethod
     def fit(
         self,
         **kwargs,
-    ) -> None:
+    ) -> az.InferenceData:
         """Fit a model using the data passed as a parameter.
 
         Sets attrs to inference data of the model.
