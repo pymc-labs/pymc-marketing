@@ -471,7 +471,7 @@ def test_save_kwargs_backward_compatibility(fitted_regression_model_instance):
 
         # Verify file was created and can be loaded
         assert os.path.exists(temp_path)
-        loaded_model = ModelBuilderTest.load(temp_path)
+        loaded_model = RegressionModelBuilderTest.load(temp_path)
         assert loaded_model.idata is not None
         assert "posterior" in loaded_model.idata.groups()
 
@@ -489,16 +489,6 @@ def test_empty_sampler_config_fit(toy_X, toy_y, mock_pymc_sample):
     )
     assert model_builder.idata is not None
     assert "posterior" in model_builder.idata.groups()
-
-
-def test_base_model_builder_fit(mock_pymc_sample):
-    """Test fitting for ModelBuilderTest."""
-    sampler_config = {}
-    model_builder = ModelBuilderTest(sampler_config=sampler_config)
-    model_builder.idata = model_builder.fit(chains=1, draws=100, tune=100)
-    assert model_builder.idata is not None
-    assert "posterior" in model_builder.idata.groups()
-    assert "fit_data" in model_builder.idata.groups()
 
 
 def test_fit(fitted_regression_model_instance):
