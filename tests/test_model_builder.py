@@ -27,9 +27,11 @@ import pytest
 import xarray as xr
 from rich.table import Table
 
+from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.model_builder import (
     DifferentModelError,
     ModelBuilder,
+    ModelIO,
     RegressionModelBuilder,
     _handle_deprecate_pred_argument,
     create_sample_kwargs,
@@ -1167,3 +1169,111 @@ def test_xarray_model_builder(X_is_array, xarray_X, xarray_y, mock_pymc_sample) 
             ),
         ).to_xarray(),
     )
+
+
+def test_check_X_y_and_check_array_fallback(monkeypatch):
+    """Test fallback functions for check_X_y and check_array."""
+    import importlib
+    import sys
+
+    # Remove sklearn from sys.modules to force fallback
+    sys.modules["sklearn"] = None
+    sys.modules["sklearn.utils"] = None
+    sys.modules["sklearn.utils.validation"] = None
+    import pymc_marketing.model_builder as mb
+
+    importlib.reload(mb)
+
+    X = np.array([[1, 2], [3, 4]])
+    y = np.array([1, 2])
+    X2, y2 = mb.check_X_y(X, y)
+    assert np.array_equal(X, X2)
+    assert np.array_equal(y, y2)
+    X3 = mb.check_array(X)
+    assert np.array_equal(X, X3)
+
+
+def test_create_idata_attrs_default_to_dict_and_hsgp_kwargs():
+    """Test default function in create_idata_attrs."""
+
+    class DummyModel(ModelIO):
+        _model_type = "dummy"
+        version = "0.1"
+        sampler_config = {}
+        model_config = {}
+
+        @property
+        def _serializable_model_config(self):
+            return self.model_config
+
+        def build_from_idata(self, idata):
+            pass
+
+    class ObjWithToDict:
+        def to_dict(self):
+            return {"foo": "bar"}
+
+    m = DummyModel()
+    m.model_config = {"obj": ObjWithToDict()}
+    attrs = m.create_idata_attrs()
+    import json
+
+    assert json.loads(attrs["model_config"])["obj"] == {"foo": "bar"}
+
+    m.model_config = {"hsgp": HSGPKwargs(input_dim=1, L=1.0, m=1)}
+    attrs = m.create_idata_attrs()
+    assert "hsgp" in json.loads(attrs["model_config"])
+
+
+def test_load_from_idata_check_false(fitted_regression_model_instance):
+    """Covers line 503: if not check: return model."""
+    idata = fitted_regression_model_instance.idata
+    model = RegressionModelBuilderTest.load_from_idata(idata, check=False)
+    assert isinstance(model, RegressionModelBuilderTest)
+
+
+def test_fit_result_setter_else_branch():
+    """Covers line 707: else branch in fit_result setter."""
+    model = RegressionModelBuilderTest()
+    # Create idata with no 'posterior'
+    import arviz as az
+
+    idata = az.from_dict(prior={"a": np.ones((1, 1, 1))})
+    model.idata = idata
+    model.fit_result = idata
+    assert hasattr(model.idata, "posterior")
+
+
+def test_predict_keyerror_output_var_missing():
+    """Covers line 1009: KeyError in predict if output_var missing."""
+    model = RegressionModelBuilderTest()
+    model.build_model(pd.DataFrame({"input": [1, 2, 3]}), pd.Series([1, 2, 3]))
+    # Patch sample_posterior_predictive to return missing output_var
+    model.sample_posterior_predictive = lambda *a, **k: {"not_output": np.ones(3)}
+    with pytest.raises(KeyError):
+        model.predict(pd.DataFrame({"input": [1, 2, 3]}))
+
+
+def test_predict_proba_calls_predict_posterior(monkeypatch):
+    """Covers line 1137: predict_proba calls predict_posterior."""
+    model = RegressionModelBuilderTest()
+    called = {}
+
+    def fake_predict_posterior(*a, **k):
+        called["yes"] = True
+        return "ok"
+
+    model.predict_posterior = fake_predict_posterior
+    result = model.predict_proba(np.array([[1, 2, 3]]))
+    assert called["yes"]
+    assert result == "ok"
+
+
+def test_predict_posterior_keyerror_output_var_missing():
+    """Test KeyError in predict_posterior if output_var missing."""
+    model = RegressionModelBuilderTest()
+    model.build_model(pd.DataFrame({"input": [1, 2, 3]}), pd.Series([1, 2, 3]))
+    # Patch sample_posterior_predictive to return missing output_var
+    model.sample_posterior_predictive = lambda *a, **k: {"not_output": np.ones(3)}
+    with pytest.raises(KeyError):
+        model.predict_posterior(pd.DataFrame({"input": [1, 2, 3]}))
