@@ -637,6 +637,46 @@ class ModelBuilder(ABC, ModelIO):
 
         """
 
+    @abstractmethod
+    def build_model(
+        self,
+        **kwargs,
+    ) -> None:
+        """Create an instance of `pm.Model` based on provided data and model_config.
+
+        It attaches the model to self.model.
+
+        Parameters
+        ----------
+        kwargs : dict
+            Additional keyword arguments that may be used for model configuration.
+
+        See Also
+        --------
+        default_model_config : returns default model config
+
+        Returns
+        -------
+        None
+
+        """
+
+    @abstractmethod
+    def fit(
+        self,
+        **kwargs,
+    ) -> None:
+        """Fit a model using the data passed as a parameter.
+
+        Sets attrs to inference data of the model.
+
+        Returns
+        -------
+        self : az.InferenceData
+            Returns inference data of the fitted model.
+
+        """
+
     @requires_model
     def graphviz(self, **kwargs):
         """Get the graphviz representation of the model.
@@ -788,7 +828,7 @@ class RegressionModelBuilder(ModelBuilder):
         """
 
     @abstractmethod
-    def build_model(
+    def build_model(  # type: ignore[override]
         self,
         X: pd.DataFrame | xr.Dataset | xr.DataArray,
         y: pd.Series | np.ndarray | xr.DataArray,
@@ -866,7 +906,7 @@ class RegressionModelBuilder(ModelBuilder):
         """Perform transformation on the model after sampling."""
         pass
 
-    def fit(
+    def fit(  # type: ignore[override]
         self,
         X: pd.DataFrame | xr.Dataset | xr.DataArray,
         y: pd.Series | xr.DataArray | np.ndarray | None = None,

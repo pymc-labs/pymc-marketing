@@ -411,7 +411,7 @@ class BaseMMM(BaseValidateMMM):
 
         return second.apply(x=first.apply(x=x, dims="channel"), dims="channel")
 
-    def build_model(
+    def build_model(  # type: ignore[override]
         self,
         X: pd.DataFrame,
         y: pd.Series | np.ndarray,
