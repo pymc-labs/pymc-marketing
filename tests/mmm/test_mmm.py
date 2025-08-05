@@ -765,6 +765,63 @@ class TestMMM:
         assert model.sampler_config == model2.sampler_config
         os.remove("test_save_load")
 
+    def test_save_load_with_kwargs(self, mmm_fitted: MMM):
+        """Test save/load functionality with kwargs (engine and groups)."""
+        model = mmm_fitted
+
+        # Use kwargs to test functionality - ArviZ supports engine and groups
+        # Note: ArviZ's to_netcdf has limited compression support compared to xarray
+        compression_kwargs = {
+            "engine": "h5netcdf",  # Alternative engine that may have better compression
+        }
+
+        model.save("test_save_load_kwargs", **compression_kwargs)
+
+        # Load and verify
+        model2 = MMM.load("test_save_load_kwargs")
+        assert model.date_column == model2.date_column
+        assert model.control_columns == model2.control_columns
+        assert model.channel_columns == model2.channel_columns
+        assert model.adstock.l_max == model2.adstock.l_max
+        assert model.validate_data == model2.validate_data
+        assert model.yearly_seasonality == model2.yearly_seasonality
+        assert model.model_config == model2.model_config
+        assert model.sampler_config == model2.sampler_config
+
+        os.remove("test_save_load_kwargs")
+
+    def test_save_load_engine_comparison(self, mmm_fitted: MMM):
+        """Test save/load with different engines and kwargs options."""
+        model = mmm_fitted
+
+        # Save with default engine
+        model.save("test_save_load_default")
+
+        # Save with h5netcdf engine (demonstrates kwargs functionality)
+        engine_kwargs = {
+            "engine": "h5netcdf",
+        }
+        model.save("test_save_load_h5netcdf", **engine_kwargs)
+
+        # Verify both files exist
+        assert os.path.exists("test_save_load_default")
+        assert os.path.exists("test_save_load_h5netcdf")
+
+        # Verify both can be loaded successfully and have the same data
+        model_default = MMM.load("test_save_load_default")
+        model_h5netcdf = MMM.load("test_save_load_h5netcdf")
+
+        # Both should have the same model configuration
+        assert (
+            model.model_config
+            == model_default.model_config
+            == model_h5netcdf.model_config
+        )
+
+        # Clean up
+        os.remove("test_save_load_default")
+        os.remove("test_save_load_h5netcdf")
+
     def test_fail_id_after_load(self, monkeypatch, toy_X, toy_y):
         # This is the new behavior for the property
         def mock_property(self):
@@ -1000,8 +1057,21 @@ def new_date_ranges_to_test():
     "new_dates",
     new_date_ranges_to_test(),
 )
-@pytest.mark.parametrize("combined", [True, False])
-@pytest.mark.parametrize("original_scale", [True, False])
+@pytest.mark.parametrize(
+    argnames="combined",
+    argvalues=[True, False],
+    ids=["combined", "not_combined"],
+)
+@pytest.mark.parametrize(
+    argnames="original_scale",
+    argvalues=[True, False],
+    ids=["original_scale", "scaled"],
+)
+@pytest.mark.parametrize(
+    argnames="var_names",
+    argvalues=[None, ["mu", "y_sigma", "channel_contribution"], ["mu", "intercept"]],
+    ids=["no_var_names", "var_names", "var_names_with_intercept"],
+)
 def test_new_data_sample_posterior_predictive_method(
     generate_data,
     toy_X,
@@ -1009,22 +1079,29 @@ def test_new_data_sample_posterior_predictive_method(
     new_dates: pd.DatetimeIndex,
     combined: bool,
     original_scale: bool,
+    var_names: list[str] | None,
     request,
 ) -> None:
     """This is the method that is used in all the other methods that generate predictions."""
     mmm = request.getfixturevalue(model_name)
     X = generate_data(new_dates)
 
+    kwargs = {"var_names": var_names} if var_names is not None else {}
+
     posterior_predictive = mmm.sample_posterior_predictive(
         X=X,
         extend_idata=False,
         combined=combined,
         original_scale=original_scale,
+        **kwargs,
     )
     pd.testing.assert_index_equal(
         pd.DatetimeIndex(posterior_predictive.coords["date"]),
         new_dates,
     )
+
+    if var_names is not None:
+        assert var_names == list(posterior_predictive.data_vars)
 
 
 @pytest.mark.parametrize(
