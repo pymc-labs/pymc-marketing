@@ -13,6 +13,7 @@
 #   limitations under the License.
 import hashlib
 import json
+import os
 import re
 import sys
 import tempfile
@@ -219,6 +220,73 @@ def test_save_without_fit_raises_runtime_error():
     match = "The model hasn't been fit yet"
     with pytest.raises(RuntimeError, match=match):
         model_builder.save("saved_model")
+
+
+def test_save_with_kwargs(fitted_model_instance):
+    """Test that kwargs are properly passed to to_netcdf"""
+    import unittest.mock as mock
+
+    with mock.patch.object(fitted_model_instance.idata, "to_netcdf") as mock_to_netcdf:
+        temp = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False)
+
+        # Test with kwargs supported by InferenceData.to_netcdf()
+        kwargs = {"engine": "netcdf4", "groups": ["posterior", "log_likelihood"]}
+
+        fitted_model_instance.save(temp.name, **kwargs)
+
+        # Verify to_netcdf was called with the correct arguments
+        mock_to_netcdf.assert_called_once_with(temp.name, **kwargs)
+        temp.close()
+
+
+def test_save_with_kwargs_integration(fitted_model_instance):
+    """Test save function with actual kwargs (integration test)"""
+
+    temp = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False)
+    temp_path = temp.name
+    temp.close()
+
+    try:
+        # Test with specific groups - this tests that kwargs are passed through
+        fitted_model_instance.save(temp_path, groups=["posterior"])
+
+        # Verify file was created successfully
+        assert os.path.exists(temp_path)
+
+        # Verify we can read the file and it contains the expected groups
+        from pymc_marketing.utils import from_netcdf
+
+        loaded_idata = from_netcdf(temp_path)
+        assert "posterior" in loaded_idata.groups()
+        # Should only have posterior since we specified groups=["posterior"]
+        assert "fit_data" not in loaded_idata.groups()
+
+    finally:
+        # Clean up
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+
+
+def test_save_kwargs_backward_compatibility(fitted_model_instance):
+    """Test that save function still works without kwargs (backward compatibility)"""
+    temp = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False)
+    temp_path = temp.name
+    temp.close()
+
+    try:
+        # Test without any kwargs (original behavior)
+        fitted_model_instance.save(temp_path)
+
+        # Verify file was created and can be loaded
+        assert os.path.exists(temp_path)
+        loaded_model = ModelBuilderTest.load(temp_path)
+        assert loaded_model.idata is not None
+        assert "posterior" in loaded_model.idata.groups()
+
+    finally:
+        # Clean up
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
 
 
 def test_empty_sampler_config_fit(toy_X, toy_y, mock_pymc_sample):

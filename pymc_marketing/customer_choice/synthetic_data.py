@@ -57,6 +57,33 @@ def generate_saturated_data(
     data: pd.DataFrame
         The synthetic data generated.
 
+
+    Examples
+    --------
+    Generate some synthetic data for the MVITS model:
+
+    .. code-block:: python
+
+        import numpy as np
+
+        from pymc_marketing.customer_choice import generate_saturated_data
+
+        seed = sum(map(ord, "Saturated Market Data"))
+        rng = np.random.default_rng(seed)
+
+        scenario = {
+            "total_sales_mu": 1_000,
+            "total_sales_sigma": 5,
+            "treatment_time": 40,
+            "n_observations": 100,
+            "market_shares_before": [[0.7, 0.3, 0]],
+            "market_shares_after": [[0.65, 0.25, 0.1]],
+            "market_share_labels": ["competitor", "own", "new"],
+            "random_seed": rng,
+        }
+
+        data = generate_saturated_data(**scenario)
+
     """
     rng: np.random.Generator = (
         random_seed
