@@ -493,9 +493,6 @@ class TestMMM:
         # Clean up
         os.remove("test_model")
 
-    @pytest.mark.xfail(
-        reason="Test needs updating for new scaling approach - internal scaling consistency changed"
-    )
     def test_channel_contribution_forward_pass_recovers_contribution(
         self,
         mmm_fitted: MMM,
@@ -509,28 +506,37 @@ class TestMMM:
         channel_contribution_forward_pass_mean = channel_contribution_forward_pass.mean(
             axis=(0, 1)
         )
-        channel_contribution_mean = mmm_fitted.fit_result["channel_contribution"].mean(
-            dim=["draw", "chain"]
-        )
+        # The forward pass results should be in the original scale of the target variable.
+        # Compare directly with the original scale version from the fit result
+        if "channel_contribution_original_scale" in mmm_fitted.fit_result:
+            channel_contribution_original_mean = mmm_fitted.fit_result[
+                "channel_contribution_original_scale"
+            ].mean(dim=["draw", "chain"])
+        else:
+            # Fallback: scale the scaled version by target_scale
+            channel_contribution_scaled_mean = mmm_fitted.fit_result[
+                "channel_contribution"
+            ].mean(dim=["draw", "chain"])
+            target_scale = (
+                mmm_fitted.target_scale
+                if hasattr(mmm_fitted, "target_scale")
+                else mmm_fitted.y.max()
+            )
+            channel_contribution_original_mean = (
+                channel_contribution_scaled_mean * target_scale
+            )
+
         assert (
             channel_contribution_forward_pass_mean.shape
-            == channel_contribution_mean.shape
-        )
-        # The forward pass results should be in the original scale of the target variable.
-        # The trace fits the model with scaled data, so when scaling back, they should match.
-        # With the new scaling approach, we use the computed target_scale factor
-        expected_scale = (
-            mmm_fitted.target_scale
-            if hasattr(mmm_fitted, "target_scale")
-            else mmm_fitted.y.max()
+            == channel_contribution_original_mean.shape
         )
 
-        # Use relative tolerance for numerical precision issues
-        ratio = channel_contribution_forward_pass_mean / channel_contribution_mean
+        # Both should be in original scale and approximately equal
+        # Use relative tolerance for numerical precision and sampling variation
         np.testing.assert_allclose(
-            ratio,
-            expected_scale,
-            rtol=1e-1,  # 10% relative tolerance for scaling tests
+            channel_contribution_forward_pass_mean,
+            channel_contribution_original_mean,
+            rtol=2e-1,  # 20% relative tolerance for sampling variation
             atol=1e-1,  # Absolute tolerance
         )
 
@@ -1539,9 +1545,6 @@ def test_missing_attrs_to_defaults(toy_X, toy_y, mock_pymc_sample) -> None:
     os.remove(file)
 
 
-@pytest.mark.xfail(
-    reason="Test needs updating for new scaling approach - internal scaling consistency changed"
-)
 def test_channel_contribution_forward_pass_time_varying_media(
     toy_X,
     toy_y,

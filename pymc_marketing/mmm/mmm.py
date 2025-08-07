@@ -603,7 +603,7 @@ class BaseMMM(BaseValidateMMM):
                 dims=("date", "channel"),
             )
 
-            target_raw = pm.Data(
+            target_data = pm.Data(
                 name="target_data",
                 value=self.preprocessed_data["y"],
                 dims="date",
@@ -614,7 +614,7 @@ class BaseMMM(BaseValidateMMM):
             channel_data_ = pt.switch(pt.isnan(channel_data_), 0.0, channel_data_)
             channel_data_.name = "channel_data_scaled"
 
-            target_ = target_raw / target_scale_
+            target_ = target_data / target_scale_
             target_.name = "target_scaled"
             if self.time_varying_intercept | self.time_varying_media:
                 time_index = pm.Data(
@@ -788,7 +788,7 @@ class BaseMMM(BaseValidateMMM):
                 )
 
             pm.Deterministic(
-                name="mu_original_scale",
+                name="y_original_scale",
                 var=(mu * target_scale_),
                 dims="date",
             )
@@ -861,9 +861,30 @@ class BaseMMM(BaseValidateMMM):
             **self.model_coords,
         }
         with pm.Model(coords=coords):
+            # Create channel_data as a pm.Data tensor to ensure proper shape handling
+            channel_data_tensor = pm.Data(
+                name="channel_data",
+                value=channel_data,
+                dims=("date", "channel"),
+            )
+
+            # Apply the same scaling as in the original model - scale by channel_scale
+            channel_scale_ = pm.Data(
+                "channel_scale",
+                self.channel_scale,
+                dims=("channel",),
+            )
+
+            # Apply scaling within the model graph (same as build_model)
+            channel_data_scaled = channel_data_tensor / channel_scale_
+            channel_data_scaled = pt.switch(
+                pt.isnan(channel_data_scaled), 0.0, channel_data_scaled
+            )
+            channel_data_scaled.name = "channel_data_scaled"
+
             pm.Deterministic(
                 "channel_contribution",
-                self.forward_pass(x=channel_data),
+                self.forward_pass(x=channel_data_scaled),
                 dims=("date", "channel"),
             )
 
@@ -1025,7 +1046,7 @@ class BaseMMM(BaseValidateMMM):
 
             # Use new scaling approach if available
             if hasattr(self, "target_scale"):
-                data["target_raw"] = y_data
+                data["target_data"] = y_data
                 data["target_scale"] = self.target_scale
             else:
                 # Fall back to old approach for backward compatibility
@@ -1033,7 +1054,7 @@ class BaseMMM(BaseValidateMMM):
         else:
             dtype = self.preprocessed_data["y"].dtype  # type: ignore
             if hasattr(self, "target_scale"):
-                data["target_raw"] = np.zeros(X.shape[0], dtype=dtype)
+                data["target_data"] = np.zeros(X.shape[0], dtype=dtype)
                 data["target_scale"] = self.target_scale
             else:
                 data["target"] = np.zeros(X.shape[0], dtype=dtype)
@@ -2220,52 +2241,54 @@ class MMM(
             )
 
         # Transform to original scale if requested (default behavior)
-        if original_scale and self.output_var in posterior_predictive_samples:
-            # Since we now store original scale data and apply scaling in model,
-            # the sampled 'y' is in scaled space, so we need to transform back
+        if original_scale:
             if hasattr(self, "target_scale"):
-                # Use the computed scale factor
-                posterior_predictive_samples[self.output_var] = (
-                    posterior_predictive_samples[self.output_var] * self.target_scale
-                )
+                # Use the new computed scale factor approach
+                if self.output_var in posterior_predictive_samples:
+                    posterior_predictive_samples[self.output_var] = (
+                        posterior_predictive_samples[self.output_var]
+                        * self.target_scale
+                    )
+                # No need to apply transformer since we use direct scaling
             else:
                 # Fallback to transformer for backward compatibility
-                posterior_predictive_samples[self.output_var] = (
-                    apply_sklearn_transformer_across_dim(
-                        data=posterior_predictive_samples[self.output_var],
-                        func=self.get_target_transformer().inverse_transform,
-                        dim_name="date",
+                if self.output_var in posterior_predictive_samples:
+                    posterior_predictive_samples[self.output_var] = (
+                        apply_sklearn_transformer_across_dim(
+                            data=posterior_predictive_samples[self.output_var],
+                            func=self.get_target_transformer().inverse_transform,
+                            dim_name="date",
+                        )
                     )
+
+                intercept_condition = (
+                    "intercept"
+                    in sample_posterior_predictive_kwargs.get("var_names", [])
+                    and not self.time_varying_intercept
                 )
 
-        intercept_condition = (
-            "intercept" in sample_posterior_predictive_kwargs.get("var_names", [])
-            and not self.time_varying_intercept
-        )
-
-        if original_scale:
-            # We need to expand the intercept to the date dimension
-            # because the target transformer is applied to the date dimension
-            if intercept_condition:
-                posterior_predictive_samples["intercept"] = (
-                    posterior_predictive_samples["intercept"]
-                    .expand_dims(
-                        dim={"date": posterior_predictive_samples["date"]}, axis=0
+                # We need to expand the intercept to the date dimension
+                # because the target transformer is applied to the date dimension
+                if intercept_condition:
+                    posterior_predictive_samples["intercept"] = (
+                        posterior_predictive_samples["intercept"]
+                        .expand_dims(
+                            dim={"date": posterior_predictive_samples["date"]}, axis=0
+                        )
+                        .rename("intercept")
                     )
-                    .rename("intercept")
+
+                posterior_predictive_samples = apply_sklearn_transformer_across_dim(
+                    data=posterior_predictive_samples,
+                    func=self.get_target_transformer().inverse_transform,
+                    dim_name="date",
                 )
 
-            posterior_predictive_samples = apply_sklearn_transformer_across_dim(
-                data=posterior_predictive_samples,
-                func=self.get_target_transformer().inverse_transform,
-                dim_name="date",
-            )
-
-            # We need to remove the date dimension after the inverse transform
-            if intercept_condition:
-                posterior_predictive_samples["intercept"] = (
-                    posterior_predictive_samples["intercept"].isel(date=0)
-                )
+                # We need to remove the date dimension after the inverse transform
+                if intercept_condition:
+                    posterior_predictive_samples["intercept"] = (
+                        posterior_predictive_samples["intercept"].isel(date=0)
+                    )
 
         return posterior_predictive_samples
 
