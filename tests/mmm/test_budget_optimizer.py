@@ -588,15 +588,51 @@ def test_mmm_optimize_budget_callback_parametrized(dummy_df, dummy_idata, callba
     mmm.build_model(X=X_dummy, y=y_dummy)
     mmm.idata = dummy_idata
 
-    # Test that the deprecated MMM interface raises NotImplementedError
-    with pytest.raises(
-        NotImplementedError, match="This method is deprecated and no longer available"
+    with pytest.warns(
+        DeprecationWarning,
+        match="This method is deprecated and will be removed in a future version",
     ):
-        mmm.optimize_budget(
+        result = mmm.optimize_budget(
             budget=100,
             num_periods=10,
             callback=callback,
         )
+
+    # Check return value count
+    if callback:
+        assert len(result) == 3
+        optimal_budgets, opt_result, callback_info = result
+
+        # Validate callback info
+        assert isinstance(callback_info, list)
+        assert len(callback_info) > 0
+
+        # Each iteration should have required keys
+        for iter_info in callback_info:
+            assert "x" in iter_info
+            assert "fun" in iter_info
+            assert "jac" in iter_info
+
+        # Check that objective values are finite
+        objectives = [iter_info["fun"] for iter_info in callback_info]
+        assert all(np.isfinite(obj) for obj in objectives)
+
+    else:
+        assert len(result) == 2
+        optimal_budgets, opt_result = result
+
+    # Common validations
+    assert isinstance(optimal_budgets, xr.DataArray)
+    assert optimal_budgets.dims == ("channel",)
+    assert len(optimal_budgets) == len(mmm.channel_columns)
+
+    # Budget should sum to total (within tolerance)
+    assert np.abs(optimal_budgets.sum().item() - 100) < 1e-6
+
+    # Check optimization result
+    assert hasattr(opt_result, "success")
+    assert hasattr(opt_result, "x")
+    assert hasattr(opt_result, "fun")
 
 
 @pytest.mark.parametrize(

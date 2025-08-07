@@ -2424,9 +2424,29 @@ class MMM(
         ValueError
             If the noise level is not a float.
         """
-        raise NotImplementedError(
-            "This method is deprecated and no longer available. "
-            "Please migrate to the `Multidimensal.MMM` class."
+        warnings.warn(
+            "This method is deprecated and will be removed in a future version. "
+            "Please migrate to the `Multidimensal.MMM` class.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
+        from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
+
+        allocator = BudgetOptimizer(
+            num_periods=num_periods,
+            utility_function=utility_function,
+            response_variable=response_variable,
+            custom_constraints=constraints,
+            default_constraints=default_constraints,
+            model=self,
+        )
+
+        return allocator.allocate_budget(
+            total_budget=budget,
+            budget_bounds=budget_bounds,
+            callback=callback,
+            **minimize_kwargs,
         )
 
     def plot_budget_allocation(
