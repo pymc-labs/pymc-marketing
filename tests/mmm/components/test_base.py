@@ -11,6 +11,8 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+from unittest.mock import Mock
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pymc as pm
@@ -18,7 +20,7 @@ import pytensor.tensor as pt
 import pytest
 import xarray as xr
 from pymc_extras.prior import Prior, VariableFactory
-from pytensor.tensor import TensorVariable
+from pytensor.tensor import TensorVariable, scalar
 
 from pymc_marketing.mmm.components.base import (
     DuplicatedTransformationError,
@@ -616,3 +618,40 @@ def test_apply_idx_more_dims(new_transformation_class) -> None:
         Y.eval(),
         expected.eval(),
     )
+
+
+class DummyTransformation(Transformation):
+    @staticmethod
+    def function(data, x):
+        return data + x
+
+    prefix = "dummy"
+    lookup_name = "dummy"
+    default_priors = {"x": Prior("Normal", mu=0, sigma=1)}
+
+
+mock_variable_factory = Mock(spec=VariableFactory)
+
+
+@pytest.mark.parametrize(
+    "prior_value",
+    [
+        Prior("Normal", mu=0, sigma=1),
+        0.5,
+        scalar("x"),
+        mock_variable_factory,
+        [0.1, 0.2, 0.3],
+        np.array([0.1, 0.2, 0.3], dtype=float),
+    ],
+)
+def test_transformation_accepts_supported_priors(prior_value):
+    priors = {"x": prior_value}
+    tfm = DummyTransformation(priors=priors)
+
+    actual = tfm.function_priors["x"]
+
+    # Compare array-likes properly
+    if isinstance(prior_value, list | np.ndarray):
+        assert np.array_equal(actual, prior_value)
+    else:
+        assert actual == prior_value
