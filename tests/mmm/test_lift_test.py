@@ -21,6 +21,7 @@ from pytensor.tensor.variable import TensorVariable
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MaxAbsScaler
 
+from pymc_marketing.mmm import MMM, GeometricAdstock
 from pymc_marketing.mmm.components.saturation import (
     HillSaturation,
     LogisticSaturation,
@@ -485,3 +486,51 @@ def test_scale_lift_measurements(df_lift_test_with_numerics) -> None:
         expected,
         check_like=True,
     )
+
+
+@pytest.fixture
+def dummy_mmm_model():
+    # Create sample data for dummy model
+    df = pd.DataFrame(
+        {
+            "date": pd.to_datetime(pd.date_range("2024-01-01", periods=52)),
+            "organic": np.random.rand(52) * 520,
+            "paid": np.random.rand(52) * 200,
+            "social": np.random.rand(52) * 50,
+            "y": np.random.rand(52) * 500,  # target variable
+        }
+    )
+    X = df[["date", "organic", "paid", "social"]]
+    y = df["y"]
+    # Initialize model
+    model = MMM(
+        date_column="date",
+        adstock=GeometricAdstock(l_max=6),
+        saturation=LogisticSaturation(),
+        channel_columns=["organic", "paid", "social"],
+        time_varying_media=True,  # trigger the condition
+    )
+    # Build the model
+    model.build_model(X, y)
+    return model
+
+
+def test_adds_date_column_if_missing(dummy_mmm_model):
+    df_lift_test = pd.DataFrame(
+        {
+            "x": [1, 2, 3],
+            "delta_x": [0.1, 0.2, 0.3],
+            "sigma": [0.1, 0.2, 0.3],
+            "delta_y": [0.1, 0.2, 0.3],
+            "channel": ["organic", "paid", "social"],
+        }
+    )
+
+    # Make sure the column is missing initially
+    assert "date" not in df_lift_test.columns
+
+    # Run the method (it should handle date patching internally)
+    dummy_mmm_model.add_lift_test_measurements(df_lift_test)
+
+    # Check if the date was added inside the function
+    assert dummy_mmm_model._last_lift_test_df["date"].notna().all()

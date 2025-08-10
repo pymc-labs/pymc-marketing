@@ -19,12 +19,13 @@ import pytensor.tensor as pt
 import pytest
 import xarray as xr
 from pydantic import ValidationError
-
-from pymc_marketing.deserialize import (
+from pymc_extras.deserialize import (
     DESERIALIZERS,
     deserialize,
     register_deserialization,
 )
+from pymc_extras.prior import Prior
+
 from pymc_marketing.mmm import (
     AdstockTransformation,
     DelayedAdstock,
@@ -35,7 +36,6 @@ from pymc_marketing.mmm import (
     adstock_from_dict,
 )
 from pymc_marketing.mmm.transformers import ConvMode
-from pymc_marketing.prior import Prior
 
 
 def adstocks() -> list:

@@ -93,8 +93,8 @@ def test_budget_optimizer_no_mask(dummy_df, fitted_mmm):
 
     optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
         model=fitted_mmm,
-        start_date=X_dummy["date_week"].max() + pd.Timedelta(1, freq="1W"),
-        end_date=X_dummy["date_week"].max() + pd.Timedelta(2, freq="1W"),
+        start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+        end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=10),
     )
 
     optimal_budgets, result = optimizable_model.optimize_budget(
@@ -121,8 +121,8 @@ def test_budget_optimizer_correct_mask(dummy_df, fitted_mmm):
 
     optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
         model=fitted_mmm,
-        start_date=X_dummy["date_week"].max() + pd.Timedelta(1, freq="1W"),
-        end_date=X_dummy["date_week"].max() + pd.Timedelta(2, freq="1W"),
+        start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+        end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=10),
     )
 
     optimal_budgets, result = optimizable_model.optimize_budget(
@@ -178,8 +178,8 @@ def test_budget_optimizer_incorrect_mask(dummy_df, fitted_mmm):
 
     optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
         model=mmm_modified,
-        start_date=X_modified["date_week"].max() + pd.Timedelta(1, freq="1W"),
-        end_date=X_modified["date_week"].max() + pd.Timedelta(2, freq="1W"),
+        start_date=X_modified["date_week"].max() + pd.Timedelta(weeks=1),
+        end_date=X_modified["date_week"].max() + pd.Timedelta(weeks=10),
     )
 
     msg = (
@@ -205,8 +205,8 @@ def test_time_distribution_by_geo_only(dummy_df, fitted_mmm):
 
     optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
         model=fitted_mmm,
-        start_date=X_dummy["date_week"].max() + pd.Timedelta(1, freq="1W"),
-        end_date=X_dummy["date_week"].max() + pd.Timedelta(4, freq="1W"),  # 4 weeks
+        start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+        end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=4),  # 4 weeks
     )
 
     # First, let's try with only geo dimension to demonstrate it fails
@@ -305,8 +305,8 @@ def test_time_distribution_by_channel_geo(dummy_df, fitted_mmm):
 
     optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
         model=fitted_mmm,
-        start_date=X_dummy["date_week"].max() + pd.Timedelta(1, freq="1W"),
-        end_date=X_dummy["date_week"].max() + pd.Timedelta(4, freq="1W"),  # 4 weeks
+        start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+        end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=4),  # 4 weeks
     )
 
     # Create time distribution factors that vary by both channel and geo
@@ -371,8 +371,8 @@ def test_time_distribution_with_zero_bounds(dummy_df, fitted_mmm):
 
     optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
         model=fitted_mmm,
-        start_date=X_dummy["date_week"].max() + pd.Timedelta(1, freq="1W"),
-        end_date=X_dummy["date_week"].max() + pd.Timedelta(4, freq="1W"),  # 4 weeks
+        start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+        end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=4),  # 4 weeks
     )
 
     # Create time distribution factors for all channel-geo combinations
@@ -462,8 +462,8 @@ def test_budget_distribution_over_period_wrong_dims_multidimensional(
 
     optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
         model=fitted_mmm,
-        start_date=X_dummy["date_week"].max() + pd.Timedelta(1, freq="1W"),
-        end_date=X_dummy["date_week"].max() + pd.Timedelta(4, freq="1W"),
+        start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+        end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=4),
     )
 
     # Create time factors with missing geo dimension
@@ -501,8 +501,8 @@ def test_time_distribution_multidim(dummy_df, fitted_mmm):
 
     optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
         model=fitted_mmm,
-        start_date=X_dummy["date_week"].max() + pd.Timedelta(1, freq="1W"),
-        end_date=X_dummy["date_week"].max() + pd.Timedelta(4, freq="1W"),  # 4 weeks
+        start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+        end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=4),  # 4 weeks
     )
 
     # Create time distribution factors that vary by geo only
@@ -567,8 +567,8 @@ def test_time_distribution_channel_specific_pattern(dummy_df, fitted_mmm):
 
     optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
         model=fitted_mmm,
-        start_date=X_dummy["date_week"].max() + pd.Timedelta(1, freq="1W"),
-        end_date=X_dummy["date_week"].max() + pd.Timedelta(4, freq="1W"),
+        start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+        end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=4),
     )
 
     # Different patterns for each channel-geo combination
@@ -657,8 +657,8 @@ def test_time_distribution_validation_multidim(dummy_df, fitted_mmm):
 
     optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
         model=fitted_mmm,
-        start_date=X_dummy["date_week"].max() + pd.Timedelta(1, freq="1W"),
-        end_date=X_dummy["date_week"].max() + pd.Timedelta(4, freq="1W"),
+        start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+        end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=4),
     )
 
     # Test 1: Factors don't sum to 1
@@ -739,8 +739,8 @@ def test_time_distribution_total_spend_preserved(dummy_df, fitted_mmm):
 
     optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
         model=fitted_mmm,
-        start_date=X_dummy["date_week"].max() + pd.Timedelta(1, freq="1W"),
-        end_date=X_dummy["date_week"].max() + pd.Timedelta(num_periods, freq="1W"),
+        start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+        end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=num_periods),
     )
 
     # Run optimization WITHOUT time distribution pattern
@@ -806,11 +806,25 @@ def test_time_distribution_total_spend_preserved(dummy_df, fitted_mmm):
     # Sample response distributions for both allocations
     response_no_pattern = optimizable_model.sample_response_distribution(
         allocation_strategy=optimal_budgets_no_pattern,
+        include_carryover=False,  # Don't zero out dates for budget comparison
     )
 
     response_with_pattern = optimizable_model.sample_response_distribution(
         allocation_strategy=optimal_budgets_with_pattern,
+        budget_distribution_over_period=budget_distribution_over_period,
+        include_carryover=False,  # Don't zero out dates for budget comparison
     )
+
+    # Print the flat pattern on response distributions
+    print("\nResponse without pattern:")
+    for channel in fitted_mmm.channel_columns:
+        print(f"{channel} distribution by date:")
+        print(response_no_pattern[channel].values)
+
+    print("\nResponse with pattern:")
+    for channel in fitted_mmm.channel_columns:
+        print(f"{channel} distribution by date:")
+        print(response_with_pattern[channel].values)
 
     # Extract channel spend from both response distributions
     # Access channel columns directly from the sampled allocation
@@ -836,3 +850,157 @@ def test_time_distribution_total_spend_preserved(dummy_df, fitted_mmm):
     # Also verify that the optimal budgets sum to the total budget
     assert np.abs(optimal_budgets_no_pattern.sum().item() - total_budget) < 1e-6
     assert np.abs(optimal_budgets_with_pattern.sum().item() - total_budget) < 1e-6
+
+
+def test_time_distribution_with_carryover_total_spend_preserved(dummy_df, fitted_mmm):
+    """Test that total spend is preserved when using both carryover and time distribution patterns."""
+    df_kwargs, X_dummy, y_dummy = dummy_df
+
+    # Set up common parameters
+    num_periods = 4
+    total_budget = 100
+
+    optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
+        model=fitted_mmm,
+        start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+        end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=num_periods),
+    )
+
+    # Create a flighting pattern (e.g., 60% first period, 30% second, 10% third, 0% fourth)
+    budget_distribution_over_period = xr.DataArray(
+        np.array(
+            [
+                # date 0
+                [[0.6, 0.6], [0.6, 0.6]],  # All channels/geos: 60%
+                # date 1
+                [[0.3, 0.3], [0.3, 0.3]],  # All channels/geos: 30%
+                # date 2
+                [[0.1, 0.1], [0.1, 0.1]],  # All channels/geos: 10%
+                # date 3
+                [[0.0, 0.0], [0.0, 0.0]],  # All channels/geos: 0%
+            ]
+        ),
+        dims=["date", "geo", "channel"],
+        coords={
+            "date": [0, 1, 2, 3],
+            "geo": ["A", "B"],
+            "channel": ["channel_1", "channel_2"],
+        },
+    )
+
+    # Create an optimal budget allocation
+    from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
+
+    with pytest.warns(UserWarning, match="Using default equality constraint"):
+        optimizer = BudgetOptimizer(
+            model=optimizable_model,
+            num_periods=num_periods,
+            budget_distribution_over_period=budget_distribution_over_period,
+            response_variable="total_media_contribution_original_scale",
+            default_constraints=True,
+        )
+
+    optimal_budgets, result = optimizer.allocate_budget(
+        total_budget=total_budget,
+    )
+
+    assert result.success
+
+    # Test without carryover
+    response_no_carryover = optimizable_model.sample_response_distribution(
+        allocation_strategy=optimal_budgets,
+        budget_distribution_over_period=budget_distribution_over_period,
+        include_carryover=False,
+    )
+
+    # Test WITH carryover
+    response_with_carryover = optimizable_model.sample_response_distribution(
+        allocation_strategy=optimal_budgets,
+        budget_distribution_over_period=budget_distribution_over_period,
+        include_carryover=True,
+    )
+
+    # Extract channel spend
+    channel_1_allocation = optimal_budgets.sel(channel="channel_1").sum().item()
+    channel_1_spend_no_carryover = response_no_carryover["channel_1"].sum().item()
+    channel_1_spend_with_carryover = response_with_carryover["channel_1"].sum().item()
+
+    # Both scenarios should preserve total spend = allocation * num_periods
+    assert (
+        np.abs(channel_1_allocation * num_periods - channel_1_spend_no_carryover) < 0.1
+    ), "Without carryover: spend should be allocation * num_periods"
+
+    assert (
+        np.abs(channel_1_allocation * num_periods - channel_1_spend_with_carryover)
+        < 0.1
+    ), "With carryover: spend should still be allocation * num_periods"
+
+
+def test_budget_distribution_carryover_interaction_issue(dummy_df, fitted_mmm):
+    """Test that budget distribution and carryover interaction preserves total spend correctly."""
+    df_kwargs, X_dummy, y_dummy = dummy_df
+
+    # Set up a simple scenario
+    num_periods = 4
+
+    optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
+        model=fitted_mmm,
+        start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+        end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=num_periods),
+    )
+
+    # Create a simple allocation strategy - allocate 10 per channel per geo
+    # Total allocation = 10 * 2 channels * 2 geos = 40
+    allocation_strategy = xr.DataArray(
+        np.full((2, 2), 10.0),
+        dims=["channel", "geo"],
+        coords={
+            "channel": ["channel_1", "channel_2"],
+            "geo": ["A", "B"],
+        },
+    )
+
+    # Create a simple uniform budget distribution
+    budget_distribution = xr.DataArray(
+        np.full((num_periods, 2, 2), 1.0 / num_periods),
+        dims=["date", "geo", "channel"],
+        coords={
+            "date": list(range(num_periods)),
+            "geo": ["A", "B"],
+            "channel": ["channel_1", "channel_2"],
+        },
+    )
+
+    # Test without carryover
+    response_no_carryover = optimizable_model.sample_response_distribution(
+        allocation_strategy=allocation_strategy,
+        budget_distribution_over_period=budget_distribution,
+        include_carryover=False,
+        noise_level=0.0,  # No noise to see exact values
+    )
+
+    # Test with carryover
+    response_with_carryover = optimizable_model.sample_response_distribution(
+        allocation_strategy=allocation_strategy,
+        budget_distribution_over_period=budget_distribution,
+        include_carryover=True,
+        noise_level=0.0,  # No noise to see exact values
+    )
+
+    # Extract channel 1 spend
+    channel_1_allocation = (
+        allocation_strategy.sel(channel="channel_1").sum().item()
+    )  # Should be 20
+    channel_1_spend_no_carryover = response_no_carryover["channel_1"].sum().item()
+    channel_1_spend_with_carryover = response_with_carryover["channel_1"].sum().item()
+
+    # The key invariant: total spend should always equal allocation * num_periods
+    # regardless of whether carryover is included or not
+    assert (
+        np.abs(channel_1_spend_no_carryover - channel_1_allocation * num_periods) < 0.1
+    ), "Without carryover: total spend should equal allocation * num_periods"
+
+    assert (
+        np.abs(channel_1_spend_with_carryover - channel_1_allocation * num_periods)
+        < 0.1
+    ), "With carryover: total spend should still equal allocation * num_periods"
