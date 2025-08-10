@@ -37,6 +37,7 @@ from scipy.optimize import OptimizeResult
 from pymc_marketing.mmm import SoftPlusHSGP
 from pymc_marketing.mmm.additive_effect import EventAdditiveEffect, MuEffect
 from pymc_marketing.mmm.budget_optimizer import OptimizerCompatibleModelWrapper
+from pymc_marketing.mmm.causal import CausalGraphModel
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
     adstock_from_dict,
@@ -170,6 +171,17 @@ class MMM(ModelBuilder):
             bool,
             Field(strict=True, description="Apply adstock before saturation?"),
         ] = True,
+        dag: str | None = Field(
+            None,
+            description="Optional DAG provided as a string Dot format for causal identification.",
+        ),
+        treatment_nodes: list[str] | tuple[str] | None = Field(
+            None,
+            description="Column names of the variables of interest to identify causal effects on outcome.",
+        ),
+        outcome_node: str | None = Field(
+            None, description="Name of the outcome variable."
+        ),
     ) -> None:
         """Define the constructor method."""
         # Your existing initialization logic
@@ -227,6 +239,44 @@ class MMM(ModelBuilder):
         self.target_column = target_column
         self.channel_columns = channel_columns
         self.yearly_seasonality = yearly_seasonality
+
+        # Causal graph configuration
+        self.dag = dag
+        self.treatment_nodes = treatment_nodes
+        self.outcome_node = outcome_node
+
+        # Initialize causal graph if provided
+        if self.dag is not None and self.outcome_node is not None:
+            if self.treatment_nodes is None:
+                self.treatment_nodes = self.channel_columns
+                warnings.warn(
+                    "No treatment nodes provided, using channel columns as treatment nodes.",
+                    stacklevel=2,
+                )
+            self.causal_graphical_model = CausalGraphModel.build_graphical_model(
+                graph=self.dag,
+                treatment=self.treatment_nodes,
+                outcome=self.outcome_node,
+            )
+
+            self.control_columns = self.causal_graphical_model.compute_adjustment_sets(
+                control_columns=self.control_columns,
+                channel_columns=self.channel_columns,
+            )
+
+            # Only apply yearly seasonality adjustment if an adjustment set was computed
+            if hasattr(self.causal_graphical_model, "adjustment_set") and (
+                self.causal_graphical_model.adjustment_set is not None
+            ):
+                if (
+                    "yearly_seasonality"
+                    not in self.causal_graphical_model.adjustment_set
+                ):
+                    warnings.warn(
+                        "Yearly seasonality excluded as it's not required for adjustment.",
+                        stacklevel=2,
+                    )
+                    self.yearly_seasonality = None
 
         super().__init__(model_config=model_config, sampler_config=sampler_config)
 
@@ -329,6 +379,9 @@ class MMM(ModelBuilder):
         attrs["time_varying_media"] = json.dumps(self.time_varying_media)
         attrs["target_column"] = self.target_column
         attrs["scaling"] = json.dumps(self.scaling.model_dump(mode="json"))
+        attrs["dag"] = json.dumps(getattr(self, "dag", None))
+        attrs["treatment_nodes"] = json.dumps(getattr(self, "treatment_nodes", None))
+        attrs["outcome_node"] = json.dumps(getattr(self, "outcome_node", None))
 
         return attrs
 
@@ -389,6 +442,9 @@ class MMM(ModelBuilder):
             "sampler_config": json.loads(attrs["sampler_config"]),
             "dims": tuple(json.loads(attrs.get("dims", "[]"))),
             "scaling": json.loads(attrs.get("scaling", "null")),
+            "dag": json.loads(attrs.get("dag", "null")),
+            "treatment_nodes": json.loads(attrs.get("treatment_nodes", "null")),
+            "outcome_node": json.loads(attrs.get("outcome_node", "null")),
         }
 
     @property
