@@ -169,7 +169,7 @@ def mean_tightness_score(
     It is calculated as:
 
     .. math::
-        Mean\ Tightness\ Score = \mu - \alpha \cdot Tail\ Distance
+        Mean\ Tightness\ Score = \mu - \alpha \cdot Tail\ Distance / \mu
 
     where:
         - :math:`\mu` is the mean of the sample returns.
@@ -202,7 +202,7 @@ def mean_tightness_score(
         samples = _check_samples_dimensionality(samples)
         mean = pt.mean(samples)
         tail_metric = tail_distance(confidence_level)
-        return mean - alpha * tail_metric(samples, budgets)
+        return (mean - alpha * tail_metric(samples, budgets)) / mean
 
     return _mean_tightness_score
 
