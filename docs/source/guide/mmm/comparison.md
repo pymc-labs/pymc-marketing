@@ -15,14 +15,17 @@ Given the popularity of the Media Mix Modelling (MMM) approach, numerous package
 | **Time-Varying Intercept**    | ✅              | ❌              | ✅         | ✅                      |
 | **Time-Varying Coefficients** | ✅              | ❌              | ✅         | ❌                      |
 | **Custom Priors**             | ✅              | ❌              | ❌         | ✅                      |
+| **Custom Model Terms** | ✅              | ❌                        | ❌         | ❌                             |
 | **Lift-Test Calibration**     | ✅              | ✅              | ❌         | ✅                      |
 | **Geographic Modeling**       | ✅              | ❌              | ❌         | ✅                      |
 | **Unit-Tested**               | ✅              | ❌              | ✅         | ✅                      |
-| **MLFlow Integration**       | ✅              | ❌              | ❌         | ❌                      |
+| **MLFlow Integration**       | ✅              | ❌              | ❌         | ✅                                |
 | **GPU Sampling Accelleration**| ✅              | -               | ❌         | ✅                      |
 | **Consulting Support**        | Provided by Authors              | Third-party agency               |   Third-party agency        |  Third-party agency                      |
 
-*Meridian has been released as successor of Lightweight-MMM, which has been deprecated by Google*
+*\*Meridian has been released as successor of Lightweight-MMM, which has been deprecated by Google*
+
+Last updated: 2025-08-07
 
 ---
 ### Key Takeaway
