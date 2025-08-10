@@ -25,7 +25,7 @@ from pymc_extras.prior import Prior
 from pytensor.tensor.basic import TensorVariable
 from scipy.optimize import OptimizeResult
 
-from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
+from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation, SoftPlusHSGP
 from pymc_marketing.mmm.additive_effect import EventAdditiveEffect, LinearTrendEffect
 from pymc_marketing.mmm.events import EventEffect, GaussianBasis
 from pymc_marketing.mmm.lift_test import _swap_columns_and_last_index_level
@@ -265,7 +265,7 @@ def test_fit(
     if time_varying_intercept:
         assert "intercept_latent_process" in var_names
     if time_varying_media:
-        assert "media_latent_process" in var_names
+        assert "media_temporal_latent_multiplier" in var_names
     if yearly_seasonality is not None:
         assert "fourier_contribution" in var_names
 
@@ -499,6 +499,88 @@ def test_sample_posterior_predictive_partial_overlap_with_include_last_observati
             extend_idata=False,
             random_seed=123,
         )
+
+
+@pytest.mark.parametrize(
+    "hsgp_dims",
+    [
+        pytest.param(("date",), id="hsgp-dims=date"),
+        pytest.param(("date", "channel"), id="hsgp-dims=date,channel"),
+    ],
+)
+def test_time_varying_media_with_custom_hsgp_single_dim(single_dim_data, hsgp_dims):
+    """Ensure passing an HSGP instance to time_varying_media works (single-dim)."""
+    X, y = single_dim_data
+
+    # Build HSGP using the new API
+    hsgp = SoftPlusHSGP.parameterize_from_data(
+        X=np.arange(X.shape[0]),
+        dims=hsgp_dims,
+    )
+
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        time_varying_media=hsgp,
+    )
+
+    mmm.build_model(X, y)
+
+    # Check latent multiplier exists with the expected dims
+    var_name = "media_temporal_latent_multiplier"
+    assert var_name in mmm.model.named_vars
+    latent_dims = mmm.model.named_vars_to_dims[var_name]
+    assert latent_dims == hsgp_dims
+
+    # Channel contribution should always be date x channel
+    assert mmm.model.named_vars_to_dims["channel_contribution"] == ("date", "channel")
+
+
+@pytest.mark.parametrize(
+    "hsgp_dims",
+    [
+        pytest.param(("date", "country"), id="hsgp-dims=date,country"),
+        pytest.param(
+            ("date", "country", "channel"), id="hsgp-dims=date,country,channel"
+        ),
+    ],
+)
+def test_time_varying_media_with_custom_hsgp_multi_dim(df, hsgp_dims):
+    """Ensure passing an HSGP instance to time_varying_media works (multi-dim)."""
+    X = df.drop(columns=["y"])
+    y = df["y"]
+
+    hsgp = SoftPlusHSGP.parameterize_from_data(
+        X=np.arange(X.shape[0]),
+        dims=hsgp_dims,
+    )
+
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["C1", "C2"],
+        target_column="y",
+        dims=("country",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        time_varying_media=hsgp,
+    )
+
+    mmm.build_model(X, y)
+
+    var_name = "media_temporal_latent_multiplier"
+    assert var_name in mmm.model.named_vars
+    latent_dims = mmm.model.named_vars_to_dims[var_name]
+    assert latent_dims == hsgp_dims
+
+    # Channel contribution should always be date x country x channel
+    assert mmm.model.named_vars_to_dims["channel_contribution"] == (
+        "date",
+        "country",
+        "channel",
+    )
 
 
 def test_sample_posterior_predictive_no_overlap_with_include_last_observations(
