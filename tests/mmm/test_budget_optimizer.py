@@ -576,7 +576,7 @@ def test_callback_functionality_parametrized(
     ],
 )
 def test_mmm_optimize_budget_callback_parametrized(dummy_df, dummy_idata, callback):
-    """Test callback functionality through MMM.optimize_budget interface."""
+    """Test that MMM.optimize_budget properly raises deprecation error."""
     df_kwargs, X_dummy, y_dummy = dummy_df
 
     mmm = MMM(
@@ -588,12 +588,15 @@ def test_mmm_optimize_budget_callback_parametrized(dummy_df, dummy_idata, callba
     mmm.build_model(X=X_dummy, y=y_dummy)
     mmm.idata = dummy_idata
 
-    # Test the MMM interface
-    result = mmm.optimize_budget(
-        budget=100,
-        num_periods=10,
-        callback=callback,
-    )
+    with pytest.warns(
+        DeprecationWarning,
+        match="This method is deprecated and will be removed in a future version",
+    ):
+        result = mmm.optimize_budget(
+            budget=100,
+            num_periods=10,
+            callback=callback,
+        )
 
     # Check return value count
     if callback:
