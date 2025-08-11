@@ -116,7 +116,7 @@ class MMM(ModelBuilder):
     """
 
     _model_type: str = "MMMM (Multi-Dimensional Marketing Mix Model)"
-    version: str = "0.0.1"
+    version: str = "0.0.2"
 
     @validate_call
     def __init__(
