@@ -208,7 +208,7 @@ class ModelIO:
 
         Returns
         -------
-        model_config: dict
+        model_config : dict
 
         """
 
