@@ -47,6 +47,7 @@ from pymc_marketing.mmm.components.saturation import (
 )
 from pymc_marketing.mmm.events import EventEffect
 from pymc_marketing.mmm.fourier import YearlyFourier
+from pymc_marketing.mmm.hsgp import HSGPBase
 from pymc_marketing.mmm.lift_test import (
     add_lift_measurements_to_likelihood_from_saturation,
     scale_lift_measurements,
@@ -115,7 +116,7 @@ class MMM(ModelBuilder):
     """
 
     _model_type: str = "MMMM (Multi-Dimensional Marketing Mix Model)"
-    version: str = "0.0.1"
+    version: str = "0.0.2"
 
     @validate_call
     def __init__(
@@ -137,8 +138,13 @@ class MMM(ModelBuilder):
             Field(strict=True, description="Whether to use a time-varying intercept"),
         ] = False,
         time_varying_media: Annotated[
-            bool,
-            Field(strict=True, description="Whether to use time-varying media effects"),
+            bool | InstanceOf[HSGPBase],
+            Field(
+                description=(
+                    "Whether to use time-varying media effects, or pass an HSGP instance "
+                    "(e.g., SoftPlusHSGP) specifying dims and priors."
+                ),
+            ),
         ] = False,
         dims: tuple[str, ...] | None = Field(
             None, description="Additional dimensions for the model."
@@ -757,7 +763,7 @@ class MMM(ModelBuilder):
             for dim in self.xarray_dataset.coords.dims
         }
 
-        if self.time_varying_intercept | self.time_varying_media:
+        if bool(self.time_varying_intercept) or bool(self.time_varying_media):
             self._time_index = np.arange(0, X[self.date_column].unique().shape[0])
             self._time_index_mid = X[self.date_column].unique().shape[0] // 2
             self._time_resolution = (
@@ -1036,7 +1042,7 @@ class MMM(ModelBuilder):
             for mu_effect in self.mu_effects:
                 mu_effect.create_data(self)
 
-            if self.time_varying_intercept | self.time_varying_media:
+            if bool(self.time_varying_intercept) or bool(self.time_varying_media):
                 time_index = pm.Data(
                     name="time_index",
                     value=self._time_index,
@@ -1066,7 +1072,7 @@ class MMM(ModelBuilder):
                 )
 
             # Add media logic
-            if self.time_varying_media:
+            if isinstance(self.time_varying_media, bool) and self.time_varying_media:
                 baseline_channel_contribution = pm.Deterministic(
                     name="baseline_channel_contribution",
                     var=self.forward_pass(
@@ -1079,11 +1085,42 @@ class MMM(ModelBuilder):
                     X=time_index,
                     dims=("date", *self.dims),
                     **self.model_config["media_tvp_config"],
-                ).create_variable("media_latent_process")
+                ).create_variable("media_temporal_latent_multiplier")
 
                 channel_contribution = pm.Deterministic(
                     name="channel_contribution",
                     var=baseline_channel_contribution * media_latent_process[..., None],
+                    dims=("date", *self.dims, "channel"),
+                )
+            elif isinstance(self.time_varying_media, HSGPBase):
+                baseline_channel_contribution = self.forward_pass(
+                    x=channel_data_, dims=(*self.dims, "channel")
+                )
+                baseline_channel_contribution.name = "baseline_channel_contribution"
+                baseline_channel_contribution.dims = (
+                    "date",
+                    *self.dims,
+                    "channel",
+                )
+
+                # Register internal time index and build latent process
+                self.time_varying_media.register_data(time_index)
+                media_latent_process = self.time_varying_media.create_variable(
+                    "media_temporal_latent_multiplier"
+                )
+
+                # Determine broadcasting over channel axis
+                media_dims = pm.modelcontext(None).named_vars_to_dims[
+                    media_latent_process.name
+                ]
+                if "channel" in media_dims:
+                    media_broadcast = media_latent_process
+                else:
+                    media_broadcast = media_latent_process[..., None]
+
+                channel_contribution = pm.Deterministic(
+                    name="channel_contribution",
+                    var=baseline_channel_contribution * media_broadcast,
                     dims=("date", *self.dims, "channel"),
                 )
             else:
@@ -1681,7 +1718,7 @@ class MMM(ModelBuilder):
         # This is coupled with the name of the
         # latent process Deterministic
         time_varying_var_name = (
-            "media_latent_process" if self.time_varying_media else None
+            "media_temporal_latent_multiplier" if self.time_varying_media else None
         )
         add_lift_measurements_to_likelihood_from_saturation(
             df_lift_test=df_lift_test_scaled,

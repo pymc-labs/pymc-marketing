@@ -101,12 +101,11 @@ effects:
 # ----------------------------------------------------------------------
 # (optional) sampler options you plan to forward to pm.sample():
     sampler_config:
-      tune: 1000
-      draws: 200
-      chains: 8
+      tune: 800
+      draws: 400
+      chains: 2
       random_seed: 42
-      target_accept: 0.90
-      nuts_sampler: "nutpie"
+      target_accept: 0.80
 
 # ----------------------------------------------------------------------
 # (optional) idata from a previous sample
