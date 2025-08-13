@@ -2382,3 +2382,151 @@ def test_specify_time_varying_configuration(
         mmm.model[expected_rv["name"]].owner.op.__class__.__name__
         == expected_rv["kind"]
     )
+
+
+def test_multidimensional_mmm_serializes_and_deserializes_dag_and_nodes(
+    single_dim_data, mock_pymc_sample
+):
+    dag = """
+    digraph {
+        channel_1 -> y;
+        control_1 -> channel_1;
+        control_1 -> y;
+    }
+    """
+    treatment_nodes = ["channel_1"]
+    outcome_node = "y"
+
+    X, y = single_dim_data
+    y = y.rename("y")
+
+    mmm = MMM(
+        date_column="date",
+        target_column="y",
+        channel_columns=["channel_1", "channel_2"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        dag=dag,
+        treatment_nodes=treatment_nodes,
+        outcome_node=outcome_node,
+    )
+
+    mmm.fit(X=X, y=y)
+
+    mmm.save("test_model_multi")
+    loaded_mmm = MMM.load("test_model_multi")
+
+    assert loaded_mmm.dag == dag
+    assert loaded_mmm.treatment_nodes == treatment_nodes
+    assert loaded_mmm.outcome_node == outcome_node
+
+
+def test_multidimensional_mmm_causal_attributes_initialization():
+    dag = """
+    digraph {
+        channel_1 -> target;
+        control_1 -> channel_1;
+        control_1 -> target;
+    }
+    """
+    treatment_nodes = ["channel_1"]
+    outcome_node = "target"
+
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        control_columns=["control_1", "control_2"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        dag=dag,
+        treatment_nodes=treatment_nodes,
+        outcome_node=outcome_node,
+    )
+
+    assert mmm.dag == dag
+    assert mmm.treatment_nodes == treatment_nodes
+    assert mmm.outcome_node == outcome_node
+
+
+def test_multidimensional_mmm_causal_attributes_default_treatment_nodes():
+    dag = """
+    digraph {
+        channel_1 -> target;
+        channel_2 -> target;
+        control_1 -> channel_1;
+        control_1 -> target;
+    }
+    """
+    outcome_node = "target"
+
+    with pytest.warns(
+        UserWarning, match="No treatment nodes provided, using channel columns"
+    ):
+        mmm = MMM(
+            date_column="date",
+            target_column="target",
+            channel_columns=["channel_1", "channel_2"],
+            control_columns=["control_1", "control_2"],
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            dag=dag,
+            outcome_node=outcome_node,
+        )
+
+    assert mmm.treatment_nodes == ["channel_1", "channel_2"]
+    assert mmm.outcome_node == "target"
+
+
+def test_multidimensional_mmm_adjustment_set_updates_control_columns():
+    dag = """
+    digraph {
+        channel_1 -> target;
+        control_1 -> channel_1;
+        control_1 -> target;
+    }
+    """
+    treatment_nodes = ["channel_1"]
+    outcome_node = "target"
+
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        control_columns=["control_1", "control_2"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        dag=dag,
+        treatment_nodes=treatment_nodes,
+        outcome_node=outcome_node,
+    )
+
+    assert mmm.control_columns == ["control_1"]
+
+
+def test_multidimensional_mmm_missing_dag_does_not_initialize_causal_graph():
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+
+    assert mmm.dag is None
+    assert not hasattr(mmm, "causal_graphical_model")
+
+
+def test_multidimensional_mmm_only_dag_provided_does_not_initialize_graph():
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        dag="digraph {channel_1 -> target;}",
+    )
+
+    assert mmm.treatment_nodes is None
+    assert mmm.outcome_node is None
+    assert not hasattr(mmm, "causal_graphical_model")
