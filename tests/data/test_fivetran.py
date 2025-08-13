@@ -16,7 +16,7 @@ import pytest
 
 from pymc_marketing.data.fivetran import (
     process_fivetran_ad_reporting,
-    process_fivetran_shopify_orders_unique_orders,
+    process_fivetran_shopify_unique_orders,
 )
 
 
@@ -576,7 +576,7 @@ def example_shopify_orders_df() -> pd.DataFrame:
 
 
 def test_shopify_orders_unique_orders(example_shopify_orders_df: pd.DataFrame) -> None:
-    result = process_fivetran_shopify_orders_unique_orders(example_shopify_orders_df)
+    result = process_fivetran_shopify_unique_orders(example_shopify_orders_df)
 
     expected = pd.DataFrame(
         {

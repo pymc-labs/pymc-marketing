@@ -28,7 +28,7 @@ Example usage for MMM:
     # Result: date | facebook_ads_spend | google_ads_spend | ...
 
     # Process conversion data (orders) as target variable
-    y = process_fivetran_shopify_orders_unique_orders(orders_df)
+    y = process_fivetran_shopify_unique_orders(orders_df)
     # Result: date | orders
 
     # Use in MMM model
@@ -155,7 +155,7 @@ def process_fivetran_ad_reporting(
     return wide[ordered_cols]
 
 
-def process_fivetran_shopify_orders_unique_orders(
+def process_fivetran_shopify_unique_orders(
     df: pd.DataFrame,
     *,
     date_col: str = "processed_timestamp",
