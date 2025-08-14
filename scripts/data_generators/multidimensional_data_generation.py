@@ -5,6 +5,7 @@ from pymc_extras.prior import Prior
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.multidimensional import MMM
+from pymc_marketing.paths import data_dir
 
 # global parameters
 
@@ -60,16 +61,20 @@ def generate_channel_one(n_dates, rng):
         channel_one[t] = phi * channel_one[t - 1] + innovations[t]
 
     channel_one = channel_one + np.array([[5000, 6000]])
-    channel_one = channel_one.flatten()
 
     # Replace negative values with 0
     channel_one = np.maximum(channel_one, 0)
 
     # add a few off periods to make it easier to
     # identify the media vs intercept effect
-    channel_one[30:35] = 0
-    channel_one[115:120] = 0
-    channel_one[150:155] = 0
+    channel_one[30:40, :] = 0
+    channel_one[70:80, :] = 0
+    channel_one[115:125, :] = 0
+    channel_one[130:140, :] = 0
+    channel_one[150:160, :] = 0
+    channel_one[190:200, :] = 0
+
+    channel_one = channel_one.flatten()
 
     return channel_one
 
@@ -153,7 +158,7 @@ def build_mmm_model(df):
         priors={
             "beta": Prior(
                 "Normal",
-                mu=Prior("Normal", mu=-2.0, sigma=0.5, dims=("channel")),
+                mu=Prior("Normal", mu=-1.5, sigma=0.25, dims=("channel")),
                 sigma=Prior("Exponential", scale=0.25, dims=("channel")),
                 dims=("channel", "geo"),
                 transform="exp",
@@ -161,15 +166,15 @@ def build_mmm_model(df):
             ),
             "lam": Prior(
                 "Gamma",
-                mu=0.5,
-                sigma=0.25,
+                mu=0.25,
+                sigma=0.15,
                 dims=("channel"),
             ),
         }
     )
 
     adstock = GeometricAdstock(
-        priors={"alpha": Prior("Beta", alpha=2, beta=3, dims=("geo", "channel"))},
+        priors={"alpha": Prior("Beta", alpha=2, beta=5, dims=("geo", "channel"))},
         l_max=8,
     )
 
@@ -290,20 +295,13 @@ def main(output_dir="data", draw_num=8, start_date="2022-06-06", end_date="2025-
     # Generate synthetic data and true parameters
     df_synthetic, true_params = generate_synthetic_data(mmm, df, draw_num, seed)
 
-    # Save artifacts
-    import os
-
-    os.makedirs(output_dir, exist_ok=True)
-
     # Save dataframe as CSV
-    csv_path = os.path.join(output_dir, "mmm_multidimensional_example.csv")
+    csv_path = data_dir / "mmm_multidimensional_example.csv"
     df_synthetic.to_csv(csv_path, index=False)
     print(f"Saved synthetic data to {csv_path}")
 
     # Save true parameters as netCDF
-    netcdf_path = os.path.join(
-        output_dir, "mmm_multidimensional_example_true_parameters.nc"
-    )
+    netcdf_path = data_dir / "mmm_multidimensional_example_true_parameters.nc"
     true_params.to_netcdf(netcdf_path)
     print(f"Saved true parameters to {netcdf_path}")
 
@@ -323,7 +321,7 @@ if __name__ == "__main__":
         "--draw",
         type=int,
         default=8,
-        help="Which draw from the prior predictive to use (default: 8 (I happened to like dataset 8 :))",
+        help="Which draw from the prior predictive to use (default: 8)",
     )
     parser.add_argument(
         "--start-date",
