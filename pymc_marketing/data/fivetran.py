@@ -151,7 +151,19 @@ def process_fivetran_ad_reporting(
 
     # Ensure date column is the first column
     first_col = rename_date_to if rename_date_to is not None else date_col
+
+    # make all columns lowercase and replace spaces with underscores
+    wide.columns = [col.lower().replace(" ", "_") for col in wide.columns]
+
+    # Update first_col reference after column name transformation
+    first_col = first_col.lower().replace(" ", "_")
+
+    # Create ordered columns list after column transformation
     ordered_cols = [first_col] + [c for c in wide.columns if c != first_col]
+
+    # Normalize date column to midnight while keeping datetime64[ns] dtype
+    wide[first_col] = pd.to_datetime(wide[first_col]).dt.normalize()
+
     return wide[ordered_cols]
 
 
@@ -197,8 +209,8 @@ def process_fivetran_shopify_unique_orders(
     tmp[date_col] = pd.to_datetime(tmp[date_col], errors="coerce")
     tmp = tmp.dropna(subset=[date_col])
 
-    # 3) Daily bucket as date dtype
-    tmp["_date"] = tmp[date_col].dt.date
+    # 3) Daily bucket normalized to midnight, preserving datetime64[ns] dtype
+    tmp["_date"] = tmp[date_col].dt.normalize()
 
     # 4) De-duplicate by (order, day) before counting
     tmp = tmp.drop_duplicates(subset=[order_key_col, "_date"])

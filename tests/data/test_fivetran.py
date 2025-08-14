@@ -580,7 +580,7 @@ def test_shopify_orders_unique_orders(example_shopify_orders_df: pd.DataFrame) -
 
     expected = pd.DataFrame(
         {
-            "date": pd.to_datetime(["2025-07-12", "2025-07-13"]).date,
+            "date": pd.to_datetime(["2025-07-12", "2025-07-13"]).normalize(),
             "orders": [3, 1],  # 2025-07-12: o1, o2, o4; 2025-07-13: o3
         }
     )
