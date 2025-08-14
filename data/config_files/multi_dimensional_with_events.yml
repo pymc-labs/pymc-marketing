@@ -1,0 +1,165 @@
+model:
+  class: pymc_marketing.mmm.multidimensional.MMM
+  kwargs:
+    date_column: "date"
+    channel_columns:
+      - channel_1
+      - channel_2
+    target_column: "y"
+    dims: ["market"]
+    scaling:
+      target:
+        method: "max"
+        dims: []
+      channel:
+        method: "max"
+        dims: []
+
+    # --- media transformations ---------------------------------------
+    adstock:
+      class: pymc_marketing.mmm.GeometricAdstock
+      kwargs:
+        l_max: 24
+        priors:
+          alpha:
+            distribution: "Beta"
+            alpha: 1.0
+            beta: 3.0
+            dims: ["market", "channel"]
+
+    saturation:
+      class: pymc_marketing.mmm.MichaelisMentenSaturation
+      kwargs:
+        priors:
+          lam:
+            distribution: "Gamma"
+            mu: 5.0
+            sigma: 2.0
+            dims: ["market"]
+          alpha:
+            distribution: "Beta"
+            alpha: 1.0
+            beta: 2.0
+            dims: ["market", "channel"]
+
+    # --- model (hierarchical) priors ---------------------------------
+    model_config:
+      intercept:
+        distribution: Gamma
+        mu: 0.5
+        sigma: 1.0
+        dims: ["market"]
+
+      likelihood:
+        distribution: TruncatedNormal
+        lower: 0
+        sigma:
+          distribution: "Gamma"
+          mu: 1.0
+          sigma: 0.5
+          dims: ["market"]
+        dims: ["date", "market"]
+    # ----------------------------------------------------------------------
+    # (optional) sampler options you plan to forward to pm.sample():
+    sampler_config:
+      tune: 900
+      draws: 500
+      chains: 4
+      random_seed: 42
+      target_accept: 0.92
+      # nuts_sampler: "nutpie"
+      # nuts_sampler_kwargs:
+      #   backend: "jax"
+
+# ----------------------------------------------------------------------
+# Effects with complex priors
+effects:
+  # 1. Linear Trend Effect with complex nested priors
+  - class: pymc_marketing.mmm.additive_effect.LinearTrendEffect
+    kwargs:
+      trend:
+        class: pymc_marketing.mmm.LinearTrend
+        kwargs:
+          n_changepoints: 8
+          include_intercept: false
+          priors:
+            delta:
+              distribution: "Laplace"
+              mu: 0
+              b: 0.2
+              dims: ["market", "changepoint"]
+          dims: ["market"]
+      prefix: "trend"
+
+  # 2. Fourier Effect with complex nested priors
+  - class: pymc_marketing.mmm.additive_effect.FourierEffect
+    kwargs:
+      fourier:
+        class: pymc_marketing.mmm.WeeklyFourier
+        kwargs:
+          n_order: 3
+          prefix: "weekly_fourier"
+          prior:
+            distribution: "Laplace"
+            mu: 0
+            b: 0.1
+            dims: ["weekly_fourier", "market"]
+
+  # 3. Events upper funnel
+  - class: pymc_marketing.mmm.additive_effect.EventAdditiveEffect
+    kwargs:
+      effect:
+        class: pymc_marketing.mmm.events.EventEffect
+        kwargs:
+          basis:
+            class: pymc_marketing.mmm.events.GaussianBasis
+            kwargs:
+              priors:
+                sigma:
+                  distribution: "Gamma"
+                  mu: 5.0
+                  sigma: 2.0
+                  dims: ["event"]
+          effect_size:
+            class: pymc_extras.prior.Prior
+            kwargs:
+              distribution: "Beta"
+              alpha: 1
+              beta: 2
+              dims: ["event"]
+          dims: ["event"]
+      df_events:
+        class: pandas.DataFrame
+        kwargs:
+          data: {
+              "name": ["flight 1", "flight 2", "flight 3", "flight 4"],
+              "market": ["US", "US", "US", "US"],
+              "start_date": [
+                  "2023-01-10",
+                  "2023-01-20",
+                  "2023-02-01",
+                  "2023-02-20",
+              ],
+              "end_date": [
+                  "2023-01-15",
+                  "2023-01-25",
+                  "2023-02-05",
+                  "2023-03-15",
+              ],
+          }
+      prefix: "event"
+
+original_scale_vars:
+  - y
+  - channel_contribution
+  - intercept_contribution
+  - trend_effect_contribution
+# ----------------------------------------------------------------------
+# (optional) idata from a previous sample
+# idata_path: "data/idata.nc"
+
+# ----------------------------------------------------------------------
+# (optional) Data paths
+# data:
+#   X_path: "data/X.csv"
+#   y_path: "data/y.csv"
