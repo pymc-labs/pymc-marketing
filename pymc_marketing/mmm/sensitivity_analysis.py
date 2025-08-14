@@ -80,7 +80,9 @@ class SensitivityAnalysis:
         predictions = []
         for sweep_value in self.sweep_values:
             X_new = self.create_intervention(sweep_value)
-            counterfac = self.mmm.predict(X_new, extend_idata=False, progressbar=False)
+            counterfac = self.mmm.sample_posterior_predictive(
+                X_new, extend_idata=False, combined=False, progressbar=False
+            )
             uplift = counterfac - actual
             predictions.append(uplift)
 
@@ -92,12 +94,13 @@ class SensitivityAnalysis:
 
         marginal_effects = self.compute_marginal_effects(results, self.sweep_values)
 
-        results = xr.Dataset(
-            {
-                "y": results,
-                "marginal_effects": marginal_effects,
-            }
-        )
+        results = xr.merge(
+            [
+                results,
+                marginal_effects.rename({"y": "marginal_effects"}),
+            ]
+        ).transpose(..., "sweep")
+
         # Add metadata to the results
         results.attrs["sweep_type"] = self.sweep_type
         results.attrs["var_names"] = self.var_names
@@ -129,9 +132,5 @@ class SensitivityAnalysis:
     def compute_marginal_effects(results, sweep_values) -> xr.DataArray:
         """Compute marginal effects via finite differences from the sweep results."""
         marginal_effects = results.differentiate(coord="sweep")
-        marginal_effects = xr.DataArray(
-            marginal_effects,
-            dims=results.dims,
-            coords=results.coords,
-        )
+
         return marginal_effects
