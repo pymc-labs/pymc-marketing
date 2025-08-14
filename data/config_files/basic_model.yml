@@ -6,7 +6,7 @@ model:
       - channel_1
       - channel_2
       # …
-    target_column: "kpi_registrations"
+    target_column: "y"
 
     # --- media transformations ---------------------------------------
     adstock:
