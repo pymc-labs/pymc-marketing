@@ -531,12 +531,14 @@ class MMMPlotSuite:
         # — 1. figure out grid shape based on scatter data dimensions —
         cdims = self.idata.constant_data.channel_data.dims
         additional_dims = [d for d in cdims if d not in ("date", "channel")]
-        additional_coords = (
-            [self.idata.constant_data.coords[d].values for d in additional_dims]
-            if additional_dims
-            else [()]
-        )
-        combos = list(itertools.product(*additional_coords))
+        if additional_dims:
+            additional_coords = [
+                self.idata.constant_data.coords[d].values for d in additional_dims
+            ]
+            combos = list(itertools.product(*additional_coords))
+        else:
+            # No extra dims: single combination
+            combos = [()]
         channels = self.idata.constant_data.coords["channel"].values
         n_rows, n_cols = len(channels), len(combos)
 
