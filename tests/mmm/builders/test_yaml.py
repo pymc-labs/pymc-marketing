@@ -50,6 +50,7 @@ def get_yaml_files():
         for file in config_dir.glob("*.yml")
         if "wrong_" not in file.name
         and "multi_dimensional_example_model.yml" not in file.name
+        and "multi_dimensional_fivetran.yml" not in file.name
     ]
 
 
