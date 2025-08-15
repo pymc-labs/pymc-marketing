@@ -66,8 +66,6 @@ class CLVModel(ModelBuilder):
             non_distributions=non_distributions,
         )
 
-        self.data = data
-
     @staticmethod
     def _validate_cols(
         data: pd.DataFrame,
