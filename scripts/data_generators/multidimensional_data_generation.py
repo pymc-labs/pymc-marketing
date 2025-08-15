@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import pymc as pm
+import xarray as xr
 from pymc_extras.prior import Prior
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
@@ -14,19 +15,29 @@ geo_index = ("geo_a", "geo_b")
 chain = 0
 
 
-def get_dates(start_date="2022-06-06", end_date="2025-06-16"):
-    """Generate date range for the synthetic data.
+def get_dates(
+    start_date="2022-06-06", end_date="2025-06-16"
+) -> tuple[pd.DatetimeIndex, int]:
+    """Utility to generate date range for the synthetic data.
 
-    Args:
-        start_date: Start date in YYYY-MM-DD format
-        end_date: End date in YYYY-MM-DD format
+    Parameters
+    ----------
+    start_date : str, optional
+        Start date in YYYY-MM-DD format, by default "2022-06-06"
+    end_date : str, optional
+        End date in YYYY-MM-DD format, by default "2025-06-16"
 
-    Returns:
-        dates: pandas DatetimeIndex with weekly dates
-        n_dates: number of dates
+    Returns
+    -------
+    pd.DatetimeIndex
+        pandas DatetimeIndex with weekly dates
+    int
+        number of dates
 
-    Raises:
-        ValueError: If end_date is before start_date or dates are invalid
+    Raises
+    ------
+    ValueError
+        If end_date is before start_date or dates are invalid
     """
     try:
         start = pd.to_datetime(start_date)
@@ -43,8 +54,21 @@ def get_dates(start_date="2022-06-06", end_date="2025-06-16"):
         raise
 
 
-def generate_channel_one(n_dates, rng):
-    """Generate channel one data - a consistent 'always on' type channel with AR(1) structure."""
+def generate_channel_one(n_dates: int, rng: np.random.Generator) -> np.ndarray:
+    """Generate channel one data with a consistent 'always on' type channel with AR(1) structure.
+
+    Parameters
+    ----------
+    n_dates : int
+        Number of dates to generate data for
+    rng : np.random.Generator
+        Random number generator instance
+
+    Returns
+    -------
+    np.ndarray
+        Channel one data with shape (n_dates * 2,) representing two geos
+    """
     # build a covariance matrix for the between geo-correlation
     variances = np.array([[1500, 0], [0, 1500]])
     corr = np.array([[1, 0.25], [0.25, 1]])
@@ -79,8 +103,21 @@ def generate_channel_one(n_dates, rng):
     return channel_one
 
 
-def generate_channel_two(n_dates, rng):
-    """Generate channel two data - a bursty channel with between geo-correlation."""
+def generate_channel_two(n_dates: int, rng: np.random.Generator) -> np.ndarray:
+    """Generate channel two data with a bursty pattern and long off periods.
+
+    Parameters
+    ----------
+    n_dates : int
+        Number of dates to generate data for
+    rng : np.random.Generator
+        Random number generator instance
+
+    Returns
+    -------
+    np.ndarray
+        Channel two data with shape (n_dates * 2,) representing two geos
+    """
     # build a covariance matrix for the between geo-correlation
     variances = np.array([[2000, 0], [0, 2000]])
     corr = np.array([[1, 0.25], [0.25, 1]])
@@ -104,16 +141,25 @@ def generate_channel_two(n_dates, rng):
     return channel_two
 
 
-def generate_dataframe(dates, geo_index, rng):
+def generate_dataframe(
+    dates: pd.DatetimeIndex, geo_index: tuple[str, ...], rng: np.random.Generator
+) -> pd.DataFrame:
     """Generate a DataFrame with channels and events.
 
-    Args:
-        dates: Array of dates
-        geo_index: Array of geo locations
-        rng: Random number generator
+    Parameters
+    ----------
+    dates : pd.DatetimeIndex
+        Array of dates
+    geo_index : tuple[str, ...]
+        Array of geo locations
+    rng : np.random.Generator
+        Random number generator instance
 
-    Returns:
-        DataFrame with channels, events and target variable
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame containing channels, events and target variable with a multi-index
+        of dates and geos
     """
     # Get channel data
     channel_one = generate_channel_one(len(dates), rng)
@@ -145,14 +191,19 @@ def generate_dataframe(dates, geo_index, rng):
     return df
 
 
-def build_mmm_model(df):
-    """Build and return an MMM model object.
+def build_mmm_model(df: pd.DataFrame) -> MMM:
+    """Build and return a Marketing Mix Model object.
+    We'll sample the prior from this model to generate the synthetic data.
 
-    Args:
-        df: DataFrame containing channel, event and target data
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame containing channel, event and target data
 
-    Returns:
-        MMM object with model built
+    Returns
+    -------
+    MMM
+        Marketing Mix Model object with model built and ready for inference
     """
     saturation = LogisticSaturation(
         priors={
@@ -229,21 +280,33 @@ def build_mmm_model(df):
     return mmm
 
 
-def generate_synthetic_data(mmm, df, draw_num, seed=seed):
+def generate_synthetic_data(
+    mmm: MMM, df: pd.DataFrame, draw_num: int, seed: int = seed
+) -> tuple[pd.DataFrame, xr.DataArray]:
     """Generate synthetic data using the MMM's prior predictive distribution.
 
-    Args:
-        mmm: The MMM model instance
-        df: Input dataframe containing features
-        draw_num: Which draw from the prior predictive to use
-        seed: Random seed for sampling
+    Parameters
+    ----------
+    mmm : MMM
+        The Marketing Mix Model instance
+    df : pd.DataFrame
+        Input dataframe containing features
+    draw_num : int
+        Which draw from the prior predictive to use
+    seed : int, optional
+        Random seed for sampling, by default global seed value
 
-    Returns:
+    Returns
+    -------
+    pd.DataFrame
         DataFrame with synthetic target variable
-        xarray of the true parameters
+    xr.DataArray
+        xarray of the true parameters used to generate the data
 
-    Raises:
-        ValueError: If draw_num is not available in the prior predictive samples
+    Raises
+    ------
+    ValueError
+        If draw_num is not available in the prior predictive samples
     """
     with mmm.model:
         prior = pm.sample_prior_predictive(random_seed=seed)
@@ -271,14 +334,24 @@ def generate_synthetic_data(mmm, df, draw_num, seed=seed):
     return df, true_params
 
 
-def main(output_dir="data", draw_num=8, start_date="2022-06-06", end_date="2025-06-16"):
+def main(
+    output_dir: str = "data",
+    draw_num: int = 8,
+    start_date: str = "2022-06-06",
+    end_date: str = "2025-06-16",
+) -> None:
     """Generate synthetic data and save artifacts.
 
-    Args:
-        output_dir: Directory where output files will be saved
-        draw_num: Which draw from the prior predictive to use (default: 8)
-        start_date: Start date in YYYY-MM-DD format (default: 2022-06-06)
-        end_date: End date in YYYY-MM-DD format (default: 2025-06-16)
+    Parameters
+    ----------
+    output_dir : str, optional
+        Directory where output files will be saved, by default "data"
+    draw_num : int, optional
+        Which draw from the prior predictive to use, by default 8
+    start_date : str, optional
+        Start date in YYYY-MM-DD format, by default "2022-06-06"
+    end_date : str, optional
+        End date in YYYY-MM-DD format, by default "2025-06-16"
     """
     # Set up random number generator
     rng = np.random.default_rng(seed)
