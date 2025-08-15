@@ -37,13 +37,21 @@ class CLVModel(ModelBuilder):
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def __init__(
         self,
-        data: pd.DataFrame,
+        data: pd.DataFrame | None = None,
         *,
         model_config: InstanceOf[ModelConfig] | None = None,
         sampler_config: dict | None = None,
         non_distributions: list[str] | None = None,
     ):
-        self.data = data
+        if data is not None:
+            warnings.warn(
+                f"'{self._model_type}(data)' is deprecated and will be removed in a future release. "
+                f"Use '{self._model_type}.build_model(data)' or '{self._model_type}.fit(data)' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            self.data = data
+
         model_config = model_config or {}
 
         deprecated_keys = [key for key in model_config if key.endswith("_prior")]
