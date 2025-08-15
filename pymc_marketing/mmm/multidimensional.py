@@ -37,6 +37,7 @@ from scipy.optimize import OptimizeResult
 from pymc_marketing.mmm import SoftPlusHSGP
 from pymc_marketing.mmm.additive_effect import EventAdditiveEffect, MuEffect
 from pymc_marketing.mmm.budget_optimizer import OptimizerCompatibleModelWrapper
+from pymc_marketing.mmm.causal import CausalGraphModel
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
     adstock_from_dict,
@@ -47,6 +48,7 @@ from pymc_marketing.mmm.components.saturation import (
 )
 from pymc_marketing.mmm.events import EventEffect
 from pymc_marketing.mmm.fourier import YearlyFourier
+from pymc_marketing.mmm.hsgp import HSGPBase
 from pymc_marketing.mmm.lift_test import (
     add_lift_measurements_to_likelihood_from_saturation,
     scale_lift_measurements,
@@ -118,7 +120,7 @@ class MMM(RegressionModelBuilder):
     """
 
     _model_type: str = "MMMM (Multi-Dimensional Marketing Mix Model)"
-    version: str = "0.0.1"
+    version: str = "0.0.2"
 
     @validate_call
     def __init__(
@@ -140,8 +142,13 @@ class MMM(RegressionModelBuilder):
             Field(strict=True, description="Whether to use a time-varying intercept"),
         ] = False,
         time_varying_media: Annotated[
-            bool,
-            Field(strict=True, description="Whether to use time-varying media effects"),
+            bool | InstanceOf[HSGPBase],
+            Field(
+                description=(
+                    "Whether to use time-varying media effects, or pass an HSGP instance "
+                    "(e.g., SoftPlusHSGP) specifying dims and priors."
+                ),
+            ),
         ] = False,
         dims: tuple[str, ...] | None = Field(
             None, description="Additional dimensions for the model."
@@ -173,6 +180,17 @@ class MMM(RegressionModelBuilder):
             bool,
             Field(strict=True, description="Apply adstock before saturation?"),
         ] = True,
+        dag: str | None = Field(
+            None,
+            description="Optional DAG provided as a string Dot format for causal identification.",
+        ),
+        treatment_nodes: list[str] | tuple[str] | None = Field(
+            None,
+            description="Column names of the variables of interest to identify causal effects on outcome.",
+        ),
+        outcome_node: str | None = Field(
+            None, description="Name of the outcome variable."
+        ),
     ) -> None:
         """Define the constructor method."""
         # Your existing initialization logic
@@ -230,6 +248,44 @@ class MMM(RegressionModelBuilder):
         self.target_column = target_column
         self.channel_columns = channel_columns
         self.yearly_seasonality = yearly_seasonality
+
+        # Causal graph configuration
+        self.dag = dag
+        self.treatment_nodes = treatment_nodes
+        self.outcome_node = outcome_node
+
+        # Initialize causal graph if provided
+        if self.dag is not None and self.outcome_node is not None:
+            if self.treatment_nodes is None:
+                self.treatment_nodes = self.channel_columns
+                warnings.warn(
+                    "No treatment nodes provided, using channel columns as treatment nodes.",
+                    stacklevel=2,
+                )
+            self.causal_graphical_model = CausalGraphModel.build_graphical_model(
+                graph=self.dag,
+                treatment=self.treatment_nodes,
+                outcome=self.outcome_node,
+            )
+
+            self.control_columns = self.causal_graphical_model.compute_adjustment_sets(
+                control_columns=self.control_columns,
+                channel_columns=self.channel_columns,
+            )
+
+            # Only apply yearly seasonality adjustment if an adjustment set was computed
+            if hasattr(self.causal_graphical_model, "adjustment_set") and (
+                self.causal_graphical_model.adjustment_set is not None
+            ):
+                if (
+                    "yearly_seasonality"
+                    not in self.causal_graphical_model.adjustment_set
+                ):
+                    warnings.warn(
+                        "Yearly seasonality excluded as it's not required for adjustment.",
+                        stacklevel=2,
+                    )
+                    self.yearly_seasonality = None
 
         super().__init__(model_config=model_config, sampler_config=sampler_config)
 
@@ -332,6 +388,9 @@ class MMM(RegressionModelBuilder):
         attrs["time_varying_media"] = json.dumps(self.time_varying_media)
         attrs["target_column"] = self.target_column
         attrs["scaling"] = json.dumps(self.scaling.model_dump(mode="json"))
+        attrs["dag"] = json.dumps(getattr(self, "dag", None))
+        attrs["treatment_nodes"] = json.dumps(getattr(self, "treatment_nodes", None))
+        attrs["outcome_node"] = json.dumps(getattr(self, "outcome_node", None))
 
         return attrs
 
@@ -392,6 +451,9 @@ class MMM(RegressionModelBuilder):
             "sampler_config": json.loads(attrs["sampler_config"]),
             "dims": tuple(json.loads(attrs.get("dims", "[]"))),
             "scaling": json.loads(attrs.get("scaling", "null")),
+            "dag": json.loads(attrs.get("dag", "null")),
+            "treatment_nodes": json.loads(attrs.get("treatment_nodes", "null")),
+            "outcome_node": json.loads(attrs.get("outcome_node", "null")),
         }
 
     @property
@@ -760,7 +822,7 @@ class MMM(RegressionModelBuilder):
             for dim in self.xarray_dataset.coords.dims
         }
 
-        if self.time_varying_intercept | self.time_varying_media:
+        if bool(self.time_varying_intercept) or bool(self.time_varying_media):
             self._time_index = np.arange(0, X[self.date_column].unique().shape[0])
             self._time_index_mid = X[self.date_column].unique().shape[0] // 2
             self._time_resolution = (
@@ -1039,7 +1101,7 @@ class MMM(RegressionModelBuilder):
             for mu_effect in self.mu_effects:
                 mu_effect.create_data(self)
 
-            if self.time_varying_intercept | self.time_varying_media:
+            if bool(self.time_varying_intercept) or bool(self.time_varying_media):
                 time_index = pm.Data(
                     name="time_index",
                     value=self._time_index,
@@ -1069,7 +1131,7 @@ class MMM(RegressionModelBuilder):
                 )
 
             # Add media logic
-            if self.time_varying_media:
+            if isinstance(self.time_varying_media, bool) and self.time_varying_media:
                 baseline_channel_contribution = pm.Deterministic(
                     name="baseline_channel_contribution",
                     var=self.forward_pass(
@@ -1082,11 +1144,42 @@ class MMM(RegressionModelBuilder):
                     X=time_index,
                     dims=("date", *self.dims),
                     **self.model_config["media_tvp_config"],
-                ).create_variable("media_latent_process")
+                ).create_variable("media_temporal_latent_multiplier")
 
                 channel_contribution = pm.Deterministic(
                     name="channel_contribution",
                     var=baseline_channel_contribution * media_latent_process[..., None],
+                    dims=("date", *self.dims, "channel"),
+                )
+            elif isinstance(self.time_varying_media, HSGPBase):
+                baseline_channel_contribution = self.forward_pass(
+                    x=channel_data_, dims=(*self.dims, "channel")
+                )
+                baseline_channel_contribution.name = "baseline_channel_contribution"
+                baseline_channel_contribution.dims = (
+                    "date",
+                    *self.dims,
+                    "channel",
+                )
+
+                # Register internal time index and build latent process
+                self.time_varying_media.register_data(time_index)
+                media_latent_process = self.time_varying_media.create_variable(
+                    "media_temporal_latent_multiplier"
+                )
+
+                # Determine broadcasting over channel axis
+                media_dims = pm.modelcontext(None).named_vars_to_dims[
+                    media_latent_process.name
+                ]
+                if "channel" in media_dims:
+                    media_broadcast = media_latent_process
+                else:
+                    media_broadcast = media_latent_process[..., None]
+
+                channel_contribution = pm.Deterministic(
+                    name="channel_contribution",
+                    var=baseline_channel_contribution * media_broadcast,
                     dims=("date", *self.dims, "channel"),
                 )
             else:
@@ -1684,7 +1777,7 @@ class MMM(RegressionModelBuilder):
         # This is coupled with the name of the
         # latent process Deterministic
         time_varying_var_name = (
-            "media_latent_process" if self.time_varying_media else None
+            "media_temporal_latent_multiplier" if self.time_varying_media else None
         )
         add_lift_measurements_to_likelihood_from_saturation(
             df_lift_test=df_lift_test_scaled,

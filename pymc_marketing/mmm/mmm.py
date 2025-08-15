@@ -50,6 +50,7 @@ from pymc_marketing.mmm.lift_test import (
     scale_lift_measurements,
 )
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
+from pymc_marketing.mmm.scaling import Scaling, VariableScaling
 from pymc_marketing.mmm.tvp import create_time_varying_gp_multiplier, infer_time_index
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
 from pymc_marketing.mmm.utils import (
@@ -130,6 +131,9 @@ class BaseMMM(BaseValidateMMM):
         outcome_node: str | None = Field(
             None, description="Name of the outcome variable."
         ),
+        scaling: InstanceOf[Scaling] | dict | None = Field(
+            None, description="Scaling configuration for the model."
+        ),
     ) -> None:
         """Define the constructor method.
 
@@ -172,6 +176,9 @@ class BaseMMM(BaseValidateMMM):
             Column names of the variables of interest to identify causal effects on outcome.
         outcome_node : Optional[str], optional
             Name of the outcome variable, by default None.
+        scaling : Scaling | dict | None, optional
+            Scaling configuration for the model. If None, defaults to max scaling for both target and channels.
+            Can be a Scaling object or a dict that will be converted to a Scaling object.
         """
         self.control_columns = control_columns
         self.time_varying_intercept = time_varying_intercept
@@ -182,6 +189,22 @@ class BaseMMM(BaseValidateMMM):
         self.adstock = adstock
         self.saturation = saturation
         self.adstock_first = adstock_first
+
+        # Initialize scaling configuration similar to multidimensional MMM
+        if isinstance(scaling, dict):
+            scaling = scaling.copy()
+
+            if "channel" not in scaling:
+                scaling["channel"] = VariableScaling(method="max", dims=())
+            if "target" not in scaling:
+                scaling["target"] = VariableScaling(method="max", dims=())
+
+            scaling = Scaling(**scaling)
+
+        self.scaling: Scaling = scaling or Scaling(
+            target=VariableScaling(method="max", dims=()),
+            channel=VariableScaling(method="max", dims=()),
+        )
 
         model_config = model_config or {}
         model_config = parse_model_config(
@@ -343,10 +366,26 @@ class BaseMMM(BaseValidateMMM):
         if self.validate_data:
             self.validate("X", X_data)
             self.validate("y", y)
-        self.preprocessed_data: dict[str, pd.DataFrame | pd.Series] = {
-            "X": self.preprocess("X", X_data),  # type: ignore
-            "y": self.preprocess("y", y),  # type: ignore
+        # Store raw data instead of applying scaling transformations
+        # We'll apply scaling within the model graph like multidimensional MMM
+        self.preprocessed_data: dict[str, pd.DataFrame | pd.Series | np.ndarray] = {
+            "X": X_data,  # Store raw data
+            "y": y,  # Store raw data
         }
+
+        # Still fit the transformers for backward compatibility
+        # but don't apply the transformations to the data
+        try:
+            # Fit transformers without transforming data (for backward compatibility)
+            if hasattr(self, "max_abs_scale_target_data"):
+                self.max_abs_scale_target_data(y)
+            if hasattr(self, "max_abs_scale_channel_data"):
+                self.max_abs_scale_channel_data(X_data)
+        except Exception as e:
+            # If transformer fitting fails, continue without them
+            import warnings
+
+            warnings.warn(f"Failed to fit transformers: {e}", UserWarning, stacklevel=2)
         self.X: pd.DataFrame = X_data
         self.y: pd.Series | np.ndarray = y
 
@@ -356,6 +395,44 @@ class BaseMMM(BaseValidateMMM):
             self._time_resolution = (
                 self.X[self.date_column].iloc[1] - self.X[self.date_column].iloc[0]
             ).days
+
+    def _compute_scales(self) -> None:
+        """Compute and save scaling factors for channels and target."""
+        import numpy as np
+
+        # Get raw data
+        X_data = self.preprocessed_data["X"]
+        if isinstance(X_data, pd.DataFrame):
+            channel_data = np.asarray(X_data[self.channel_columns].values)
+        else:
+            raise TypeError("X data must be a DataFrame for scaling computation")
+
+        y_data = self.preprocessed_data["y"]
+        target_data = np.asarray(y_data).reshape(-1, 1)
+
+        # Compute scales based on scaling configuration
+        if self.scaling.channel.method == "max":
+            channel_scale = np.abs(channel_data).max(axis=0)
+            # Avoid division by zero
+            channel_scale = np.where(channel_scale == 0, 1.0, channel_scale)
+        elif self.scaling.channel.method == "mean":
+            channel_scale = np.abs(channel_data).mean(axis=0)
+            channel_scale = np.where(channel_scale == 0, 1.0, channel_scale)
+        else:
+            raise ValueError(f"Unknown scaling method: {self.scaling.channel.method}")
+
+        if self.scaling.target.method == "max":
+            target_scale = np.abs(target_data).max()
+            target_scale = 1.0 if target_scale == 0 else target_scale
+        elif self.scaling.target.method == "mean":
+            target_scale = np.abs(target_data).mean()
+            target_scale = 1.0 if target_scale == 0 else target_scale
+        else:
+            raise ValueError(f"Unknown scaling method: {self.scaling.target.method}")
+
+        # Store scales
+        self.channel_scale = channel_scale
+        self.target_scale = target_scale
 
     def create_idata_attrs(self) -> dict[str, str]:
         """Create attributes for the inference data.
@@ -380,6 +457,23 @@ class BaseMMM(BaseValidateMMM):
         attrs["dag"] = json.dumps(self.dag)
         attrs["treatment_nodes"] = json.dumps(self.treatment_nodes)
         attrs["outcome_node"] = json.dumps(self.outcome_node)
+
+        # Serialize scaling configuration
+        if hasattr(self, "scaling") and self.scaling is not None:
+            attrs["scaling"] = json.dumps(
+                {
+                    "target": {
+                        "method": self.scaling.target.method,
+                        "dims": self.scaling.target.dims,
+                    },
+                    "channel": {
+                        "method": self.scaling.channel.method,
+                        "dims": self.scaling.channel.dims,
+                    },
+                }
+            )
+        else:
+            attrs["scaling"] = json.dumps(None)
 
         return attrs
 
@@ -479,20 +573,49 @@ class BaseMMM(BaseValidateMMM):
 
         """
         self._generate_and_preprocess_model_data(X, y)
+        # Compute and save scales
+        self._compute_scales()
+
         with pm.Model(
             coords=self.model_coords,
         ) as self.model:
-            channel_data_ = pm.Data(
+            # Store raw data and scales as pm.Data
+            channel_scale_ = pm.Data(
+                "channel_scale",
+                self.channel_scale,
+                dims=("channel",),
+            )
+            target_scale_ = pm.Data(
+                "target_scale",
+                self.target_scale,
+                dims=(),
+            )
+
+            X_data = self.preprocessed_data["X"]
+            if isinstance(X_data, pd.DataFrame):
+                channel_data_value = X_data[self.channel_columns]
+            else:
+                raise TypeError("X data must be a DataFrame")
+
+            channel_data = pm.Data(
                 name="channel_data",
-                value=self.preprocessed_data["X"][self.channel_columns],
+                value=channel_data_value,
                 dims=("date", "channel"),
             )
 
-            target_ = pm.Data(
-                name="target",
+            target_data = pm.Data(
+                name="target_data",
                 value=self.preprocessed_data["y"],
                 dims="date",
             )
+
+            # Apply scaling within the model graph
+            channel_data_ = channel_data / channel_scale_
+            channel_data_ = pt.switch(pt.isnan(channel_data_), 0.0, channel_data_)
+            channel_data_.name = "channel_data_scaled"
+
+            target_ = target_data / target_scale_
+            target_.name = "target_scaled"
             if self.time_varying_intercept | self.time_varying_media:
                 time_index = pm.Data(
                     "time_index",
@@ -560,13 +683,12 @@ class BaseMMM(BaseValidateMMM):
 
             mu_var = intercept + channel_contribution.sum(axis=-1)
 
+            X_data = self.preprocessed_data["X"]
             if (
                 self.control_columns is not None
                 and len(self.control_columns) > 0
-                and all(
-                    column in self.preprocessed_data["X"].columns
-                    for column in self.control_columns
-                )
+                and isinstance(X_data, pd.DataFrame)
+                and all(column in X_data.columns for column in self.control_columns)
             ):
                 if self.model_config["gamma_control"].dims != ("control",):
                     self.model_config["gamma_control"].dims = "control"
@@ -590,11 +712,15 @@ class BaseMMM(BaseValidateMMM):
                 mu_var += control_contribution.sum(axis=-1)
 
             if self.yearly_seasonality is not None:
+                X_data = self.preprocessed_data["X"]
+                if isinstance(X_data, pd.DataFrame):
+                    dayofyear_value = X_data[self.date_column].dt.dayofyear.to_numpy()
+                else:
+                    raise TypeError("X data must be a DataFrame for yearly seasonality")
+
                 dayofyear = pm.Data(
                     name="dayofyear",
-                    value=self.preprocessed_data["X"][
-                        self.date_column
-                    ].dt.dayofyear.to_numpy(),
+                    value=dayofyear_value,
                     dims="date",
                 )
 
@@ -622,6 +748,49 @@ class BaseMMM(BaseValidateMMM):
                 name=self.output_var,
                 mu=mu,
                 observed=target_,
+            )
+
+            # Add original scale contribution variables
+            pm.Deterministic(
+                name="channel_contribution_original_scale",
+                var=channel_contribution * target_scale_,
+                dims=("date", "channel"),
+            )
+
+            pm.Deterministic(
+                name="total_contribution_original_scale",
+                var=channel_contribution.sum(axis=-1) * target_scale_,
+                dims="date",
+            )
+
+            # Add original scale versions of other contributions if they exist
+            if (
+                self.control_columns is not None
+                and len(self.control_columns) > 0
+                and "control_contribution"
+                in [var.name for var in self.model.deterministics]
+            ):
+                pm.Deterministic(
+                    name="control_contribution_original_scale",
+                    var=control_contribution * target_scale_,
+                    dims=("date", "control"),
+                )
+
+            if (
+                self.yearly_seasonality is not None
+                and "yearly_seasonality_contribution"
+                in [var.name for var in self.model.deterministics]
+            ):
+                pm.Deterministic(
+                    name="yearly_seasonality_contribution_original_scale",
+                    var=yearly_seasonality_contribution * target_scale_,
+                    dims="date",
+                )
+
+            pm.Deterministic(
+                name="y_original_scale",
+                var=(mu * target_scale_),
+                dims="date",
             )
 
     @property
@@ -692,9 +861,30 @@ class BaseMMM(BaseValidateMMM):
             **self.model_coords,
         }
         with pm.Model(coords=coords):
+            # Create channel_data as a pm.Data tensor to ensure proper shape handling
+            channel_data_tensor = pm.Data(
+                name="channel_data",
+                value=channel_data,
+                dims=("date", "channel"),
+            )
+
+            # Apply the same scaling as in the original model - scale by channel_scale
+            channel_scale_ = pm.Data(
+                "channel_scale",
+                self.channel_scale,
+                dims=("channel",),
+            )
+
+            # Apply scaling within the model graph (same as build_model)
+            channel_data_scaled = channel_data_tensor / channel_scale_
+            channel_data_scaled = pt.switch(
+                pt.isnan(channel_data_scaled), 0.0, channel_data_scaled
+            )
+            channel_data_scaled.name = "channel_data_scaled"
+
             pm.Deterministic(
                 "channel_contribution",
-                self.forward_pass(x=channel_data),
+                self.forward_pass(x=channel_data_scaled),
                 dims=("date", "channel"),
             )
 
@@ -758,6 +948,9 @@ class BaseMMM(BaseValidateMMM):
             "dag": json.loads(attrs.get("dag", "null")),
             "treatment_nodes": json.loads(attrs.get("treatment_nodes", "null")),
             "outcome_node": json.loads(attrs.get("outcome_node", "null")),
+            "scaling": cls._deserialize_scaling(
+                json.loads(attrs.get("scaling", "null"))
+            ),
         }
 
     def _data_setter(
@@ -810,15 +1003,22 @@ class BaseMMM(BaseValidateMMM):
         def identity(x):
             return x
 
-        channel_transformation = (
-            identity
-            if not hasattr(self, "channel_transformer")
-            else self.channel_transformer.transform
-        )
-
-        data: dict[str, np.ndarray | Any] = {
-            "channel_data": channel_transformation(new_channel_data)
-        }
+        # For backward compatibility, still support old transformer approach
+        # but prioritize the new scaling approach
+        if hasattr(self, "channel_scale") and hasattr(self, "target_scale"):
+            # Use new scaling approach - set raw data and computed scales
+            data: dict[str, np.ndarray | Any] = {
+                "channel_data": new_channel_data,
+                "channel_scale": self.channel_scale,
+            }
+        else:
+            # Fall back to old transformer approach for backward compatibility
+            channel_transformation = (
+                identity
+                if not hasattr(self, "channel_transformer")
+                else self.channel_transformer.transform
+            )
+            data = {"channel_data": channel_transformation(new_channel_data)}
         if self.control_columns is not None:
             control_data = X[self.control_columns].to_numpy()
             control_transformation = (
@@ -838,19 +1038,57 @@ class BaseMMM(BaseValidateMMM):
 
         if y is not None:
             if isinstance(y, pd.Series):
-                data["target"] = (
-                    y.to_numpy()
-                )  # convert Series to numpy array explicitly
+                y_data = y.to_numpy()
             elif isinstance(y, np.ndarray):
-                data["target"] = y
+                y_data = y
             else:
                 raise TypeError("y must be either a pandas Series or a numpy array")
+
+            # Use new scaling approach if available
+            if hasattr(self, "target_scale"):
+                data["target_data"] = y_data
+                data["target_scale"] = self.target_scale
+            else:
+                # Fall back to old approach for backward compatibility
+                data["target"] = y_data
         else:
             dtype = self.preprocessed_data["y"].dtype  # type: ignore
-            data["target"] = np.zeros(X.shape[0], dtype=dtype)  # type: ignore
+            if hasattr(self, "target_scale"):
+                data["target_data"] = np.zeros(X.shape[0], dtype=dtype)
+                data["target_scale"] = self.target_scale
+            else:
+                data["target"] = np.zeros(X.shape[0], dtype=dtype)
 
         with self.model:
             pm.set_data(data, coords=coords)
+
+    @classmethod
+    def _deserialize_scaling(cls, scaling_dict: dict | None) -> Scaling | None:
+        """Deserialize scaling configuration from JSON.
+
+        Parameters
+        ----------
+        scaling_dict : dict | None
+            The serialized scaling configuration.
+
+        Returns
+        -------
+        Scaling | None
+            The deserialized Scaling object or None.
+        """
+        if scaling_dict is None:
+            return None
+
+        return Scaling(
+            target=VariableScaling(
+                method=scaling_dict["target"]["method"],
+                dims=tuple(scaling_dict["target"]["dims"]),
+            ),
+            channel=VariableScaling(
+                method=scaling_dict["channel"]["method"],
+                dims=tuple(scaling_dict["channel"]["dims"]),
+            ),
+        )
 
     @classmethod
     def _model_config_formatting(cls, model_config: dict) -> dict:
@@ -1052,12 +1290,19 @@ class MMM(
         channel_contribution_forward_pass = super().channel_contribution_forward_pass(
             channel_data=channel_data, disable_logger_stdout=disable_logger_stdout
         )
-        target_transformed_vectorized = np.vectorize(
-            self.target_transformer.inverse_transform,
-            excluded=[1, 2],
-            signature="(m, n) -> (m, n)",
-        )
-        return target_transformed_vectorized(channel_contribution_forward_pass)
+
+        # Convert from scaled space to original scale
+        if hasattr(self, "target_scale"):
+            # Use the computed scale factor from our new approach
+            return channel_contribution_forward_pass * self.target_scale
+        else:
+            # Fallback to transformer for backward compatibility
+            target_transformed_vectorized = np.vectorize(
+                self.target_transformer.inverse_transform,
+                excluded=[1, 2],
+                signature="(m, n) -> (m, n)",
+            )
+            return target_transformed_vectorized(channel_contribution_forward_pass)
 
     def get_channel_contribution_forward_pass_grid(
         self, start: float, stop: float, num: int
@@ -1086,9 +1331,11 @@ class MMM(
 
         channel_contribution = []
         for delta in share_grid:
-            channel_data = (
-                delta * self.preprocessed_data["X"][self.channel_columns].to_numpy()
-            )
+            X_data = self.preprocessed_data["X"]
+            if isinstance(X_data, pd.DataFrame):
+                channel_data = delta * X_data[self.channel_columns].to_numpy()
+            else:
+                raise TypeError("X data must be a DataFrame")
             channel_contribution_forward_pass = self.channel_contribution_forward_pass(
                 channel_data=channel_data,
                 disable_logger_stdout=True,
@@ -1170,18 +1417,28 @@ class MMM(
             The posterior distribution of the time series contributions.
 
         """
-        contributions = self._format_model_contributions(
-            var_contribution=var_contribution
-        )
-
         if original_scale:
-            return apply_sklearn_transformer_across_dim(
-                data=contributions,
-                func=self.get_target_transformer().inverse_transform,
-                dim_name="date",
-            )
-
-        return contributions
+            # Try to use original scale variables if available
+            original_scale_var = f"{var_contribution}_original_scale"
+            if hasattr(self, "fit_result") and original_scale_var in self.fit_result:
+                contributions = self._format_model_contributions(
+                    var_contribution=original_scale_var
+                )
+                # Rename to expected variable name for consistency with plotting code
+                return contributions.rename(var_contribution)
+            else:
+                # Fallback to transformation for backward compatibility
+                contributions = self._format_model_contributions(
+                    var_contribution=var_contribution
+                )
+                return apply_sklearn_transformer_across_dim(
+                    data=contributions,
+                    func=self.get_target_transformer().inverse_transform,
+                    dim_name="date",
+                )
+        else:
+            # Use scaled contributions directly
+            return self._format_model_contributions(var_contribution=var_contribution)
 
     def plot_components_contributions(
         self, original_scale: bool = False, **plt_kwargs: Any
@@ -1261,10 +1518,10 @@ class MMM(
                 self.fit_result, var_names=["intercept"], combined=False
             )
 
-            if original_scale:
+            if not original_scale:
                 intercept = apply_sklearn_transformer_across_dim(
                     data=intercept,
-                    func=self.get_target_transformer().inverse_transform,
+                    func=self.get_target_transformer().transform,
                     dim_name="chain",
                 )
 
@@ -1297,10 +1554,10 @@ class MMM(
             )
 
             y_to_plot = (
-                self.get_target_transformer().inverse_transform(
+                self.get_target_transformer().transform(
                     np.asarray(self.preprocessed_data["y"]).reshape(-1, 1)
                 )
-                if original_scale
+                if not original_scale
                 else np.asarray(self.preprocessed_data["y"])
             )
 
@@ -1513,10 +1770,10 @@ class MMM(
 
         channel_contribution = samples.posterior_predictive["channel_contribution"]
 
-        if original_scale:
+        if not original_scale:
             channel_contribution = apply_sklearn_transformer_across_dim(
                 data=channel_contribution,
-                func=self.get_target_transformer().inverse_transform,
+                func=self.get_target_transformer().transform,
                 dim_name="time_since_spend",
             )
 
@@ -1983,34 +2240,55 @@ class MMM(
                 date=slice(self.adstock.l_max, None)
             )
 
-        intercept_condition = (
-            "intercept" in sample_posterior_predictive_kwargs.get("var_names", [])
-            and not self.time_varying_intercept
-        )
-
+        # Transform to original scale if requested (default behavior)
         if original_scale:
-            # We need to expand the intercept to the date dimension
-            # because the target transformer is applied to the date dimension
-            if intercept_condition:
-                posterior_predictive_samples["intercept"] = (
-                    posterior_predictive_samples["intercept"]
-                    .expand_dims(
-                        dim={"date": posterior_predictive_samples["date"]}, axis=0
+            if hasattr(self, "target_scale"):
+                # Use the new computed scale factor approach
+                if self.output_var in posterior_predictive_samples:
+                    posterior_predictive_samples[self.output_var] = (
+                        posterior_predictive_samples[self.output_var]
+                        * self.target_scale
                     )
-                    .rename("intercept")
+                # No need to apply transformer since we use direct scaling
+            else:
+                # Fallback to transformer for backward compatibility
+                if self.output_var in posterior_predictive_samples:
+                    posterior_predictive_samples[self.output_var] = (
+                        apply_sklearn_transformer_across_dim(
+                            data=posterior_predictive_samples[self.output_var],
+                            func=self.get_target_transformer().inverse_transform,
+                            dim_name="date",
+                        )
+                    )
+
+                intercept_condition = (
+                    "intercept"
+                    in sample_posterior_predictive_kwargs.get("var_names", [])
+                    and not self.time_varying_intercept
                 )
 
-            posterior_predictive_samples = apply_sklearn_transformer_across_dim(
-                data=posterior_predictive_samples,
-                func=self.get_target_transformer().inverse_transform,
-                dim_name="date",
-            )
+                # We need to expand the intercept to the date dimension
+                # because the target transformer is applied to the date dimension
+                if intercept_condition:
+                    posterior_predictive_samples["intercept"] = (
+                        posterior_predictive_samples["intercept"]
+                        .expand_dims(
+                            dim={"date": posterior_predictive_samples["date"]}, axis=0
+                        )
+                        .rename("intercept")
+                    )
 
-            # We need to remove the date dimension after the inverse transform
-            if intercept_condition:
-                posterior_predictive_samples["intercept"] = (
-                    posterior_predictive_samples["intercept"].isel(date=0)
+                posterior_predictive_samples = apply_sklearn_transformer_across_dim(
+                    data=posterior_predictive_samples,
+                    func=self.get_target_transformer().inverse_transform,
+                    dim_name="date",
                 )
+
+                # We need to remove the date dimension after the inverse transform
+                if intercept_condition:
+                    posterior_predictive_samples["intercept"] = (
+                        posterior_predictive_samples["intercept"].isel(date=0)
+                    )
 
         return posterior_predictive_samples
 
@@ -2213,13 +2491,12 @@ class MMM(
                 "Unsupported time granularity. Choose from 'daily', 'weekly', 'monthly', 'quarterly', 'yearly'."
             )
 
+        X_data = self.preprocessed_data["X"]
         mmm_has_controls = (
             self.control_columns is not None
             and len(self.control_columns) > 0
-            and all(
-                column in self.preprocessed_data["X"].columns
-                for column in self.control_columns
-            )
+            and isinstance(X_data, pd.DataFrame)
+            and all(column in X_data.columns for column in self.control_columns)
         )
 
         if controls is not None and mmm_has_controls:
@@ -2370,19 +2647,21 @@ class MMM(
     ):
         """Optimize the given budget based on the specified utility function over a specified time period.
 
-        This function optimizes the allocation of a given budget across different channels
-        to maximize the response, considering adstock and saturation effects. It scales the
-        budget and budget bounds, performs the optimization, and generates a synthetic dataset
-        for posterior predictive sampling.
+        .. deprecated:: 0.0.3
+            This function optimizes the allocation of a given budget across different channels
+           to maximize the response, considering adstock and saturation effects. It scales the
+           budget and budget bounds, performs the optimization, and generates a synthetic dataset
+           for posterior predictive sampling.
 
-        The function first scales the budget and budget bounds using the maximum scale
-        of the channel transformer. It then uses the `BudgetOptimizer` to allocate the
-        budget, and creates a synthetic dataset based on the optimal allocation. Finally,
-        it performs posterior predictive sampling on the synthetic dataset.
+            The function first scales the budget and budget bounds using the maximum scale
+            of the channel transformer. It then uses the `BudgetOptimizer` to allocate the
+            budget, and creates a synthetic dataset based on the optimal allocation. Finally,
+            it performs posterior predictive sampling on the synthetic dataset.
 
-        **Important**: When generating the posterior predicive distribution for the target with the optimized budget,
-        we are setting the control variables to zero! This is done because in many situations we do not have all the
-        control variables in the future (e.g. outlier control, special events).
+            **Important**: When generating the posterior predicive distribution for the target with the
+            optimized budget, we are setting the control variables to zero! This is done because in many
+            situations we do not have all the control variables in the future (e.g. outlier control,
+            special events).
 
         Parameters
         ----------
@@ -2422,6 +2701,13 @@ class MMM(
         ValueError
             If the noise level is not a float.
         """
+        warnings.warn(
+            "This method is deprecated and will be removed in a future version. "
+            "Please migrate to the `Multidimensal.MMM` class.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
         from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 
         allocator = BudgetOptimizer(
@@ -2471,8 +2757,8 @@ class MMM(
             samples["channel_contribution"].mean(dim=["date", "sample"]).to_numpy()
         )
 
-        if original_scale:
-            channel_contribution *= self.get_target_transformer()["scaler"].scale_
+        if not original_scale:
+            channel_contribution /= self.get_target_transformer()["scaler"].scale_
 
         allocated_spend = samples.allocation.to_numpy()
 
@@ -2555,11 +2841,14 @@ class MMM(
 
         """
         if original_scale:
-            channel_contribution = (
-                samples["channel_contribution"]
-                * self.get_target_transformer()["scaler"].scale_
-            )
+            # Use original scale variables if available
+            if "channel_contribution_original_scale" in samples:
+                channel_contribution = samples["channel_contribution_original_scale"]
+            else:
+                # Fallback for backward compatibility
+                channel_contribution = samples["channel_contribution"]
         else:
+            # Use scaled contributions directly
             channel_contribution = samples["channel_contribution"]
 
         fig, ax = plt.subplots()

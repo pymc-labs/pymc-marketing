@@ -24,7 +24,7 @@ import warnings
 from collections.abc import Iterable
 from copy import deepcopy
 from inspect import signature
-from typing import Any
+from typing import Any, TypeAlias
 
 import numpy as np
 import numpy.typing as npt
@@ -49,8 +49,13 @@ from pymc_marketing.plot import (
 # "x" for saturation, "time since exposure" for adstock
 NON_GRID_NAMES: frozenset[str] = frozenset({"x", "time since exposure"})
 
-SupportedPrior = (
-    InstanceOf[Prior] | float | InstanceOf[TensorVariable] | InstanceOf[VariableFactory]
+SupportedPrior: TypeAlias = (
+    InstanceOf[Prior]
+    | float
+    | InstanceOf[TensorVariable]
+    | InstanceOf[VariableFactory]
+    | list
+    | InstanceOf[npt.NDArray[np.floating]]
 )
 
 
@@ -127,7 +132,7 @@ class Transformation:
 
     Parameters
     ----------
-    priors : dict[str, Prior | float | TensorVariable | VariableFactory], optional
+    priors : dict[str, Prior | float | TensorVariable | VariableFactory | list  | numpy array], optional
         Dictionary with the priors for the parameters of the function. The keys should be the
         parameter names and the values the priors. If not provided, it will use the default
         priors from the subclass.
@@ -144,8 +149,7 @@ class Transformation:
 
     def __init__(
         self,
-        priors: dict[str, Prior | float | TensorVariable | VariableFactory]
-        | None = None,
+        priors: dict[str, SupportedPrior] | None = None,
         prefix: str | None = None,
     ) -> None:
         self._checks()

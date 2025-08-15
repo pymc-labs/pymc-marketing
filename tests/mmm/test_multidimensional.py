@@ -25,7 +25,7 @@ from pymc_extras.prior import Prior
 from pytensor.tensor.basic import TensorVariable
 from scipy.optimize import OptimizeResult
 
-from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
+from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation, SoftPlusHSGP
 from pymc_marketing.mmm.additive_effect import EventAdditiveEffect, LinearTrendEffect
 from pymc_marketing.mmm.events import EventEffect, GaussianBasis
 from pymc_marketing.mmm.lift_test import _swap_columns_and_last_index_level
@@ -265,7 +265,7 @@ def test_fit(
     if time_varying_intercept:
         assert "intercept_latent_process" in var_names
     if time_varying_media:
-        assert "media_latent_process" in var_names
+        assert "media_temporal_latent_multiplier" in var_names
     if yearly_seasonality is not None:
         assert "fourier_contribution" in var_names
 
@@ -499,6 +499,88 @@ def test_sample_posterior_predictive_partial_overlap_with_include_last_observati
             extend_idata=False,
             random_seed=123,
         )
+
+
+@pytest.mark.parametrize(
+    "hsgp_dims",
+    [
+        pytest.param(("date",), id="hsgp-dims=date"),
+        pytest.param(("date", "channel"), id="hsgp-dims=date,channel"),
+    ],
+)
+def test_time_varying_media_with_custom_hsgp_single_dim(single_dim_data, hsgp_dims):
+    """Ensure passing an HSGP instance to time_varying_media works (single-dim)."""
+    X, y = single_dim_data
+
+    # Build HSGP using the new API
+    hsgp = SoftPlusHSGP.parameterize_from_data(
+        X=np.arange(X.shape[0]),
+        dims=hsgp_dims,
+    )
+
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        time_varying_media=hsgp,
+    )
+
+    mmm.build_model(X, y)
+
+    # Check latent multiplier exists with the expected dims
+    var_name = "media_temporal_latent_multiplier"
+    assert var_name in mmm.model.named_vars
+    latent_dims = mmm.model.named_vars_to_dims[var_name]
+    assert latent_dims == hsgp_dims
+
+    # Channel contribution should always be date x channel
+    assert mmm.model.named_vars_to_dims["channel_contribution"] == ("date", "channel")
+
+
+@pytest.mark.parametrize(
+    "hsgp_dims",
+    [
+        pytest.param(("date", "country"), id="hsgp-dims=date,country"),
+        pytest.param(
+            ("date", "country", "channel"), id="hsgp-dims=date,country,channel"
+        ),
+    ],
+)
+def test_time_varying_media_with_custom_hsgp_multi_dim(df, hsgp_dims):
+    """Ensure passing an HSGP instance to time_varying_media works (multi-dim)."""
+    X = df.drop(columns=["y"])
+    y = df["y"]
+
+    hsgp = SoftPlusHSGP.parameterize_from_data(
+        X=np.arange(X.shape[0]),
+        dims=hsgp_dims,
+    )
+
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["C1", "C2"],
+        target_column="y",
+        dims=("country",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        time_varying_media=hsgp,
+    )
+
+    mmm.build_model(X, y)
+
+    var_name = "media_temporal_latent_multiplier"
+    assert var_name in mmm.model.named_vars
+    latent_dims = mmm.model.named_vars_to_dims[var_name]
+    assert latent_dims == hsgp_dims
+
+    # Channel contribution should always be date x country x channel
+    assert mmm.model.named_vars_to_dims["channel_contribution"] == (
+        "date",
+        "country",
+        "channel",
+    )
 
 
 def test_sample_posterior_predictive_no_overlap_with_include_last_observations(
@@ -2300,3 +2382,151 @@ def test_specify_time_varying_configuration(
         mmm.model[expected_rv["name"]].owner.op.__class__.__name__
         == expected_rv["kind"]
     )
+
+
+def test_multidimensional_mmm_serializes_and_deserializes_dag_and_nodes(
+    single_dim_data, mock_pymc_sample
+):
+    dag = """
+    digraph {
+        channel_1 -> y;
+        control_1 -> channel_1;
+        control_1 -> y;
+    }
+    """
+    treatment_nodes = ["channel_1"]
+    outcome_node = "y"
+
+    X, y = single_dim_data
+    y = y.rename("y")
+
+    mmm = MMM(
+        date_column="date",
+        target_column="y",
+        channel_columns=["channel_1", "channel_2"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        dag=dag,
+        treatment_nodes=treatment_nodes,
+        outcome_node=outcome_node,
+    )
+
+    mmm.fit(X=X, y=y)
+
+    mmm.save("test_model_multi")
+    loaded_mmm = MMM.load("test_model_multi")
+
+    assert loaded_mmm.dag == dag
+    assert loaded_mmm.treatment_nodes == treatment_nodes
+    assert loaded_mmm.outcome_node == outcome_node
+
+
+def test_multidimensional_mmm_causal_attributes_initialization():
+    dag = """
+    digraph {
+        channel_1 -> target;
+        control_1 -> channel_1;
+        control_1 -> target;
+    }
+    """
+    treatment_nodes = ["channel_1"]
+    outcome_node = "target"
+
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        control_columns=["control_1", "control_2"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        dag=dag,
+        treatment_nodes=treatment_nodes,
+        outcome_node=outcome_node,
+    )
+
+    assert mmm.dag == dag
+    assert mmm.treatment_nodes == treatment_nodes
+    assert mmm.outcome_node == outcome_node
+
+
+def test_multidimensional_mmm_causal_attributes_default_treatment_nodes():
+    dag = """
+    digraph {
+        channel_1 -> target;
+        channel_2 -> target;
+        control_1 -> channel_1;
+        control_1 -> target;
+    }
+    """
+    outcome_node = "target"
+
+    with pytest.warns(
+        UserWarning, match="No treatment nodes provided, using channel columns"
+    ):
+        mmm = MMM(
+            date_column="date",
+            target_column="target",
+            channel_columns=["channel_1", "channel_2"],
+            control_columns=["control_1", "control_2"],
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            dag=dag,
+            outcome_node=outcome_node,
+        )
+
+    assert mmm.treatment_nodes == ["channel_1", "channel_2"]
+    assert mmm.outcome_node == "target"
+
+
+def test_multidimensional_mmm_adjustment_set_updates_control_columns():
+    dag = """
+    digraph {
+        channel_1 -> target;
+        control_1 -> channel_1;
+        control_1 -> target;
+    }
+    """
+    treatment_nodes = ["channel_1"]
+    outcome_node = "target"
+
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        control_columns=["control_1", "control_2"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        dag=dag,
+        treatment_nodes=treatment_nodes,
+        outcome_node=outcome_node,
+    )
+
+    assert mmm.control_columns == ["control_1"]
+
+
+def test_multidimensional_mmm_missing_dag_does_not_initialize_causal_graph():
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+
+    assert mmm.dag is None
+    assert not hasattr(mmm, "causal_graphical_model")
+
+
+def test_multidimensional_mmm_only_dag_provided_does_not_initialize_graph():
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        dag="digraph {channel_1 -> target;}",
+    )
+
+    assert mmm.treatment_nodes is None
+    assert mmm.outcome_node is None
+    assert not hasattr(mmm, "causal_graphical_model")
