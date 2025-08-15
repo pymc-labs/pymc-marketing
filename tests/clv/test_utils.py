@@ -213,12 +213,12 @@ class TestCustomerLifetimeValue:
 
         # Copy model with thinned chain/draw as would be obtained from MAP
         if transaction_model_map:
-            transaction_model = transaction_model._build_with_idata(
+            transaction_model = transaction_model.build_from_idata(
                 transaction_model.idata.sel(chain=slice(0, 1), draw=slice(0, 1))
             )
 
         if gg_map:
-            fitted_gg = fitted_gg._build_with_idata(
+            fitted_gg = fitted_gg.build_from_idata(
                 fitted_gg.idata.sel(chain=slice(0, 1), draw=slice(0, 1))
             )
             # create future_spend column from fitted gg

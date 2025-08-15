@@ -13,10 +13,8 @@
 #   limitations under the License.
 """CLV Model base class."""
 
-import json
 import warnings
 from collections.abc import Sequence
-from pathlib import Path
 from typing import Literal, cast
 
 import arviz as az
@@ -27,9 +25,8 @@ from pymc.backends import NDArray
 from pymc.backends.base import MultiTrace
 from pymc.model.core import Model
 
-from pymc_marketing.model_builder import ModelBuilder
+from pymc_marketing.model_builder import DifferentModelError, ModelBuilder
 from pymc_marketing.model_config import ModelConfig, parse_model_config
-from pymc_marketing.utils import from_netcdf
 
 
 class CLVModel(ModelBuilder):
@@ -46,6 +43,7 @@ class CLVModel(ModelBuilder):
         sampler_config: dict | None = None,
         non_distributions: list[str] | None = None,
     ):
+        self.data = data
         model_config = model_config or {}
 
         deprecated_keys = [key for key in model_config if key.endswith("_prior")]
@@ -60,13 +58,13 @@ class CLVModel(ModelBuilder):
 
             model_config[new_key] = model_config.pop(key)
 
-        model_config = parse_model_config(
-            model_config,
+        super().__init__(model_config, sampler_config)
+
+        # Parse model config after merging with defaults
+        self.model_config = parse_model_config(
+            self.model_config,
             non_distributions=non_distributions,
         )
-
-        super().__init__(model_config, sampler_config)
-        self.data = data
 
     @staticmethod
     def _validate_cols(
@@ -260,59 +258,39 @@ class CLVModel(ModelBuilder):
             )
 
     @classmethod
-    def load(cls, fname: str):
-        """Create a ModelBuilder instance from a file.
+    def idata_to_init_kwargs(cls, idata: az.InferenceData) -> dict:
+        """Create the initialization kwargs from an InferenceData object."""
+        kwargs = cls.attrs_to_init_kwargs(idata.attrs)
+        kwargs["data"] = idata.fit_data.to_dataframe()
 
-        Loads inference data for the model.
-
-        Parameters
-        ----------
-        fname : string
-            This denotes the name with path from where idata should be loaded from.
-
-        Returns
-        -------
-        Returns an instance of ModelBuilder.
-
-        Raises
-        ------
-        ValueError
-            If the inference data that is loaded doesn't match with the model.
-
-        Examples
-        --------
-        >>> class MyModel(ModelBuilder):
-        >>>     ...
-        >>> name = "./mymodel.nc"
-        >>> imported_model = MyModel.load(name)
-
-        """
-        filepath = Path(str(fname))
-        idata = from_netcdf(filepath)
-        return cls._build_with_idata(idata)
+        return kwargs
 
     @classmethod
-    def _build_with_idata(cls, idata: az.InferenceData):
-        dataset = idata.fit_data.to_dataframe()
+    def build_from_idata(cls, idata: az.InferenceData) -> None:
+        """Build the model from the InferenceData object."""
+        kwargs = cls.idata_to_init_kwargs(idata)
         with warnings.catch_warnings():
             warnings.filterwarnings(
                 "ignore",
                 category=DeprecationWarning,
             )
-            model = cls(
-                dataset,
-                model_config=json.loads(idata.attrs["model_config"]),  # type: ignore
-                sampler_config=json.loads(idata.attrs["sampler_config"]),
-            )
+            model = cls(**kwargs)
 
         model.idata = idata
         model._rename_posterior_variables()
 
         model.build_model()  # type: ignore
         if model.id != idata.attrs["id"]:
-            raise ValueError(f"Inference data not compatible with {cls._model_type}")
+            msg = (
+                "The model id in the InferenceData does not match the model id. "
+                "There was no error loading the inference data, but the model may "
+                "be different. "
+                "Investigate if the model structure or configuration has changed."
+            )
+            raise DifferentModelError(msg)
         return model
 
+    # TODO: Remove in 2026Q1?
     def _rename_posterior_variables(self):
         """Rename variables in the posterior group to remove the _prior suffix.
 
@@ -355,7 +333,7 @@ class CLVModel(ModelBuilder):
         self.fit_result  # noqa: B018 (Raise Error if fit didn't happen yet)
         assert self.idata is not None  # noqa: S101
         new_idata = self.idata.isel(draw=slice(None, None, keep_every)).copy()
-        return type(self)._build_with_idata(new_idata)
+        return self.build_from_idata(new_idata)
 
     @property
     def default_sampler_config(self) -> dict:
@@ -378,8 +356,3 @@ class CLVModel(ModelBuilder):
             return res["mean"].rename("value")
         else:
             return az.summary(self.fit_result, **kwargs)
-
-    @property
-    def output_var(self):
-        """Output variable of the model."""
-        pass

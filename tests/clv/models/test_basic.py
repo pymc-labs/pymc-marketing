@@ -21,6 +21,7 @@ from arviz import InferenceData, from_dict
 from pymc_extras.prior import Prior
 
 from pymc_marketing.clv.models.basic import CLVModel
+from pymc_marketing.model_builder import DifferentModelError
 from tests.conftest import mock_fit_MAP, mock_sample, set_model_fit
 
 
@@ -178,7 +179,11 @@ class TestCLVModel:
         model.fit(tune=0, chains=2, draws=5)
         model.save("test_model")
         model2 = model.load("test_model")
+
         assert model2.fit_result is not None
+
+        # TODO: Add this to the model_builder.py load method?
+        model2.build_model()
         assert model2.model is not None
         os.remove("test_model")
 
@@ -214,8 +219,8 @@ class TestCLVModel:
         # Apply the monkeypatch for the property
         monkeypatch.setattr(CLVModelTest, "id", property(mock_property))
         with pytest.raises(
-            ValueError,
-            match="Inference data not compatible with CLVModelTest",
+            DifferentModelError,
+            match="The file 'test_model'",
         ):
             CLVModelTest.load("test_model")
         os.remove("test_model")

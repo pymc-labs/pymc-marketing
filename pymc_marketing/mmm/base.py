@@ -45,14 +45,14 @@ from pymc_marketing.mmm.validating import (
     ValidateDateColumn,
     ValidateTargetColumn,
 )
-from pymc_marketing.model_builder import ModelBuilder
+from pymc_marketing.model_builder import RegressionModelBuilder
 
 __all__ = ["BaseValidateMMM", "MMMModelBuilder"]
 
 from pydantic import Field, validate_call
 
 
-class MMMModelBuilder(ModelBuilder):
+class MMMModelBuilder(RegressionModelBuilder):
     """Base class for Marketing Mix Models (MMM)."""
 
     model: pm.Model
