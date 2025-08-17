@@ -497,11 +497,6 @@ def test_saturation_curves_scatter_deprecation_warning(mock_suite_with_constant_
     assert all(isinstance(ax, Axes) for ax in axes.flat)
 
 
-# -----------------------------------------------------------------------------
-# Additional tests to validate single-dim and multi-dim grids in saturation_curves
-# -----------------------------------------------------------------------------
-
-
 @pytest.fixture(scope="module")
 def mock_idata_with_constant_data_single_dim() -> az.InferenceData:
     """Mock InferenceData where channel_data has only ('date','channel') dims."""
