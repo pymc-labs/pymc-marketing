@@ -21,6 +21,7 @@ import xarray as xr
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from pydantic import ValidationError
+from pymc_extras.prior import Prior, UnknownTransformError
 
 from pymc_marketing.mmm.hsgp import (
     HSGP,
@@ -32,7 +33,6 @@ from pymc_marketing.mmm.hsgp import (
     create_complexity_penalizing_prior,
 )
 from pymc_marketing.model_graph import deterministics_to_flat
-from pymc_marketing.prior import Prior, UnknownTransformError
 
 
 @pytest.mark.parametrize(

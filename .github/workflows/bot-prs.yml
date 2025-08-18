@@ -11,7 +11,7 @@ jobs:
   label-no-releasenotes:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Label no releasenotes
         run: |
           number=${{ github.event.pull_request.number }}

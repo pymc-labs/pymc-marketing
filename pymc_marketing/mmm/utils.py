@@ -178,11 +178,57 @@ def create_new_spend_data(
     )
 
 
+def _convert_frequency_to_timedelta(periods: int, freq: str) -> pd.Timedelta:
+    """Convert frequency string and periods to Timedelta.
+
+    Parameters
+    ----------
+    periods : int
+        Number of periods
+    freq : str
+        Frequency string (e.g., 'D', 'W', 'M', 'Y')
+
+    Returns
+    -------
+    pd.Timedelta
+        The timedelta representation
+    """
+    # Extract base frequency (e.g., 'W' from 'W-MON')
+    base_freq = freq[0] if len(freq) > 1 else freq
+
+    # Direct mapping for supported frequencies
+    if base_freq == "D":
+        return pd.Timedelta(days=periods)
+    elif base_freq == "W":
+        return pd.Timedelta(weeks=periods)
+    elif base_freq == "M":
+        # Approximate months as 30 days
+        return pd.Timedelta(days=periods * 30)
+    elif base_freq == "Y":
+        # Approximate years as 365 days
+        return pd.Timedelta(days=periods * 365)
+    elif base_freq == "H":
+        return pd.Timedelta(hours=periods)
+    elif base_freq == "T":
+        return pd.Timedelta(minutes=periods)
+    elif base_freq == "S":
+        return pd.Timedelta(seconds=periods)
+    else:
+        # Default to weeks if frequency not recognized
+        warnings.warn(
+            f"Unrecognized frequency '{freq}'. Defaulting to weeks.",
+            UserWarning,
+            stacklevel=2,
+        )
+        return pd.Timedelta(weeks=periods)
+
+
 def create_zero_dataset(
     model: Any,
     start_date: str | pd.Timestamp,
     end_date: str | pd.Timestamp,
     channel_xr: xr.Dataset | xr.DataArray | None = None,
+    include_carryover: bool = True,
 ) -> pd.DataFrame:
     """Create a DataFrame for future prediction, with zeros (or supplied constants).
 
@@ -231,6 +277,19 @@ def create_zero_dataset(
         inferred_freq = "W"
 
     # ---- 2. Build the full Cartesian product of dates X dims -------------------
+    if include_carryover:
+        # if start_date are not timestamps, convert them to timestamps
+        if not isinstance(start_date, pd.Timestamp):
+            start_date = pd.Timestamp(start_date)
+        if not isinstance(end_date, pd.Timestamp):
+            end_date = pd.Timestamp(end_date)
+
+        # Add the adstock lag to the end date
+        if hasattr(model.adstock, "l_max"):
+            end_date += _convert_frequency_to_timedelta(
+                model.adstock.l_max, inferred_freq
+            )
+
     new_dates = pd.date_range(
         start=start_date, end=end_date, freq=inferred_freq, name=date_col
     )
@@ -290,26 +349,41 @@ def create_zero_dataset(
         if date_col in channel_xr.dims:
             raise ValueError("`channel_xr` must NOT include the date dimension.")
 
-        # --- 4.3 Convert to DataFrame & merge ----------------------------------
-        channel_df = channel_xr.to_dataframe().reset_index()
+        # --- 4.3 Inject constants ----------------------------------------------
+        # Special-case: when there are NO dims (e.g., only channel dimension in the
+        # allocation which was pivoted into variables), xarray can't create an index
+        # for to_dataframe(). In this scenario, simply broadcast scalar values
+        # across all rows.
+        if len(channel_xr.dims) == 0:
+            for ch in channel_cols:
+                if ch in channel_xr.data_vars:
+                    # assign scalar value across all rows
+                    try:
+                        pred_df[ch] = channel_xr[ch].item()
+                    except Exception:
+                        pred_df[ch] = channel_xr[ch].values
+        else:
+            # Convert to DataFrame & merge when dims are present
+            channel_df = channel_xr.to_dataframe().reset_index()
 
-        # Left-join on every dimension; suffix prevents collisions during merge
-        pred_df = pred_df.merge(
-            channel_df,
-            on=dim_cols,
-            how="left",
-            suffixes=("", "_chan"),
-        )
+            # Left-join on every dimension; suffix prevents collisions during merge
+            pred_df = pred_df.merge(
+                channel_df,
+                on=dim_cols,
+                how="left",
+                suffixes=("", "_chan"),
+            )
 
         # --- 4.4 Copy merged values into official channel columns --------------
-        for ch in channel_cols:
-            chan_col = f"{ch}_chan"
-            if chan_col in pred_df.columns:
-                pred_df[ch] = pred_df[chan_col]
-                pred_df.drop(columns=chan_col, inplace=True)
+        if len(channel_xr.dims) != 0:
+            for ch in channel_cols:
+                chan_col = f"{ch}_chan"
+                if chan_col in pred_df.columns:
+                    pred_df[ch] = pred_df[chan_col]
+                    pred_df.drop(columns=chan_col, inplace=True)
 
-        # Replace any remaining NaNs introduced by the merge
-        pred_df[channel_cols] = pred_df[channel_cols].fillna(0.0)
+            # Replace any remaining NaNs introduced by the merge
+            pred_df[channel_cols] = pred_df[channel_cols].fillna(0.0)
 
     # ---- 5. Bring in any “other” columns from the training data ----------------
     other_cols = [

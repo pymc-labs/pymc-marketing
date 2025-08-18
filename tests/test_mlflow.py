@@ -518,8 +518,17 @@ def test_autolog_mmm(mmm, toy_X, toy_y) -> None:
         "control_data": [135, 2],
         "dayofyear": [135],
     }
+
+    # Handle both old and new scaling approaches
     if "target" in idata.constant_data:
         expected_features_shape["target"] = [135]
+    elif "target_data" in idata.constant_data:
+        expected_features_shape["target_data"] = [135]
+        expected_features_shape["target_scale"] = []
+
+    # Include channel scaling variables if present (new scaling approach)
+    if "channel_scale" in idata.constant_data:
+        expected_features_shape["channel_scale"] = [2]
 
     assert parsed_inputs["features_shape"] == expected_features_shape
     assert parsed_inputs["targets_shape"] == {

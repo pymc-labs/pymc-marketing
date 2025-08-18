@@ -30,6 +30,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_multidimensional_example.png
 :link: ../notebooks/mmm/mmm_multidimensional_example.html
 :::
+
+:::{grid-item-card} Sensitivity Analysis and Marginal Effects
+:img-top: ../gallery/images/mmm_sensitivity_analysis.png
+:link: ../notebooks/mmm/mmm_sensitivity_analysis.html
+:::
 ::::
 
 ### Budget Allocation
@@ -69,12 +74,12 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 ::::{grid} 1 2 3 3
 :gutter: 3
 
-:::{grid-item-card} MMM with time-varying parameters
+:::{grid-item-card} MMM with time-varying media baseline
 :img-top: ../gallery/images/mmm_tvp_example.png
 :link: ../notebooks/mmm/mmm_tvp_example.html
 :::
 
-:::{grid-item-card} MMM with time-varying media baseline
+:::{grid-item-card} MMM with time-varying parameters
 :img-top: ../gallery/images/mmm_time_varying_media_example.png
 :link: ../notebooks/mmm/mmm_time_varying_media_example.html
 :::
@@ -110,6 +115,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_counterfactuals.png
 :link: ../notebooks/mmm/mmm_counterfactuals.html
 :::
+
 ::::
 
 ### Case Studies

@@ -192,3 +192,427 @@ def test_contributions_over_time_expand_dims(mock_suite: MMMPlotSuite):
     assert isinstance(fig, Figure)
     assert isinstance(ax, np.ndarray)
     assert all(isinstance(a, Axes) for a in ax.flat)
+
+
+@pytest.fixture(scope="module")
+def mock_idata_with_constant_data() -> az.InferenceData:
+    """Create mock InferenceData with constant_data and posterior for saturation tests."""
+    seed = sum(map(ord, "Saturation tests"))
+    rng = np.random.default_rng(seed)
+    normal = rng.normal
+
+    dates = pd.date_range("2025-01-01", periods=52, freq="W-MON")
+    channels = ["channel_1", "channel_2"]
+    countries = ["A", "B"]
+
+    # Create posterior data
+    posterior = xr.Dataset(
+        {
+            "channel_contribution": xr.DataArray(
+                normal(size=(4, 100, 52, 2, 2)),
+                dims=("chain", "draw", "date", "channel", "country"),
+                coords={
+                    "chain": np.arange(4),
+                    "draw": np.arange(100),
+                    "date": dates,
+                    "channel": channels,
+                    "country": countries,
+                },
+            ),
+            "channel_contribution_original_scale": xr.DataArray(
+                normal(size=(4, 100, 52, 2, 2)) * 100,  # scaled up for original scale
+                dims=("chain", "draw", "date", "channel", "country"),
+                coords={
+                    "chain": np.arange(4),
+                    "draw": np.arange(100),
+                    "date": dates,
+                    "channel": channels,
+                    "country": countries,
+                },
+            ),
+        }
+    )
+
+    # Create constant_data
+    constant_data = xr.Dataset(
+        {
+            "channel_data": xr.DataArray(
+                rng.uniform(0, 10, size=(52, 2, 2)),
+                dims=("date", "channel", "country"),
+                coords={
+                    "date": dates,
+                    "channel": channels,
+                    "country": countries,
+                },
+            ),
+            "channel_scale": xr.DataArray(
+                [[100.0, 200.0], [150.0, 250.0]],
+                dims=("country", "channel"),
+                coords={"country": countries, "channel": channels},
+            ),
+            "target_scale": xr.DataArray(
+                [1000.0],
+                dims="target",
+                coords={"target": ["y"]},
+            ),
+        }
+    )
+
+    return az.InferenceData(posterior=posterior, constant_data=constant_data)
+
+
+@pytest.fixture(scope="module")
+def mock_suite_with_constant_data(mock_idata_with_constant_data):
+    """Fixture to create a MMMPlotSuite with constant_data for saturation tests."""
+    return MMMPlotSuite(idata=mock_idata_with_constant_data)
+
+
+@pytest.fixture(scope="module")
+def mock_saturation_curve() -> xr.DataArray:
+    """Create mock saturation curve data for testing saturation_curves method."""
+    seed = sum(map(ord, "Saturation curve"))
+    rng = np.random.default_rng(seed)
+
+    # Create curve data with typical saturation curve shape
+    x_values = np.linspace(0, 1, 100)
+    channels = ["channel_1", "channel_2"]
+    countries = ["A", "B"]
+
+    curve_data = []
+    for _ in range(4):  # chains
+        for _ in range(100):  # draws
+            for _ in channels:
+                for _ in countries:
+                    # Simple saturation curve: y = x / (1 + x)
+                    y_values = x_values / (1 + x_values) + rng.normal(
+                        0, 0.01, size=x_values.shape
+                    )
+                    curve_data.append(y_values)
+
+    curve_array = np.array(curve_data).reshape(
+        4, 100, len(channels), len(countries), len(x_values)
+    )
+
+    return xr.DataArray(
+        curve_array,
+        dims=("chain", "draw", "channel", "country", "x"),
+        coords={
+            "chain": np.arange(4),
+            "draw": np.arange(100),
+            "channel": channels,
+            "country": countries,
+            "x": x_values,
+        },
+    )
+
+
+class TestSaturationScatterplot:
+    def test_saturation_scatterplot_basic(self, mock_suite_with_constant_data):
+        """Test basic functionality of saturation_scatterplot."""
+        fig, axes = mock_suite_with_constant_data.saturation_scatterplot()
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        assert all(isinstance(ax, Axes) for ax in axes.flat)
+
+    def test_saturation_scatterplot_original_scale(self, mock_suite_with_constant_data):
+        """Test saturation_scatterplot with original_scale=True."""
+        fig, axes = mock_suite_with_constant_data.saturation_scatterplot(
+            original_scale=True
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        assert all(isinstance(ax, Axes) for ax in axes.flat)
+
+    def test_saturation_scatterplot_custom_kwargs(self, mock_suite_with_constant_data):
+        """Test saturation_scatterplot with custom kwargs."""
+        fig, axes = mock_suite_with_constant_data.saturation_scatterplot(
+            width_per_col=8.0, height_per_row=5.0
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        assert all(isinstance(ax, Axes) for ax in axes.flat)
+
+    def test_saturation_scatterplot_no_constant_data(self, mock_suite):
+        """Test that saturation_scatterplot raises error without constant_data."""
+        with pytest.raises(ValueError, match="No 'constant_data' found"):
+            mock_suite.saturation_scatterplot()
+
+    def test_saturation_scatterplot_no_original_scale_contribution(
+        self, mock_suite_with_constant_data
+    ):
+        """Test that saturation_scatterplot raises error when original_scale=True but no original scale data."""
+        # Remove the original scale contribution from the mock data
+        idata_copy = mock_suite_with_constant_data.idata.copy()
+        idata_copy.posterior = idata_copy.posterior.drop_vars(
+            "channel_contribution_original_scale"
+        )
+        suite_without_original_scale = MMMPlotSuite(idata=idata_copy)
+
+        with pytest.raises(
+            ValueError, match="No posterior.channel_contribution_original_scale"
+        ):
+            suite_without_original_scale.saturation_scatterplot(original_scale=True)
+
+
+class TestSaturationCurves:
+    def test_saturation_curves_basic(
+        self, mock_suite_with_constant_data, mock_saturation_curve
+    ):
+        """Test basic functionality of saturation_curves."""
+        fig, axes = mock_suite_with_constant_data.saturation_curves(
+            curve=mock_saturation_curve, n_samples=5
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        assert all(isinstance(ax, Axes) for ax in axes.flat)
+
+    def test_saturation_curves_original_scale(
+        self, mock_suite_with_constant_data, mock_saturation_curve
+    ):
+        """Test saturation_curves with original_scale=True."""
+        fig, axes = mock_suite_with_constant_data.saturation_curves(
+            curve=mock_saturation_curve, original_scale=True, n_samples=3
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        assert all(isinstance(ax, Axes) for ax in axes.flat)
+
+    def test_saturation_curves_with_hdi(
+        self, mock_suite_with_constant_data, mock_saturation_curve
+    ):
+        """Test saturation_curves with HDI intervals."""
+        fig, axes = mock_suite_with_constant_data.saturation_curves(
+            curve=mock_saturation_curve, n_samples=3, hdi_probs=[0.5, 0.94]
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        assert all(isinstance(ax, Axes) for ax in axes.flat)
+
+    def test_saturation_curves_single_hdi(
+        self, mock_suite_with_constant_data, mock_saturation_curve
+    ):
+        """Test saturation_curves with single HDI probability."""
+        fig, axes = mock_suite_with_constant_data.saturation_curves(
+            curve=mock_saturation_curve, n_samples=3, hdi_probs=0.85
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        assert all(isinstance(ax, Axes) for ax in axes.flat)
+
+    def test_saturation_curves_custom_colors(
+        self, mock_suite_with_constant_data, mock_saturation_curve
+    ):
+        """Test saturation_curves with custom colors."""
+        fig, axes = mock_suite_with_constant_data.saturation_curves(
+            curve=mock_saturation_curve, n_samples=3, colors=["red", "blue"]
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        assert all(isinstance(ax, Axes) for ax in axes.flat)
+
+    def test_saturation_curves_subplot_kwargs(
+        self, mock_suite_with_constant_data, mock_saturation_curve
+    ):
+        """Test saturation_curves with custom subplot_kwargs."""
+        fig, axes = mock_suite_with_constant_data.saturation_curves(
+            curve=mock_saturation_curve,
+            n_samples=3,
+            subplot_kwargs={"figsize": (12, 8)},
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        assert all(isinstance(ax, Axes) for ax in axes.flat)
+        # Check that figsize was applied
+        assert fig.get_size_inches()[0] == 12
+        assert fig.get_size_inches()[1] == 8
+
+    def test_saturation_curves_rc_params(
+        self, mock_suite_with_constant_data, mock_saturation_curve
+    ):
+        """Test saturation_curves with rc_params."""
+        fig, axes = mock_suite_with_constant_data.saturation_curves(
+            curve=mock_saturation_curve, n_samples=3, rc_params={"font.size": 14}
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        assert all(isinstance(ax, Axes) for ax in axes.flat)
+
+    def test_saturation_curves_no_samples(
+        self, mock_suite_with_constant_data, mock_saturation_curve
+    ):
+        """Test saturation_curves with n_samples=0."""
+        fig, axes = mock_suite_with_constant_data.saturation_curves(
+            curve=mock_saturation_curve, n_samples=0, hdi_probs=0.85
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        assert all(isinstance(ax, Axes) for ax in axes.flat)
+
+    def test_saturation_curves_no_constant_data(
+        self, mock_suite, mock_saturation_curve
+    ):
+        """Test that saturation_curves raises error without constant_data."""
+        with pytest.raises(ValueError, match="No 'constant_data' found"):
+            mock_suite.saturation_curves(curve=mock_saturation_curve)
+
+    def test_saturation_curves_no_original_scale_contribution(
+        self, mock_suite_with_constant_data, mock_saturation_curve
+    ):
+        """Test that saturation_curves raises error when original_scale=True but no original scale data."""
+        # Remove the original scale contribution from the mock data
+        idata_copy = mock_suite_with_constant_data.idata.copy()
+        idata_copy.posterior = idata_copy.posterior.drop_vars(
+            "channel_contribution_original_scale"
+        )
+        suite_without_original_scale = MMMPlotSuite(idata=idata_copy)
+
+        with pytest.raises(
+            ValueError, match="No posterior.channel_contribution_original_scale"
+        ):
+            suite_without_original_scale.saturation_curves(
+                curve=mock_saturation_curve, original_scale=True
+            )
+
+
+def test_saturation_curves_scatter_deprecation_warning(mock_suite_with_constant_data):
+    """Test that saturation_curves_scatter shows deprecation warning."""
+    with pytest.warns(
+        DeprecationWarning, match="saturation_curves_scatter is deprecated"
+    ):
+        fig, axes = mock_suite_with_constant_data.saturation_curves_scatter()
+
+    assert isinstance(fig, Figure)
+    assert isinstance(axes, np.ndarray)
+    assert all(isinstance(ax, Axes) for ax in axes.flat)
+
+
+@pytest.fixture(scope="module")
+def mock_idata_with_constant_data_single_dim() -> az.InferenceData:
+    """Mock InferenceData where channel_data has only ('date','channel') dims."""
+    seed = sum(map(ord, "Saturation single-dim tests"))
+    rng = np.random.default_rng(seed)
+    normal = rng.normal
+
+    dates = pd.date_range("2025-01-01", periods=12, freq="W-MON")
+    channels = ["channel_1", "channel_2", "channel_3"]
+
+    posterior = xr.Dataset(
+        {
+            "channel_contribution": xr.DataArray(
+                normal(size=(2, 10, 12, 3)),
+                dims=("chain", "draw", "date", "channel"),
+                coords={
+                    "chain": np.arange(2),
+                    "draw": np.arange(10),
+                    "date": dates,
+                    "channel": channels,
+                },
+            ),
+            "channel_contribution_original_scale": xr.DataArray(
+                normal(size=(2, 10, 12, 3)) * 100.0,
+                dims=("chain", "draw", "date", "channel"),
+                coords={
+                    "chain": np.arange(2),
+                    "draw": np.arange(10),
+                    "date": dates,
+                    "channel": channels,
+                },
+            ),
+        }
+    )
+
+    constant_data = xr.Dataset(
+        {
+            "channel_data": xr.DataArray(
+                rng.uniform(0, 10, size=(12, 3)),
+                dims=("date", "channel"),
+                coords={"date": dates, "channel": channels},
+            ),
+            "channel_scale": xr.DataArray(
+                [100.0, 150.0, 200.0], dims=("channel",), coords={"channel": channels}
+            ),
+            "target_scale": xr.DataArray(
+                [1000.0], dims="target", coords={"target": ["y"]}
+            ),
+        }
+    )
+
+    return az.InferenceData(posterior=posterior, constant_data=constant_data)
+
+
+@pytest.fixture(scope="module")
+def mock_suite_with_constant_data_single_dim(mock_idata_with_constant_data_single_dim):
+    return MMMPlotSuite(idata=mock_idata_with_constant_data_single_dim)
+
+
+@pytest.fixture(scope="module")
+def mock_saturation_curve_single_dim() -> xr.DataArray:
+    """Saturation curve with dims ('chain','draw','channel','x')."""
+    seed = sum(map(ord, "Saturation curve single-dim"))
+    rng = np.random.default_rng(seed)
+    x_values = np.linspace(0, 1, 50)
+    channels = ["channel_1", "channel_2", "channel_3"]
+
+    # shape: (chains=2, draws=10, channel=3, x=50)
+    curve_array = np.empty((2, 10, len(channels), len(x_values)))
+    for ci in range(2):
+        for di in range(10):
+            for c in range(len(channels)):
+                curve_array[ci, di, c, :] = x_values / (1 + x_values) + rng.normal(
+                    0, 0.02, size=x_values.shape
+                )
+
+    return xr.DataArray(
+        curve_array,
+        dims=("chain", "draw", "channel", "x"),
+        coords={
+            "chain": np.arange(2),
+            "draw": np.arange(10),
+            "channel": channels,
+            "x": x_values,
+        },
+        name="saturation_curve",
+    )
+
+
+def test_saturation_curves_single_dim_axes_shape(
+    mock_suite_with_constant_data_single_dim, mock_saturation_curve_single_dim
+):
+    """When there are no extra dims, columns should default to 1 (no ncols=0)."""
+    fig, axes = mock_suite_with_constant_data_single_dim.saturation_curves(
+        curve=mock_saturation_curve_single_dim, n_samples=3
+    )
+
+    assert isinstance(fig, Figure)
+    assert isinstance(axes, np.ndarray)
+    # Expect (n_channels, 1)
+    assert axes.shape[1] == 1
+    assert axes.shape[0] == mock_saturation_curve_single_dim.sizes["channel"]
+
+
+def test_saturation_curves_multi_dim_axes_shape(
+    mock_suite_with_constant_data, mock_saturation_curve
+):
+    """With an extra dim (e.g., 'country'), expect (n_channels, n_countries)."""
+    fig, axes = mock_suite_with_constant_data.saturation_curves(
+        curve=mock_saturation_curve, n_samples=2
+    )
+
+    assert isinstance(fig, Figure)
+    assert isinstance(axes, np.ndarray)
+    n_channels = mock_saturation_curve.sizes["channel"]
+    n_countries = mock_suite_with_constant_data.idata.constant_data.channel_data.sizes[
+        "country"
+    ]
+    assert axes.shape == (n_channels, n_countries)

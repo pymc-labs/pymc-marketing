@@ -12,17 +12,17 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 import pytest
+from pymc_extras.prior import Prior
 
 from pymc_marketing.mmm.builders.factories import locate
 from pymc_marketing.mmm.mmm import MMM
-from pymc_marketing.prior import Prior
 
 
 @pytest.mark.parametrize(
     "qualname, expected",
     [
         pytest.param("pymc_marketing.mmm.MMM", MMM, id="alternative-import"),
-        pytest.param("pymc_marketing.prior.Prior", Prior, id="full-import"),
+        pytest.param("pymc_extras.prior.Prior", Prior, id="full-import"),
     ],
 )
 def test_locate(qualname, expected) -> None:

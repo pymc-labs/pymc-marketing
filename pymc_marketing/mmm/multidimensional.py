@@ -31,11 +31,13 @@ import xarray as xr
 from pydantic import Field, InstanceOf, validate_call
 from pymc.model.fgraph import clone_model as cm
 from pymc.util import RandomState
+from pymc_extras.prior import Prior, create_dim_handler
 from scipy.optimize import OptimizeResult
 
 from pymc_marketing.mmm import SoftPlusHSGP
 from pymc_marketing.mmm.additive_effect import EventAdditiveEffect, MuEffect
 from pymc_marketing.mmm.budget_optimizer import OptimizerCompatibleModelWrapper
+from pymc_marketing.mmm.causal import CausalGraphModel
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
     adstock_from_dict,
@@ -46,12 +48,14 @@ from pymc_marketing.mmm.components.saturation import (
 )
 from pymc_marketing.mmm.events import EventEffect
 from pymc_marketing.mmm.fourier import YearlyFourier
+from pymc_marketing.mmm.hsgp import HSGPBase
 from pymc_marketing.mmm.lift_test import (
     add_lift_measurements_to_likelihood_from_saturation,
     scale_lift_measurements,
 )
 from pymc_marketing.mmm.plot import MMMPlotSuite
 from pymc_marketing.mmm.scaling import Scaling, VariableScaling
+from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
 from pymc_marketing.mmm.tvp import infer_time_index
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
 from pymc_marketing.mmm.utils import (
@@ -61,7 +65,6 @@ from pymc_marketing.mmm.utils import (
 from pymc_marketing.model_builder import ModelBuilder, _handle_deprecate_pred_argument
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.model_graph import deterministics_to_flat
-from pymc_marketing.prior import Prior, create_dim_handler
 
 PYMC_MARKETING_ISSUE = "https://github.com/pymc-labs/pymc-marketing/issues/new"
 warning_msg = (
@@ -114,7 +117,7 @@ class MMM(ModelBuilder):
     """
 
     _model_type: str = "MMMM (Multi-Dimensional Marketing Mix Model)"
-    version: str = "0.0.1"
+    version: str = "0.0.2"
 
     @validate_call
     def __init__(
@@ -136,8 +139,13 @@ class MMM(ModelBuilder):
             Field(strict=True, description="Whether to use a time-varying intercept"),
         ] = False,
         time_varying_media: Annotated[
-            bool,
-            Field(strict=True, description="Whether to use time-varying media effects"),
+            bool | InstanceOf[HSGPBase],
+            Field(
+                description=(
+                    "Whether to use time-varying media effects, or pass an HSGP instance "
+                    "(e.g., SoftPlusHSGP) specifying dims and priors."
+                ),
+            ),
         ] = False,
         dims: tuple[str, ...] | None = Field(
             None, description="Additional dimensions for the model."
@@ -169,6 +177,17 @@ class MMM(ModelBuilder):
             bool,
             Field(strict=True, description="Apply adstock before saturation?"),
         ] = True,
+        dag: str | None = Field(
+            None,
+            description="Optional DAG provided as a string Dot format for causal identification.",
+        ),
+        treatment_nodes: list[str] | tuple[str] | None = Field(
+            None,
+            description="Column names of the variables of interest to identify causal effects on outcome.",
+        ),
+        outcome_node: str | None = Field(
+            None, description="Name of the outcome variable."
+        ),
     ) -> None:
         """Define the constructor method."""
         # Your existing initialization logic
@@ -226,6 +245,44 @@ class MMM(ModelBuilder):
         self.target_column = target_column
         self.channel_columns = channel_columns
         self.yearly_seasonality = yearly_seasonality
+
+        # Causal graph configuration
+        self.dag = dag
+        self.treatment_nodes = treatment_nodes
+        self.outcome_node = outcome_node
+
+        # Initialize causal graph if provided
+        if self.dag is not None and self.outcome_node is not None:
+            if self.treatment_nodes is None:
+                self.treatment_nodes = self.channel_columns
+                warnings.warn(
+                    "No treatment nodes provided, using channel columns as treatment nodes.",
+                    stacklevel=2,
+                )
+            self.causal_graphical_model = CausalGraphModel.build_graphical_model(
+                graph=self.dag,
+                treatment=self.treatment_nodes,
+                outcome=self.outcome_node,
+            )
+
+            self.control_columns = self.causal_graphical_model.compute_adjustment_sets(
+                control_columns=self.control_columns,
+                channel_columns=self.channel_columns,
+            )
+
+            # Only apply yearly seasonality adjustment if an adjustment set was computed
+            if hasattr(self.causal_graphical_model, "adjustment_set") and (
+                self.causal_graphical_model.adjustment_set is not None
+            ):
+                if (
+                    "yearly_seasonality"
+                    not in self.causal_graphical_model.adjustment_set
+                ):
+                    warnings.warn(
+                        "Yearly seasonality excluded as it's not required for adjustment.",
+                        stacklevel=2,
+                    )
+                    self.yearly_seasonality = None
 
         super().__init__(model_config=model_config, sampler_config=sampler_config)
 
@@ -328,6 +385,9 @@ class MMM(ModelBuilder):
         attrs["time_varying_media"] = json.dumps(self.time_varying_media)
         attrs["target_column"] = self.target_column
         attrs["scaling"] = json.dumps(self.scaling.model_dump(mode="json"))
+        attrs["dag"] = json.dumps(getattr(self, "dag", None))
+        attrs["treatment_nodes"] = json.dumps(getattr(self, "treatment_nodes", None))
+        attrs["outcome_node"] = json.dumps(getattr(self, "outcome_node", None))
 
         return attrs
 
@@ -388,6 +448,9 @@ class MMM(ModelBuilder):
             "sampler_config": json.loads(attrs["sampler_config"]),
             "dims": tuple(json.loads(attrs.get("dims", "[]"))),
             "scaling": json.loads(attrs.get("scaling", "null")),
+            "dag": json.loads(attrs.get("dag", "null")),
+            "treatment_nodes": json.loads(attrs.get("treatment_nodes", "null")),
+            "outcome_node": json.loads(attrs.get("outcome_node", "null")),
         }
 
     @property
@@ -756,7 +819,7 @@ class MMM(ModelBuilder):
             for dim in self.xarray_dataset.coords.dims
         }
 
-        if self.time_varying_intercept | self.time_varying_media:
+        if bool(self.time_varying_intercept) or bool(self.time_varying_media):
             self._time_index = np.arange(0, X[self.date_column].unique().shape[0])
             self._time_index_mid = X[self.date_column].unique().shape[0] // 2
             self._time_resolution = (
@@ -948,7 +1011,7 @@ class MMM(ModelBuilder):
 
             from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
             from pymc_marketing.mmm.multidimensional import MMM
-            from pymc_marketing.prior import Prior
+            from pymc_extras.prior import Prior
 
             custom_config = {
                 "intercept": Prior("Normal", mu=0, sigma=2),
@@ -1035,7 +1098,7 @@ class MMM(ModelBuilder):
             for mu_effect in self.mu_effects:
                 mu_effect.create_data(self)
 
-            if self.time_varying_intercept | self.time_varying_media:
+            if bool(self.time_varying_intercept) or bool(self.time_varying_media):
                 time_index = pm.Data(
                     name="time_index",
                     value=self._time_index,
@@ -1065,7 +1128,7 @@ class MMM(ModelBuilder):
                 )
 
             # Add media logic
-            if self.time_varying_media:
+            if isinstance(self.time_varying_media, bool) and self.time_varying_media:
                 baseline_channel_contribution = pm.Deterministic(
                     name="baseline_channel_contribution",
                     var=self.forward_pass(
@@ -1078,11 +1141,42 @@ class MMM(ModelBuilder):
                     X=time_index,
                     dims=("date", *self.dims),
                     **self.model_config["media_tvp_config"],
-                ).create_variable("media_latent_process")
+                ).create_variable("media_temporal_latent_multiplier")
 
                 channel_contribution = pm.Deterministic(
                     name="channel_contribution",
                     var=baseline_channel_contribution * media_latent_process[..., None],
+                    dims=("date", *self.dims, "channel"),
+                )
+            elif isinstance(self.time_varying_media, HSGPBase):
+                baseline_channel_contribution = self.forward_pass(
+                    x=channel_data_, dims=(*self.dims, "channel")
+                )
+                baseline_channel_contribution.name = "baseline_channel_contribution"
+                baseline_channel_contribution.dims = (
+                    "date",
+                    *self.dims,
+                    "channel",
+                )
+
+                # Register internal time index and build latent process
+                self.time_varying_media.register_data(time_index)
+                media_latent_process = self.time_varying_media.create_variable(
+                    "media_temporal_latent_multiplier"
+                )
+
+                # Determine broadcasting over channel axis
+                media_dims = pm.modelcontext(None).named_vars_to_dims[
+                    media_latent_process.name
+                ]
+                if "channel" in media_dims:
+                    media_broadcast = media_latent_process
+                else:
+                    media_broadcast = media_latent_process[..., None]
+
+                channel_contribution = pm.Deterministic(
+                    name="channel_contribution",
+                    var=baseline_channel_contribution * media_broadcast,
                     dims=("date", *self.dims, "channel"),
                 )
             else:
@@ -1433,6 +1527,28 @@ class MMM(ModelBuilder):
 
         return posterior_predictive_samples
 
+    @property
+    def sensitivity(self) -> SensitivityAnalysis:
+        """Access sensitivity analysis functionality.
+
+        Returns a SensitivityAnalysis instance that can be used to run
+        counterfactual sweeps on the model.
+
+        Returns
+        -------
+        SensitivityAnalysis
+            An instance configured with this MMM model.
+
+        Examples
+        --------
+        >>> mmm.sensitivity.run_sweep(
+        ...     var_names=["channel_1", "channel_2"],
+        ...     sweep_values=np.linspace(0.5, 2.0, 10),
+        ...     sweep_type="multiplicative",
+        ... )
+        """
+        return SensitivityAnalysis(mmm=self)
+
     def _make_channel_transform(
         self, df_lift_test: pd.DataFrame
     ) -> Callable[[np.ndarray], np.ndarray]:
@@ -1658,7 +1774,7 @@ class MMM(ModelBuilder):
         # This is coupled with the name of the
         # latent process Deterministic
         time_varying_var_name = (
-            "media_latent_process" if self.time_varying_media else None
+            "media_temporal_latent_multiplier" if self.time_varying_media else None
         )
         add_lift_measurements_to_likelihood_from_saturation(
             df_lift_test=df_lift_test_scaled,
@@ -1722,7 +1838,10 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         self.end_date = end_date
         # Compute the number of periods to allocate budget for
         self.zero_data = create_zero_dataset(
-            model=self.model_class, start_date=start_date, end_date=end_date
+            model=self.model_class,
+            start_date=start_date,
+            end_date=end_date,
+            include_carryover=False,
         )
         self.num_periods = len(self.zero_data[self.model_class.date_column].unique())
         # Adding missing dependencies for compatibility with BudgetOptimizer
@@ -1772,6 +1891,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         constraints: Sequence[dict[str, Any]] = (),
         default_constraints: bool = True,
         budgets_to_optimize: xr.DataArray | None = None,
+        budget_distribution_over_period: xr.DataArray | None = None,
         callback: bool = False,
         **minimize_kwargs,
     ) -> (
@@ -1796,6 +1916,10 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             Whether to add default constraints.
         budgets_to_optimize : xr.DataArray | None
             Mask defining which budgets to optimize.
+        budget_distribution_over_period : xr.DataArray | None
+            Distribution factors for budget allocation over time. Should have dims ("date", *budget_dims)
+            where date dimension has length num_periods. Values along date dimension should sum to 1 for
+            each combination of other dimensions. If None, budget is distributed evenly across periods.
         callback : bool
             Whether to return callback information tracking optimization progress.
         **minimize_kwargs
@@ -1816,6 +1940,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             custom_constraints=constraints,
             default_constraints=default_constraints,
             budgets_to_optimize=budgets_to_optimize,
+            budget_distribution_over_period=budget_distribution_over_period,
             model=self,  # Pass the wrapper instance itself to the BudgetOptimizer
         )
 
@@ -1826,10 +1951,152 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             **minimize_kwargs,
         )
 
+    def _apply_budget_distribution_pattern(
+        self,
+        data_with_noise: pd.DataFrame,
+        budget_distribution: xr.DataArray,
+    ) -> pd.DataFrame:
+        """Apply budget distribution pattern to noisy data.
+
+        This method multiplies the channel values in data_with_noise by the
+        corresponding values in budget_distribution, aligning by date, dimensions,
+        and channels. Works like a left join where all dimensions must match.
+
+        Parameters
+        ----------
+        data_with_noise : pd.DataFrame
+            DataFrame with noise added to channel allocations.
+        budget_distribution : xr.DataArray
+            Distribution factors with dims ("date", *budget_dims) and "channel".
+
+        Returns
+        -------
+        pd.DataFrame
+            The data_with_noise DataFrame with channel values multiplied by
+            the distribution pattern where dimensions match.
+        """
+        # Set index to match the expected dimensions
+        index_cols = [self.date_column, *list(self.dims)]
+
+        # Store original index to restore later
+        original_index = data_with_noise.index
+
+        # Set MultiIndex for proper alignment
+        data_with_noise_indexed = data_with_noise.set_index(index_cols)
+
+        # Convert DataFrame channel columns to xarray
+        data_xr = data_with_noise_indexed[self.channel_columns].to_xarray()
+
+        # Stack channel columns into a 'channel' dimension to match budget_distribution format
+        data_xr_stacked = data_xr.to_array(dim="channel")
+
+        # Rename date column to 'date' for consistency with budget_distribution
+        if self.date_column != "date":
+            data_xr_stacked = data_xr_stacked.rename({self.date_column: "date"})
+
+        # Handle date coordinate alignment
+        # If budget_distribution has integer date indices, map them to actual dates
+        if np.issubdtype(budget_distribution.coords["date"].dtype, np.integer):
+            # Get unique dates from data_xr_stacked
+            unique_dates = pd.to_datetime(data_xr_stacked.coords["date"].values)
+            unique_dates_sorted = sorted(unique_dates.unique())
+
+            # Map integer indices to actual dates
+            date_mapping = {i: date for i, date in enumerate(unique_dates_sorted)}
+
+            # Create new coordinates with actual dates
+            new_coords = dict(budget_distribution.coords)
+            new_coords["date"] = [
+                date_mapping[i] for i in budget_distribution.coords["date"].values
+            ]
+
+            # Recreate budget_distribution with new date coordinates
+            _budget_distribution = xr.DataArray(
+                budget_distribution.values,
+                dims=budget_distribution.dims,
+                coords=new_coords,
+            )
+        else:
+            # If dates are already in the correct format, use as is
+            _budget_distribution = budget_distribution
+
+        # Multiply by budget distribution (xarray will automatically align dimensions)
+        # Only matching channels and dates will be multiplied
+        data_xr_multiplied = data_xr_stacked * (_budget_distribution * self.num_periods)
+
+        # Convert back to DataFrame format
+        # First unstack the channel dimension
+        data_xr_unstacked = data_xr_multiplied.to_dataset(dim="channel")
+
+        # Rename 'date' back to original date column name if needed
+        if self.date_column != "date":
+            data_xr_unstacked = data_xr_unstacked.rename({"date": self.date_column})
+
+        # Convert to DataFrame
+        multiplied_df = data_xr_unstacked.to_dataframe()
+
+        # Update the channel columns in the indexed DataFrame
+        for channel in self.channel_columns:
+            if channel in multiplied_df.columns:
+                data_with_noise_indexed.loc[:, channel] = multiplied_df[channel]
+
+        # Reset to original index structure
+        data_with_noise = data_with_noise_indexed.reset_index()
+        data_with_noise.index = original_index
+
+        return data_with_noise
+
+    def _apply_carryover_effect(
+        self,
+        data_with_noise: pd.DataFrame,
+    ) -> pd.DataFrame:
+        """Apply carryover effect by zeroing out last observations.
+
+        Parameters
+        ----------
+        data_with_noise : pd.DataFrame
+            DataFrame with channel allocations
+
+        Returns
+        -------
+        pd.DataFrame
+            DataFrame with carryover effect applied
+        """
+        from pymc_marketing.mmm.utils import _convert_frequency_to_timedelta
+
+        # Get date series and infer frequency
+        date_series = pd.to_datetime(data_with_noise[self.date_column])
+        inferred_freq = pd.infer_freq(date_series.unique())
+
+        if inferred_freq is None:  # fall-back if inference fails
+            warnings.warn(
+                f"Could not infer frequency from '{self.date_column}'. Using weekly ('W').",
+                UserWarning,
+                stacklevel=2,
+            )
+            inferred_freq = "W"
+
+        # Calculate the cutoff date
+        cutoff_date = data_with_noise[
+            self.date_column
+        ].max() - _convert_frequency_to_timedelta(self.adstock.l_max, inferred_freq)
+
+        # Zero out channel values after the cutoff date
+        data_with_noise.loc[
+            data_with_noise[self.date_column] > cutoff_date,
+            self.channel_columns,
+        ] = 0
+
+        return data_with_noise
+
     def sample_response_distribution(
         self,
         allocation_strategy: xr.DataArray,
         noise_level: float = 0.001,
+        additional_var_names: list[str] | None = None,
+        include_last_observations: bool = False,
+        include_carryover: bool = True,
+        budget_distribution_over_period: xr.DataArray | None = None,
     ) -> az.InferenceData:
         """Generate synthetic dataset and sample posterior predictive based on allocation.
 
@@ -1839,6 +2106,16 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             The allocation strategy for the channels.
         noise_level : float
             The relative level of noise to add to the data allocation.
+        additional_var_names : list[str] | None
+            Additional variable names to include in the posterior predictive sampling.
+        include_last_observations : bool
+            Whether to include the last observations for continuity.
+        include_carryover : bool
+            Whether to include carryover effects.
+        budget_distribution_over_period : xr.DataArray | None
+            Distribution factors for budget allocation over time. Should have dims ("date", *budget_dims)
+            where date dimension has length num_periods. Values along date dimension should sum to 1 for
+            each combination of other dimensions. If provided, multiplies the noise values by this distribution.
 
         Returns
         -------
@@ -1850,6 +2127,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             start_date=self.start_date,
             end_date=self.end_date,
             channel_xr=allocation_strategy.to_dataset(dim="channel"),
+            include_carryover=include_carryover,
         )
 
         data_with_noise = add_noise_to_channel_allocation(
@@ -1859,12 +2137,37 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             seed=42,
         )
 
-        constant_data = allocation_strategy.to_dataset(name="allocation")
+        # Apply budget distribution pattern if provided
+        if budget_distribution_over_period is not None:
+            data_with_noise = self._apply_budget_distribution_pattern(
+                data_with_noise=data_with_noise,
+                budget_distribution=budget_distribution_over_period,
+            )
 
-        return self.sample_posterior_predictive(
-            X=data_with_noise,
-            extend_idata=False,
-            include_last_observations=True,
-            var_names=["y", "channel_contribution_original_scale"],
-            progressbar=False,
-        ).merge(constant_data)
+        if include_carryover:
+            data_with_noise = self._apply_carryover_effect(data_with_noise)
+
+        constant_data = allocation_strategy.to_dataset(name="allocation")
+        _dataset = data_with_noise.set_index([self.date_column, *list(self.dims)])[
+            self.channel_columns
+        ].to_xarray()
+
+        var_names = [
+            "y",
+            "channel_contribution",
+            "total_media_contribution_original_scale",
+        ]
+        if additional_var_names is not None:
+            var_names.extend(additional_var_names)
+
+        return (
+            self.sample_posterior_predictive(
+                X=data_with_noise,
+                extend_idata=False,
+                include_last_observations=include_last_observations,
+                var_names=var_names,
+                progressbar=False,
+            )
+            .merge(constant_data)
+            .merge(_dataset)
+        )
