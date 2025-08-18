@@ -479,3 +479,21 @@ def test_hsgp_periodic_with_transform() -> None:
     assert "f" in prior
 
     assert ((prior["f"] >= 0) & (prior["f"] <= 1)).all()
+
+
+@pytest.mark.parametrize(
+    "cov_func",
+    ["expquad", "matern32", "matern52"],
+    ids=["expquad", "matern32", "matern52"],
+)
+def test_hsgp_sample_prior_with_covariance(cov_func) -> None:
+    """Ensure HSGP can sample prior for supported covariance functions using PyMC directly."""
+    X = np.arange(10)
+    hsgp = HSGP.parameterize_from_data(X, dims="time", cov_func=cov_func)
+
+    coords = {"time": X}
+    prior = hsgp.sample_prior(draws=25, coords=coords)
+
+    assert isinstance(prior, xr.Dataset)
+    assert "f" in prior
+    assert prior["f"].dims == ("chain", "draw", "time")

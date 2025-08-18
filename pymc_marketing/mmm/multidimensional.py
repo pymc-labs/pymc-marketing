@@ -28,7 +28,7 @@ import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
-from pydantic import Field, InstanceOf, validate_call
+from pydantic import Field, InstanceOf, StrictBool, validate_call
 from pymc.model.fgraph import clone_model as cm
 from pymc.util import RandomState
 from pymc_extras.prior import Prior, create_dim_handler
@@ -135,7 +135,7 @@ class MMM(ModelBuilder):
             description="The saturation transformation to apply to the channel data.",
         ),
         time_varying_intercept: Annotated[
-            bool | InstanceOf[HSGPBase],
+            StrictBool | InstanceOf[HSGPBase],
             Field(
                 description=(
                     "Whether to use a time-varying intercept, or pass an HSGP instance "
@@ -144,7 +144,7 @@ class MMM(ModelBuilder):
             ),
         ] = False,
         time_varying_media: Annotated[
-            bool | InstanceOf[HSGPBase],
+            StrictBool | InstanceOf[HSGPBase],
             Field(
                 description=(
                     "Whether to use time-varying media effects, or pass an HSGP instance "
@@ -1130,6 +1130,7 @@ class MMM(ModelBuilder):
                     var=intercept_baseline[None, ...] * intercept_latent_process,
                     dims=("date", *self.dims),
                 )
+
             elif isinstance(self.time_varying_intercept, HSGPBase):
                 intercept_baseline = self.model_config["intercept"].create_variable(
                     "intercept_baseline"

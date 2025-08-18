@@ -572,6 +572,74 @@ def test_time_varying_intercept_with_custom_hsgp_single_dim(single_dim_data, hsg
 
 
 @pytest.mark.parametrize(
+    "cov_func",
+    ["expquad", "matern32", "matern52"],
+    ids=["expquad", "matern32", "matern52"],
+)
+def test_time_varying_media_with_custom_hsgp_single_dim_kernels(
+    single_dim_data, cov_func
+) -> None:
+    """Ensure MMM builds when HSGP uses different kernels for media TVP (single-dim)."""
+    X, y = single_dim_data
+
+    hsgp = SoftPlusHSGP.parameterize_from_data(
+        X=np.arange(X.shape[0]),
+        dims=("date", "channel"),
+        cov_func=cov_func,
+    )
+
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        time_varying_media=hsgp,
+    )
+
+    mmm.build_model(X, y)
+
+    var_name = "media_temporal_latent_multiplier"
+    assert var_name in mmm.model.named_vars
+    assert mmm.model.named_vars_to_dims[var_name] == ("date", "channel")
+    # channel contribution dims are stable
+    assert mmm.model.named_vars_to_dims["channel_contribution"] == ("date", "channel")
+
+
+@pytest.mark.parametrize(
+    "cov_func",
+    ["expquad", "matern32", "matern52"],
+    ids=["expquad", "matern32", "matern52"],
+)
+def test_time_varying_intercept_with_custom_hsgp_single_dim_kernels(
+    single_dim_data, cov_func
+) -> None:
+    """Ensure MMM builds when HSGP uses different kernels for intercept TVP (single-dim)."""
+    X, y = single_dim_data
+
+    hsgp = SoftPlusHSGP.parameterize_from_data(
+        X=np.arange(X.shape[0]),
+        dims=("date",),
+        cov_func=cov_func,
+    )
+
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        time_varying_intercept=hsgp,
+    )
+
+    mmm.build_model(X, y)
+
+    var_name = "intercept_temporal_latent_multiplier"
+    assert var_name in mmm.model.named_vars
+    assert mmm.model.named_vars_to_dims[var_name] == ("date",)
+
+
+@pytest.mark.parametrize(
     "hsgp_dims",
     [
         pytest.param(("date", "country"), id="hsgp-dims=date,country"),
