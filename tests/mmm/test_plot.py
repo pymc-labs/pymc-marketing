@@ -495,3 +495,124 @@ def test_saturation_curves_scatter_deprecation_warning(mock_suite_with_constant_
     assert isinstance(fig, Figure)
     assert isinstance(axes, np.ndarray)
     assert all(isinstance(ax, Axes) for ax in axes.flat)
+
+
+@pytest.fixture(scope="module")
+def mock_idata_with_constant_data_single_dim() -> az.InferenceData:
+    """Mock InferenceData where channel_data has only ('date','channel') dims."""
+    seed = sum(map(ord, "Saturation single-dim tests"))
+    rng = np.random.default_rng(seed)
+    normal = rng.normal
+
+    dates = pd.date_range("2025-01-01", periods=12, freq="W-MON")
+    channels = ["channel_1", "channel_2", "channel_3"]
+
+    posterior = xr.Dataset(
+        {
+            "channel_contribution": xr.DataArray(
+                normal(size=(2, 10, 12, 3)),
+                dims=("chain", "draw", "date", "channel"),
+                coords={
+                    "chain": np.arange(2),
+                    "draw": np.arange(10),
+                    "date": dates,
+                    "channel": channels,
+                },
+            ),
+            "channel_contribution_original_scale": xr.DataArray(
+                normal(size=(2, 10, 12, 3)) * 100.0,
+                dims=("chain", "draw", "date", "channel"),
+                coords={
+                    "chain": np.arange(2),
+                    "draw": np.arange(10),
+                    "date": dates,
+                    "channel": channels,
+                },
+            ),
+        }
+    )
+
+    constant_data = xr.Dataset(
+        {
+            "channel_data": xr.DataArray(
+                rng.uniform(0, 10, size=(12, 3)),
+                dims=("date", "channel"),
+                coords={"date": dates, "channel": channels},
+            ),
+            "channel_scale": xr.DataArray(
+                [100.0, 150.0, 200.0], dims=("channel",), coords={"channel": channels}
+            ),
+            "target_scale": xr.DataArray(
+                [1000.0], dims="target", coords={"target": ["y"]}
+            ),
+        }
+    )
+
+    return az.InferenceData(posterior=posterior, constant_data=constant_data)
+
+
+@pytest.fixture(scope="module")
+def mock_suite_with_constant_data_single_dim(mock_idata_with_constant_data_single_dim):
+    return MMMPlotSuite(idata=mock_idata_with_constant_data_single_dim)
+
+
+@pytest.fixture(scope="module")
+def mock_saturation_curve_single_dim() -> xr.DataArray:
+    """Saturation curve with dims ('chain','draw','channel','x')."""
+    seed = sum(map(ord, "Saturation curve single-dim"))
+    rng = np.random.default_rng(seed)
+    x_values = np.linspace(0, 1, 50)
+    channels = ["channel_1", "channel_2", "channel_3"]
+
+    # shape: (chains=2, draws=10, channel=3, x=50)
+    curve_array = np.empty((2, 10, len(channels), len(x_values)))
+    for ci in range(2):
+        for di in range(10):
+            for c in range(len(channels)):
+                curve_array[ci, di, c, :] = x_values / (1 + x_values) + rng.normal(
+                    0, 0.02, size=x_values.shape
+                )
+
+    return xr.DataArray(
+        curve_array,
+        dims=("chain", "draw", "channel", "x"),
+        coords={
+            "chain": np.arange(2),
+            "draw": np.arange(10),
+            "channel": channels,
+            "x": x_values,
+        },
+        name="saturation_curve",
+    )
+
+
+def test_saturation_curves_single_dim_axes_shape(
+    mock_suite_with_constant_data_single_dim, mock_saturation_curve_single_dim
+):
+    """When there are no extra dims, columns should default to 1 (no ncols=0)."""
+    fig, axes = mock_suite_with_constant_data_single_dim.saturation_curves(
+        curve=mock_saturation_curve_single_dim, n_samples=3
+    )
+
+    assert isinstance(fig, Figure)
+    assert isinstance(axes, np.ndarray)
+    # Expect (n_channels, 1)
+    assert axes.shape[1] == 1
+    assert axes.shape[0] == mock_saturation_curve_single_dim.sizes["channel"]
+
+
+def test_saturation_curves_multi_dim_axes_shape(
+    mock_suite_with_constant_data, mock_saturation_curve
+):
+    """With an extra dim (e.g., 'country'), expect (n_channels, n_countries)."""
+    fig, axes = mock_suite_with_constant_data.saturation_curves(
+        curve=mock_saturation_curve, n_samples=2
+    )
+
+    assert isinstance(fig, Figure)
+    assert isinstance(axes, np.ndarray)
+    n_channels = mock_saturation_curve.sizes["channel"]
+    n_countries = mock_suite_with_constant_data.idata.constant_data.channel_data.sizes[
+        "country"
+    ]
+    assert axes.shape == (n_channels, n_countries)
