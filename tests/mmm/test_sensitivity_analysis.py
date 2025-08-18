@@ -45,9 +45,13 @@ def mock_mmm():
                     n_chains, n_draws, n_dates = 2, 10, 3
 
                     # This is what the sensitivity analysis expects to find
-                    posterior_predictive_data = xr.DataArray(
-                        np.random.normal(size=(n_chains, n_draws, n_dates)),
-                        dims=["chain", "draw", "date"],
+                    posterior_predictive_data = xr.Dataset(
+                        dict(
+                            y=(
+                                ["chain", "draw", "date"],
+                                np.random.normal(size=(n_chains, n_draws, n_dates)),
+                            ),
+                        ),
                         coords={
                             "chain": np.arange(n_chains),
                             "draw": np.arange(n_draws),
@@ -55,7 +59,7 @@ def mock_mmm():
                         },
                     )
 
-                    self.posterior_predictive = {"y": posterior_predictive_data}
+                    self.posterior_predictive = posterior_predictive_data
 
                 def __getitem__(self, key):
                     if key == "posterior_predictive":
@@ -81,15 +85,25 @@ def mock_mmm():
                 size=(n_chains, n_draws, n_dates),
             )
 
-            return xr.DataArray(
-                data,
-                dims=["chain", "draw", "date"],
+            return xr.Dataset(
+                dict(
+                    y=(
+                        ["chain", "draw", "date"],
+                        data,
+                    )  # Use the same dimensions as expected
+                ),
                 coords={
                     "chain": np.arange(n_chains),
                     "draw": np.arange(n_draws),
                     "date": X_new.index,  # Use the DataFrame index as dates
                 },
             )
+
+        def sample_posterior_predictive(
+            self, X_new, extend_idata=False, combined=False, progressbar=False
+        ):
+            # Mock implementation of sample_posterior_predictive
+            return self.predict(X_new, extend_idata, progressbar)
 
     return MockMMM()
 

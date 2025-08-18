@@ -507,6 +507,47 @@ class TestCreateZeroDataset:
         ):
             create_zero_dataset(model, start_date, end_date, date_dim_xr)
 
+    def test_create_zero_dataset_channel_xr_includes_date_specific_error(self):
+        """Ensure we hit the explicit date-dimension error when date is an allowed model dim."""
+
+        class FakeMMM_DateDim:
+            def __init__(self):
+                dates = pd.date_range("2022-01-01", "2022-01-10", freq="D")
+                self.X = pd.DataFrame(
+                    {
+                        "date": dates,
+                        "channel1": np.random.rand(10) * 10,
+                        "channel2": np.random.rand(10) * 5,
+                    }
+                )
+                self.date_column = "date"
+                self.channel_columns = ["channel1", "channel2"]
+                self.control_columns = []
+                # Include 'date' as a model dim so the invalid-dims check passes,
+                # and we can assert on the specific date-dimension error.
+                self.dims = ["date"]
+
+                class FakeAdstock:
+                    l_max = 1
+
+                self.adstock = FakeAdstock()
+
+        model = FakeMMM_DateDim()
+        start_date = "2022-02-01"
+        end_date = "2022-02-03"
+
+        channel_with_date = xr.Dataset(
+            data_vars={
+                "channel1": ("date", np.array([1.0, 2.0])),
+            },
+            coords={"date": pd.date_range("2022-01-01", periods=2, freq="D")},
+        )
+
+        with pytest.raises(
+            ValueError, match=r"`channel_xr` must NOT include the date dimension\."
+        ):
+            create_zero_dataset(model, start_date, end_date, channel_with_date)
+
     def test_create_zero_dataset_no_dims(self):
         """Test create_zero_dataset with a model that has no dimensions."""
 
@@ -549,3 +590,89 @@ class TestCreateZeroDataset:
 
         with pytest.raises(ValueError, match="Generated date range is empty"):
             create_zero_dataset(model, start_date, end_date)
+
+    def test_create_zero_dataset_channel_xr_no_dims_all_channels(self):
+        """Channel-only allocation: channel_xr is a 0-dim Dataset with per-channel scalars."""
+
+        class FakeMMM_NoDims:
+            def __init__(self):
+                dates = pd.date_range("2022-01-01", "2022-01-10", freq="D")
+                self.X = pd.DataFrame(
+                    {
+                        "date": dates,
+                        "channel1": np.random.rand(10) * 10,
+                        "channel2": np.random.rand(10) * 5,
+                    }
+                )
+                self.date_column = "date"
+                self.channel_columns = ["channel1", "channel2"]
+                self.control_columns = []
+                self.dims = []  # No dimensions
+
+                class FakeAdstock:
+                    l_max = 3
+
+                self.adstock = FakeAdstock()
+
+        model = FakeMMM_NoDims()
+        start_date = "2022-02-01"
+        end_date = "2022-02-05"
+
+        # 0-dim Dataset: variables are channels with scalar values
+        channel_values = xr.Dataset(
+            data_vars={
+                "channel1": 100.0,
+                "channel2": 200.0,
+            }
+        )
+
+        result = create_zero_dataset(model, start_date, end_date, channel_values)
+
+        # (5 + 3) days = 8 rows
+        assert len(result) == 8
+        assert np.all(result["channel1"] == 100.0)
+        assert np.all(result["channel2"] == 200.0)
+
+    def test_create_zero_dataset_channel_xr_no_dims_missing_channel(self):
+        """Channel-only allocation with missing channel var should warn and leave others at 0."""
+
+        class FakeMMM_NoDims:
+            def __init__(self):
+                dates = pd.date_range("2022-01-01", "2022-01-10", freq="D")
+                self.X = pd.DataFrame(
+                    {
+                        "date": dates,
+                        "channel1": np.random.rand(10) * 10,
+                        "channel2": np.random.rand(10) * 5,
+                    }
+                )
+                self.date_column = "date"
+                self.channel_columns = ["channel1", "channel2"]
+                self.control_columns = []
+                self.dims = []
+
+                class FakeAdstock:
+                    l_max = 2
+
+                self.adstock = FakeAdstock()
+
+        model = FakeMMM_NoDims()
+        start_date = "2022-02-01"
+        end_date = "2022-02-03"
+
+        # Provide only one channel as scalar variable in 0-dim Dataset
+        channel_values = xr.Dataset(
+            data_vars={
+                "channel1": 50.0,
+            }
+        )
+
+        with pytest.warns(
+            UserWarning, match="does not supply values for \\['channel2'\\]"
+        ):
+            result = create_zero_dataset(model, start_date, end_date, channel_values)
+
+        # (3 + 2) days = 5 rows
+        assert len(result) == 5
+        assert np.all(result["channel1"] == 50.0)
+        assert np.all(result["channel2"] == 0.0)
