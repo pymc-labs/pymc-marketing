@@ -542,6 +542,38 @@ def test_time_varying_media_with_custom_hsgp_single_dim(single_dim_data, hsgp_di
 @pytest.mark.parametrize(
     "hsgp_dims",
     [
+        pytest.param(("date",), id="hsgp-dims=date"),
+    ],
+)
+def test_time_varying_intercept_with_custom_hsgp_single_dim(single_dim_data, hsgp_dims):
+    """Ensure passing an HSGP instance to time_varying_intercept works (single/multi-dim)."""
+    X, y = single_dim_data
+
+    hsgp = SoftPlusHSGP.parameterize_from_data(
+        X=np.arange(X.shape[0]),
+        dims=hsgp_dims,
+    )
+
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        time_varying_intercept=hsgp,
+    )
+
+    mmm.build_model(X, y)
+
+    var_name = "intercept_temporal_latent_multiplier"
+    assert var_name in mmm.model.named_vars
+    latent_dims = mmm.model.named_vars_to_dims[var_name]
+    assert latent_dims == hsgp_dims
+
+
+@pytest.mark.parametrize(
+    "hsgp_dims",
+    [
         pytest.param(("date", "country"), id="hsgp-dims=date,country"),
         pytest.param(
             ("date", "country", "channel"), id="hsgp-dims=date,country,channel"
@@ -581,6 +613,41 @@ def test_time_varying_media_with_custom_hsgp_multi_dim(df, hsgp_dims):
         "country",
         "channel",
     )
+
+
+@pytest.mark.parametrize(
+    "hsgp_dims",
+    [
+        pytest.param(("date", "country"), id="hsgp-dims=date,country"),
+        pytest.param(("date",), id="hsgp-dims=date"),
+    ],
+)
+def test_time_varying_intercept_with_custom_hsgp_multi_dim(df, hsgp_dims):
+    """Ensure passing an HSGP instance to time_varying_intercept works (multi-dim)."""
+    X = df.drop(columns=["y"])
+    y = df["y"]
+
+    hsgp = SoftPlusHSGP.parameterize_from_data(
+        X=np.arange(X.shape[0]),
+        dims=hsgp_dims,
+    )
+
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["C1", "C2"],
+        target_column="y",
+        dims=("country",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        time_varying_intercept=hsgp,
+    )
+
+    mmm.build_model(X, y)
+
+    var_name = "intercept_temporal_latent_multiplier"
+    assert var_name in mmm.model.named_vars
+    latent_dims = mmm.model.named_vars_to_dims[var_name]
+    assert latent_dims == hsgp_dims
 
 
 def test_sample_posterior_predictive_no_overlap_with_include_last_observations(

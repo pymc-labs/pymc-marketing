@@ -135,8 +135,13 @@ class MMM(ModelBuilder):
             description="The saturation transformation to apply to the channel data.",
         ),
         time_varying_intercept: Annotated[
-            bool,
-            Field(strict=True, description="Whether to use a time-varying intercept"),
+            bool | InstanceOf[HSGPBase],
+            Field(
+                description=(
+                    "Whether to use a time-varying intercept, or pass an HSGP instance "
+                    "(e.g., SoftPlusHSGP) specifying dims and priors."
+                ),
+            ),
         ] = False,
         time_varying_media: Annotated[
             bool | InstanceOf[HSGPBase],
@@ -1106,16 +1111,35 @@ class MMM(ModelBuilder):
                 )
 
             # Add intercept logic
-            if self.time_varying_intercept:
+            if (
+                isinstance(self.time_varying_intercept, bool)
+                and self.time_varying_intercept
+            ):
                 intercept_baseline = self.model_config["intercept"].create_variable(
                     "intercept_baseline"
                 )
 
                 intercept_latent_process = SoftPlusHSGP.parameterize_from_data(
-                    X=time_index,  # this is
+                    X=time_index,
                     dims=("date", *self.dims),
                     **self.model_config["intercept_tvp_config"],
                 ).create_variable("intercept_latent_process")
+
+                intercept = pm.Deterministic(
+                    name="intercept_contribution",
+                    var=intercept_baseline[None, ...] * intercept_latent_process,
+                    dims=("date", *self.dims),
+                )
+            elif isinstance(self.time_varying_intercept, HSGPBase):
+                intercept_baseline = self.model_config["intercept"].create_variable(
+                    "intercept_baseline"
+                )
+
+                # Register internal time index and build latent process
+                self.time_varying_intercept.register_data(time_index)
+                intercept_latent_process = self.time_varying_intercept.create_variable(
+                    "intercept_temporal_latent_multiplier"
+                )
 
                 intercept = pm.Deterministic(
                     name="intercept_contribution",
