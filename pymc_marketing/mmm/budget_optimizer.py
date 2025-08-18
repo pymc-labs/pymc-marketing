@@ -14,12 +14,14 @@
 
 """Budget optimization module.
 
-# Overview
+Overview
+--------
 
 Optimize how to allocate a total budget across channels (and optional extra dims) to
 maximize an expected response derived from a fitted MMM posterior.
 
-# Quickstart (multi‑dimensional MMM)
+Quickstart (multi‑dimensional MMM)
+---------------------------------
 
 .. code-block:: python
 
@@ -89,7 +91,8 @@ maximize an expected response derived from a fitted MMM posterior.
     )
     # `optimal` is an xr.DataArray with dims (channel, geo)
 
-# Use a custom pymc model with any dimensionality
+Use a custom pymc model with any dimensionality
+----------------------------------------------
 
 .. code-block:: python
 
@@ -174,7 +177,8 @@ maximize an expected response derived from a fitted MMM posterior.
     )
     # allocation is an xr.DataArray with dims inferred from your model's channel_data dims (excluding date)
 
-# Requirements
+Requirements
+------------
 
 - The optimizer works on any wrapper that satisfies `OptimizerCompatibleModelWrapper`:
   - Attributes: `adstock`, `_channel_scales`, `idata` (arviz.InferenceData with posterior)
@@ -189,8 +193,8 @@ maximize an expected response derived from a fitted MMM posterior.
 - Bounds can be a dict only for single‑dimensional budgets; otherwise use an xarray.DataArray
   (use `optimizer_xarray_builder(...)`).
 
-# Notes
-
+Notes
+-----
 - If `budgets_to_optimize` is not provided, the optimizer auto‑detects cells with historical
   information using `idata.posterior.channel_contribution.mean(("chain","draw","date")).astype(bool)`.
 - Default bounds are `[0, total_budget]` on each optimized cell.

@@ -13,7 +13,8 @@
 #   limitations under the License.
 """Additive effects for the multidimensional Marketing Mix Model.
 
-# Example of a custom additive effect
+Example of a custom additive effect
+--------
 
 1. Custom negative-effect component (added as a MuEffect)
 
@@ -88,7 +89,8 @@ Parameters
     # mmm.fit(X, y, ...)
     # At prediction time, the effect updates itself via set_data.
 
-# How it works
+How it works
+------------
 - Mu effects follow a simple protocol: ``create_data(mmm)``, ``create_effect(mmm)``,
   and ``set_data(mmm, model, X)``.
 - During ``MMM.build_model(...)``, each effect’s ``create_data`` is called first to
@@ -97,16 +99,17 @@ Parameters
 - During posterior predictive, ``set_data`` is called with the cloned PyMC model
   and the new coordinates; update any ``pm.Data`` you created using ``pm.set_data``.
 
-# Tips for custom components
+Tips for custom components
+--------------------------
 - Use unique variable prefixes to avoid name clashes with built-in pieces like
   controls. Do not call your component "control"; choose a distinct name/prefix.
 - Follow the patterns used by the provided effects in this module (e.g.,
-  ``FourierEffect``, ``LinearTrendEffect``, ``EventAdditiveEffect``):
-  - In ``create_data``, derive and register any required inputs into the model.
-  - In ``create_effect``, construct PyTensor expressions and return a contribution
+  `FourierEffect`, `LinearTrendEffect`, `EventAdditiveEffect`):
+  - In `create_data`, derive and register any required inputs into the model.
+  - In `create_effect`, construct PyTensor expressions and return a contribution
     with dims ("date", *mmm.dims). If you need broadcasting, use
-    ``pymc_extras.prior.create_dim_handler`` as shown above.
-  - In ``set_data``, update the data variables when dates/dims change.
+    `pymc_extras.prior.create_dim_handler` as shown above.
+  - In `set_data`, update the data variables when dates/dims change.
 """
 
 from typing import Any, Protocol

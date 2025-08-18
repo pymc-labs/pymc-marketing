@@ -13,8 +13,9 @@
 #   limitations under the License.
 """MMM related plotting class.
 
-# Examples
-## Quickstart with MMM:
+Examples
+--------
+Quickstart with MMM:
 
 .. code-block:: python
 
@@ -53,7 +54,8 @@
     # Channel saturation scatter plot (scaled space by default)
     _ = mmm.plot.saturation_scatterplot(original_scale=False)
 
-## Wrap a custom PyMC model
+Wrap a custom PyMC model
+--------
 
 Requirements
 
@@ -88,7 +90,8 @@ Requirements
     plot = MMMPlotSuite(idata)
     _ = plot.posterior_predictive(var=["y"], hdi_prob=0.9)
 
-### Custom contributions_over_time
+Custom contributions_over_time
+--------
 
 .. code-block:: python
 
@@ -109,7 +112,8 @@ Requirements
     plot = MMMPlotSuite(idata)
     _ = plot.contributions_over_time(var=["component"], hdi_prob=0.9)
 
-### Saturation plots with a custom model
+Saturation plots with a custom model
+--------
 
 .. code-block:: python
 
@@ -157,8 +161,8 @@ Requirements
     plot = MMMPlotSuite(idata)
     _ = plot.saturation_scatterplot(original_scale=False)
 
-# Notes
-
+Notes
+-----
 - `MMM` exposes this suite via the `mmm.plot` property, which internally passes the model's
   `idata` into `MMMPlotSuite`.
 - Any PyMC model can use `MMMPlotSuite` directly if its `InferenceData` contains the needed
