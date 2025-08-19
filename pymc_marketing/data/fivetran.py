@@ -41,6 +41,157 @@ from collections.abc import Sequence
 import pandas as pd
 
 
+def _normalize_and_validate_inputs(
+    df: pd.DataFrame,
+    value_columns: str | Sequence[str],
+    date_col: str,
+    platform_col: str,
+) -> tuple[pd.DataFrame, list[str]]:
+    """Validate required columns, coerce date, and normalize metrics list.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Input dataframe to validate and normalize.
+    value_columns : str or Sequence[str]
+        Metric column(s) to process.
+    date_col : str
+        Name of the date column.
+    platform_col : str
+        Name of the platform column.
+
+    Returns
+    -------
+    tuple[pandas.DataFrame, list[str]]
+        - A copy of ``df`` with ``date_col`` coerced to datetime64[ns].
+        - A normalized list of metric column names.
+
+    Raises
+    ------
+    ValueError
+        If any of the required columns are missing.
+    """
+    metrics = [value_columns] if isinstance(value_columns, str) else list(value_columns)
+
+    required_columns: list[str] = [date_col, platform_col, *metrics]
+    missing_columns = [c for c in required_columns if c not in df.columns]
+    if missing_columns:
+        raise ValueError(
+            f"Missing required columns: {missing_columns}. Present columns: {list(df.columns)}"
+        )
+
+    df_local = df.copy()
+    df_local[date_col] = pd.to_datetime(df_local[date_col])
+    return df_local, metrics
+
+
+def _aggregate_and_pivot(
+    df: pd.DataFrame,
+    date_col: str,
+    platform_col: str,
+    value_columns: list[str],
+    agg: str,
+) -> pd.DataFrame:
+    """Aggregate metrics by date and platform, then pivot and flatten columns.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Input dataframe with coerced date column.
+    date_col : str
+        Date column name.
+    platform_col : str
+        Platform column name.
+    value_columns : list[str]
+        Metric columns to aggregate and pivot.
+    agg : str
+        Aggregation function passed to pandas ``agg``.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Wide-format dataframe indexed by date with columns named ``{platform}_{metric}``.
+    """
+    grouped = (
+        df[[date_col, platform_col, *value_columns]]
+        .groupby([date_col, platform_col], dropna=False)
+        .agg(agg)
+    )
+
+    wide = grouped.reset_index().pivot(
+        index=date_col, columns=platform_col, values=value_columns
+    )
+
+    if isinstance(wide.columns, pd.MultiIndex):
+        flat_cols = [f"{platform}_{metric}" for metric, platform in wide.columns]
+    else:
+        metric = value_columns[0]
+        flat_cols = [f"{platform}_{metric}" for platform in wide.columns]
+    wide.columns = flat_cols
+    return wide
+
+
+def _finalize_wide_output(
+    wide: pd.DataFrame,
+    *,
+    date_col: str,
+    rename_date_to: str | None,
+    include_missing_dates: bool,
+    freq: str,
+    fill_value: float | None,
+) -> pd.DataFrame:
+    """Complete wide output: fill dates, fill values, reset, rename, standardize.
+
+    Parameters
+    ----------
+    wide : pandas.DataFrame
+        Dataframe indexed by date.
+    date_col : str
+        Name of the date column in the input.
+    rename_date_to : str or None
+        Optional new name for the date column.
+    include_missing_dates : bool
+        If ``True``, reindex to a continuous date range using ``freq``.
+    freq : str
+        Frequency for ``pandas.date_range`` when including missing dates.
+    fill_value : float or None
+        Value used to fill missing values. If ``None``, do not fill.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Finalized wide-format dataframe with standardized columns and first column as the date.
+    """
+    if include_missing_dates:
+        full_index = pd.date_range(
+            start=wide.index.min(), end=wide.index.max(), freq=freq
+        )
+        wide = wide.reindex(full_index)
+
+    if fill_value is not None:
+        wide = wide.fillna(fill_value)
+
+    wide = wide.sort_index()
+    wide.index.name = date_col
+    wide = wide.reset_index()
+
+    if rename_date_to is not None and rename_date_to != date_col:
+        wide = wide.rename(columns={date_col: rename_date_to})
+
+    # standardize column names
+    wide.columns = [col.lower().replace(" ", "_") for col in wide.columns]
+
+    # Ensure date column is first and normalized to midnight
+    first_col = (
+        (rename_date_to if rename_date_to is not None else date_col)
+        .lower()
+        .replace(" ", "_")
+    )
+    ordered_cols = [first_col] + [c for c in wide.columns if c != first_col]
+    wide[first_col] = pd.to_datetime(wide[first_col]).dt.normalize()
+    return wide[ordered_cols]
+
+
 def process_fivetran_ad_reporting(
     df: pd.DataFrame,
     value_columns: str | Sequence[str] = "impressions",
@@ -53,118 +204,69 @@ def process_fivetran_ad_reporting(
     freq: str = "D",
     rename_date_to: str | None = "date",
 ) -> pd.DataFrame:
-    """Process Fivetran's Ad Reporting schema's.
+    """Process Fivetran Ad Reporting tables into wide, model-ready features.
 
-    Compatible with Fivetran's Ad Reporting schema:
-    - ad_reporting__account_report: Each record represents daily metrics by account
-    - ad_reporting__campaign_report: Each record represents daily metrics by campaign and account
-    - ad_reporting__ad_group_report: Each record represents daily metrics by ad group, campaign and account
-    - ad_reporting__ad_report: Each record represents daily metrics by ad, ad group, campaign and account
+    Compatible with Fivetran's Ad Reporting schema tables:
 
-    The input data is expected to contain at least the following columns: a date column
-    (default: ``date_day``), a platform column (default: ``platform``), and one or more
-    metric columns such as ``spend`` or ``impressions``.
+    - ad_reporting__account_report: daily metrics by account
+    - ad_reporting__campaign_report: daily metrics by campaign and account
+    - ad_reporting__ad_group_report: daily metrics by ad group, campaign and account
+    - ad_reporting__ad_report: daily metrics by ad, ad group, campaign and account
+
+    The input data must include a date column, a platform column (e.g., vendor name),
+    and one or more metric columns such as ``spend`` or ``impressions``. The output is
+    a wide dataframe with one row per date and columns named ``{platform}_{metric}``.
 
     Parameters
     ----------
-    df
-        Input DataFrame in long format.
-    value_columns
-        A single column name or a sequence of column names to aggregate and pivot. For
-        example: "spend" or ["spend", "impressions"].
-    date_col
-        Name of the date column. Defaults to "date_day".
-    platform_col
-        Name of the platform column. Defaults to "platform".
-    agg
-        Aggregation method to apply during groupby (e.g., "sum", "mean"). Defaults to "sum".
-    fill_value
-        Value to use to fill missing values in the wide output. If None, missing values
-        are left as NaN.
-    include_missing_dates
-        If True, the output will include a continuous date index from the min to the max
-        date found in the input, with missing dates filled (using ``fill_value``).
-    freq
-        Frequency used when ``include_missing_dates`` is True. Defaults to daily ("D").
-    rename_date_to
-        If provided, the date column in the result will be renamed to this value (e.g.,
-        "date"). If None, the original ``date_col`` name is kept.
+    df : pandas.DataFrame
+        Input dataframe in long format with at least the date, platform, and metric columns.
+    value_columns : str or Sequence[str], default "impressions"
+        Column name(s) to aggregate and pivot. Example: "spend" or ["spend", "impressions"].
+    date_col : str, default "date_day"
+        Name of the date column.
+    platform_col : str, default "platform"
+        Name of the platform (vendor) column.
+    agg : str, default "sum"
+        Aggregation method applied during groupby.
+    fill_value : float or None, default 0.0
+        Value used to fill missing values in the wide output. If ``None``, missing values are left as NaN.
+    include_missing_dates : bool, default False
+        If ``True``, include a continuous date range and fill missing dates using ``fill_value``.
+    freq : str, default "D"
+        Frequency used when ``include_missing_dates`` is ``True``.
+    rename_date_to : str or None, default "date"
+        If provided, rename the date column in the result to this value. If ``None``, keep ``date_col``.
 
     Returns
     -------
-    pd.DataFrame
-        A wide-format DataFrame with one row per date and columns for each
+    pandas.DataFrame
+        A wide-format dataframe with one row per date and columns for each
         ``{platform}_{metric}`` combination.
     """
-    if isinstance(value_columns, str):
-        value_columns = [value_columns]
-    else:
-        value_columns = list(value_columns)
-
-    required_columns: list[str] = [date_col, platform_col, *value_columns]
-    missing_columns = [c for c in required_columns if c not in df.columns]
-    if missing_columns:
-        raise ValueError(
-            f"Missing required columns: {missing_columns}. Present columns: {list(df.columns)}"
-        )
-
-    # Ensure date type for robust reindexing and sorting
-    df_local = df.copy()
-    df_local[date_col] = pd.to_datetime(df_local[date_col])
-
-    # Group and aggregate
-    grouped = (
-        df_local[[date_col, platform_col, *value_columns]]
-        .groupby([date_col, platform_col], dropna=False)
-        .agg(agg)
+    df_local, metrics = _normalize_and_validate_inputs(
+        df=df,
+        value_columns=value_columns,
+        date_col=date_col,
+        platform_col=platform_col,
     )
 
-    # Pivot to wide. Using values=value_columns yields MultiIndex columns (metric, platform)
-    wide = grouped.reset_index().pivot(
-        index=date_col, columns=platform_col, values=value_columns
+    wide = _aggregate_and_pivot(
+        df_local,
+        date_col=date_col,
+        platform_col=platform_col,
+        value_columns=metrics,
+        agg=agg,
     )
 
-    # Flatten MultiIndex columns to "{platform}_{metric}"
-    if isinstance(wide.columns, pd.MultiIndex):
-        flat_cols = [f"{platform}_{metric}" for metric, platform in wide.columns]
-    else:
-        # Single metric case: columns are platforms; use the only metric name for suffix
-        metric = value_columns[0]
-        flat_cols = [f"{platform}_{metric}" for platform in wide.columns]
-    wide.columns = flat_cols
-
-    # Optionally include continuous date range
-    if include_missing_dates:
-        full_index = pd.date_range(
-            start=wide.index.min(), end=wide.index.max(), freq=freq
-        )
-        wide = wide.reindex(full_index)
-
-    # Fill missing values if requested
-    if fill_value is not None:
-        wide = wide.fillna(fill_value)
-
-    # Output with date as a column, optionally renamed
-    wide = wide.sort_index().reset_index().rename(columns={"index": date_col})
-    if rename_date_to is not None and rename_date_to != date_col:
-        wide = wide.rename(columns={date_col: rename_date_to})
-
-    # Ensure date column is the first column
-    first_col = rename_date_to if rename_date_to is not None else date_col
-
-    # make all columns lowercase and replace spaces with underscores
-    wide.columns = [col.lower().replace(" ", "_") for col in wide.columns]
-
-    # Update first_col reference after column name transformation
-    first_col = first_col.lower().replace(" ", "_")
-
-    # Create ordered columns list after column transformation
-    ordered_cols = [first_col] + [c for c in wide.columns if c != first_col]
-
-    # Normalize date column to midnight while keeping datetime64[ns] dtype
-    wide[first_col] = pd.to_datetime(wide[first_col]).dt.normalize()
-
-    return wide[ordered_cols]
+    return _finalize_wide_output(
+        wide,
+        date_col=date_col,
+        rename_date_to=rename_date_to,
+        include_missing_dates=include_missing_dates,
+        freq=freq,
+        fill_value=fill_value,
+    )
 
 
 def process_fivetran_shopify_unique_orders(
@@ -174,27 +276,27 @@ def process_fivetran_shopify_unique_orders(
     order_key_col: str = "orders_unique_key",
     rename_date_to: str = "date",
 ) -> pd.DataFrame:
-    """Compute daily unique order counts from a (pre-filtered) Shopify orders dataset.
+    """Compute daily unique order counts from a (pre-filtered) Shopify dataset.
 
-    This function is designed for data following the Fivetran Shopify orders schema
+    This function targets data following the Fivetran Shopify orders schema
     (e.g., ``shopify__orders``). It assumes the input ``df`` is already filtered to
     the desired subset (e.g., non-canceled, US-delivery, new-only orders).
 
     Parameters
     ----------
-    df
-        Input DataFrame following the Shopify orders schema.
-    date_col
-        Column to derive the daily bucket from. Defaults to "processed_timestamp".
-    order_key_col
-        Unique order identifier column. Defaults to "orders_unique_key".
-    rename_date_to
-        Name of the date column in the result. Defaults to "date".
+    df : pandas.DataFrame
+        Input dataframe following the Shopify orders schema.
+    date_col : str, default "processed_timestamp"
+        Timestamp column from which the daily bucket is derived.
+    order_key_col : str, default "orders_unique_key"
+        Unique order identifier column.
+    rename_date_to : str, default "date"
+        Name of the date column in the result.
 
     Returns
     -------
-    pd.DataFrame
-        A DataFrame with two columns: ``rename_date_to`` and ``orders``, where
+    pandas.DataFrame
+        A dataframe with two columns: ``rename_date_to`` and ``orders``, where
         ``orders`` is the unique order count per day.
     """
     # 1) Required columns
