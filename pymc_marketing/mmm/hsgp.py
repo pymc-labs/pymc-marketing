@@ -1284,8 +1284,9 @@ class HSGPPeriodic(HSGPBase):
 class SoftPlusHSGP(HSGP):
     """HSGP with softplus transformation.
 
-    The use of the softplus transformation centers the data
-    around 1 and keeps the values positive.
+    The use of the softplus transformation maps the latent GP to positive values.
+    We then normalize multiplicatively by the time-mean so the resulting multiplier
+    has mean 1 over the first dimension while remaining strictly positive.
 
     Examples
     --------
@@ -1428,5 +1429,6 @@ class SoftPlusHSGP(HSGP):
         f_mean_name = f"{name}_f_mean"
         f_mean = pm.Deterministic(f_mean_name, f.mean(axis=0), dims=f_mean_dims)
 
-        centered_f = f - f_mean + 1
+        # Multiplicative centering to preserve positivity and enforce mean 1
+        centered_f = f / f_mean
         return pm.Deterministic(name, centered_f, dims=self.dims)
