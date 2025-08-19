@@ -1439,7 +1439,7 @@ def test_save_load_with_tvp(
 
     expected_flats = []
     if time_varying_intercept:
-        expected_flats.append("intercept_temporal_latent_multiplier_f_mean")
+        expected_flats.append("intercept_latent_process_f_mean")
     if time_varying_media:
         expected_flats.append("media_temporal_latent_multiplier_f_mean")
 
