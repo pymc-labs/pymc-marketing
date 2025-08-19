@@ -565,7 +565,7 @@ def test_time_varying_intercept_with_custom_hsgp_single_dim(single_dim_data, hsg
 
     mmm.build_model(X, y)
 
-    var_name = "intercept_temporal_latent_multiplier"
+    var_name = "intercept_latent_process"
     assert var_name in mmm.model.named_vars
     latent_dims = mmm.model.named_vars_to_dims[var_name]
     assert latent_dims == hsgp_dims
@@ -634,7 +634,7 @@ def test_time_varying_intercept_with_custom_hsgp_single_dim_kernels(
 
     mmm.build_model(X, y)
 
-    var_name = "intercept_temporal_latent_multiplier"
+    var_name = "intercept_latent_process"
     assert var_name in mmm.model.named_vars
     assert mmm.model.named_vars_to_dims[var_name] == ("date",)
 
@@ -712,7 +712,7 @@ def test_time_varying_intercept_with_custom_hsgp_multi_dim(df, hsgp_dims):
 
     mmm.build_model(X, y)
 
-    var_name = "intercept_temporal_latent_multiplier"
+    var_name = "intercept_latent_process"
     assert var_name in mmm.model.named_vars
     latent_dims = mmm.model.named_vars_to_dims[var_name]
     assert latent_dims == hsgp_dims

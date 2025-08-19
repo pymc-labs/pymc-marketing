@@ -508,9 +508,7 @@ class MMM(ModelBuilder):
         names = []
         if self.time_varying_intercept:
             names.extend(
-                SoftPlusHSGP.deterministics_to_replace(
-                    "intercept_temporal_latent_multiplier"
-                )
+                SoftPlusHSGP.deterministics_to_replace("intercept_latent_process")
             )
         if self.time_varying_media:
             names.extend(
@@ -1139,7 +1137,7 @@ class MMM(ModelBuilder):
                 # Register internal time index and build latent process
                 self.time_varying_intercept.register_data(time_index)
                 intercept_latent_process = self.time_varying_intercept.create_variable(
-                    "intercept_temporal_latent_multiplier"
+                    "intercept_latent_process"
                 )
 
                 intercept = pm.Deterministic(
