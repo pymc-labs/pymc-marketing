@@ -425,6 +425,12 @@ def logistic_saturation(x, lam: npt.NDArray | float = 0.5):
     .. math::
         f(x) = \frac{1 - e^{-\lambda x}}{1 + e^{-\lambda x}}
 
+    The logistic saturation function reaches the half-saturation point at
+    :math:`x = \frac{ln(3)}{\lambda}`. This means the half-saturation point
+    is approximately :math:`1/\lambda`. If you want to set a prior on the
+    exact half-saturation point, you can use the inverse_scaled_logistic_saturation
+    function, available in this package.
+
     .. plot::
         :context: close-figs
 
@@ -451,7 +457,8 @@ def logistic_saturation(x, lam: npt.NDArray | float = 0.5):
     x : tensor
         Input tensor.
     lam : float or array-like, optional, by default 0.5
-        Saturation parameter.
+        Represents the efficiency of the channel.
+        Larger values represent a more efficient channel.
 
     Returns
     -------
@@ -500,7 +507,7 @@ def inverse_scaled_logistic_saturation(
     x : tensor
         Input tensor.
     lam : float or array-like, optional, by default 0.5
-        Saturation parameter.
+        The half-saturation point. Larger values represent less efficient channels.
     eps : float or array-like, optional, by default ln(3)
         Scaling parameter. ln(3) results in halfway saturation at lam
 
@@ -595,6 +602,13 @@ def tanh_saturation(
     .. math::
         f(x) = b \tanh \left( \frac{x}{bc} \right)
 
+    The tanh saturation function has a nice property that is useful when
+    setting priors. The slope of the function when x is zero is
+    :math:`\frac{1}{c}`. This means that you can set a prior by considering
+    how many units of media are required to acquire the first customer. Unlike most
+    other saturation functions, the slope at 0 is independent of the saturation
+    point.
+
     .. plot::
         :context: close-figs
 
@@ -628,9 +642,12 @@ def tanh_saturation(
     x : tensor
         Input tensor.
     b : float, by default 0.5
-        Number of users at saturation. Must be non-negative.
+        The saturation point. It represents the maximium number of
+        customers that could be acquired through this channel at any
+        point time. Must be non-negative.
     c : float, by default 0.5
-        Initial cost per user. Must be non-zero.
+        Initial cost per user. Larger values represent less efficient channels.
+        Must be non-zero.
 
     Returns
     -------
@@ -804,17 +821,13 @@ def michaelis_menten(
 ) -> float | Any:
     r"""Evaluate the Michaelis-Menten function for given values of x, alpha, and lambda.
 
-    The Michaelis-Menten function models enzyme kinetics and describes how the rate of
-    a chemical reaction increases with substrate concentration until it reaches its
-    maximum value.
-
     .. math::
         \alpha \cdot \frac{x}{\lambda + x}
 
     where:
-     - :math:`x`: Channel spend or substrate concentration.
-     - :math:`\alpha`: Maximum contribution or efficiency factor.
-     - :math:`\lambda` (k): Michaelis constant, representing the threshold substrate concentration.
+     - :math:`x`: Channel spend.
+     - :math:`\alpha`: Maximum contribution.
+     - :math:`\lambda` (k): The half-saturation point.
 
     .. plot::
         :context: close-figs
@@ -872,9 +885,11 @@ def michaelis_menten(
     x : float
         The spent on a channel.
     alpha : float
-        The maximum contribution a channel can make.
+        The saturation point. It represents the maximium number of
+        customers that could be acquired through this channel at any
+        point time. Must be non-negative.
     lam : float
-        The Michaelis constant for the given enzyme-substrate system.
+        The half-saturation point. Larger values represent less efficient channels.
 
     Returns
     -------
@@ -940,7 +955,7 @@ def hill_function(
         The independent variable, typically representing the concentration of a
         substrate or the intensity of a stimulus.
     slope : float
-        The slope of the hill. Must pe non-positive.
+        The slope of the hill. Must be non-positive.
     kappa : float
         The half-saturation point as :math:`f(\kappa) = 0.5` for any value of :math:`s` and :math:`\kappa`.
 

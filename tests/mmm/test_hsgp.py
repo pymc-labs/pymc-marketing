@@ -479,3 +479,72 @@ def test_hsgp_periodic_with_transform() -> None:
     assert "f" in prior
 
     assert ((prior["f"] >= 0) & (prior["f"] <= 1)).all()
+
+
+@pytest.mark.parametrize(
+    "cov_func",
+    ["expquad", "matern32", "matern52"],
+    ids=["expquad", "matern32", "matern52"],
+)
+def test_hsgp_sample_prior_with_covariance(cov_func) -> None:
+    """Ensure HSGP can sample prior for supported covariance functions using PyMC directly."""
+    X = np.arange(10)
+    hsgp = HSGP.parameterize_from_data(X, dims="time", cov_func=cov_func)
+
+    coords = {"time": X}
+    prior = hsgp.sample_prior(draws=25, coords=coords)
+
+    assert isinstance(prior, xr.Dataset)
+    assert "f" in prior
+    assert prior["f"].dims == ("chain", "draw", "time")
+
+
+def test_softplus_hsgp_intercept_is_non_negative() -> None:
+    """Pure prior test: intercept * SoftPlusHSGP multiplier stays non-negative.
+
+    Construct an intercept baseline with HalfNormal(5) and a time-varying multiplier
+    from SoftPlusHSGP. The SoftPlusHSGP maps to positive values and normalizes by the
+    time-mean, ensuring positivity and mean 1. We verify multiplier > 0 everywhere
+    and the intercept contribution is non-negative.
+    """
+    seed = sum(map(ord, "SoftPlus intercept can be negative"))
+    rng = np.random.default_rng(seed)
+
+    # Choose fixed hyperparameters to induce sufficient variability deterministically
+    hsgp = SoftPlusHSGP(
+        m=20,
+        L=10,
+        dims="date",
+        ls=1.0,
+        eta=3.0,
+    )
+
+    n_points = 100
+    data = np.linspace(0, 10, n_points)
+
+    coords = {"date": data}
+    with pm.Model(coords=coords):
+        X = pm.Data("X", data, dims="date")
+        multiplier = hsgp.register_data(X).create_variable("multiplier")
+
+        intercept_baseline = pm.HalfNormal("intercept_baseline", sigma=5.0)
+        pm.Deterministic(
+            "intercept",
+            intercept_baseline * multiplier,
+            dims="date",
+        )
+
+        idata = pm.sample_prior_predictive(draws=200, random_seed=rng)
+
+    # Multiplier strictly positive
+    assert (idata.prior["multiplier"] > 0).all()
+
+    # Multiplier time-mean should be ~1 for every chain/draw and remaining dims
+    multiplier_mean = idata.prior["multiplier"].mean("date").values
+    np.testing.assert_allclose(multiplier_mean, 1.0, rtol=1e-6, atol=1e-6)
+
+    # Baseline is HalfNormal -> never negative
+    assert (idata.prior["intercept_baseline"] >= 0).all()
+
+    # Verify intercept contribution never negative
+    assert (idata.prior["intercept"] >= 0).all()
