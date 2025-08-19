@@ -33,7 +33,7 @@ st.set_page_config(
 
 # Give some context for what the page displays
 st.title("Fourier Modes")
-# TODO: Update this !
+
 st.markdown(
     "This page demonstrates Fourier seasonality transformations for use \
         in MMM. Fourier seasonality relies on sine and cosine \
