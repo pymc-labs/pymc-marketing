@@ -268,9 +268,7 @@ class BaseMMM(BaseValidateMMM):
         names = []
         if self.time_varying_intercept:
             names.extend(
-                SoftPlusHSGP.deterministics_to_replace(
-                    "intercept_temporal_latent_multiplier"
-                )
+                SoftPlusHSGP.deterministics_to_replace("intercept_latent_process")
             )
         if self.time_varying_media:
             names.extend(
