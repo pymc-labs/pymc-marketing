@@ -176,9 +176,74 @@ def mock_idata() -> az.InferenceData:
 
 
 @pytest.fixture(scope="module")
+def mock_idata_with_sensitivity(mock_idata):
+    # Copy the mock_idata so we don't mutate the shared fixture
+    idata = mock_idata.copy()
+    n_chain, n_draw, n_sweep = 2, 10, 5
+    sweep = np.linspace(0.5, 1.5, n_sweep)
+    # Add a single extra dim for multi-panel test
+    extra_dim = ["A", "B"]
+    # y and marginal_effects: dims (chain, draw, sweep, extra)
+    y = xr.DataArray(
+        np.random.normal(0, 1, size=(n_chain, n_draw, n_sweep, len(extra_dim))),
+        dims=("chain", "draw", "sweep", "region"),
+        coords={
+            "chain": np.arange(n_chain),
+            "draw": np.arange(n_draw),
+            "sweep": sweep,
+            "region": extra_dim,
+        },
+    )
+    marginal_effects = xr.DataArray(
+        np.random.normal(0, 1, size=(n_chain, n_draw, n_sweep, len(extra_dim))),
+        dims=("chain", "draw", "sweep", "region"),
+        coords={
+            "chain": np.arange(n_chain),
+            "draw": np.arange(n_draw),
+            "sweep": sweep,
+            "region": extra_dim,
+        },
+    )
+    # Add sweep_type and var_names as attrs/coords
+    sensitivity_analysis = xr.Dataset(
+        {"y": y, "marginal_effects": marginal_effects},
+        coords={"sweep": sweep, "region": extra_dim},
+        attrs={"sweep_type": "multiplicative", "var_names": "test_var"},
+    )
+    # Attach to idata
+    idata.sensitivity_analysis = sensitivity_analysis
+    # Add posterior_predictive for percentage test
+    idata.posterior_predictive = xr.Dataset(
+        {
+            "y": xr.DataArray(
+                np.abs(
+                    np.random.normal(
+                        10, 2, size=(n_chain, n_draw, n_sweep, len(extra_dim))
+                    )
+                ),
+                dims=("chain", "draw", "sweep", "region"),
+                coords={
+                    "chain": np.arange(n_chain),
+                    "draw": np.arange(n_draw),
+                    "sweep": sweep,
+                    "region": extra_dim,
+                },
+            )
+        }
+    )
+    return idata
+
+
+@pytest.fixture(scope="module")
 def mock_suite(mock_idata):
     """Fixture to create a mock MMMPlotSuite with a mocked posterior."""
     return MMMPlotSuite(idata=mock_idata)
+
+
+@pytest.fixture(scope="module")
+def mock_suite_with_sensitivity(mock_idata_with_sensitivity):
+    """Fixture to create a mock MMMPlotSuite with sensitivity analysis."""
+    return MMMPlotSuite(idata=mock_idata_with_sensitivity)
 
 
 def test_contributions_over_time_expand_dims(mock_suite: MMMPlotSuite):
@@ -616,3 +681,38 @@ def test_saturation_curves_multi_dim_axes_shape(
         "country"
     ]
     assert axes.shape == (n_channels, n_countries)
+
+
+def test_plot_sensitivity_analysis_basic(mock_suite_with_sensitivity):
+    # Should return (fig, axes) for multi-panel
+    fig, axes = mock_suite_with_sensitivity.plot_sensitivity_analysis()
+    assert isinstance(fig, Figure)
+    assert isinstance(axes, np.ndarray)
+    assert all(isinstance(ax, Axes) for ax in axes.flat)
+
+
+def test_plot_sensitivity_analysis_marginal(mock_suite_with_sensitivity):
+    fig, axes = mock_suite_with_sensitivity.plot_sensitivity_analysis(marginal=True)
+    assert isinstance(fig, Figure)
+    assert isinstance(axes, np.ndarray)
+
+
+def test_plot_sensitivity_analysis_percentage(mock_suite_with_sensitivity):
+    fig, axes = mock_suite_with_sensitivity.plot_sensitivity_analysis(percentage=True)
+    assert isinstance(fig, Figure)
+    assert isinstance(axes, np.ndarray)
+
+
+def test_plot_sensitivity_analysis_error_on_both_modes(mock_suite_with_sensitivity):
+    with pytest.raises(
+        ValueError, match="Not implemented marginal effects in percentage scale."
+    ):
+        mock_suite_with_sensitivity.plot_sensitivity_analysis(
+            marginal=True, percentage=True
+        )
+
+
+def test_plot_sensitivity_analysis_error_on_missing_results(mock_idata):
+    suite = MMMPlotSuite(idata=mock_idata)
+    with pytest.raises(ValueError, match="No sensitivity analysis results found"):
+        suite.plot_sensitivity_analysis()
