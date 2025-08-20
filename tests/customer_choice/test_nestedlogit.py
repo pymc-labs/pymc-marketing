@@ -137,7 +137,7 @@ def test_preprocess_model_data_sets_attributes(nstL, sample_df, utility_eqs):
     X, F, y = nstL.preprocess_model_data(sample_df, utility_eqs)
 
     # Check main attributes exist
-    assert hasattr(nstL, "X")
+    assert hasattr(nstL, "X_data")
     assert hasattr(nstL, "F")
     assert hasattr(nstL, "y")
     assert hasattr(nstL, "alternatives")
