@@ -286,6 +286,18 @@ def test_fit(
             f"Extra dimension '{dim}' should be in posterior dims."
         )
 
+    # Check presence of fit_data group
+    assert hasattr(mmm.idata, "fit_data"), "InferenceData should have a fit_data group."
+
+    np.testing.assert_equal(
+        mmm.idata.fit_data.coords["date"].values, mmm.model.coords["date"]
+    )
+    if mmm.dims:
+        for dim in mmm.dims:
+            np.testing.assert_equal(
+                mmm.idata.fit_data.coords[dim].values, mmm.model.coords[dim]
+            )
+
 
 def test_sample_posterior_predictive_new_data(single_dim_data, mock_pymc_sample):
     """
