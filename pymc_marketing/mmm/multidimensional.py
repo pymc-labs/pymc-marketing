@@ -1855,6 +1855,33 @@ def create_sample_kwargs(
     return sampler_config
 
 
+def create_fit_data(
+    self,
+    X: pd.DataFrame | xr.Dataset | xr.DataArray,
+    y: np.ndarray | pd.Series | xr.DataArray,
+) -> xr.Dataset:
+    """Create the fit_data group based on the input data."""
+    idx = pd.MultiIndex.from_product(
+        [self.model.coords["date"]] + [self.model.coords[d] for d in self.dims],
+        names=["date", *self.dims],
+    )
+
+    if isinstance(y, np.ndarray):
+        y = pd.Series(y, index=idx, name=self.output_var)
+
+    y.name = self.output_var
+
+    if isinstance(X, pd.DataFrame):
+        X = X.set_index(idx)
+        X = X.to_xarray()
+
+    if isinstance(y, pd.Series):
+        y.index = idx
+        y = y.to_xarray()
+
+    return xr.merge([X, y])
+
+
 class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
     """Wrapper for the BudgetOptimizer to handle multi-dimensional model."""
 
