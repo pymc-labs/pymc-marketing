@@ -325,7 +325,7 @@ class TestParetoNBDModel:
             map_idata.posterior = map_idata.posterior.isel(
                 chain=slice(None, 1), draw=slice(None, 1)
             )
-            model = self.model._build_with_idata(map_idata)
+            model = self.model.build_from_idata(map_idata)
             # We expect 1000 draws to be sampled with MAP
             expected_shape = (1, 1000)
             expected_pop_dims = (1, 1000, dim_T, 2)
