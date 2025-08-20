@@ -881,7 +881,7 @@ class RegressionModelBuilder(ModelBuilder):
         """
         dataset = idata.fit_data.to_dataframe()
 
-        if not isinstance(dataset, pd.RangeIndex):
+        if not dataset.index.dtype == int:
             dataset = dataset.reset_index()
         # type: ignore
         X = dataset.drop(columns=[self.output_var])
