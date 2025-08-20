@@ -28,7 +28,7 @@ import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
-from pydantic import Field, InstanceOf, validate_call
+from pydantic import Field, InstanceOf, StrictBool, validate_call
 from pymc.model.fgraph import clone_model as cm
 from pymc.util import RandomState
 from pymc_extras.prior import Prior, create_dim_handler
@@ -138,11 +138,16 @@ class MMM(RegressionModelBuilder):
             description="The saturation transformation to apply to the channel data.",
         ),
         time_varying_intercept: Annotated[
-            bool,
-            Field(strict=True, description="Whether to use a time-varying intercept"),
+            StrictBool | InstanceOf[HSGPBase],
+            Field(
+                description=(
+                    "Whether to use a time-varying intercept, or pass an HSGP instance "
+                    "(e.g., SoftPlusHSGP) specifying dims and priors."
+                ),
+            ),
         ] = False,
         time_varying_media: Annotated[
-            bool | InstanceOf[HSGPBase],
+            StrictBool | InstanceOf[HSGPBase],
             Field(
                 description=(
                     "Whether to use time-varying media effects, or pass an HSGP instance "
@@ -506,9 +511,7 @@ class MMM(RegressionModelBuilder):
         names = []
         if self.time_varying_intercept:
             names.extend(
-                SoftPlusHSGP.deterministics_to_replace(
-                    "intercept_temporal_latent_multiplier"
-                )
+                SoftPlusHSGP.deterministics_to_replace("intercept_latent_process")
             )
         if self.time_varying_media:
             names.extend(
@@ -1109,16 +1112,36 @@ class MMM(RegressionModelBuilder):
                 )
 
             # Add intercept logic
-            if self.time_varying_intercept:
+            if (
+                isinstance(self.time_varying_intercept, bool)
+                and self.time_varying_intercept
+            ):
                 intercept_baseline = self.model_config["intercept"].create_variable(
                     "intercept_baseline"
                 )
 
                 intercept_latent_process = SoftPlusHSGP.parameterize_from_data(
-                    X=time_index,  # this is
+                    X=time_index,
                     dims=("date", *self.dims),
                     **self.model_config["intercept_tvp_config"],
                 ).create_variable("intercept_latent_process")
+
+                intercept = pm.Deterministic(
+                    name="intercept_contribution",
+                    var=intercept_baseline[None, ...] * intercept_latent_process,
+                    dims=("date", *self.dims),
+                )
+
+            elif isinstance(self.time_varying_intercept, HSGPBase):
+                intercept_baseline = self.model_config["intercept"].create_variable(
+                    "intercept_baseline"
+                )
+
+                # Register internal time index and build latent process
+                self.time_varying_intercept.register_data(time_index)
+                intercept_latent_process = self.time_varying_intercept.create_variable(
+                    "intercept_latent_process"
+                )
 
                 intercept = pm.Deterministic(
                     name="intercept_contribution",
