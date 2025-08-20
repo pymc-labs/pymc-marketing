@@ -980,7 +980,7 @@ class MMM(RegressionModelBuilder):
                     dims=deterministic_dims,
                 )
 
-    def build_model(
+    def build_model(  # type: ignore[override]
         self,
         X: pd.DataFrame,
         y: pd.Series | np.ndarray,
