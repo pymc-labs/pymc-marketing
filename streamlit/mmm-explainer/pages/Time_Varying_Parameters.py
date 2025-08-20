@@ -122,7 +122,7 @@ fig.add_trace(
 )
 
 fig.update_layout(
-    title="Posterior Mean with 95% CI (demeaned='False')",
+    title="Time-Dependent Variation",
     xaxis_title="Time",
     yaxis_title="Value",
     template="plotly_white",

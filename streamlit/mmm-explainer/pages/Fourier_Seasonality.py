@@ -115,7 +115,7 @@ with tab1:
     )
 
     fig.update_layout(
-        title="Fourier Trend with Uncertainty",
+        title="Yearly Fourier Trend",
         xaxis_title="Day",
         yaxis_title="Trend",
         height=PLOT_HEIGHT,
@@ -155,7 +155,7 @@ with tab2:
     )
 
     fig.update_layout(
-        title="Fourier Trend with Uncertainty",
+        title="Monthly Fourier Trend",
         xaxis_title="Day",
         yaxis_title="Trend",
         height=PLOT_HEIGHT,
