@@ -199,7 +199,10 @@ from pymc_marketing.mmm.utils import (
     add_noise_to_channel_allocation,
     create_zero_dataset,
 )
-from pymc_marketing.model_builder import ModelBuilder, _handle_deprecate_pred_argument
+from pymc_marketing.model_builder import (
+    RegressionModelBuilder,
+    _handle_deprecate_pred_argument,
+)
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.model_graph import deterministics_to_flat
 
@@ -212,7 +215,7 @@ warning_msg = (
 warnings.warn(warning_msg, FutureWarning, stacklevel=1)
 
 
-class MMM(ModelBuilder):
+class MMM(RegressionModelBuilder):
     """Marketing Mix Model class for estimating the impact of marketing channels on a target variable.
 
     This class implements the core functionality of a Marketing Mix Model (MMM), allowing for the
@@ -1114,7 +1117,7 @@ class MMM(ModelBuilder):
                     dims=deterministic_dims,
                 )
 
-    def build_model(
+    def build_model(  # type: ignore[override]
         self,
         X: pd.DataFrame,
         y: pd.Series | np.ndarray,

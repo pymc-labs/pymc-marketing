@@ -176,7 +176,6 @@ testpaths = "tests"
 
 [tool.mypy]
 files = "pymc_marketing/*.py"
-plugins = "numpy.typing.mypy_plugin"
 exclude = "build|dist|docs|examples|tests|setup.py"
 
 [tool.mypy-matplotlib]
