@@ -37,6 +37,17 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::
 ::::
 
+### Data Connectors
+
+::::{grid} 1 2 3 3
+:gutter: 3
+
+:::{grid-item-card} MMM Fivetran Connectors
+:img-top: ../gallery/images/mmm_fivetran_connectors.png
+:link: ../notebooks/mmm/mmm_fivetran_connectors.html
+:::
+::::
+
 ### Budget Allocation
 
 ::::{grid} 1 2 3 3
