@@ -1816,26 +1816,69 @@ class MMM(RegressionModelBuilder):
         X: pd.DataFrame | xr.Dataset | xr.DataArray,
         y: np.ndarray | pd.Series | xr.DataArray,
     ) -> xr.Dataset:
-        """Create the fit_data group based on the input data."""
-        idx = pd.MultiIndex.from_product(
-            [self.model.coords["date"]] + [self.model.coords[d] for d in self.dims],
-            names=["date", *self.dims],
-        )
+        """Return an ``xr.Dataset`` with data vars from ``X`` plus target ``y`` and coords on date + dims.
 
-        if isinstance(y, np.ndarray):
-            y = pd.Series(y, index=idx, name=self.output_var)
+        Rules: keep original date column name; coords = (date_column, *dims present in X).
+        """
+        # --- Coerce X to DataFrame ---
+        if isinstance(X, xr.Dataset):
+            X_df = X.to_dataframe().reset_index()
+        elif isinstance(X, xr.DataArray):
+            X_df = X.to_dataframe(name=X.name or "value").reset_index()
+        else:
+            X_df = X.copy()
 
-        y.name = self.output_var
+        if self.date_column not in X_df.columns:
+            raise ValueError(f"'{self.date_column}' not in X columns")
 
-        if isinstance(X, pd.DataFrame):
-            X = X.set_index(idx)
-            X = X.to_xarray()
+        # --- Coerce y to Series ---
+        if isinstance(y, xr.DataArray):
+            y_s = y.to_series()
+        elif isinstance(y, np.ndarray):
+            if len(y) != len(X_df):
+                raise ValueError("y length must match X when passed as ndarray")
+            y_s = pd.Series(y, index=X_df.index)
+        else:
+            y_s = y.copy()
+        y_s.name = self.output_var
 
-        if isinstance(y, pd.Series):
-            y.index = idx
-            y = y.to_xarray()
+        dims_in_X = [d for d in self.dims if d in X_df.columns]
+        coord_cols = [self.date_column, *dims_in_X]
 
-        return xr.merge([X, y])
+        # Alignment strategies
+        if isinstance(y_s.index, pd.MultiIndex) and set(coord_cols).issubset(
+            y_s.index.names
+        ):
+            # Align via MultiIndex
+            X_mi = X_df.set_index(coord_cols)
+            aligned = y_s.reindex(X_mi.index)
+            if aligned.isna().any():  # fallback merge if mismatch
+                X_df = X_df.merge(
+                    y_s.reset_index(),
+                    on=coord_cols,
+                    how="left",
+                )
+            else:
+                X_df[self.output_var] = aligned.values
+        elif len(y_s) == len(X_df):
+            # Positional
+            X_df[self.output_var] = y_s.to_numpy()
+        else:
+            # Try merge if y has columns as index levels
+            if isinstance(y_s.index, pd.MultiIndex) and set(coord_cols).issubset(
+                y_s.index.names
+            ):
+                X_df = X_df.merge(y_s.reset_index(), on=coord_cols, how="left")
+            else:
+                raise ValueError(
+                    "Cannot align y with X; incompatible indices / lengths"
+                )
+
+        if self.output_var not in X_df.columns:
+            raise RuntimeError("Target column missing after alignment")
+
+        ds = X_df.sort_values(coord_cols).set_index(coord_cols).to_xarray()
+        return ds
 
     def build_from_idata(self, idata: az.InferenceData) -> None:
         """Build model from the InferenceData object.
