@@ -879,11 +879,7 @@ class RegressionModelBuilder(ModelBuilder):
             The InferenceData object to build the model from.
 
         """
-        dataset = idata.fit_data.to_dataframe()
-
-        if not dataset.index.dtype == int:
-            dataset = dataset.reset_index()
-        # type: ignore
+        dataset = idata.fit_data.to_dataframe()  # type: ignore
         X = dataset.drop(columns=[self.output_var])
         y = dataset[self.output_var]
 
