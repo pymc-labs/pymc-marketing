@@ -26,13 +26,13 @@ import pytensor.tensor as pt
 from pymc_extras.prior import Prior
 from pytensor.tensor.variable import TensorVariable
 
-from pymc_marketing.model_builder import ModelBuilder
+from pymc_marketing.model_builder import RegressionModelBuilder
 from pymc_marketing.model_config import parse_model_config
 
 HDI_ALPHA = 0.5
 
 
-class NestedLogit(ModelBuilder):
+class NestedLogit(RegressionModelBuilder):
     """
     Nested Logit class.
 

@@ -27,13 +27,13 @@ from pymc_extras.prior import Prior
 from xarray import DataArray
 
 from pymc_marketing.mmm.additive_effect import MuEffect
-from pymc_marketing.model_builder import ModelBuilder, create_idata_accessor
+from pymc_marketing.model_builder import RegressionModelBuilder, create_idata_accessor
 from pymc_marketing.model_config import parse_model_config
 
 HDI_ALPHA = 0.5
 
 
-class MVITS(ModelBuilder):
+class MVITS(RegressionModelBuilder):
     """Multivariate Interrupted Time Series class.
 
     Class to perform a multivariate interrupted time series analysis with the
@@ -251,7 +251,7 @@ class MVITS(ModelBuilder):
             ],
         }
 
-    def build_model(
+    def build_model(  # type: ignore[override]
         self,
         X: pd.DataFrame,
         y: pd.Series | np.ndarray,

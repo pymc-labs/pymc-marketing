@@ -292,7 +292,7 @@ def test_plot_sensitivity_analysis_basic(sensitivity_analysis_with_results):
     assert isinstance(ax, Axes)
 
     # Check basic plot properties
-    assert ax.get_title() == "Sensitivity analysis plot"
+    assert ax.get_title() == "Sensitivity analysis"
     assert "Multiplicative change of" in ax.get_xlabel()
     assert ax.get_ylabel() == "Total uplift (sum over dates)"
 
