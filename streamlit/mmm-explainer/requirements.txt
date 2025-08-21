@@ -1,9 +1,9 @@
-numpy==1.24.3
-pandas==2.0.2
-streamlit==1.25.0
-plotly==5.13.1
+numpy==1.26.4
+pandas==2.3.0
+streamlit==1.46.1
+plotly==6.3.0
 scikit-learn==1.2.2
-scipy==1.11.0
-preliz==0.6.3
-pymc-marketing
+scipy==1.12.0
+preliz==0.11.0
+pymc-marketing==0.15.0
 typing==3.7.4.3
