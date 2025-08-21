@@ -1837,6 +1837,30 @@ class MMM(RegressionModelBuilder):
 
         return xr.merge([X, y])
 
+    def build_from_idata(self, idata: az.InferenceData) -> None:
+        """Build model from the InferenceData object.
+
+        This is part of the :func:`load` method. See :func:`load` for more larger context.
+        Usually a wrapper around the :func:`build_model` method unless the model
+        has some additional steps to be built.
+
+        Parameters
+        ----------
+        idata : az.InferenceData
+            The InferenceData object to build the model from.
+        """
+        dataset = idata.fit_data.to_dataframe()
+
+        if isinstance(dataset.index, pd.MultiIndex) or isinstance(
+            dataset.index, pd.DatetimeIndex
+        ):
+            dataset = dataset.reset_index()
+        # type: ignore
+        X = dataset.drop(columns=[self.output_var])
+        y = dataset[self.output_var]
+
+        self.build_model(X, y)  # type: ignore
+
 
 def create_sample_kwargs(
     sampler_config: dict[str, Any] | None,
