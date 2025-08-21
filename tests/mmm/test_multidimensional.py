@@ -186,7 +186,7 @@ def multi_dim_data():
     "fixture_name, dims",
     [
         pytest.param("single_dim_data", (), id="Marginal model"),
-        pytest.param("multi_dim_data", ("country",), id="County model"),
+        pytest.param("multi_dim_data", ("country",), id="Country model"),
     ],
 )
 @pytest.mark.parametrize(
