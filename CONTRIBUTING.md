@@ -152,6 +152,36 @@ We recommend that your contribution complies with the following guidelines befor
     make format
     ```
 
+## Translations
+For translators there are two options (we should decide on one to simplify things):
+
+* clone repo and edit `.po` files in `locales/<lang>/LC_MESSAGES/` with a local editor like poedit
+* login to transifex and translate from the web interface
+
+For language coordinators it is a bit trickier. The first decision to make is
+how often do we want to update translation sources (the content being translated by translators).
+We could try and keep things synced at the commit level, or only update that at the release level
+(or a different cadence than code altogether). In general whenever we make changes to the
+website sources and we want to make these changes available to the translators we need
+to do the following:
+
+```bash
+sphinx-build docs/source docs/gettext -b gettext
+# if local editing
+sphinx-intl update -p docs/gettext -l es
+# if transifex
+# first step optional, only needed if files were added/removed
+sphinx-intl update-txconfig-resources \
+    --pot-dir _build/gettext \
+    --locale-dir locale \
+    --transifex-organization-name $TRANSIFEX_ORGANIZATION \
+    --transifex-project-name $TRANSIFEX_PROJECT
+tx push --source
+```
+
+and if using transifex we'd need to set up a token for rtd to download the translated content with
+`tx pull` and then build the translated website.
+
 ## Overview of the MMM codebase
 
 Packages
