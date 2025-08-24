@@ -1816,9 +1816,47 @@ class MMM(RegressionModelBuilder):
         X: pd.DataFrame | xr.Dataset | xr.DataArray,
         y: np.ndarray | pd.Series | xr.DataArray,
     ) -> xr.Dataset:
-        """Return an ``xr.Dataset`` with data vars from ``X`` plus target ``y`` and coords on date + dims.
+        """Create a fit dataset aligned on date and present dimensions.
 
-        Rules: keep original date column name; coords = (date_column, *dims present in X).
+        Builds and returns an xarray ``Dataset`` that contains:
+        - data variables from ``X`` (all non-coordinate columns),
+        - the target variable from ``y`` under ``self.output_var``, and
+        - coordinates on ``(self.date_column, *dims present in X)``.
+
+        Parameters
+        ----------
+        X : pd.DataFrame | xr.Dataset | xr.DataArray
+            Feature data. If an xarray object is provided, it is converted to a
+            DataFrame via ``to_dataframe().reset_index()`` before processing.
+        y : np.ndarray | pd.Series | xr.DataArray
+            Target values. Must align with ``X`` either by position (same length)
+            or via a MultiIndex that includes ``(self.date_column, *dims present in X)``.
+
+        Returns
+        -------
+        xr.Dataset
+            Dataset indexed by ``(self.date_column, *dims present in X)`` with the
+            feature variables and a target variable named ``self.output_var``.
+
+        Raises
+        ------
+        ValueError
+            - If ``self.date_column`` is missing in ``X``.
+            - If ``y`` is a ``np.ndarray`` and its length does not match ``X``.
+            - If ``y`` cannot be aligned to ``X`` by index or position.
+        RuntimeError
+            If the target column is missing after alignment.
+
+        Notes
+        -----
+        - The original date column name is preserved (``self.date_column``).
+        - Coordinates are assigned only for dimensions present in ``X``.
+        - Data is sorted by ``(self.date_column, *dims present in X)`` prior to
+          conversion to xarray.
+
+        Examples
+        --------
+        >>> ds = mmm.create_fit_data(X, y)
         """
         # --- Coerce X to DataFrame ---
         if isinstance(X, xr.Dataset):
