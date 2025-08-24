@@ -16,10 +16,12 @@ from unittest.mock import patch
 import arviz as az
 import numpy as np
 import pandas as pd
+import pymc as pm
 import pytensor
 import pytensor.tensor as pt
 import pytest
 import xarray as xr
+from pymc.model.fgraph import clone_model as cm
 
 from pymc_marketing.mmm import MMM
 from pymc_marketing.mmm.budget_optimizer import (
@@ -905,3 +907,84 @@ def test_budget_distribution_over_period_integration(dummy_df, dummy_idata):
     assert isinstance(result_without_factors, xr.DataArray)
     assert result_with_factors.dims == ("channel",)
     assert result_without_factors.dims == ("channel",)
+
+
+def test_custom_protocol_model_budget_optimizer_works():
+    """Validate the optimizer works with a custom model that follows the protocol.
+
+    This serves as an example for users wanting to plug in their own PyMC models.
+    Requirements implemented here:
+    - The model has a variable named 'channel_data' with dims ("date", "channel").
+    - Deterministics 'channel_contribution' ("date", "channel") and 'total_contribution' ("date").
+    - A wrapper object exposes: idata, channel_columns, _channel_scales, adstock.l_max, and
+      a method `_set_predictors_for_optimization(num_periods) -> pm.Model` that returns a PyMC model
+      where 'channel_data' is set for the optimization horizon.
+    """
+    # 1) Build and fit a tiny custom PyMC model
+    rng = np.random.default_rng(0)
+    num_obs = 12
+    channels = ["C1", "C2", "C3"]
+    X = rng.uniform(0.0, 1.0, size=(num_obs, len(channels)))
+    true_beta = np.array([0.8, 0.4, 0.2])
+    y = (X @ true_beta) + rng.normal(0.0, 0.05, size=num_obs)
+
+    coords = {"date": np.arange(num_obs), "channel": channels}
+    with pm.Model(coords=coords) as train_model:
+        pm.Data("channel_data", X, dims=("date", "channel"))
+        beta = pm.Normal("beta", 0.0, 1.0, dims="channel")
+        mu = (train_model["channel_data"] * beta).sum(axis=-1)
+        pm.Deterministic("total_contribution", mu.sum(), dims=())
+        pm.Deterministic(
+            "channel_contribution",
+            train_model["channel_data"] * beta,
+            dims=("date", "channel"),
+        )
+        sigma = pm.HalfNormal("sigma", 0.2)
+        pm.Normal("y", mu=mu, sigma=sigma, observed=y, dims="date")
+
+        idata = pm.sample(50, tune=50, chains=1, progressbar=False, random_seed=1)
+
+    # 2) Minimal wrapper satisfying the optimizer protocol
+    class SimpleWrapper:
+        def __init__(self, base_model: pm.Model, idata, channels):
+            self._base_model = base_model
+            self.idata = idata
+            self.channel_columns = list(channels)
+            self._channel_scales = 1.0
+            self.adstock = type("Adstock", (), {"l_max": 0})()  # no carryover
+
+        def _set_predictors_for_optimization(self, num_periods: int) -> pm.Model:
+            m = cm(self._base_model)
+            pm.set_data(
+                {
+                    "channel_data": np.zeros(
+                        (num_periods, len(self.channel_columns)),
+                        dtype=m["channel_data"].dtype,
+                    )
+                },
+                coords={
+                    "date": np.arange(num_periods),
+                    "channel": self.channel_columns,
+                },
+                model=m,
+            )
+            return m
+
+    wrapper = SimpleWrapper(base_model=train_model, idata=idata, channels=channels)
+
+    # 3) Optimize budgets over a small future horizon
+    optimizer = BudgetOptimizer(model=wrapper, num_periods=6)
+
+    # Use dict bounds (single budget dimension)
+    bounds = {c: (0.0, 50.0) for c in channels}
+
+    optimal_budgets, result = optimizer.allocate_budget(
+        total_budget=100.0, budget_bounds=bounds
+    )
+
+    # Assertions: types, dims, success, sum constraint
+    assert isinstance(optimal_budgets, xr.DataArray)
+    assert optimal_budgets.dims == ("channel",)
+    assert list(optimal_budgets.coords["channel"].values) == channels
+    assert result.success
+    assert np.isclose(optimal_budgets.sum().item(), 100.0)
