@@ -1919,16 +1919,31 @@ class MMM(RegressionModelBuilder):
         return ds
 
     def build_from_idata(self, idata: az.InferenceData) -> None:
-        """Build model from the InferenceData object.
+        """Rebuild the model from an ``InferenceData`` object.
 
-        This is part of the :func:`load` method. See :func:`load` for more larger context.
-        Usually a wrapper around the :func:`build_model` method unless the model
-        has some additional steps to be built.
+        Uses the stored fit dataset in ``idata`` to reconstruct the model graph by
+        calling :meth:`build_model`. This is commonly used as part of a ``load``
+        workflow to restore a model prior to sampling predictive quantities.
 
         Parameters
         ----------
         idata : az.InferenceData
-            The InferenceData object to build the model from.
+                Inference data containing the fit dataset under the ``fit_data`` group.
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        - Expects ``idata.fit_data`` to exist and contain both features and the
+            target column named ``self.output_var``.
+        - This rebuilds the model structure; it does not attach posterior samples.
+            Assign ``self.idata = idata`` separately if you need to reuse samples.
+
+        Examples
+        --------
+        >>> mmm.build_from_idata(idata)
         """
         dataset = idata.fit_data.to_dataframe()
 
