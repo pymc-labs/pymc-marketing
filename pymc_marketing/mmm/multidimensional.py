@@ -1819,6 +1819,7 @@ class MMM(RegressionModelBuilder):
         """Create a fit dataset aligned on date and present dimensions.
 
         Builds and returns an xarray ``Dataset`` that contains:
+
         - data variables from ``X`` (all non-coordinate columns),
         - the target variable from ``y`` under ``self.output_var``, and
         - coordinates on ``(self.date_column, *dims present in X)``.
