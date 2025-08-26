@@ -112,7 +112,7 @@ class FourierEffect:
             pm.Deterministic(
                 f"{self.fourier.prefix}_contribution",
                 x,
-                dims=("date", *self.fourier.prior.dims),
+                dims=(self.date_dim_name, *self.fourier.prior.dims),
             )
 
         fourier_effect = self.fourier.apply(
