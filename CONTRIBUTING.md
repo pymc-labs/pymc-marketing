@@ -182,6 +182,12 @@ tx push --source
 and if using transifex we'd need to set up a token for rtd to download the translated content with
 `tx pull` and then build the translated website.
 
+To build the docs in a different language:
+
+```bash
+sphinx-build docs/source docs/build -b html -D language=es
+```
+
 ## Overview of the MMM codebase
 
 Packages
