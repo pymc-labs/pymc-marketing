@@ -48,6 +48,7 @@ def build_mmm_from_yaml(
     *,
     X: pd.DataFrame | None = None,
     y: pd.DataFrame | pd.Series | None = None,
+    model_kwargs: dict | None = None,
 ) -> MMM:
     """
     Build an MMM model from *config_path*.
@@ -70,6 +71,9 @@ def build_mmm_from_yaml(
     y : pandas.DataFrame | pandas.Series, optional
         Pre-loaded target vector.  If omitted, the loader tries to read it
         from a path in the YAML under `data.y_path`.
+    model_kwargs : dict, optional
+        Additional keyword arguments for the model.
+        They override any defaults specified in the YAML config.
 
     Returns
     -------
@@ -78,7 +82,9 @@ def build_mmm_from_yaml(
     cfg: Mapping[str, Any] = yaml.safe_load(Path(config_path).read_text())
 
     # 1 ─────────────────────────────────── shell (no effects yet)
-    model_config = cfg["model"]["kwargs"]  # Get model kwargs
+    # Merge model_kwargs into cfg["model"]["kwargs"], with model_kwargs taking precedence
+    model_config = {**cfg["model"].get("kwargs", {}), **(model_kwargs or {})}
+    cfg["model"]["kwargs"] = model_config
 
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=DeprecationWarning)
