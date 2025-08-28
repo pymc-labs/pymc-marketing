@@ -206,7 +206,17 @@ class FourierEffect:
 
         # Apply the Fourier transformation to data
         day_data = model[f"{self.fourier.prefix}_day"]
-        fourier_effect = self.fourier.apply(day_data)
+
+        def create_deterministic(x: pt.TensorVariable) -> None:
+            pm.Deterministic(
+                f"{self.fourier.prefix}_contribution",
+                x,
+                dims=(self.date_dim_name, *self.fourier.prior.dims),
+            )
+
+        fourier_effect = self.fourier.apply(
+            day_data, result_callback=create_deterministic
+        )
 
         # Create a deterministic variable for the effect
         dims = (dim for dim in mmm.dims if dim in self.fourier.prior.dims)
