@@ -30,14 +30,6 @@ Example of a custom additive effect
     # give it a different name/prefix to avoid clashing with built-in controls.
     class PenaltyEffect:
         '''Example MuEffect that applies a negative coefficient to a user-specified pattern.
-
-Parameters
-----------
-        name : str
-            Prefix/name for created variables (must be unique in the model).
-        penalty_provider : Callable[[pd.DatetimeIndex], np.ndarray | xr.DataArray]
-            A function that, given model dates, returns a penalty array with dims
-            ("date", *mmm.dims). Values are typically in [0, 1], but any scale is allowed.
         '''
 
         def __init__(self, name: str, penalty_provider):
