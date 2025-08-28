@@ -122,6 +122,7 @@ def test_fourier_effect(
         [
             f"{fourier.prefix}_day",
             f"{fourier.prefix}_beta",
+            f"{fourier.prefix}_contribution",
             f"{fourier.prefix}_effect",
         ]
     )
