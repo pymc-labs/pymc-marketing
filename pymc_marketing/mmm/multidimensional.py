@@ -11,7 +11,144 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Multidimensional Marketing Mix Model class."""
+"""Multidimensional Marketing Mix Model (MMM).
+
+Examples
+--------
+Basic MMM fit:
+
+.. code-block:: python
+
+    from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
+    from pymc_marketing.mmm.multidimensional import MMM
+    import pandas as pd
+
+    X = pd.DataFrame(
+        {
+            "date": pd.date_range("2025-01-01", periods=8, freq="W-MON"),
+            "C1": [100, 120, 90, 110, 105, 115, 98, 102],
+            "C2": [80, 70, 95, 85, 90, 88, 92, 94],
+        }
+    )
+    y = pd.Series([230, 260, 220, 240, 245, 255, 235, 238], name="y")
+
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["C1", "C2"],
+        target_column="y",
+        adstock=GeometricAdstock(l_max=10),
+        saturation=LogisticSaturation(),
+    )
+    mmm.fit(X, y)
+
+    # Optional: posterior predictive and plots
+    mmm.sample_posterior_predictive(X)
+    _ = mmm.plot.contributions_over_time(var=["channel_contribution"])
+
+Multi-dimensional (panel) with dims:
+
+.. code-block:: python
+
+    X = pd.DataFrame(
+        {
+            "date": pd.date_range("2025-01-01", periods=4, freq="W-MON"),
+            "country": ["A", "A", "B", "B"],
+            "C1": [100, 120, 90, 110],
+            "C2": [80, 70, 95, 85],
+        }
+    )
+    y = pd.Series([230, 260, 220, 240], name="y")
+
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["C1", "C2"],
+        target_column="y",
+        dims=("country",),
+        adstock=GeometricAdstock(l_max=10),
+        saturation=LogisticSaturation(),
+    )
+    mmm.fit(X, y)
+
+Time-varying parameters and seasonality:
+
+.. code-block:: python
+
+    from pymc_marketing.mmm import SoftPlusHSGP
+
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["C1", "C2"],
+        target_column="y",
+        adstock=GeometricAdstock(l_max=10),
+        saturation=LogisticSaturation(),
+        time_varying_intercept=True,
+        time_varying_media=True,  # or SoftPlusHSGP(...)
+        yearly_seasonality=4,
+    )
+    mmm.fit(X, y)
+
+Controls (additional regressors):
+
+.. code-block:: python
+
+    X["price_index"] = [1.0, 1.02, 0.99, 1.01]
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["C1", "C2"],
+        target_column="y",
+        control_columns=["price_index"],
+        adstock=GeometricAdstock(l_max=10),
+        saturation=LogisticSaturation(),
+    )
+    mmm.fit(X, y)
+
+Events:
+
+.. code-block:: python
+
+    from pymc_extras.prior import Prior
+    from pymc_marketing.mmm.events import EventEffect, GaussianBasis
+    import pandas as pd
+
+    df_events = pd.DataFrame(
+        {
+            "name": ["Promo", "Holiday"],
+            "start_date": pd.to_datetime(["2025-02-01", "2025-03-20"]),
+            "end_date": pd.to_datetime(["2025-02-03", "2025-03-25"]),
+        }
+    )
+    effect = EventEffect(
+        basis=GaussianBasis(
+            priors={"sigma": Prior("Gamma", mu=7, sigma=1, dims="event")}
+        ),
+        effect_size=Prior("Normal", mu=0, sigma=1, dims="event"),
+        dims=("event",),
+    )
+
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["C1", "C2"],
+        target_column="y",
+        adstock=GeometricAdstock(l_max=10),
+        saturation=LogisticSaturation(),
+    )
+    mmm.add_events(df_events=df_events, prefix="event", effect=effect)
+    mmm.fit(X, y)
+
+Save, load, and plot:
+
+.. code-block:: python
+
+    mmm.save("mmm.nc")
+    loaded = MMM.load("mmm.nc")
+    _ = loaded.plot.posterior_predictive()
+
+Notes
+-----
+- X must include `date`, the `channel_columns`, and any extra `dims` columns.
+- y is a Series with name equal to `target_column`.
+- Call `add_events` before fitting/building.
+"""
 
 from __future__ import annotations
 

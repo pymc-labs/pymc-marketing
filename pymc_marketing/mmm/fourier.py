@@ -522,7 +522,7 @@ class FourierBase(BaseModel):
         """
         full_period = np.arange(self.days_in_period + 1)
 
-        coords = {}
+        coords: dict[str, npt.NDArray[Any]] = {}
         if use_dates:
             start_date = self.get_default_start_date(start_date=start_date)
             date_range = pd.date_range(
