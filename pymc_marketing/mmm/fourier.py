@@ -944,14 +944,19 @@ class WeeklyFourier(FourierBase):
         )
 
     def _get_days_in_period(self, dates: pd.DatetimeIndex) -> pd.Index:
-        """Return the weekday within the weekly periodicity.
+        """Return dayofyear associated with dates.
+
+        With no gaps, a pure weekly Fourier basis sin(2π k t/7) will evaluate the same whether
+        you pass t=dayofyear or t=weekday, because the sine/cos only depend on t mod 7.
+        However, there are empirical reasons to prefer this representation,
+        since it avoids divergences when used in combination with tvp.
 
         Returns
         -------
         int or float
             The relevant period within the characteristic periodicity
         """
-        return dates.weekday
+        return dates.dayofyear
 
 
 def _is_yearly_fourier(data: Any) -> bool:
