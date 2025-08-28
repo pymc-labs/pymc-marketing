@@ -71,8 +71,8 @@ Parameters
             penalty = self.penalty_provider(dates)
             pm.set_data({f"{self.name}_penalty": penalty}, model=model)
 
-    # Usage
-    # -----
+    Usage
+    -----
     # Example weekend penalty (Sat/Sun = 1, else 0), applied per geo if present
     weekend_penalty = PenaltyEffect(
         name="brand_penalty",

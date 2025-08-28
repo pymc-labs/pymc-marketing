@@ -182,10 +182,10 @@ Requirements
 
 - The optimizer works on any wrapper that satisfies `OptimizerCompatibleModelWrapper`:
   - Attributes: `adstock`, `_channel_scales`, `idata` (arviz.InferenceData with posterior)
-  - Method: `_set_predictors_for_optimization(num_periods) -> pm.Model`
-    that returns a PyMC model where a variable named `channel_data` exists with dims
-    including `"date"` and all budget dims (e.g., `("channel", "geo")`). The optimizer replaces
-    `channel_data` with the optimization variable under the hood.
+  - Method: `_set_predictors_for_optimization(num_periods) -> pm.Model` that returns a PyMC
+    model where a variable named `channel_data` exists with dims including `"date"` and all
+    budget dims (e.g., `("channel", "geo")`).
+    The optimizer replaces `channel_data` with the optimization variable under the hood.
 - Posterior must contain a response variable (default: `"total_contribution"`) or any custom
   `response_variable` you pass, and the required MMM deterministics (e.g. `channel_contribution`).
 - For time distribution: pass a DataArray with dims `("date", *budget_dims)` and values along
