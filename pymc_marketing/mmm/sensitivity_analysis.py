@@ -242,7 +242,7 @@ class SensitivityAnalysis:
         posterior_sample_batch: int = 1,
         var_names_filter: dict[str, list] | None = None,
         extend_idata: bool = False,
-    ) -> np.ndarray:
+    ) -> xr.DataArray | None:
         """
         Run sweeps and compute marginal effects.
 
@@ -250,7 +250,7 @@ class SensitivityAnalysis:
         ----------
         varinput : str
             Name of the pm.Data variable (e.g., "channel_data").
-            Expected shape: (date, *dims, channel)
+            Expected shape: (date, *dims, arbitrary_dim) that match varinput dims.
         sweep_values : np.ndarray
             Values to sweep over.
         var_names : str
@@ -262,8 +262,10 @@ class SensitivityAnalysis:
 
         Returns
         -------
-        np.ndarray
-            Marginal effects of shape (n_samples, n_sweeps, *dims_order)
+        xarray.DataArray | None
+            If extend_idata is False, returns an xarray.DataArray with shape
+            (sample, sweep, *dims_order). If extend_idata is True, stores the
+            result under `idata.sensitivity_analysis` and returns None.
         """
         # Determine dims order from the provided varinput (drop 'date')
         dims_order = self._compute_dims_order_from_varinput(varinput)
@@ -318,7 +320,7 @@ class SensitivityAnalysis:
         )
         if extend_idata:
             self._add_to_idata(xr_result)
-            return stacked
+            return None
         else:
             return xr_result
 
