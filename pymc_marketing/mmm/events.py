@@ -331,12 +331,10 @@ class AsymmetricGaussianBasis(Basis):
 
     def __init__(
         self,
-        event_in: Literal["minus", "plus", "exclude"] = "exclude",
         drop: bool = False,
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.event_in = event_in
         self.drop = drop
 
     def function(
@@ -348,23 +346,8 @@ class AsymmetricGaussianBasis(Basis):
         a_after: pt.TensorLike,
     ) -> pt.TensorVariable:
         """Asymmetric Gaussian bump function."""
-        # indicator_before = pt.cast(x < 0, "float32")
-        # indicator_after = pt.cast(x >= 0, "float32")
-
-        # Default masks (excluding x == 0)
         indicator_before = pt.cast(x < 0, "float32")
-        indicator_after = pt.cast(x > 0, "float32")
-
-        # Handle event day (x == 0) depending on `event_in`
-        if self.event_in == "minus":
-            indicator_before = pt.cast((x < 0) | (x == 0), "float32")
-        elif self.event_in == "plus":
-            indicator_after = pt.cast((x > 0) | (x == 0), "float32")
-        elif self.event_in == "exclude":
-            # x == 0 goes to neither side, already handled by defaults
-            pass
-        else:
-            raise ValueError(f"Invalid event_in: {self.event_in}")
+        indicator_after = pt.cast(x >= 0, "float32")
 
         y_before = (
             a_before * indicator_before * pm.math.exp(-0.5 * (x / sigma_before) ** 2)
