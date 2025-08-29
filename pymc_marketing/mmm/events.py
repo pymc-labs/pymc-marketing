@@ -313,6 +313,58 @@ class HalfGaussianBasis(Basis):
     }
 
 
+class AsymmetricGaussianBasis(Basis):
+    """
+    Asymmetric Gaussian bump basis transformation.
+
+    Allows different widths (sigma_before, sigma_after) and amplitudes (a_before, a_after)
+    before and after the event. Optionally, set `drop=True` to invert the bump
+    after the event (to model sudden declines).
+
+    Parameters
+    ----------
+    priors : dict[str, Prior]
+        Prior for the sigma_before, sigma_after, a_before, and a_after parameters.
+    """
+
+    lookup_name = "asymmetric_gaussian"
+
+    def __init__(
+        self,
+        drop: bool = False,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.drop = drop
+
+    def function(
+        self,
+        x: pt.TensorLike,
+        sigma_before: pt.TensorLike,
+        sigma_after: pt.TensorLike,
+        a_before: pt.TensorLike,
+        a_after: pt.TensorLike,
+    ) -> pt.TensorVariable:
+        """Asymmetric Gaussian bump function."""
+        indicator_before = pt.cast(x < 0, "float32")
+        indicator_after = pt.cast(x >= 0, "float32")
+
+        y_before = (
+            a_before * indicator_before * pm.math.exp(-0.5 * (x / sigma_before) ** 2)
+        )
+        y_after = a_after * indicator_after * pm.math.exp(-0.5 * (x / sigma_after) ** 2)
+
+        drop_sign = 2 * int(self.drop) - 1
+        return y_before - drop_sign * y_after
+
+    default_priors = {
+        "sigma_before": Prior("Gamma", mu=3, sigma=1),
+        "sigma_after": Prior("Gamma", mu=7, sigma=2),
+        "a_before": Prior("Normal", mu=1, sigma=0.5),
+        "a_after": Prior("Normal", mu=1, sigma=0.5),
+    }
+
+
 def days_from_reference(
     dates: pd.Series | pd.DatetimeIndex,
     reference_date: str | pd.Timestamp,
