@@ -12,7 +12,195 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-"""Budget optimization module."""
+"""Budget optimization module.
+
+Overview
+--------
+
+Optimize how to allocate a total budget across channels (and optional extra dims) to
+maximize an expected response derived from a fitted MMM posterior.
+
+Quickstart (multi‑dimensional MMM)
+---------------------------------
+
+.. code-block:: python
+
+    import numpy as np
+    import pandas as pd
+    import xarray as xr
+    from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
+    from pymc_marketing.mmm.multidimensional import (
+        MMM,
+        MultiDimensionalBudgetOptimizerWrapper,
+    )
+
+    # 1) Fit a model (toy example)
+    X = pd.DataFrame(
+        {
+            "date": pd.date_range("2025-01-01", periods=30, freq="W-MON"),
+            "geo": np.random.choice(["A", "B"], size=30),
+            "C1": np.random.rand(30),
+            "C2": np.random.rand(30),
+        }
+    )
+    y = pd.Series(np.random.rand(30), name="y")
+
+    mmm = MMM(
+        date_column="date",
+        dims=("geo",),
+        channel_columns=["C1", "C2"],
+        target_column="y",
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+    )
+    mmm.fit(X, y)
+
+    # 2) Wrap the fitted model for allocation over a future window
+    wrapper = MultiDimensionalBudgetOptimizerWrapper(
+        model=mmm,
+        start_date=X["date"].max() + pd.Timedelta(weeks=1),
+        end_date=X["date"].max() + pd.Timedelta(weeks=8),
+    )
+
+    # Optional: choose which (channel, geo) cells to optimize
+    budgets_to_optimize = xr.DataArray(
+        np.array([[True, False], [True, True]]),
+        dims=["channel", "geo"],
+        coords={"channel": ["C1", "C2"], "geo": ["A", "B"]},
+    )
+
+    # Optional: distribute each cell's budget over the time window (must sum to 1 along date)
+    dates = pd.date_range(wrapper.start_date, wrapper.end_date, freq="W-MON")
+    factors = xr.DataArray(
+        np.vstack(
+            [
+                np.full(len(dates), 1 / len(dates)),  # C1: uniform
+                np.linspace(0.7, 0.3, len(dates)),  # C2: front‑to‑back taper
+            ]
+        ),
+        dims=["channel", "date"],
+        coords={"channel": ["C1", "C2"], "date": np.arange(len(dates))},
+    )
+
+    # 3) Optimize
+    optimal, res = wrapper.optimize_budget(
+        budget=100.0,
+        budgets_to_optimize=budgets_to_optimize,
+        budget_distribution_over_period=factors,
+        response_variable="total_media_contribution_original_scale",
+    )
+    # `optimal` is an xr.DataArray with dims (channel, geo)
+
+Use a custom pymc model with any dimensionality
+----------------------------------------------
+
+.. code-block:: python
+
+    import numpy as np
+    import pandas as pd
+    import pymc as pm
+    import xarray as xr
+    from pymc_marketing.mmm.budget_optimizer import (
+        BudgetOptimizer,
+        optimizer_xarray_builder,
+    )
+
+    # 1) Build and fit any PyMC model that exposes:
+    #    - a variable named 'channel_data' with dims ("date", "channel", ...)
+    #    - a deterministic named 'total_contribution' with dim "date"
+    #    - optionally a deterministic named 'channel_contribution' with dims ("date", "channel", ...)
+    #      so the optimizer can auto-detect optimizable cells; otherwise pass budgets_to_optimize.
+
+    rng = np.random.default_rng(0)
+    dates = pd.date_range("2025-01-01", periods=30, freq="W-MON")
+    channels = ["C1", "C2", "C3"]
+    X = rng.uniform(0.0, 1.0, size=(len(dates), len(channels)))
+    true_beta = np.array([0.8, 0.4, 0.2])
+    y = (X @ true_beta) + rng.normal(0.0, 0.1, size=len(dates))
+
+    coords = {"date": dates, "channel": channels}
+    with pm.Model(coords=coords) as train_model:
+        pm.Data("channel_data", X, dims=("date", "channel"))
+        beta = pm.Normal("beta", 0.0, 1.0, dims="channel")
+        mu = (train_model["channel_data"] * beta).sum("channel")
+        pm.Deterministic("total_contribution", mu, dims="date")
+        pm.Deterministic(
+            "channel_contribution",
+            train_model["channel_data"] * beta,
+            dims=("date", "channel"),
+        )
+        sigma = pm.HalfNormal("sigma", 0.2)
+        pm.Normal("y", mu=mu, sigma=sigma, observed=y, dims="date")
+
+        idata = pm.sample(100, tune=100, chains=2, random_seed=1)
+
+
+    # 2) Create a minimal wrapper satisfying OptimizerCompatibleModelWrapper
+    class SimpleWrapper:
+        def __init__(self, idata, channels):
+            # required attributes
+            self.idata = idata
+            self.channel_columns = list(channels)  # used if bounds is a dict
+            self._channel_scales = 1.0  # scalar or array broadcastable to channel dims
+            self.adstock = type("Adstock", (), {"l_max": 0})()  # no carryover
+
+        def _set_predictors_for_optimization(self, num_periods: int) -> pm.Model:
+            coords = {"date": np.arange(num_periods), "channel": self.channel_columns}
+            # clone model
+            m = cm(self.model)
+
+            # Set the channel_data for optimization
+            pm.set_data(
+                {"channel_data": np.zeros((num_periods, len(self.channel_columns)))},
+                model=m,
+            )
+            return m
+
+
+    wrapper = SimpleWrapper(idata=idata, channels=channels)
+
+    # 3) Optimize N future periods with optional bounds and/or masks
+    optimizer = BudgetOptimizer(model=wrapper, num_periods=8)
+
+    # Optional: bounds per channel (single budget dim, using dict)
+    bounds = {"C1": (0.0, 50.0), "C2": (0.0, 40.0), "C3": (0.0, 60.0)}
+
+    # Or as an xarray when you have multiple budget dims, e.g. (channel, geo):
+    # bounds = optimizer_xarray_builder(
+    #     value=np.array([[0.0, 50.0], [0.0, 40.0], [0.0, 60.0]]),
+    #     channel=channels,
+    #     bound=["lower", "upper"],
+    # )
+
+    allocation, result = optimizer.allocate_budget(
+        total_budget=100.0, budget_bounds=bounds
+    )
+    # allocation is an xr.DataArray with dims inferred from your model's channel_data dims (excluding date)
+
+Requirements
+------------
+
+- The optimizer works on any wrapper that satisfies `OptimizerCompatibleModelWrapper`:
+  - Attributes: `adstock`, `_channel_scales`, `idata` (arviz.InferenceData with posterior)
+  - Method: `_set_predictors_for_optimization(num_periods) -> pm.Model` that returns a PyMC
+    model where a variable named `channel_data` exists with dims including `"date"` and all
+    budget dims (e.g., `("channel", "geo")`).
+    The optimizer replaces `channel_data` with the optimization variable under the hood.
+- Posterior must contain a response variable (default: `"total_contribution"`) or any custom
+  `response_variable` you pass, and the required MMM deterministics (e.g. `channel_contribution`).
+- For time distribution: pass a DataArray with dims `("date", *budget_dims)` and values along
+  `date` summing to 1 for each budget cell.
+- Bounds can be a dict only for single‑dimensional budgets; otherwise use an xarray.DataArray
+  (use `optimizer_xarray_builder(...)`).
+
+Notes
+-----
+- If `budgets_to_optimize` is not provided, the optimizer auto‑detects cells with historical
+  information using `idata.posterior.channel_contribution.mean(("chain","draw","date")).astype(bool)`.
+- Default bounds are `[0, total_budget]` on each optimized cell.
+- Set `callback=True` in `allocate_budget(...)` to receive per‑iteration diagnostics
+  (objective, gradient, constraints) for monitoring.
+"""
 
 import warnings
 from collections.abc import Sequence
