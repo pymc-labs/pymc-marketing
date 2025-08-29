@@ -492,8 +492,17 @@ def test_event_effect_dim_validation(sigma_dims, effect_dims) -> None:
         EventEffect(basis=basis, effect_size=effect_size, dims="event")
 
 
-def test_half_gaussian_function_after_include_event_true():
-    half = HalfGaussianBasis()
+@pytest.mark.parametrize(
+    "mode, include_event",
+    [
+        pytest.param("after", True, id="after_include_event_true"),
+        pytest.param("before", True, id="before_include_event_true"),
+        pytest.param("after", False, id="after_include_event_false"),
+        pytest.param("before", False, id="before_include_event_false"),
+    ],
+)
+def test_half_gaussian_function_after_include_event_true(mode, include_event):
+    half = HalfGaussianBasis(mode=mode, include_event=include_event)
 
     x = np.array([-2.0, -1.0, 0.0, 1.0, 2.0])
     sigma = np.array([1.0])
@@ -501,46 +510,12 @@ def test_half_gaussian_function_after_include_event_true():
     result = half.function(x, sigma).eval()
     expected = np.exp(-0.5 * (x / sigma) ** 2)
     # For mode="after" with include_event=True, mask x < 0 only
-    expected[x < 0] = 0.0
-    np.testing.assert_allclose(result, expected)
-
-
-def test_half_gaussian_function_after_include_event_false():
-    half = HalfGaussianBasis(include_event=False)
-
-    x = np.array([-2.0, -1.0, 0.0, 1.0, 2.0])
-    sigma = np.array([1.0])
-
-    result = half.function(x, sigma).eval()
-    expected = np.exp(-0.5 * (x / sigma) ** 2)
-    # For mode="after" with include_event=False, mask x <= 0
-    expected[x <= 0] = 0.0
-    np.testing.assert_allclose(result, expected)
-
-
-def test_half_gaussian_function_before_include_event_true():
-    half = HalfGaussianBasis(mode="before")
-
-    x = np.array([-2.0, -1.0, 0.0, 1.0, 2.0])
-    sigma = np.array([1.0])
-
-    result = half.function(x, sigma).eval()
-    expected = np.exp(-0.5 * (x / sigma) ** 2)
-    # For mode="before" with include_event=True, mask x > 0 only
-    expected[x > 0] = 0.0
-    np.testing.assert_allclose(result, expected)
-
-
-def test_half_gaussian_function_before_include_event_false():
-    half = HalfGaussianBasis(mode="before", include_event=False)
-
-    x = np.array([-2.0, -1.0, 0.0, 1.0, 2.0])
-    sigma = np.array([1.0])
-
-    result = half.function(x, sigma).eval()
-    expected = np.exp(-0.5 * (x / sigma) ** 2)
-    # For mode="before" with include_event=False, mask x >= 0
-    expected[x >= 0] = 0.0
+    if mode == "after":
+        expected[x < 0] = 0.0
+    else:
+        expected[x > 0] = 0.0
+    if not include_event:
+        expected[x == 0] = 0.0
     np.testing.assert_allclose(result, expected)
 
 
