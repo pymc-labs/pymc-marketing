@@ -92,7 +92,7 @@ This module provides event transformations for use in Marketing Mix Models.
 
 """
 
-from typing import cast
+from typing import Literal, cast
 
 import numpy as np
 import numpy.typing as npt
@@ -262,6 +262,49 @@ class GaussianBasis(Basis):
     def function(self, x: pt.TensorLike, sigma: pt.TensorLike) -> TensorVariable:
         """Gaussian bump function."""
         return pm.math.exp(-0.5 * (x / sigma) ** 2)
+
+    default_priors = {
+        "sigma": Prior("Gamma", mu=7, sigma=1),
+    }
+
+
+class HalfGaussianBasis(Basis):
+    """One-sided Gaussian basis transformation.
+
+    Parameters
+    ----------
+    priors : dict[str, Prior]
+        Prior for the sigma parameter.
+    mode : Literal["after", "before"]
+        Whether the basis is located before or after the event.
+    include_event : bool
+        Whether to include the event days in the basis.
+    """
+
+    lookup_name = "half_gaussian"
+
+    def __init__(
+        self,
+        mode: Literal["after", "before"] = "after",
+        include_event: bool = True,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.mode = mode
+        self.include_event = include_event
+
+    def function(self, x: pt.TensorLike, sigma: pt.TensorLike) -> TensorVariable:
+        """One-sided Gaussian bump function."""
+        out = pm.math.exp(-0.5 * (x / sigma) ** 2)
+        # Sign determines if the zeroing happens after or before the event.
+        sign = np.array([1]) if self.mode == "after" else np.array([-1])
+        # Zero out the basis before/after the event.
+        out = out[sign * x <= 0].set(0)
+        # Zero out the basis at the event day if not included.
+        if not self.include_event:
+            out = out[sign * x == 0].set(0)
+
+        return out
 
     default_priors = {
         "sigma": Prior("Gamma", mu=7, sigma=1),
