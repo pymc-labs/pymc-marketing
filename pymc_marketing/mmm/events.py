@@ -273,12 +273,14 @@ class HalfGaussianBasis(Basis):
 
     Parameters
     ----------
-    priors : dict[str, Prior]
-        Prior for the sigma parameter.
     mode : Literal["after", "before"]
         Whether the basis is located before or after the event.
     include_event : bool
         Whether to include the event days in the basis.
+    priors : dict[str, Prior]
+        Prior for the sigma parameter.
+    prefix : str
+        Prefix for the parameter names.
     """
 
     lookup_name = "half_gaussian"
@@ -308,6 +310,14 @@ class HalfGaussianBasis(Basis):
 
         return pt.switch(pre_mask, 0, out)
 
+    def to_dict(self) -> dict:
+        """Convert the half Gaussian basis to a dictionary."""
+        return {
+            **super().to_dict(),
+            "mode": self.mode,
+            "include_event": self.include_event,
+        }
+
     default_priors = {
         "sigma": Prior("Gamma", mu=7, sigma=1),
     }
@@ -323,8 +333,15 @@ class AsymmetricGaussianBasis(Basis):
 
     Parameters
     ----------
+    drop : bool
+        Whether to invert the effect on opposite sides of the event.
+    event_in: Literal["before", "after", "exclude"]
+        Whether to include the event in the before or after part of the basis,
+        or leave it out entirely. Default is "after".
     priors : dict[str, Prior]
         Prior for the sigma_before, sigma_after, a_before, and a_after parameters.
+    prefix : str
+        Prefix for the parameters.
     """
 
     lookup_name = "asymmetric_gaussian"
@@ -332,10 +349,12 @@ class AsymmetricGaussianBasis(Basis):
     def __init__(
         self,
         drop: bool = False,
+        event_in: Literal["before", "after", "exclude"] = "after",
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.drop = drop
+        self.event_in = event_in
 
     def function(
         self,
@@ -346,16 +365,40 @@ class AsymmetricGaussianBasis(Basis):
         a_after: pt.TensorLike,
     ) -> pt.TensorVariable:
         """Asymmetric Gaussian bump function."""
-        indicator_before = pt.cast(x < 0, "float32")
-        indicator_after = pt.cast(x >= 0, "float32")
+        match self.event_in:
+            case "before":
+                indicator_before = pt.cast(x <= 0, "float32")
+                indicator_after = pt.cast(x > 0, "float32")
+            case "after":
+                indicator_before = pt.cast(x < 0, "float32")
+                indicator_after = pt.cast(x >= 0, "float32")
+            case "exclude":
+                indicator_before = pt.cast(x < 0, "float32")
+                indicator_after = pt.cast(x > 0, "float32")
+            case _:
+                raise ValueError(f"Invalid event_in: {self.event_in}")
 
-        y_before = (
-            a_before * indicator_before * pm.math.exp(-0.5 * (x / sigma_before) ** 2)
+        y_before = pt.switch(
+            indicator_before,
+            pm.math.exp(-0.5 * (x / sigma_before) ** 2) * a_before,
+            0,
         )
-        y_after = a_after * indicator_after * pm.math.exp(-0.5 * (x / sigma_after) ** 2)
+        y_after = pt.switch(
+            indicator_after,
+            pm.math.exp(-0.5 * (x / sigma_after) ** 2) * a_after,
+            0,
+        )
 
-        drop_sign = 2 * int(self.drop) - 1
-        return y_before - drop_sign * y_after
+        drop_sign = 1.0 - 2.0 * self.drop
+        return y_before + drop_sign * y_after
+
+    def to_dict(self) -> dict:
+        """Convert the asymmetric Gaussian basis to a dictionary."""
+        return {
+            **super().to_dict(),
+            "drop": self.drop,
+            "event_in": self.event_in,
+        }
 
     default_priors = {
         "sigma_before": Prior("Gamma", mu=3, sigma=1),
