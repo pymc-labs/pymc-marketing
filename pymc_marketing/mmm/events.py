@@ -297,14 +297,16 @@ class HalfGaussianBasis(Basis):
         """One-sided Gaussian bump function."""
         out = pm.math.exp(-0.5 * (x / sigma) ** 2)
         # Sign determines if the zeroing happens after or before the event.
-        sign = np.array([1]) if self.mode == "after" else np.array([-1])
-        # Zero out the basis before/after the event.
-        out = out[sign * x <= 0].set(0)
-        # Zero out the basis at the event day if not included.
+        sign = 1 if self.mode == "after" else -1
+        # Build boolean mask(s) in x's shape and broadcast to out's shape.
+        pre_mask = sign * x < 0
         if not self.include_event:
-            out = out[sign * x == 0].set(0)
+            pre_mask = pm.math.or_(pre_mask, sign * x == 0)
 
-        return out
+        # Ensure mask matches output shape for elementwise switch
+        pre_mask = pt.broadcast_to(pre_mask, out.shape)
+
+        return pt.switch(pre_mask, 0, out)
 
     default_priors = {
         "sigma": Prior("Gamma", mu=7, sigma=1),

@@ -23,6 +23,7 @@ from pymc_extras.prior import Prior
 from pymc_marketing.mmm.events import (
     EventEffect,
     GaussianBasis,
+    HalfGaussianBasis,
     basis_from_dict,
     days_from_reference,
 )
@@ -489,3 +490,134 @@ def test_event_effect_dim_validation(sigma_dims, effect_dims) -> None:
 
     with pytest.raises(ValueError):
         EventEffect(basis=basis, effect_size=effect_size, dims="event")
+
+
+def test_half_gaussian_function_after_include_event_true():
+    half = HalfGaussianBasis()
+
+    x = np.array([-2.0, -1.0, 0.0, 1.0, 2.0])
+    sigma = np.array([1.0])
+
+    result = half.function(x, sigma).eval()
+    expected = np.exp(-0.5 * (x / sigma) ** 2)
+    # For mode="after" with include_event=True, mask x < 0 only
+    expected[x < 0] = 0.0
+    np.testing.assert_allclose(result, expected)
+
+
+def test_half_gaussian_function_after_include_event_false():
+    half = HalfGaussianBasis(include_event=False)
+
+    x = np.array([-2.0, -1.0, 0.0, 1.0, 2.0])
+    sigma = np.array([1.0])
+
+    result = half.function(x, sigma).eval()
+    expected = np.exp(-0.5 * (x / sigma) ** 2)
+    # For mode="after" with include_event=False, mask x <= 0
+    expected[x <= 0] = 0.0
+    np.testing.assert_allclose(result, expected)
+
+
+def test_half_gaussian_function_before_include_event_true():
+    half = HalfGaussianBasis(mode="before")
+
+    x = np.array([-2.0, -1.0, 0.0, 1.0, 2.0])
+    sigma = np.array([1.0])
+
+    result = half.function(x, sigma).eval()
+    expected = np.exp(-0.5 * (x / sigma) ** 2)
+    # For mode="before" with include_event=True, mask x > 0 only
+    expected[x > 0] = 0.0
+    np.testing.assert_allclose(result, expected)
+
+
+def test_half_gaussian_function_before_include_event_false():
+    half = HalfGaussianBasis(mode="before", include_event=False)
+
+    x = np.array([-2.0, -1.0, 0.0, 1.0, 2.0])
+    sigma = np.array([1.0])
+
+    result = half.function(x, sigma).eval()
+    expected = np.exp(-0.5 * (x / sigma) ** 2)
+    # For mode="before" with include_event=False, mask x >= 0
+    expected[x >= 0] = 0.0
+    np.testing.assert_allclose(result, expected)
+
+
+def test_half_gaussian_basis_curve_sampling_shape():
+    half = HalfGaussianBasis(
+        priors={
+            "sigma": Prior("Gamma", mu=[4, 7], sigma=1, dims="event"),
+        },
+    )
+    coords = {"event": ["A", "B"]}
+    prior = half.sample_prior(coords=coords)
+    curve = half.sample_curve(prior, days=10)
+
+    assert curve.dims == ("chain", "draw", "x", "event")
+    assert curve.event.size == 2
+    assert curve.x.size == 100
+
+
+def test_half_gaussian_in_event_effect_apply():
+    # Simple one-event setup to check integration
+    df_events = pd.DataFrame(
+        {
+            "event": ["e1"],
+            "start_date": pd.to_datetime(["2023-01-10"]),
+            "end_date": pd.to_datetime(["2023-01-11"]),
+        }
+    )
+
+    dates = pd.date_range("2023-01-01", periods=25, freq="D")
+
+    def difference_in_days(model_dates, event_dates):
+        if hasattr(model_dates, "to_numpy"):
+            model_dates = model_dates.to_numpy()
+        if hasattr(event_dates, "to_numpy"):
+            event_dates = event_dates.to_numpy()
+        return (model_dates[:, None] - event_dates) / np.timedelta64(1, "D")
+
+    def create_basis_matrix(df_events: pd.DataFrame, model_dates: np.ndarray):
+        start_dates = df_events["start_date"]
+        end_dates = df_events["end_date"]
+        s_ref = difference_in_days(model_dates, start_dates)
+        e_ref = difference_in_days(model_dates, end_dates)
+        return np.where(
+            (s_ref >= 0) & (e_ref <= 0),
+            0,
+            np.where(np.abs(s_ref) < np.abs(e_ref), s_ref, e_ref),
+        )
+
+    X = create_basis_matrix(df_events, dates)
+
+    half = HalfGaussianBasis(
+        priors={
+            "sigma": Prior("Gamma", mu=5, sigma=1, dims="event"),
+        },
+        mode="after",
+        include_event=False,
+    )
+    effect_size = Prior("Normal", mu=1, sigma=1, dims="event")
+    effect = EventEffect(basis=half, effect_size=effect_size, dims=("event",))
+
+    coords = {"date": dates, "event": df_events["event"].to_numpy()}
+    with pm.Model(coords=coords):
+        y = effect.apply(X)
+        assert tuple(y.shape.eval()) == (len(dates), 1)
+
+
+def test_half_gaussian_serialization():
+    half = HalfGaussianBasis(
+        priors={
+            "sigma": Prior("Gamma", mu=7, sigma=1),
+        },
+        mode="before",
+        include_event=False,
+    )
+
+    d = half.to_dict()
+    restored = basis_from_dict(d)
+
+    assert isinstance(restored, HalfGaussianBasis)
+    assert restored.lookup_name == "half_gaussian"

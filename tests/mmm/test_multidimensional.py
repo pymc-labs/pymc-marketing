@@ -27,7 +27,7 @@ from scipy.optimize import OptimizeResult
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation, SoftPlusHSGP
 from pymc_marketing.mmm.additive_effect import EventAdditiveEffect, LinearTrendEffect
-from pymc_marketing.mmm.events import EventEffect, GaussianBasis
+from pymc_marketing.mmm.events import EventEffect, GaussianBasis, HalfGaussianBasis
 from pymc_marketing.mmm.lift_test import _swap_columns_and_last_index_level
 from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.mmm.multidimensional import (
@@ -909,6 +909,53 @@ def test_mmm_with_events(
     )
 
     assert less_effect_for_out_of_sample.to_pandas().all()
+
+
+@pytest.mark.parametrize(
+    "basis_factory, expected_zero",
+    [
+        pytest.param(lambda: GaussianBasis(), False, id="gaussian"),
+        pytest.param(
+            lambda: HalfGaussianBasis(mode="after", include_event=True),
+            False,
+            id="halfgaussian-after",
+        ),
+        pytest.param(
+            lambda: HalfGaussianBasis(mode="before", include_event=True),
+            True,
+            id="halfgaussian-before",
+        ),
+    ],
+)
+def test_mmm_with_events_bases(
+    df_events,
+    mmm,
+    df,
+    basis_factory,
+    expected_zero,
+):
+    basis = basis_factory()
+    effect = EventEffect(basis=basis, effect_size=Prior("Normal"), dims=("holiday",))
+
+    mmm.add_events(
+        df_events=df_events,
+        prefix="holiday",
+        effect=effect,
+    )
+
+    X = df.drop(columns=["y"])
+    y = df["y"]
+
+    mmm.build_model(X, y)
+    mmm.sample_prior_predictive(X, y)  # type: ignore
+
+    da = mmm.prior["holiday_total_effect"]
+    assert "date" in da.dims
+
+    if expected_zero:
+        np.testing.assert_allclose(da, 0)
+    else:
+        assert np.any(np.abs(da.values) > 0)
 
 
 @pytest.mark.parametrize(
