@@ -269,7 +269,30 @@ class GaussianBasis(Basis):
 
 
 class HalfGaussianBasis(Basis):
-    """One-sided Gaussian basis transformation.
+    """
+    One-sided Gaussian basis transformation.
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        from pymc_marketing.mmm.events import HalfGaussianBasis
+        from pymc_extras.priors import Prior
+
+        half_gaussian = HalfGaussianBasis(
+            priors={
+                "sigma": Prior("Gamma", mu=[2, 5], sigma=[2,1], dims="event"),
+            }
+        )
+        coords = {"event": ["PyData-Berlin", "PyCon-Finland"]}
+        prior = half_gaussian.sample_prior(coords=coords)
+        curve = half_gaussian.sample_curve(prior)
+        fig, axes = half_gaussian.plot_curve(
+            curve, subplot_kwargs={"figsize": (6, 3), "sharey": True}
+        )
+        for ax in axes:
+            ax.set_xlabel("")
+        plt.show()
 
     Parameters
     ----------
@@ -327,9 +350,32 @@ class AsymmetricGaussianBasis(Basis):
     """
     Asymmetric Gaussian bump basis transformation.
 
-    Allows different widths (sigma_before, sigma_after) and amplitudes (a_before, a_after)
-    before and after the event. Optionally, set `drop=True` to invert the bump
-    after the event (to model sudden declines).
+    Allows surrounding an event with two half Gaussians with different scales
+    (`sigma_before`, and `sigma_after`) and amplitudes (`a_before`, and `a_after`).
+    Optionally, set `drop=True` to invert the bump after the event.
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        from pymc_marketing.mmm.events import AsymmetricGaussianBasis
+        from pymc_extras.priors import Prior
+
+        asy_gaussian = AsymmetricGaussianBasis(
+            priors={
+                "sigma_before": Prior("Gamma", mu=[2, 5], sigma=[2,1], dims="event"),
+                "a_after": Prior("Normal", mu=[-.75, -.5], sigma=[.1,.2], dims="event"),
+            }
+        )
+        coords = {"event": ["PyData-Berlin", "PyCon-Finland"]}
+        prior = asy_gaussian.sample_prior(coords=coords)
+        curve = asy_gaussian.sample_curve(prior)
+        fig, axes = asy_gaussian.plot_curve(
+            curve, subplot_kwargs={"figsize": (6, 3), "sharey": True}
+        )
+        for ax in axes:
+            ax.set_xlabel("")
+        plt.show()
 
     Parameters
     ----------
@@ -339,7 +385,7 @@ class AsymmetricGaussianBasis(Basis):
         Whether to include the event in the before or after part of the basis,
         or leave it out entirely. Default is "after".
     priors : dict[str, Prior]
-        Prior for the sigma_before, sigma_after, a_before, and a_after parameters.
+        Priors for the sigma_before, sigma_after, a_before, and a_after parameters.
     prefix : str
         Prefix for the parameters.
     """
