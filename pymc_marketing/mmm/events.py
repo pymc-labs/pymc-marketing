@@ -350,9 +350,29 @@ class AsymmetricGaussianBasis(Basis):
     """
     Asymmetric Gaussian bump basis transformation.
 
-    Allows different widths (sigma_before, sigma_after) and amplitudes (a_before, a_after)
-    before and after the event. Optionally, set `drop=True` to invert the bump
-    after the event (to model sudden declines).
+    Allows different widths (sigma_before, sigma_after) and amplitudes (a_after)
+    after the event.
+
+    .. plot::
+        :context: close-figs
+        import matplotlib.pyplot as plt
+        from pymc_marketing.mmm.events import AsymmetricGaussianBasis
+        from pymc_extras.priors import Prior
+        asy_gaussian = AsymmetricGaussianBasis(
+            priors={
+                "sigma_before": Prior("Gamma", mu=[2, 5], sigma=[2,1], dims="event"),
+                "a_after": Prior("Normal", mu=[-.75, -.5], sigma=[.1,.2], dims="event"),
+            }
+        )
+        coords = {"event": ["PyData-Berlin", "PyCon-Finland"]}
+        prior = asy_gaussian.sample_prior(coords=coords)
+        curve = asy_gaussian.sample_curve(prior)
+        fig, axes = asy_gaussian.plot_curve(
+            curve, subplot_kwargs={"figsize": (6, 3), "sharey": True}
+        )
+        for ax in axes:
+            ax.set_xlabel("")
+        plt.show()
 
     Parameters
     ----------
