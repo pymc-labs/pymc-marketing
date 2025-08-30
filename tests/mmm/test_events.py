@@ -604,17 +604,14 @@ def test_half_gaussian_serialization():
 
 
 @pytest.mark.parametrize(
-    "drop, event_in",
+    "event_in",
     [
-        pytest.param(False, "after", id="after"),
-        pytest.param(False, "before", id="before"),
-        pytest.param(False, "exclude", id="exclude"),
-        pytest.param(True, "after", id="after_drop"),
-        pytest.param(True, "before", id="before_drop"),
-        pytest.param(True, "exclude", id="exclude_drop"),
+        pytest.param("after", id="after"),
+        pytest.param("before", id="before"),
+        pytest.param("exclude", id="exclude"),
     ],
 )
-def test_asymmetric_gaussian_basis_function(drop, event_in):
+def test_asymmetric_gaussian_basis_function(event_in):
     """Test the AsymmetricGaussianBasis function with different event_in modes."""
     # Test with event_in="after" (default)
     asymmetric = AsymmetricGaussianBasis(event_in=event_in)
