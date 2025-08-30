@@ -365,7 +365,7 @@ class AsymmetricGaussianBasis(Basis):
         Prefix for the parameters.
     """
 
-    lookup_name = "asymcfds_gaussian"
+    lookup_name = "asymmetric_gaussian"
 
     def __init__(
         self,
