@@ -350,56 +350,29 @@ class AsymmetricGaussianBasis(Basis):
     """
     Asymmetric Gaussian bump basis transformation.
 
-    Allows surrounding an event with two half Gaussians with different scales
-    (`sigma_before`, and `sigma_after`) and amplitudes (`a_before`, and `a_after`).
-    Optionally, set `drop=True` to invert the bump after the event.
-
-    .. plot::
-        :context: close-figs
-
-        import matplotlib.pyplot as plt
-        from pymc_marketing.mmm.events import AsymmetricGaussianBasis
-        from pymc_extras.priors import Prior
-
-        asy_gaussian = AsymmetricGaussianBasis(
-            priors={
-                "sigma_before": Prior("Gamma", mu=[2, 5], sigma=[2,1], dims="event"),
-                "a_after": Prior("Normal", mu=[-.75, -.5], sigma=[.1,.2], dims="event"),
-            }
-        )
-        coords = {"event": ["PyData-Berlin", "PyCon-Finland"]}
-        prior = asy_gaussian.sample_prior(coords=coords)
-        curve = asy_gaussian.sample_curve(prior)
-        fig, axes = asy_gaussian.plot_curve(
-            curve, subplot_kwargs={"figsize": (6, 3), "sharey": True}
-        )
-        for ax in axes:
-            ax.set_xlabel("")
-        plt.show()
+    Allows different widths (sigma_before, sigma_after) and amplitudes (a_before, a_after)
+    before and after the event. Optionally, set `drop=True` to invert the bump
+    after the event (to model sudden declines).
 
     Parameters
     ----------
-    drop : bool
-        Whether to invert the effect on opposite sides of the event.
     event_in: Literal["before", "after", "exclude"]
         Whether to include the event in the before or after part of the basis,
         or leave it out entirely. Default is "after".
     priors : dict[str, Prior]
-        Priors for the sigma_before, sigma_after, a_before, and a_after parameters.
+        Prior for the sigma_before, sigma_after, a_before, and a_after parameters.
     prefix : str
         Prefix for the parameters.
     """
 
-    lookup_name = "asymmetric_gaussian"
+    lookup_name = "asymcfds_gaussian"
 
     def __init__(
         self,
-        drop: bool = False,
         event_in: Literal["before", "after", "exclude"] = "after",
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.drop = drop
         self.event_in = event_in
 
     def function(
@@ -407,7 +380,6 @@ class AsymmetricGaussianBasis(Basis):
         x: pt.TensorLike,
         sigma_before: pt.TensorLike,
         sigma_after: pt.TensorLike,
-        a_before: pt.TensorLike,
         a_after: pt.TensorLike,
     ) -> pt.TensorVariable:
         """Asymmetric Gaussian bump function."""
@@ -426,7 +398,7 @@ class AsymmetricGaussianBasis(Basis):
 
         y_before = pt.switch(
             indicator_before,
-            pm.math.exp(-0.5 * (x / sigma_before) ** 2) * a_before,
+            pm.math.exp(-0.5 * (x / sigma_before) ** 2),
             0,
         )
         y_after = pt.switch(
@@ -435,21 +407,18 @@ class AsymmetricGaussianBasis(Basis):
             0,
         )
 
-        drop_sign = 1.0 - 2.0 * self.drop
-        return y_before + drop_sign * y_after
+        return y_before + y_after
 
     def to_dict(self) -> dict:
         """Convert the asymmetric Gaussian basis to a dictionary."""
         return {
             **super().to_dict(),
-            "drop": self.drop,
             "event_in": self.event_in,
         }
 
     default_priors = {
         "sigma_before": Prior("Gamma", mu=3, sigma=1),
         "sigma_after": Prior("Gamma", mu=7, sigma=2),
-        "a_before": Prior("Normal", mu=1, sigma=0.5),
         "a_after": Prior("Normal", mu=1, sigma=0.5),
     }
 
