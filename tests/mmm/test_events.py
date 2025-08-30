@@ -617,33 +617,26 @@ def test_half_gaussian_serialization():
 def test_asymmetric_gaussian_basis_function(drop, event_in):
     """Test the AsymmetricGaussianBasis function with different event_in modes."""
     # Test with event_in="after" (default)
-    asymmetric = AsymmetricGaussianBasis(event_in=event_in, drop=drop)
+    asymmetric = AsymmetricGaussianBasis(event_in=event_in)
 
     x = np.array([-2.0, -1.0, 0.0, 1.0, 2.0])
     sigma_before = np.array([1.0])
     sigma_after = np.array([2.0])
-    a_before = np.array([1.0])
     a_after = np.array([1.0])
 
-    result = asymmetric.function(x, sigma_before, sigma_after, a_before, a_after).eval()
+    result = asymmetric.function(x, sigma_before, sigma_after, a_after).eval()
 
     # For event_in="after": x < 0 uses before, x >= 0 uses after
     expected = np.zeros_like(x)
     if event_in == "after":
-        expected[x < 0] = a_before * np.exp(-0.5 * (x[x < 0] / sigma_before) ** 2)
-        expected[x >= 0] = (
-            (1.0 - 2.0 * drop) * a_after * np.exp(-0.5 * (x[x >= 0] / sigma_after) ** 2)
-        )
+        expected[x < 0] = np.exp(-0.5 * (x[x < 0] / sigma_before) ** 2)
+        expected[x >= 0] = a_after * np.exp(-0.5 * (x[x >= 0] / sigma_after) ** 2)
     elif event_in == "before":
-        expected[x <= 0] = a_before * np.exp(-0.5 * (x[x <= 0] / sigma_before) ** 2)
-        expected[x > 0] = (
-            (1.0 - 2.0 * drop) * a_after * np.exp(-0.5 * (x[x > 0] / sigma_after) ** 2)
-        )
+        expected[x <= 0] = np.exp(-0.5 * (x[x <= 0] / sigma_before) ** 2)
+        expected[x > 0] = a_after * np.exp(-0.5 * (x[x > 0] / sigma_after) ** 2)
     elif event_in == "exclude":
-        expected[x < 0] = a_before * np.exp(-0.5 * (x[x < 0] / sigma_before) ** 2)
-        expected[x > 0] = (
-            (1.0 - 2.0 * drop) * a_after * np.exp(-0.5 * (x[x > 0] / sigma_after) ** 2)
-        )
+        expected[x < 0] = np.exp(-0.5 * (x[x < 0] / sigma_before) ** 2)
+        expected[x > 0] = a_after * np.exp(-0.5 * (x[x > 0] / sigma_after) ** 2)
 
     np.testing.assert_array_almost_equal(result, expected)
 
@@ -654,7 +647,6 @@ def test_asymmetric_gaussian_basis_curve_sampling():
         priors={
             "sigma_before": Prior("Gamma", mu=3, sigma=1, dims="event"),
             "sigma_after": Prior("Gamma", mu=7, sigma=2, dims="event"),
-            "a_before": Prior("Normal", mu=1, sigma=0.5, dims="event"),
             "a_after": Prior("Normal", mu=1, sigma=0.5, dims="event"),
         },
     )
@@ -674,7 +666,6 @@ def test_asymmetric_gaussian_basis_multiple_events():
         priors={
             "sigma_before": Prior("Gamma", mu=[3, 5], sigma=1, dims="event"),
             "sigma_after": Prior("Gamma", mu=[7, 10], sigma=2, dims="event"),
-            "a_before": Prior("Normal", mu=[1, 2], sigma=0.5, dims="event"),
             "a_after": Prior("Normal", mu=[1, 2], sigma=0.5, dims="event"),
         },
     )
@@ -724,11 +715,9 @@ def test_asymmetric_gaussian_basis_in_event_effect_apply():
         priors={
             "sigma_before": Prior("Gamma", mu=3, sigma=1, dims="event"),
             "sigma_after": Prior("Gamma", mu=7, sigma=2, dims="event"),
-            "a_before": Prior("Normal", mu=1, sigma=0.5, dims="event"),
             "a_after": Prior("Normal", mu=1, sigma=0.5, dims="event"),
         },
         event_in="after",
-        drop=False,
     )
     effect_size = Prior("Normal", mu=1, sigma=1, dims="event")
     effect = EventEffect(basis=asymmetric, effect_size=effect_size, dims=("event",))
@@ -745,10 +734,8 @@ def test_asymmetric_gaussian_basis_serialization():
         priors={
             "sigma_before": Prior("Gamma", mu=3, sigma=1),
             "sigma_after": Prior("Gamma", mu=7, sigma=2),
-            "a_before": Prior("Normal", mu=1, sigma=0.5),
             "a_after": Prior("Normal", mu=1, sigma=0.5),
         },
-        drop=True,
         event_in="exclude",
     )
 
@@ -760,7 +747,6 @@ def test_asymmetric_gaussian_basis_serialization():
     assert asymmetric_restored.lookup_name == "asymmetric_gaussian"
     # Cast to access AsymmetricGaussianBasis specific attributes
     restored_asymmetric = cast(AsymmetricGaussianBasis, asymmetric_restored)
-    assert restored_asymmetric.drop == asymmetric.drop
     assert restored_asymmetric.event_in == asymmetric.event_in
 
 
@@ -770,10 +756,8 @@ def test_asymmetric_gaussian_basis_serialization_roundtrip():
         priors={
             "sigma_before": Prior("Gamma", mu=[3, 5], sigma=1, dims="event"),
             "sigma_after": Prior("Gamma", mu=[7, 10], sigma=2, dims="event"),
-            "a_before": Prior("Normal", mu=[1, 2], sigma=0.5, dims="event"),
             "a_after": Prior("Normal", mu=[1, 2], sigma=0.5, dims="event"),
         },
-        drop=True,
         event_in="before",
     )
 
@@ -788,7 +772,6 @@ def test_asymmetric_gaussian_basis_serialization_roundtrip():
     assert restored_asymmetric.prefix == asymmetric.prefix
     # Cast to access AsymmetricGaussianBasis specific attributes
     restored_asymmetric_specific = cast(AsymmetricGaussianBasis, restored_asymmetric)
-    assert restored_asymmetric_specific.drop == asymmetric.drop
     assert restored_asymmetric_specific.event_in == asymmetric.event_in
 
 
@@ -799,14 +782,13 @@ def test_asymmetric_gaussian_basis_invalid_event_in():
     x = np.array([0.0])
     sigma_before = np.array([1.0])
     sigma_after = np.array([1.0])
-    a_before = np.array([1.0])
     a_after = np.array([1.0])
 
     # Temporarily set invalid event_in to test error
     asymmetric.event_in = "invalid_mode"
 
     with pytest.raises(ValueError, match="Invalid event_in: invalid_mode"):
-        asymmetric.function(x, sigma_before, sigma_after, a_before, a_after)
+        asymmetric.function(x, sigma_before, sigma_after, a_after)
 
 
 def test_asymmetric_gaussian_basis_plot():
@@ -815,7 +797,6 @@ def test_asymmetric_gaussian_basis_plot():
         priors={
             "sigma_before": Prior("Gamma", mu=3, sigma=1, dims="event"),
             "sigma_after": Prior("Gamma", mu=7, sigma=2, dims="event"),
-            "a_before": Prior("Normal", mu=1, sigma=0.5, dims="event"),
             "a_after": Prior("Normal", mu=1, sigma=0.5, dims="event"),
         },
     )
@@ -837,25 +818,20 @@ def test_asymmetric_gaussian_basis_parameter_shapes():
     # Test with scalar parameters
     sigma_before = np.array([1.0])
     sigma_after = np.array([2.0])
-    a_before = np.array([1.0])
     a_after = np.array([1.0])
 
-    result_scalar = asymmetric.function(
-        x, sigma_before, sigma_after, a_before, a_after
-    ).eval()
+    result_scalar = asymmetric.function(x, sigma_before, sigma_after, a_after).eval()
     assert result_scalar.shape == x.shape
 
     # Test with broadcasted parameters
     sigma_before_bc = np.array([1.0, 2.0])
     sigma_after_bc = np.array([2.0, 3.0])
-    a_before_bc = np.array([1.0, 1.5])
     a_after_bc = np.array([1.0, 1.5])
 
     result_bc = asymmetric.function(
         np.tile(x, (2, 1)).reshape(3, 2),
         sigma_before_bc,
         sigma_after_bc,
-        a_before_bc,
         a_after_bc,
     ).eval()
     assert result_bc.shape == (3, 2)
