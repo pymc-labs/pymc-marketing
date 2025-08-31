@@ -604,4 +604,3 @@ msgid ""
 "the {ref}`MMM Example notebook <mmm_example>` and [MMM Explainer "
 "App](https://pymc-marketing-app.streamlit.app/)."
 msgstr ""
-
