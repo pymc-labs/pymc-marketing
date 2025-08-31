@@ -278,10 +278,10 @@ class HalfGaussianBasis(Basis):
 
         import matplotlib.pyplot as plt
         from pymc_marketing.mmm.events import HalfGaussianBasis
-        from pymc_extras.priors import Prior
+        from pymc_extras.prior import Prior
         half_gaussian = HalfGaussianBasis(
             priors={
-                "sigma": Prior("Gamma", mu=[2, 5], sigma=[2,1], dims="event"),
+                "sigma": Prior("Gamma", mu=[3, 4], sigma=1, dims="event"),
             }
         )
         coords = {"event": ["PyData-Berlin", "PyCon-Finland"]}
@@ -357,11 +357,11 @@ class AsymmetricGaussianBasis(Basis):
         :context: close-figs
         import matplotlib.pyplot as plt
         from pymc_marketing.mmm.events import AsymmetricGaussianBasis
-        from pymc_extras.priors import Prior
+        from pymc_extras.prior import Prior
         asy_gaussian = AsymmetricGaussianBasis(
             priors={
-                "sigma_before": Prior("Gamma", mu=[2, 5], sigma=[2,1], dims="event"),
-                "a_after": Prior("Normal", mu=[-.75, -.5], sigma=[.1,.2], dims="event"),
+                "sigma_before": Prior("Gamma", mu=[3, 4], sigma=1, dims="event"),
+                "a_after": Prior("Normal", mu=[-.75, .5], sigma=.2, dims="event"),
             }
         )
         coords = {"event": ["PyData-Berlin", "PyCon-Finland"]}
