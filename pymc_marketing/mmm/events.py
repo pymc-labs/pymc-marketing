@@ -355,6 +355,7 @@ class AsymmetricGaussianBasis(Basis):
 
     .. plot::
         :context: close-figs
+        
         import matplotlib.pyplot as plt
         from pymc_marketing.mmm.events import AsymmetricGaussianBasis
         from pymc_extras.prior import Prior
