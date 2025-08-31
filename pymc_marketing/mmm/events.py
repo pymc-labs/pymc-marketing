@@ -269,8 +269,7 @@ class GaussianBasis(Basis):
 
 
 class HalfGaussianBasis(Basis):
-    """
-    One-sided Gaussian basis transformation.
+    R"""One-sided Gaussian basis transformation.
 
     .. plot::
         :context: close-figs
@@ -347,8 +346,7 @@ class HalfGaussianBasis(Basis):
 
 
 class AsymmetricGaussianBasis(Basis):
-    """
-    Asymmetric Gaussian bump basis transformation.
+    R"""Asymmetric Gaussian bump basis transformation.
 
     Allows different widths (sigma_before, sigma_after) and amplitudes (a_after)
     after the event.
