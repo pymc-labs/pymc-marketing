@@ -261,7 +261,9 @@ class GaussianBasis(Basis):
 
     def function(self, x: pt.TensorLike, sigma: pt.TensorLike) -> TensorVariable:
         """Gaussian bump function."""
-        return pm.math.exp(-0.5 * (x / sigma) ** 2)
+        rv = pm.Normal.dist(mu=0.0, sigma=sigma)
+        out = pm.math.exp(pm.logp(rv, x))
+        return out
 
     default_priors = {
         "sigma": Prior("Gamma", mu=7, sigma=1),
