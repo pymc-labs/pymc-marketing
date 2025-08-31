@@ -186,7 +186,7 @@ def multi_dim_data():
     "fixture_name, dims",
     [
         pytest.param("single_dim_data", (), id="Marginal model"),
-        pytest.param("multi_dim_data", ("country",), id="County model"),
+        pytest.param("multi_dim_data", ("country",), id="Country model"),
     ],
 )
 @pytest.mark.parametrize(
@@ -285,6 +285,18 @@ def test_fit(
         assert dim in mmm.idata.posterior.dims, (
             f"Extra dimension '{dim}' should be in posterior dims."
         )
+
+    # Check presence of fit_data group
+    assert hasattr(mmm.idata, "fit_data"), "InferenceData should have a fit_data group."
+
+    np.testing.assert_equal(
+        mmm.idata.fit_data.coords["date"].values, mmm.model.coords["date"]
+    )
+    if mmm.dims:
+        for dim in mmm.dims:
+            np.testing.assert_equal(
+                mmm.idata.fit_data.coords[dim].values, mmm.model.coords[dim]
+            )
 
 
 def test_sample_posterior_predictive_new_data(single_dim_data, mock_pymc_sample):
