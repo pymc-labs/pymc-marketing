@@ -376,7 +376,7 @@ class AsymmetricGaussianBasis(Basis):
 
     Parameters
     ----------
-    event_in: Literal["before", "after", "exclude"]
+    event_in : Literal["before", "after", "exclude"]
         Whether to include the event in the before or after part of the basis,
         or leave it out entirely. Default is "after".
     priors : dict[str, Prior]
