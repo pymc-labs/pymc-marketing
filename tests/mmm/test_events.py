@@ -171,7 +171,7 @@ def test_gaussian_basis_function():
     sigma = np.array([1.0])
 
     result = gaussian.function(x, sigma).eval()
-    expected = np.exp(-0.5 * (x / sigma) ** 2)
+    expected = 1 / (sigma * np.sqrt(2 * np.pi)) * np.exp(-0.5 * (x / sigma) ** 2)
 
     np.testing.assert_array_almost_equal(result, expected)
 
