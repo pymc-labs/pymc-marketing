@@ -279,7 +279,6 @@ class HalfGaussianBasis(Basis):
         import matplotlib.pyplot as plt
         from pymc_marketing.mmm.events import HalfGaussianBasis
         from pymc_extras.priors import Prior
-
         half_gaussian = HalfGaussianBasis(
             priors={
                 "sigma": Prior("Gamma", mu=[2, 5], sigma=[2,1], dims="event"),
@@ -321,7 +320,8 @@ class HalfGaussianBasis(Basis):
 
     def function(self, x: pt.TensorLike, sigma: pt.TensorLike) -> TensorVariable:
         """One-sided Gaussian bump function."""
-        out = pm.math.exp(-0.5 * (x / sigma) ** 2)
+        rv = pm.Normal.dist(mu=0.0, sigma=sigma)
+        out = pm.math.exp(pm.logp(rv, x))
         # Sign determines if the zeroing happens after or before the event.
         sign = 1 if self.mode == "after" else -1
         # Build boolean mask(s) in x's shape and broadcast to out's shape.
@@ -416,14 +416,17 @@ class AsymmetricGaussianBasis(Basis):
             case _:
                 raise ValueError(f"Invalid event_in: {self.event_in}")
 
+        rv_before = pm.Normal.dist(mu=0.0, sigma=sigma_before)
+        rv_after = pm.Normal.dist(mu=0.0, sigma=sigma_after)
+
         y_before = pt.switch(
             indicator_before,
-            pm.math.exp(-0.5 * (x / sigma_before) ** 2),
+            pm.math.exp(pm.logp(rv_before, x)),
             0,
         )
         y_after = pt.switch(
             indicator_after,
-            pm.math.exp(-0.5 * (x / sigma_after) ** 2) * a_after,
+            pm.math.exp(pm.logp(rv_after, x)) * a_after,
             0,
         )
 

@@ -511,7 +511,7 @@ def test_half_gaussian_function_after_include_event_true(mode, include_event):
     sigma = np.array([1.0])
 
     result = half.function(x, sigma).eval()
-    expected = np.exp(-0.5 * (x / sigma) ** 2)
+    expected = 1 / np.sqrt(2 * np.pi) * np.exp(-0.5 * (x / sigma) ** 2)
     # For mode="after" with include_event=True, mask x < 0 only
     if mode == "after":
         expected[x < 0] = 0.0
@@ -626,14 +626,41 @@ def test_asymmetric_gaussian_basis_function(event_in):
     # For event_in="after": x < 0 uses before, x >= 0 uses after
     expected = np.zeros_like(x)
     if event_in == "after":
-        expected[x < 0] = np.exp(-0.5 * (x[x < 0] / sigma_before) ** 2)
-        expected[x >= 0] = a_after * np.exp(-0.5 * (x[x >= 0] / sigma_after) ** 2)
+        expected[x < 0] = (
+            1
+            / np.sqrt(2 * np.pi * sigma_before**2)
+            * np.exp(-0.5 * (x[x < 0] / sigma_before) ** 2)
+        )
+        expected[x >= 0] = (
+            1
+            / np.sqrt(2 * np.pi * sigma_after**2)
+            * a_after
+            * np.exp(-0.5 * (x[x >= 0] / sigma_after) ** 2)
+        )
     elif event_in == "before":
-        expected[x <= 0] = np.exp(-0.5 * (x[x <= 0] / sigma_before) ** 2)
-        expected[x > 0] = a_after * np.exp(-0.5 * (x[x > 0] / sigma_after) ** 2)
+        expected[x <= 0] = (
+            1
+            / np.sqrt(2 * np.pi * sigma_before**2)
+            * np.exp(-0.5 * (x[x <= 0] / sigma_before) ** 2)
+        )
+        expected[x > 0] = (
+            1
+            / np.sqrt(2 * np.pi * sigma_after**2)
+            * a_after
+            * np.exp(-0.5 * (x[x > 0] / sigma_after) ** 2)
+        )
     elif event_in == "exclude":
-        expected[x < 0] = np.exp(-0.5 * (x[x < 0] / sigma_before) ** 2)
-        expected[x > 0] = a_after * np.exp(-0.5 * (x[x > 0] / sigma_after) ** 2)
+        expected[x < 0] = (
+            1
+            / np.sqrt(2 * np.pi * sigma_before**2)
+            * np.exp(-0.5 * (x[x < 0] / sigma_before) ** 2)
+        )
+        expected[x > 0] = (
+            1
+            / np.sqrt(2 * np.pi * sigma_after**2)
+            * a_after
+            * np.exp(-0.5 * (x[x > 0] / sigma_after) ** 2)
+        )
 
     np.testing.assert_array_almost_equal(result, expected)
 
