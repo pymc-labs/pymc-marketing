@@ -14,9 +14,10 @@
 """
 Specialized priors that behave like the Prior class.
 
-The Prior class has certain design constraints that make it difficult
-to adapt to some cases. So this module contains a set of collection of
-priors that deviate slightly from the Prior class.
+The Prior class has certain design constraints that prevent it from
+covering all cases. So this module contains a collection of
+priors that do not inherit from the Prior class but have many
+of the same methods.
 """
 
 import numpy as np
@@ -44,9 +45,9 @@ class LogNormalExp:
     Parameters
     ----------
     mu : Prior, float, int, array-like
-        The prior for the mean of the distribution.
+        The mean of the distribution.
     sigma : Prior, float, int, array-like
-        The prior for the standard deviation of the distribution.
+        The standard deviation of the distribution.
     dims : tuple[str, ...], optional
         The dimensions of the distribution, by default None.
     centered : bool, optional
@@ -54,11 +55,17 @@ class LogNormalExp:
 
     Examples
     --------
+    Build a non-centered hierarchical model where information is shared across geos.
     .. code-block:: python
 
         from pymc_marketing.special_priors import LogNormalExp
 
-        normal = LogNormalExp(mu=Prior("Normal"), sigma=Prior("HalfNormal"))
+        normal = LogNormalExp(
+            mu=Prior("Gamma", mu=1.0, sigma=1.0),
+            sigma=Prior("HalfNormal", sigma=1.0),
+            dims=("geo",),
+            centered=False,
+        )
     """
 
     def __init__(self, dims: tuple | None = None, centered: bool = True, **parameters):
