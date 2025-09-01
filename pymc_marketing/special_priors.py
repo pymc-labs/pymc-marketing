@@ -29,7 +29,7 @@ from pymc_extras.prior import Prior, create_dim_handler, sample_prior
 from pytensor.tensor import TensorVariable
 
 
-class LogNormalExp:
+class LogNormalPositiveParam:
     """
     A specialized implementation of a log normal distribution.
 
@@ -58,9 +58,9 @@ class LogNormalExp:
     Build a non-centered hierarchical model where information is shared across geos.
     .. code-block:: python
 
-        from pymc_marketing.special_priors import LogNormalExp
+        from pymc_marketing.special_priors import LogNormalPositiveParam
 
-        normal = LogNormalExp(
+        normal = LogNormalPositiveParam(
             mu=Prior("Gamma", mu=1.0, sigma=1.0),
             sigma=Prior("HalfNormal", sigma=1.0),
             dims=("geo",),
@@ -123,7 +123,7 @@ class LogNormalExp:
     def to_dict(self):
         """Convert the prior distribution to a dictionary."""
         data = {
-            "special_prior": "LogNormalExp",
+            "special_prior": "LogNormalPositiveParam",
         }
         if self.parameters:
 
@@ -155,7 +155,7 @@ class LogNormalExp:
 
     @classmethod
     def from_dict(cls, data) -> Prior:
-        """Create a LogNormalExp prior from a dictionary."""
+        """Create a LogNormalPositiveParam prior from a dictionary."""
         if not isinstance(data, dict):
             msg = (
                 "Must be a dictionary representation of a prior distribution. "
@@ -197,13 +197,14 @@ class LogNormalExp:
         )
 
 
-def _is_log_normal_exp_type(data: dict) -> bool:
+def _is_lognormalpositiveparam_type(data: dict) -> bool:
     if "special_prior" in data:
-        return data["special_prior"] == "LogNormalExp"
+        return data["special_prior"] == "LogNormalPositiveParam"
     else:
         return False
 
 
 register_deserialization(
-    is_type=_is_log_normal_exp_type, deserialize=LogNormalExp.from_dict
+    is_type=_is_lognormalpositiveparam_type,
+    deserialize=LogNormalPositiveParam.from_dict,
 )

@@ -21,7 +21,10 @@ import pymc as pm
 import pytest
 from pymc_extras.prior import Prior
 
-from pymc_marketing.special_priors import LogNormalExp, _is_log_normal_exp_type
+from pymc_marketing.special_priors import (
+    LogNormalPositiveParam,
+    _is_lognormalpositiveparam_type,
+)
 
 
 @pytest.mark.parametrize(
@@ -32,37 +35,38 @@ from pymc_marketing.special_priors import LogNormalExp, _is_log_normal_exp_type
         (1.0, 2.0, False),
     ],
 )
-def test_lognormalexp_args(mu, sigma, centered):
+def test_LogNormalPositiveParam_args(mu, sigma, centered):
     """
     Checks:
     - sample_prior
     - create_variable
     - round trip dict to class to dict to class
     """
-    lognormalexp = LogNormalExp(
+    rv = LogNormalPositiveParam(
         mu=mu, sigma=sigma, centered=centered, dims=("channel",)
     )
 
     coords = {"channel": ["C1", "C2", "C3"]}
-    prior = lognormalexp.sample_prior(coords=coords)
+    prior = rv.sample_prior(coords=coords)
     assert prior.channel.shape == (3,)
     if centered is False:
-        assert "test_log_offset" in prior.data_vars
+        assert "variable_log_offset" in prior.data_vars
 
     with pm.Model(coords=coords):
-        lognormalexp.create_variable("test")
+        rv.create_variable("test")
 
-    assert (
-        lognormalexp.to_dict()
-        == lognormalexp.from_dict(lognormalexp.to_dict()).to_dict()
-    )
+    assert rv.to_dict() == rv.from_dict(rv.to_dict()).to_dict()
 
 
-def test_lognormalexp_args_invalid():
+def test_LogNormalPositiveParam_args_invalid():
     with pytest.raises(ValueError):
-        LogNormalExp(alpha=1.0, beta=1.0)
+        LogNormalPositiveParam(alpha=1.0, beta=1.0)
 
 
 def test_the_deserializer_can_distinguish_between_types_of_prior_classes():
-    assert _is_log_normal_exp_type(LogNormalExp(mu=1.0, sigma=1.0).to_dict())
-    assert not _is_log_normal_exp_type(Prior("Normal", mu=1.0, sigma=1.0).to_dict())
+    assert _is_lognormalpositiveparam_type(
+        LogNormalPositiveParam(mu=1.0, sigma=1.0).to_dict()
+    )
+    assert not _is_lognormalpositiveparam_type(
+        Prior("Normal", mu=1.0, sigma=1.0).to_dict()
+    )
