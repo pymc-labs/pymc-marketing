@@ -2016,7 +2016,7 @@ class MMM(RegressionModelBuilder):
             y_s = pd.Series(y, index=X_df.index)
         else:
             y_s = y.copy()
-        y_s.name = self.output_var
+        y_s.name = self.target_column
 
         dims_in_X = [d for d in self.dims if d in X_df.columns]
         coord_cols = [self.date_column, *dims_in_X]
@@ -2035,10 +2035,10 @@ class MMM(RegressionModelBuilder):
                     how="left",
                 )
             else:
-                X_df[self.output_var] = aligned.values
+                X_df[self.target_column] = aligned.values
         elif len(y_s) == len(X_df):
             # Positional
-            X_df[self.output_var] = y_s.to_numpy()
+            X_df[self.target_column] = y_s.to_numpy()
         else:
             # Try merge if y has columns as index levels
             if isinstance(y_s.index, pd.MultiIndex) and set(coord_cols).issubset(
@@ -2050,7 +2050,7 @@ class MMM(RegressionModelBuilder):
                     "Cannot align y with X; incompatible indices / lengths"
                 )
 
-        if self.output_var not in X_df.columns:
+        if self.target_column not in X_df.columns:
             raise RuntimeError("Target column missing after alignment")
 
         ds = X_df.sort_values(coord_cols).set_index(coord_cols).to_xarray()
@@ -2090,8 +2090,8 @@ class MMM(RegressionModelBuilder):
         ):
             dataset = dataset.reset_index()
         # type: ignore
-        X = dataset.drop(columns=[self.output_var])
-        y = dataset[self.output_var]
+        X = dataset.drop(columns=[self.target_column])
+        y = dataset[self.target_column]
 
         self.build_model(X, y)  # type: ignore
 
