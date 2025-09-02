@@ -2051,7 +2051,9 @@ class MMM(RegressionModelBuilder):
                 )
 
         if self.target_column not in X_df.columns:
-            raise RuntimeError("Target column missing after alignment")
+            raise RuntimeError(
+                f"Target column {self.target_column} missing after alignment"
+            )
 
         ds = X_df.sort_values(coord_cols).set_index(coord_cols).to_xarray()
         return ds
