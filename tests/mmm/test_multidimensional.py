@@ -38,19 +38,24 @@ from pymc_marketing.mmm.scaling import Scaling, VariableScaling
 
 
 @pytest.fixture
-def mmm():
+def target_column():
+    return "y_named"
+
+
+@pytest.fixture
+def mmm(target_column):
     return MMM(
         date_column="date",
         channel_columns=["C1", "C2"],
         dims=("country",),
-        target_column="y",
+        target_column=target_column,
         adstock=GeometricAdstock(l_max=10),
         saturation=LogisticSaturation(),
     )
 
 
 @pytest.fixture
-def df() -> pd.DataFrame:
+def df(target_column) -> pd.DataFrame:
     dates = pd.date_range("2025-01-01", periods=3, freq="W-MON").rename("date")
     df = pd.DataFrame(
         {
@@ -65,8 +70,8 @@ def df() -> pd.DataFrame:
 
     y = pd.DataFrame(
         {
-            ("A", "y"): [1, 2, 3],
-            ("B", "y"): [4, 5, 6],
+            ("A", target_column): [1, 2, 3],
+            ("B", target_column): [4, 5, 6],
         },
         index=dates,
     )
@@ -82,9 +87,9 @@ def df() -> pd.DataFrame:
 
 
 @pytest.fixture
-def fit_mmm(df, mmm, mock_pymc_sample):
-    X = df.drop(columns=["y"])
-    y = df["y"]
+def fit_mmm(df, mmm, target_column, mock_pymc_sample):
+    X = df.drop(columns=[target_column])
+    y = df[target_column]
 
     mmm.fit(X, y)
 
@@ -96,9 +101,9 @@ def test_simple_fit(fit_mmm):
     assert isinstance(fit_mmm.idata.constant_data, xr.Dataset)
 
 
-def test_sample_prior_predictive(mmm: MMM, df: pd.DataFrame):
-    X = df.drop(columns=["y"])
-    y = df["y"]
+def test_sample_prior_predictive(mmm: MMM, target_column, df: pd.DataFrame):
+    X = df.drop(columns=[target_column])
+    y = df[target_column]
     mmm.sample_prior_predictive(X, y)
 
     assert isinstance(mmm.prior, xr.Dataset)
@@ -660,10 +665,10 @@ def test_time_varying_intercept_with_custom_hsgp_single_dim_kernels(
         ),
     ],
 )
-def test_time_varying_media_with_custom_hsgp_multi_dim(df, hsgp_dims):
+def test_time_varying_media_with_custom_hsgp_multi_dim(df, target_column, hsgp_dims):
     """Ensure passing an HSGP instance to time_varying_media works (multi-dim)."""
-    X = df.drop(columns=["y"])
-    y = df["y"]
+    X = df.drop(columns=[target_column])
+    y = df[target_column]
 
     hsgp = SoftPlusHSGP.parameterize_from_data(
         X=np.arange(X.shape[0]),
@@ -673,7 +678,7 @@ def test_time_varying_media_with_custom_hsgp_multi_dim(df, hsgp_dims):
     mmm = MMM(
         date_column="date",
         channel_columns=["C1", "C2"],
-        target_column="y",
+        target_column=target_column,
         dims=("country",),
         adstock=GeometricAdstock(l_max=2),
         saturation=LogisticSaturation(),
@@ -702,10 +707,12 @@ def test_time_varying_media_with_custom_hsgp_multi_dim(df, hsgp_dims):
         pytest.param(("date",), id="hsgp-dims=date"),
     ],
 )
-def test_time_varying_intercept_with_custom_hsgp_multi_dim(df, hsgp_dims):
+def test_time_varying_intercept_with_custom_hsgp_multi_dim(
+    df, target_column, hsgp_dims
+):
     """Ensure passing an HSGP instance to time_varying_intercept works (multi-dim)."""
-    X = df.drop(columns=["y"])
-    y = df["y"]
+    X = df.drop(columns=[target_column])
+    y = df[target_column]
 
     hsgp = SoftPlusHSGP.parameterize_from_data(
         X=np.arange(X.shape[0]),
@@ -715,7 +722,7 @@ def test_time_varying_intercept_with_custom_hsgp_multi_dim(df, hsgp_dims):
     mmm = MMM(
         date_column="date",
         channel_columns=["C1", "C2"],
-        target_column="y",
+        target_column=target_column,
         dims=("country",),
         adstock=GeometricAdstock(l_max=2),
         saturation=LogisticSaturation(),
@@ -865,6 +872,7 @@ def test_mmm_with_events(
     create_event_effect,
     mmm,
     df,
+    target_column,
     mock_pymc_sample,
 ) -> None:
     mmm.add_events(
@@ -881,8 +889,8 @@ def test_mmm_with_events(
     )
     assert len(mmm.mu_effects) == 2
 
-    X = df.drop(columns=["y"])
-    y = df["y"]
+    X = df.drop(columns=[target_column])
+    y = df[target_column]
     mmm.build_model(X, y)
 
     seed = sum(map(ord, "Adding events"))
@@ -940,11 +948,7 @@ def test_mmm_with_events(
     ],
 )
 def test_mmm_with_events_bases(
-    df_events,
-    mmm,
-    df,
-    basis_factory,
-    expected_zero,
+    df_events, mmm, df, basis_factory, expected_zero, target_column
 ):
     basis = basis_factory()
     effect = EventEffect(basis=basis, effect_size=Prior("Normal"), dims=("holiday",))
@@ -955,8 +959,8 @@ def test_mmm_with_events_bases(
         effect=effect,
     )
 
-    X = df.drop(columns=["y"])
-    y = df["y"]
+    X = df.drop(columns=[target_column])
+    y = df[target_column]
 
     mmm.build_model(X, y)
     mmm.sample_prior_predictive(X, y)  # type: ignore
