@@ -11,10 +11,6 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-# Test arguments - numpy arrays, scalars, and nested priors
-# Test round trip dict to class to dict to class
-# Test exception raising around mu and sigma
-# Test sample_prior
 
 import numpy as np
 import pymc as pm
@@ -28,27 +24,30 @@ from pymc_marketing.special_priors import (
 
 
 @pytest.mark.parametrize(
-    "mu, sigma, centered",
+    "mu, sigma, centered, dims",
     [
-        (Prior("Gamma", mu=1.0, sigma=1.0), Prior("Gamma", mu=1.0, sigma=1.0), True),
-        (np.array([1, 2, 3]), np.array([4, 5, 6]), True),
-        (1.0, 2.0, False),
+        (
+            Prior("Gamma", mu=1.0, sigma=1.0),
+            Prior("Gamma", mu=1.0, sigma=1.0),
+            True,
+            ("channel",),
+        ),
+        (np.array([1, 2, 3]), np.array([4, 5, 6]), True, None),
+        (1.0, 2.0, False, ("channel",)),
     ],
 )
-def test_LogNormalPositiveParam_args(mu, sigma, centered):
+def test_LogNormalPositiveParam_args(mu, sigma, centered, dims):
     """
     Checks:
-    - sample_prior
-    - create_variable
-    - round trip dict to class to dict to class
+    - sample_prior runs
+    - create_variable runs
+    - round trip: dict to class to dict to class, doesn't lose any information
     """
-    rv = LogNormalPositiveParam(
-        mu=mu, sigma=sigma, centered=centered, dims=("channel",)
-    )
+    rv = LogNormalPositiveParam(mu=mu, sigma=sigma, centered=centered, dims=dims)
 
     coords = {"channel": ["C1", "C2", "C3"]}
     prior = rv.sample_prior(coords=coords)
-    assert prior.channel.shape == (3,)
+    assert prior.channel.shape == (len(coords["channel"]),)
     if centered is False:
         assert "variable_log_offset" in prior.data_vars
 
