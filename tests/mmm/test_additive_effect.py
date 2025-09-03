@@ -168,7 +168,7 @@ def test_fourier_effect_multidimensional(
     prefix = "weekly"
     prior = Prior("Laplace", mu=0, b=0.1, dims=prior_dims)
     fourier = WeeklyFourier(n_order=10, prefix=prefix, prior=prior)
-    fourier_effect = FourierEffect(fourier)
+    fourier_effect = FourierEffect(fourier=fourier)
 
     with mmm.model:
         fourier_effect.create_data(mmm)
