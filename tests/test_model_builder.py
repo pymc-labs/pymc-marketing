@@ -1040,6 +1040,45 @@ def test_unmatched_index(toy_X, toy_y) -> None:
         model.fit(toy_X, toy_y)
 
 
+def test_approximate_fit_variational(toy_X, toy_y, monkeypatch) -> None:
+    """Ensure approximate_fit uses pm.fit and returns proper InferenceData."""
+    model = RegressionModelBuilderTest(sampler_config={"draws": 50})
+
+    class FakeApproximation:
+        def __init__(self, model):
+            self._model = model
+
+        def sample(
+            self,
+            draws: int = 100,
+            chains: int = 1,
+            random_seed=None,
+            progressbar: bool = True,
+            return_inferencedata: bool = True,
+            **kwargs,
+        ):
+            n = len(self._model.coords.get("numbers", [])) or len(toy_X)
+            posterior = {
+                "a": np.zeros((chains, draws, n)),
+                "b": np.zeros((chains, draws)),
+                "σ_model_fmc": np.zeros((chains, draws)),
+            }
+            return az.from_dict(posterior=posterior)
+
+    def fake_fit(*args, **kwargs):
+        current_model = pm.modelcontext(None)
+        return FakeApproximation(current_model)
+
+    monkeypatch.setattr(pm, "fit", fake_fit)
+
+    idata = model.approximate_fit(toy_X, toy_y, sample_kwargs={"draws": 20})
+
+    assert idata is not None
+    assert "posterior" in idata.groups()
+    assert idata.posterior.sizes["draw"] == 20
+    assert "fit_data" in idata
+
+
 @pytest.fixture(scope="module")
 def stale_idata(fitted_regression_model_instance) -> az.InferenceData:
     idata = fitted_regression_model_instance.idata.copy()
