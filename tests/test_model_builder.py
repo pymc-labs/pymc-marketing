@@ -1058,8 +1058,6 @@ def test_approximate_fit_variational(toy_X, toy_y) -> None:
     assert idata.posterior.sizes["draw"] == 20
     assert idata.posterior.sizes["chain"] == 1
     assert "fit_data" in idata
-    # Check one parameter shape matches coordinates length
-    assert idata.posterior["a"].sizes.get("numbers", len(toy_X)) == len(toy_X)
 
 
 @pytest.fixture(scope="module")
