@@ -98,7 +98,7 @@ def test_fourier_effect(
     dims,
     coords,
 ) -> None:
-    effect = FourierEffect(fourier)
+    effect = FourierEffect(fourier=fourier)
 
     mmm = create_mock_mmm(
         dims=dims,
@@ -215,7 +215,7 @@ def test_linear_trend_effect(
 ) -> None:
     prefix = "linear_trend"
     effect = LinearTrendEffect(
-        LinearTrend(priors=priors, dims=linear_trend_dims),
+        trend=LinearTrend(priors=priors, dims=linear_trend_dims),
         prefix=prefix,
     )
 
