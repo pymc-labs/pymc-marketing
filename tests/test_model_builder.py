@@ -1050,7 +1050,7 @@ def test_approximate_fit_variational(toy_X, toy_y) -> None:
         progressbar=False,
         random_seed=42,
         fit_kwargs={"n": 200, "method": "advi", "progressbar": False},
-        sample_kwargs={"draws": 20, "progressbar": False},
+        sample_kwargs={"draws": 20},
     )
 
     assert idata is not None
