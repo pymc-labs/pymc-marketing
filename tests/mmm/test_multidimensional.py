@@ -2728,3 +2728,37 @@ def test_multidimensional_mmm_only_dag_provided_does_not_initialize_graph():
     assert mmm.treatment_nodes is None
     assert mmm.outcome_node is None
     assert not hasattr(mmm, "causal_graphical_model")
+
+
+def test_default_model_config_dims_include_self_dims():
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        dims=("country",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+
+    cfg = mmm.default_model_config
+
+    # Keys from MMM.default_model_config we want to validate here
+    keys_to_check = [
+        "intercept",
+        "likelihood",
+        "gamma_control",
+        "gamma_fourier",
+    ]
+
+    for key in keys_to_check:
+        assert key in cfg, f"{key} missing in default_model_config"
+        prior = cfg[key]
+
+        # Prior may be a distribution or a container (e.g., likelihood with nested sigma prior)
+        # In both cases, the top-level prior should expose dims that at least include model dims
+        assert hasattr(prior, "dims"), f"{key} prior does not have dims attribute"
+
+        dims = prior.dims if isinstance(prior.dims, tuple) else (prior.dims,)
+        # Ensure all model dims are present (allowing additional dims like control/fourier_mode)
+        for d in mmm.dims:
+            assert d in dims, f"{key} dims {dims} must include model dims {mmm.dims}"

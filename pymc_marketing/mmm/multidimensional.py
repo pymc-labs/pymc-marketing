@@ -615,7 +615,9 @@ class MMM(RegressionModelBuilder):
                 sigma=Prior("HalfNormal", sigma=2, dims=self.dims),
                 dims=self.dims,
             ),
-            "gamma_control": Prior("Normal", mu=0, sigma=2, dims="control"),
+            "gamma_control": Prior(
+                "Normal", mu=0, sigma=2, dims=(*self.dims, "control")
+            ),
             "gamma_fourier": Prior(
                 "Laplace", mu=0, b=1, dims=(*self.dims, "fourier_mode")
             ),
