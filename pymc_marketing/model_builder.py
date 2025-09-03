@@ -1129,8 +1129,6 @@ class RegressionModelBuilder(ModelBuilder):
                 _sample_kwargs.update(sample_kwargs)
             # Use sampler_config draws if not explicitly provided
             _sample_kwargs.setdefault("draws", self.sampler_config.get("draws", 1_000))
-            if progressbar is not None:
-                _sample_kwargs.setdefault("progressbar", progressbar)
             if random_seed is not None:
                 _sample_kwargs.setdefault("random_seed", random_seed)
             _sample_kwargs.setdefault("return_inferencedata", True)
