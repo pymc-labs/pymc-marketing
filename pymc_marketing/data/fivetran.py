@@ -59,9 +59,10 @@ can be accessed after importing pymc_marketing.
 """
 
 from collections.abc import Sequence
-from functools import wraps
 
 import pandas as pd
+
+from pymc_marketing.decorators import copy_docstring
 
 
 def _normalize_and_validate_inputs(
@@ -213,19 +214,6 @@ def _finalize_wide_output(
     ordered_cols = [first_col] + [c for c in wide.columns if c != first_col]
     wide[first_col] = pd.to_datetime(wide[first_col]).dt.normalize()
     return wide[ordered_cols]
-
-
-def copy_docstring(function):
-    """Copy docstring from one function to other."""
-
-    def decorator(func):
-        @wraps(function)
-        def wrapper(*args, **kwargs):
-            return func(*args, **kwargs)
-
-        return wrapper
-
-    return decorator
 
 
 def process_fivetran_ad_reporting(
