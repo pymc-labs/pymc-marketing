@@ -21,6 +21,12 @@ Example usage for MMM:
 
 .. code-block:: python
 
+    from pymc_marketing.data.fivetran import (
+        process_fivetran_ad_reporting,
+        process_fivetran_shopify_unique_orders,
+    )
+    from pymc_marketing.mmm import MMM
+
     # Process ad spend data for media channels
     x = process_fivetran_ad_reporting(
         campaign_df, value_columns="spend", rename_date_to="date"
