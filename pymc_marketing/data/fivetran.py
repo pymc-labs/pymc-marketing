@@ -34,6 +34,28 @@ Example usage for MMM:
     # Use in MMM model
     mmm = MMM(...)
     mmm.fit(X=x, y=y["orders"])
+
+There are also pandas accessors for these functions which allows calling them from a
+pandas DataFrame. These accessors are registered under the ``fivetran`` namespace and
+can be accessed after importing pymc_marketing.
+
+.. code-block:: python
+
+    import pandas as pd
+
+    from pymc_marketing.mmm import MMM
+
+
+    campaign_df: pd.DataFrame = ...
+    orders_df: pd.DataFrame = ...
+
+    X: pd.DataFrame = campaign_df.fivetran.process_ad_reporting(value_columns="spend")
+    y: pd.DataFrame = orders_df.fivetran.process_shopify_unique_orders()
+
+    # Use in MMM model
+    mmm = MMM(...)
+    mmm.fit(X=x, y=y["orders"])
+
 """
 
 from collections.abc import Sequence
