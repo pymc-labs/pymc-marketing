@@ -37,6 +37,7 @@ Example usage for MMM:
 """
 
 from collections.abc import Sequence
+from functools import wraps
 
 import pandas as pd
 
@@ -192,6 +193,19 @@ def _finalize_wide_output(
     return wide[ordered_cols]
 
 
+def copy_docstring(function):
+    """Copy docstring from one function to other."""
+
+    def decorator(func):
+        @wraps(function)
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
 def process_fivetran_ad_reporting(
     df: pd.DataFrame,
     value_columns: str | Sequence[str] = "impressions",
@@ -326,3 +340,51 @@ def process_fivetran_shopify_unique_orders(
         .reset_index(drop=True)
     )
     return out
+
+
+@pd.api.extensions.register_dataframe_accessor("fivetran")
+class FivetranAccessor:
+    """Accessor for Fivetran data processing functions."""
+
+    def __init__(self, obj: pd.DataFrame) -> None:
+        self._obj = obj
+
+    @copy_docstring(process_fivetran_ad_reporting)
+    def process_ad_reporting(  # noqa: D102
+        self,
+        value_columns: str | Sequence[str] = "impressions",
+        *,
+        date_col: str = "date_day",
+        platform_col: str = "platform",
+        agg: str = "sum",
+        fill_value: float | None = 0.0,
+        include_missing_dates: bool = False,
+        freq: str = "D",
+        rename_date_to: str | None = "date",
+    ) -> pd.DataFrame:
+        return process_fivetran_ad_reporting(
+            self._obj,
+            value_columns=value_columns,
+            date_col=date_col,
+            platform_col=platform_col,
+            agg=agg,
+            fill_value=fill_value,
+            include_missing_dates=include_missing_dates,
+            freq=freq,
+            rename_date_to=rename_date_to,
+        )
+
+    @copy_docstring(process_fivetran_shopify_unique_orders)
+    def process_shopify_unique_orders(  # noqa: D102
+        self,
+        *,
+        date_col: str = "processed_timestamp",
+        order_key_col: str = "orders_unique_key",
+        rename_date_to: str = "date",
+    ) -> pd.DataFrame:
+        return process_fivetran_shopify_unique_orders(
+            self._obj,
+            date_col=date_col,
+            order_key_col=order_key_col,
+            rename_date_to=rename_date_to,
+        )
