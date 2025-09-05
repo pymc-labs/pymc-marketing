@@ -775,6 +775,7 @@ class RegressionModelBuilder(ModelBuilder):
     """ModelBuilder class providing an easy-to-use API similar to scikit-learn for regression models.
 
     Training data is provided in the fit method and must follow the following convention:
+
     - X: Matrix containing predictor variables
     - y: Target variable array
     """
