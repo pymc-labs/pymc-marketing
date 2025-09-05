@@ -16,14 +16,26 @@
 
 import numpy as np
 import pandas as pd
+import pymc as pm
 import pytest
 import xarray as xr
+from pymc_extras.prior import Prior
 from pytensor import function
 
-from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
+from pymc_marketing.mmm import (
+    DelayedAdstock,
+    GeometricAdstock,
+    LogisticSaturation,
+    MichaelisMentenSaturation,
+)
 from pymc_marketing.mmm.multidimensional import (
     MMM,
     MultiDimensionalBudgetOptimizerWrapper,
+)
+from pymc_marketing.pytensor_utils import (
+    MaskedDist,
+    ModelSamplerEstimator,
+    merge_models,
 )
 
 
@@ -301,3 +313,321 @@ def test_extract_response_distribution_vs_sample_response(
     )
 
     print("\n✓ Both methods produce consistent results!")
+
+
+def test_MaskedDist_masked_prior_basic():
+    # dims over 2x3 grid
+    coords = {
+        "country": ["A", "B"],
+        "channel": ["C1", "C2", "C3"],
+    }
+    prior = Prior("Normal", mu=0, sigma=1, dims=("country", "channel"))
+    # mask: activate A:C1 and B:C3 only
+    mask = np.array([[1, 0, 0], [0, 0, 1]], dtype=bool)
+
+    masked = MaskedDist(prior, mask=mask)
+
+    with pm.Model(coords=coords):
+        out = masked.create_variable("vmax_full")
+
+        # Active RV exists and has length 2
+        assert "vmax_full_dist" in pm.modelcontext(None).named_vars, (
+            "Active RV 'vmax_full_dist' not found in model"
+        )
+        active_rv = pm.modelcontext(None).named_vars["vmax_full_dist"]
+        assert active_rv.ndim == 1, f"Expected 1D active RV, got {active_rv.ndim}D"
+        assert active_rv.shape[0].eval() == 2, (
+            f"Expected 2 active elements, got {active_rv.shape[0].eval()}"
+        )
+
+        # The filled tensor should have zeros where mask is False
+        f = function([], out)
+        val = f()
+        assert val.shape == (2, 3), f"Expected shape (2, 3), got {val.shape}"
+        # Zero positions
+        assert np.all(val[0, 1:] == 0), (
+            "Expected zeros at masked positions [0, 1:] but found non-zero values"
+        )
+        assert np.all(val[1, :2] == 0), (
+            "Expected zeros at masked positions [1, :2] but found non-zero values"
+        )
+        # Non-zero positions correspond to active entries
+        # We can't know exact numeric values (random), but they should not be all zeros
+        assert not np.all(val[0, 0] == 0), (
+            "Expected non-zero value at active position [0, 0] but got zero"
+        )
+        assert not np.all(val[1, 2] == 0), (
+            "Expected non-zero value at active position [1, 2] but got zero"
+        )
+
+
+@pytest.mark.parametrize(
+    "component_factory,expected_vars",
+    [
+        (
+            # Current implementation: LogisticSaturation with lam and beta masked
+            lambda mask: LogisticSaturation(
+                priors={
+                    "lam": MaskedDist(
+                        Prior("HalfNormal", sigma=1.0, dims=("country", "region")),
+                        mask=mask,
+                    ),
+                    "beta": MaskedDist(
+                        Prior("HalfNormal", sigma=1.0, dims=("country", "region")),
+                        mask=mask,
+                    ),
+                }
+            ),
+            ["saturation_lam", "saturation_beta"],
+        ),
+        (
+            # Additional saturation: Michaelis-Menten with alpha and lam masked
+            lambda mask: MichaelisMentenSaturation(
+                priors={
+                    "alpha": MaskedDist(
+                        Prior("HalfNormal", sigma=1.0, dims=("country", "region")),
+                        mask=mask,
+                    ),
+                    "lam": MaskedDist(
+                        Prior("HalfNormal", sigma=1.0, dims=("country", "region")),
+                        mask=mask,
+                    ),
+                }
+            ),
+            ["saturation_alpha", "saturation_lam"],
+        ),
+        (
+            # Adstock: Geometric with alpha masked
+            lambda mask: GeometricAdstock(
+                l_max=3,
+                priors={
+                    "alpha": MaskedDist(
+                        Prior("Beta", alpha=1, beta=3, dims=("country", "region")),
+                        mask=mask,
+                    )
+                },
+            ),
+            ["adstock_alpha"],
+        ),
+        (
+            # Adstock: Delayed with alpha and theta masked
+            lambda mask: DelayedAdstock(
+                l_max=3,
+                priors={
+                    "alpha": MaskedDist(
+                        Prior("Beta", alpha=1, beta=3, dims=("country", "region")),
+                        mask=mask,
+                    ),
+                    "theta": MaskedDist(
+                        Prior("HalfNormal", sigma=1.0, dims=("country", "region")),
+                        mask=mask,
+                    ),
+                },
+            ),
+            ["adstock_alpha", "adstock_theta"],
+        ),
+    ],
+)
+def test_MaskedDist_inside_component_without_explicit_coords(
+    component_factory, expected_vars
+):
+    # dims over 2x2 grid
+    coords = {
+        "country": ["A", "B"],
+        "region": ["R1", "R2"],
+    }
+
+    # 2x2 mask activates positions (0,0) and (1,1)
+    mask = np.array([[True, False], [False, True]])
+    comp = component_factory(mask)
+
+    prior_ds = comp.sample_prior(coords=coords, random_seed=1)
+    for var in expected_vars:
+        assert var in prior_ds, (
+            f"Expected variable '{var}' not found in prior dataset. Available variables: {list(prior_ds.keys())}"
+        )
+
+
+def test_ModelSamplerEstimator_dataframe():
+    # Build a minimal PyMC model (structure won't be used due to monkeypatching)
+    with pm.Model() as model:
+        pm.Normal("x", mu=0.0, sigma=1.0, observed=np.array([0.0]))
+
+    estimator = ModelSamplerEstimator(
+        tune=100, draws=200, chains=1, sequential_chains=1, seed=123
+    )
+
+    df = estimator.run(model)
+
+    assert isinstance(df, pd.DataFrame), f"Expected DataFrame, got {type(df)}"
+    assert len(df) == 1, f"Expected DataFrame with 1 row, got {len(df)} rows"
+
+    required_cols = {
+        "model_name",
+        "num_steps",
+        "eval_time_seconds",
+        "sequential_chains",
+        "estimated_sampling_time_seconds",
+        "estimated_sampling_time_minutes",
+        "estimated_sampling_time_hours",
+        "tune",
+        "draws",
+        "chains",
+        "seed",
+        "timestamp",
+    }
+    assert required_cols.issubset(set(df.columns)), (
+        f"Missing required columns: {required_cols - set(df.columns)}"
+    )
+
+    # Check meta values
+    assert df.loc[0, "sequential_chains"] == 1, (
+        f"Expected sequential_chains=1, got {df.loc[0, 'sequential_chains']}"
+    )
+    assert df.loc[0, "tune"] == 100, f"Expected tune=100, got {df.loc[0, 'tune']}"
+    assert df.loc[0, "draws"] == 200, f"Expected draws=200, got {df.loc[0, 'draws']}"
+    assert df.loc[0, "chains"] == 1, f"Expected chains=1, got {df.loc[0, 'chains']}"
+    assert df.loc[0, "seed"] == 123, f"Expected seed=123, got {df.loc[0, 'seed']}"
+
+    # Model name and timestamp sanity
+    assert isinstance(df.loc[0, "model_name"], str), (
+        f"Expected model_name to be str, got {type(df.loc[0, 'model_name'])}"
+    )
+    assert isinstance(df.loc[0, "timestamp"], pd.Timestamp), (
+        f"Expected timestamp to be pd.Timestamp, got {type(df.loc[0, 'timestamp'])}"
+    )
+
+
+def test_MaskedDist_with_likelihood_masks_geo_dates():
+    # Coords: 4 dates, 2 geos
+    coords = {
+        "date": np.arange(4),
+        "geo": ["A", "B"],
+    }
+
+    # Mask: only sample contributions for dates [0, 2] in geo A; all others not sampled
+    mask = np.array(
+        [
+            [True, False],  # date 0: A True, B False
+            [False, False],  # date 1: A False, B False
+            [True, False],  # date 2: A True, B False
+            [False, False],  # date 3: A False, B False
+        ]
+    )
+
+    # Prior over (date, geo) grid for a contribution to the mean of y
+    mu_prior = Prior("Normal", mu=0.0, sigma=1.0, dims=("date", "geo"))
+    masked_mu = MaskedDist(mu_prior, mask=mask)
+
+    observed = np.zeros((len(coords["date"]), len(coords["geo"])))
+
+    likelihood_prior = Prior(
+        "Normal",
+        sigma=Prior("HalfNormal", sigma=1.0),
+        dims=("date", "geo"),
+    )
+    masked_lik = MaskedDist(likelihood_prior, mask=mask)
+
+    with pm.Model(coords=coords):
+        # Masked deterministic mean over full grid (zeros where mask is False)
+        mu_full = masked_mu.create_variable("mu_full")
+
+        # Build likelihood as a Prior and mask it, so both mu and observed are masked
+        masked_lik.create_likelihood_variable(
+            name="y",
+            mu=mu_full,
+            observed=observed,
+        )
+
+        # Active RV for mu exists and has expected size (number of True in mask)
+        active = pm.modelcontext(None).named_vars["mu_full_dist"]
+        assert active.ndim == 1, (
+            f"Expected active RV to be 1-dimensional, got {active.ndim} dimensions"
+        )
+        assert active.shape[0].eval() == int(mask.sum()), (
+            f"Expected active RV shape to be {int(mask.sum())}, got {active.shape[0].eval()}"
+        )
+
+        # Deterministic has zeros where mask is False
+        f = function([], mu_full)
+        mu_val = f()
+        assert mu_val.shape == (len(coords["date"]), len(coords["geo"])), (
+            f"Expected mu_val shape to be {(len(coords['date']), len(coords['geo']))}, "
+            f"got {mu_val.shape}"
+        )
+        assert np.all(mu_val[~mask] == 0), (
+            "Expected mu_val to be zero where mask is False, but found non-zero values"
+        )
+
+        # Observed likelihood should exist and be defined over active dim only
+        y_rv = pm.modelcontext(None).named_vars["y"]
+        y_dims = pm.modelcontext(None).named_vars_to_dims[y_rv.name]
+        # single active dimension from MaskedDist
+        assert len(y_dims) == 1, (
+            f"Expected y_rv to have 1 dimension (active dim only), got {len(y_dims)} dimensions"
+        )
+
+
+def _build_toy_model(X: np.ndarray, y: np.ndarray):
+    coords = {
+        "date": [f"date_{i}" for i in range(X.shape[0])],
+        "feature": [f"feature_{i}" for i in range(X.shape[1])],
+    }
+    with pm.Model(coords=coords) as m:
+        pm.Data("shared_input", X, dims=("date", "feature"))
+        beta = pm.Normal("beta", 0.0, 1.0, dims=("feature",))
+        # Sum over the feature axis (axis=1) to get a per-date mean
+        mu = (m["shared_input"] * beta).sum(axis=-1)
+        pm.Deterministic("mu", mu, dims=("date",))
+        sigma = pm.HalfNormal("sigma", 1.0)
+        pm.Normal("y", mu=mu, sigma=sigma, observed=y, dims=("date",))
+    return m
+
+
+def test_merge_models_with_shared_input_container():
+    # Random small dataset
+    rng = np.random.default_rng(0)
+    n, p = 15, 3
+    X = rng.normal(size=(n, p))
+    y1 = rng.normal(size=n)
+    y2 = rng.normal(size=n)
+    y3 = rng.normal(size=n)
+
+    # Three independent models sharing the same input container name 'shared_input'
+    m1 = _build_toy_model(X, y1)
+    m2 = _build_toy_model(X, y2)
+    m3 = _build_toy_model(X, y3)
+
+    # Merge on the shared input container so it is not prefixed
+    merged = merge_models(
+        [m1, m2, m3], prefixes=["m1", "m2", "m3"], merge_on="shared_input"
+    )
+
+    # The shared variable should exist unprefixed
+    assert "shared_input" in merged.named_vars, (
+        "Expected unprefixed shared_input in merged model"
+    )
+
+    # Each model's deterministics and RVs should be present with prefixes
+    for prefix in ("m1", "m2", "m3"):
+        assert f"{prefix}_beta" in merged.named_vars, (
+            f"Missing {prefix}_beta in merged model"
+        )
+        assert f"{prefix}_mu" in merged.named_vars, (
+            f"Missing {prefix}_mu in merged model"
+        )
+        assert f"{prefix}_sigma" in merged.named_vars, (
+            f"Missing {prefix}_sigma in merged model"
+        )
+        assert f"{prefix}_y" in merged.named_vars, f"Missing {prefix}_y in merged model"
+
+    # Dimensions for the shared input must remain unprefixed and present in coords
+    assert "date" in merged.coords and "feature" in merged.coords, (
+        "Shared dims 'date' and 'feature' should be present in merged coords"
+    )
+    # And the prefixed models should have their own dim names for any of their internal dims (none here),
+    # so we simply confirm the merged graph is compilable
+    with merged:
+        f = function([], merged["m1_mu"])  # smoke test compile
+        out = f()
+        assert out.shape == (n,), "Merged model produced unexpected shape"

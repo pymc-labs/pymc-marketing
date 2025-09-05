@@ -35,6 +35,7 @@ from pymc_marketing.mmm.multidimensional import (
     MultiDimensionalBudgetOptimizerWrapper,
 )
 from pymc_marketing.mmm.scaling import Scaling, VariableScaling
+from pymc_marketing.pytensor_utils import MaskedDist
 
 
 @pytest.fixture
@@ -94,6 +95,46 @@ def fit_mmm(df, mmm, target_column, mock_pymc_sample):
     mmm.fit(X, y)
 
     return mmm
+
+
+def test_mmm_likelihood_masked_dist_excludes_dates(df, target_column):
+    # Prepare data
+    X = df.drop(columns=[target_column])
+    y = df[target_column]
+
+    dates = sorted(X["date"].unique())
+    countries = sorted(X["country"].unique())
+
+    # Build a mask over (date, country): exclude middle date for both countries
+    mask = np.ones((len(dates), len(countries)), dtype=bool)
+    if len(dates) >= 2:
+        mask[1, :] = False
+
+    # Configure likelihood with MaskedDist over (date, country)
+    model_config = {
+        "likelihood": MaskedDist(
+            Prior(
+                "TruncatedNormal",
+                lower=0,
+                sigma=Prior("HalfNormal", sigma=1.5),
+                dims=("date", "country"),
+            ),
+            mask=mask,
+        )
+    }
+
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["C1", "C2"],
+        dims=("country",),
+        target_column=target_column,
+        adstock=GeometricAdstock(l_max=3),
+        saturation=LogisticSaturation(),
+        model_config=model_config,
+    )
+
+    # Attempt to sample prior predictive; this will build the model using the masked likelihood
+    mmm.sample_prior_predictive(X, y)
 
 
 def test_simple_fit(fit_mmm):

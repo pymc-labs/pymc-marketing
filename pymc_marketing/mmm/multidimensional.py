@@ -2146,6 +2146,9 @@ def create_sample_kwargs(
 class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
     """Wrapper for the BudgetOptimizer to handle multi-dimensional model."""
 
+    # Signal to BudgetOptimizer that this wrapper should enforce budget mask validation
+    enforce_budget_mask_validation = True
+
     def __init__(self, model: MMM, start_date: str, end_date: str):
         self.model_class = model
         self.start_date = start_date

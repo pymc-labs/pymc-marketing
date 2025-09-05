@@ -12,11 +12,13 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
+import numpy as np
 import pytest
 from pymc_extras.deserialize import deserialize
 from pymc_extras.prior import Prior
 
 from pymc_marketing import prior
+from pymc_marketing.pytensor_utils import MaskedDist
 
 
 @pytest.mark.parametrize(
@@ -46,6 +48,27 @@ from pymc_marketing import prior
             {"distribution": "Normal", "mu": {"distribution": "Normal"}},
             Prior("Normal", mu=Prior("Normal")),
             id="Prior with nested distribution",
+        ),
+        pytest.param(
+            {
+                # Wrapped MaskedDist schema for backwards-compat
+                "class": "MaskedDist",
+                "data": {
+                    "dist": {
+                        "dist": "Normal",
+                        "kwargs": {"mu": 0, "sigma": 1},
+                        "dims": ("date", "geo"),
+                    },
+                    "mask": [[True, False], [False, True]],
+                    "active_dim_name": "active",
+                },
+            },
+            MaskedDist(
+                Prior("Normal", mu=0, sigma=1, dims=("date", "geo")),
+                mask=np.array([[True, False], [False, True]]),
+                active_dim_name="active",
+            ),
+            id="MaskedDist wrapped",
         ),
     ],
 )
