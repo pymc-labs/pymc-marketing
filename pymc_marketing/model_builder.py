@@ -529,6 +529,7 @@ class ModelBuilder(ABC, ModelIO):
     """Base class for building PyMC-Marketing models.
 
     Child classes must implement the following methods:
+
     - default_model_config: Returns a dictionary for default model configuration.
     - default_sampler_config: Returns a dictionary for default sampler configuration.
     - build_model: Builds the model based on the provided data and model configuration.
