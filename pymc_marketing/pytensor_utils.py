@@ -177,10 +177,10 @@ class MaskedDist(Prior):
 
         # Define prior over full grid
         prior = Prior("Normal", mu=0, sigma=1, dims=("row", "col"))
+        masked_dist = MaskedDist(prior, mask)
 
         with pm.Model(coords=coords):
             # Create masked distribution
-            masked_dist = MaskedDist(prior, mask)
             coeff = masked_dist.create_variable("coeff")
     """
 
