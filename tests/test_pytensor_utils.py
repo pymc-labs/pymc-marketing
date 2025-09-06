@@ -685,7 +685,7 @@ def test_simple_masked_linear_model_with_oos_extension():
         masked_likelihood.create_likelihood_variable("y", mu=mu, observed=y)
 
         idata = pm.sample(
-            draws=150, tune=150, chains=2, cores=1, random_seed=11, progressbar=False
+            draws=150, tune=150, chains=2, cores=1, random_seed=22, progressbar=False
         )
         # sample posterior pred
         idata.extend(
@@ -749,7 +749,7 @@ def test_test_only_oos_with_masked_likelihood_raises():
         likelihood_prior.create_likelihood_variable("y", mu=mu, observed=y)
 
         idata = pm.sample(
-            draws=100, tune=100, chains=2, cores=1, random_seed=22, progressbar=False
+            draws=150, tune=150, chains=2, cores=1, random_seed=22, progressbar=False
         )
 
     # Predict only over test set (last 5 periods) by updating coords and X only for test
@@ -806,7 +806,7 @@ def test_test_only_oos_without_masked_likelihood_succeeds():
         mu = (m["X"] * beta).sum(axis=-1)
         likelihood_prior.create_likelihood_variable("y", mu=mu, observed=y)
         idata = pm.sample(
-            draws=100, tune=100, chains=2, cores=1, random_seed=33, progressbar=False
+            draws=150, tune=150, chains=2, cores=1, random_seed=22, progressbar=False
         )
 
     # Test-only OOS
