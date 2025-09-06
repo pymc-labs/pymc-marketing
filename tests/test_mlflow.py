@@ -163,7 +163,7 @@ def basic_logging_checks(run_data: RunData) -> None:
 def test_file_system_uri_supported(model_with_likelihood) -> None:
     mlflow.set_tracking_uri(uri=Path("./mlruns"))
     mlflow.set_experiment("pymc-marketing-test-suite-local-file")
-    with mlflow.start_run() as run:
+    with mlflow.start_run(nested=True) as run:
         pm.sample(
             model=model_with_likelihood,
             chains=1,
@@ -181,7 +181,7 @@ def test_file_system_uri_supported(model_with_likelihood) -> None:
 
 def test_log_with_data_in_likelihood(model_with_data_in_likelihood) -> None:
     mlflow.set_experiment("pymc-marketing-test-suite-only-target")
-    with mlflow.start_run() as run:
+    with mlflow.start_run(nested=True) as run:
         pm.sample(
             model=model_with_data_in_likelihood,
             chains=1,
@@ -218,7 +218,7 @@ def no_input_model_checks(run_data: RunData) -> None:
 
 def test_log_data_no_data(no_input_model) -> None:
     mlflow.set_experiment("pymc-marketing-test-suite-no-data")
-    with mlflow.start_run() as run:
+    with mlflow.start_run(nested=True) as run:
         pm.sample(
             model=no_input_model,
             chains=1,
@@ -235,7 +235,7 @@ def test_log_data_no_data(no_input_model) -> None:
 
 def test_multi_likelihood_type(multi_likelihood_model) -> None:
     mlflow.set_experiment("pymc-marketing-test-suite-multi-likelihood")
-    with mlflow.start_run() as run:
+    with mlflow.start_run(nested=True) as run:
         log_likelihood_type(multi_likelihood_model)
 
     run_id = run.info.run_id
@@ -274,7 +274,7 @@ def test_log_model_graph_no_graphviz(
         to_patch,
         side_effect=side_effect,
     )
-    with mlflow.start_run() as run:
+    with mlflow.start_run(nested=True) as run:
         with caplog.at_level(logging.INFO):
             log_model_graph(model_with_likelihood, "model_graph")
 
@@ -327,7 +327,7 @@ def param_checks(params, draws: int, chains: int, tune: int, nuts_sampler: str) 
 )
 def test_autolog_pymc_model(model_with_likelihood, nuts_sampler) -> None:
     mlflow.set_experiment("pymc-marketing-test-suite-pymc-model")
-    with mlflow.start_run() as run:
+    with mlflow.start_run(nested=True) as run:
         draws = 30
         tune = 25
         chains = 2
@@ -396,7 +396,7 @@ def bad_starting_point_model() -> pm.Model:
 )
 def test_sample_error_logged(bad_starting_point_model, nuts_sampler: str) -> None:
     mlflow.set_experiment("pymc-marketing-test-suite-error-model")
-    with mlflow.start_run() as run:
+    with mlflow.start_run(nested=True) as run:
         draws = 30
         tune = 25
         chains = 2
@@ -471,7 +471,7 @@ def mmm() -> MMM:
 
 def test_autolog_mmm(mmm, toy_X, toy_y) -> None:
     mlflow.set_experiment("pymc-marketing-test-suite-mmm")
-    with mlflow.start_run() as run:
+    with mlflow.start_run(nested=True) as run:
         draws = 10
         tune = 5
         chains = 1
@@ -599,7 +599,7 @@ def test_clv_fit_mcmc(model_cls, clv_data) -> None:
     }
 
     model = model_cls(data=clv_data, sampler_config=sampler_config)
-    with mlflow.start_run() as run:
+    with mlflow.start_run(nested=True) as run:
         model.fit()
 
     assert mlflow.active_run() is None
@@ -633,7 +633,7 @@ def test_clv_fit_map(model_cls, clv_data) -> None:
     mlflow.set_experiment("pymc-marketing-test-suite-clv")
 
     model = model_cls(data=clv_data)
-    with mlflow.start_run() as run:
+    with mlflow.start_run(nested=True) as run:
         model.fit(fit_method="map")
 
     assert mlflow.active_run() is None
@@ -709,7 +709,7 @@ def test_log_mmm_evaluation_metrics() -> None:
     custom_metrics = ["r_squared", "rmse"]
 
     prefix: str = "in-sample"
-    with mlflow.start_run() as run:
+    with mlflow.start_run(nested=True) as run:
         log_mmm_evaluation_metrics(
             y_true,
             y_pred,
@@ -756,7 +756,7 @@ def test_logging_callback(model_with_likelihood) -> None:
         parameters=["mu"],
         take_every=10,
     )
-    with mlflow.start_run() as run:
+    with mlflow.start_run(nested=True) as run:
         pm.sample(
             model=model_with_likelihood,
             draws=100,
@@ -794,7 +794,7 @@ def test_log_error() -> None:
     file_name = "sample-error.txt"
     main = log_error(baz, file_name=file_name)
 
-    with mlflow.start_run() as run:
+    with mlflow.start_run(nested=True) as run:
         with pytest.raises(MyException, match="This is an error"):
             main()
 
