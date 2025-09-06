@@ -185,24 +185,6 @@ warning_msg = (
 warnings.warn(warning_msg, FutureWarning, stacklevel=1)
 
 
-def _safe_log_param(key: str, value) -> None:
-    """Log a param only if it's not already set to a different value."""
-    run = mlflow.active_run()
-    if run is None:
-        mlflow.log_param(key, value)
-        return
-
-    existing = run.data.params.get(key)
-    if existing is None:
-        mlflow.log_param(key, value)
-        return
-
-    # If value is identical, nothing to do; if different, keep the original
-    if str(existing) != str(value):
-        mlflow.set_tag(f"skipped_param_update.{key}", f"{existing} -> {value}")
-    return
-
-
 def _exclude_tuning(func):
     def callback(trace, draw):
         if draw.tuning:
@@ -479,27 +461,10 @@ def log_types_of_parameters(model: Model) -> None:
         The PyMC model object.
 
     """
-
-    # Avoid MLflow param mutation errors by logging params safely
-    def _safe_log_param(key: str, value) -> None:
-        try:
-            mlflow.log_param(key, value)
-        except Exception as err:  # pragma: no cover - best-effort safety
-            try:
-                from mlflow.exceptions import MlflowException  # type: ignore
-            except Exception:
-                return
-            if isinstance(
-                err, MlflowException
-            ) and "Changing param values is not allowed" in str(err):
-                # Ignore attempts to change existing param values within the same run
-                return
-            raise
-
-    _safe_log_param("n_free_RVs", len(model.free_RVs))
-    _safe_log_param("n_observed_RVs", len(model.observed_RVs))
-    _safe_log_param("n_deterministics", len(model.deterministics))
-    _safe_log_param("n_potentials", len(model.potentials))
+    mlflow.log_param("n_free_RVs", len(model.free_RVs))
+    mlflow.log_param("n_observed_RVs", len(model.observed_RVs))
+    mlflow.log_param("n_deterministics", len(model.deterministics))
+    mlflow.log_param("n_potentials", len(model.potentials))
 
 
 def log_likelihood_type(model: Model) -> None:
@@ -513,9 +478,9 @@ def log_likelihood_type(model: Model) -> None:
     """
     observed_RVs_types = [_get_random_variable_name(rv) for rv in model.observed_RVs]
     if len(observed_RVs_types) == 1:
-        _safe_log_param("likelihood", observed_RVs_types[0])
+        mlflow.log_param("likelihood", observed_RVs_types[0])
     elif len(observed_RVs_types) > 1:
-        _safe_log_param("observed_RVs_types", observed_RVs_types)
+        mlflow.log_param("observed_RVs_types", observed_RVs_types)
 
 
 def log_model_derived_info(model: Model) -> None:
@@ -590,8 +555,8 @@ def log_sample_diagnostics(
     tuning_step = sample_stats.attrs.get("tuning_steps", tune)
     if tuning_step is not None:
         tuning_samples = tuning_step * chains
-        _safe_log_param("tuning_steps", tuning_step)
-        _safe_log_param("tuning_samples", tuning_samples)
+        mlflow.log_param("tuning_steps", tuning_step)
+        mlflow.log_param("tuning_samples", tuning_samples)
 
     total_divergences = diverging.sum().item()
     mlflow.log_metric("total_divergences", total_divergences)
@@ -602,9 +567,9 @@ def log_sample_diagnostics(
             sampling_time / posterior_samples,
         )
 
-    _safe_log_param("draws", draws)
-    _safe_log_param("chains", chains)
-    _safe_log_param("posterior_samples", posterior_samples)
+    mlflow.log_param("draws", draws)
+    mlflow.log_param("chains", chains)
+    mlflow.log_param("posterior_samples", posterior_samples)
 
     if inference_library := posterior.attrs.get("inference_library"):
         mlflow.log_param("inference_library", inference_library)
