@@ -35,6 +35,7 @@ from pymc_marketing.mmm.multidimensional import (
     MultiDimensionalBudgetOptimizerWrapper,
 )
 from pymc_marketing.mmm.scaling import Scaling, VariableScaling
+from pymc_marketing.pytensor_utils import MaskedDist
 
 
 @pytest.fixture
@@ -94,6 +95,46 @@ def fit_mmm(df, mmm, target_column, mock_pymc_sample):
     mmm.fit(X, y)
 
     return mmm
+
+
+def test_mmm_likelihood_masked_dist_excludes_dates(df, target_column):
+    # Prepare data
+    X = df.drop(columns=[target_column])
+    y = df[target_column]
+
+    dates = sorted(X["date"].unique())
+    countries = sorted(X["country"].unique())
+
+    # Build a mask over (date, country): exclude middle date for both countries
+    mask = np.ones((len(dates), len(countries)), dtype=bool)
+    if len(dates) >= 2:
+        mask[1, :] = False
+
+    # Configure likelihood with MaskedDist over (date, country)
+    model_config = {
+        "likelihood": MaskedDist(
+            Prior(
+                "TruncatedNormal",
+                lower=0,
+                sigma=Prior("HalfNormal", sigma=1.5),
+                dims=("date", "country"),
+            ),
+            mask=mask,
+        )
+    }
+
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["C1", "C2"],
+        dims=("country",),
+        target_column=target_column,
+        adstock=GeometricAdstock(l_max=3),
+        saturation=LogisticSaturation(),
+        model_config=model_config,
+    )
+
+    # Attempt to sample prior predictive; this will build the model using the masked likelihood
+    mmm.sample_prior_predictive(X, y)
 
 
 def test_simple_fit(fit_mmm):
@@ -304,7 +345,10 @@ def test_fit(
             )
 
 
-def test_sample_posterior_predictive_new_data(single_dim_data, mock_pymc_sample):
+@pytest.mark.parametrize("likelihood_masked", [False, True])
+def test_sample_posterior_predictive_new_data(
+    single_dim_data, mock_pymc_sample, likelihood_masked
+):
     """
     Test that sampling from the posterior predictive with new/unseen data
     properly creates a 'posterior_predictive' group in the InferenceData.
@@ -319,12 +363,27 @@ def test_sample_posterior_predictive_new_data(single_dim_data, mock_pymc_sample)
     # Build a small model
     adstock = GeometricAdstock(l_max=2)
     saturation = LogisticSaturation()
+    # Optional masked likelihood configuration
+    model_config = None
+    if likelihood_masked:
+        # Build a per-date mask over the training horizon
+        n_train = X_train["date"].nunique()
+        mask = np.ones((n_train,), dtype=bool)
+        mask[:1] = False
+        model_config = {
+            "likelihood": MaskedDist(
+                Prior("Normal", sigma=Prior("HalfNormal", sigma=1.0), dims=("date",)),
+                mask=mask,
+            )
+        }
+
     mmm = MMM(
         date_column="date",
         target_column="target",
         channel_columns=["channel_1", "channel_2", "channel_3"],
         adstock=adstock,
         saturation=saturation,
+        model_config=model_config,
     )
 
     # Fit with a fixed seed for reproducibility
@@ -339,9 +398,14 @@ def test_sample_posterior_predictive_new_data(single_dim_data, mock_pymc_sample)
     np.testing.assert_allclose(no_null_values(mmm.idata.posterior_predictive), 0)
 
     # Sample posterior predictive on new data
-    out_of_sample_idata = mmm.sample_posterior_predictive(
-        X_new, extend_idata=False, random_seed=42
-    )
+    if likelihood_masked:
+        with pytest.raises(ValueError, match="Out-of-sample with masked likelihood"):
+            mmm.sample_posterior_predictive(X_new, extend_idata=False, random_seed=42)
+        return
+    else:
+        out_of_sample_idata = mmm.sample_posterior_predictive(
+            X_new, extend_idata=False, random_seed=42
+        )
 
     # Check that posterior_predictive group was added
     assert hasattr(mmm.idata, "posterior_predictive"), (
