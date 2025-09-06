@@ -461,10 +461,27 @@ def log_types_of_parameters(model: Model) -> None:
         The PyMC model object.
 
     """
-    mlflow.log_param("n_free_RVs", len(model.free_RVs))
-    mlflow.log_param("n_observed_RVs", len(model.observed_RVs))
-    mlflow.log_param("n_deterministics", len(model.deterministics))
-    mlflow.log_param("n_potentials", len(model.potentials))
+
+    # Avoid MLflow param mutation errors by logging params safely
+    def _safe_log_param(key: str, value) -> None:
+        try:
+            mlflow.log_param(key, value)
+        except Exception as err:  # pragma: no cover - best-effort safety
+            try:
+                from mlflow.exceptions import MlflowException  # type: ignore
+            except Exception:
+                return
+            if isinstance(
+                err, MlflowException
+            ) and "Changing param values is not allowed" in str(err):
+                # Ignore attempts to change existing param values within the same run
+                return
+            raise
+
+    _safe_log_param("n_free_RVs", len(model.free_RVs))
+    _safe_log_param("n_observed_RVs", len(model.observed_RVs))
+    _safe_log_param("n_deterministics", len(model.deterministics))
+    _safe_log_param("n_potentials", len(model.potentials))
 
 
 def log_likelihood_type(model: Model) -> None:

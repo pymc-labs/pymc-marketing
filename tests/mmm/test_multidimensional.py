@@ -369,6 +369,7 @@ def test_sample_posterior_predictive_new_data(
         # Build a per-date mask over the training horizon
         n_train = X_train["date"].nunique()
         mask = np.ones((n_train,), dtype=bool)
+        mask[:1] = False
         model_config = {
             "likelihood": MaskedDist(
                 Prior("Normal", sigma=Prior("HalfNormal", sigma=1.0), dims=("date",)),
