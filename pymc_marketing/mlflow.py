@@ -186,24 +186,21 @@ warnings.warn(warning_msg, FutureWarning, stacklevel=1)
 
 
 def _safe_log_param(key: str, value) -> None:
-    """Log an MLflow param, ignoring value-change errors within the same run.
-
-    MLflow forbids changing a param's value once logged for a given run. When
-    multiple models or sampling passes run under the same run_id (as in tests),
-    we prefer to keep the first value and ignore subsequent changes.
-    """
-    try:
+    """Log a param only if it's not already set to a different value."""
+    run = mlflow.active_run()
+    if run is None:
         mlflow.log_param(key, value)
-    except Exception as err:  # pragma: no cover - best-effort safety
-        try:
-            from mlflow.exceptions import MlflowException  # type: ignore
-        except Exception:
-            return
-        if isinstance(
-            err, MlflowException
-        ) and "Changing param values is not allowed" in str(err):
-            return
-        raise
+        return
+
+    existing = run.data.params.get(key)
+    if existing is None:
+        mlflow.log_param(key, value)
+        return
+
+    # If value is identical, nothing to do; if different, keep the original
+    if str(existing) != str(value):
+        mlflow.set_tag(f"skipped_param_update.{key}", f"{existing} -> {value}")
+    return
 
 
 def _exclude_tuning(func):
