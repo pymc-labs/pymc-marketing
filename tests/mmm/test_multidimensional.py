@@ -345,7 +345,10 @@ def test_fit(
             )
 
 
-def test_sample_posterior_predictive_new_data(single_dim_data, mock_pymc_sample):
+@pytest.mark.parametrize("likelihood_masked", [False, True])
+def test_sample_posterior_predictive_new_data(
+    single_dim_data, mock_pymc_sample, likelihood_masked
+):
     """
     Test that sampling from the posterior predictive with new/unseen data
     properly creates a 'posterior_predictive' group in the InferenceData.
@@ -360,12 +363,26 @@ def test_sample_posterior_predictive_new_data(single_dim_data, mock_pymc_sample)
     # Build a small model
     adstock = GeometricAdstock(l_max=2)
     saturation = LogisticSaturation()
+    # Optional masked likelihood configuration
+    model_config = None
+    if likelihood_masked:
+        # Build a per-date mask over the training horizon
+        n_train = X_train["date"].nunique()
+        mask = np.ones((n_train,), dtype=bool)
+        model_config = {
+            "likelihood": MaskedDist(
+                Prior("Normal", sigma=Prior("HalfNormal", sigma=1.0), dims=("date",)),
+                mask=mask,
+            )
+        }
+
     mmm = MMM(
         date_column="date",
         target_column="target",
         channel_columns=["channel_1", "channel_2", "channel_3"],
         adstock=adstock,
         saturation=saturation,
+        model_config=model_config,
     )
 
     # Fit with a fixed seed for reproducibility
@@ -380,9 +397,14 @@ def test_sample_posterior_predictive_new_data(single_dim_data, mock_pymc_sample)
     np.testing.assert_allclose(no_null_values(mmm.idata.posterior_predictive), 0)
 
     # Sample posterior predictive on new data
-    out_of_sample_idata = mmm.sample_posterior_predictive(
-        X_new, extend_idata=False, random_seed=42
-    )
+    if likelihood_masked:
+        with pytest.raises(ValueError, match="Out-of-sample with masked likelihood"):
+            mmm.sample_posterior_predictive(X_new, extend_idata=False, random_seed=42)
+        return
+    else:
+        out_of_sample_idata = mmm.sample_posterior_predictive(
+            X_new, extend_idata=False, random_seed=42
+        )
 
     # Check that posterior_predictive group was added
     assert hasattr(mmm.idata, "posterior_predictive"), (

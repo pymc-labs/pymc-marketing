@@ -239,8 +239,6 @@ def test_extract_response_distribution_vs_sample_response(
     ## Assert that response_fun_inputs_values[:, 0, 0] have length equal
     ## to optimizable_model.num_periods + optimizable_model.adstock.l_max
 
-    ## Assert that data_values_for_model.values[:, 0, 0] have length equal
-    ## to optimizable_model.num_periods + optimizable_model.adstock.l_max
     assert (
         len(response_fun_inputs_values[:, 0, 0])
         == optimizable_model.num_periods + optimizable_model.adstock.l_max
@@ -631,3 +629,204 @@ def test_merge_models_with_shared_input_container():
         f = function([], merged["m1_mu"])  # smoke test compile
         out = f()
         assert out.shape == (n,), "Merged model produced unexpected shape"
+
+
+def test_simple_masked_linear_model_with_oos_extension():
+    rng = np.random.default_rng(0)
+
+    # Dimensions
+    T = 12
+    geos = ["A", "B"]
+    channels = ["C1", "C2"]
+
+    # Data: X over (date, geo, channel)
+    X = rng.normal(loc=10.0, scale=3.0, size=(T, len(geos), len(channels)))
+
+    # make all dates for B geo and channel C2 zero
+    X[:, 0, 1] = 0.0
+
+    # make the first 3 days for geo A and channel C1 zero
+    X[:3, 0, 0] = 0.0
+
+    # Static channel betas
+    beta_vals = np.array([0.6, -0.25], dtype=float)
+
+    # True mean and observations
+    mu_true = (X * beta_vals).sum(axis=-1)
+    y = rng.normal(loc=mu_true, scale=0.2)
+
+    coords = {
+        "date": np.arange(T),
+        "geo": geos,
+        "channel": channels,
+    }
+
+    beta = Prior("Normal", mu=0.0, sigma=1.0, dims=("geo", "channel"))
+    likelihood_prior = Prior(
+        "Normal", sigma=Prior("HalfNormal", sigma=1.0), dims=("date", "geo")
+    )
+
+    # create a mask with size len(geos) x len(channels) where we exclude all dates for B geo and channel C2
+    mask = np.ones((len(geos), len(channels)), dtype=bool)
+    mask[1, 1] = False  # exclude all dates for B geo and channel C2
+
+    masked_beta = MaskedDist(beta, mask=mask)
+
+    # create a mask with size T x len(geos) where we exclude the first 3 days for geo A
+    mask_y = np.ones((T, len(geos)), dtype=bool)
+    mask_y[:3, 0] = False
+
+    masked_likelihood = MaskedDist(likelihood_prior, mask=mask_y)
+
+    with pm.Model(coords=coords) as m:
+        pm.Data("X", X, dims=("date", "geo", "channel"))
+        beta = masked_beta.create_variable("beta")
+        mu = (m["X"] * beta).sum(axis=-1)
+        masked_likelihood.create_likelihood_variable("y", mu=mu, observed=y)
+
+        idata = pm.sample(
+            draws=150, tune=150, chains=2, cores=1, random_seed=11, progressbar=False
+        )
+        # sample posterior pred
+        idata.extend(
+            pm.sample_posterior_predictive(idata, var_names=["y"], progressbar=False)
+        )
+
+    # New set of T values (take the last value of np.arange(T) and add 5)
+    # Follow PyMC out-of-sample logic: update pm.Data and coords, then draw PPC
+    T_new = T + 5
+    new_dates = np.arange(T_new)
+    X_future = rng.normal(loc=3.0, scale=0.5, size=(5, len(geos), len(channels)))
+    X_extended = np.concatenate([X, X_future], axis=0)
+
+    with m:
+        pm.set_data({"X": X_extended}, coords={"date": new_dates})
+        # Draw new posterior predictive with updated inputs
+        pm.sample_posterior_predictive(idata, var_names=["y"], progressbar=False)
+
+
+def test_test_only_oos_with_masked_likelihood_raises():
+    rng = np.random.default_rng(1)
+
+    # Train dimensions
+    T = 12
+    geos = ["A", "B"]
+    channels = ["C1", "C2"]
+
+    # Training data
+    X = rng.normal(loc=10.0, scale=3.0, size=(T, len(geos), len(channels)))
+    X[:, 0, 1] = 0.0
+    X[:3, 0, 0] = 0.0
+
+    beta_vals = np.array([0.6, -0.25], dtype=float)
+    mu_true = (X * beta_vals).sum(axis=-1)
+    y = rng.normal(loc=mu_true, scale=0.2)
+
+    coords = {
+        "date": np.arange(T),
+        "geo": geos,
+        "channel": channels,
+    }
+
+    # Priors
+    beta_prior = Prior("Normal", mu=0.0, sigma=1.0, dims=("geo", "channel"))
+    # Unmasked likelihood prior to allow flexible OOS dims
+    likelihood_prior = Prior(
+        "Normal",
+        sigma=Prior("HalfNormal", sigma=1.0),
+        dims=("date", "geo"),
+    )
+
+    # Mask for beta only (e.g., disable B:C2)
+    mask = np.ones((len(geos), len(channels)), dtype=bool)
+    mask[1, 1] = False
+    masked_beta = MaskedDist(beta_prior, mask=mask)
+
+    with pm.Model(coords=coords) as m:
+        pm.Data("X", X, dims=("date", "geo", "channel"))
+        beta = masked_beta.create_variable("beta")
+        mu = (m["X"] * beta).sum(axis=-1)
+        likelihood_prior.create_likelihood_variable("y", mu=mu, observed=y)
+
+        idata = pm.sample(
+            draws=100, tune=100, chains=2, cores=1, random_seed=22, progressbar=False
+        )
+
+    # Predict only over test set (last 5 periods) by updating coords and X only for test
+    T_test = 5
+    X_test = rng.normal(loc=3.0, scale=0.5, size=(T_test, len(geos), len(channels)))
+    new_dates = np.arange(T_test)
+
+    with m:
+        pm.set_data({"X": X_test}, coords={"date": new_dates})
+        # Predicting only over the test set is incompatible with masked likelihood over training dims.
+        # Expect a coordinate/shape error when attempting PPC with shorter coords.
+        with pytest.raises(Exception, match=r"conflicting sizes.*dimension 'date'"):
+            pm.sample_posterior_predictive(idata, var_names=["y"], progressbar=False)
+
+
+def test_test_only_oos_without_masked_likelihood_succeeds():
+    rng = np.random.default_rng(2)
+
+    # Train dims
+    T = 12
+    geos = ["A", "B"]
+    channels = ["C1", "C2"]
+
+    # Training data
+    X = rng.normal(loc=10.0, scale=3.0, size=(T, len(geos), len(channels)))
+    X[:, 0, 1] = 0.0
+    X[:3, 0, 0] = 0.0
+
+    beta_vals = np.array([0.6, -0.25], dtype=float)
+    mu_true = (X * beta_vals).sum(axis=-1)
+    y = rng.normal(loc=mu_true, scale=0.2)
+
+    coords = {
+        "date": np.arange(T),
+        "geo": geos,
+        "channel": channels,
+    }
+
+    # Only mask priors for betas; likelihood is NOT masked
+    beta_prior = Prior("Normal", mu=0.0, sigma=1.0, dims=("geo", "channel"))
+    mask = np.ones((len(geos), len(channels)), dtype=bool)
+    mask[1, 1] = False
+    masked_beta = MaskedDist(beta_prior, mask=mask)
+
+    likelihood_prior = Prior(
+        "Normal",
+        sigma=Prior("HalfNormal", sigma=1.0),
+        dims=("date", "geo"),
+    )
+
+    with pm.Model(coords=coords) as m:
+        pm.Data("X", X, dims=("date", "geo", "channel"))
+        beta = masked_beta.create_variable("beta")
+        mu = (m["X"] * beta).sum(axis=-1)
+        likelihood_prior.create_likelihood_variable("y", mu=mu, observed=y)
+        idata = pm.sample(
+            draws=100, tune=100, chains=2, cores=1, random_seed=33, progressbar=False
+        )
+
+    # Test-only OOS
+    T_test = 5
+    X_test = rng.normal(loc=3.0, scale=0.5, size=(T_test, len(geos), len(channels)))
+    new_dates = np.arange(T_test)
+
+    with m:
+        pm.set_data({"X": X_test}, coords={"date": new_dates})
+        # Use return_inferencedata=False to avoid packaging observed_data (which has training dims)
+        ppc = pm.sample_posterior_predictive(
+            idata,
+            var_names=["y"],
+            progressbar=False,
+            return_inferencedata=False,
+        )
+
+    assert "y" in ppc, "y not present in PPC dict"
+    # Shape: (chains, draws, T_test, N_geo) in PyMC 5
+    y_pp = ppc["y"]
+    assert y_pp.shape[-2:] == (T_test, len(geos)), (
+        "PPC shape mismatch for test-only OOS"
+    )

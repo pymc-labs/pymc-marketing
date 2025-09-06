@@ -132,7 +132,7 @@ def extract_response_distribution(
     return response_distribution
 
 
-class MaskedDist(Prior):
+class MaskedDist:
     """Create a masked deterministic from a Prior over full dims.
 
     The foal is to reduce the number of parameters in the model by creating a masked deterministic
@@ -187,18 +187,35 @@ class MaskedDist(Prior):
     def __init__(
         self, distribution: Prior, mask: Any, active_dim_name: str = "active"
     ) -> None:
-        # Initialize as a Prior by copying fields from the wrapped prior
-        super().__init__(
-            distribution=distribution.distribution,
-            dims=distribution.dims,
-            centered=distribution.centered,
-            transform=distribution.transform,
-            **distribution.parameters,
-        )
+        # Wrap an existing Prior instance instead of inheriting
+        self.distribution: Prior = distribution
         self.mask = mask
         self.active_dim_name = active_dim_name
 
-    # Inherit dims property and behavior from Prior
+    @property
+    def dims(self) -> tuple[str, ...]:
+        """Proxy the wrapped prior dims."""
+        return self.distribution.dims
+
+    @dims.setter
+    def dims(self, new_dims) -> None:
+        """Set dims on the wrapped prior."""
+        self.distribution.dims = new_dims
+
+    @property
+    def parameters(self) -> dict:
+        """Proxy the wrapped prior parameters."""
+        return self.distribution.parameters
+
+    @property
+    def centered(self) -> bool:
+        """Proxy the wrapped prior centered flag."""
+        return self.distribution.centered
+
+    @property
+    def transform(self) -> str | None:
+        """Proxy the wrapped prior transform name, if any."""
+        return self.distribution.transform
 
     def _aligned_param_full(
         self,
@@ -342,6 +359,13 @@ class MaskedDist(Prior):
         # Build active parameters by indexing the full-grid parameters
         params_active: dict[str, Any] = {}
         for param_name, value in self.parameters.items():
+            # If value is a Prior-like without dims (scalar prior), forward it as-is so
+            # the inner Prior can create the RV. This avoids creating and then indexing
+            # an RV here, which can leak RVs into the likelihood logp graph.
+            if hasattr(value, "create_variable") and not getattr(value, "dims", None):
+                params_active[param_name] = value
+                continue
+
             full_param = self._aligned_param_full(
                 model=model,
                 name=name,
@@ -402,7 +426,7 @@ class MaskedDist(Prior):
 
         # Create the active RV with labeled active dim
         active_prior = Prior(
-            self.distribution,
+            self.distribution.distribution,
             dims=(active_dim,),
             centered=self.centered,
             transform=self.transform,
@@ -486,9 +510,27 @@ class MaskedDist(Prior):
 
         n_active = int(mask_np.sum())
 
+        # Ensure active coordinate exists (we need it to shape nested scalar Priors)
+        active_dim = self.active_dim_name
+        if active_dim in model.coords and len(model.coords[active_dim]) != n_active:
+            active_dim = f"{active_dim}_{name}"
+        if active_dim not in model.coords:
+            model.add_coord(active_dim, np.arange(n_active))
+
         # Build active parameters by indexing the full-grid parameters
         params_active: dict[str, Any] = {}
         for param_name, value in self.parameters.items():
+            # If value is a scalar Prior (no dims), expand it directly to the active dim
+            # to avoid broadcasting/lifting a scalar RV later in the likelihood logp.
+            if hasattr(value, "create_variable") and not getattr(value, "dims", None):
+                params_active[param_name] = Prior(
+                    value.distribution,
+                    dims=(active_dim,),
+                    centered=value.centered,
+                    transform=value.transform,
+                    **value.parameters,
+                )
+                continue
             full_param = self._aligned_param_full(
                 model=model,
                 name=name,
@@ -513,16 +555,12 @@ class MaskedDist(Prior):
             else:
                 params_active[param_name] = full_param
 
-        # Ensure active coordinate exists
-        active_dim = self.active_dim_name
-        if active_dim in model.coords and len(model.coords[active_dim]) != n_active:
-            active_dim = f"{active_dim}_{name}"
-        if active_dim not in model.coords:
-            model.add_coord(active_dim, np.arange(n_active))
-
         # Build masked mu and observed
         if isinstance(mu, pt.TensorVariable | np.ndarray):
-            mu_active = mu[mask_np]
+            # Truncate potential out-of-sample extension back to training sizes before masking
+            slices = tuple(slice(0, s) for s in full_sizes)
+            mu_truncated = mu[slices]
+            mu_active = mu_truncated[mask_np]
         else:
             mu_active = mu
 
@@ -533,7 +571,7 @@ class MaskedDist(Prior):
 
         # Create active likelihood prior and variable
         active_prior = Prior(
-            self.distribution,
+            self.distribution.distribution,
             dims=(active_dim,),
             centered=self.centered,
             transform=self.transform,
@@ -555,7 +593,7 @@ class MaskedDist(Prior):
         dict
             A dictionary with the wrapped distribution config and boolean mask.
         """
-        base = super().to_dict()
+        base = self.distribution.to_dict()
         if isinstance(self.mask, pt.TensorVariable):
             mask_val = np.asarray(self.mask.eval()).astype(bool).tolist()
         else:
@@ -568,6 +606,19 @@ class MaskedDist(Prior):
                 "mask": mask_val,
             },
         }
+
+    def __eq__(self, other) -> bool:
+        """Equality check based on wrapped prior, mask and active dim name."""
+        if not isinstance(other, MaskedDist):
+            return False
+        try:
+            np.testing.assert_equal(np.asarray(self.mask), np.asarray(other.mask))
+        except AssertionError:
+            return False
+        return (
+            self.distribution == other.distribution
+            and self.active_dim_name == other.active_dim_name
+        )
 
 
 def _is_masked_dist(data: dict) -> bool:

@@ -205,6 +205,7 @@ from pymc_marketing.model_builder import (
 )
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.model_graph import deterministics_to_flat
+from pymc_marketing.pytensor_utils import MaskedDist
 
 PYMC_MARKETING_ISSUE = "https://github.com/pymc-labs/pymc-marketing/issues/new"
 warning_msg = (
@@ -1488,6 +1489,20 @@ class MMM(RegressionModelBuilder):
         self._validate_date_overlap_with_include_last_observations(
             X, include_last_observations
         )
+
+        # If the model likelihood was masked during training, require that OOS inputs
+        # start at the same minimum date as the training data. Supplying only a test
+        # horizon (i.e., a later min date) is not compatible with masked likelihoods.
+        likelihood_cfg = self.model_config.get("likelihood")
+        if isinstance(likelihood_cfg, MaskedDist):
+            training_min = pd.to_datetime(self.model_coords["date"]).min()
+            input_min = pd.to_datetime(X[self.date_column]).min()
+            if pd.Timestamp(input_min) != pd.Timestamp(training_min):
+                raise ValueError(
+                    "Out-of-sample with masked likelihood requires X to start at the training min date; "
+                    f"got {pd.Timestamp(input_min).date()} != {pd.Timestamp(training_min).date()}. "
+                    "Provide full X from training start or use an unmasked likelihood."
+                )
 
         dataarrays = []
         if include_last_observations:
