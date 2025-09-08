@@ -11,11 +11,19 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""PyMC-Marketing."""
+"""Various decorators for PyMC-Marketing."""
 
-# Load the data accessor
-import pymc_marketing.data.fivetran  # noqa: F401
-from pymc_marketing import clv, customer_choice, mmm
-from pymc_marketing.version import __version__
+from functools import wraps
 
-__all__ = ["__version__", "clv", "customer_choice", "mmm"]
+
+def copy_docstring(function):
+    """Copy docstring from one function to other."""
+
+    def decorator(func):
+        @wraps(function)
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator

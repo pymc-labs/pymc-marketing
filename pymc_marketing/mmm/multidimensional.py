@@ -615,7 +615,9 @@ class MMM(RegressionModelBuilder):
                 sigma=Prior("HalfNormal", sigma=2, dims=self.dims),
                 dims=self.dims,
             ),
-            "gamma_control": Prior("Normal", mu=0, sigma=2, dims="control"),
+            "gamma_control": Prior(
+                "Normal", mu=0, sigma=2, dims=(*self.dims, "control")
+            ),
             "gamma_fourier": Prior(
                 "Laplace", mu=0, b=1, dims=(*self.dims, "fourier_mode")
             ),
@@ -1950,6 +1952,155 @@ class MMM(RegressionModelBuilder):
             dist=dist,
             name=name,
         )
+
+    def create_fit_data(
+        self,
+        X: pd.DataFrame | xr.Dataset | xr.DataArray,
+        y: np.ndarray | pd.Series | xr.DataArray,
+    ) -> xr.Dataset:
+        """Create a fit dataset aligned on date and present dimensions.
+
+        Builds and returns an xarray ``Dataset`` that contains:
+
+        - data variables from ``X`` (all non-coordinate columns),
+        - the target variable from ``y`` under ``self.output_var``, and
+        - coordinates on ``(self.date_column, *dims present in X)``.
+
+        Parameters
+        ----------
+        X : pd.DataFrame | xr.Dataset | xr.DataArray
+            Feature data. If an xarray object is provided, it is converted to a
+            DataFrame via ``to_dataframe().reset_index()`` before processing.
+        y : np.ndarray | pd.Series | xr.DataArray
+            Target values. Must align with ``X`` either by position (same length)
+            or via a MultiIndex that includes ``(self.date_column, *dims present in X)``.
+
+        Returns
+        -------
+        xr.Dataset
+            Dataset indexed by ``(self.date_column, *dims present in X)`` with the
+            feature variables and a target variable named ``self.output_var``.
+
+        Raises
+        ------
+        ValueError
+            - If ``self.date_column`` is missing in ``X``.
+            - If ``y`` is a ``np.ndarray`` and its length does not match ``X``.
+            - If ``y`` cannot be aligned to ``X`` by index or position.
+        RuntimeError
+            If the target column is missing after alignment.
+
+        Notes
+        -----
+        - The original date column name is preserved (``self.date_column``).
+        - Coordinates are assigned only for dimensions present in ``X``.
+        - Data is sorted by ``(self.date_column, *dims present in X)`` prior to
+          conversion to xarray.
+
+        Examples
+        --------
+        >>> ds = mmm.create_fit_data(X, y)
+        """
+        # --- Coerce X to DataFrame ---
+        if isinstance(X, xr.Dataset):
+            X_df = X.to_dataframe().reset_index()
+        elif isinstance(X, xr.DataArray):
+            X_df = X.to_dataframe(name=X.name or "value").reset_index()
+        else:
+            X_df = X.copy()
+
+        if self.date_column not in X_df.columns:
+            raise ValueError(f"'{self.date_column}' not in X columns")
+
+        # --- Coerce y to Series ---
+        if isinstance(y, xr.DataArray):
+            y_s = y.to_series()
+        elif isinstance(y, np.ndarray):
+            if len(y) != len(X_df):
+                raise ValueError("y length must match X when passed as ndarray")
+            y_s = pd.Series(y, index=X_df.index)
+        else:
+            y_s = y.copy()
+        y_s.name = self.target_column
+
+        dims_in_X = [d for d in self.dims if d in X_df.columns]
+        coord_cols = [self.date_column, *dims_in_X]
+
+        # Alignment strategies
+        if isinstance(y_s.index, pd.MultiIndex) and set(coord_cols).issubset(
+            y_s.index.names
+        ):
+            # Align via MultiIndex
+            X_mi = X_df.set_index(coord_cols)
+            aligned = y_s.reindex(X_mi.index)
+            if aligned.isna().any():  # fallback merge if mismatch
+                X_df = X_df.merge(
+                    y_s.reset_index(),
+                    on=coord_cols,
+                    how="left",
+                )
+            else:
+                X_df[self.target_column] = aligned.values
+        elif len(y_s) == len(X_df):
+            # Positional
+            X_df[self.target_column] = y_s.to_numpy()
+        else:
+            # Try merge if y has columns as index levels
+            if isinstance(y_s.index, pd.MultiIndex) and set(coord_cols).issubset(
+                y_s.index.names
+            ):
+                X_df = X_df.merge(y_s.reset_index(), on=coord_cols, how="left")
+            else:
+                raise ValueError(
+                    "Cannot align y with X; incompatible indices / lengths"
+                )
+
+        if self.target_column not in X_df.columns:
+            raise RuntimeError(
+                f"Target column {self.target_column} missing after alignment"
+            )
+
+        ds = X_df.sort_values(coord_cols).set_index(coord_cols).to_xarray()
+        return ds
+
+    def build_from_idata(self, idata: az.InferenceData) -> None:
+        """Rebuild the model from an ``InferenceData`` object.
+
+        Uses the stored fit dataset in ``idata`` to reconstruct the model graph by
+        calling :meth:`build_model`. This is commonly used as part of a ``load``
+        workflow to restore a model prior to sampling predictive quantities.
+
+        Parameters
+        ----------
+        idata : az.InferenceData
+                Inference data containing the fit dataset under the ``fit_data`` group.
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        - Expects ``idata.fit_data`` to exist and contain both features and the
+            target column named ``self.output_var``.
+        - This rebuilds the model structure; it does not attach posterior samples.
+            Assign ``self.idata = idata`` separately if you need to reuse samples.
+
+        Examples
+        --------
+        >>> mmm.build_from_idata(idata)
+        """
+        dataset = idata.fit_data.to_dataframe()
+
+        if isinstance(dataset.index, pd.MultiIndex) or isinstance(
+            dataset.index, pd.DatetimeIndex
+        ):
+            dataset = dataset.reset_index()
+        # type: ignore
+        X = dataset.drop(columns=[self.target_column])
+        y = dataset[self.target_column]
+
+        self.build_model(X, y)  # type: ignore
 
 
 def create_sample_kwargs(
