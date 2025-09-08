@@ -77,7 +77,7 @@ def sample_multidim_data():
 
 
 @pytest.fixture
-def fitted_multidim_mmm(sample_multidim_data):
+def fitted_multidim_mmm(sample_multidim_data, mock_pymc_sample):
     """Create and fit a multidimensional MMM model."""
     mmm = MMM(
         date_column="date",
@@ -631,7 +631,7 @@ def test_merge_models_with_shared_input_container():
         assert out.shape == (n,), "Merged model produced unexpected shape"
 
 
-def test_simple_masked_linear_model_with_oos_extension():
+def test_simple_masked_linear_model_with_oos_extension(mock_pymc_sample):
     rng = np.random.default_rng(0)
 
     # Dimensions
@@ -705,7 +705,7 @@ def test_simple_masked_linear_model_with_oos_extension():
         pm.sample_posterior_predictive(idata, var_names=["y"], progressbar=False)
 
 
-def test_test_only_oos_with_masked_likelihood_raises():
+def test_test_only_oos_with_masked_likelihood_raises(mock_pymc_sample):
     rng = np.random.default_rng(1)
 
     # Train dimensions
