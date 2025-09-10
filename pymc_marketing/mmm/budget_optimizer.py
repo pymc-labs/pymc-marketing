@@ -363,6 +363,11 @@ class BudgetOptimizer(BaseModel):
         ),
     )
 
+    jax_backend: bool = Field(
+        default=False,
+        description="Boolean flag controlling jax backend. Needed for GPU support",
+    )
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     DEFAULT_MINIMIZE_KWARGS: ClassVar[dict] = {
@@ -684,10 +689,23 @@ class BudgetOptimizer(BaseModel):
         )
         objective_grad = pt.grad(rewrite_pregrad(objective), budgets_flat)
 
-        objective_and_grad_func = function([budgets_flat], [objective, objective_grad])
+        if self.jax_backend:
+            # Use PyMC's JAX infrastructure for robust compilation
+            from pymc.sampling.jax import get_jaxified_graph
+
+            objective_and_grad_func = get_jaxified_graph(
+                inputs=[budgets_flat], outputs=[objective, objective_grad]
+            )
+        else:
+            # Standard PyTensor compilation
+            objective_and_grad_func = function(
+                [budgets_flat],
+                [objective, objective_grad],
+            )
 
         # Avoid repeated input validation for performance
-        objective_and_grad_func.trust_input = True
+        if hasattr(objective_and_grad_func, "trust_input"):
+            objective_and_grad_func.trust_input = True
 
         self._compiled_functions[self.utility_function] = {
             "objective_and_grad": objective_and_grad_func,
