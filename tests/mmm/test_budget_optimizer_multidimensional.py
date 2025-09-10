@@ -13,10 +13,12 @@
 #   limitations under the License.
 import numpy as np
 import pandas as pd
+import pymc as pm
 import pytest
 import xarray as xr
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
+from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer, MultiModelWrapper
 from pymc_marketing.mmm.multidimensional import (
     MMM,
     MultiDimensionalBudgetOptimizerWrapper,
@@ -1073,3 +1075,65 @@ def test_multidimensional_optimize_budget_callback_parametrized(
     assert hasattr(opt_result, "success")
     assert hasattr(opt_result, "x")
     assert hasattr(opt_result, "fun")
+
+
+def test_multi_model_wrapper_merge_and_optimize(dummy_df, fitted_mmm):
+    df_kwargs, X_dummy, y_dummy = dummy_df
+
+    # Build three wrappers over the same fitted model and time window
+    start_date = X_dummy["date_week"].max() + pd.Timedelta(weeks=1)
+    end_date = X_dummy["date_week"].max() + pd.Timedelta(weeks=4)
+
+    w1 = MultiDimensionalBudgetOptimizerWrapper(
+        model=fitted_mmm, start_date=start_date, end_date=end_date
+    )
+    w2 = MultiDimensionalBudgetOptimizerWrapper(
+        model=fitted_mmm, start_date=start_date, end_date=end_date
+    )
+    w3 = MultiDimensionalBudgetOptimizerWrapper(
+        model=fitted_mmm, start_date=start_date, end_date=end_date
+    )
+
+    multi_model = MultiModelWrapper(
+        models=[w1, w2, w3], prefixes=["m1", "m2", "m3"], merge_on="channel_data"
+    )
+
+    # Add a merged deterministic that sums each model's total contribution
+    with multi_model.model:
+        pm.Deterministic(
+            "total_media_contribution_original_scale",
+            var=(
+                multi_model.model["m1_total_media_contribution_original_scale"]
+                + multi_model.model["m2_total_media_contribution_original_scale"]
+                + multi_model.model["m3_total_media_contribution_original_scale"]
+            ),
+            dims=(),
+        )
+
+    # Optimize a short horizon
+    optimizer = BudgetOptimizer(
+        model=multi_model,
+        num_periods=multi_model.num_periods,
+        response_variable="total_media_contribution_original_scale",
+    )
+
+    allocation, result = optimizer.allocate_budget(total_budget=50.0)
+
+    # Validate basic properties
+    assert result.success, (
+        f"Optimization failed: {result.message if hasattr(result, 'message') else 'Unknown error'}"
+    )
+    assert isinstance(allocation, xr.DataArray), (
+        f"Expected allocation to be xr.DataArray, got {type(allocation)}"
+    )
+    # Expect dims (channel, geo) from merged channel_data
+    assert set(allocation.dims) == {"channel", "geo"}, (
+        f"Expected dims {{'channel', 'geo'}}, got {set(allocation.dims)}"
+    )
+    assert np.isclose(allocation.sum().item(), 50.0), (
+        f"Expected total budget 50.0, got {allocation.sum().item()}"
+    )
+    # check total_media_contribution_original_scale exist in the graph from the multi_model
+    assert "total_media_contribution_original_scale" in multi_model.model.named_vars, (
+        "total_media_contribution_original_scale not found in model named_vars"
+    )

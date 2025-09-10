@@ -56,8 +56,10 @@ def setup_module():
 
     yield
 
-    pm.sample = pm.sample.__wrapped__
-    MMM.fit = MMM.fit.__wrapped__
+    while "__wrapped__" in dir(pm.sample):
+        pm.sample = pm.sample.__wrapped__
+    while "__wrapped__" in dir(MMM.fit):
+        MMM.fit = MMM.fit.__wrapped__
 
 
 @pytest.fixture(scope="module")
