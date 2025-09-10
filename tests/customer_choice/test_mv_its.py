@@ -317,7 +317,7 @@ def test_support_for_mu_effects(saturated_data, mock_pymc_sample) -> None:
     n_existing_products = 2
     posterior_size = {"chain": 1, "draw": 10}
 
-    assert model.posterior["fourier_effect"].sizes == {
+    assert model.posterior["fourier_contribution"].sizes == {
         **posterior_size,
         "time": n_time,
         "existing_product": n_existing_products,
