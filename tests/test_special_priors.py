@@ -15,6 +15,7 @@
 import numpy as np
 import pymc as pm
 import pytest
+import xarray as xr
 from pymc_extras.prior import Prior
 
 from pymc_marketing.special_priors import (
@@ -32,8 +33,11 @@ from pymc_marketing.special_priors import (
             True,
             ("channel",),
         ),
-        (np.array([1, 2, 3]), np.array([4, 5, 6]), True, None),
         (1.0, 2.0, False, ("channel",)),
+        (1.0, 2.0, True, ("channel",)),
+        (np.array([1, 2, 3]), np.array([4, 5, 6]), True, ("channel",)),
+        (np.array([1, 2, 3]), np.array([4, 5, 6]), False, ("channel",)),
+        (1.0, 2.0, True, ()),
     ],
 )
 def test_LogNormalPositiveParam_args(mu, sigma, centered, dims):
@@ -46,8 +50,14 @@ def test_LogNormalPositiveParam_args(mu, sigma, centered, dims):
     rv = LogNormalPositiveParam(mu=mu, sigma=sigma, centered=centered, dims=dims)
 
     coords = {"channel": ["C1", "C2", "C3"]}
-    prior = rv.sample_prior(coords=coords)
-    assert prior.channel.shape == (len(coords["channel"]),)
+
+    if dims:
+        prior = rv.sample_prior(coords=coords)
+        assert prior.channel.shape == (len(coords["channel"]),)
+    else:
+        prior = rv.sample_prior()
+        assert isinstance(prior, xr.Dataset)
+
     if centered is False:
         assert "variable_log_offset" in prior.data_vars
 

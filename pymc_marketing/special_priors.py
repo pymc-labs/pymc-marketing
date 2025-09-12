@@ -33,14 +33,13 @@ class LogNormalPositiveParam:
     """
     A specialized implementation of a log normal distribution.
 
-    Like the LogNormal distribution, this distribution covers the positive numbers.
+    Like the LogNormal distribution, this distribution has support over the positive numbers.
     However, unlike the lognormal, the parameters are also specified in the positive
-    domain. This is very useful in modeling MMM parameters because they are also
-    constrained to be positive and you get specify priors on a intuitive scale.
+    domain.
 
     The other advantage of this prior is in constructing hierarchical models. It allows users to toggle
-    between centered and non-centered parameterization. This facilitates rapid iteration when searching
-    for a parameterization that enables efficient sampling.
+    between centered and non-centered parameterizations. This enables rapid iteration when searching
+    for a parameterization samples efficiently.
 
     Parameters
     ----------
