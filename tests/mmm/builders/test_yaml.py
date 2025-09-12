@@ -50,11 +50,25 @@ def get_yaml_files():
         for file in config_dir.glob("*.yml")
         if "wrong_" not in file.name
         and "multi_dimensional_example_model.yml" not in file.name
+        and "multi_dimensional_fivetran.yml" not in file.name
     ]
 
 
+@pytest.mark.parametrize(
+    "model_kwargs",
+    [
+        None,
+        {
+            "adstock": {
+                "class": "pymc_marketing.mmm.components.adstock.GeometricAdstock",
+                "kwargs": {"l_max": 28},
+            }
+        },
+        {"time_varying_intercept": False},
+    ],
+)
 @pytest.mark.parametrize("config_path", get_yaml_files())
-def test_build_mmm_from_yaml(config_path, X_data, y_data):
+def test_build_mmm_from_yaml(config_path, X_data, y_data, model_kwargs):
     """Test that build_mmm_from_yaml can create models from all config files."""
     # Load YAML to check if effects are defined
     with open(config_path) as file:
@@ -62,9 +76,7 @@ def test_build_mmm_from_yaml(config_path, X_data, y_data):
 
     # Build model from YAML
     model = build_mmm_from_yaml(
-        config_path=config_path,
-        X=X_data,
-        y=y_data.squeeze(),
+        config_path=config_path, X=X_data, y=y_data.squeeze(), model_kwargs=model_kwargs
     )
 
     # Check that model was created successfully
@@ -86,6 +98,21 @@ def test_build_mmm_from_yaml(config_path, X_data, y_data):
 
     # Verify that the result is an xarray dataset
     assert isinstance(prior_predictive, xr.Dataset)
+
+    if model_kwargs:
+        # assert that model_kwargs are reflected in the model
+        for key, value in model_kwargs.items():
+            attr = getattr(model, key, None)
+            if isinstance(value, dict) and "class" in value and "kwargs" in value:
+                # Check class name
+                expected_class_name = value["class"].split(".")[-1]
+                assert attr.__class__.__name__ == expected_class_name
+                # Check only the specified kwargs
+                for k, v in value["kwargs"].items():
+                    assert hasattr(attr, k), f"{key} missing attribute {k}"
+                    assert getattr(attr, k) == v, f"{key}.{k}={getattr(attr, k)} != {v}"
+            else:
+                assert attr == value
 
 
 def test_wrong_adstock_class():

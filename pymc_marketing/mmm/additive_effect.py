@@ -11,7 +11,98 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Additive effects for the multidimensional Marketing Mix Model."""
+"""Additive effects for the multidimensional Marketing Mix Model.
+
+Example of a custom additive effect
+--------
+
+1. Custom negative-effect component (added as a MuEffect)
+
+.. code-block:: python
+
+    import numpy as np
+    import pandas as pd
+    import pymc as pm
+    from pymc_extras.prior import create_dim_handler
+
+    # A simple custom effect that penalizes certain dates/segments with a
+    # negative-only coefficient. This is not a "control" in the MMM sense, so
+    # give it a different name/prefix to avoid clashing with built-in controls.
+    class PenaltyEffect:
+        '''Example MuEffect that applies a negative coefficient to a user-specified pattern.
+        '''
+
+        def __init__(self, name: str, penalty_provider):
+            self.name = name
+            self.penalty_provider = penalty_provider
+
+        def create_data(self, mmm):
+            # Produce penalty values aligned with model dates (and optional extra dims)
+            dates = pd.to_datetime(mmm.model.coords["date"])
+            penalty = self.penalty_provider(dates)
+            pm.Data(f"{self.name}_penalty", penalty, dims=("date", *mmm.dims))
+
+        def create_effect(self, mmm):
+            model = mmm.model
+            penalty = model[f"{self.name}_penalty"]  # dims: (date, *mmm.dims)
+
+            # Negative-only coefficient per extra dims, broadcast over date
+            coef = pm.TruncatedNormal(f"{self.name}_coef", mu=-0.5, sigma=-0.05, lower=-1.0, upper=0.0, dims=mmm.dims)
+
+            dim_handler = create_dim_handler(("date", *mmm.dims))
+            effect = pm.Deterministic(
+                f"{self.name}_effect_contribution",
+                dim_handler(coef, mmm.dims) * penalty,
+                dims=("date", *mmm.dims),
+            )
+            return effect  # Must have dims ("date", *mmm.dims)
+
+        def set_data(self, mmm, model, X):
+            # Update to future dates during posterior predictive
+            dates = pd.to_datetime(model.coords["date"])
+            penalty = self.penalty_provider(dates)
+            pm.set_data({f"{self.name}_penalty": penalty}, model=model)
+
+    Usage
+    -----
+    # Example weekend penalty (Sat/Sun = 1, else 0), applied per geo if present
+    weekend_penalty = PenaltyEffect(
+        name="brand_penalty",
+        penalty_provider=lambda dates: pd.Series(dates)
+        .dt.dayofweek.isin([5, 6])
+        .astype(float)
+        .to_numpy()[:, None]  # if mmm.dims == ("geo",), broadcast over geo
+    )
+
+    # Build your MMM as usual (with channels, etc.), then add the effect before build/fit:
+    # mmm = MMM(...)
+    # mmm.mu_effects.append(weekend_penalty)
+    # mmm.build_model(X, y)
+    # mmm.fit(X, y, ...)
+    # At prediction time, the effect updates itself via set_data.
+
+How it works
+------------
+- Mu effects follow a simple protocol: ``create_data(mmm)``, ``create_effect(mmm)``,
+  and ``set_data(mmm, model, X)``.
+- During ``MMM.build_model(...)``, each effect’s ``create_data`` is called first to
+  introduce any needed ``pm.Data``. Then ``create_effect`` must return a tensor with
+  dims ("date", *mmm.dims) that is added additively to the model mean.
+- During posterior predictive, ``set_data`` is called with the cloned PyMC model
+  and the new coordinates; update any ``pm.Data`` you created using ``pm.set_data``.
+
+Tips for custom components
+--------------------------
+- Use unique variable prefixes to avoid name clashes with built-in pieces like
+  controls. Do not call your component "control"; choose a distinct name/prefix.
+- Follow the patterns used by the provided effects in this module (e.g.,
+  `FourierEffect`, `LinearTrendEffect`, `EventAdditiveEffect`):
+  - In `create_data`, derive and register any required inputs into the model.
+  - In `create_effect`, construct PyTensor expressions and return a contribution
+    with dims ("date", *mmm.dims). If you need broadcasting, use
+    `pymc_extras.prior.create_dim_handler` as shown above.
+  - In `set_data`, update the data variables when dates/dims change.
+"""
 
 from typing import Any, Protocol
 
@@ -107,20 +198,39 @@ class FourierEffect:
 
         # Apply the Fourier transformation to data
         day_data = model[f"{self.fourier.prefix}_day"]
-        fourier_effect = self.fourier.apply(day_data)
 
-        # Create a deterministic variable for the effect
-        dims = (dim for dim in mmm.dims if dim in self.fourier.prior.dims)
+        # Store the unsummed basis components (including the internal fourier mode dim)
+        # so users can inspect individual sine/cos contributions if desired.
+        def create_deterministic(x: pt.TensorVariable) -> None:
+            pm.Deterministic(
+                f"{self.fourier.prefix}_components",
+                x,
+                dims=(self.date_dim_name, *self.fourier.prior.dims),
+            )
+
+        # Call apply to create the components deterministic (unsummed basis * betas)
+        _ = self.fourier.apply(day_data, result_callback=create_deterministic)
+
+        # Retrieve the components deterministic just created
+        components_var = model[f"{self.fourier.prefix}_components"]
+        component_dims = model.named_vars_to_dims[components_var.name]
+        # Identify axis of the fourier prefix dimension and collapse it
+        prefix_axis = component_dims.index(self.fourier.prefix)
+        collapsed = components_var.sum(axis=prefix_axis)
+
+        # Determine final dims order consistent with MMM dims
+        dims = tuple(dim for dim in mmm.dims if dim in self.fourier.prior.dims)
         fourier_dims = (self.date_dim_name, *dims)
-        fourier_effect_det = pm.Deterministic(
-            f"{self.fourier.prefix}_effect",
-            fourier_effect,
+
+        fourier_contribution = pm.Deterministic(
+            f"{self.fourier.prefix}_contribution",
+            collapsed,
             dims=fourier_dims,
         )
 
-        # Handle dimensions for the MMM model
+        # Broadcast to full MMM dims ordering
         dim_handler = create_dim_handler((self.date_dim_name, *mmm.dims))
-        return dim_handler(fourier_effect_det, fourier_dims)
+        return dim_handler(fourier_contribution, fourier_dims)
 
     def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
         """Set the data for new predictions.

@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Run Labeler Action
-      uses: actions/labeler@v5
+      uses: actions/labeler@v6
 
   sync:
     permissions:
@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
     - name: Sync labels with closing issues
       uses: williambdean/closing-labels@v0.0.4
       with:

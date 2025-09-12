@@ -12,10 +12,10 @@ jobs:
     name: build source distribution
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - name: Build the sdist and the wheel
@@ -60,7 +60,7 @@ jobs:
         with:
           skip-existing: true
           repository-url: https://test.pypi.org/legacy/
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - name: Test pip install from test.pypi
