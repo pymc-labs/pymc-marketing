@@ -39,7 +39,7 @@ class LogNormalPositiveParam:
 
     The other advantage of this prior is in constructing hierarchical models. It allows users to toggle
     between centered and non-centered parameterizations. This enables rapid iteration when searching
-    for a parameterization samples efficiently.
+    for a parameterization that samples efficiently.
 
     Parameters
     ----------
@@ -55,8 +55,8 @@ class LogNormalPositiveParam:
     Examples
     --------
     Build a non-centered hierarchical model where information is shared across geos.
-    .. code-block:: python
 
+    .. code-block:: python
         from pymc_marketing.special_priors import LogNormalPositiveParam
 
         normal = LogNormalPositiveParam(
