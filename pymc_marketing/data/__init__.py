@@ -11,11 +11,4 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""PyMC-Marketing."""
-
-# Load the data accessor
-import pymc_marketing.data.fivetran  # noqa: F401
-from pymc_marketing import clv, customer_choice, mmm
-from pymc_marketing.version import __version__
-
-__all__ = ["__version__", "clv", "customer_choice", "mmm"]
+"""Data adaptors for PyMC-Marketing."""
