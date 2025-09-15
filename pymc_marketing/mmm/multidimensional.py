@@ -2149,7 +2149,13 @@ def create_sample_kwargs(
 class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
     """Wrapper for the BudgetOptimizer to handle multi-dimensional model."""
 
-    def __init__(self, model: MMM, start_date: str, end_date: str):
+    def __init__(
+        self,
+        model: MMM,
+        start_date: str,
+        end_date: str,
+        compile_kwargs: dict | None = None,
+    ):
         self.model_class = model
         self.start_date = start_date
         self.end_date = end_date
@@ -2161,6 +2167,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             include_carryover=False,
         )
         self.num_periods = len(self.zero_data[self.model_class.date_column].unique())
+        self.compile_kwargs = compile_kwargs
         # Adding missing dependencies for compatibility with BudgetOptimizer
         self._channel_scales = 1.0
 
@@ -2259,6 +2266,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             budgets_to_optimize=budgets_to_optimize,
             budget_distribution_over_period=budget_distribution_over_period,
             model=self,  # Pass the wrapper instance itself to the BudgetOptimizer
+            compile_kwargs=self.compile_kwargs,
         )
 
         return allocator.allocate_budget(
