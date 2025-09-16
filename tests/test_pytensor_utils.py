@@ -16,8 +16,10 @@
 
 import numpy as np
 import pandas as pd
+import pymc as pm
 import pytest
 import xarray as xr
+from pymc_extras.prior import Prior
 from pytensor import function
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
@@ -25,6 +27,7 @@ from pymc_marketing.mmm.multidimensional import (
     MMM,
     MultiDimensionalBudgetOptimizerWrapper,
 )
+from pymc_marketing.pytensor_utils import MaskedPrior
 
 
 @pytest.fixture
@@ -301,3 +304,123 @@ def test_extract_response_distribution_vs_sample_response(
     )
 
     print("\n✓ Both methods produce consistent results!")
+
+
+def test_masked_prior_simple_1d():
+    """MaskedPrior creates zeros on inactive entries and preserves dims."""
+    coords = {"country": ["Venezuela", "Colombia"]}
+    mask = xr.DataArray([True, False], dims=["country"], coords=coords)
+    base = Prior("Normal", mu=0, sigma=1, dims=("country",))
+
+    with pm.Model(coords=coords):
+        mp = MaskedPrior(base, mask)
+        mp.create_variable("intercept")
+        idata = pm.sample_prior_predictive()
+
+    samples = idata.prior["intercept"].values  # (chain, draw, country)
+    # All draws at the inactive entry must be exactly zero
+    assert np.all(samples[..., 1] == 0)
+
+
+def test_masked_prior_with_logistic_saturation_prior_sampling():
+    """Mask a saturation parameter and check zeros at masked positions in prior sampling."""
+    coords = {
+        "country": ["Colombia", "Venezuela"],
+        "channel": ["x1", "x2", "x3", "x4"],
+    }
+    mask_excluded_x4_colombia = xr.DataArray(
+        [[True, False, True, False], [True, True, True, True]],
+        dims=["country", "channel"],
+        coords=coords,
+    )
+
+    saturation = LogisticSaturation(
+        priors={
+            "lam": MaskedPrior(
+                Prior("Gamma", mu=2, sigma=0.5, dims=("country", "channel")),
+                mask=mask_excluded_x4_colombia,
+            ),
+            "beta": Prior("Gamma", mu=3, sigma=0.5, dims=("country", "channel")),
+        }
+    )
+
+    prior = saturation.sample_prior(coords=coords, random_seed=0)
+    lam = prior["saturation_lam"].transpose("chain", "draw", "country", "channel")
+
+    # The masked position (Colombia, x4) should be exactly zero across draws
+    colombia_idx = 0
+    x4_idx = 3
+    assert np.all(lam.values[..., colombia_idx, x4_idx] == 0)
+
+
+def test_mmm_fit_with_masked_saturation_param_small():
+    """Tiny MMM fit where one saturation parameter is masked to zero across dims."""
+    rng = np.random.default_rng(0)
+    # Small panel with 2 countries, 2 channels, 10 weekly obs per country
+    n = 10
+    dates = pd.date_range("2024-01-01", periods=n, freq="W-MON")
+    countries = ["Colombia", "Venezuela"]
+    df_list = []
+    for c in countries:
+        df_list.append(
+            pd.DataFrame(
+                {
+                    "date": dates,
+                    "country": c,
+                    "C1": rng.integers(10, 30, n),
+                    "C2": rng.integers(5, 25, n),
+                    "control": rng.normal(0, 1, n),
+                }
+            )
+        )
+    X = pd.concat(df_list, ignore_index=True)
+    # Create a synthetic target
+    y = (
+        0.4 * X["C1"].values
+        + 0.2 * X["C2"].values
+        + 1.5 * X["control"].values
+        + (X["country"].values == "Colombia").astype(float) * 5
+        + rng.normal(0, 1.0, len(X))
+    )
+    y = pd.Series(y, name="y")
+
+    coords = {
+        "country": countries,
+        "channel": ["C1", "C2"],
+    }
+    # Mask lam for (Colombia, C2)
+    mask = xr.DataArray(
+        [[True, False], [True, True]], dims=["country", "channel"], coords=coords
+    )
+
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["C1", "C2"],
+        control_columns=["control"],
+        target_column="y",
+        dims=("country",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(
+            priors={
+                "lam": MaskedPrior(
+                    Prior("Gamma", mu=2, sigma=0.5, dims=("country", "channel")),
+                    mask=mask,
+                ),
+                # keep beta unmasked to allow learning
+                "beta": Prior("Gamma", mu=3, sigma=0.5, dims=("country", "channel")),
+            }
+        ),
+    )
+
+    # Super small fit to keep runtime minimal
+    mmm.fit(X, y, draws=20, tune=20, chains=1, random_seed=1, target_accept=0.8)
+
+    lam = (
+        mmm.idata.posterior["saturation_lam"]
+        .transpose("chain", "draw", "country", "channel")
+        .values
+    )
+    colombia_idx = 0
+    c2_idx = 1
+    # All posterior draws at masked position are exactly zero
+    assert np.all(lam[..., colombia_idx, c2_idx] == 0)
