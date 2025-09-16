@@ -68,7 +68,7 @@ def sample_multidim_data():
 
 
 @pytest.fixture
-def fitted_multidim_mmm(sample_multidim_data):
+def fitted_multidim_mmm(sample_multidim_data, mock_pymc_sample):
     """Create and fit a multidimensional MMM model."""
     mmm = MMM(
         date_column="date",
@@ -83,7 +83,7 @@ def fitted_multidim_mmm(sample_multidim_data):
     X = sample_multidim_data.drop(columns=["y"])
     y = sample_multidim_data["y"]
 
-    # Fit with minimal sampling for speed
+    # Fit with mocked sampling for speed and determinism
     mmm.fit(X, y, draws=100, chains=2, random_seed=42, tune=100)
 
     return mmm
@@ -353,7 +353,7 @@ def test_masked_prior_with_logistic_saturation_prior_sampling():
     assert np.all(lam.values[..., colombia_idx, x4_idx] == 0)
 
 
-def test_mmm_fit_with_masked_saturation_param_small():
+def test_mmm_fit_with_masked_saturation_param_small(mock_pymc_sample):
     """Tiny MMM fit where one saturation parameter is masked to zero across dims."""
     rng = np.random.default_rng(0)
     # Small panel with 2 countries, 2 channels, 10 weekly obs per country

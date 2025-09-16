@@ -56,8 +56,11 @@ def setup_module():
 
     yield
 
-    pm.sample = pm.sample.__wrapped__
-    MMM.fit = MMM.fit.__wrapped__
+    # Restore to original (unwrap any wrappers applied during this test)
+    while hasattr(pm.sample, "__wrapped__"):
+        pm.sample = pm.sample.__wrapped__
+    while hasattr(MMM.fit, "__wrapped__"):
+        MMM.fit = MMM.fit.__wrapped__
 
 
 @pytest.fixture(scope="module")
