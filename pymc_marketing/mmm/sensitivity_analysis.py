@@ -61,14 +61,15 @@ PyTensor-compatible transformation will work the same way.
 
     sa = SensitivityAnalysis(m, idata)
     sweeps = np.linspace(0.2, 3.0, 8)
-    # Jacobian-based effects with respect to the input; shape: (sample, sweep, channel)
+    # Jacobian-based marginal effects with respect to the input; shape: (sample, sweep, channel)
     result = sa.run_sweep(
         sweep_values=sweeps,
         varinput="channel_data",
         var_names="channel_contribution",
         sweep_type="multiplicative",
     )
-    # Optional: finite-difference marginals along the sweep axis
+    # Optional (backwards-compatibility): returns `result` unchanged because `run_sweep`
+    # already yields marginal effects. Kept to avoid breaking older code.
     me = SensitivityAnalysis.compute_marginal_effects(result, sweeps)
 
 Notes
@@ -275,25 +276,22 @@ class SensitivityAnalysis:
             response_variable=var_names, posterior_sample_batch=posterior_sample_batch
         )
 
-        # 2) Sum over date dimension → shape (samples, *dims, channel)
-        resp_total = resp_graph.sum(axis=1)
-
-        # 3) Input shared variable
+        # 2) Input shared variable
         data_shared: SharedVariable = self.model[varinput]
         original_X = data_shared.get_value()
 
-        # 4) Jacobian wrt input (which includes date dim)
+        # 3) Jacobian wrt input (which includes date dim)
         # Collapse ALL non-sample axes to obtain a scalar per sample before differentiation
         # This ensures the Jacobian has shape (samples, date, *dims, channel)
-        f_scalar = resp_total.sum(axis=tuple(range(1, resp_total.ndim)))
+        f_scalar = resp_graph.sum(axis=tuple(range(1, resp_graph.ndim)))
         J = pt.jacobian(f_scalar, data_shared)
 
-        # 5) Sum out the date axis in the Jacobian → (samples, *dims, channel)
+        # 4) Sum out the date axis in the Jacobian → (samples, *dims, channel)
         J_per_channel = J.sum(axis=1)
 
         jac_fn = function(inputs=[], outputs=J_per_channel)
 
-        # 6) Sweeps
+        # 5) Sweeps
         outs = []
         for s in sweep_values:
             if sweep_type == "multiplicative":
@@ -326,7 +324,25 @@ class SensitivityAnalysis:
 
     @staticmethod
     def compute_marginal_effects(results, sweep_values) -> xr.DataArray:
-        """Compute marginal effects via finite differences from the sweep results."""
-        marginal_effects = results.differentiate(coord="sweep")
+        """Return marginal effects from sweep results (no-op).
 
-        return marginal_effects
+        Deprecated
+        ----------
+        This function is redundant and will be removed in a future release. The
+        output of ``run_sweep`` already contains marginal effects (via the Jacobian),
+        so calling this function is unnecessary. Use the output of ``run_sweep``
+        directly.
+
+        Parameters
+        ----------
+        results : xr.DataArray
+            The output from ``run_sweep``; already the marginal effects.
+        sweep_values : np.ndarray
+            Unused. Preserved in the signature to avoid breaking callers.
+
+        Returns
+        -------
+        xr.DataArray
+            The input ``results`` unchanged.
+        """
+        return results
