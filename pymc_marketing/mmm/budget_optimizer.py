@@ -225,7 +225,8 @@ from pymc_marketing.mmm.constraints import (
     compile_constraints_for_scipy,
 )
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
-from pymc_marketing.pytensor_utils import extract_response_distribution
+
+# Delayed import inside methods to avoid circular dependency on pytensor_utils
 
 
 def optimizer_xarray_builder(value, **kwargs):
@@ -670,6 +671,9 @@ class BudgetOptimizer(BaseModel):
         returns a graph that computes `"channel_contribution"` as a function of both
         the newly introduced budgets and the posterior of model parameters.
         """
+        # Local import to avoid circular import at module load time
+        from pymc_marketing.pytensor_utils import extract_response_distribution
+
         return extract_response_distribution(
             pymc_model=self._pymc_model,
             idata=self.mmm_model.idata,

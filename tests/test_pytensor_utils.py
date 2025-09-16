@@ -21,10 +21,12 @@ import xarray as xr
 from pytensor import function
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
+from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 from pymc_marketing.mmm.multidimensional import (
     MMM,
     MultiDimensionalBudgetOptimizerWrapper,
 )
+from pymc_marketing.pytensor_utils import BuildMergedModel, merge_models
 
 
 @pytest.fixture
@@ -301,3 +303,119 @@ def test_extract_response_distribution_vs_sample_response(
     )
 
     print("\n✓ Both methods produce consistent results!")
+
+
+def test_merge_models_prefix_and_merge_on_channel_data(
+    fitted_multidim_mmm, sample_multidim_data
+):
+    # Derive a short future window
+    dates = sample_multidim_data["date"].unique()
+    start_date = dates[-1] + pd.Timedelta(days=7)
+    end_date = start_date + pd.Timedelta(weeks=4)
+
+    # Create two optimizer-compatible wrappers from the same fitted model
+    wrapper1 = MultiDimensionalBudgetOptimizerWrapper(
+        model=fitted_multidim_mmm, start_date=start_date, end_date=end_date
+    )
+    wrapper2 = MultiDimensionalBudgetOptimizerWrapper(
+        model=fitted_multidim_mmm, start_date=start_date, end_date=end_date
+    )
+
+    # Build per-wrapper optimization models
+    m1 = wrapper1._set_predictors_for_optimization(num_periods=wrapper1.num_periods)
+    m2 = wrapper2._set_predictors_for_optimization(num_periods=wrapper2.num_periods)
+
+    # Merge with explicit prefixes, sharing on 'channel_data'
+    merged = merge_models(
+        models=[m1, m2], prefixes=["model1", "model2"], merge_on="channel_data"
+    )
+
+    # 'channel_data' should be present and unprefixed exactly once
+    var_names = set(merged.named_vars)
+    assert "channel_data" in var_names
+    assert "model1_channel_data" not in var_names
+    assert "model2_channel_data" not in var_names
+
+    # Prefixed response variables should exist for each model
+    assert "model1_total_media_contribution_original_scale" in var_names
+    assert "model2_total_media_contribution_original_scale" in var_names
+
+    # Prefixed channel contribution should also exist
+    assert "model1_channel_contribution" in var_names
+    assert "model2_channel_contribution" in var_names
+
+    # The shared dims on channel_data should retain their original names
+    channel_data_dims = merged.named_vars_to_dims["channel_data"]
+    for d in ("date", "channel", "country"):
+        assert d in channel_data_dims
+
+
+def test_build_merged_model_with_budget_optimizer_and_prefixed_variables(
+    fitted_multidim_mmm, sample_multidim_data, tmp_path
+):
+    # Save and reload the same fitted model under different names
+    path1 = tmp_path / "mmm1.nc"
+    path2 = tmp_path / "mmm2.nc"
+    path3 = tmp_path / "mmm3.nc"
+    fitted_multidim_mmm.save(str(path1))
+    fitted_multidim_mmm.save(str(path2))
+    fitted_multidim_mmm.save(str(path3))
+
+    m1 = MMM.load(str(path1))
+    m2 = MMM.load(str(path2))
+    m3 = MMM.load(str(path3))
+
+    # Derive a short future window
+    dates = sample_multidim_data["date"].unique()
+    start_date = dates[-1] + pd.Timedelta(days=7)
+    end_date = start_date + pd.Timedelta(weeks=4)
+
+    # Three wrappers, same base model structure
+    w1 = MultiDimensionalBudgetOptimizerWrapper(
+        model=m1, start_date=start_date, end_date=end_date
+    )
+    w2 = MultiDimensionalBudgetOptimizerWrapper(
+        model=m2, start_date=start_date, end_date=end_date
+    )
+    w3 = MultiDimensionalBudgetOptimizerWrapper(
+        model=m3, start_date=start_date, end_date=end_date
+    )
+
+    merged_wrapper = BuildMergedModel(
+        models=[w1, w2, w3],
+        prefixes=["model1", "model2", "model3"],
+        merge_on="channel_data",
+    )
+
+    # Check idata has prefixed posterior variables for each model
+    posterior_vars = set(merged_wrapper.idata.posterior.data_vars)
+    for p in ("model1", "model2", "model3"):
+        assert f"{p}_total_media_contribution_original_scale" in posterior_vars
+        assert f"{p}_channel_contribution" in posterior_vars
+
+    # Shared dims should remain unprefixed
+    for d in ("country", "channel"):
+        assert d in merged_wrapper.idata.posterior.dims
+
+    # Provide an unprefixed alias for channel_contribution so the optimizer can auto-detect mask
+    if "channel_contribution" not in merged_wrapper.idata.posterior:
+        merged_wrapper.idata.posterior["channel_contribution"] = (
+            merged_wrapper.idata.posterior["model1_channel_contribution"].copy()
+        )
+
+    # Use BudgetOptimizer on a specific prefixed response variable
+    response_var = "model1_total_media_contribution_original_scale"
+    optimizer = BudgetOptimizer(
+        num_periods=merged_wrapper.num_periods,
+        model=merged_wrapper,
+        response_variable=response_var,
+    )
+
+    # Compile and evaluate the response distribution on zero budgets
+    size = int(optimizer.budgets_to_optimize.sum().item())
+    resp = optimizer.extract_response_distribution(response_var)
+    eval_fun = function([optimizer._budgets_flat], resp)
+    out = eval_fun(np.zeros(size, dtype=float))
+
+    # Should be finite
+    assert np.all(np.isfinite(np.asarray(out)))
