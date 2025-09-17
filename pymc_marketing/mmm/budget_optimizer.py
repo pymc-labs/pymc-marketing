@@ -204,7 +204,7 @@ Notes
 
 import warnings
 from collections.abc import Sequence
-from typing import Any, ClassVar, Protocol, runtime_checkable
+from typing import Any, ClassVar, Protocol, cast, runtime_checkable
 
 import numpy as np
 import pytensor.tensor as pt
@@ -225,6 +225,7 @@ from pymc_marketing.mmm.constraints import (
     compile_constraints_for_scipy,
 )
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
+from pymc_marketing.pytensor_utils import merge_models
 
 # Delayed import inside methods to avoid circular dependency on pytensor_utils
 
@@ -279,6 +280,169 @@ class OptimizerCompatibleModelWrapper(Protocol):
 
     def _set_predictors_for_optimization(self, num_periods: int) -> Model:
         """Set the predictors for optimization."""
+
+
+class BuildMergedModel(OptimizerCompatibleModelWrapper):
+    """Wrapper that merges multiple OptimizerCompatibleModelWrapper models.
+
+    - Keeps a persistent merged model for optimization via `_set_predictors_for_optimization`.
+    - Provides a dynamic merged `model` property for inspection (non-persistent), if needed.
+    """
+
+    def __init__(
+        self,
+        models: list[OptimizerCompatibleModelWrapper],
+        prefixes: list[str] | None = None,
+        merge_on: str | None = "channel_data",
+        use_every_n_draw: int = 1,
+    ) -> None:
+        if len(models) < 1:
+            raise ValueError("Need at least 1 model")
+
+        self._channel_scales = 1.0
+        self.models = models
+        self.num_models = len(models)
+
+        # Auto-generate prefixes if not provided - ALL models get prefixes
+        if prefixes is None:
+            self.prefixes = [f"model{i + 1}" for i in range(self.num_models)]
+        else:
+            if len(prefixes) != len(models):
+                raise ValueError(
+                    f"Number of prefixes ({len(prefixes)}) must match number of models ({len(models)})"
+                )
+            self.prefixes = prefixes
+
+        self.merge_on = merge_on
+        self.use_every_n_draw = use_every_n_draw
+
+        # Use first model as primary for attributes
+        self.primary_model = models[0]
+        self.num_periods = getattr(self.primary_model, "num_periods", None)
+
+        # Merge idata from all models with appropriate prefixes
+        self._merge_idata()
+
+        if hasattr(self.primary_model, "adstock"):
+            self.adstock = self.primary_model.adstock
+
+        # Signal to BudgetOptimizer to enforce mask validation
+        self.enforce_budget_mask_validation = False
+
+        # Persistent merged model used for optimization
+        self._persistent_merged_model: Model | None = None
+        self._persistent_num_periods: int | None = None
+
+    def _merge_idata(self) -> None:
+        if self.num_models == 1:
+            idata = self.models[0].idata.isel(
+                draw=slice(None, None, self.use_every_n_draw)
+            )
+            if self.prefixes[0]:
+                idata = self._prefix_idata(idata, self.prefixes[0])
+            self.idata = idata
+            return
+
+        merged_idata = None
+        for i, model in enumerate(self.models):
+            prefix = self.prefixes[i]
+            idata_i = model.idata.isel(
+                draw=slice(None, None, self.use_every_n_draw)
+            ).copy()
+            if prefix:
+                idata_i = self._prefix_idata(idata_i, prefix)
+
+            if merged_idata is None:
+                merged_idata = idata_i
+            else:
+                for group in ("posterior", "constant_data", "observed_data"):
+                    if group in idata_i:
+                        if group in merged_idata:
+                            merged_idata[group] = xr.merge(
+                                [merged_idata[group], idata_i[group]]
+                            )
+                        else:
+                            merged_idata[group] = idata_i[group]
+
+        self.idata = merged_idata
+
+    def _prefix_idata(self, idata, prefix: str):
+        shared_vars = {"chain", "draw", "__obs__"}
+        if self.merge_on:
+            shared_vars.add(self.merge_on)
+
+        shared_dims = set(shared_vars)
+        if (
+            self.merge_on
+            and "constant_data" in idata
+            and self.merge_on in idata.constant_data
+        ):
+            merge_dims = list(idata.constant_data[self.merge_on].dims)
+            shared_dims.update(merge_dims)
+
+        prefixed_idata = idata.copy()
+        for group in ("posterior", "constant_data", "observed_data"):
+            if group in prefixed_idata:
+                rename_dict = {}
+                for var in prefixed_idata[group].data_vars:
+                    if var not in shared_vars and not var.startswith(f"{prefix}_"):
+                        rename_dict[var] = f"{prefix}_{var}"
+                for dim in prefixed_idata[group].dims:
+                    if dim not in shared_dims and not dim.startswith(f"{prefix}_"):
+                        rename_dict[dim] = f"{prefix}_{dim}"
+                if rename_dict:
+                    prefixed_idata[group] = prefixed_idata[group].rename(rename_dict)
+
+        return prefixed_idata
+
+    def _set_predictors_for_optimization(self, num_periods: int) -> Model:
+        # If we already built a persistent model for this horizon, reuse it
+        if (
+            self._persistent_merged_model is not None
+            and self._persistent_num_periods == int(num_periods)
+        ):
+            return self._persistent_merged_model
+
+        # Build per-model optimization models
+        pymc_models = [
+            m._set_predictors_for_optimization(num_periods=num_periods)
+            for m in self.models
+        ]
+        if self.num_models == 1:
+            self._persistent_merged_model = freeze_dims_and_data(pymc_models[0])
+        else:
+            self._persistent_merged_model = merge_models(
+                models=pymc_models, prefixes=self.prefixes, merge_on=self.merge_on
+            )
+
+        self._persistent_num_periods = int(num_periods)
+        return self._persistent_merged_model
+
+    @property
+    def model(self) -> Model:
+        """Return the merged PyMC model.
+
+        If a persistent optimization model exists, return it. Otherwise, try to lazily
+        construct it using the known number of periods. As a fallback, merge the
+        underlying training models from each wrapper (non-persistent).
+        """
+        # If a persistent optimization model exists, expose it for mutation
+        if self._persistent_merged_model is not None:
+            return self._persistent_merged_model
+
+        # If we know the number of periods, lazily build the persistent model now
+        if self.num_periods is not None:
+            return self._set_predictors_for_optimization(int(self.num_periods))
+
+        # Fallback: dynamic merged training models (non-persistent)
+        # Obtain each wrapper's training model dynamically; not all wrappers statically expose `.model`.
+        # Cast to Any first to avoid mypy attr-defined errors for Protocol wrappers.
+        pymc_models = [cast(Any, model).model for model in self.models]
+        if self.num_models == 1:
+            return pymc_models[0]
+        return merge_models(
+            models=pymc_models, prefixes=self.prefixes, merge_on=self.merge_on
+        )
 
 
 class BudgetOptimizer(BaseModel):

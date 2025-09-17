@@ -19,6 +19,7 @@ import pandas as pd
 import pymc as pm
 import pytest
 import xarray as xr
+from pymc.model.fgraph import fgraph_from_model
 from pytensor import function
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
@@ -27,7 +28,7 @@ from pymc_marketing.mmm.multidimensional import (
     MMM,
     MultiDimensionalBudgetOptimizerWrapper,
 )
-from pymc_marketing.pytensor_utils import BuildMergedModel, merge_models
+from pymc_marketing.pytensor_utils import _prefix_model, merge_models
 
 
 @pytest.fixture
@@ -151,7 +152,6 @@ def test_extract_response_distribution_vs_sample_response(
     print(f"End date: {end_date}")
 
     # Create a BudgetOptimizer instance to mimic what happens internally
-    from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 
     budget_optimizer = BudgetOptimizer(
         num_periods=optimizable_model.num_periods,
@@ -366,77 +366,6 @@ def test_merge_models_prefix_and_merge_on_channel_data(
         assert d in channel_data_dims
 
 
-def test_build_merged_model_with_budget_optimizer_and_prefixed_variables(
-    fitted_multidim_mmm, sample_multidim_data, tmp_path
-):
-    # Save and reload the same fitted model under different names
-    path1 = tmp_path / "mmm1.nc"
-    path2 = tmp_path / "mmm2.nc"
-    path3 = tmp_path / "mmm3.nc"
-    fitted_multidim_mmm.save(str(path1))
-    fitted_multidim_mmm.save(str(path2))
-    fitted_multidim_mmm.save(str(path3))
-
-    m1 = MMM.load(str(path1))
-    m2 = MMM.load(str(path2))
-    m3 = MMM.load(str(path3))
-
-    # Derive a short future window
-    dates = sample_multidim_data["date"].unique()
-    start_date = dates[-1] + pd.Timedelta(days=7)
-    end_date = start_date + pd.Timedelta(weeks=4)
-
-    # Three wrappers, same base model structure
-    w1 = MultiDimensionalBudgetOptimizerWrapper(
-        model=m1, start_date=start_date, end_date=end_date
-    )
-    w2 = MultiDimensionalBudgetOptimizerWrapper(
-        model=m2, start_date=start_date, end_date=end_date
-    )
-    w3 = MultiDimensionalBudgetOptimizerWrapper(
-        model=m3, start_date=start_date, end_date=end_date
-    )
-
-    merged_wrapper = BuildMergedModel(
-        models=[w1, w2, w3],
-        prefixes=["model1", "model2", "model3"],
-        merge_on="channel_data",
-    )
-
-    # Check idata has prefixed posterior variables for each model
-    posterior_vars = set(merged_wrapper.idata.posterior.data_vars)
-    for p in ("model1", "model2", "model3"):
-        assert f"{p}_total_media_contribution_original_scale" in posterior_vars
-        assert f"{p}_channel_contribution" in posterior_vars
-
-    # Shared dims should remain unprefixed
-    for d in ("country", "channel"):
-        assert d in merged_wrapper.idata.posterior.dims
-
-    # Provide an unprefixed alias for channel_contribution so the optimizer can auto-detect mask
-    if "channel_contribution" not in merged_wrapper.idata.posterior:
-        merged_wrapper.idata.posterior["channel_contribution"] = (
-            merged_wrapper.idata.posterior["model1_channel_contribution"].copy()
-        )
-
-    # Use BudgetOptimizer on a specific prefixed response variable
-    response_var = "model1_total_media_contribution_original_scale"
-    optimizer = BudgetOptimizer(
-        num_periods=merged_wrapper.num_periods,
-        model=merged_wrapper,
-        response_variable=response_var,
-    )
-
-    # Compile and evaluate the response distribution on zero budgets
-    size = int(optimizer.budgets_to_optimize.sum().item())
-    resp = optimizer.extract_response_distribution(response_var)
-    eval_fun = function([optimizer._budgets_flat], resp)
-    out = eval_fun(np.zeros(size, dtype=float))
-
-    # Should be finite
-    assert np.all(np.isfinite(np.asarray(out)))
-
-
 def test_merge_models_raises_with_too_few_models(fitted_multidim_mmm):
     m1 = fitted_multidim_mmm.model
     with pytest.raises(ValueError, match="Need at least 2 models to merge"):
@@ -474,20 +403,18 @@ def test_merge_models_raises_when_merge_on_missing_in_other_models(
         merge_models([m1, m2], prefixes=["a", "b"], merge_on="channel_data")
 
 
-def test_build_merged_model_raises_with_no_models():
-    with pytest.raises(ValueError, match="Need at least 1 model"):
-        BuildMergedModel(models=[], prefixes=None, merge_on="channel_data")
+def test_prefix_model_exclude_none_renames_vars_dims_and_coords():
+    with pm.Model(coords={"d": [0, 1, 2]}) as m:
+        pm.Normal("x", 0.0, 1.0, dims="d")
 
+    fg, _ = fgraph_from_model(m, inlined_views=True)
+    fg2 = _prefix_model(fg, prefix="pfx", exclude_vars=None)
 
-def test_build_merged_model_raises_when_prefixes_length_mismatch():
-    # We deliberately pass simple dummy objects; the error is raised before using them
-    dummy_model_1 = object()
-    dummy_model_2 = object()
-    with pytest.raises(
-        ValueError, match=r"Number of prefixes \(1\) must match number of models \(2\)"
-    ):
-        BuildMergedModel(
-            models=[dummy_model_1, dummy_model_2],
-            prefixes=["a"],
-            merge_on="channel_data",
-        )
+    # Variable names should be prefixed
+    out_names = {v.name for v in fg2.outputs}
+    assert any(name.startswith("pfx_") for name in out_names)
+
+    # Dims/coords should be prefixed too
+    coords_keys = set(fg2._coords.keys())  # type: ignore[attr-defined]
+    assert "pfx_d" in coords_keys
+    assert "d" not in coords_keys
