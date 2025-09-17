@@ -283,10 +283,110 @@ class OptimizerCompatibleModelWrapper(Protocol):
 
 
 class BuildMergedModel(OptimizerCompatibleModelWrapper):
-    """Wrapper that merges multiple OptimizerCompatibleModelWrapper models.
+    """Merge multiple optimizer-compatible models into a single model.
 
-    - Keeps a persistent merged model for optimization via `_set_predictors_for_optimization`.
-    - Provides a dynamic merged `model` property for inspection (non-persistent), if needed.
+    This wrapper combines several optimizer-compatible MMM wrappers by:
+    - Merging their posterior `InferenceData` with per-model prefixes
+    - Optionally thinning posterior draws via ``use_every_n_draw``
+    - Exposing a persistent merged PyMC ``Model`` for optimization through
+      ``_set_predictors_for_optimization`` and a dynamic ``model`` property for
+      inspection when needed
+
+    Parameters
+    ----------
+    models : list[OptimizerCompatibleModelWrapper]
+        A list of wrappers that each expose ``idata`` and
+        ``_set_predictors_for_optimization(num_periods: int) -> Model``.
+    prefixes : list[str] | None, optional
+        Per-model prefixes used when merging. If ``None``, defaults to
+        ``["model1", "model2", ...]`` with one prefix per model.
+    merge_on : str | None, optional, default "channel_data"
+        Name of a variable expected to be present in all models and that should
+        remain unprefixed and be used for aligning/merging dims (e.g.,
+        ``"channel_data"``). If ``None``, no variable is treated as shared and
+        all variables/dims are prefixed.
+    use_every_n_draw : int, optional, default 1
+        Thinning factor applied when merging idatas. Keeps every n-th draw.
+
+    Attributes
+    ----------
+    prefixes : list[str]
+        The final list of prefixes used for each model.
+    models : list[OptimizerCompatibleModelWrapper]
+        The provided list of wrappers.
+    num_models : int
+        Number of models being merged.
+    num_periods : int | None
+        Number of forecast periods inferred from the primary model (if available).
+    idata : arviz.InferenceData
+        The merged and prefixed posterior (and data) container.
+    adstock : Any
+        Carried over from the primary model when available.
+    model : pymc.Model
+        Property returning a merged PyMC model; see Notes.
+
+    Examples
+    --------
+    Merge three multidimensional MMMs into a single optimizer model:
+
+    .. code-block:: python
+
+        from pymc_marketing.mmm.multidimensional import (
+            MMM,
+            MultiDimensionalBudgetOptimizerWrapper,
+        )
+        from pymc_marketing.mmm.budget_optimizer import (
+            BuildMergedModel,
+            BudgetOptimizer,
+        )
+
+        # Assume m1, m2, m3 are already fitted MMM instances
+        w1 = MultiDimensionalBudgetOptimizerWrapper(
+            model=m1, start_date=start, end_date=end
+        )
+        w2 = MultiDimensionalBudgetOptimizerWrapper(
+            model=m2, start_date=start, end_date=end
+        )
+        w3 = MultiDimensionalBudgetOptimizerWrapper(
+            model=m3, start_date=start, end_date=end
+        )
+
+        merged = BuildMergedModel(
+            models=[w1, w2, w3],
+            prefixes=["north", "south", "west"],
+            merge_on="channel_data",
+            use_every_n_draw=2,
+        )
+
+        optimizer = BudgetOptimizer(
+            model=merged,
+            num_periods=merged.num_periods,
+            response_variable="north_total_media_contribution_original_scale",
+        )
+
+    Single model: auto-prefix and thin draws:
+
+    .. code-block:: python
+
+        merged_single = BuildMergedModel(
+            models=[w1],
+            prefixes=None,  # auto -> ["model1"]
+            merge_on="channel_data",
+            use_every_n_draw=5,
+        )
+        m_opt = merged_single._set_predictors_for_optimization(
+            num_periods=merged_single.num_periods
+        )
+
+    Merge everything with prefixes (no shared variable retained):
+
+    .. code-block:: python
+
+        merged_all_prefixed = BuildMergedModel(
+            models=[w1, w2],
+            prefixes=["a", "b"],
+            merge_on=None,  # do not keep any unprefixed variable
+        )
     """
 
     def __init__(
