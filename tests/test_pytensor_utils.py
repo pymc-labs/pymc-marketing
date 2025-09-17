@@ -424,3 +424,86 @@ def test_mmm_fit_with_masked_saturation_param_small(mock_pymc_sample):
     c2_idx = 1
     # All posterior draws at masked position are exactly zero
     assert np.all(lam[..., colombia_idx, c2_idx] == 0)
+
+
+@pytest.mark.parametrize("mode", ["constructor", "from_dict"])
+def test_masked_prior_raises_on_mismatched_mask_dims_order_param(mode):
+    """MaskedPrior should raise if mask dims order differs from prior.dims (both paths)."""
+    coords = {
+        "country": ["Colombia", "Venezuela"],
+        "channel": ["x1", "x2", "x3", "x4"],
+    }
+    prior = Prior("Normal", mu=0, sigma=1, dims=("country", "channel"))
+
+    with pm.Model(coords=coords):
+        if mode == "constructor":
+            # Correct shape but dims in reverse order
+            mask_rev = xr.DataArray(
+                np.ones((len(coords["channel"]), len(coords["country"])), dtype=bool),
+                dims=["channel", "country"],
+                coords=coords,
+            )
+            with pytest.raises(
+                ValueError, match="mask dims must match prior.dims order"
+            ):
+                MaskedPrior(prior, mask_rev)
+        elif mode == "from_dict":
+            payload = {
+                "class": "MaskedPrior",
+                "data": {
+                    "prior": prior.to_dict(),
+                    "mask": np.ones(
+                        (len(coords["channel"]), len(coords["country"])), dtype=bool
+                    ).tolist(),
+                    "mask_dims": ["channel", "country"],
+                    "active_dim": None,
+                },
+            }
+            with pytest.raises(
+                ValueError, match="mask dims must match prior.dims order"
+            ):
+                MaskedPrior.from_dict(payload)
+        else:
+            pytest.fail(f"Unknown mode: {mode}")
+
+
+@pytest.mark.parametrize(
+    "prior_as, include_mask_dims, active_dim, with_data_wrapper",
+    [
+        ("dict", True, "my_active", True),
+        ("object", False, None, True),
+        ("dict", True, None, False),  # no outer "data" key
+    ],
+)
+def test_masked_prior_from_dict_success_covers_dims_and_active(
+    prior_as, include_mask_dims, active_dim, with_data_wrapper
+):
+    """Cover from_dict success: explicit mask_dims and fallback to prior.dims, with/without active_dim."""
+    coords = {
+        "country": ["Colombia", "Venezuela"],
+        "channel": ["x1", "x2", "x3", "x4"],
+    }
+    prior = Prior("Normal", mu=0, sigma=1, dims=("country", "channel"))
+
+    mask_vals = np.ones((len(coords["country"]), len(coords["channel"])), dtype=bool)
+
+    prior_payload = prior.to_dict() if prior_as == "dict" else prior
+
+    data_payload = {
+        "prior": prior_payload,
+        "mask": mask_vals.tolist(),
+        "active_dim": active_dim,
+    }
+    if include_mask_dims:
+        data_payload["mask_dims"] = ["country", "channel"]
+
+    payload = {"class": "MaskedPrior", "data": data_payload}
+    if not with_data_wrapper:
+        payload = data_payload  # exercise the branch without outer "data"
+
+    mp = MaskedPrior.from_dict(payload)
+
+    # Check dims and active_dim handling
+    assert tuple(mp.dims) == ("country", "channel")
+    expected_active = active_dim or "non_null_dims:country_channel"
+    assert mp.active_dim == expected_active
