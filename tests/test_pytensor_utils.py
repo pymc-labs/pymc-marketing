@@ -16,6 +16,7 @@
 
 import numpy as np
 import pandas as pd
+import pymc as pm
 import pytest
 import xarray as xr
 from pytensor import function
@@ -86,6 +87,21 @@ def fitted_multidim_mmm(sample_multidim_data):
     mmm.fit(X, y, draws=100, chains=2, random_seed=42, tune=100)
 
     return mmm
+
+
+@pytest.fixture
+def simple_pymc_model_no_channel_data():
+    with pm.Model() as m:
+        pm.Normal("x", 0.0, 1.0)
+    return m
+
+
+@pytest.fixture
+def simple_pymc_model_with_channel_data():
+    with pm.Model() as m:
+        x = pm.Normal("x", 0.0, 1.0)
+        pm.Deterministic("channel_data", x + 1.0)
+    return m
 
 
 def test_extract_response_distribution_vs_sample_response(
@@ -419,3 +435,59 @@ def test_build_merged_model_with_budget_optimizer_and_prefixed_variables(
 
     # Should be finite
     assert np.all(np.isfinite(np.asarray(out)))
+
+
+def test_merge_models_raises_with_too_few_models(fitted_multidim_mmm):
+    m1 = fitted_multidim_mmm.model
+    with pytest.raises(ValueError, match="Need at least 2 models to merge"):
+        merge_models([m1])
+
+
+def test_merge_models_raises_when_prefixes_length_mismatch(fitted_multidim_mmm):
+    m1 = fitted_multidim_mmm.model
+    m2 = fitted_multidim_mmm.model
+    with pytest.raises(
+        ValueError, match=r"Number of prefixes \(1\) must match number of models \(2\)"
+    ):
+        merge_models([m1, m2], prefixes=["a"])
+
+
+def test_merge_models_raises_when_merge_on_missing_in_first_model(
+    simple_pymc_model_no_channel_data, simple_pymc_model_with_channel_data
+):
+    m1 = simple_pymc_model_no_channel_data
+    m2 = simple_pymc_model_with_channel_data
+    with pytest.raises(
+        ValueError, match="Variable 'channel_data' not found in first model"
+    ):
+        merge_models([m1, m2], prefixes=["a", "b"], merge_on="channel_data")
+
+
+def test_merge_models_raises_when_merge_on_missing_in_other_models(
+    simple_pymc_model_no_channel_data, simple_pymc_model_with_channel_data
+):
+    m1 = simple_pymc_model_with_channel_data
+    m2 = simple_pymc_model_no_channel_data
+    with pytest.raises(
+        ValueError, match="Variable 'channel_data' not found in model 2"
+    ):
+        merge_models([m1, m2], prefixes=["a", "b"], merge_on="channel_data")
+
+
+def test_build_merged_model_raises_with_no_models():
+    with pytest.raises(ValueError, match="Need at least 1 model"):
+        BuildMergedModel(models=[], prefixes=None, merge_on="channel_data")
+
+
+def test_build_merged_model_raises_when_prefixes_length_mismatch():
+    # We deliberately pass simple dummy objects; the error is raised before using them
+    dummy_model_1 = object()
+    dummy_model_2 = object()
+    with pytest.raises(
+        ValueError, match=r"Number of prefixes \(1\) must match number of models \(2\)"
+    ):
+        BuildMergedModel(
+            models=[dummy_model_1, dummy_model_2],
+            prefixes=["a"],
+            merge_on="channel_data",
+        )
