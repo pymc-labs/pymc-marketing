@@ -507,3 +507,120 @@ def test_masked_prior_from_dict_success_covers_dims_and_active(
     assert tuple(mp.dims) == ("country", "channel")
     expected_active = active_dim or "non_null_dims:country_channel"
     assert mp.active_dim == expected_active
+
+
+def _compile(expr):
+    # Helper to compile a pytensor expression to a numpy callable
+    return function([], expr)
+
+
+def test_masked_prior_create_likelihood_all_masked_returns_zeros():
+    """When all entries are masked out, return deterministic zeros with original dims."""
+    coords = {
+        "date": pd.date_range("2024-01-01", periods=3, freq="D"),
+        "country": ["CO", "VE"],
+    }
+    mask = xr.DataArray(
+        np.zeros((3, 2), dtype=bool), dims=["date", "country"], coords=coords
+    )
+    like = Prior("Normal", sigma=1, dims=("date", "country"))
+
+    with pm.Model(coords=coords) as model:
+        mp = MaskedPrior(like, mask)
+        y = mp.create_likelihood_variable(
+            "y", mu=0.0, observed=np.zeros((3, 2), dtype=float)
+        )
+
+        # Deterministic exists; verify shape and values instead of internal dims attribute
+        assert y.name == "y"
+        assert "y" in model.named_vars
+        # No active subset variable should be created when all masked
+        assert "y_active" not in model.named_vars
+
+        # Evaluate and ensure exact zeros
+        eval_y = _compile(model["y"])()
+        assert eval_y.shape == (3, 2)
+        assert np.all(eval_y == 0.0)
+
+
+@pytest.mark.parametrize(
+    "mu_kind, observed_kind",
+    [
+        (
+            "vector_country",
+            "xarray_full",
+        ),  # broadcast mu over date, observed has .values
+        ("scalar", "xarray_full"),  # scalar mu path
+    ],
+)
+def test_masked_prior_create_likelihood_active_branch_suffix_and_broadcast(
+    mu_kind, observed_kind
+):
+    """Active subset path: coord suffixing and broadcasting of mu/observed are exercised."""
+    dates = pd.date_range("2024-01-01", periods=4, freq="D")
+    coords = {
+        "date": dates,
+        "country": ["CO", "VE"],
+    }
+    # True at positions: (0,CO), (2,VE), (3,CO) -> 3 active
+    mask_vals = np.array(
+        [
+            [True, False],
+            [False, False],
+            [False, True],
+            [True, False],
+        ]
+    )
+    mask = xr.DataArray(mask_vals, dims=["date", "country"], coords=coords)
+
+    like = Prior(
+        "Normal",
+        sigma=Prior("HalfNormal", sigma=1, dims=("date", "country")),  # nested param
+        dims=("date", "country"),
+    )
+
+    # mu will be created as a PyMC variable inside the model context below
+
+    # Observed as xarray with full dims to hit `.values` branch
+    if observed_kind == "xarray_full":
+        observed = xr.DataArray(
+            np.arange(mask_vals.size, dtype=float).reshape(mask_vals.shape),
+            dims=["date", "country"],
+            coords=coords,
+        )
+    else:
+        raise AssertionError("Unknown observed_kind")
+
+    with pm.Model(coords=coords) as model:
+        # Create a conflicting coord name to trigger suffixing
+        preexisting = "my_active"
+        model.add_coords({preexisting: np.arange(99)})
+
+        mp = MaskedPrior(like, mask, active_dim=preexisting)
+        # Create mu as a PyMC variable (distribution) per parametrization
+        if mu_kind == "vector_country":
+            mu_var = Prior("Normal", mu=0, sigma=1, dims=("country",)).create_variable(
+                "mu"
+            )
+        elif mu_kind == "scalar":
+            mu_var = Prior("Normal", mu=0, sigma=1).create_variable("mu")
+        else:
+            raise AssertionError("Unknown mu_kind")
+
+        mp.create_likelihood_variable("y", mu=mu_var, observed=observed)
+
+        # Suffix must have been applied because lengths mismatch (99 vs 3)
+        assert mp.active_dim.startswith(preexisting + "__")
+        assert len(model.coords[mp.active_dim]) == int(mask_vals.sum()) == 3
+
+        # Observed RV exists over the active subset
+        assert "y_active" in model.named_vars
+
+        # The Deterministic wrapper preserves full shape and values: zeros at inactive
+        eval_y = _compile(model["y"])()
+        assert eval_y.shape == mask_vals.shape
+        # Inactive positions are zeros
+        assert np.allclose(eval_y[~mask_vals], 0.0)
+        # Active positions are finite and not all zeros (given our observed has non-zeros)
+        assert np.all(np.isfinite(eval_y[mask_vals]))
+        assert np.any(eval_y[mask_vals] != 0.0)
