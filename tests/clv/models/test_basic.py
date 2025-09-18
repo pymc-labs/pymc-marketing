@@ -143,7 +143,7 @@ class TestCLVModel:
 
         with pytest.warns(
             UserWarning,
-            match=r"The 'chains' parameter must be 1 with 'advi'. Sampling only 1 chain despite the provided parameter.",
+            match=r"The 'chains' parameter must be 1 with 'advi'. Sampling only 1 chain despite the provided parameter.",  # noqa: E501
         ):
             model.fit(
                 method="advi",
