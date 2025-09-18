@@ -56,7 +56,7 @@ def dummy_df():
 @pytest.fixture(scope="module")
 def fitted_mmm(dummy_df):
     """Create and fit a model once for all tests."""
-    _df_kwargs, X_dummy, _y_dummy = dummy_df
+    df_kwargs, X_dummy, y_dummy = dummy_df
 
     mmm = MMM(
         adstock=GeometricAdstock(l_max=4),
@@ -156,7 +156,7 @@ def test_budget_optimizer_correct_mask(dummy_df, fitted_mmm, compile_kwargs):
 
 @compile_kwargs
 def test_budget_optimizer_incorrect_mask(dummy_df, fitted_mmm, compile_kwargs):
-    _df_kwargs, X_dummy, _y_dummy = dummy_df
+    df_kwargs, X_dummy, y_dummy = dummy_df
 
     # Simulate a case where the model has no information for one channel-geo combination
     # by creating a new model with modified data

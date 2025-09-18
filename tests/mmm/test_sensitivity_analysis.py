@@ -510,7 +510,7 @@ def test_plot_sensitivity_analysis_y_axis_limits_positive(mock_mmm_with_plot):
     # Check that bottom y-limit is set to 0 for positive values
     y_mean = results.y.mean(dim=["chain", "draw"]).sum(dim="date")
     if np.all(y_mean.values > 0):
-        y_bottom, y_top = ax.get_ylim()
+        y_bottom, _ = ax.get_ylim()
         assert y_bottom == 0
 
     plt.close()
