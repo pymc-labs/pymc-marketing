@@ -931,27 +931,6 @@ class ShiftedBetaGeometric(Discrete):
         \mathbb{S}(t|\alpha,\beta) = (\frac{B(\alpha,\beta+t)}{B(\alpha,\beta}),t=1,2,... \\
         \end{align}
 
-    .. plot::
-        :context: close-figs
-
-        import matplotlib.pyplot as plt
-        import numpy as np
-        import scipy.stats as st
-        from scipy.special import beta
-        import arviz as az
-
-        plt.style.use('arviz-darkgrid')
-        t = np.arange(1, 11)
-        alpha_vals = [.1, .1, 1, 1]
-        beta_vals = [.5, 1, 1, 4]
-        for alpha, _beta in zip(alpha_vals, beta_vals):
-            pmf = beta(alpha + 1, _beta + t - 1) / beta(alpha, _beta)
-            plt.plot(t, pmf, '-o', label=r'$\alpha$ = {}, $beta$ = {}'.format(alpha, _beta))
-        plt.xlabel('t', fontsize=12)
-        plt.ylabel('p(t)', fontsize=12)
-        plt.legend(loc=1)
-        plt.show()
-
     ========  ===============================================
     Support   :math:`t \in \mathbb{N}_{>0}`
     ========  ===============================================

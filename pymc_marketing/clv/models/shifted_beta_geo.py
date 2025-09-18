@@ -22,8 +22,176 @@ from pymc.util import RandomState
 from pymc_extras.prior import Prior
 from xarray import DataArray, Dataset
 
+from pymc_marketing.clv.distributions import ShiftedBetaGeometric
 from pymc_marketing.clv.models import CLVModel
 from pymc_marketing.model_config import ModelConfig
+
+
+# TODO: All methods are WIP.
+class ShiftedBetaGeoModel(CLVModel):
+    """Shifted Beta Geometric model.
+
+    Model for customer behavior in a discrete contractual setting. It assumes that:
+      * At the end of each period, a customer has a probability `theta` of renewing the contract
+        and `1-theta` of cancelling
+      * The probability `theta` does not change over time for a given customer
+      * The probability `theta` varies across customers according to a Beta prior distribution
+        with hyperparameters `alpha` and `beta`.
+
+    based on [1]_.
+
+    Parameters
+    ----------
+    data: pd.DataFrame
+        DataFrame containing the following columns:
+            * `customer_id`: Customer labels. There should be one unique label for each customer
+            * `t_churn`: Time at which the customer cancelled the contract (starting at 0).
+        It should  equal T for users that have not cancelled by the end of the
+        observation period
+            * `T`: Maximum observed time period (starting at 0)
+    model_config: dict, optional
+        Dictionary of model prior parameters. If not provided, the model will use default priors specified in the
+        `default_model_config` class attribute.
+    sampler_config: dict, optional
+        Dictionary of sampler parameters. Defaults to None.
+
+
+    Examples
+    --------
+        .. code-block:: python
+
+            import pymc as pm
+
+            from pymc_extras.prior import Prior
+            from pymc_marketing.clv import ShiftedBetaGeoModel
+
+            model = ShiftedBetaGeoModel(
+                data=pd.DataFrame({
+                    customer_id=[0, 1, 2, 3, ...],
+                    t_churn=[1, 2, 8, 4, 8 ...],
+                    T=[8 for x in range(len(customer_id))],
+                }),
+                model_config={
+                    "alpha": Prior("HalfNormal", sigma=10),
+                    "beta": Prior("HalfStudentT", nu=4, sigma=10),
+                },
+                sampler_config={
+                    "draws": 1000,
+                    "tune": 1000,
+                    "chains": 2,
+                    "cores": 2,
+                    "nuts_kwargs": {"target_accept": 0.95},
+                },
+            )
+
+            model.fit()
+            print(model.fit_summary())
+
+            # Predict how many periods in the future are existing customers
+            likely to cancel (ignoring that some may already have cancelled)
+            expected_churn_time = model.expected_probability_alive(
+                customer_id=[0, 1, 2, 3, ...],
+            )
+            print(expected_churn_time.mean("customer_id"))
+
+
+    References
+    ----------
+    .. [1] Fader, P. S., & Hardie, B. G. (2007). How to project customer retention.
+           Journal of Interactive Marketing, 21(1), 76-90.
+           https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf
+    """
+
+    _model_type = "Shifted Beta-Geometric Model"
+
+    def __init__(
+        self,
+        data: pd.DataFrame,
+        model_config: ModelConfig | None = None,
+        sampler_config: dict | None = None,
+    ):
+        self._validate_cols(
+            data,
+            required_cols=["customer_id", "t_churn", "T"],
+            must_be_unique=["customer_id"],
+        )
+
+        if np.any(
+            (data["t_churn"] < 0)
+            | (data["t_churn"] > data["T"])
+            | np.isnan(data["t_churn"])
+        ):
+            raise ValueError(
+                "t_churn must respect 0 < t_churn <= T.\n",
+                "Customers that are still alive should have t_churn = T",
+            )
+        super().__init__(
+            data=data, model_config=model_config, sampler_config=sampler_config
+        )
+
+    @property
+    def default_model_config(self) -> dict:
+        """Default model configuration."""
+        return {
+            "alpha": Prior("HalfFlat"),
+            "beta": Prior("HalfFlat"),
+        }
+
+    def build_model(self) -> None:  # type: ignore[override]
+        """Build the model."""
+        coords = {"customer_id": self.data["customer_id"]}
+        with pm.Model(coords=coords) as self.model:
+            alpha = self.model_config["alpha"].create_variable("alpha")
+            beta = self.model_config["beta"].create_variable("beta")
+
+            theta = pm.Beta("theta", alpha, beta, dims=("customer_id",))
+
+            churn_raw = ShiftedBetaGeometric.dist(theta)
+            pm.Censored(
+                "churn_censored",
+                churn_raw,
+                lower=None,
+                upper=self.data["T"],
+                observed=self.data["t_churn"],
+                dims=("customer_id",),
+            )
+
+    def _extract_predictive_variables(self):
+        pass
+
+    def expected_retention_rate(self):
+        pass
+
+    def expected_probability_alive(self):
+        pass
+
+    def expected_retention_elasticity(self):
+        pass
+
+    def expected_residual_lifetime(self):
+        pass
+
+    def distribution_cohort_churn(
+        self, customer_id: np.ndarray | pd.Series, random_seed: RandomState = None
+    ) -> DataArray:
+        """Sample distribution of dropout process for existing customers.
+
+        The draws represent the distribution of dropout probabilities by cohort.
+
+        """
+        coords = {"customer_id": customer_id}
+        with pm.Model(coords=coords):
+            alpha = pm.HalfFlat("alpha")
+            beta = pm.HalfFlat("beta")
+
+            theta = pm.Beta("theta", alpha, beta, dims=("customer_id",))
+            ShiftedBetaGeometric("churn", theta, dims=("customer_id",))
+
+            return pm.sample_posterior_predictive(
+                self.idata,
+                var_names=["churn"],
+                random_seed=random_seed,
+            ).posterior_predictive["churn"]
 
 
 class ShiftedBetaGeoModelIndividual(CLVModel):

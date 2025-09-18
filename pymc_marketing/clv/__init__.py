@@ -20,6 +20,7 @@ from pymc_marketing.clv.models import (
     GammaGammaModelIndividual,
     ModifiedBetaGeoModel,
     ParetoNBDModel,
+    ShiftedBetaGeoModel,
     ShiftedBetaGeoModelIndividual,
 )
 from pymc_marketing.clv.plotting import (
