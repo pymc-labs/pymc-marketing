@@ -458,7 +458,7 @@ class TestCreateZeroDataset:
         )
 
         with pytest.warns(
-            UserWarning, match=r"does not supply values for \\['channel2'\\]"
+            UserWarning, match=r"does not supply values for \['channel2'\]"
         ):
             result = create_zero_dataset(model, start_date, end_date, channel_values)
 
@@ -668,7 +668,7 @@ class TestCreateZeroDataset:
         )
 
         with pytest.warns(
-            UserWarning, match=r"does not supply values for \\['channel2'\\]"
+            UserWarning, match=r"does not supply values for \['channel2'\]"
         ):
             result = create_zero_dataset(model, start_date, end_date, channel_values)
 
