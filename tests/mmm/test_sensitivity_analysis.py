@@ -138,7 +138,7 @@ def test_run_sweep_basic(sensitivity_analysis, sweep_type):
 
 def test_run_sweep_invalid_var_name(sensitivity_analysis):
     """Test that run_sweep raises an error for invalid variable names."""
-    with pytest.raises(KeyError, match="predictor_invalid"):
+    with pytest.raises(KeyError, match=r"predictor_invalid"):
         sensitivity_analysis.run_sweep(
             var_names=["predictor_invalid"],
             sweep_values=np.linspace(0.5, 1.5, 3),
@@ -248,7 +248,7 @@ def test_create_intervention_invalid_sweep_type(sensitivity_analysis):
     sensitivity_analysis.var_names = ["predictor_1"]
     sensitivity_analysis.sweep_type = "invalid_type"
 
-    with pytest.raises(ValueError, match="Unsupported sweep_type"):
+    with pytest.raises(ValueError, match=r"Unsupported sweep_type"):
         sensitivity_analysis.create_intervention(1.0)
 
 
@@ -361,7 +361,7 @@ def test_plot_sensitivity_analysis_marginal_parameter(
 def test_plot_sensitivity_analysis_no_results(mock_mmm_with_plot):
     """Test plot_sensitivity_analysis when no sensitivity analysis results exist."""
     # Test without running sensitivity analysis first
-    with pytest.raises(ValueError, match="No sensitivity analysis results found"):
+    with pytest.raises(ValueError, match=r"No sensitivity analysis results found"):
         mock_mmm_with_plot.plot.plot_sensitivity_analysis()
 
 
