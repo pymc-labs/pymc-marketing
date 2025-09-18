@@ -105,7 +105,7 @@ compile_kwargs = pytest.mark.parametrize(
 
 @compile_kwargs
 def test_budget_optimizer_no_mask(dummy_df, fitted_mmm, compile_kwargs):
-    df_kwargs, X_dummy, y_dummy = dummy_df
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
 
     optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
         model=fitted_mmm,
@@ -126,7 +126,7 @@ def test_budget_optimizer_no_mask(dummy_df, fitted_mmm, compile_kwargs):
 
 @compile_kwargs
 def test_budget_optimizer_correct_mask(dummy_df, fitted_mmm, compile_kwargs):
-    df_kwargs, X_dummy, y_dummy = dummy_df
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
 
     budgets_to_optimize = xr.DataArray(
         np.array([[True, False], [True, True]]),
@@ -223,7 +223,7 @@ def test_time_distribution_by_geo_only(dummy_df, fitted_mmm, compile_kwargs):
     has dims ("date", *budget_dims) where budget_dims includes all dimensions from channel_data
     except "date".
     """
-    df_kwargs, X_dummy, y_dummy = dummy_df
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
 
     optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
         model=fitted_mmm,
@@ -254,7 +254,7 @@ def test_time_distribution_by_geo_only(dummy_df, fitted_mmm, compile_kwargs):
     # This should raise ValueError because we need all budget dimensions
     with pytest.raises(
         ValueError,
-        match="budget_distribution_over_period must have dims.*but got",
+        match=r"budget_distribution_over_period must have dims.*but got",
     ):
         BudgetOptimizer(
             model=optimizable_model,
@@ -327,7 +327,7 @@ def test_time_distribution_by_geo_only(dummy_df, fitted_mmm, compile_kwargs):
 @compile_kwargs
 def test_time_distribution_by_channel_geo(dummy_df, fitted_mmm, compile_kwargs):
     """Test time distribution factors that vary by both channel and geo."""
-    df_kwargs, X_dummy, y_dummy = dummy_df
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
 
     optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
         model=fitted_mmm,
@@ -396,7 +396,7 @@ def test_time_distribution_by_channel_geo(dummy_df, fitted_mmm, compile_kwargs):
 @compile_kwargs
 def test_time_distribution_with_zero_bounds(dummy_df, fitted_mmm, compile_kwargs):
     """Test time distribution with some channels having zero budget bounds."""
-    df_kwargs, X_dummy, y_dummy = dummy_df
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
 
     optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
         model=fitted_mmm,
@@ -490,7 +490,7 @@ def test_budget_distribution_over_period_wrong_dims_multidimensional(
     dummy_df, fitted_mmm, compile_kwargs
 ):
     """Test that time distribution factors with wrong dimensions raise error in multidimensional case."""
-    df_kwargs, X_dummy, y_dummy = dummy_df
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
 
     optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
         model=fitted_mmm,
@@ -532,7 +532,7 @@ def test_budget_distribution_over_period_wrong_dims_multidimensional(
 @compile_kwargs
 def test_time_distribution_multidim(dummy_df, fitted_mmm, compile_kwargs):
     """Test time distribution factors with fitted model."""
-    df_kwargs, X_dummy, y_dummy = dummy_df
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
 
     optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
         model=fitted_mmm,
@@ -603,7 +603,7 @@ def test_time_distribution_channel_specific_pattern(
     dummy_df, fitted_mmm, compile_kwargs
 ):
     """Test channel-specific time distribution patterns."""
-    df_kwargs, X_dummy, y_dummy = dummy_df
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
 
     optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
         model=fitted_mmm,
@@ -696,7 +696,7 @@ def test_time_distribution_channel_specific_pattern(
 @compile_kwargs
 def test_time_distribution_validation_multidim(dummy_df, fitted_mmm, compile_kwargs):
     """Test validation of time distribution factors in multidimensional case."""
-    df_kwargs, X_dummy, y_dummy = dummy_df
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
 
     optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
         model=fitted_mmm,
@@ -778,7 +778,7 @@ def test_time_distribution_validation_multidim(dummy_df, fitted_mmm, compile_kwa
 @compile_kwargs
 def test_time_distribution_total_spend_preserved(dummy_df, fitted_mmm, compile_kwargs):
     """Test that total spend is the same with and without time distribution patterns."""
-    df_kwargs, X_dummy, y_dummy = dummy_df
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
 
     # Set up common parameters
     num_periods = 4
@@ -907,7 +907,7 @@ def test_time_distribution_with_carryover_total_spend_preserved(
     dummy_df, fitted_mmm, compile_kwargs
 ):
     """Test that total spend is preserved when using both carryover and time distribution patterns."""
-    df_kwargs, X_dummy, y_dummy = dummy_df
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
 
     # Set up common parameters
     num_periods = 4
@@ -996,7 +996,7 @@ def test_budget_distribution_carryover_interaction_issue(
     dummy_df, fitted_mmm, compile_kwargs
 ):
     """Test that budget distribution and carryover interaction preserves total spend correctly."""
-    df_kwargs, X_dummy, y_dummy = dummy_df
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
 
     # Set up a simple scenario
     num_periods = 4
@@ -1081,7 +1081,7 @@ def test_multidimensional_optimize_budget_callback_parametrized(
     dummy_df, fitted_mmm, callback, compile_kwargs
 ):
     """Test callback functionality through MultiDimensionalBudgetOptimizerWrapper.optimize_budget interface."""
-    df_kwargs, X_dummy, y_dummy = dummy_df
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
 
     optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
         model=fitted_mmm,
