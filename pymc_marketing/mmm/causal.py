@@ -844,7 +844,12 @@ class TBFPC:
         ]
 
     def summary(self) -> str:
-        """Return a human-readable summary of edges and number of CI tests."""
+        """Return a summary of edges and number of CI tests.
+
+        .. code-block:: python
+
+            print(model.summary())
+        """
         lines = ["=== Directed edges ==="]
         for u, v in self.get_directed_edges():
             lines.append(f"{u} -> {v}")
@@ -1213,6 +1218,12 @@ class TBF_FCI:
         return sorted(self._adj_undirected)
 
     def summary(self) -> str:
+        """Return a summary of edges and number of CI tests.
+
+        .. code-block:: python
+
+            print(model.summary())
+        """
         lines = ["=== Directed edges ==="]
         for u, v in self.get_directed_edges():
             lines.append(f"{u} -> {v}")
