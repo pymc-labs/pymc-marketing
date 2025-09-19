@@ -410,7 +410,7 @@ class TestSaturationTransformers:
     def test_tanh_saturation_inverse(self, x, b, c):
         y = tanh_saturation(x=x, b=b, c=c)
         y_inv = (b * c) * pt.arctanh(y / b)
-        np.testing.assert_array_almost_equal(x=x, y=y_inv.eval(), decimal=6)
+        np.testing.assert_array_almost_equal(actual=x, desired=y_inv.eval(), decimal=6)
 
     @pytest.mark.parametrize(
         "x, x0, gain, r",
@@ -442,7 +442,7 @@ class TestSaturationTransformers:
         b = (gain * x0) / r
         c = r / (gain * pt.arctanh(r))
         y_inv = (b * c) * pt.arctanh(y / b)
-        np.testing.assert_array_almost_equal(x=x, y=y_inv.eval(), decimal=6)
+        np.testing.assert_array_almost_equal(actual=x, desired=y_inv.eval(), decimal=6)
 
     @pytest.mark.parametrize(
         "x, b, c",
