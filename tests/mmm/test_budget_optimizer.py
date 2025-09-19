@@ -63,7 +63,7 @@ def dummy_df():
 
 @pytest.fixture(scope="module")
 def dummy_idata(dummy_df) -> az.InferenceData:
-    df_kwargs, df, y = dummy_df
+    df_kwargs, _df, _y = dummy_df
 
     return az.from_dict(
         posterior={
@@ -309,7 +309,7 @@ def test_allocate_budget_custom_minimize_args(
     }
 
     with pytest.raises(
-        ValueError, match="NumPy boolean array indexing assignment cannot assign"
+        ValueError, match=r"NumPy boolean array indexing assignment cannot assign"
     ):
         optimizer.allocate_budget(
             total_budget, budget_bounds, minimize_kwargs=minimize_kwargs
@@ -388,7 +388,7 @@ def test_allocate_budget_infeasible_constraints(
     )
 
     # Ensure optimization raises MinimizeException due to infeasible constraints
-    with pytest.raises(MinimizeException, match="Optimization failed"):
+    with pytest.raises(MinimizeException, match=r"Optimization failed"):
         optimizer.allocate_budget(total_budget, budget_bounds)
 
 
@@ -463,7 +463,7 @@ def test_allocate_budget_custom_response_constraint(
         num_periods=30,
     )
 
-    allocation, res = optimizer.allocate_budget(
+    _allocation, res = optimizer.allocate_budget(
         total_budget=total_budget,
         budget_bounds=None,
     )
@@ -592,7 +592,7 @@ def test_mmm_optimize_budget_callback_parametrized(dummy_df, dummy_idata, callba
 
     with pytest.warns(
         DeprecationWarning,
-        match="This method is deprecated and will be removed in a future version",
+        match=r"This method is deprecated and will be removed in a future version",
     ):
         result = mmm.optimize_budget(
             budget=100,
@@ -769,7 +769,7 @@ def test_budget_distribution_over_period_wrong_dims(dummy_df, dummy_idata):
     )
 
     with pytest.raises(
-        ValueError, match="budget_distribution_over_period must have dims"
+        ValueError, match=r"budget_distribution_over_period must have dims"
     ):
         BudgetOptimizer(
             model=mmm,

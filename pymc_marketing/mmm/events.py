@@ -118,7 +118,7 @@ BASIS_TRANSFORMATIONS: dict = {}
 BasisMeta = create_registration_meta(BASIS_TRANSFORMATIONS)
 
 
-class Basis(Transformation, metaclass=BasisMeta):  # type: ignore[misc]
+class Basis(Transformation, metaclass=BasisMeta):  # type: ignore[metaclass]
     """Basis transformation associated with an event model."""
 
     prefix: str = "basis"

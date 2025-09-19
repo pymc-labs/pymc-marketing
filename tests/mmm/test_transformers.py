@@ -104,7 +104,7 @@ def test_batched_convolution(convolution_inputs, convolution_axis, mode):
 
 
 def test_batched_convolution_invalid_mode(convolution_inputs, convolution_axis):
-    x, w, x_val, w_val = convolution_inputs
+    x, w, _, _ = convolution_inputs
     invalid_mode = "InvalidMode"
     with pytest.raises(ValueError):
         batched_convolution(x, w, convolution_axis, invalid_mode)

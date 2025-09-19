@@ -372,7 +372,7 @@ def test_model_io_comprehensive():
     assert result_idata.attrs["version"] == regression_model.version
 
     # Test error when no idata provided
-    with pytest.raises(RuntimeError, match="No idata provided to set attrs on"):
+    with pytest.raises(RuntimeError, match=r"No idata provided to set attrs on"):
         regression_model.set_idata_attrs(None)
 
 
@@ -442,7 +442,7 @@ def test_data_validation_comprehensive():
     X_with_output = pd.DataFrame({"input": [1, 2, 3]})
     X_with_output["output"] = pd.Series([1, 2, 3])
 
-    with pytest.raises(ValueError, match="X includes a column named 'output'"):
+    with pytest.raises(ValueError, match=r"X includes a column named 'output'"):
         model.fit(X_with_output, pd.Series([1, 2, 3]))
 
 
@@ -451,10 +451,10 @@ def test_graphviz_and_requires_model():
     model = RegressionModelBuilderTest()
 
     # Test that graphviz and table fail before model is built
-    with pytest.raises(RuntimeError, match="The model hasn't been built yet"):
+    with pytest.raises(RuntimeError, match=r"The model hasn't been built yet"):
         model.graphviz()
 
-    with pytest.raises(RuntimeError, match="The model hasn't been built yet"):
+    with pytest.raises(RuntimeError, match=r"The model hasn't been built yet"):
         model.table()
 
     # Test that they work after model is built
@@ -504,16 +504,16 @@ def test_idata_accessors_comprehensive():
     model = RegressionModelBuilderTest()
 
     # Test that accessors fail when no idata is available
-    with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
+    with pytest.raises(RuntimeError, match=r"The model hasn't been fit yet"):
         model.posterior
 
-    with pytest.raises(RuntimeError, match="The model hasn't been sampled yet"):
+    with pytest.raises(RuntimeError, match=r"The model hasn't been sampled yet"):
         model.prior
 
-    with pytest.raises(RuntimeError, match="The model hasn't been sampled yet"):
+    with pytest.raises(RuntimeError, match=r"The model hasn't been sampled yet"):
         model.prior_predictive
 
-    with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
+    with pytest.raises(RuntimeError, match=r"The model hasn't been fit yet"):
         model.posterior_predictive
 
     with pytest.raises(
@@ -522,7 +522,7 @@ def test_idata_accessors_comprehensive():
         model.predictions
 
     # Test fit_result accessor
-    with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
+    with pytest.raises(RuntimeError, match=r"The model hasn't been fit yet"):
         model.fit_result
 
 
@@ -543,7 +543,7 @@ def test_handle_deprecate_pred_argument():
 
     # Test both arguments provided
     kwargs = {"test_pred": "deprecated_value"}
-    with pytest.raises(ValueError, match="Both test and test_pred cannot be provided"):
+    with pytest.raises(ValueError, match=r"Both test and test_pred cannot be provided"):
         _handle_deprecate_pred_argument("test_value", "test", kwargs)
 
     # Test none allowed (without deprecated argument)
@@ -552,7 +552,7 @@ def test_handle_deprecate_pred_argument():
     assert result is None
 
     # Test none not allowed
-    with pytest.raises(ValueError, match="Please provide test"):
+    with pytest.raises(ValueError, match=r"Please provide test"):
         _handle_deprecate_pred_argument(None, "test", kwargs, none_allowed=False)
 
 
@@ -882,7 +882,7 @@ def test_insufficient_attrs() -> None:
 
     X_pred = [1, 2, 3]
 
-    match = "__init__ has parameters that are not in the attrs"
+    match = r"__init__ has parameters that are not in the attrs"
     with pytest.raises(ValueError, match=match):
         model.sample_prior_predictive(X=X_pred)
 
@@ -907,7 +907,7 @@ def test_incorrect_set_idata_attrs_override() -> None:
 
     X_pred = [1, 2, 3]
 
-    match = "Missing required keys in attrs"
+    match = r"Missing required keys in attrs"
     with pytest.raises(ValueError, match=match):
         model.sample_prior_predictive(X=X_pred)
 
@@ -1026,7 +1026,7 @@ def test_fit_sampler_config_with_rng_fails(toy_X, toy_y, mock_pymc_sample) -> No
     }
     model = RegressionModelBuilderTest(sampler_config=sampler_config)
 
-    match = "Object of type Generator is not JSON serializable"
+    match = r"Object of type Generator is not JSON serializable"
     with pytest.raises(TypeError, match=match):
         model.fit(toy_X, toy_y)
 
@@ -1035,7 +1035,7 @@ def test_unmatched_index(toy_X, toy_y) -> None:
     model = RegressionModelBuilderTest()
     toy_X = toy_X.copy()
     toy_X.index = toy_X.index + 1
-    match = "Index of X and y must match"
+    match = r"Index of X and y must match"
     with pytest.raises(ValueError, match=match):
         model.fit(toy_X, toy_y)
 
