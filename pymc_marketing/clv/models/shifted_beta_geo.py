@@ -18,12 +18,13 @@ from collections.abc import Sequence
 import numpy as np
 import pandas as pd
 import pymc as pm
+import xarray
 from pymc.util import RandomState
 from pymc_extras.prior import Prior
-from xarray import DataArray, Dataset
 
 from pymc_marketing.clv.distributions import ShiftedBetaGeometric
 from pymc_marketing.clv.models import CLVModel
+from pymc_marketing.clv.utils import to_xarray
 from pymc_marketing.model_config import ModelConfig
 
 
@@ -130,34 +131,98 @@ class ShiftedBetaGeoModel(CLVModel):
         )
 
     @property
-    def default_model_config(self) -> dict:
+    def default_model_config(self) -> ModelConfig:
         """Default model configuration."""
         return {
-            "alpha": Prior("HalfFlat"),
-            "beta": Prior("HalfFlat"),
+            "phi_purchase": Prior("Uniform", lower=0, upper=1),
+            "kappa_purchase": Prior("Pareto", alpha=1, m=1),
+            "phi_dropout": Prior("Uniform", lower=0, upper=1),
+            "kappa_dropout": Prior("Pareto", alpha=1, m=1),
         }
 
     def build_model(self) -> None:  # type: ignore[override]
         """Build the model."""
-        coords = {"customer_id": self.data["customer_id"]}
+        # Create cohort indices from data
+        cohorts = self.data["cohort"].unique()
+        cohort_idx = pd.Categorical(self.data["cohort"], categories=cohorts).codes
+
+        coords = {
+            "customer_id": self.data["customer_id"],
+            "cohort": cohorts,
+        }
         with pm.Model(coords=coords) as self.model:
-            alpha = self.model_config["alpha"].create_variable("alpha")
-            beta = self.model_config["beta"].create_variable("beta")
+            if "alpha" in self.model_config and "beta" in self.model_config:
+                alpha = self.model_config["alpha"].create_variable(
+                    "alpha", dims="cohort"
+                )
+                beta = self.model_config["beta"].create_variable("beta", dims="cohort")
+            else:
+                # hierarchical pooling of purchase rate priors
+                phi_purchase = self.model_config["phi_purchase"].create_variable(
+                    "phi_purchase",
+                    dims="cohort",
+                )
+                kappa_purchase = self.model_config["kappa_purchase"].create_variable(
+                    "kappa_purchase",
+                    dims="cohort",
+                )
 
-            theta = pm.Beta("theta", alpha, beta, dims=("customer_id",))
+                alpha = pm.Deterministic(
+                    "alpha", phi_purchase * kappa_purchase, dims="cohort"
+                )
+                beta = pm.Deterministic(
+                    "beta", (1.0 - phi_purchase) * kappa_purchase, dims="cohort"
+                )
 
-            churn_raw = ShiftedBetaGeometric.dist(theta)
+            dropout = ShiftedBetaGeometric.dist(alpha[cohort_idx], beta[cohort_idx])
+
             pm.Censored(
                 "churn_censored",
-                churn_raw,
+                dropout,
                 lower=None,
                 upper=self.data["T"],
                 observed=self.data["t_churn"],
                 dims=("customer_id",),
             )
 
-    def _extract_predictive_variables(self):
-        pass
+    # TODO: move this into BaseModel
+    def _extract_predictive_variables(
+        self,
+        data: pd.DataFrame,
+        customer_varnames: Sequence[str] = (),
+    ) -> xarray.Dataset:
+        """
+        Extract predictive variables from the data.
+
+        Utility function assigning default customer arguments
+        for predictive methods and converting to xarrays.
+        """
+        self._validate_cols(
+            data,
+            required_cols=[
+                "customer_id",
+                *customer_varnames,
+            ],
+            must_be_unique=["customer_id"],
+        )
+
+        alpha = self.fit_result["alpha"]
+        beta = self.fit_result["beta"]
+
+        customer_vars = to_xarray(
+            data["customer_id"],
+            *[data[customer_varname] for customer_varname in customer_varnames],
+        )
+        if len(customer_varnames) == 1:
+            customer_vars = [customer_vars]
+
+        return xarray.combine_by_coords(
+            (
+                alpha,
+                beta,
+                *customer_vars,
+            )
+        )
 
     def expected_retention_rate(self):
         pass
@@ -171,21 +236,29 @@ class ShiftedBetaGeoModel(CLVModel):
     def expected_residual_lifetime(self):
         pass
 
+    # TODO: Update to support both prior and posterior distributions
     def distribution_cohort_churn(
         self, customer_id: np.ndarray | pd.Series, random_seed: RandomState = None
-    ) -> DataArray:
+    ) -> xarray.DataArray:
         """Sample distribution of dropout process for existing customers.
 
         The draws represent the distribution of dropout probabilities by cohort.
 
         """
-        coords = {"customer_id": customer_id}
-        with pm.Model(coords=coords):
-            alpha = pm.HalfFlat("alpha")
-            beta = pm.HalfFlat("beta")
+        # create cohort indices from data
+        cohorts = self.data["cohort"].unique()
+        cohort_idx = pd.Categorical(self.data["cohort"], categories=cohorts).codes
 
-            theta = pm.Beta("theta", alpha, beta, dims=("customer_id",))
-            ShiftedBetaGeometric("churn", theta, dims=("customer_id",))
+        coords = {
+            "customer_id": self.data["customer_id"],
+            "cohort": cohorts,
+        }
+        with pm.Model(coords=coords):
+            alpha = pm.HalfFlat("alpha", dims="cohort")
+            beta = pm.HalfFlat("beta", dims="cohort")
+
+            theta = pm.Beta("theta", alpha, beta, dims="cohort")
+            ShiftedBetaGeometric("churn", theta[cohort_idx], dims=("customer_id",))
 
             return pm.sample_posterior_predictive(
                 self.idata,
@@ -329,7 +402,7 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
 
     def distribution_customer_churn_time(
         self, customer_id: np.ndarray | pd.Series, random_seed: RandomState = None
-    ) -> DataArray:
+    ) -> xarray.DataArray:
         """Sample distribution of churn time for existing customers.
 
         The draws represent the number of periods into the future after which
@@ -356,7 +429,7 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
         n: int = 1,
         random_seed: RandomState = None,
         var_names: Sequence[str] = ("theta", "churn"),
-    ) -> Dataset:
+    ) -> xarray.Dataset:
         coords = {"new_customer_id": np.arange(n)}
         with pm.Model(coords=coords):
             alpha = pm.HalfFlat("alpha")
@@ -373,7 +446,7 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
 
     def distribution_new_customer_churn_time(
         self, n: int = 1, random_seed: RandomState = None
-    ) -> DataArray:
+    ) -> xarray.DataArray:
         """Sample distribution of churn time for new customers.
 
         The draws represent the number of periods into the future after which
@@ -387,7 +460,7 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
 
     def distribution_new_customer_theta(
         self, n: int = 1, random_seed: RandomState = None
-    ) -> DataArray:
+    ) -> xarray.DataArray:
         """Sample distribution of theta parameter for new customers.
 
         Use `n > 1` to simulate multiple identically distributed users.
