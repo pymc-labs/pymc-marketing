@@ -396,7 +396,7 @@ class TBFPC:
         return [v for (xi, yi, _), v in self.test_results.items() if {xi, yi} == {x, y}]
 
     def summary(self) -> str:
-        """Return a human-readable summary of edges and number of CI tests.
+        """Return a summary of edges and number of CI tests.
 
         .. code-block:: python
 
@@ -901,7 +901,7 @@ class TBF_FCI:
         return sorted(self._adj_undirected)
 
     def summary(self) -> str:
-        """Return a human-readable summary of edges and number of CI tests.
+        """Return a summary of edges and number of CI tests.
 
         .. code-block:: python
 
