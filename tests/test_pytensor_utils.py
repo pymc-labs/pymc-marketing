@@ -65,7 +65,7 @@ def sample_multidim_data():
 
 
 @pytest.fixture
-def fitted_multidim_mmm(sample_multidim_data):
+def fitted_multidim_mmm(sample_multidim_data, mock_pymc_sample):
     """Create and fit a multidimensional MMM model."""
     mmm = MMM(
         date_column="date",
@@ -80,7 +80,7 @@ def fitted_multidim_mmm(sample_multidim_data):
     X = sample_multidim_data.drop(columns=["y"])
     y = sample_multidim_data["y"]
 
-    # Fit with minimal sampling for speed
+    # Fit with mocked sampling for speed and determinism
     mmm.fit(X, y, draws=100, chains=2, random_seed=42, tune=100)
 
     return mmm
