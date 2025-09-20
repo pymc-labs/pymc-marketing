@@ -13,10 +13,15 @@
 #   limitations under the License.
 """Causal module."""
 
+from __future__ import annotations
+
 import re
 import warnings
 
-import networkx as nx
+try:
+    import networkx as nx
+except ImportError:  # Optional dependency
+    nx = None  # type: ignore[assignment]
 import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
@@ -195,6 +200,11 @@ class BuildModelFromDAG:
     @staticmethod
     def _parse_dag(dag_str: str) -> nx.DiGraph:
         """Parse DOT digraph or edge-list string into a directed acyclic graph."""
+        if nx is None:
+            raise ImportError(
+                "To use Causal Graph functionality, please install the optional dependencies with: "
+                "pip install pymc-marketing[dag]"
+            )
         # Primary format: DOT digraph
         s = dag_str.strip()
         g = nx.DiGraph()
@@ -446,6 +456,11 @@ class BuildModelFromDAG:
             g = builder.dag_graph()
             list(g.edges())
         """
+        if nx is None:
+            raise ImportError(
+                "To use Causal Graph functionality, please install the optional dependencies with: "
+                "pip install pymc-marketing[dag]"
+            )
         g = nx.DiGraph()
         g.add_nodes_from(self.graph.nodes)
         g.add_edges_from(self.graph.edges)
@@ -482,7 +497,7 @@ class CausalGraphModel:
     @classmethod
     def build_graphical_model(
         cls, graph: str, treatment: list[str] | tuple[str], outcome: str
-    ) -> "CausalGraphModel":
+    ) -> CausalGraphModel:
         """Create a CausalGraphModel from a string representation of a graph.
 
         Parameters
