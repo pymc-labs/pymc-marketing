@@ -30,20 +30,23 @@ from pymc_marketing.model_config import ModelConfig
 
 # TODO: All methods are WIP.
 class ShiftedBetaGeoModel(CLVModel):
-    """Shifted Beta Geometric model.
+    """Shifted Beta Geometric (sBG) model for cohorts of customers renewing contracts across discrete time periods.
 
-    Model for customer behavior in a discrete contractual setting. It assumes that:
-      * At the end of each period, a customer has a probability `theta` of renewing the contract
-        and `1-theta` of cancelling
-      * The probability `theta` does not change over time for a given customer
-      * The probability `theta` varies across customers according to a Beta prior distribution
-        with hyperparameters `alpha` and `beta`.
+    The sBG model has the following assumptions:
+      * At the end of each time period, each cohort has a probability `theta` of contract cancellation.
+      * Cohort `theta` probabilities are Beta distributed with hyperparameters `alpha` and `beta`.
+      * Cohort retention rates increase over time due to customer heterogeneity.
 
-    based on [1]_, with additional predictive methods in [2]_.
+    This model requires data to be summarized by *recency*, and *T* for each customer,
+    using `clv.utils.rfm_summary()` or equivalent. Modeling assumptions require *0 <= recency <= T*.
+    If cohorts are not specified, the model will assume a single cohort,
+    in which all customers began their contract in the same time period.
+
+    First introduced by Fader & Hardie in [1]_, with additional predictive methods in [2]_.
 
     Parameters
     ----------
-    data: ~pandas.DataFrame
+    data : ~pandas.DataFrame
         DataFrame containing the following columns:
 
             * `customer_id`: Unique customer identifier
@@ -52,13 +55,15 @@ class ShiftedBetaGeoModel(CLVModel):
               observation period.
             * `T`: Maximum observed time period.
               Model assumptions require *T >= recency* and all customers in the same cohort share the same value for *T.
-            * `cohort`: Customer cohort label. This is usually the date the customer first signed up.
-    model_config: dict, optional
-        Dictionary of model prior parameters. If not provided, the model will use default priors specified in the
-        `default_model_config` class attribute.
-    sampler_config: dict, optional
-        Dictionary of sampler parameters. Defaults to None.
-
+            * `cohort`: Optional Customer cohort label. This is usually the date the customer first signed up.
+    model_config : dict, optional
+        Dictionary of model prior parameters:
+            * `a`: Shape parameter of dropout process; defaults to `phi_purchase` * `kappa_purchase`
+            * `b`: Shape parameter of dropout process; defaults to `1-phi_dropout` * `kappa_dropout`
+            * `phi_dropout`: Nested prior for a and b priors; defaults to `Prior("Uniform", lower=0, upper=1)`
+            * `kappa_dropout`: Nested prior for a and b priors; defaults to `Prior("Pareto", alpha=1, m=1)`
+    sampler_config : dict, optional
+        Dictionary of sampler parameters. Defaults to *None*.
 
     Examples
     --------
@@ -71,9 +76,10 @@ class ShiftedBetaGeoModel(CLVModel):
 
             model = ShiftedBetaGeoModel(
                 data=pd.DataFrame({
-                    customer_id=[0, 1, 2, 3, ...],
-                    recency=[1, 2, 8, 4, 8 ...],
-                    T=[8 for x in range(len(customer_id))],
+                    customer_id=[1, 2, 3, ...],
+                    recency=[1, 4, 8, ...],
+                    T=[5, 5, 8, ...],
+                    cohort= ["2025-04-01", "2025-04-01", "2025-02-01", ...],
                 }),
                 model_config={
                     "alpha": Prior("HalfNormal", sigma=10),
@@ -82,8 +88,8 @@ class ShiftedBetaGeoModel(CLVModel):
                 sampler_config={
                     "draws": 1000,
                     "tune": 1000,
-                    "chains": 2,
-                    "cores": 2,
+                    "chains": 4,
+                    "cores": 4,
                     "nuts_kwargs": {"target_accept": 0.95},
                 },
             )
@@ -98,12 +104,14 @@ class ShiftedBetaGeoModel(CLVModel):
             )
             print(expected_churn_time.mean("customer_id"))
 
-
     References
     ----------
     .. [1] Fader, P. S., & Hardie, B. G. (2007). How to project customer retention.
            Journal of Interactive Marketing, 21(1), 76-90.
            https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf
+    .. [2] Fader, P. S., & Hardie, B. G. (2010). Customer-Base Valuation in a Contractual Setting:
+           The Perils of Ignoring Heterogeneity. Marketing Science, 29(1), 85-93.
+           https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_contractual_mksc_10.pdf
     """
 
     _model_type = "Shifted Beta-Geometric"
@@ -137,8 +145,6 @@ class ShiftedBetaGeoModel(CLVModel):
     def default_model_config(self) -> ModelConfig:
         """Default model configuration."""
         return {
-            "phi_purchase": Prior("Uniform", lower=0, upper=1),
-            "kappa_purchase": Prior("Pareto", alpha=1, m=1),
             "phi_dropout": Prior("Uniform", lower=0, upper=1),
             "kappa_dropout": Prior("Pareto", alpha=1, m=1),
         }
@@ -161,21 +167,17 @@ class ShiftedBetaGeoModel(CLVModel):
                 beta = self.model_config["beta"].create_variable("beta", dims="cohort")
             else:
                 # hierarchical pooling of purchase rate priors
-                phi_purchase = self.model_config["phi_purchase"].create_variable(
-                    "phi_purchase",
+                phi = self.model_config["phi"].create_variable(
+                    "phi",
                     dims="cohort",
                 )
-                kappa_purchase = self.model_config["kappa_purchase"].create_variable(
-                    "kappa_purchase",
+                kappa = self.model_config["kappa"].create_variable(
+                    "kappa",
                     dims="cohort",
                 )
 
-                alpha = pm.Deterministic(
-                    "alpha", phi_purchase * kappa_purchase, dims="cohort"
-                )
-                beta = pm.Deterministic(
-                    "beta", (1.0 - phi_purchase) * kappa_purchase, dims="cohort"
-                )
+                alpha = pm.Deterministic("alpha", phi * kappa, dims="cohort")
+                beta = pm.Deterministic("beta", (1.0 - phi) * kappa, dims="cohort")
 
             dropout = ShiftedBetaGeometric.dist(alpha[cohort_idx], beta[cohort_idx])
 
