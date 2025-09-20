@@ -317,7 +317,7 @@ def test_allocate_budget_custom_minimize_args(
 
     kwargs = minimize_mock.call_args_list[0].kwargs
 
-    np.testing.assert_array_equal(x=kwargs["x0"], y=np.array([50.0, 50.0]))
+    np.testing.assert_array_equal(actual=kwargs["x0"], desired=np.array([50.0, 50.0]))
     assert kwargs["bounds"] == [(0.0, 50.0), (0.0, 50.0)]
     assert kwargs["method"] == minimize_kwargs["method"]
     assert kwargs["options"] == minimize_kwargs["options"]
