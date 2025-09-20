@@ -21,6 +21,7 @@ import pymc as pm
 import xarray
 from pymc.util import RandomState
 from pymc_extras.prior import Prior
+from scipy.special import gammaln, hyp2f1
 
 from pymc_marketing.clv.distributions import ShiftedBetaGeometric
 from pymc_marketing.clv.models import CLVModel
@@ -28,7 +29,6 @@ from pymc_marketing.clv.utils import to_xarray
 from pymc_marketing.model_config import ModelConfig
 
 
-# TODO: All methods are WIP.
 class ShiftedBetaGeoModel(CLVModel):
     """Shifted Beta Geometric (sBG) model for cohorts of customers renewing contracts across discrete time periods.
 
@@ -137,9 +137,17 @@ class ShiftedBetaGeoModel(CLVModel):
                 "recency must respect 0 < recency <= T.\n",
                 "Customers that are still alive should have recency = T",
             )
+
         super().__init__(
             data=data, model_config=model_config, sampler_config=sampler_config
         )
+
+        if "cohort" in self.data.columns:
+            # create cohort indices
+            self.cohorts = self.data["cohort"].unique()
+            self.cohort_idx = pd.Categorical(
+                self.data["cohort"], categories=self.cohorts
+            ).codes
 
     @property
     def default_model_config(self) -> ModelConfig:
@@ -151,13 +159,9 @@ class ShiftedBetaGeoModel(CLVModel):
 
     def build_model(self) -> None:  # type: ignore[override]
         """Build the model."""
-        # Create cohort indices from data
-        cohorts = self.data["cohort"].unique()
-        cohort_idx = pd.Categorical(self.data["cohort"], categories=cohorts).codes
-
         coords = {
             "customer_id": self.data["customer_id"],
-            "cohort": cohorts,
+            "cohort": self.cohorts,
         }
         with pm.Model(coords=coords) as self.model:
             if "alpha" in self.model_config and "beta" in self.model_config:
@@ -179,14 +183,17 @@ class ShiftedBetaGeoModel(CLVModel):
                 alpha = pm.Deterministic("alpha", phi * kappa, dims="cohort")
                 beta = pm.Deterministic("beta", (1.0 - phi) * kappa, dims="cohort")
 
-            dropout = ShiftedBetaGeometric.dist(alpha[cohort_idx], beta[cohort_idx])
+            dropout = ShiftedBetaGeometric.dist(
+                alpha[self.cohort_idx],
+                beta[self.cohort_idx],
+            )
 
             pm.Censored(
                 "churn_censored",
                 dropout,
                 lower=None,
                 upper=self.data["T"],
-                observed=self.data["t_churn"],
+                observed=self.data["recency"],
                 dims=("customer_id",),
             )
 
@@ -210,6 +217,16 @@ class ShiftedBetaGeoModel(CLVModel):
             ],
             must_be_unique=["customer_id"],
         )
+        # TODO: Move into _validate_cols; this is true for all CLV models
+        if np.any(
+            (data["recency"] < 0)
+            | (data["recency"] > data["T"])
+            | np.isnan(data["recency"])
+        ):
+            raise ValueError(
+                "recency must respect 0 < recency <= T.\n",
+                "Customers that are still alive should have recency = T",
+            )
 
         alpha = self.fit_result["alpha"]
         beta = self.fit_result["beta"]
@@ -235,7 +252,16 @@ class ShiftedBetaGeoModel(CLVModel):
         *,
         future_t: int | np.ndarray | pd.Series | None = None,
     ) -> xarray.DataArray:
-        """Compute expected retention rate."""
+        """Compute expected retention rate.
+
+        Adapted from equation (8) in [1]_.
+
+        References
+        ----------
+        .. [1] Fader, P. S., & Hardie, B. G. (2007). How to project customer retention.
+            Journal of Interactive Marketing, 21(1), 76-90.
+            https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf
+        """
         if data is None:
             data = self.data
 
@@ -243,15 +269,19 @@ class ShiftedBetaGeoModel(CLVModel):
             data = data.assign(future_t=future_t)
 
         dataset = self._extract_predictive_variables(
-            data, customer_varnames=["recency", "T", "future_t"]
+            data, customer_varnames=["T", "future_t"]
         )
         alpha = dataset["alpha"]
         beta = dataset["beta"]
-        t_x = dataset["recency"]
         T = dataset["T"]
         future_t = dataset["future_t"]
 
-        pass
+        # TODO add numpy.arange(T) for loop by cohort
+        retention_rate = (beta + T - 1) / (alpha + beta + T - 1)
+
+        return retention_rate.transpose(
+            "chain", "draw", "customer_id", missing_dims="ignore"
+        )
 
     def expected_probability_alive(
         self,
@@ -259,7 +289,16 @@ class ShiftedBetaGeoModel(CLVModel):
         *,
         future_t: int | np.ndarray | pd.Series | None = None,
     ) -> xarray.DataArray:
-        """Compute expected probability of being alive."""
+        """Compute expected probability of being alive.
+
+        Adapted from equation (6) in [1]_.
+
+        References
+        ----------
+        .. [1] Fader, P. S., & Hardie, B. G. (2007). How to project customer retention.
+            Journal of Interactive Marketing, 21(1), 76-90.
+            https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf
+        """
         if data is None:
             data = self.data
 
@@ -271,19 +310,37 @@ class ShiftedBetaGeoModel(CLVModel):
         )
         alpha = dataset["alpha"]
         beta = dataset["beta"]
-        t_x = dataset["recency"]
         T = dataset["T"]
         future_t = dataset["future_t"]
 
-        pass
+        # Rewrite beta functions from paper in terms of gamma functions on log scale
+        logS = (
+            gammaln(beta + T)
+            - gammaln(beta)
+            + gammaln(alpha + beta)
+            - gammaln(alpha + beta + T)
+        )
+        survival = np.exp(logS)
+
+        return survival.transpose("chain", "draw", "customer_id", missing_dims="ignore")
 
     def expected_retention_elasticity(
         self,
         data: pd.DataFrame | None = None,
         *,
         future_t: int | np.ndarray | pd.Series | None = None,
+        discount_rate: float = 0.0,
     ) -> xarray.DataArray:
-        """Compute expected retention elasticity."""
+        """Compute expected retention elasticity.
+
+        Adapted from equation (8) in [1]_.
+
+        References
+        ----------
+        .. [1] Fader, P. S., & Hardie, B. G. (2010). Customer-Base Valuation in a Contractual Setting:
+               The Perils of Ignoring Heterogeneity. Marketing Science, 29(1), 85-93.
+               https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_contractual_mksc_10.pdf
+        """
         if data is None:
             data = self.data
 
@@ -295,19 +352,34 @@ class ShiftedBetaGeoModel(CLVModel):
         )
         alpha = dataset["alpha"]
         beta = dataset["beta"]
-        t_x = dataset["recency"]
         T = dataset["T"]
         future_t = dataset["future_t"]
 
-        pass
+        retention_elasticity = hyp2f1(
+            1, beta + T - 1, alpha + beta + 1, 1 / (1 + discount_rate)
+        )
+
+        return retention_elasticity.transpose(
+            "chain", "draw", "customer_id", missing_dims="ignore"
+        )
 
     def expected_lifetime_purchases(
         self,
         data: pd.DataFrame | None = None,
         *,
         future_t: int | np.ndarray | pd.Series | None = None,
+        discount_rate: float = 0.0,
     ) -> xarray.DataArray:
-        """Compute expected lifetime purchases."""
+        """Compute expected lifetime purchases.
+
+        Adapted from equation (6) in [1]_.
+
+        References
+        ----------
+        .. [1] Fader, P. S., & Hardie, B. G. (2010). Customer-Base Valuation in a Contractual Setting:
+               The Perils of Ignoring Heterogeneity. Marketing Science, 29(1), 85-93.
+               https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_contractual_mksc_10.pdf
+        """
         if data is None:
             data = self.data
 
@@ -319,11 +391,18 @@ class ShiftedBetaGeoModel(CLVModel):
         )
         alpha = dataset["alpha"]
         beta = dataset["beta"]
-        t_x = dataset["recency"]
         T = dataset["T"]
         future_t = dataset["future_t"]
 
-        pass
+        retention_rate = (beta + T - 1) / (alpha + beta + T - 1)
+        retention_elasticity = hyp2f1(
+            1, beta + T, alpha + beta, 1 / (1 + discount_rate)
+        )
+        expected_lifetime_purchases = retention_rate * retention_elasticity
+
+        return expected_lifetime_purchases.transpose(
+            "chain", "draw", "customer_id", missing_dims="ignore"
+        )
 
     # TODO: Update to support both prior and posterior distributions
     def distribution_cohort_churn(
