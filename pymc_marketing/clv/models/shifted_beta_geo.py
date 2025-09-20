@@ -39,17 +39,20 @@ class ShiftedBetaGeoModel(CLVModel):
       * The probability `theta` varies across customers according to a Beta prior distribution
         with hyperparameters `alpha` and `beta`.
 
-    based on [1]_.
+    based on [1]_, with additional predictive methods in [2]_.
 
     Parameters
     ----------
-    data: pd.DataFrame
+    data: ~pandas.DataFrame
         DataFrame containing the following columns:
-            * `customer_id`: Customer labels. There should be one unique label for each customer
-            * `t_churn`: Time at which the customer cancelled the contract (starting at 0).
-        It should  equal T for users that have not cancelled by the end of the
-        observation period
-            * `T`: Maximum observed time period (starting at 0)
+
+            * `customer_id`: Unique customer identifier
+            * `recency`: Time period of last contract renewal.
+              It should  equal T for users that have not cancelled by the end of the
+              observation period.
+            * `T`: Maximum observed time period.
+              Model assumptions require *T >= recency* and all customers in the same cohort share the same value for *T.
+            * `cohort`: Customer cohort label. This is usually the date the customer first signed up.
     model_config: dict, optional
         Dictionary of model prior parameters. If not provided, the model will use default priors specified in the
         `default_model_config` class attribute.
@@ -69,7 +72,7 @@ class ShiftedBetaGeoModel(CLVModel):
             model = ShiftedBetaGeoModel(
                 data=pd.DataFrame({
                     customer_id=[0, 1, 2, 3, ...],
-                    t_churn=[1, 2, 8, 4, 8 ...],
+                    recency=[1, 2, 8, 4, 8 ...],
                     T=[8 for x in range(len(customer_id))],
                 }),
                 model_config={
@@ -103,7 +106,7 @@ class ShiftedBetaGeoModel(CLVModel):
            https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf
     """
 
-    _model_type = "Shifted Beta-Geometric Model"
+    _model_type = "Shifted Beta-Geometric"
 
     def __init__(
         self,
@@ -113,18 +116,18 @@ class ShiftedBetaGeoModel(CLVModel):
     ):
         self._validate_cols(
             data,
-            required_cols=["customer_id", "t_churn", "T"],
+            required_cols=["customer_id", "recency", "T"],
             must_be_unique=["customer_id"],
         )
-
+        # TODO: Move into _validate_cols; this is true for all CLV models
         if np.any(
-            (data["t_churn"] < 0)
-            | (data["t_churn"] > data["T"])
-            | np.isnan(data["t_churn"])
+            (data["recency"] < 0)
+            | (data["recency"] > data["T"])
+            | np.isnan(data["recency"])
         ):
             raise ValueError(
-                "t_churn must respect 0 < t_churn <= T.\n",
-                "Customers that are still alive should have t_churn = T",
+                "recency must respect 0 < recency <= T.\n",
+                "Customers that are still alive should have recency = T",
             )
         super().__init__(
             data=data, model_config=model_config, sampler_config=sampler_config
@@ -224,16 +227,100 @@ class ShiftedBetaGeoModel(CLVModel):
             )
         )
 
-    def expected_retention_rate(self):
+    def expected_retention_rate(
+        self,
+        data: pd.DataFrame | None = None,
+        *,
+        future_t: int | np.ndarray | pd.Series | None = None,
+    ) -> xarray.DataArray:
+        """Compute expected retention rate."""
+        if data is None:
+            data = self.data
+
+        if future_t is not None:
+            data = data.assign(future_t=future_t)
+
+        dataset = self._extract_predictive_variables(
+            data, customer_varnames=["recency", "T", "future_t"]
+        )
+        alpha = dataset["alpha"]
+        beta = dataset["beta"]
+        t_x = dataset["recency"]
+        T = dataset["T"]
+        future_t = dataset["future_t"]
+
         pass
 
-    def expected_probability_alive(self):
+    def expected_probability_alive(
+        self,
+        data: pd.DataFrame | None = None,
+        *,
+        future_t: int | np.ndarray | pd.Series | None = None,
+    ) -> xarray.DataArray:
+        """Compute expected probability of being alive."""
+        if data is None:
+            data = self.data
+
+        if future_t is not None:
+            data = data.assign(future_t=future_t)
+
+        dataset = self._extract_predictive_variables(
+            data, customer_varnames=["recency", "T", "future_t"]
+        )
+        alpha = dataset["alpha"]
+        beta = dataset["beta"]
+        t_x = dataset["recency"]
+        T = dataset["T"]
+        future_t = dataset["future_t"]
+
         pass
 
-    def expected_retention_elasticity(self):
+    def expected_retention_elasticity(
+        self,
+        data: pd.DataFrame | None = None,
+        *,
+        future_t: int | np.ndarray | pd.Series | None = None,
+    ) -> xarray.DataArray:
+        """Compute expected retention elasticity."""
+        if data is None:
+            data = self.data
+
+        if future_t is not None:
+            data = data.assign(future_t=future_t)
+
+        dataset = self._extract_predictive_variables(
+            data, customer_varnames=["recency", "T", "future_t"]
+        )
+        alpha = dataset["alpha"]
+        beta = dataset["beta"]
+        t_x = dataset["recency"]
+        T = dataset["T"]
+        future_t = dataset["future_t"]
+
         pass
 
-    def expected_residual_lifetime(self):
+    def expected_lifetime_purchases(
+        self,
+        data: pd.DataFrame | None = None,
+        *,
+        future_t: int | np.ndarray | pd.Series | None = None,
+    ) -> xarray.DataArray:
+        """Compute expected lifetime purchases."""
+        if data is None:
+            data = self.data
+
+        if future_t is not None:
+            data = data.assign(future_t=future_t)
+
+        dataset = self._extract_predictive_variables(
+            data, customer_varnames=["recency", "T", "future_t"]
+        )
+        alpha = dataset["alpha"]
+        beta = dataset["beta"]
+        t_x = dataset["recency"]
+        T = dataset["T"]
+        future_t = dataset["future_t"]
+
         pass
 
     # TODO: Update to support both prior and posterior distributions
@@ -268,7 +355,7 @@ class ShiftedBetaGeoModel(CLVModel):
 
 
 class ShiftedBetaGeoModelIndividual(CLVModel):
-    """Shifted Beta Geometric model.
+    """Shifted Beta Geometric model for individual customers.
 
     Model for customer behavior in a discrete contractual setting. It assumes that:
       * At the end of each period, a customer has a probability `theta` of renewing the contract
