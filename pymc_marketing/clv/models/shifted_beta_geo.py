@@ -141,20 +141,24 @@ class ShiftedBetaGeoModel(CLVModel):
         super().__init__(
             data=data, model_config=model_config, sampler_config=sampler_config
         )
-
+        # TODO: Add a check for the "cohort" dimension, or just a check for the column?
         if "cohort" in self.data.columns:
-            # create cohort indices
+            # create cohort dim & coords
             self.cohorts = self.data["cohort"].unique()
             self.cohort_idx = pd.Categorical(
                 self.data["cohort"], categories=self.cohorts
             ).codes
+        else:
+            # create single cohort to preserve dimension handling
+            self.cohorts = np.ones(1, dtype=np.int8)
+            self.cohort_idx = np.ones(len(self.data), dtype=np.int8)
 
     @property
     def default_model_config(self) -> ModelConfig:
         """Default model configuration."""
         return {
-            "phi": Prior("Uniform", lower=0, upper=1),
-            "kappa": Prior("Pareto", alpha=1, m=1),
+            "phi": Prior("Uniform", lower=0, upper=1, dims="cohort"),
+            "kappa": Prior("Pareto", alpha=1, m=1, dims="cohort"),
         }
 
     def build_model(self) -> None:  # type: ignore[override]
@@ -165,20 +169,12 @@ class ShiftedBetaGeoModel(CLVModel):
         }
         with pm.Model(coords=coords) as self.model:
             if "alpha" in self.model_config and "beta" in self.model_config:
-                alpha = self.model_config["alpha"].create_variable(
-                    "alpha", dims="cohort"
-                )
-                beta = self.model_config["beta"].create_variable("beta", dims="cohort")
+                alpha = self.model_config["alpha"].create_variable("alpha")
+                beta = self.model_config["beta"].create_variable("beta")
             else:
                 # hierarchical pooling of purchase rate priors
-                phi = self.model_config["phi"].create_variable(
-                    "phi",
-                    dims="cohort",
-                )
-                kappa = self.model_config["kappa"].create_variable(
-                    "kappa",
-                    dims="cohort",
-                )
+                phi = self.model_config["phi"].create_variable("phi")
+                kappa = self.model_config["kappa"].create_variable("kappa")
 
                 alpha = pm.Deterministic("alpha", phi * kappa, dims="cohort")
                 beta = pm.Deterministic("beta", (1.0 - phi) * kappa, dims="cohort")
@@ -425,14 +421,19 @@ class ShiftedBetaGeoModel(CLVModel):
             alpha = pm.HalfFlat("alpha", dims="cohort")
             beta = pm.HalfFlat("beta", dims="cohort")
 
-            theta = pm.Beta("theta", alpha, beta, dims="cohort")
-            ShiftedBetaGeometric("churn", theta[cohort_idx], dims=("customer_id",))
+            # TODO: This is the distribution of interest; resolve mypy complaints
+            # theta = pm.Beta("theta", alpha[cohort_idx], beta[cohort_idx], dims="cohort")
+
+            # TODO: This may not be needed here as we are sampling theta
+            ShiftedBetaGeometric(
+                "churn", alpha[cohort_idx], beta[cohort_idx], dims=("customer_id",)
+            )
 
             return pm.sample_posterior_predictive(
                 self.idata,
-                var_names=["churn"],
+                var_names=["theta"],
                 random_seed=random_seed,
-            ).posterior_predictive["churn"]
+            ).posterior_predictive["theta"]
 
 
 class ShiftedBetaGeoModelIndividual(CLVModel):
