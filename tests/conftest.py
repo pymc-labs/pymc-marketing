@@ -80,6 +80,13 @@ def test_summary_data() -> pd.DataFrame:
     return df
 
 
+@pytest.fixture(scope="module")
+def test_sbg_data() -> pd.DataFrame:
+    """Load data used in the shifted Beta-Geometric model research paper."""
+    df = pd.read_csv("data/sbg_paper.csv")
+    return df
+
+
 def set_model_fit(model: CLVModel, fit: InferenceData | Dataset):
     if isinstance(fit, InferenceData):
         assert "posterior" in fit.groups()
