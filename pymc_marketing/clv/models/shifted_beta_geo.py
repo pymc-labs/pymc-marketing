@@ -153,8 +153,8 @@ class ShiftedBetaGeoModel(CLVModel):
     def default_model_config(self) -> ModelConfig:
         """Default model configuration."""
         return {
-            "phi_dropout": Prior("Uniform", lower=0, upper=1),
-            "kappa_dropout": Prior("Pareto", alpha=1, m=1),
+            "phi": Prior("Uniform", lower=0, upper=1),
+            "kappa": Prior("Pareto", alpha=1, m=1),
         }
 
     def build_model(self) -> None:  # type: ignore[override]
