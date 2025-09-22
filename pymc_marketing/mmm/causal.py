@@ -171,6 +171,9 @@ class BuildModelFromDAG:
         if provided is not None:
             self.model_config.update(provided)
 
+        # Validate required priors are present and of correct type
+        self._validate_model_config_priors()
+
         # Validate coords are present and consistent with dims, priors, and df
         self._validate_coords_required_are_consistent()
 
@@ -294,6 +297,23 @@ class BuildModelFromDAG:
                 stacklevel=2,
             )
 
+    def _validate_model_config_priors(self) -> None:
+        """Ensure required model_config entries are Prior instances.
+
+        Enforces that keys 'slope' and 'likelihood' exist and are Prior objects,
+        so downstream code can safely index and call Prior helper methods.
+        """
+        required_keys = ("slope", "likelihood")
+        for key in required_keys:
+            if key not in self.model_config:
+                raise ValueError(f"model_config must include '{key}' as a Prior.")
+        for key in required_keys:
+            if not isinstance(self.model_config[key], Prior):
+                raise TypeError(
+                    f"model_config['{key}'] must be a Prior, got "
+                    f"{type(self.model_config[key]).__name__}."
+                )
+
     def _validate_coords_required_are_consistent(self) -> None:
         """Validate mutual consistency among dims, coords, priors, and data columns."""
         if self.coords is None:
@@ -330,15 +350,14 @@ class BuildModelFromDAG:
                     )
 
         # 4) Enforce that likelihood dims match class dims exactly
-        likelihood_prior = self.model_config.get("likelihood")
-        if isinstance(likelihood_prior, Prior):
-            likelihood_dims = _to_tuple(getattr(likelihood_prior, "dims", None))
-            if likelihood_dims and tuple(self.dims) != likelihood_dims:
-                raise ValueError(
-                    "Likelihood Prior dims "
-                    f"{likelihood_dims} must match class dims {tuple(self.dims)}. "
-                    "When supplying a custom model_config, ensure likelihood.dims equals the 'dims' argument."
-                )
+        likelihood_prior = self.model_config["likelihood"]
+        likelihood_dims = _to_tuple(getattr(likelihood_prior, "dims", None))
+        if likelihood_dims and tuple(self.dims) != likelihood_dims:
+            raise ValueError(
+                "Likelihood Prior dims "
+                f"{likelihood_dims} must match class dims {tuple(self.dims)}. "
+                "When supplying a custom model_config, ensure likelihood.dims equals the 'dims' argument."
+            )
 
     def _parents(self, node: str) -> list[str]:
         """Return the list of parent node names for the given DAG node."""

@@ -475,6 +475,26 @@ def test_likelihood_dims_none_init_ok(causal_df):
     assert isinstance(builder, BuildModelFromDAG)
 
 
+def test_error_when_likelihood_in_model_config_is_none(causal_df):
+    dag = """
+    digraph {
+        Q -> X;
+    }
+    """
+    coords = {"date": causal_df["date"].unique()}
+    with pytest.raises(
+        TypeError, match=r"model_config\['likelihood'\] must be a Prior"
+    ):
+        BuildModelFromDAG(
+            dag=dag,
+            df=causal_df,
+            target="X",
+            dims=("date",),
+            coords=coords,
+            model_config={"likelihood": None},
+        )
+
+
 def test_build_raises_when_missing_column_from_df(causal_df):
     dag = """
     digraph {
