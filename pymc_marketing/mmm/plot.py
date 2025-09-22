@@ -1503,7 +1503,7 @@ class MMMPlotSuite:
             hdi = hdi.transpose(sweep_dim, "hdi")  # type: ignore
         # Plot
         if ax is None:
-            fig, ax = plt.subplots()
+            _, ax = plt.subplots()
         ax.plot(sweep, np.asarray(mean.values, dtype=float), color="C0")
         az.plot_hdi(
             x=sweep,
