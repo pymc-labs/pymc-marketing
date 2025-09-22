@@ -31,9 +31,11 @@ from pymc_marketing.mmm.multidimensional import (
     MMM,
     MultiDimensionalBudgetOptimizerWrapper,
 )
-
-from pymc_marketing.pytensor_utils import ModelSamplerEstimator
-from pymc_marketing.pytensor_utils import _prefix_model, merge_models
+from pymc_marketing.pytensor_utils import (
+    ModelSamplerEstimator,
+    _prefix_model,
+    merge_models,
+)
 
 
 @pytest.fixture
@@ -421,7 +423,8 @@ def test_jax_numpyro_not_available(monkeypatch, fitted_multidim_mmm):
             tune=50, draws=50, chains=1, sequential_chains=1, seed=123
         )
         est.estimate_model_eval_time(fitted_multidim_mmm.model)
-=======
+
+
 def test_merge_models_prefix_and_merge_on_channel_data(
     fitted_multidim_mmm, sample_multidim_data
 ):
@@ -519,4 +522,3 @@ def test_prefix_model_exclude_none_renames_vars_dims_and_coords():
     coords_keys = set(fg2._coords.keys())  # type: ignore[attr-defined]
     assert "pfx_d" in coords_keys
     assert "d" not in coords_keys
-
