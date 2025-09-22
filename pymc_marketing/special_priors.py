@@ -21,13 +21,14 @@ of the same methods.
 """
 
 import warnings
+from typing import Any
 
 import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
 from pymc_extras.deserialize import deserialize, register_deserialization
-from pymc_extras.prior import Prior, create_dim_handler, sample_prior
+from pymc_extras.prior import Prior, VariableFactory, create_dim_handler, sample_prior
 from pytensor.tensor import TensorVariable
 
 
@@ -383,7 +384,9 @@ class MaskedPrior:
             y = masked.create_likelihood_variable("y", mu=mu, observed=observed)
     """
 
-    def __init__(self, prior: Prior, mask: xr.DataArray, active_dim: str | None = None):
+    def __init__(
+        self, prior: Prior, mask: xr.DataArray, active_dim: str | None = None
+    ) -> None:
         self.prior = prior
         self.mask = mask
         self.dims = prior.dims
@@ -395,18 +398,18 @@ class MaskedPrior:
             stacklevel=2,
         )
 
-    def _validate_mask(self):
+    def _validate_mask(self) -> None:
         if tuple(self.mask.dims) != tuple(self.dims):
             raise ValueError("mask dims must match prior.dims order")
 
-    def _remap_dims(self, factory):
+    def _remap_dims(self, factory: VariableFactory) -> VariableFactory:
         # Depth-first remap of any nested VariableFactory with dims == parent dims
         # This keeps internal subset checks (_param_dims_work) satisfied.
         if hasattr(factory, "parameters"):
             # Recurse on child parameters first
             for key, value in list(factory.parameters.items()):
                 if hasattr(value, "create_variable") and hasattr(value, "dims"):
-                    factory.parameters[key] = self._remap_dims(value)
+                    factory.parameters[key] = self._remap_dims(value)  # type: ignore[arg-type]
 
         # Now remap this object's dims if they exactly match the masked dims
         if hasattr(factory, "dims"):
@@ -418,7 +421,7 @@ class MaskedPrior:
 
         return factory
 
-    def create_variable(self, name: str):
+    def create_variable(self, name: str) -> TensorVariable:
         """Create a deterministic variable with full dims using the active subset.
 
         Creates an underlying variable over the active entries only and expands
@@ -457,7 +460,7 @@ class MaskedPrior:
         full = flat_full[flat_mask].set(active_rv).reshape(self.mask.shape)
         return pm.Deterministic(name, full, dims=self.dims)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize MaskedPrior to a JSON-serializable dictionary.
 
         Returns
@@ -484,7 +487,7 @@ class MaskedPrior:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "MaskedPrior":
+    def from_dict(cls, data: dict[str, Any]) -> "MaskedPrior":
         """Deserialize MaskedPrior from dictionary created by ``to_dict``.
 
         Parameters
@@ -512,7 +515,7 @@ class MaskedPrior:
 
     def create_likelihood_variable(
         self, name: str, *, mu: pt.TensorLike, observed: pt.TensorLike
-    ):
+    ) -> TensorVariable:
         """Create an observed variable over the active subset and expand to full dims.
 
         Parameters

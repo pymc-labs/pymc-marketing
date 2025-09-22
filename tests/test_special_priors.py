@@ -289,6 +289,26 @@ def test_masked_prior_from_dict_success_covers_dims_and_active(
     assert mp.active_dim == expected_active
 
 
+def test_masked_prior_round_trip_to_from_dict():
+    """Round-trip serialization for MaskedPrior preserves payload contents."""
+    coords = {
+        "country": ["Venezuela", "Colombia"],
+        "channel": ["x1", "x2"],
+    }
+    mask = xr.DataArray(
+        [[True, False], [True, True]],
+        dims=["country", "channel"],
+        coords=coords,
+    )
+    prior = Prior("Normal", mu=0, sigma=1, dims=("country", "channel"))
+
+    mp = MaskedPrior(prior, mask, active_dim="my_active")
+    payload = mp.to_dict()
+
+    mp2 = MaskedPrior.from_dict(payload)
+    assert mp2.to_dict() == payload
+
+
 def _compile(expr):
     # Helper to compile a pytensor expression to a numpy callable
     return function([], expr)
