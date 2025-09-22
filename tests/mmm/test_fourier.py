@@ -62,7 +62,7 @@ def test_prior_without_dims(seasonality) -> None:
 )
 def test_prior_doesnt_have_prefix(seasonality) -> None:
     prior = Prior("Normal", dims="hierarchy")
-    with pytest.raises(ValueError, match="Prior distribution must have"):
+    with pytest.raises(ValueError, match=r"Prior distribution must have"):
         seasonality(n_order=2, prior=prior)
 
 
@@ -429,7 +429,7 @@ def test_apply_result_callback(seasonality) -> None:
 )
 def test_error_with_prefix_and_variable_name(seasonality) -> None:
     name = "variable_name"
-    with pytest.raises(ValueError, match="Variable name cannot"):
+    with pytest.raises(ValueError, match=r"Variable name cannot"):
         seasonality(n_order=2, prefix=name, variable_name=name)
 
 

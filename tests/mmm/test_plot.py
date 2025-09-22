@@ -402,7 +402,7 @@ class TestSaturationScatterplot:
 
     def test_saturation_scatterplot_no_constant_data(self, mock_suite):
         """Test that saturation_scatterplot raises error without constant_data."""
-        with pytest.raises(ValueError, match="No 'constant_data' found"):
+        with pytest.raises(ValueError, match=r"No 'constant_data' found"):
             mock_suite.saturation_scatterplot()
 
     def test_saturation_scatterplot_no_original_scale_contribution(
@@ -417,7 +417,7 @@ class TestSaturationScatterplot:
         suite_without_original_scale = MMMPlotSuite(idata=idata_copy)
 
         with pytest.raises(
-            ValueError, match="No posterior.channel_contribution_original_scale"
+            ValueError, match=r"No posterior.channel_contribution_original_scale"
         ):
             suite_without_original_scale.saturation_scatterplot(original_scale=True)
 
@@ -528,7 +528,7 @@ class TestSaturationCurves:
         self, mock_suite, mock_saturation_curve
     ):
         """Test that saturation_curves raises error without constant_data."""
-        with pytest.raises(ValueError, match="No 'constant_data' found"):
+        with pytest.raises(ValueError, match=r"No 'constant_data' found"):
             mock_suite.saturation_curves(curve=mock_saturation_curve)
 
     def test_saturation_curves_no_original_scale_contribution(
@@ -543,7 +543,7 @@ class TestSaturationCurves:
         suite_without_original_scale = MMMPlotSuite(idata=idata_copy)
 
         with pytest.raises(
-            ValueError, match="No posterior.channel_contribution_original_scale"
+            ValueError, match=r"No posterior.channel_contribution_original_scale"
         ):
             suite_without_original_scale.saturation_curves(
                 curve=mock_saturation_curve, original_scale=True
@@ -553,7 +553,7 @@ class TestSaturationCurves:
 def test_saturation_curves_scatter_deprecation_warning(mock_suite_with_constant_data):
     """Test that saturation_curves_scatter shows deprecation warning."""
     with pytest.warns(
-        DeprecationWarning, match="saturation_curves_scatter is deprecated"
+        DeprecationWarning, match=r"saturation_curves_scatter is deprecated"
     ):
         fig, axes = mock_suite_with_constant_data.saturation_curves_scatter()
 
@@ -705,7 +705,7 @@ def test_plot_sensitivity_analysis_percentage(mock_suite_with_sensitivity):
 
 def test_plot_sensitivity_analysis_error_on_both_modes(mock_suite_with_sensitivity):
     with pytest.raises(
-        ValueError, match="Not implemented marginal effects in percentage scale."
+        ValueError, match=r"Not implemented marginal effects in percentage scale."
     ):
         mock_suite_with_sensitivity.plot_sensitivity_analysis(
             marginal=True, percentage=True
@@ -714,5 +714,5 @@ def test_plot_sensitivity_analysis_error_on_both_modes(mock_suite_with_sensitivi
 
 def test_plot_sensitivity_analysis_error_on_missing_results(mock_idata):
     suite = MMMPlotSuite(idata=mock_idata)
-    with pytest.raises(ValueError, match="No sensitivity analysis results found"):
+    with pytest.raises(ValueError, match=r"No sensitivity analysis results found"):
         suite.plot_sensitivity_analysis()

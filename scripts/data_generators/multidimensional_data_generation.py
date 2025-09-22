@@ -357,7 +357,7 @@ def main(
     rng = np.random.default_rng(seed)
 
     # Generate dates
-    dates, n_dates = get_dates(start_date, end_date)
+    dates, _ = get_dates(start_date, end_date)
 
     # Generate initial dataframe
     df = generate_dataframe(dates, geo_index, rng)
