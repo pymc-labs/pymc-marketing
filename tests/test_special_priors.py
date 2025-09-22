@@ -224,7 +224,7 @@ def test_masked_prior_raises_on_mismatched_mask_dims_order_param(mode):
                 coords=coords,
             )
             with pytest.raises(
-                ValueError, match="mask dims must match prior.dims order"
+                ValueError, match=r"mask dims must match prior\.dims order"
             ):
                 MaskedPrior(prior, mask_rev)
         elif mode == "from_dict":
@@ -240,7 +240,7 @@ def test_masked_prior_raises_on_mismatched_mask_dims_order_param(mode):
                 },
             }
             with pytest.raises(
-                ValueError, match="mask dims must match prior.dims order"
+                ValueError, match=r"mask dims must match prior\.dims order"
             ):
                 MaskedPrior.from_dict(payload)
         else:
