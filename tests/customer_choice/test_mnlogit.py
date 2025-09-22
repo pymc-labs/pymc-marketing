@@ -122,7 +122,7 @@ def test_prepare_X_matrix_unequal_covariates(mnl, sample_df):
 
 def test_prepare_X_matrix_no_fixed_covariates(mnl, sample_df):
     formulas = ["alt ~ alt_X1 + alt_X2 | ", "other ~ other_X1 + other_X2 | "]
-    X, F, alts, fixed_cov = mnl.prepare_X_matrix(sample_df, formulas, "choice")
+    X, F, _, fixed_cov = mnl.prepare_X_matrix(sample_df, formulas, "choice")
 
     assert X.shape == (3, 2, 2)
     assert F == []  # Empty list if no fixed covariates

@@ -11,12 +11,16 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import arviz as az
 import numpy as np
 import pandas as pd
+import pymc as pm
 import pytest
 import xarray as xr
+from pytensor import function
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
+from pymc_marketing.mmm.budget_optimizer import BuildMergedModel
 from pymc_marketing.mmm.multidimensional import (
     MMM,
     MultiDimensionalBudgetOptimizerWrapper,
@@ -105,7 +109,7 @@ compile_kwargs = pytest.mark.parametrize(
 
 @compile_kwargs
 def test_budget_optimizer_no_mask(dummy_df, fitted_mmm, compile_kwargs):
-    df_kwargs, X_dummy, y_dummy = dummy_df
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
 
     optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
         model=fitted_mmm,
@@ -126,7 +130,7 @@ def test_budget_optimizer_no_mask(dummy_df, fitted_mmm, compile_kwargs):
 
 @compile_kwargs
 def test_budget_optimizer_correct_mask(dummy_df, fitted_mmm, compile_kwargs):
-    df_kwargs, X_dummy, y_dummy = dummy_df
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
 
     budgets_to_optimize = xr.DataArray(
         np.array([[True, False], [True, True]]),
@@ -223,7 +227,7 @@ def test_time_distribution_by_geo_only(dummy_df, fitted_mmm, compile_kwargs):
     has dims ("date", *budget_dims) where budget_dims includes all dimensions from channel_data
     except "date".
     """
-    df_kwargs, X_dummy, y_dummy = dummy_df
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
 
     optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
         model=fitted_mmm,
@@ -254,7 +258,7 @@ def test_time_distribution_by_geo_only(dummy_df, fitted_mmm, compile_kwargs):
     # This should raise ValueError because we need all budget dimensions
     with pytest.raises(
         ValueError,
-        match="budget_distribution_over_period must have dims.*but got",
+        match=r"budget_distribution_over_period must have dims.*but got",
     ):
         BudgetOptimizer(
             model=optimizable_model,
@@ -327,7 +331,7 @@ def test_time_distribution_by_geo_only(dummy_df, fitted_mmm, compile_kwargs):
 @compile_kwargs
 def test_time_distribution_by_channel_geo(dummy_df, fitted_mmm, compile_kwargs):
     """Test time distribution factors that vary by both channel and geo."""
-    df_kwargs, X_dummy, y_dummy = dummy_df
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
 
     optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
         model=fitted_mmm,
@@ -396,7 +400,7 @@ def test_time_distribution_by_channel_geo(dummy_df, fitted_mmm, compile_kwargs):
 @compile_kwargs
 def test_time_distribution_with_zero_bounds(dummy_df, fitted_mmm, compile_kwargs):
     """Test time distribution with some channels having zero budget bounds."""
-    df_kwargs, X_dummy, y_dummy = dummy_df
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
 
     optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
         model=fitted_mmm,
@@ -490,7 +494,7 @@ def test_budget_distribution_over_period_wrong_dims_multidimensional(
     dummy_df, fitted_mmm, compile_kwargs
 ):
     """Test that time distribution factors with wrong dimensions raise error in multidimensional case."""
-    df_kwargs, X_dummy, y_dummy = dummy_df
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
 
     optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
         model=fitted_mmm,
@@ -529,10 +533,197 @@ def test_budget_distribution_over_period_wrong_dims_multidimensional(
         )
 
 
+def test_build_merged_model_with_budget_optimizer_and_prefixed_variables(
+    tmp_path, fitted_mmm
+):
+    # Clone the fitted fixture into three independent instances via save/load
+    p1 = tmp_path / "mmm1.nc"
+    p2 = tmp_path / "mmm2.nc"
+    p3 = tmp_path / "mmm3.nc"
+    fitted_mmm.save(str(p1))
+    fitted_mmm.save(str(p2))
+    fitted_mmm.save(str(p3))
+    m1 = MMM.load(str(p1))
+    m2 = MMM.load(str(p2))
+    m3 = MMM.load(str(p3))
+
+    # Derive horizon from fixture's fit_data
+    date_col = m1.date_column
+    last_date = pd.to_datetime(m1.idata.fit_data[date_col].values).max()
+    start_date = last_date + pd.Timedelta(days=7)
+    end_date = start_date + pd.Timedelta(weeks=4)
+    w1 = MultiDimensionalBudgetOptimizerWrapper(
+        model=m1, start_date=start_date, end_date=end_date
+    )
+    w2 = MultiDimensionalBudgetOptimizerWrapper(
+        model=m2, start_date=start_date, end_date=end_date
+    )
+    w3 = MultiDimensionalBudgetOptimizerWrapper(
+        model=m3, start_date=start_date, end_date=end_date
+    )
+
+    merged_wrapper = BuildMergedModel(
+        models=[w1, w2, w3],
+        prefixes=["model1", "model2", "model3"],
+        merge_on="channel_data",
+    )
+
+    posterior_vars = set(merged_wrapper.idata.posterior.data_vars)
+    for p in ("model1", "model2", "model3"):
+        assert f"{p}_total_media_contribution_original_scale" in posterior_vars
+        assert f"{p}_channel_contribution" in posterior_vars
+
+    for d in ("geo", "channel"):
+        assert d in merged_wrapper.idata.posterior.dims
+
+    if "channel_contribution" not in merged_wrapper.idata.posterior:
+        merged_wrapper.idata.posterior["channel_contribution"] = (
+            merged_wrapper.idata.posterior["model1_channel_contribution"].copy()
+        )
+
+    response_var = "model1_total_media_contribution_original_scale"
+    from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
+
+    optimizer = BudgetOptimizer(
+        num_periods=merged_wrapper.num_periods,
+        model=merged_wrapper,
+        response_variable=response_var,
+    )
+    size = int(optimizer.budgets_to_optimize.sum().item())
+    resp = optimizer.extract_response_distribution(response_var)
+    eval_fun = function([optimizer._budgets_flat], resp)
+    out = eval_fun(np.zeros(size, dtype=float))
+    assert np.all(np.isfinite(np.asarray(out)))
+
+
+def test_build_merged_model_raises_with_no_models():
+    with pytest.raises(ValueError, match="Need at least 1 model"):
+        BuildMergedModel(models=[], prefixes=None, merge_on="channel_data")
+
+
+def test_build_merged_model_raises_when_prefixes_length_mismatch():
+    dummy_model_1 = object()
+    dummy_model_2 = object()
+    with pytest.raises(
+        ValueError, match=r"Number of prefixes \(1\) must match number of models \(2\)"
+    ):
+        BuildMergedModel(
+            models=[dummy_model_1, dummy_model_2],
+            prefixes=["a"],
+            merge_on="channel_data",
+        )
+
+
+def test_single_model_idata_thinning_and_prefixes(fitted_mmm):
+    # Use fitted fixture and wrap for a short horizon
+    date_col = fitted_mmm.date_column
+    start_date = pd.to_datetime(
+        fitted_mmm.idata.fit_data[date_col].values
+    ).max() + pd.Timedelta(weeks=1)
+    end_date = start_date + pd.Timedelta(weeks=4)
+    w = MultiDimensionalBudgetOptimizerWrapper(
+        model=fitted_mmm, start_date=start_date, end_date=end_date
+    )
+
+    original_draws = fitted_mmm.idata.posterior.sizes["draw"]
+    merged = BuildMergedModel(
+        models=[w], prefixes=None, merge_on="channel_data", use_every_n_draw=2
+    )
+
+    assert merged.prefixes == ["model1"]
+    thinned = merged.idata.posterior.sizes["draw"]
+    expected = (original_draws + 2 - 1) // 2
+    assert thinned == expected
+    assert "model1_total_media_contribution_original_scale" in set(
+        merged.idata.posterior.data_vars
+    )
+
+
+def test_merge_idata_assigns_missing_group(tmp_path, fitted_mmm):
+    # Save the fitted model twice to create independent MMM instances
+    p1 = tmp_path / "mmm_a.nc"
+    p2 = tmp_path / "mmm_b.nc"
+    fitted_mmm.save(str(p1))
+    fitted_mmm.save(str(p2))
+
+    m1 = MMM.load(str(p1))
+    m2 = MMM.load(str(p2))
+
+    # Ensure observed_data exists only in m2
+    if "observed_data" in m1.idata:
+        delattr(m1.idata, "observed_data")
+
+    if "observed_data" not in m2.idata:
+        # Minimal observed_data group aligned to fit_data date coordinate
+        date_col = m2.date_column
+        dates_da = m2.idata.fit_data[date_col]
+        obs = xr.Dataset(
+            {"y": (date_col, np.zeros(dates_da.sizes[date_col], dtype=float))},
+            coords={date_col: dates_da},
+        )
+        m2.idata.add_groups({"observed_data": obs})  # type: ignore[arg-type]
+
+    # Wrap and merge
+    date_col = m1.date_column
+    start_date = pd.to_datetime(
+        m1.idata.fit_data[date_col].values
+    ).max() + pd.Timedelta(weeks=1)
+    end_date = start_date + pd.Timedelta(weeks=4)
+    w1 = MultiDimensionalBudgetOptimizerWrapper(
+        model=m1, start_date=start_date, end_date=end_date
+    )
+    w2 = MultiDimensionalBudgetOptimizerWrapper(
+        model=m2, start_date=start_date, end_date=end_date
+    )
+
+    merged = BuildMergedModel(
+        models=[w1, w2], prefixes=["a", "b"], merge_on="channel_data"
+    )
+    assert "observed_data" in merged.idata
+
+
+def test_model_property_persistent_and_lazy_build(fitted_mmm):
+    date_col = fitted_mmm.date_column
+    start_date = pd.to_datetime(
+        fitted_mmm.idata.fit_data[date_col].values
+    ).max() + pd.Timedelta(weeks=1)
+    end_date = start_date + pd.Timedelta(weeks=4)
+    w = MultiDimensionalBudgetOptimizerWrapper(
+        model=fitted_mmm, start_date=start_date, end_date=end_date
+    )
+    merged = BuildMergedModel(models=[w], prefixes=None, merge_on="channel_data")
+
+    # Lazy build via known num_periods
+    m_lazy = merged.model
+    assert merged._persistent_merged_model is not None
+    assert m_lazy is merged._persistent_merged_model
+
+    # Reuse persistent model if requesting the same horizon
+    m1 = merged._set_predictors_for_optimization(merged.num_periods)  # type: ignore[arg-type]
+    m2 = merged._set_predictors_for_optimization(merged.num_periods)  # type: ignore[arg-type]
+    assert m1 is m2 is merged._persistent_merged_model
+
+
+def test_model_property_single_model_training_fallback():
+    # Minimal wrapper exposing only .model and .idata; no num_periods
+    class SimpleWrapper:
+        def __init__(self):
+            with pm.Model() as m:
+                pm.Normal("beta", 0.0, 1.0)
+            self.model = m
+            self.idata = az.from_dict(posterior={"beta": np.random.randn(1, 10)})
+
+    w = SimpleWrapper()
+    merged = BuildMergedModel(models=[w], prefixes=None, merge_on=None)
+
+    # With no persistent model and no num_periods, falls back to training model
+    assert merged.model is w.model
+
+
 @compile_kwargs
 def test_time_distribution_multidim(dummy_df, fitted_mmm, compile_kwargs):
     """Test time distribution factors with fitted model."""
-    df_kwargs, X_dummy, y_dummy = dummy_df
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
 
     optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
         model=fitted_mmm,
@@ -603,7 +794,7 @@ def test_time_distribution_channel_specific_pattern(
     dummy_df, fitted_mmm, compile_kwargs
 ):
     """Test channel-specific time distribution patterns."""
-    df_kwargs, X_dummy, y_dummy = dummy_df
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
 
     optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
         model=fitted_mmm,
@@ -696,7 +887,7 @@ def test_time_distribution_channel_specific_pattern(
 @compile_kwargs
 def test_time_distribution_validation_multidim(dummy_df, fitted_mmm, compile_kwargs):
     """Test validation of time distribution factors in multidimensional case."""
-    df_kwargs, X_dummy, y_dummy = dummy_df
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
 
     optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
         model=fitted_mmm,
@@ -778,7 +969,7 @@ def test_time_distribution_validation_multidim(dummy_df, fitted_mmm, compile_kwa
 @compile_kwargs
 def test_time_distribution_total_spend_preserved(dummy_df, fitted_mmm, compile_kwargs):
     """Test that total spend is the same with and without time distribution patterns."""
-    df_kwargs, X_dummy, y_dummy = dummy_df
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
 
     # Set up common parameters
     num_periods = 4
@@ -907,7 +1098,7 @@ def test_time_distribution_with_carryover_total_spend_preserved(
     dummy_df, fitted_mmm, compile_kwargs
 ):
     """Test that total spend is preserved when using both carryover and time distribution patterns."""
-    df_kwargs, X_dummy, y_dummy = dummy_df
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
 
     # Set up common parameters
     num_periods = 4
@@ -996,7 +1187,7 @@ def test_budget_distribution_carryover_interaction_issue(
     dummy_df, fitted_mmm, compile_kwargs
 ):
     """Test that budget distribution and carryover interaction preserves total spend correctly."""
-    df_kwargs, X_dummy, y_dummy = dummy_df
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
 
     # Set up a simple scenario
     num_periods = 4
@@ -1081,7 +1272,7 @@ def test_multidimensional_optimize_budget_callback_parametrized(
     dummy_df, fitted_mmm, callback, compile_kwargs
 ):
     """Test callback functionality through MultiDimensionalBudgetOptimizerWrapper.optimize_budget interface."""
-    df_kwargs, X_dummy, y_dummy = dummy_df
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
 
     optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
         model=fitted_mmm,
