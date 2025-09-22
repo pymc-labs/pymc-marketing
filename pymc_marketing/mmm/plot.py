@@ -1402,213 +1402,260 @@ class MMMPlotSuite:
         fig.tight_layout()
         return fig, axes
 
-    def plot_sensitivity_analysis(
+    def sensitivity_analysis(
         self,
         hdi_prob: float = 0.94,
         ax: plt.Axes | None = None,
-        marginal: bool = False,
-        percentage: bool = False,
-        sharey: bool = True,
+        aggregation: dict[str, tuple[str, ...] | list[str]] | None = None,
     ) -> tuple[Figure, NDArray[Axes]] | plt.Axes:
-        """
-        Plot counterfactual uplift or marginal effects curves.
-
-        Handles additional (non sweep/date/chain/draw) dimensions by creating one subplot
-        per combination of those dimensions - consistent with other plot_* methods.
+        """Plot sensitivity analysis results.
 
         Parameters
         ----------
         hdi_prob : float, default 0.94
             HDI probability mass.
         ax : plt.Axes, optional
-            Only used when there are no extra dimensions (single panel case).
-        marginal : bool, default False
-            Plot marginal effects instead of uplift.
-        percentage : bool, default False
-            Express uplift as a percentage of actual (not supported for marginal).
-        sharey : bool, default True
-            Share y-axis across subplots (only relevant for multi-panel case).
+            The axis to plot on.
+        aggregation : dict, optional
+            Aggregation to apply to the data.
+            E.g., {"sum": ("channel",)} to sum over the channel dimension.
 
-        Returns
-        -------
-        (fig, axes) if multi-panel, else a single Axes (backwards compatible single-dim case).
+        Examples
+        --------
+        Basic run using stored results in `idata`:
+
+        .. code-block:: python
+
+            # Assuming you already ran a sweep and stored results
+            # under idata.sensitivity_analysis via SensitivityAnalysis.run_sweep(..., extend_idata=True)
+            ax = mmm.plot.sensitivity_analysis(hdi_prob=0.9)
+
+        With aggregation over dimensions (e.g., sum over channels):
+
+        .. code-block:: python
+
+            ax = mmm.plot.sensitivity_analysis(
+                hdi_prob=0.9,
+                aggregation={"sum": ("channel",)},
+            )
         """
-        if percentage and marginal:
-            raise ValueError("Not implemented marginal effects in percentage scale.")
+        if not hasattr(self.idata, "sensitivity_analysis"):
+            raise ValueError(
+                "No sensitivity analysis results found. Run run_sweep() first."
+            )
+        sa = self.idata.sensitivity_analysis  # type: ignore
+        x = sa["x"] if isinstance(sa, xr.Dataset) else sa
+        # Coerce numeric dtype
+        try:
+            x = x.astype(float)
+        except Exception as err:
+            import warnings
 
+            warnings.warn(
+                f"Failed to cast sensitivity analysis data to float: {err}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+        # Apply aggregations
+        if aggregation:
+            for op, dims in aggregation.items():
+                dims_list = [d for d in dims if d in x.dims]
+                if not dims_list:
+                    continue
+                if op == "sum":
+                    x = x.sum(dim=dims_list)
+                elif op == "mean":
+                    x = x.mean(dim=dims_list)
+                else:
+                    x = x.median(dim=dims_list)
+        # Infer sweep dim and values
+        if "sweep" in x.dims:
+            sweep_dim = "sweep"
+        else:
+            cand = [d for d in x.dims if d != "sample"]
+            if not cand:
+                raise ValueError(
+                    "Expected 'sweep' (or a non-sample) dimension in sensitivity results."
+                )
+            sweep_dim = cand[0]
+        sweep = (
+            np.asarray(x.coords[sweep_dim].values)
+            if sweep_dim in x.coords
+            else np.arange(x.sizes[sweep_dim])
+        )
+        # Mean and HDI across sample
+        mean = x.mean("sample") if "sample" in x.dims else x
+        # Reduce leftover dims except sweep
+        reduce_dims = [d for d in mean.dims if d != sweep_dim]
+        if reduce_dims:
+            mean = mean.sum(dim=reduce_dims)
+        if "sample" in x.dims:
+            hdi = az.hdi(x, hdi_prob=hdi_prob, input_core_dims=[["sample"]])
+            if isinstance(hdi, xr.Dataset):
+                hdi = hdi[next(iter(hdi.data_vars))]
+        else:
+            hdi = xr.concat([mean, mean], dim="hdi").assign_coords(hdi=np.array([0, 1]))
+        # Reduce leftover dims and ensure order (sweep_dim, hdi)
+        reduce_hdi = [d for d in hdi.dims if d not in (sweep_dim, "hdi")]
+        if reduce_hdi:
+            hdi = hdi.sum(dim=reduce_hdi)
+        if set(hdi.dims) == {sweep_dim, "hdi"} and list(hdi.dims) != [sweep_dim, "hdi"]:
+            hdi = hdi.transpose(sweep_dim, "hdi")  # type: ignore
+        # Plot
+        if ax is None:
+            fig, ax = plt.subplots()
+        ax.plot(sweep, np.asarray(mean.values, dtype=float), color="C0")
+        az.plot_hdi(
+            x=sweep,
+            hdi_data=np.asarray(hdi.values, dtype=float),
+            hdi_prob=hdi_prob,
+            color="C0",
+            ax=ax,
+        )
+        ax.set_xlabel("Sweep")
+        ax.set_ylabel("Effect")
+        return ax
+
+    def uplift_curve(
+        self,
+        hdi_prob: float = 0.94,
+        ax: plt.Axes | None = None,
+        aggregation: dict[str, tuple[str, ...] | list[str]] | None = None,
+    ) -> tuple[Figure, NDArray[Axes]] | plt.Axes:
+        """
+        Plot precomputed uplift curves stored under `idata.sensitivity_analysis['uplift_curve']`.
+
+        Parameters
+        ----------
+        hdi_prob : float, default 0.94
+            HDI probability mass.
+        ax : plt.Axes, optional
+            The axis to plot on.
+        aggregation : dict, optional
+            Aggregation to apply to the data.
+            E.g., {"sum": ("channel",)} to sum over the channel dimension.
+
+        Examples
+        --------
+        Persist uplift curve and plot:
+
+        .. code-block:: python
+
+            from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
+
+            sweeps = np.linspace(0.5, 1.5, 11)
+            sa = SensitivityAnalysis(mmm.model, mmm.idata)
+            results = sa.run_sweep(
+                varinput="channel_data",
+                sweep_values=sweeps,
+                var_names="channel_contribution",
+                sweep_type="multiplicative",
+            )
+            uplift = sa.compute_uplift_curve_respect_to_base(
+                results, ref=1.0, extend_idata=True
+            )
+            _ = mmm.plot.uplift_curve(hdi_prob=0.9)
+        """
         if not hasattr(self.idata, "sensitivity_analysis"):
             raise ValueError(
                 "No sensitivity analysis results found in 'self.idata'. "
                 "Run 'mmm.sensitivity.run_sweep()' first."
             )
 
-        results: xr.Dataset = self.idata.sensitivity_analysis  # type: ignore
-
-        # Required variable presence checks
-        required_var = "marginal_effects" if marginal else "y"
-        if required_var not in results:
-            raise ValueError(
-                f"Expected '{required_var}' in sensitivity_analysis results, found: {list(results.data_vars)}"
-            )
-        if "sweep" not in results.dims:
-            raise ValueError(
-                "Sensitivity analysis results must contain 'sweep' dimension."
-            )
-
-        # Identify additional dimensions
-        ignored_dims = {"chain", "draw", "date", "sweep"}
-        base_data = results.marginal_effects if marginal else results.y
-        additional_dims = [d for d in base_data.dims if d not in ignored_dims]
-
-        # Build all coordinate combinations
-        if additional_dims:
-            additional_coords = [results.coords[d].values for d in additional_dims]
-            dim_combinations = list(itertools.product(*additional_coords))
+        sa_group = self.idata.sensitivity_analysis  # type: ignore
+        if isinstance(sa_group, xr.Dataset):
+            if "uplift_curve" not in sa_group:
+                raise ValueError(
+                    "Expected 'uplift_curve' in idata.sensitivity_analysis. "
+                    "Use SensitivityAnalysis.compute_uplift_curve_respect_to_base(..., extend_idata=True)."
+                )
+            data_var = sa_group["uplift_curve"]
         else:
-            dim_combinations = [()]
-
-        multi_panel = len(dim_combinations) > 1
-
-        # If user provided ax but multiple panels needed, raise (consistent with other methods)
-        if multi_panel and ax is not None:
             raise ValueError(
-                "Cannot use 'ax' when there are extra dimensions. "
-                "Let the function create its own subplots."
+                "sensitivity_analysis does not contain 'uplift_curve'. Did you persist it to idata?"
             )
 
-        # Prepare figure/axes
-        if multi_panel:
-            fig, axes = self._init_subplots(n_subplots=len(dim_combinations), ncols=1)
-            if sharey:
-                # Align y limits later - collect mins/maxs
-                y_mins, y_maxs = [], []
+        # Delegate to a thin wrapper by temporarily constructing a Dataset
+        tmp_idata = xr.Dataset({"x": data_var})
+        # Monkey-patch minimal attributes needed
+        tmp_idata["x"].attrs.update(getattr(sa_group, "attrs", {}))  # type: ignore
+        # Temporarily swap
+        original_group = self.idata.sensitivity_analysis  # type: ignore
+        try:
+            self.idata.sensitivity_analysis = tmp_idata  # type: ignore
+            return self.sensitivity_analysis(
+                hdi_prob=hdi_prob, ax=ax, aggregation=aggregation
+            )
+        finally:
+            self.idata.sensitivity_analysis = original_group  # type: ignore
+
+    def marginal_curve(
+        self,
+        hdi_prob: float = 0.94,
+        ax: plt.Axes | None = None,
+        aggregation: dict[str, tuple[str, ...] | list[str]] | None = None,
+    ) -> tuple[Figure, NDArray[Axes]] | plt.Axes:
+        """
+        Plot precomputed marginal effects stored under `idata.sensitivity_analysis['marginal_effects']`.
+
+        Parameters
+        ----------
+        hdi_prob : float, default 0.94
+            HDI probability mass.
+        ax : plt.Axes, optional
+            The axis to plot on.
+        aggregation : dict, optional
+            Aggregation to apply to the data.
+            E.g., {"sum": ("channel",)} to sum over the channel dimension.
+
+        Examples
+        --------
+        Persist marginal effects and plot:
+
+        .. code-block:: python
+
+            from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
+
+            sweeps = np.linspace(0.5, 1.5, 11)
+            sa = SensitivityAnalysis(mmm.model, mmm.idata)
+            results = sa.run_sweep(
+                varinput="channel_data",
+                sweep_values=sweeps,
+                var_names="channel_contribution",
+                sweep_type="multiplicative",
+            )
+            me = sa.compute_marginal_effects(results, extend_idata=True)
+            _ = mmm.plot.marginal_curve(hdi_prob=0.9)
+        """
+        if not hasattr(self.idata, "sensitivity_analysis"):
+            raise ValueError(
+                "No sensitivity analysis results found in 'self.idata'. "
+                "Run 'mmm.sensitivity.run_sweep()' first."
+            )
+
+        sa_group = self.idata.sensitivity_analysis  # type: ignore
+        if isinstance(sa_group, xr.Dataset):
+            if "marginal_effects" not in sa_group:
+                raise ValueError(
+                    "Expected 'marginal_effects' in idata.sensitivity_analysis. "
+                    "Use SensitivityAnalysis.compute_marginal_effects(..., extend_idata=True)."
+                )
+            data_var = sa_group["marginal_effects"]
         else:
-            if ax is None:
-                fig, axes_arr = plt.subplots(figsize=(10, 6))
-                ax = axes_arr  # type: ignore
-            fig = ax.get_figure()  # type: ignore
-            axes = np.array([[ax]])  # type: ignore
-
-        sweep_values = results.coords["sweep"].values
-
-        # Helper: select subset (only dims present)
-        def _select(data: xr.DataArray, indexers: dict) -> xr.DataArray:
-            valid = {k: v for k, v in indexers.items() if k in data.dims}
-            return data.sel(**valid)
-
-        for row_idx, combo in enumerate(dim_combinations):
-            current_ax = axes[row_idx][0] if multi_panel else ax  # type: ignore
-            indexers = (
-                dict(zip(additional_dims, combo, strict=False))
-                if additional_dims
-                else {}
+            raise ValueError(
+                "sensitivity_analysis does not contain 'marginal_effects'. Did you persist it to idata?"
             )
 
-            if marginal:
-                eff = _select(results.marginal_effects, indexers)
-                # mean over chain/draw, sum over date (and any leftover dims not indexed)
-                leftover = [d for d in eff.dims if d in ("date",) and d != "sweep"]
-                y_mean = eff.mean(dim=["chain", "draw"]).sum(dim=leftover)
-                y_hdi_data = eff.sum(dim=leftover)
-                color = "C1"
-                label = "Posterior mean marginal effect"
-                title = "Marginal effects"
-                ylabel = r"Marginal effect, $\frac{d\mathbb{E}[Y]}{dX}$"
-            else:
-                y_da = _select(results.y, indexers)
-                leftover = [d for d in y_da.dims if d in ("date",) and d != "sweep"]
-                if percentage:
-                    actual = self.idata.posterior_predictive["y"]  # type: ignore
-                    actual_sel = _select(actual, indexers)
-                    actual_mean = actual_sel.mean(dim=["chain", "draw"]).sum(
-                        dim=leftover
-                    )
-                    actual_sum = actual_sel.sum(dim=leftover)
-                    y_mean = (
-                        y_da.mean(dim=["chain", "draw"]).sum(dim=leftover) / actual_mean
-                    )
-                    y_hdi_data = y_da.sum(dim=leftover) / actual_sum
-                else:
-                    y_mean = y_da.mean(dim=["chain", "draw"]).sum(dim=leftover)
-                    y_hdi_data = y_da.sum(dim=leftover)
-                color = "C0"
-                label = "Posterior mean uplift"
-                title = "Sensitivity analysis"
-                ylabel = "Total uplift (sum over dates)"
-
-            # Ensure ordering: y_mean dimension 'sweep'
-            if "sweep" not in y_mean.dims:
-                raise ValueError("Expected 'sweep' dim after aggregation.")
-
-            current_ax.plot(sweep_values, y_mean, label=label, color=color)  # type: ignore
-
-            # Plot HDI
-            az.plot_hdi(
-                sweep_values,
-                y_hdi_data,
-                hdi_prob=hdi_prob,
-                color=color,
-                fill_kwargs={"alpha": 0.4, "label": f"{hdi_prob * 100:.0f}% HDI"},
-                plot_kwargs={"color": color, "alpha": 0.5},
-                smooth=False,
-                ax=current_ax,
+        # We want a different y-label and color
+        # Temporarily swap group to reuse plotting logic
+        tmp = xr.Dataset({"x": data_var})
+        tmp["x"].attrs.update(getattr(sa_group, "attrs", {}))  # type: ignore
+        original = self.idata.sensitivity_analysis  # type: ignore
+        try:
+            self.idata.sensitivity_analysis = tmp  # type: ignore
+            # Reuse core plotting; percentage=False by definition
+            return self.sensitivity_analysis(
+                hdi_prob=hdi_prob, ax=ax, aggregation=aggregation
             )
-
-            # Titles / labels
-            if additional_dims:
-                subplot_title = self._build_subplot_title(
-                    additional_dims, combo, fallback_title=title
-                )
-            else:
-                subplot_title = title
-            current_ax.set_title(subplot_title)  # type: ignore
-            if results.sweep_type == "absolute":
-                current_ax.set_xlabel(f"Absolute value of: {results.var_names}")  # type: ignore
-            else:
-                current_ax.set_xlabel(  # type: ignore
-                    f"{results.sweep_type.capitalize()} change of: {results.var_names}"
-                )
-            current_ax.set_ylabel(ylabel)  # type: ignore
-
-            # Baseline reference lines
-            if results.sweep_type == "multiplicative":
-                current_ax.axvline(x=1, color="k", linestyle="--", alpha=0.5)  # type: ignore
-                if not marginal:
-                    current_ax.axhline(y=0, color="k", linestyle="--", alpha=0.5)  # type: ignore
-            elif results.sweep_type == "additive":
-                current_ax.axvline(x=0, color="k", linestyle="--", alpha=0.5)  # type: ignore
-
-            # Format y
-            if percentage:
-                current_ax.yaxis.set_major_formatter(  # type: ignore
-                    plt.FuncFormatter(lambda v, _: f"{v:.1%}")  # type: ignore
-                )
-            else:
-                current_ax.yaxis.set_major_formatter(  # type: ignore
-                    plt.FuncFormatter(lambda v, _: f"{v:,.1f}")  # type: ignore
-                )
-
-            # Adjust y-lims sign aware
-            y_vals = y_mean.values
-            if np.all(y_vals < 0):
-                current_ax.set_ylim(top=0)  # type: ignore
-            elif np.all(y_vals > 0):
-                current_ax.set_ylim(bottom=0)  # type: ignore
-
-            if multi_panel and sharey:
-                y_mins.append(current_ax.get_ylim()[0])  # type: ignore
-                y_maxs.append(current_ax.get_ylim()[1])  # type: ignore
-
-            current_ax.legend(loc="best")  # type: ignore
-
-        # Share y limits if requested
-        if multi_panel and sharey:
-            global_min, global_max = min(y_mins), max(y_maxs)
-            for row_idx in range(len(dim_combinations)):
-                axes[row_idx][0].set_ylim(global_min, global_max)
-
-        if multi_panel:
-            fig.tight_layout()
-            return fig, axes
-        else:
-            return ax  # single axis for backwards compatibility
+        finally:
+            self.idata.sensitivity_analysis = original  # type: ignore

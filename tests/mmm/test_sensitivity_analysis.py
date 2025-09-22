@@ -99,7 +99,7 @@ def test_compute_marginal_effects(sensitivity):
         sweep_values=sweeps,
         sweep_type="multiplicative",
     )
-    me = SensitivityAnalysis.compute_marginal_effects(results, sweeps)
+    me = sensitivity.compute_marginal_effects(results)
     assert isinstance(me, xr.DataArray)
     # same dims, same sizes except along sweep reduced by differentiation (xarray keeps same length)
     assert list(me.dims) == list(results.dims)
@@ -112,9 +112,10 @@ def test_run_sweep_with_filter(sensitivity):
         varinput="channel_data",
         var_names="channel_contribution",
         sweep_values=sweeps,
-        var_names_filter={"channel": ["a", "c"]},
     )
-    assert results.sizes["channel"] == 2
+    # Apply filtering post hoc per new API
+    filtered = results.sel(channel=["a", "c"])
+    assert filtered.sizes["channel"] == 2
 
 
 def test_extend_idata_stores_results(simple_model_and_idata):
@@ -203,14 +204,84 @@ def test_mmm_sensitivity_dims_and_filter(multidim_mmm, sweep_type):
     assert list(result.coords["channel"].values) == ["C1", "C2"]
 
     # Filtering by labels should preserve order and sizes
-    filtered = multidim_mmm.sensitivity.run_sweep(
-        varinput="channel_data",
-        var_names="channel_contribution",
-        sweep_values=sweeps,
-        sweep_type=sweep_type,
-        var_names_filter={"country": ["B"], "channel": ["C2"]},
-    )
+    filtered = result.sel(country=["B"], channel=["C2"])  # filter post hoc per new API
     assert filtered.sizes["country"] == 1
     assert filtered.sizes["channel"] == 1
     assert list(filtered.coords["country"].values) == ["B"]
     assert list(filtered.coords["channel"].values) == ["C2"]
+
+
+def test_compute_uplift_curve_respect_to_base(sensitivity):
+    sweeps = np.linspace(0.5, 1.5, 5)
+    # Run without extending idata to get the results in-memory
+    results = sensitivity.run_sweep(
+        varinput="channel_data",
+        var_names="channel_contribution",
+        sweep_values=sweeps,
+        sweep_type="multiplicative",
+    )
+    # Choose a scalar reference (e.g., overall mean at baseline factor 1.0)
+    ref_value = float(results.sel(sweep=1.0).mean().item())
+
+    uplift = sensitivity.compute_uplift_curve_respect_to_base(
+        results=results, ref=ref_value
+    )
+
+    # Dimensions and sizes unchanged
+    assert list(uplift.dims) == list(results.dims)
+    assert uplift.sizes == results.sizes
+
+    # Uplift equals results minus scalar reference (broadcasted)
+    xr.testing.assert_allclose(uplift, results - ref_value)
+
+    # Now also test persistence to idata
+    # First ensure the group exists
+    _ = sensitivity.run_sweep(
+        varinput="channel_data",
+        var_names="channel_contribution",
+        sweep_values=sweeps,
+        extend_idata=True,
+    )
+    persisted = sensitivity.compute_uplift_curve_respect_to_base(
+        results=results, ref=ref_value, extend_idata=True
+    )
+    assert hasattr(sensitivity.idata, "sensitivity_analysis")
+    sa_group = sensitivity.idata.sensitivity_analysis
+    assert isinstance(sa_group, xr.Dataset)
+    assert "uplift_curve" in sa_group
+    xr.testing.assert_allclose(sa_group["uplift_curve"], persisted)
+
+
+def test_compute_dims_order_from_varinput_internal(sensitivity):
+    # Drops 'date' and preserves remaining order
+    dims_order = sensitivity._compute_dims_order_from_varinput("channel_data")
+    assert dims_order == ["channel"]
+
+
+def test_add_to_idata_internal_updates_dataset(simple_model_and_idata):
+    model, idata = simple_model_and_idata
+    sa = SensitivityAnalysis(model, idata)
+    sweeps = np.linspace(0.5, 1.5, 3)
+
+    # Create a tiny result DataArray consistent with model coords
+    result1 = xr.DataArray(
+        np.ones((2, len(sweeps), len(model.coords["channel"]))),
+        dims=["sample", "sweep", "channel"],
+        coords={
+            "sample": np.arange(2),
+            "sweep": sweeps,
+            "channel": list(model.coords["channel"]),
+        },
+    )
+
+    # First add: creates the group
+    sa._add_to_idata(result1)
+    assert hasattr(idata, "sensitivity_analysis")
+    assert isinstance(idata.sensitivity_analysis, xr.Dataset)
+    xr.testing.assert_allclose(idata.sensitivity_analysis["x"], result1)
+
+    # Second add: updates the variable and warns
+    result2 = result1 * 2.0
+    with pytest.warns(UserWarning):
+        sa._add_to_idata(result2)
+    xr.testing.assert_allclose(idata.sensitivity_analysis["x"], result2)

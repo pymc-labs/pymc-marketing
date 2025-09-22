@@ -86,6 +86,7 @@ Notes
   `idata.sensitivity_analysis`.
 """
 
+import warnings
 from typing import Literal
 
 import arviz as az
@@ -95,6 +96,7 @@ import xarray as xr
 from pymc import Model
 from pytensor import function
 from pytensor.compile.sharedvalue import SharedVariable
+from pytensor.graph import vectorize_graph
 
 from pymc_marketing.pytensor_utils import extract_response_distribution
 
@@ -132,45 +134,6 @@ class SensitivityAnalysis:
                 mapping[dim_name] = {label: idx for idx, label in enumerate(coords)}
         return mapping
 
-    def _apply_filter_np(
-        self,
-        arr: np.ndarray,
-        var_names_filter: dict[str, list] | None,
-        *,
-        dims_order: list[str],
-    ) -> np.ndarray:
-        """Apply filtering to numpy array along named axes without changing axis order.
-
-        Parameters
-        ----------
-        arr : np.ndarray
-            Array of shape (samples, *dims_order)
-        var_names_filter : dict[str, list] | None
-            Mapping from dim name to labels/indices to select.
-        """
-        if not var_names_filter:
-            return arr
-
-        coord_to_index = self._coord_to_index(dims_order)
-        result = arr
-        # axes 1.. correspond to dims_order
-        for axis_offset, dim_name in enumerate(dims_order, start=1):
-            if dim_name not in var_names_filter:
-                continue
-            labels = var_names_filter[dim_name]
-            # Convert labels to integer indices using model metadata
-            indices: list[int] = []
-            for label in labels:
-                if isinstance(label, int | np.integer):
-                    indices.append(int(label))
-                else:
-                    indices.append(coord_to_index[dim_name][label])
-            # Use np.take with an array of indices to preserve the axis (even if length 1)
-            result = np.take(
-                result, indices=np.array(indices, dtype=int), axis=axis_offset
-            )
-        return result
-
     def _extract_response_distribution(
         self, response_variable: str, posterior_sample_batch: int
     ):
@@ -186,7 +149,6 @@ class SensitivityAnalysis:
         result: np.ndarray,
         sweep_values: np.ndarray,
         dims_order: list[str],
-        var_names_filter: dict[str, list] | None = None,
     ) -> xr.DataArray:
         """Transform a numpy result into an xarray.DataArray with correct dims/coords.
 
@@ -195,23 +157,9 @@ class SensitivityAnalysis:
         # Build dims list in the exact order of the numpy result
         dims: list[str] = ["sample", "sweep", *dims_order]
 
-        # Helper to select labels according to optional filters
-        def _selected_labels(dim_name: str, axis_size: int) -> list:
-            # Base labels from model coordinates if available; otherwise fallback to range
-            base_labels = list(self.model.coords.get(dim_name, np.arange(axis_size)))
-            if not var_names_filter or dim_name not in var_names_filter:
-                return base_labels
-
-            # Map requested entries (labels or indices) to labels
-            requested = var_names_filter[dim_name]
-            coord_to_index = self._coord_to_index(dims_order).get(dim_name, {})
-            indices: list[int] = []
-            for req in requested:
-                if isinstance(req, int | np.integer):
-                    indices.append(int(req))
-                else:
-                    indices.append(int(coord_to_index[req]))
-            return [base_labels[i] for i in indices]
+        # Helper for base labels (ignore filtering at data and coord level)
+        def _base_labels(dim_name: str, axis_size: int) -> list:
+            return list(self.model.coords.get(dim_name, np.arange(axis_size)))
 
         # Assemble coords aligned with dims
         coords: dict[str, np.ndarray | list] = {}
@@ -223,13 +171,33 @@ class SensitivityAnalysis:
         axis_offset = 2
         for i, dim_name in enumerate(dims_order):
             axis_size = result.shape[axis_offset + i]
-            coords[dim_name] = _selected_labels(dim_name, axis_size)
+            coords[dim_name] = _base_labels(dim_name, axis_size)
 
         return xr.DataArray(result, coords=coords, dims=dims)
 
     def _add_to_idata(self, result: xr.DataArray) -> None:
-        """Add the result to the idata."""
-        self.idata.add_groups({"sensitivity_analysis": result})
+        """Add the result to the idata.
+
+        If the 'sensitivity_analysis' group already exists, emit a warning and only
+        update/overwrite the 'x' variable to preserve any additional stored results
+        (e.g., 'uplift_curve', 'marginal_effects').
+        """
+        dataset = xr.Dataset({"x": result})
+        if hasattr(self.idata, "sensitivity_analysis"):
+            warnings.warn(
+                "'sensitivity_analysis' group already exists; updating variable 'x' with new results.",
+                UserWarning,
+                stacklevel=2,
+            )
+            existing = self.idata.sensitivity_analysis  # type: ignore[attr-defined]
+            if isinstance(existing, xr.Dataset):
+                existing["x"] = result
+                self.idata.sensitivity_analysis = existing  # type: ignore[attr-defined]
+            else:
+                # Legacy case: replace DataArray with Dataset for consistency
+                self.idata.sensitivity_analysis = dataset  # type: ignore[attr-defined]
+        else:
+            self.idata.add_groups({"sensitivity_analysis": dataset})
 
     def run_sweep(
         self,
@@ -241,11 +209,10 @@ class SensitivityAnalysis:
             "multiplicative", "additive", "absolute"
         ] = "multiplicative",
         posterior_sample_batch: int = 1,
-        var_names_filter: dict[str, list] | None = None,
         extend_idata: bool = False,
     ) -> xr.DataArray | None:
         """
-        Run sweeps and compute marginal effects.
+        Run sweeps by forward-evaluating the response graph (no Jacobian).
 
         Parameters
         ----------
@@ -265,56 +232,65 @@ class SensitivityAnalysis:
         -------
         xarray.DataArray | None
             If extend_idata is False, returns an xarray.DataArray with shape
-            (sample, sweep, *dims_order). If extend_idata is True, stores the
-            result under `idata.sensitivity_analysis` and returns None.
+            (sample, sweep, *dims_order), where `dims_order` are the non-date
+            dims of `varinput` in the same order as in the model. The response
+            is averaged over the `date` axis as in the draft example. If
+            extend_idata is True, stores the result under
+            `idata.sensitivity_analysis` and returns None.
         """
         # Determine dims order from the provided varinput (drop 'date')
         dims_order = self._compute_dims_order_from_varinput(varinput)
 
-        # 1) Extract response graph
+        # 1) Extract response graph (shape typically: (sample, date, *dims_order))
         resp_graph = self._extract_response_distribution(
             response_variable=var_names, posterior_sample_batch=posterior_sample_batch
         )
 
-        # 2) Input shared variable
+        # 2) Prepare batched input carrying the sweep axis
         data_shared: SharedVariable = self.model[varinput]
-        original_X = data_shared.get_value()
+        base_value = data_shared.get_value()
+        num_sweeps = int(np.asarray(sweep_values).shape[0])
 
-        # 3) Jacobian wrt input (which includes date dim)
-        # Collapse ALL non-sample axes to obtain a scalar per sample before differentiation
-        # This ensures the Jacobian has shape (samples, date, *dims, channel)
-        f_scalar = resp_graph.sum(axis=tuple(range(1, resp_graph.ndim)))
-        J = pt.jacobian(f_scalar, data_shared)
-
-        # 4) Sum out the date axis in the Jacobian → (samples, *dims, channel)
-        J_per_channel = J.sum(axis=1)
-
-        jac_fn = function(inputs=[], outputs=J_per_channel)
-
-        # 5) Sweeps
-        outs = []
-        for s in sweep_values:
-            if sweep_type == "multiplicative":
-                data_shared.set_value(original_X * s)
-            elif sweep_type == "additive":
-                data_shared.set_value(original_X + s)
-            elif sweep_type == "absolute":
-                data_shared.set_value(np.full_like(original_X, s))
-            else:
-                raise ValueError(f"Unknown sweep_type {sweep_type!r}")
-            result = jac_fn()  # (n_samples, *dims, channel)
-            # Apply filtering in numpy space using model metadata to preserve axes
-            result = self._apply_filter_np(
-                result, var_names_filter, dims_order=dims_order
+        # Build a (sweep, 1, 1, ..., 1) array to broadcast against base_value
+        sweep_col = np.asarray(sweep_values, dtype=base_value.dtype).reshape(
+            (num_sweeps,) + (1,) * base_value.ndim
+        )
+        if sweep_type == "multiplicative":
+            batched_input = sweep_col * base_value[None, ...]
+        elif sweep_type == "additive":
+            batched_input = sweep_col + base_value[None, ...]
+        elif sweep_type == "absolute":
+            batched_input = np.broadcast_to(
+                sweep_col,
+                (num_sweeps, *base_value.shape),
             )
-            outs.append(result)
+        else:
+            raise ValueError(f"Unknown sweep_type {sweep_type!r}")
 
-        stacked = np.stack(outs, axis=1)  # (n_samples, n_sweeps, *dims, channel)
+        # 3) Vectorize the response graph over the new sweep axis by replacing the shared
+        #    input with a tensor that carries a leading sweep dimension.
+        channel_in = pt.tensor(
+            name=f"{varinput}_sweep_in",
+            dtype=data_shared.dtype,
+            shape=(None, *data_shared.type.shape),
+        )
+        sweep_graph = vectorize_graph(resp_graph, replace={data_shared: channel_in})
+        fn = function([channel_in], sweep_graph)  # (sweep, sample, date, *dims_order)
+
+        evaluated = fn(batched_input)
+
+        # 4) Reduce the date axis (axis=2) as in the draft (mean over time)
+        #    Result shape: (sweep, sample, *dims_order)
+        evaluated_no_date = evaluated.sum(axis=2)
+
+        # 5) Reorder axes to (sample, sweep, *dims_order)
+        #    Move sweep axis (0) to position 1, sample axis becomes 0.
+        result = np.moveaxis(evaluated_no_date, 0, 1)
+
         xr_result = self._transform_output_to_xarray(
-            stacked,
+            result,
             sweep_values=sweep_values,
             dims_order=dims_order,
-            var_names_filter=var_names_filter,
         )
         if extend_idata:
             self._add_to_idata(xr_result)
@@ -322,27 +298,44 @@ class SensitivityAnalysis:
         else:
             return xr_result
 
-    @staticmethod
-    def compute_marginal_effects(results, sweep_values) -> xr.DataArray:
-        """Return marginal effects from sweep results (no-op).
+    def compute_uplift_curve_respect_to_base(
+        self,
+        results: xr.DataArray,
+        ref: int,
+        extend_idata: bool = False,
+    ) -> xr.DataArray:
+        """Return marginal effects from idata."""
+        xr_result = results - ref
+        if extend_idata:
+            if not hasattr(self.idata, "sensitivity_analysis"):
+                raise ValueError(
+                    "No sensitivity analysis results found in 'self.idata'. "
+                    "Run 'mmm.sensitivity.run_sweep()' first."
+                )
+            self.idata.sensitivity_analysis["uplift_curve"] = xr_result
+        return xr_result
 
-        Deprecated
-        ----------
-        This function is redundant and will be removed in a future release. The
-        output of ``run_sweep`` already contains marginal effects (via the Jacobian),
-        so calling this function is unnecessary. Use the output of ``run_sweep``
-        directly.
+    def compute_marginal_effects(
+        self, results: xr.DataArray, extend_idata: bool = False
+    ) -> xr.DataArray:
+        """Return marginal effects from sweep results.
 
         Parameters
         ----------
         results : xr.DataArray
-            The output from ``run_sweep``; already the marginal effects.
-        sweep_values : np.ndarray
-            Unused. Preserved in the signature to avoid breaking callers.
+            The output from ``run_sweep``.
 
         Returns
         -------
         xr.DataArray
             The input ``results`` unchanged.
         """
-        return results
+        xr_result = results.differentiate(coord="sweep")
+        if extend_idata:
+            if not hasattr(self.idata, "sensitivity_analysis"):
+                raise ValueError(
+                    "No sensitivity analysis results found in 'self.idata'. "
+                    "Run 'mmm.sensitivity.run_sweep()' first."
+                )
+            self.idata.sensitivity_analysis["marginal_effects"] = xr_result
+        return xr_result
