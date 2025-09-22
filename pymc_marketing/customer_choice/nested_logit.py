@@ -536,7 +536,7 @@ class NestedLogit(RegressionModelBuilder):
         lambda_lkup = self.lambda_lkup
         N = U.shape[0]
         if "_" in nest:
-            parent, child = nest.split("_")
+            parent, _ = nest.split("_")
         else:
             parent = None
         y_nest = U[:, nest_indices[level][nest]]
@@ -707,7 +707,7 @@ class NestedLogit(RegressionModelBuilder):
 
                 for idx, n in enumerate(middle_nests):
                     is_last = idx == len(middle_nests) - 1
-                    parent, child = n.split("_")
+                    parent, _ = n.split("_")
                     P_nest = nest_prob_m[n]
                     P_y_given_nest = cond_prob_m[n]["P_y_given"]
                     prod = pm.Deterministic(

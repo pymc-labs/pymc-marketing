@@ -270,9 +270,9 @@ def test_validate_and_preprocess(toy_X, toy_y, test_mmm):
     test_mmm.validate("y", toy_y)
     test_mmm.mock_method2.assert_called_once_with(test_mmm, toy_y)
 
-    with pytest.raises(ValueError, match="Target must be either 'X' or 'y'"):
+    with pytest.raises(ValueError, match=r"Target must be either 'X' or 'y'"):
         test_mmm.validate("invalid", toy_X)
-    with pytest.raises(ValueError, match="Target must be either 'X' or 'y'"):
+    with pytest.raises(ValueError, match=r"Target must be either 'X' or 'y'"):
         test_mmm.preprocess("invalid", toy_X)
 
 
@@ -350,7 +350,7 @@ def test_calling_prior_before_sample_prior_predictive_raises_error(
 def test_plot_prior_predictive_no_fitted(test_mmm) -> None:
     with pytest.raises(
         RuntimeError,
-        match="Make sure the model has been fitted and the prior_predictive has been sampled!",
+        match=r"Make sure the model has been fitted and the prior_predictive has been sampled!",
     ):
         test_mmm.plot_prior_predictive()
 
@@ -358,7 +358,7 @@ def test_plot_prior_predictive_no_fitted(test_mmm) -> None:
 def test_plot_posterior_predictive_no_fitted(test_mmm) -> None:
     with pytest.raises(
         RuntimeError,
-        match="Make sure the model has been fitted and the posterior_predictive has been sampled!",
+        match=r"Make sure the model has been fitted and the posterior_predictive has been sampled!",
     ):
         test_mmm.plot_posterior_predictive()
 
@@ -366,6 +366,6 @@ def test_plot_posterior_predictive_no_fitted(test_mmm) -> None:
 def test_get_errors_raises_not_fitted(test_mmm) -> None:
     with pytest.raises(
         RuntimeError,
-        match="Make sure the model has been fitted and the posterior_predictive has been sampled!",
+        match=r"Make sure the model has been fitted and the posterior_predictive has been sampled!",
     ):
         test_mmm.get_errors()

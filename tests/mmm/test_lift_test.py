@@ -98,7 +98,7 @@ def df_lift_test_unaligned() -> pd.DataFrame:
 
 
 def test_exact_row_indices_raises(df_lift_test_unaligned, model) -> None:
-    match = "The following rows of the DataFrame"
+    match = r"The following rows of the DataFrame"
     with pytest.raises(UnalignedValuesError, match=match) as res:
         exact_row_indices(df_lift_test_unaligned, model)
 
@@ -162,12 +162,12 @@ def test_variable_indexer(variable_indexer, name, expected) -> None:
 
 
 def test_variable_indexer_missing_variable(variable_indexer) -> None:
-    with pytest.raises(KeyError, match="The variable 'missing' is not in the model"):
+    with pytest.raises(KeyError, match=r"The variable 'missing' is not in the model"):
         variable_indexer("missing")
 
 
 def test_lift_test_missing_coords(df_lift_test) -> None:
-    with pytest.raises(KeyError, match="The coords"):
+    with pytest.raises(KeyError, match=r"The coords"):
         df_lift_test.pipe(exact_row_indices, model=pm.Model())
 
 
@@ -281,7 +281,7 @@ def test_check_increasing_assumption() -> None:
     delta_x = pd.Series([1, 2, 3])
     delta_y = pd.Series([1, -2, 3])
 
-    match = "The data is not monotonic."
+    match = r"The data is not monotonic."
     with pytest.raises(NonMonotonicError, match=match):
         assert_monotonic(delta_x, delta_y)
 
@@ -410,7 +410,7 @@ def test_tvp_needs_date_in_lift_tests() -> None:
 
     assert "lift_measurements" not in model
 
-    match = "The value"
+    match = r"The value"
     with pytest.raises(KeyError, match=match):
         add_lift_measurements_to_likelihood_from_saturation(
             df_lift_tests,

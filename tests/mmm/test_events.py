@@ -43,7 +43,7 @@ def test_gaussian_basis_plot() -> None:
     prior = gaussian.sample_prior(coords=coords)
     curve = gaussian.sample_curve(prior, days=21)
 
-    fig, _ = gaussian.plot_curve(curve, same_axes=True)
+    _fig, _ = gaussian.plot_curve(curve, same_axes=True)
     plt.close()
 
 
@@ -811,7 +811,7 @@ def test_asymmetric_gaussian_basis_invalid_event_in():
     # Temporarily set invalid event_in to test error
     asymmetric.event_in = "invalid_mode"
 
-    with pytest.raises(ValueError, match="Invalid event_in: invalid_mode"):
+    with pytest.raises(ValueError, match=r"Invalid event_in: invalid_mode"):
         asymmetric.function(x, sigma_before, sigma_after, a_after)
 
 
@@ -829,7 +829,7 @@ def test_asymmetric_gaussian_basis_plot():
     prior = asymmetric.sample_prior(coords=coords)
     curve = asymmetric.sample_curve(prior, days=21)
 
-    fig, _ = asymmetric.plot_curve(curve, same_axes=True)
+    _fig, _ = asymmetric.plot_curve(curve, same_axes=True)
     plt.close()
 
 

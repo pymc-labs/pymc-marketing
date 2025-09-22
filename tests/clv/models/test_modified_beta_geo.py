@@ -152,7 +152,7 @@ class TestModifiedBetaGeoModel:
 
     def test_customer_id_duplicate(self):
         with pytest.raises(
-            ValueError, match="Column customer_id has duplicate entries"
+            ValueError, match=r"Column customer_id has duplicate entries"
         ):
             data = pd.DataFrame(
                 {
@@ -239,7 +239,7 @@ class TestModifiedBetaGeoModel:
 
     def test_fit_result_without_fit(self, mocker, model_config):
         model = ModifiedBetaGeoModel(data=self.data, model_config=model_config)
-        with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
+        with pytest.raises(RuntimeError, match=r"The model hasn't been fit yet"):
             model.fit_result
 
         mocker.patch("pymc.sample", mock_sample)
@@ -283,7 +283,7 @@ class TestModifiedBetaGeoModel:
 
         with pytest.raises(
             NotImplementedError,
-            match="The MBG/NBD model does not support this method.",
+            match=r"The MBG/NBD model does not support this method.",
         ):
             mbg_model.expected_probability_no_purchase(t=test_t, data=data)
 

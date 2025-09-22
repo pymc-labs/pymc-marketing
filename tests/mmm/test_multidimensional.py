@@ -466,7 +466,7 @@ def test_sample_posterior_predictive_same_data_with_include_last_observations(
     # This should raise a ValueError
     with pytest.raises(
         ValueError,
-        match="Cannot use include_last_observations=True when input dates overlap with training dates",
+        match=r"Cannot use include_last_observations=True when input dates overlap with training dates",
     ):
         mmm.sample_posterior_predictive(
             X_train,  # Same training data
@@ -508,7 +508,7 @@ def test_sample_posterior_predictive_partial_overlap_with_include_last_observati
     # This should raise a ValueError due to partial overlap
     with pytest.raises(
         ValueError,
-        match="Cannot use include_last_observations=True when input dates overlap with training dates",
+        match=r"Cannot use include_last_observations=True when input dates overlap with training dates",
     ):
         mmm.sample_posterior_predictive(
             overlap_data,
@@ -1063,7 +1063,7 @@ def test_different_target_scaling(method, multi_dim_data, mock_pymc_sample) -> N
 
 def test_target_scaling_raises() -> None:
     scaling = {"target": {"method": "mean", "dims": ("country",)}}
-    match = "Target scaling dims"
+    match = r"Target scaling dims"
     with pytest.raises(ValueError, match=match):
         MMM(
             adstock=GeometricAdstock(l_max=2),
@@ -1290,7 +1290,7 @@ def test_add_lift_test_measurements_no_model() -> None:
         adstock=adstock,
         saturation=saturation,
     )
-    with pytest.raises(RuntimeError, match="The model has not been built yet."):
+    with pytest.raises(RuntimeError, match=r"The model has not been built yet."):
         mmm.add_lift_test_measurements(
             pd.DataFrame(),
         )
@@ -1350,7 +1350,7 @@ def test_add_lift_test_measurements_missing_channel_column(multi_dim_data) -> No
 
     with pytest.raises(
         KeyError,
-        match="The 'channel' column is required to map the lift measurements to the model.",
+        match=r"The 'channel' column is required to map the lift measurements to the model.",
     ):
         mmm.add_lift_test_measurements(df_lift_test_missing_channel)
 
@@ -1382,7 +1382,7 @@ def test_add_lift_test_measurements_missing_dimension_column(multi_dim_data) -> 
 
     with pytest.raises(
         KeyError,
-        match="The country column is required to map the lift measurements to the model.",
+        match=r"The country column is required to map the lift measurements to the model.",
     ):
         mmm.add_lift_test_measurements(df_lift_test_missing_dim)
 
@@ -1436,7 +1436,7 @@ def test_add_lift_test_measurements_missing_multiple_dimension_columns() -> None
     # Should raise KeyError for the first missing dimension (country)
     with pytest.raises(
         KeyError,
-        match="The country column is required to map the lift measurements to the model.",
+        match=r"The country column is required to map the lift measurements to the model.",
     ):
         mmm.add_lift_test_measurements(df_lift_test_missing_dims)
 
@@ -1491,7 +1491,7 @@ def test_add_lift_test_measurements_missing_single_dimension_from_multiple() -> 
     # Should raise KeyError for the missing 'product' dimension
     with pytest.raises(
         KeyError,
-        match="The product column is required to map the lift measurements to the model.",
+        match=r"The product column is required to map the lift measurements to the model.",
     ):
         mmm.add_lift_test_measurements(df_lift_test_missing_product)
 
@@ -2464,7 +2464,7 @@ def test_date_column_validation_with_arbitrary_names(single_dim_data):
     )
 
     # Should raise an error because 'wrong_column_name' is not in the DataFrame
-    with pytest.raises(ValueError, match="date_column 'wrong_column_name' not found"):
+    with pytest.raises(ValueError, match=r"date_column 'wrong_column_name' not found"):
         mmm.build_model(X_renamed, y)
 
 
@@ -2659,7 +2659,7 @@ def test_multidimensional_mmm_causal_attributes_default_treatment_nodes():
     outcome_node = "target"
 
     with pytest.warns(
-        UserWarning, match="No treatment nodes provided, using channel columns"
+        UserWarning, match=r"No treatment nodes provided, using channel columns"
     ):
         mmm = MMM(
             date_column="date",

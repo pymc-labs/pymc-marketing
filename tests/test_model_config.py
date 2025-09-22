@@ -241,7 +241,7 @@ def test_parse_model_config_warns() -> None:
         },
     }
 
-    with pytest.warns(DeprecationWarning, match="alpha is automatically"):
+    with pytest.warns(DeprecationWarning, match=r"alpha is automatically"):
         result = parse_model_config(model_config)
 
     assert result == {
@@ -294,7 +294,7 @@ def test_parse_model_config_custom_class(register_arbitrary_prior_class) -> None
         "alpha": {"msg": "Hello", "value": 42},
     }
 
-    with pytest.warns(DeprecationWarning, match="alpha is automatically"):
+    with pytest.warns(DeprecationWarning, match=r"alpha is automatically"):
         result = parse_model_config(model_config)
 
     assert result == {
