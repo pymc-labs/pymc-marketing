@@ -143,7 +143,7 @@ class TestCLVModel:
 
         with pytest.warns(
             UserWarning,
-            match="The 'chains' parameter must be 1 with 'advi'. Sampling only 1 chain despite the provided parameter.",
+            match=r"The 'chains' parameter must be 1 with 'advi'. Sampling only 1 chain despite the provided parameter.",  # noqa: E501
         ):
             model.fit(
                 method="advi",
@@ -220,7 +220,7 @@ class TestCLVModel:
         monkeypatch.setattr(CLVModelTest, "id", property(mock_property))
         with pytest.raises(
             DifferentModelError,
-            match="The file 'test_model'",
+            match=r"The file 'test_model'",
         ):
             CLVModelTest.load("test_model")
         os.remove("test_model")
@@ -244,7 +244,7 @@ class TestCLVModel:
         model_config = {
             "x": {"dist": "StudentT", "kwargs": {"mu": 0, "sigma": 5, "nu": 15}},
         }
-        with pytest.warns(DeprecationWarning, match="x is automatically"):
+        with pytest.warns(DeprecationWarning, match=r"x is automatically"):
             model = CLVModelTest(model_config=model_config)
 
         assert model.model_config == {
@@ -274,7 +274,7 @@ class TestCLVModel:
             "x_prior": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 1}}
         }
         with pytest.warns(
-            DeprecationWarning, match="The key 'x_prior' in model_config is deprecated"
+            DeprecationWarning, match=r"The key 'x_prior' in model_config is deprecated"
         ):
             model = CLVModelTest(model_config=old_model_config)
 

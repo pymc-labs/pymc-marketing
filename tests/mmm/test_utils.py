@@ -131,7 +131,7 @@ def test_create_new_spend_data(
 
 def test_create_new_spend_data_value_errors() -> None:
     with pytest.raises(
-        ValueError, match="spend_leading_up must be the same length as the spend"
+        ValueError, match=r"spend_leading_up must be the same length as the spend"
     ):
         create_new_spend_data(
             spend=np.array([1, 2]),
@@ -319,7 +319,7 @@ class TestConvertFrequencyToTimedelta:
     def test_unrecognized_frequency_with_warning(self):
         """Test that unrecognized frequencies default to weeks and issue a warning."""
         with pytest.warns(
-            UserWarning, match="Unrecognized frequency 'XYZ'. Defaulting to weeks."
+            UserWarning, match=r"Unrecognized frequency 'XYZ'. Defaulting to weeks."
         ):
             result = _convert_frequency_to_timedelta(2, "XYZ")
             expected = pd.Timedelta(weeks=2)
@@ -458,7 +458,7 @@ class TestCreateZeroDataset:
         )
 
         with pytest.warns(
-            UserWarning, match="does not supply values for \\['channel2'\\]"
+            UserWarning, match=r"does not supply values for \['channel2'\]"
         ):
             result = create_zero_dataset(model, start_date, end_date, channel_values)
 
@@ -472,7 +472,7 @@ class TestCreateZeroDataset:
         end_date = "2022-02-10"
 
         # Test invalid channel_xr type
-        with pytest.raises(TypeError, match="must be an xarray Dataset or DataArray"):
+        with pytest.raises(TypeError, match=r"must be an xarray Dataset or DataArray"):
             create_zero_dataset(model, start_date, end_date, channel_xr="invalid")
 
         # Test channel_xr with invalid variables
@@ -480,7 +480,7 @@ class TestCreateZeroDataset:
             data_vars={"invalid_channel": (["region"], np.array([5.0, 7.0]))},
             coords={"region": np.array(["A", "B"])},
         )
-        with pytest.raises(ValueError, match="contains variables not in"):
+        with pytest.raises(ValueError, match=r"contains variables not in"):
             create_zero_dataset(model, start_date, end_date, invalid_channel_xr)
 
         # Test channel_xr with invalid dimensions
@@ -488,7 +488,7 @@ class TestCreateZeroDataset:
             data_vars={"channel1": (["invalid_dim"], np.array([5.0, 7.0]))},
             coords={"invalid_dim": np.array(["A", "B"])},
         )
-        with pytest.raises(ValueError, match="uses dims that are not recognised"):
+        with pytest.raises(ValueError, match=r"uses dims that are not recognised"):
             create_zero_dataset(model, start_date, end_date, invalid_dims_xr)
 
         # Test channel_xr with date dimension (not allowed)
@@ -503,7 +503,7 @@ class TestCreateZeroDataset:
         )
         # The date dimension check is caught by the unrecognized dims check first
         with pytest.raises(
-            ValueError, match="uses dims that are not recognised model dims"
+            ValueError, match=r"uses dims that are not recognised model dims"
         ):
             create_zero_dataset(model, start_date, end_date, date_dim_xr)
 
@@ -588,7 +588,7 @@ class TestCreateZeroDataset:
         start_date = "2022-02-10"
         end_date = "2022-02-01"
 
-        with pytest.raises(ValueError, match="Generated date range is empty"):
+        with pytest.raises(ValueError, match=r"Generated date range is empty"):
             create_zero_dataset(model, start_date, end_date)
 
     def test_create_zero_dataset_channel_xr_no_dims_all_channels(self):
@@ -668,7 +668,7 @@ class TestCreateZeroDataset:
         )
 
         with pytest.warns(
-            UserWarning, match="does not supply values for \\['channel2'\\]"
+            UserWarning, match=r"does not supply values for \['channel2'\]"
         ):
             result = create_zero_dataset(model, start_date, end_date, channel_values)
 

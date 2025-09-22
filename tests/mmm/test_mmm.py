@@ -250,7 +250,7 @@ class TestMMM:
     def test_bad_date_column(self, toy_X_with_bad_dates) -> None:
         with pytest.raises(
             ValueError,
-            match="Could not convert bad_date_column to datetime. Please check the date format.",
+            match=r"Could not convert bad_date_column to datetime. Please check the date format.",
         ):
             my_mmm = MMM(
                 date_column="bad_date_column",
@@ -600,7 +600,7 @@ class TestMMM:
         )
         with pytest.raises(
             RuntimeError,
-            match="Make sure the model has been fitted and the posterior_predictive has been sampled!",
+            match=r"Make sure the model has been fitted and the posterior_predictive has been sampled!",
         ):
             my_mmm.get_errors()
 
@@ -614,7 +614,7 @@ class TestMMM:
         )
         with pytest.raises(
             RuntimeError,
-            match="Make sure the model has been fitted and the posterior_predictive has been sampled!",
+            match=r"Make sure the model has been fitted and the posterior_predictive has been sampled!",
         ):
             my_mmm.plot_posterior_predictive()
 
@@ -687,7 +687,7 @@ class TestMMM:
     ) -> None:
         with pytest.raises(
             expected_exception=ValueError,
-            match="start must be greater than or equal to 0.",
+            match=r"start must be greater than or equal to 0.",
         ):
             mmm_fitted.get_channel_contribution_forward_pass_grid(
                 start=-0.5, stop=1.5, num=2
@@ -764,7 +764,7 @@ class TestMMM:
         except Exception as e:
             pytest.fail(f"_data_setter failed with error {e}")
 
-        with pytest.raises(TypeError, match="X must be a pandas DataFrame"):
+        with pytest.raises(TypeError, match=r"X must be a pandas DataFrame"):
             base_delayed_saturated_mmm._data_setter(
                 X_correct_ndarray, y_correct_ndarray
             )
@@ -969,7 +969,7 @@ class TestMMM:
 
         with pytest.warns(
             UserWarning,
-            match="No treatment nodes provided, using channel columns as treatment nodes.",
+            match=r"No treatment nodes provided, using channel columns as treatment nodes.",
         ):
             mmm = MMM(
                 date_column="date",
@@ -1240,7 +1240,7 @@ def test_new_spend_contributions_prior_error() -> None:
         saturation=LogisticSaturation(),
     )
     new_spend = np.ones(len(mmm.channel_columns))
-    match = "sample_prior_predictive"
+    match = r"sample_prior_predictive"
     with pytest.raises(RuntimeError, match=match):
         mmm.new_spend_contributions(new_spend, prior=True)
 
@@ -1365,7 +1365,7 @@ def test_add_lift_test_measurements_no_model() -> None:
         adstock=adstock,
         saturation=saturation,
     )
-    with pytest.raises(RuntimeError, match="The model has not been built yet."):
+    with pytest.raises(RuntimeError, match=r"The model has not been built yet."):
         mmm.add_lift_test_measurements(
             pd.DataFrame(),
         )
