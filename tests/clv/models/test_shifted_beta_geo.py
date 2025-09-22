@@ -298,6 +298,39 @@ class TestShiftedBetaGeoModel:
         assert model.idata == model2.idata
         os.remove("test_model")
 
+    def test_requires_cohort_dims_on_alpha_beta_missing_raises(self):
+        config_missing_dims = {
+            "alpha": Prior("HalfNormal", sigma=10),  # missing dims
+            "beta": Prior("HalfStudentT", nu=4, sigma=10, dims="cohort"),
+        }
+        with pytest.raises(ValueError, match=r"dims=\\\"cohort\\\""):
+            ShiftedBetaGeoModel(
+                data=self.data,
+                model_config=config_missing_dims,
+            )
+
+    def test_requires_cohort_dims_on_alpha_beta_incorrect_raises(self):
+        config_incorrect_dims = {
+            "alpha": Prior("HalfNormal", sigma=10, dims="customer_id"),
+            "beta": Prior("HalfStudentT", nu=4, sigma=10, dims="cohort"),
+        }
+        with pytest.raises(ValueError, match=r"dims=\\\"cohort\\\""):
+            ShiftedBetaGeoModel(
+                data=self.data,
+                model_config=config_incorrect_dims,
+            )
+
+    def test_accepts_alpha_beta_with_cohort_dims(self):
+        config_ok = {
+            "alpha": Prior("HalfNormal", sigma=10, dims="cohort"),
+            "beta": Prior("HalfStudentT", nu=4, sigma=10, dims="cohort"),
+        }
+        # Should not raise
+        ShiftedBetaGeoModel(
+            data=self.data,
+            model_config=config_ok,
+        )
+
 
 class TestShiftedBetaGeoModelIndividual:
     @classmethod

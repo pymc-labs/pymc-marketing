@@ -124,7 +124,7 @@ class ShiftedBetaGeoModel(CLVModel):
     ):
         self._validate_cols(
             data,
-            required_cols=["customer_id", "recency", "T"],
+            required_cols=["customer_id", "recency", "T", "cohort"],
             must_be_unique=["customer_id"],
         )
         # TODO: Move into _validate_cols; this is true for all CLV models
@@ -141,6 +141,24 @@ class ShiftedBetaGeoModel(CLVModel):
         super().__init__(
             data=data, model_config=model_config, sampler_config=sampler_config
         )
+
+        # Validate that provided Priors specify dims="cohort"
+        # This ensures consistency with the cohort dimension handling across CLV models
+        for key in ("alpha", "beta"):
+            prior = self.model_config.get(key)
+            if isinstance(prior, Prior):
+                # Normalize dims to a tuple of strings for comparison
+                dims = prior.dims
+                if isinstance(dims, str):
+                    dims_tuple = (dims,)
+                else:
+                    dims_tuple = tuple(dims) if dims is not None else tuple()
+
+                if "cohort" not in dims_tuple:
+                    raise ValueError(
+                        f"ModelConfig Prior for '{key}' must include dims=\"cohort\". "
+                        f'Got dims={prior.dims!r}. Example: Prior("HalfFlat", dims="cohort").'
+                    )
         # TODO: Add a check for the "cohort" dimension, or just a check for the column?
         if "cohort" in self.data.columns:
             # create cohort dim & coords
