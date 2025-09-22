@@ -157,14 +157,43 @@ class ModelSamplerEstimator:
         self.sequential_chains = int(sequential_chains)
         self.seed = seed
 
-    def estimate_model_eval_time(self, model: Model, n: int | None = None) -> float:
+    @property
+    def default_nuts_kwargs(self) -> dict:
+        """Default keyword arguments for a NumPyro NUTS kernel.
+
+        Mirrors the current hard-coded defaults used in this estimator.
+        """
+        return {
+            "target_accept_prob": 0.8,
+            "adapt_step_size": True,
+            "adapt_mass_matrix": True,
+            "dense_mass": False,
+        }
+
+    @property
+    def default_mcmc_kwargs(self) -> dict:
+        """Default keyword arguments for a NumPyro MCMC runner.
+
+        Parameters that depend on the run size (``num_warmup`` and ``num_samples``)
+        are intentionally excluded and provided explicitly by the estimator.
+        """
+        return {
+            "num_chains": 1,
+            "postprocess_fn": None,
+            "chain_method": "sequential",
+            "progress_bar": False,
+        }
+
+    def estimate_model_eval_time(
+        self, model: Model, num_evaluations: int | None = None
+    ) -> float:
         """Estimate average evaluation time (seconds) of logp+dlogp using JAX.
 
         Parameters
         ----------
         model : Model
             PyMC model whose logp and gradients are jitted and evaluated.
-        n : int | None, optional
+        num_evaluations : int | None, optional
             Number of repeated evaluations to average over. If ``None``, a value
             is chosen to take roughly 5 seconds in total for a stable estimate.
 
@@ -195,17 +224,17 @@ class ModelSamplerEstimator:
                     "logp or gradients are not finite at the model initial point; the model may be misspecified"
                 )
 
-        if n is None:
+        if num_evaluations is None:
             start = perf_counter_ns()
             jax.block_until_ready(logp_dlogp_fn(initial_point))
             end = perf_counter_ns()
-            n = max(5, int(5e9 / max(end - start, 1)))
+            num_evaluations = max(5, int(5e9 / max(end - start, 1)))
 
         start = perf_counter_ns()
-        for _ in range(n):
+        for _ in range(num_evaluations):
             jax.block_until_ready(logp_dlogp_fn(initial_point))
         end = perf_counter_ns()
-        eval_time = (end - start) / n * 1e-9
+        eval_time = (end - start) / num_evaluations * 1e-9
         return float(eval_time)
 
     def estimate_num_steps_sampling(
@@ -215,6 +244,8 @@ class ModelSamplerEstimator:
         tune: int | None = None,
         draws: int | None = None,
         seed: int | None = None,
+        nuts_kwargs: dict | None = None,
+        mcmc_kwargs: dict | None = None,
     ) -> int:
         """Estimate total number of NUTS steps during warmup + sampling using NumPyro.
 
@@ -228,6 +259,15 @@ class ModelSamplerEstimator:
             Sampling iterations. Defaults to the estimator setting if ``None``.
         seed : int | None, optional
             Random seed for the JAX run. Defaults to the estimator setting if ``None``.
+        nuts_kwargs : dict | None, optional
+            Additional keyword arguments passed to ``numpyro.infer.NUTS``. If not provided,
+            the estimator's ``default_nuts_kwargs`` are used. Provided values override
+            the defaults.
+        mcmc_kwargs : dict | None, optional
+            Additional keyword arguments passed to ``numpyro.infer.MCMC`` (excluding
+            ``num_warmup`` and ``num_samples``, which are set by ``tune``/``draws``). If not
+            provided, the estimator's ``default_mcmc_kwargs`` are used. Provided values
+            override the defaults.
 
         Returns
         -------
@@ -250,22 +290,18 @@ class ModelSamplerEstimator:
 
         initial_point = list(model.initial_point().values())
         logp_fn = get_jaxified_logp(model, negative_logp=False)
+        merged_nuts_kwargs = {**self.default_nuts_kwargs, **(nuts_kwargs or {})}
         nuts_kernel = NUTS(
             potential_fn=logp_fn,
-            target_accept_prob=0.8,
-            adapt_step_size=True,
-            adapt_mass_matrix=True,
-            dense_mass=False,
+            **merged_nuts_kwargs,
         )
 
+        merged_mcmc_kwargs = {**self.default_mcmc_kwargs, **(mcmc_kwargs or {})}
         mcmc = MCMC(
             nuts_kernel,
             num_warmup=num_warmup,
             num_samples=num_samples,
-            num_chains=1,
-            postprocess_fn=None,
-            chain_method="sequential",
-            progress_bar=False,
+            **merged_mcmc_kwargs,
         )
 
         if seed is None:
@@ -338,5 +374,4 @@ class ModelSamplerEstimator:
             "seed": int(self.seed) if self.seed is not None else None,
             "timestamp": pd.Timestamp.utcfromtimestamp(int(time.time())),
         }
-        df = pd.DataFrame([data])
-        return df
+        return pd.DataFrame([data])

@@ -14,6 +14,9 @@
 
 """Tests for pytensor_utils module."""
 
+import builtins as _builtins
+import sys
+
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -307,16 +310,7 @@ def test_extract_response_distribution_vs_sample_response(
 
 @pytest.mark.parametrize("draws, tune", [(50, 50)])
 def test_model_sampler_estimator_with_simple_model(monkeypatch, draws, tune):
-    """Smoke test for ModelSamplerEstimator on a tiny PyMC model.
-
-    - Builds a simple Normal model with known parameters.
-    - Monkeypatches heavy JAX/NumPyro calls to keep test fast and backend-agnostic.
-    - Verifies expected columns and basic invariants of the returned DataFrame.
-    """
-
-    pytest.importorskip("jax")
-    pytest.importorskip("numpyro")
-    pytest.importorskip("pymc.sampling.jax")
+    """Smoke test for ModelSamplerEstimator on a tiny PyMC model."""
 
     with pm.Model() as model:
         mu = pm.Normal("mu", 0.0, 1.0)
@@ -353,6 +347,11 @@ def test_model_sampler_estimator_eval_time_multidim_model(fitted_multidim_mmm):
     est = ModelSamplerEstimator(
         tune=50, draws=50, chains=1, sequential_chains=1, seed=123
     )
+
+    steps = est.estimate_num_steps_sampling(pm_model)
+    assert steps > 0, f"Expected positive number of steps, got {steps}"
+    assert isinstance(steps, int), f"Expected steps to be an integer, got {type(steps)}"
+
     est_df = est.run(pm_model)
 
     # Check schema and basic values
@@ -370,4 +369,37 @@ def test_model_sampler_estimator_eval_time_multidim_model(fitted_multidim_mmm):
         "seed",
         "timestamp",
     }
-    assert set(est_df.columns) >= expected_columns
+    assert set(est_df.columns) >= expected_columns, (
+        f"Expected columns {expected_columns} not found in {set(est_df.columns)}"
+    )
+
+    assert isinstance(est.default_mcmc_kwargs, dict), (
+        f"Expected default_mcmc_kwargs to be a dict, got {type(est.default_mcmc_kwargs)}"
+    )
+    assert isinstance(est.default_nuts_kwargs, dict), (
+        f"Expected default_nuts_kwargs to be a dict, got {type(est.default_nuts_kwargs)}"
+    )
+
+
+def test_jax_numpyro_not_available(monkeypatch, fitted_multidim_mmm):
+    """Ensure estimate_model_eval_time raises when JAX is unavailable."""
+    # Simulate that JAX (and pymc's jax helper) are not importable
+    monkeypatch.delitem(sys.modules, "jax", raising=False)
+    monkeypatch.delitem(sys.modules, "pymc.sampling.jax", raising=False)
+
+    real_import = _builtins.__import__
+
+    def _blocked_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "jax" or name.startswith("pymc.sampling.jax"):
+            raise ImportError("blocked for test")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(_builtins, "__import__", _blocked_import)
+
+    with pytest.raises(
+        RuntimeError, match="JAX backend is required for ModelSamplerEstimator"
+    ):
+        est = ModelSamplerEstimator(
+            tune=50, draws=50, chains=1, sequential_chains=1, seed=123
+        )
+        est.estimate_model_eval_time(fitted_multidim_mmm.model)
