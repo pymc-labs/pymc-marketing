@@ -98,6 +98,12 @@ class LogNormalPrior:
     """
 
     def __init__(self, dims: tuple | None = None, centered: bool = True, **parameters):
+        # Accept aliases mu->mean and sigma->std for convenience/compatibility
+        if "mean" not in parameters and "mu" in parameters:
+            parameters["mean"] = parameters.pop("mu")
+        if "std" not in parameters and "sigma" in parameters:
+            parameters["std"] = parameters.pop("sigma")
+
         self.parameters = parameters
         self.dims = dims
         self.centered = centered
@@ -108,6 +114,7 @@ class LogNormalPrior:
         self._parameters_are_correct_set()
 
     def _parameters_are_correct_set(self) -> None:
+        # Only allow exactly these keys after alias normalization
         if set(self.parameters.keys()) != {"mean", "std"}:
             raise ValueError("Parameters must be mean and std")
 
