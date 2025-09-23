@@ -142,8 +142,7 @@ class ShiftedBetaGeoModel(CLVModel):
             data=data, model_config=model_config, sampler_config=sampler_config
         )
 
-        # Validate that provided Priors specify dims="cohort"
-        # This ensures consistency with the cohort dimension handling across CLV models
+        # Validate provided Priors specify dims="cohort"
         for key in ("alpha", "beta"):
             prior = self.model_config.get(key)
             if isinstance(prior, Prior):
@@ -159,17 +158,12 @@ class ShiftedBetaGeoModel(CLVModel):
                         f"ModelConfig Prior for '{key}' must include dims=\"cohort\". "
                         f'Got dims={prior.dims!r}. Example: Prior("HalfFlat", dims="cohort").'
                     )
-        # TODO: Add a check for the "cohort" dimension, or just a check for the column?
-        if "cohort" in self.data.columns:
-            # create cohort dim & coords
-            self.cohorts = self.data["cohort"].unique()
-            self.cohort_idx = pd.Categorical(
-                self.data["cohort"], categories=self.cohorts
-            ).codes
-        else:
-            # create single cohort to preserve dimension handling
-            self.cohorts = np.ones(1, dtype=np.int8)
-            self.cohort_idx = np.ones(len(self.data), dtype=np.int8)
+
+        # create cohort dim & coords
+        self.cohorts = self.data["cohort"].unique()
+        self.cohort_idx = pd.Categorical(
+            self.data["cohort"], categories=self.cohorts
+        ).codes
 
     @property
     def default_model_config(self) -> ModelConfig:

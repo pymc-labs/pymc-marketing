@@ -17,6 +17,7 @@ import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
+import pytensor as pt
 import pytest
 from pymc.distributions.censored import CensoredRV
 from pymc_extras.prior import Prior
@@ -61,51 +62,53 @@ class TestShiftedBetaGeoModel:
 
     # TODO: Make these half-flats for MAP testing?
     @pytest.fixture(scope="class")
-    def model_config(self):
+    def custom_model_config(self):
         return {
             "alpha": Prior("HalfNormal", sigma=10, dims="cohort"),
             "beta": Prior("HalfStudentT", nu=4, sigma=10, dims="cohort"),
         }
 
-    @pytest.fixture(scope="class")
-    def default_model_config(self):
-        return {
-            "phi": Prior("Uniform", lower=0, upper=1, dims="cohort"),
-            "kappa": Prior("Pareto", alpha=1, m=1, dims="cohort"),
-        }
+    def test_model(self, custom_model_config):
+        default_model = ShiftedBetaGeoModel(
+            data=self.data,
+        )
+        custom_model = ShiftedBetaGeoModel(
+            data=self.data,
+            model_config=custom_model_config,
+        )
 
-    #   TODO: Parametrize to loop through model_config and default_model_config
-    def test_model(self, model_config, default_model_config):
-        for config in (model_config, default_model_config):
-            model = ShiftedBetaGeoModel(
-                data=self.data,
-                model_config=config,
-            )
+        for model in (default_model, custom_model):
             model.build_model()
             assert isinstance(
                 model.model["alpha"].owner.op,
-                pm.HalfFlat
-                if config["alpha"].distribution == "HalfFlat"
-                else config["alpha"].pymc_distribution,
+                pt.tensor.elemwise.Elemwise
+                if "alpha" not in model.model_config
+                else model.model_config["alpha"].pymc_distribution,
             )
             assert isinstance(
                 model.model["beta"].owner.op,
-                pm.HalfFlat
-                if config["beta"].distribution == "HalfFlat"
-                else config["beta"].pymc_distribution,
+                pt.tensor.elemwise.Elemwise
+                if "beta" not in model.model_config
+                else model.model_config["beta"].pymc_distribution,
             )
-            assert model.model.eval_rv_shapes() == {
-                "alpha": (np.int64(2),),
-                "alpha_log__": (np.int64(2),),
-                "beta": (np.int64(2),),
-                "beta_log__": (np.int64(2),),
-            }
             assert model.model.coords == {
                 "customer_id": tuple(range(1, self.N + 1)),
                 "cohort": ("regular", "highend"),
             }
 
-    # TODO: Add recency <= T validation
+        assert default_model.model.eval_rv_shapes() == {
+            "kappa": (np.int64(2),),
+            "kappa_interval__": (np.int64(2),),
+            "phi": (np.int64(2),),
+            "phi_interval__": (np.int64(2),),
+        }
+        assert custom_model.model.eval_rv_shapes() == {
+            "alpha": (np.int64(2),),
+            "alpha_log__": (np.int64(2),),
+            "beta": (np.int64(2),),
+            "beta_log__": (np.int64(2),),
+        }
+
     def test_missing_cols(self):
         data_invalid = self.data.drop(columns="customer_id")
 
@@ -140,6 +143,7 @@ class TestShiftedBetaGeoModel:
                     "customer_id": np.asarray([1, 1]),
                     "recency": np.asarray([1, 1]),
                     "T": np.asarray([1, 1]),
+                    "cohort": np.asarray(["A", "A"]),
                 }
             )
             ShiftedBetaGeoModel(data=data)
@@ -150,27 +154,38 @@ class TestShiftedBetaGeoModel:
                 "customer_id": np.asarray([1, 2]),
                 "recency": np.asarray([1, 2]),
                 "T": np.asarray([1, 1]),
+                "cohort": np.asarray(["A", "A"]),
             }
         )
         with pytest.raises(ValueError, match=r"recency must respect 0 < recency <= T"):
             ShiftedBetaGeoModel(data=data)
 
-    # TODO: Parametrize to loop through model_config and default_model_config
-    def test_model_repr(self, model_config, default_model_config):
-        custom_model_config = default_model_config.copy()
-        custom_model_config["alpha"] = Prior("HalfNormal", sigma=10, dims="cohort")
-        model = ShiftedBetaGeoModel(
-            data=self.data,
-            model_config=custom_model_config,
-        )
-        model.build_model()
-        assert model.__repr__().replace(" ", "") == (
-            "Shifted-Beta-GeometricModel()"
-            "\nalpha~HalfNormal(0,10)"
-            "\nbeta~HalfFlat()"
+    def test_model_repr(self, custom_model_config):
+        default_repr = (
+            "ShiftedBeta-Geometric"
             "\nphi~Uniform(0,1)"
             "\nkappa~Pareto(1,1)"
+            "\nalpha~Deterministic(f(kappa,phi))"
+            "\nbeta~Deterministic(f(kappa,phi))"
+            "\nchurn_censored~Censored(ShiftedBetaGeometric(f(kappa,phi),f(kappa,phi)),-inf,<constant>)"
         )
+
+        custom_repr = (
+            "ShiftedBeta-Geometric"
+            "\nalpha~HalfNormal(0,10)"
+            "\nbeta~HalfStudentT(4,10)"
+            "\nchurn_censored~Censored(ShiftedBetaGeometric(f(alpha),f(beta)),-inf,<constant>)"
+        )
+
+        for repr in zip(
+            [custom_model_config, None], [custom_repr, default_repr], strict=False
+        ):
+            model = ShiftedBetaGeoModel(
+                data=self.data,
+                model_config=repr[0],
+            )
+            model.build_model()
+            assert model.__repr__().replace(" ", "") == repr[1]
 
     # TODO: distribution_cohort_churn may be renamed
     @pytest.mark.parametrize("fit_type", ("map", "mcmc"))
@@ -224,10 +239,10 @@ class TestShiftedBetaGeoModel:
             ("advi", 0.25),
         ],
     )
-    def test_model_convergence(self, method, rtol, model_config):
+    def test_model_convergence(self, method, rtol, custom_model_config):
         model = ShiftedBetaGeoModel(
             data=self.data,
-            model_config=model_config,
+            model_config=custom_model_config,
         )
         model.build_model()
 
@@ -241,8 +256,8 @@ class TestShiftedBetaGeoModel:
             rtol=rtol,
         )
 
-    def test_fit_result_without_fit(self, mocker, model_config):
-        model = ShiftedBetaGeoModel(data=self.data, model_config=model_config)
+    def test_fit_result_without_fit(self, mocker, custom_model_config):
+        model = ShiftedBetaGeoModel(data=self.data, model_config=custom_model_config)
         with pytest.raises(RuntimeError, match=r"The model hasn't been fit yet"):
             model.fit_result
 
@@ -303,7 +318,7 @@ class TestShiftedBetaGeoModel:
             "alpha": Prior("HalfNormal", sigma=10),  # missing dims
             "beta": Prior("HalfStudentT", nu=4, sigma=10, dims="cohort"),
         }
-        with pytest.raises(ValueError, match=r"dims=\\\"cohort\\\""):
+        with pytest.raises(ValueError, match=r'dims="cohort"'):
             ShiftedBetaGeoModel(
                 data=self.data,
                 model_config=config_missing_dims,
@@ -314,7 +329,7 @@ class TestShiftedBetaGeoModel:
             "alpha": Prior("HalfNormal", sigma=10, dims="customer_id"),
             "beta": Prior("HalfStudentT", nu=4, sigma=10, dims="cohort"),
         }
-        with pytest.raises(ValueError, match=r"dims=\\\"cohort\\\""):
+        with pytest.raises(ValueError, match=r'dims="cohort"'):
             ShiftedBetaGeoModel(
                 data=self.data,
                 model_config=config_incorrect_dims,
