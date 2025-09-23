@@ -419,6 +419,7 @@ class MMMPlotSuite:
         self,
         var: list[str],
         hdi_prob: float = 0.85,
+        dims: dict[str, str | int] | None = None,
     ) -> tuple[Figure, NDArray[Axes]]:
         """Plot the time-series contributions for each variable in `var`.
 
@@ -432,6 +433,9 @@ class MMMPlotSuite:
             A list of variable names to plot from the posterior.
         hdi_prob: float, optional
             The probability mass of the highest density interval to be displayed. Default is 0.85.
+        dims : dict[str, str | int], optional
+            Dimension filters to apply. Example: {"country": "US", "user_type": "new"}.
+            If provided, only the selected slice will be plotted.
 
         Returns
         -------
@@ -464,11 +468,21 @@ class MMMPlotSuite:
             for key, value in self.idata.posterior[var].coords.items()
         }
 
-        # Identify combos
+        # Apply user-specified filters (`dims`)
+        if dims:
+            for key, val in dims.items():
+                if key not in all_dims:
+                    raise ValueError(f"Dimension '{key}' not found in posterior dims.")
+                if val not in self.idata.posterior.coords[key].values:
+                    raise ValueError(f"Value '{val}' not found in dimension '{key}'.")
+            # Remove filtered dims from the combinations
+            additional_dims = [d for d in additional_dims if d not in dims]
+
+        # Identify combos for remaining dims
         if additional_dims:
             additional_coords = [
                 self.idata.posterior.coords[dim].values  # type: ignore
-                for dim in additional_dims  # type: ignore
+                for dim in additional_dims
             ]
             dim_combinations = list(itertools.product(*additional_coords))
         else:
@@ -480,11 +494,14 @@ class MMMPlotSuite:
         # Loop combos
         for row_idx, combo in enumerate(dim_combinations):
             ax = axes[row_idx][0]
+            # Merge fixed dims with current combo
             indexers = (
                 dict(zip(additional_dims, combo, strict=False))
                 if additional_dims
                 else {}
             )
+            if dims:
+                indexers.update(dims)
 
             # Plot posterior median and HDI for each var
             for v in var:
@@ -493,14 +510,20 @@ class MMMPlotSuite:
                     key: value for key, value in coords.items() if key not in data.dims
                 }
                 data = data.expand_dims(**missing_coords)
-                data = data.sel(**indexers)  # type: ignore
+                data = data.sel(**indexers)  # apply slice
                 data = self._reduce_and_stack(
                     data, dims_to_ignore={"date", "chain", "draw", "sample"}
                 )
                 ax = self._add_median_and_hdi(ax, data, v, hdi_prob=hdi_prob)
 
+            # Title includes both fixed and combo dims
+            title_dims = (
+                list(dims.keys()) + additional_dims if dims else additional_dims
+            )
+            title_combo = tuple(dims.values()) + combo if dims else combo
+
             title = self._build_subplot_title(
-                dims=additional_dims, combo=combo, fallback_title="Time Series"
+                dims=title_dims, combo=title_combo, fallback_title="Time Series"
             )
             ax.set_title(title)
             ax.set_xlabel("Date")
