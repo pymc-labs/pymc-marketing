@@ -124,7 +124,7 @@ class ShiftedBetaGeoModel(CLVModel):
     ):
         self._validate_cols(
             data,
-            required_cols=["customer_id", "recency", "T", "cohort"],
+            required_cols=["customer_id", "recency", "T", "cohorts"],
             must_be_unique=["customer_id"],
         )
         # TODO: Move into _validate_cols; this is true for all CLV models
@@ -142,7 +142,7 @@ class ShiftedBetaGeoModel(CLVModel):
             data=data, model_config=model_config, sampler_config=sampler_config
         )
         # TODO: Could this be cleaned up? Or a separate _validate_prior_dims() method created?
-        # Validate provided Priors specify dims="cohort"
+        # Validate provided Priors specify dims="cohorts"
         for key in ("alpha", "beta"):
             prior = self.model_config.get(key)
             if isinstance(prior, Prior):
@@ -153,31 +153,31 @@ class ShiftedBetaGeoModel(CLVModel):
                 else:
                     dims_tuple = tuple(dims) if dims is not None else tuple()
 
-                if "cohort" not in dims_tuple:
+                if "cohorts" not in dims_tuple:
                     raise ValueError(
                         f"ModelConfig Prior for '{key}' must include dims=\"cohort\". "
-                        f'Got dims={prior.dims!r}. Example: Prior("HalfFlat", dims="cohort").'
+                        f'Got dims={prior.dims!r}. Example: Prior("HalfFlat", dims="cohorts").'
                     )
 
         # create cohort dim & coords
-        self.cohorts = self.data["cohort"].unique()
+        self.cohorts = self.data["cohorts"].unique()
         self.cohort_idx = pd.Categorical(
-            self.data["cohort"], categories=self.cohorts
+            self.data["cohorts"], categories=self.cohorts
         ).codes
 
     @property
     def default_model_config(self) -> ModelConfig:
         """Default model configuration."""
         return {
-            "phi": Prior("Uniform", lower=0, upper=1, dims="cohort"),
-            "kappa": Prior("Pareto", alpha=1, m=1, dims="cohort"),
+            "phi": Prior("Uniform", lower=0, upper=1, dims="cohorts"),
+            "kappa": Prior("Pareto", alpha=1, m=1, dims="cohorts"),
         }
 
     def build_model(self) -> None:  # type: ignore[override]
         """Build the model."""
         coords = {
             "customer_id": self.data["customer_id"],
-            "cohort": self.cohorts,
+            "cohorts": self.cohorts,
         }
         with pm.Model(coords=coords) as self.model:
             if "alpha" in self.model_config and "beta" in self.model_config:
@@ -188,8 +188,8 @@ class ShiftedBetaGeoModel(CLVModel):
                 phi = self.model_config["phi"].create_variable("phi")
                 kappa = self.model_config["kappa"].create_variable("kappa")
 
-                alpha = pm.Deterministic("alpha", phi * kappa, dims="cohort")
-                beta = pm.Deterministic("beta", (1.0 - phi) * kappa, dims="cohort")
+                alpha = pm.Deterministic("alpha", phi * kappa, dims="cohorts")
+                beta = pm.Deterministic("beta", (1.0 - phi) * kappa, dims="cohorts")
 
             dropout = ShiftedBetaGeometric.dist(
                 alpha[self.cohort_idx],
@@ -285,7 +285,7 @@ class ShiftedBetaGeoModel(CLVModel):
         future_t = dataset["future_t"]
 
         retention_rate = (beta + T + future_t - 1) / (alpha + beta + T + future_t - 1)
-        # TODO: "cohort" dim instead of "customer_id"?
+        # TODO: "cohorts" dim instead of "customer_id"?
         return retention_rate.transpose(
             "chain", "draw", "customer_id", missing_dims="ignore"
         )
@@ -328,7 +328,7 @@ class ShiftedBetaGeoModel(CLVModel):
             - gammaln(alpha + beta + T + future_t)
         )
         survival = np.exp(logS)
-        # TODO: "cohort" dim instead of "customer_id"?
+        # TODO: "cohorts" dim instead of "customer_id"?
         return survival.transpose("chain", "draw", "customer_id", missing_dims="ignore")
 
     def expected_retention_elasticity(
@@ -360,7 +360,7 @@ class ShiftedBetaGeoModel(CLVModel):
         retention_elasticity = hyp2f1(
             1, beta + T - 1, alpha + beta + 1, 1 / (1 + discount_rate)
         )
-        # TODO: "cohort" dim instead of "customer_id"?
+        # TODO: "cohorts" dim instead of "customer_id"?
         return retention_elasticity.transpose(
             "chain", "draw", "customer_id", missing_dims="ignore"
         )
@@ -396,7 +396,7 @@ class ShiftedBetaGeoModel(CLVModel):
             1, beta + T, alpha + beta, 1 / (1 + discount_rate)
         )
         expected_lifetime_purchases = retention_rate * retention_elasticity
-        # TODO: "cohort" dim instead of "customer_id"?
+        # TODO: "cohorts" dim instead of "customer_id"?
         return expected_lifetime_purchases.transpose(
             "chain", "draw", "customer_id", missing_dims="ignore"
         )

@@ -84,11 +84,11 @@ class TestShiftedBetaGeoModel:
         param_arrays = [
             xr.DataArray(
                 param[0],
-                dims=("chains", "draws", "cohort"),
+                dims=("chains", "draws", "cohorts"),
                 coords={
                     "chains": np.arange(chains),
                     "draws": np.arange(draws),
-                    "cohort": cohorts,
+                    "cohorts": cohorts,
                 },
                 name=param[1],
             )
@@ -105,8 +105,8 @@ class TestShiftedBetaGeoModel:
     @pytest.fixture(scope="class")
     def custom_model_config(self):
         return {
-            "alpha": Prior("HalfNormal", sigma=10, dims="cohort"),
-            "beta": Prior("HalfStudentT", nu=4, sigma=10, dims="cohort"),
+            "alpha": Prior("HalfNormal", sigma=10, dims="cohorts"),
+            "beta": Prior("HalfStudentT", nu=4, sigma=10, dims="cohorts"),
         }
 
     def test_model(self, custom_model_config):
@@ -134,7 +134,7 @@ class TestShiftedBetaGeoModel:
             )
             assert model.model.coords == {
                 "customer_id": tuple(range(1, self.N + 1)),
-                "cohort": ("regular", "highend"),
+                "cohorts": ("regular", "highend"),
             }
 
         assert default_model.model.eval_rv_shapes() == {
@@ -184,7 +184,7 @@ class TestShiftedBetaGeoModel:
                     "customer_id": np.asarray([1, 1]),
                     "recency": np.asarray([1, 1]),
                     "T": np.asarray([1, 1]),
-                    "cohort": np.asarray(["A", "A"]),
+                    "cohorts": np.asarray(["A", "A"]),
                 }
             )
             ShiftedBetaGeoModel(data=data)
@@ -195,7 +195,7 @@ class TestShiftedBetaGeoModel:
                 "customer_id": np.asarray([1, 2]),
                 "recency": np.asarray([1, 2]),
                 "T": np.asarray([1, 1]),
-                "cohort": np.asarray(["A", "A"]),
+                "cohorts": np.asarray(["A", "A"]),
             }
         )
         with pytest.raises(ValueError, match=r"recency must respect 0 < recency <= T"):
@@ -314,9 +314,9 @@ class TestShiftedBetaGeoModel:
     def test_requires_cohort_dims_on_alpha_beta_missing_raises(self):
         config_missing_dims = {
             "alpha": Prior("HalfNormal", sigma=10),  # missing dims
-            "beta": Prior("HalfStudentT", nu=4, sigma=10, dims="cohort"),
+            "beta": Prior("HalfStudentT", nu=4, sigma=10, dims="cohorts"),
         }
-        with pytest.raises(ValueError, match=r'dims="cohort"'):
+        with pytest.raises(ValueError, match=r'dims="cohorts"'):
             ShiftedBetaGeoModel(
                 data=self.data,
                 model_config=config_missing_dims,
@@ -325,9 +325,9 @@ class TestShiftedBetaGeoModel:
     def test_requires_cohort_dims_on_alpha_beta_incorrect_raises(self):
         config_incorrect_dims = {
             "alpha": Prior("HalfNormal", sigma=10, dims="customer_id"),
-            "beta": Prior("HalfStudentT", nu=4, sigma=10, dims="cohort"),
+            "beta": Prior("HalfStudentT", nu=4, sigma=10, dims="cohorts"),
         }
-        with pytest.raises(ValueError, match=r'dims="cohort"'):
+        with pytest.raises(ValueError, match=r'dims="cohorts"'):
             ShiftedBetaGeoModel(
                 data=self.data,
                 model_config=config_incorrect_dims,
@@ -335,8 +335,8 @@ class TestShiftedBetaGeoModel:
 
     def test_accepts_alpha_beta_with_cohort_dims(self):
         config_ok = {
-            "alpha": Prior("HalfNormal", sigma=10, dims="cohort"),
-            "beta": Prior("HalfStudentT", nu=4, sigma=10, dims="cohort"),
+            "alpha": Prior("HalfNormal", sigma=10, dims="cohorts"),
+            "beta": Prior("HalfStudentT", nu=4, sigma=10, dims="cohorts"),
         }
         # Should not raise
         ShiftedBetaGeoModel(
@@ -378,15 +378,15 @@ class TestShiftedBetaGeoModelIndividual:
     @pytest.fixture(scope="class")
     def model_config(self):
         return {
-            "alpha": Prior("HalfNormal", sigma=10, dims="cohort"),
-            "beta": Prior("HalfStudentT", nu=4, sigma=10, dims="cohort"),
+            "alpha": Prior("HalfNormal", sigma=10, dims="cohorts"),
+            "beta": Prior("HalfStudentT", nu=4, sigma=10, dims="cohorts"),
         }
 
     @pytest.fixture(scope="class")
     def default_model_config(self):
         return {
-            "alpha": Prior("HalfFlat", dims="cohort"),
-            "beta": Prior("HalfFlat", dims="cohort"),
+            "alpha": Prior("HalfFlat", dims="cohorts"),
+            "beta": Prior("HalfFlat", dims="cohorts"),
         }
 
     @pytest.fixture(scope="class")
@@ -427,7 +427,7 @@ class TestShiftedBetaGeoModelIndividual:
 
     def test_model_repr(self, default_model_config):
         custom_model_config = default_model_config.copy()
-        custom_model_config["alpha"] = Prior("HalfNormal", sigma=10, dims="cohort")
+        custom_model_config["alpha"] = Prior("HalfNormal", sigma=10, dims="cohorts")
         dataset = pd.DataFrame(
             {"customer_id": self.customer_id, "t_churn": self.churn_time, "T": self.T}
         )
