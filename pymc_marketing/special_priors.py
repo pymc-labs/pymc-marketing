@@ -32,42 +32,69 @@ from pymc_extras.prior import Prior, VariableFactory, create_dim_handler, sample
 from pytensor.tensor import TensorVariable
 
 
-class LogNormalPositiveParam:
-    """
-    A specialized implementation of a log normal distribution.
+class LogNormalPrior:
+    r"""Lognormal prior parameterized by positive-scale mean and std.
 
-    Like the LogNormal distribution, this distribution has support over the positive numbers.
-    However, unlike the lognormal, the parameters are also specified in the positive
-    domain.
+    A lognormal prior parameterized by mean and standard deviation
+    on the positive domain, with optional centered or non-centered
+    parameterization.
 
-    The other advantage of this prior is in constructing hierarchical models. It allows users to toggle
-    between centered and non-centered parameterizations. This enables rapid iteration when searching
-    for a parameterization that samples efficiently.
+    This prior differs from the standard ``LogNormal`` distribution,
+    which takes log-scale parameters (``mu_log``, ``sigma_log``).
+    Instead, it is parameterized directly in terms of the mean and
+    standard deviation (``mean``, ``std``) on the positive scale, making it more intuitive
+    and suitable for hierarchical modeling.
+
+    To achieve this, the lognormal parameters are computed internally
+    from the positive-domain parameters:
+
+    .. math::
+
+        \mu_{\log} &= \ln \left( \frac{\mean^2}{\sqrt{\mean^2 + \std^2}} \right) \\
+        \sigma_{\log} &= \sqrt{ \ln \left( 1 + \frac{\std^2}{\mean^2} \right) }
+
+    where :math:`\\mean > 0` and :math:`\\std > 0`.
+
+    The prior is then defined as:
+
+    .. math::
+
+        \\phi &\\sim \text{LogNormal}(\\mu_{\\log}, \\sigma_{\\log})
+
+    This construction ensures that the resulting random variable
+    has approximately the intended mean and variance on the positive scale,
+    even when :math:`\\mean` and :math:`\\std` are themselves random variables.
 
     Parameters
     ----------
-    mu : Prior, float, int, array-like
-        The mean of the distribution.
-    sigma : Prior, float, int, array-like
-        The standard deviation of the distribution.
+    mean : Prior, float, int, array-like
+        The mean of the distribution on the positive scale.
+    std : Prior, float, int, array-like
+        The standard deviation of the distribution on the positive scale.
     dims : tuple[str, ...], optional
         The dimensions of the distribution, by default None.
     centered : bool, optional
-        Whether the distribution is centered, by default True.
+        Whether to use the centered parameterization, by default True.
 
     Examples
     --------
-    Build a non-centered hierarchical model where information is shared across geos.
+    Build a non-centered hierarchical model where information is shared across groups:
 
     .. code-block:: python
-        from pymc_marketing.special_priors import LogNormalPositiveParam
 
-        normal = LogNormalPositiveParam(
-            mu=Prior("Gamma", mu=1.0, sigma=1.0),
-            sigma=Prior("HalfNormal", sigma=1.0),
+        from pymc_marketing.special_priors import LogNormalPrior
+
+        prior = LogNormalPrior(
+            mean=Prior("Gamma", mu=1.0, sigma=1.0),
+            std=Prior("HalfNormal", sigma=1.0),
             dims=("geo",),
             centered=False,
         )
+
+    References
+    ----------
+    - D. Saunders, *A positive constrained non-centered prior that sparks joy*.
+    - Wikipedia, *Log-normal distribution — Definitions*.
     """
 
     def __init__(self, dims: tuple | None = None, centered: bool = True, **parameters):
@@ -81,8 +108,8 @@ class LogNormalPositiveParam:
         self._parameters_are_correct_set()
 
     def _parameters_are_correct_set(self) -> None:
-        if set(self.parameters.keys()) != {"mu", "sigma"}:
-            raise ValueError("Parameters must be mu and sigma")
+        if set(self.parameters.keys()) != {"mean", "std"}:
+            raise ValueError("Parameters must be mean and std")
 
     def _create_parameter(self, param, value, name):
         if not hasattr(value, "create_variable"):
@@ -99,11 +126,11 @@ class LogNormalPositiveParam:
             for param, value in self.parameters.items()
         }
         mu_log = pt.log(
-            parameters["mu"] ** 2
-            / pt.sqrt(parameters["mu"] ** 2 + parameters["sigma"] ** 2)
+            parameters["mean"] ** 2
+            / pt.sqrt(parameters["mean"] ** 2 + parameters["std"] ** 2)
         )
         sigma_log = pt.sqrt(
-            pt.log(1 + (parameters["sigma"] ** 2 / parameters["mu"] ** 2))
+            pt.log(1 + (parameters["std"] ** 2 / parameters["mean"] ** 2))
         )
 
         if self.centered:
@@ -125,7 +152,7 @@ class LogNormalPositiveParam:
     def to_dict(self):
         """Convert the prior distribution to a dictionary."""
         data = {
-            "special_prior": "LogNormalPositiveParam",
+            "special_prior": "LogNormalPrior",
         }
         if self.parameters:
 
@@ -157,7 +184,7 @@ class LogNormalPositiveParam:
 
     @classmethod
     def from_dict(cls, data) -> Prior:
-        """Create a LogNormalPositiveParam prior from a dictionary."""
+        """Create a LogNormalPrior prior from a dictionary."""
         if not isinstance(data, dict):
             msg = (
                 "Must be a dictionary representation of a prior distribution. "
@@ -199,16 +226,16 @@ class LogNormalPositiveParam:
         )
 
 
-def _is_lognormalpositiveparam_type(data: dict) -> bool:
+def _is_LogNormalPrior_type(data: dict) -> bool:
     if "special_prior" in data:
-        return data["special_prior"] == "LogNormalPositiveParam"
+        return data["special_prior"] == "LogNormalPrior"
     else:
         return False
 
 
 register_deserialization(
-    is_type=_is_lognormalpositiveparam_type,
-    deserialize=LogNormalPositiveParam.from_dict,
+    is_type=_is_LogNormalPrior_type,
+    deserialize=LogNormalPrior.from_dict,
 )
 
 

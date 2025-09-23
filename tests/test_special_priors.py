@@ -23,14 +23,14 @@ from pytensor import function
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.multidimensional import MMM
 from pymc_marketing.special_priors import (
-    LogNormalPositiveParam,
+    LogNormalPrior,
     MaskedPrior,
-    _is_lognormalpositiveparam_type,
+    _is_LogNormalPrior_type,
 )
 
 
 @pytest.mark.parametrize(
-    "mu, sigma, centered, dims",
+    "mean, std, centered, dims",
     [
         (
             Prior("Gamma", mu=1.0, sigma=1.0),
@@ -45,14 +45,14 @@ from pymc_marketing.special_priors import (
         (1.0, 2.0, True, ()),
     ],
 )
-def test_LogNormalPositiveParam_args(mu, sigma, centered, dims):
+def test_LogNormalPrior_args(mean, std, centered, dims):
     """
     Checks:
     - sample_prior runs
     - create_variable runs
     - round trip: dict to class to dict to class, doesn't lose any information
     """
-    rv = LogNormalPositiveParam(mu=mu, sigma=sigma, centered=centered, dims=dims)
+    rv = LogNormalPrior(mean=mean, std=std, centered=centered, dims=dims)
 
     coords = {"channel": ["C1", "C2", "C3"]}
 
@@ -72,16 +72,16 @@ def test_LogNormalPositiveParam_args(mu, sigma, centered, dims):
     assert rv.to_dict() == rv.from_dict(rv.to_dict()).to_dict()
 
 
-def test_LogNormalPositiveParam_args_invalid():
+def test_LogNormalPrior_args_invalid():
     with pytest.raises(ValueError):
-        LogNormalPositiveParam(alpha=1.0, beta=1.0)
+        LogNormalPrior(alpha=1.0, beta=1.0)
 
 
 def test_the_deserializer_can_distinguish_between_types_of_prior_classes():
-    assert _is_lognormalpositiveparam_type(
-        LogNormalPositiveParam(mu=1.0, sigma=1.0).to_dict()
+    assert _is_LogNormalPrior_type(
+        LogNormalPrior(mu=1.0, sigma=1.0).to_dict()
     )
-    assert not _is_lognormalpositiveparam_type(
+    assert not _is_LogNormalPrior_type(
         Prior("Normal", mu=1.0, sigma=1.0).to_dict()
     )
 
