@@ -78,12 +78,8 @@ def test_LogNormalPrior_args_invalid():
 
 
 def test_the_deserializer_can_distinguish_between_types_of_prior_classes():
-    assert _is_LogNormalPrior_type(
-        LogNormalPrior(mu=1.0, sigma=1.0).to_dict()
-    )
-    assert not _is_LogNormalPrior_type(
-        Prior("Normal", mu=1.0, sigma=1.0).to_dict()
-    )
+    assert _is_LogNormalPrior_type(LogNormalPrior(mu=1.0, sigma=1.0).to_dict())
+    assert not _is_LogNormalPrior_type(Prior("Normal", mu=1.0, sigma=1.0).to_dict())
 
 
 def test_masked_prior_simple_1d():
