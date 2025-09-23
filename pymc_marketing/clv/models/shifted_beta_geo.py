@@ -197,7 +197,7 @@ class ShiftedBetaGeoModel(CLVModel):
             )
 
             pm.Censored(
-                "churn_censored",
+                "dropout",
                 dropout,
                 lower=None,
                 upper=self.data["T"],
@@ -400,41 +400,6 @@ class ShiftedBetaGeoModel(CLVModel):
         return expected_lifetime_purchases.transpose(
             "chain", "draw", "customer_id", missing_dims="ignore"
         )
-
-    # TODO: Update to support both prior and posterior distributions
-    def distribution_cohort_churn(
-        self, customer_id: np.ndarray | pd.Series, random_seed: RandomState = None
-    ) -> xarray.DataArray:
-        """Sample distribution of dropout process for existing customers.
-
-        The draws represent the distribution of dropout probabilities by cohort.
-
-        """
-        # create cohort indices from data
-        cohorts = self.data["cohort"].unique()
-        cohort_idx = pd.Categorical(self.data["cohort"], categories=cohorts).codes
-
-        coords = {
-            "customer_id": self.data["customer_id"],
-            "cohort": cohorts,
-        }
-        with pm.Model(coords=coords):
-            alpha = pm.HalfFlat("alpha", dims="cohort")
-            beta = pm.HalfFlat("beta", dims="cohort")
-
-            # TODO: This is the distribution of interest; resolve mypy complaints
-            # theta = pm.Beta("theta", alpha[cohort_idx], beta[cohort_idx], dims="cohort")
-
-            # TODO: This may not be needed here as we are sampling theta
-            ShiftedBetaGeometric(
-                "churn", alpha[cohort_idx], beta[cohort_idx], dims=("customer_id",)
-            )
-
-            return pm.sample_posterior_predictive(
-                self.idata,
-                var_names=["theta"],
-                random_seed=random_seed,
-            ).posterior_predictive["theta"]
 
 
 class ShiftedBetaGeoModelIndividual(CLVModel):

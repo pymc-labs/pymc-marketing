@@ -25,7 +25,6 @@ from pymc_extras.prior import Prior
 from scipy import stats
 
 from pymc_marketing.clv import ShiftedBetaGeoModel, ShiftedBetaGeoModelIndividual
-from pymc_marketing.clv.distributions import ShiftedBetaGeometric
 from tests.conftest import mock_sample
 
 
@@ -53,6 +52,7 @@ class TestShiftedBetaGeoModel:
 
         # Instantiate model with research paper data for testing
         cls.data = pd.read_csv("data/sbg_paper.csv")
+        # TODO: only first 7 time periods used for fitting in paper
         cls.model = ShiftedBetaGeoModel(cls.data)
         cls.model.build_model()
 
@@ -62,16 +62,21 @@ class TestShiftedBetaGeoModel:
         cls.draws = 50
         cls.cohorts = ["highend", "regular"]
 
+        # Mock a fitted model with multi-dim parameters
+        cls.mock_cohort_fit(
+            cls.model, cls.alpha_hi_lo, cls.chains, cls.draws, cls.cohorts
+        )
+
     # TODO: Generalize and move into conftest? create_mock_fit doesn't support multi-dim parameters
     @classmethod
-    def mock_cohort_fit(cls, params, chains, draws, cohorts):
+    def mock_cohort_fit(cls, model, params, chains, draws, cohorts):
         """Mock a fitted model with multi-dim parameters."""
         # Generate arrays from true parameters for alpha and beta
         alpha_beta_sim = [
             cls.rng.normal(
                 param,
                 1e-3,
-                size=(len(chains), len(draws), len(cohorts)),
+                size=(chains, draws, len(cohorts)),
             )
             for param in params
         ]
@@ -81,8 +86,8 @@ class TestShiftedBetaGeoModel:
                 param[0],
                 dims=("chains", "draws", "cohort"),
                 coords={
-                    "chains": chains,
-                    "draws": draws,
+                    "chains": np.arange(chains),
+                    "draws": np.arange(draws),
                     "cohort": cohorts,
                 },
                 name=param[1],
@@ -91,9 +96,10 @@ class TestShiftedBetaGeoModel:
         ]
         posterior = az.convert_to_inference_data(xr.merge(param_arrays))
         # Set idata and add fit data group
-        cls.model.idata = posterior
-        cls.model.set_idata_attrs(cls.model.idata)
-        cls.model._add_fit_data_group(cls.model.data)
+        model.idata = posterior
+        model.set_idata_attrs(model.idata)
+        if model.data is not None:
+            model._add_fit_data_group(model.data)
 
     # TODO: Make these half-flats for MAP testing?
     @pytest.fixture(scope="class")
@@ -202,14 +208,14 @@ class TestShiftedBetaGeoModel:
             "\nkappa~Pareto(1,1)"
             "\nalpha~Deterministic(f(kappa,phi))"
             "\nbeta~Deterministic(f(kappa,phi))"
-            "\nchurn_censored~Censored(ShiftedBetaGeometric(f(kappa,phi),f(kappa,phi)),-inf,<constant>)"
+            "\ndropout~Censored(ShiftedBetaGeometric(f(kappa,phi),f(kappa,phi)),-inf,<constant>)"
         )
 
         custom_repr = (
             "ShiftedBeta-Geometric"
             "\nalpha~HalfNormal(0,10)"
             "\nbeta~HalfStudentT(4,10)"
-            "\nchurn_censored~Censored(ShiftedBetaGeometric(f(alpha),f(beta)),-inf,<constant>)"
+            "\ndropout~Censored(ShiftedBetaGeometric(f(alpha),f(beta)),-inf,<constant>)"
         )
 
         for repr in zip(
@@ -221,49 +227,6 @@ class TestShiftedBetaGeoModel:
             )
             model.build_model()
             assert model.__repr__().replace(" ", "") == repr[1]
-
-    # TODO: distribution_cohort_churn may be renamed
-    @pytest.mark.parametrize("fit_type", ("map", "mcmc"))
-    def test_posterior_distributions(self, fit_type):
-        rng = np.random.default_rng(42)
-        dim_T = 2357
-
-        if fit_type == "map":
-            map_idata = self.model.idata.copy()
-            map_idata.posterior = map_idata.posterior.isel(
-                chain=slice(None, 1), draw=slice(None, 1)
-            )
-            model = self.model.build_from_idata(map_idata)
-            # We expect 1000 draws to be sampled with MAP
-            expected_shape = (1, 1000)
-            expected_pop_dims = (1, 1000, dim_T, 2)
-        else:
-            model = self.model
-            expected_shape = (self.chains, self.draws)
-            expected_pop_dims = (self.chains, self.draws, dim_T, 2)
-
-        data = model.data
-        customer_churn_time = model.distribution_cohort_churn(data, random_seed=rng)
-        assert customer_churn_time.shape == expected_shape
-        assert customer_churn_time.dims == expected_pop_dims
-
-        alpha_mean = self.alpha_true
-        beta_mean = self.beta_true
-
-        ref_churn_time = pm.draw(
-            ShiftedBetaGeometric.dist(
-                alpha=alpha_mean,
-                beta=beta_mean,
-            ),
-            random_seed=rng,
-        ).T
-
-        np.testing.assert_allclose(
-            customer_churn_time.mean(), ref_churn_time.mean(), rtol=0.5
-        )
-        np.testing.assert_allclose(
-            customer_churn_time.std(), ref_churn_time.std(), rtol=0.5
-        )
 
     @pytest.mark.slow
     @pytest.mark.parametrize(
