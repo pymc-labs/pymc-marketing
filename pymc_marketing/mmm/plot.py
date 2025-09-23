@@ -921,6 +921,7 @@ class MMMPlotSuite:
         figsize: tuple[float, float] = (12, 6),
         ax: plt.Axes | None = None,
         original_scale: bool = True,
+        dims: dict[str, str | int] | None = None,
     ) -> tuple[Figure, plt.Axes]:
         """Plot the budget allocation and channel contributions.
 
@@ -944,6 +945,9 @@ class MMMPlotSuite:
         original_scale : bool, optional
             A boolean flag to determine if the values should be plotted in their
             original scale. Default is True.
+        dims : dict[str, str | int], optional
+            Dimension filters to apply. Example: {"country": "US", "user_type": "new"}.
+            If provided, only the selected slice will be plotted.
 
         Returns
         -------
@@ -977,9 +981,25 @@ class MMMPlotSuite:
             if "channel_contribution" in var_name
         )
 
+        # Apply user-specified filters (`dims`)
+        if dims:
+            for key, val in dims.items():
+                if key not in samples[channel_contrib_var].dims:
+                    raise ValueError(f"Dimension '{key}' not found in samples dims.")
+                if val not in samples.coords[key].values:
+                    raise ValueError(f"Value '{val}' not found in dimension '{key}'.")
+            # Apply selection to both channel_contrib_var and allocation
+            channel_contrib_data = samples[channel_contrib_var].sel(**dims)
+            allocation_data = samples.allocation.sel(
+                **{k: v for k, v in dims.items() if k in samples.allocation.dims}
+            )
+        else:
+            channel_contrib_data = samples[channel_contrib_var]
+            allocation_data = samples.allocation
+
         # Identify extra dimensions beyond 'channel'
-        channel_contribution_dims = list(samples[channel_contrib_var].dims)
-        allocation_dims = list(samples.allocation.dims)
+        channel_contribution_dims = list(channel_contrib_data.dims)
+        allocation_dims = list(allocation_data.dims)
 
         # Always remove 'date' and 'sample' from consideration as these are always averaged over
         if "date" in channel_contribution_dims:
@@ -998,11 +1018,11 @@ class MMMPlotSuite:
 
             # Average over all dimensions except channel
             reduction_dims = [
-                dim for dim in samples[channel_contrib_var].dims if dim != "channel"
+                dim for dim in channel_contrib_data.dims if dim != "channel"
             ]
-            channel_contribution = (
-                samples[channel_contrib_var].mean(dim=reduction_dims).to_numpy()
-            )
+            channel_contribution = channel_contrib_data.mean(
+                dim=reduction_dims
+            ).to_numpy()
 
             # Ensure channel_contribution is 1D
             if channel_contribution.ndim > 1:
@@ -1017,11 +1037,11 @@ class MMMPlotSuite:
                 dim for dim in allocation_dims if dim != "channel"
             ]
             if allocation_reduction_dims:
-                allocated_spend = samples.allocation.mean(
+                allocated_spend = allocation_data.mean(
                     dim=allocation_reduction_dims
                 ).to_numpy()
             else:
-                allocated_spend = samples.allocation.to_numpy()
+                allocated_spend = allocation_data.to_numpy()
 
             # Ensure allocated_spend is 1D
             if allocated_spend.ndim > 1:
@@ -1041,15 +1061,15 @@ class MMMPlotSuite:
         # Determine layout based on number of extra dimensions
         if len(extra_dims) == 1:
             # One extra dimension: use for rows
-            dim_values = [samples.coords[extra_dims[0]].values]
+            dim_values = [channel_contrib_data.coords[extra_dims[0]].values]
             nrows = len(dim_values[0])
             ncols = 1
             subplot_dims = [extra_dims[0], None]
         elif len(extra_dims) == 2:
             # Two extra dimensions: one for rows, one for columns
             dim_values = [
-                samples.coords[extra_dims[0]].values,
-                samples.coords[extra_dims[1]].values,
+                channel_contrib_data.coords[extra_dims[0]].values,
+                channel_contrib_data.coords[extra_dims[1]].values,
             ]
             nrows = len(dim_values[0])
             ncols = len(dim_values[1])
@@ -1057,8 +1077,8 @@ class MMMPlotSuite:
         else:
             # Three or more: use first two for rows/columns, average over the rest
             dim_values = [
-                samples.coords[extra_dims[0]].values,
-                samples.coords[extra_dims[1]].values,
+                channel_contrib_data.coords[extra_dims[0]].values,
+                channel_contrib_data.coords[extra_dims[1]].values,
             ]
             nrows = len(dim_values[0])
             ncols = len(dim_values[1])
@@ -1089,7 +1109,7 @@ class MMMPlotSuite:
                     selection[subplot_dims[1]] = col_val
 
                 # Select channel contributions for this subplot
-                subset = samples[channel_contrib_var].sel(**selection)
+                subset = channel_contrib_data.sel(**selection)
 
                 # Average over remaining dimensions
                 remaining_dims = [
@@ -1113,7 +1133,7 @@ class MMMPlotSuite:
                     allocation_selection = {
                         k: v for k, v in selection.items() if k in allocation_dims
                     }
-                    allocation_subset = samples.allocation.sel(**allocation_selection)
+                    allocation_subset = allocation_data.sel(**allocation_selection)
 
                     # Average over remaining dimensions
                     allocation_remaining_dims = [
@@ -1127,7 +1147,7 @@ class MMMPlotSuite:
                     allocation_reduction_dims = [
                         dim for dim in allocation_dims if dim != "channel"
                     ]
-                    allocated_spend = samples.allocation.mean(
+                    allocated_spend = allocation_data.mean(
                         dim=allocation_reduction_dims
                     ).to_numpy()
 
