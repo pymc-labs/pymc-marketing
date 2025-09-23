@@ -57,19 +57,23 @@ class TestShiftedBetaGeoModel:
         cls.model.build_model()
 
         # Mock an idata object for tests requiring a fitted model
-        # Create_mock_fit doesn't support cohort dims; brute-forcing it here
         cls.N = len(cls.data)
         cls.chains = 2
         cls.draws = 50
         cls.cohorts = ["highend", "regular"]
+
+    # TODO: Generalize and move into conftest? create_mock_fit doesn't support multi-dim parameters
+    @classmethod
+    def mock_cohort_fit(cls, params, chains, draws, cohorts):
+        """Mock a fitted model with multi-dim parameters."""
         # Generate arrays from true parameters for alpha and beta
         alpha_beta_sim = [
             cls.rng.normal(
-                cls.alpha_hi_lo,
+                param,
                 1e-3,
-                size=(len(cls.chains), len(cls.draws), len(cls.cohorts)),
+                size=(len(chains), len(draws), len(cohorts)),
             )
-            for params in [cls.alpha_hi_lo, cls.beta_hi_lo]
+            for param in params
         ]
         # Mock posterior
         param_arrays = [
@@ -77,9 +81,9 @@ class TestShiftedBetaGeoModel:
                 param[0],
                 dims=("chains", "draws", "cohort"),
                 coords={
-                    "chains": cls.chains,
-                    "draws": cls.draws,
-                    "cohort": cls.cohorts,
+                    "chains": chains,
+                    "draws": draws,
+                    "cohort": cohorts,
                 },
                 name=param[1],
             )
