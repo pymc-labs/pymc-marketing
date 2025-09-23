@@ -731,3 +731,20 @@ def test_plot_sensitivity_analysis_error_on_missing_results(mock_idata):
     suite = MMMPlotSuite(idata=mock_idata)
     with pytest.raises(ValueError, match=r"No sensitivity analysis results found"):
         suite.plot_sensitivity_analysis()
+
+
+def test_budget_allocation_with_dims(mock_suite_with_constant_data):
+    # Use dims to filter to a single country
+    samples = mock_suite_with_constant_data.idata.posterior
+    # Add a fake 'allocation' variable for testing
+    samples = samples.copy()
+    samples["allocation"] = (
+        samples["channel_contribution"].dims,
+        np.abs(samples["channel_contribution"].values),
+    )
+    plot_suite = mock_suite_with_constant_data
+    fig, _ax = plot_suite.budget_allocation(
+        samples=samples,
+        dims={"country": "A"},
+    )
+    assert isinstance(fig, Figure)
