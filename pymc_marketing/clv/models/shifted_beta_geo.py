@@ -141,7 +141,7 @@ class ShiftedBetaGeoModel(CLVModel):
         super().__init__(
             data=data, model_config=model_config, sampler_config=sampler_config
         )
-
+        # TODO: Could this be cleaned up? Or a separate _validate_prior_dims() method created?
         # Validate provided Priors specify dims="cohort"
         for key in ("alpha", "beta"):
             prior = self.model_config.get(key)
