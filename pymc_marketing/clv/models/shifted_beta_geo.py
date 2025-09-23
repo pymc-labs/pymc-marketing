@@ -284,9 +284,8 @@ class ShiftedBetaGeoModel(CLVModel):
         T = dataset["T"]
         future_t = dataset["future_t"]
 
-        # TODO add numpy.arange(T) for loop by cohort
-        retention_rate = (beta + T - 1) / (alpha + beta + T - 1)
-
+        retention_rate = (beta + T + future_t - 1) / (alpha + beta + T + future_t - 1)
+        # TODO: "cohort" dim instead of "customer_id"?
         return retention_rate.transpose(
             "chain", "draw", "customer_id", missing_dims="ignore"
         )
@@ -323,20 +322,19 @@ class ShiftedBetaGeoModel(CLVModel):
 
         # Rewrite beta functions from paper in terms of gamma functions on log scale
         logS = (
-            gammaln(beta + T)
+            gammaln(beta + T + future_t)
             - gammaln(beta)
             + gammaln(alpha + beta)
-            - gammaln(alpha + beta + T)
+            - gammaln(alpha + beta + T + future_t)
         )
         survival = np.exp(logS)
-
+        # TODO: "cohort" dim instead of "customer_id"?
         return survival.transpose("chain", "draw", "customer_id", missing_dims="ignore")
 
     def expected_retention_elasticity(
         self,
         data: pd.DataFrame | None = None,
         *,
-        future_t: int | np.ndarray | pd.Series | None = None,
         discount_rate: float = 0.0,
     ) -> xarray.DataArray:
         """Compute expected retention elasticity.
@@ -352,21 +350,17 @@ class ShiftedBetaGeoModel(CLVModel):
         if data is None:
             data = self.data
 
-        if future_t is not None:
-            data = data.assign(future_t=future_t)
-
         dataset = self._extract_predictive_variables(
-            data, customer_varnames=["recency", "T", "future_t"]
+            data, customer_varnames=["recency", "T"]
         )
         alpha = dataset["alpha"]
         beta = dataset["beta"]
         T = dataset["T"]
-        future_t = dataset["future_t"]
 
         retention_elasticity = hyp2f1(
             1, beta + T - 1, alpha + beta + 1, 1 / (1 + discount_rate)
         )
-
+        # TODO: "cohort" dim instead of "customer_id"?
         return retention_elasticity.transpose(
             "chain", "draw", "customer_id", missing_dims="ignore"
         )
@@ -375,7 +369,6 @@ class ShiftedBetaGeoModel(CLVModel):
         self,
         data: pd.DataFrame | None = None,
         *,
-        future_t: int | np.ndarray | pd.Series | None = None,
         discount_rate: float = 0.0,
     ) -> xarray.DataArray:
         """Compute expected lifetime purchases.
@@ -391,23 +384,19 @@ class ShiftedBetaGeoModel(CLVModel):
         if data is None:
             data = self.data
 
-        if future_t is not None:
-            data = data.assign(future_t=future_t)
-
         dataset = self._extract_predictive_variables(
-            data, customer_varnames=["recency", "T", "future_t"]
+            data, customer_varnames=["recency", "T"]
         )
         alpha = dataset["alpha"]
         beta = dataset["beta"]
         T = dataset["T"]
-        future_t = dataset["future_t"]
 
         retention_rate = (beta + T - 1) / (alpha + beta + T - 1)
         retention_elasticity = hyp2f1(
             1, beta + T, alpha + beta, 1 / (1 + discount_rate)
         )
         expected_lifetime_purchases = retention_rate * retention_elasticity
-
+        # TODO: "cohort" dim instead of "customer_id"?
         return expected_lifetime_purchases.transpose(
             "chain", "draw", "customer_id", missing_dims="ignore"
         )
