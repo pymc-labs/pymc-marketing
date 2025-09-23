@@ -129,6 +129,21 @@ def test_contributions_over_time(fit_mmm_with_channel_original_scale):
     assert all(isinstance(a, Axes) for a in ax.flat)
 
 
+def test_contributions_over_time_with_dim(mock_suite: MMMPlotSuite):
+    # Test with explicit dim argument
+    fig, ax = mock_suite.contributions_over_time(
+        var=["intercept", "linear_trend"],
+        dims={"country": "A"},
+    )
+    assert isinstance(fig, Figure)
+    assert isinstance(ax, np.ndarray)
+    assert all(isinstance(a, Axes) for a in ax.flat)
+    # Optionally, check axes shape if known
+    if hasattr(ax, "shape"):
+        # When filtering to a single country, shape[-1] should be 1
+        assert ax.shape[-1] == 1
+
+
 def test_posterior_predictive(fit_mmm_with_channel_original_scale, df):
     fit_mmm_with_channel_original_scale.sample_posterior_predictive(
         df.drop(columns=["y"])
