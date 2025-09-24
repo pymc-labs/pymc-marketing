@@ -323,18 +323,28 @@ class MMMPlotSuite:
 
     def _validate_dims(
         self,
-        dims: dict[str, str | int],
+        dims: dict[str, str | int | list],
         all_dims: list[str],
     ) -> None:
-        """Validate that provided dims exist in the model's dimensions."""
+        """Validate that provided dims exist in the model's dimensions and values."""
         if dims:
             for key, val in dims.items():
                 if key not in all_dims:
                     raise ValueError(
                         f"Dimension '{key}' not found in idata dimensions."
                     )
-                if val not in self.idata.posterior.coords[key].values:
-                    raise ValueError(f"Value '{val}' not found in dimension '{key}'.")
+                valid_values = self.idata.posterior.coords[key].values
+                if isinstance(val, (list, tuple, np.ndarray)):
+                    for v in val:
+                        if v not in valid_values:
+                            raise ValueError(
+                                f"Value '{v}' not found in dimension '{key}'."
+                            )
+                else:
+                    if val not in valid_values:
+                        raise ValueError(
+                            f"Value '{val}' not found in dimension '{key}'."
+                        )
 
     # ------------------------------------------------------------------------
     #                          Main Plotting Methods
@@ -434,7 +444,7 @@ class MMMPlotSuite:
         self,
         var: list[str],
         hdi_prob: float = 0.85,
-        dims: dict[str, str | int] | None = None,
+        dims: dict[str, str | int | list] | None = None,
     ) -> tuple[Figure, NDArray[Axes]]:
         """Plot the time-series contributions for each variable in `var`.
 
@@ -448,9 +458,9 @@ class MMMPlotSuite:
             A list of variable names to plot from the posterior.
         hdi_prob: float, optional
             The probability mass of the highest density interval to be displayed. Default is 0.85.
-        dims : dict[str, str | int], optional
-            Dimension filters to apply. Example: {"country": "US", "user_type": "new"}.
-            If provided, only the selected slice will be plotted.
+        dims : dict[str, str | int | list], optional
+            Dimension filters to apply. Example: {"country": ["US", "UK"], "user_type": "new"}.
+            If provided, only the selected slice(s) will be plotted.
 
         Returns
         -------
@@ -488,6 +498,9 @@ class MMMPlotSuite:
             self._validate_dims(dims=dims, all_dims=all_dims)
             # Remove filtered dims from the combinations
             additional_dims = [d for d in additional_dims if d not in dims]
+        else:
+            self._validate_dims({}, all_dims)
+            # additional_dims = [d for d in additional_dims if d not in dims]
 
         # Identify combos for remaining dims
         if additional_dims:
@@ -499,20 +512,43 @@ class MMMPlotSuite:
         else:
             dim_combinations = [()]
 
-        # Prepare subplots
-        fig, axes = self._init_subplots(len(dim_combinations), ncols=1)
+        # If dims contains lists, build all combinations for those as well
+        dims_lists = {
+            k: v
+            for k, v in (dims or {}).items()
+            if isinstance(v, (list, tuple, np.ndarray))
+        }
+        if dims_lists:
+            dims_keys = list(dims_lists.keys())
+            dims_values = [
+                v if isinstance(v, (list, tuple, np.ndarray)) else [v]
+                for v in dims_lists.values()
+            ]
+            dims_combos = list(itertools.product(*dims_values))
+        else:
+            dims_keys = []
+            dims_combos = [()]
 
-        # Loop combos
-        for row_idx, combo in enumerate(dim_combinations):
+        # Prepare subplots: one for each combo of dims_lists and additional_dims
+        total_combos = list(itertools.product(dims_combos, dim_combinations))
+        fig, axes = self._init_subplots(len(total_combos), ncols=1)
+
+        for row_idx, (dims_combo, addl_combo) in enumerate(total_combos):
             ax = axes[row_idx][0]
-            # Merge fixed dims with current combo
+            # Build indexers for dims and additional_dims
             indexers = (
-                dict(zip(additional_dims, combo, strict=False))
+                dict(zip(additional_dims, addl_combo, strict=False))
                 if additional_dims
                 else {}
             )
             if dims:
-                indexers.update(dims)
+                # For dims with lists, use the current value from dims_combo
+                for i, k in enumerate(dims_keys):
+                    indexers[k] = dims_combo[i]
+                # For dims with single values, use as is
+                for k, v in (dims or {}).items():
+                    if k not in dims_keys:
+                        indexers[k] = v
 
             # Plot posterior median and HDI for each var
             for v in var:
@@ -531,7 +567,7 @@ class MMMPlotSuite:
             title_dims = (
                 list(dims.keys()) + additional_dims if dims else additional_dims
             )
-            title_combo = tuple(dims.values()) + combo if dims else combo
+            title_combo = tuple(indexers[k] for k in title_dims)
 
             title = self._build_subplot_title(
                 dims=title_dims, combo=title_combo, fallback_title="Time Series"
@@ -932,7 +968,7 @@ class MMMPlotSuite:
         figsize: tuple[float, float] = (12, 6),
         ax: plt.Axes | None = None,
         original_scale: bool = True,
-        dims: dict[str, str | int] | None = None,
+        dims: dict[str, str | int | list] | None = None,
     ) -> tuple[Figure, plt.Axes]:
         """Plot the budget allocation and channel contributions.
 
@@ -1001,6 +1037,7 @@ class MMMPlotSuite:
                 **{k: v for k, v in dims.items() if k in samples.allocation.dims}
             )
         else:
+            self._validate_dims({}, list(samples.dims))
             channel_contrib_data = samples[channel_contrib_var]
             allocation_data = samples.allocation
 
