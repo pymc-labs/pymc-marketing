@@ -330,7 +330,9 @@ class MMMPlotSuite:
         if dims:
             for key, val in dims.items():
                 if key not in all_dims:
-                    raise ValueError(f"Dimension '{key}' not found in data dimensions.")
+                    raise ValueError(
+                        f"Dimension '{key}' not found in idata dimensions."
+                    )
                 if val not in self.idata.posterior.coords[key].values:
                     raise ValueError(f"Value '{val}' not found in dimension '{key}'.")
 
