@@ -144,6 +144,44 @@ def test_contributions_over_time_with_dim(mock_suite: MMMPlotSuite):
         assert ax.shape[-1] == 1
 
 
+def test_contributions_over_time_with_dims_list(mock_suite: MMMPlotSuite):
+    """Test that passing a list to dims creates a subplot for each value."""
+    fig, ax = mock_suite.contributions_over_time(
+        var=["intercept"],
+        dims={"country": ["A", "B"]},
+    )
+    assert isinstance(fig, Figure)
+    assert isinstance(ax, np.ndarray)
+    # Should create one subplot per value in the list (here: 2 countries)
+    assert ax.shape[0] == 2
+    # Optionally, check subplot titles contain the correct country
+    for i, country in enumerate(["A", "B"]):
+        assert country in ax[i, 0].get_title()
+
+
+def test_contributions_over_time_with_multiple_dims_lists(mock_suite: MMMPlotSuite):
+    """Test that passing multiple lists to dims creates a subplot for each combination."""
+    # Add a fake 'region' dim to the mock posterior for this test if not present
+    idata = mock_suite.idata
+    if "region" not in idata.posterior["intercept"].dims:
+        idata.posterior["intercept"] = idata.posterior["intercept"].expand_dims(
+            region=["X", "Y"]
+        )
+    fig, ax = mock_suite.contributions_over_time(
+        var=["intercept"],
+        dims={"country": ["A", "B"], "region": ["X", "Y"]},
+    )
+    assert isinstance(fig, Figure)
+    assert isinstance(ax, np.ndarray)
+    # Should create one subplot per combination (2 countries x 2 regions = 4)
+    assert ax.shape[0] == 4
+    combos = [("A", "X"), ("A", "Y"), ("B", "X"), ("B", "Y")]
+    for i, (country, region) in enumerate(combos):
+        title = ax[i, 0].get_title()
+        assert country in title
+        assert region in title
+
+
 def test_posterior_predictive(fit_mmm_with_channel_original_scale, df):
     fit_mmm_with_channel_original_scale.sample_posterior_predictive(
         df.drop(columns=["y"])
