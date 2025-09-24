@@ -31,6 +31,7 @@ from pymc_marketing.mmm.components.saturation import (
 from pymc_marketing.mmm.lift_test import (
     NonMonotonicError,
     UnalignedValuesError,
+    add_cost_per_target_potentials,
     add_lift_measurements_to_likelihood_from_saturation,
     assert_monotonic,
     create_time_varying_saturation,
@@ -534,3 +535,40 @@ def test_adds_date_column_if_missing(dummy_mmm_model):
 
     # Check if the date was added inside the function
     assert dummy_mmm_model._last_lift_test_df["date"].notna().all()
+
+
+def test_add_cost_per_target_potentials(dummy_mmm_model):
+    model = dummy_mmm_model
+
+    # Create a simple constant cost_per_target deterministic over (date, channel)
+    dates = model.model.coords["date"]
+    channels = model.model.coords["channel"]
+    const_cpt = np.full((len(dates), len(channels)), 30.0, dtype=float)
+
+    with model.model:
+        pm.Deterministic(
+            "cost_per_target",
+            pt.as_tensor_variable(const_cpt),
+            dims=("date", "channel"),
+        )
+
+    # Calibration DataFrame: rows map to existing channels (no extra dims in this fixture)
+    calibration_df = pd.DataFrame(
+        {
+            "channel": [channels[0], channels[1]],
+            "cost_per_target": [30.0, 45.0],
+            "sigma": [2.0, 3.0],
+        }
+    )
+
+    # Add potentials
+    add_cost_per_target_potentials(
+        calibration_df=calibration_df,
+        model=model.model,
+        cpt_variable_name="cost_per_target",
+        name_prefix="cpt_calibration",
+    )
+
+    # Check aggregated potential was added with the expected base name
+    pot_names = [getattr(p, "name", None) for p in model.model.potentials]
+    assert "cpt_calibration" in pot_names

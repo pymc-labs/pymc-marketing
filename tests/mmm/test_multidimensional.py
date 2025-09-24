@@ -1296,6 +1296,57 @@ def test_add_lift_test_measurements_no_model() -> None:
         )
 
 
+def test_add_calibration_test_measurements(multi_dim_data):
+    X, y = multi_dim_data
+
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+
+    # Build the model
+    mmm.build_model(X, y)
+
+    # Spend data: same structure as X (use X directly for simplicity)
+    spend_df = X.copy()
+
+    # Calibration rows map to dims+channel; provide targets and sigma
+    # Pick two concrete rows present in coords
+    countries = mmm.model.coords["country"]
+    channels = ["channel_1", "channel_2"]
+    calibration_df = pd.DataFrame(
+        {
+            "country": [countries[0], countries[1]],
+            "channel": [channels[0], channels[1]],
+            "cost_per_target": [30.0, 45.0],
+            "sigma": [2.0, 3.0],
+        }
+    )
+
+    # Ensure the variable is not present beforehand
+    assert "cost_per_target" not in mmm.model.named_vars
+
+    # Add calibration constraints
+    mmm.add_cost_per_target_calibration(
+        data=spend_df,
+        calibration_data=calibration_df,
+        cpt_variable_name="cost_per_target",
+        name_prefix="cpt_calibration",
+    )
+
+    # Check data and deterministic exist
+    assert "channel_data_spend" in mmm.model.named_vars
+    assert "cost_per_target" in mmm.model.named_vars
+
+    # Check aggregated potential was added
+    pot_names = [getattr(p, "name", None) for p in mmm.model.potentials]
+    assert "cpt_calibration" in pot_names
+
+
 def test_time_varying_media_with_lift_test(
     multi_dim_data, df_lift_test, mock_pymc_sample
 ) -> None:
