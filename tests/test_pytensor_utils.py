@@ -14,6 +14,9 @@
 
 """Tests for pytensor_utils module."""
 
+import builtins as _builtins
+import sys
+
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -28,7 +31,11 @@ from pymc_marketing.mmm.multidimensional import (
     MMM,
     MultiDimensionalBudgetOptimizerWrapper,
 )
-from pymc_marketing.pytensor_utils import _prefix_model, merge_models
+from pymc_marketing.pytensor_utils import (
+    ModelSamplerEstimator,
+    _prefix_model,
+    merge_models,
+)
 
 
 @pytest.fixture
@@ -319,6 +326,103 @@ def test_extract_response_distribution_vs_sample_response(
     )
 
     print("\n✓ Both methods produce consistent results!")
+
+
+@pytest.mark.parametrize("draws, tune", [(50, 50)])
+def test_model_sampler_estimator_with_simple_model(monkeypatch, draws, tune):
+    """Smoke test for ModelSamplerEstimator on a tiny PyMC model."""
+
+    with pm.Model() as model:
+        mu = pm.Normal("mu", 0.0, 1.0)
+        sigma = pm.HalfNormal("sigma", 1.0)
+        pm.Normal("y", mu=mu, sigma=sigma, observed=np.random.normal(0, 1, size=10))
+
+    est = ModelSamplerEstimator(
+        tune=tune, draws=draws, chains=2, sequential_chains=1, seed=123
+    )
+    df = est.run(model)
+
+    # Check schema and basic values
+    expected_columns = {
+        "model_name",
+        "num_steps",
+        "eval_time_seconds",
+        "sequential_chains",
+        "estimated_sampling_time_seconds",
+        "estimated_sampling_time_minutes",
+        "estimated_sampling_time_hours",
+        "tune",
+        "draws",
+        "chains",
+        "seed",
+        "timestamp",
+    }
+    assert set(df.columns) >= expected_columns
+
+
+def test_model_sampler_estimator_eval_time_multidim_model(fitted_multidim_mmm):
+    """Measure eval time for a fitted multidimensional MMM's PyMC model."""
+    pm_model = fitted_multidim_mmm.model
+
+    est = ModelSamplerEstimator(
+        tune=50, draws=50, chains=1, sequential_chains=1, seed=123
+    )
+
+    steps = est.estimate_num_steps_sampling(pm_model)
+    assert steps > 0, f"Expected positive number of steps, got {steps}"
+    assert isinstance(steps, int), f"Expected steps to be an integer, got {type(steps)}"
+
+    est_df = est.run(pm_model)
+
+    # Check schema and basic values
+    expected_columns = {
+        "model_name",
+        "num_steps",
+        "eval_time_seconds",
+        "sequential_chains",
+        "estimated_sampling_time_seconds",
+        "estimated_sampling_time_minutes",
+        "estimated_sampling_time_hours",
+        "tune",
+        "draws",
+        "chains",
+        "seed",
+        "timestamp",
+    }
+    assert set(est_df.columns) >= expected_columns, (
+        f"Expected columns {expected_columns} not found in {set(est_df.columns)}"
+    )
+
+    assert isinstance(est.default_mcmc_kwargs, dict), (
+        f"Expected default_mcmc_kwargs to be a dict, got {type(est.default_mcmc_kwargs)}"
+    )
+    assert isinstance(est.default_nuts_kwargs, dict), (
+        f"Expected default_nuts_kwargs to be a dict, got {type(est.default_nuts_kwargs)}"
+    )
+
+
+def test_jax_numpyro_not_available(monkeypatch, fitted_multidim_mmm):
+    """Ensure estimate_model_eval_time raises when JAX is unavailable."""
+    # Simulate that JAX (and pymc's jax helper) are not importable
+    monkeypatch.delitem(sys.modules, "jax", raising=False)
+    monkeypatch.delitem(sys.modules, "pymc.sampling.jax", raising=False)
+
+    real_import = _builtins.__import__
+
+    def _blocked_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "jax" or name.startswith("pymc.sampling.jax"):
+            raise ImportError("blocked for test")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(_builtins, "__import__", _blocked_import)
+
+    with pytest.raises(
+        RuntimeError, match="JAX backend is required for ModelSamplerEstimator"
+    ):
+        est = ModelSamplerEstimator(
+            tune=50, draws=50, chains=1, sequential_chains=1, seed=123
+        )
+        est.estimate_model_eval_time(fitted_multidim_mmm.model)
 
 
 def test_merge_models_prefix_and_merge_on_channel_data(
