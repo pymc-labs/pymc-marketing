@@ -786,3 +786,24 @@ def test_budget_allocation_with_dims(mock_suite_with_constant_data):
         dims={"country": "A"},
     )
     assert isinstance(fig, Figure)
+
+
+def test_budget_allocation_with_dims_list(mock_suite_with_constant_data):
+    """Test that passing a list to dims creates a subplot for each value."""
+    samples = mock_suite_with_constant_data.idata.posterior.copy()
+    # Add a fake 'allocation' variable for testing
+    samples["allocation"] = (
+        samples["channel_contribution"].dims,
+        np.abs(samples["channel_contribution"].values),
+    )
+    plot_suite = mock_suite_with_constant_data
+    fig, ax = plot_suite.budget_allocation(
+        samples=samples,
+        dims={"country": ["A", "B"]},
+    )
+    assert isinstance(fig, Figure)
+    assert isinstance(ax, np.ndarray)
+    # Should create one subplot per value in the list (here: 2 countries)
+    assert ax.shape[0] == 2
+    for i, country in enumerate(["A", "B"]):
+        assert country in ax[i, 0].get_title()
