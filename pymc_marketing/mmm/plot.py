@@ -587,12 +587,16 @@ class MMMPlotSuite:
         return fig, axes
 
     def saturation_scatterplot(
-        self, original_scale: bool = False, **kwargs
+        self,
+        original_scale: bool = False,
+        dims: dict[str, str | int | list] | None = None,
+        **kwargs,
     ) -> tuple[Figure, NDArray[Axes]]:
         """Plot the saturation curves for each channel.
 
-        Creates one subplot per combination of non-(date/channel) dimensions
-        and places all channels on the same subplot.
+        Creates a grid of subplots for each combination of channel and non-(date/channel) dimensions.
+        Optionally, subset by dims (single values or lists).
+        Each channel will have a consistent color across all subplots.
         """
         if not hasattr(self.idata, "constant_data"):
             raise ValueError(
@@ -604,7 +608,17 @@ class MMMPlotSuite:
         cdims = self.idata.constant_data.channel_data.dims
         additional_dims = [dim for dim in cdims if dim not in ("date", "channel")]
 
-        # Get all possible combinations
+        # Validate dims and remove filtered dims from additional_dims
+        if dims:
+            self._validate_dims(dims, list(self.idata.constant_data.channel_data.dims))
+            additional_dims = [d for d in additional_dims if d not in dims]
+        else:
+            self._validate_dims({}, list(self.idata.constant_data.channel_data.dims))
+
+        # Build all combinations for dims with lists
+        dims_keys, dims_combos = self._dim_list_handler(dims)
+
+        # Build all combinations for remaining dims
         if additional_dims:
             additional_coords = [
                 self.idata.constant_data.coords[d].values for d in additional_dims
@@ -613,7 +627,34 @@ class MMMPlotSuite:
         else:
             additional_combinations = [()]
 
-        # Channel in original_scale if selected
+        channels = self.idata.constant_data.coords["channel"].values
+        n_channels = len(channels)
+        n_addl = len(additional_combinations)
+        n_dims = len(dims_combos)
+
+        # For most use cases, n_dims will be 1, so grid is channels x additional_combinations
+        # If dims_combos > 1, treat as extra axis (rare, but possible)
+        nrows = n_channels
+        ncols = n_addl * n_dims
+        total_combos = list(
+            itertools.product(channels, dims_combos, additional_combinations)
+        )
+        n_subplots = len(total_combos)
+
+        # Assign a color to each channel
+        channel_colors = {ch: f"C{i}" for i, ch in enumerate(channels)}
+
+        # Prepare subplots as a grid
+        fig, axes = plt.subplots(
+            nrows=nrows,
+            ncols=ncols,
+            figsize=(
+                kwargs.get("width_per_col", 8) * ncols,
+                kwargs.get("height_per_row", 4) * nrows,
+            ),
+            squeeze=False,
+        )
+
         channel_contribution = (
             "channel_contribution_original_scale"
             if original_scale
@@ -622,60 +663,80 @@ class MMMPlotSuite:
 
         if original_scale and not hasattr(self.idata.posterior, channel_contribution):
             raise ValueError(
-                f"""No posterior.{channel_contribution} data found in 'self.idata'.
-                Add a original scale deterministic:
-                    mmm.add_original_scale_contribution_variable(
-                        var=[
-                            "channel_contribution",
-                            ...
-                        ]
-                    )
+                f"""No posterior.{channel_contribution} data found in 'self.idata'. \n
+                Add a original scale deterministic:\n
+                mmm.add_original_scale_contribution_variable(\n
+                var=[\n
+                \"channel_contribution\",\n
+                ...\n
+                ]\n
+                )\n
                 """
             )
 
-        # Rows = channels, Columns = additional_combinations
-        channels = self.idata.constant_data.coords["channel"].values
-        n_rows = len(channels)
-        n_columns = len(additional_combinations)
+        for _idx, (channel, dims_combo, addl_combo) in enumerate(total_combos):
+            # Compute subplot position
+            row = list(channels).index(channel)
+            # If dims_combos > 1, treat as extra axis (columns: addl * dims)
+            if n_dims > 1:
+                col = list(additional_combinations).index(addl_combo) * n_dims + list(
+                    dims_combos
+                ).index(dims_combo)
+            else:
+                col = list(additional_combinations).index(addl_combo)
+            ax = axes[row][col]
 
-        # Create subplots
-        fig, axes = self._init_subplots(n_subplots=n_rows, ncols=n_columns, **kwargs)
+            # Build indexers for dims and additional_dims
+            indexers = (
+                dict(zip(additional_dims, addl_combo, strict=False))
+                if additional_dims
+                else {}
+            )
+            if dims:
+                for i, k in enumerate(dims_keys):
+                    indexers[k] = dims_combo[i]
+                for k, v in (dims or {}).items():
+                    if k not in dims_keys:
+                        indexers[k] = v
+            indexers["channel"] = channel
 
-        # Loop channels & combos
-        for row_idx, channel in enumerate(channels):
-            for col_idx, combo in enumerate(additional_combinations):
-                ax = axes[row_idx][col_idx] if n_columns > 1 else axes[row_idx][0]
-                indexers = dict(zip(additional_dims, combo, strict=False))
-                indexers["channel"] = channel
+            # Select X data (constant_data)
+            x_data = self.idata.constant_data.channel_data.sel(**indexers)
+            # Select Y data (posterior contributions) and scale if needed
+            y_data = self.idata.posterior[channel_contribution].sel(**indexers)
+            y_data = y_data.mean(dim=[d for d in y_data.dims if d in ("chain", "draw")])
+            x_data = x_data.broadcast_like(y_data)
+            y_data = y_data.broadcast_like(x_data)
+            ax.scatter(
+                x_data.values.flatten(),
+                y_data.values.flatten(),
+                alpha=0.8,
+                color=channel_colors[channel],
+                label=str(channel),
+            )
+            # Build subplot title
+            title_dims = (
+                ["channel"] + (list(dims.keys()) if dims else []) + additional_dims
+            )
+            title_combo = (
+                channel,
+                *[indexers[k] for k in title_dims if k != "channel"],
+            )
+            title = self._build_subplot_title(
+                dims=title_dims,
+                combo=title_combo,
+                fallback_title="Channel Saturation Curve",
+            )
+            ax.set_title(title)
+            ax.set_xlabel("Channel Data (X)")
+            ax.set_ylabel("Channel Contributions (Y)")
+            ax.legend(loc="best")
 
-                # Select X data (constant_data)
-                x_data = self.idata.constant_data.channel_data.sel(**indexers)
-                # Select Y data (posterior contributions) and scale if needed
-                y_data = self.idata.posterior[channel_contribution].sel(**indexers)
-
-                # Flatten chain & draw by taking mean (or sum, up to design)
-                y_data = y_data.mean(dim=["chain", "draw"])
-
-                # Ensure X and Y have matching date coords
-                x_data = x_data.broadcast_like(y_data)
-                y_data = y_data.broadcast_like(x_data)
-
-                # Scatter
-                ax.scatter(
-                    x_data.values.flatten(),
-                    y_data.values.flatten(),
-                    alpha=0.8,
-                    color=f"C{row_idx}",
-                )
-
-                title = self._build_subplot_title(
-                    dims=["channel", *additional_dims],
-                    combo=(channel, *combo),
-                    fallback_title="Channel Saturation Curves",
-                )
-                ax.set_title(title)
-                ax.set_xlabel("Channel Data (X)")
-                ax.set_ylabel("Channel Contributions (Y)")
+        # Hide any unused axes (if grid is larger than needed)
+        for i in range(nrows):
+            for j in range(ncols):
+                if i * ncols + j >= n_subplots:
+                    axes[i][j].set_visible(False)
 
         return fig, axes
 
