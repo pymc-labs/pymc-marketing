@@ -277,7 +277,7 @@ class MaskedPrior:
         import xarray as xr
         import pymc as pm
         from pymc_extras.prior import Prior
-        from pymc_marketing.pytensor_utils import MaskedPrior
+        from pymc_marketing.special_priors import MaskedPrior
 
         coords = {"country": ["Venezuela", "Colombia"]}
         mask = xr.DataArray(
@@ -298,7 +298,7 @@ class MaskedPrior:
         import xarray as xr
         import pymc as pm
         from pymc_extras.prior import Prior
-        from pymc_marketing.pytensor_utils import MaskedPrior
+        from pymc_marketing.special_priors import MaskedPrior
 
         coords = {"country": ["Venezuela", "Colombia"]}
         mask = xr.DataArray(
@@ -324,7 +324,7 @@ class MaskedPrior:
         import xarray as xr
         import pymc as pm
         from pymc_extras.prior import Prior
-        from pymc_marketing.pytensor_utils import MaskedPrior
+        from pymc_marketing.special_priors import MaskedPrior
 
         coords = {"country": ["Venezuela", "Colombia"]}
         mask = xr.DataArray(
@@ -342,7 +342,7 @@ class MaskedPrior:
     .. code-block:: python
 
         from pymc_marketing.mmm import LogisticSaturation
-        from pymc_marketing.pytensor_utils import MaskedPrior
+        from pymc_marketing.special_priors import MaskedPrior
 
         coords = {
             "country": ["Colombia", "Venezuela"],
@@ -393,7 +393,7 @@ class MaskedPrior:
         import xarray as xr
         import pymc as pm
         from pymc_extras.prior import Prior
-        from pymc_marketing.pytensor_utils import MaskedPrior
+        from pymc_marketing.special_priors import MaskedPrior
 
         coords = {
             "date": np.array(["2021-01-01", "2021-01-02"], dtype="datetime64[D]"),
