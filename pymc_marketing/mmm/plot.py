@@ -346,6 +346,27 @@ class MMMPlotSuite:
                             f"Value '{val}' not found in dimension '{key}'."
                         )
 
+    def _dim_list_handler(
+        self, dims: dict[str, str | int | list] | None
+    ) -> tuple[list[str], list[tuple]]:
+        """Extract keys, values, and all combinations for list-valued dims."""
+        dims_lists = {
+            k: v
+            for k, v in (dims or {}).items()
+            if isinstance(v, (list, tuple, np.ndarray))
+        }
+        if dims_lists:
+            dims_keys = list(dims_lists.keys())
+            dims_values = [
+                v if isinstance(v, (list, tuple, np.ndarray)) else [v]
+                for v in dims_lists.values()
+            ]
+            dims_combos = list(itertools.product(*dims_values))
+        else:
+            dims_keys = []
+            dims_combos = [()]
+        return dims_keys, dims_combos
+
     # ------------------------------------------------------------------------
     #                          Main Plotting Methods
     # ------------------------------------------------------------------------
