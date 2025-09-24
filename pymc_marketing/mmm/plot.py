@@ -534,21 +534,7 @@ class MMMPlotSuite:
             dim_combinations = [()]
 
         # If dims contains lists, build all combinations for those as well
-        dims_lists = {
-            k: v
-            for k, v in (dims or {}).items()
-            if isinstance(v, (list, tuple, np.ndarray))
-        }
-        if dims_lists:
-            dims_keys = list(dims_lists.keys())
-            dims_values = [
-                v if isinstance(v, (list, tuple, np.ndarray)) else [v]
-                for v in dims_lists.values()
-            ]
-            dims_combos = list(itertools.product(*dims_values))
-        else:
-            dims_keys = []
-            dims_combos = [()]
+        dims_keys, dims_combos = self._dim_list_handler(dims)
 
         # Prepare subplots: one for each combo of dims_lists and additional_dims
         total_combos = list(itertools.product(dims_combos, dim_combinations))
@@ -1057,21 +1043,7 @@ class MMMPlotSuite:
             self._validate_dims({}, all_dims)
 
         # Handle list-valued dims: build all combinations
-        dims_lists = {
-            k: v
-            for k, v in (dims or {}).items()
-            if isinstance(v, (list, tuple, np.ndarray))
-        }
-        if dims_lists:
-            dims_keys = list(dims_lists.keys())
-            dims_values = [
-                v if isinstance(v, (list, tuple, np.ndarray)) else [v]
-                for v in dims_lists.values()
-            ]
-            dims_combos = list(itertools.product(*dims_values))
-        else:
-            dims_keys = []
-            dims_combos = [()]
+        dims_keys, dims_combos = self._dim_list_handler(dims)
 
         # After filtering with dims, only use extra dims not in dims and not ignored for subplotting
         ignored_dims = {"channel", "date", "sample", "chain", "draw"}
