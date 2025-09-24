@@ -321,6 +321,19 @@ class MMMPlotSuite:
         ax.fill_between(dates, hdi[var][..., 0], hdi[var][..., 1], alpha=0.2)
         return ax
 
+    def _validate_dims(
+        self,
+        dims: dict[str, str | int],
+        all_dims: list[str],
+    ) -> None:
+        """Validate that provided dims exist in the model's dimensions."""
+        if dims:
+            for key, val in dims.items():
+                if key not in all_dims:
+                    raise ValueError(f"Dimension '{key}' not found in data dimensions.")
+                if val not in self.idata.posterior.coords[key].values:
+                    raise ValueError(f"Value '{val}' not found in dimension '{key}'.")
+
     # ------------------------------------------------------------------------
     #                          Main Plotting Methods
     # ------------------------------------------------------------------------
@@ -470,11 +483,7 @@ class MMMPlotSuite:
 
         # Apply user-specified filters (`dims`)
         if dims:
-            for key, val in dims.items():
-                if key not in all_dims:
-                    raise ValueError(f"Dimension '{key}' not found in posterior dims.")
-                if val not in self.idata.posterior.coords[key].values:
-                    raise ValueError(f"Value '{val}' not found in dimension '{key}'.")
+            self._validate_dims(dims=dims, all_dims=all_dims)
             # Remove filtered dims from the combinations
             additional_dims = [d for d in additional_dims if d not in dims]
 
@@ -983,11 +992,7 @@ class MMMPlotSuite:
 
         # Apply user-specified filters (`dims`)
         if dims:
-            for key, val in dims.items():
-                if key not in samples[channel_contrib_var].dims:
-                    raise ValueError(f"Dimension '{key}' not found in samples dims.")
-                if val not in samples.coords[key].values:
-                    raise ValueError(f"Value '{val}' not found in dimension '{key}'.")
+            self._validate_dims(dims=dims, all_dims=list(samples.dims))
             # Apply selection to both channel_contrib_var and allocation
             channel_contrib_data = samples[channel_contrib_var].sel(**dims)
             allocation_data = samples.allocation.sel(
