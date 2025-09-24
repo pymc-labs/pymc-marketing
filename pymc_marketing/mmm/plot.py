@@ -969,7 +969,7 @@ class MMMPlotSuite:
         ax: plt.Axes | None = None,
         original_scale: bool = True,
         dims: dict[str, str | int | list] | None = None,
-    ) -> tuple[Figure, plt.Axes]:
+    ) -> tuple[Figure, plt.Axes] | tuple[Figure, np.ndarray]:
         """Plot the budget allocation and channel contributions.
 
         Creates a bar chart comparing allocated spend and channel contributions
@@ -992,9 +992,9 @@ class MMMPlotSuite:
         original_scale : bool, optional
             A boolean flag to determine if the values should be plotted in their
             original scale. Default is True.
-        dims : dict[str, str | int], optional
-            Dimension filters to apply. Example: {"country": "US", "user_type": "new"}.
-            If provided, only the selected slice will be plotted.
+        dims : dict[str, str | int | list], optional
+            Dimension filters to apply. Example: {"country": ["US", "UK"], "user_type": "new"}.
+            If provided, only the selected slice(s) will be plotted.
 
         Returns
         -------
@@ -1028,57 +1028,100 @@ class MMMPlotSuite:
             if "channel_contribution" in var_name
         )
 
-        # Apply user-specified filters (`dims`)
+        all_dims = list(samples.dims)
+        # Validate dims
         if dims:
-            self._validate_dims(dims=dims, all_dims=list(samples.dims))
-            # Apply selection to both channel_contrib_var and allocation
-            channel_contrib_data = samples[channel_contrib_var].sel(**dims)
-            allocation_data = samples.allocation.sel(
-                **{k: v for k, v in dims.items() if k in samples.allocation.dims}
-            )
+            self._validate_dims(dims=dims, all_dims=all_dims)
         else:
-            self._validate_dims({}, list(samples.dims))
-            channel_contrib_data = samples[channel_contrib_var]
+            self._validate_dims({}, all_dims)
+
+        # Handle list-valued dims: build all combinations
+        dims_lists = {
+            k: v
+            for k, v in (dims or {}).items()
+            if isinstance(v, (list, tuple, np.ndarray))
+        }
+        if dims_lists:
+            dims_keys = list(dims_lists.keys())
+            dims_values = [
+                v if isinstance(v, (list, tuple, np.ndarray)) else [v]
+                for v in dims_lists.values()
+            ]
+            dims_combos = list(itertools.product(*dims_values))
+        else:
+            dims_keys = []
+            dims_combos = [()]
+
+        # After filtering with dims, only use extra dims not in dims and not ignored for subplotting
+        ignored_dims = {"channel", "date", "sample", "chain", "draw"}
+        channel_contribution_dims = list(samples[channel_contrib_var].dims)
+        extra_dims = [
+            d
+            for d in channel_contribution_dims
+            if d not in ignored_dims and d not in (dims or {})
+        ]
+
+        # Identify combos for remaining dims
+        if extra_dims:
+            extra_coords = [samples.coords[dim].values for dim in extra_dims]
+            extra_combos = list(itertools.product(*extra_coords))
+        else:
+            extra_combos = [()]
+
+        # Prepare subplots: one for each combo of dims_lists and extra_dims
+        total_combos = list(itertools.product(dims_combos, extra_combos))
+        n_subplots = len(total_combos)
+        if n_subplots == 1 and ax is not None:
+            axes = np.array([[ax]])
+            fig = ax.get_figure()
+        else:
+            fig, axes = self._init_subplots(
+                n_subplots=n_subplots,
+                ncols=1,
+                width_per_col=figsize[0],
+                height_per_row=figsize[1],
+            )
+
+        for row_idx, (dims_combo, extra_combo) in enumerate(total_combos):
+            ax_ = axes[row_idx][0]
+            # Build indexers for dims and extra_dims
+            indexers = (
+                dict(zip(extra_dims, extra_combo, strict=False)) if extra_dims else {}
+            )
+            if dims:
+                # For dims with lists, use the current value from dims_combo
+                for i, k in enumerate(dims_keys):
+                    indexers[k] = dims_combo[i]
+                # For dims with single values, use as is
+                for k, v in (dims or {}).items():
+                    if k not in dims_keys:
+                        indexers[k] = v
+
+            # Select channel contributions for this subplot
+            channel_contrib_data = samples[channel_contrib_var].sel(**indexers)
             allocation_data = samples.allocation
+            # Only select dims that exist in allocation
+            allocation_indexers = {
+                k: v for k, v in indexers.items() if k in allocation_data.dims
+            }
+            allocation_data = allocation_data.sel(**allocation_indexers)
 
-        # Identify extra dimensions beyond 'channel'
-        channel_contribution_dims = list(channel_contrib_data.dims)
-        allocation_dims = list(allocation_data.dims)
-
-        # Always remove 'date' and 'sample' from consideration as these are always averaged over
-        if "date" in channel_contribution_dims:
-            channel_contribution_dims.remove("date")
-        if "sample" in channel_contribution_dims:
-            channel_contribution_dims.remove("sample")
-
-        extra_dims = [dim for dim in channel_contribution_dims if dim != "channel"]
-
-        # If no extra dimensions or using provided axis, create a single plot
-        if not extra_dims or ax is not None:
-            if ax is None:
-                fig, ax = plt.subplots(figsize=figsize)
-            else:
-                fig = ax.get_figure()
-
-            # Average over all dimensions except channel
+            # Average over all dims except channel (and those used for this subplot)
+            used_dims = set(indexers.keys()) | {"channel"}
             reduction_dims = [
-                dim for dim in channel_contrib_data.dims if dim != "channel"
+                dim for dim in channel_contrib_data.dims if dim not in used_dims
             ]
             channel_contribution = channel_contrib_data.mean(
                 dim=reduction_dims
             ).to_numpy()
-
-            # Ensure channel_contribution is 1D
             if channel_contribution.ndim > 1:
                 channel_contribution = channel_contribution.flatten()
-
-            # Apply scale factor if in original scale
             if original_scale and scale_factor is not None:
                 channel_contribution *= scale_factor
 
-            # Get allocated spend
+            allocation_used_dims = set(allocation_indexers.keys()) | {"channel"}
             allocation_reduction_dims = [
-                dim for dim in allocation_dims if dim != "channel"
+                dim for dim in allocation_data.dims if dim not in allocation_used_dims
             ]
             if allocation_reduction_dims:
                 allocated_spend = allocation_data.mean(
@@ -1086,139 +1129,28 @@ class MMMPlotSuite:
                 ).to_numpy()
             else:
                 allocated_spend = allocation_data.to_numpy()
-
-            # Ensure allocated_spend is 1D
             if allocated_spend.ndim > 1:
                 allocated_spend = allocated_spend.flatten()
 
-            # Plot single chart
             self._plot_budget_allocation_bars(
-                ax,
+                ax_,
                 samples.coords["channel"].values,
                 allocated_spend,
                 channel_contribution,
             )
 
-            return fig, ax
-
-        # For multiple dimensions, create a grid of subplots
-        # Determine layout based on number of extra dimensions
-        if len(extra_dims) == 1:
-            # One extra dimension: use for rows
-            dim_values = [channel_contrib_data.coords[extra_dims[0]].values]
-            nrows = len(dim_values[0])
-            ncols = 1
-            subplot_dims = [extra_dims[0], None]
-        elif len(extra_dims) == 2:
-            # Two extra dimensions: one for rows, one for columns
-            dim_values = [
-                channel_contrib_data.coords[extra_dims[0]].values,
-                channel_contrib_data.coords[extra_dims[1]].values,
-            ]
-            nrows = len(dim_values[0])
-            ncols = len(dim_values[1])
-            subplot_dims = extra_dims
-        else:
-            # Three or more: use first two for rows/columns, average over the rest
-            dim_values = [
-                channel_contrib_data.coords[extra_dims[0]].values,
-                channel_contrib_data.coords[extra_dims[1]].values,
-            ]
-            nrows = len(dim_values[0])
-            ncols = len(dim_values[1])
-            subplot_dims = [extra_dims[0], extra_dims[1]]
-
-        # Calculate figure size based on number of subplots
-        subplot_figsize = (figsize[0] * max(1, ncols), figsize[1] * max(1, nrows))
-        fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=subplot_figsize)
-
-        # Make axes indexable even for 1x1 grid
-        if nrows == 1 and ncols == 1:
-            axes = np.array([[axes]])
-        elif nrows == 1:
-            axes = axes.reshape(1, -1)
-        elif ncols == 1:
-            axes = axes.reshape(-1, 1)
-
-        # Create a subplot for each combination of dimension values
-        for i, row_val in enumerate(dim_values[0]):
-            for j, col_val in enumerate(
-                dim_values[1] if len(dim_values) > 1 else [None]
-            ):
-                ax = axes[i, j]
-
-                # Select data for this subplot
-                selection = {subplot_dims[0]: row_val}
-                if col_val is not None:
-                    selection[subplot_dims[1]] = col_val
-
-                # Select channel contributions for this subplot
-                subset = channel_contrib_data.sel(**selection)
-
-                # Average over remaining dimensions
-                remaining_dims = [
-                    dim
-                    for dim in subset.dims
-                    if dim != "channel" and dim not in selection
-                ]
-                channel_contribution = subset.mean(dim=remaining_dims).to_numpy()
-
-                # Ensure 1D
-                if channel_contribution.ndim > 1:
-                    channel_contribution = channel_contribution.flatten()
-
-                # Apply scale factor if needed
-                if original_scale and scale_factor is not None:
-                    channel_contribution *= scale_factor
-
-                # Select allocation data for this subplot
-                if all(dim in allocation_dims for dim in selection):
-                    # Only select dimensions that exist in allocation
-                    allocation_selection = {
-                        k: v for k, v in selection.items() if k in allocation_dims
-                    }
-                    allocation_subset = allocation_data.sel(**allocation_selection)
-
-                    # Average over remaining dimensions
-                    allocation_remaining_dims = [
-                        dim for dim in allocation_subset.dims if dim != "channel"
-                    ]
-                    allocated_spend = allocation_subset.mean(
-                        dim=allocation_remaining_dims
-                    ).to_numpy()
-                else:
-                    # If dimensions don't match, use the overall average
-                    allocation_reduction_dims = [
-                        dim for dim in allocation_dims if dim != "channel"
-                    ]
-                    allocated_spend = allocation_data.mean(
-                        dim=allocation_reduction_dims
-                    ).to_numpy()
-
-                # Ensure 1D
-                if allocated_spend.ndim > 1:
-                    allocated_spend = allocated_spend.flatten()
-
-                # Plot on this subplot
-                self._plot_budget_allocation_bars(
-                    ax,
-                    samples.coords["channel"].values,
-                    allocated_spend,
-                    channel_contribution,
-                )
-
-                # Add subplot title based on dimension values
-                title_parts = []
-                if subplot_dims[0] is not None:
-                    title_parts.append(f"{subplot_dims[0]}={row_val}")
-                if subplot_dims[1] is not None:
-                    title_parts.append(f"{subplot_dims[1]}={col_val}")
-
-                if title_parts:
-                    ax.set_title(", ".join(title_parts))
+            # Build subplot title
+            title_dims = (list(dims.keys()) if dims else []) + extra_dims
+            title_combo = tuple(indexers[k] for k in title_dims)
+            title = self._build_subplot_title(
+                dims=title_dims,
+                combo=title_combo,
+                fallback_title="Budget Allocation",
+            )
+            ax_.set_title(title)
 
         fig.tight_layout()
-        return fig, axes
+        return fig, axes if n_subplots > 1 else (fig, axes[0][0])
 
     def _plot_budget_allocation_bars(
         self,
