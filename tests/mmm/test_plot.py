@@ -662,6 +662,71 @@ class TestSaturationCurves:
             )
 
 
+class TestSaturationCurvesDims:
+    def test_saturation_curves_with_dim(
+        self, mock_suite_with_constant_data, mock_saturation_curve
+    ):
+        """Test saturation_curves with a single value in dims."""
+        fig, axes = mock_suite_with_constant_data.saturation_curves(
+            curve=mock_saturation_curve, n_samples=3, dims={"country": "A"}
+        )
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        # Should create one column (n_channels, 1)
+        assert axes.shape[1] == 1
+        for row in range(axes.shape[0]):
+            assert "country=A" in axes[row, 0].get_title()
+
+    def test_saturation_curves_with_dims_list(
+        self, mock_suite_with_constant_data, mock_saturation_curve
+    ):
+        """Test saturation_curves with a list in dims (should create subplots for each value)."""
+        fig, axes = mock_suite_with_constant_data.saturation_curves(
+            curve=mock_saturation_curve, n_samples=3, dims={"country": ["A", "B"]}
+        )
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        # Should create two columns (n_channels, 2)
+        assert axes.shape[1] == 2
+        for col, country in enumerate(["A", "B"]):
+            for row in range(axes.shape[0]):
+                assert f"country={country}" in axes[row, col].get_title()
+
+    def test_saturation_curves_with_multiple_dims_lists(
+        self, mock_suite_with_constant_data, mock_saturation_curve
+    ):
+        """Test saturation_curves with multiple lists in dims (should create subplots for each combination)."""
+        # Add a fake 'region' dim to the mock constant_data for this test if not present
+        idata = mock_suite_with_constant_data.idata
+        if "region" not in idata.constant_data.channel_data.dims:
+            # Expand channel_data and posterior to add region
+            new_regions = ["X", "Y"]
+            channel_data = idata.constant_data.channel_data.expand_dims(
+                region=new_regions
+            )
+            idata.constant_data["channel_data"] = channel_data
+            for var in ["channel_contribution", "channel_contribution_original_scale"]:
+                if var in idata.posterior:
+                    idata.posterior[var] = idata.posterior[var].expand_dims(
+                        region=new_regions
+                    )
+        fig, axes = mock_suite_with_constant_data.saturation_curves(
+            curve=mock_saturation_curve,
+            n_samples=3,
+            dims={"country": ["A", "B"], "region": ["X", "Y"]},
+        )
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        # Should create 4 columns (n_channels, 4)
+        assert axes.shape[1] == 4
+        combos = [("A", "X"), ("A", "Y"), ("B", "X"), ("B", "Y")]
+        for col, (country, region) in enumerate(combos):
+            for row in range(axes.shape[0]):
+                title = axes[row, col].get_title()
+                assert f"country={country}" in title
+                assert f"region={region}" in title
+
+
 def test_saturation_curves_scatter_deprecation_warning(mock_suite_with_constant_data):
     """Test that saturation_curves_scatter shows deprecation warning."""
     with pytest.warns(
