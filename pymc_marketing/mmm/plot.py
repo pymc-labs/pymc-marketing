@@ -750,6 +750,7 @@ class MMMPlotSuite:
         colors: Iterable[str] | None = None,
         subplot_kwargs: dict | None = None,
         rc_params: dict | None = None,
+        dims: dict[str, str | int | list] | None = None,
         **plot_kwargs,
     ) -> tuple[plt.Figure, np.ndarray]:
         """
@@ -779,6 +780,9 @@ class MMMPlotSuite:
             Temporary `matplotlib.rcParams` for this plot.
             Example keys: `"xtick.labelsize"`, `"ytick.labelsize"`,
             `"axes.labelsize"`, `"axes.titlesize"`.
+        dims : dict[str, str | int | list], optional
+            Dimension filters to apply. Example: {"country": ["US", "UK"], "region": "X"}.
+            If provided, only the selected slice(s) will be plotted.
         **plot_kwargs
             Any other kwargs forwarded to `plot_curve`
             (for instance `same_axes=True`, `legend=True`, etc.).
@@ -807,14 +811,14 @@ class MMMPlotSuite:
 
         if original_scale and not hasattr(self.idata.posterior, contrib_var):
             raise ValueError(
-                f"""No posterior.{contrib_var} data found in 'self.idata'.
-                Add a original scale deterministic:
-                    mmm.add_original_scale_contribution_variable(
-                        var=[
-                            "channel_contribution",
-                            ...
-                        ]
-                    )
+                f"""No posterior.{contrib_var} data found in 'self.idata'.\n"
+                "Add a original scale deterministic:\n"
+                "    mmm.add_original_scale_contribution_variable(\n"
+                "        var=[\n"
+                "            'channel_contribution',\n"
+                "            ...\n"
+                "        ]\n"
+                "    )\n"
                 """
             )
         curve_data = (
@@ -822,19 +826,36 @@ class MMMPlotSuite:
         )
         curve_data = curve_data.rename("saturation_curve")
 
-        # — 1. figure out grid shape based on scatter data dimensions —
+        # — 1. figure out grid shape based on scatter data dimensions / identify dims and combos
         cdims = self.idata.constant_data.channel_data.dims
+        all_dims = list(cdims)
         additional_dims = [d for d in cdims if d not in ("date", "channel")]
+        # Validate dims and remove filtered dims from additional_dims
+        if dims:
+            self._validate_dims(dims, all_dims)
+            additional_dims = [d for d in additional_dims if d not in dims]
+        else:
+            self._validate_dims({}, all_dims)
+        # Build all combinations for dims with lists
+        dims_keys, dims_combos = self._dim_list_handler(dims)
+        # Build all combinations for remaining dims
         if additional_dims:
             additional_coords = [
                 self.idata.constant_data.coords[d].values for d in additional_dims
             ]
-            combos = list(itertools.product(*additional_coords))
+            additional_combinations = list(itertools.product(*additional_coords))
         else:
-            # No extra dims: single combination
-            combos = [()]
+            additional_combinations = [()]
         channels = self.idata.constant_data.coords["channel"].values
-        n_rows, n_cols = len(channels), len(combos)
+        n_channels = len(channels)
+        n_addl = len(additional_combinations)
+        n_dims = len(dims_combos)
+        nrows = n_channels
+        ncols = n_addl * n_dims
+        total_combos = list(
+            itertools.product(channels, dims_combos, additional_combinations)
+        )
+        n_subplots = len(total_combos)
 
         # — 2. merge subplot_kwargs —
         user_subplot = subplot_kwargs or {}
@@ -843,26 +864,19 @@ class MMMPlotSuite:
         if "ncols" in user_subplot:
             # User specified ncols, calculate nrows
             ncols = user_subplot["ncols"]
-            nrows = int(np.ceil((n_rows * n_cols) / ncols))
+            nrows = int(np.ceil(n_subplots / ncols))
             user_subplot.pop("ncols")  # Remove to avoid conflict
         elif "nrows" in user_subplot:
             # User specified nrows, calculate ncols
             nrows = user_subplot["nrows"]
-            ncols = int(np.ceil((n_rows * n_cols) / nrows))
+            ncols = int(np.ceil(n_subplots / nrows))
             user_subplot.pop("nrows")  # Remove to avoid conflict
-        else:
-            # Use our calculated grid
-            nrows, ncols = n_rows, n_cols
-
-        # Set default figsize based on final grid dimensions
         default_subplot = {"figsize": (ncols * 4, nrows * 3)}
         subkw = {**default_subplot, **user_subplot}
-
         # — 3. create subplots ourselves —
         rc_params = rc_params or {}
         with plt.rc_context(rc_params):
             fig, axes = plt.subplots(nrows=nrows, ncols=ncols, **subkw)
-
         # ensure a 2D array
         if nrows == 1 and ncols == 1:
             axes = np.array([[axes]])
@@ -870,124 +884,114 @@ class MMMPlotSuite:
             axes = axes.reshape(1, -1)
         elif ncols == 1:
             axes = axes.reshape(-1, 1)
-
         # Flatten axes for easier iteration
         axes_flat = axes.flatten()
-
-        # — 4. prepare random number generator —
-        if random_seed is None:
-            random_seed = np.random.default_rng()
-
-        # — 5. prepare hdi_probs as list —
-        if hdi_probs is not None and not isinstance(hdi_probs, list):
-            hdi_probs = [hdi_probs]
-
-        # — 6. plot curves and scatter for each subplot —
-        _x_data = (
-            self.idata.constant_data.channel_data
-            if original_scale
-            else (
-                self.idata.constant_data.channel_data
-                / self.idata.constant_data.channel_scale
-            )
-        )
-
-        # Generate colors for all channels if not provided
         if colors is None:
-            colors = [f"C{i}" for i in range(n_rows)]
-
-        # Create a mapping of subplot index for iteration
+            colors = [f"C{i}" for i in range(n_channels)]
+        elif not isinstance(colors, list):
+            colors = list(colors)
         subplot_idx = 0
-        for _i, (ch, color) in enumerate(zip(channels, colors, strict=False)):
-            for _j, combo in enumerate(combos):
-                if subplot_idx >= len(axes_flat):
-                    break  # No more axes available
-                ax = axes_flat[subplot_idx]
-                subplot_idx += 1
-
-                # Build indexers for this subplot
-                idx = dict(zip(additional_dims, combo, strict=False))
-                idx["channel"] = ch
-
-                # Select and broadcast curve data for this channel
-                # The curve might not have all dimensions, so we only select what exists
-                curve_idx = {}
-                for dim, val in idx.items():
-                    if dim in curve_data.dims:
-                        curve_idx[dim] = val
-
-                subplot_curve = curve_data.sel(**curve_idx)
-
-                # Scale X coordinate if in original scale
-                if original_scale:
-                    # Get the channel scale for this specific subplot
-                    channel_scale = self.idata.constant_data.channel_scale.sel(**idx)
-
-                    # The X coordinate is in scaled space (0 to 1 typically)
-                    # We need to multiply by channel_scale to get original scale
-                    x_original = subplot_curve.coords["x"] * channel_scale
-
-                    # Create a new DataArray with scaled X coordinate
-                    subplot_curve = subplot_curve.assign_coords(x=x_original)
-
-                # Plot sample curves
-                if n_samples > 0:
-                    plot_samples(
+        for _idx, (ch, dims_combo, addl_combo) in enumerate(total_combos):
+            if subplot_idx >= len(axes_flat):
+                break
+            ax = axes_flat[subplot_idx]
+            subplot_idx += 1
+            # Build indexers for dims and additional_dims
+            indexers = (
+                dict(zip(additional_dims, addl_combo, strict=False))
+                if additional_dims
+                else {}
+            )
+            if dims:
+                for i, k in enumerate(dims_keys):
+                    indexers[k] = dims_combo[i]
+                for k, v in (dims or {}).items():
+                    if k not in dims_keys:
+                        indexers[k] = v
+            indexers["channel"] = ch
+            # Select and broadcast curve data for this channel
+            curve_idx = {
+                dim: val for dim, val in indexers.items() if dim in curve_data.dims
+            }
+            subplot_curve = curve_data.sel(**curve_idx)
+            if original_scale:
+                valid_idx = {
+                    k: v
+                    for k, v in indexers.items()
+                    if k in self.idata.constant_data.channel_scale.dims
+                }
+                channel_scale = self.idata.constant_data.channel_scale.sel(**valid_idx)
+                x_original = subplot_curve.coords["x"] * channel_scale
+                subplot_curve = subplot_curve.assign_coords(x=x_original)
+            if n_samples > 0:
+                plot_samples(
+                    subplot_curve,
+                    non_grid_names="x",
+                    n=n_samples,
+                    rng=random_seed,
+                    axes=np.array([[ax]]),
+                    colors=[colors[list(channels).index(ch)]],
+                    same_axes=False,
+                    legend=False,
+                    **plot_kwargs,
+                )
+            if hdi_probs is not None:
+                # Robustly handle hdi_probs as float, list, tuple, or np.ndarray
+                if isinstance(hdi_probs, (float, int)):
+                    hdi_probs_iter = [hdi_probs]
+                elif isinstance(hdi_probs, (list, tuple, np.ndarray)):
+                    hdi_probs_iter = hdi_probs
+                else:
+                    raise TypeError(
+                        "hdi_probs must be a float, list, tuple, or np.ndarray"
+                    )
+                for hdi_prob in hdi_probs_iter:
+                    plot_hdi(
                         subplot_curve,
                         non_grid_names="x",
-                        n=n_samples,
-                        rng=random_seed,
+                        hdi_prob=hdi_prob,
                         axes=np.array([[ax]]),
-                        colors=[color],
+                        colors=[colors[list(channels).index(ch)]],
                         same_axes=False,
                         legend=False,
                         **plot_kwargs,
                     )
-
-                # Plot HDI bands if requested
-                if hdi_probs is not None:
-                    for hdi_prob in hdi_probs:
-                        plot_hdi(
-                            subplot_curve,
-                            non_grid_names="x",
-                            hdi_prob=hdi_prob,
-                            axes=np.array([[ax]]),
-                            colors=[color],
-                            same_axes=False,
-                            legend=False,
-                            **plot_kwargs,
-                        )
-
-                # Get scatter data
-                x_data = _x_data.sel(**idx)
-                y = (
-                    self.idata.posterior[contrib_var]
-                    .sel(**idx)
-                    .mean(dim=["chain", "draw"])
+            x_data = self.idata.constant_data.channel_data.sel(**indexers)
+            y = (
+                self.idata.posterior[contrib_var]
+                .sel(**indexers)
+                .mean(
+                    dim=[
+                        d
+                        for d in self.idata.posterior[contrib_var].dims
+                        if d in ("chain", "draw")
+                    ]
                 )
-                x_data, y = x_data.broadcast_like(y), y.broadcast_like(x_data)
-
-                # Add scatter plot
-                ax.scatter(
-                    x_data.values.flatten(),
-                    y.values.flatten(),
-                    alpha=0.8,
-                    color=color,
-                )
-
-                title = self._build_subplot_title(
-                    dims=["channel", *additional_dims],
-                    combo=(ch, *combo),
-                    fallback_title="Channel Saturation Curves",
-                )
-                ax.set_title(title)
-                ax.set_xlabel("Channel Data (X)")
-                ax.set_ylabel("Channel Contribution (Y)")
-
-        # Hide any unused axes
+            )
+            x_data, y = x_data.broadcast_like(y), y.broadcast_like(x_data)
+            ax.scatter(
+                x_data.values.flatten(),
+                y.values.flatten(),
+                alpha=0.8,
+                color=colors[list(channels).index(ch)],
+            )
+            title_dims = (
+                ["channel"] + (list(dims.keys()) if dims else []) + additional_dims
+            )
+            title_combo = (
+                ch,
+                *[indexers[k] for k in title_dims if k != "channel"],
+            )
+            title = self._build_subplot_title(
+                dims=title_dims,
+                combo=title_combo,
+                fallback_title="Channel Saturation Curves",
+            )
+            ax.set_title(title)
+            ax.set_xlabel("Channel Data (X)")
+            ax.set_ylabel("Channel Contribution (Y)")
         for ax_idx in range(subplot_idx, len(axes_flat)):
             axes_flat[ax_idx].set_visible(False)
-
         return fig, axes
 
     def saturation_curves_scatter(
