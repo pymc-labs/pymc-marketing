@@ -866,3 +866,111 @@ def test_budget_allocation_with_dims_list(mock_suite_with_constant_data):
     assert ax.shape[0] == 2
     for i, country in enumerate(["A", "B"]):
         assert country in ax[i, 0].get_title()
+
+
+def test__validate_dims_valid():
+    """Test _validate_dims with valid dims and values."""
+    suite = MMMPlotSuite(idata=None)
+
+    # Patch suite.idata.posterior.coords to simulate valid dims
+    class DummyCoord:
+        def __init__(self, values):
+            self.values = values
+
+    class DummyCoords:
+        def __init__(self):
+            self._coords = {
+                "country": DummyCoord(["A", "B"]),
+                "region": DummyCoord(["X", "Y"]),
+            }
+
+        def __getitem__(self, key):
+            return self._coords[key]
+
+    class DummyPosterior:
+        coords = DummyCoords()
+
+    suite.idata = type("idata", (), {"posterior": DummyPosterior()})()
+    # Should not raise
+    suite._validate_dims({"country": "A", "region": "X"}, ["country", "region"])
+    suite._validate_dims({"country": ["A", "B"]}, ["country", "region"])
+
+
+def test__validate_dims_invalid_dim():
+    """Test _validate_dims raises for invalid dim name."""
+    suite = MMMPlotSuite(idata=None)
+
+    class DummyCoord:
+        def __init__(self, values):
+            self.values = values
+
+    class DummyCoords:
+        def __init__(self):
+            self.country = DummyCoord(["A", "B"])
+
+        def __getitem__(self, key):
+            return getattr(self, key)
+
+    class DummyPosterior:
+        coords = DummyCoords()
+
+    suite.idata = type("idata", (), {"posterior": DummyPosterior()})()
+    with pytest.raises(ValueError, match=r"Dimension 'region' not found"):
+        suite._validate_dims({"region": "X"}, ["country"])
+
+
+def test__validate_dims_invalid_value():
+    """Test _validate_dims raises for invalid value."""
+    suite = MMMPlotSuite(idata=None)
+
+    class DummyCoord:
+        def __init__(self, values):
+            self.values = values
+
+    class DummyCoords:
+        def __init__(self):
+            self.country = DummyCoord(["A", "B"])
+
+        def __getitem__(self, key):
+            return getattr(self, key)
+
+    class DummyPosterior:
+        coords = DummyCoords()
+
+    suite.idata = type("idata", (), {"posterior": DummyPosterior()})()
+    with pytest.raises(ValueError, match=r"Value 'C' not found in dimension 'country'"):
+        suite._validate_dims({"country": "C"}, ["country"])
+
+
+def test__dim_list_handler_none():
+    """Test _dim_list_handler with None input."""
+    suite = MMMPlotSuite(idata=None)
+    keys, combos = suite._dim_list_handler(None)
+    assert keys == []
+    assert combos == [()]
+
+
+def test__dim_list_handler_single():
+    """Test _dim_list_handler with a single list-valued dim."""
+    suite = MMMPlotSuite(idata=None)
+    keys, combos = suite._dim_list_handler({"country": ["A", "B"]})
+    assert keys == ["country"]
+    assert set(combos) == {("A",), ("B",)}
+
+
+def test__dim_list_handler_multiple():
+    """Test _dim_list_handler with multiple list-valued dims."""
+    suite = MMMPlotSuite(idata=None)
+    keys, combos = suite._dim_list_handler(
+        {"country": ["A", "B"], "region": ["X", "Y"]}
+    )
+    assert set(keys) == {"country", "region"}
+    assert set(combos) == {("A", "X"), ("A", "Y"), ("B", "X"), ("B", "Y")}
+
+
+def test__dim_list_handler_mixed():
+    """Test _dim_list_handler with mixed single and list values."""
+    suite = MMMPlotSuite(idata=None)
+    keys, combos = suite._dim_list_handler({"country": ["A", "B"], "region": "X"})
+    assert keys == ["country"]
+    assert set(combos) == {("A",), ("B",)}
