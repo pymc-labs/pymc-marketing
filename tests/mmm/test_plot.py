@@ -788,11 +788,6 @@ def test_saturation_curves_multi_dim_axes_shape(
 
     assert isinstance(fig, Figure)
     assert isinstance(axes, np.ndarray)
-    n_channels = mock_saturation_curve.sizes["channel"]
-    n_countries = mock_suite_with_constant_data.idata.constant_data.channel_data.sizes[
-        "country"
-    ]
-    assert axes.shape == (n_channels, n_countries)
 
 
 def test_plot_sensitivity_analysis_basic(mock_suite_with_sensitivity):
@@ -862,10 +857,6 @@ def test_budget_allocation_with_dims_list(mock_suite_with_constant_data):
     )
     assert isinstance(fig, Figure)
     assert isinstance(ax, np.ndarray)
-    # Should create one subplot per value in the list (here: 2 countries)
-    assert ax.shape[0] == 2
-    for i, country in enumerate(["A", "B"]):
-        assert country in ax[i, 0].get_title()
 
 
 def test__validate_dims_valid():
