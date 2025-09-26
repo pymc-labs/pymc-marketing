@@ -796,23 +796,30 @@ def test_causal_model_lazy_import_when_dowhy_missing(monkeypatch):
     # Simulate dowhy not being installed by removing it from sys.modules
     import sys
 
-    monkeypatch.setitem(sys.modules, "dowhy", None)
-
-    # Force reload of the causal module to trigger the import error path
-    import importlib
-
     import pymc_marketing.mmm.causal as causal_module
 
-    importlib.reload(causal_module)
+    # Save the original CausalModel
+    original_causal_model = causal_module.CausalModel
 
-    # Now CausalModel should be the LazyCausalModel that raises ImportError
-    with pytest.raises(
-        ImportError,
-        match=(
-            r"To use Causal Graph functionality, please install the "
-            r"optional dependencies with: pip install pymc-marketing\[dag\]"
-        ),
-    ):
-        causal_module.CausalModel(
-            data=pd.DataFrame(), graph="A->B", treatment=["A"], outcome="B"
-        )
+    try:
+        monkeypatch.setitem(sys.modules, "dowhy", None)
+
+        # Force reload of the causal module to trigger the import error path
+        import importlib
+
+        importlib.reload(causal_module)
+
+        # Now CausalModel should be the LazyCausalModel that raises ImportError
+        with pytest.raises(
+            ImportError,
+            match=(
+                r"To use Causal Graph functionality, please install the "
+                r"optional dependencies with: pip install pymc-marketing\[dag\]"
+            ),
+        ):
+            causal_module.CausalModel(
+                data=pd.DataFrame(), graph="A->B", treatment=["A"], outcome="B"
+            )
+    finally:
+        # Restore the original CausalModel to prevent test pollution
+        causal_module.CausalModel = original_causal_model
