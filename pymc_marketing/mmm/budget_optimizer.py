@@ -100,6 +100,7 @@ Use a custom pymc model with any dimensionality
     import pandas as pd
     import pymc as pm
     import xarray as xr
+    from pymc.model.fgraph import clone_model
     from pymc_marketing.mmm.budget_optimizer import (
         BudgetOptimizer,
         optimizer_xarray_builder,
@@ -122,11 +123,15 @@ Use a custom pymc model with any dimensionality
     with pm.Model(coords=coords) as train_model:
         pm.Data("channel_data", X, dims=("date", "channel"))
         beta = pm.Normal("beta", 0.0, 1.0, dims="channel")
-        mu = (train_model["channel_data"] * beta).sum("channel")
-        pm.Deterministic("total_contribution", mu, dims="date")
+        channel_contrib = train_model["channel_data"] * beta
+        mu = channel_contrib.sum(axis=-1)  # sum over channel axis
+        # Per-period contribution
+        pm.Deterministic("total_contribution_per_period", mu, dims="date")
+        # For optimization: sum over all dimensions to get a scalar
+        pm.Deterministic("total_contribution", mu.sum(), dims=())
         pm.Deterministic(
             "channel_contribution",
-            train_model["channel_data"] * beta,
+            channel_contrib,
             dims=("date", "channel"),
         )
         sigma = pm.HalfNormal("sigma", 0.2)
@@ -137,8 +142,9 @@ Use a custom pymc model with any dimensionality
 
     # 2) Create a minimal wrapper satisfying OptimizerCompatibleModelWrapper
     class SimpleWrapper:
-        def __init__(self, idata, channels):
+        def __init__(self, base_model, idata, channels):
             # required attributes
+            self._base_model = base_model
             self.idata = idata
             self.channel_columns = list(channels)  # used if bounds is a dict
             self._channel_scales = 1.0  # scalar or array broadcastable to channel dims
@@ -147,17 +153,18 @@ Use a custom pymc model with any dimensionality
         def _set_predictors_for_optimization(self, num_periods: int) -> pm.Model:
             coords = {"date": np.arange(num_periods), "channel": self.channel_columns}
             # clone model
-            m = cm(self.model)
+            m = clone_model(self._base_model)
 
             # Set the channel_data for optimization
             pm.set_data(
                 {"channel_data": np.zeros((num_periods, len(self.channel_columns)))},
                 model=m,
+                coords=coords,
             )
             return m
 
 
-    wrapper = SimpleWrapper(idata=idata, channels=channels)
+    wrapper = SimpleWrapper(base_model=train_model, idata=idata, channels=channels)
 
     # 3) Optimize N future periods with optional bounds and/or masks
     optimizer = BudgetOptimizer(model=wrapper, num_periods=8)
