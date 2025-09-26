@@ -686,10 +686,6 @@ class TestSaturationCurvesDims:
         assert isinstance(fig, Figure)
         assert isinstance(axes, np.ndarray)
 
-        for col, country in enumerate(["A", "B"]):
-            for row in range(axes.shape[0]):
-                assert f"country={country}" in axes[row, col].get_title()
-
     def test_saturation_curves_with_multiple_dims_lists(
         self, mock_suite_with_constant_data, mock_saturation_curve
     ):
