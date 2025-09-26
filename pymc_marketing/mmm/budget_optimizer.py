@@ -238,21 +238,49 @@ from pymc_marketing.pytensor_utils import merge_models
 
 
 def optimizer_xarray_builder(value, **kwargs):
-    """
-    Create an xarray.DataArray with flexible dimensions and coordinates.
+    """Create an xarray.DataArray with flexible dimensions and coordinates.
 
     Parameters
     ----------
-    - value (array-like): The data values for the DataArray. Shape must match the dimensions implied by the kwargs.
-    - **kwargs: Key-value pairs representing dimension names and their corresponding coordinates.
+    value : array-like
+        The data values for the DataArray. Shape must match the dimensions
+        implied by the kwargs.
+    **kwargs
+        Key-value pairs representing dimension names and their corresponding
+        coordinates.
 
     Returns
     -------
-    - xarray.DataArray: The resulting DataArray with the specified dimensions and values.
+    xarray.DataArray
+        The resulting DataArray with the specified dimensions and values.
 
     Raises
     ------
-    - ValueError: If the shape of `value` doesn't match the lengths of the specified coordinates.
+    ValueError
+        If the shape of `value` doesn't match the lengths of the specified
+        coordinates.
+
+    Examples
+    --------
+    Create a DataArray for budget bounds with channels and bound types:
+
+    .. code-block:: python
+
+        bounds = optimizer_xarray_builder(
+            value=np.array([[0.0, 50.0], [0.0, 40.0], [0.0, 60.0]]),
+            channel=["C1", "C2", "C3"],
+            bound=["lower", "upper"],
+        )
+
+    Create a DataArray for budget allocation with channels and regions:
+
+    .. code-block:: python
+
+        allocation = optimizer_xarray_builder(
+            value=np.array([[10.0, 20.0], [15.0, 25.0], [30.0, 45.0]]),
+            channel=["C1", "C2", "C3"],
+            region=["North", "South"],
+        )
     """
     # Extract the dimensions and coordinates
     dims = list(kwargs.keys())
