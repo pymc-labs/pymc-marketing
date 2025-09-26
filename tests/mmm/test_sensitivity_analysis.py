@@ -67,19 +67,60 @@ def sensitivity(simple_model_and_idata):
 
 
 @pytest.mark.parametrize("sweep_type", ["multiplicative", "additive", "absolute"])
-def test_run_sweep_basic(sensitivity, sweep_type):
+@pytest.mark.parametrize("use_mask", [False, True])
+def test_run_sweep_basic(sensitivity, sweep_type, use_mask):
     sweep_values = np.linspace(0.5, 1.5, 3)
+
+    if use_mask:
+        # Create a mask that keeps first and last channels for all dates
+        # channel_contribution has dims (date, channel) with 6 dates and 4 channels
+        mask_2d = np.zeros((6, 4), dtype=bool)
+        mask_2d[:, [0, 3]] = True  # Keep channels 'a' and 'd' for all dates
+        response_mask = xr.DataArray(mask_2d, dims=("date", "channel"))
+    else:
+        response_mask = None
+
     results = sensitivity.run_sweep(
         varinput="channel_data",
         var_names="channel_contribution",
         sweep_values=sweep_values,
         sweep_type=sweep_type,
+        response_mask=response_mask,
     )
 
     assert isinstance(results, xr.DataArray)
     assert list(results.dims)[:2] == ["sample", "sweep"]
     assert "channel" in results.dims
     assert results.sizes["sweep"] == len(sweep_values)
+
+    if use_mask:
+        # Check that masked channels are zeroed
+        assert np.all(results.sel(channel="b").values == 0.0)
+        assert np.all(results.sel(channel="c").values == 0.0)
+
+
+def test_run_sweep_with_response_mask(sensitivity):
+    sweep_values = np.linspace(0.5, 1.5, 3)
+    full = sensitivity.run_sweep(
+        varinput="channel_data",
+        var_names="channel_contribution",
+        sweep_values=sweep_values,
+    )
+
+    # Create 2D mask for (date, channel) dimensions
+    mask_2d = np.zeros((6, 4), dtype=bool)
+    mask_2d[:, [0, 3]] = True  # Keep channels 'a' and 'd' for all dates
+    masked = sensitivity.run_sweep(
+        varinput="channel_data",
+        var_names="channel_contribution",
+        sweep_values=sweep_values,
+        response_mask=xr.DataArray(mask_2d, dims=("date", "channel")),
+    )
+
+    assert masked.shape == full.shape
+    kept = full.sel(channel=["a", "d"]).sum("channel")
+    xr.testing.assert_allclose(masked.sum("channel"), kept)
+    assert np.all(masked.sel(channel="b").values == 0.0)
 
 
 def test_run_sweep_invalid_var_name(sensitivity):
@@ -252,6 +293,38 @@ def test_compute_uplift_curve_respect_to_base(sensitivity):
     xr.testing.assert_allclose(sa_group["uplift_curve"], persisted)
 
 
+def test_posterior_sample_percentage_controls_draws(sensitivity):
+    sweeps = np.linspace(0.5, 1.5, 4)
+    full = sensitivity.run_sweep(
+        varinput="channel_data",
+        var_names="channel_contribution",
+        sweep_values=sweeps,
+        posterior_sample_percentage=1.0,
+    )
+    limited = sensitivity.run_sweep(
+        varinput="channel_data",
+        var_names="channel_contribution",
+        sweep_values=sweeps,
+        posterior_sample_percentage=0.6,
+    )
+
+    assert full.sizes["sample"] == 5
+    assert limited.sizes["sample"] == 2
+
+
+def test_posterior_sample_batch_backward_compatibility(sensitivity):
+    sweeps = np.linspace(0.5, 1.5, 4)
+    with pytest.warns(DeprecationWarning):
+        legacy = sensitivity.run_sweep(
+            varinput="channel_data",
+            var_names="channel_contribution",
+            sweep_values=sweeps,
+            posterior_sample_batch=2,
+        )
+
+    assert legacy.sizes["sample"] == 2
+
+
 def test_compute_dims_order_from_varinput_internal(sensitivity):
     # Drops 'date' and preserves remaining order
     dims_order = sensitivity._compute_dims_order_from_varinput("channel_data")
@@ -285,3 +358,139 @@ def test_add_to_idata_internal_updates_dataset(simple_model_and_idata):
     with pytest.warns(UserWarning):
         sa._add_to_idata(result2)
     xr.testing.assert_allclose(idata.sensitivity_analysis["x"], result2)
+
+
+def test_prepare_response_mask_numpy_array(sensitivity):
+    """Test _prepare_response_mask with numpy array input."""
+    response_dims = ("date", "channel")
+
+    # Test boolean array
+    mask = np.array(
+        [
+            [True, False, True, False],
+            [False, True, False, True],
+            [True, True, False, False],
+            [False, False, True, True],
+            [True, False, True, False],
+            [False, True, False, True],
+        ]
+    )
+    result = sensitivity._prepare_response_mask(mask, response_dims, var_names="test")
+    assert result.shape == (6, 4)
+    assert result.dtype == bool
+    np.testing.assert_array_equal(result, mask)
+
+    # Test integer array (should be cast to bool)
+    int_mask = np.array(
+        [
+            [1, 0, 1, 0],
+            [0, 1, 0, 1],
+            [1, 1, 0, 0],
+            [0, 0, 1, 1],
+            [1, 0, 1, 0],
+            [0, 1, 0, 1],
+        ]
+    )
+    result = sensitivity._prepare_response_mask(
+        int_mask, response_dims, var_names="test"
+    )
+    assert result.dtype == bool
+    np.testing.assert_array_equal(result, mask)
+
+
+def test_prepare_response_mask_xarray(sensitivity):
+    """Test _prepare_response_mask with xarray input."""
+    response_dims = ("date", "channel")
+
+    # Test with correct dims
+    mask_data = np.array(
+        [
+            [True, False, True, False],
+            [False, True, False, True],
+            [True, True, False, False],
+            [False, False, True, True],
+            [True, False, True, False],
+            [False, True, False, True],
+        ]
+    )
+    mask_xr = xr.DataArray(mask_data, dims=("date", "channel"))
+    result = sensitivity._prepare_response_mask(
+        mask_xr, response_dims, var_names="test"
+    )
+    np.testing.assert_array_equal(result, mask_data)
+
+    # Test with reordered dims (should be transposed)
+    mask_xr_transposed = xr.DataArray(mask_data.T, dims=("channel", "date"))
+    result = sensitivity._prepare_response_mask(
+        mask_xr_transposed, response_dims, var_names="test"
+    )
+    np.testing.assert_array_equal(result, mask_data)
+
+
+def test_prepare_response_mask_errors(sensitivity):
+    """Test _prepare_response_mask error cases."""
+    response_dims = ("date", "channel")
+
+    # Test missing dims in xarray
+    mask_xr = xr.DataArray(np.ones((6,)), dims=("date",))
+    with pytest.raises(ValueError, match="response_mask is missing required dims"):
+        sensitivity._prepare_response_mask(mask_xr, response_dims, var_names="test")
+
+    # Test wrong number of dimensions
+    mask = np.ones((6,))  # 1D instead of 2D
+    with pytest.raises(
+        ValueError, match="response_mask must have the same number of dims"
+    ):
+        sensitivity._prepare_response_mask(mask, response_dims, var_names="test")
+
+    # Test wrong shape
+    mask = np.ones((5, 3))  # Wrong shape
+    with pytest.raises(ValueError, match="response_mask shape does not match"):
+        sensitivity._prepare_response_mask(mask, response_dims, var_names="test")
+
+    # Test non-castable type
+    mask = np.array([["yes", "no"], ["no", "yes"]])
+    with pytest.raises(TypeError, match="response_mask must be boolean"):
+        sensitivity._prepare_response_mask(mask, response_dims, var_names="test")
+
+
+def test_run_sweep_with_2d_mask(simple_model_and_idata):
+    """Test run_sweep with a 2D mask matching date x channel dims."""
+    model, idata = simple_model_and_idata
+    sa = SensitivityAnalysis(model, idata)
+
+    # Create a 2D mask that only keeps some dates for channel a and d, none for b and c
+    mask_2d = np.zeros((6, 4), dtype=bool)
+    # Keep first 3 dates for channel a
+    mask_2d[:3, 0] = True
+    # Keep last 3 dates for channel d
+    mask_2d[3:, 3] = True
+    # Channels b and c are completely masked
+
+    mask_xr = xr.DataArray(mask_2d, dims=("date", "channel"))
+
+    sweep_values = np.linspace(0.5, 1.5, 3)
+    masked = sa.run_sweep(
+        varinput="channel_data",
+        var_names="channel_contribution",
+        sweep_values=sweep_values,
+        response_mask=mask_xr,
+    )
+
+    # Get the full result for comparison
+    full = sa.run_sweep(
+        varinput="channel_data",
+        var_names="channel_contribution",
+        sweep_values=sweep_values,
+    )
+
+    # Channels 'b' and 'c' should be completely zero since no dates were unmasked
+    assert np.all(masked.sel(channel="b").values == 0.0)
+    assert np.all(masked.sel(channel="c").values == 0.0)
+
+    # Channels 'a' and 'd' should have non-zero values
+    assert np.any(masked.sel(channel="a").values > 0.0)
+    assert np.any(masked.sel(channel="d").values > 0.0)
+
+    # The masked result should be smaller than the full result
+    assert masked.sum().item() < full.sum().item()
