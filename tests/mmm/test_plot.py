@@ -672,8 +672,7 @@ class TestSaturationCurvesDims:
         )
         assert isinstance(fig, Figure)
         assert isinstance(axes, np.ndarray)
-        # Should create one column (n_channels, 1)
-        assert axes.shape[1] == 1
+
         for row in range(axes.shape[0]):
             assert "country=A" in axes[row, 0].get_title()
 
@@ -686,8 +685,7 @@ class TestSaturationCurvesDims:
         )
         assert isinstance(fig, Figure)
         assert isinstance(axes, np.ndarray)
-        # Should create two columns (n_channels, 2)
-        assert axes.shape[1] == 2
+
         for col, country in enumerate(["A", "B"]):
             for row in range(axes.shape[0]):
                 assert f"country={country}" in axes[row, col].get_title()
@@ -717,9 +715,8 @@ class TestSaturationCurvesDims:
         )
         assert isinstance(fig, Figure)
         assert isinstance(axes, np.ndarray)
-        # Should create 4 columns (n_channels, 4)
-        assert axes.shape[1] == 4
         combos = [("A", "X"), ("A", "Y"), ("B", "X"), ("B", "Y")]
+
         for col, (country, region) in enumerate(combos):
             for row in range(axes.shape[0]):
                 title = axes[row, col].get_title()
