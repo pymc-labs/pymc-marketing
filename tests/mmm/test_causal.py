@@ -475,6 +475,35 @@ def test_likelihood_dims_none_init_ok(causal_df):
     assert isinstance(builder, BuildModelFromDAG)
 
 
+def test_validate_coords_required_raises_valueerror_when_none(causal_df):
+    """Test that directly calling _validate_coords_required_are_consistent raises ValueError when coords is None."""
+    dag = """
+    digraph {
+        Q -> X;
+    }
+    """
+
+    # Create builder without going through pydantic validation
+    builder = object.__new__(BuildModelFromDAG)
+    builder.dag = dag
+    builder.df = causal_df
+    builder.target = "X"
+    builder.dims = ("date",)
+    builder.coords = None  # Explicitly set to None
+    builder.graph = BuildModelFromDAG._parse_dag(dag)
+    builder.nodes = list(nx.topological_sort(builder.graph))
+    builder.model_config = {
+        "slope": Prior("Normal", mu=0, sigma=1),
+        "likelihood": Prior(
+            "Normal", sigma=Prior("HalfNormal", sigma=1), dims=("date",)
+        ),
+    }
+
+    # This should raise the specific ValueError
+    with pytest.raises(ValueError, match=r"'coords' is required and cannot be None\."):
+        builder._validate_coords_required_are_consistent()
+
+
 def test_error_when_likelihood_in_model_config_is_none(causal_df):
     dag = """
     digraph {
@@ -714,3 +743,76 @@ def test_compute_adjustment_sets(
     assert adjusted_controls == expected_controls, (
         f"Expected {expected_controls}, but got {adjusted_controls}"
     )
+
+
+def test_networkx_import_error_in_parse_dag(monkeypatch):
+    """Test that _parse_dag raises ImportError when networkx is not available."""
+    # Mock nx to be None
+    monkeypatch.setattr("pymc_marketing.mmm.causal.nx", None)
+
+    with pytest.raises(
+        ImportError,
+        match=(
+            r"To use Causal Graph functionality, please install the "
+            r"optional dependencies with: pip install pymc-marketing\[dag\]"
+        ),
+    ):
+        BuildModelFromDAG._parse_dag("A->B")
+
+
+def test_networkx_import_error_in_dag_graph(causal_df, monkeypatch):
+    """Test that dag_graph raises ImportError when networkx is not available."""
+    dag = """
+    digraph {
+        Q -> X;
+    }
+    """
+    coords = {"date": causal_df["date"].unique()}
+
+    # First create the builder normally
+    builder = BuildModelFromDAG(
+        dag=dag,
+        df=causal_df,
+        target="X",
+        dims=("date",),
+        coords=coords,
+    )
+
+    # Then mock nx to be None and test dag_graph
+    monkeypatch.setattr("pymc_marketing.mmm.causal.nx", None)
+
+    with pytest.raises(
+        ImportError,
+        match=(
+            r"To use Causal Graph functionality, please install the "
+            r"optional dependencies with: pip install pymc-marketing\[dag\]"
+        ),
+    ):
+        builder.dag_graph()
+
+
+def test_causal_model_lazy_import_when_dowhy_missing(monkeypatch):
+    """Test that CausalModel uses LazyCausalModel when dowhy is not available."""
+    # Simulate dowhy not being installed by removing it from sys.modules
+    import sys
+
+    monkeypatch.setitem(sys.modules, "dowhy", None)
+
+    # Force reload of the causal module to trigger the import error path
+    import importlib
+
+    import pymc_marketing.mmm.causal as causal_module
+
+    importlib.reload(causal_module)
+
+    # Now CausalModel should be the LazyCausalModel that raises ImportError
+    with pytest.raises(
+        ImportError,
+        match=(
+            r"To use Causal Graph functionality, please install the "
+            r"optional dependencies with: pip install pymc-marketing\[dag\]"
+        ),
+    ):
+        causal_module.CausalModel(
+            data=pd.DataFrame(), graph="A->B", treatment=["A"], outcome="B"
+        )
