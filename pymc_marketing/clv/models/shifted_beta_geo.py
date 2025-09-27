@@ -37,8 +37,8 @@ class ShiftedBetaGeoModel(CLVModel):
       * Cohort `theta` probabilities are Beta distributed with hyperparameters `alpha` and `beta`.
       * Cohort retention rates increase over time due to customer heterogeneity.
 
-    This model requires data to be summarized by *recency*, and *T* for each customer,
-    using `clv.utils.rfm_summary()` or equivalent. Modeling assumptions require *0 <= recency <= T*.
+    This model requires data to be summarized by *recency*, and *T* for each customer.
+    Modeling assumptions require *1 <= recency <= T*.
     If cohorts are not specified, the model will assume a single cohort,
     in which all customers began their contract in the same time period.
 
@@ -50,12 +50,10 @@ class ShiftedBetaGeoModel(CLVModel):
         DataFrame containing the following columns:
 
             * `customer_id`: Unique customer identifier
-            * `recency`: Time period of last contract renewal.
-              It should  equal T for users that have not cancelled by the end of the
-              observation period.
-            * `T`: Maximum observed time period.
-              Model assumptions require *T >= recency* and all customers in the same cohort share the same value for *T.
-            * `cohort`: Optional Customer cohort label. This is usually the date the customer first signed up.
+            * `recency`: Time period of last contract renewal. It should equal *T* for active customers.
+            * `T`: Maximum observed time period in the cohort. Model assumptions require *T >= recency >= 1*.
+            All customers in a given cohort share the same value for *T*.
+            * `cohort`: Customer cohort label. This is usually the month or year the customer first signed up.
     model_config : dict, optional
         Dictionary of model prior parameters:
             * `a`: Shape parameter of dropout process; defaults to `phi_purchase` * `kappa_purchase`
@@ -75,12 +73,12 @@ class ShiftedBetaGeoModel(CLVModel):
             from pymc_marketing.clv import ShiftedBetaGeoModel
 
             model = ShiftedBetaGeoModel(
-                data=pd.DataFrame({
+                data=pd.DataFrame(
                     customer_id=[1, 2, 3, ...],
-                    recency=[1, 4, 8, ...],
-                    T=[5, 5, 8, ...],
-                    cohort= ["2025-04-01", "2025-04-01", "2025-02-01", ...],
-                }),
+                    recency=[8, 1, 4, ...],
+                    T=[8, 5, 5, ...],
+                    cohort=["2025-02-01", "2025-04-01", "2025-04-01", ...],
+                ),
                 model_config={
                     "alpha": Prior("HalfNormal", sigma=10),
                     "beta": Prior("HalfStudentT", nu=4, sigma=10),
@@ -94,13 +92,17 @@ class ShiftedBetaGeoModel(CLVModel):
                 },
             )
 
-            model.fit()
-            print(model.fit_summary())
+            # Fit model quickly to large datasets via the default Maximum a Posteriori method
+            model.fit(method="map")
+            model.fit_summary()
 
-            # Predict how many periods in the future are existing customers
-            likely to cancel (ignoring that some may already have cancelled)
-            expected_churn_time = model.expected_probability_alive(
-                customer_id=[0, 1, 2, 3, ...],
+            # Use 'mcmc' for more informative predictions and reliable performance on smaller datasets
+            model.fit(method="mcmc")
+            model.fit_summary()
+
+            # Predict likelihood active customers will renew in the next time period
+            expected_alive_probability = model.expected_probability_alive(
+                active_customers  # ADD CREATE DATAFRAME HERE!
             )
             print(expected_churn_time.mean("customer_id"))
 
@@ -122,20 +124,22 @@ class ShiftedBetaGeoModel(CLVModel):
         model_config: ModelConfig | None = None,
         sampler_config: dict | None = None,
     ):
+        # TODO: Should add homogeneity check for T per cohort, but groupings not supported in this method
         self._validate_cols(
             data,
             required_cols=["customer_id", "recency", "T", "cohorts"],
             must_be_unique=["customer_id"],
         )
-        # TODO: Move into _validate_cols; this is true for all CLV models
+        # TODO: Create another internal validation method in CLVBasic containing this logic
+        # TODO: This function should also check fit data contains both active and inactive customers
         if np.any(
-            (data["recency"] < 0)
+            (data["recency"] < 1)
             | (data["recency"] > data["T"])
             | np.isnan(data["recency"])
         ):
             raise ValueError(
                 "recency must respect 0 < recency <= T.\n",
-                "Customers that are still alive should have recency = T",
+                "Customers still active should have recency = T",
             )
 
         super().__init__(
@@ -205,10 +209,10 @@ class ShiftedBetaGeoModel(CLVModel):
                 dims=("customer_id",),
             )
 
-    # TODO: move this into BaseModel
+    # TODO: can this be generalized and moved into BaseModel?
     def _extract_predictive_variables(
         self,
-        data: pd.DataFrame,
+        pred_data: pd.DataFrame | None = None,
         customer_varnames: Sequence[str] = (),
     ) -> xarray.Dataset:
         """
@@ -217,39 +221,75 @@ class ShiftedBetaGeoModel(CLVModel):
         Utility function assigning default customer arguments
         for predictive methods and converting to xarrays.
         """
-        self._validate_cols(
-            data,
-            required_cols=[
-                "customer_id",
-                *customer_varnames,
-            ],
-            must_be_unique=["customer_id"],
-        )
-        # TODO: Move into _validate_cols; this is true for all CLV models
-        if np.any(
-            (data["recency"] < 0)
-            | (data["recency"] > data["T"])
-            | np.isnan(data["recency"])
-        ):
-            raise ValueError(
-                "recency must respect 0 < recency <= T.\n",
-                "Customers that are still alive should have recency = T",
+        if pred_data is None:
+            # Filter to active customers only (recency == T)
+            pred_data = self.data.loc[self.data["recency"] == self.data["T"]].copy()
+        else:
+            self._validate_cols(
+                pred_data,
+                required_cols=[
+                    "customer_id",
+                    "cohorts",
+                    *customer_varnames,
+                ],
+                must_be_unique=["customer_id"],
             )
+            # Validate recency only if provided in the input data
+            if "recency" in pred_data.columns:
+                # Base validity check
+                if np.any(
+                    (pred_data["recency"] < 0)
+                    | (pred_data["recency"] > pred_data["T"])
+                    | np.isnan(pred_data["recency"])
+                ):
+                    raise ValueError(
+                        "recency must respect 0 < recency <= T.\n",
+                        "Customers still active should have recency = T",
+                    )
+                # External data must be active customers only
+                if np.any(pred_data["recency"] != pred_data["T"]):
+                    raise ValueError(
+                        "Predictions require active customers: recency must equal T."
+                    )
 
         alpha = self.fit_result["alpha"]
         beta = self.fit_result["beta"]
 
+        # Map from training data using customer_id if cohorts not passed explicitly
+        # TODO: customer_ids are required for static covariate broadcasting, which is not yet supported
+        # TODO: also need to check if external data cohorts and build_model cohorts match
+        if len(self.cohorts) > 1:
+            cohort_map = pred_data.set_index("customer_id")["cohorts"]
+            customer_cohorts = pred_data["customer_id"].map(cohort_map)
+        else:
+            # Single cohort case: broadcast the first cohort label
+            single_label = self.cohorts[0] if hasattr(self, "cohorts") else 0
+            customer_cohorts = pd.Series(
+                [single_label] * len(pred_data["customer_id"]), index=pred_data.index
+            )
+
+        customer_cohorts_xr = xarray.DataArray(
+            customer_cohorts.values,
+            dims=("customer_id",),
+            coords={"customer_id": pred_data["customer_id"].values},
+        )
+
+        # Vectorized label-based selection to align alpha/beta with customer_id
+        alpha_customer = alpha.sel(cohorts=customer_cohorts_xr)
+        beta_customer = beta.sel(cohorts=customer_cohorts_xr)
+
+        # Convert additional customer variables to xarray
         customer_vars = to_xarray(
-            data["customer_id"],
-            *[data[customer_varname] for customer_varname in customer_varnames],
+            pred_data["customer_id"],
+            *[pred_data[customer_varname] for customer_varname in customer_varnames],
         )
         if len(customer_varnames) == 1:
             customer_vars = [customer_vars]
 
         return xarray.combine_by_coords(
             (
-                alpha,
-                beta,
+                alpha_customer,
+                beta_customer,
                 *customer_vars,
             )
         )
@@ -313,7 +353,7 @@ class ShiftedBetaGeoModel(CLVModel):
             data = data.assign(future_t=future_t)
 
         dataset = self._extract_predictive_variables(
-            data, customer_varnames=["recency", "T", "future_t"]
+            data, customer_varnames=["T", "future_t"]
         )
         alpha = dataset["alpha"]
         beta = dataset["beta"]
@@ -362,7 +402,7 @@ class ShiftedBetaGeoModel(CLVModel):
         )
         # TODO: "cohorts" dim instead of "customer_id"?
         return retention_elasticity.transpose(
-            "chain", "draw", "customer_id", missing_dims="ignore"
+            "chain", "draw", "cohorts", "customer_id", missing_dims="ignore"
         )
 
     def expected_lifetime_purchases(

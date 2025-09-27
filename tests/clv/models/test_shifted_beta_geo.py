@@ -50,9 +50,9 @@ class TestShiftedBetaGeoModel:
         cls.alpha_case2 = 0.067
         cls.beta_case2 = 0.267
 
-        # Instantiate model with research paper data for testing
-        cls.data = pd.read_csv("data/sbg_paper.csv")
-        # TODO: only first 7 time periods used for fitting in paper
+        # Instantiate model with research paper data
+        cls.data = pd.read_csv("data/sbg_reg_hi_cohorts.csv").query("time <= 8")
+        # TODO: only first 8 time periods used for fitting in paper
         cls.model = ShiftedBetaGeoModel(cls.data)
         cls.model.build_model()
 
