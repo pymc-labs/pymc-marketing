@@ -886,10 +886,6 @@ def _expected_cumulative_transactions(
 
     # First Transactions on Each Day/Freq
     first_trans_size = first_transactions.groupby(datetime_col).size()
-    # Convert index to PeriodIndex to match the type of period in the loop
-    first_trans_size.index = pandas.DatetimeIndex(first_trans_size.index).to_period(
-        time_unit
-    )
 
     # In the loop below, we calculate the expected number of purchases for customers
     # who have made their first purchases on a date before the one being evaluated.
@@ -897,7 +893,7 @@ def _expected_cumulative_transactions(
     for i, period in enumerate(date_periods):  # index of period and its date
         if i % time_scaler == 0 and i > 0:  # type: ignore
             # Periods before the one being evaluated
-            times = np.array([d.n for d in period - first_trans_size.index])
+            times = np.array([d.n for d in period - first_trans_size.index])  # type: ignore[operator]
             times = times[times > 0].astype(float) / time_scaler
 
             # create arbitrary dataframe from array of n time periods for predictions
