@@ -886,6 +886,10 @@ def _expected_cumulative_transactions(
 
     # First Transactions on Each Day/Freq
     first_trans_size = first_transactions.groupby(datetime_col).size()
+    # Convert index to PeriodIndex to match the type of period in the loop
+    first_trans_size.index = pandas.DatetimeIndex(first_trans_size.index).to_period(
+        time_unit
+    )
 
     # In the loop below, we calculate the expected number of purchases for customers
     # who have made their first purchases on a date before the one being evaluated.
