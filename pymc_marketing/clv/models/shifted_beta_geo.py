@@ -21,12 +21,14 @@ import pymc as pm
 import xarray
 from pymc.util import RandomState
 from pymc_extras.prior import Prior
-from scipy.special import gammaln, hyp2f1
+from scipy.special import gammaln
 
 from pymc_marketing.clv.distributions import ShiftedBetaGeometric
 from pymc_marketing.clv.models import CLVModel
 from pymc_marketing.clv.utils import to_xarray
 from pymc_marketing.model_config import ModelConfig
+
+__all__ = ["ShiftedBetaGeoModel", "ShiftedBetaGeoModelIndividual"]
 
 
 class ShiftedBetaGeoModel(CLVModel):
@@ -370,76 +372,6 @@ class ShiftedBetaGeoModel(CLVModel):
         survival = np.exp(logS)
         # TODO: "cohorts" dim instead of "customer_id"?
         return survival.transpose("chain", "draw", "customer_id", missing_dims="ignore")
-
-    def expected_retention_elasticity(
-        self,
-        data: pd.DataFrame | None = None,
-        *,
-        discount_rate: float = 0.0,
-    ) -> xarray.DataArray:
-        """Compute expected retention elasticity.
-
-        Adapted from equation (8) in [1]_.
-
-        References
-        ----------
-        .. [1] Fader, P. S., & Hardie, B. G. (2010). Customer-Base Valuation in a Contractual Setting:
-               The Perils of Ignoring Heterogeneity. Marketing Science, 29(1), 85-93.
-               https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_contractual_mksc_10.pdf
-        """
-        if data is None:
-            data = self.data
-
-        dataset = self._extract_predictive_variables(
-            data, customer_varnames=["recency", "T"]
-        )
-        alpha = dataset["alpha"]
-        beta = dataset["beta"]
-        T = dataset["T"]
-
-        retention_elasticity = hyp2f1(
-            1, beta + T - 1, alpha + beta + 1, 1 / (1 + discount_rate)
-        )
-        # TODO: "cohorts" dim instead of "customer_id"?
-        return retention_elasticity.transpose(
-            "chain", "draw", "cohorts", "customer_id", missing_dims="ignore"
-        )
-
-    def expected_lifetime_purchases(
-        self,
-        data: pd.DataFrame | None = None,
-        *,
-        discount_rate: float = 0.0,
-    ) -> xarray.DataArray:
-        """Compute expected lifetime purchases.
-
-        Adapted from equation (6) in [1]_.
-
-        References
-        ----------
-        .. [1] Fader, P. S., & Hardie, B. G. (2010). Customer-Base Valuation in a Contractual Setting:
-               The Perils of Ignoring Heterogeneity. Marketing Science, 29(1), 85-93.
-               https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_contractual_mksc_10.pdf
-        """
-        if data is None:
-            data = self.data
-
-        dataset = self._extract_predictive_variables(
-            data, customer_varnames=["recency", "T"]
-        )
-        alpha = dataset["alpha"]
-        beta = dataset["beta"]
-        T = dataset["T"]
-
-        retention_rate = (beta + T - 1) / (alpha + beta + T - 1)
-        retention_elasticity = hyp2f1(
-            1, beta + T, alpha + beta, 1 / (1 + discount_rate)
-        )
-        expected_lifetime_purchases = retention_rate * retention_elasticity
-        # TODO: "cohorts" dim instead of "customer_id"?
-        return expected_lifetime_purchases.transpose(
-            "chain", "draw", "customer_id", missing_dims="ignore"
-        )
 
 
 class ShiftedBetaGeoModelIndividual(CLVModel):

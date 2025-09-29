@@ -286,20 +286,6 @@ class TestShiftedBetaGeoModel:
         expected_retention_rate = model.expected_retention_rate()
         np.testing.assert_allclose(expected_retention_rate, 0.631, rtol=0.01)
 
-    def test_expected_lifetime_purchases(self):
-        model = ShiftedBetaGeoModel(data=self.data)
-        model.build_model()
-        model.fit(method="map")
-        expected_lifetime_purchases = model.expected_lifetime_purchases()
-        np.testing.assert_allclose(expected_lifetime_purchases, 0.631, rtol=0.01)
-
-    def test_expected_retention_elasticity(self):
-        model = ShiftedBetaGeoModel(data=self.data)
-        model.build_model()
-        model.fit(method="map")
-        expected_retention_elasticity = model.expected_retention_elasticity()
-        np.testing.assert_allclose(expected_retention_elasticity, 0.631, rtol=0.01)
-
     def test_save_load(self):
         model = ShiftedBetaGeoModel(data=self.data)
         model.build_model()
