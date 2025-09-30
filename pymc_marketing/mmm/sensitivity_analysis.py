@@ -440,11 +440,51 @@ class SensitivityAnalysis:
     def compute_uplift_curve_respect_to_base(
         self,
         results: xr.DataArray,
-        ref: int,
+        ref: float | int | xr.DataArray,
         extend_idata: bool = False,
     ) -> xr.DataArray:
-        """Return marginal effects from idata."""
-        xr_result = results - ref
+        """Return uplift curves referenced to a baseline.
+
+        Parameters
+        ----------
+        results
+            Output from :meth:`run_sweep`, typically with dims ``("sample", "sweep", *extra_dims)``.
+        ref
+            Baseline to subtract from ``results``. Can be a scalar (float or int) or an
+            :class:`xarray.DataArray` sharing a subset of the ``results`` dimensions (e.g. control,
+            country). The coordinates for overlapping dimensions must match exactly so that the
+            subtraction is well defined.
+        extend_idata
+            When ``True`` the uplift is also persisted under
+            ``idata.sensitivity_analysis["uplift_curve"]``.
+        """
+        if isinstance(ref, xr.DataArray):
+            ref_da = ref
+        else:
+            try:
+                ref_da = xr.DataArray(ref)
+            except Exception as err:  # pragma: no cover - defensive
+                raise TypeError(
+                    "ref must be a scalar or an xarray.DataArray broadcastable to the sweep results"
+                ) from err
+
+        extra_dims = set(ref_da.dims).difference(results.dims)
+        if extra_dims:
+            raise ValueError(
+                "Reference array includes dimensions absent from the sweep results: "
+                f"{sorted(extra_dims)}"
+            )
+
+        try:
+            results_aligned, ref_aligned = xr.align(
+                results, ref_da, join="exact", copy=False
+            )
+        except ValueError as err:  # pragma: no cover - coordinate mismatch
+            raise ValueError(
+                "Reference array coordinates must match the sweep results for shared dimensions."
+            ) from err
+
+        xr_result = results_aligned - ref_aligned
         if extend_idata:
             if not hasattr(self.idata, "sensitivity_analysis"):
                 raise ValueError(

@@ -293,6 +293,25 @@ def test_compute_uplift_curve_respect_to_base(sensitivity):
     xr.testing.assert_allclose(sa_group["uplift_curve"], persisted)
 
 
+def test_compute_uplift_curve_respect_to_base_array_ref(sensitivity):
+    sweeps = np.linspace(0.5, 1.5, 5)
+    results = sensitivity.run_sweep(
+        varinput="channel_data",
+        var_names="channel_contribution",
+        sweep_values=sweeps,
+        sweep_type="multiplicative",
+    )
+
+    baseline = results.sel(sweep=1.0).mean(dim="sample")
+
+    uplift = sensitivity.compute_uplift_curve_respect_to_base(
+        results=results, ref=baseline
+    )
+
+    broadcasted = results - baseline
+    xr.testing.assert_allclose(uplift, broadcasted)
+
+
 def test_posterior_sample_percentage_controls_draws(sensitivity):
     sweeps = np.linspace(0.5, 1.5, 4)
     full = sensitivity.run_sweep(

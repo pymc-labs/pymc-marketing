@@ -171,6 +171,7 @@ Notes
 
 import itertools
 from collections.abc import Iterable
+from typing import Any
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -1407,6 +1408,7 @@ class MMMPlotSuite:
         hdi_prob: float = 0.94,
         ax: plt.Axes | None = None,
         aggregation: dict[str, tuple[str, ...] | list[str]] | None = None,
+        subplot_kwargs: dict[str, Any] | None = None,
     ) -> tuple[Figure, NDArray[Axes]] | plt.Axes:
         """Plot sensitivity analysis results.
 
@@ -1468,59 +1470,148 @@ class MMMPlotSuite:
                     x = x.mean(dim=dims_list)
                 else:
                     x = x.median(dim=dims_list)
-        # Infer sweep dim and values
-        if "sweep" in x.dims:
-            sweep_dim = "sweep"
+        # Determine plotting dimensions (excluding sample & sweep)
+        plot_dims = [d for d in x.dims if d not in {"sample", "sweep"}]
+        if plot_dims:
+            dim_combinations = list(
+                itertools.product(*[x.coords[d].values for d in plot_dims])
+            )
         else:
-            cand = [d for d in x.dims if d != "sample"]
-            if not cand:
+            dim_combinations = [()]
+
+        n_panels = len(dim_combinations)
+
+        # Handle axis/grid creation
+        subplot_kwargs = {**(subplot_kwargs or {})}
+        nrows_user = subplot_kwargs.pop("nrows", None)
+        ncols_user = subplot_kwargs.pop("ncols", None)
+        if nrows_user is not None and ncols_user is not None:
+            raise ValueError(
+                "Specify only one of 'nrows' or 'ncols' in subplot_kwargs."
+            )
+
+        if n_panels > 1:
+            if ax is not None:
                 raise ValueError(
-                    "Expected 'sweep' (or a non-sample) dimension in sensitivity results."
+                    "Multiple sensitivity panels detected; please omit 'ax' and use 'subplot_kwargs' instead."
                 )
-            sweep_dim = cand[0]
-        sweep = (
-            np.asarray(x.coords[sweep_dim].values)
-            if sweep_dim in x.coords
-            else np.arange(x.sizes[sweep_dim])
-        )
-        # Mean and HDI across sample
-        mean = x.mean("sample") if "sample" in x.dims else x
-        # Reduce leftover dims except sweep
-        reduce_dims = [d for d in mean.dims if d != sweep_dim]
-        if reduce_dims:
-            mean = mean.sum(dim=reduce_dims)
-        if "sample" in x.dims:
-            hdi = az.hdi(x, hdi_prob=hdi_prob, input_core_dims=[["sample"]])
-            if isinstance(hdi, xr.Dataset):
-                hdi = hdi[next(iter(hdi.data_vars))]
+            if ncols_user is not None:
+                ncols = ncols_user
+                nrows = int(np.ceil(n_panels / ncols))
+            elif nrows_user is not None:
+                nrows = nrows_user
+                ncols = int(np.ceil(n_panels / nrows))
+            else:
+                ncols = max(1, int(np.ceil(np.sqrt(n_panels))))
+                nrows = int(np.ceil(n_panels / ncols))
+            subplot_kwargs.setdefault("figsize", (ncols * 4.0, nrows * 3.0))
+            fig, axes_grid = plt.subplots(
+                nrows=nrows,
+                ncols=ncols,
+                **subplot_kwargs,
+            )
+            if isinstance(axes_grid, plt.Axes):
+                axes_grid = np.array([[axes_grid]])
+            elif axes_grid.ndim == 1:
+                axes_grid = axes_grid.reshape(1, -1)
+            axes_array = axes_grid
         else:
-            hdi = xr.concat([mean, mean], dim="hdi").assign_coords(hdi=np.array([0, 1]))
-        # Reduce leftover dims and ensure order (sweep_dim, hdi)
-        reduce_hdi = [d for d in hdi.dims if d not in (sweep_dim, "hdi")]
-        if reduce_hdi:
-            hdi = hdi.sum(dim=reduce_hdi)
-        if set(hdi.dims) == {sweep_dim, "hdi"} and list(hdi.dims) != [sweep_dim, "hdi"]:
-            hdi = hdi.transpose(sweep_dim, "hdi")  # type: ignore
-        # Plot
-        if ax is None:
-            _, ax = plt.subplots()
-        ax.plot(sweep, np.asarray(mean.values, dtype=float), color="C0")
-        az.plot_hdi(
-            x=sweep,
-            hdi_data=np.asarray(hdi.values, dtype=float),
-            hdi_prob=hdi_prob,
-            color="C0",
-            ax=ax,
-        )
-        ax.set_xlabel("Sweep")
-        ax.set_ylabel("Effect")
-        return ax
+            if ax is not None:
+                axes_array = np.array([[ax]])
+                fig = ax.figure
+            else:
+                if ncols_user is not None or nrows_user is not None:
+                    subplot_kwargs.setdefault("figsize", (4.0, 3.0))
+                    fig, single_ax = plt.subplots(
+                        nrows=1,
+                        ncols=1,
+                        **subplot_kwargs,
+                    )
+                else:
+                    fig, single_ax = plt.subplots()
+                axes_array = np.array([[single_ax]])
+
+        axes_flat = axes_array.flatten()
+        for idx, combo in enumerate(dim_combinations):
+            current_ax = axes_flat[idx]
+            indexers = dict(zip(plot_dims, combo, strict=False)) if plot_dims else {}
+            subset = x.sel(**indexers) if indexers else x
+            subset = subset.squeeze(drop=True)
+            subset = subset.astype(float)
+
+            if "sweep" in subset.dims:
+                sweep_dim = "sweep"
+            else:
+                cand = [d for d in subset.dims if d != "sample"]
+                if not cand:
+                    raise ValueError(
+                        "Expected 'sweep' (or a non-sample) dimension in sensitivity results."
+                    )
+                sweep_dim = cand[0]
+
+            sweep = (
+                np.asarray(subset.coords[sweep_dim].values)
+                if sweep_dim in subset.coords
+                else np.arange(subset.sizes[sweep_dim])
+            )
+
+            mean = subset.mean("sample") if "sample" in subset.dims else subset
+            reduce_dims = [d for d in mean.dims if d != sweep_dim]
+            if reduce_dims:
+                mean = mean.sum(dim=reduce_dims)
+
+            if "sample" in subset.dims:
+                hdi = az.hdi(subset, hdi_prob=hdi_prob, input_core_dims=[["sample"]])
+                if isinstance(hdi, xr.Dataset):
+                    hdi = hdi[next(iter(hdi.data_vars))]
+            else:
+                hdi = xr.concat([mean, mean], dim="hdi").assign_coords(
+                    hdi=np.array([0, 1])
+                )
+
+            reduce_hdi = [d for d in hdi.dims if d not in (sweep_dim, "hdi")]
+            if reduce_hdi:
+                hdi = hdi.sum(dim=reduce_hdi)
+            if set(hdi.dims) == {sweep_dim, "hdi"} and list(hdi.dims) != [
+                sweep_dim,
+                "hdi",
+            ]:
+                hdi = hdi.transpose(sweep_dim, "hdi")  # type: ignore
+
+            current_ax.plot(sweep, np.asarray(mean.values, dtype=float), color="C0")
+            az.plot_hdi(
+                x=sweep,
+                hdi_data=np.asarray(hdi.values, dtype=float),
+                hdi_prob=hdi_prob,
+                color="C0",
+                ax=current_ax,
+            )
+
+            title = self._build_subplot_title(
+                dims=plot_dims,
+                combo=combo,
+                fallback_title="Sensitivity Analysis",
+            )
+            current_ax.set_title(title)
+            current_ax.set_xlabel("Sweep")
+            current_ax.set_ylabel("Effect")
+
+        # Hide any unused axes (happens if grid > panels)
+        for ax_extra in axes_flat[n_panels:]:
+            ax_extra.set_visible(False)
+
+        if n_panels == 1:
+            return axes_array[0, 0]
+
+        fig.tight_layout()
+        return fig, axes_array
 
     def uplift_curve(
         self,
         hdi_prob: float = 0.94,
         ax: plt.Axes | None = None,
         aggregation: dict[str, tuple[str, ...] | list[str]] | None = None,
+        subplot_kwargs: dict[str, Any] | None = None,
     ) -> tuple[Figure, NDArray[Axes]] | plt.Axes:
         """
         Plot precomputed uplift curves stored under `idata.sensitivity_analysis['uplift_curve']`.
@@ -1534,6 +1625,8 @@ class MMMPlotSuite:
         aggregation : dict, optional
             Aggregation to apply to the data.
             E.g., {"sum": ("channel",)} to sum over the channel dimension.
+        subplot_kwargs : dict, optional
+            Additional subplot configuration forwarded to :meth:`sensitivity_analysis`.
 
         Examples
         --------
@@ -1584,7 +1677,10 @@ class MMMPlotSuite:
         try:
             self.idata.sensitivity_analysis = tmp_idata  # type: ignore
             return self.sensitivity_analysis(
-                hdi_prob=hdi_prob, ax=ax, aggregation=aggregation
+                hdi_prob=hdi_prob,
+                ax=ax,
+                aggregation=aggregation,
+                subplot_kwargs=subplot_kwargs,
             )
         finally:
             self.idata.sensitivity_analysis = original_group  # type: ignore
@@ -1594,6 +1690,7 @@ class MMMPlotSuite:
         hdi_prob: float = 0.94,
         ax: plt.Axes | None = None,
         aggregation: dict[str, tuple[str, ...] | list[str]] | None = None,
+        subplot_kwargs: dict[str, Any] | None = None,
     ) -> tuple[Figure, NDArray[Axes]] | plt.Axes:
         """
         Plot precomputed marginal effects stored under `idata.sensitivity_analysis['marginal_effects']`.
@@ -1607,6 +1704,8 @@ class MMMPlotSuite:
         aggregation : dict, optional
             Aggregation to apply to the data.
             E.g., {"sum": ("channel",)} to sum over the channel dimension.
+        subplot_kwargs : dict, optional
+            Additional subplot configuration forwarded to :meth:`sensitivity_analysis`.
 
         Examples
         --------
@@ -1655,7 +1754,10 @@ class MMMPlotSuite:
             self.idata.sensitivity_analysis = tmp  # type: ignore
             # Reuse core plotting; percentage=False by definition
             return self.sensitivity_analysis(
-                hdi_prob=hdi_prob, ax=ax, aggregation=aggregation
+                hdi_prob=hdi_prob,
+                ax=ax,
+                aggregation=aggregation,
+                subplot_kwargs=subplot_kwargs,
             )
         finally:
             self.idata.sensitivity_analysis = original  # type: ignore

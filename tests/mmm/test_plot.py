@@ -179,58 +179,54 @@ def mock_idata() -> az.InferenceData:
 def mock_idata_with_sensitivity(mock_idata):
     # Copy the mock_idata so we don't mutate the shared fixture
     idata = mock_idata.copy()
-    n_chain, n_draw, n_sweep = 2, 10, 5
+    n_sample, n_sweep = 40, 5
     sweep = np.linspace(0.5, 1.5, n_sweep)
-    # Add a single extra dim for multi-panel test
-    extra_dim = ["A", "B"]
-    # y and marginal_effects: dims (chain, draw, sweep, extra)
-    y = xr.DataArray(
-        np.random.normal(0, 1, size=(n_chain, n_draw, n_sweep, len(extra_dim))),
-        dims=("chain", "draw", "sweep", "region"),
+    regions = ["A", "B"]
+
+    samples = xr.DataArray(
+        np.random.normal(0, 1, size=(n_sample, n_sweep, len(regions))),
+        dims=("sample", "sweep", "region"),
         coords={
-            "chain": np.arange(n_chain),
-            "draw": np.arange(n_draw),
+            "sample": np.arange(n_sample),
             "sweep": sweep,
-            "region": extra_dim,
+            "region": regions,
         },
+        name="x",
     )
+
     marginal_effects = xr.DataArray(
-        np.random.normal(0, 1, size=(n_chain, n_draw, n_sweep, len(extra_dim))),
-        dims=("chain", "draw", "sweep", "region"),
+        np.random.normal(0, 1, size=(n_sample, n_sweep, len(regions))),
+        dims=("sample", "sweep", "region"),
         coords={
-            "chain": np.arange(n_chain),
-            "draw": np.arange(n_draw),
+            "sample": np.arange(n_sample),
             "sweep": sweep,
-            "region": extra_dim,
+            "region": regions,
         },
+        name="marginal_effects",
     )
-    # Add sweep_type and var_names as attrs/coords
+
+    uplift_curve = xr.DataArray(
+        np.random.normal(0, 1, size=(n_sample, n_sweep, len(regions))),
+        dims=("sample", "sweep", "region"),
+        coords={
+            "sample": np.arange(n_sample),
+            "sweep": sweep,
+            "region": regions,
+        },
+        name="uplift_curve",
+    )
+
     sensitivity_analysis = xr.Dataset(
-        {"y": y, "marginal_effects": marginal_effects},
-        coords={"sweep": sweep, "region": extra_dim},
+        {
+            "x": samples,
+            "marginal_effects": marginal_effects,
+            "uplift_curve": uplift_curve,
+        },
+        coords={"sweep": sweep, "region": regions},
         attrs={"sweep_type": "multiplicative", "var_names": "test_var"},
     )
-    # Attach to idata
+
     idata.sensitivity_analysis = sensitivity_analysis
-    # Add posterior_predictive for percentage test
-    idata.posterior_predictive = xr.Dataset(
-        {
-            "y": xr.DataArray(
-                np.abs(
-                    np.random.normal(
-                        10, 2, size=(n_chain, n_draw, n_sweep, len(extra_dim))
-                    )
-                ),
-                dims=("chain", "draw", "sweep", "region"),
-                coords={
-                    "chain": np.arange(n_chain),
-                    "draw": np.arange(n_draw),
-                    "sweep": sweep,
-                    "region": extra_dim,
-                },
-            )
-        }
-    )
     return idata
 
 
@@ -683,36 +679,66 @@ def test_saturation_curves_multi_dim_axes_shape(
     assert axes.shape == (n_channels, n_countries)
 
 
-def test_plot_sensitivity_analysis_basic(mock_suite_with_sensitivity):
-    # Should return (fig, axes) for multi-panel
-    fig, axes = mock_suite_with_sensitivity.plot_sensitivity_analysis()
+def test_sensitivity_analysis_basic(mock_suite_with_sensitivity):
+    fig, axes = mock_suite_with_sensitivity.sensitivity_analysis()
+
     assert isinstance(fig, Figure)
     assert isinstance(axes, np.ndarray)
-    assert all(isinstance(ax, Axes) for ax in axes.flat)
+    assert axes.ndim == 2
+    expected_panels = len(
+        mock_suite_with_sensitivity.idata.sensitivity_analysis.coords["region"]
+    )  # type: ignore
+    assert axes.size >= expected_panels
+    assert all(isinstance(ax, Axes) for ax in axes.flat[:expected_panels])
 
 
-def test_plot_sensitivity_analysis_marginal(mock_suite_with_sensitivity):
-    fig, axes = mock_suite_with_sensitivity.plot_sensitivity_analysis(marginal=True)
+def test_sensitivity_analysis_with_aggregation(mock_suite_with_sensitivity):
+    ax = mock_suite_with_sensitivity.sensitivity_analysis(
+        aggregation={"sum": ("region",)}
+    )
+    assert isinstance(ax, Axes)
+
+
+def test_marginal_curve(mock_suite_with_sensitivity):
+    fig, axes = mock_suite_with_sensitivity.marginal_curve()
+
     assert isinstance(fig, Figure)
     assert isinstance(axes, np.ndarray)
+    assert axes.ndim == 2
+    regions = mock_suite_with_sensitivity.idata.sensitivity_analysis.coords["region"]  # type: ignore
+    assert axes.size >= len(regions)
+    assert all(isinstance(ax, Axes) for ax in axes.flat[: len(regions)])
 
 
-def test_plot_sensitivity_analysis_percentage(mock_suite_with_sensitivity):
-    fig, axes = mock_suite_with_sensitivity.plot_sensitivity_analysis(percentage=True)
+def test_uplift_curve(mock_suite_with_sensitivity):
+    fig, axes = mock_suite_with_sensitivity.uplift_curve()
+
     assert isinstance(fig, Figure)
     assert isinstance(axes, np.ndarray)
+    assert axes.ndim == 2
+    regions = mock_suite_with_sensitivity.idata.sensitivity_analysis.coords["region"]  # type: ignore
+    assert axes.size >= len(regions)
+    assert all(isinstance(ax, Axes) for ax in axes.flat[: len(regions)])
 
 
-def test_plot_sensitivity_analysis_error_on_both_modes(mock_suite_with_sensitivity):
-    with pytest.raises(
-        ValueError, match=r"Not implemented marginal effects in percentage scale."
-    ):
-        mock_suite_with_sensitivity.plot_sensitivity_analysis(
-            marginal=True, percentage=True
-        )
+def test_sensitivity_analysis_multi_panel(mock_suite_with_sensitivity):
+    # The fixture provides an extra 'region' dimension, so multiple panels should be produced
+    fig, axes = mock_suite_with_sensitivity.sensitivity_analysis(
+        subplot_kwargs={"ncols": 2}
+    )
+
+    assert isinstance(fig, Figure)
+    assert isinstance(axes, np.ndarray)
+    assert axes.ndim == 2
+    # There should be two regions, therefore exactly two panels
+    expected_panels = len(
+        mock_suite_with_sensitivity.idata.sensitivity_analysis.coords["region"]
+    )  # type: ignore
+    assert axes.size >= expected_panels
+    assert all(isinstance(ax, Axes) for ax in axes.flat[:expected_panels])
 
 
-def test_plot_sensitivity_analysis_error_on_missing_results(mock_idata):
+def test_sensitivity_analysis_error_on_missing_results(mock_idata):
     suite = MMMPlotSuite(idata=mock_idata)
     with pytest.raises(ValueError, match=r"No sensitivity analysis results found"):
-        suite.plot_sensitivity_analysis()
+        suite.sensitivity_analysis()
