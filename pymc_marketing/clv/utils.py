@@ -893,7 +893,7 @@ def _expected_cumulative_transactions(
     for i, period in enumerate(date_periods):  # index of period and its date
         if i % time_scaler == 0 and i > 0:  # type: ignore
             # Periods before the one being evaluated
-            times = np.array([d.n for d in period - first_trans_size.index])
+            times = np.array([d.n for d in period - first_trans_size.index])  # type: ignore[operator]
             times = times[times > 0].astype(float) / time_scaler
 
             # create arbitrary dataframe from array of n time periods for predictions
