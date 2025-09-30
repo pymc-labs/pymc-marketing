@@ -1347,6 +1347,74 @@ def test_add_calibration_test_measurements(multi_dim_data):
     assert "cpt_calibration" in pot_names
 
 
+def test_add_cost_per_target_calibration_requires_model(multi_dim_data) -> None:
+    X, _ = multi_dim_data
+
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+
+    spend_df = X.copy()
+    calibration_df = pd.DataFrame(
+        {
+            "country": [spend_df["country"].iloc[0]],
+            "channel": ["channel_1"],
+            "cost_per_target": [30.0],
+            "sigma": [2.0],
+        }
+    )
+
+    with pytest.raises(
+        RuntimeError, match=r"Model must be built before adding calibration."
+    ):
+        mmm.add_cost_per_target_calibration(
+            data=spend_df,
+            calibration_data=calibration_df,
+            cpt_variable_name="cost_per_target",
+            name_prefix="cpt_calibration",
+        )
+
+
+def test_add_cost_per_target_calibration_missing_dim_column(multi_dim_data) -> None:
+    X, y = multi_dim_data
+
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+
+    mmm.build_model(X, y)
+
+    spend_df = X.copy()
+    calibration_df = pd.DataFrame(
+        {
+            "channel": ["channel_1"],
+            "cost_per_target": [40.0],
+            "sigma": [2.5],
+        }
+    )
+
+    with pytest.raises(
+        KeyError,
+        match=r"The country column is required in calibration_data to map to model dims.",
+    ):
+        mmm.add_cost_per_target_calibration(
+            data=spend_df,
+            calibration_data=calibration_df,
+            cpt_variable_name="cost_per_target",
+            name_prefix="cpt_calibration",
+        )
+
+
 def test_time_varying_media_with_lift_test(
     multi_dim_data, df_lift_test, mock_pymc_sample
 ) -> None:

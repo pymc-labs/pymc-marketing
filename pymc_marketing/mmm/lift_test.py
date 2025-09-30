@@ -835,7 +835,7 @@ def add_cost_per_target_potentials(
     current_model: pm.Model = pm.modelcontext(model)
 
     # Basic validation
-    required_cols = {"channel", "cost_per_target", "sigma"}
+    required_cols = {"channel", cpt_variable_name, "sigma"}
     missing = required_cols - set(calibration_df.columns)
     if missing:
         raise KeyError(f"Missing required columns in calibration_df: {sorted(missing)}")
@@ -859,7 +859,7 @@ def add_cost_per_target_potentials(
     # Build indices for selection in model coordinates (date excluded: we average over it)
     indices = get_indices(calibration_df[non_date_dims], current_model)
 
-    targets = calibration_df["cost_per_target"].to_numpy()
+    targets = calibration_df[cpt_variable_name].to_numpy()
     sigmas = calibration_df["sigma"].to_numpy()
 
     with current_model:
