@@ -800,8 +800,11 @@ def add_cost_per_target_potentials(
     Parameters
     ----------
     calibration_df : pd.DataFrame
-        Must include columns ``channel``, ``cost_per_target``, ``sigma`` and one
-        column per model dimension found in the CPT variable (excluding ``date``).
+        Must include columns ``channel``, ``sigma``, and a target column. By
+        default the target column is assumed to be ``cost_per_target``; if a column
+        matching ``cpt_variable_name`` is present it will be used instead. The
+        DataFrame must also include one column per model dimension found in the
+        CPT variable (excluding ``date``).
     model : pm.Model, optional
         Model containing the ``cpt_variable_name`` Deterministic with dims
         ("date", *dims, "channel"). If None, uses the current model context.
@@ -835,7 +838,13 @@ def add_cost_per_target_potentials(
     current_model: pm.Model = pm.modelcontext(model)
 
     # Basic validation
-    required_cols = {"channel", cpt_variable_name, "sigma"}
+    target_column = (
+        cpt_variable_name
+        if cpt_variable_name in calibration_df.columns
+        else "cost_per_target"
+    )
+
+    required_cols = {"channel", target_column, "sigma"}
     missing = required_cols - set(calibration_df.columns)
     if missing:
         raise KeyError(f"Missing required columns in calibration_df: {sorted(missing)}")
@@ -859,8 +868,10 @@ def add_cost_per_target_potentials(
     # Build indices for selection in model coordinates (date excluded: we average over it)
     indices = get_indices(calibration_df[non_date_dims], current_model)
 
-    targets = calibration_df[cpt_variable_name].to_numpy()
-    sigmas = calibration_df["sigma"].to_numpy()
+    targets: npt.NDArray[np.float64] = calibration_df[target_column].to_numpy(
+        dtype=float
+    )
+    sigmas: npt.NDArray[np.float64] = calibration_df["sigma"].to_numpy(dtype=float)
 
     with current_model:
         # Compute mean over the date dimension once
