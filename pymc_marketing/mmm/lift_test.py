@@ -13,9 +13,9 @@
 #   limitations under the License.
 """Adding lift tests as observations of saturation function.
 
-This provides the inner workings of `MMM.add_lift_test_measurements` method. Use that
-method directly while working with the `MMM` class.
-
+This provides the inner workings of `MMM.add_lift_test_measurements` method.
+Other methods can be MMM.add_cost_per_target_calibration.
+Use any of these methods directly while working with the `MMM` class.
 """
 
 from collections.abc import Callable, Sequence
@@ -779,3 +779,118 @@ def add_lift_measurements_to_likelihood_from_saturation(
         get_indices=get_indices,
         variable_indexer_factory=variable_indexer_factory,
     )
+
+
+def add_cost_per_target_potentials(
+    calibration_df: pd.DataFrame,
+    *,
+    model: pm.Model | None = None,
+    cpt_variable_name: str = "cost_per_target",
+    name_prefix: str = "cpt_calibration",
+    get_indices: Callable[[pd.DataFrame, pm.Model], Indices] = exact_row_indices,
+) -> None:
+    """Add ``pm.Potential`` penalties to calibrate cost-per-target.
+
+    For each row, we compute the mean of ``cpt_variable_name`` across the date
+    dimension for the specified (dims, channel) slice and add a soft quadratic
+    penalty:
+
+    ``penalty = - |cpt_mean - target|^2 / (2 * sigma^2)``.
+
+    Parameters
+    ----------
+    calibration_df : pd.DataFrame
+        Must include columns ``channel``, ``sigma``, and a target column. By
+        default the target column is assumed to be ``cost_per_target``; if a column
+        matching ``cpt_variable_name`` is present it will be used instead. The
+        DataFrame must also include one column per model dimension found in the
+        CPT variable (excluding ``date``).
+    model : pm.Model, optional
+        Model containing the ``cpt_variable_name`` Deterministic with dims
+        ("date", *dims, "channel"). If None, uses the current model context.
+    cpt_variable_name : str
+        Name of the cost-per-target Deterministic variable.
+    name_prefix : str
+        Prefix for created potential names.
+    get_indices : Callable[[pd.DataFrame, pm.Model], Indices]
+        Alignment function mapping rows to model coordinate indices.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        calibration_df = pd.DataFrame(
+            {
+                "channel": ["C1", "C2"],
+                "geo": ["US", "US"],  # add dims as needed
+                "cost_per_target": [30.0, 45.0],
+                "sigma": [2.0, 3.0],
+            }
+        )
+
+        add_cost_per_target_potentials(
+            calibration_df=calibration_df,
+            model=mmm.model,
+            cpt_variable_name="cost_per_target",
+            name_prefix="cpt_calibration",
+        )
+    """
+    current_model: pm.Model = pm.modelcontext(model)
+
+    # Basic validation
+    target_column = (
+        cpt_variable_name
+        if cpt_variable_name in calibration_df.columns
+        else "cost_per_target"
+    )
+
+    required_cols = {"channel", target_column, "sigma"}
+    missing = required_cols - set(calibration_df.columns)
+    if missing:
+        raise KeyError(f"Missing required columns in calibration_df: {sorted(missing)}")
+
+    if cpt_variable_name not in current_model.named_vars:
+        raise KeyError(
+            f"Variable {cpt_variable_name!r} not found in model; create it before calibration."
+        )
+
+    # Determine dims from the CPT variable in the model
+    cpt_dims = current_model.named_vars_to_dims[cpt_variable_name]
+    non_date_dims = [d for d in cpt_dims if d != "date"]
+
+    # Ensure calibration_df contains all needed dimension columns
+    missing_dims = [d for d in non_date_dims if d not in calibration_df.columns]
+    if missing_dims:
+        raise KeyError(
+            f"Calibration data missing dimension columns: {missing_dims}. Required dims: {non_date_dims}"
+        )
+
+    # Build indices for selection in model coordinates (date excluded: we average over it)
+    indices = get_indices(calibration_df[non_date_dims], current_model)
+
+    targets: npt.NDArray[np.float64] = calibration_df[target_column].to_numpy(
+        dtype=float
+    )
+    sigmas: npt.NDArray[np.float64] = calibration_df["sigma"].to_numpy(dtype=float)
+
+    with current_model:
+        # Compute mean over the date dimension once
+        cpt_full = current_model[cpt_variable_name]
+        date_axis = cpt_dims.index("date")
+        cpt_mean = pt.mean(cpt_full, axis=date_axis)
+
+        # Build advanced indexing arrays for remaining dims (including channel),
+        # preserving the order present in cpt_dims (excluding date)
+        indexers = [
+            pt.as_tensor_variable(indices[dim])  # type: ignore[index]
+            for dim in cpt_dims
+            if dim != "date"
+        ]
+
+        # Gather the cpt mean for each calibration row as a vector
+        gathered_cpt = cpt_mean[tuple(indexers)]
+
+        # Vectorized quadratic penalties and single aggregated Potential
+        deviation = pt.abs(gathered_cpt - targets)
+        penalties = -(deviation**2) / (2 * (sigmas**2))
+        pm.Potential(name_prefix, pt.sum(penalties))
