@@ -100,6 +100,7 @@ def test_build_with_custom_priors_builds(causal_df):
 
     # Custom priors with matching dims expectation (likelihood has 'date', slope has no dims)
     custom_config = {
+        "intercept": Prior("Normal", mu=0, sigma=0.5),
         "slope": Prior("Normal", mu=0, sigma=0.5),  # no dims implies ()
         "likelihood": Prior(
             "Normal", sigma=Prior("HalfNormal", sigma=0.5), dims=("date",)
@@ -133,6 +134,7 @@ def test_warning_when_slope_dims_missing_vs_likelihood_dims(causal_df):
     causal_df["country"] = "Venezuela"
 
     custom_config = {
+        "intercept": Prior("Normal", mu=0, sigma=1),
         "slope": Prior("Normal", mu=0, sigma=1),  # no dims
         "likelihood": Prior(
             "Normal", sigma=Prior("HalfNormal", sigma=1), dims=("date", "country")
@@ -169,6 +171,7 @@ def test_no_warning_when_slope_dims_match_likelihood_dims(causal_df):
     causal_df["country"] = "Venezuela"
 
     custom_config = {
+        "intercept": Prior("Normal", mu=0, sigma=1, dims=("country",)),
         "slope": Prior("Normal", mu=0, sigma=1, dims=("country",)),
         "likelihood": Prior(
             "Normal", sigma=Prior("HalfNormal", sigma=1), dims=("date", "country")
@@ -206,6 +209,7 @@ def test_error_when_likelihood_dims_differ_from_class_dims(causal_df):
 
     # Class dims only includes date, while likelihood dims include date and country -> should error
     custom_config = {
+        "intercept": Prior("Normal", mu=0, sigma=1),
         "slope": Prior("Normal", mu=0, sigma=1),
         "likelihood": Prior(
             "Normal", sigma=Prior("HalfNormal", sigma=1), dims=("date", "country")
@@ -275,7 +279,8 @@ def test_default_model_config_contents_and_types(causal_df):
     )
 
     cfg = builder.model_config
-    assert set(cfg.keys()) >= {"slope", "likelihood"}
+    assert set(cfg.keys()) >= {"intercept", "slope", "likelihood"}
+    assert isinstance(cfg["intercept"], Prior)
     assert isinstance(cfg["slope"], Prior)
     assert isinstance(cfg["likelihood"], Prior)
 
@@ -294,8 +299,16 @@ def test_default_model_config_contents_and_types(causal_df):
         slope_dims = (slope_dims,)
     elif isinstance(slope_dims, list):
         slope_dims = tuple(slope_dims)
+    intercept_dims = cfg["intercept"].dims
+    if intercept_dims is None:
+        intercept_dims = tuple()
+    elif isinstance(intercept_dims, str):
+        intercept_dims = (intercept_dims,)
+    elif isinstance(intercept_dims, list):
+        intercept_dims = tuple(intercept_dims)
     # Expect dims without 'date' -> empty tuple
     assert slope_dims == tuple()
+    assert intercept_dims == slope_dims
 
 
 def test_parse_dag_parses_dot_and_simple_formats():
@@ -411,9 +424,13 @@ def test_validate_coords_raises_when_prior_dims_not_in_coords(causal_df):
     """
     coords = {"date": causal_df["date"].unique()}
     custom_config = {
-        "slope": Prior("Normal", mu=0, sigma=1, dims=("country",)),
-    }
-    with pytest.raises(ValueError, match=r"Dim 'country' declared in Prior 'slope'"):
+        prior_name: Prior("Normal", mu=0, sigma=1, dims=("country",))
+        for prior_name in ("intercept", "slope")
+    } | {}
+    with pytest.raises(
+        ValueError,
+        match=r"Dim 'country' declared in Prior '(?:intercept|slope)' must be present in coords",
+    ):
         BuildModelFromDAG(
             dag=dag,
             df=causal_df,
@@ -433,6 +450,7 @@ def test_no_warning_when_dims_given_as_str_and_list(causal_df):
     """
     causal_df["country"] = "Venezuela"
     custom_config = {
+        "intercept": Prior("Normal", mu=0, sigma=1, dims="country"),
         "slope": Prior("Normal", mu=0, sigma=1, dims="country"),
         "likelihood": Prior(
             "Normal", sigma=Prior("HalfNormal", sigma=1), dims=["date", "country"]
@@ -462,6 +480,8 @@ def test_likelihood_dims_none_init_ok(causal_df):
     """
     coords = {"date": causal_df["date"].unique()}
     custom_config = {
+        "intercept": Prior("Normal", mu=0, sigma=1),
+        "slope": Prior("Normal", mu=0, sigma=1),
         "likelihood": Prior("Normal", sigma=Prior("HalfNormal", sigma=1), dims=None),
     }
     builder = BuildModelFromDAG(
@@ -493,6 +513,7 @@ def test_validate_coords_required_raises_valueerror_when_none(causal_df):
     builder.graph = BuildModelFromDAG._parse_dag(dag)
     builder.nodes = list(nx.topological_sort(builder.graph))
     builder.model_config = {
+        "intercept": Prior("Normal", mu=0, sigma=1),
         "slope": Prior("Normal", mu=0, sigma=1),
         "likelihood": Prior(
             "Normal", sigma=Prior("HalfNormal", sigma=1), dims=("date",)
@@ -520,7 +541,11 @@ def test_error_when_likelihood_in_model_config_is_none(causal_df):
             target="X",
             dims=("date",),
             coords=coords,
-            model_config={"likelihood": None},
+            model_config={
+                "intercept": Prior("Normal", mu=0, sigma=1),
+                "likelihood": None,
+                "slope": Prior("Normal", mu=0, sigma=1),
+            },
         )
 
 

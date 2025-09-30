@@ -70,10 +70,10 @@ class BuildModelFromDAG:
     coords : dict
         Mapping from dim names to coordinate values. All coord keys must exist as
         columns in ``df`` and will be used to pivot the data to match dims.
-    model_config : dict, optional
-        Optional configuration with priors for keys ``"slope"`` and ``"likelihood"``.
-        Values should be ``pymc_extras.prior.Prior`` instances. Missing keys fall
-        back to :pyattr:`default_model_config`.
+        model_config : dict, optional
+        Optional configuration with priors for keys ``"intercept"``, ``"slope"`` and
+        ``"likelihood"``. Values should be ``pymc_extras.prior.Prior`` instances.
+        Missing keys fall back to :pyattr:`default_model_config`.
 
     Examples
     --------
@@ -148,8 +148,8 @@ class BuildModelFromDAG:
         model_config: dict | None = Field(
             None,
             description=(
-                "Optional model config with Priors for 'slope' and 'likelihood'. "
-                "Keys not supplied fall back to defaults."
+                "Optional model config with Priors for 'intercept', 'slope' and "
+                "'likelihood'. Keys not supplied fall back to defaults."
             ),
         ),
     ) -> None:
@@ -179,19 +179,22 @@ class BuildModelFromDAG:
 
         # Validate prior dims consistency early (does not require building the model)
         self._warning_if_slope_dims_dont_match_likelihood_dims()
+        self._validate_intercept_dims_match_slope_dims()
 
     @property
     def default_model_config(self) -> dict:
-        """Default priors for slopes and likelihood using ``pymc_extras.Prior``.
+        """Default priors for intercepts, slopes and likelihood using ``pymc_extras.Prior``.
 
         Returns
         -------
         dict
-            Dictionary with keys ``"slope"`` and ``"likelihood"`` mapping to
-            ``Prior`` instances with dims derived from :pyattr:`dims`.
+            Dictionary with keys ``"intercept"``, ``"slope"`` and ``"likelihood"``
+            mapping to ``Prior`` instances with dims derived from
+            :pyattr:`dims`.
         """
         slope_dims = tuple(dim for dim in (self.dims or ()) if dim != "date")
         return {
+            "intercept": Prior("Normal", mu=0, sigma=1, dims=slope_dims),
             "slope": Prior("Normal", mu=0, sigma=1, dims=slope_dims),
             "likelihood": Prior(
                 "Normal",
@@ -297,13 +300,36 @@ class BuildModelFromDAG:
                 stacklevel=2,
             )
 
+    def _validate_intercept_dims_match_slope_dims(self) -> None:
+        """Ensure intercept prior dims match slope prior dims exactly."""
+
+        def _to_tuple(maybe_dims):
+            if maybe_dims is None:
+                return tuple()
+            if isinstance(maybe_dims, str):
+                return (maybe_dims,)
+            if isinstance(maybe_dims, (list, tuple)):
+                return tuple(maybe_dims)
+            return tuple()
+
+        slope_dims = _to_tuple(getattr(self.model_config["slope"], "dims", None))
+        intercept_dims = _to_tuple(
+            getattr(self.model_config["intercept"], "dims", None)
+        )
+
+        if slope_dims != intercept_dims:
+            raise ValueError(
+                "model_config['intercept'].dims must match model_config['slope'].dims. "
+                f"Got intercept dims {intercept_dims or '()'} and slope dims {slope_dims or '()'}."
+            )
+
     def _validate_model_config_priors(self) -> None:
         """Ensure required model_config entries are Prior instances.
 
         Enforces that keys 'slope' and 'likelihood' exist and are Prior objects,
         so downstream code can safely index and call Prior helper methods.
         """
-        required_keys = ("slope", "likelihood")
+        required_keys = ("intercept", "slope", "likelihood")
         for key in required_keys:
             if key not in self.model_config:
                 raise ValueError(f"model_config must include '{key}' as a Prior.")
@@ -430,10 +456,13 @@ class BuildModelFromDAG:
                     slope_rv = self.model_config["slope"].create_variable(slope_name)
                     slope_rvs[(parent, node)] = slope_rv
                     mu_expr += slope_rv * data_containers[parent]
+                intercept_rv = self.model_config["intercept"].create_variable(
+                    f"{node.lower()}_intercept"
+                )
 
                 self.model_config["likelihood"].create_likelihood_variable(
                     name=node,
-                    mu=mu_expr,
+                    mu=mu_expr + intercept_rv,
                     observed=data_containers[node],
                 )
 
