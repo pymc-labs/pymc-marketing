@@ -565,46 +565,34 @@ class HillSaturationSigmoid(SaturationTransformation):
     }
 
 
-@serialization.register
-class RootSaturation(SaturationTransformation):
-    """Wrapper around Root saturation function.
+class HillShapeSaturation(SaturationTransformation):
+    """Hill saturation without an internal scale parameter.
 
-    Multiplies :func:`pymc_marketing.mmm.transformers.root_saturation` by an extra
-    scaling parameter ``beta``.
+    This variant exposes only the shape parameters (``slope`` and ``kappa``) of the
+    Hill function and omits the usual multiplicative ``beta`` amplitude found in
+    :class:`HillSaturation`. It is useful when a single outer channel scaling
+    coefficient (e.g. ``beta`` in a media effect or reach-frequency effect) should
+    capture amplitude to avoid non-identifiable products of multiple scale terms.
 
-    Parameters
-    ----------
-    alpha : tensor
-        Exponent applied to the input by :func:`root_saturation`. Default prior:
-        ``Prior("Beta", alpha=1, beta=2)``.
-    beta : tensor
-        Scaling factor applied to the root-transformed input. Default prior:
-        ``Prior("Gamma", mu=1, sigma=1)``.
+    Functional form
+    ---------------
+    ``f(x; slope, kappa) = hill_function(x, slope, kappa)``
 
-    .. plot::
-        :context: close-figs
+    where ``hill_function`` is imported from ``pymc_marketing.mmm.transformers`` and
+    typically returns a monotonically increasing curve with an S shape.
 
-        import matplotlib.pyplot as plt
-        import numpy as np
-        from pymc_marketing.mmm import RootSaturation
-
-        rng = np.random.default_rng(0)
-
-        saturation = RootSaturation()
-        prior = saturation.sample_prior(random_seed=rng)
-        curve = saturation.sample_curve(prior)
-        saturation.plot_curve(curve, random_seed=rng)
-        plt.show()
-
+    Default priors mirror those of :class:`HillSaturation` excluding the scale.
     """
 
-    def function(self, x, alpha, beta, *, dim: str | None = None):
-        """Root saturation function."""
-        return beta * root_saturation(x, alpha)
+    lookup_name = "hill_shape"
+
+    def function(self, x, slope, kappa):
+        """Shape-only Hill saturation."""
+        return hill_function(x, slope, kappa)
 
     default_priors = {
-        "alpha": Prior("Beta", alpha=1, beta=2),
-        "beta": Prior("Gamma", mu=1, sigma=1),
+        "slope": Prior("HalfNormal", sigma=1.5),
+        "kappa": Prior("HalfNormal", sigma=1.5),
     }
 
 
