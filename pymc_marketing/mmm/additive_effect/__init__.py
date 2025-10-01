@@ -23,6 +23,22 @@ It exposes the following components:
 Typical usage involves importing these classes to construct and analyze additive effect models in marketing analytics.
 """
 
-from pymc_marketing.mmm.additive_effect.additive_effect import Model, MuEffect
+from pymc_marketing.mmm.additive_effect.additive_effect import (
+    EventAdditiveEffect,
+    FourierEffect,
+    LinearTrendEffect,
+    Model,
+    MuEffect,
+)
+from pymc_marketing.mmm.additive_effect.frequency_reach_effect import (
+    FrequencyReachAdditiveEffect,
+)
 
-__all__ = ["Model", "MuEffect"]
+__all__ = [
+    "EventAdditiveEffect",
+    "FourierEffect",
+    "FrequencyReachAdditiveEffect",
+    "LinearTrendEffect",
+    "Model",
+    "MuEffect",
+]
