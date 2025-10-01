@@ -428,6 +428,37 @@ class HillSaturationSigmoid(SaturationTransformation):
     }
 
 
+class HillShapeSaturation(SaturationTransformation):
+    """Hill saturation without an internal scale parameter.
+
+    This variant exposes only the shape parameters (``slope`` and ``kappa``) of the
+    Hill function and omits the usual multiplicative ``beta`` amplitude found in
+    :class:`HillSaturation`. It is useful when a single outer channel scaling
+    coefficient (e.g. ``beta`` in a media effect or reach-frequency effect) should
+    capture amplitude to avoid non-identifiable products of multiple scale terms.
+
+    Functional form
+    ---------------
+    ``f(x; slope, kappa) = hill_function(x, slope, kappa)``
+
+    where ``hill_function`` is imported from ``pymc_marketing.mmm.transformers`` and
+    typically returns a monotonically increasing curve with an S shape.
+
+    Default priors mirror those of :class:`HillSaturation` excluding the scale.
+    """
+
+    lookup_name = "hill_shape"
+
+    def function(self, x, slope, kappa):
+        """Shape-only Hill saturation."""
+        return hill_function(x, slope, kappa)
+
+    default_priors = {
+        "slope": Prior("HalfNormal", sigma=1.5),
+        "kappa": Prior("HalfNormal", sigma=1.5),
+    }
+
+
 class RootSaturation(SaturationTransformation):
     """Wrapper around Root saturation function.
 
