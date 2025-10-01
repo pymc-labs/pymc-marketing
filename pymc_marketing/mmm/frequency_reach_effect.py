@@ -86,7 +86,7 @@ from pymc_extras.prior import create_dim_handler
 
 from pymc_marketing.mmm.additive_effect import Model
 from pymc_marketing.mmm.components.adstock import AdstockTransformation
-from pymc_marketing.mmm.components.saturation import SaturationTransformation
+from pymc_marketing.mmm.components.saturation import HillShapeSaturation
 
 
 class FrequencyReachAdditiveEffect(BaseModel):
@@ -110,7 +110,7 @@ class FrequencyReachAdditiveEffect(BaseModel):
     """
 
     df_frequency_reach: InstanceOf[pd.DataFrame]
-    saturation: InstanceOf[SaturationTransformation]
+    saturation: InstanceOf[HillShapeSaturation]
     adstock: InstanceOf[AdstockTransformation]
     prefix: str = "frequency_reach"
     date_dim_name: str = "date"
