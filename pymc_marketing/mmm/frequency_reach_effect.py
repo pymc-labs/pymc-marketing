@@ -105,9 +105,6 @@ class FrequencyReachAdditiveEffect(BaseModel):
         Variable name prefix for PyMC random/deterministic vars.
     date_dim_name : str, default "date"
         Name of the date coordinate in the target model.
-    adstock_first : bool, default True (deprecated / enforced True)
-        Kept for backward compatibility with earlier drafts; the current
-        implementation always performs: saturation(frequency) -> multiply by reach -> adstock.
     channel_coord_name : str, default "channel"
         Name of the channel coordinate used by the parent model.
     """
@@ -117,7 +114,6 @@ class FrequencyReachAdditiveEffect(BaseModel):
     adstock: InstanceOf[AdstockTransformation]
     prefix: str = "frequency_reach"
     date_dim_name: str = "date"
-    adstock_first: bool = True  # Enforced True (see model_post_init)
     channel_coord_name: str = "channel"
 
     # Internal cached shapes (populated at create_data)
@@ -155,13 +151,6 @@ class FrequencyReachAdditiveEffect(BaseModel):
             self.adstock.prefix = f"{self.prefix}_adstock"
         if hasattr(self.saturation, "prefix"):
             self.saturation.prefix = f"{self.prefix}_saturation"
-
-        # Enforce adstock_first True (we currently rely on that ordering for interpretation)
-        if not self.adstock_first:
-            raise ValueError(
-                "FrequencyReachAdditiveEffect currently requires adstock_first=True. "
-                "Support for saturation-first ordering is not implemented."
-            )
 
     # ------------------------------------------------------------------
     # Protocol methods
