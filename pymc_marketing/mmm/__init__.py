@@ -27,6 +27,7 @@ from pymc_marketing.mmm.components.adstock import (
 from pymc_marketing.mmm.components.saturation import (
     HillSaturation,
     HillSaturationSigmoid,
+    HillShapeSaturation,
     InverseScaledLogisticSaturation,
     LogisticSaturation,
     LogSaturation,
@@ -96,6 +97,7 @@ __all__ = [
     "HSGPPeriodic",
     "HillSaturation",
     "HillSaturationSigmoid",
+    "HillShapeSaturation",
     "InverseScaledLogisticSaturation",
     "LinearTrend",
     "LogSaturation",
