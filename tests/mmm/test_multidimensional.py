@@ -813,12 +813,13 @@ def create_event_effect() -> Callable[[str], EventEffect]:
         prefix: str = "holiday",
         sigma_dims: str | None = None,
         effect_size: Prior | None = None,
+        dims: tuple[str] | str | None = None,
     ):
         basis = GaussianBasis()
         return EventEffect(
             basis=basis,
             effect_size=Prior("Normal"),
-            dims=(prefix,),
+            dims=dims or (prefix,),
         )
 
     return create
@@ -882,10 +883,14 @@ def test_mmm_with_events(
     )
     assert len(mmm.mu_effects) == 1
 
+    df_events_with_country = df_events.copy()
+    df_events_with_country["country"] = "A"
     mmm.add_events(
-        df_events,
+        df_events_with_country,
         prefix="another_event_type",
-        effect=create_event_effect(prefix="another_event_type"),
+        effect=create_event_effect(
+            prefix="another_event_type", dims=("country", "another_event_type")
+        ),
     )
     assert len(mmm.mu_effects) == 2
 
@@ -1293,6 +1298,125 @@ def test_add_lift_test_measurements_no_model() -> None:
     with pytest.raises(RuntimeError, match=r"The model has not been built yet."):
         mmm.add_lift_test_measurements(
             pd.DataFrame(),
+        )
+
+
+def test_add_calibration_test_measurements(multi_dim_data):
+    X, y = multi_dim_data
+
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+
+    # Build the model
+    mmm.build_model(X, y)
+
+    # Spend data: same structure as X (use X directly for simplicity)
+    spend_df = X.copy()
+
+    # Calibration rows map to dims+channel; provide targets and sigma
+    # Pick two concrete rows present in coords
+    countries = mmm.model.coords["country"]
+    channels = ["channel_1", "channel_2"]
+    calibration_df = pd.DataFrame(
+        {
+            "country": [countries[0], countries[1]],
+            "channel": [channels[0], channels[1]],
+            "cost_per_target": [30.0, 45.0],
+            "sigma": [2.0, 3.0],
+        }
+    )
+
+    # Ensure the variable is not present beforehand
+    assert "cost_per_target" not in mmm.model.named_vars
+
+    # Add calibration constraints
+    mmm.add_cost_per_target_calibration(
+        data=spend_df,
+        calibration_data=calibration_df,
+        cpt_variable_name="cost_per_target",
+        name_prefix="cpt_calibration",
+    )
+
+    # Check data and deterministic exist
+    assert "channel_data_spend" in mmm.model.named_vars
+    assert "cost_per_target" in mmm.model.named_vars
+
+    # Check aggregated potential was added
+    pot_names = [getattr(p, "name", None) for p in mmm.model.potentials]
+    assert "cpt_calibration" in pot_names
+
+
+def test_add_cost_per_target_calibration_requires_model(multi_dim_data) -> None:
+    X, _ = multi_dim_data
+
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+
+    spend_df = X.copy()
+    calibration_df = pd.DataFrame(
+        {
+            "country": [spend_df["country"].iloc[0]],
+            "channel": ["channel_1"],
+            "cost_per_target": [30.0],
+            "sigma": [2.0],
+        }
+    )
+
+    with pytest.raises(
+        RuntimeError, match=r"Model must be built before adding calibration."
+    ):
+        mmm.add_cost_per_target_calibration(
+            data=spend_df,
+            calibration_data=calibration_df,
+            cpt_variable_name="cost_per_target",
+            name_prefix="cpt_calibration",
+        )
+
+
+def test_add_cost_per_target_calibration_missing_dim_column(multi_dim_data) -> None:
+    X, y = multi_dim_data
+
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+
+    mmm.build_model(X, y)
+
+    spend_df = X.copy()
+    calibration_df = pd.DataFrame(
+        {
+            "channel": ["channel_1"],
+            "cost_per_target": [40.0],
+            "sigma": [2.5],
+        }
+    )
+
+    with pytest.raises(
+        KeyError,
+        match=r"The country column is required in calibration_data to map to model dims.",
+    ):
+        mmm.add_cost_per_target_calibration(
+            data=spend_df,
+            calibration_data=calibration_df,
+            cpt_variable_name="cost_per_target",
+            name_prefix="cpt_calibration",
         )
 
 
@@ -2762,3 +2886,171 @@ def test_default_model_config_dims_include_self_dims():
         # Ensure all model dims are present (allowing additional dims like control/fourier_mode)
         for d in mmm.dims:
             assert d in dims, f"{key} dims {dims} must include model dims {mmm.dims}"
+
+
+def test_calibration_spend_reindexing_in_posterior_predictive(
+    multi_dim_data, mock_pymc_sample
+):
+    """Test that calibration spend data is properly reindexed during posterior predictive sampling.
+
+    This test covers the previously uncovered lines in _set_xarray_data that handle
+    reindexing and dtype conversion of calibration spend data.
+    """
+    X, y = multi_dim_data
+
+    # Create MMM model
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+
+    # Build the model
+    mmm.build_model(X, y)
+
+    # Create spend data with same structure as X
+    spend_df = X.copy()
+    # Add some variation to make it different from channel data
+    for col in ["channel_1", "channel_2", "channel_3"]:
+        spend_df[col] = spend_df[col] * 1.5
+
+    # Create calibration data
+    countries = mmm.model.coords["country"]
+    channels = ["channel_1", "channel_2"]
+    calibration_df = pd.DataFrame(
+        {
+            "country": [countries[0], countries[1]],
+            "channel": [channels[0], channels[1]],
+            "cost_per_target": [30.0, 45.0],
+            "sigma": [2.0, 3.0],
+        }
+    )
+
+    # Add calibration constraints
+    mmm.add_cost_per_target_calibration(
+        data=spend_df,
+        calibration_data=calibration_df,
+        cpt_variable_name="cost_per_target",
+        name_prefix="cpt_calibration",
+    )
+
+    # Verify the calibration spend xarray was created
+    assert hasattr(mmm, "_calibration_spend_xarray")
+    assert "_channel" in mmm._calibration_spend_xarray
+
+    # Fit the model
+    mmm.fit(X, y, draws=50, tune=25, chains=1)
+
+    # Create new data with different dates for posterior predictive
+    # This will trigger the reindexing logic in _set_xarray_data
+    X_new = X.copy()
+
+    # Shift dates to future
+    date_shift = pd.Timedelta(days=14)
+    X_new["date"] = X_new["date"] + date_shift
+
+    # Also test with some missing countries to ensure fill_value=0 works
+    # Remove one country to test reindexing with missing dimensions
+    X_new = X_new[X_new["country"] != countries[-1]]
+
+    # Add some NaN values to test fillna functionality
+    X_new.loc[X_new.index[0], "channel_1"] = np.nan
+
+    # Sample posterior predictive - this will call _set_xarray_data internally
+    # and execute the uncovered lines for spend data reindexing
+    idata_pred = mmm.sample_posterior_predictive(
+        X_new,
+        extend_idata=False,
+        random_seed=42,
+    )
+
+    # Verify the posterior predictive was successful
+    # When extend_idata=False, it returns an xarray Dataset directly
+    assert "y" in idata_pred
+
+    # Verify that the model still has the spend data variable
+    # This confirms the reindexing logic was executed
+    assert "channel_data_spend" in mmm.model.named_vars
+
+    # Additional test: verify with include_last_observations=True
+    # to test a different code path
+    X_future = X.copy()
+    X_future["date"] = X_future["date"] + pd.Timedelta(days=30)  # Non-overlapping dates
+
+    idata_pred_with_last = mmm.sample_posterior_predictive(
+        X_future,
+        include_last_observations=True,
+        extend_idata=False,
+        random_seed=42,
+    )
+
+    # When extend_idata=False, it returns an xarray Dataset directly
+    assert "y" in idata_pred_with_last
+
+
+def test_calibration_spend_with_different_dtypes(multi_dim_data, mock_pymc_sample):
+    """Test that calibration spend data dtype conversion works correctly.
+
+    This specifically tests the dtype conversion logic in the uncovered lines.
+    """
+    X, y = multi_dim_data
+
+    # Create MMM model
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+
+    # Build the model
+    mmm.build_model(X, y)
+
+    # Create spend data with float32 dtype (different from model's float64)
+    spend_df = X.copy()
+    for col in ["channel_1", "channel_2", "channel_3"]:
+        spend_df[col] = spend_df[col].astype(np.float32) * 1.5
+
+    # Create calibration data
+    countries = mmm.model.coords["country"]
+    calibration_df = pd.DataFrame(
+        {
+            "country": [countries[0], countries[1], countries[2]],
+            "channel": ["channel_1", "channel_2", "channel_3"],
+            "cost_per_target": [25.0, 35.0, 40.0],
+            "sigma": [1.5, 2.5, 2.0],
+        }
+    )
+
+    # Add calibration
+    mmm.add_cost_per_target_calibration(
+        data=spend_df,
+        calibration_data=calibration_df,
+        cpt_variable_name="cost_per_target",
+        name_prefix="cpt_calibration",
+    )
+
+    # Fit the model
+    mmm.fit(X, y, draws=50, tune=25, chains=1)
+
+    # Create new data with float32 to test dtype conversion
+    X_new = X.copy()
+    X_new["date"] = X_new["date"] + pd.Timedelta(days=7)
+    for col in ["channel_1", "channel_2", "channel_3"]:
+        X_new[col] = X_new[col].astype(np.float32)
+
+    # Sample posterior predictive
+    idata_pred = mmm.sample_posterior_predictive(
+        X_new,
+        extend_idata=False,
+        random_seed=42,
+    )
+
+    # Verify success
+    # When extend_idata=False, it returns an xarray Dataset directly
+    assert "y" in idata_pred
