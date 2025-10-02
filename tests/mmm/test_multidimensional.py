@@ -813,12 +813,13 @@ def create_event_effect() -> Callable[[str], EventEffect]:
         prefix: str = "holiday",
         sigma_dims: str | None = None,
         effect_size: Prior | None = None,
+        dims: tuple[str] | str | None = None,
     ):
         basis = GaussianBasis()
         return EventEffect(
             basis=basis,
             effect_size=Prior("Normal"),
-            dims=(prefix,),
+            dims=dims or (prefix,),
         )
 
     return create
@@ -882,10 +883,14 @@ def test_mmm_with_events(
     )
     assert len(mmm.mu_effects) == 1
 
+    df_events_with_country = df_events.copy()
+    df_events_with_country["country"] = "A"
     mmm.add_events(
-        df_events,
+        df_events_with_country,
         prefix="another_event_type",
-        effect=create_event_effect(prefix="another_event_type"),
+        effect=create_event_effect(
+            prefix="another_event_type", dims=("country", "another_event_type")
+        ),
     )
     assert len(mmm.mu_effects) == 2
 
