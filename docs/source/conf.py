@@ -74,8 +74,8 @@ default_role = "code"
 pygments_style = "friendly"
 
 # sphinx settings related to generation of translatable sources
-gettext_uuid=True
-gettext_compact=False
+gettext_uuid = True
+gettext_compact = False
 
 # -- Extension configuration ------------------------------------------------
 
