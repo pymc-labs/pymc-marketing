@@ -120,7 +120,7 @@ def test_wrong_adstock_class():
     wrong_config_path = Path("tests/mmm/builders/config_files/wrong_adstock_class.yml")
 
     # Should fail with AttributeError for the non-existent adstock class
-    with pytest.raises(AttributeError, match=".*NonExistentAdstock.*"):
+    with pytest.raises(AttributeError, match=r".*NonExistentAdstock.*"):
         build_mmm_from_yaml(wrong_config_path)
 
     # Verify the config file has the expected wrong class

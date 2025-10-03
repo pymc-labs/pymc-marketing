@@ -199,29 +199,38 @@ class FourierEffect:
         # Apply the Fourier transformation to data
         day_data = model[f"{self.fourier.prefix}_day"]
 
+        # Store the unsummed basis components (including the internal fourier mode dim)
+        # so users can inspect individual sine/cos contributions if desired.
         def create_deterministic(x: pt.TensorVariable) -> None:
             pm.Deterministic(
-                f"{self.fourier.prefix}_contribution",
+                f"{self.fourier.prefix}_components",
                 x,
                 dims=(self.date_dim_name, *self.fourier.prior.dims),
             )
 
-        fourier_effect = self.fourier.apply(
-            day_data, result_callback=create_deterministic
-        )
+        # Call apply to create the components deterministic (unsummed basis * betas)
+        _ = self.fourier.apply(day_data, result_callback=create_deterministic)
 
-        # Create a deterministic variable for the effect
-        dims = (dim for dim in mmm.dims if dim in self.fourier.prior.dims)
+        # Retrieve the components deterministic just created
+        components_var = model[f"{self.fourier.prefix}_components"]
+        component_dims = model.named_vars_to_dims[components_var.name]
+        # Identify axis of the fourier prefix dimension and collapse it
+        prefix_axis = component_dims.index(self.fourier.prefix)
+        collapsed = components_var.sum(axis=prefix_axis)
+
+        # Determine final dims order consistent with MMM dims
+        dims = tuple(dim for dim in mmm.dims if dim in self.fourier.prior.dims)
         fourier_dims = (self.date_dim_name, *dims)
-        fourier_effect_det = pm.Deterministic(
-            f"{self.fourier.prefix}_effect",
-            fourier_effect,
+
+        fourier_contribution = pm.Deterministic(
+            f"{self.fourier.prefix}_contribution",
+            collapsed,
             dims=fourier_dims,
         )
 
-        # Handle dimensions for the MMM model
+        # Broadcast to full MMM dims ordering
         dim_handler = create_dim_handler((self.date_dim_name, *mmm.dims))
-        return dim_handler(fourier_effect_det, fourier_dims)
+        return dim_handler(fourier_contribution, fourier_dims)
 
     def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
         """Set the data for new predictions.

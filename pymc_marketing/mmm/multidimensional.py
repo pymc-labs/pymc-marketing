@@ -187,6 +187,7 @@ from pymc_marketing.mmm.events import EventEffect
 from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.hsgp import HSGPBase
 from pymc_marketing.mmm.lift_test import (
+    add_cost_per_target_potentials,
     add_lift_measurements_to_likelihood_from_saturation,
     scale_lift_measurements,
 )
@@ -489,7 +490,7 @@ class MMM(RegressionModelBuilder):
             If the event effect dimensions do not contain the prefix and model dimensions.
 
         """
-        if not set(effect.dims).issubset((prefix, self.dims)):
+        if not set(effect.dims).issubset((prefix, *self.dims)):
             raise ValueError(
                 f"Event effect dims {effect.dims} must contain {prefix} and {self.dims}"
             )
@@ -615,7 +616,9 @@ class MMM(RegressionModelBuilder):
                 sigma=Prior("HalfNormal", sigma=2, dims=self.dims),
                 dims=self.dims,
             ),
-            "gamma_control": Prior("Normal", mu=0, sigma=2, dims="control"),
+            "gamma_control": Prior(
+                "Normal", mu=0, sigma=2, dims=(*self.dims, "control")
+            ),
             "gamma_fourier": Prior(
                 "Laplace", mu=0, b=1, dims=(*self.dims, "fourier_mode")
             ),
@@ -1611,6 +1614,22 @@ class MMM(RegressionModelBuilder):
             else:
                 data["target_data"] = target_values
 
+        # Handle optional spend data used for CPT calibration if available
+        if (
+            hasattr(self, "_calibration_spend_xarray")
+            and "channel_data_spend" in model.named_vars
+        ):
+            spend_values = self._calibration_spend_xarray._channel
+            # Align to new coords
+            reindex_coords = {"date": coords["date"], "channel": coords["channel"]}
+            for dim in self.dims:
+                reindex_coords[dim] = coords[dim]
+            spend_values = spend_values.reindex(reindex_coords, fill_value=0)
+            # Ensure no NaNs are passed into pm.Data updates
+            spend_values = spend_values.fillna(0)
+            original_dtype = model.named_vars["channel_data_spend"].type.dtype
+            data["channel_data_spend"] = spend_values.astype(original_dtype)
+
         self.new_updated_data = data
         self.new_updated_coords = coords
         self.new_updated_model = model
@@ -1948,6 +1967,132 @@ class MMM(RegressionModelBuilder):
             name=name,
         )
 
+    def add_cost_per_target_calibration(
+        self,
+        data: pd.DataFrame,
+        calibration_data: pd.DataFrame,
+        cpt_variable_name: str = "cost_per_target",
+        name_prefix: str = "cpt_calibration",
+    ) -> None:
+        """Calibrate cost-per-target using constraints via ``pm.Potential``.
+
+        This adds a deterministic ``cpt_variable_name`` computed as
+        ``channel_data_spend / channel_contribution_original_scale`` and creates
+        per-row penalty terms based on ``calibration_data`` using a quadratic penalty:
+
+        ``penalty = - |cpt_mean - target|^2 / (2 * sigma^2)``.
+
+        Parameters
+        ----------
+        data : pd.DataFrame
+            Feature-like DataFrame with columns matching training ``X`` but with
+            channel values representing spend (original units). Must include the
+            same ``date`` and any model ``dims`` columns.
+        calibration_data : pd.DataFrame
+            DataFrame with rows specifying calibration targets. Must include:
+              - ``channel``: channel name in ``self.channel_columns``
+              - ``cost_per_target``: desired CPT value
+              - ``sigma``: accepted deviation; larger => weaker penalty
+            and one column per dimension in ``self.dims``.
+        cpt_variable_name : str
+            Name for the cost-per-target Deterministic in the model.
+        name_prefix : str
+            Prefix to use for generated potential names.
+
+        Examples
+        --------
+        Build a model and calibrate CPT for selected (dims, channel):
+
+        .. code-block:: python
+
+            # spend data in original scale with the same structure as X
+            spend_df = X.copy()
+            # e.g., if X contains impressions, replace with monetary spend
+            # spend_df[channels] = ...
+
+            calibration_df = pd.DataFrame(
+                {
+                    "channel": ["C1", "C2"],
+                    "geo": ["US", "US"],  # dims columns as needed
+                    "cost_per_target": [30.0, 45.0],
+                    "sigma": [2.0, 3.0],
+                }
+            )
+
+            mmm.add_cost_per_target_calibration(
+                data=spend_df,
+                calibration_data=calibration_df,
+                cpt_variable_name="cost_per_target",
+                name_prefix="cpt_calibration",
+            )
+        """
+        if not hasattr(self, "model"):
+            raise RuntimeError("Model must be built before adding calibration.")
+
+        # Validate required columns in calibration_data
+        if "channel" not in calibration_data.columns:
+            raise KeyError("'channel' column missing in calibration_data")
+        for dim in self.dims:
+            if dim not in calibration_data.columns:
+                raise KeyError(
+                    f"The {dim} column is required in calibration_data to map to model dims."
+                )
+
+        # Prepare spend data as xarray (original units)
+        spend_ds = self._create_xarray_from_pandas(
+            data=data,
+            date_column=self.date_column,
+            dims=self.dims,
+            metric_list=self.channel_columns,
+            metric_coordinate_name="channel",
+        ).transpose("date", *self.dims, "channel")
+        # Cache for predictive alignment
+        self._calibration_spend_xarray = spend_ds
+
+        with self.model:
+            # Ensure original-scale contribution exists
+            if "channel_contribution_original_scale" not in self.model.named_vars:
+                self.add_original_scale_contribution_variable(
+                    [
+                        "channel_contribution",
+                    ]
+                )
+
+            # Create pm.Data for spend aligned to current model coords
+            spend_values = spend_ds._channel
+            # Reindex to model coords to ensure ordering matches
+            reindex_coords = {"date": self.model.coords["date"]}
+            for dim in self.dims:
+                reindex_coords[dim] = self.model.coords[dim]
+            reindex_coords["channel"] = self.model.coords["channel"]
+            spend_values = spend_values.reindex(reindex_coords, fill_value=0)
+            # Replace any existing NaNs in spend with zeros to satisfy pm.Data
+            spend_values = spend_values.fillna(0)
+
+            pm.Data(
+                name="channel_data_spend",
+                value=spend_values.values,
+                dims=("date", *self.dims, "channel"),
+            )
+
+            # Build cost_per_target deterministic safely (avoid division by ~0)
+            denom = pt.clip(
+                self.model["channel_contribution_original_scale"], 1e-12, np.inf
+            )
+            pm.Deterministic(
+                name=cpt_variable_name,
+                var=self.model["channel_data_spend"] / denom,
+                dims=("date", *self.dims, "channel"),
+            )
+
+        # Create one Potential per row in calibration_data
+        add_cost_per_target_potentials(
+            calibration_df=calibration_data,
+            model=self.model,
+            cpt_variable_name=cpt_variable_name,
+            name_prefix=name_prefix,
+        )
+
     def create_fit_data(
         self,
         X: pd.DataFrame | xr.Dataset | xr.DataArray,
@@ -2016,7 +2161,7 @@ class MMM(RegressionModelBuilder):
             y_s = pd.Series(y, index=X_df.index)
         else:
             y_s = y.copy()
-        y_s.name = self.output_var
+        y_s.name = self.target_column
 
         dims_in_X = [d for d in self.dims if d in X_df.columns]
         coord_cols = [self.date_column, *dims_in_X]
@@ -2035,10 +2180,10 @@ class MMM(RegressionModelBuilder):
                     how="left",
                 )
             else:
-                X_df[self.output_var] = aligned.values
+                X_df[self.target_column] = aligned.values
         elif len(y_s) == len(X_df):
             # Positional
-            X_df[self.output_var] = y_s.to_numpy()
+            X_df[self.target_column] = y_s.to_numpy()
         else:
             # Try merge if y has columns as index levels
             if isinstance(y_s.index, pd.MultiIndex) and set(coord_cols).issubset(
@@ -2050,8 +2195,10 @@ class MMM(RegressionModelBuilder):
                     "Cannot align y with X; incompatible indices / lengths"
                 )
 
-        if self.output_var not in X_df.columns:
-            raise RuntimeError("Target column missing after alignment")
+        if self.target_column not in X_df.columns:
+            raise RuntimeError(
+                f"Target column {self.target_column} missing after alignment"
+            )
 
         ds = X_df.sort_values(coord_cols).set_index(coord_cols).to_xarray()
         return ds
@@ -2090,8 +2237,8 @@ class MMM(RegressionModelBuilder):
         ):
             dataset = dataset.reset_index()
         # type: ignore
-        X = dataset.drop(columns=[self.output_var])
-        y = dataset[self.output_var]
+        X = dataset.drop(columns=[self.target_column])
+        y = dataset[self.target_column]
 
         self.build_model(X, y)  # type: ignore
 
@@ -2142,7 +2289,13 @@ def create_sample_kwargs(
 class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
     """Wrapper for the BudgetOptimizer to handle multi-dimensional model."""
 
-    def __init__(self, model: MMM, start_date: str, end_date: str):
+    def __init__(
+        self,
+        model: MMM,
+        start_date: str,
+        end_date: str,
+        compile_kwargs: dict | None = None,
+    ):
         self.model_class = model
         self.start_date = start_date
         self.end_date = end_date
@@ -2154,6 +2307,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             include_carryover=False,
         )
         self.num_periods = len(self.zero_data[self.model_class.date_column].unique())
+        self.compile_kwargs = compile_kwargs
         # Adding missing dependencies for compatibility with BudgetOptimizer
         self._channel_scales = 1.0
 
@@ -2252,6 +2406,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             budgets_to_optimize=budgets_to_optimize,
             budget_distribution_over_period=budget_distribution_over_period,
             model=self,  # Pass the wrapper instance itself to the BudgetOptimizer
+            compile_kwargs=self.compile_kwargs,
         )
 
         return allocator.allocate_budget(

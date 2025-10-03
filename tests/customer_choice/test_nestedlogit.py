@@ -129,12 +129,12 @@ def test_parse_nesting_empty_dict_raises(nstL):
     nesting_dict = {}
     product_indices = {"alt": 0, "option": 1, "another": 2}
 
-    with pytest.raises(ValueError, match="Nesting structure must not be empty."):
+    with pytest.raises(ValueError, match=r"Nesting structure must not be empty."):
         nstL._parse_nesting(nesting_dict, product_indices)
 
 
 def test_preprocess_model_data_sets_attributes(nstL, sample_df, utility_eqs):
-    X, F, y = nstL.preprocess_model_data(sample_df, utility_eqs)
+    _, _, _ = nstL.preprocess_model_data(sample_df, utility_eqs)
 
     # Check main attributes exist
     assert hasattr(nstL, "X_data")

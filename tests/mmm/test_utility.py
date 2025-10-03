@@ -311,7 +311,7 @@ def test_covariance_matrix_matches_numpy(data):
 )
 def test_compute_quantile(data):
     if data.size == 0:
-        with pytest.raises(Exception, match=".*"):
+        with pytest.raises(Exception, match=r".*"):
             _compute_quantile(pt.as_tensor_variable(data), 0.95).eval()
     else:
         pytensor_quantile = _compute_quantile(pt.as_tensor_variable(data), 0.95).eval()
@@ -396,7 +396,7 @@ def test_general_functions(samples, budgets, func):
 )
 def test_value_at_risk_invalid_confidence_level(confidence_level, test_data):
     samples, budgets = test_data
-    with pytest.raises(ValueError, match="Confidence level must be between 0 and 1."):
+    with pytest.raises(ValueError, match=r"Confidence level must be between 0 and 1."):
         value_at_risk(confidence_level)(samples, budgets).eval()
 
 
@@ -411,7 +411,7 @@ def test_conditional_value_at_risk_invalid_confidence_level(
     confidence_level, test_data
 ):
     samples, budgets = test_data
-    with pytest.raises(ValueError, match="Confidence level must be between 0 and 1."):
+    with pytest.raises(ValueError, match=r"Confidence level must be between 0 and 1."):
         conditional_value_at_risk(confidence_level)(samples, budgets).eval()
 
 
@@ -424,7 +424,7 @@ def test_conditional_value_at_risk_invalid_confidence_level(
 )
 def test_tail_distance_invalid_confidence_level(confidence_level, test_data):
     samples, budgets = test_data
-    with pytest.raises(ValueError, match="Confidence level must be between 0 and 1."):
+    with pytest.raises(ValueError, match=r"Confidence level must be between 0 and 1."):
         tail_distance(confidence_level)(samples, budgets).eval()
 
 
@@ -437,7 +437,7 @@ def test_tail_distance_invalid_confidence_level(confidence_level, test_data):
 )
 def test_mean_tightness_score_invalid_confidence_level(confidence_level, test_data):
     samples, budgets = test_data
-    with pytest.raises(ValueError, match="Confidence level must be between 0 and 1."):
+    with pytest.raises(ValueError, match=r"Confidence level must be between 0 and 1."):
         mean_tightness_score(alpha=0.5, confidence_level=confidence_level)(
             samples, budgets
         ).eval()
@@ -454,7 +454,7 @@ def test_adjusted_value_at_risk_score_invalid_confidence_level(
     confidence_level, test_data
 ):
     samples, budgets = test_data
-    with pytest.raises(ValueError, match="Confidence level must be between 0 and 1."):
+    with pytest.raises(ValueError, match=r"Confidence level must be between 0 and 1."):
         adjusted_value_at_risk_score(
             confidence_level=confidence_level, risk_aversion=0.8
         )(samples, budgets).eval()
@@ -470,7 +470,7 @@ def test_adjusted_value_at_risk_score_invalid_confidence_level(
 def test_adjusted_value_at_risk_score_invalid_risk_aversion(risk_aversion, test_data):
     samples, budgets = test_data
     with pytest.raises(
-        ValueError, match="Risk aversion parameter must be between 0 and 1."
+        ValueError, match=r"Risk aversion parameter must be between 0 and 1."
     ):
         adjusted_value_at_risk_score(
             confidence_level=0.95, risk_aversion=risk_aversion

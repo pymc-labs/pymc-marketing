@@ -83,7 +83,7 @@ def test_hspg_makes_dims_tuple(default_hsgp) -> None:
 
 
 def test_unordered_bounds_raises() -> None:
-    match = "The boundaries are out of order"
+    match = r"The boundaries are out of order"
     with pytest.raises(ValueError, match=match):
         approx_hsgp_hyperparams(
             x=None,
@@ -112,7 +112,7 @@ def test_supported_cov_func(cov_func) -> None:
 def test_unsupported_cov_func_raises() -> None:
     x = np.arange(10)
     x_center = 4.5
-    match = "Unsupported covariance function"
+    match = r"Unsupported covariance function"
     with pytest.raises(ValueError, match=match):
         approx_hsgp_hyperparams(
             x=x,
@@ -444,7 +444,7 @@ def test_soft_plus_hsgp_continous_with_new_data() -> None:
 
 def test_hsgp_with_unknown_transform_errors() -> None:
     X = np.arange(10)
-    match = "Neither pytensor.tensor nor pymc.math"
+    match = r"Neither pytensor.tensor nor pymc.math"
     with pytest.raises(UnknownTransformError, match=match):
         HSGP.parameterize_from_data(X, dims="time", transform="unknown")
 

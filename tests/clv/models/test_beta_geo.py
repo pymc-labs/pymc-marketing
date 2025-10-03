@@ -183,7 +183,7 @@ class TestBetaGeoModel:
         )
 
         with pytest.raises(
-            ValueError, match="Column customer_id has duplicate entries"
+            ValueError, match=r"Column customer_id has duplicate entries"
         ):
             BetaGeoModel(
                 data=data,
@@ -340,7 +340,7 @@ class TestBetaGeoModel:
 
     def test_fit_result_without_fit(self, mocker, model_config):
         model = BetaGeoModel(data=self.data, model_config=model_config)
-        with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
+        with pytest.raises(RuntimeError, match=r"The model hasn't been fit yet"):
             model.fit_result
 
         mocker.patch("pymc.sample", mock_sample)

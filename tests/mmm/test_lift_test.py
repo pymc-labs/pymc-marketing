@@ -31,6 +31,7 @@ from pymc_marketing.mmm.components.saturation import (
 from pymc_marketing.mmm.lift_test import (
     NonMonotonicError,
     UnalignedValuesError,
+    add_cost_per_target_potentials,
     add_lift_measurements_to_likelihood_from_saturation,
     assert_monotonic,
     create_time_varying_saturation,
@@ -98,7 +99,7 @@ def df_lift_test_unaligned() -> pd.DataFrame:
 
 
 def test_exact_row_indices_raises(df_lift_test_unaligned, model) -> None:
-    match = "The following rows of the DataFrame"
+    match = r"The following rows of the DataFrame"
     with pytest.raises(UnalignedValuesError, match=match) as res:
         exact_row_indices(df_lift_test_unaligned, model)
 
@@ -162,13 +163,46 @@ def test_variable_indexer(variable_indexer, name, expected) -> None:
 
 
 def test_variable_indexer_missing_variable(variable_indexer) -> None:
-    with pytest.raises(KeyError, match="The variable 'missing' is not in the model"):
+    with pytest.raises(KeyError, match=r"The variable 'missing' is not in the model"):
         variable_indexer("missing")
 
 
 def test_lift_test_missing_coords(df_lift_test) -> None:
-    with pytest.raises(KeyError, match="The coords"):
+    """Test that KeyError is raised when coords are missing from the model."""
+    with pytest.raises(
+        KeyError, match=r"The coords \['date', 'geo', 'channel'\] are not in the model"
+    ):
         df_lift_test.pipe(exact_row_indices, model=pm.Model())
+
+
+def test_lift_test_missing_single_coord(fixed_model) -> None:
+    """Test that KeyError is raised with correct message for a single missing coord."""
+    df_test = pd.DataFrame(
+        {
+            "date": fixed_model.coords["date"][:2],
+            "channel": fixed_model.coords["channel"],
+            "missing_coord": ["X", "Y"],  # This coord won't be in the model
+        }
+    )
+
+    match = r"The coord \['missing_coord'\] is not in the model"
+    with pytest.raises(KeyError, match=match):
+        exact_row_indices(df_test, fixed_model)
+
+
+def test_lift_test_missing_multiple_coords(fixed_model) -> None:
+    """Test that KeyError is raised with correct message for multiple missing coords."""
+    df_test = pd.DataFrame(
+        {
+            "channel": fixed_model.coords["channel"],
+            "missing1": ["A", "B"],
+            "missing2": ["X", "Y"],
+        }
+    )
+
+    match = r"The coords \['missing1', 'missing2'\] are not in the model"
+    with pytest.raises(KeyError, match=match):
+        exact_row_indices(df_test, fixed_model)
 
 
 @pytest.fixture(scope="module")
@@ -281,7 +315,7 @@ def test_check_increasing_assumption() -> None:
     delta_x = pd.Series([1, 2, 3])
     delta_y = pd.Series([1, -2, 3])
 
-    match = "The data is not monotonic."
+    match = r"The data is not monotonic."
     with pytest.raises(NonMonotonicError, match=match):
         assert_monotonic(delta_x, delta_y)
 
@@ -410,7 +444,7 @@ def test_tvp_needs_date_in_lift_tests() -> None:
 
     assert "lift_measurements" not in model
 
-    match = "The value"
+    match = r"The value"
     with pytest.raises(KeyError, match=match):
         add_lift_measurements_to_likelihood_from_saturation(
             df_lift_tests,
@@ -534,3 +568,132 @@ def test_adds_date_column_if_missing(dummy_mmm_model):
 
     # Check if the date was added inside the function
     assert dummy_mmm_model._last_lift_test_df["date"].notna().all()
+
+
+def test_add_cost_per_target_potentials(dummy_mmm_model):
+    model = dummy_mmm_model
+
+    # Create a simple constant cost_per_target deterministic over (date, channel)
+    dates = model.model.coords["date"]
+    channels = model.model.coords["channel"]
+    const_cpt = np.full((len(dates), len(channels)), 30.0, dtype=float)
+
+    with model.model:
+        pm.Deterministic(
+            "cost_per_target",
+            pt.as_tensor_variable(const_cpt),
+            dims=("date", "channel"),
+        )
+
+    # Calibration DataFrame: rows map to existing channels (no extra dims in this fixture)
+    calibration_df = pd.DataFrame(
+        {
+            "channel": [channels[0], channels[1]],
+            "cost_per_target": [30.0, 45.0],
+            "sigma": [2.0, 3.0],
+        }
+    )
+
+    # Add potentials
+    add_cost_per_target_potentials(
+        calibration_df=calibration_df,
+        model=model.model,
+        cpt_variable_name="cost_per_target",
+        name_prefix="cpt_calibration",
+    )
+
+    # Check aggregated potential was added with the expected base name
+    pot_names = [getattr(p, "name", None) for p in model.model.potentials]
+    assert "cpt_calibration" in pot_names
+
+
+def test_add_cost_per_target_potentials_missing_columns(dummy_mmm_model):
+    """Test that KeyError is raised when required columns are missing from calibration_df."""
+    model = dummy_mmm_model.model
+    channels = model.coords["channel"]
+
+    with model:
+        # Create a CPT variable
+        pm.Normal("test_cpt", dims="channel")
+
+    # Test missing 'sigma' column
+    calibration_df = pd.DataFrame(
+        {
+            "channel": [channels[0], channels[1]],
+            "cost_per_target": [30.0, 45.0],
+            # Missing 'sigma' column
+        }
+    )
+
+    match = r"Missing required columns in calibration_df: \['sigma'\]"
+    with pytest.raises(KeyError, match=match):
+        add_cost_per_target_potentials(
+            calibration_df=calibration_df,
+            model=model,
+            cpt_variable_name="test_cpt",
+            name_prefix="cpt_calibration",
+        )
+
+    # Test missing multiple columns
+    calibration_df_minimal = pd.DataFrame({"channel": [channels[0], channels[1]]})
+
+    match = (
+        r"Missing required columns in calibration_df: \['cost_per_target', 'sigma'\]"
+    )
+    with pytest.raises(KeyError, match=match):
+        add_cost_per_target_potentials(
+            calibration_df=calibration_df_minimal,
+            model=model,
+            cpt_variable_name="test_cpt",
+            name_prefix="cpt_calibration",
+        )
+
+
+def test_add_cost_per_target_potentials_missing_variable(dummy_mmm_model):
+    """Test that KeyError is raised when CPT variable is not in the model."""
+    model = dummy_mmm_model.model
+    channels = model.coords["channel"]
+
+    # Don't create any cost_per_target variable
+    calibration_df = pd.DataFrame(
+        {
+            "channel": [channels[0], channels[1]],
+            "cost_per_target": [30.0, 45.0],
+            "sigma": [2.0, 3.0],
+        }
+    )
+
+    match = r"Variable 'nonexistent_cpt_var' not found in model; create it before calibration."
+    with pytest.raises(KeyError, match=match):
+        add_cost_per_target_potentials(
+            calibration_df=calibration_df,
+            model=model,
+            cpt_variable_name="nonexistent_cpt_var",
+            name_prefix="cpt_calibration",
+        )
+
+
+def test_add_cost_per_target_potentials_missing_dimension_columns(fixed_model):
+    """Test that KeyError is raised when dimension columns are missing from calibration_df."""
+    with fixed_model:
+        # Create CPT variable with multiple dimensions
+        pm.Normal("cost_per_target", dims=("date", "geo", "channel"))
+
+    # Missing 'geo' column
+    calibration_df = pd.DataFrame(
+        {
+            "channel": [1, 2],
+            "cost_per_target": [30.0, 45.0],
+            "sigma": [2.0, 3.0],
+            # Missing 'geo' column
+        }
+    )
+
+    match = r"Calibration data missing dimension columns: \['geo'\]. Required dims: \['geo', 'channel'\]"
+    with pytest.raises(KeyError, match=match):
+        add_cost_per_target_potentials(
+            calibration_df=calibration_df,
+            model=fixed_model,
+            cpt_variable_name="cost_per_target",
+            name_prefix="cpt_calibration",
+        )

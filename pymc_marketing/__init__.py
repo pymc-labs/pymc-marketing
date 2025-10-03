@@ -13,6 +13,8 @@
 #   limitations under the License.
 """PyMC-Marketing."""
 
+# Load the data accessor
+import pymc_marketing.data.fivetran  # noqa: F401
 from pymc_marketing import clv, customer_choice, mmm
 from pymc_marketing.version import __version__
 

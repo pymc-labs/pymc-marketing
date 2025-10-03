@@ -204,7 +204,7 @@ def test_distribution_checks_wrong_market_distribution() -> None:
         "market_distribution": Prior("HalfNormal"),
     }
 
-    match = "market_distribution must be a Dirichlet distribution"
+    match = r"market_distribution must be a Dirichlet distribution"
     with pytest.raises(ValueError, match=match):
         MVITS(existing_sales=["competitor", "own"], model_config=priors)
 
@@ -285,7 +285,7 @@ def test_inform_default_prior_raises(priors, match, saturated_data) -> None:
 
 def test_calculate_counterfactual_raises() -> None:
     model = MVITS(existing_sales=["competitor", "own"])
-    match = "Call the 'fit' method first."
+    match = r"Call the 'fit' method first."
     with pytest.raises(RuntimeError, match=match):
         model.calculate_counterfactual()
 
@@ -317,7 +317,7 @@ def test_support_for_mu_effects(saturated_data, mock_pymc_sample) -> None:
     n_existing_products = 2
     posterior_size = {"chain": 1, "draw": 10}
 
-    assert model.posterior["fourier_effect"].sizes == {
+    assert model.posterior["fourier_contribution"].sizes == {
         **posterior_size,
         "time": n_time,
         "existing_product": n_existing_products,

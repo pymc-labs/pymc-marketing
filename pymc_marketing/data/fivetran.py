@@ -21,6 +21,12 @@ Example usage for MMM:
 
 .. code-block:: python
 
+    from pymc_marketing.data.fivetran import (
+        process_fivetran_ad_reporting,
+        process_fivetran_shopify_unique_orders,
+    )
+    from pymc_marketing.mmm import MMM
+
     # Process ad spend data for media channels
     x = process_fivetran_ad_reporting(
         campaign_df, value_columns="spend", rename_date_to="date"
@@ -34,11 +40,35 @@ Example usage for MMM:
     # Use in MMM model
     mmm = MMM(...)
     mmm.fit(X=x, y=y["orders"])
+
+There are also pandas accessors for these functions which allows calling them from a
+pandas DataFrame. These accessors are registered under the ``fivetran`` namespace and
+can be accessed after importing pymc_marketing.
+
+.. code-block:: python
+
+    import pandas as pd
+
+    from pymc_marketing.mmm import MMM
+
+
+    campaign_df: pd.DataFrame = ...
+    orders_df: pd.DataFrame = ...
+
+    X: pd.DataFrame = campaign_df.fivetran.process_ad_reporting(value_columns="spend")
+    y: pd.DataFrame = orders_df.fivetran.process_shopify_unique_orders()
+
+    # Use in MMM model
+    mmm = MMM(...)
+    mmm.fit(X=x, y=y["orders"])
+
 """
 
 from collections.abc import Sequence
 
 import pandas as pd
+
+from pymc_marketing.decorators import copy_docstring
 
 
 def _normalize_and_validate_inputs(
@@ -326,3 +356,51 @@ def process_fivetran_shopify_unique_orders(
         .reset_index(drop=True)
     )
     return out
+
+
+@pd.api.extensions.register_dataframe_accessor("fivetran")
+class FivetranAccessor:
+    """Accessor for Fivetran data processing functions."""
+
+    def __init__(self, obj: pd.DataFrame) -> None:
+        self._obj = obj
+
+    @copy_docstring(process_fivetran_ad_reporting)
+    def process_ad_reporting(  # noqa: D102
+        self,
+        value_columns: str | Sequence[str] = "impressions",
+        *,
+        date_col: str = "date_day",
+        platform_col: str = "platform",
+        agg: str = "sum",
+        fill_value: float | None = 0.0,
+        include_missing_dates: bool = False,
+        freq: str = "D",
+        rename_date_to: str | None = "date",
+    ) -> pd.DataFrame:
+        return process_fivetran_ad_reporting(
+            self._obj,
+            value_columns=value_columns,
+            date_col=date_col,
+            platform_col=platform_col,
+            agg=agg,
+            fill_value=fill_value,
+            include_missing_dates=include_missing_dates,
+            freq=freq,
+            rename_date_to=rename_date_to,
+        )
+
+    @copy_docstring(process_fivetran_shopify_unique_orders)
+    def process_shopify_unique_orders(  # noqa: D102
+        self,
+        *,
+        date_col: str = "processed_timestamp",
+        order_key_col: str = "orders_unique_key",
+        rename_date_to: str = "date",
+    ) -> pd.DataFrame:
+        return process_fivetran_shopify_unique_orders(
+            self._obj,
+            date_col=date_col,
+            order_key_col=order_key_col,
+            rename_date_to=rename_date_to,
+        )
