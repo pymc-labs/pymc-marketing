@@ -153,34 +153,37 @@ We recommend that your contribution complies with the following guidelines befor
     ```
 
 ## Translations
-For translators there are two options (we should decide on one to simplify things):
 
-* clone repo and edit `.po` files in `locales/<lang>/LC_MESSAGES/` with a local editor like poedit
-* login to transifex and translate from the web interface
+### For translators
+To kick off translations for the website we are going to start without any cloud-based
+collaborative translation service. This means translating will be similar to
+code contributions, people will open a PR adding the translations to the `.po` files
+inside `/locales/es/LC_MESSAGES`. PO files can be edited as raw text or with an
+editor designed for translating like [Poedit](https://poedit.net/).
 
-For language coordinators it is a bit trickier. The first decision to make is
-how often do we want to update translation sources (the content being translated by translators).
-We could try and keep things synced at the commit level, or only update that at the release level
-(or a different cadence than code altogether). In general whenever we make changes to the
-website sources and we want to make these changes available to the translators we need
-to do the following:
 
-```bash
-sphinx-build docs/source docs/gettext -b gettext
-# if local editing
-sphinx-intl update -p docs/gettext -l es
-# if transifex
-# first step optional, only needed if files were added/removed
-sphinx-intl update-txconfig-resources \
-    --pot-dir _build/gettext \
-    --locale-dir locale \
-    --transifex-organization-name $TRANSIFEX_ORGANIZATION \
-    --transifex-project-name $TRANSIFEX_PROJECT
-tx push --source
-```
+### For language coordinators/release managers
+To keep the workflow simple, we will only update the translatable sources every now and then.
+One option is to do that with every release, another option is doing it every now and then
+on a different cadence.
 
-and if using transifex we'd need to set up a token for rtd to download the translated content with
-`tx pull` and then build the translated website.
+The steps to follow to update the translatable sources are:
+
+1. Generate the updated translatable messages with Sphinx. This is similar to building
+   the website (also take more or less as long) but it generates a different kind of
+   output: `.pot` files which are a template for the language specific `.po` files
+   we'll generate later.
+
+   ```bash
+   sphinx-build docs/source docs/gettext -b gettext
+   ```
+1. Update the Spanish `.po` files
+
+   ```bash
+   sphinx-intl update -p docs/gettext -l es
+   ```
+
+### Translated build preview
 
 To build the docs in a different language:
 
