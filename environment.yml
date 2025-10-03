@@ -29,9 +29,11 @@ dependencies:
 # Extra dependencies for lint, testing and docs build
 # docs
 - sphinx
+- sphinx-intl
 - ipython!=8.7.0
 - myst-parser
 - myst-nb
+- numpydoc
 - pydata-sphinx-theme>=0.12.0.dev0
 - sphinx-copybutton
 - sphinx-autodoc-typehints
