@@ -441,7 +441,7 @@ def add_noise_to_channel_allocation(
     rng = np.random.default_rng(seed)
 
     # Per-channel scale (1-D ndarray), shape (n_channels,)
-    scale = (rel_std * df[channels].mean()).to_numpy()
+    scale: np.ndarray = (rel_std * df[channels].mean()).to_numpy()
 
     # Draw all required noise in one call, shape (n_rows, n_channels)
     noise = rng.normal(loc=0.0, scale=scale, size=(len(df), len(channels)))
@@ -449,6 +449,10 @@ def add_noise_to_channel_allocation(
     # Create the noisy copy
     noisy_df = df.copy()
     noisy_df[channels] += noise
+
+    # Override channels with zero spend, we don't want to add noise to those ones
+    zero_spend_mask = df[channels] == 0
+    noisy_df[zero_spend_mask] = 0.0
 
     # Ensure no negative spends
     noisy_df[channels] = noisy_df[channels].clip(lower=0.0)

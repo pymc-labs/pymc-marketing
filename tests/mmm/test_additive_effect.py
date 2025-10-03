@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
+import xarray as xr
 from pymc_extras.prior import Prior
 
 from pymc_marketing.mmm.additive_effect import (
@@ -118,14 +119,13 @@ def test_fourier_effect(
 
     assert created_variable.ndim == len(mmm.dims) + 1
 
-    assert set(mmm.model.named_vars) == set(
-        [
-            f"{fourier.prefix}_day",
-            f"{fourier.prefix}_beta",
-            f"{fourier.prefix}_contribution",
-            f"{fourier.prefix}_effect",
-        ]
-    )
+    # Variables created: data, beta coefficients, raw components (per mode), final contribution
+    assert set(mmm.model.named_vars) == {
+        f"{fourier.prefix}_day",
+        f"{fourier.prefix}_beta",
+        f"{fourier.prefix}_components",
+        f"{fourier.prefix}_contribution",
+    }
     assert set(mmm.model.coords) == {"date", *dims, fourier.prefix}
 
     with mmm.model:
@@ -136,11 +136,11 @@ def test_fourier_effect(
         idata.extend(
             pm.sample_posterior_predictive(
                 idata.prior,
-                var_names=[f"{fourier.prefix}_effect"],
+                var_names=[f"{fourier.prefix}_contribution"],
             )
         )
 
-    effect_predictions = idata.posterior_predictive[f"{fourier.prefix}_effect"]
+    effect_predictions = idata.posterior_predictive[f"{fourier.prefix}_contribution"]
     np.testing.assert_allclose(effect_predictions.notnull().mean().item(), 1.0)
     pd.testing.assert_index_equal(effect_predictions.date.to_index(), new_dates)
 
@@ -176,6 +176,43 @@ def test_fourier_effect_multidimensional(
         pm.sample_prior_predictive()
 
     assert effect.ndim == 2
+
+
+@pytest.mark.parametrize(
+    "fourier_cls,prefix",
+    [
+        (WeeklyFourier, "weekly"),
+        (MonthlyFourier, "monthly"),
+        (YearlyFourier, "yearly"),
+    ],
+    ids=["weekly", "monthly", "yearly"],
+)
+def test_fourier_components_sum_to_contribution(
+    create_mock_mmm, create_fourier_model, fourier_cls, prefix
+):
+    """Ensure <prefix>_contribution is the sum over the internal fourier components.
+
+    The additive effect should expose:
+      - <prefix>_components : (date, fourier[, extra dims])
+      - <prefix>_contribution : (date[, extra dims]) == sum_{fourier} components
+    """
+    fourier = fourier_cls(n_order=4, prefix=prefix)
+    effect = FourierEffect(fourier)
+
+    mmm = create_mock_mmm(dims=(), model=create_fourier_model(coords={}))
+
+    with mmm.model:
+        effect.create_data(mmm)
+        effect.create_effect(mmm)
+        idata = pm.sample_prior_predictive(samples=5)
+
+    components = idata.prior[f"{prefix}_components"]  # dims: chain, draw, date, fourier
+    contribution = idata.prior[f"{prefix}_contribution"]  # dims: chain, draw, date
+
+    summed = components.sum(dim=prefix)
+
+    # Align dims just in case ordering differs (should not) and compare
+    xr.testing.assert_allclose(summed, contribution)
 
 
 @pytest.fixture(scope="function")

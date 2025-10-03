@@ -308,6 +308,7 @@ def example_ad_report_df() -> pd.DataFrame:
     return pd.DataFrame(data)
 
 
+@pytest.mark.parametrize("accessor", [True, False])
 @pytest.mark.parametrize(
     "value_columns, expected_columns, expected_values",
     [
@@ -329,11 +330,17 @@ def example_ad_report_df() -> pd.DataFrame:
     ],
 )
 def test_ad_report_schema(
-    example_ad_report_df, value_columns, expected_columns, expected_values
+    example_ad_report_df,
+    accessor: bool,
+    value_columns,
+    expected_columns,
+    expected_values,
 ):
-    result = process_fivetran_ad_reporting(
-        example_ad_report_df, value_columns=value_columns, rename_date_to="date"
-    )
+    kwargs = dict(value_columns=value_columns, rename_date_to="date")
+    if accessor:
+        result = example_ad_report_df.fivetran.process_ad_reporting(**kwargs)
+    else:
+        result = process_fivetran_ad_reporting(example_ad_report_df, **kwargs)
 
     expected = (
         pd.DataFrame(
@@ -352,6 +359,7 @@ def test_ad_report_schema(
     pd.testing.assert_frame_equal(result_subset, expected, check_dtype=False)
 
 
+@pytest.mark.parametrize("accessor", [True, False])
 @pytest.mark.parametrize(
     "value_columns, expected_columns, expected_values",
     [
@@ -373,11 +381,17 @@ def test_ad_report_schema(
     ],
 )
 def test_account_report_schema(
-    example_account_report_df, value_columns, expected_columns, expected_values
+    example_account_report_df,
+    accessor: bool,
+    value_columns,
+    expected_columns,
+    expected_values,
 ):
-    result = process_fivetran_ad_reporting(
-        example_account_report_df, value_columns=value_columns, rename_date_to="date"
-    )
+    kwargs = dict(value_columns=value_columns, rename_date_to="date")
+    if accessor:
+        result = example_account_report_df.fivetran.process_ad_reporting(**kwargs)
+    else:
+        result = process_fivetran_ad_reporting(example_account_report_df, **kwargs)
 
     expected = (
         pd.DataFrame(
@@ -394,6 +408,7 @@ def test_account_report_schema(
     pd.testing.assert_frame_equal(result_subset, expected, check_dtype=False)
 
 
+@pytest.mark.parametrize("accessor", [True, False])
 @pytest.mark.parametrize(
     "value_columns, expected_columns, expected_values",
     [
@@ -415,11 +430,17 @@ def test_account_report_schema(
     ],
 )
 def test_campaign_report_schema(
-    example_campaign_report_df, value_columns, expected_columns, expected_values
+    example_campaign_report_df,
+    accessor: bool,
+    value_columns,
+    expected_columns,
+    expected_values,
 ):
-    result = process_fivetran_ad_reporting(
-        example_campaign_report_df, value_columns=value_columns, rename_date_to="date"
-    )
+    kwargs = dict(value_columns=value_columns, rename_date_to="date")
+    if accessor:
+        result = example_campaign_report_df.fivetran.process_ad_reporting(**kwargs)
+    else:
+        result = process_fivetran_ad_reporting(example_campaign_report_df, **kwargs)
 
     expected = (
         pd.DataFrame(
@@ -575,8 +596,15 @@ def example_shopify_orders_df() -> pd.DataFrame:
     )
 
 
-def test_shopify_orders_unique_orders(example_shopify_orders_df: pd.DataFrame) -> None:
-    result = process_fivetran_shopify_unique_orders(example_shopify_orders_df)
+@pytest.mark.parametrize("accessor", [True, False])
+def test_shopify_orders_unique_orders(
+    example_shopify_orders_df: pd.DataFrame,
+    accessor: bool,
+) -> None:
+    if accessor:
+        result = example_shopify_orders_df.fivetran.process_shopify_unique_orders()
+    else:
+        result = process_fivetran_shopify_unique_orders(example_shopify_orders_df)
 
     expected = pd.DataFrame(
         {

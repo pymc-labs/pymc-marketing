@@ -18,6 +18,6 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v5
     - name: setup-micromamba
-      uses: mamba-org/setup-micromamba@v2.0.5
+      uses: mamba-org/setup-micromamba@v2.0.7
       with:
         environment-file: environment.yml

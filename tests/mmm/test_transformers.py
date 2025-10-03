@@ -104,7 +104,7 @@ def test_batched_convolution(convolution_inputs, convolution_axis, mode):
 
 
 def test_batched_convolution_invalid_mode(convolution_inputs, convolution_axis):
-    x, w, x_val, w_val = convolution_inputs
+    x, w, _, _ = convolution_inputs
     invalid_mode = "InvalidMode"
     with pytest.raises(ValueError):
         batched_convolution(x, w, convolution_axis, invalid_mode)
@@ -129,7 +129,7 @@ class TestsAdstockTransformers:
     def test_geometric_adstock_x_zero(self, mode):
         x = np.zeros(shape=(100))
         y = geometric_adstock(x=x, alpha=0.2, mode=mode)
-        np.testing.assert_array_equal(x=x, y=y.eval())
+        np.testing.assert_array_equal(actual=x, desired=y.eval())
 
     @pytest.mark.parametrize(
         "x, alpha, l_max",
@@ -180,7 +180,7 @@ class TestsAdstockTransformers:
     def test_delayed_adstock_x_zero(self):
         x = np.zeros(shape=(100))
         y = delayed_adstock(x=x, alpha=0.2, theta=2, l_max=4)
-        np.testing.assert_array_equal(x=x, y=y.eval())
+        np.testing.assert_array_equal(actual=x, desired=y.eval())
 
     @pytest.mark.parametrize(
         argnames="mode",
@@ -327,13 +327,13 @@ class TestSaturationTransformers:
     def test_logistic_saturation_lam_zero(self):
         x = np.ones(shape=(100))
         y = logistic_saturation(x=x, lam=0.0)
-        np.testing.assert_array_equal(x=np.zeros(shape=(100)), y=y.eval())
+        np.testing.assert_array_equal(actual=np.zeros(shape=(100)), desired=y.eval())
 
     def test_logistic_saturation_lam_one(self):
         x = np.ones(shape=(100))
         y = logistic_saturation(x=x, lam=1.0)
         np.testing.assert_array_equal(
-            x=((1 - np.e ** (-1)) / (1 + np.e ** (-1))) * x, y=y.eval()
+            actual=((1 - np.e ** (-1)) / (1 + np.e ** (-1))) * x, desired=y.eval()
         )
 
     @pytest.mark.parametrize(
@@ -410,7 +410,7 @@ class TestSaturationTransformers:
     def test_tanh_saturation_inverse(self, x, b, c):
         y = tanh_saturation(x=x, b=b, c=c)
         y_inv = (b * c) * pt.arctanh(y / b)
-        np.testing.assert_array_almost_equal(x=x, y=y_inv.eval(), decimal=6)
+        np.testing.assert_array_almost_equal(actual=x, desired=y_inv.eval(), decimal=6)
 
     @pytest.mark.parametrize(
         "x, x0, gain, r",
@@ -442,7 +442,7 @@ class TestSaturationTransformers:
         b = (gain * x0) / r
         c = r / (gain * pt.arctanh(r))
         y_inv = (b * c) * pt.arctanh(y / b)
-        np.testing.assert_array_almost_equal(x=x, y=y_inv.eval(), decimal=6)
+        np.testing.assert_array_almost_equal(actual=x, desired=y_inv.eval(), decimal=6)
 
     @pytest.mark.parametrize(
         "x, b, c",
