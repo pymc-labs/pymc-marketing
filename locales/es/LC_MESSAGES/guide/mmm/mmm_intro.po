@@ -1,0 +1,606 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-08-23 20:57+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/guide/mmm/mmm_intro.md:1 3178973d42474c05b8828096a50ea28d
+msgid "Introduction to Media Mix Modeling"
+msgstr "Introducción al modelado del mix de medios"
+
+#: ../source/guide/mmm/mmm_intro.md:3 d7e163c0ae8b4c8d8d714ed83e9043f3
+msgid ""
+"A problem faced by many companies is how to allocate marketing budgets "
+"across different media channels. For example, how should funds be "
+"allocated across TV, radio, social media, direct mail, or daily deals?"
+msgstr "Un problema al que se enfrentan muchas empresas es cómo asignar los presupuestos de marketing entre distintos canales de medios. Por ejemplo, ¿cómo deberían distribuirse los fondos entre TV, radio, redes sociales, correo directo u ofertas diarias?"
+
+#: ../source/guide/mmm/mmm_intro.md:5 dfb7e8c2fdc348a4be2d78bdf798de3b
+msgid ""
+"One approach might be to use heuristics, i.e. sensible rules of thumb, "
+"about what might be most appropriate for your company. For instance, a "
+"widely used approach is to simply set your marketing budget as a "
+"percentage of expected revenues. But this involves guesswork - something "
+"we want to avoid regardless of the size of the marketing budget involved."
+msgstr "Un enfoque podría ser usar heurísticas, es decir, reglas empíricas sensatas sobre lo que podría ser más adecuado para tu empresa. Por ejemplo, un enfoque muy utilizado es fijar el presupuesto de marketing como un porcentaje de los ingresos esperados. Pero esto implica conjeturas, algo que queremos evitar independientemente del tamaño del presupuesto de marketing."
+
+#: ../source/guide/mmm/mmm_intro.md:7 b58d982f8ed74ab1ba685426241c0f2e
+msgid ""
+"Fortunately, with Bayesian modeling, we can do better than this! So-"
+"called Media Mix Modeling (MMM) can estimate how effective each "
+"advertising channel is in driving our outcome measure of interest, "
+"whether that is sales, new customer acquisitions, or any other key "
+"performance indicator (KPI). Once we have estimated each channel's "
+"effectiveness we can optimize our budget allocation to maximize our KPI."
+msgstr "Afortunadamente, con el modelado bayesiano podemos hacerlo mejor. El llamado Media Mix Modeling (MMM) puede estimar cuán eficaz es cada canal publicitario para impulsar nuestra métrica de interés, ya sean ventas, adquisición de nuevos clientes u otro indicador clave de desempeño (KPI). Una vez estimada la eficacia de cada canal, podemos optimizar la asignación del presupuesto para maximizar nuestro KPI."
+
+#: ../source/guide/mmm/mmm_intro.md:9 2b2068bf2deb4aa396653e04f0069847
+msgid "What can you do with Media Mix Modeling?"
+msgstr "¿Qué puedes hacer con el modelado del mix de medios?"
+
+#: ../source/guide/mmm/mmm_intro.md:11 b92605b652604e9f98120e658e937d79
+msgid ""
+"Media Mix Modeling (MMM) is a powerful tool that provides actionable "
+"insights for businesses. Here are some key ways you can leverage MMM to "
+"drive strategic decisions and improve your marketing ROI:"
+msgstr "El Media Mix Modeling (MMM) es una herramienta potente que proporciona información accionable para las empresas. Estas son algunas formas clave de aprovechar MMM para impulsar decisiones estratégicas y mejorar el retorno de la inversión (ROI) en marketing:"
+
+#: ../source/guide/mmm/mmm_intro.md:13 eb0149860c914752941fb3935c614b1c
+msgid ""
+"Understand the effectiveness of different media channels in driving "
+"customer acquisition. Not only can you learn from data about the most "
+"influential media channels for your business, but you can update this "
+"understanding over time. By incorporating new marketing and customer "
+"acquisition data on an ongoing basis, you can learn about the changing "
+"effectiveness of each channel over time."
+msgstr "Comprender la eficacia de distintos canales de medios para impulsar la adquisición de clientes. No solo puedes aprender de los datos cuáles son los canales más influyentes para tu negocio, sino que también puedes actualizar este conocimiento con el tiempo. Al incorporar de forma continua nuevos datos de marketing y de adquisición de clientes, puedes aprender cómo cambia la eficacia de cada canal con el tiempo."
+
+#: ../source/guide/mmm/mmm_intro.md:15 d55bf726963e4fbb88ce2ad333da5337
+msgid ""
+"Optimize Budget Allocation: Use MMM to determine the most effective "
+"distribution of your marketing budget across different channels. By "
+"understanding the impact of each channel on your KPIs, you can allocate "
+"resources where they'll generate the highest return."
+msgstr "Optimizar la asignación del presupuesto: Usa MMM para determinar la distribución más eficaz de tu presupuesto de marketing entre diferentes canales. Al comprender el impacto de cada canal en tus KPI, puedes asignar recursos donde generen el mayor retorno."
+
+#: ../source/guide/mmm/mmm_intro.md:17 6ae9503bbf8b455ba7e7281c74bf2dd2
+msgid ""
+"Enhance ROI Forecasting: Develop more accurate forecasts of expected "
+"returns for different marketing scenarios. This allows you to set "
+"realistic goals and make data-driven decisions about future campaigns."
+msgstr "Mejorar el pronóstico de ROI: Desarrolla previsiones más precisas de los retornos esperados para distintos escenarios de marketing. Esto te permite fijar objetivos realistas y tomar decisiones basadas en datos sobre campañas futuras."
+
+#: ../source/guide/mmm/mmm_intro.md:19 06123bd8f9b44ba28cf1e1ea93760175
+msgid ""
+"Identify Synergies Between Channels: Uncover how different marketing "
+"channels interact and complement each other. This insight can help you "
+"create more cohesive, integrated marketing strategies that leverage "
+"cross-channel effects."
+msgstr "Identificar sinergias entre canales: Descubre cómo interactúan y se complementan distintos canales de marketing. Este conocimiento te ayuda a crear estrategias más cohesionadas e integradas que aprovechen los efectos cruzados entre canales."
+
+#: ../source/guide/mmm/mmm_intro.md:21 80f8e422a4ff4c4fb67f93eca792cf19
+msgid ""
+"Adapt to Market Changes: Continuously update your model with new data to "
+"track changes in channel effectiveness over time. This allows you to "
+"quickly adapt your strategy to evolving market conditions, consumer "
+"behaviors, or competitive landscapes."
+msgstr "Adaptarte a los cambios del mercado: Actualiza continuamente tu modelo con nuevos datos para seguir los cambios en la eficacia de los canales a lo largo del tiempo. Esto te permite ajustar rápidamente tu estrategia a condiciones de mercado, comportamientos de consumidores o entornos competitivos en evolución."
+
+#: ../source/guide/mmm/mmm_intro.md:23 ade2dd5c65e742e3a78f49f53eb30105
+msgid ""
+"Justify Marketing Investments: Use concrete data to demonstrate the value"
+" of marketing activities to stakeholders. MMM provides a quantitative "
+"basis for marketing budget discussions and helps align marketing goals "
+"with overall business objectives."
+msgstr "Justificar las inversiones en marketing: Usa datos concretos para demostrar el valor de las actividades de marketing a las partes interesadas. MMM aporta una base cuantitativa para las discusiones sobre presupuestos de marketing y ayuda a alinear los objetivos de marketing con los objetivos generales del negocio."
+
+#: ../source/guide/mmm/mmm_intro.md:25 f304664271ce461eb851f883a4314211
+msgid ""
+"Optimize Timing and Frequency: Determine the optimal timing and frequency"
+" of your marketing efforts across different channels. This can help you "
+"avoid oversaturation and maximize the impact of your campaigns."
+msgstr "Optimizar el momento y la frecuencia: Determina el momento y la frecuencia óptimos de tus esfuerzos de marketing en distintos canales. Esto puede ayudarte a evitar la sobresaturación y maximizar el impacto de tus campañas."
+
+#: ../source/guide/mmm/mmm_intro.md:27 b146efa161044c329736975580e834f4
+msgid ""
+"Scenario Planning: Run \"what-if\" analyses to evaluate potential "
+"outcomes of different marketing strategies before implementing them. This"
+" can help mitigate risks and identify the most promising opportunities."
+msgstr "Planificación de escenarios: Ejecuta análisis de “qué pasaría si” para evaluar los posibles resultados de diferentes estrategias de marketing antes de implementarlas. Esto ayuda a mitigar riesgos e identificar las oportunidades más prometedoras."
+
+#: ../source/guide/mmm/mmm_intro.md:29 3964b9b0accb4333a05e5e53150f5c56
+msgid ""
+"Personalize Marketing Strategies: Use insights from MMM to tailor your "
+"marketing approach for different customer segments or geographic regions,"
+" maximizing relevance and effectiveness."
+msgstr "Personalizar las estrategias de marketing: Usa los insights de MMM para adaptar tu enfoque de marketing a diferentes segmentos de clientes o regiones geográficas, maximizando la relevancia y la eficacia."
+
+#: ../source/guide/mmm/mmm_intro.md:31 1861b78dc80c4809a993794c1dbbb4dd
+msgid ""
+"Benchmark Performance: Compare your marketing performance against "
+"industry standards or historical data to identify areas for improvement "
+"and set competitive targets."
+msgstr "Comparar el desempeño: Compara tu desempeño de marketing con estándares del sector o datos históricos para identificar áreas de mejora y establecer objetivos competitivos."
+
+#: ../source/guide/mmm/mmm_intro.md:33 f2d554655411469aae017277050a7ebc
+msgid ""
+"Guide Long-term Strategy: Use MMM insights to inform long-term marketing "
+"and business strategies, ensuring that your marketing efforts align with "
+"and support your company's broader goals and vision."
+msgstr "Orientar la estrategia a largo plazo: Usa los insights de MMM para informar las estrategias de marketing y de negocio a largo plazo, asegurando que tus esfuerzos de marketing se alineen con los objetivos y la visión más amplios de la empresa."
+
+#: ../source/guide/mmm/mmm_intro.md:35 d66f45f6fcf045d99f6aeae7a5c1c656
+msgid ""
+"By leveraging these actionable insights from Media Mix Modeling, "
+"businesses can make more informed, data-driven decisions that lead to "
+"improved marketing effectiveness, increased ROI, and sustainable growth."
+msgstr "Al aprovechar estas ideas accionables del Media Mix Modeling, las empresas pueden tomar decisiones más informadas y basadas en datos que se traduzcan en una mayor eficacia de marketing, un ROI superior y un crecimiento sostenible."
+
+#: ../source/guide/mmm/mmm_intro.md:37 80cc2adc610143f5a8f5d7b6017acae4
+msgid "![](bayesian_mmm_workflow2.png)"
+msgstr "![](bayesian_mmm_workflow2.png)"
+
+#: ../source/guide/mmm/mmm_intro.md:39 9f9b2dea69f54d54bd2d3d7b8cb41e0a
+msgid "Brief history of Media Mix Models"
+msgstr "Breve historia de los modelos de mix de medios"
+
+#: ../source/guide/mmm/mmm_intro.md:41 55511e894d0b41aeb7bc79a383640c97
+msgid ""
+"Media Mix Models (MMMs) have a rich history dating back to the 1950s and "
+"1960s when they were first developed by marketing pioneers. Here's a "
+"brief overview of their evolution:"
+msgstr "Los Modelos de Mix de Medios (MMM) tienen una rica historia que se remonta a las décadas de 1950 y 1960, cuando fueron desarrollados por pioneros del marketing. A continuación, un breve repaso de su evolución:"
+
+#: ../source/guide/mmm/mmm_intro.md:43 6f7a79ed0a844492b044d494a94cf8ad
+msgid ""
+"1950s-1960s: The concept of MMMs emerged as marketers sought to quantify "
+"the impact of different advertising channels on sales."
+msgstr "Años 1950-1960: El concepto de los MMM surgió cuando los mercadólogos buscaban cuantificar el impacto de diferentes canales publicitarios en las ventas."
+
+#: ../source/guide/mmm/mmm_intro.md:45 9181e304135047438f94d8828d1362ce
+msgid ""
+"1970s-1980s: With the advent of more sophisticated statistical techniques"
+" and computing power, MMMs became more widespread in the advertising "
+"industry."
+msgstr "Años 1970-1980: Con la llegada de técnicas estadísticas más sofisticadas y mayor potencia de cómputo, los MMM se extendieron en la industria publicitaria."
+
+#: ../source/guide/mmm/mmm_intro.md:47 7702ff5b338a41fb9a032032defe71e5
+msgid ""
+"1990s: The rise of scanner data and loyalty card programs provided more "
+"granular data, allowing for more detailed and accurate models."
+msgstr "Años 1990: El auge de los datos de escáner y los programas de fidelización proporcionó datos más granulares, permitiendo modelos más detallados y precisos."
+
+#: ../source/guide/mmm/mmm_intro.md:49 5bc6c712ee424ac789021d94917a7724
+msgid ""
+"2000s: The digital revolution introduced new challenges and "
+"opportunities. MMMs had to adapt to incorporate digital channels and deal"
+" with the increased complexity of the media landscape."
+msgstr "Años 2000: La revolución digital introdujo nuevos retos y oportunidades. Los MMM tuvieron que adaptarse para incorporar canales digitales y lidiar con la mayor complejidad del panorama mediático."
+
+#: ../source/guide/mmm/mmm_intro.md:51 14ec16c6d19b485eb0f2ce22bbb3f9fe
+msgid ""
+"2010s: Big data and machine learning techniques began to be incorporated "
+"into MMMs, allowing for more complex models and real-time optimization."
+msgstr "Años 2010: Se empezaron a incorporar técnicas de big data y aprendizaje automático en los MMM, permitiendo modelos más complejos y optimización en tiempo real."
+
+#: ../source/guide/mmm/mmm_intro.md:53 b24a844009034bd2b609b49c8cb8cfd9
+msgid ""
+"Present day: Modern Bayesian approaches, like those used in PyMC-"
+"Marketing. These offer several advantages, including the ability to "
+"incorporate prior knowledge, handle uncertainty more robustly, calibrate "
+"the models through lift tests, and provide more interpretable results."
+msgstr "Actualmente: Enfoques bayesianos modernos, como los utilizados en PyMC‑Marketing. Ofrecen varias ventajas, incluida la capacidad de incorporar conocimiento previo, manejar la incertidumbre de forma más robusta, calibrar los modelos mediante pruebas de lift y proporcionar resultados más interpretables."
+
+#: ../source/guide/mmm/mmm_intro.md:55 13ff6963785143cc9fbc46f50c701116
+msgid ""
+"Throughout this evolution, the core goal of MMMs has remained the same: "
+"to help marketers understand and optimize the effectiveness of their "
+"marketing spend across different channels. As the media landscape "
+"continues to evolve, so too will the techniques and applications of Media"
+" Mix Modeling."
+msgstr "A lo largo de esta evolución, el objetivo central de los MMM ha permanecido igual: ayudar a los responsables de marketing a comprender y optimizar la eficacia de su gasto en distintos canales. A medida que el panorama de medios continúa evolucionando, también lo harán las técnicas y aplicaciones del Media Mix Modeling."
+
+#: ../source/guide/mmm/mmm_intro.md:58 74543a402b0e40a6b01c96ed984df9c1
+msgid "How does Media Mix Modeling work?"
+msgstr "¿Cómo funciona el Media Mix Modeling?"
+
+#: ../source/guide/mmm/mmm_intro.md:60 5e0b2b409a1047b490e5858df5fd397a
+msgid ""
+"In simple terms, we can understand MMMs as regression modeling applied to"
+" business data. The goal is to estimate the impact of marketing "
+"activities and other drivers on a metric of interest, such as the number "
+"of new customers per week."
+msgstr "En términos sencillos, podemos entender los MMM como modelos de regresión aplicados a datos de negocio. El objetivo es estimar el impacto de las actividades de marketing y otros impulsores sobre una métrica de interés, como el número de clientes nuevos por semana."
+
+#: ../source/guide/mmm/mmm_intro.md:62 df739b85e35b4d128392e669808c0cf8
+msgid "To do this, we use two main types of predictor variables:"
+msgstr "Para ello, usamos dos tipos principales de variables predictoras:"
+
+#: ../source/guide/mmm/mmm_intro.md:64 3eca1c367a8a4a01b506c6fd9390a8c6
+msgid "The level of spend for each media channel over time."
+msgstr "El nivel de gasto de cada canal de medios a lo largo del tiempo."
+
+#: ../source/guide/mmm/mmm_intro.md:66 bcca292c6f8d41fbb1618299a89df696
+msgid ""
+"A set of control measurements that could capture seasonality or economic "
+"indicators. The basic approach to MMMs uses linear regression to estimate"
+" a set of coefficients for the relative importance of each of these "
+"predictors, but real-world MMMs commonly incorporate also non-linear "
+"factors to more accurately capture the effect of marketing activities on "
+"consumer behaviour:"
+msgstr "Un conjunto de mediciones de control que pueda capturar la estacionalidad o indicadores económicos. El enfoque básico de los MMM usa regresión lineal para estimar un conjunto de coeficientes que reflejen la importancia relativa de cada uno de estos predictores, pero los MMM del mundo real suelen incorporar también factores no lineales para capturar con mayor precisión el efecto de las actividades de marketing en el comportamiento del consumidor:"
+
+#: ../source/guide/mmm/mmm_intro.md:69 41361a29bfdf4f8b886eb9aedcdc2446
+msgid "The reach (or saturation) function"
+msgstr "La función de alcance (o saturación)"
+
+#: ../source/guide/mmm/mmm_intro.md:71 6858f98872e741bf87ae42d6d7e1e234
+msgid ""
+"Rather than model our KPI as a linear function of marketing spend, the "
+"reach function models the potential saturation of different channels: "
+"While the initial money spent on an advertising channel might have a big "
+"impact on customer acquisition, further investment will often lead to "
+"diminishing returns as people get used to the message. When we think "
+"about optimization, modeling this effect is critical. Some channels may "
+"be nowhere close to being saturated and yield significant increases in "
+"customer acquisitions for spending for that channel. Knowing the "
+"saturation of each channel is vital in making future marketing spend "
+"decisions."
+msgstr "En lugar de modelar nuestro KPI como una función lineal del gasto en marketing, la función de alcance modela la posible saturación de los distintos canales: mientras que el gasto inicial en un canal publicitario puede tener un gran impacto en la adquisición de clientes, inversiones adicionales a menudo conllevan rendimientos decrecientes a medida que la gente se acostumbra al mensaje. Al pensar en optimización, modelar este efecto es fundamental. Algunos canales pueden estar lejos de saturarse y generar aumentos significativos de adquisiciones al invertir en ese canal. Conocer la saturación de cada canal es vital para tomar decisiones sobre el gasto de marketing futuro."
+
+#: ../source/guide/mmm/mmm_intro.md:73 5971bad46b2f4340a088871745761979
+msgid "![](reach-function.png)"
+msgstr "![](reach-function.png)"
+
+#: ../source/guide/mmm/mmm_intro.md:75 f60c7cf792684795bbc40c40b992ed26
+msgid "The adstock function"
+msgstr "La función de adstock"
+
+#: ../source/guide/mmm/mmm_intro.md:77 a78644ac65994559b374e22539fa93bb
+msgid ""
+"The marketing spend for a given channel may have a short-term effect or "
+"long-term impact. Remember that jingle from a TV ad you've seen 20 years "
+"ago? That's a great long-term impact. The adstock function captures these"
+" time-course effects of different advertising channels. Knowing this is "
+"crucial - if we know some channels have short-term effects that quickly "
+"decay over time, we could plan to do more frequent marketing. But suppose"
+" another channel has a long, drawn-out impact on driving customer "
+"acquisitions. In that case, it may be more effective to use that channel "
+"more infrequently."
+msgstr "El gasto de marketing en un canal dado puede tener un efecto a corto plazo o un impacto a largo plazo. ¿Recuerdas esa melodía de un anuncio de TV que viste hace 20 años? Ese es un gran impacto a largo plazo. La función de adstock captura estos efectos temporales de los distintos canales publicitarios. Conocer esto es crucial: si sabemos que algunos canales tienen efectos a corto plazo que se desvanecen rápidamente, podemos planificar campañas más frecuentes. Pero si otro canal tiene un impacto prolongado en la adquisición de clientes, puede ser más eficaz usar ese canal con menor frecuencia."
+
+#: ../source/guide/mmm/mmm_intro.md:79 154a89b63c4341d6a3dd819aff18e1b9
+msgid "![](adstock_function.png)"
+msgstr "![](adstock_function.png)"
+
+#: ../source/guide/mmm/mmm_intro.md:81 5696e8796d5549c9aa9f7c062455a7db
+msgid "Thus we can summarize the full MMM with this image:"
+msgstr "Así podemos resumir el MMM completo con esta imagen:"
+
+#: ../source/guide/mmm/mmm_intro.md:83 62aee06f2af54a16abaa69679d165025
+msgid "![](bayesian_mmm.png)"
+msgstr "![](bayesian_mmm.png)"
+
+#: ../source/guide/mmm/mmm_intro.md:85 d5d2d7a08f884b9b9acc22774340bfac
+msgid "Data Requirements"
+msgstr "Requisitos de datos"
+
+#: ../source/guide/mmm/mmm_intro.md:87 c2bff55ba0114a3a992c593079b57f66
+msgid ""
+"To effectively implement a Media Mix Model (MMM), you need to gather "
+"specific types of data. Here are the key data requirements:"
+msgstr "Para implementar eficazmente un Media Mix Model (MMM), necesitas recopilar tipos específicos de datos. Estos son los requisitos clave:"
+
+#: ../source/guide/mmm/mmm_intro.md:89 eeb8a9ff2b01400e9412e925ab94338f
+msgid "Sales or KPI Data:"
+msgstr "Datos de ventas o KPI:"
+
+#: ../source/guide/mmm/mmm_intro.md:90 43887637117a498b8c5118098c1261d2
+msgid ""
+"Time series data of your target variable (e.g., sales, conversions, new "
+"customers)"
+msgstr "Series temporales de tu variable objetivo (p. ej., ventas, conversiones, clientes nuevos)."
+
+#: ../source/guide/mmm/mmm_intro.md:91 9e724e6c16e4496da0d4dc45b7aabee2
+msgid "Typically at a weekly or daily granularity"
+msgstr "Normalmente con granularidad semanal o diaria."
+
+#: ../source/guide/mmm/mmm_intro.md:92 279aefb8c7794f75acf9b00749b6c252
+msgid ""
+"Should cover a sufficient time period (ideally 2-3 years) to capture "
+"seasonality and trends"
+msgstr "Debe abarcar un periodo de tiempo suficiente (idealmente 2–3 años) para capturar estacionalidad y tendencias."
+
+#: ../source/guide/mmm/mmm_intro.md:94 9e6e310c2d09432faae6a905014882ea
+msgid "Marketing Spend Data:"
+msgstr "Datos de gasto en marketing:"
+
+#: ../source/guide/mmm/mmm_intro.md:95 15a06f34539a4f90b6cc0f8f80d12333
+msgid ""
+"Time series data of marketing expenditures (or impressions) for each "
+"channel (e.g., TV, radio, digital, print)"
+msgstr "Series temporales del gasto en marketing (o impresiones) para cada canal (p. ej., TV, radio, digital, prensa)."
+
+#: ../source/guide/mmm/mmm_intro.md:96 7046ce601a6b4e83863201fbfa2a4d95
+msgid "Should match the granularity of your sales data"
+msgstr "Debe coincidir con la granularidad de tus datos de ventas."
+
+#: ../source/guide/mmm/mmm_intro.md:97 bcca4b7d44df4544a687a9f0c2dd82e2
+msgid "Include all significant marketing channels used during the period"
+msgstr "Incluir todos los canales de marketing significativos utilizados durante el periodo."
+
+#: ../source/guide/mmm/mmm_intro.md:99 e84e6120f3af4a83a2a68c14718facbd
+msgid "Control Variables:"
+msgstr "Variables de control:"
+
+#: ../source/guide/mmm/mmm_intro.md:100 141782b92462466d90c6c1f08d2a6924
+msgid "Economic indicators (e.g., GDP, unemployment rate)"
+msgstr "Indicadores económicos (p. ej., PIB, tasa de desempleo)."
+
+#: ../source/guide/mmm/mmm_intro.md:101 b01c87356dc34cb59bf5a1005e5b9ae9
+msgid "Competitor activities (if available)"
+msgstr "Actividades de la competencia (si están disponibles)."
+
+#: ../source/guide/mmm/mmm_intro.md:102 34ce72d5d8a74bdfb7b2305ae97f0dce
+msgid "Seasonal factors (e.g., holidays, special events)"
+msgstr "Factores estacionales (p. ej., festivos, eventos especiales)."
+
+#: ../source/guide/mmm/mmm_intro.md:103 47af502c15af43458db8bb04b7c04a94
+msgid "Price changes or promotions"
+msgstr "Cambios de precio o promociones."
+
+#: ../source/guide/mmm/mmm_intro.md:105 893178d35db746c6abbdb4352f955d04
+msgid "External Factors:"
+msgstr "Factores externos:"
+
+#: ../source/guide/mmm/mmm_intro.md:106 9ef0a13dfbfe41a0b30f78cc1f281434
+msgid "Weather data (if relevant to your business)"
+msgstr "Datos meteorológicos (si son relevantes para tu negocio)."
+
+#: ../source/guide/mmm/mmm_intro.md:107 d1b051037a5845608fd77d7c554d8a6c
+msgid "Industry-specific factors"
+msgstr "Factores específicos del sector."
+
+#: ../source/guide/mmm/mmm_intro.md:109 202b01830e874af6b6c8cd0a54a173c6
+msgid "Geographic Data:"
+msgstr "Datos geográficos:"
+
+#: ../source/guide/mmm/mmm_intro.md:110 007125b84e08426b80d5436ba683a333
+msgid "If running regional campaigns, include location information"
+msgstr "Si ejecutas campañas regionales, incluye información de ubicación."
+
+#: ../source/guide/mmm/mmm_intro.md:112 b0651e2aa97744599bbd0eb25a31e259
+msgid ""
+"Ideally, you have some lift tests or other experiments that you can use "
+"to calibrate your model."
+msgstr "Idealmente, cuentas con pruebas de lift u otros experimentos que puedas usar para calibrar tu modelo."
+
+#: ../source/guide/mmm/mmm_intro.md:114 3e5d9085513a447c975c685a581c8d2c
+msgid ""
+"Remember, the quality and completeness of your data directly impact the "
+"accuracy and usefulness of your Media Mix Model. It's crucial to ensure "
+"data consistency, handle missing values appropriately, and validate data "
+"quality before building your model."
+msgstr "Recuerda: la calidad y la completitud de tus datos impactan directamente en la precisión y utilidad de tu Media Mix Model. Es crucial garantizar la consistencia de los datos, tratar adecuadamente los valores faltantes y validar la calidad de los datos antes de construir tu modelo."
+
+#: ../source/guide/mmm/mmm_intro.md:117 763ba2d0bebf42898e3d44d5673b7530
+msgid "PyMC-Marketing Media Mix Modeling features"
+msgstr "Características de Media Mix Modeling en PyMC‑Marketing"
+
+#: ../source/guide/mmm/mmm_intro.md:119 bc0514498585487ea91f686d93434bbb
+msgid ""
+"PyMC-Marketing offers a comprehensive suite of features for Media Mix "
+"Modeling:"
+msgstr "PyMC‑Marketing ofrece un conjunto completo de funcionalidades para Media Mix Modeling:"
+
+#: ../source/guide/mmm/mmm_intro.md:121 94620f2b17d643bdbbac9df38105cbdb
+msgid ""
+"• Custom Priors and Likelihoods: Incorporate domain-specific knowledge "
+"into your model through customizable prior distributions, allowing you to"
+" tailor the model to your unique business needs."
+msgstr "• Priors y verosimilitudes personalizadas: Incorpora conocimiento específico del dominio mediante distribuciones a priori personalizables, lo que te permite adaptar el modelo a las necesidades únicas de tu negocio."
+
+#: ../source/guide/mmm/mmm_intro.md:123 5d8172b4ee0741b1b29a31ad1197c5b9
+msgid ""
+"• Adstock Transformation: Optimize the carry-over effects in your "
+"marketing channels to better understand how past marketing efforts impact"
+" current performance."
+msgstr "• Transformación de adstock: Optimiza los efectos de arrastre en tus canales de marketing para comprender mejor cómo los esfuerzos de marketing pasados impactan el rendimiento actual."
+
+#: ../source/guide/mmm/mmm_intro.md:125 c9dfcab602c34d0a873235c4afaaab4a
+msgid ""
+"• Saturation Effects: Model and analyze the diminishing returns on media "
+"investments, helping you identify the point of optimal spending for each "
+"channel."
+msgstr "• Efectos de saturación: Modela y analiza los rendimientos decrecientes de las inversiones en medios, ayudándote a identificar el punto de gasto óptimo para cada canal."
+
+#: ../source/guide/mmm/mmm_intro.md:127 f2aa1e7261ed476aa4d0958d57055a71
+msgid ""
+"• Customizable Adstock and Saturation Functions: Choose from a variety of"
+" pre-built functions or implement your own custom functions to model "
+"adstock and saturation effects. Refer to the documentation guide for more"
+" details."
+msgstr "• Funciones de adstock y saturación personalizables: Elige entre diversas funciones preconstruidas o implementa tus propias funciones para modelar adstock y saturación. Consulta la guía de documentación para más detalles."
+
+#: ../source/guide/mmm/mmm_intro.md:129 de4ddd6fb4bc453b923adfd29055cce3
+msgid ""
+"• Time-varying Intercept: Capture baseline contributions that change over"
+" time using advanced Gaussian process approximation methods. This allows "
+"for more accurate modeling of underlying trends in your data."
+msgstr "• Intercepto variable en el tiempo: Captura contribuciones de base que cambian con el tiempo usando métodos avanzados de aproximación con procesos gaussianos. Esto permite modelar con mayor precisión las tendencias subyacentes de tus datos."
+
+#: ../source/guide/mmm/mmm_intro.md:131 50f4394d8fca4c1aae4bf9496b662a51
+msgid ""
+"• Time-varying Media Contribution: Model the efficiency of media channels"
+" as it changes over time, again utilizing efficient Gaussian process "
+"approximation methods. This feature provides insights into how the "
+"effectiveness of different channels evolves."
+msgstr "• Contribución de medios variable en el tiempo: Modela la eficiencia de los canales de medios a medida que cambia con el tiempo, nuevamente utilizando métodos eficientes de aproximación con procesos gaussianos. Esta funcionalidad ofrece información sobre cómo evoluciona la eficacia de los distintos canales."
+
+#: ../source/guide/mmm/mmm_intro.md:133 1be978326a7a4250a65a6463f133a1f1
+msgid ""
+"• Visualization and Model Diagnostics: Get a comprehensive view of your "
+"model's performance through various visualization tools and diagnostic "
+"metrics, helping you interpret results and validate your model."
+msgstr "• Visualización y diagnósticos del modelo: Obtén una visión completa del desempeño de tu modelo mediante diversas herramientas de visualización y métricas de diagnóstico, lo que te ayuda a interpretar resultados y validar tu modelo."
+
+#: ../source/guide/mmm/mmm_intro.md:135 957b2d2b2f9a4b1eaf455f4c299bbe29
+msgid ""
+"• Flexible Inference Algorithms: Choose from multiple NUTS (No-U-Turn "
+"Sampler) implementations, including BlackJax, NumPyro, and Nutpie, to "
+"best suit your inference needs."
+msgstr "• Algoritmos de inferencia flexibles: Elige entre múltiples implementaciones de NUTS (No‑U‑Turn Sampler), incluidas BlackJax, NumPyro y Nutpie, para ajustarse mejor a tus necesidades de inferencia."
+
+#: ../source/guide/mmm/mmm_intro.md:137 88471143193e4d0e911c6591f3f8fa39
+msgid ""
+"• Out-of-sample Predictions: Generate forecasts for future marketing "
+"performance, complete with credible intervals. This feature is invaluable"
+" for simulations and scenario planning."
+msgstr "• Predicciones fuera de muestra: Genera pronósticos del rendimiento de marketing futuro con intervalos creíbles. Esta función es muy útil para simulaciones y planificación de escenarios."
+
+#: ../source/guide/mmm/mmm_intro.md:139 da5d362af72042d8949da8c3d6a69e95
+msgid ""
+"• Budget Optimization: Efficiently allocate your marketing budget across "
+"various channels to maximize ROI. The package includes tools to help you "
+"determine the optimal spend for each channel."
+msgstr "• Optimización del presupuesto: Asigna eficientemente tu presupuesto de marketing entre varios canales para maximizar el ROI. El paquete incluye herramientas para ayudarte a determinar el gasto óptimo por canal."
+
+#: ../source/guide/mmm/mmm_intro.md:141 f342c3a2d8344e6985dee320507bc2a9
+msgid ""
+"• Experiment Calibration: Fine-tune your model based on empirical "
+"experiments, such as lift tests, to create a more unified and accurate "
+"view of your marketing efforts. This feature helps bridge the gap between"
+" model predictions and real-world results."
+msgstr "• Calibración con experimentos: Ajusta finamente tu modelo con base en experimentos empíricos, como pruebas de lift, para crear una visión más unificada y precisa de tus esfuerzos de marketing. Esta función ayuda a cerrar la brecha entre las predicciones del modelo y los resultados del mundo real."
+
+#: ../source/guide/mmm/mmm_intro.md:143 84552d306a6b426f8a2a7253ac8bc12b
+msgid ""
+"Each of these features is supported by extensive documentation and "
+"example notebooks, allowing you to dive deeper into their implementation "
+"and use cases."
+msgstr "Cada una de estas funcionalidades cuenta con amplia documentación y cuadernos de ejemplo que te permiten profundizar en su implementación y casos de uso."
+
+#: ../source/guide/mmm/mmm_intro.md:146 6624000ee0d7452aba1f1cb21120cf54
+msgid "PyMC-Marketing in Production"
+msgstr "PyMC‑Marketing en producción"
+
+#: ../source/guide/mmm/mmm_intro.md:148 247372090d264c81b9289d464a836532
+msgid ""
+"PyMC-Marketing can be seamlessly integrated into production environments "
+"using modern PyData stack MLOps tools. This allows for automated, "
+"scalable, and reproducible media mix modeling workflows. Here are some "
+"key aspects of running PyMC-Marketing in production:"
+msgstr "PyMC‑Marketing puede integrarse sin fricciones en entornos de producción utilizando herramientas MLOps modernas del stack PyData. Esto permite flujos de trabajo de modelado del mix de medios automatizados, escalables y reproducibles. Estos son algunos aspectos clave para ejecutar PyMC‑Marketing en producción:"
+
+#: ../source/guide/mmm/mmm_intro.md:150 23e97219fc6f44b7bd9e40b9130da14e
+msgid "Containerization with Docker:"
+msgstr "Contenerización con Docker:"
+
+#: ../source/guide/mmm/mmm_intro.md:151 4234ad55e16f412683a025332d0983ba
+msgid ""
+"Encapsulate your PyMC-Marketing environment and dependencies in a Docker "
+"container."
+msgstr "Encapsula tu entorno y dependencias de PyMC‑Marketing en un contenedor Docker."
+
+#: ../source/guide/mmm/mmm_intro.md:152 0d775a621a7c4194b2b3d7593e031bfc
+msgid ""
+"Ensure consistency across different environments (development, testing, "
+"production)."
+msgstr "Garantiza la consistencia entre distintos entornos (desarrollo, pruebas, producción)."
+
+#: ../source/guide/mmm/mmm_intro.md:153 a09d8730eb1f4fbdb1d0822692dbae78
+msgid "Simplify deployment and scaling of your MMM pipelines."
+msgstr "Simplifica el despliegue y el escalado de tus canalizaciones de MMM."
+
+#: ../source/guide/mmm/mmm_intro.md:155 9814cd23967d438db37b9dfcc3c3bc62
+msgid "Experiment Tracking with MLflow:"
+msgstr "Seguimiento de experimentos con MLflow:"
+
+#: ../source/guide/mmm/mmm_intro.md:156 4b38514246de42e9baca1b6d7f2e3667
+msgid "Log model parameters, metrics, and artifacts using MLflow."
+msgstr "Registra parámetros, métricas y artefactos del modelo con MLflow."
+
+#: ../source/guide/mmm/mmm_intro.md:157 672bf485b5a94ce581bfb61ae5115046
+msgid "Compare different model versions and track experiments over time."
+msgstr "Compara distintas versiones del modelo y realiza seguimiento de experimentos a lo largo del tiempo."
+
+#: ../source/guide/mmm/mmm_intro.md:158 2dd16c07a5c247e1b4407d8e223f88ad
+msgid "Easily reproduce results and share insights with team members."
+msgstr "Reproduce resultados con facilidad y comparte insights con los miembros del equipo."
+
+#: ../source/guide/mmm/mmm_intro.md:160 531549f87dea4e889567a928b4df3b51
+msgid "Workflow Orchestration:"
+msgstr "Orquestación de flujos de trabajo:"
+
+#: ../source/guide/mmm/mmm_intro.md:161 96e391847af24fee97b134af2d182452
+msgid ""
+"Use tools like Apache Airflow or Prefect, for example, to schedule and "
+"orchestrate your MMM pipelines."
+msgstr "Utiliza herramientas como Apache Airflow o Prefect, por ejemplo, para programar y orquestar tus canalizaciones de MMM."
+
+#: ../source/guide/mmm/mmm_intro.md:162 9c04d17d719b4a739cbbe8d8cdb85413
+msgid ""
+"Automate data ingestion, model training, and result generation on a "
+"regular basis."
+msgstr "Automatiza la ingesta de datos, el entrenamiento del modelo y la generación de resultados de forma periódica."
+
+#: ../source/guide/mmm/mmm_intro.md:164 f72acc913cd546a9b0e1e54950d081fd
+msgid "Monitoring and Alerting:"
+msgstr "Monitoreo y alertas:"
+
+#: ../source/guide/mmm/mmm_intro.md:165 c06f97c6f5954189a3e19711ae21982e
+msgid "Implement monitoring for model performance and data drift."
+msgstr "Implementa monitoreo del desempeño del modelo y del drift de datos."
+
+#: ../source/guide/mmm/mmm_intro.md:166 aec59d5c0d8646d49418629f1efbddcf
+msgid ""
+"Set up alerts for unexpected changes in model outputs or data quality "
+"issues."
+msgstr "Configura alertas ante cambios inesperados en las salidas del modelo o problemas de calidad de datos."
+
+#: ../source/guide/mmm/mmm_intro.md:168 2384cd2c6a2a442ca75d0e880a1947f7
+msgid ""
+"By leveraging these tools, you can create a robust, automated MMM "
+"pipeline that continuously provides insights for your marketing "
+"strategies."
+msgstr "Al aprovechar estas herramientas, puedes crear una canalización de MMM robusta y automatizada que proporcione continuamente insights para tus estrategias de marketing."
+
+#: ../source/guide/mmm/mmm_intro.md:170 eebfbb3b08994ae783859396884b369d
+msgid "For more information on these tools, visit:"
+msgstr "Para obtener más información sobre estas herramientas, visita:"
+
+#: ../source/guide/mmm/mmm_intro.md:171 dcb04d60413549d4acbca90c4e18b0e3
+msgid "Docker: [https://www.docker.com/](https://www.docker.com/)"
+msgstr "Docker: [https://www.docker.com/](https://www.docker.com/)"
+
+#: ../source/guide/mmm/mmm_intro.md:172 53ee6e46248246b5b33b7c68878aaa00
+msgid "MLflow: [https://mlflow.org/](https://mlflow.org/)"
+msgstr "MLflow: [https://mlflow.org/](https://mlflow.org/)"
+
+#: ../source/guide/mmm/mmm_intro.md:175 ab38e4631f874823a912c136a8a5ec63
+msgid "How to get started?"
+msgstr "¿Cómo empezar?"
+
+#: ../source/guide/mmm/mmm_intro.md:177 1f12433fda8b4540b388cea277da29a4
+#, python-brace-format
+msgid ""
+"To see how all these different components come together, you can review "
+"the {ref}`MMM Example notebook <mmm_example>` and [MMM Explainer "
+"App](https://pymc-marketing-app.streamlit.app/)."
+msgstr "Para ver cómo se integran todos estos componentes, puedes revisar el {ref}`cuaderno de ejemplo de MMM <mmm_example>` y la [aplicación explicativa de MMM](https://pymc-marketing-app.streamlit.app/)."
