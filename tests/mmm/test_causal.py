@@ -426,7 +426,7 @@ def test_validate_coords_raises_when_prior_dims_not_in_coords(causal_df):
     custom_config = {
         prior_name: Prior("Normal", mu=0, sigma=1, dims=("country",))
         for prior_name in ("intercept", "slope")
-    } | {}
+    }
     with pytest.raises(
         ValueError,
         match=r"Dim 'country' declared in Prior '(?:intercept|slope)' must be present in coords",

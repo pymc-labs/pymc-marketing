@@ -70,7 +70,7 @@ class BuildModelFromDAG:
     coords : dict
         Mapping from dim names to coordinate values. All coord keys must exist as
         columns in ``df`` and will be used to pivot the data to match dims.
-        model_config : dict, optional
+    model_config : dict, optional
         Optional configuration with priors for keys ``"intercept"``, ``"slope"`` and
         ``"likelihood"``. Values should be ``pymc_extras.prior.Prior`` instances.
         Missing keys fall back to :pyattr:`default_model_config`.
@@ -81,8 +81,9 @@ class BuildModelFromDAG:
 
     .. code-block:: python
 
-        import pandas as pd
         import numpy as np
+        import pandas as pd
+
         from pymc_marketing.mmm.causal import BuildModelFromDAG
 
         dates = pd.date_range("2024-01-01", periods=5, freq="D")
@@ -182,7 +183,7 @@ class BuildModelFromDAG:
         self._validate_intercept_dims_match_slope_dims()
 
     @property
-    def default_model_config(self) -> dict:
+    def default_model_config(self) -> dict[str, Prior]:
         """Default priors for intercepts, slopes and likelihood using ``pymc_extras.Prior``.
 
         Returns
@@ -449,7 +450,6 @@ class BuildModelFromDAG:
             for node in self.nodes:
                 parents = self._parents(node)
                 # Slopes for each parent -> node
-                parents = self._parents(node)
                 mu_expr = 0
                 for parent in parents:
                     slope_name = f"{parent.lower()}{node.lower()}"
