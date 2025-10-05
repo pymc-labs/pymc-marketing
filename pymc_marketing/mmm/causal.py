@@ -888,9 +888,7 @@ class TBFPC:
 
     def get_test_results(self, x: str, y: str) -> list[dict[str, float]]:
         """Return all ΔBIC test result dicts for the unordered pair ``(x, y)``."""
-        return [
-            v for (xi, yi, _), v in self.test_results.items() if {xi, yi} == {x, y}
-        ]
+        return [v for (xi, yi, _), v in self.test_results.items() if {xi, yi} == {x, y}]
 
     def summary(self) -> str:
         """Return a summary of edges and number of CI tests.
@@ -1281,6 +1279,7 @@ class TBF_FCI:
                 self._remove_all(xi, xj)
 
     def fit(self, df: pd.DataFrame, drivers: Sequence[str]):
+        """Fit the temporal causal discovery procedure to ``df`` for ``drivers``."""
         self.sep_sets.clear()
         self._adj_directed.clear()
         self._adj_undirected.clear()
@@ -1294,9 +1293,10 @@ class TBF_FCI:
             self._stageB_contemporaneous(L, drivers)
         return self
 
-    def collapsed_summary(self) -> tuple[list[tuple[str, str, int]], list[tuple[str, str]]]:
+    def collapsed_summary(
+        self,
+    ) -> tuple[list[tuple[str, str, int]], list[tuple[str, str]]]:
         """Return collapsed summary of lagged directed and undirected edges."""
-
         collapsed_directed: list[tuple[str, str, int]] = []
         for u, v in self._adj_directed:
             base_u, lag_u = self._parse_lag(u)
@@ -1314,9 +1314,11 @@ class TBF_FCI:
         return collapsed_directed, collapsed_undirected
 
     def get_directed_edges(self) -> list[tuple[str, str]]:
+        """Return the sorted list of directed edges detected by the model."""
         return sorted(self._adj_directed)
 
     def get_undirected_edges(self) -> list[tuple[str, str]]:
+        """Return the sorted list of undirected edges detected by the model."""
         return sorted(self._adj_undirected)
 
     def summary(self) -> str:
@@ -1337,6 +1339,7 @@ class TBF_FCI:
         return "\n".join(lines)
 
     def to_digraph(self, collapsed: bool = True) -> str:
+        """Export the learned graph (optionally collapsed) as DOT-format text."""
         lines = ["digraph G {", "  node [shape=ellipse];"]
 
         if not collapsed:

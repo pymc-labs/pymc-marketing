@@ -23,10 +23,10 @@ from pydantic import ValidationError
 from pymc_extras.prior import Prior
 
 from pymc_marketing.mmm.causal import (
+    TBF_FCI,
+    TBFPC,
     BuildModelFromDAG,
     CausalGraphModel,
-    TBFPC,
-    TBF_FCI,
 )
 
 # Suppress specific dowhy warnings globally
