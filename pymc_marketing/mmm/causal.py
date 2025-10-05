@@ -1366,7 +1366,28 @@ class TBF_FCI:
                 self._remove_all(xi, xj)
 
     def fit(self, df: pd.DataFrame, drivers: Sequence[str]):
-        """Fit the temporal causal discovery procedure to ``df`` for ``drivers``."""
+        """Fit the temporal causal discovery algorithm to ``df``.
+
+        Parameters
+        ----------
+        df : pandas.DataFrame
+            Input dataframe containing the target column and every driver
+            column.
+        drivers : Sequence[str]
+            Iterable of column names to be treated as drivers of the target.
+
+        Returns
+        -------
+        TBF_FCI
+            The fitted instance with internal adjacency structures populated.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            model = TBF_FCI(target="Y", max_lag=2)
+            model.fit(df, drivers=["A", "B"])
+        """
         self.sep_sets.clear()
         self._adj_directed.clear()
         self._adj_undirected.clear()
@@ -1383,7 +1404,20 @@ class TBF_FCI:
     def collapsed_summary(
         self,
     ) -> tuple[list[tuple[str, str, int]], list[tuple[str, str]]]:
-        """Return collapsed summary of lagged directed and undirected edges."""
+        """Summarize lagged edges into a driver-level view.
+
+        Returns
+        -------
+        tuple[list[tuple[str, str, int]], list[tuple[str, str]]]
+            A tuple with directed edges represented as ``(u, v, lag)`` and
+            contemporaneous undirected edges represented as ``(u, v)`` pairs.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            directed, undirected = model.collapsed_summary()
+        """
         collapsed_directed: list[tuple[str, str, int]] = []
         for u, v in self._adj_directed:
             base_u, lag_u = self._parse_lag(u)
@@ -1401,16 +1435,48 @@ class TBF_FCI:
         return collapsed_directed, collapsed_undirected
 
     def get_directed_edges(self) -> list[tuple[str, str]]:
-        """Return the sorted list of directed edges detected by the model."""
+        """Return directed edges in the time-unrolled graph.
+
+        Returns
+        -------
+        list[tuple[str, str]]
+            Sorted list of directed edges in the expanded (lagged) graph.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            directed = model.get_directed_edges()
+        """
         return sorted(self._adj_directed)
 
     def get_undirected_edges(self) -> list[tuple[str, str]]:
-        """Return the sorted list of undirected edges detected by the model."""
+        """Return undirected edges in the time-unrolled graph.
+
+        Returns
+        -------
+        list[tuple[str, str]]
+            Sorted list of undirected edges among lagged variables.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            undirected = model.get_undirected_edges()
+        """
         return sorted(self._adj_undirected)
 
     def summary(self) -> str:
-        """Return a summary of edges and number of CI tests.
+        """Return a human-readable summary of edges and test count.
 
+        Returns
+        -------
+        str
+            Multiline description of directed edges, undirected edges, and the
+            number of conditional independence tests executed.
+
+        Examples
+        --------
         .. code-block:: python
 
             print(model.summary())
@@ -1426,10 +1492,30 @@ class TBF_FCI:
         return "\n".join(lines)
 
     def to_digraph(self, collapsed: bool = True) -> str:
-        """Export the learned graph (optionally collapsed) as DOT-format text."""
+        """Export the learned graph as DOT text.
+
+        Parameters
+        ----------
+        collapsed : bool, default True
+            ``True`` collapses the time-unrolled graph into driver-level nodes
+            with lag annotations; ``False`` returns the full lag-expanded
+            structure.
+
+        Returns
+        -------
+        str
+            DOT format string suitable for Graphviz rendering.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            dot_text = model.to_digraph(collapsed=True)
+        """
         lines = ["digraph G {", "  node [shape=ellipse];"]
 
         if not collapsed:
+            # --- original time-unrolled graph ---
             for n in self.nodes_:
                 if n == self._lag_name(self.target, 0):
                     lines.append(f'  "{n}" [style=filled, fillcolor="#eef5ff"];')
