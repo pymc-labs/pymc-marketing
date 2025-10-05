@@ -315,7 +315,7 @@ class BuildModelFromDAG:
                 return tuple()
             if isinstance(maybe_dims, str):
                 return (maybe_dims,)
-            if isinstance(maybe_dims, (list, tuple)):
+            if isinstance(maybe_dims, list | tuple):
                 return tuple(maybe_dims)
             return tuple()
 
@@ -368,7 +368,7 @@ class BuildModelFromDAG:
         def _to_tuple(maybe_dims):
             if isinstance(maybe_dims, str):
                 return (maybe_dims,)
-            if isinstance(maybe_dims, (list, tuple)):
+            if isinstance(maybe_dims, list | tuple):
                 return tuple(maybe_dims)
             else:
                 return tuple()
@@ -866,7 +866,29 @@ class TBFPC:
                 self._remove_all(xi, xj)
 
     def fit(self, df: pd.DataFrame, drivers: Sequence[str]):
-        """Run the two-phase causal discovery procedure on ``df``."""
+        """Fit the TBFPC procedure to the supplied dataframe.
+
+        Parameters
+        ----------
+        df : pandas.DataFrame
+            Dataset containing the target column and every candidate driver.
+        drivers : Sequence[str]
+            Iterable of column names to treat as potential drivers of the
+            target.
+
+        Returns
+        -------
+        TBFPC
+            The fitted instance (``self``) with internal adjacency structures
+            populated.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            model = TBFPC(target="Y", target_edge_rule="fullS")
+            model.fit(df, drivers=["A", "B", "C"])
+        """
         self.sep_sets.clear()
         self._adj_directed.clear()
         self._adj_undirected.clear()
@@ -879,20 +901,73 @@ class TBFPC:
         return self
 
     def get_directed_edges(self) -> list[tuple[str, str]]:
-        """Return a list of directed edges ``(u, v)``."""
+        """Return directed edges learned by the algorithm.
+
+        Returns
+        -------
+        list[tuple[str, str]]
+            Sorted list of ``(u, v)`` pairs representing oriented edges.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            directed = model.get_directed_edges()
+        """
         return sorted(self._adj_directed)
 
     def get_undirected_edges(self) -> list[tuple[str, str]]:
-        """Return a list of undirected edges ``(u, v)``."""
+        """Return undirected edges remaining after orientation.
+
+        Returns
+        -------
+        list[tuple[str, str]]
+            Sorted list of ``(u, v)`` pairs for unresolved adjacencies.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            skeleton = model.get_undirected_edges()
+        """
         return sorted(self._adj_undirected)
 
     def get_test_results(self, x: str, y: str) -> list[dict[str, float]]:
-        """Return all ΔBIC test result dicts for the unordered pair ``(x, y)``."""
+        """Return ΔBIC diagnostics for the unordered pair ``(x, y)``.
+
+        Parameters
+        ----------
+        x : str
+            Name of the first variable in the pair.
+        y : str
+            Name of the second variable in the pair.
+
+        Returns
+        -------
+        list[dict[str, float]]
+            Each dictionary contains ``bic0``, ``bic1``, ``delta_bic``,
+            ``logBF10``, ``BF10``, and the conditioning set used during the
+            test.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            stats = model.get_test_results("A", "Y")
+        """
         return [v for (xi, yi, _), v in self.test_results.items() if {xi, yi} == {x, y}]
 
     def summary(self) -> str:
-        """Return a summary of edges and number of CI tests.
+        """Render a text summary of the learned graph and test count.
 
+        Returns
+        -------
+        str
+            Multiline string describing directed edges, undirected edges, and
+            the number of conditional independence tests executed.
+
+        Examples
+        --------
         .. code-block:: python
 
             print(model.summary())
@@ -908,7 +983,19 @@ class TBFPC:
         return "\n".join(lines)
 
     def to_digraph(self) -> str:
-        """Export the learned graph as a DOT-format string for Graphviz."""
+        """Return the learned graph encoded in DOT format.
+
+        Returns
+        -------
+        str
+            DOT string compatible with Graphviz rendering utilities.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            dot_str = model.to_digraph()
+        """
         lines = ["digraph G {", "  node [shape=ellipse];"]
         for n in self.nodes_:
             if n == self.target:
