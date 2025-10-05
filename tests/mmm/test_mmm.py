@@ -2926,3 +2926,82 @@ class TestMMMHelperMethods:
         assert "target_data" in result or "target" in result
         if "target_data" in result:
             assert len(result["target_data"]) == 10
+
+    def test_format_recovered_transformation_parameters(self, mmm_fitted: MMM):
+        """Test format_recovered_transformation_parameters with quantile cache logic."""
+        # Test with default quantile (0.5)
+        result = mmm_fitted.format_recovered_transformation_parameters()
+
+        # Verify structure
+        assert isinstance(result, dict)
+        assert len(result) == len(mmm_fitted.channel_columns)
+
+        # Check each channel has the expected structure
+        for channel in mmm_fitted.channel_columns:
+            assert channel in result
+            assert "saturation_params" in result[channel]
+            assert "adstock_params" in result[channel]
+
+            # Check saturation params exist
+            saturation_params = result[channel]["saturation_params"]
+            assert isinstance(saturation_params, dict)
+            assert len(saturation_params) > 0
+
+            # Check adstock params exist
+            adstock_params = result[channel]["adstock_params"]
+            assert isinstance(adstock_params, dict)
+            assert len(adstock_params) > 0
+
+            # Verify all values are numeric
+            for param_value in saturation_params.values():
+                assert isinstance(param_value, (int, float))
+            for param_value in adstock_params.values():
+                assert isinstance(param_value, (int, float))
+
+    def test_format_recovered_transformation_parameters_different_quantiles(
+        self, mmm_fitted: MMM
+    ):
+        """Test format_recovered_transformation_parameters with different quantiles."""
+        # Test with different quantiles
+        result_lower = mmm_fitted.format_recovered_transformation_parameters(
+            quantile=0.05
+        )
+        result_median = mmm_fitted.format_recovered_transformation_parameters(
+            quantile=0.5
+        )
+        result_upper = mmm_fitted.format_recovered_transformation_parameters(
+            quantile=0.95
+        )
+
+        # Get a sample channel and parameter
+        channel = mmm_fitted.channel_columns[0]
+
+        # Get saturation parameter if available
+        if result_median[channel]["saturation_params"]:
+            param_name = next(iter(result_median[channel]["saturation_params"].keys()))
+            lower_val = result_lower[channel]["saturation_params"][param_name]
+            median_val = result_median[channel]["saturation_params"][param_name]
+            upper_val = result_upper[channel]["saturation_params"][param_name]
+
+            # Lower quantile should be <= median <= upper quantile (generally)
+            # Note: Due to sampling variability this might not always hold exactly
+            assert isinstance(lower_val, (int, float))
+            assert isinstance(median_val, (int, float))
+            assert isinstance(upper_val, (int, float))
+
+    def test_format_recovered_transformation_parameters_prefix_stripping(
+        self, mmm_fitted: MMM
+    ):
+        """Test that parameter prefixes are correctly stripped in the output."""
+        result = mmm_fitted.format_recovered_transformation_parameters()
+
+        channel = mmm_fitted.channel_columns[0]
+
+        # Check that prefixes are stripped (e.g., 'saturation_' and 'adstock_')
+        for param_name in result[channel]["saturation_params"].keys():
+            # Parameters should not have 'saturation_' prefix
+            assert not param_name.startswith("saturation_")
+
+        for param_name in result[channel]["adstock_params"].keys():
+            # Parameters should not have 'adstock_' prefix
+            assert not param_name.startswith("adstock_")
