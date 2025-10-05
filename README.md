@@ -131,7 +131,7 @@ Once the model is fitted, we can further optimize our budget allocation as we ar
     <img src="docs/source/_static/mmm_plot_plot_channel_contributions_grid.png" width="80%" />
 </center>
 
-- Explore a hands-on [simulated example](https://pymc-marketing.readthedocs.io/en/stable/notebooks/mmm/mmm_example.html) for more insights into MMM with PyMC-Marketing.
+- Explore a hands-on our [quickstart guide](https://pymc-marketing.readthedocs.io/en/stable/notebooks/mmm/mmm_quickstart.html) and more complete [simulated example](https://pymc-marketing.readthedocs.io/en/stable/notebooks/mmm/mmm_example.html) for more insights into MMM with PyMC-Marketing.
 - Get started with a complete end-to-end analysis: from model specification to budget allocation. See the [guide notebook](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_case_study.html).
 
 ### Essential Reading for Marketing Mix Modeling (MMM)
