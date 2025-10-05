@@ -21,7 +21,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_quickstart.html
 :::
 
-:::{grid-item-card} MMM Example: Introduction Notebook
+:::{grid-item-card} MMM Example: Extensive Introduction Notebook
 :img-top: ../gallery/images/mmm_example.png
 :link: ../notebooks/mmm/mmm_example.html
 :::
