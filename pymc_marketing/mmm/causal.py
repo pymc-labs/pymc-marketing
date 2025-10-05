@@ -19,6 +19,7 @@ import itertools as it
 import re
 import warnings
 from collections.abc import Sequence
+from typing import Annotated, Literal
 
 try:
     import networkx as nx
@@ -637,26 +638,43 @@ class TBFPC:
     - Kass, R. & Raftery, A. (1995). "Bayes Factors."
     """
 
+    @validate_call(config=dict(arbitrary_types_allowed=True))
     def __init__(
         self,
-        target: str,
+        target: Annotated[
+            str,
+            Field(
+                min_length=1,
+                description="Name of the outcome variable to orient the search.",
+            ),
+        ],
         *,
-        target_edge_rule: str = "any",
-        bf_thresh: float = 1.0,
+        target_edge_rule: Literal["any", "conservative", "fullS"] = "any",
+        bf_thresh: Annotated[float, Field(gt=0.0)] = 1.0,
         forbidden_edges: Sequence[tuple[str, str]] | None = None,
     ):
+        """Create a new TBFPC causal discovery model.
+
+        Parameters
+        ----------
+        target
+            Variable name for the model outcome; must be present in the data
+            used during fitting.
+        target_edge_rule
+            Rule that controls which driver → target edges are retained.
+            Options are ``"any"``, ``"conservative"``, and ``"fullS"``.
+        bf_thresh
+            Positive Bayes factor threshold applied during conditional
+            independence tests.
+        forbidden_edges
+            Optional sequence of node pairs that must not be connected in the
+            learned graph.
+        """
         warnings.warn(
             "TBFPC is experimental and its API may change; use with caution.",
             UserWarning,
             stacklevel=2,
         )
-        if not isinstance(target, str) or not target:
-            raise ValueError("target must be a non-empty string")
-        allowed_rules = {"any", "conservative", "fullS"}
-        if target_edge_rule not in allowed_rules:
-            raise ValueError(f"target_edge_rule must be one of {allowed_rules}")
-        if not isinstance(bf_thresh, (int, float)) or bf_thresh <= 0:
-            raise ValueError("bf_thresh must be a positive float")
 
         self.target = target
         self.target_edge_rule = target_edge_rule
@@ -670,7 +688,8 @@ class TBFPC:
         self.nodes_: list[str] = []
         self.test_results: dict[tuple[str, str, frozenset], dict[str, float]] = {}
 
-        # Shared response vector for symbolic BIC
+        # Shared response vector for symbolic BIC computation
+        # Initialized with placeholder; will be updated with actual data during fitting
         self.y_sh = pytensor.shared(np.zeros(1, dtype="float64"), name="y_sh")
         self._bic_fn = self._build_symbolic_bic_fn()
 
@@ -708,17 +727,47 @@ class TBFPC:
         self._adj_directed.discard((v, u))
 
     def _build_symbolic_bic_fn(self):
-        """Build and compile a function to compute BIC given a design matrix ``X`` and sample size ``n``."""
+        """Build a BIC callable using a fast solver with a pseudoinverse fallback."""
         X = tt.matrix("X")
         n = tt.iscalar("n")
 
-        beta = tt.nlinalg.pinv(X) @ self.y_sh
-        resid = self.y_sh - X @ beta
-        rss = tt.sum(resid**2)
+        xtx = tt.dot(X.T, X)
+        xty = tt.dot(X.T, self.y_sh)
+
+        beta_solve = tt.linalg.solve(xtx, xty)
+        resid_solve = self.y_sh - tt.dot(X, beta_solve)
+        rss_solve = tt.sum(resid_solve**2)
+
+        beta_pinv = tt.nlinalg.pinv(X) @ self.y_sh
+        resid_pinv = self.y_sh - tt.dot(X, beta_pinv)
+        rss_pinv = tt.sum(resid_pinv**2)
+
         k = X.shape[1]
 
-        bic = n * tt.log(rss / n) + k * tt.log(n)
-        return pytensor.function([X, n], bic)
+        nf = tt.cast(n, "float64")
+        rss_solve_safe = tt.maximum(rss_solve, np.finfo("float64").tiny)
+        rss_pinv_safe = tt.maximum(rss_pinv, np.finfo("float64").tiny)
+
+        bic_solve = nf * tt.log(rss_solve_safe / nf) + k * tt.log(nf)
+        bic_pinv = nf * tt.log(rss_pinv_safe / nf) + k * tt.log(nf)
+
+        bic_solve_fn = pytensor.function(
+            [X, n], [bic_solve, rss_solve], on_unused_input="ignore", mode="FAST_RUN"
+        )
+        bic_pinv_fn = pytensor.function(
+            [X, n], bic_pinv, on_unused_input="ignore", mode="FAST_RUN"
+        )
+
+        def bic_fn(X_val: np.ndarray, n_val: int) -> float:
+            try:
+                bic_value, rss_value = bic_solve_fn(X_val, n_val)
+                if np.isfinite(rss_value) and rss_value > np.finfo("float64").tiny:
+                    return float(bic_value)
+            except (np.linalg.LinAlgError, RuntimeError, ValueError):
+                pass
+            return float(bic_pinv_fn(X_val, n_val))
+
+        return bic_fn
 
     def _ci_independent(
         self, df: pd.DataFrame, x: str, y: str, cond: Sequence[str]
@@ -923,30 +972,50 @@ class TBF_FCI:
         Whether to allow contemporaneous edges at time t.
     """
 
+    @validate_call(config=dict(arbitrary_types_allowed=True))
     def __init__(
         self,
-        target: str,
+        target: Annotated[
+            str,
+            Field(
+                min_length=1,
+                description="Name of the outcome variable at time t.",
+            ),
+        ],
         *,
-        target_edge_rule: str = "any",
-        bf_thresh: float = 1.0,
+        target_edge_rule: Literal["any", "conservative", "fullS"] = "any",
+        bf_thresh: Annotated[float, Field(gt=0.0)] = 1.0,
         forbidden_edges: Sequence[tuple[str, str]] | None = None,
-        max_lag: int = 2,
+        max_lag: Annotated[int, Field(ge=0)] = 2,
         allow_contemporaneous: bool = True,
     ):
+        """Create a new temporal TBF-PC causal discovery model.
+
+        Parameters
+        ----------
+        target
+            Target variable name at time ``t`` that the algorithm orients
+            toward.
+        target_edge_rule
+            Rule used to retain lagged → target edges. Choose from
+            ``"any"``, ``"conservative"``, or ``"fullS"``.
+        bf_thresh
+            Positive Bayes factor threshold applied during conditional
+            independence testing.
+        forbidden_edges
+            Optional sequence of node pairs that must be excluded from the
+            final graph.
+        max_lag
+            Maximum lag (inclusive) to consider when constructing temporal
+            drivers.
+        allow_contemporaneous
+            Whether contemporaneous edges at time ``t`` are permitted.
+        """
         warnings.warn(
             "TBF_FCI is experimental and its API may change; use with caution.",
             UserWarning,
             stacklevel=2,
         )
-        if not isinstance(target, str) or not target:
-            raise ValueError("target must be a non-empty string")
-        allowed_rules = {"any", "conservative", "fullS"}
-        if target_edge_rule not in allowed_rules:
-            raise ValueError(f"target_edge_rule must be one of {allowed_rules}")
-        if not isinstance(bf_thresh, (int, float)) or bf_thresh <= 0:
-            raise ValueError("bf_thresh must be a positive float")
-        if not isinstance(max_lag, int) or max_lag < 0:
-            raise ValueError("max_lag must be a non-negative integer")
 
         self.target = target
         self.target_edge_rule = target_edge_rule
@@ -961,6 +1030,8 @@ class TBF_FCI:
         self.nodes_: list[str] = []
         self.test_results: dict[tuple[str, str, frozenset], dict[str, float]] = {}
 
+        # Shared response vector for symbolic BIC computation
+        # Initialized with placeholder; will be updated with actual data during fitting
         self.y_sh = pytensor.shared(np.zeros(1, dtype="float64"), name="y_sh")
         self._bic_fn = self._build_symbolic_bic_fn()
 
@@ -1048,14 +1119,43 @@ class TBF_FCI:
         self._adj_directed.discard((v, u))
 
     def _build_symbolic_bic_fn(self):
+        """Build a BIC callable using a fast solver with a pseudoinverse fallback."""
         X = tt.matrix("X")
         n = tt.iscalar("n")
-        beta = tt.nlinalg.pinv(X) @ self.y_sh
-        resid = self.y_sh - X @ beta
-        rss = tt.sum(resid**2)
+
+        xtx = tt.dot(X.T, X)
+        xty = tt.dot(X.T, self.y_sh)
+
+        beta_solve = tt.linalg.solve(xtx, xty)
+        resid_solve = self.y_sh - tt.dot(X, beta_solve)
+        rss_solve = tt.sum(resid_solve**2)
+
+        beta_pinv = tt.nlinalg.pinv(X) @ self.y_sh
+        resid_pinv = self.y_sh - tt.dot(X, beta_pinv)
+        rss_pinv = tt.sum(resid_pinv**2)
+
         k = X.shape[1]
-        bic = n * tt.log(rss / n) + k * tt.log(n)
-        return pytensor.function([X, n], bic)
+
+        bic_solve = n * tt.log(rss_solve / n) + k * tt.log(n)
+        bic_pinv = n * tt.log(rss_pinv / n) + k * tt.log(n)
+
+        bic_solve_fn = pytensor.function(
+            [X, n], bic_solve, on_unused_input="ignore", mode="FAST_RUN"
+        )
+        bic_pinv_fn = pytensor.function(
+            [X, n], bic_pinv, on_unused_input="ignore", mode="FAST_RUN"
+        )
+
+        def bic_fn(X_val: np.ndarray, n_val: int) -> float:
+            try:
+                value = float(bic_solve_fn(X_val, n_val))
+                if np.isfinite(value):
+                    return value
+            except (np.linalg.LinAlgError, RuntimeError, ValueError):
+                pass
+            return float(bic_pinv_fn(X_val, n_val))
+
+        return bic_fn
 
     def _ci_independent(
         self, df: pd.DataFrame, x: str, y: str, cond: Sequence[str]
@@ -1194,15 +1294,17 @@ class TBF_FCI:
             self._stageB_contemporaneous(L, drivers)
         return self
 
-    def collapsed_summary(self):
-        collapsed_directed = []
+    def collapsed_summary(self) -> tuple[list[tuple[str, str, int]], list[tuple[str, str]]]:
+        """Return collapsed summary of lagged directed and undirected edges."""
+
+        collapsed_directed: list[tuple[str, str, int]] = []
         for u, v in self._adj_directed:
             base_u, lag_u = self._parse_lag(u)
             base_v, lag_v = self._parse_lag(v)
             if lag_v == 0:
                 collapsed_directed.append((base_u, base_v, lag_u))
 
-        collapsed_undirected = []
+        collapsed_undirected: list[tuple[str, str]] = []
         for u, v in self._adj_undirected:
             base_u, lag_u = self._parse_lag(u)
             base_v, lag_v = self._parse_lag(v)
