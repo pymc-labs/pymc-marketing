@@ -1125,7 +1125,7 @@ class TBF_FCI:
         return f"{var}[t-{lag}]" if lag > 0 else f"{var}[t]"
 
     def _parse_lag(self, name: str) -> tuple[str, int]:
-        """Parse a lagged name into base and lag integer, defaulting to 0."""
+        """Parse a lagged variable name into its base and lag components."""
         if "[t-" in name:
             base, lagpart = name.split("[t-")
             return base, int(lagpart[:-1])
@@ -1136,7 +1136,7 @@ class TBF_FCI:
     def _expand_edges(
         self, forbidden_edges: Sequence[tuple[str, str]] | None
     ) -> set[tuple[str, str]]:
-        """Expand collapsed forbidden edges (X, Y) into all lagged forms."""
+        """Expand collapsed forbidden edge pairs into all lagged variants."""
         expanded = set()
         if forbidden_edges:
             for u, v in forbidden_edges:
@@ -1153,6 +1153,7 @@ class TBF_FCI:
     def _build_lagged_df(
         self, df: pd.DataFrame, variables: Sequence[str]
     ) -> pd.DataFrame:
+        """Construct a time-unrolled dataframe up to ``max_lag`` for variables."""
         frames = {}
         for lag in range(0, self.max_lag + 1):
             shifted = df[variables].shift(lag)
@@ -1164,6 +1165,7 @@ class TBF_FCI:
     def _admissible_cond_set(
         self, all_vars: Sequence[str], x: str, y: str
     ) -> list[str]:
+        """Return conditioning variables admissible for testing ``x`` and ``y``."""
         _, lag_x = self._parse_lag(x)
         _, lag_y = self._parse_lag(y)
         max_time = min(lag_x, lag_y)
@@ -1177,20 +1179,25 @@ class TBF_FCI:
         return keep
 
     def _key(self, u: str, v: str) -> tuple[str, str]:
+        """Return sorted tuple key for undirected edges between ``u`` and ``v``."""
         return (u, v) if u <= v else (v, u)
 
     def _set_sep(self, u: str, v: str, S: Sequence[str]) -> None:
+        """Store separation set ``S`` associated with nodes ``u`` and ``v``."""
         self.sep_sets[self._key(u, v)] = set(S)
 
     def _has_forbidden(self, u: str, v: str) -> bool:
+        """Return True if the edge between ``u`` and ``v`` is forbidden."""
         return (u, v) in self.forbidden_edges or (v, u) in self.forbidden_edges
 
     def _add_directed(self, u: str, v: str) -> None:
+        """Insert directed edge ``u -> v`` unless forbidden."""
         if not self._has_forbidden(u, v):
             self._adj_undirected.discard(self._key(u, v))
             self._adj_directed.add((u, v))
 
     def _add_undirected(self, u: str, v: str) -> None:
+        """Insert undirected edge ``u -- v`` when no orientation is forced."""
         if (
             not self._has_forbidden(u, v)
             and (u, v) not in self._adj_directed
@@ -1199,12 +1206,13 @@ class TBF_FCI:
             self._adj_undirected.add(self._key(u, v))
 
     def _remove_all(self, u: str, v: str) -> None:
+        """Remove any edge (directed or undirected) between ``u`` and ``v``."""
         self._adj_undirected.discard(self._key(u, v))
         self._adj_directed.discard((u, v))
         self._adj_directed.discard((v, u))
 
     def _build_symbolic_bic_fn(self):
-        """Build a BIC callable using a fast solver with a pseudoinverse fallback."""
+        """Build a BIC callable using a fast solver with fallback pseudoinverse."""
         X = tt.matrix("X")
         n = tt.iscalar("n")
 
@@ -1245,6 +1253,7 @@ class TBF_FCI:
     def _ci_independent(
         self, df: pd.DataFrame, x: str, y: str, cond: Sequence[str]
     ) -> bool:
+        """Return True if Bayes factor suggests independence of ``x`` and ``y``."""
         if self._has_forbidden(x, y):
             return True
         n = len(df)
@@ -1272,6 +1281,7 @@ class TBF_FCI:
         return result["independent"]
 
     def _stageA_target_lagged(self, L: pd.DataFrame, drivers: Sequence[str]) -> None:
+        """Evaluate lagged driver → target edges according to edge rule."""
         y = self._lag_name(self.target, 0)
         all_cols = list(L.columns)
         for v in drivers:
@@ -1315,6 +1325,7 @@ class TBF_FCI:
                         self._add_directed(x, y)
 
     def _stageA_driver_lagged(self, L: pd.DataFrame, drivers: Sequence[str]) -> None:
+        """Build lagged driver skeleton via conditional independence tests."""
         cols = [c for c in L.columns if not c.startswith(self.target)]
         for xi, xj in it.combinations(cols, 2):
             _, li = self._parse_lag(xi)
@@ -1341,9 +1352,11 @@ class TBF_FCI:
                 self._remove_all(xi, xj)
 
     def _parents_of(self, node: str) -> list[str]:
+        """Return list of parents for ``node`` using directed adjacencies."""
         return [u for (u, v) in self._adj_directed if v == node]
 
     def _stageB_contemporaneous(self, L: pd.DataFrame, drivers: Sequence[str]) -> None:
+        """Test contemporaneous (time ``t``) relations among variables."""
         y_nodes = [self._lag_name(v, 0) for v in [*drivers, self.target]]
         for xi, xj in it.combinations(y_nodes, 2):
             base_S = list(set(self._parents_of(xi) + self._parents_of(xj)))
