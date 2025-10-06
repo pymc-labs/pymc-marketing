@@ -30,7 +30,7 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pytensor
-import pytensor.tensor as tt
+import pytensor.tensor as pt
 from pydantic import Field, InstanceOf, validate_call
 from pymc_extras.prior import Prior
 
@@ -450,7 +450,7 @@ class BuildModelFromDAG:
                 data_containers[node] = pm.Data(f"_{node}", values, dims=dims)
 
             # For each node add slope priors per parent and likelihood with sigma prior
-            slope_rvs: dict[tuple[str, str], tt.TensorVariable] = {}
+            slope_rvs: dict[tuple[str, str], pt.TensorVariable] = {}
 
             # Create priors in a stable deterministic order
             for node in self.nodes:
@@ -728,28 +728,28 @@ class TBFPC:
 
     def _build_symbolic_bic_fn(self):
         """Build a BIC callable using a fast solver with a pseudoinverse fallback."""
-        X = tt.matrix("X")
-        n = tt.iscalar("n")
+        X = pt.matrix("X")
+        n = pt.iscalar("n")
 
-        xtx = tt.dot(X.T, X)
-        xty = tt.dot(X.T, self.y_sh)
+        xtx = pt.dot(X.T, X)
+        xty = pt.dot(X.T, self.y_sh)
 
-        beta_solve = tt.linalg.solve(xtx, xty)
-        resid_solve = self.y_sh - tt.dot(X, beta_solve)
-        rss_solve = tt.sum(resid_solve**2)
+        beta_solve = pt.linalg.solve(xtx, xty)
+        resid_solve = self.y_sh - pt.dot(X, beta_solve)
+        rss_solve = pt.sum(resid_solve**2)
 
-        beta_pinv = tt.nlinalg.pinv(X) @ self.y_sh
-        resid_pinv = self.y_sh - tt.dot(X, beta_pinv)
-        rss_pinv = tt.sum(resid_pinv**2)
+        beta_pinv = pt.nlinalg.pinv(X) @ self.y_sh
+        resid_pinv = self.y_sh - pt.dot(X, beta_pinv)
+        rss_pinv = pt.sum(resid_pinv**2)
 
         k = X.shape[1]
 
-        nf = tt.cast(n, "float64")
-        rss_solve_safe = tt.maximum(rss_solve, np.finfo("float64").tiny)
-        rss_pinv_safe = tt.maximum(rss_pinv, np.finfo("float64").tiny)
+        nf = pt.cast(n, "float64")
+        rss_solve_safe = pt.maximum(rss_solve, np.finfo("float64").tiny)
+        rss_pinv_safe = pt.maximum(rss_pinv, np.finfo("float64").tiny)
 
-        bic_solve = nf * tt.log(rss_solve_safe / nf) + k * tt.log(nf)
-        bic_pinv = nf * tt.log(rss_pinv_safe / nf) + k * tt.log(nf)
+        bic_solve = nf * pt.log(rss_solve_safe / nf) + k * pt.log(nf)
+        bic_pinv = nf * pt.log(rss_pinv_safe / nf) + k * pt.log(nf)
 
         bic_solve_fn = pytensor.function(
             [X, n], [bic_solve, rss_solve], on_unused_input="ignore", mode="FAST_RUN"
@@ -1213,24 +1213,24 @@ class TBF_FCI:
 
     def _build_symbolic_bic_fn(self):
         """Build a BIC callable using a fast solver with fallback pseudoinverse."""
-        X = tt.matrix("X")
-        n = tt.iscalar("n")
+        X = pt.matrix("X")
+        n = pt.iscalar("n")
 
-        xtx = tt.dot(X.T, X)
-        xty = tt.dot(X.T, self.y_sh)
+        xtx = pt.dot(X.T, X)
+        xty = pt.dot(X.T, self.y_sh)
 
-        beta_solve = tt.linalg.solve(xtx, xty)
-        resid_solve = self.y_sh - tt.dot(X, beta_solve)
-        rss_solve = tt.sum(resid_solve**2)
+        beta_solve = pt.linalg.solve(xtx, xty)
+        resid_solve = self.y_sh - pt.dot(X, beta_solve)
+        rss_solve = pt.sum(resid_solve**2)
 
-        beta_pinv = tt.nlinalg.pinv(X) @ self.y_sh
-        resid_pinv = self.y_sh - tt.dot(X, beta_pinv)
-        rss_pinv = tt.sum(resid_pinv**2)
+        beta_pinv = pt.nlinalg.pinv(X) @ self.y_sh
+        resid_pinv = self.y_sh - pt.dot(X, beta_pinv)
+        rss_pinv = pt.sum(resid_pinv**2)
 
         k = X.shape[1]
 
-        bic_solve = n * tt.log(rss_solve / n) + k * tt.log(n)
-        bic_pinv = n * tt.log(rss_pinv / n) + k * tt.log(n)
+        bic_solve = n * pt.log(rss_solve / n) + k * pt.log(n)
+        bic_pinv = n * pt.log(rss_pinv / n) + k * pt.log(n)
 
         bic_solve_fn = pytensor.function(
             [X, n], bic_solve, on_unused_input="ignore", mode="FAST_RUN"
