@@ -43,7 +43,7 @@ def _load_df(path: str | Path) -> pd.DataFrame:
     raise ValueError(f"Unrecognised tabular format: {path}")
 
 
-def _apply_calibration_steps(
+def _apply_and_validate_calibration_steps(
     model: MMM, cfg: Mapping[str, Any], base_dir: Path
 ) -> None:
     calibration_specs = cfg.get("calibration", [])
@@ -182,7 +182,7 @@ def build_mmm_from_yaml(
     model.build_model(X, y)  # this **must** precede any idata loading
 
     # 4b ──────────────────────────────────────────── apply calibration steps (if any)
-    _apply_calibration_steps(model, cfg, config_path.parent)
+    _apply_and_validate_calibration_steps(model, cfg, config_path.parent)
 
     # 5 ───────────────────────── add original scale contribution variables
     original_scale_vars = cfg.get("original_scale_vars", [])

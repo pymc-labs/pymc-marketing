@@ -23,7 +23,7 @@ import xarray as xr
 import yaml
 
 from pymc_marketing.mmm.builders.yaml import (
-    _apply_calibration_steps,
+    _apply_and_validate_calibration_steps,
     build_mmm_from_yaml,
 )
 from pymc_marketing.model_config import ModelConfigError
@@ -200,7 +200,7 @@ def failing_mmm(dummy_mmm):
     return failing
 
 
-def test_apply_calibration_steps_success(dummy_mmm, tmp_path):
+def test_apply_and_validate_calibration_steps_success(dummy_mmm, tmp_path):
     cfg = {
         "calibration": [
             {
@@ -214,7 +214,7 @@ def test_apply_calibration_steps_success(dummy_mmm, tmp_path):
         ]
     }
 
-    _apply_calibration_steps(dummy_mmm, cfg, tmp_path)
+    _apply_and_validate_calibration_steps(dummy_mmm, cfg, tmp_path)
 
     assert isinstance(dummy_mmm.called_with["df"], pd.DataFrame)
 
@@ -223,28 +223,28 @@ def test_apply_calibration_non_list(dummy_mmm, tmp_path):
     cfg = {"calibration": "not-a-list"}
 
     with pytest.raises(TypeError, match="must be a list"):
-        _apply_calibration_steps(dummy_mmm, cfg, tmp_path)
+        _apply_and_validate_calibration_steps(dummy_mmm, cfg, tmp_path)
 
 
 def test_apply_calibration_step_not_mapping(dummy_mmm, tmp_path):
     cfg = {"calibration": ["not-mapping"]}
 
     with pytest.raises(TypeError, match="must be a mapping"):
-        _apply_calibration_steps(dummy_mmm, cfg, tmp_path)
+        _apply_and_validate_calibration_steps(dummy_mmm, cfg, tmp_path)
 
 
 def test_apply_calibration_step_multiple_methods(dummy_mmm, tmp_path):
     cfg = {"calibration": [{"good": {}, "other": {}}]}
 
     with pytest.raises(ValueError, match="single method"):
-        _apply_calibration_steps(dummy_mmm, cfg, tmp_path)
+        _apply_and_validate_calibration_steps(dummy_mmm, cfg, tmp_path)
 
 
 def test_apply_calibration_missing_method(dummy_mmm, tmp_path):
     cfg = {"calibration": [{"missing": {}}]}
 
     with pytest.raises(AttributeError, match="has no calibration method 'missing'"):
-        _apply_calibration_steps(dummy_mmm, cfg, tmp_path)
+        _apply_and_validate_calibration_steps(dummy_mmm, cfg, tmp_path)
 
 
 def test_apply_calibration_not_callable(dummy_mmm, tmp_path):
@@ -252,21 +252,21 @@ def test_apply_calibration_not_callable(dummy_mmm, tmp_path):
     cfg = {"calibration": [{"not_callable": {}}]}
 
     with pytest.raises(TypeError, match="not callable"):
-        _apply_calibration_steps(dummy_mmm, cfg, tmp_path)
+        _apply_and_validate_calibration_steps(dummy_mmm, cfg, tmp_path)
 
 
 def test_apply_calibration_params_not_mapping(dummy_mmm, tmp_path):
     cfg = {"calibration": [{"good": "invalid"}]}
 
     with pytest.raises(TypeError, match="must be a mapping"):
-        _apply_calibration_steps(dummy_mmm, cfg, tmp_path)
+        _apply_and_validate_calibration_steps(dummy_mmm, cfg, tmp_path)
 
 
 def test_apply_calibration_dist_disallowed(dummy_mmm, tmp_path):
     cfg = {"calibration": [{"add_lift_test_measurements": {"dist": "Gamma"}}]}
 
     with pytest.raises(ValueError, match="`dist` parameter"):
-        _apply_calibration_steps(dummy_mmm, cfg, tmp_path)
+        _apply_and_validate_calibration_steps(dummy_mmm, cfg, tmp_path)
 
 
 def test_apply_calibration_propagates_failure(failing_mmm, tmp_path):
@@ -275,4 +275,4 @@ def test_apply_calibration_propagates_failure(failing_mmm, tmp_path):
     with pytest.raises(
         RuntimeError, match="Failed to apply calibration step 'failing'"
     ):
-        _apply_calibration_steps(failing_mmm, cfg, tmp_path)
+        _apply_and_validate_calibration_steps(failing_mmm, cfg, tmp_path)
