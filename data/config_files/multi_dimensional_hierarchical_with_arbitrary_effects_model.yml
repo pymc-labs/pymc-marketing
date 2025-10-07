@@ -67,7 +67,7 @@ model:
       chains: 8
       random_seed: 42
       target_accept: 0.90
-      nuts_sampler: "nutpie"
+      #if you want to use a custom sampler (e.g: nutpie) you could add # nuts_sampler: "nutpie"
 # ----------------------------------------------------------------------
 # Effects with complex priors
 effects:
@@ -126,7 +126,14 @@ calibration:
       data:
         class: pandas.read_csv
         kwargs:
-          filepath_or_buffer: "data/processed/X.csv"
+          filepath_or_buffer:
+            class: pathlib.Path
+            kwargs:
+              args:
+                - class: pyprojroot.here
+                - "data"
+                - "processed"
+                - "X.csv"
       calibration_data:
         class: pandas.DataFrame
         kwargs:
