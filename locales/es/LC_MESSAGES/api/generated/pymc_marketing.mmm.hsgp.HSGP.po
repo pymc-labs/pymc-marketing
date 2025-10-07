@@ -1,0 +1,588 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:2
+#: 72474cd9cfd540e08c1af0bc1541d0f3
+msgid "HSGP"
+msgstr ""
+
+#: 6eaf06cd67fc45a7bb29e8d5cd3979a8 of pymc_marketing.mmm.hsgp.HSGP:2
+msgid "HSGP component."
+msgstr ""
+
+#: 5b525fc379ed4390853fd20a207bebdb of pymc_marketing.mmm.hsgp.HSGP:19
+msgid "Examples"
+msgstr ""
+
+#: 8bf5b0e06f4243ea80f56bdd8da0b02c of pymc_marketing.mmm.hsgp.HSGP:20
+msgid "Literature recommended HSGP configuration:"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:34
+#: 4d8ab2cd27934ffab959f10ae80e3ace
+msgid ""
+"(:download:`Source code <../../../gettext/plot_directive/api/generated"
+"/pymc_marketing-mmm-hsgp-HSGP-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGP-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGP-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGP-1.pdf>`)"
+msgstr ""
+
+#: 4e69790f724c4cbbb4887eec38bc2547 of pymc_marketing.mmm.hsgp.HSGP:53
+msgid "Using a demeaned basis to remove \"intercept\" effect of first basis:"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:41
+#: a1b91a4fa48e41c69acc80ecac0cd054
+msgid ""
+"(:download:`Source code <../../../gettext/plot_directive/api/generated"
+"/pymc_marketing-mmm-hsgp-HSGP-2.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGP-2.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGP-2.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGP-2.pdf>`)"
+msgstr ""
+
+#: da044ed2174448398447535b9e7e674a of pymc_marketing.mmm.hsgp.HSGP:93
+msgid "HSGP with different covariance function"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:35
+#: 19dbb725ff5d4610b64ff0f72fb667c0
+msgid ""
+"(:download:`Source code <../../../gettext/plot_directive/api/generated"
+"/pymc_marketing-mmm-hsgp-HSGP-3.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGP-3.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGP-3.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGP-3.pdf>`)"
+msgstr ""
+
+#: 32ddafdd2ddf4154a0ba498579fa1712 of pymc_marketing.mmm.hsgp.HSGP:127
+msgid "HSGP with different link function via `transform` argument"
+msgstr ""
+
+#: cb8623c239b641f4b31019415beb9ddc of pymc_marketing.mmm.hsgp.HSGP:131
+msgid ""
+"The `transform` parameter must be registered or from either "
+"`pytensor.tensor` or `pymc.math` namespaces. See the "
+":func:`pymc_extras.prior.register_tensor_transform`"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:35
+#: dc0553534aa0448ba6bea4847b8515d4
+msgid ""
+"(:download:`Source code <../../../gettext/plot_directive/api/generated"
+"/pymc_marketing-mmm-hsgp-HSGP-4.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGP-4.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGP-4.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGP-4.pdf>`)"
+msgstr ""
+
+#: 7c32e1e50e7f4e628c1aa53ba777d581 of pymc_marketing.mmm.hsgp.HSGP:166
+msgid "New data predictions with HSGP"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:72
+#: 3d2edd02ad7e4017b52809c29d666926
+msgid ""
+"(:download:`Source code <../../../gettext/plot_directive/api/generated"
+"/pymc_marketing-mmm-hsgp-HSGP-5.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGP-5.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGP-5.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGP-5.pdf>`)"
+msgstr ""
+
+#: f1d6720f9e9a44018daf600d6ddbb963 of pymc_marketing.mmm.hsgp.HSGP:237
+msgid "Higher dimensional HSGP"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:40
+#: 57438827587d49a38c4c5b60b59bbce0
+msgid ""
+"(:download:`Source code <../../../gettext/plot_directive/api/generated"
+"/pymc_marketing-mmm-hsgp-HSGP-6.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGP-6.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGP-6.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGP-6.pdf>`)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:12
+#: 70f218492f9c4c659edce2213f7dd150
+msgid "Methods"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: 3cfa404f3c784fb3b38fc255dc3b8582
+msgid ""
+":py:obj:`HSGP.__init__ <pymc_marketing.mmm.hsgp.HSGP.__init__>`\\ "
+"\\(\\*\\*data\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: d8478c3b75314bf89154a57606dfa2eb
+msgid ""
+"Create a new model by parsing and validating input data from keyword "
+"arguments."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: ad78c984257e48a7a1d288758e76f756
+msgid ""
+":py:obj:`HSGP.construct <pymc_marketing.mmm.hsgp.HSGP.construct>`\\ "
+"\\(\\[\\_fields\\_set\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: 7e9e0e8684a64a8f83be6288aa553bab
+msgid ""
+":py:obj:`HSGP.copy <pymc_marketing.mmm.hsgp.HSGP.copy>`\\ \\(\\*\\[\\, "
+"include\\, exclude\\, update\\, deep\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: 6d6a84cd703a4700b18980182e270c14
+msgid "Returns a copy of the model."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: 2aa739bfecef4c10ab96149d3866b071
+msgid ""
+":py:obj:`HSGP.create_variable "
+"<pymc_marketing.mmm.hsgp.HSGP.create_variable>`\\ \\(name\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: d1fa63c1c84c403594a615e0221e3784
+msgid "Create a variable from HSGP configuration."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: bf5539fe1dd7415cb170b09c2fd80a41
+msgid ""
+":py:obj:`HSGP.deterministics_to_replace "
+"<pymc_marketing.mmm.hsgp.HSGP.deterministics_to_replace>`\\ \\(name\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: 5a4c82c27b2a4f4c94d2c236236500d1
+msgid ""
+"Name of the Deterministic variables that are replaced with pm.Flat for "
+"out-of-sample."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: cc11fb2e94a44c6fb1e31456c73fcad1
+msgid ""
+":py:obj:`HSGP.dict <pymc_marketing.mmm.hsgp.HSGP.dict>`\\ \\(\\*\\[\\, "
+"include\\, exclude\\, by\\_alias\\, ...\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: ff9897aa8ea6427788a668746d35a4b0
+msgid ""
+":py:obj:`HSGP.from_dict <pymc_marketing.mmm.hsgp.HSGP.from_dict>`\\ "
+"\\(data\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: c084adb3d299437fad4b6ca8a4b9eb5b
+msgid "Create an object from a dictionary."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: 62ffc3e52a604ba7baebf2d08008aa90
+msgid ""
+":py:obj:`HSGP.from_orm <pymc_marketing.mmm.hsgp.HSGP.from_orm>`\\ "
+"\\(obj\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: 156a6a1f754b4eda835f3b529e5d80a3
+msgid ""
+":py:obj:`HSGP.json <pymc_marketing.mmm.hsgp.HSGP.json>`\\ \\(\\*\\[\\, "
+"include\\, exclude\\, by\\_alias\\, ...\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: ed8312736406433588c8111ed1854d1b
+msgid ""
+":py:obj:`HSGP.model_construct "
+"<pymc_marketing.mmm.hsgp.HSGP.model_construct>`\\ "
+"\\(\\[\\_fields\\_set\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: e74ff07de26149f98772a28abdccf6da
+msgid "Creates a new instance of the `Model` class with validated data."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: 3a7e62c2676a48d7a3dc74881b23a3d0
+msgid ""
+":py:obj:`HSGP.model_copy <pymc_marketing.mmm.hsgp.HSGP.model_copy>`\\ "
+"\\(\\*\\[\\, update\\, deep\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: 4894a58813464503b8b782b1dbcb7390 5fd6772b315c418186e74b5b7120f948
+#: 87df8e65ce3e4c5780f4920d8884b236 b1735db227624d4f9badeb77e936d809
+msgid "!!! abstract \"Usage Documentation\""
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: 6ff39459fb4643b685b16421c712a2f8
+msgid ""
+":py:obj:`HSGP.model_dump <pymc_marketing.mmm.hsgp.HSGP.model_dump>`\\ "
+"\\(\\*\\[\\, mode\\, include\\, exclude\\, ...\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: 82a3f52090bb4eb5afaef691fe569545
+msgid ""
+":py:obj:`HSGP.model_dump_json "
+"<pymc_marketing.mmm.hsgp.HSGP.model_dump_json>`\\ \\(\\*\\[\\, indent\\, "
+"include\\, ...\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: c510759f1ddf4989848b8758f4c67da5
+msgid ""
+":py:obj:`HSGP.model_json_schema "
+"<pymc_marketing.mmm.hsgp.HSGP.model_json_schema>`\\ \\(\\[by\\_alias\\, "
+"...\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: 44abc3fe14d84158a821eac279e9fc2d
+msgid "Generates a JSON schema for a model class."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: 6d5b17e62f5e4bd68f92dbf5bcc86f8b
+msgid ""
+":py:obj:`HSGP.model_parametrized_name "
+"<pymc_marketing.mmm.hsgp.HSGP.model_parametrized_name>`\\ \\(params\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: 9277185af3b2496b85af6da422d0f055
+msgid "Compute the class name for parametrizations of generic classes."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: 14ac877e8b4a401dadb0bcc27efeec1a
+msgid ""
+":py:obj:`HSGP.model_post_init "
+"<pymc_marketing.mmm.hsgp.HSGP.model_post_init>`\\ \\(context\\, \\/\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: 4f9e5f0b52934a629210ebb9b5994996
+msgid ""
+"Override this method to perform additional initialization after "
+"`__init__` and `model_construct`."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: 9b992f827bd34e9dac282fa420cb09f8
+msgid ""
+":py:obj:`HSGP.model_rebuild "
+"<pymc_marketing.mmm.hsgp.HSGP.model_rebuild>`\\ \\(\\*\\[\\, force\\, "
+"raise\\_errors\\, ...\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: 725bcdcf4c544bf39400d302a00487d8
+msgid "Try to rebuild the pydantic-core schema for the model."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: 979b25c909bb49afa02d20540aaeef69
+msgid ""
+":py:obj:`HSGP.model_validate "
+"<pymc_marketing.mmm.hsgp.HSGP.model_validate>`\\ \\(obj\\, \\*\\[\\, "
+"strict\\, ...\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: d0135861771345b3bfe46d7b5fbe5e34
+msgid "Validate a pydantic model instance."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: 0eaecfcee44a4f0eaa16635bf2cd3938
+msgid ""
+":py:obj:`HSGP.model_validate_json "
+"<pymc_marketing.mmm.hsgp.HSGP.model_validate_json>`\\ \\(json\\_data\\, "
+"\\*\\[\\, ...\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: 0a2c4bbc4a7f4b3a92cc8861cb3267fa
+msgid ""
+":py:obj:`HSGP.model_validate_strings "
+"<pymc_marketing.mmm.hsgp.HSGP.model_validate_strings>`\\ \\(obj\\, "
+"\\*\\[\\, ...\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: abd5ac3265f84a42b28a51ac2cd6de80
+msgid "Validate the given object with string data against the Pydantic model."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: b5253e70dd4b4796bbb3c5de948821f2
+msgid ""
+":py:obj:`HSGP.parameterize_from_data "
+"<pymc_marketing.mmm.hsgp.HSGP.parameterize_from_data>`\\ \\(X\\, "
+"dims\\[\\, ...\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: 11eb796852124138ac09084c48347599
+msgid "Create a HSGP informed by the data with literature-based recommendations."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: 20ba66e03609402fb0850ae2e037fb71
+msgid ""
+":py:obj:`HSGP.parse_file <pymc_marketing.mmm.hsgp.HSGP.parse_file>`\\ "
+"\\(path\\, \\*\\[\\, content\\_type\\, ...\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: ac504a229c534d5a8da1d5b09491ebee
+msgid ""
+":py:obj:`HSGP.parse_obj <pymc_marketing.mmm.hsgp.HSGP.parse_obj>`\\ "
+"\\(obj\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: 98f26b1a68a24e97abcd8d6e719b6650
+msgid ""
+":py:obj:`HSGP.parse_raw <pymc_marketing.mmm.hsgp.HSGP.parse_raw>`\\ "
+"\\(b\\, \\*\\[\\, content\\_type\\, ...\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: 99f6974c785e402fac1c5484311cc074
+msgid ""
+":py:obj:`HSGP.plot_curve <pymc_marketing.mmm.hsgp.HSGP.plot_curve>`\\ "
+"\\(curve\\[\\, n\\_samples\\, ...\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: 19a2395312094087b6fed8f0082f961a
+msgid "Plot the curve."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: 220fd11d4b7c4b46b23eed63b018bd6d
+msgid ""
+":py:obj:`HSGP.register_data "
+"<pymc_marketing.mmm.hsgp.HSGP.register_data>`\\ \\(X\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: 8cda743a8b604c09a4614f3092646a49
+msgid "Register the data to be used in the model."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: 3462278825d540ddac851202bc473d12
+msgid ""
+":py:obj:`HSGP.sample_prior <pymc_marketing.mmm.hsgp.HSGP.sample_prior>`\\"
+" \\(\\[coords\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: ac815a24d0ea402cb1684d74a16fc2b6
+msgid "Sample from the prior distribution."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: afb9c782d57b42b0a4423f348947e626
+msgid ""
+":py:obj:`HSGP.schema <pymc_marketing.mmm.hsgp.HSGP.schema>`\\ "
+"\\(\\[by\\_alias\\, ref\\_template\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: 2826bf7063ec4a4d975dd16225fbff5b
+msgid ""
+":py:obj:`HSGP.schema_json <pymc_marketing.mmm.hsgp.HSGP.schema_json>`\\ "
+"\\(\\*\\[\\, by\\_alias\\, ref\\_template\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: 35c4cacd40894bccad1d98b36e6e9137
+msgid ":py:obj:`HSGP.to_dict <pymc_marketing.mmm.hsgp.HSGP.to_dict>`\\ \\(\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: 917dff1878a1411f82bd8367026407cd
+msgid "Convert the object to a dictionary."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: 7f7f60c31b5c4c2796de91735bb103e2
+msgid ""
+":py:obj:`HSGP.update_forward_refs "
+"<pymc_marketing.mmm.hsgp.HSGP.update_forward_refs>`\\ \\(\\*\\*localns\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
+#: 24bf44c0f8a846768c6de436e72a4e34
+msgid ""
+":py:obj:`HSGP.validate <pymc_marketing.mmm.hsgp.HSGP.validate>`\\ "
+"\\(value\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:55
+#: 2cab4b2d4c7549a6b92fbcc2e0270dbe
+msgid "Attributes"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:74:<autosummary>:1
+#: 1d564f162f7c4623b7081f326bdd4c7a
+msgid ""
+":py:obj:`model_computed_fields "
+"<pymc_marketing.mmm.hsgp.HSGP.model_computed_fields>`\\"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:74:<autosummary>:1
+#: b6b24a5af9db4b1497ab2745532ba157
+msgid ":py:obj:`model_config <pymc_marketing.mmm.hsgp.HSGP.model_config>`\\"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:74:<autosummary>:1
+#: 64878853f22c4c399540ccaf34ec8430
+msgid ""
+"Configuration for the model, should be a dictionary conforming to "
+"[`ConfigDict`][pydantic.config.ConfigDict]."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:74:<autosummary>:1
+#: bfec367d86d64187b5a7cfd644b3da09
+msgid ":py:obj:`model_extra <pymc_marketing.mmm.hsgp.HSGP.model_extra>`\\"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:74:<autosummary>:1
+#: ca935c56300b4909a4c18f8afcdefca8
+msgid "Get extra fields set during validation."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:74:<autosummary>:1
+#: 8f5965cf90064547a11b94d149d48547
+msgid ":py:obj:`model_fields <pymc_marketing.mmm.hsgp.HSGP.model_fields>`\\"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:74:<autosummary>:1
+#: 559a0bfbb1284e63afd4e8b60e58e924
+msgid ""
+":py:obj:`model_fields_set "
+"<pymc_marketing.mmm.hsgp.HSGP.model_fields_set>`\\"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:74:<autosummary>:1
+#: 65f433efae7b47028e993756f09607c3
+msgid ""
+"Returns the set of fields that have been explicitly set on this model "
+"instance."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:74:<autosummary>:1
+#: 9caece0da7a349f5b5a5485d8b0fa4c9
+msgid ":py:obj:`ls <pymc_marketing.mmm.hsgp.HSGP.ls>`\\"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:74:<autosummary>:1
+#: f7b9285659bf490684b2ad959a7311a6
+msgid ":py:obj:`eta <pymc_marketing.mmm.hsgp.HSGP.eta>`\\"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:74:<autosummary>:1
+#: 098902b8f6ca4d20837b44df1d961420
+msgid ":py:obj:`L <pymc_marketing.mmm.hsgp.HSGP.L>`\\"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:74:<autosummary>:1
+#: 363d5e87611c49b2bba7963085ad7d75
+msgid ":py:obj:`centered <pymc_marketing.mmm.hsgp.HSGP.centered>`\\"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:74:<autosummary>:1
+#: 6dd10d8c3185416f9d5c62713fb62be6
+msgid ":py:obj:`drop_first <pymc_marketing.mmm.hsgp.HSGP.drop_first>`\\"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:74:<autosummary>:1
+#: fa25f66741c94d3a8cfae63847c869bc
+msgid ":py:obj:`cov_func <pymc_marketing.mmm.hsgp.HSGP.cov_func>`\\"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:74:<autosummary>:1
+#: 99d52c7f6105453caa76615a21fe7b83
+msgid ":py:obj:`m <pymc_marketing.mmm.hsgp.HSGP.m>`\\"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:74:<autosummary>:1
+#: 7cbcf13271b24ae88ee689f6c0219c07
+msgid ":py:obj:`X <pymc_marketing.mmm.hsgp.HSGP.X>`\\"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:74:<autosummary>:1
+#: 2e410057d2544e0f808217e460c5061f
+msgid ":py:obj:`X_mid <pymc_marketing.mmm.hsgp.HSGP.X_mid>`\\"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:74:<autosummary>:1
+#: 21dce79641b8474883d9faa5211de846
+msgid ":py:obj:`dims <pymc_marketing.mmm.hsgp.HSGP.dims>`\\"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:74:<autosummary>:1
+#: 8d6b1733ada347a0978232916f6c7fe9
+msgid ":py:obj:`transform <pymc_marketing.mmm.hsgp.HSGP.transform>`\\"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:74:<autosummary>:1
+#: dd609a7bdcc64d248a1e568554acc4c7
+msgid ":py:obj:`demeaned_basis <pymc_marketing.mmm.hsgp.HSGP.demeaned_basis>`\\"
+msgstr ""

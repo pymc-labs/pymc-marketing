@@ -1,0 +1,56 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.events.EventEffect.model_validate_strings.rst:2
+#: 0f971483a773407da1f22088c64964a3
+msgid "EventEffect.model\\_validate\\_strings"
+msgstr ""
+
+#: 56e4afa72f904fab8236e3d9e4e823d6 of
+#: pydantic.main.BaseModel.model_validate_strings:2
+msgid "Validate the given object with string data against the Pydantic model."
+msgstr ""
+
+#: b2e6b2e2806d43008e94da1742f605fb of
+#: pydantic.main.BaseModel.model_validate_strings:4
+msgid "Args:"
+msgstr ""
+
+#: 0b046d12d7c64db3a677c677d9389909 of
+#: pydantic.main.BaseModel.model_validate_strings:5
+msgid ""
+"obj: The object containing string data to validate. strict: Whether to "
+"enforce types strictly. context: Extra variables to pass to the "
+"validator. by_alias: Whether to use the field's alias when validating "
+"against the provided input data. by_name: Whether to use the field's name"
+" when validating against the provided input data."
+msgstr ""
+
+#: aa431fcc12554a4eb3f5faacc23fd4a8 of
+#: pydantic.main.BaseModel.model_validate_strings:11
+msgid "Returns:"
+msgstr ""
+
+#: b5d989da88124a3694af7a87b4d87893 of
+#: pydantic.main.BaseModel.model_validate_strings:12
+msgid "The validated Pydantic model."
+msgstr ""
