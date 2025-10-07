@@ -76,6 +76,7 @@ pygments_style = "friendly"
 # sphinx settings related to generation of translatable sources
 gettext_uuid = True
 gettext_compact = False
+locale_dirs = ["../../locales"]
 
 # -- Extension configuration ------------------------------------------------
 
