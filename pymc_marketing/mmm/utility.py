@@ -212,7 +212,7 @@ def mean_tightness_score(
         samples = _check_samples_dimensionality(samples)
         mean = pt.mean(samples)
         tail_metric = tail_distance(confidence_level)
-        return (mean - alpha * tail_metric(samples, budgets)) / mean
+        return 1 - alpha * tail_metric(samples, budgets) / mean
 
     return _mean_tightness_score
 
