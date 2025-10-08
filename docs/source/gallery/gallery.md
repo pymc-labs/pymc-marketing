@@ -26,6 +26,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_example.html
 :::
 
+::::{grid-item-card} Beyong Marketing building GAMs
+:img-top: ../gallery/images/mmm_example.png
+:link: ../notebooks/mmm/mmm_gam_options.html
+:::
+
 :::{grid-item-card} Custom Models with MMM components
 :img-top: ../gallery/images/mmm_components.png
 :link: ../notebooks/mmm/mmm_components.html
