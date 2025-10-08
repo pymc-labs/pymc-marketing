@@ -32,14 +32,15 @@ dependencies:
 - sphinx-intl
 - ipython!=8.7.0
 - myst-parser
-- myst-nb
+- myst-nb>=1.1.2
 - numpydoc
-- pydata-sphinx-theme>=0.12.0.dev0
+- pydata-sphinx-theme
 - sphinx-copybutton
 - sphinx-autodoc-typehints
 - sphinxext-opengraph
 - sphinx-notfound-page
 - sphinx-design
+- sphinx-remove-toctres
 - watermark
 - typing
 - networkx
@@ -60,3 +61,4 @@ dependencies:
 - pyprojroot
 - pip:
   - roadmapper
+  - labs-sphinx-theme
