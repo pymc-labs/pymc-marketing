@@ -40,7 +40,7 @@ dependencies:
 - sphinxext-opengraph
 - sphinx-notfound-page
 - sphinx-design
-- sphinx-remove-toctres
+- sphinx-remove-toctrees
 - watermark
 - typing
 - networkx
