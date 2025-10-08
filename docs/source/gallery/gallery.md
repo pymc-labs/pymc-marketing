@@ -41,6 +41,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_multidimensional_example.html
 :::
 
+:::{grid-item-card} Build MMM from YAML Configuration
+:img-top: ../gallery/images/mmm_build_from_yml_example.png
+:link: ../notebooks/mmm/mmm_build_from_yml_example.html
+:::
+
 :::{grid-item-card} Sensitivity Analysis and Marginal Effects
 :img-top: ../gallery/images/mmm_sensitivity_analysis.png
 :link: ../notebooks/mmm/mmm_sensitivity_analysis.html
