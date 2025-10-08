@@ -130,9 +130,13 @@ if __name__ == "__main__":
     setup_logging()
     logging.info("Starting notebook runner")
     logging.info(f"Notebooks to run: {notebooks_to_run}")
-    Parallel(n_jobs=-1)(
+    results = Parallel(n_jobs=-1)(
         delayed(run_notebook)(**run_params)
         for run_params in run_parameters(notebooks_to_run)
     )
+    del results
+    import gc
+
+    gc.collect()
 
     logging.info("Notebooks run successfully!")
