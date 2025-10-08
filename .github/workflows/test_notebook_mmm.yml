@@ -1,4 +1,4 @@
-name: Test Other Notebooks
+name: Test MMM Notebooks
 
 on:
   pull_request:
@@ -7,8 +7,7 @@ on:
      - "pyproject.toml"
      - "tests/**.py"
      - "pymc_marketing/**"
-     - "docs/source/notebooks/**.ipynb"
-     - "!docs/source/notebooks/mmm/**.ipynb"
+     - "docs/source/notebooks/mmm/**.ipynb"
      - "!docs/source/notebooks/*/dev/**.ipynb"
   push:
     branches: [main]
@@ -16,8 +15,7 @@ on:
      - "pyproject.toml"
      - "tests/**.py"
      - "pymc_marketing/**"
-     - "docs/source/notebooks/**.ipynb"
-     - "!docs/source/notebooks/mmm/**.ipynb"
+     - "docs/source/notebooks/mmm/**.ipynb"
      - "!docs/source/notebooks/*/dev/**.ipynb"
 
 concurrency:
@@ -25,7 +23,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  other_notebooks:
+  mmm_notebooks:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v5
@@ -37,5 +35,5 @@ jobs:
       run: |
         sudo apt-get install graphviz graphviz-dev
         pip install -e .[docs,test,dag]
-    - name: Run non-MMM notebooks
-      run: make run_notebooks_other
+    - name: Run MMM notebooks
+      run: make run_notebooks_mmm

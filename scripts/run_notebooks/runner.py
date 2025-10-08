@@ -105,6 +105,12 @@ def parse_args():
         type=str,
         help="List of notebooks to run. If not provided, all notebooks will be run.",
     )
+    parser.add_argument(
+        "--exclude-dirs",
+        nargs="+",
+        type=str,
+        help="List of directories to exclude (e.g., mmm clv)",
+    )
     return parser.parse_args()
 
 
@@ -114,6 +120,12 @@ if __name__ == "__main__":
     args = parse_args()
     if args.notebooks:
         notebooks_to_run = [Path(notebook) for notebook in args.notebooks]
+
+    if args.exclude_dirs:
+        exclude_set = set(args.exclude_dirs)
+        notebooks_to_run = [
+            nb for nb in notebooks_to_run if nb.parent.name not in exclude_set
+        ]
 
     setup_logging()
     logging.info("Starting notebook runner")
