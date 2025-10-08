@@ -72,6 +72,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_allocation_assessment.png
 :link: ../notebooks/mmm/mmm_allocation_assessment.html
 :::
+
+:::{grid-item-card} Multi-Objective Optimization
+:img-top: ../gallery/images/mmm_allocation_assessment.png
+:link: ../notebooks/mmm/mmm_multi_objective_optimization.html
+:::
 ::::
 
 ### Lift Test Calibration
