@@ -26,14 +26,9 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_example.html
 :::
 
-::::{grid-item-card} Beyong Marketing building GAMs
+:::{grid-item-card} Beyond Marketing building GAMs
 :img-top: ../gallery/images/mmm_example.png
 :link: ../notebooks/mmm/mmm_gam_options.html
-:::
-
-:::{grid-item-card} Custom Models with MMM components
-:img-top: ../gallery/images/mmm_components.png
-:link: ../notebooks/mmm/mmm_components.html
 :::
 
 :::{grid-item-card} MMM Multidimensional Example Notebook (e.g. Geo-MMM)
@@ -51,6 +46,13 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_sensitivity_analysis.html
 :::
 ::::
+
+### Custom models
+
+:::{grid-item-card} Custom Models with MMM components
+:img-top: ../gallery/images/mmm_components.png
+:link: ../notebooks/mmm/mmm_components.html
+:::
 
 ### Data Connectors
 
