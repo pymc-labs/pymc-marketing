@@ -1,0 +1,642 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:2
+#: 9c411cb01a844602816c65333e3d11a4
+msgid "ConvMode"
+msgstr ""
+
+#: ee661c25b12d40c5975d97bab9f577b9 of
+#: pymc_marketing.mmm.transformers.ConvMode:2
+msgid "Convolution mode for the convolution."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:12
+#: 8c9fd79219dd4213bc05d2f51d8fb00c
+msgid "Methods"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 5806d911427046d3a89a7baf40686a42
+msgid ""
+":py:obj:`ConvMode.encode "
+"<pymc_marketing.mmm.transformers.ConvMode.encode>`\\ \\(\\/\\[\\, "
+"encoding\\, errors\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 78fec7713f5b49839c5110321a34c1e8
+msgid "Encode the string using the codec registered for encoding."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 3c65e239cb5d40239670cb56a1e1f4d0
+msgid ""
+":py:obj:`ConvMode.replace "
+"<pymc_marketing.mmm.transformers.ConvMode.replace>`\\ \\(old\\, new\\[\\,"
+" count\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: e80c8dc93c68449fb6ea9101daa4f9df
+msgid "Return a copy with all occurrences of substring old replaced by new."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 08cc71de2b154b25af5b50b885b8d3a8
+msgid ""
+":py:obj:`ConvMode.split "
+"<pymc_marketing.mmm.transformers.ConvMode.split>`\\ \\(\\/\\[\\, sep\\, "
+"maxsplit\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 1fee44245852469ea5c3044557a40804 29468ba66f5a4aeb9d97986488f9ccd5
+msgid ""
+"Return a list of the substrings in the string, using sep as the separator"
+" string."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: be49038322d247778806b38fe2f7ee58
+msgid ""
+":py:obj:`ConvMode.rsplit "
+"<pymc_marketing.mmm.transformers.ConvMode.rsplit>`\\ \\(\\/\\[\\, sep\\, "
+"maxsplit\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 9fd87162ce5d4e84ab6314113e153c11
+msgid ""
+":py:obj:`ConvMode.join <pymc_marketing.mmm.transformers.ConvMode.join>`\\"
+" \\(iterable\\, \\/\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 4a4d3599bd9841ba81c6b5db83d267e6
+msgid "Concatenate any number of strings."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: c289a53a1bde4fe6afa6514e981b6ced
+msgid ""
+":py:obj:`ConvMode.capitalize "
+"<pymc_marketing.mmm.transformers.ConvMode.capitalize>`\\ \\(\\/\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: f11151868e7d45f0880718e0d6050353
+msgid "Return a capitalized version of the string."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 6dca9557074b462d9c728e5a4bff2b96
+msgid ""
+":py:obj:`ConvMode.casefold "
+"<pymc_marketing.mmm.transformers.ConvMode.casefold>`\\ \\(\\/\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: ff7632517bbc4d31aada588047c5c049
+msgid "Return a version of the string suitable for caseless comparisons."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: ad7c473f34054b1e89d79d9e45a71cef
+msgid ""
+":py:obj:`ConvMode.title "
+"<pymc_marketing.mmm.transformers.ConvMode.title>`\\ \\(\\/\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 4a81208ef9074e50b712ff8796460aba
+msgid "Return a version of the string where each word is titlecased."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 9391cfcb0408454ca27541c924d55ff5
+msgid ""
+":py:obj:`ConvMode.center "
+"<pymc_marketing.mmm.transformers.ConvMode.center>`\\ \\(width\\[\\, "
+"fillchar\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: c89ddf90924a4442b57ebf2fe28db3a2
+msgid "Return a centered string of length width."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: e2f18698a98541fe923cde93e93d30ed
+msgid ""
+":py:obj:`ConvMode.count "
+"<pymc_marketing.mmm.transformers.ConvMode.count>`\\ \\(sub\\[\\, "
+"start\\[\\, end\\]\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 6c1e3af21e8f4894b63c9aa93ed4e559
+msgid ""
+"Return the number of non-overlapping occurrences of substring sub in "
+"string S[start:end]."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 1c7a3b01c87740d1896435cb27b786f5
+msgid ""
+":py:obj:`ConvMode.expandtabs "
+"<pymc_marketing.mmm.transformers.ConvMode.expandtabs>`\\ \\(\\/\\[\\, "
+"tabsize\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 33b6ed41fd6c4d85b50278f5b9fdd1ce
+msgid "Return a copy where all tab characters are expanded using spaces."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 66259327c0d24a2ebac0b93a58ac6eef
+msgid ""
+":py:obj:`ConvMode.find <pymc_marketing.mmm.transformers.ConvMode.find>`\\"
+" \\(sub\\[\\, start\\[\\, end\\]\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: a90efae12a984db7931c9141f898496a f801102b39634132b11913e9ee363511
+msgid ""
+"Return the lowest index in S where substring sub is found, such that sub "
+"is contained within S[start:end]."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 56794ccc301840918abe509d6b08c04e
+msgid ""
+":py:obj:`ConvMode.partition "
+"<pymc_marketing.mmm.transformers.ConvMode.partition>`\\ \\(sep\\, \\/\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 36058175fdd24a47be215219725c6be7 5dbf8fe4c9284847866893ee94f27dea
+msgid "Partition the string into three parts using the given separator."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 1738d42eec594a3caa4f9fde87769af1
+msgid ""
+":py:obj:`ConvMode.index "
+"<pymc_marketing.mmm.transformers.ConvMode.index>`\\ \\(sub\\[\\, "
+"start\\[\\, end\\]\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 49c1c76065b94b188b45df07569e4930
+msgid ""
+":py:obj:`ConvMode.ljust "
+"<pymc_marketing.mmm.transformers.ConvMode.ljust>`\\ \\(width\\[\\, "
+"fillchar\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: acfe401047e0401faab9ae33dbd97dbb
+msgid "Return a left-justified string of length width."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 129496da7deb4104a98101abbaa91925
+msgid ""
+":py:obj:`ConvMode.lower "
+"<pymc_marketing.mmm.transformers.ConvMode.lower>`\\ \\(\\/\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 822abc075965492194b6b52295e72589
+msgid "Return a copy of the string converted to lowercase."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 7d6d937111fc44dfb17cfe89c416c0c5
+msgid ""
+":py:obj:`ConvMode.lstrip "
+"<pymc_marketing.mmm.transformers.ConvMode.lstrip>`\\ \\(\\[chars\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: cf8f3e922302486882acffab071042ec
+msgid "Return a copy of the string with leading whitespace removed."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: aa4e5a25705945c8b6a329a68d9036ce
+msgid ""
+":py:obj:`ConvMode.rfind "
+"<pymc_marketing.mmm.transformers.ConvMode.rfind>`\\ \\(sub\\[\\, "
+"start\\[\\, end\\]\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 20bc50e894a04a6ab9e3b903d7162af2 7bd12ec52d004d3c80d223dab4bb8b62
+msgid ""
+"Return the highest index in S where substring sub is found, such that sub"
+" is contained within S[start:end]."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 6a4392b0ab9849219299ce36366c61bd
+msgid ""
+":py:obj:`ConvMode.rindex "
+"<pymc_marketing.mmm.transformers.ConvMode.rindex>`\\ \\(sub\\[\\, "
+"start\\[\\, end\\]\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 562093247c3e4bb68164d464b439e37f
+msgid ""
+":py:obj:`ConvMode.rjust "
+"<pymc_marketing.mmm.transformers.ConvMode.rjust>`\\ \\(width\\[\\, "
+"fillchar\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: f44efd76131446ed962c009eb5656374
+msgid "Return a right-justified string of length width."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 6cceb791cdfd443784f413b425286c7d
+msgid ""
+":py:obj:`ConvMode.rstrip "
+"<pymc_marketing.mmm.transformers.ConvMode.rstrip>`\\ \\(\\[chars\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: d70cb71c52de468398781b949fbad9a8
+msgid "Return a copy of the string with trailing whitespace removed."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: a1bfaed8bf804db79f4ddd96ebeb1739
+msgid ""
+":py:obj:`ConvMode.rpartition "
+"<pymc_marketing.mmm.transformers.ConvMode.rpartition>`\\ \\(sep\\, \\/\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 77edbafcb3694043a6ffd97123a1e6ea
+msgid ""
+":py:obj:`ConvMode.splitlines "
+"<pymc_marketing.mmm.transformers.ConvMode.splitlines>`\\ \\(\\/\\[\\, "
+"keepends\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 8975ec911a10443d829a0fd4936d926b
+msgid "Return a list of the lines in the string, breaking at line boundaries."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: c415ce4f05884b0481376b5a4f0c3b81
+msgid ""
+":py:obj:`ConvMode.strip "
+"<pymc_marketing.mmm.transformers.ConvMode.strip>`\\ \\(\\[chars\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: c58df969d8ca4cdca18f30a43b015c92
+msgid "Return a copy of the string with leading and trailing whitespace removed."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: d8de14dd34e94df0a05dbf49f959e3c2
+msgid ""
+":py:obj:`ConvMode.swapcase "
+"<pymc_marketing.mmm.transformers.ConvMode.swapcase>`\\ \\(\\/\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: c0a7b9f0e30f4e8285ccb131d6949df8
+msgid ""
+"Convert uppercase characters to lowercase and lowercase characters to "
+"uppercase."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 87bd1d8ed2b749e0a034205c6e8d2cb4
+msgid ""
+":py:obj:`ConvMode.translate "
+"<pymc_marketing.mmm.transformers.ConvMode.translate>`\\ \\(table\\, "
+"\\/\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 0e012bd8c64e4f6eb5ed2e4de9b08d76
+msgid "Replace each character in the string using the given translation table."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: a70a20fa48af45b09b9199c5e37dcb0a
+msgid ""
+":py:obj:`ConvMode.upper "
+"<pymc_marketing.mmm.transformers.ConvMode.upper>`\\ \\(\\/\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 87829526ad5d40a69d5e44209329c6f0
+msgid "Return a copy of the string converted to uppercase."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 3c8b0d7c20684bf0ae4b7a3213a99e00
+msgid ""
+":py:obj:`ConvMode.startswith "
+"<pymc_marketing.mmm.transformers.ConvMode.startswith>`\\ \\(prefix\\[\\, "
+"start\\[\\, end\\]\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 65686189286442c0aff99d599803d24f
+msgid "Return True if S starts with the specified prefix, False otherwise."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 5277a399744e47c2ad85232c0d405810
+msgid ""
+":py:obj:`ConvMode.endswith "
+"<pymc_marketing.mmm.transformers.ConvMode.endswith>`\\ \\(suffix\\[\\, "
+"start\\[\\, end\\]\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 07809d1578be44ce9a5bd3014495ebb3
+msgid "Return True if S ends with the specified suffix, False otherwise."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 5b3f3c935396457882823400461ad56f
+msgid ""
+":py:obj:`ConvMode.removeprefix "
+"<pymc_marketing.mmm.transformers.ConvMode.removeprefix>`\\ \\(prefix\\, "
+"\\/\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 3df0f067fb434d6e9454fd9475ae3a86
+msgid "Return a str with the given prefix string removed if present."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: cec99abfb480455bba91c3e6ffb5a548
+msgid ""
+":py:obj:`ConvMode.removesuffix "
+"<pymc_marketing.mmm.transformers.ConvMode.removesuffix>`\\ \\(suffix\\, "
+"\\/\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 6e2e5fdb7eff402da13d4095038de7e5
+msgid "Return a str with the given suffix string removed if present."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 92771693c8b645c199c5d90f3d71393f
+msgid ""
+":py:obj:`ConvMode.isascii "
+"<pymc_marketing.mmm.transformers.ConvMode.isascii>`\\ \\(\\/\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 2fd28570ba3b42c890e30e6f3c919a49
+msgid "Return True if all characters in the string are ASCII, False otherwise."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: b9e979c99b58417b9ae1ca7593ca4dad
+msgid ""
+":py:obj:`ConvMode.islower "
+"<pymc_marketing.mmm.transformers.ConvMode.islower>`\\ \\(\\/\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: ac6d492410e84b2da91402e9730d94a9
+msgid "Return True if the string is a lowercase string, False otherwise."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: afe2ab8c043141f4a8c005c8d96169b0
+msgid ""
+":py:obj:`ConvMode.isupper "
+"<pymc_marketing.mmm.transformers.ConvMode.isupper>`\\ \\(\\/\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: c2221d8ac06b42bfbb3cc804ee23758f
+msgid "Return True if the string is an uppercase string, False otherwise."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: b9974da406e74c6db04bb274edbb2492
+msgid ""
+":py:obj:`ConvMode.istitle "
+"<pymc_marketing.mmm.transformers.ConvMode.istitle>`\\ \\(\\/\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: f96f0424819a4b2ea5e33e96512adc3d
+msgid "Return True if the string is a title-cased string, False otherwise."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 5be454f6ea15481c98c92acd6e22b961
+msgid ""
+":py:obj:`ConvMode.isspace "
+"<pymc_marketing.mmm.transformers.ConvMode.isspace>`\\ \\(\\/\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: b1e2086e7dcd473bb8ed9dae482f27bc
+msgid "Return True if the string is a whitespace string, False otherwise."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 2bf930762c1e43bf9246ba8717d47036
+msgid ""
+":py:obj:`ConvMode.isdecimal "
+"<pymc_marketing.mmm.transformers.ConvMode.isdecimal>`\\ \\(\\/\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 076c376be7a1464384054d26b9ac6980
+msgid "Return True if the string is a decimal string, False otherwise."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 23ce769781314c649e74fe5a6b6c068e
+msgid ""
+":py:obj:`ConvMode.isdigit "
+"<pymc_marketing.mmm.transformers.ConvMode.isdigit>`\\ \\(\\/\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: aefc7e36bb2f4cf582ecda7db1b73fd7
+msgid "Return True if the string is a digit string, False otherwise."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: d18b4676d4fd484e95e9f8dd1ae4760d
+msgid ""
+":py:obj:`ConvMode.isnumeric "
+"<pymc_marketing.mmm.transformers.ConvMode.isnumeric>`\\ \\(\\/\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: e2cc015f7b484bf4866f4ef0aa66f555
+msgid "Return True if the string is a numeric string, False otherwise."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 1a103e32bc524d40a777af55ba876523
+msgid ""
+":py:obj:`ConvMode.isalpha "
+"<pymc_marketing.mmm.transformers.ConvMode.isalpha>`\\ \\(\\/\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 3c5f4b5df5104be88c843609a3432c6e
+msgid "Return True if the string is an alphabetic string, False otherwise."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: e6503d2ef75f4fbb81c21bab0f8df074
+msgid ""
+":py:obj:`ConvMode.isalnum "
+"<pymc_marketing.mmm.transformers.ConvMode.isalnum>`\\ \\(\\/\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: f8c1da3f6b3d43eb8ccac01a71c25419
+msgid "Return True if the string is an alpha-numeric string, False otherwise."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 15474709c6734421b01bc405acc258ef
+msgid ""
+":py:obj:`ConvMode.isidentifier "
+"<pymc_marketing.mmm.transformers.ConvMode.isidentifier>`\\ \\(\\/\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: fd40e69413f643e3affff3d6c6a109b9
+msgid "Return True if the string is a valid Python identifier, False otherwise."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 22cbd53666424d02a8c2a01a7f1664e4
+msgid ""
+":py:obj:`ConvMode.isprintable "
+"<pymc_marketing.mmm.transformers.ConvMode.isprintable>`\\ \\(\\/\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: b41f0bd3b9424f87a6a907142a6db000
+msgid ""
+"Return True if all characters in the string are printable, False "
+"otherwise."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: a678929dd4464d4a869063ad79525aed
+msgid ""
+":py:obj:`ConvMode.zfill "
+"<pymc_marketing.mmm.transformers.ConvMode.zfill>`\\ \\(width\\, \\/\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 5282ee2cb42b4b5cac477e5d47fc5727
+msgid ""
+"Pad a numeric string with zeros on the left, to fill a field of the given"
+" width."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: f137fc29ec7a48be830ac652c6dd1ad7
+msgid ""
+":py:obj:`ConvMode.format "
+"<pymc_marketing.mmm.transformers.ConvMode.format>`\\ \\(\\*args\\, "
+"\\*\\*kwargs\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 8af17df635924dbfade0f4f474ba7e1f
+msgid "Return a formatted version of S, using substitutions from args and kwargs."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 664f6fc0993447fcbbc7e129e995b1a6
+msgid ""
+":py:obj:`ConvMode.format_map "
+"<pymc_marketing.mmm.transformers.ConvMode.format_map>`\\ \\(mapping\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: c89d1ef35b8d4405b405075e2700bead
+msgid "Return a formatted version of S, using substitutions from mapping."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: a19fd5798103425ca0ac1f5f22e7505a
+msgid ""
+":py:obj:`ConvMode.maketrans "
+"<pymc_marketing.mmm.transformers.ConvMode.maketrans>`\\ \\(x\\[\\, y\\, "
+"z\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: 098145487dfb4943af86cd7294373e2f
+msgid "Return a translation table usable for str.translate()."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:69:<autosummary>:1
+#: e29f618aa96c466791d2c9dabd68c24b
+msgid ""
+":py:obj:`ConvMode.__init__ "
+"<pymc_marketing.mmm.transformers.ConvMode.__init__>`\\ \\(\\*args\\, "
+"\\*\\*kwds\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:71
+#: 36d0bb5bfab54deea87a321f9925e869
+msgid "Attributes"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:76:<autosummary>:1
+#: a4da0cba942146d98ab359bdedb233e4
+msgid ":py:obj:`After <pymc_marketing.mmm.transformers.ConvMode.After>`\\"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:76:<autosummary>:1
+#: 23dc46493b6b49729a029c3c48e776cd
+msgid ":py:obj:`Before <pymc_marketing.mmm.transformers.ConvMode.Before>`\\"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.ConvMode.rst:76:<autosummary>:1
+#: 4a9a3b4e552343bfb920b1fd0ea19b57
+msgid ":py:obj:`Overlap <pymc_marketing.mmm.transformers.ConvMode.Overlap>`\\"
+msgstr ""

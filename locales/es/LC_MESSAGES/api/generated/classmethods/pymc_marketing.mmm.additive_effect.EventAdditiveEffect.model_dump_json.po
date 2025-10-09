@@ -1,0 +1,103 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.model_dump_json.rst:2
+#: 058607caaa71424c9ec75da5d03d0fc3
+msgid "EventAdditiveEffect.model\\_dump\\_json"
+msgstr ""
+
+#: 86944ae013a54849940ea0033dedc108 of
+#: pydantic.main.BaseModel.model_dump_json:2
+msgid "!!! abstract \"Usage Documentation\""
+msgstr ""
+
+#: 7987cc1864ed4da68108f278999b02f5 of
+#: pydantic.main.BaseModel.model_dump_json:3
+msgid "[`model_dump_json`](../concepts/serialization.md#modelmodel_dump_json)"
+msgstr ""
+
+#: 120230152a37408e87abd41f24d55778 of
+#: pydantic.main.BaseModel.model_dump_json:5
+msgid ""
+"Generates a JSON representation of the model using Pydantic's `to_json` "
+"method."
+msgstr ""
+
+#: fcdbbdf918d34e6dbd995e30cf33be0f of
+#: pydantic.main.BaseModel.model_dump_json:7
+msgid "Args:"
+msgstr ""
+
+#: 13b692140f9b4926b3d7e2289b53bc92 of
+#: pydantic.main.BaseModel.model_dump_json:8
+msgid ""
+"indent: Indentation to use in the JSON output. If None is passed, the "
+"output will be compact. include: Field(s) to include in the JSON output. "
+"exclude: Field(s) to exclude from the JSON output. context: Additional "
+"context to pass to the serializer. by_alias: Whether to serialize using "
+"field aliases. exclude_unset: Whether to exclude fields that have not "
+"been explicitly set. exclude_defaults: Whether to exclude fields that are"
+" set to their default value. exclude_none: Whether to exclude fields that"
+" have a value of `None`. round_trip: If True, dumped values should be "
+"valid as input for non-idempotent types such as Json[T]. warnings: How to"
+" handle serialization errors. False/\"none\" ignores them, True/\"warn\" "
+"logs errors,"
+msgstr ""
+
+#: e9fee04807c44b7dbcafe78311a54d62 of
+#: pydantic.main.BaseModel.model_dump_json:18
+msgid ""
+"\"error\" raises a "
+"[`PydanticSerializationError`][pydantic_core.PydanticSerializationError]."
+msgstr ""
+
+#: 98a3c06e19ce4a6fa68410fcea63d042 of
+#: pydantic.main.BaseModel.model_dump_json:19
+msgid ""
+"fallback: A function to call when an unknown value is encountered. If not"
+" provided,"
+msgstr ""
+
+#: 62e3904ac9634dd4b981fcd9608004f7 of
+#: pydantic.main.BaseModel.model_dump_json:20
+msgid ""
+"a "
+"[`PydanticSerializationError`][pydantic_core.PydanticSerializationError] "
+"error is raised."
+msgstr ""
+
+#: 25fd0f69ed03440bb2113f9f1fce57a6 of
+#: pydantic.main.BaseModel.model_dump_json:21
+msgid ""
+"serialize_as_any: Whether to serialize fields with duck-typing "
+"serialization behavior."
+msgstr ""
+
+#: 72e2d2c71d224fef8cc06e18736a3d2b of
+#: pydantic.main.BaseModel.model_dump_json:23
+msgid "Returns:"
+msgstr ""
+
+#: c4caf9e47c254fe086fe48b9c7e85953 of
+#: pydantic.main.BaseModel.model_dump_json:24
+msgid "A JSON string representation of the model."
+msgstr ""

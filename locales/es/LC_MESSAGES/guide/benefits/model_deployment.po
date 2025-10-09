@@ -1,0 +1,258 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/guide/benefits/model_deployment.ipynb:10003
+#: 1b0c8a70411c46d2b1fe60ace462868c
+msgid "Model deployment"
+msgstr ""
+
+#: ../source/guide/benefits/model_deployment.ipynb:20002
+#: 0cf2b0c2ce4b458483f7395095859ea4
+msgid ""
+"One of the main goals of PyMC-Marketing is to facilitate the deployment "
+"of its models."
+msgstr ""
+
+#: ../source/guide/benefits/model_deployment.ipynb:30002
+#: 77f24e91f4e94dbe8d56d37406ff2baa
+msgid ""
+"This is achieved by building our models on top of "
+"[ModelBuilder](https://www.pymc-"
+"marketing.io/en/stable/api/generated/pymc_marketing.model_builder.ModelBuilder.html#pymc_marketing.model_builder.ModelBuilder)"
+" that offers a scikit-learn-like API and makes PyMC models easy to "
+"deploy."
+msgstr ""
+
+#: ../source/guide/benefits/model_deployment.ipynb:30004
+#: 73431aca18b143abad87526e070d00ef
+msgid ""
+"PyMC-marketing models inherit 2 easy-to-use methods: `save` and `load` "
+"that can be used after the model has been fitted. All models can be "
+"configured with two standard dictionaries: `model_config` and "
+"`sampler_config` that are serialized during `save` and persisted after "
+"`load`, allowing model reuse across workflows."
+msgstr ""
+
+#: ../source/guide/benefits/model_deployment.ipynb:40002
+#: 5d47164867a74f68ba25fef66bb36963
+msgid ""
+"We will illustrate this functionality with the example model described in"
+" the [MMM Example Notebook](https://www.pymc-"
+"marketing.io/en/stable/notebooks/mmm/mmm_example.html). For sake of "
+"generality, we ommit most technical details here."
+msgstr ""
+
+#: ../source/guide/benefits/model_deployment.ipynb:70002
+#: a0f35f4d847a474795ef8ca8bd512fda
+msgid "Let's load the dataset:"
+msgstr ""
+
+#: ../source/guide/benefits/model_deployment.ipynb:90002
+#: 5f2d15a27e024c83aa7308b34ebc9642
+msgid ""
+"But for our model we need much smaller dataset, many of the previous "
+"features were contributing to generation of others, now as our target "
+"variable is computed we can filter out not needed columns:"
+msgstr ""
+
+#: ../source/guide/benefits/model_deployment.ipynb:100002
+#: 83998522d0aa45c39e10b7c35f16950b
+msgid "Model and sampling configuration"
+msgstr ""
+
+#: ../source/guide/benefits/model_deployment.ipynb:110002
+#: 559a08caa58545edae125e66d6c87dac
+msgid "Model configuration"
+msgstr ""
+
+#: ../source/guide/benefits/model_deployment.ipynb:120002
+#: 490b09ed1ce1464898455f427c182505
+msgid ""
+"We first illustrate the use of `model_config` to define custom priors "
+"within the model."
+msgstr ""
+
+#: ../source/guide/benefits/model_deployment.ipynb:120004
+#: cb627ce62e6f48cf908538cf8623d2b8
+msgid ""
+"Because there are potentially many variables that can be configured, each"
+" model provides a `default_model_config` attribute. This will allow you "
+"to see which settings are available by default and only define the ones "
+"you need to change."
+msgstr ""
+
+#: ../source/guide/benefits/model_deployment.ipynb:120006
+#: 3cd5e135457a4fbd99071c71a27006c9
+msgid ""
+"We need to create a dummy model to be able to see the configuration "
+"dictionary."
+msgstr ""
+
+#: ../source/guide/benefits/model_deployment.ipynb:140002
+#: 68548186c2ff4037b81437baeaa9f82a
+msgid ""
+"We can change the parameters that go into the distribution of each term. "
+"In this case we'll just simply replace the `sigma` for `saturation_beta` "
+"with a custom one:"
+msgstr ""
+
+#: ../source/guide/benefits/model_deployment.ipynb:180002
+#: 8e94d8249d554b35a1fb49f9ea31f783
+msgid ""
+"As mentioned in the original notebook: _\"For the prior specification "
+"there is no right or wrong answer. It all depends on the data, the "
+"context and the assumptions you are willing to make. It is always "
+"recommended to do some prior predictive sampling and sensitivity analysis"
+" to check the impact of the priors on the posterior. We skip this here "
+"for the sake of simplicity. If you are not sure about specific priors, "
+"the `MMM` class has some default priors that you can use as a starting "
+"point.\"_"
+msgstr ""
+
+#: ../source/guide/benefits/model_deployment.ipynb:190002
+#: 0d5ee4ae75dd4b1f9778941e15a46045
+msgid "Sampling  configuration"
+msgstr ""
+
+#: ../source/guide/benefits/model_deployment.ipynb:200002
+#: 32243f9a06be4299847590e0f3b71e98
+msgid ""
+"The second feature we can customize is `sampler_config`. Similar to "
+"`model_config`, it's a dictionary that gets saved and contains things you"
+" would usually pass to the `fit()` kwargs. It's not mandatory to create "
+"your own `sampler_config`. The default `MMM.sampler_config` is empty "
+"because the default sampling parameters usually prove sufficient for a "
+"start."
+msgstr ""
+
+#: ../source/guide/benefits/model_deployment.ipynb:230002
+#: 1ef58be7071a405aa98cee935fa7f7cb
+msgid "Let's finally assemble our model!"
+msgstr ""
+
+#: ../source/guide/benefits/model_deployment.ipynb:250002
+#: 52be13bb23f84c33905221151fd5ae9e
+msgid "We can confirm our settings are being used"
+msgstr ""
+
+#: ../source/guide/benefits/model_deployment.ipynb:280002
+#: 11d99bdf9d6f41bea42ea60b505f673d
+msgid "Model Fitting"
+msgstr ""
+
+#: ../source/guide/benefits/model_deployment.ipynb:290002
+#: 25dcf8a5ddcd4002b28b6f083dca33d4
+msgid ""
+"Note that we didn't pass the dataset to the class constructor itself. "
+"This is done to mimick the `scikit-learn` API, and make it easier to get "
+"started on PyMC-Marketing models."
+msgstr ""
+
+#: ../source/guide/benefits/model_deployment.ipynb:310002
+#: 9396ac49b8cd499fb2bd523de9aa63d0
+msgid "All that's left now is to finally fit the model:"
+msgstr ""
+
+#: ../source/guide/benefits/model_deployment.ipynb:310004
+#: 0f279b3e962b48fda049d6f8c1e9c951
+msgid ""
+"As you can see below, you can still pass the sampler kwargs directly to "
+"`fit()` method. However, only those kwargs passed using `sampler_config` "
+"will be saved and reused after loading the model."
+msgstr ""
+
+#: ../source/guide/benefits/model_deployment.ipynb:330002
+#: a2936c641a8d463e8c214fc371dd7715
+msgid ""
+"The `fit()` method automatically builds the model using the priors from "
+"`model_config`, and assigns the created model to our instance. You can "
+"access it as a normal attribute."
+msgstr ""
+
+#: ../source/guide/benefits/model_deployment.ipynb:360002
+#: a0c9cd9d686a412aa142f55e0c6555d3
+msgid "posterior trace can be accessed by `fit_result` attribute"
+msgstr ""
+
+#: ../source/guide/benefits/model_deployment.ipynb:380002
+#: 74e7496b71894520a2a5747e3d28bcd7
+msgid ""
+"If you wish to inspect the entire inference data, use the `idata` "
+"attribute. Within `idata`, you can find the entire dataset passed to the "
+"model under `fit_data`."
+msgstr ""
+
+#: ../source/guide/benefits/model_deployment.ipynb:400002
+#: 8ecf0d2b971a4adcba04b2f2b3c5f9bb
+msgid "Saving and loading a fitted model"
+msgstr ""
+
+#: ../source/guide/benefits/model_deployment.ipynb:410002
+#: 98dbca4cb385495db4bab010c971ff97
+msgid ""
+"All the data passed to the model on initialization is stored in "
+"`idata.attrs`. This will be used later in the `save()` method to convert "
+"both this data and all the fit data into the netCDF format. You can read "
+"more about this format "
+"[here](https://python.arviz.org/en/stable/getting_started/XarrayforArviZ.html)."
+msgstr ""
+
+#: ../source/guide/benefits/model_deployment.ipynb:420002
+#: 819e38330234465c8cc40e4558972615
+msgid ""
+"The `save` and `load` method only require a path to inform where the "
+"model should be saved and loaded from."
+msgstr ""
+
+#: ../source/guide/benefits/model_deployment.ipynb:490002
+#: 368db73d164b4b149daac6b3d3b4b4a0
+msgid ""
+"A loaded model is ready to be used for sampling and prediction, making "
+"use of the previous fitting results and data if needed."
+msgstr ""
+
+#: ../source/guide/benefits/model_deployment.ipynb:520002
+#: 7fa9be8ff5e4491dbcd424ed038869c9
+msgid "Other models"
+msgstr ""
+
+#: ../source/guide/benefits/model_deployment.ipynb:530002
+#: 008c829248034c1eab382db4683c8ed0
+msgid ""
+"Even though this introduction is using `MMM`, all other PyMC-Marketing "
+"models (MMM and CLV) provide these functionalities as well."
+msgstr ""
+
+#: ../source/guide/benefits/model_deployment.ipynb:540002
+#: 392a5bea5c84426e896e830f2f0adfa7
+msgid "Summary"
+msgstr ""
+
+#: ../source/guide/benefits/model_deployment.ipynb:550002
+#: 0985bf85eec042e58252484dbca32016
+msgid ""
+"The PyMC-Marketing functionalities described here are intended to "
+"facilitate model sharing among data science teams without demanding "
+"extensive modelling technical knowledge for everyone involved. We are "
+"still iterating on our API and would love to hear more feedback from our "
+"users!"
+msgstr ""
