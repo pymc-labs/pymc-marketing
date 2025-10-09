@@ -1,0 +1,1002 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:10003
+#: 67dad46917554efbae0b28a738d7f28d
+msgid "MMM End-to-End Case Study"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:10005
+#: 427f8af3682e44d3926c1fac206fc1dd
+msgid ""
+"In today's competitive business landscape, optimizing marketing spend "
+"across channels is crucial for maximizing return on investment and "
+"driving business growth. This notebook demonstrates how to leverage PyMC-"
+"Marketing's Media Mix Modeling (MMM) to gain actionable insights into "
+"marketing effectiveness and optimize budget allocation."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:10007
+#: 424388f255ea4bd2bcb183372a8cf7c0
+msgid ""
+"We'll walk through a real-world case study using data from a [PyData "
+"Global 2022](https://pydata.org/global2022/) presentation ([Hajime Takeda"
+" - Media Mix Modeling:How to Measure the Effectiveness of "
+"Advertising](https://www.youtube.com/watch?v=u4U_PUTasPQ)). Our goal is "
+"to show how MMM can help marketing teams:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:10009
+#: 5dc5da2d73da429ebf32c553c3eb7da9
+msgid "Quantify the impact of different marketing channels on sales"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:10010
+#: 8ed9aa05d6394e6f8d3b11b873cfb789
+msgid "Understand saturation effects and diminishing returns"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:10011
+#: 77ec3c03e2c846238d56be9cf604de08
+msgid "Identify opportunities to reallocate budget for improved performance"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:10012
+#: 55d886d65a144498b8e7724702e80c1b
+msgid "Make data-driven decisions about future marketing investments"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:10014
+#: a1ef58fe70174811ac35b92c554951a6
+msgid "**Outline**"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:10016
+#: a340c0f4c66e415ab06900998049e5d9
+msgid "Data Preparation and Exploratory Analysis"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:10017
+#: 76e5ad118e0b4a218dfb4fe1206330bb
+msgid "Model Specification and Fitting"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:10018
+#: 68cca5e256b3400e92b9a0ab7006d058
+msgid "Model Diagnostics and Validation"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:10019
+#: 826335984cec49b6bc5257b4b7e41e2f
+msgid "Marketing Channel Deep Dive"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:10020
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:500006
+#: 5d754109d39c4ab8a6fe24d70a492741 db3b9fd766f3417884c60189c89d5d5b
+msgid "Channel Contributions"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:10021
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:550002
+#: 4f4f331696dd4d96a4da375ea04194d2 5c83ae636dd14e1484606e3bd7afb0e8
+msgid "Saturation Curves"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:10022
+#: 543c79dee6654937a65af87a7530ddc8
+msgid "Return on Ad Spend (ROAS)"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:10023
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:690002
+#: 108112c5a1374d03be47614fafd861ab c633690154ba456eaf88cf41dd81cca4
+msgid "Out-of-Sample Predictions"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:10024
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:820002
+#: 0fb231c3b9a64f1fa0a94ee65dc6d884 f29ccb905995481b92fee20a1588cc63
+msgid "Budget Optimization"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:10025
+#: 6c0a94118f4d4e198a3dfff341efc69b
+msgid "Key Takeaways and Next Steps"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:10028
+#: 9d1a5e8937b74bb1a2a77ca4294a5369
+#, python-brace-format
+msgid ""
+"In this notebook we guide you through what a typical MMM first iteration "
+"looks like (note that what a first iteration means depends on the "
+"business context). We focus on the application of the model for a "
+"concrete business case. If you want to know more about the model "
+"specification please refer to the {ref}`mmm_example` notebook."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:20002
+#: 104b3568ae2648ba96d90219588ec0a5
+msgid "Prepare Notebook"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:20004
+#: abe9d9402542445f8eeed4ed3be3861e
+msgid "We load the necessary libraries and set the notebook's configuration."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:50002
+#: 4059fcad98dc481ca438c1ac0574ded0
+msgid "Load Data"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:50004
+#: 152eadddf2a940e2bd1d5bcdfbd9ee0d
+msgid ""
+"We load the data from a CSV file as a pandas DataFrame. We also do some "
+"light data cleaning following the filtering of the original case study. "
+"In essence, we are filtering and renaming certain marketing channels."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:70002
+#: a077a6058d7b49ffab34e59ec1ca9141
+msgid "Exploratory Data Analysis"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:70004
+#: 299309e1b93241bfb3a59900256fc870
+msgid ""
+"We should always start looking at the data! We can start by plotting the "
+"target variable, i.e. the sales."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:90002
+#: 04974886ab614bc8a5d984a3af64465f
+msgid ""
+"This time series, which comes in weekly granularity, has a clear yearly "
+"seasonality pattern and apparently a mild downward trend."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:100002
+#: 88f0e177c13e4ce4b83811a57f826ce0
+msgid ""
+"Next, let's look into the marketing channels spend data. We first look "
+"into the share to get a feeling on the relative spend across channels."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:120002
+#: 55e815385e7f45479d156af738f82f6b
+msgid ""
+"In this specific example we see that `Direct Mail` is the channel with "
+"the highest spend, followed by `Newspaper` and `Online Display`."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:130002
+#: b933ef3120dc415fb8a952e418d7b2ee
+msgid "Next, we look into the time series of each of the marketing channels."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:150002
+#: 982fd80df08e4ada82b3e0d198f86409
+msgid ""
+"We see an overall decerease spend over time. This might explain the "
+"downward trend in the sales time series."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:160002
+#: 25bf690dbb4d4f589a26d20930a4304d
+msgid ""
+"Next, we can compute the correlation between the marketing channels and "
+"the sales."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:160005
+#: 79055b0a16e543bc99531e4644e40454
+msgid ""
+"We all know that correlation does not imply causation. However, it is a "
+"good idea to look into the correlation between the marketing channels and"
+" the target variable. This can hel us spot issues in the data (very "
+"commom in real cases) and inspire some feature engineering."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:180002
+#: 123994fff87b474b8ab3a6eccab38ba5
+msgid ""
+"The channels with the highest correlation with the sales are `TV`, "
+"`Insert`, and `Online Display`. Observe that the biggest channel in "
+"spend, `Direct Mail`, has the lowest correlation."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:190002
+#: 78db19e0d23c4ca4b38699240b9711d1
+msgid "Train Test Split"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:190004
+#: 76a3e41043744dd4bbd673cbac755884
+msgid ""
+"We are now ready to fit the model. We start by splitting the data into "
+"training and testing."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:190007
+#: d07cac76627c489c9350d69fe551ece7
+#, python-brace-format
+msgid ""
+"In a real case scenario you should use more data for training than for "
+"testing (see {ref}`mmm_time_slice_cross_validation`). In this case we are"
+" using a small dataset for demonstrative purposes."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:220002
+#: 45c6bd03bf8848ba8819c01caf58c45d
+msgid "Model Specification"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:220004
+#: 0519a403875b46689ddf328665a53c98
+msgid ""
+"Assuming we are working on the first iteration, we typically would not "
+"have lift tests data to calibrate the model. This is fine, we can start "
+"with a spends priors to get started."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:220008
+#: a471a4c2e7f147cd84ab1ce177dbd31e
+#, python-brace-format
+msgid ""
+"Ideally, in the next iteration we should have some of these lift tests to"
+" calibrate the model. For more details see {ref}`mmm_lift_test` and the "
+"{ref}`mmm_roas` case study notebook."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:220011
+#: 8f34190b0fa14316aa483b602bdd2a3a
+msgid ""
+"The idea behind the spends priors is that we use the spend shares as a "
+"proxy for the effect of the media channels on the sales. This is not "
+"perfect but can be a good starting point. In essence, we are giving the "
+"higher spend channels more flexibility to fit the data with a wider "
+"prior. Let's see how this looks like. First, we compute the spend shares "
+"(on the training data!)."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:240002
+#: 0f96de7a84944cb1b4de90306a5ac031
+msgid ""
+"Next, we use these spend shares to set the prior of the model using the "
+"model configuration."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:260002
+#: 72037c76304149a5b8e704b807d51c67
+#, python-brace-format
+msgid ""
+"We are now ready to specify the model (see {ref}`mmm_example` for more "
+"details). As the yearly seasonal component is not that strong, we use few"
+" Fourier terms."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:280002
+#: acff33a2168044e2ad829172d46bceb0
+msgid "Prior Predictive Checks"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:280004
+#: 08337874e6cc49eda377a5c7b8ec6588
+msgid ""
+"We can now generate prior predictive samples to see how the model behaves"
+" under the prior specification."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:300002
+#: 0b6d3bb1be434d26a81443a0230bccc2
+msgid ""
+"Overall, the priors are not very informative and the ranges is "
+"approximately one order of magnitude of the observed data. Note that the "
+"choice of likelihood as a truncated normal is to avoid negative values "
+"for the target variable."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:310002
+#: 943a0a9439d643a1b38d058bb68d4c6e
+msgid ""
+"Let's look into the channel contribution share **before** fitting the "
+"model."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:330002
+#: a8cab6c726604a508afb9f6f4693e0d7
+msgid ""
+"We confirm these represent the spend shares as expected from the prior "
+"specification."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:340002
+#: b0b3ce017c334e448f9ed321c061a773
+msgid "Model Fitting"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:340004
+#: 009a20a1963646b5ab285b1fd2e2b1bf
+msgid "We now fit the model to the training data."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:360002
+#: 01a87faafa80452bb2f0deeb01da6cbc
+msgid "Model Diagnostics"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:360004
+#: dcf224cb384c4a2a9cc9303d76a4048d
+msgid "Before looking into the results let's check some diagnostics."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:370002
+#: 8a69cc92bcda4495bae3b67461055054
+msgid "\\displaystyle 0"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:380002
+#: 6a66c51b1f78460e805cf4df1b480746
+msgid "We do not have divergent transitions, which is good!"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:400002
+#: 352dc8db2e724dc88457cdd401c50d83
+msgid ""
+"On the other hand, the R-hat statistics are all close to 1, which is also"
+" good!"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:410002
+#: 234160dbb856456fbac87f434200a2ce
+msgid "Next let's look into the model trace."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:430002
+#: a2fc7aac33cc444fbfd34a570cc1fdac
+msgid ""
+"We see a good mixing in the trace, which is consistent with the good "
+"R-hat statistics."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:440002
+#: 2b5e9df4e09546f0a69aa9031f4df6d6
+msgid "Posterior Predictive Checks"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:440004
+#: 263ccb11e231475ea55b31cb4bf2cb8f
+msgid ""
+"As our model and posterior samples are looking good, we can now look into"
+" the posterior predictive checks."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:460002
+#: 06023218b0284a17be0cfcb19924d8b9
+msgid ""
+"The posterior predictive sales look quite reasonable. We are explaining a"
+" good amount of the variance in the data and the trends are well "
+"captured."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:470002
+#: 86b67520262c479bb3697468bedf7b14
+msgid "We can look into the errors of the model:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:490002
+#: 1e5fd9b06e394052a04fd723df1d4524
+msgid "We do not detect any obvious patterns in the errors."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:500002
+#: 7a6c5e120cbd4aa0bc87c00d44758341
+msgid "Media Deep Dive"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:500004
+#: 99be27be8c654298b6b34556780804a4
+msgid "In this section we perform a deep dive into the media channels insights."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:500009
+#: cf9290d531bd44bea001b0e5cc3f7c01
+msgid ""
+"Now that we are happy with the global model fit, we can look into the "
+"media and individual channels contributions."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:500011
+#: cc838c95db524563834eee7c92f5aa8f
+msgid "We start by looking into the aggregated contributions."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:520002
+#: 1518544323c04343a132bc302cf9914c
+msgid "Next, we look into deeper into the components:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:540002
+#: b391a993de5f4111a65c5481d7047c4e
+msgid "Here are some interesting observations about the model:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:540004
+#: f83170164a844057b4623c002fb442de
+msgid ""
+"The `intercept` accounts for approximately $60\\%$ of the contribution. "
+"This is what people usually call the \"baseline\"."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:540005
+#: c3efbfd84cb54ed3ad86c5a44f31f7e5
+msgid ""
+"The top media contribution channels are `Online Display`, `Direct Mail` "
+"and `TV`. In some sense we see how the model is averaging the spend share"
+" (prior) and the predictive power of the media channels (posterior) ."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:550004
+#: 27159bb87d97409382ea0617ff3c67ec
+msgid ""
+"We continue our analysis by looking into the direct response curves. "
+"These will be the main input for the budget optimization step below."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:570003
+#: c24b9fb0cb124c5da17491a49a86cbe7
+msgid ""
+"These curves by themselves can be a great input for marketing planning! "
+"One could use them to set the budget for the next periods and manually "
+"optimize the spend for these channels depending on the saturation points."
+" This process can be a good starting point with engage with the team. "
+"That being said, we can do better with custom optimization rutines as "
+"described in the following sections."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:570006
+#: 095d476f55dc470b8e7448f5076283d7
+msgid ""
+"Beside the direct response curves, we can look intro global contribution "
+"plots simulations. The idea is to vary the spend by globally multiplying "
+"the time series spend by a value $\\delta > 0$ and seeing the expected "
+"contribution. PyMC-Marketing also shows the $94\\%$ Highest Density "
+"Interval (HDI) of the simulations results."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:590002
+#: 5f4d7bb04187414dbdfefef18f2dcffb
+msgid "We can clearly see the saturation effects for the different channels."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:590004
+#: e0f29418d5114363bf0229f9835ded9a
+msgid ""
+"A complementary plot is to plot these same simulations against the actual"
+" spend:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:610002
+#: c18fbca9c95c433ea3c9b670b1fd1840
+msgid ""
+"The vertical lines show the spend from the observed data (i.e. $\\delta ="
+" 1 $ above). This plot clearly shows that, for example, `Direct Mail` is "
+"won't have much incremental contribution if we keep increasing the spend."
+" On the other hand, channels like `Online Display` and `Insert` seem to "
+"be good candidates to increase the spend. These are the concrete "
+"actionable insights you can extract from these typo of models to optimize"
+" your media spend mix 🚀!"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:620002
+#: 2aaede3a031f418a957a6c8cd4e9051e
+msgid "Return on Ads Spend (ROAS)"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:620004
+#: a1b659e7c31341adb1e172e7215292b7
+msgid ""
+"To have a more quantitative metric of efficiency we compute the Return on"
+" Ads Spend (ROAS) over the whole training period."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:620006
+#: afe5c3927a0240dd9006dbc8e588a9ed
+msgid "To begin lets plot the contribution share for each channel."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:640002
+#: 1ee1565ab96c4c02ab5cbc3ff9f663e5
+msgid ""
+"These contributions are of course influences by the spend levels. If we "
+"want to get a better picture of the efficiency of each channel we need to"
+" look into the Return on Ads Spend (ROAS). This is done by computing the "
+"ratio of the mean contribution and the spend for each channel."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:660002
+#: 2b0b9909f4b14ed88928006c7ed91f28
+msgid ""
+"Here we see that the channels with the highest ROAS **on average** are "
+"`Online Display` and `Insert` whereas `Direct Mail` has the lowest ROAS. "
+"This is consistent with the previous findings analyzing the direct and "
+"global response curves."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:660005
+#: 5de3bb2bce434c71b1626f1cd36c46f3
+msgid ""
+"The large HDI intervals for the ROAS for the top channels come from the "
+"fact that the spend share of them during the training period is "
+"relatively small. Event though we use the spend share as priors, the "
+"overall spend levels are also reflected in the estimate (see for example "
+"how small the HDI is for `Direct Mail`)."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:660007
+#: 116ab32e410c45b193b1fe37bb2a7a78
+msgid ""
+"We can see this as an opportunity! Based on this analysis we see that "
+"`Online Display` and `Insert` are the best channels to invest in. Hence, "
+"if we optimize our budget accordingly (more on the budget optimization "
+"below) we can improve our marketing mix and at the same time create more "
+"variance in the training data so that we get refined ROAS estimates for "
+"future iterations 😎."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:670002
+#: 14b459e7ea5c45b89bbb560c7845da3f
+msgid "It is also useful to compare the ROAS and the contribution share."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:690004
+#: c2e29710e8254ed586ca4bb21935236d
+msgid ""
+"Until now we have analyzed the model fit from the in-sample perspective. "
+"If we want to follow the model recommendations, we need to have evidence "
+"that the model is not only good in explaining the past but also good at "
+"making predictions. This is a key component to getting the buy in from "
+"the business stakeholders."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:690006
+#: e53a177896854f7b9d9521a3cc2d252a
+msgid ""
+"The PyMC-Marketing MMM API allows to easily generate out-of-sample "
+"predictions from a fitted model as follows:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:710002
+#: 36fd293432694b349c7b3165c268065b
+msgid "We can visualize and compare the in sample and out of sample predictions."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:730002
+#: fec00a81c1124a12a1adf05aaec9d468
+msgid ""
+"Overall, both the in-sample and out-of-sample predictions look very "
+"reasonable."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:730004
+#: f6faf4beeba14d50b5ae0f5657a5be2d
+msgid "Let's zoom in the out-of-sample predictions:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:750002
+#: a61eb9f928f547a5aa2a17623e0f2c33
+msgid "These look actually very good!"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:760004
+#: f428828e995b4e5ab9a1f88dd2c11341
+#, python-brace-format
+msgid ""
+"To have a concrete score metric we can use the Continuous Ranked "
+"Probability Score ([CRPS](https://towardsdatascience.com/crps-a-scoring-"
+"function-for-bayesian-machine-learning-models-dd55a7a337a8)). This is a "
+"generalization of the mean absolute error to the case of probabilistic "
+"predictions. For more detail see the "
+"{ref}`mmm_time_slice_cross_validation` notebook."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:780002
+#: 932f724d5eb14aba97ef5934c8360560
+msgid ""
+"Interestingly enough, the model performance is better in the test set. "
+"There could me many reasons for it:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:780004
+#: d919d3924b9443868c89ca782aa5b7d7
+msgid ""
+"The model is not capturing the end of the seasonality very well in the "
+"training set."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:780005
+#: 654bb37646cf470f9a7685c3ff1c4561
+msgid "There is less variability or complexity in the test set data."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:780006
+#: 01c8ebfc6913423a91e98ef75411da54
+msgid ""
+"The test set has fewer points, which could affect the CRPS calculation "
+"comparison."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:780008
+#: f0726924f2d0465d8e8130fef847034c
+#, python-brace-format
+msgid ""
+"In order to have a better comparison we should look into the time slice "
+"cross validation results as in the {ref}`mmm_time_slice_cross_validation`"
+" notebook."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:790002
+#: bebdadb5f27349db93f9e84800a75b0f
+msgid "Next, we look into the out-of-sample channel contributions."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:810002
+#: 2d9ed96f2d1c49d29c7518357df6bbf6
+msgid ""
+"We do not have the *true* values contributions to compare against because"
+" this is what we are trying to estimate on the first place. Nevertheless,"
+" we can still do the time slice cross validation at the channel level to "
+"analyze the stability of the out-of-sample predictions and media "
+"parameters (adstock and saturation)."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:820004
+#: 621213d9f2c947fbb7410893be0d979d
+#, python-brace-format
+msgid ""
+"In this las section we explain how to use PyMC-Marketing to perform "
+"optimization of the media budget allocation. The main idea is to use the "
+"response curves to optimize the spend. For more details see "
+"{ref}`mmm_budget_allocation_example` notebook."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:830002
+#: defb26e4852c4344935bf60537929425
+msgid ""
+"For this example, let us assume we want to re-allocate the budget of the "
+"tests set. The PyMC-Marketing MMM optimizer would assume we will equally "
+"allocate the budget to all channels over the next `num_periods` periods. "
+"Hence, when we specify the `budget` variable we are actually specifying "
+"the weekly budget (in this case). Therefore, it is important to "
+"understand the past average weekly spend per channel:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:860002
+#: f713ca39e76e493c91b211aa47206f14
+msgid "Let's plot the average weekly spend per channel for the *actual* test set."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:880002
+#: 305d954475904bbba2b93f41376c111b
+msgid ""
+"Observe that the spend distribution on the test set is considerably "
+"different from the train set. When planning future spends, this is "
+"usually the case as the team might be exploring new investment "
+"opportunities. For example that in the test set we have on average more "
+"spend on `Online Display` while less spend on `Insert`, both with high "
+"ROAS from the training data."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:900002
+#: ba01659a04f141c6bc63a58d340dea8f
+msgid ""
+"Next, let's talk about the variability of the allocation. Even if the "
+"model finds `Insert` as the most efficient channel, strategically is very"
+" hard to simply put $100\\%$ of the budget into this channel. A better "
+"strategy, which generally plays well with the stakeholders, is to allow a"
+" custom degree of flexibility and some upper and lower bounds for each "
+"channel budget."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:900004
+#: 9de2bffe2f184065bc59a9ce65fe19a1
+msgid ""
+"For example, we will allow a $50\\%$ difference on the past average "
+"weekly spend for each channel."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:920002
+#: 34ece1e7c5ba45219796e64edc92521d
+msgid "Now we are ready to pass all this business requirements to the optimizer."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:940002
+#: 78b90992bfcd484eab9c2d94f507b9c4
+msgid "Let's visualize the results."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:960002
+#: 237338120e5244b58e548c60ceef0869
+msgid ""
+"We verify that the sum of the budget allocation is the same as the "
+"initial budget."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:980002
+#: ee316b9256044f6a94af83f05592d3e5
+msgid ""
+"The first thing we notice is how the spend on `Direct Mail` has been "
+"reduced. This is consistent with the previous findings that this channel "
+"is not very efficient. The spends has been distributed more evenly across"
+" the other channels. Interestingly, we see how the spend on `Online "
+"Display` is slightly reduced. This might be explained by the fact that "
+"this channel already had an average spend increase from the training to "
+"the test set."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:990002
+#: dee0c57df86d411d8f4c4a182ebd3e87
+msgid ""
+"Next, we can look into the expected channel contributions with this new "
+"budget allocation over time."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1010003
+#: e2ab7f932a574f458a8e6f217ca5286b
+msgid ""
+"Observe that uncertainty increases given the new level of spending. For "
+"example, historically spending for `Online Display` was in between $200$K"
+" to $250$K and we are now recommending around $350$K. The fact that this "
+"spend level has not been reached before is refelected in the increased "
+"uncertainty (yellow band)."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1020002
+#: 5d94554d80e6472eacce5683c3d12e06
+msgid ""
+"We can also obtain the average expected contributions per channel with "
+"the new budget allocation."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1040002
+#: 8dd2fcaa9fed495ea390b07aeaaff38b
+msgid ""
+"Lastly, we want to compare the optimized budget allocation with the "
+"initial (naive) allocation. We compare this at two levels:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1040004
+#: 7460d2a6c91f4802b0e6ee618934a1e3
+msgid ""
+"Channel contributions: We compute the difference between the optimized "
+"and naive channel contributions from the posterior predictive samples."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1040005
+#: 4b539a5d63cf4e8b9f996ae46c28e0ae
+msgid ""
+"Total Sales: We compute the difference between the optimized and naive "
+"total sales from the posterior predictive samples. In this case we "
+"include the intercept and seasonality, but we se the control variables to"
+" zero as in many cases we do not have them for the future."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1050002
+#: 8644a45fb1f841b6bf8526a9e83580b7
+msgid "Channel Contribution Comparison"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1050004
+#: 0452d480fbec4f40a9fc30d2739215a2
+msgid ""
+"The first thing we need to do is to compute the naive channel "
+"contributions for the test period. We do this by simply setting these "
+"values as uniform across the test period and then using the model "
+"(trained on the training period) to compute the expected channel "
+"contributions."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1070002
+#: 6f6d70620f6749e390eb538313b16c84
+msgid "Let's visualize the optimized and naive channel contributions."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1090002
+#: 168facae74ec432286d9f16f69af7cbd
+msgid ""
+"We see indeed that the optimized allocation strategy is more efficient "
+"regarding the aggregated channel contributions. This is exactly what we "
+"were looking for!"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1090004
+#: 34789209fae64f878d327a9912a19cc5
+msgid ""
+"We can quantify the percentage improvement of the optimized allocation by"
+" comparing the two posterior distributions aggregated over time."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1110002
+#: d857e068c6d64a4e8c8be53e51457f25
+msgid ""
+"Concretely, we see an approximately $10\\%$ increase in the aggregated "
+"channel contributions. This could result in a significant increase in "
+"monetary value!"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1110005
+#: 002a2feb3c0547be9802bef5fbea8ca7
+msgid ""
+"The orange line and corresponding range compares these posterior samples "
+"to the reference value of zero. Hence, we have a probability of more than"
+" $80\\%$ that the optimized allocation will perform better than the "
+"initial allocation."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1120002
+#: 9f0c8c185f494c3bb671fa2110fe004e
+msgid "Sales Comparison"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1120004
+#: 7fb7dfa4f395418286652256e40c537c
+#, python-brace-format
+msgid ""
+"Next, we want to compare the optimized and naive total sales. The "
+"strategy is the same as in the case above. The only difference is that we"
+" add additional variables like seasonality and baseline (intercept). As "
+"mentioned above, we set the control variables to zero for the sake of "
+"comparison. This is what is done in the "
+"{meth}`~pymc_marketing.mmm.mmm.MMM.allocate_budget_to_maximize_response` "
+"method."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1140002
+#: 85dc1e1bd7ee46b38d445da0a6c0e187
+msgid ""
+"At the level of total sales, in this case the difference is negligible as"
+" the baseline and seasonality (which are the same in both cases) explain "
+"most of the variance as the average weekly media spend in this last "
+"period is much smaller as in the training set."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1160002
+#: 85e1a148d4ac4a51af10680c753e983c
+msgid ""
+"In this case we see that when we compare the posterior samples of the "
+"uplift to the reference value of zero we do not find any difference. This"
+" should not be discouraging as we did see a $10\\%$ increase in the "
+"aggregated (over time) channel contributions. This can translate to a lot"
+" of money! There is no discrepancy on the results. What we are seeing is "
+"that the constrained optimization problem where we are just allowed, "
+"because of business requirements (which is very common for many marketing"
+" teams), to change the budget up to $60\\%$ we improved the channel "
+"contributions significantly but not at the same order of magnitude of the"
+" other model components."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1170002
+#: c268acbf16fc456b926b2ec4ac7caec4
+msgid "Conclusion"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1170004
+#: 917fd04522c14309bed4f00a2a3865fe
+msgid ""
+"This case study demonstrated how to leverage PyMC-Marketing's Media Mix "
+"Modeling capabilities to gain actionable insights into marketing "
+"effectiveness and optimize budget allocation. We walked through the "
+"entire process from data preparation and exploratory analysis to model "
+"fitting, diagnostics, and budget optimization. The model provided "
+"valuable insights into the effectiveness of different marketing channels,"
+" their saturation effects, and return on ad spend. We were able to use "
+"these insights to propose an optimized budget allocation that aims to "
+"maximize sales while respecting business constraints."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1170007
+#: 4978dd272a5f4180928157fa5083f674
+msgid "Next Steps"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1170009
+#: 91089875af5e4e12b42513d4597140a1
+msgid ""
+"Stakeholder engagement: Present findings to key stakeholders, focusing on"
+" actionable insights and potential business impact. Understand their "
+"feedback and iterate."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1170011
+#: 3c093d7f96674bbf81ae31a7412817b5
+msgid ""
+"Scenario planning: Use the model to simulate various budget scenarios and"
+" market conditions to support strategic decision-making."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1170013
+#: a4df3f52a4bd46d282e26c60e8a3df0e
+msgid ""
+"Integration with other tools: Explore ways to integrate the MMM insights "
+"with other marketing analytics tools and processes for a more holistic "
+"view of marketing performance."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1170015
+#: 47448b420ec44924b59b5efa7d461ac3
+#, python-brace-format
+msgid ""
+"Time-slice cross-validation: Implement a more robust validation strategy "
+"to ensure model stability and performance over time (see "
+"{ref}`mmm_time_slice_cross_validation`)."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1170017
+#: 67705b07deae42e9be393ca23323da09
+msgid ""
+"Iterate and refine: This analysis represents a first iteration. Future "
+"iterations could incorporate:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1170019
+#: 8c24a56becec4fa780fdc5afdcdddb85
+#, python-brace-format
+msgid "Lift test data to better calibrate the model (see {ref}`mmm_lift_test`)"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1170020
+#: 524df5425119439ca1c3f40efdd4e9bc
+msgid "More granular data (e.g., daily instead of weekly)"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1170021
+#: 961a10a1737d4e7389d878496c7905be
+msgid "Additional variables like competitor actions or macroeconomic factors"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1170023
+#: b20ccb74913743cf963f8b720674642f
+msgid ""
+"A/B (or Geo) testing: Design experiments to test the model's "
+"recommendations and validate its predictions in the real world."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1170025
+#: 25a738b4724b418980a8681b8082d32e
+msgid ""
+"Regular updates: Establish a process for regularly updating the model "
+"with new data to keep insights current."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1170027
+#: 5045b5d148e24b29868614bb3698ab20
+#, python-brace-format
+msgid ""
+"Explore advanced features: Investigate other PyMC-Marketing capabilities,"
+" such as incorporating time varying parameters (see and "
+"{ref}`mmm_tv_intercept` {ref}`(mmm_time_varying_media_example`) and "
+"custom models like hierarchical levels or more complex seasonality "
+"patterns, to further refine the model (see {ref}`mmm_components`)."
+msgstr ""

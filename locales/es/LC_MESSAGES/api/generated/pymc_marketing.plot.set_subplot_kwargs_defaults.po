@@ -1,0 +1,83 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.plot.set_subplot_kwargs_defaults.rst:2
+#: 09f041c51d5f4d3c9e421f3cd8e4970a
+msgid "set\\_subplot\\_kwargs\\_defaults"
+msgstr ""
+
+#: 141999b6bdee4f4f8727d1d1e5fa9737 of
+#: pymc_marketing.plot.set_subplot_kwargs_defaults:2
+msgid "Set the defaults for the subplot kwargs."
+msgstr ""
+
+#: 1f0b48e126bf43df89b4e059fdd4a18f of
+#: pymc_marketing.plot.set_subplot_kwargs_defaults
+msgid "Parameters"
+msgstr ""
+
+#: a527c47667384e9d869770536c8941fd of
+#: pymc_marketing.plot.set_subplot_kwargs_defaults:7
+msgid ""
+"**subplot_kwargs** : :obj:`MutableMapping`\\[:class:`python:str`, "
+":obj:`Any`]"
+msgstr ""
+
+#: 6530e2d80c904303a52f45d78389ae77 of
+#: pymc_marketing.plot.set_subplot_kwargs_defaults:6
+msgid "MutableMapping[python:str, Any]"
+msgstr ""
+
+#: 641f8ce40f104cb0886227a9c16ae24c of
+#: pymc_marketing.plot.set_subplot_kwargs_defaults:8
+msgid "The subplot kwargs to set the defaults for."
+msgstr ""
+
+#: 49477e1df70743b29b4a63d8c1f5f670 of
+#: pymc_marketing.plot.set_subplot_kwargs_defaults:10
+msgid "**total_size** : :class:`python:int`"
+msgstr ""
+
+#: 524dfcecdf9d48ba8bd46bf2a5162fc5 of
+#: pymc_marketing.plot.set_subplot_kwargs_defaults:9
+msgid "python:int"
+msgstr ""
+
+#: fd1b40e2be1d4a82b2bb716247412167 of
+#: pymc_marketing.plot.set_subplot_kwargs_defaults:11
+msgid "The total size of the coordinates."
+msgstr ""
+
+#: 7cf5697a4ae64489b51e35ea34909205 of
+#: pymc_marketing.plot.set_subplot_kwargs_defaults
+msgid "Raises"
+msgstr ""
+
+#: 65cb6602dd3944cf9cad6962b72c0ada of
+#: pymc_marketing.plot.set_subplot_kwargs_defaults:21
+msgid ":obj:`ValueError`"
+msgstr ""
+
+#: 87ed965cc79e4fc7b404ce2868a7adf9 of
+#: pymc_marketing.plot.set_subplot_kwargs_defaults:22
+msgid "If both `ncols` and `nrows` are specified."
+msgstr ""

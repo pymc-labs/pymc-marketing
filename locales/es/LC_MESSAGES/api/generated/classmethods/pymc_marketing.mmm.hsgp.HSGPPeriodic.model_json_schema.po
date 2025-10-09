@@ -1,0 +1,64 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.hsgp.HSGPPeriodic.model_json_schema.rst:2
+#: 0006ef9a14dc4a18863bb70363cea595
+msgid "HSGPPeriodic.model\\_json\\_schema"
+msgstr ""
+
+#: 89f8a4dce3b14af3877d59abc2713bcb of
+#: pydantic.main.BaseModel.model_json_schema:2
+msgid "Generates a JSON schema for a model class."
+msgstr ""
+
+#: f1cca107d0b449c299e9c906ee2716e1 of
+#: pydantic.main.BaseModel.model_json_schema:4
+msgid "Args:"
+msgstr ""
+
+#: 5ea998b574c4499fb46b62a5bff69d2d of
+#: pydantic.main.BaseModel.model_json_schema:5
+msgid ""
+"by_alias: Whether to use attribute aliases or not. ref_template: The "
+"reference template. schema_generator: To override the logic used to "
+"generate the JSON schema, as a subclass of"
+msgstr ""
+
+#: bce87b1fb7d647e09b6a38cf28aacc6f of
+#: pydantic.main.BaseModel.model_json_schema:8
+msgid "`GenerateJsonSchema` with your desired modifications"
+msgstr ""
+
+#: e9860dc096934ac1b70aaa715f8ce882 of
+#: pydantic.main.BaseModel.model_json_schema:9
+msgid "mode: The mode in which to generate the schema."
+msgstr ""
+
+#: 46e41f6ae0f6476b84e32bd22d50be16 of
+#: pydantic.main.BaseModel.model_json_schema:11
+msgid "Returns:"
+msgstr ""
+
+#: a00067ccfff040e7b76b0fc7e77bfa1e of
+#: pydantic.main.BaseModel.model_json_schema:12
+msgid "The JSON schema for the given model class."
+msgstr ""

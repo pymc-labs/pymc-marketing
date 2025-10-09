@@ -1,0 +1,195 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.utility.rst:2
+#: 8308a68b657b4c8a9dd73790762cc6c2
+msgid "utility"
+msgstr ""
+
+#: f4a519048bc74d819fcddb11d14ae5d6 of pymc_marketing.mmm.utility:1
+msgid "Utility functions for Bayesian optimization."
+msgstr ""
+
+#: f43556770fa24759b719ed96d7425be4 of pymc_marketing.mmm.utility:4
+msgid "Key Concepts:"
+msgstr ""
+
+#: 2bd36744e00a41cc947abfb6376173a9 of pymc_marketing.mmm.utility:6
+msgid "**Samples**:"
+msgstr ""
+
+#: dfa66dc76fb844b08c04faf4c81f7d3e of pymc_marketing.mmm.utility:7
+msgid ""
+"A PyTensor tensor variable (`pt.TensorVariable`) representing samples "
+"drawn from the posterior distributions of the model outputs. These "
+"samples capture the uncertainty in the model predictions and are "
+"essential for computing expected utilities and risk measures in Bayesian "
+"optimization."
+msgstr ""
+
+#: 0d1e106d0db04c9e8cc5d8115ad5eb00 of pymc_marketing.mmm.utility:11
+msgid "**Budgets**:"
+msgstr ""
+
+#: 327c7903f24d424a9b2dcc11681fc77a of pymc_marketing.mmm.utility:12
+msgid ""
+"A PyTensor tensor variable representing a set of monetary budgets "
+"allocated to different assets, investments, or channels. Each element "
+"corresponds to the budget for a specific option in the optimization "
+"process."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.utility.rst:13
+#: 275f903ef6fd422998c20a5f953c7257
+msgid "Functions"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.utility.rst:27:<autosummary>:1
+#: e872baeda98a4982b1450718319311e5
+msgid ""
+":py:obj:`adjusted_value_at_risk_score "
+"<pymc_marketing.mmm.utility.adjusted_value_at_risk_score>`\\ "
+"\\(\\[...\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.utility.rst:27:<autosummary>:1
+#: d23ad551279d4c4a9e0e014b8994ae31
+msgid "Calculate adjusted Value at Risk (AVaR) score."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.utility.rst:27:<autosummary>:1
+#: 541f4c1e83c44a28aaafbfb7bb90ff8a
+msgid ""
+":py:obj:`average_response "
+"<pymc_marketing.mmm.utility.average_response>`\\ \\(samples\\, budgets\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.utility.rst:27:<autosummary>:1
+#: 8c561e40be13434db1783122ef856bb8
+msgid "Compute the average response of the posterior predictive distribution."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.utility.rst:27:<autosummary>:1
+#: 60fca15fdb4049a9bfec3ae458779645
+msgid ""
+":py:obj:`conditional_value_at_risk "
+"<pymc_marketing.mmm.utility.conditional_value_at_risk>`\\ "
+"\\(\\[confidence\\_level\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.utility.rst:27:<autosummary>:1
+#: 03a43c3181594db795e723b1f9c634a9
+msgid ""
+"Calculate the Conditional Value at Risk (CVaR) at a specified confidence "
+"level."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.utility.rst:27:<autosummary>:1
+#: 6bebeefb6dc745f681c2370be3ea28b4
+msgid ""
+":py:obj:`diversification_ratio "
+"<pymc_marketing.mmm.utility.diversification_ratio>`\\ \\(samples\\, "
+"budgets\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.utility.rst:27:<autosummary>:1
+#: 88140ee8013a40e5ba92adf8b217d81d
+msgid ""
+"Calculate the Diversification Ratio of a portfolio to evaluate risk "
+"distribution."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.utility.rst:27:<autosummary>:1
+#: 3fe9e2c303414cebb7bbd9467c2a6058
+msgid ""
+":py:obj:`mean_tightness_score "
+"<pymc_marketing.mmm.utility.mean_tightness_score>`\\ \\(\\[alpha\\, "
+"confidence\\_level\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.utility.rst:27:<autosummary>:1
+#: 9445ea271f2e4414ba94ed23b6ce2543
+msgid "Calculate the Mean Tightness Score (MTS)."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.utility.rst:27:<autosummary>:1
+#: 69c70ff4afc1446895dbfaea5b180333
+msgid ""
+":py:obj:`portfolio_entropy "
+"<pymc_marketing.mmm.utility.portfolio_entropy>`\\ \\(samples\\, "
+"budgets\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.utility.rst:27:<autosummary>:1
+#: da47cc276c584bdc8e9e524161460aa6
+msgid ""
+"Calculate the entropy of a portfolio's asset weights to assess "
+"diversification."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.utility.rst:27:<autosummary>:1
+#: 42041b6984e34004b31abcb9ce0fa634
+msgid ""
+":py:obj:`raroc <pymc_marketing.mmm.utility.raroc>`\\ "
+"\\(\\[risk\\_free\\_rate\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.utility.rst:27:<autosummary>:1
+#: 784b2164a95c460a9d7aed7c10187a39
+msgid "Calculate the Risk-Adjusted Return on Capital (RAROC)."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.utility.rst:27:<autosummary>:1
+#: 80b32ae256fa4f9690251b5661e2df99
+msgid ""
+":py:obj:`sharpe_ratio <pymc_marketing.mmm.utility.sharpe_ratio>`\\ "
+"\\(\\[risk\\_free\\_rate\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.utility.rst:27:<autosummary>:1
+#: 16688174c36e4dbaba282f2cc462a6d4
+msgid "Calculate the Sharpe Ratio."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.utility.rst:27:<autosummary>:1
+#: 8cb26068a57e4f99a047a962349763e3
+msgid ""
+":py:obj:`tail_distance <pymc_marketing.mmm.utility.tail_distance>`\\ "
+"\\(\\[confidence\\_level\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.utility.rst:27:<autosummary>:1
+#: 13a6a237a6844438aecb2092d868d996
+msgid "Calculate the absolute distance between the mean and the quantiles."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.utility.rst:27:<autosummary>:1
+#: 3f9be5e4feaa4266b69afcf5e3973161
+msgid ""
+":py:obj:`value_at_risk <pymc_marketing.mmm.utility.value_at_risk>`\\ "
+"\\(\\[confidence\\_level\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.utility.rst:27:<autosummary>:1
+#: e52808372d9b4285b6b5839ef4353c5b
+msgid "Calculate the Value at Risk (VaR) at a specified confidence level."
+msgstr ""

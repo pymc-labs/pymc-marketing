@@ -1,0 +1,71 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.mmm.BaseMMM.compute_mean_contributions_over_time.rst:2
+#: 9c9180c708934c1699477b5c06218487
+msgid "BaseMMM.compute\\_mean\\_contributions\\_over\\_time"
+msgstr ""
+
+#: 1914255f85ff45a6b2e217d695f5f5a5 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.compute_mean_contributions_over_time:2
+msgid "Get the contributions of each channel over time."
+msgstr ""
+
+#: 48d174c3539a4ba8bfd3a845fc101737 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.compute_mean_contributions_over_time
+msgid "Parameters"
+msgstr ""
+
+#: 20d5e2555a4147d5bed1718c224d416e of
+#: pymc_marketing.mmm.base.MMMModelBuilder.compute_mean_contributions_over_time:7
+msgid "**original_scale** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+
+#: 224028ef627e4d03a632d781cc6e0579 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.compute_mean_contributions_over_time:6
+msgid "bool, optional"
+msgstr ""
+
+#: 90ff9eeb2a24448499c05364941f0725 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.compute_mean_contributions_over_time:8
+msgid ""
+"Whether to return the contributions in the original scale of the target "
+"variable. If False, the contributions are returned in the scale of the "
+"transformed target variable. Defaults to False."
+msgstr ""
+
+#: cd9ef018465e45e1b2a5e6c0019d54aa of
+#: pymc_marketing.mmm.base.MMMModelBuilder.compute_mean_contributions_over_time
+msgid "Returns"
+msgstr ""
+
+#: fdd49a8529cc4acdbd293fc8d1c58d79 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.compute_mean_contributions_over_time:16
+msgid ":obj:`pd.DataFrame`"
+msgstr ""
+
+#: 4a3f0e69c04e486ea7b77b2ca5ae6392 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.compute_mean_contributions_over_time:17
+msgid ""
+"A dataframe with the mean contributions of each channel and control "
+"variables over time."
+msgstr ""

@@ -1,0 +1,204 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.evaluation.compute_summary_metrics.rst:2
+#: 13db4062f5e94e6383688eacdde3aa12
+msgid "compute\\_summary\\_metrics"
+msgstr ""
+
+#: bf31c5cf42564d699968460478024e42 of
+#: pymc_marketing.mmm.evaluation.compute_summary_metrics:2
+msgid ""
+"Evaluate the model by calculating metric distributions and summarizing "
+"them."
+msgstr ""
+
+#: 92b8129e21004297bfc284cdded88503 of
+#: pymc_marketing.mmm.evaluation.compute_summary_metrics:4
+msgid ""
+"This method combines the functionality of "
+"`calculate_metric_distributions` and `summarize_metric_distributions`."
+msgstr ""
+
+#: 5bb05ddee0944acc967b72a6d4b8e0dd of
+#: pymc_marketing.mmm.evaluation.compute_summary_metrics
+msgid "Parameters"
+msgstr ""
+
+#: 4c56bfb35684469cb9f9a1779f0e2a22 of
+#: pymc_marketing.mmm.evaluation.compute_summary_metrics:9
+msgid "**y_true** : :obj:`npt.NDArray` | :obj:`pd.Series`"
+msgstr ""
+
+#: fe1dc6de85e647c99585c39a48e25bc9 of
+#: pymc_marketing.mmm.evaluation.compute_summary_metrics:8
+msgid "npt.NDArray | pd.Series"
+msgstr ""
+
+#: 811a804f58ab4fa892ddd6add11789f5 of
+#: pymc_marketing.mmm.evaluation.compute_summary_metrics:10
+msgid "The true values of the target variable."
+msgstr ""
+
+#: c96c1c148253492693bfabfc6006a1c9 of
+#: pymc_marketing.mmm.evaluation.compute_summary_metrics:12
+msgid "**y_pred** : :obj:`npt.NDArray` | :obj:`xr.DataArray`"
+msgstr ""
+
+#: e0d2f22033bf4a96aacbfd1006b17250 of
+#: pymc_marketing.mmm.evaluation.compute_summary_metrics:11
+msgid "npt.NDArray | xr.DataArray"
+msgstr ""
+
+#: 156cb141450546719a2dcfe1eb0b10f8 of
+#: pymc_marketing.mmm.evaluation.compute_summary_metrics:13
+msgid "The predicted values of the target variable."
+msgstr ""
+
+#: 7325bb486f404e4aa4c09b9798337d08 of
+#: pymc_marketing.mmm.evaluation.compute_summary_metrics:15
+msgid ""
+"**metrics_to_calculate** : :class:`python:list` of :class:`python:str` or"
+" :data:`python:None`, optional"
+msgstr ""
+
+#: 34dc386fb6024f05bf8f9b44f8756259 of
+#: pymc_marketing.mmm.evaluation.compute_summary_metrics:14
+msgid "python:list of python:str or python:None, optional"
+msgstr ""
+
+#: 39f45ea012734f629849b5f1688ff6e5 of
+#: pymc_marketing.mmm.evaluation.compute_summary_metrics:16
+msgid "List of metrics to calculate. Options include:"
+msgstr ""
+
+#: aeaa03f5d8aa4f34960c13baeb67484b of
+#: pymc_marketing.mmm.evaluation.compute_summary_metrics:17
+msgid "`r_squared`: Bayesian R-squared."
+msgstr ""
+
+#: 20ea8f8207dd40cfb74eb087a3339b13 of
+#: pymc_marketing.mmm.evaluation.compute_summary_metrics:18
+msgid "`rmse`: Root Mean Squared Error."
+msgstr ""
+
+#: 08c2bb7e51f1401881e552d56e0cebb3 of
+#: pymc_marketing.mmm.evaluation.compute_summary_metrics:19
+msgid "`nrmse`: Normalized Root Mean Squared Error."
+msgstr ""
+
+#: 8c2f4355df7a432b990c710de71ca255 of
+#: pymc_marketing.mmm.evaluation.compute_summary_metrics:20
+msgid "`mae`: Mean Absolute Error."
+msgstr ""
+
+#: f5a6c1a02a9e402a8d0abda3754b3bdd of
+#: pymc_marketing.mmm.evaluation.compute_summary_metrics:21
+msgid "`nmae`: Normalized Mean Absolute Error."
+msgstr ""
+
+#: 56d814ccc3e842618381b1b5346a9bf5 of
+#: pymc_marketing.mmm.evaluation.compute_summary_metrics:22
+msgid "`mape`: Mean Absolute Percentage Error."
+msgstr ""
+
+#: e7f2e7bd3f33461d8de98f135b7d4409 of
+#: pymc_marketing.mmm.evaluation.compute_summary_metrics:23
+msgid "Defaults to all metrics if None."
+msgstr ""
+
+#: 118c11d249d54a90bd9466fc96aec472 of
+#: pymc_marketing.mmm.evaluation.compute_summary_metrics:25
+msgid "**hdi_prob** : :class:`python:float`, optional"
+msgstr ""
+
+#: 0c6d841a53da4b8885225c21ea0188ac of
+#: pymc_marketing.mmm.evaluation.compute_summary_metrics:24
+msgid "python:float, optional"
+msgstr ""
+
+#: 9e22b523cd884946afb89ddf84f762a3 of
+#: pymc_marketing.mmm.evaluation.compute_summary_metrics:26
+msgid "The probability mass of the highest density interval. Defaults to 0.94."
+msgstr ""
+
+#: f64208f08bfc4dc6b3e6c140bd2cd36f of
+#: pymc_marketing.mmm.evaluation.compute_summary_metrics
+msgid "Returns"
+msgstr ""
+
+#: 15d35e6c85984603a3d1379a02096280 of
+#: pymc_marketing.mmm.evaluation.compute_summary_metrics:32
+msgid ":class:`python:dict` of :class:`python:str` :obj:`to` :class:`python:dict`"
+msgstr ""
+
+#: 0a3efcbc33cc4c20b21f32743c5a08ee of
+#: pymc_marketing.mmm.evaluation.compute_summary_metrics:33
+msgid ""
+"A dictionary containing summary statistics for each metric. List of "
+"summary statistics calculated for each metric:"
+msgstr ""
+
+#: 206fd28677b3425d9657defae035e1f9 of
+#: pymc_marketing.mmm.evaluation.compute_summary_metrics:35
+msgid "`mean`: Mean of the metric distribution."
+msgstr ""
+
+#: a40c5d50093148968d6cced77d0d2112 of
+#: pymc_marketing.mmm.evaluation.compute_summary_metrics:36
+msgid "`median`: Median of the metric distribution."
+msgstr ""
+
+#: e5919852598349f89cf183c906d062c0 of
+#: pymc_marketing.mmm.evaluation.compute_summary_metrics:37
+msgid "`std`: Standard deviation of the metric distribution."
+msgstr ""
+
+#: b93561e5b95b4aeab2ed8601e0848cb8 of
+#: pymc_marketing.mmm.evaluation.compute_summary_metrics:38
+msgid "`min`: Minimum value of the metric distribution."
+msgstr ""
+
+#: b2e993f2af3e4ac29767fa619b0e6673 of
+#: pymc_marketing.mmm.evaluation.compute_summary_metrics:39
+msgid "`max`: Maximum value of the metric distribution."
+msgstr ""
+
+#: 5c678d84da914ef4bcfd0732e9c98894 of
+#: pymc_marketing.mmm.evaluation.compute_summary_metrics:40
+msgid "`hdi_lower`: Lower bound of the Highest Density Interval."
+msgstr ""
+
+#: 3f0bb1691d5a458ca8f5be90045b71dd of
+#: pymc_marketing.mmm.evaluation.compute_summary_metrics:41
+msgid "`hdi_upper`: Upper bound of the Highest Density Interval."
+msgstr ""
+
+#: 02f876d40d58433ca395faef4408f020 of
+#: pymc_marketing.mmm.evaluation.compute_summary_metrics:53
+msgid "Examples"
+msgstr ""
+
+#: 5ab6d2eda4e74656925928949f02e5b2 of
+#: pymc_marketing.mmm.evaluation.compute_summary_metrics:54
+msgid "Evaluation (error and model metrics) for a PyMC-Marketing MMM."
+msgstr ""
