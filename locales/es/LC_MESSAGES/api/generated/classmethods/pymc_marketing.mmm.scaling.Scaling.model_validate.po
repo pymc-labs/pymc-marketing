@@ -1,0 +1,64 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.scaling.Scaling.model_validate.rst:2
+#: 371fdd39a60d4ee5a47f203a36c9c06b
+msgid "Scaling.model\\_validate"
+msgstr ""
+
+#: 2a2d1766cd5c4cee86a9be0fbf488d20 of pydantic.main.BaseModel.model_validate:2
+msgid "Validate a pydantic model instance."
+msgstr ""
+
+#: 364b2090568047b0b434825c257829b0 of pydantic.main.BaseModel.model_validate:4
+msgid "Args:"
+msgstr ""
+
+#: 97ba5f7a5be34ef5b020c106c7e39315 of pydantic.main.BaseModel.model_validate:5
+msgid ""
+"obj: The object to validate. strict: Whether to enforce types strictly. "
+"from_attributes: Whether to extract data from object attributes. context:"
+" Additional context to pass to the validator. by_alias: Whether to use "
+"the field's alias when validating against the provided input data. "
+"by_name: Whether to use the field's name when validating against the "
+"provided input data."
+msgstr ""
+
+#: e7c0954838214d15bcc6e78ba8c88107 of
+#: pydantic.main.BaseModel.model_validate:12
+msgid "Raises:"
+msgstr ""
+
+#: 3acbe3fbaf144e9480133bd4e7a914dc of
+#: pydantic.main.BaseModel.model_validate:13
+msgid "ValidationError: If the object could not be validated."
+msgstr ""
+
+#: 14adcd3a031b48c2962d4319a3b48272 of
+#: pydantic.main.BaseModel.model_validate:15
+msgid "Returns:"
+msgstr ""
+
+#: ae683082640f410c8ed9f3379d940968 of
+#: pydantic.main.BaseModel.model_validate:16
+msgid "The validated model instance."
+msgstr ""

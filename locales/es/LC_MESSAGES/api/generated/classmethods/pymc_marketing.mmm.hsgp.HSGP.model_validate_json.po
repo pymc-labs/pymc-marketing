@@ -1,0 +1,78 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.hsgp.HSGP.model_validate_json.rst:2
+#: 0b8e6d2b7af84e559e21a14c2354355e
+msgid "HSGP.model\\_validate\\_json"
+msgstr ""
+
+#: 063a1323ff914c58ae6a1a5872b8f0d9 of
+#: pydantic.main.BaseModel.model_validate_json:2
+msgid "!!! abstract \"Usage Documentation\""
+msgstr ""
+
+#: 0b5c597795b4458b82fa72817624e20c of
+#: pydantic.main.BaseModel.model_validate_json:3
+msgid "[JSON Parsing](../concepts/json.md#json-parsing)"
+msgstr ""
+
+#: f1c2d891a86b4b348a96445e5f79669d of
+#: pydantic.main.BaseModel.model_validate_json:5
+msgid "Validate the given JSON data against the Pydantic model."
+msgstr ""
+
+#: b8b7e5ca395d43799e201819cbfa6e7a of
+#: pydantic.main.BaseModel.model_validate_json:7
+msgid "Args:"
+msgstr ""
+
+#: 5174b234575e45308e44195517bde5a4 of
+#: pydantic.main.BaseModel.model_validate_json:8
+msgid ""
+"json_data: The JSON data to validate. strict: Whether to enforce types "
+"strictly. context: Extra variables to pass to the validator. by_alias: "
+"Whether to use the field's alias when validating against the provided "
+"input data. by_name: Whether to use the field's name when validating "
+"against the provided input data."
+msgstr ""
+
+#: fb2ad3af3ab948e5860baebfb7079ac2 of
+#: pydantic.main.BaseModel.model_validate_json:14
+msgid "Returns:"
+msgstr ""
+
+#: ebc031fb6123461d84b0967e3fbcac5a of
+#: pydantic.main.BaseModel.model_validate_json:15
+msgid "The validated Pydantic model."
+msgstr ""
+
+#: d8ad992d230c44a6b2c3f196b1c48639 of
+#: pydantic.main.BaseModel.model_validate_json:17
+msgid "Raises:"
+msgstr ""
+
+#: 72623b2237144da4843a8a70b6457997 of
+#: pydantic.main.BaseModel.model_validate_json:18
+msgid ""
+"ValidationError: If `json_data` is not a JSON string or the object could "
+"not be validated."
+msgstr ""

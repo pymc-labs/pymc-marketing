@@ -1,0 +1,582 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:10003
+#: d2b6b5183bfe4b658cbd8b7197f49f54
+msgid "Understanding your MMM: Sensitivity Analysis and Marginal Effects"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:10005
+#: a021818cd54d4dbcb985ae60066fcab3
+msgid ""
+"Extracting insights to drive business decisions is a primary goal of any "
+"MMM. PyMC-Marketing already offers a powerful suite of tools for this, "
+"including:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:10007
+#: b128ef4a596444a882974339b4674295
+msgid ""
+"Driver contributions: Understanding how much each channel or factor is "
+"contributing to the outcome."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:10008
+#: 72f97c82a5e043bdbc45c0cd8efc2e4a
+msgid ""
+"Return on Ad Spend (ROAS): Quantifying the financial return of your media"
+" investments."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:10009
+#: 6945c201b9ea4a1fa0f2883302c4a1f4
+msgid ""
+"Saturation curves: Visualizing how the impact of media spend changes at "
+"different spend levels (e.g., diminishing returns)."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:10011
+#: b44a9dc1fc944351a3afdf096af0e1e4
+msgid ""
+"However, in many real-world cases, we want to go beyond these summaries. "
+"Marketers and analysts frequently ask:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:10013
+#: 8a9cbf98bf4940b4b2d5a842caf21264
+#, python-format
+msgid "\"What would have happened if we had spent 10% less on media last month?\""
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:10014
+#: 34275cbb777f4b9787c1e15003025aae
+msgid ""
+"\"What would the effect of lowering the free shipping threshold by $5 "
+"have been?\""
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:10015
+#: c87bfed81bcb4b03957d48024de58058
+msgid ""
+"\"Are we still getting good incremental returns at current spend levels, "
+"or have we hit diminishing returns?\""
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:10017
+#: 8690dc6baed54258bac628789f039073
+msgid ""
+"These questions focus on hypothetical scenarios of what would have "
+"happened under different conditions. As such, they are a clear form of "
+"**[sensitivity "
+"analysis](https://en.wikipedia.org/wiki/Sensitivity_analysis)**. Given "
+"that we focus on _retrospective_ predictions, these questions are \"Step "
+"3\" on Pearl's causal ladder (see the [MMMs and Pearl's ladder of causal "
+"inference](https://www.pymc-"
+"marketing.io/en/stable/notebooks/mmm/mmm_counterfactuals.html) docs). The"
+" basic idea is that we can use our model (and what it has learned from "
+"the data) to simulate how the outcome would have changes under various "
+"peterbations of the driver variables."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:10019
+#: 984081ddfbd444de86c0a88e07c046fd
+#, python-format
+msgid ""
+"Rather than just considering a single peterbation (e.g., \"what if we had"
+" spent 10% less on a given media channel\"), sensitivity analysis allows "
+"us to explore a range of scenarios. So instead we could evaluate our "
+"predictions given a **sweep** of possible peterbations. For example, "
+"\"what if we had spent [0.5, 0.75, 1.0, 1.25, 2.0] times as much on a "
+"given media channel?\""
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:10021
+#: 72e2934fd4a347fe87c0569fe86a2044
+msgid "We introduce a flexible tool that allows you to:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:10023
+#: 4be24adea60d4210923c7818db4a53cc
+msgid ""
+"Perform counterfactual sweeps across a range of predictor values (e.g., "
+"scaling media spend up/down or adjusting business levers like pricing)."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:10024
+#: b436a196fc894f9c84a8419f6a2ebc36
+msgid "Visualize both the total expected impact of these interventions."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:10025
+#: 4e1f906313274678a44f2c96c53bc2a8
+msgid ""
+"Compute marginal effects—showing the instantaneous rate of change in the "
+"outcome as you adjust a predictor."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:10027
+#: c67917375e794d7c876744bfad372003
+msgid ""
+"This approach complements the built-in PyMC-Marketing tools by providing "
+"scenario-based insights that help you answer \"what if?\" questions with "
+"precision and clarity."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:20002
+#: 2d29958eeccb4c3dbca71998d6738953
+msgid "Setting the scene with an example dataset"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:30002
+#: 348ff7cc237b47d486265f1c6b2743a4
+msgid ""
+"In this example, we model weekly sales for a direct-to-consumer (DTC) "
+"brand that invests in influencer marketing while also adjusting its free "
+"shipping policy to drive conversions."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:30004
+#: 637729dc4a6944b2a66fe87019ebeee1
+msgid ""
+"Our media variable is **Influencer Spend**, which typically exhibits non-"
+"linear effects due to factors like audience saturation and delayed "
+"impact, making it a good candidate for adstock and saturation "
+"transformations."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:30006
+#: 538cc279cc594e8d8f28039ba36270f5
+msgid ""
+"As a control variable, we include the **Free Shipping Threshold** — the "
+"minimum order value required for customers to qualify for free shipping. "
+"This is a fully controllable business lever and is expected to have a "
+"more linear relationship with sales: lowering the threshold generally "
+"increases conversion rates in a predictable way."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:30008
+#: 10727b43dcab452292905f0cdfb4080b
+msgid ""
+"By examining the marginal effects of media spend and shipping policy, we "
+"can provide actionable insights into how each lever contributes to "
+"overall performance."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:50002
+#: f529e4ba7846420d82dd5af8306eabde
+msgid "So our causal MMM will look like this:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:70002
+#: 4e432694ac46463d86f80b6435ba2cdc
+msgid "Why Marginal Effects Matter: going beyond raw media curves"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:70004
+#: 54dec7f397ab43fb8ce522d6ef5b7f32
+msgid ""
+"In Media Mix Models (MMM), we're often interested in understanding how "
+"each marketing input (like advertising spend) drives business outcomes. A"
+" common way to explore this is by looking at the inferred response "
+"curves, such as the saturation curve for media spend. These curves show "
+"how total sales respond to increasing investment, accounting for effects "
+"like diminishing returns and adstock."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:70006
+#: 959c13c7da334bbc91f82354bef3af88
+msgid ""
+"But while these plots are useful, they can be misleading or incomplete "
+"when used in isolation."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:70008
+#: db9eacf937dd4948929735559936f922
+msgid ""
+"The reason? Response curves tell you the absolute level of impact across "
+"different spend amounts, but they don’t directly tell you the incremental"
+" impact of a small change in spend at any given point. This distinction "
+"is crucial. For example:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:70010
+#: d5692cd4ce9742dab5bc7e49dd8529cb
+msgid ""
+"A saturation curve might look steep at low spend levels and flatten out "
+"at higher spend—but the exact slope at a specific point (e.g., \\$50,000 "
+"per week) tells you the real-world payoff of spending an extra \\$1,000 "
+"right now."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:70011
+#: 489c6be111ef45f2847da3e0a6e25d8c
+msgid ""
+"In cases where multiple inputs are at play (like media spend and pricing "
+"changes), response curves for one variable don't show you how "
+"interactions or current levels of other variables might affect its "
+"marginal impact."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:70013
+#: 3274b41e9406484da7c8172b15edc58a
+msgid ""
+"Marginal effects zero in on this slope—the instantaneous rate of change. "
+"They answer questions like:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:70015
+#: fefb676865a34a56bcaaae52071bcf28
+msgid ""
+"How much additional sales do I gain if I increase influencer spend by 10%"
+" next week?"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:70016
+#: d188a98b27bf41feabab82de13893de9
+msgid ""
+"What's the expected lift if I lower the free shipping threshold by \\$5 "
+"right now?"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:70018
+#: c5133a4841834a3eb9ffa69d382ff612
+msgid ""
+"These insights are only accessible through marginal effects because they "
+"reflect the dynamic, context-sensitive responsiveness of the model:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:70020
+#: 5ed4a155530247baa6122fdf8a0dde3d
+msgid ""
+"For media inputs with non-linear transformations (like adstock + "
+"saturation), marginal effects show how effectiveness varies across the "
+"spend range—revealing whether you're still in the high-ROI zone or have "
+"hit diminishing returns."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:70021
+#: bd37474af1e8473595ddd5448dfa8783
+msgid ""
+"For controllable non-media levers (like pricing or shipping policies), "
+"marginal effects provide precise, actionable estimates for how tweaks to "
+"these levers impact outcomes—even if their overall relationship is more "
+"linear."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:70023
+#: f65249b2ab2a4259ae0980b9e0eb5a23
+msgid ""
+"In other words, while a response curve is like a map of the terrain, "
+"marginal effects tell you whether it's worth climbing that next hill. "
+"They enable surgical precision in decision-making, ensuring that "
+"marketers don't just see where their efforts sit on a curve—but "
+"understand whether pushing harder in a particular direction is still "
+"worthwhile."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:70025
+#: 8998eaf31fe0473491bf2bfe1cfb65b3
+msgid ""
+"By incorporating marginal effects into MMM outputs, we move from a static"
+" understanding of media performance to a dynamic, context-aware view that"
+" directly informs resource allocation and strategic adjustments."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:80002
+#: 2aadbaea00a24adfb6e289bb1868e2d9
+msgid "Generate simulated data"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:100002
+#: 94669c6adc18428ea266703c3733420c
+msgid "And here are the first 5 rows of the synthetic dataset:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:120002
+#: 3df2de1e26ad419c8d9116e937c9a08e
+msgid "And we can plot the data to get a better sense for the data:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:140002
+#: 36efdc4d820c44c1afbc92cdb7c0d831
+msgid "Build and fit the MMM"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:160002
+#: d8db157857494c2f91ef90b72772f30d
+msgid "Sensitivity analysis and marginal effects"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:170002
+#: ad42eb5ae0034226bcd552c8708ffe74
+msgid "A multiplicative sweep on influencer spend"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:190002
+#: 259182b7a46e4c718028468eb8f9c402
+msgid ""
+"The code above saves its results into a new group in the `mmm.idata` "
+"called `sensitivity_analysis`. You can explore it below:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:210002
+#: 99a2304baaec4194b4c1b874e2914d1b
+msgid ""
+"And of course, you can plot the results! To demonstrate some of the "
+"plotting options we'll plot using the default y-axis scale of absolute "
+"sales as well as on a percentage change scale."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:230002
+#: b8f62f100dc048f1a7a173e6bbfb0a7f
+msgid ""
+"The figure above shows the total expected uplift (it can be positive or "
+"negative) for the outcome variable as a function of the sweep values "
+"provided. In this case, we used a multiplicative sweep, so the curve is "
+"showing how the total outcome would vary if we multiply up (sweep values "
+"> 1) or down (sweep values < 1) the influencer spend by the set of values"
+" we asked for."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:230004
+#: cac44b2bf6ad454e8a7c019ebea6d379
+msgid ""
+"Intuitively, if we multiply the influence spend by 1.0 then on average we"
+" expect no change. If we scale the spend down then we expect negative "
+"uplift (i.e., lower sales) and if we scale the spend up then we expect "
+"positive uplift (i.e., higher sales). The fact that the curve is curved "
+"(not linear) is primarily the result of the saturation function on the "
+"influencer spend variable."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:240002
+#: 90a2f8bd3d4f461680c2bc38e07b111f
+msgid "We can also plot the corresponding marginal effects as below:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:260002
+#: 83435a346db04205ac719afbfd495241
+msgid ""
+"This plot shows the instantaneous rate of change in the outcome variable "
+"as we adjust the influencer spend. The y-axis represents the marginal "
+"effect, which tells us how much additional sales we expect for a small "
+"increase in influencer spend at each point along the sweep values."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:260004
+#: 1490dc16f6bc4d47b797f5cabdf332b7
+msgid ""
+"We can see that the highest marginal effects occur on the left side of "
+"the plot where we the influence spend is zero or very low. The highest "
+"incremental/marginal effects are obtained when we go from no spend to "
+"some spend. As we would expect from the previous plot, we still get "
+"incremental returns at the current spend levels (multiplicative change of"
+" 1.0), and are quite far away from totally saturating this channel - the "
+"marginal spend doesn't reduce to near zero even if we consider a 2x "
+"increase in spend."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:270002
+#: 0e2ada6b839e41e28691595ac39906bf
+msgid "An absolute sweep on influencer spend"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:270004
+#: 850a907f2a21493bbd0fc3a9873a9a93
+msgid ""
+"The sensitivity analysis we conducted above involved a _multiplicative "
+"sweep_ of the influencer spend variable, meaning we varied it by "
+"multiplying it by a set of values. However, we can also conduct a "
+"_absolute sweep_. Here, we set all historical values of the influencer "
+"spend variable to fixed values (given in the `sweep_values` argument) and"
+" then compute the expected outcome and marginal effects."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:300002
+#: 9e56c43b97be4179aaa3a4c8901cbe50
+msgid ""
+"The results of the absolute sweep are comparable to (but not the same as)"
+" the multiplicative sweep. They key difference in what we are doing is "
+"that we overwrite the historical influencer spend values with a constant "
+"spend value (one value for each point in the sweep). This means we are "
+"not considering a 'realistic' scenario where spend fluctuates over time, "
+"but rather a hypothetical scenario where we set the spend to a fixed "
+"value for all weeks in the dataset."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:300004
+#: 5c2e824e6327409db88da233a2b0fc24
+msgid ""
+"We can see the change in the plots as well. The top plot is similar to, "
+"but not exactly the same as the saturation curve of influencer spend. "
+"Notice that there is a certain fixed spend level where the uplift is "
+"about zero. This is interesting - we can interpret this as saying that "
+"the total sales in the actual scenario would also have been about the "
+"same if we had spent that amount (constantly over time) on influencer "
+"marketing."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:300006
+#: 6a5585b084f24982aa7831815d870dc4
+msgid ""
+"The top plot nicely shows the saturating quality of the saturation "
+"function, and the bottom plot shows that as we approach saturation, the "
+"marginal effects drop to near zero."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:310002
+#: dd51364ec3894225bead052498960e05
+msgid "An additive sweep on influencer spend"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:310004
+#: cad4326dd36e42d99ffdf7ecdefdf4b6
+msgid ""
+"We can also consider a sweep of additive changes to the influencer spend "
+"variable. This means we adjust the historical values of the influencer "
+"spend by adding a fixed amount (given in the `sweep_values` argument) and"
+" then compute the expected outcome and marginal effects."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:310007
+#: 0ed8326a925d413ea3dd951e6a0197f0
+msgid ""
+"Note that care needs to be taken with an additive sweep. It would be easy"
+" to apply a negative peterbation which then actually results in negative "
+"spend values which have no meaningful interpretation. So it is worthwhile"
+" exploring the actual spend values before deciding on the sweep values to"
+" be used."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:310009
+#: ae0039ddedfe4afca154f79c7e7d3d15
+msgid ""
+"In our case, the minimum spend values is \\$0, so we will not "
+"considervalues in the sweep."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:320002
+#: a03c7a049d6e49c7b46c9086b3dfcde3
+msgid "\\displaystyle 0.00495420682926662"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:350002
+#: 93a93f1fc33a48ebaca016e972dc3873
+msgid ""
+"These plots show the expected uplift and marginal effects. We get a "
+"similar general pattern of results - if we consider scenarios where we "
+"had spent progressively more, then we would get positive uplift, but as "
+"we reach a certain level of spend, the advertising channel saturates and "
+"the marginal effects drop to near zero."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:360002
+#: a50e6b1ee1eb46a3b6f3e755a12831b5
+msgid "Sensitivity analysis on the free shipping threshold"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:360004
+#: d4b49257c1b2459fa274ab449ff3526c
+msgid ""
+"We've had a thorough look at the influencer spend variable and we've got "
+"some interesting insights into how it affects the outcome (sales) under "
+"different counterfactual scenarios."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:360006
+#: ed30004fbc654345af282dece3db4074
+msgid ""
+"But we can also do the same for the free shipping threshold driver. The "
+"reason why this is interesting in our example is because this driver is "
+"assumed to have linear effects on the outcome, with no saturation or "
+"adstock function applied."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:360008
+#: 190dc9f88b8e4669a83ae1028e04d13a
+msgid ""
+"We won't exhaustively run through all the different sweeps we can do, but"
+" we will just demonstrate an absolute sweep."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:390002
+#: 7462517043464f2aad8cdb0e327c3e74
+msgid ""
+"We can see the linear nature of the effects of the free shipping "
+"threshold on the outcome variable. The expected uplift is positive when "
+"we lower the threshold (people buy more when shipping is free), and the "
+"marginal effects are constant across the sweep values. This is because we"
+" assumed a linear relationship between the free shipping threshold and "
+"sales, so the marginal effect does not change as we adjust the threshold."
+" The constant negative value is equal to the change in uplift as we "
+"increase the shipping threshold by \\$1."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:390004
+#: 0b844fcf4ee14f25a8b2daa9ea8e40ee
+msgid ""
+"We can verify this by changing the sweep step size and seeing that we get"
+" identical marginal effects estimates (albeit with numerical estimation "
+"error)."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:420003
+#: cfedb25e9cc7492db547f5bbb4fcf20d
+msgid ""
+"**Why should I be interested in a straight line and a flat line?** These "
+"are the kinds of plots that you can run through to get a sense check of "
+"whether the model is behaving as expected."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:420005
+#: 0868c24d221249d6a07813fd416b78dc
+msgid ""
+"Maybe you (or a client) realises that a negative linear relationship "
+"between shipping threshold and sales is too simplistic. This can then "
+"drive model iteration and improvement - you could explore alternative "
+"functional forms for example."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:430002
+#: f786ae55cccc4ddc940466bdf052905f
+msgid "Summary"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:430004
+#: 20bcdb48dea04ae796abf2685964a0a4
+msgid ""
+"We've introduced a simple but powerful tool for probing deeper into your "
+"MMM results. You can explore a sweep of perterbations to one or more "
+"driver variables and compute the expected outcomes and marginal effects "
+"for each scenario. You can consider different forms of peterbation, here "
+"we've shown multiplicative, absolute and additive sweeps."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:430006
+#: 6f345df97e5b407e81d97bfcb6e53cd6
+msgid ""
+"This allows you to answer \"what if\" questions with precision and "
+"clarity, providing actionable insights into how different levers affect "
+"your business outcomes. You can produce simple and interpretable plots "
+"that you can use to communicate how the model works and get sense-checks "
+"on the model's behaviour and assumptions."
+msgstr ""

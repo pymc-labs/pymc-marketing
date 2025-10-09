@@ -1,0 +1,64 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.fourier.YearlyFourier.model_json_schema.rst:2
+#: ae95f14f93ba4297a478b0393bafdd51
+msgid "YearlyFourier.model\\_json\\_schema"
+msgstr ""
+
+#: d825297f4a994cccbdeabdf8228d1457 of
+#: pydantic.main.BaseModel.model_json_schema:2
+msgid "Generates a JSON schema for a model class."
+msgstr ""
+
+#: 81b8414fb8d74a388a42b0503fe0d93e of
+#: pydantic.main.BaseModel.model_json_schema:4
+msgid "Args:"
+msgstr ""
+
+#: 08d31efd1f5e42339c0ef35f64002734 of
+#: pydantic.main.BaseModel.model_json_schema:5
+msgid ""
+"by_alias: Whether to use attribute aliases or not. ref_template: The "
+"reference template. schema_generator: To override the logic used to "
+"generate the JSON schema, as a subclass of"
+msgstr ""
+
+#: f871d1f9ec264d0c9188275f8ede5a5a of
+#: pydantic.main.BaseModel.model_json_schema:8
+msgid "`GenerateJsonSchema` with your desired modifications"
+msgstr ""
+
+#: 3a59bfb18e6044b1afc2341956eaaa51 of
+#: pydantic.main.BaseModel.model_json_schema:9
+msgid "mode: The mode in which to generate the schema."
+msgstr ""
+
+#: 307d9b0b2390423da744763181b21655 of
+#: pydantic.main.BaseModel.model_json_schema:11
+msgid "Returns:"
+msgstr ""
+
+#: d28a7388605649a9904d64ff4f65f163 of
+#: pydantic.main.BaseModel.model_json_schema:12
+msgid "The JSON schema for the given model class."
+msgstr ""

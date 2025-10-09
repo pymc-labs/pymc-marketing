@@ -76,6 +76,7 @@ pygments_style = "friendly"
 # sphinx settings related to generation of translatable sources
 gettext_uuid = True
 gettext_compact = False
+locale_dirs = ["../../locales"]
 
 # -- Extension configuration ------------------------------------------------
 
@@ -157,6 +158,7 @@ html_context = {
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static/"]
+html_css_files = ["custom.css"]
 
 # -- Options for LaTeX output ---------------------------------------------
 

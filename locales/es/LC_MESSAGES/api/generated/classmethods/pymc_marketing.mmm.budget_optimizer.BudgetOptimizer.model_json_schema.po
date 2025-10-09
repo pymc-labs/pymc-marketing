@@ -1,0 +1,64 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.model_json_schema.rst:2
+#: 98649f54d5b044c88a4f3a6b2a95033a
+msgid "BudgetOptimizer.model\\_json\\_schema"
+msgstr ""
+
+#: 838a1545fba4475395236082a193c7a4 of
+#: pydantic.main.BaseModel.model_json_schema:2
+msgid "Generates a JSON schema for a model class."
+msgstr ""
+
+#: b46e3e5bc5f44b94a81c9718ae073e15 of
+#: pydantic.main.BaseModel.model_json_schema:4
+msgid "Args:"
+msgstr ""
+
+#: 172642ec23174534a230590f0449dd95 of
+#: pydantic.main.BaseModel.model_json_schema:5
+msgid ""
+"by_alias: Whether to use attribute aliases or not. ref_template: The "
+"reference template. schema_generator: To override the logic used to "
+"generate the JSON schema, as a subclass of"
+msgstr ""
+
+#: e7e4c12df1fc49ee898f4f857b57504f of
+#: pydantic.main.BaseModel.model_json_schema:8
+msgid "`GenerateJsonSchema` with your desired modifications"
+msgstr ""
+
+#: e0784eff7d154b07a233286f189ad6db of
+#: pydantic.main.BaseModel.model_json_schema:9
+msgid "mode: The mode in which to generate the schema."
+msgstr ""
+
+#: e40ecfa27db44c08a89a3f73b9dd4c64 of
+#: pydantic.main.BaseModel.model_json_schema:11
+msgid "Returns:"
+msgstr ""
+
+#: 00f8d5cd6b8f47fe8baa60210460a14e of
+#: pydantic.main.BaseModel.model_json_schema:12
+msgid "The JSON schema for the given model class."
+msgstr ""

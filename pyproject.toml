@@ -52,7 +52,7 @@ docs = [
     "ipywidgets",
     "labs-sphinx-theme",
     "lifetimes",
-    "myst-nb<=1.0.0",
+    "myst-nb>=1.1.2",
     "myst-parser",
     "numba",
     "numpydoc",
