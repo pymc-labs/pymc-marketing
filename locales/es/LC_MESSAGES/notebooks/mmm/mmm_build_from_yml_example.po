@@ -1,0 +1,135 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:10002
+#: 68c3f6ca0747454d9c79a8981b8c21ac
+msgid "Introduction"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:10003
+#: 49465ad2f16c46d784660da89509df9a
+msgid "Learning how to create models with yml files"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:10006
+#: a429cfaa201547c280c7b25a838376a6
+msgid "Setup"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:60002
+#: d6954523f86a43029bb2e6a1d3eeb142
+msgid "Multidimensional model"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:120002
+#: 26993d6246924544a49661e98e4b3fea
+msgid "How the config works?"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:140002
+#: d781bdabb2d2471481d191c36f1b41c9
+msgid ""
+"The configuration file uses a structured YAML format with several key "
+"sections:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:140003
+#: 5fd5a2f2e3734de4b53791aab2c9825f
+msgid "schema_version: Version identifier for the configuration schema"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:140004
+#: b5d90296dd8c4cef83b08b97a46ce68a
+msgid "model: The main model configuration"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:140005
+#: 9e4230f1fdd440f0835476e057b4c12e
+msgid "class: The Python class to instantiate (fully qualified name)"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:140006
+#: b88942432dc7465ea43584a84ace4963
+msgid "kwargs: Arguments passed to the model constructor"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:140007
+#: 45b9623f39544a649dde7fde31054a23
+msgid "Including data columns, transformations (adstock, saturation)"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:140008
+#: e32b47819d4d42aab78b38b6994a55c7
+msgid "sample_kwargs: Optional parameters for the sampling process"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:140009
+#: 2b92d759e8724d5e8178055b6b18118f
+msgid "data: Optional paths to data files"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:140011
+#: d6ccff4951a64dd7bdc960b37b3525e5
+msgid "The build_mmm_from_yaml function:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:140012
+#: ec548553826540718e4c2f4db2551444
+msgid "Parses this YAML configuration"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:140013
+#: 0148b983121b401f9a4a322fd515bae2
+msgid "Uses the 'build' function to instantiate objects recursively"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:140014
+#: 5efd8345bfe94d3081331fb3abd48ff3
+msgid "Handles special cases like priors and distributions"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:140015
+#: d3360e42aa0442beb3c7945864391887
+msgid "Returns a fully configured MMM model ready for sampling"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:140016
+#: ab34fcffa6e44310be4470f70da29a9b
+msgid ""
+"If idata_path is provided then the idata from a previous class is used in"
+" the model in the idata property."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:150002
+#: b5dd86107363415898d0fba978cca63b
+msgid "Basic model"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:190002
+#: 8b38da5854b848fcaaa103bf491a5e01
+msgid "Multidimensional Hierarchical Model"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:230002
+#: 0ad82653ba92402287b2649cd3bef72e
+msgid "Multidimensional Hierarchical with arbitrary effects"
+msgstr ""

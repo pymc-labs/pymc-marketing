@@ -1,0 +1,115 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.model_config.parse_model_config.rst:2
+#: 52dedc161d3e487f91ff39b1ff853be6
+msgid "parse\\_model\\_config"
+msgstr ""
+
+#: b0740095bde14055b7fa302b2b22b8f7 of
+#: pymc_marketing.model_config.parse_model_config:2
+msgid "Parse the model config dictionary."
+msgstr ""
+
+#: 7593f55ea99f49138fdab531b3ed2eb9 of
+#: pymc_marketing.model_config.parse_model_config
+msgid "Parameters"
+msgstr ""
+
+#: c9c5509fea4f46798cc4558b5371c8bd of
+#: pymc_marketing.model_config.parse_model_config:7
+msgid "**model_config** : :class:`python:dict`"
+msgstr ""
+
+#: f6de0d8816884620a00747e03ee34c73 of
+#: pymc_marketing.model_config.parse_model_config:6
+msgid "python:dict"
+msgstr ""
+
+#: 7639fcf23f8a46fc965b16c9098578cc of
+#: pymc_marketing.model_config.parse_model_config:8
+msgid "The model configuration dictionary."
+msgstr ""
+
+#: 2515c95869fc47d2972fbae5992a8295 of
+#: pymc_marketing.model_config.parse_model_config:10
+msgid ""
+"**hsgp_kwargs_fields** : :class:`python:list`\\[:class:`python:str`], "
+"optional"
+msgstr ""
+
+#: 68a44b74baad4c3ba58735924b9b4efc e3d91890e8834fc0bbaae2147d868acd of
+#: pymc_marketing.model_config.parse_model_config:9
+#: pymc_marketing.model_config.parse_model_config:12
+msgid "python:list[python:str], optional"
+msgstr ""
+
+#: 1962d32665d4410e9f33887858488421 of
+#: pymc_marketing.model_config.parse_model_config:11
+msgid "A list of keys to parse as HSGP kwargs."
+msgstr ""
+
+#: 9048b68fd1144aec920c3f627541cd24 of
+#: pymc_marketing.model_config.parse_model_config:13
+msgid ""
+"**non_distributions** : :class:`python:list`\\[:class:`python:str`], "
+"optional"
+msgstr ""
+
+#: b57357ae24c548469ddad3a72e4ec0fc of
+#: pymc_marketing.model_config.parse_model_config:14
+msgid ""
+"A list of keys to ignore when parsing the model configuration dictionary "
+"due to them not being distributions."
+msgstr ""
+
+#: 69edacb23d8d4f45b35f4199a34a53d7 of
+#: pymc_marketing.model_config.parse_model_config
+msgid "Returns"
+msgstr ""
+
+#: 8fe63edcb3b941368cdb9447b7a4eadc of
+#: pymc_marketing.model_config.parse_model_config:21
+msgid ":class:`python:dict`"
+msgstr ""
+
+#: 16af7716dd994498b0af6fe36f82190b of
+#: pymc_marketing.model_config.parse_model_config:22
+msgid "The parsed model configuration dictionary."
+msgstr ""
+
+#: 36b37741e00f4bd2b71a2c9eebdb5c38 of
+#: pymc_marketing.model_config.parse_model_config:34
+msgid "Examples"
+msgstr ""
+
+#: 2b471f0a482b448083e1b9be5f42c86f of
+#: pymc_marketing.model_config.parse_model_config:35
+msgid ""
+"Parse all keys in model configuration but ignore the key "
+"\"tvp_intercept\"."
+msgstr ""
+
+#: c4cbaaf5b0b54e7aa2a6efe3e0189fef of
+#: pymc_marketing.model_config.parse_model_config:75
+msgid "Parsing with an error:"
+msgstr ""

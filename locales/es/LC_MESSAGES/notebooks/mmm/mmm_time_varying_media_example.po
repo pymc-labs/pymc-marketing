@@ -1,0 +1,785 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:10003
+#: 962061af9b9d4bdc93c995ac89b99faf
+msgid "MMM with time-varying media baseline"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:10005
+#: 4fe6236b7f7c47019c82f9895d25783f
+msgid "Introduction"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:10007
+#: 1421d70f4f3d4a0cb564aa5fd8ce5e29
+msgid ""
+"In the domain of Marketing Mix Modeling (MMM), understanding the impact "
+"of various marketing activities on a target variable and other key "
+"performance indicators is crucial. Traditional regression models often "
+"neglect the temporal dynamics of marketing activities, potentially "
+"leading to biased or incomplete insights. This notebook aims to showcase "
+"the difference between a conventional regression model that does not "
+"account for time variation and a more sophisticated model that "
+"incorporates time as a key component through a Gaussian process."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:10009
+#: 0b16099b3be743d58e8c35237b229dbd
+msgid ""
+"The objective is to determine the contribution of each marketing activity"
+" to the overall target variable or desired outcome. This process "
+"typically involves two critical transformations:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:10011
+#: b5fc8c9605e04c1fa81b6f3c85784a2e
+msgid ""
+"**Saturation Function**: This function models the diminishing returns of "
+"marketing inputs. As more resources are allocated to a specific channel, "
+"the incremental benefit tends to decrease."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:10013
+#: 89ed45b88dbc45e1b47f455400adc91e
+msgid ""
+"**Adstock Function**: This function captures the carryover effect of "
+"marketing activities over time, recognizing that the impact of a "
+"marketing effort extends beyond the immediate period in which it occurs."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:10015
+#: bc5c3b1c7a264183ba6922c45cfd0ad2
+msgid ""
+"The standard approach in MMM applies these transformations to the "
+"marketing inputs, resulting in a contribution to the outcome."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:10017
+#: d66b5406f5fc42a694ecff06864ab715
+msgid "Time-Dependent MMM Model"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:10019
+#: eeecac0c46744c56869585a67ae751b6
+msgid ""
+"In real-world scenarios, the effectiveness of marketing activities is not"
+" static but varies over time due to factors like competitive actions, and"
+" market dynamics. To account for this, we introduce a time-dependent "
+"component into the MMM framework using a Gaussian Process, specifically a"
+" [Hilbert Space "
+"GP](https://www.pymc.io/projects/docs/en/stable/api/gp/generated/pymc.gp.HSGP.html)."
+" This allows us to capture the hidden latent temporal variation of the "
+"marketing contributions."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:10021
+#: e8f8cd8c0c5348a18c13d0ca6f70e046
+msgid "Model Specification"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:10023
+#: 1404f98c14974be1a79506d9c9849c4e
+#, python-brace-format
+msgid ""
+"In `pymc-marketing` we provide an API for a Bayesian media mix model "
+"(MMM) specification following [Jin, Yuxue, et al. “Bayesian methods for "
+"media mix modeling with carryover and shape effects.” "
+"(2017)](https://research.google/pubs/pub46001/) as a base model. "
+"Concretely, given a time series target variable $y_{t}$ (e.g. sales or "
+"conversions), media variables $x_{m, t}$ (e.g. impressions, clicks or "
+"costs) and a set of control covariates $z_{c, t}$ (e.g. holidays, special"
+" events) we consider a linear model of the form"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:10025
+#: 2954a4aad8c944c3988f11ed4f224f8a
+#, python-brace-format
+msgid ""
+"\n"
+"y_{t} = \\alpha + \\sum_{m=1}^{M}\\beta_{m}f(x_{m, t}) +  "
+"\\sum_{c=1}^{C}\\gamma_{c}z_{c, t} + \\varepsilon_{t},\n"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:10029
+#: d5c8af4b068443468d0e09b15eff105a
+#, python-brace-format
+msgid ""
+"where $\\alpha$ is the intercept, $f$ is a media transformation function "
+"and $\\varepsilon_{t}$ is the error term which we assume is normally "
+"distributed. The function $f$ encodes the contribution of media on the "
+"target variable. Typically we consider two types of transformation: "
+"adstock (carry-over) and saturation effects."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:10031
+#: 28d3580bb13d4791a9423ed344bec649
+msgid ""
+"When `time_media_varying` is set to `True`, we capture a single latent "
+"process that multiplies all channels. We assume all channels share the "
+"same time-dependent fluctuations, contrasting with implementations where "
+"each channel has an independent latent process. The modified model can be"
+" represented as:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:10033
+#: 85812cf0bea74716a7c40bd0054410b6
+#, python-brace-format
+msgid ""
+"\n"
+"y_{t} = \\alpha + \\lambda_{t} \\cdot \\sum_{m=1}^{M}\\beta_{m}f(x_{m, "
+"t}) \\ +  \\sum_{c=1}^{C}\\gamma_{c}z_{c, t} + \\varepsilon_{t},\n"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:10037
+#: 0767c7e0b4854174836bce96a315ebce
+#, python-brace-format
+msgid ""
+"where $\\lambda_{t}$ is the time-varying component modeled as a latent "
+"process. This shared time-dependent variation $\\lambda_{t}$ allows us to"
+" capture the overall temporal effects that influence all media channels "
+"simultaneously."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:10040
+#: 1e54b6501b754cc789e35bb29a62b90d
+msgid "Objective"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:10042
+#: 62f32d076de84c22849f8f07276bbf31
+msgid "This notebook will:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:10044
+#: d84b33ca1dce449ebd8c132546583dcb
+msgid "Illustrate the formulation of a standard MMM model without time variation."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:10045
+#: 86d6677bba1f46c2846b163fe896dacf
+msgid "Extend the model to include a time component using HSGP."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:10046
+#: 28f94ba4b0ad42e58d1c2bb44672d38f
+msgid ""
+"Compare the results and insights derived from both models, highlighting "
+"the importance of incorporating time variation in capturing the true "
+"impact of marketing activities."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:10048
+#: 0de3c0c5e3234781a19f3ff306dc2749
+msgid ""
+"By the end of this notebook, you will have a comprehensive understanding "
+"of the advantages of using time-dependent MMM models in capturing the "
+"dynamic nature of marketing effectiveness, leading to more accurate and "
+"actionable insights."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:10050
+#: 53ab430eec994d3da91ce1d2d3a5aa2a
+msgid "Prerequisite Knowledge"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:10051
+#: a3fc7dce1f1e44e4875ff51edcbb8e00
+msgid ""
+"The notebook assumes the reader has knowledge of the essential "
+"functionalities of PyMC-Marketing. If one is unfamiliar, the [\"MMM "
+"Example Notebook\"](https://www.pymc-"
+"marketing.io/en/stable/notebooks/mmm/mmm_example.html) serves as an "
+"excellent starting point, offering a comprehensive introduction to media "
+"mix models in this context."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:10055
+#: cffdb425a1b54a18a5c8530ffce27dee
+msgid "Part I: Data Generation Process"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:10057
+#: 28671149f7ed4406b2aecd770dc4df75
+#, python-brace-format
+msgid ""
+"In Part I of this notebook we focus on the data generating process. That "
+"is, we want to construct the target variable $y_{t}$ (sales) by adding "
+"each of the components described in the *Business Problem* section."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:10059
+#: dc4e374568f74225845fca5539dc3960
+msgid "Prepare Notebook"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:30002
+#: 2fb48282e220420e9e7ca6485994c607
+msgid "1. Date Range"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:30004
+#: 26011fa045724118aa2ccf822c3a461e
+msgid ""
+"First we set a time range for our data. We consider a bit more than 2 "
+"years of data at weekly granularity."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:50002
+#: 4bfe0084d94f4c59bf04d2fd08bb21a7
+msgid "2. Media Costs Data"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:50004
+#: 10e7a9bd0944402a84e9079805c8baa7
+msgid ""
+"Now we generate synthetic data from two channels $x_1$ and $x_2$. We "
+"refer to it as the raw signal as it is going to be the input at the "
+"modeling phase. We expect the contribution of each channel to be "
+"different, based on the carryover and saturation parameters."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:80002
+#: 9370ac098c7e45ee993c49f9c1990b9f
+#, python-brace-format
+msgid ""
+"**Remark:** By design, $x_{1}$ should resemble a typical paid social "
+"channel and $x_{2}$ a offline (e.g. TV) spend time series."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:90002
+#: eb88911fd9294c12aadf7bd751fa008d
+msgid "4. Control Variables"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:90004
+#: 5e20e706d28742cca8b310e6ca0105fd
+msgid ""
+"We add two *events* where there was a remarkable peak in our target "
+"variable. We assume they are independent an not seasonal (e.g. launch of "
+"a particular product)."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:110002
+#: 6b1dbb5f320842bf839f78fdf03e0c44
+msgid "5. Temporal Hidden Latent Process"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:110004
+#: 65f4530130f240b387857648cc07643e
+msgid ""
+"To illustrate the impact of time-varying media performance in our model, "
+"we generate a synthetic signal that modifies the base contribution. This "
+"signal, `hidden_latent_media_fluctuation`, is designed to simulate the "
+"natural fluctuations in media performance over time."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:130002
+#: c302424ea0994b0683d9542ea55ffc4d
+msgid ""
+"By centering the signal around 1, we'll maintain the base contribution as"
+" the average effect while allowing for periodic increases and decreases. "
+"This approach mirrors real-world scenarios where marketing effectiveness "
+"can vary, but the overall trend remains consistent."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:130004
+#: 649025e7abc443d18400a2b7bbca02e1
+msgid ""
+"This synthetic signal is essential for demonstrating the efficacy of our "
+"time-dependent MMM model, which should recover this signal as much as "
+"possible."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:140002
+#: 2dc3265a144845c29d6faabca2479c6f
+msgid "6. Target Variable"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:140004
+#: ac0b23b94c864c648694c66309867bb7
+msgid ""
+"Finally, we need to create our target variable. In order to do create, "
+"we'll use the PyMC `do` [operator](https://www.pymc-labs.com/blog-posts"
+"/causal-analysis-with-pymc-answering-what-if-with-the-new-do-operator/) "
+"to specify some true parameter values that govern the causal "
+"relationships in the model."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:140006
+#: af48c3864246495c80091ae63a5b8cd9
+msgid ""
+"Doing this, we'll draw a simulated target variable (sales) $y$, which "
+"assume it is a linear combination of all components in the model. We also"
+" add some Gaussian noise."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:170003
+#: 43edf905a30841cab73526de45d978e2
+msgid ""
+"After build your dummy model you can name all variables and parameters in"
+" it, using `named_vars` Alternatively you can make a plot of the model "
+"graph."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:190002
+#: e87619bf51e643afb741385d5bff2e67
+msgid "Here are the true parameter values used in our model:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:190004
+#: d9378773a77d45ed839e65160f28ab5c
+msgid "**Intercept**: 6.0"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:190005
+#: 89969bae68374e3099137be50eb34a62
+msgid "**Adstock Alpha**: [0.5, 0.4] (for two different media channels)"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:190006
+#: cfaca4cfd66243e7aa7b35ec9dd38c2a
+msgid "**Saturation Alpha**: [3, 5] (for two different media channels)"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:190007
+#: c06d831837954633aa3131141ba2168d
+msgid "**Saturation Lambda**: [0.3, 0.5] (for two different media channels)"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:190008
+#: 97cbe3f7728f48f69475a8fb38759955
+msgid ""
+"**Media Temporal Latent Multiplier**: The time-varying signal "
+"`hidden_latent_media_fluctuation` from our dataset"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:190009
+#: 928d3c8764d742408b59ef2ebdd8ab22
+msgid "**Gamma Fourier**: [2.5, -0.5, 1.5, 2.5] (coefficients for Fourier terms)"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:190010
+#: 085c6a96847543f98625dfcb742a5044
+msgid "**Y Sigma**: 0.25 (Noise)"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:190011
+#: e2529ed2f71c4847935b9b1050ec905e
+msgid ""
+"**Gamma Control**: [-3.5, 6.25] (coefficients for control events, e.g., "
+"event1 and event2)"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:190013
+#: e2ccf43333624940ae7026885b9f7835
+msgid ""
+"By specifying these true parameter values, we create a realistic "
+"simulated target variable that encapsulates the complexity of our media "
+"mix model. This approach allows us to effectively test and validate the "
+"performance of our time-dependent MMM model."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:220002
+#: e07a51e824824714b3ade81ba711026c
+msgid ""
+"Let's unpack this a little bit. The do-function takes a pymc.Model object"
+" and a dict of parameter values. It then returns a new model where the "
+"original random variables (RVs) have been converted to constant nodes "
+"taking on the specified values."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:220004
+#: 130b0e7de9804a2daffaaa5bc7bdcd42
+msgid ""
+"Let's start by drawing our intercept using our \"draw\" function from "
+"PyMC."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:240002
+#: 92e024161f174a368b53017211ad7d87
+msgid ""
+"As you can see, the intercept is aligned with the previously added data, "
+"having a constant value of `6`. But how looks our total contribution "
+"after transformed?"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:260002
+#: e000b2f80e30462cbf27150c64ad1f8b
+msgid "**Baseline Channel Contributions**"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:260004
+#: bfe8c0a5c6ff439c9534e24a07776add
+msgid ""
+"The left plot, titled \"Baseline Channel Contributions,\" shows the "
+"contributions of the media channels before considering the time-varying "
+"effects. The values are generated by summing the baseline channel "
+"contributions drawn from the true model."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:260006
+#: 8d5d3f4b2de14c298b8c5e9777b2486a
+msgid "**Channel Contributions with Time Variation**"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:260008
+#: 25c6867bc8e84c1bbefa1be4abaed533
+msgid ""
+"The right plot, titled \"Channel Contributions,\" displays the media "
+"channel contributions after incorporating the time-varying media "
+"performance signal. These contributions reflect the impact of the latent "
+"temporal process, represented by `hidden_latent_media_fluctuation`, which"
+" modifies the baseline contributions. This modification captures the "
+"natural fluctuations in media performance over time, as influenced by "
+"various marketing dynamics."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:280002
+#: 5592cad87d4e47608cb2601c42378c89
+msgid "7. Trend \\& Seasonal Components"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:280004
+#: b7328b07f5d1448a86b7538c911a2938
+msgid ""
+"We can also observe the contribution of our control events, as well as "
+"the seasonality added when making the true model."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:300002
+#: ef30bd3466874c1e8b76b8a24ac8177a
+msgid ""
+"Finally, we can visualize the true target given all the previous "
+"componets!"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:320002
+#: 1db50bdf9f344825b16f292b240f5fc0
+msgid ""
+"Now with everything in place, we are going to separate our dataset to "
+"leave the real data estimated by the true model inside `df` and we will "
+"create a new dataset called `data` which will have all the necessary "
+"columns but will not have any information about true relationships. "
+"Similar to how it would happen in real life."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:340002
+#: 1d167d9c50be496aa929cd3e8831938e
+msgid ""
+"As we discussed previously, we want to compare a model without variant "
+"coefficients to see how much it deviates from reality. For this we will "
+"create the MMM object that will receive all the necessary parameters to "
+"build our model, which should estimate the relationships of the true "
+"model."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:360002
+#: 6a36959691e84749be36e87d7206ae40
+msgid "As we can see the model found divergencies!🤯"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:360004
+#: 6e3b4e5c0c1644b9bbd8ec8434ba90df
+msgid ""
+"The occurrence of divergences in our Bayesian MMM highlights the "
+"strengths and robustness of the Bayesian framework in hypothesis testing "
+"and model validation. Bayesian models are structural and adhere to "
+"certain assumptions about the data-generating process. When these "
+"assumptions are violated or the model structure does not fit the data "
+"well, divergences and sampling problems can arise."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:360006
+#: 298c2cadf54c4ead99372ea4ad1024a3
+msgid "This characteristic makes the Bayesian approach a powerful tool for:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:360008
+#: 4f98dcd7d4eb4af9b9e77328a08e3378
+msgid ""
+"**Hypothesis Testing**: By defining clear structural relationships and "
+"assumptions, Bayesian models can help test and validate hypotheses about "
+"the underlying processes in the data."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:360010
+#: 90c881e309c34741a70d8918a4d193bb
+msgid ""
+"**Model Validation**: Divergences and sampling issues serve as indicators"
+" that the model may not be correctly specified, prompting further "
+"investigation and refinement."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:360012
+#: 71e09269f92a4502b6dd92b18968d2e7
+msgid ""
+"**Understanding Complex Systems**: Bayesian methods allow for the "
+"incorporation of prior knowledge and the testing of various structural "
+"assumptions, making them well-suited for understanding complex, real-"
+"world systems."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:360014
+#: 37389ffa20d549cbac59f0e6436d817f
+msgid ""
+"In this particular case, we can perfectly suspect why the model had "
+"divergences. The internal structure from our world model (MMM) is "
+"neglecting time when this one is an important factor (we know this "
+"because we have carried out the due process of data generation)."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:360018
+#: 69281e70500645699d28187af9345a44
+msgid ""
+"Despite that, let's take a look at the data that we were able to recover "
+"through this basic model."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:370002
+#: 938e86eb25d845a49df6008aa0b70af0
+msgid ""
+"If we decompose the posterior predictive distribution into the different "
+"components, everything becomes clear:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:390002
+#: 8586cd8957df474e9ee0bfbf52fad31b
+msgid ""
+"Some contributions end up having more units than the target value, "
+"forcing the model to compensate. Resulting in an incorrect decomposition "
+"of our marketing activities."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:390004
+#: f563bd4b209b4541a614b9bd2be197b8
+msgid ""
+"For example, our time series ends up with a long tail of probable values "
+"​​for marketing contributions, this tail being up to 3X greater than the "
+"maximum value of our target."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:410002
+#: f7476f08495c4309926bc449954b19ce
+msgid ""
+"But why the contributions are over estimated? The contributions are "
+"poorly estimated because the parameters of our transformations are also "
+"poorly estimated. For example, the parameters that control the maximum "
+"effectiveness (At the saturation function) of each channel are much "
+"higher than the real ones for both channels."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:430002
+#: d6024b4e30604e88b0278ffde9bb658d
+msgid "What would change if we now consider time as a factor in our model?"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:430004
+#: 7628db851edf485eb7c4f93954c2f72c
+msgid ""
+"Now we can do this by adding the following parameter to the "
+"initialization of our `time_varying_media` model and changing it to "
+"`True`."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:450003
+#: 28a3369efd1d4e4e8bdd9a2781f14c35
+msgid ""
+"By doing this, now our model config will have a new key "
+"`media_tvp_config` with the parameters that control the priors of our "
+"HSGP."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:480002
+#: eeecf99526f149d5858c72ac322e07a2
+msgid "Most of the divergences disappeared, this is a good sign! 🚀"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:480004
+#: a7bec1a42e6b4e459002fc0c7ecfc9ef
+msgid "Let's check our samples!"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:550002
+#: 83bfcea15d8f42d293812a198e2d4f14
+msgid ""
+"Everything seems fine for now, there is nothing that raises red flags "
+"when analyzing our trace. But what about the decomposition?"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:570002
+#: b37b4e87fbed4a759f4b9dd6afdbbe7d
+msgid ""
+"The decomposition looks much better now 🔥 It seems that we are estimating"
+" each parameter better, and there are no obvious trade-offs between "
+"components!"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:570004
+#: 66eca0af5c0042eb801f5c33191509d2
+msgid "Let's see how well the original parameters have managed to be recovered?"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:600002
+#: 81bd816e69fa49bc9cc2e48293f63d1b
+msgid ""
+"The parameters of the saturation function seem to be recovered "
+"practically in their entirety for both channels! This is great 🎉"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:600004
+#: 67d720d92853405f9b32de3992123852
+msgid ""
+"Let's see how much we manage to recover from the true variation. We can "
+"analyze the variable `media_temporal_latent_multiplier` and compare it "
+"against the original variable used in the original process."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:620002
+#: fad3b48381c44daca4ba6cb618ea5d11
+msgid ""
+"Incredible 🚀 we recovered the latent process almost perfectly. Although "
+"it seems a little overestimated, it is quite close to the real thing!"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:640002
+#: 8cd98ead695e4029a8ffac9ec5976ba2
+msgid ""
+"This is reflected when comparing the recovered contribution against the "
+"original. We can see that they are exactly the same!"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:650002
+#: c3957a7a44bb46908b0099080693cd2b
+msgid ""
+"We can compare now the contributions split by channel between our two "
+"models."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:670002
+#: dff66a5711664bef99db39420cd37f29
+msgid ""
+"Contributions per channel were also recovered correctly, unlike our first"
+" model! Actually, we see how the base model tries (and fails!) to capture"
+" the true variation. The reason is clear: lack of flexibility."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:680002
+#: dff53e0784ac43b2b2bc4b44d8b81a2c
+msgid "Insights"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:680004
+#: bad055e4d43943438ce77d407bd7887b
+msgid ""
+"The Bayesian approach not only facilitates hypothesis testing and model "
+"validation but also provides a structured way to incorporate prior "
+"knowledge and test various assumptions about the data-generating process."
+" The occurrence of divergences, as observed in our initial model fitting,"
+" underscores the importance of model specification and alignment with the"
+" underlying data structure. These divergences serve as a diagnostic tool,"
+" guiding further refinement and improvement of the model."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:680006
+#: ac785465bbdf4b1f9c9446cf38791f4c
+msgid ""
+"In summary, using PyMC-Marketing to build time-aware MMM models enables "
+"marketers to gain deeper insights and achieve a more accurate "
+"understanding of the impact of their efforts. This methodology enhances "
+"the ability to make data-driven decisions, optimize marketing strategies,"
+" and ultimately drive better business outcomes."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:680008
+#: 93c517fe2d454a8fb65334a4a27c5d22
+msgid "Conclusion"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:680010
+#: 0767d0ab6e2a41d7b188471e5cd80162
+msgid ""
+"Throughout this notebook, we have explored the implementation of a "
+"Bayesian Marketing Mix Model (MMM) using PyMC, comparing the performance "
+"and insights gained from models with and without a time component. The "
+"key takeaway from our analysis is the significant advantage of "
+"incorporating time-varying factors into MMM."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:680012
+#: bf2d741b30964743851804623177651a
+msgid "Uncovering Real Causal Relationships"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:680014
+#: 6120c51bc6484453bd25d92e767057bc
+msgid ""
+"By integrating a time component, we can uncover the true causal "
+"relationships between our target variable (such as sales) and our "
+"marketing efforts. The traditional approach, which neglects temporal "
+"dynamics, often fails to capture the complex and fluctuating nature of "
+"real-world marketing performance. In contrast, the time-dependent model "
+"provides a more accurate and nuanced understanding of how marketing "
+"activities influence outcomes over time."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:680016
+#: b8f5069af84f417380bed64439200eb1
+msgid "Advantages of PyMC-Marketing"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:680018
+#: b8e8a77dca384c1db47de1c03d4a27ee
+msgid ""
+"PyMC-Marketing, offers powerful tools to implement these advanced "
+"methodologies. The new features and functionalities, including the "
+"handling differents adstock effects, saturation effects, and Hilbert "
+"Space Gaussian processes (HSGP) for modeling time-varying components, "
+"allow for more precise and reliable modeling of marketing data."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:680020
+#: 6b88363a51ba425d9935d68b2eae9dfc
+msgid ""
+"We encourage practitioners to leverage these advanced techniques and the "
+"capabilities of PyMC-Marketing to improve their marketing analytics and "
+"gain a competitive edge in their strategic planning."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:690002
+#: cfaf47564766448ab2823878b8e75422
+msgid "Bonus"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:690004
+#: 01276ba07ad5479ba0bc17fa0af3bcae
+msgid ""
+"This notebook simulated a very simple variation, it is possible that the "
+"true time-dependent latent processes hidden in your data are more complex"
+" therefore, you will need to use `priors` to guide your model to find the"
+" real data."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_time_varying_media_example.ipynb:690006
+#: cb0848922f5a4df1970677f8dd2d57e0
+msgid "One way to achieve this is through modifying the model configuration."
+msgstr ""

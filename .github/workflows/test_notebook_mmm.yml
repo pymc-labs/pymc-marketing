@@ -1,0 +1,39 @@
+name: Test MMM Notebooks
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+     - "pyproject.toml"
+     - "tests/**.py"
+     - "pymc_marketing/**"
+     - "docs/source/notebooks/mmm/**.ipynb"
+     - "!docs/source/notebooks/*/dev/**.ipynb"
+  push:
+    branches: [main]
+    paths:
+     - "pyproject.toml"
+     - "tests/**.py"
+     - "pymc_marketing/**"
+     - "docs/source/notebooks/mmm/**.ipynb"
+     - "!docs/source/notebooks/*/dev/**.ipynb"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mmm_notebooks:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v5
+    - name: Set up Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: "3.12"
+    - name: Install dependencies
+      run: |
+        sudo apt-get install graphviz graphviz-dev
+        pip install -e .[docs,test,dag]
+    - name: Run MMM notebooks
+      run: make run_notebooks_mmm

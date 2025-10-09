@@ -1,0 +1,232 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBFPC.rst:2
+#: 765cdf98939948698a657478487fefd7
+msgid "TBFPC"
+msgstr ""
+
+#: 03e561e3c3344605997e9492564b51d2 of pymc_marketing.mmm.causal.TBFPC:2
+msgid "Target-first Bayes Factor PC (TBF-PC) causal discovery algorithm."
+msgstr ""
+
+#: 82079060c4ab4a288cb5540a77d88919 of pymc_marketing.mmm.causal.TBFPC:4
+msgid ""
+"This algorithm is a target-oriented variant of the Peter–Clark (PC) "
+"algorithm, using Bayes factors (via ΔBIC approximation) as the "
+"conditional independence test."
+msgstr ""
+
+#: d461e401d26b49a29192d24121ab2cd8 of pymc_marketing.mmm.causal.TBFPC:7
+msgid "For each conditional independence test of the form"
+msgstr ""
+
+#: 1e7189581ab24fff943abf26569ced5a of pymc_marketing.mmm.causal.TBFPC:9
+#, python-brace-format
+msgid ""
+"H_0 : Y \\perp X \\mid S\n"
+"\\quad \\text{vs.} \\quad\n"
+"H_1 : Y \\not\\!\\perp X \\mid S"
+msgstr ""
+
+#: 7565f1ee83114b2793e51747b60c4d07 of pymc_marketing.mmm.causal.TBFPC:15
+msgid "we compare two linear models:"
+msgstr ""
+
+#: bc207ae5913a4748aa0d97424b7a9be9 of pymc_marketing.mmm.causal.TBFPC:17
+msgid ""
+"M_0 : Y \\sim S\n"
+"\\\\\n"
+"M_1 : Y \\sim S + X"
+msgstr ""
+
+#: 644f68f754bc469f981c3f5c933027af of pymc_marketing.mmm.causal.TBFPC:23
+msgid "where :math:`S` is a conditioning set of variables."
+msgstr ""
+
+#: 1a0385386a2042059fd1749c4172837c of pymc_marketing.mmm.causal.TBFPC:25
+msgid "The Bayesian Information Criterion (BIC) is defined as"
+msgstr ""
+
+#: a1f27efd93f842a7bbb200b7952e8ccf of pymc_marketing.mmm.causal.TBFPC:27
+msgid ""
+"\\mathrm{BIC}(M) = n \\log\\!\\left(\\frac{\\mathrm{RSS}}{n}\\right)\n"
+"                  + k \\log(n),"
+msgstr ""
+
+#: 6baba5023b7e4c819cc569702c6d79e8 of pymc_marketing.mmm.causal.TBFPC:32
+#, python-brace-format
+msgid ""
+"with residual sum of squares :math:`\\mathrm{RSS}`, sample size "
+":math:`n`, and number of parameters :math:`k`."
+msgstr ""
+
+#: 1935153f7e7a45df9639a7a07ae3bbb8 of pymc_marketing.mmm.causal.TBFPC:35
+msgid "The Bayes factor is approximated by"
+msgstr ""
+
+#: ad78003f5e4e4ffd80f6552f1536190f of pymc_marketing.mmm.causal.TBFPC:37
+#, python-brace-format
+msgid ""
+"\\log \\mathrm{BF}_{10} \\approx -\\tfrac{1}{2}\n"
+"\\left[ \\mathrm{BIC}(M_1) - \\mathrm{BIC}(M_0) \\right]."
+msgstr ""
+
+#: 30bd406b94a14f4a9d1b5c3139d580f5 of pymc_marketing.mmm.causal.TBFPC:42
+#, python-brace-format
+msgid ""
+"Independence is declared if :math:`\\mathrm{BF}_{10} < \\tau`, where "
+":math:`\\tau` is set via the ``bf_thresh`` parameter."
+msgstr ""
+
+#: 9994896bb4da4b1fa0c81749523c78f3 of pymc_marketing.mmm.causal.TBFPC:58
+msgid "References"
+msgstr ""
+
+#: 4c021ee6eab844cb8d0acfc24d64d8ef of pymc_marketing.mmm.causal.TBFPC:59
+msgid ""
+"Spirtes, Glymour, Scheines (2000). *Causation, Prediction, and Search*. "
+"MIT Press. [PC algorithm]"
+msgstr ""
+
+#: b46be77f10aa4ebb8b1fed01bc735ebc of pymc_marketing.mmm.causal.TBFPC:60
+msgid ""
+"Spirtes & Glymour (1991). \"An Algorithm for Fast Recovery of Sparse "
+"Causal Graphs.\""
+msgstr ""
+
+#: e7a3d52adc5543d38c33bb6ed1e1ba5a of pymc_marketing.mmm.causal.TBFPC:61
+msgid "Kass, R. & Raftery, A. (1995). \"Bayes Factors.\""
+msgstr ""
+
+#: 39a08adca8a84e88873217f760535bbb of pymc_marketing.mmm.causal.TBFPC:68
+msgid "Examples"
+msgstr ""
+
+#: 81e4e578190b4e8dbdb7a3d29fcae637 of pymc_marketing.mmm.causal.TBFPC:69
+msgid "**1. Basic usage with full conditioning set**"
+msgstr ""
+
+#: f80170643f014ba99979d1c72629de88 of pymc_marketing.mmm.causal.TBFPC:93
+msgid "**2. Using forbidden edges**"
+msgstr ""
+
+#: 40971a379c5a4065be010060457440d8 of pymc_marketing.mmm.causal.TBFPC:95
+msgid ""
+"You can specify edges that must *not* be tested or included (prior "
+"knowledge about the domain)."
+msgstr ""
+
+#: 6d1a916e7244498ead1aef7dc7a84260 of pymc_marketing.mmm.causal.TBFPC:108
+msgid "**3. Conservative rule**"
+msgstr ""
+
+#: 541d0e0e0e2b4076abc7284477481017 of pymc_marketing.mmm.causal.TBFPC:110
+msgid "Keeps driver → target edges if **any conditioning set** shows dependence."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBFPC.rst:12
+#: b6b17cd5cd174022b508076a18cb3795
+msgid "Methods"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBFPC.rst:23:<autosummary>:1
+#: b5dfc53e565e4c3b9215d1d54f540e7b
+msgid ""
+":py:obj:`TBFPC.__init__ <pymc_marketing.mmm.causal.TBFPC.__init__>`\\ "
+"\\(target\\, \\*\\[\\, ...\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBFPC.rst:23:<autosummary>:1
+#: 5be426cccabd4e4cb77abcf6817b5003
+msgid "Create a new TBFPC causal discovery model."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBFPC.rst:23:<autosummary>:1
+#: e9541d8b195d498aba2a070ff9b58ed4
+msgid ""
+":py:obj:`TBFPC.fit <pymc_marketing.mmm.causal.TBFPC.fit>`\\ \\(df\\, "
+"drivers\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBFPC.rst:23:<autosummary>:1
+#: 0302422f03d94ee08a2371a438164456
+msgid "Fit the TBFPC procedure to the supplied dataframe."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBFPC.rst:23:<autosummary>:1
+#: a8b6b02a06be4bb2b6500eb4e4fca5f3
+msgid ""
+":py:obj:`TBFPC.get_directed_edges "
+"<pymc_marketing.mmm.causal.TBFPC.get_directed_edges>`\\ \\(\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBFPC.rst:23:<autosummary>:1
+#: 0fb3c8b5b73b4639988bc91689783822
+msgid "Return directed edges learned by the algorithm."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBFPC.rst:23:<autosummary>:1
+#: 17de004c8e044ff789da81d3c056e9af
+msgid ""
+":py:obj:`TBFPC.get_test_results "
+"<pymc_marketing.mmm.causal.TBFPC.get_test_results>`\\ \\(x\\, y\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBFPC.rst:23:<autosummary>:1
+#: e6e14352889446e88a8a8afd10eae9be
+msgid "Return ΔBIC diagnostics for the unordered pair ``(x, y)``."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBFPC.rst:23:<autosummary>:1
+#: 1f9a1c3fec074f698a72b913d7ab840c
+msgid ""
+":py:obj:`TBFPC.get_undirected_edges "
+"<pymc_marketing.mmm.causal.TBFPC.get_undirected_edges>`\\ \\(\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBFPC.rst:23:<autosummary>:1
+#: 8ef2350c5744485b926f7b99fb99e7a7
+msgid "Return undirected edges remaining after orientation."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBFPC.rst:23:<autosummary>:1
+#: 3f0a474b7dc441ccbd61ab6fb7fbff0d
+msgid ":py:obj:`TBFPC.summary <pymc_marketing.mmm.causal.TBFPC.summary>`\\ \\(\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBFPC.rst:23:<autosummary>:1
+#: 131d384e2056435b8bfcd674583dd026
+msgid "Render a text summary of the learned graph and test count."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBFPC.rst:23:<autosummary>:1
+#: 1d58140abe8b4e2e9cb3ef8b3f8ecb96
+msgid ""
+":py:obj:`TBFPC.to_digraph <pymc_marketing.mmm.causal.TBFPC.to_digraph>`\\"
+" \\(\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBFPC.rst:23:<autosummary>:1
+#: 78773f90d7c945a28726bf222e1f713b
+msgid "Return the learned graph encoded in DOT format."
+msgstr ""
