@@ -1614,22 +1614,6 @@ class MMM(RegressionModelBuilder):
             else:
                 data["target_data"] = target_values
 
-        # Handle optional spend data used for CPT calibration if available
-        if (
-            hasattr(self, "_calibration_spend_xarray")
-            and "channel_data_spend" in model.named_vars
-        ):
-            spend_values = self._calibration_spend_xarray._channel
-            # Align to new coords
-            reindex_coords = {"date": coords["date"], "channel": coords["channel"]}
-            for dim in self.dims:
-                reindex_coords[dim] = coords[dim]
-            spend_values = spend_values.reindex(reindex_coords, fill_value=0)
-            # Ensure no NaNs are passed into pm.Data updates
-            spend_values = spend_values.fillna(0)
-            original_dtype = model.named_vars["channel_data_spend"].type.dtype
-            data["channel_data_spend"] = spend_values.astype(original_dtype)
-
         self.new_updated_data = data
         self.new_updated_coords = coords
         self.new_updated_model = model
@@ -1974,7 +1958,6 @@ class MMM(RegressionModelBuilder):
         self,
         data: pd.DataFrame,
         calibration_data: pd.DataFrame,
-        cpt_variable_name: str = "cost_per_target",
         name_prefix: str = "cpt_calibration",
     ) -> None:
         """Calibrate cost-per-target using constraints via ``pm.Potential``.
@@ -2025,7 +2008,6 @@ class MMM(RegressionModelBuilder):
             mmm.add_cost_per_target_calibration(
                 data=spend_df,
                 calibration_data=calibration_df,
-                cpt_variable_name="cost_per_target",
                 name_prefix="cpt_calibration",
             )
         """
@@ -2042,15 +2024,43 @@ class MMM(RegressionModelBuilder):
                 )
 
         # Prepare spend data as xarray (original units)
-        spend_ds = self._create_xarray_from_pandas(
-            data=data,
-            date_column=self.date_column,
-            dims=self.dims,
-            metric_list=self.channel_columns,
-            metric_coordinate_name="channel",
-        ).transpose("date", *self.dims, "channel")
-        # Cache for predictive alignment
-        self._calibration_spend_xarray = spend_ds
+        spend_ds = (
+            self._create_xarray_from_pandas(
+                data=data,
+                date_column=self.date_column,
+                dims=self.dims,
+                metric_list=self.channel_columns,
+                metric_coordinate_name="channel",
+            )
+            .transpose("date", *self.dims, "channel")
+            .fillna(0)
+        )
+
+        spend_array = spend_ds._channel
+        # Compute expected shape from the model
+        channel_data_dims = self.model.named_vars_to_dims["channel_data"]
+        expected_shape = tuple(len(self.model.coords[dim]) for dim in channel_data_dims)
+
+        # Align spend array to the models dim order
+        spend_aligned = spend_array.transpose(*channel_data_dims)
+
+        # Now the check will fail when a coord (e.g., a country) is missing
+        if spend_aligned.shape != expected_shape:
+            raise ValueError(
+                "Spend data shape does not match channel data dims in the model: "
+                f"expected {expected_shape}, got {spend_aligned.shape}"
+            )
+
+        for dim in channel_data_dims:
+            spend_labels = np.asarray(spend_aligned.coords[dim].values)
+            model_labels = np.asarray(self.model.coords[dim])
+            if not np.array_equal(spend_labels, model_labels):
+                raise ValueError(
+                    f"Spend data coordinates for dim {dim!r} do not match model coords: "
+                    f"expected {model_labels.tolist()}, got {spend_labels.tolist()}"
+                )
+
+        spend_tensor = pt.as_tensor_variable(spend_aligned.values)
 
         with self.model:
             # Ensure original-scale contribution exists
@@ -2061,38 +2071,15 @@ class MMM(RegressionModelBuilder):
                     ]
                 )
 
-            # Create pm.Data for spend aligned to current model coords
-            spend_values = spend_ds._channel
-            # Reindex to model coords to ensure ordering matches
-            reindex_coords = {"date": self.model.coords["date"]}
-            for dim in self.dims:
-                reindex_coords[dim] = self.model.coords[dim]
-            reindex_coords["channel"] = self.model.coords["channel"]
-            spend_values = spend_values.reindex(reindex_coords, fill_value=0)
-            # Replace any existing NaNs in spend with zeros to satisfy pm.Data
-            spend_values = spend_values.fillna(0)
-
-            pm.Data(
-                name="channel_data_spend",
-                value=spend_values.values,
-                dims=("date", *self.dims, "channel"),
-            )
-
-            # Build cost_per_target deterministic safely (avoid division by ~0)
             denom = pt.clip(
                 self.model["channel_contribution_original_scale"], 1e-12, np.inf
             )
-            pm.Deterministic(
-                name=cpt_variable_name,
-                var=self.model["channel_data_spend"] / denom,
-                dims=("date", *self.dims, "channel"),
-            )
+            cpt_tensor = spend_tensor / denom
 
-        # Create one Potential per row in calibration_data
         add_cost_per_target_potentials(
             calibration_df=calibration_data,
             model=self.model,
-            cpt_variable_name=cpt_variable_name,
+            cpt_value=cpt_tensor,
             name_prefix=name_prefix,
         )
 

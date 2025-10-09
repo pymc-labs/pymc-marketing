@@ -134,6 +134,7 @@ calibration:
                 - "data"
                 - "processed"
                 - "X.csv"
+          parse_dates: ["date"]
       calibration_data:
         class: pandas.DataFrame
         kwargs:
@@ -142,7 +143,6 @@ calibration:
             channel: ["channel_1", "channel_2"]
             cost_per_target: [30.0, 42.5]
             sigma: [2.0, 3.0]
-      cpt_variable_name: "cost_per_target"
       name_prefix: "example_cpt"
 
 
