@@ -2,7 +2,7 @@
 name: pymc-marketing-dev
 channels:
   - conda-forge
-  - defaults
+  - nodefaults
 dependencies:
 # Base dependencies
 - python=3.12
