@@ -1,4 +1,4 @@
-name: Test Other Notebooks
+name: Test Notebooks
 
 on:
   pull_request:
@@ -7,6 +7,8 @@ on:
      - "pyproject.toml"
      - "tests/**.py"
      - "pymc_marketing/**"
+     - ".github/workflows/test_notebook.yml"
+     - "scripts/run_notebooks/**.py"
      - "docs/source/notebooks/**.ipynb"
      - "!docs/source/notebooks/mmm/**.ipynb"
      - "!docs/source/notebooks/*/dev/**.ipynb"
@@ -16,6 +18,8 @@ on:
      - "pyproject.toml"
      - "tests/**.py"
      - "pymc_marketing/**"
+     - ".github/workflows/test_notebook.yml"
+     - "scripts/run_notebooks/**.py"
      - "docs/source/notebooks/**.ipynb"
      - "!docs/source/notebooks/mmm/**.ipynb"
      - "!docs/source/notebooks/*/dev/**.ipynb"
@@ -25,17 +29,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  other_notebooks:
+  notebooks:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        split:
+          - "--notebooks mmm --end-idx 10"
+          - "--notebooks mmm --start-idx 10"
+          - "--notebooks clv"
+          - "--notebooks bass"
+          - "--notebooks customer_choice"
+          - "--notebooks general"
+          - "--exclude-dirs mmm clv bass customer_choice general"
     steps:
     - uses: actions/checkout@v5
-    - name: Set up Python
-      uses: actions/setup-python@v6
-      with:
-        python-version: "3.12"
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v6
+
     - name: Install dependencies
       run: |
         sudo apt-get install graphviz graphviz-dev
-        pip install -e .[docs,test,dag]
-    - name: Run non-MMM notebooks
-      run: make run_notebooks_other
+        uv venv --python 3.12
+        uv pip install --upgrade pip
+        uv pip install -e ".[docs,test,dag]"
+
+    - name: Run notebooks
+      run: uv run scripts/run_notebooks/runner.py ${{ matrix.split }}
