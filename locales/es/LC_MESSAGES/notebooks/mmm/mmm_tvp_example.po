@@ -1,0 +1,536 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:10003
+#: 6c2dc7cb53524118896c7e7b79e159a8
+msgid "MMM with time-varying parameters (TVP)"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:10005
+#: d0b2845c89484a9abccbeacf90ac5f07
+msgid ""
+"In classical marketing mix models, the effect of advertising (or other "
+"factors) on sales is assumed to be constant over time. Similarly, the "
+"baseline sales—what you would have sold without marketing—is also assumed"
+" to be constant. This is a simplification that _typically doesn't_ match "
+"reality. There will be times when, for various reasons, your ads are more"
+" effective, or when your product just _sells better_."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:10007
+#: 3c406d30e8e94775b73718c59faf371e
+msgid ""
+"This _time-varying effect_ is something we can capture with a time-"
+"varying parameter. In the context of a marketing mix model, this could be"
+" changing trends, unexpected events, and other external factors that are "
+"not controlled for. For example, if you sell sunglasses or ice cream, an "
+"unusually sunny spring will impact both your baseline sales and likely "
+"also the effect of your ads on short-term sales."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:10009
+#: e1c8c767827a4cc68ae45764b7fde6ba
+msgid ""
+"👉 In this notebook, we demonstrate how—and when—to use a time-varying "
+"parameter for intercept in an MMM, using `pymc-marketing`'s `MMM` model."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:10011
+#: 7b60c0aba67940938f3bd9223bd45bfb
+msgid "The API is straightforward:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:10024
+#: 06434504b5f740ef989703c7cf509727
+msgid ""
+"🤓 Under the hood, the time-varying intercept is modeled as a Gaussian "
+"Process (specifically a [Hilbert Space "
+"GP](https://www.pymc.io/projects/docs/en/stable/api/gp/generated/pymc.gp.HSGP.html)"
+" to speed things up), constrained to $\\mu=1$ and then multiplied by a "
+"_baseline intercept_. So if the sampler infers that the baseline "
+"intercept is 1000 sunglasses sold per week, then the GP models the "
+"percentage deviation from that, over time. Have a look at the "
+"implementation of `MMM` for concrete structural details."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:10026
+#: db6f34ffb837480185ea0645d21b73ae
+msgid "Below, we give three simple usage examples:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:10028
+#: 6c9ac52f98ab4fe8b10416459847a7ee
+msgid ""
+"**Yearly seasonality**: The intercept is a cosine function with a period "
+"of one year. Normally, one would use a Fourier basis to model "
+"seasonality, but let's see what happens when we use a time-varying "
+"intercept 🤷‍♂️."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:10029
+#: 48a9215dd7db40b2a82b74d79333b900
+msgid ""
+"**Upward trending sales**: The intercept is a linearly increasing "
+"function, mimicking overall sales growth not explained by marketing or "
+"controls. Again, you would normally use a linear increasing control "
+"variable for this, but let's see what happens when we use a time-varying "
+"parameter."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:10030
+#: 3f62064cb3d34a96af2ee875d3ac3b8a
+msgid ""
+"**Unexpected events**: The intercept is a flat line, except for "
+"intermittent, randomly placed spikes/dips. This is a more realistic "
+"scenario, where the effect of marketing is not constant, but rather "
+"varies due to various unexpected factors."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:10032
+#: c2f6d35b312541eab937c8b06e0dc903
+msgid ""
+"We conclude that while the GP-based time-varying intercept *can* "
+"technically do the job for seasonality and trends, it's not the most "
+"efficient way to do so (choose a Fourier basis or linear trend instead). "
+"However, to capture unexpected events that no other variable can explain,"
+" it's very powerful 💪."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:40002
+#: c75fbc30787143b2af894a1de16f24cf
+msgid "Load synthetic data"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:50002
+#: 225cb228d8f144a29ecb7163ef917b00
+msgid ""
+"For this example, we load some simulated consumer goods marketing "
+"spend/control data."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:60002
+#: 9f5ee398e2154fb9b28412e7711df76a
+msgid "→ Load input and define columns"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:90002
+#: 494e46cea28f4422a5b69c018f640844
+msgid "Example 1: Yearly seasonality"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:90004
+#: 4c371863db254b978d8e597eef964a95
+msgid ""
+"A common pattern in consumer goods sales is that sales are higher in the "
+"summer and lower in the winter, or reverse. In this example, we will "
+"simulate sales that follow this pattern—by letting the synthetic "
+"intercept be a cosine wave—and then see if the model can recover this "
+"using a time-varying intercept."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:100002
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:260002
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:400002
+#: 19e9a82e870d4b79947cc3bf52b93bef 2b7ce139fa3946e1879693cee0a93dba
+#: 6b3f7d4031ab4cdd959eaec60373cec8
+msgid "→ Simulate sales"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:100004
+#: c230b96e824c45b4a60427724925e1c1
+msgid ""
+"The data we loaded did _not_ have a target variable. Instead, we simulate"
+" one, by **defining a model with fixed parameters**. We can do this using"
+" [the recently added `do` operator](https://www.pymc-labs.com/blog-posts"
+"/causal-analysis-with-pymc-answering-what-if-with-the-new-do-operator/) "
+"in `pymc`. In case you have not seen this trick before, take note because"
+" it's neat."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:120002
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:280002
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:420002
+#: 5584fe9991674ac4b77ebb4d40d1a3fc 5ae8c0e97fee47288530505d7cac6e1c
+#: 8ee3b843b8c240e0898758ed6748a9bf
+msgid "→ Split into train and test"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:120004
+#: aeceaebd6e8642a8b0c61f8b19157cfe
+msgid ""
+"We split the data into _train_ and _test_ sets, so we may later display "
+"out-of-sample predictive performance."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:140002
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:300002
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:440002
+#: a66f4043f9cc4a0a90ba444d1b02e103 cbcafdf2a1cb428eaf3280694e3c27eb
+#: db568684e5d74e388ff349a2c57f9895
+msgid "→ Fit model"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:140003
+#: 25ae8a3f88a1449d9ccb7b075e056d35
+msgid ""
+"We fit the model with default settings, except specifying a `HalfNormal` "
+"prior on the baseline intercept. This is because we know that the "
+"baseline sales are positive, for a model like this."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:160002
+#: efd6678614184c42a024ce82e89a9972
+msgid "→ Posterior predictive checks"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:160004
+#: 60c6aaf62f0742ae9fbdc1e1838637e2
+msgid ""
+"We visualize the posterior predictive distribution, to understand how "
+"well the model fits the data."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:170002
+#: 70b49722e4214b4bb1fdebdf9ab64622
+msgid "**Sales**"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:170004
+#: dc7a82f76c6242b8b762577416a60540
+msgid ""
+"First, we consider predicted versus actual sales both within- and out-of-"
+"sample."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:190002
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:500002
+#: 0ae61ad73c8846e8b9f7c61c5be3042a 2d36d95a54004beaacdb8e8cacfcdd3a
+msgid "Some observations:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:190004
+#: ab3046d7a83249158582c65ffcc3470d
+msgid "👍 The model performs well in-sample."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:190005
+#: a06ad0d208e44839958c8654d1189859
+msgid ""
+"🤷‍♂️ The model predicts accurately up to ~3 months into the test set, "
+"then starts to deviate."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:190007
+#: 47e7b36211ba4f39be342e462883c568
+msgid ""
+"Since the most important utility of an MMM is to model the individual "
+"channel, control, and intercept contributions *in sample*, this out-of-"
+"sample error is not a particular worry. For scenario planning or "
+"backtesting, the decent performance in the 3 months after the training "
+"period ends, is likely sufficient, and in case a longer prediction window"
+" were desired, one would not want to use a GP to model seasonality, but "
+"rather a Fourier basis."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:200002
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:360002
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:510002
+#: 9aeb72ecee1e43a88936c249b43db5c6 f239d4e8ddbc4032ba7d0a93dbad650d
+#: f2956a5f7fd947a3a0723c03818cf8c9
+msgid "**Predicting intercept**"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:200004
+#: 410f25f6b0c645d5b5759ce47eb79f57
+msgid ""
+"We can dig one step deeper, and display the posterior predictive "
+"distribution of the time-varying intercept. Let's first display the "
+"fitted baseline intercept (it should be close to 5)."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:220002
+#: bb5e9dfed1e04a7db4d3641294db7aa6
+msgid "🎉 That indeed is close to the true value of 5."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:220004
+#: 91297bfb0cb64669975e5b7d5d17c303
+msgid ""
+"Now, let's visualize the posterior predictive distribution of the time-"
+"varying intercept, against the actual time-varying intercept."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:240002
+#: 8d81ea98d0254a138701c5bd872da58f
+msgid "Visualizing this, it's clear that:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:240004
+#: 2c295d940a774aad8fed656ff8bedd24
+msgid "👌 In-sample it gets the synthetic trend almost exactly right!"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:240005
+#: e2cbbe864ac34fdbab8a4189f64df32e
+msgid ""
+"👎 Out-of-sample, the uncertainty blows up. This is expected, as GPs are "
+"typically not great at extrapolating far from the training data."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:250002
+#: 44e75198458847e98d9b52b6c7a8c62b
+msgid "Example 2: Upward trending sales"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:250004
+#: 6853758156fa41c79e6eb981cbff10ed
+msgid ""
+"This section repeats the steps above, except with a linearly increasing "
+"intercept with mean 2.5, to mimic upward trending sales."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:320002
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:470002
+#: 0e7e7b80cbf9428c82d700eb713de48f 87cf760c54a44f15aa6e6175c158400d
+msgid "→ Posterior predictive check"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:330002
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:480002
+#: 3f27e6a07c194e1d893ff71f6f6cc851 ce4f4113937d4fa1ab4ca562f641db63
+msgid "**Predicting sales**"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:350002
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:380002
+#: 77ef86aa81d74d5d9add5c9e634bd6e8 8bf649c1d20140928fcd4c913cd4650f
+msgid "Observations:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:350004
+#: 620fe04c516442fc8d27f5459dc86e74
+msgid "👍 As seen previously, the model performs well in-sample."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:350005
+#: a70c3a12ac6b42f793c8653139b2a6d0
+msgid ""
+"👎 Similar to before, predictions are accurate up to ~3-6 months into the "
+"test set, then start to deviate."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:380004
+#: b435728f0d7f4b82b6de17bfdbdced56
+msgid ""
+"👎 In-sample it follows the synthetic trend but with an offset of about "
+"-1.5."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:380005
+#: b0bdb21fe62e442782d6642e9457f9dc
+msgid "👎 Out-of-sample, the GP reverts to its prior mean."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:380007
+#: bb4973693a7c42b6befcdfd63117a754
+msgid ""
+"It's quite clear from this example, that if you have a steep upward trend"
+" in your sales data that you have reason to expect will continue, you "
+"probably *should not* use a GP to model the intercept. Instead, you may "
+"use linearly increasing control variables."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:390002
+#: 87399381d4544cd2b94e8a633d0980d4
+msgid "Example 3: Unexpected events"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:390004
+#: f55e46e7754849be8462f581b4aa7355
+msgid ""
+"This section repeats the procedure except with an intercept of 5, except "
+"with intermittent spike/dip events. Each event could be a competitor "
+"product launch, a global pandemic, an unusually sunny spring, or another "
+"impactful, unexpected event."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:460002
+#: fecee1a67b2546b9b64aa8e23bfea5dd
+msgid ""
+"The sampling diagnosis ☝️ complains about some divergences. Similarly, "
+"the *rhat* statistic is larger than 1.01 for some parameters. Overall it "
+"appears that the model has not been parameterized appropriately. Let's "
+"see how this pans out..."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:500004
+#: f940ffbb041e4971a793ebc060700bd4
+msgid ""
+"👎 The model predictions have large uncertainty, more than observed in the"
+" previous examples."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:500005
+#: bbd18650988647daadd821226ae8f55c
+msgid "💥 ~3 months into the out-of-sample set, uncertainty explodes."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:540002
+#: a59a03362c2942088076f50ff2a5f07f
+msgid ""
+"Judging from the posterior predictive distribution of the time-varying "
+"intercept, there is a problem with the model."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:540004
+#: a4f711866d45445a8e74d3db5130f52b
+msgid "We observe that:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:540006
+#: d9576510101d4a0e9f276b551f836b25
+msgid "👎 The model overestimates the intercept *a lot*."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:540007
+#: b91ac71733654a8bbb8c299fa4dfccc6
+msgid "🤷‍♂️ Only the two major events are captured by the time-varying intercept."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:540008
+#: fea7b1f1327447ba8720ee93996fae3f
+msgid "👎 Overall uncertainty is greater than in the previous examples."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:540010
+#: 9612633d45e94901921a3d4730ef740e
+msgid ""
+"This is a strong indication that the time-varying intercept prior may not"
+" be well parameterized. Since the events that we synthesize happen on "
+"shorter time scales than the trends we modeled previously, it is likely "
+"that the mean of the length-scale prior is too high (default is two "
+"years)."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:550002
+#: 4145f1fd4c01488bacd3060a4439731d
+msgid ""
+"💡 Let's try to refit the model with a shorter length scale prior mean of "
+"one year (52.18 weeks)."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:570002
+#: b93f2718cd554779a0a46d8ca719e6c1
+msgid "Notice ☝️ fewer divergences 👌."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:610002
+#: d62942b3220d419ca4fc18f3f7c6356b
+msgid ""
+"🎉 Success! As hypothesized, the time-varying intercept now captures the "
+"events better, and at the right scale! Notice how lowering the length-"
+"scale prior mean from the default two years to one year makes the series "
+"more _squiggly_."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:610004
+#: 87ca6ef2f6ed4719bf04f2435c88d084
+msgid ""
+"*Sidenote: While the very-small events are still not captured perfectly, "
+"this may be remedied with a more complex covariance function supplied "
+"through the `model_config`, although these events are likely below the "
+"minimal detectable effect size in this example.*"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:620002
+#: a45770de3a5743e9bf1e5b9d7a621cf3
+msgid "Conclusion"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:620004
+#: 65c868576cf24dfab48f687da7f2949b
+msgid ""
+"In this notebook, we have demonstrated how to use a time-varying "
+"parameter in a marketing mix model using `pymc-marketing`. We have shown "
+"how the model can capture yearly seasonality (with moderate success "
+"🤷‍♂️), upward trending sales (not very well 👎), and random/unexpected "
+"events (very well 🎉). In summary, we show that a time-varying intercept, "
+"as modeled using a Gaussian Process (GP), is highly appropriate for "
+"modeling *random events* that cannot otherwise be accounted for in the "
+"model, whereas regular patterns that may influence baseline sales such as"
+" seasonality and constant demand increase are better modeled using a "
+"Fourier or linear basis."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:620006
+#: 2b45030b01bb4575a433f582085cb89d
+msgid "**In a nutshell**"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:620008
+#: b4d162b5b7524f8bb4a4cff810e1a4e2
+msgid ""
+"GPs are great at capturing patterns that are not easy/possible to "
+"extrapolate, and in turn, they cannot well extrapolate simple patterns "
+"like seasonality or increasing trends. For such cases, a Fourier basis or"
+" similar might be more appropriate. However, for explaining temporal "
+"variance that no other model component can account for—like the impact of"
+" an unexpected event—a time-varying intercept is great!"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:620010
+#: 1af3041b56ca4b2d8c8a833560c9afe1
+msgid "**When should I use a time-varying intercept?**"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:620012
+#: aace0fe33a304596b011008a40ad8055
+msgid ""
+"If you suspect that your baseline sales fluctuate over time due to "
+"factors beyond seasonality, constant growth, or explicitly modeled "
+"controls, consider using a time-varying parameter. The time-varying "
+"intercept is like a _catch-all_ for unexplained variance in your sales "
+"data."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:620014
+#: d39ca84592854080a4ae03fa0721287e
+msgid "**How should I parameterize my time-varying component?**"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_tvp_example.ipynb:620016
+#: e7144a0cd6d640419dabf8284d786e6b
+msgid ""
+"We have defined some sensible defaults, and in most cases, they are "
+"adequate. But if you have unexplained variance in your sales that occur "
+"on short time scales, you may—as in the example above—experiment with "
+"lowering the length-scale prior mean. If you need greater fidelity in the"
+" frequencies that the GP can capture, and can live with longer sampling "
+"times, you can also increase the number of basis functions "
+"`model_config['intercept_tvp_config'].m` from 200 (default) to a higher "
+"number. Finally, if you believe you have events affecting your sales on, "
+"say, two separate time scales, you can supply a new covariance function "
+"through `model_config['intercept_tvp_config'].cov_func`, which is *the "
+"sum of two independently defined covariance functions*—each with a "
+"length-scale prior mean that matches the given time scales you expect in "
+"your data."
+msgstr ""

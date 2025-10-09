@@ -1,0 +1,571 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:10003
+#: 7613ccaafaa34eeb8980952c11d088de
+msgid "Case Study: Unobserved Confounders, ROAS and Lift Tests"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:10005
+#: 70e73763cde74a758fa41db2a82e8d11
+msgid "The Importance of Calibration in Media Mix Models"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:10007
+#: e4754d3267964ee685de1859708774d0
+msgid ""
+"When working with Media Mix Models (MMMs), calibration with lift tests is"
+" not just a technical step — it's essential for making these models "
+"reliable and actionable. Lift tests serve as a reality check, grounding "
+"the model's predictions in real-world outcomes. This process is "
+"particularly important because MMMs often rely on data that is both noisy"
+" and limited in scope, making accurate predictions difficult."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:10009
+#: 132b94000e5d4c80919bc428c0257bc5
+msgid "Why MMMs Need to Be Causal Models"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:10011
+#: 20446c6a2b214523b3c5dfc128f2d072
+msgid ""
+"The true power of MMMs lies in their ability to guide decisions based on "
+"potential changes in marketing strategy. For instance, a marketer might "
+"ask, \"What impact would reducing the budget for channel X by 50% have on"
+" overall sales?\" To answer such questions, MMMs must be developed as "
+"*causal models*—models that can predict the effects of specific "
+"interventions."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:10013
+#: ddb0824629d24c309510bcf9e425d928
+msgid ""
+"Creating a causal model involves constructing a well-defined *directed "
+"acyclic graph* (DAG). A DAG is a visual representation of the "
+"relationships between different variables in the model, helping to ensure"
+" that the right covariates (or control variables) are included. This "
+"isn't just about throwing in every available piece of data; it's about "
+"selecting variables that genuinely contribute to understanding the causal"
+" relationships in your marketing activities."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:10015
+#: 4307206550c040c7bd07b05de23e7ffd
+msgid "The Challenge of Unobserved Confounders"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:10017
+#: 1b77f6725f724414aac543100b5e0464
+msgid ""
+"Even with a well-constructed DAG, unobserved confounders can pose a "
+"significant problem. These are variables that influence both the "
+"treatment (e.g., spending on a particular marketing channel) and the "
+"outcome (e.g., sales) but are not included in the model. Their omission "
+"can lead to biased estimates, which in turn can result in poor decision-"
+"making. Unfortunately, unobserved confounders are almost inevitable in "
+"any real-world scenario."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:10019
+#: 60ed0a9ba43e4b1492b89f034b898c33
+msgid "A Recent Innovation: Calibrating MMMs with Bayesian Priors and Lift Tests"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:10021
+#: a8da81a478f4474085ebe2d6c1a004a1
+msgid ""
+"In theory, methods like instrumental variables can help address the issue"
+" of unobserved confounders. An instrumental variable is a variable that "
+"is correlated with the treatment but not with the outcome, except through"
+" the treatment. However, finding good instruments is notoriously "
+"difficult, making this solution less practical."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:10023
+#: 57376294c83840c7af41df5828c055f3
+msgid ""
+"An alternative, more practical solution is to calibrate the MMM using "
+"lift tests. Lift tests are experiments that measure the incremental "
+"effect of a marketing intervention, such as a temporary increase in ad "
+"spend on a specific channel. By calibrating the model with the results of"
+" these tests, we can reduce the bias introduced by unobserved "
+"confounders. Bayesian methods are particularly well-suited for this "
+"approach because they allow us to incorporate prior knowledge—information"
+" we have before analyzing the data—into the model. This can significantly"
+" improve the model's accuracy, even before we start crunching the "
+"numbers."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:10025
+#: 3f4aa3e4981a4a648bba288975dc0b59
+msgid ""
+"A recent paper, [Media Mix Model Calibration With Bayesian "
+"Priors](https://research.google/pubs/media-mix-model-calibration-with-"
+"bayesian-priors/) by Zhang et al. (2024), proposes a novel approach to "
+"calibrating MMMs. Instead of using the traditional beta (or regression) "
+"coefficients for each channel, the authors suggest parametrizing the "
+"model in terms of *return on ad spend* (ROAS)."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:10027
+#: 1f0ee81a8f804854be78c0929ca6688e
+msgid ""
+"The concept is straightforward: express the beta coefficients in terms of"
+" ROAS, and then substitute these into a standard MMM equation. This "
+"method simplifies the calibration process and can partially mitigate "
+"biases comming from unobserved confounders and noise in the data."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:10029
+#: d9125ca53923497699c79d8123b471fa
+msgid "Practical Application: Implementing the Method in PyMC"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:10031
+#: 2401cac7fb534d4394865d4d98f7bdbf
+msgid ""
+"In the blog post [Media Mix Model and Experimental Calibration: A "
+"Simulation Study](https://juanitorduz.github.io/mmm_roas/), [Juan "
+"Orduz](https://juanitorduz.github.io) provides a comprehensive "
+"implementation of this method using PyMC. This work demonstrates how this"
+" calibration approach can yield more accurate estimates, even when "
+"dealing with unobserved confounders. However, despite its strengths, this"
+" method has a limitation: it doesn't automatically improve when "
+"additional lift tests are added. The authors of the paper suggest "
+"aggregating the results of multiple lift tests by taking a weighted "
+"average of the ROAS estimates from each experiment."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:10033
+#: 68cd15e57e3f411986d8d3ddc5a9ea72
+msgid "A New Approach: Refining MMMs with Custom Likelihood Functions"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:10035
+#: 2dac8a5a16c24068abf872226876401b
+msgid ""
+"While the method proposed by Zhang et al. is effective, it could be more "
+"efficient in leveraging the results of lift tests. Running these "
+"experiments requires significant planning and resources, so it's "
+"important to maximize their value."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:10037
+#: 142b0e6779eb4096b4ce82f62806f56f
+msgid ""
+"To address this, we propose an alternative approach. Instead of directly "
+"reparametrizing the model in terms of ROAS, we suggest adding additional "
+"likelihood functions based on the saturation curves of the marketing "
+"channels. Saturation curves describe how the effectiveness of a marketing"
+" channel diminishes as spending increases. By calibrating the model "
+"through these curves using lift test results, we can continuously refine "
+"our estimates as more experiments are conducted. This approach allows us "
+"to make better use of the data from lift tests, leading to more accurate "
+"and reliable MMMs over time."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:10039
+#: 7c1d6cd9bdd8481e96f80d4b6c748537
+msgid "Demonstrating the Approach: Results and Implementation"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:10041
+#: 4b51dd1b5d5141869d443f2205956208
+msgid ""
+"In our notebook, we replicate the results from the blog post [Media Mix "
+"Model and Experimental Calibration: A Simulation "
+"Study](https://juanitorduz.github.io/mmm_roas/) using the PyMC-Marketing "
+"framework. This framework allows us to incorporate lift tests through "
+"custom likelihood functions, providing a more nuanced calibration of the "
+"MMM. By continuously refining our estimates as new data becomes "
+"available, this approach offers a dynamic and robust solution to the "
+"challenges posed by unobserved confounders in marketing mix modeling."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:10043
+#: 9b65929f2e7346a88133aebcede53ed9
+#, python-brace-format
+msgid ""
+"For those interested in diving deeper, we encourage you to explore a "
+"detailed description of the method in our notebook {ref}`mmm_lift_test`, "
+"where we walk through the process step by step."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:20002
+#: 3882cf2485c34bebbd3b6443d96175fe
+msgid "Prepare Notebook"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:50002
+#: 5d6a1f122d2f48c6b9b6d5274b287308
+msgid "Read Data"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:50004
+#: a47a75567328401fb65392ddc99af69e
+msgid "We read the data, which is available in the `data` of our repository."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:70002
+#: 8dabaed947144f14a591bb9e964c7e30
+msgid ""
+"There are many columns in the dataset. We will explain the below. For "
+"now, that is important is for modeling purposes we will only use the "
+"`date`, `x1`, `x2` (channels)and `y` (target) columns."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:90002
+#: 42a7722ef0e74bb5a76a8c0985107fac
+msgid "Data Generating Process"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:90004
+#: bf68e3f9475d4174b15e506ce736671b
+msgid ""
+"In the original [blog post](https://juanitorduz.github.io/mmm_roas/), the"
+" authors generate the data using the following DAG."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:110002
+#: 45a7e80836e4412aaa33165a93f17796
+msgid ""
+"We are interested in the effect of the `x1` and `x2` channels on the `y` "
+"variable. We have additional covariates like yearly seasonality and a a  "
+"non-linear trend component. In addition, there is an unobserved "
+"confounder `z` that affects both the channels and the target variable. "
+"This variable introduces a bias in the estimates if we do not account for"
+" it. However, for this problem we are going to assume that we do not have"
+" access to the `z` variable (hence, unobserved)."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:110004
+#: 7128c4d63a6e42f9813f550bb41cfc27
+msgid ""
+"In the `raw_df` we have all all the columns needed in the data generating"
+" process to obtain the target variable `y`. For example, the "
+"`x1_adstock_saturated` column is the result of applying the adstock "
+"function and then the saturation to the `x1` channel."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:110006
+#: 9fc1babe3cc744bdb69ace936b74a7e4
+msgid "The target variable `y` is generated as"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:110012
+#: dd6b43c120334011b211b827299f734d
+msgid "where `epsilon` is a Gaussian noise and `amplitude` is a set to $100$."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:110014
+#: b84291604d6545c7b53870a505296c72
+msgid ""
+"The variables `y01` and `y02` are the target variable `y` without the "
+"effect of the `x1` and `x2` channels, respectively. Hence"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:110021
+#: 2097cf62e3eb45ef9f35a261a5c3ce48
+msgid ""
+"For details on the data generating process, please refer to the [blog "
+"post](https://juanitorduz.github.io/mmm_roas/)."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:120002
+#: bb3e4e415c6a470f9ab4617a5425815b
+msgid ""
+"From the variables `y01` and `y02` we can compute the true ROAS for the "
+"`x1` and `x2` channels for the whole period ( for simplicity we ignore "
+"the carryover effect)."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:140002
+#: be998e344f2e46f6a7f34c718963fff5
+msgid ""
+"We would like to recover the true ROAS for the `x1` and `x2` channels "
+"using a media mix model."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:150002
+#: 3c960bc4b72548a9a7c305afc32e76fa
+msgid ""
+"Before jumping into the model, let's plot channels the data to understand"
+" it better."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:170002
+#: 071e07d37b804184ba44edd23511c5f2
+msgid "Baseline Model"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:170004
+#: af27bd998f8747cab7e29f5aae6799e2
+#, python-brace-format
+msgid ""
+"To begin with, we fit a media mix model, without including the unobserved"
+" confounder `z`, using a saturated adstock and logistic saturation using "
+"PyMC-Marketing's API. For more details on the model, please refer to the "
+"{ref}`mmm_example` notebook. As we discuss in that notebook, without any "
+"lift test information, a good starting point is to pass the cost share "
+"into the prior of the beta channel coefficients."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:190002
+#: d7fdcf189de04323a6cfb5aa1341a3fa
+#, python-brace-format
+msgid ""
+"We can specify the model configuration as follows (see the "
+"{ref}`model_configuration` notebook for more details):"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:210002
+#: 11904432ee424aefa5604904d93ec287
+#, python-brace-format
+msgid ""
+"Observe that we are going to use a Gaussian process to model the non-"
+"linear trend component (see {ref}`mmm_tv_intercept`)."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:210004
+#: 11d9a79248e94046a89d74aae2988527
+msgid "Let's fit the model!"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:230002
+#: d94e0d0dd8664ba0a5eedb4a0ff86ce6
+msgid "Let's verify that we do not have divergent transitions."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:250002
+#: 2e26270d235f43b2ad051cfbaa5dfd39
+msgid "Next, we look into the model components contributions:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:270002
+#: 1eec7f72f7d64de49280aa80fe520720
+msgid ""
+"The results look very similar to the results from the original blog post."
+" In particular, note that we were able to capture the non-linear trend."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:280002
+#: eeba388c0cb248b4ae19b41edfa2ad72
+msgid ""
+"Next, we look into the channel contributions against the true effects "
+"(which we know from the data generating process)."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:300002
+#: c0d6dca838d24dbcb935394a2f96282f
+msgid ""
+"We see that the contribution for `x1` is very different from the true "
+"effect. This is because the absence of the unobserved confounder `z`. For"
+" `x2`, the contribution is very similar to the true effect."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:310002
+#: 25e5b738a4bb4c229072a609864ac00e
+msgid ""
+"Finally, we can compute the ROAS for the `x1` and `x2` channels (again, "
+"ignoring the small carryover effect)."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:330002
+#: abc7a6094ba544b6ba407535ef030ab4
+msgid ""
+"We see that the ROAS for `x1` is very different from the true value. This"
+" is reflecting the bias induced by the unobserved confounder `z`. The "
+"models suggests that `x1` is more effective than `x2`, but we know from "
+"the data generating process that `x2` is more effective!"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:340002
+#: f82d9913ea3648ab97c42faf141127a1
+msgid "Lift Test Model"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:340004
+#: 5a15fe8642d54a989a5bf50edb6efbd3
+msgid ""
+"Now we fit a model with some lift tests. We will use the same model "
+"configuration as before, but we free the priors of the beta channel "
+"coefficients as these are included in the saturation function "
+"parametrization. In general, we expect lift tests priors or associated "
+"custom likelihoods to be better than the cost share prior."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:360002
+#: ceb76253f26046828b75b214000cd5a2
+msgid "Lift Tests"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:360005
+#: 5123f048eb7f48b1a998e11031299606
+msgid ""
+"In a lift study, one temporarily changes the budget of a channel for a "
+"fixed period of time, and then uses some method (for example "
+"[CausalPy](https://causalpy.readthedocs.io/en/stable/)) to make inference"
+" about the change in sales directly caused by the adjustment."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:360007
+#: e2438ca6ec3a4b3f98aaff11752a4eb0
+msgid "A lift test is characterized by:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:360009
+#: 4b0f7c08619c4d42abca22fd23675d86
+msgid "`channel`: the channel that was tested"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:360010
+#: 8040dd92cbf04e5c8e896703d8dcb198
+msgid "`x`: pre-test channel spend"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:360011
+#: ff95d0492a4e463c81a6f277cd539e2a
+msgid "`delta_x`: change made to x"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:360012
+#: eeccffc21edc41dda47542d8c76cb7e4
+msgid "`delta_y`: inferred change in sales due to delta_x"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:360013
+#: 2c299fae65004d89bb6482d29352534a
+msgid "`sigma`: standard deviation of delta_y"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:360015
+#: 479090bae6dc4fa29046bd2c9393079f
+msgid ""
+"An experiment characterized in this way can be viewed as two points on "
+"the saturation curve for the channel."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:370002
+#: 30a4f5ca593e46a49ce12d709c65d74c
+msgid ""
+"Next assume we have ran two lift tests for the `x1` and `x2` channels. "
+"The results table looks like this:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:390002
+#: e407f69ccf324fffa727cea7357381f1
+msgid "Comparison with the original blog post"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:390005
+#: d7bb97ffe8914ff8ab800b523f152c4c
+msgid ""
+"Note that we have added the true ROAS for the `x1` and `x2` channels "
+"implicit to the `df_lift_test` table. We add them multiplying the "
+"`delta_y` as this is what we would have observed if we had run the lift "
+"test (or similar values)."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:390007
+#: 56064b5b256e494b9d168cd2d03065c2
+msgid ""
+"In the simulation [Media Mix Model and Experimental Calibration: A "
+"Simulation Study](https://juanitorduz.github.io/mmm_roas/), the author "
+"included these \"true\" values into the prior for the ROAS."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:400002
+#: 20279b01f92340418870decc6d96a85e
+msgid "Now, we fit the model with the lift test measurements."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:430002
+#: 1f686a7028f5472eb9e69f8c2b41e839
+msgid "Again, we verify that we do not have divergent transitions."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:450002
+#: b63f186538ff45458d17382b598c23be
+msgid "Let's plot the components contributions as we did before."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:470002
+#: 6ae2af219e18423b9e74bd14b3892f85
+msgid ""
+"As before, we have recovered the non-linear trend component and the "
+"yearly seasonality."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:480002
+#: cf30fd8ce3514a539d6d0785eb8cb188
+msgid "Now, let's compute the channel contributions to the true ones."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:500002
+#: 71eea443865a4745b9fa61238ca8f279
+msgid ""
+"The contributions look much better and they are very close to the ones of"
+" the original blog post! Hence, **these two approaches are very "
+"similar**. However note that the PyMC-Marketing approach is more flexible"
+" as it allows to enrich the estimates with more test and different media "
+"spends to have a better understanding of the saturation effect."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:510002
+#: 3a56c1deb20c4a05a0924aec4e46ef28
+msgid "Finally, let's compute the ROAS for the `x1` and `x2` channels."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:530002
+#: dba214af1ec74c1a990ace87d795c8a9
+msgid ""
+"The estimates are very very close to the true ROAS! We do get from the "
+"model that `x2` is more effective than `x1`, which is aligned with the "
+"lift test results!"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:540002
+#: 5029532692254d33be4ea615044a0fbd
+msgid "Conclusion"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_roas.ipynb:540004
+#: 50cae7087c324938aa13cdb8576d41e4
+msgid ""
+"In this notebook, we have seen a concrete example of how media mix models"
+" can provide bias estimates when we have unobserved confounders in the "
+"model specification. Ideally, we'd add the confounder, but in the absence"
+" of that, we need to provide a reality anchor to the model to have "
+"meaningful estimates. We have shown that the PyMC-Marketing approach of "
+"adding lift test measurements to the model is very similar to the one "
+"proposed in the paper [Media Mix Model Calibration With Bayesian "
+"Priors](https://research.google/pubs/media-mix-model-calibration-with-"
+"bayesian-priors/) and the blog post [Media Mix Model and Experimental "
+"Calibration: A Simulation "
+"Study](https://juanitorduz.github.io/mmm_roas/). However, the PyMC-"
+"Marketing approach is more flexible as it allows enriching the estimates "
+"with more lift tests and different media spending to better understand "
+"the saturation effect. We have also seen why it is essential to include "
+"the lift test measurements in the model to account for the unobserved "
+"confounders and better understand the saturation effect."
+msgstr ""

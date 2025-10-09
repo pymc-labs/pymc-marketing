@@ -1,0 +1,123 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.beta_geo.BetaGeoModel.save.rst:2
+#: b9650717d522458bb768a7bbdc785e28
+msgid "BetaGeoModel.save"
+msgstr ""
+
+#: a62e9566e2ef4e5da462cdc09837d1ff of
+#: pymc_marketing.model_builder.ModelIO.save:2
+msgid "Save the model's inference data to a file."
+msgstr ""
+
+#: 04143b52985547ffa4ecd5f7f2759129 of
+#: pymc_marketing.model_builder.ModelIO.save
+msgid "Parameters"
+msgstr ""
+
+#: aab6572605f44b709249110897d137e3 of
+#: pymc_marketing.model_builder.ModelIO.save:7
+msgid "**fname** : :class:`python:str`"
+msgstr ""
+
+#: 08285afb5c1a44df80e525111f728159 of
+#: pymc_marketing.model_builder.ModelIO.save:6
+msgid "python:str"
+msgstr ""
+
+#: 6a12d8972406450e99176bca4d4cb26b of
+#: pymc_marketing.model_builder.ModelIO.save:8
+msgid ""
+"The name and path of the file to save the inference data with model "
+"parameters."
+msgstr ""
+
+#: e8b38dabcde948fe8afc55400fb0bae3 of
+#: pymc_marketing.model_builder.ModelIO.save:10
+msgid "**\\*\\*kwargs**"
+msgstr ""
+
+#: bb360b0e8c1c427c9073823973ac456e of
+#: pymc_marketing.model_builder.ModelIO.save:11
+msgid ""
+"Additional keyword arguments to pass to arviz.InferenceData.to_netcdf(). "
+"Common options include: - engine : str, optional (default \"netcdf4\")"
+msgstr ""
+
+#: 4c8e73e9006f40cf9b73ea7a2e0bc295 of
+#: pymc_marketing.model_builder.ModelIO.save:14
+msgid "Library to use for writing files."
+msgstr ""
+
+#: 0fd4855b20bb4b44a8ab9a19c6a4b256 of
+#: pymc_marketing.model_builder.ModelIO.save:15
+msgid "groups"
+msgstr ""
+
+#: 777b19cfb43f495e8fd0ec8ec732a7aa of
+#: pymc_marketing.model_builder.ModelIO.save:-1
+msgid "list of str, optional"
+msgstr ""
+
+#: 1459469d15e140ce9b27ed00c328d3cf of
+#: pymc_marketing.model_builder.ModelIO.save:16
+msgid "Groups to save to netcdf. If None, all groups are saved."
+msgstr ""
+
+#: d4a6cdeb198b44d0bc9895be914a4cef of
+#: pymc_marketing.model_builder.ModelIO.save
+msgid "Returns"
+msgstr ""
+
+#: bb0360b0042741f2b865c6c56c44b1ce of
+#: pymc_marketing.model_builder.ModelIO.save:22
+msgid ":data:`python:None`"
+msgstr ""
+
+#: dd245be7ca0348fe984259b98db40133 of
+#: pymc_marketing.model_builder.ModelIO.save
+msgid "Raises"
+msgstr ""
+
+#: ae329b494d5440909da1135e9e6c9970 of
+#: pymc_marketing.model_builder.ModelIO.save:30
+msgid ":obj:`RuntimeError`"
+msgstr ""
+
+#: 95ac30a983994a359ea53bf6148e7da0 of
+#: pymc_marketing.model_builder.ModelIO.save:31
+msgid "If the model hasn't been fit yet (no inference data available)."
+msgstr ""
+
+#: f6b24246cb6844dba662d9f1bb3fed8e of
+#: pymc_marketing.model_builder.ModelIO.save:39
+msgid "Examples"
+msgstr ""
+
+#: dcc7809839434b9394fa2aa0c957c4de of
+#: pymc_marketing.model_builder.ModelIO.save:40
+msgid ""
+"This method is meant to be overridden and implemented by subclasses. It "
+"should not be called directly on the base abstract class or its "
+"instances."
+msgstr ""

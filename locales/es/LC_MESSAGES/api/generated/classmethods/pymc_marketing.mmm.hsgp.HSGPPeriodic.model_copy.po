@@ -1,0 +1,76 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.hsgp.HSGPPeriodic.model_copy.rst:2
+#: 2f8d220e68ba4053be8c676e727a7851
+msgid "HSGPPeriodic.model\\_copy"
+msgstr ""
+
+#: 3a74f9215c464e0a8bc0b5aaa6d6a2e2 of pydantic.main.BaseModel.model_copy:2
+msgid "!!! abstract \"Usage Documentation\""
+msgstr ""
+
+#: 6b7912c812124585b2ea7c8a48ab8e78 of pydantic.main.BaseModel.model_copy:3
+msgid "[`model_copy`](../concepts/serialization.md#model_copy)"
+msgstr ""
+
+#: 1695b304186a4cf091d2006917aa1398 of pydantic.main.BaseModel.model_copy:5
+msgid "Returns a copy of the model."
+msgstr ""
+
+#: 711491162f3d4340820334b74cb0110c of pydantic.main.BaseModel.model_copy:7
+msgid "!!! note"
+msgstr ""
+
+#: 98f21dddd2934ba9b000b81a76af7485 of pydantic.main.BaseModel.model_copy:8
+msgid ""
+"The underlying instance's [`__dict__`][object.__dict__] attribute is "
+"copied. This might have unexpected side effects if you store anything in "
+"it, on top of the model fields (e.g. the value of [cached "
+"properties][functools.cached_property])."
+msgstr ""
+
+#: 91c82ef9fdd04d51960e6904d3bbd4e7 of pydantic.main.BaseModel.model_copy:12
+msgid "Args:"
+msgstr ""
+
+#: 14edc43179fb40969ff24fd9792b9d89 of pydantic.main.BaseModel.model_copy:13
+msgid ""
+"update: Values to change/add in the new model. Note: the data is not "
+"validated"
+msgstr ""
+
+#: 6c06c0194b7b45528ccfb90f89c8d1d8 of pydantic.main.BaseModel.model_copy:14
+msgid "before creating the new model. You should trust this data."
+msgstr ""
+
+#: 39b627371f5a4e15a5b2270081428bed of pydantic.main.BaseModel.model_copy:15
+msgid "deep: Set to `True` to make a deep copy of the model."
+msgstr ""
+
+#: 7f237e57533d4640a7f268d8ca0c9462 of pydantic.main.BaseModel.model_copy:17
+msgid "Returns:"
+msgstr ""
+
+#: a70d1d01b9714874ba87965f32f4f657 of pydantic.main.BaseModel.model_copy:18
+msgid "New model instance."
+msgstr ""
