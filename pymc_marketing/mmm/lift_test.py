@@ -785,7 +785,8 @@ def add_cost_per_target_potentials(
     calibration_df: pd.DataFrame,
     *,
     model: pm.Model | None = None,
-    cpt_variable_name: str = "cost_per_target",
+    cpt_value: TensorVariable,
+    target_column: str = "cost_per_target",
     name_prefix: str = "cpt_calibration",
     get_indices: Callable[[pd.DataFrame, pm.Model], Indices] = exact_row_indices,
 ) -> None:
@@ -801,15 +802,15 @@ def add_cost_per_target_potentials(
     ----------
     calibration_df : pd.DataFrame
         Must include columns ``channel``, ``sigma``, and a target column. By
-        default the target column is assumed to be ``cost_per_target``; if a column
-        matching ``cpt_variable_name`` is present it will be used instead. The
+        default the target column is assumed to be ``cost_per_target``. The
         DataFrame must also include one column per model dimension found in the
         CPT variable (excluding ``date``).
     model : pm.Model, optional
-        Model containing the ``cpt_variable_name`` Deterministic with dims
-        ("date", *dims, "channel"). If None, uses the current model context.
-    cpt_variable_name : str
-        Name of the cost-per-target Deterministic variable.
+        Model containing the cost-per-target tensor. If None, uses the current model context.
+    cpt_value : TensorVariable
+        Tensor representing cost-per-target values over the model coordinates.
+    target_column : str
+        Column in ``calibration_df`` containing the calibration targets.
     name_prefix : str
         Prefix for created potential names.
     get_indices : Callable[[pd.DataFrame, pm.Model], Indices]
@@ -818,6 +819,10 @@ def add_cost_per_target_potentials(
     Examples
     --------
     .. code-block:: python
+
+        cpt_tensor = pt.as_tensor_variable(
+            np.full((len(dates), len(geo), len(channels)), 30.0, dtype=float)
+        )
 
         calibration_df = pd.DataFrame(
             {
@@ -831,31 +836,20 @@ def add_cost_per_target_potentials(
         add_cost_per_target_potentials(
             calibration_df=calibration_df,
             model=mmm.model,
-            cpt_variable_name="cost_per_target",
+            cpt_value=cpt_tensor,
             name_prefix="cpt_calibration",
         )
     """
     current_model: pm.Model = pm.modelcontext(model)
 
     # Basic validation
-    target_column = (
-        cpt_variable_name
-        if cpt_variable_name in calibration_df.columns
-        else "cost_per_target"
-    )
-
     required_cols = {"channel", target_column, "sigma"}
     missing = required_cols - set(calibration_df.columns)
     if missing:
         raise KeyError(f"Missing required columns in calibration_df: {sorted(missing)}")
 
-    if cpt_variable_name not in current_model.named_vars:
-        raise KeyError(
-            f"Variable {cpt_variable_name!r} not found in model; create it before calibration."
-        )
+    cpt_dims = tuple(current_model.named_vars_to_dims["channel_data"])
 
-    # Determine dims from the CPT variable in the model
-    cpt_dims = current_model.named_vars_to_dims[cpt_variable_name]
     non_date_dims = [d for d in cpt_dims if d != "date"]
 
     # Ensure calibration_df contains all needed dimension columns
@@ -875,7 +869,7 @@ def add_cost_per_target_potentials(
 
     with current_model:
         # Compute mean over the date dimension once
-        cpt_full = current_model[cpt_variable_name]
+        cpt_full = cpt_value
         date_axis = cpt_dims.index("date")
         cpt_mean = pt.mean(cpt_full, axis=date_axis)
 
