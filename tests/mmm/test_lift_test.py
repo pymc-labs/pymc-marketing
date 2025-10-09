@@ -573,17 +573,12 @@ def test_adds_date_column_if_missing(dummy_mmm_model):
 def test_add_cost_per_target_potentials(dummy_mmm_model):
     model = dummy_mmm_model
 
-    # Create a simple constant cost_per_target deterministic over (date, channel)
+    # Create a simple constant cost_per_target tensor over (date, channel)
     dates = model.model.coords["date"]
     channels = model.model.coords["channel"]
-    const_cpt = np.full((len(dates), len(channels)), 30.0, dtype=float)
-
-    with model.model:
-        pm.Deterministic(
-            "cost_per_target",
-            pt.as_tensor_variable(const_cpt),
-            dims=("date", "channel"),
-        )
+    const_cpt = pt.as_tensor_variable(
+        np.full((len(dates), len(channels)), 30.0, dtype=float)
+    )
 
     # Calibration DataFrame: rows map to existing channels (no extra dims in this fixture)
     calibration_df = pd.DataFrame(
@@ -594,11 +589,11 @@ def test_add_cost_per_target_potentials(dummy_mmm_model):
         }
     )
 
-    # Add potentials
+    # Add potentials using tensor pathway
     add_cost_per_target_potentials(
         calibration_df=calibration_df,
         model=model.model,
-        cpt_variable_name="cost_per_target",
+        cpt_value=const_cpt,
         name_prefix="cpt_calibration",
     )
 
@@ -612,9 +607,10 @@ def test_add_cost_per_target_potentials_missing_columns(dummy_mmm_model):
     model = dummy_mmm_model.model
     channels = model.coords["channel"]
 
-    with model:
-        # Create a CPT variable
-        pm.Normal("test_cpt", dims="channel")
+    dates = model.coords["date"]
+    const_cpt = pt.as_tensor_variable(
+        np.full((len(dates), len(channels)), 30.0, dtype=float)
+    )
 
     # Test missing 'sigma' column
     calibration_df = pd.DataFrame(
@@ -630,7 +626,7 @@ def test_add_cost_per_target_potentials_missing_columns(dummy_mmm_model):
         add_cost_per_target_potentials(
             calibration_df=calibration_df,
             model=model,
-            cpt_variable_name="test_cpt",
+            cpt_value=const_cpt,
             name_prefix="cpt_calibration",
         )
 
@@ -644,56 +640,6 @@ def test_add_cost_per_target_potentials_missing_columns(dummy_mmm_model):
         add_cost_per_target_potentials(
             calibration_df=calibration_df_minimal,
             model=model,
-            cpt_variable_name="test_cpt",
-            name_prefix="cpt_calibration",
-        )
-
-
-def test_add_cost_per_target_potentials_missing_variable(dummy_mmm_model):
-    """Test that KeyError is raised when CPT variable is not in the model."""
-    model = dummy_mmm_model.model
-    channels = model.coords["channel"]
-
-    # Don't create any cost_per_target variable
-    calibration_df = pd.DataFrame(
-        {
-            "channel": [channels[0], channels[1]],
-            "cost_per_target": [30.0, 45.0],
-            "sigma": [2.0, 3.0],
-        }
-    )
-
-    match = r"Variable 'nonexistent_cpt_var' not found in model; create it before calibration."
-    with pytest.raises(KeyError, match=match):
-        add_cost_per_target_potentials(
-            calibration_df=calibration_df,
-            model=model,
-            cpt_variable_name="nonexistent_cpt_var",
-            name_prefix="cpt_calibration",
-        )
-
-
-def test_add_cost_per_target_potentials_missing_dimension_columns(fixed_model):
-    """Test that KeyError is raised when dimension columns are missing from calibration_df."""
-    with fixed_model:
-        # Create CPT variable with multiple dimensions
-        pm.Normal("cost_per_target", dims=("date", "geo", "channel"))
-
-    # Missing 'geo' column
-    calibration_df = pd.DataFrame(
-        {
-            "channel": [1, 2],
-            "cost_per_target": [30.0, 45.0],
-            "sigma": [2.0, 3.0],
-            # Missing 'geo' column
-        }
-    )
-
-    match = r"Calibration data missing dimension columns: \['geo'\]. Required dims: \['geo', 'channel'\]"
-    with pytest.raises(KeyError, match=match):
-        add_cost_per_target_potentials(
-            calibration_df=calibration_df,
-            model=fixed_model,
-            cpt_variable_name="cost_per_target",
+            cpt_value=const_cpt,
             name_prefix="cpt_calibration",
         )

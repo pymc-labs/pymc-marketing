@@ -1332,22 +1332,17 @@ def test_add_calibration_test_measurements(multi_dim_data):
         }
     )
 
-    # Ensure the variable is not present beforehand
     assert "cost_per_target" not in mmm.model.named_vars
 
-    # Add calibration constraints
     mmm.add_cost_per_target_calibration(
         data=spend_df,
         calibration_data=calibration_df,
-        cpt_variable_name="cost_per_target",
         name_prefix="cpt_calibration",
     )
 
-    # Check data and deterministic exist
-    assert "channel_data_spend" in mmm.model.named_vars
-    assert "cost_per_target" in mmm.model.named_vars
+    assert "channel_contribution_original_scale" in mmm.model.named_vars
+    assert "cost_per_target" not in mmm.model.named_vars
 
-    # Check aggregated potential was added
     pot_names = [getattr(p, "name", None) for p in mmm.model.potentials]
     assert "cpt_calibration" in pot_names
 
@@ -1380,7 +1375,6 @@ def test_add_cost_per_target_calibration_requires_model(multi_dim_data) -> None:
         mmm.add_cost_per_target_calibration(
             data=spend_df,
             calibration_data=calibration_df,
-            cpt_variable_name="cost_per_target",
             name_prefix="cpt_calibration",
         )
 
@@ -1415,7 +1409,6 @@ def test_add_cost_per_target_calibration_missing_dim_column(multi_dim_data) -> N
         mmm.add_cost_per_target_calibration(
             data=spend_df,
             calibration_data=calibration_df,
-            cpt_variable_name="cost_per_target",
             name_prefix="cpt_calibration",
         )
 
@@ -2929,17 +2922,12 @@ def test_calibration_spend_reindexing_in_posterior_predictive(
         }
     )
 
-    # Add calibration constraints
+    # Add calibration
     mmm.add_cost_per_target_calibration(
         data=spend_df,
         calibration_data=calibration_df,
-        cpt_variable_name="cost_per_target",
         name_prefix="cpt_calibration",
     )
-
-    # Verify the calibration spend xarray was created
-    assert hasattr(mmm, "_calibration_spend_xarray")
-    assert "_channel" in mmm._calibration_spend_xarray
 
     # Fit the model
     mmm.fit(X, y, draws=50, tune=25, chains=1)
@@ -2971,9 +2959,8 @@ def test_calibration_spend_reindexing_in_posterior_predictive(
     # When extend_idata=False, it returns an xarray Dataset directly
     assert "y" in idata_pred
 
-    # Verify that the model still has the spend data variable
-    # This confirms the reindexing logic was executed
-    assert "channel_data_spend" in mmm.model.named_vars
+    # Verify that sampling succeeds without explicit spend data containers
+    assert "channel_contribution_original_scale" in mmm.model.named_vars
 
     # Additional test: verify with include_last_observations=True
     # to test a different code path
@@ -3031,7 +3018,6 @@ def test_calibration_spend_with_different_dtypes(multi_dim_data, mock_pymc_sampl
     mmm.add_cost_per_target_calibration(
         data=spend_df,
         calibration_data=calibration_df,
-        cpt_variable_name="cost_per_target",
         name_prefix="cpt_calibration",
     )
 
@@ -3054,3 +3040,154 @@ def test_calibration_spend_with_different_dtypes(multi_dim_data, mock_pymc_sampl
     # Verify success
     # When extend_idata=False, it returns an xarray Dataset directly
     assert "y" in idata_pred
+
+
+def test_calibration_duplicate_name_error(multi_dim_data, mock_pymc_sample):
+    """Test that attempting to re-register calibration potentials raises a duplicate name error."""
+    X, y = multi_dim_data
+
+    # Create MMM model
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+
+    # Build the model
+    mmm.build_model(X, y)
+
+    # Create spend data
+    spend_df = X.copy()
+    for col in ["channel_1", "channel_2", "channel_3"]:
+        spend_df[col] = spend_df[col] * 1.5
+
+    # Create calibration data
+    countries = mmm.model.coords["country"]
+    calibration_df = pd.DataFrame(
+        {
+            "country": [countries[0], countries[1], countries[2]],
+            "channel": ["channel_1", "channel_2", "channel_3"],
+            "cost_per_target": [25.0, 35.0, 40.0],
+            "sigma": [1.5, 2.5, 2.0],
+        }
+    )
+
+    # Add calibration first time
+    mmm.add_cost_per_target_calibration(
+        data=spend_df,
+        calibration_data=calibration_df,
+        name_prefix="cpt_calibration",
+    )
+
+    # Attempting to re-register the calibration potentials should raise a duplicate name error
+    with pytest.raises(
+        ValueError, match="Variable name cpt_calibration already exists"
+    ):
+        mmm.add_cost_per_target_calibration(
+            data=spend_df,
+            calibration_data=calibration_df,
+            name_prefix="cpt_calibration",
+        )
+
+
+def test_calibration_shape_mismatch_error(multi_dim_data, mock_pymc_sample):
+    """Test that spend data with mismatched shape raises a ValueError."""
+    X, y = multi_dim_data
+
+    # Create MMM model
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+
+    # Build the model
+    mmm.build_model(X, y)
+
+    # Create spend data with different shape (remove some countries)
+    spend_df = X.copy()
+    # Remove one country to create shape mismatch
+    spend_df = spend_df[spend_df["country"] != "Chile"].copy()
+    for col in ["channel_1", "channel_2", "channel_3"]:
+        spend_df[col] = spend_df[col] * 1.5
+    # print unique countries in spend_df
+    print(spend_df["country"].unique())
+
+    # Create calibration data
+    countries = mmm.model.coords["country"]
+    # print unique countries in countries
+    print(countries)
+    calibration_df = pd.DataFrame(
+        {
+            "country": [countries[0], countries[1], countries[2]],
+            "channel": ["channel_1", "channel_2", "channel_3"],
+            "cost_per_target": [25.0, 35.0, 40.0],
+            "sigma": [1.5, 2.5, 2.0],
+        }
+    )
+
+    # This should raise a shape mismatch error
+    with pytest.raises(ValueError, match="shape does not match"):
+        mmm.add_cost_per_target_calibration(
+            data=spend_df,
+            calibration_data=calibration_df,
+            name_prefix="cpt_calibration",
+        )
+
+
+def test_calibration_coordinate_label_mismatch_error(multi_dim_data, mock_pymc_sample):
+    """Test that spend data with mismatched coord labels raises a ValueError.
+
+    Keeps the shape identical to the model but replaces one coordinate label with
+    a new label not present in model coords, so the label-equality guard triggers.
+    """
+    X, y = multi_dim_data
+
+    # Create MMM model
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+
+    # Build the model
+    mmm.build_model(X, y)
+
+    # Create spend data with the same shape but mismatched coordinate labels
+    spend_df = X.copy()
+    model_countries = list(mmm.model.coords["country"])
+    # Replace all rows of one existing country with a new label not in model coords
+    wrong_label = str(model_countries[-1]) + "_WRONG"
+    spend_df.loc[spend_df["country"] == model_countries[-1], "country"] = wrong_label
+    for col in ["channel_1", "channel_2", "channel_3"]:
+        spend_df[col] = spend_df[col] * 1.5
+
+    # Calibration data uses the original model coords
+    calibration_df = pd.DataFrame(
+        {
+            "country": [model_countries[0], model_countries[1], model_countries[2]],
+            "channel": ["channel_1", "channel_2", "channel_3"],
+            "cost_per_target": [25.0, 35.0, 40.0],
+            "sigma": [1.5, 2.5, 2.0],
+        }
+    )
+
+    # Expect label mismatch error (not just shape mismatch)
+    with pytest.raises(
+        ValueError,
+        match=r"Spend data coordinates for dim 'country' do not match model coords:",
+    ):
+        mmm.add_cost_per_target_calibration(
+            data=spend_df,
+            calibration_data=calibration_df,
+            name_prefix="cpt_calibration",
+        )
