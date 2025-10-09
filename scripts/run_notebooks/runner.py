@@ -111,7 +111,31 @@ def parse_args():
         type=str,
         help="List of directories to exclude (e.g., mmm clv)",
     )
+    parser.add_argument(
+        "--start-idx",
+        type=int,
+        default=0,
+        help="Index of the notebook to start from (inclusive).",
+    )
+    parser.add_argument(
+        "--end-idx",
+        type=int,
+        default=None,
+        help="Index of the notebook to end at (exclusive).",
+    )
     return parser.parse_args()
+
+
+def expand_directories(notebooks):
+    expanded = []
+    for notebook in notebooks:
+        path = NOTEBOOKS_PATH / notebook
+        if path.is_dir():
+            logging.info(f"Expanding directory: {path}")
+            expanded.extend(path.glob("*.ipynb"))
+        else:
+            expanded.append(notebook)
+    return expanded
 
 
 if __name__ == "__main__":
@@ -121,11 +145,17 @@ if __name__ == "__main__":
     if args.notebooks:
         notebooks_to_run = [Path(notebook) for notebook in args.notebooks]
 
+    notebooks_to_run = expand_directories(notebooks_to_run)
+
     if args.exclude_dirs:
         exclude_set = set(args.exclude_dirs)
         notebooks_to_run = [
             nb for nb in notebooks_to_run if nb.parent.name not in exclude_set
         ]
+
+    notebooks_to_run = sorted(notebooks_to_run)
+
+    notebooks_to_run = notebooks_to_run[args.start_idx : args.end_idx]
 
     setup_logging()
     logging.info("Starting notebook runner")
