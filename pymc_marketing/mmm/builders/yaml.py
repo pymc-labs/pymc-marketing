@@ -96,7 +96,7 @@ def _apply_and_validate_calibration_steps(
             method(**resolved_kwargs)
         except Exception as err:  # pragma: no cover - re-raise with context
             raise RuntimeError(
-                f"Failed to apply calibration step '{method_name}' from YAML configuration."
+                f"Failed to apply calibration step '{method_name}' from YAML configuration: \n {err}"
             ) from err
 
 
