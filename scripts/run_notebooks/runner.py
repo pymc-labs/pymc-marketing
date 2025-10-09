@@ -1,4 +1,32 @@
-"""Script to run all notebooks in the docs/source/notebooks directory."""
+"""Script to run all notebooks in the docs/source/notebooks directory.
+
+Examples
+--------
+Run all the notebooks in the documentation:
+
+```terminal
+python scripts/run_notebooks/runner.py
+```
+
+Run all the notebooks in docs/mmm and docs/clv:
+
+```terminal
+python scripts/run_notebooks/runner.py --notebooks mmm clv
+```
+
+Run all notebooks except those in docs/mmm and docs/clv:
+
+```terminal
+python scripts/run_notebooks/runner.py --exclude-dirs mmm clv
+```
+
+Run notebooks from index 2 to 5 (3rd to 5th notebook) in notebooks/mmm directory:
+
+```terminal
+python scripts/run_notebooks/runner.py --notebooks mmm --start-idx 2 --end-idx 5
+```
+
+"""
 
 import argparse
 import logging
