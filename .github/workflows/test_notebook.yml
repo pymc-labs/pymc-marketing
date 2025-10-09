@@ -29,7 +29,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  other_notebooks:
+  notebooks:
     runs-on: ubuntu-latest
     strategy:
       matrix:
