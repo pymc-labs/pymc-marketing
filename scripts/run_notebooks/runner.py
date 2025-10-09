@@ -151,6 +151,12 @@ def parse_args():
         default=None,
         help="Index of the notebook to end at (exclusive).",
     )
+    parser.add_argument(
+        "--parallel/no-parallel",
+        dest="parallel",
+        action="store_true",
+        default=False,
+    )
     return parser.parse_args()
 
 
@@ -185,13 +191,24 @@ if __name__ == "__main__":
 
     notebooks_to_run = notebooks_to_run[args.start_idx : args.end_idx]
 
+    def parallel_run():
+        return Parallel(n_jobs=-1)(
+            delayed(run_notebook)(**run_params)
+            for run_params in run_parameters(notebooks_to_run)
+        )
+
+    def sequential_run():
+        return [
+            run_notebook(**run_params)
+            for run_params in run_parameters(notebooks_to_run)
+        ]
+
+    run = parallel_run if args.parallel else sequential_run
+
     setup_logging()
     logging.info("Starting notebook runner")
     logging.info(f"Notebooks to run: {notebooks_to_run}")
-    results = Parallel(n_jobs=-1)(
-        delayed(run_notebook)(**run_params)
-        for run_params in run_parameters(notebooks_to_run)
-    )
+    results = run()
     del results
     import gc
 
