@@ -1486,6 +1486,13 @@ class MMMPlotSuite:
         ax: plt.Axes | None = None,
         aggregation: dict[str, tuple[str, ...] | list[str]] | None = None,
         subplot_kwargs: dict[str, Any] | None = None,
+        *,
+        plot_kwargs: dict[str, Any] | None = None,
+        ylabel: str = "Effect",
+        xlabel: str = "Sweep",
+        title: str | None = None,
+        add_figure_title: bool = False,
+        subplot_title_fallback: str = "Sensitivity Analysis",
     ) -> tuple[Figure, NDArray[Axes]] | plt.Axes:
         """Plot sensitivity analysis results.
 
@@ -1498,6 +1505,23 @@ class MMMPlotSuite:
         aggregation : dict, optional
             Aggregation to apply to the data.
             E.g., {"sum": ("channel",)} to sum over the channel dimension.
+
+        Other Parameters
+        ----------------
+        plot_kwargs : dict, optional
+            Keyword arguments forwarded to the underlying line plot. Defaults include
+            ``{"color": "C0"}``.
+        ylabel : str, optional
+            Y-axis label. Defaults to "Effect".
+        xlabel : str, optional
+            X-axis label. Defaults to "Sweep".
+        title : str, optional
+            Figure-level title to add when ``add_figure_title=True``.
+        add_figure_title : bool, optional
+            Whether to add a figure-level title. Defaults to ``False``.
+        subplot_title_fallback : str, optional
+            Fallback title used for subplot titles when no plotting dims exist. Defaults
+            to "Sensitivity Analysis".
 
         Examples
         --------
@@ -1608,6 +1632,12 @@ class MMMPlotSuite:
                     fig, single_ax = plt.subplots()
                 axes_array = np.array([[single_ax]])
 
+        # Merge plotting kwargs with defaults
+        _plot_kwargs = {"color": "C0"}
+        if plot_kwargs:
+            _plot_kwargs.update(plot_kwargs)
+        _line_color = _plot_kwargs.get("color", "C0")
+
         axes_flat = axes_array.flatten()
         for idx, combo in enumerate(dim_combinations):
             current_ax = axes_flat[idx]
@@ -1655,27 +1685,31 @@ class MMMPlotSuite:
             ]:
                 hdi = hdi.transpose(sweep_dim, "hdi")  # type: ignore
 
-            current_ax.plot(sweep, np.asarray(mean.values, dtype=float), color="C0")
+            current_ax.plot(sweep, np.asarray(mean.values, dtype=float), **_plot_kwargs)
             az.plot_hdi(
                 x=sweep,
                 hdi_data=np.asarray(hdi.values, dtype=float),
                 hdi_prob=hdi_prob,
-                color="C0",
+                color=_line_color,
                 ax=current_ax,
             )
 
             title = self._build_subplot_title(
                 dims=plot_dims,
                 combo=combo,
-                fallback_title="Sensitivity Analysis",
+                fallback_title=subplot_title_fallback,
             )
             current_ax.set_title(title)
-            current_ax.set_xlabel("Sweep")
-            current_ax.set_ylabel("Effect")
+            current_ax.set_xlabel(xlabel)
+            current_ax.set_ylabel(ylabel)
 
         # Hide any unused axes (happens if grid > panels)
         for ax_extra in axes_flat[n_panels:]:
             ax_extra.set_visible(False)
+
+        # Optional figure-level title: only for multi-panel layouts, default color (black)
+        if add_figure_title and title is not None and n_panels > 1:
+            fig.suptitle(title)
 
         if n_panels == 1:
             return axes_array[0, 0]
@@ -1689,6 +1723,12 @@ class MMMPlotSuite:
         ax: plt.Axes | None = None,
         aggregation: dict[str, tuple[str, ...] | list[str]] | None = None,
         subplot_kwargs: dict[str, Any] | None = None,
+        *,
+        plot_kwargs: dict[str, Any] | None = None,
+        ylabel: str = "Uplift",
+        xlabel: str = "Sweep",
+        title: str | None = "Uplift curve",
+        add_figure_title: bool = True,
     ) -> tuple[Figure, NDArray[Axes]] | plt.Axes:
         """
         Plot precomputed uplift curves stored under `idata.sensitivity_analysis['uplift_curve']`.
@@ -1704,6 +1744,17 @@ class MMMPlotSuite:
             E.g., {"sum": ("channel",)} to sum over the channel dimension.
         subplot_kwargs : dict, optional
             Additional subplot configuration forwarded to :meth:`sensitivity_analysis`.
+        plot_kwargs : dict, optional
+            Keyword arguments forwarded to the underlying line plot. If not provided, defaults
+            are used by :meth:`sensitivity_analysis` (e.g., color "C0").
+        ylabel : str, optional
+            Y-axis label. Defaults to "Uplift".
+        xlabel : str, optional
+            X-axis label. Defaults to "Sweep".
+        title : str, optional
+            Figure-level title to add when ``add_figure_title=True``. Defaults to "Uplift curve".
+        add_figure_title : bool, optional
+            Whether to add a figure-level title. Defaults to ``True``.
 
         Examples
         --------
@@ -1716,7 +1767,7 @@ class MMMPlotSuite:
             sweeps = np.linspace(0.5, 1.5, 11)
             sa = SensitivityAnalysis(mmm.model, mmm.idata)
             results = sa.run_sweep(
-                varinput="channel_data",
+                var_input="channel_data",
                 sweep_values=sweeps,
                 var_names="channel_contribution",
                 sweep_type="multiplicative",
@@ -1758,6 +1809,12 @@ class MMMPlotSuite:
                 ax=ax,
                 aggregation=aggregation,
                 subplot_kwargs=subplot_kwargs,
+                subplot_title_fallback="Uplift curve",
+                plot_kwargs=plot_kwargs,
+                ylabel=ylabel,
+                xlabel=xlabel,
+                title=title,
+                add_figure_title=add_figure_title,
             )
         finally:
             self.idata.sensitivity_analysis = original_group  # type: ignore
@@ -1768,6 +1825,12 @@ class MMMPlotSuite:
         ax: plt.Axes | None = None,
         aggregation: dict[str, tuple[str, ...] | list[str]] | None = None,
         subplot_kwargs: dict[str, Any] | None = None,
+        *,
+        plot_kwargs: dict[str, Any] | None = None,
+        ylabel: str = "Marginal effect",
+        xlabel: str = "Sweep",
+        title: str | None = "Marginal effects",
+        add_figure_title: bool = True,
     ) -> tuple[Figure, NDArray[Axes]] | plt.Axes:
         """
         Plot precomputed marginal effects stored under `idata.sensitivity_analysis['marginal_effects']`.
@@ -1783,6 +1846,16 @@ class MMMPlotSuite:
             E.g., {"sum": ("channel",)} to sum over the channel dimension.
         subplot_kwargs : dict, optional
             Additional subplot configuration forwarded to :meth:`sensitivity_analysis`.
+        plot_kwargs : dict, optional
+            Keyword arguments forwarded to the underlying line plot. Defaults to ``{"color": "C1"}``.
+        ylabel : str, optional
+            Y-axis label. Defaults to "Marginal effect".
+        xlabel : str, optional
+            X-axis label. Defaults to "Sweep".
+        title : str, optional
+            Figure-level title to add when ``add_figure_title=True``. Defaults to "Marginal effects".
+        add_figure_title : bool, optional
+            Whether to add a figure-level title. Defaults to ``True``.
 
         Examples
         --------
@@ -1795,7 +1868,7 @@ class MMMPlotSuite:
             sweeps = np.linspace(0.5, 1.5, 11)
             sa = SensitivityAnalysis(mmm.model, mmm.idata)
             results = sa.run_sweep(
-                varinput="channel_data",
+                var_input="channel_data",
                 sweep_values=sweeps,
                 var_names="channel_contribution",
                 sweep_type="multiplicative",
@@ -1830,11 +1903,21 @@ class MMMPlotSuite:
         try:
             self.idata.sensitivity_analysis = tmp  # type: ignore
             # Reuse core plotting; percentage=False by definition
+            # Merge defaults for plot_kwargs if not provided
+            _plot_kwargs = {"color": "C1"}
+            if plot_kwargs:
+                _plot_kwargs.update(plot_kwargs)
             return self.sensitivity_analysis(
                 hdi_prob=hdi_prob,
                 ax=ax,
                 aggregation=aggregation,
                 subplot_kwargs=subplot_kwargs,
+                subplot_title_fallback="Marginal effects",
+                plot_kwargs=_plot_kwargs,
+                ylabel=ylabel,
+                xlabel=xlabel,
+                title=title,
+                add_figure_title=add_figure_title,
             )
         finally:
             self.idata.sensitivity_analysis = original  # type: ignore

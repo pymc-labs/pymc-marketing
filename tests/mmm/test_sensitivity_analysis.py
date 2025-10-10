@@ -81,7 +81,7 @@ def test_run_sweep_basic(sensitivity, sweep_type, use_mask):
         response_mask = None
 
     results = sensitivity.run_sweep(
-        varinput="channel_data",
+        var_input="channel_data",
         var_names="channel_contribution",
         sweep_values=sweep_values,
         sweep_type=sweep_type,
@@ -102,7 +102,7 @@ def test_run_sweep_basic(sensitivity, sweep_type, use_mask):
 def test_run_sweep_with_response_mask(sensitivity):
     sweep_values = np.linspace(0.5, 1.5, 3)
     full = sensitivity.run_sweep(
-        varinput="channel_data",
+        var_input="channel_data",
         var_names="channel_contribution",
         sweep_values=sweep_values,
     )
@@ -111,7 +111,7 @@ def test_run_sweep_with_response_mask(sensitivity):
     mask_2d = np.zeros((6, 4), dtype=bool)
     mask_2d[:, [0, 3]] = True  # Keep channels 'a' and 'd' for all dates
     masked = sensitivity.run_sweep(
-        varinput="channel_data",
+        var_input="channel_data",
         var_names="channel_contribution",
         sweep_values=sweep_values,
         response_mask=xr.DataArray(mask_2d, dims=("date", "channel")),
@@ -126,7 +126,7 @@ def test_run_sweep_with_response_mask(sensitivity):
 def test_run_sweep_invalid_var_name(sensitivity):
     with pytest.raises(KeyError):
         sensitivity.run_sweep(
-            varinput="channel_data",
+            var_input="channel_data",
             var_names="invalid_variable",
             sweep_values=np.linspace(0.5, 1.5, 3),
         )
@@ -135,7 +135,7 @@ def test_run_sweep_invalid_var_name(sensitivity):
 def test_compute_marginal_effects(sensitivity):
     sweeps = np.linspace(0.5, 1.5, 5)
     results = sensitivity.run_sweep(
-        varinput="channel_data",
+        var_input="channel_data",
         var_names="channel_contribution",
         sweep_values=sweeps,
         sweep_type="multiplicative",
@@ -150,7 +150,7 @@ def test_compute_marginal_effects(sensitivity):
 def test_run_sweep_with_filter(sensitivity):
     sweeps = np.linspace(0.5, 1.5, 4)
     results = sensitivity.run_sweep(
-        varinput="channel_data",
+        var_input="channel_data",
         var_names="channel_contribution",
         sweep_values=sweeps,
     )
@@ -164,7 +164,7 @@ def test_extend_idata_stores_results(simple_model_and_idata):
     sa = SensitivityAnalysis(model, idata)
     sweeps = np.linspace(0.5, 1.5, 3)
     out = sa.run_sweep(
-        varinput="channel_data",
+        var_input="channel_data",
         var_names="channel_contribution",
         sweep_values=sweeps,
         extend_idata=True,
@@ -230,7 +230,7 @@ def test_mmm_sensitivity_dims_and_filter(multidim_mmm, sweep_type):
     sweeps = np.linspace(0.5, 1.5, 4)
     # Run sweep via the MMM.sensitivity property using the real model/idata
     result = multidim_mmm.sensitivity.run_sweep(
-        varinput="channel_data",
+        var_input="channel_data",
         var_names="channel_contribution",
         sweep_values=sweeps,
         sweep_type=sweep_type,
@@ -256,7 +256,7 @@ def test_compute_uplift_curve_respect_to_base(sensitivity):
     sweeps = np.linspace(0.5, 1.5, 5)
     # Run without extending idata to get the results in-memory
     results = sensitivity.run_sweep(
-        varinput="channel_data",
+        var_input="channel_data",
         var_names="channel_contribution",
         sweep_values=sweeps,
         sweep_type="multiplicative",
@@ -278,7 +278,7 @@ def test_compute_uplift_curve_respect_to_base(sensitivity):
     # Now also test persistence to idata
     # First ensure the group exists
     _ = sensitivity.run_sweep(
-        varinput="channel_data",
+        var_input="channel_data",
         var_names="channel_contribution",
         sweep_values=sweeps,
         extend_idata=True,
@@ -296,7 +296,7 @@ def test_compute_uplift_curve_respect_to_base(sensitivity):
 def test_compute_uplift_curve_respect_to_base_array_ref(sensitivity):
     sweeps = np.linspace(0.5, 1.5, 5)
     results = sensitivity.run_sweep(
-        varinput="channel_data",
+        var_input="channel_data",
         var_names="channel_contribution",
         sweep_values=sweeps,
         sweep_type="multiplicative",
@@ -315,16 +315,16 @@ def test_compute_uplift_curve_respect_to_base_array_ref(sensitivity):
 def test_posterior_sample_percentage_controls_draws(sensitivity):
     sweeps = np.linspace(0.5, 1.5, 4)
     full = sensitivity.run_sweep(
-        varinput="channel_data",
+        var_input="channel_data",
         var_names="channel_contribution",
         sweep_values=sweeps,
-        posterior_sample_percentage=1.0,
+        posterior_sample_fraction=1.0,
     )
     limited = sensitivity.run_sweep(
-        varinput="channel_data",
+        var_input="channel_data",
         var_names="channel_contribution",
         sweep_values=sweeps,
-        posterior_sample_percentage=0.6,
+        posterior_sample_fraction=0.6,
     )
 
     assert full.sizes["sample"] == 5
@@ -335,7 +335,7 @@ def test_posterior_sample_batch_backward_compatibility(sensitivity):
     sweeps = np.linspace(0.5, 1.5, 4)
     with pytest.warns(DeprecationWarning):
         legacy = sensitivity.run_sweep(
-            varinput="channel_data",
+            var_input="channel_data",
             var_names="channel_contribution",
             sweep_values=sweeps,
             posterior_sample_batch=2,
@@ -490,7 +490,7 @@ def test_run_sweep_with_2d_mask(simple_model_and_idata):
 
     sweep_values = np.linspace(0.5, 1.5, 3)
     masked = sa.run_sweep(
-        varinput="channel_data",
+        var_input="channel_data",
         var_names="channel_contribution",
         sweep_values=sweep_values,
         response_mask=mask_xr,
@@ -498,7 +498,7 @@ def test_run_sweep_with_2d_mask(simple_model_and_idata):
 
     # Get the full result for comparison
     full = sa.run_sweep(
-        varinput="channel_data",
+        var_input="channel_data",
         var_names="channel_contribution",
         sweep_values=sweep_values,
     )
