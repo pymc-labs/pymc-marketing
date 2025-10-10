@@ -19,8 +19,9 @@ import pandas as pd
 import pymc as pm
 import pytest
 from arviz import InferenceData
+from pymc.testing import mock_sample, mock_sample_setup_and_teardown
 from pymc_extras.prior import Prior
-from xarray import DataArray, Dataset
+from xarray import Dataset
 
 from pymc_marketing.clv.models import (
     BetaGeoModel,
@@ -125,41 +126,7 @@ def create_mock_fit(params: dict[str, float]):
     return mock_fit
 
 
-def mock_sample(*args, **kwargs):
-    """This is a mock of pm.sample that returns the prior predictive samples as the posterior."""
-    random_seed = kwargs.get("random_seed", None)
-    model = kwargs.get("model", None)
-    draws = kwargs.get("draws", 10)
-    n_chains = kwargs.get("chains", 1)
-    idata: InferenceData = pm.sample_prior_predictive(
-        model=model,
-        random_seed=random_seed,
-        draws=draws,
-    )
-
-    expanded_chains = DataArray(
-        np.ones(n_chains),
-        coords={"chain": np.arange(n_chains)},
-    )
-    idata.add_groups(
-        posterior=(idata.prior.mean("chain") * expanded_chains).transpose(
-            "chain", "draw", ...
-        )
-    )
-    del idata.prior
-    if "prior_predictive" in idata:
-        del idata.prior_predictive
-    return idata
-
-
-@pytest.fixture(scope="module")
-def mock_pymc_sample():
-    original_sample = pm.sample
-    pm.sample = mock_sample
-
-    yield
-
-    pm.sample = original_sample
+mock_pymc_sample = pytest.fixture(scope="module")(mock_sample_setup_and_teardown)
 
 
 def mock_fit_MAP(self, *args, **kwargs):
