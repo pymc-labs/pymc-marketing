@@ -32,7 +32,7 @@ from pymc_marketing.clv.utils import (
     rfm_train_test_split,
     to_xarray,
 )
-from tests.conftest import set_model_fit
+from tests.clv.conftest import set_model_fit
 
 
 def test_to_xarray():

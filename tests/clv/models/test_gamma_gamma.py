@@ -24,7 +24,7 @@ from pymc_marketing.clv.models.gamma_gamma import (
     GammaGammaModel,
     GammaGammaModelIndividual,
 )
-from tests.conftest import mock_fit_MAP, set_model_fit
+from tests.clv.conftest import mock_fit_MAP, set_model_fit
 
 
 class BaseTestGammaGammaModel:
