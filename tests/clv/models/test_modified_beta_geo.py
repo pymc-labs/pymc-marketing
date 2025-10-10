@@ -23,7 +23,7 @@ from lifetimes.fitters.modified_beta_geo_fitter import ModifiedBetaGeoFitter
 from pymc_extras.prior import Prior
 
 from pymc_marketing.clv.models.modified_beta_geo import ModifiedBetaGeoModel
-from tests.conftest import create_mock_fit, mock_sample, set_model_fit
+from tests.clv.conftest import create_mock_fit, mock_sample, set_model_fit
 
 
 class TestModifiedBetaGeoModel:

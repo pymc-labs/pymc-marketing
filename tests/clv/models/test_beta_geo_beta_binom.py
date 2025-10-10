@@ -25,7 +25,7 @@ from pymc_extras.prior import Prior
 
 from pymc_marketing.clv.distributions import BetaGeoBetaBinom
 from pymc_marketing.clv.models import BetaGeoBetaBinomModel
-from tests.conftest import create_mock_fit, mock_sample
+from tests.clv.conftest import create_mock_fit, mock_sample
 
 
 class TestBetaGeoBetaBinomModel:
