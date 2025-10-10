@@ -24,7 +24,7 @@ from pymc_extras.prior import Prior
 
 from pymc_marketing.clv.distributions import BetaGeoNBD
 from pymc_marketing.clv.models.beta_geo import BetaGeoModel
-from tests.conftest import create_mock_fit, mock_sample, set_model_fit
+from tests.clv.conftest import create_mock_fit, mock_sample, set_model_fit
 
 
 class TestBetaGeoModel:
