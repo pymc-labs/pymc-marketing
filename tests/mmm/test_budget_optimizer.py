@@ -21,11 +21,11 @@ import pytensor
 import pytensor.tensor as pt
 import pytest
 import xarray as xr
-from pymc.model.fgraph import clone_model as cm
 
 from pymc_marketing.mmm import MMM
 from pymc_marketing.mmm.budget_optimizer import (
     BudgetOptimizer,
+    CustomModelWrapper,
     MinimizeException,
     optimizer_xarray_builder,
 )
@@ -910,15 +910,10 @@ def test_budget_distribution_over_period_integration(dummy_df, dummy_idata):
 
 
 def test_custom_protocol_model_budget_optimizer_works():
-    """Validate the optimizer works with a custom model that follows the protocol.
+    """Validate the optimizer works with the built-in CustomModelWrapper.
 
-    This serves as an example for users wanting to plug in their own PyMC models.
-    Requirements implemented here:
-    - The model has a variable named 'channel_data' with dims ("date", "channel").
-    - Deterministics 'channel_contribution' ("date", "channel") and 'total_contribution' ("date").
-    - A wrapper object exposes: idata, channel_columns, _channel_scales, adstock.l_max, and
-      a method `_set_predictors_for_optimization(num_periods) -> pm.Model` that returns a PyMC model
-      where 'channel_data' is set for the optimization horizon.
+    This serves as an example for users wanting to plug in their own PyMC models via
+    ``CustomModelWrapper``, which satisfies the OptimizerCompatibleModelWrapper protocol.
     """
     # 1) Build and fit a tiny custom PyMC model
     rng = np.random.default_rng(0)
@@ -944,33 +939,18 @@ def test_custom_protocol_model_budget_optimizer_works():
 
         idata = pm.sample(50, tune=50, chains=1, progressbar=False, random_seed=1)
 
-    # 2) Minimal wrapper satisfying the optimizer protocol
-    class SimpleWrapper:
-        def __init__(self, base_model: pm.Model, idata, channels):
-            self._base_model = base_model
-            self.idata = idata
-            self.channel_columns = list(channels)
-            self._channel_scales = 1.0
-            self.adstock = type("Adstock", (), {"l_max": 0})()  # no carryover
+    # 2) Wrap the model with CustomModelWrapper
+    wrapper = CustomModelWrapper(
+        base_model=train_model,
+        idata=idata,
+        channels=channels,
+    )
 
-        def _set_predictors_for_optimization(self, num_periods: int) -> pm.Model:
-            m = cm(self._base_model)
-            pm.set_data(
-                {
-                    "channel_data": np.zeros(
-                        (num_periods, len(self.channel_columns)),
-                        dtype=m["channel_data"].dtype,
-                    )
-                },
-                coords={
-                    "date": np.arange(num_periods),
-                    "channel": self.channel_columns,
-                },
-                model=m,
-            )
-            return m
-
-    wrapper = SimpleWrapper(base_model=train_model, idata=idata, channels=channels)
+    # Ensure the wrapper produces correctly shaped optimization models
+    opt_model = wrapper._set_predictors_for_optimization(num_periods=6)
+    assert tuple(opt_model.named_vars_to_dims["channel_data"]) == ("date", "channel")
+    assert list(opt_model.coords["channel"]) == channels
+    assert len(opt_model.coords["date"]) == 6
 
     # 3) Optimize budgets over a small future horizon
     optimizer = BudgetOptimizer(model=wrapper, num_periods=6)

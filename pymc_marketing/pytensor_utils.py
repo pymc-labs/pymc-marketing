@@ -14,6 +14,8 @@
 
 """PyTensor utility functions."""
 
+from collections import Counter
+
 import arviz as az
 import pandas as pd
 import pytensor
@@ -54,16 +56,38 @@ def _prefix_model(f2, prefix: str, exclude_vars: set | None = None):
             for dim in v_dims:
                 exclude_dims.add(dim.data)
 
+    # Track dims and build a mapping from base variable names to prefixed names
     dims = set()
+    base_to_prefixed: dict[str, str] = {}
     for v in f2.outputs:
-        # Only prefix if not in exclude_vars
-        if v.name not in exclude_vars:
-            new_name = f"{prefix}_{v.name}"
+        # Only prefix if not in exclude_vars and has a valid name
+        old_name = getattr(v, "name", None)
+        if old_name and (old_name not in exclude_vars):
+            new_name = f"{prefix}_{old_name}"
             v.name = new_name
             if isinstance(v.owner.op, ModelVar):
                 rv = v.owner.inputs[0]
                 rv.name = new_name
+            # Record base to prefixed mapping for subsequent value-var renaming
+            base_to_prefixed[old_name] = new_name
         dims.update(extract_dims(v))
+
+    # Also collect ModelVar outputs that may not be listed among f2.outputs
+    # (e.g., observed RVs or deterministics created internally)
+    for var in list(f2.variables):
+        if (
+            (owner := getattr(var, "owner", None)) is not None
+            and isinstance(owner.op, ModelVar)
+            and isinstance(name := getattr(var, "name", None), str)
+            and name
+            and name not in exclude_vars
+            and name not in base_to_prefixed
+            and not name.startswith(prefix + "_")
+        ):
+            new_name = f"{prefix}_{name}"
+            var.name = new_name
+            owner.inputs[0].name = new_name
+            base_to_prefixed[name] = new_name
 
     # Don't rename dimensions that belong to excluded variables
     dims_rename = {
@@ -82,6 +106,35 @@ def _prefix_model(f2, prefix: str, exclude_vars: set | None = None):
         else:
             new_coords[k] = v
     f2._coords = new_coords  # type: ignore[attr-defined]
+
+    # Also rename associated transformed/value variables to keep names unique across merged graphs.
+    # Example patterns include: "<base>", "<base>_log__", "<base>_logodds__", etc.
+    # We only attempt renames for bases we actually prefixed above.
+    if base_to_prefixed:
+        for var in list(f2.variables):
+            if (
+                isinstance(name := getattr(var, "name", None), str)
+                and name
+                and name not in exclude_vars
+                and (
+                    match := next(
+                        (
+                            (base, prefixed)
+                            for base, prefixed in base_to_prefixed.items()
+                            if isinstance(base, str)
+                            and base
+                            and (
+                                name == base
+                                or name.startswith(base + "_")
+                                or name.startswith(base + "__")
+                            )
+                        ),
+                        None,
+                    )
+                )
+            ):
+                base, prefixed = match
+                var.name = name.replace(base, prefixed, 1)
 
     return f2
 
@@ -160,6 +213,56 @@ def merge_models(
     f._coords = merged_coords  # type: ignore[attr-defined]
 
     return model_from_fgraph(f, mutate_fgraph=True)
+
+
+def validate_unique_value_vars(model: Model) -> None:
+    """Validate that a model has unique, non-null value var names and 1:1 mappings.
+
+    This checks that:
+    - All entries in ``model.value_vars`` have unique, non-empty names
+    - Keys of ``model.values_to_rvs`` (value vars) also have unique names
+    - ``model.rvs_to_values`` mapping is consistent (bijection by names)
+    """
+    # Check value_vars names are unique and non-empty
+    value_vars = list(getattr(model, "value_vars", []))
+    value_var_names = [getattr(v, "name", None) for v in value_vars]
+    if any(n is None or n == "" for n in value_var_names):
+        raise ValueError("Found unnamed value variables in model.value_vars")
+    dup_vnames = [n for n, c in Counter(value_var_names).items() if c > 1]
+    if dup_vnames:
+        raise ValueError(f"Duplicate value variable names: {dup_vnames}")
+
+    # Check values_to_rvs keys are unique by name
+    v2r = getattr(model, "values_to_rvs", {})
+    v2r_value_vars = list(v2r.keys())
+    v2r_value_names = [getattr(v, "name", None) for v in v2r_value_vars]
+    if any(n is None or n == "" for n in v2r_value_names):
+        raise ValueError("Found unnamed value variables in values_to_rvs")
+    # Some observed/deterministic value-vars may legitimately share names across merged models
+    # if they were intentionally merged on (e.g., merge_on) or are non-free and identical.
+    # Only enforce uniqueness among value vars that correspond to free RVs.
+    _ = {
+        getattr(v2r[v], "name", None)
+        for v in v2r_value_vars
+        if v in getattr(model, "value_vars", [])
+        and v2r.get(v) in getattr(model, "free_RVs", [])
+    }
+    # Map back to the value-var names for those free RVs
+    free_value_var_names = [
+        getattr(model.rvs_to_values[rv], "name", None) for rv in model.free_RVs
+    ]
+    dup_map_names = [n for n, c in Counter(free_value_var_names).items() if n and c > 1]
+    if dup_map_names:
+        raise ValueError("Duplicate value variable names for free RVs: {dup_map_names}")
+
+    # Check consistency of reverse mapping by names
+    r2v = getattr(model, "rvs_to_values", {})
+    # Names on the value side of both dicts should align set-wise
+    r2v_value_names = [getattr(v, "name", None) for v in r2v.values()]
+    if set(r2v_value_names) != set(v2r_value_names):
+        raise ValueError(
+            "Mismatch between values_to_rvs and rvs_to_values by value var names"
+        )
 
 
 def extract_response_distribution(

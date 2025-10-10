@@ -141,30 +141,7 @@ Use a custom pymc model with any dimensionality
 
 
     # 2) Create a minimal wrapper satisfying OptimizerCompatibleModelWrapper
-    class SimpleWrapper:
-        def __init__(self, base_model, idata, channels):
-            # required attributes
-            self._base_model = base_model
-            self.idata = idata
-            self.channel_columns = list(channels)  # used if bounds is a dict
-            self._channel_scales = 1.0  # scalar or array broadcastable to channel dims
-            self.adstock = type("Adstock", (), {"l_max": 0})()  # no carryover
-
-        def _set_predictors_for_optimization(self, num_periods: int) -> pm.Model:
-            coords = {"date": np.arange(num_periods), "channel": self.channel_columns}
-            # clone model
-            m = clone_model(self._base_model)
-
-            # Set the channel_data for optimization
-            pm.set_data(
-                {"channel_data": np.zeros((num_periods, len(self.channel_columns)))},
-                model=m,
-                coords=coords,
-            )
-            return m
-
-
-    wrapper = SimpleWrapper(base_model=train_model, idata=idata, channels=channels)
+    wrapper = CustomModelWrapper(base_model=train_model, idata=idata, channels=channels)
 
     # 3) Optimize N future periods with optional bounds and/or masks
     optimizer = BudgetOptimizer(model=wrapper, num_periods=8)
@@ -214,11 +191,13 @@ from collections.abc import Sequence
 from typing import Any, ClassVar, Protocol, cast, runtime_checkable
 
 import numpy as np
+import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
 from arviz import InferenceData
-from pydantic import BaseModel, ConfigDict, Field, InstanceOf
+from pydantic import BaseModel, ConfigDict, Field, InstanceOf, PrivateAttr
 from pymc import Model, do
+from pymc.model.fgraph import clone_model
 from pymc.model.transform.optimization import freeze_dims_and_data
 from pymc.pytensorf import rewrite_pregrad
 from pytensor import function
@@ -699,15 +678,28 @@ class BudgetOptimizer(BaseModel):
         self._budget_shape = tuple(len(coord) for coord in self._budget_coords.values())
 
         # 4. Ensure that we only optmize over non-zero channels
+        # Only perform non-zero channel detection for MMM instances.
+        # For OptimizerCompatibleModelWrapper, default to optimizing all channels unless a mask is provided.
+        is_wrapper = (
+            False if "channel_contribution" in self.mmm_model.idata.posterior else True
+        )
+
         if self.budgets_to_optimize is None:
-            # If no mask is provided, we optimize all channels
-            self.budgets_to_optimize = (
-                self.mmm_model.idata.posterior.channel_contribution.mean(
-                    ("chain", "draw", "date")
-                ).astype(bool)
-            )
-        else:
-            # If a mask is provided, ensure it has the correct shape
+            if is_wrapper:
+                # Wrapper path: default to all True over budget dims
+                ones = np.ones(self._budget_shape, dtype=bool)
+                self.budgets_to_optimize = xr.DataArray(
+                    ones, coords=self._budget_coords, dims=self._budget_dims
+                )
+            else:
+                # If no mask is provided, optimize all non-zero channels in the model
+                self.budgets_to_optimize = (
+                    self.mmm_model.idata.posterior.channel_contribution.mean(
+                        ("chain", "draw", "date")
+                    ).astype(bool)
+                )
+        elif not is_wrapper:
+            # If a mask is provided for MMM instances, ensure it has the correct shape
             expected_mask = self.mmm_model.idata.posterior.channel_contribution.mean(
                 ("chain", "draw", "date")
             ).astype(bool)
@@ -1215,3 +1207,50 @@ class BudgetOptimizer(BaseModel):
 
         else:
             raise MinimizeException(f"Optimization failed: {result.message}")
+
+
+class CustomModelWrapper(BaseModel):
+    """Wrapper for the BudgetOptimizer to handle custom PyMC models."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
+
+    base_model: Model = Field(
+        ...,
+        description="Underlying PyMC model to be cloned for optimization.",
+    )
+    idata: InferenceData
+    channel_columns: list[str] = Field(
+        ...,
+        description="Channel labels used for budget optimization.",
+    )
+    adstock: Any = Field(
+        default_factory=lambda: type("Adstock", (), {"l_max": 0})(),
+        description="Default adstock placeholder with zero carryover.",
+    )
+
+    _channel_scales: int = PrivateAttr(default=1.0)
+
+    def __init__(
+        self,
+        base_model: Model,
+        idata: InferenceData,
+        channels: Sequence[str],
+    ) -> None:
+        super().__init__(
+            base_model=base_model,
+            idata=idata,
+            channel_columns=list(channels),
+        )
+
+    def _set_predictors_for_optimization(self, num_periods: int) -> pm.Model:
+        coords = {"date": np.arange(num_periods), "channel": self.channel_columns}
+        model_clone = clone_model(self.base_model)
+        pm.set_data(
+            {"channel_data": np.zeros((num_periods, len(self.channel_columns)))},
+            model=model_clone,
+            coords=coords,
+        )
+        return model_clone
+
+
+OptimizerCompatibleModelWrapper.register(CustomModelWrapper)
