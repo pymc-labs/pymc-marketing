@@ -1,0 +1,74 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.prior.Scaled.rst:2
+#: 9d50d5310ed1427c92d102efbc2bf773
+msgid "Scaled"
+msgstr ""
+
+#: c4599355810841729c6fb22f3d40ae8b of pymc_marketing.prior.Scaled:2
+msgid "Backwards-compatible wrapper for the ScaledPrior class."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.prior.Scaled.rst:12
+#: e6faece91dbb4e73aa6c627eb972109b
+msgid "Methods"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.prior.Scaled.rst:23:<autosummary>:1
+#: acfef14395874d4a8f44d6cbc590ebbc
+msgid ""
+":py:obj:`Scaled.__init__ <pymc_marketing.prior.Scaled.__init__>`\\ "
+"\\(\\*args\\, \\*\\*kwargs\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.prior.Scaled.rst:23:<autosummary>:1
+#: cb02808c9bf2489482f0e59f098ae821
+msgid "Initialize the ScaledPrior class with the given arguments."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.prior.Scaled.rst:23:<autosummary>:1
+#: 0dc36fb203654be29df342548c2a556b
+msgid ""
+":py:obj:`Scaled.create_variable "
+"<pymc_marketing.prior.Scaled.create_variable>`\\ \\(name\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.prior.Scaled.rst:23:<autosummary>:1
+#: 361c387790d743a1bde84129a1730c2d
+msgid "Create a scaled variable."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.prior.Scaled.rst:25
+#: b844a79b6982438992e452910293becc
+msgid "Attributes"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.prior.Scaled.rst:28:<autosummary>:1
+#: f3e1e13a0df64592851c1fce0d3018f3
+msgid ":py:obj:`dims <pymc_marketing.prior.Scaled.dims>`\\"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.prior.Scaled.rst:28:<autosummary>:1
+#: ad153b4ef4dc4411a12ca3805e8098b1
+msgid "The dimensions of the scaled distribution."
+msgstr ""

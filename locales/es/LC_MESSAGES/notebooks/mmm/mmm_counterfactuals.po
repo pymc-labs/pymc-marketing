@@ -1,0 +1,666 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:10003
+#: ccffdee9433945f684aa1ed17ba6c1d1
+msgid "MMMs and Pearl's ladder of causal inference"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:10005
+#: 685dccea7e8d495387d2a0378ab915a6
+msgid ""
+"In this notebook, we will explore [Judea "
+"Pearl's](https://en.wikipedia.org/wiki/Judea_Pearl) causal ladder and how"
+" it can be applied to solve business problems with Media Mix Models "
+"(MMMs). We will assume familiarity with the basics of MMMs in order to "
+"focus on causal inference."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:10007
+#: 5987faa867334b319617f9f2d7c4aec9
+msgid "What is Pearl's causal ladder?"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:10009
+#: c030bf88b53b4973a4cd1452c1819fa0
+msgid ""
+"Pearl's causal ladder outlines 3 successively more sophisticated levels "
+"of causal reasoning:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:10011
+#: dc53db0e5923402db6a77f460dbfb1c0
+msgid ""
+"**Prediction / Forecasting / Association:** With the first step on the "
+"ladder, we could use a model to predict future sales based on past data. "
+"This does not involve causal reasoning, just prediction."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:10013
+#: 733ebad2e813428b8d2a6a18ee88923d
+msgid ""
+"**Intervention:** The second step on the ladder involves using a model to"
+" predict the future effect of an intervention. It is similar to step 1 in"
+" that it involves prediction/forecasting, but it is different in that we "
+"consider a potential intervention that will have effects in the future."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:10015
+#: c64e8eaf5cac48c7b60a47ed318d723b
+msgid ""
+"**Counterfactuals:** The third and final step on the ladder could use a "
+"to estimate how the world _would_ have been different if we had taken a "
+"different action in the past. This is clearly different from the first "
+"two steps in that it is retrospective. It is also the most sophisticated "
+"level of causal reasoning - it involves learning about the world from "
+"historical data, but then imagining how the world _could_ have been "
+"different in a counterfactual scenario."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:10017
+#: 7c5ce3e1919345d499df0af76f4daa4d
+msgid "![Causal Ladder](../../_static/causal_ladder.png)"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:10017
+#: a85edebe6af348a5849e3b1de1df85a5
+msgid "Causal Ladder"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:10019
+#: 7b89a69f79234c478ce3f9a739257fed
+msgid ""
+"The image of Pearl's causal ladder appears in the book \"[The Book of "
+"Why](https://en.wikipedia.org/wiki/The_Book_of_Why)\" by Judea Pearl and "
+"Dana Mackenzie. The book is a great introduction to causal inference."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:10021
+#: 56ae6b3d8186461eb9b2045909f74abe
+msgid "The do-operator"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:10023
+#: a63577e05fd7404c864d6a8009344b25
+msgid ""
+"The do-operator is a key concept in Pearl's causal inference framework "
+"and is required for causal reasoning on steps 2 or 3 of the causal "
+"ladder. It is used to denote interventions in a system. If we think about"
+" our modeling efforts as describing a Bayesian structural causal model, "
+"then the do-operator is used to denote the effect of changing a variable "
+"in the model. Any incoming causal links to that node are severed, and the"
+" node is set to the value specified by the do-operator."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:10026
+#: 12343c03740c4ba68ebae40aeaa8b2b8
+msgid ""
+"For practical examples of the do-operator in action, the following "
+"resources are useful:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:10027
+#: fca37634b7fb4b2da1aca07d8de4a983
+msgid ""
+"[Causal analysis with PyMC: Answering \"What If?\" with the new do "
+"operator](https://www.pymc-labs.com/blog-posts/causal-analysis-with-pymc-"
+"answering-what-if-with-the-new-do-operator/)"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:10028
+#: 0bedfcb4c3e943fd88a4a0966e05ef4f
+msgid ""
+"[Interventional distributions and graph mutation with the do-"
+"operator](https://www.pymc.io/projects/examples/en/latest/causal_inference/interventional_distribution.html)"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:20002
+#: d88cecb505f14262ac4d6cf26bec7d2f
+msgid "How does this help us solve business problems?"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:20004
+#: 3320aef7baf7477681bf589cbfd819c8
+msgid ""
+"Now we've recapped the causal ladder, let's consider how it can help us "
+"solve business problems, specifically with MMMs. Let's look at a few "
+"example use cases and see what level of the causal ladder they correspond"
+" to:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:20006
+#: cf911e9d164541fbb662fddf054f2756
+#, python-brace-format
+msgid ""
+"**Predicting future sales:** A very common use-case of MMM's is to make "
+"forecasts of our outcome variable (e.g. sales). This can be particularly "
+"useful ingredient in demand forecasting for example. Once we've trained "
+"an MMM on historical data we can use the MMM to predict future sales (out"
+" of sample prediction) based on past sales, marketing spend, and other "
+"predictor variables. This would correspond to step 1 on the causal ladder"
+" - we are forecasting into the future but not considering any changes to "
+"our marketing strategy. See our docs {ref}`mmm_budget_allocation_example`"
+" for a worked example."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:20008
+#: 6fea5ff221b749f8af7ebac582477a9c
+#, python-brace-format
+msgid ""
+"**Optimizing existing marketing spend:** A more sophisticated use-case of"
+" MMM's is to use the model to predict the effect of different marketing "
+"strategies (see our docs {ref}`mmm_time_slice_cross_validation`). For "
+"example, we could use it to predict the effect of various different "
+"changes to media spend. We could then predict the expected sales under "
+"these scenarios and pick a scenario which maximises sales or profit, for "
+"example. This corresponds to step 2 on the causal ladder - intervention. "
+"This is a more sophisticated level of causal reasoning, as it involves "
+"prediction, but in the presence of an altered marketing strategies (i.e. "
+"interventions)."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:20010
+#: f2ff21a329964ef3b7a72aa586b43463
+#, python-format
+msgid ""
+"**Planning an increase in marketing spend:** Let's say our business wants"
+" to gain more market share and has decided to increase marketing spend by"
+" 20% over the next quarter. You are tasked with proposing a number of "
+"different future media spend strategies that you think will cause the "
+"largest increase in sales. This corresponds to step 2 on the causal "
+"ladder - intervention. We are predicting the effect of an intervention "
+"(increasing media spend) on sales."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:20012
+#: d0f6568005fd40f0a7b3acedad1bd8d0
+#, python-format
+msgid ""
+"**Evaluating the impact of a previous increase in marketing spend:** "
+"Let's say our business increased TV spend by 20% over the last quarter "
+"and we want to know what impact this had on sales. We can answer this "
+"question by comparing what _actually_ happened, to what we think _would "
+"have happened_ under some alternative imagined counterfactual scenario "
+"such as not increasing TV spend by 20%. Importantly, this counterfactual "
+"reasoning is _retrospective_, but it uses the knowledge we have learnt "
+"from all observations so far. This corresponds to step 3 on the causal "
+"ladder - counterfactual inference. We are learning from historical data, "
+"but then imagining how the world _could_ have been different in a "
+"counterfactual scenario. So this involves retrospective causal reasoning."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:30002
+#: 9d60b606563c4b3dad331c4fc9f9fa0a
+msgid "Notebook setup"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:70002
+#: 6540582b39b44a6c9f87571b8eeff810
+msgid "Generate synthetic data"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:80002
+#: 803e25faa3714e8da922f8c943672ed3
+msgid ""
+"Now we'll generate some synthetic data to use in the rest of the "
+"notebook. In short, we will consider a relatively simple situation where "
+"we have two media channels ($x_1$ and $x_2$), and we consider the effects"
+" of time in terms of an underlying trend in sales as well as seasonal "
+"effects. We can draw our causal DAG like this:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:100002
+#: 6110b1d6f28b4c639c85c296b84fe24b
+msgid ""
+"In the code below we will generate some synthetic data with the general "
+"structure described above. Our dataset is going to include a marketing "
+"campaign where we elevate the spending on one media channel for a period "
+"of time. This is going to be used later on when we come to examine Step 3"
+" where we will evaluate the impact of this campaign."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:100004
+#: 394e6dee6cdc4046921e1b1036b824ce
+msgid ""
+"As a slight twist is that because we are using simulated data, we are in "
+"the privileged position of knowing the true causal relationships in the "
+"data. This is not the case in the real world, where we have to infer "
+"these relationships from the data. So we'll first generate a "
+"_counterfactual_ scenario (where we didn not run the campaign) and then "
+"generate the _actual_ scenario (where we did run the campaign). This "
+"allows us to compare our _estimated_ causal impact of the campaign with "
+"the _true_ causal impact of the campaign. But more on this when we reach "
+"Step 3 of the causal ladder."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:100006
+#: 587a2c4c733c48aa9b73886dea9d5096
+msgid ""
+"Let's generate some synthetic data - more specifically some predictors "
+"such as media spend, intercept, seasonality, and trend."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:120002
+#: 472ad661b0a340e2af4a3234a587fcba
+msgid ""
+"Now we'll write a function to forward simulate the response (sales), "
+"given these predictor variables. The functions below simply calculate a "
+"weighted sum of the predictor variables, after having passed the media "
+"channels through our trusty adstock and saturation functions."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:140002
+#: de55b44d546544f6bddf9d7f08cab919
+msgid ""
+"Now let's use those functions to generate synthetic data that represents "
+"what happens in our simulated world under a 'business as usual' (or "
+"counterfactual) scenario of no media campaign."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:160002
+#: 84c43f567fc047e081bbbd2abb7f3a9d
+#, python-format
+msgid ""
+"Finally, let's create a copy of this data, but one where we conducted an "
+"intervention. That is, a marketing campaign where we increased media "
+"spend in channel 1 by 40% for Q1 of 2021. This `df_actual` data will "
+"represent what actually happened in our world. The `df_counterfactual` "
+"data will represent what _would_ have happened if we had not conducted "
+"the intervention, and this will be used when we encounter Step 3 of the "
+"causal ladder."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:180002
+#: ced87fe2f9384902b9e99a3cdc1336d7
+msgid "Let's visialize the dataset:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:200002
+#: 1f2146f078534b6aa7ec66eee18124ed
+msgid ""
+"This plot shows our (normalised) media spends (top two panels) and the "
+"resulting sales (bottom panel). Our dataset also involves a period "
+"(between dashed red lines) where we ran a marketing campaign that "
+"increased our media spend by 40%."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:210002
+#: f39cc0b0771f442bb7c549b5ef916849
+msgid "Build an MMM and fit to data"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:210004
+#: d97796984118408095710764f325d1a9
+msgid ""
+"As part of our regular MMM workflow, we'll build an MMM object and fit it"
+" to our synthetic data."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:240002
+#: e0b8bea5f0f24a288119b3389bfda143
+msgid ""
+"Before starting our procedure for counterfactual inference, let's first "
+"confirm that the MMM is doing a reasonable job of accounting for the "
+"data. Below is a plot of the posterior predictive distribution for the "
+"sales (shaded regions) and the actual sales (black line)."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:260002
+#: 5124192b762c4d63987eb3dce5e17c5f
+msgid ""
+"The model seems to be doing a good job of capturing the data so we can "
+"proceed."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:270002
+#: 0a5d00163d614b4aacb90bf74a7e8ade
+msgid "Level 1 - Association and Prediction"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:270004
+#: 1eeba4b1b58c41fb834170f4f9d1cba6
+msgid "On Level 1 of the ladder, we can do at least 2 things:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:270006
+#: 11c86b5980e148ad8e69d9df772a342f
+msgid ""
+"Explore the model fit results - gain insights about the relationship "
+"between media spend and sales. Not note, at this point, even if our MMM "
+"represents a causal DAG that captures what we believe to be reasonable "
+"causal relationships, we are still only operating on the level of "
+"prediction and association."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:270008
+#: 56cec3986d704ac3a0d847f5cc4740af
+msgid ""
+"Use the model to predict future sales. This is a common use-case of MMMs "
+"and corresponds to step 1 on the causal ladder. Let's dive in to this in "
+"more detail."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:270010
+#: 91ee0b5ab7c94b249598147d6f16ad94
+msgid ""
+"In order to predict future sales, we need to specify future values of our"
+" predictor variables. For simplicity, we will assume that our media spend"
+" will take on the mean of past media spends. We will then use the MMM to "
+"predict future sales. The code below generates a scenario for "
+"forecasting."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:290002
+#: 4ab9f45d52cd42d8a9adc62265dc02ff
+msgid ""
+"Now we have a 'forecasting scenario' we can use our MMM to predict future"
+" sales, based upon what it has learnt from historical data."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:310002
+#: fe7b3275bf0440a386f2d8490eaaa303
+msgid "Let's vizualize the forecasted sales."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:330002
+#: 77f74a147b7243f28b899c084058f2d1
+msgid ""
+"The plot above shows the model's prediction for future sales (shaded "
+"region). Let's take a moment to unpack what we are seeing:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:330004
+#: 6005f552944548bfbd0a2355e65afd82
+msgid ""
+"In our forecasting scenario, we make the simplifying assumption that the "
+"future media spend (for both channels) would be at a constant level, "
+"equal to their historical averages."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:330005
+#: f576771e014340eda0112ed867c7c361
+msgid ""
+"Therefore, there is no real variation in the model's prediction for "
+"future sales _from the perspective of media spend_."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:330006
+#: febc60becd0c4df0a8576c2d40d5671d
+msgid ""
+"However, the model does have a trend and seasonal component, so the "
+"variation in the prediction is due to these components."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:330008
+#: 5c01be07bf00476798309e0ec7a06408
+msgid ""
+"We can of course make this more realistic by considering different "
+"scenarios for future media spend, but is is a matter of refinement. What "
+"we have seen so far is the general process of using an MMM for Step 1 "
+"style forecasting."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:340002
+#: 5f89eb74f1914aefa9eb6fe88037765f
+msgid "Level 2 - Intervention"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:340004
+#: c71bbdeb69f94143a0d9bb13e5f3e808
+msgid ""
+"Now we'll climb up a step and look at how we can use our MMM to predict "
+"the effect of an intervention. In this case, we will consider the effect "
+"of the historical average of channel $x_2$ and _double_ the historical "
+"average of channel $x_1$. So let's generate the predictor variables for "
+"this intervention scenario:"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:360002
+#: f08eede52dfc484a91f4949d6a226173
+msgid ""
+"Now we can run the intervention and ask the MMM what it believes the "
+"effect of this intervention will be on future sales. More formally, this "
+"amounts to sampling from the posterior predictive distribution, but under"
+" the intervention scenario."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:390002
+#: 5d7f643103a04659942a29567a738ca0
+msgid ""
+"Nice! We can see that, relative to our 'business as usual` (Step 1 "
+"forecast), the MMM predicts that the intervention will lead to an "
+"increase in sales. This is a simple example of using an MMM for causal "
+"inference - we are predicting the effect of an intervention on future "
+"sales."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:400003
+#: d2edb580ba374325bafd4a94172204f4
+#, python-brace-format
+msgid ""
+"For much more information on using Level 2 of the causal ladder, see the "
+"dedicated notebook on {ref}`mmm_budget_allocation_example`."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:410002
+#: abcb36abc1a7449b9139743b60ec87ab
+msgid "Level 3 - Counterfactual inference"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:410004
+#: 9c01831b0026472d9acf1055eb8904da
+msgid ""
+"Finally we are at the top of the ladder! We will now use our MMM to "
+"estimate the effect of a previous intervention. Remember, our historical "
+"dataset includes a period where we increased media spend on $x_1$ by 40%."
+" We will use our MMM to estimate the effect of this intervention on "
+"sales."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:410006
+#: 08a5d348f9f84eb299535c57da593ff7
+msgid ""
+"To do this, we will compare what _actually_ happened, to what we think "
+"_would have happened_ under some alternative imagined counterfactual "
+"scenario such as not increasing media spend by 40%."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:410008
+#: aee5f040f65a4d7090c6ec0f5175294c
+msgid ""
+"This requires coming up with a counterfactual scenario where we have to "
+"think hard about what the $x_1$ media spend would have been in the "
+"absence of the campaign. In real-world situations this might be easy or "
+"difficult, depending."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:410010
+#: 5db486649f68451aa9d5e6e535545167
+msgid ""
+"Easy: If our marketing spend is predictable, we can simply use our "
+"business knowledge to define what the spend would have been in the "
+"absence of the campaign."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:410011
+#: 26ae2f73fc91489e90d6e95a903ba912
+msgid ""
+"Difficult: If our marketing spend is unpredictable, we might have to use "
+"a more sophisticated model to predict what the spend would have been in "
+"the absence of the campaign. There are ways of doing this, but it is a "
+"bit of a side-quest, so is beyond the scope of this notebook."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:410013
+#: b76eaf8178004a309a8bb4b313cbd650
+msgid ""
+"In our case, we will take the easy route. Because we simulated the data, "
+"we already know what our media spend would have been in the absence of "
+"the campaign. We can use this information to define our counterfactual "
+"scenario. This allows us to take a parameter recovery approach - we will "
+"be able to compare the model's counterfactual predictions to ground "
+"truth."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:420002
+#: 53cbb53be751403ca1aba80cbfc28672
+msgid "Parameter recovery"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:420005
+#: e3f37209220b4c618379d027d39a63a5
+msgid ""
+"The logic of running through these steps on simulated actual and "
+"counterfactual data is that we can compare the MMM's ability to estimate "
+"the causal impact of the marketing campaign to the true causal impact "
+"that we know because we simulated the data. If we do ok here, we can be "
+"more confident that the MMM will be able to estimate the causal impact of"
+" the marketing campaign on real data where only the actual data is "
+"available."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:430002
+#: 2ed49fd673c44b25be3896d8c30a2673
+msgid ""
+"Let's make that more real by visualizing the `x1` and `x2` predictors, "
+"along with the `y` outcome variable. This is done for both the actual and"
+" counterfactual scenarios. We can see that there is divergence in the "
+"media spend in `x1` during the campaign period and also for the outcome "
+"variable `y`. The difference between the outcome in the actual and "
+"counterfactual scenarios is the causal effect of the marketing campaign "
+"(bottom plot)."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:450003
+#: aedf6354347341e280408bd375368ad5
+msgid ""
+"Notice in the bottom plot that the causal impact of the campaign "
+"continues on for a short duration after the campaign as ended. This is a "
+"direct result of the adstock function in the MMM which models the lagged "
+"effect of media spend on sales. Similarly, there is a slight lag effect "
+"at the start of the campaign. There is also noise in the causal impact - "
+"this makes sense because the way how we similated this data was based on "
+"changes in media spend, not on a specified level of sales difference."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:460002
+#: 20334b5cdf1e43a78dfebb44691bd35c
+msgid ""
+"Now we want to evaluate what the model thinks would have happened in the "
+"counterfactual scenario that the intervention did not take place. For "
+"this, we will use the counterfactual spend in `df.x1`. But remember, in a"
+" real-world scenario, we would not have access to this data and so we "
+"would have to estimate it as discussed above."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:480002
+#: c2e1cca82d6341dea64889a34a27a73f
+msgid ""
+"The command below effectively uses the do-operator to intervene on the "
+"DAG and set `x1` to the counterfactual spend, and use the model to "
+"predict what the sales would have been in the counterfactual scenario."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:500002
+#: 255e394bbc1a4222904a5f8bdec99a10
+msgid ""
+"Now we have the actual sales data, and our predicted sales in the "
+"counterfactual scenario, we can calculate the causal impact of the "
+"intervention. This is done by comparing the actual sales to the predicted"
+" sales in the counterfactual scenario."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:530002
+#: ac2f1b1bb95e4ca28d20566acecc561b
+msgid ""
+"**Top plot:** The top plot shows the actual sales data (black line), the "
+"posterior predicted sales under the actual scenario (blue shaded region),"
+" and the posterior predicted sales under the counterfactual scenario "
+"(orange shaded region). We might be able to see that the model predicts "
+"lower sales in the counterfactual scenario than in the actual scenario. "
+"This makes sense because the counterfactual scenario is one where we did "
+"not conduct the marketing campaign - so lower sales in this case would be"
+" expected."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:530004
+#: 32de96ce408a45f6a060dc58793f2346
+msgid ""
+"**Middle plot:** The middle plot shows the difference between the actual "
+"and counterfactual sales. This is the causal impact of the marketing "
+"campaign. We can see that the model predicts a positive causal impact of "
+"the marketing campaign. We can also see that the model predicts "
+"negligible causal impact of the marketing capaign before the campaign "
+"started - this makes total sense but it is important to check that we "
+"don't have some unexpected causal impact before the campaign started."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:530006
+#: 78ab7545f82a4a6f89c05cb8c9ab6516
+msgid ""
+"**Bottom plot:** The bottom plot shows the estimated cumulative causal "
+"impact from the start of the campaign. And because we simulated the data "
+"and know the true causal impact, we can see that the model is doing a "
+"good job."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:540002
+#: ca8a1de35e5c4d71931a5c390266a3fb
+msgid "Summary"
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:540004
+#: 93e09df9514b44b8b4b834ca62d4ac1b
+msgid ""
+"In this notebook, we've recapped Pearl's causal ladder and seen how "
+"different levels of causal reasoning can be applied to solve business "
+"problems with MMMs. We've seen how MMMs can be used to predict future "
+"sales (Step 1), optimize marketing spend (Step 2), and evaluate the "
+"impact of marketing campaigns (Step 3)."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:540006
+#: 8c4eca3fd4154a41bec6bdb2cb3fb421
+msgid ""
+"We saw how counterfactual inference can be used to estimate the causal "
+"impact of marketing campaigns. In this notebook we used \"God Mode\" to "
+"simulate a world where we had knowledge of the counterfactual scenario - "
+"but in real world use cases we may have to estimate what the media spend "
+"would have been had we not run a marketing campaign."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:540008
+#: fb7e2058c24d4e76bcbb9ee67e6636ae
+msgid ""
+"Of course, the methods demonstrated here can be used in other ways. An "
+"immediate one that comes to mind is to evaluate the causal impact of our "
+"past media spending by comparing it to a counterfactual scenario of zero "
+"media spend (on one or multiple channels), for example."
+msgstr ""
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:540010
+#: 7bdb6bf229114ad28ddd937bb3882766
+msgid ""
+"We hope you see how this can be a powerful tool for businesses to "
+"understand the impact of their marketing efforts and make data-driven "
+"decisions."
+msgstr ""

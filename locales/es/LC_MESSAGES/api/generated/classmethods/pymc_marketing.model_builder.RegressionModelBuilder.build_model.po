@@ -1,0 +1,115 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.model_builder.RegressionModelBuilder.build_model.rst:2
+#: 198e132faf234c5bab81ce39d5be6e7c
+msgid "RegressionModelBuilder.build\\_model"
+msgstr ""
+
+#: ced2e68f638a4669b886136d28408f3c of
+#: pymc_marketing.model_builder.RegressionModelBuilder.build_model:2
+msgid "Create an instance of `pm.Model` based on provided data and model_config."
+msgstr ""
+
+#: 621ca27c33e0437c83f2f3c210f88dd5 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.build_model:4
+msgid "It attaches the model to self.model."
+msgstr ""
+
+#: c7249a6a79e144079f689e158f14aad3 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.build_model
+msgid "Parameters"
+msgstr ""
+
+#: d942e333fb5d4bdaa73978eb5a23f37f of
+#: pymc_marketing.model_builder.RegressionModelBuilder.build_model:8
+msgid "**X** : :obj:`pd.DataFrame` | :obj:`xr.Dataset` | :obj:`xr.DataArray`"
+msgstr ""
+
+#: 452c80a5154a4975b841174acef30c75 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.build_model:7
+msgid "pd.DataFrame | xr.Dataset | xr.DataArray"
+msgstr ""
+
+#: b952dced307846f89319c0103b410195 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.build_model:9
+msgid ""
+"The input data that is going to be used in the model. This should be a "
+"DataFrame containing the features (predictors) for the model. For "
+"efficiency reasons, it should only contain the necessary data columns, "
+"not the entire available dataset, as this will be encoded into the data "
+"used to recreate the model."
+msgstr ""
+
+#: 6658c12f8069468f8afd9bae8ea2f9d0 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.build_model:14
+msgid ""
+"**y** : :obj:`pd.Series` | :obj:`np.ndarray <numpy.ndarray>` | "
+":obj:`xr.DataArray`"
+msgstr ""
+
+#: 7146d38a276d433596570ea56ace9784 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.build_model:13
+msgid "pd.Series | np.ndarray | xr.DataArray"
+msgstr ""
+
+#: eadec3ad3de54384acc5a7cfd81237ae of
+#: pymc_marketing.model_builder.RegressionModelBuilder.build_model:15
+msgid ""
+"The target data for the model. This should be a Series representing the "
+"output or dependent variable for the model."
+msgstr ""
+
+#: 432d4adadbcb48a49271357c323bac26 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.build_model:18
+msgid "**kwargs** : :class:`python:dict`"
+msgstr ""
+
+#: 3149a6751e7d429f9a0e4458ff1fc878 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.build_model:17
+msgid "python:dict"
+msgstr ""
+
+#: 40b6704388bd4a97a05a3e0850d01dd7 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.build_model:19
+msgid "Additional keyword arguments that may be used for model configuration."
+msgstr ""
+
+#: 0c034e0157e04b8da3999b09cc6d6076 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.build_model
+msgid "Returns"
+msgstr ""
+
+#: 58687b9ef1c54351a52a8336cbe3ca1d of
+#: pymc_marketing.model_builder.RegressionModelBuilder.build_model:25
+msgid ":data:`python:None`"
+msgstr ""
+
+#: 1aa46bb513cd445ba05421bd7c31ed2b of
+#: pymc_marketing.model_builder.RegressionModelBuilder.build_model:37
+msgid ":obj:`default_model_config`"
+msgstr ""
+
+#: f3f4bd0169c143b88f38438c6870f86a of
+#: pymc_marketing.model_builder.RegressionModelBuilder.build_model:38
+msgid "returns default model config"
+msgstr ""

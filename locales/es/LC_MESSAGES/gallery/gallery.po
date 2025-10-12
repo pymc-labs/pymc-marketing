@@ -1,0 +1,213 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/gallery/gallery.md:2 0e5eec1844f448058b7816ec5b5577cb
+msgid "Example Gallery"
+msgstr ""
+
+#: ../source/gallery/gallery.md:8 81cd63c4f7cb46ee9e4bdf2246ec0747
+msgid "Introduction"
+msgstr ""
+
+#: ../source/gallery/gallery.md:10 a15809bb8c0a4792ae1811fb1b620624
+msgid ""
+"Welcome to the PyMC-Marketing example gallery! This gallery provides "
+"visual navigation to all of our example notebooks to help you quickly "
+"find the techniques and models relevant to your marketing analytics "
+"needs."
+msgstr ""
+
+#: ../source/gallery/gallery.md:12 01d9cb0a7c4449f78f05d1978e4cef34
+msgid "Marketing Mix Models (MMM)"
+msgstr ""
+
+#: ../source/gallery/gallery.md:14 df769305adc3407c87e4922388f5862e
+msgid "Fundamentals"
+msgstr ""
+
+#: ../source/gallery/gallery.md:19 d3573f89e5e84bca8ad798adf8d498dc
+msgid "MMM Quickstart Guide"
+msgstr ""
+
+#: ../source/gallery/gallery.md:24 bd9acbc597ee45b3a483351ab425f9aa
+msgid "MMM Example: Extensive Introduction Notebook"
+msgstr ""
+
+#: ../source/gallery/gallery.md:29 9ecdd320d90045a5823290b0a3aaa3f3
+msgid "Custom Models with MMM components"
+msgstr ""
+
+#: ../source/gallery/gallery.md:34 2e38f80e6e1a4aa383d441d816dc5a76
+msgid "MMM Multidimensional Example Notebook (e.g. Geo-MMM)"
+msgstr ""
+
+#: ../source/gallery/gallery.md:39 ee6d57d329314f95ad8f3890a5a9556a
+msgid "Sensitivity Analysis and Marginal Effects"
+msgstr ""
+
+#: ../source/gallery/gallery.md:45 93f737643fee43618ecc1fd9ba573635
+msgid "Data Connectors"
+msgstr ""
+
+#: ../source/gallery/gallery.md:50 6334eede30464553acb94cd89540624e
+msgid "MMM Fivetran Connectors"
+msgstr ""
+
+#: ../source/gallery/gallery.md:56 beda2eed09b14f86881054a1712dd668
+msgid "Budget Allocation"
+msgstr ""
+
+#: ../source/gallery/gallery.md:61 0cf2c9fbe77d429292ddf6191721a453
+msgid "Budget Allocation Example"
+msgstr ""
+
+#: ../source/gallery/gallery.md:66 206eec7c84754044aa1b397070523e0e
+msgid "Budget Allocation and Risk Assessment"
+msgstr ""
+
+#: ../source/gallery/gallery.md:72 0e0cac358c1c4186844dadc4889a241a
+msgid "Lift Test Calibration"
+msgstr ""
+
+#: ../source/gallery/gallery.md:77 791e87e1014f4309a35948792f141281
+msgid "Introduction to Lift Test Calibration"
+msgstr ""
+
+#: ../source/gallery/gallery.md:82 569780c3c96845778207ebf6ac845bc9
+msgid "Case Study: Unobserved Confounders, ROAS and Lift Tests"
+msgstr ""
+
+#: ../source/gallery/gallery.md:88 8319ce27be4844148c79d552fe85c679
+msgid "Time-Varying Parameters"
+msgstr ""
+
+#: ../source/gallery/gallery.md:93 dea3ae4dd07e444f987d21321e27c24e
+msgid "MMM with time-varying media baseline"
+msgstr ""
+
+#: ../source/gallery/gallery.md:98 6dc7b8f6687d40d1a61aba41ca712ee2
+msgid "MMM with time-varying parameters"
+msgstr ""
+
+#: ../source/gallery/gallery.md:104 9b80a9c12a614cf9b676c48367450313
+msgid "Model Evaluation"
+msgstr ""
+
+#: ../source/gallery/gallery.md:109 2f7d9166383b49ed8d7a4f510bc0ee5c
+msgid "Cross-Validation"
+msgstr ""
+
+#: ../source/gallery/gallery.md:114 28d9d779512d4f0db20417251a643e0a
+msgid "Metrics and Model Evaluation"
+msgstr ""
+
+#: ../source/gallery/gallery.md:120 6f92b53eab3e4bee96c1bc665d6b8fb2
+msgid "Causal Inference"
+msgstr ""
+
+#: ../source/gallery/gallery.md:126 226ca23b6242442e824c0b01761bab24
+msgid "Causal Identification"
+msgstr ""
+
+#: ../source/gallery/gallery.md:131 70df6bd2d81d453d8ed20bfff0702251
+msgid "MMMs and Pearl's ladder of causal inference"
+msgstr ""
+
+#: ../source/gallery/gallery.md:137 ae8bc62a576a43e0948a5d45d16954ad
+msgid "Case Studies"
+msgstr ""
+
+#: ../source/gallery/gallery.md:142 0d0617332fae4bfdbbd025e5c1115a4d
+msgid "MMM End-to-End Case Study"
+msgstr ""
+
+#: ../source/gallery/gallery.md:148 dc3afff8cd864a28a87a7335c4386736
+msgid "Customer Lifetime Value (CLV) Models"
+msgstr ""
+
+#: ../source/gallery/gallery.md:153 5e4562bb941749f0870ef8bfd7766bfe
+msgid "CLV Quickstart"
+msgstr ""
+
+#: ../source/gallery/gallery.md:158 a39810106408437eabd118cbd0143c68
+msgid "BG/NBD Model"
+msgstr ""
+
+#: ../source/gallery/gallery.md:163 a831c23b621340fcae61b3224c8f2103
+msgid "MBG/NBD Model"
+msgstr ""
+
+#: ../source/gallery/gallery.md:168 823a4193582648b6bc79168f7a7a8542
+msgid "Pareto/NBD Model"
+msgstr ""
+
+#: ../source/gallery/gallery.md:173 9f3e97d26c844010b5678e2a65c7d634
+msgid "Gamma-Gamma Model"
+msgstr ""
+
+#: ../source/gallery/gallery.md:178 ecc975f8b9a346068a9b0dce035c5166
+msgid "sBG Model"
+msgstr ""
+
+#: ../source/gallery/gallery.md:184 11bf50a4c26a4712b3950ff45dcca254
+msgid "Customer Choice Models"
+msgstr ""
+
+#: ../source/gallery/gallery.md:189 bd70f86a33b540be8e63a82b133fdf80
+msgid "MV-ITS Saturated"
+msgstr ""
+
+#: ../source/gallery/gallery.md:194 c5f3967f08d14fada8a3639fb12e459f
+msgid "MV-ITS Unsaturated"
+msgstr ""
+
+#: ../source/gallery/gallery.md:199 946ae3e97fd843718c536b1ebe25f394
+msgid "Multinomial Logit Discrete Choice"
+msgstr ""
+
+#: ../source/gallery/gallery.md:204 a5a702b0de1149c5ba4a7bf1d867e6eb
+msgid "Nested Logit Discrete Choice"
+msgstr ""
+
+#: ../source/gallery/gallery.md:210 e77f933a3ce04bbcb70a5b530c5b8719
+msgid "Bass Diffusion Model"
+msgstr ""
+
+#: ../source/gallery/gallery.md:215 14a6924c19844111b009aad86d8c1a1d
+msgid "Bass Diffusion Model Example"
+msgstr ""
+
+#: ../source/gallery/gallery.md:221 935b2c0f7a8c4444946da726120fdd17
+msgid "General Tutorials"
+msgstr ""
+
+#: ../source/gallery/gallery.md:226 67bbaedf9fc8441c82267b35259fa708
+msgid "Model Configuration"
+msgstr ""
+
+#: ../source/gallery/gallery.md:231 366a4aad3675461395ab89187384cc8c
+msgid "Prior Predictive Checks"
+msgstr ""
+
+#: ../source/gallery/gallery.md:236 aa82ddc3b5f54dd2bc125cfd312db054
+msgid "NUTS Samplers"
+msgstr ""

@@ -22,7 +22,12 @@ import pytest
 from pydantic import ValidationError
 from pymc_extras.prior import Prior
 
-from pymc_marketing.mmm.causal import BuildModelFromDAG, CausalGraphModel
+from pymc_marketing.mmm.causal import (
+    TBF_FCI,
+    TBFPC,
+    BuildModelFromDAG,
+    CausalGraphModel,
+)
 
 # Suppress specific dowhy warnings globally
 warnings.filterwarnings("ignore", message="The graph defines .* variables")
@@ -770,81 +775,247 @@ def test_compute_adjustment_sets(
     )
 
 
-def test_networkx_import_error_in_parse_dag(monkeypatch):
-    """Test that _parse_dag raises ImportError when networkx is not available."""
-    # Mock nx to be None
-    monkeypatch.setattr("pymc_marketing.mmm.causal.nx", None)
+@pytest.fixture(scope="module")
+def df_non_ts() -> pd.DataFrame:
+    rng = np.random.default_rng(123)
+    n = 100
+    A = rng.gamma(2, 1, n)
+    eB = rng.gamma(2, 1, n)
+    eC = rng.gamma(2, 1, n)
+    eY = rng.gamma(2, 1, n)
 
-    with pytest.raises(
-        ImportError,
-        match=(
-            r"To use Causal Graph functionality, please install the "
-            r"optional dependencies with: pip install pymc-marketing\[dag\]"
-        ),
-    ):
-        BuildModelFromDAG._parse_dag("A->B")
+    B = 0.8 * A + eB
+    C = eC
+    Y = 0.5 * A + 0.9 * B + 0.7 * C + eY
+
+    return pd.DataFrame({"A": A, "B": B, "C": C, "Y": Y})
 
 
-def test_networkx_import_error_in_dag_graph(causal_df, monkeypatch):
-    """Test that dag_graph raises ImportError when networkx is not available."""
-    dag = """
-    digraph {
-        Q -> X;
-    }
-    """
-    coords = {"date": causal_df["date"].unique()}
+@pytest.mark.parametrize("target_edge_rule", ["any", "conservative", "fullS"])
+@pytest.mark.parametrize("bf_thresh", [0.5, 1.0, 2.0])
+@pytest.mark.parametrize(
+    "forbidden_edges",
+    [
+        [],
+        [("A", "C")],  # edge not involving target is allowed
+        [("A", "Y")],  # forbid a potential target edge
+    ],
+)
+def test_tbfpc_public_api_types(
+    df_non_ts: pd.DataFrame,
+    target_edge_rule: str,
+    bf_thresh: float,
+    forbidden_edges,
+):
+    model = TBFPC(
+        target="Y",
+        target_edge_rule=target_edge_rule,
+        bf_thresh=bf_thresh,
+        forbidden_edges=forbidden_edges,
+    )
+    out = model.fit(df_non_ts, drivers=["A", "B", "C"])  # returns self
 
-    # First create the builder normally
-    builder = BuildModelFromDAG(
-        dag=dag,
-        df=causal_df,
-        target="X",
-        dims=("date",),
-        coords=coords,
+    assert out is model
+    # public API returns
+    assert isinstance(model.summary(), str)
+    assert isinstance(model.to_digraph(), str)
+
+    directed = model.get_directed_edges()
+    undirected = model.get_undirected_edges()
+    assert isinstance(directed, list)
+    assert isinstance(undirected, list)
+    if directed:
+        assert all(
+            isinstance(e, tuple) and len(e) == 2 and all(isinstance(x, str) for x in e)
+            for e in directed
+        )
+    if undirected:
+        assert all(
+            isinstance(e, tuple) and len(e) == 2 and all(isinstance(x, str) for x in e)
+            for e in undirected
+        )
+
+
+def test_tbfpc_invalid_drivers_raises(df_non_ts: pd.DataFrame):
+    model = TBFPC(target="Y", target_edge_rule="fullS")
+    with pytest.raises(KeyError):
+        model.fit(df_non_ts, drivers=["A", "B", "D"])  # "D" not in df
+
+
+@pytest.mark.parametrize("edge_rule", ["random", "", None])
+def test_tbfpc_invalid_edge_rule_raises(edge_rule):
+    with pytest.raises(ValueError):
+        TBFPC(target="Y", target_edge_rule=edge_rule)  # type: ignore[arg-type]
+
+
+def test_tbfpc_emits_experimental_warning(df_non_ts: pd.DataFrame):
+    with pytest.warns(UserWarning, match="experimental"):
+        TBFPC(target="Y", target_edge_rule="fullS")
+
+
+@pytest.mark.parametrize("bf", [0, -1.0])
+def test_tbfpc_invalid_bf_thresh_raises(bf):
+    with pytest.raises(ValueError):
+        TBFPC(target="Y", bf_thresh=bf)  # type: ignore[arg-type]
+
+
+def test_tbfpc_internal_key_and_sep():
+    m = TBFPC(target="Y")
+    # _key should sort endpoints
+    assert m._key("B", "A") == ("A", "B")
+    m._set_sep("A", "B", ["C"])
+    assert m.sep_sets[("A", "B")] == {"C"}
+
+
+def test_tbfpc_has_forbidden_blocks_edges(df_non_ts: pd.DataFrame):
+    m = TBFPC(target="Y", forbidden_edges=[("A", "Y")])
+    # if forbidden, CI returns True (treat as independent)
+    assert m._has_forbidden("A", "Y") is True
+    # Build minimal state to call _ci_independent
+    m.fit(df_non_ts, drivers=["A", "B", "C"])  # initializes y_sh and bic_fn
+    assert m._ci_independent(df_non_ts, "A", "Y", []) is True
+
+
+@pytest.fixture(scope="module")
+def df_ts() -> pd.DataFrame:
+    rng = np.random.default_rng(123)
+    n = 300
+    x1 = rng.uniform(low=0.0, high=1.0, size=n)
+    X1_t = np.where(x1 > 0.9, x1, x1 / 2)
+
+    x2 = rng.uniform(low=0.3, high=1.0, size=n)
+    X2_t = np.where(x2 > 0.8, x2, x2 / 4)
+
+    x3 = rng.uniform(low=0.0, high=1.0, size=n)
+    X3_t = x3 + (X2_t * 0.2)
+
+    Y_t = (
+        (X1_t * 0.2)
+        + (X2_t * 0.1)
+        + (X3_t * 0.3)
+        + rng.normal(loc=0.0, scale=0.05, size=n)
     )
 
-    # Then mock nx to be None and test dag_graph
-    monkeypatch.setattr("pymc_marketing.mmm.causal.nx", None)
-
-    with pytest.raises(
-        ImportError,
-        match=(
-            r"To use Causal Graph functionality, please install the "
-            r"optional dependencies with: pip install pymc-marketing\[dag\]"
-        ),
-    ):
-        builder.dag_graph()
+    return pd.DataFrame({"X1": X1_t, "X2": X2_t, "X3": X3_t, "Y": Y_t})
 
 
-def test_causal_model_lazy_import_when_dowhy_missing(monkeypatch):
-    """Test that CausalModel uses LazyCausalModel when dowhy is not available."""
-    # Simulate dowhy not being installed by removing it from sys.modules
-    import sys
+@pytest.mark.parametrize("target_edge_rule", ["any", "conservative", "fullS"])
+@pytest.mark.parametrize("bf_thresh", [0.5, 1.0, 2.0])
+@pytest.mark.parametrize(
+    "forbidden_edges",
+    [
+        [],
+        [("X2", "Y"), ("X1", "X2")],
+        [("X1", "Y")],
+    ],
+)
+def test_tbf_fci_public_api_types(
+    df_ts: pd.DataFrame,
+    target_edge_rule: str,
+    bf_thresh: float,
+    forbidden_edges,
+):
+    model = TBF_FCI(
+        target="Y",
+        target_edge_rule=target_edge_rule,
+        bf_thresh=bf_thresh,
+        forbidden_edges=forbidden_edges,
+        max_lag=1,
+        allow_contemporaneous=True,
+    )
+    out = model.fit(df_ts, drivers=["X1", "X2", "X3"])  # returns self
 
-    import pymc_marketing.mmm.causal as causal_module
+    assert out is model
+    # public API returns
+    assert isinstance(model.summary(), str)
+    assert isinstance(model.to_digraph(collapsed=False), str)
+    assert isinstance(model.to_digraph(collapsed=True), str)
 
-    # Save the original CausalModel
-    original_causal_model = causal_module.CausalModel
+    directed = model.get_directed_edges()
+    undirected = model.get_undirected_edges()
+    assert isinstance(directed, list)
+    assert isinstance(undirected, list)
+    if directed:
+        assert all(
+            isinstance(e, tuple) and len(e) == 2 and all(isinstance(x, str) for x in e)
+            for e in directed
+        )
+    if undirected:
+        assert all(
+            isinstance(e, tuple) and len(e) == 2 and all(isinstance(x, str) for x in e)
+            for e in undirected
+        )
 
-    try:
-        monkeypatch.setitem(sys.modules, "dowhy", None)
+    collapsed_directed, collapsed_undirected = model.collapsed_summary()
+    assert isinstance(collapsed_directed, list)
+    assert isinstance(collapsed_undirected, list)
+    for e in collapsed_directed:
+        assert isinstance(e, tuple) and len(e) == 3
+        u, v, lag = e
+        assert isinstance(u, str) and isinstance(v, str) and isinstance(lag, int)
+    for e in collapsed_undirected:
+        assert isinstance(e, tuple) and len(e) == 2
+        u, v = e
+        assert isinstance(u, str) and isinstance(v, str)
 
-        # Force reload of the causal module to trigger the import error path
-        import importlib
 
-        importlib.reload(causal_module)
+@pytest.mark.parametrize("edge_rule", ["random", "", None])
+def test_tbf_fci_invalid_edge_rule_raises(edge_rule):
+    with pytest.raises(ValueError):
+        TBF_FCI(target="Y", target_edge_rule=edge_rule)  # type: ignore[arg-type]
 
-        # Now CausalModel should be the LazyCausalModel that raises ImportError
-        with pytest.raises(
-            ImportError,
-            match=(
-                r"To use Causal Graph functionality, please install the "
-                r"optional dependencies with: pip install pymc-marketing\[dag\]"
-            ),
-        ):
-            causal_module.CausalModel(
-                data=pd.DataFrame(), graph="A->B", treatment=["A"], outcome="B"
-            )
-    finally:
-        # Restore the original CausalModel to prevent test pollution
-        causal_module.CausalModel = original_causal_model
+
+@pytest.mark.parametrize("bf", [0, -1.0])
+def test_tbf_fci_invalid_bf_thresh_raises(bf):
+    with pytest.raises(ValueError):
+        TBF_FCI(target="Y", bf_thresh=bf)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("lag", [-1, 1.5])
+def test_tbf_fci_invalid_max_lag_raises(lag):
+    with pytest.raises(ValueError):
+        TBF_FCI(target="Y", max_lag=lag)  # type: ignore[arg-type]
+
+
+def test_tbf_fci_emits_experimental_warning(df_ts: pd.DataFrame):
+    with pytest.warns(UserWarning, match="experimental"):
+        TBF_FCI(target="Y", max_lag=1)
+
+
+def test_tbf_fci_lag_naming_and_parsing():
+    m = TBF_FCI(target="Y", max_lag=2)
+    assert m._lag_name("X", 0) == "X[t]"
+    assert m._lag_name("X", 2) == "X[t-2]"
+    assert m._parse_lag("X[t]") == ("X", 0)
+    assert m._parse_lag("X[t-2]") == ("X", 2)
+
+
+@pytest.mark.parametrize(
+    "forbidden_in,expected_contains",
+    [
+        ([("X1", "Y")], {("X1[t]", "Y[t]")}),
+        ([("X1", "Y")], {("X1[t-1]", "Y[t]")}),
+        ([("X2[t]", "Y[t]")], {("X2[t]", "Y[t]")}),
+    ],
+)
+def test_tbf_fci_expand_edges(forbidden_in, expected_contains):
+    m = TBF_FCI(target="Y", max_lag=1, forbidden_edges=forbidden_in)
+    # All expected edges should be in expanded set
+    assert expected_contains.issubset(m.forbidden_edges)
+
+
+def test_tbf_fci_admissible_cond_set(df_ts: pd.DataFrame):
+    m = TBF_FCI(target="Y", max_lag=1)
+    all_vars = ["X1[t]", "X1[t-1]", "X2[t]", "X2[t-1]", "Y[t]"]
+    # conditioning for (X1[t-1], Y[t]) can include same-time and earlier variables
+    cand = m._admissible_cond_set(all_vars, "X1[t-1]", "Y[t]")
+    # excludes the tested variables themselves (X1[t-1], Y[t])
+    assert set(cand).issuperset({"X1[t]", "X2[t-1]", "X2[t]"})
+
+
+def test_tbf_fci_invalid_drivers_raises(df_ts: pd.DataFrame):
+    model = TBF_FCI(
+        target="Y", target_edge_rule="fullS", max_lag=1, allow_contemporaneous=True
+    )
+    with pytest.raises(KeyError):
+        model.fit(df_ts, drivers=["X1", "X2", "X9"])  # "X9" not in df

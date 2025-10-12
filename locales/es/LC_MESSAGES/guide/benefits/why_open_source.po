@@ -1,0 +1,139 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/guide/benefits/why_open_source.md:1
+#: 0fcd723936044099ad4d84a8124a2a69
+msgid "Why embrace open source?"
+msgstr ""
+
+#: ../source/guide/benefits/why_open_source.md:3
+#: 2ac6ddf4553c4db491ad3c4683227c1d
+msgid ""
+"In recent years, there has been a significant shift across many data-"
+"intensive industries to build upon open source foundations. There are "
+"several advantages in building your marketing data science stack on an "
+"open source core:"
+msgstr ""
+
+#: ../source/guide/benefits/why_open_source.md:5
+#: a8be0e332c0c42c3990728e604f7d653
+msgid "Cost savings"
+msgstr ""
+
+#: ../source/guide/benefits/why_open_source.md:6
+#: f0138e9e721f493e82aba5054c6a268a
+msgid "Avoid paying for proprietary software licenses."
+msgstr ""
+
+#: ../source/guide/benefits/why_open_source.md:8
+#: 5261defdf44640e98149382ab6bca7ba
+msgid "Avoid vendor lock-in"
+msgstr ""
+
+#: ../source/guide/benefits/why_open_source.md:9
+#: d35a1f2ed02d454b8f70ccbe7a551655
+msgid ""
+"Keep flexibility and control, with the ability to switch to other options"
+" or to customise your data science models on top of an open source core."
+msgstr ""
+
+#: ../source/guide/benefits/why_open_source.md:11
+#: 9a73706d7a01473c87ecd5e1071fcc44
+msgid "Flexibility and customization"
+msgstr ""
+
+#: ../source/guide/benefits/why_open_source.md:12
+#: a27fb6b5baa644afad5907ee2b54164b
+msgid ""
+"Open source software is customizable and can be tailored to meet the "
+"specific needs of your business. This allows you to create a data science"
+" stack that is uniquely suited to your business and can give you a "
+"competitive advantage."
+msgstr ""
+
+#: ../source/guide/benefits/why_open_source.md:14
+#: 9ff3dd5b435841deab6d333393a8fc23
+msgid "In-housing"
+msgstr ""
+
+#: ../source/guide/benefits/why_open_source.md:15
+#: bc4a4f429eb84eaa945428430ffe299f
+msgid ""
+"There are pro’s and con’s of running your marketing analytics [in-"
+"house](https://www.campaignlive.co.uk/article/in-housing-everything-need-"
+"know/1492428) versus outsourcing through external marketing agencies "
+"bespoke consultancies. But if you were going to in-house, it makes sense "
+"to build your data science stack on an open core - it allows your data "
+"science team to focus on customisation for *your* business rather than "
+"building and maintaining the foundations that others have already built."
+msgstr ""
+
+#: ../source/guide/benefits/why_open_source.md:17
+#: d913146be54d49cd89195b2f94acc2c9
+msgid "Innovation"
+msgstr ""
+
+#: ../source/guide/benefits/why_open_source.md:18
+#: df815780e300419395b2e86e204e6f4f
+msgid ""
+"Open source software is often at the forefront of innovation in data "
+"science, with new tools and techniques being developed and shared by the "
+"community. By building your data science stack on an open source core, "
+"you can stay up-to-date with the latest advances in the field and take "
+"advantage of new developments and improvements as they arise."
+msgstr ""
+
+#: ../source/guide/benefits/why_open_source.md:20
+#: 00cf1725d4c246d2959f780b31552e8a
+msgid "Community support"
+msgstr ""
+
+#: ../source/guide/benefits/why_open_source.md:21
+#: 18753b9115d44c448c4cdd028438e528
+msgid ""
+"PyMC-Marketing and [PyMC](https://www.pymc.io/) (the Bayesian engine that"
+" powers PyMC-Marketing) are supported by a large, active community of "
+"developers who contribute to the development of these libraries and "
+"provide support and guidance to users. For example the [the PyMC-"
+"Marketing Discussions on Github](https://github.com/pymc-labs/pymc-"
+"marketing/discussions) allows members of our community to connect with "
+"and ask questions of peers, core developers, and members of [PyMC "
+"Labs](https://www.pymc-labs.com).  The [PyMC "
+"Discouse](https://discourse.pymc.io) is a similar forum for users of PyMC"
+" (the engine that powers PyMC-Marketing). This thriving community can be "
+"invaluable for businesses that don't have the resources to hire their own"
+" team of data scientists."
+msgstr ""
+
+#: ../source/guide/benefits/why_open_source.md:23
+#: 361cfef2697d4316b86c3ff00ce1cbb3
+msgid "Talent acquisition and onboarding"
+msgstr ""
+
+#: ../source/guide/benefits/why_open_source.md:24
+#: 4953a1b2cce7431aad4355fd189454fc
+msgid ""
+"Using open source software as a foundation for your data science stack "
+"can help attract top talent to your company. Developers and data "
+"scientists are often drawn to companies that use cutting-edge tools and "
+"contribute to the larger open source community."
+msgstr ""

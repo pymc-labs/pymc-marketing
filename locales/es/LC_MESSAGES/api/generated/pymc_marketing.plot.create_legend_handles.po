@@ -1,0 +1,109 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.plot.create_legend_handles.rst:2
+#: f2929619c884441bb3e88bd1db5dec42
+msgid "create\\_legend\\_handles"
+msgstr ""
+
+#: d5e610356b304310850f4717ae48739e of
+#: pymc_marketing.plot.create_legend_handles:2
+msgid "Create the legend handles for the given colors."
+msgstr ""
+
+#: fff5f3384f2b4e19a665b7cdbfbe9de7 of
+#: pymc_marketing.plot.create_legend_handles
+msgid "Parameters"
+msgstr ""
+
+#: bf2d1f2e4a9c43dca17cd6f01a2c6386 of
+#: pymc_marketing.plot.create_legend_handles:7
+msgid "**colors** : :obj:`Iterable`\\[:class:`python:str`]"
+msgstr ""
+
+#: f3e831d7a2984ab5ab3d2e97b7e20d3a of
+#: pymc_marketing.plot.create_legend_handles:6
+msgid "Iterable[python:str]"
+msgstr ""
+
+#: 8a3cb410f4014676a7563dcf2fbd5abd of
+#: pymc_marketing.plot.create_legend_handles:8
+msgid "The colors to create the legend handles."
+msgstr ""
+
+#: 024a9052d09e491e8c46924bd696fe10 of
+#: pymc_marketing.plot.create_legend_handles:10
+msgid "**alpha** : :class:`python:float`, optional"
+msgstr ""
+
+#: d58dc2f0de3f4f27bf0215ee2faabc5f of
+#: pymc_marketing.plot.create_legend_handles:9
+msgid "python:float, optional"
+msgstr ""
+
+#: be40126ae6b04294b9c243646a4b010c of
+#: pymc_marketing.plot.create_legend_handles:11
+msgid "The alpha value for the patches, by default 0.5."
+msgstr ""
+
+#: 4b5c96b6d8374625a8139ba824fd1ebd of
+#: pymc_marketing.plot.create_legend_handles:13
+msgid "**line** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+
+#: 43c2192f339a4ecead17bdca01615064 79628befe6d044cb818feaafd74a303a of
+#: pymc_marketing.plot.create_legend_handles:12
+#: pymc_marketing.plot.create_legend_handles:15
+msgid "bool, optional"
+msgstr ""
+
+#: 343dc9427c3b45e598fa03786db02775 of
+#: pymc_marketing.plot.create_legend_handles:14
+msgid "Whether to include the line, by default True."
+msgstr ""
+
+#: 4f9235167f284f538d9b45b63edc69f8 of
+#: pymc_marketing.plot.create_legend_handles:16
+msgid "**patch** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+
+#: fabb211ce6624dffb038db824bc79898 of
+#: pymc_marketing.plot.create_legend_handles:17
+msgid "Whether to include the patch, by default True."
+msgstr ""
+
+#: ee1e17b356224ca49330cc9738601247 of
+#: pymc_marketing.plot.create_legend_handles
+msgid "Returns"
+msgstr ""
+
+#: 314b1abe84f140dabbfe06736ed45ccd of
+#: pymc_marketing.plot.create_legend_handles:23
+msgid ""
+":class:`python:list`\\[:obj:`Line2D` | :obj:`Patch` | "
+":class:`python:tuple`\\[:obj:`Line2D`, :obj:`Patch`]]"
+msgstr ""
+
+#: 993e2fe16caa4a048749492057c7e67e of
+#: pymc_marketing.plot.create_legend_handles:24
+msgid "The legend handles."
+msgstr ""

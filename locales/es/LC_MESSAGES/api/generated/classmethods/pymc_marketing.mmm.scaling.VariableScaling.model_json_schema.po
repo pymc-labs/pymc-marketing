@@ -1,0 +1,64 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.scaling.VariableScaling.model_json_schema.rst:2
+#: e3047504be374fa2b82dc2787b555877
+msgid "VariableScaling.model\\_json\\_schema"
+msgstr ""
+
+#: c4614f4e9e9d4cadb3f9b324c66568c9 of
+#: pydantic.main.BaseModel.model_json_schema:2
+msgid "Generates a JSON schema for a model class."
+msgstr ""
+
+#: 3c6d95cc293241e3aaa4fbb0f0263191 of
+#: pydantic.main.BaseModel.model_json_schema:4
+msgid "Args:"
+msgstr ""
+
+#: 6339eced232e4f1bba2b47b547147f50 of
+#: pydantic.main.BaseModel.model_json_schema:5
+msgid ""
+"by_alias: Whether to use attribute aliases or not. ref_template: The "
+"reference template. schema_generator: To override the logic used to "
+"generate the JSON schema, as a subclass of"
+msgstr ""
+
+#: e0a4fbd1831f4d9bb661dd1afc9206b7 of
+#: pydantic.main.BaseModel.model_json_schema:8
+msgid "`GenerateJsonSchema` with your desired modifications"
+msgstr ""
+
+#: 892d208dbcf04259a70f3b8bd35c4372 of
+#: pydantic.main.BaseModel.model_json_schema:9
+msgid "mode: The mode in which to generate the schema."
+msgstr ""
+
+#: 07beb82d81824ef88060449d99d9c742 of
+#: pydantic.main.BaseModel.model_json_schema:11
+msgid "Returns:"
+msgstr ""
+
+#: 9cb1b8fe64c2481a921610975d0ed6f6 of
+#: pydantic.main.BaseModel.model_json_schema:12
+msgid "The JSON schema for the given model class."
+msgstr ""

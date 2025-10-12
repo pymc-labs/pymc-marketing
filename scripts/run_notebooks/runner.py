@@ -1,4 +1,32 @@
-"""Script to run all notebooks in the docs/source/notebooks directory."""
+"""Script to run all notebooks in the docs/source/notebooks directory.
+
+Examples
+--------
+Run all the notebooks in the documentation:
+
+```terminal
+python scripts/run_notebooks/runner.py
+```
+
+Run all the notebooks in docs/mmm and docs/clv:
+
+```terminal
+python scripts/run_notebooks/runner.py --notebooks mmm clv
+```
+
+Run all notebooks except those in docs/mmm and docs/clv:
+
+```terminal
+python scripts/run_notebooks/runner.py --exclude-dirs mmm clv
+```
+
+Run notebooks from index 2 to 5 (3rd to 5th notebook) in notebooks/mmm directory:
+
+```terminal
+python scripts/run_notebooks/runner.py --notebooks mmm --start-idx 2 --end-idx 5
+```
+
+"""
 
 import argparse
 import logging
@@ -105,7 +133,43 @@ def parse_args():
         type=str,
         help="List of notebooks to run. If not provided, all notebooks will be run.",
     )
+    parser.add_argument(
+        "--exclude-dirs",
+        nargs="+",
+        type=str,
+        help="List of directories to exclude (e.g., mmm clv)",
+    )
+    parser.add_argument(
+        "--start-idx",
+        type=int,
+        default=0,
+        help="Index of the notebook to start from (inclusive).",
+    )
+    parser.add_argument(
+        "--end-idx",
+        type=int,
+        default=None,
+        help="Index of the notebook to end at (exclusive).",
+    )
+    parser.add_argument(
+        "--parallel/no-parallel",
+        dest="parallel",
+        action="store_true",
+        default=False,
+    )
     return parser.parse_args()
+
+
+def expand_directories(notebooks):
+    expanded = []
+    for notebook in notebooks:
+        path = NOTEBOOKS_PATH / notebook
+        if path.is_dir():
+            logging.info(f"Expanding directory: {path}")
+            expanded.extend(path.glob("*.ipynb"))
+        else:
+            expanded.append(notebook)
+    return expanded
 
 
 if __name__ == "__main__":
@@ -115,12 +179,39 @@ if __name__ == "__main__":
     if args.notebooks:
         notebooks_to_run = [Path(notebook) for notebook in args.notebooks]
 
+    notebooks_to_run = expand_directories(notebooks_to_run)
+
+    if args.exclude_dirs:
+        exclude_set = set(args.exclude_dirs)
+        notebooks_to_run = [
+            nb for nb in notebooks_to_run if nb.parent.name not in exclude_set
+        ]
+
+    notebooks_to_run = sorted(notebooks_to_run)
+
+    notebooks_to_run = notebooks_to_run[args.start_idx : args.end_idx]
+
+    def parallel_run():
+        return Parallel(n_jobs=-1)(
+            delayed(run_notebook)(**run_params)
+            for run_params in run_parameters(notebooks_to_run)
+        )
+
+    def sequential_run():
+        return [
+            run_notebook(**run_params)
+            for run_params in run_parameters(notebooks_to_run)
+        ]
+
+    run = parallel_run if args.parallel else sequential_run
+
     setup_logging()
     logging.info("Starting notebook runner")
     logging.info(f"Notebooks to run: {notebooks_to_run}")
-    Parallel(n_jobs=-1)(
-        delayed(run_notebook)(**run_params)
-        for run_params in run_parameters(notebooks_to_run)
-    )
+    results = run()
+    del results
+    import gc
+
+    gc.collect()
 
     logging.info("Notebooks run successfully!")
