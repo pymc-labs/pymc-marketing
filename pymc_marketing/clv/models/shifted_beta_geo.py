@@ -457,18 +457,53 @@ class ShiftedBetaGeoModel(CLVModel):
         if future_t is not None:
             data = data.assign(future_t=future_t)
 
-        dataset = self._extract_predictive_variables(
-            data, customer_varnames=["T", "future_t"]
-        )
-        alpha = dataset["alpha"]
-        beta = dataset["beta"]
-        T = dataset["T"]
-        future_t = dataset["future_t"]
+        alpha = self.fit_result["alpha"]
+        beta = self.fit_result["beta"]
 
-        retention_rate = (beta + T + future_t - 1) / (alpha + beta + T + future_t - 1)
-        # TODO: "cohort" dim instead of "customer_id"?
+        # Determine cohort subset present in data
+        cohorts_present = pd.Index(data["cohort"].unique())
+        cohorts_present = cohorts_present.intersection(pd.Index(self.cohorts))
+
+        cohorts_da = xarray.DataArray(
+            cohorts_present.values,
+            dims=("cohort",),
+            coords={"cohort": cohorts_present.values},
+        )
+
+        alpha_sel = alpha.sel(cohort=cohorts_da)
+        beta_sel = beta.sel(cohort=cohorts_da)
+
+        # Build T and future_t per cohort (assumes homogeneity within cohort)
+        if "T" in data.columns and "future_t" in data.columns:
+            T_series = (
+                data.drop_duplicates(["cohort", "T"])
+                .set_index("cohort")["T"]
+                .reindex(cohorts_present)
+            )
+            ft_series = (
+                data.drop_duplicates(["cohort", "future_t"])
+                .set_index("cohort")["future_t"]
+                .reindex(cohorts_present)
+            )
+        else:
+            raise ValueError(
+                "expected_retention_rate requires columns 'T' and 'future_t' in data."
+            )
+
+        T_da = xarray.DataArray(
+            T_series.values, dims=("cohort",), coords={"cohort": cohorts_present.values}
+        )
+        ft_da = xarray.DataArray(
+            ft_series.values,
+            dims=("cohort",),
+            coords={"cohort": cohorts_present.values},
+        )
+
+        retention_rate = (beta_sel + T_da + ft_da - 1) / (
+            alpha_sel + beta_sel + T_da + ft_da - 1
+        )
         return retention_rate.transpose(
-            "chain", "draw", "customer_id", missing_dims="ignore"
+            "chain", "draw", "cohort", missing_dims="ignore"
         )
 
     def expected_probability_alive(
@@ -493,24 +528,54 @@ class ShiftedBetaGeoModel(CLVModel):
         if future_t is not None:
             data = data.assign(future_t=future_t)
 
-        dataset = self._extract_predictive_variables(
-            data, customer_varnames=["T", "future_t"]
-        )
-        alpha = dataset["alpha"]
-        beta = dataset["beta"]
-        T = dataset["T"]
-        future_t = dataset["future_t"]
+        alpha = self.fit_result["alpha"]
+        beta = self.fit_result["beta"]
 
-        # Rewrite beta functions from paper in terms of gamma functions on log scale
+        cohorts_present = pd.Index(data["cohort"].unique())
+        cohorts_present = cohorts_present.intersection(pd.Index(self.cohorts))
+
+        cohorts_da = xarray.DataArray(
+            cohorts_present.values,
+            dims=("cohort",),
+            coords={"cohort": cohorts_present.values},
+        )
+
+        alpha_sel = alpha.sel(cohort=cohorts_da)
+        beta_sel = beta.sel(cohort=cohorts_da)
+
+        if "T" in data.columns and "future_t" in data.columns:
+            T_series = (
+                data.drop_duplicates(["cohort", "T"])
+                .set_index("cohort")["T"]
+                .reindex(cohorts_present)
+            )
+            ft_series = (
+                data.drop_duplicates(["cohort", "future_t"])
+                .set_index("cohort")["future_t"]
+                .reindex(cohorts_present)
+            )
+        else:
+            raise ValueError(
+                "expected_probability_alive requires columns 'T' and 'future_t' in data."
+            )
+
+        T_da = xarray.DataArray(
+            T_series.values, dims=("cohort",), coords={"cohort": cohorts_present.values}
+        )
+        ft_da = xarray.DataArray(
+            ft_series.values,
+            dims=("cohort",),
+            coords={"cohort": cohorts_present.values},
+        )
+
         logS = (
-            gammaln(beta + T + future_t)
-            - gammaln(beta)
-            + gammaln(alpha + beta)
-            - gammaln(alpha + beta + T + future_t)
+            gammaln(beta_sel + T_da + ft_da)
+            - gammaln(beta_sel)
+            + gammaln(alpha_sel + beta_sel)
+            - gammaln(alpha_sel + beta_sel + T_da + ft_da)
         )
         survival = np.exp(logS)
-        # TODO: "cohort" dim instead of "customer_id"?
-        return survival.transpose("chain", "draw", "customer_id", missing_dims="ignore")
+        return survival.transpose("chain", "draw", "cohort", missing_dims="ignore")
 
 
 class ShiftedBetaGeoModelIndividual(CLVModel):
