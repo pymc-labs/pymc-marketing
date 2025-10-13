@@ -990,7 +990,6 @@ class ShiftedBetaGeometric(Discrete):
             + pt.gammaln(alpha + beta)
             - pt.gammaln(alpha + beta + value)
         )
-        # log(1-exp(logS))
         return pt.log1mexp(logS)
 
     def support_point(rv, size, alpha, beta):
