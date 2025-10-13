@@ -411,11 +411,11 @@ class ShiftedBetaGeoModel(CLVModel):
 
         # Vectorized selection depends on whether alpha/beta are cohort- or customer-level
         if "cohort" in alpha.dims:
-            alpha_customer = alpha.sel(cohorts=customer_cohorts_xr)
+            alpha_customer = alpha.sel(cohort=customer_cohorts_xr)
         else:
             alpha_customer = alpha
         if "cohort" in beta.dims:
-            beta_customer = beta.sel(cohorts=customer_cohorts_xr)
+            beta_customer = beta.sel(cohort=customer_cohorts_xr)
         else:
             beta_customer = beta
 
