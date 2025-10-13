@@ -22,7 +22,7 @@ from pymc_extras.prior import Prior
 
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.model_builder import DifferentModelError
-from tests.conftest import mock_fit_MAP, mock_sample, set_model_fit
+from tests.clv.conftest import mock_fit_MAP, mock_sample, set_model_fit
 
 
 class CLVModelTest(CLVModel):

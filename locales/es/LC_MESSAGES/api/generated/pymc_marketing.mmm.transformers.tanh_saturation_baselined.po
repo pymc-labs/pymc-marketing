@@ -1,0 +1,270 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.tanh_saturation_baselined.rst:2
+#: 606e8ec96fdf42769bdb78e6d3e0376a
+msgid "tanh\\_saturation\\_baselined"
+msgstr ""
+
+#: 3cc15f6c3ce141fe9d4ef8e65f03bd04 of
+#: pymc_marketing.mmm.transformers.tanh_saturation_baselined:2
+msgid "Baselined Tanh Saturation."
+msgstr ""
+
+#: d7de0e617ad04fbf83746bd618777096 of
+#: pymc_marketing.mmm.transformers.tanh_saturation_baselined:4
+msgid ""
+"This parameterization that is easier than :func:`tanh_saturation` to use "
+"for industry applications where domain knowledge is an essence."
+msgstr ""
+
+#: 332b15523092465896ef436d672ed882 of
+#: pymc_marketing.mmm.transformers.tanh_saturation_baselined:7
+msgid ""
+"In a nutshell, it is an alternative parameterization of the reach "
+"function is given by:"
+msgstr ""
+
+#: 5acdf8165c54429fa730ee977c25587b of
+#: pymc_marketing.mmm.transformers.tanh_saturation_baselined:9
+#, python-brace-format
+msgid ""
+"\\begin{align}\n"
+"c_0 &= \\frac{r}{g \\cdot \\arctan(r)} \\\\\n"
+"\\beta &= \\frac{g \\cdot x_0}{r} \\\\\n"
+"\\operatorname{saturation}(x, \\beta, c_0) &= \\beta  \\cdot \\tanh "
+"\\left( \\frac{x}{c_0 \\cdot \\beta} \\right)\n"
+"\\end{align}"
+msgstr ""
+
+#: 8116a0a3d85246d49a8a210a43fb2ba9 bae849716350401e8ee2db2e3b8eed4b of
+#: pymc_marketing.mmm.transformers.tanh_saturation_baselined:17
+#: pymc_marketing.mmm.transformers.tanh_saturation_baselined:57
+msgid "where:"
+msgstr ""
+
+#: c8a96040079b4d708be1cbdb5352f572 of
+#: pymc_marketing.mmm.transformers.tanh_saturation_baselined:19
+msgid ""
+":math:`x_0` is the \"reference point\". This is a point chosen by the "
+"user (not given a prior) where they expect most of their data to lie. For"
+" example, if you're spending between 50 and 150 dollars on a particular "
+"channel, you might choose :math:`x_0 = 100`. Suggested value is median "
+"channel spend: ``np.median(spend)``."
+msgstr ""
+
+#: 8c08dda8a3434ff897bf63ddbb4a7f55 of
+#: pymc_marketing.mmm.transformers.tanh_saturation_baselined:25
+msgid ""
+":math:`g` is the \"gain\", which is the value of the CAC (:math:`c_0`) at"
+" the reference point. You have to set a prior on what you think the CAC "
+"is when you spend :math:`x_0 = 100`. Imagine you have four advertising "
+"channels, and you acquired 1000 new users. If each channel performed "
+"equally well, and advertising drove all sales, you might expect that you "
+"gained 250 users from each channel.  Here, your \"gain\" would be "
+":math:`250 / 100 = 2.5`. Suggested prior is ``pm.Exponential``"
+msgstr ""
+
+#: 0b9d0703ed43440d9f3307ac5cc41377 of
+#: pymc_marketing.mmm.transformers.tanh_saturation_baselined:31
+msgid ""
+":math:`r`, the overspend fraction is telling you where the reference "
+"point is."
+msgstr ""
+
+#: 002566c6082743da92e1c5a3a3f6c628 of
+#: pymc_marketing.mmm.transformers.tanh_saturation_baselined:33
+msgid ""
+":math:`0` - we can increase our budget by a lot to reach the saturated "
+"region, the diminishing returns are not visible yet."
+msgstr ""
+
+#: 774b319e6a5c4729b661d23523a18b74 of
+#: pymc_marketing.mmm.transformers.tanh_saturation_baselined:35
+msgid ""
+":math:`1` - the reference point is already in the saturation region and "
+"additional dollar spend will not lead to any new users."
+msgstr ""
+
+#: 9c50883d603c4a67bca14fea9ccd21dc of
+#: pymc_marketing.mmm.transformers.tanh_saturation_baselined:37
+msgid ""
+":math:`0.8`, you can still increase acquired users by :math:`50\\%` as "
+"much you get in the reference point by increasing the budget. :math:`x_0`"
+" effect is 20% away from saturation point"
+msgstr ""
+
+#: 831bd632ace0431d96ef95119c696fe0 of
+#: pymc_marketing.mmm.transformers.tanh_saturation_baselined:41
+msgid "Suggested prior is ``pm.Beta``"
+msgstr ""
+
+#: 0b73db3be36b4ebbb531713873b5841c of
+#: pymc_marketing.mmm.transformers.tanh_saturation_baselined:45
+msgid ""
+"The reference point :math:`x_0` has to be set within the range of the "
+"actual spends. As in, you buy ads three times and spend :math:`5`, "
+":math:`6` and :math:`7` dollars, :math:`x_0` has to be set within "
+":math:`[5, 7]`, so not :math:`4` not :math:`8`. Otherwise the posterior "
+"of r and gain becomes a skinny diagonal line. It could be very relevant "
+"if there is very little spend observations for a particular channel."
+msgstr ""
+
+#: 0815fe54422249fd9bae769c2a7a4d4e of
+#: pymc_marketing.mmm.transformers.tanh_saturation_baselined:51
+msgid "The original reach or saturation function used in an MMM is formulated as"
+msgstr ""
+
+#: c9957242e6174528882d626d21146053 of
+#: pymc_marketing.mmm.transformers.tanh_saturation_baselined:53
+#, python-brace-format
+msgid ""
+"\\operatorname{saturation}(x, \\beta, c_0) = \\beta  \\cdot \\tanh "
+"\\left( \\frac{x}{c_0 \\cdot \\beta} \\right)"
+msgstr ""
+
+#: 9cccd44dd9db47bc876be5826fab183c of
+#: pymc_marketing.mmm.transformers.tanh_saturation_baselined:59
+msgid ""
+":math:`\\beta` is the saturation, or the limit of the total number of new"
+" users obtained when an infinite number of dollars are spent on that "
+"channel."
+msgstr ""
+
+#: 056a6e939da4414b88ed6abf1fb1d6a2 of
+#: pymc_marketing.mmm.transformers.tanh_saturation_baselined:61
+msgid ""
+":math:`c_0` is the cost per acquisition (CAC0), so the initial cost per "
+"new user."
+msgstr ""
+
+#: 08989c0c038d4478b24e779e177a9cd1 of
+#: pymc_marketing.mmm.transformers.tanh_saturation_baselined:62
+#, python-brace-format
+msgid ""
+":math:`\\frac{1}{c_0}` is the inverse of the CAC0, so it's the number of "
+"new users we might expect after spending our first dollar."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.tanh_saturation_baselined.rst:7
+#: 17f5c528f554458da4834130f61ba194
+msgid ""
+"(:download:`Source code <../../../gettext/plot_directive/api/generated"
+"/pymc_marketing-mmm-transformers-tanh_saturation_baselined-1.py>`, "
+":download:`png <../../../gettext/plot_directive/api/generated"
+"/pymc_marketing-mmm-transformers-tanh_saturation_baselined-1.png>`, "
+":download:`hires.png <../../../gettext/plot_directive/api/generated"
+"/pymc_marketing-mmm-transformers-tanh_saturation_baselined-1.hires.png>`,"
+" :download:`pdf <../../../gettext/plot_directive/api/generated"
+"/pymc_marketing-mmm-transformers-tanh_saturation_baselined-1.pdf>`)"
+msgstr ""
+
+#: 0784612b693c4275848fc1afb726bab1 of
+#: pymc_marketing.mmm.transformers.tanh_saturation_baselined
+msgid "Parameters"
+msgstr ""
+
+#: e793a6d4193746258271097873c68fd0 of
+#: pymc_marketing.mmm.transformers.tanh_saturation_baselined:103
+msgid "**x** : :obj:`tensor`"
+msgstr ""
+
+#: 1a5f9538f45c43f5abd44579ef26a21e of
+#: pymc_marketing.mmm.transformers.tanh_saturation_baselined:102
+msgid "tensor"
+msgstr ""
+
+#: e5dc07991dea4054bbb8601211e3dc04 of
+#: pymc_marketing.mmm.transformers.tanh_saturation_baselined:104
+msgid "Input tensor."
+msgstr ""
+
+#: 66030d41f1fb422c8bdc65fc2ba50f03 of
+#: pymc_marketing.mmm.transformers.tanh_saturation_baselined:106
+msgid "**x0: tensor**"
+msgstr ""
+
+#: 17f13f9b4c954c30b5218c30773ba6a9 of
+#: pymc_marketing.mmm.transformers.tanh_saturation_baselined:107
+msgid "Baseline for saturation."
+msgstr ""
+
+#: 28548d3a5c3c4f5c874d39492bd3675a of
+#: pymc_marketing.mmm.transformers.tanh_saturation_baselined:109
+msgid "**gain** : :obj:`tensor`, :obj:`by` default 0.5"
+msgstr ""
+
+#: 819d332d5c244d4a8c4264c4cc14a2de 91c0ae6036874b4e989b3daa8da308d2 of
+#: pymc_marketing.mmm.transformers.tanh_saturation_baselined:108
+#: pymc_marketing.mmm.transformers.tanh_saturation_baselined:111
+msgid "tensor, by default 0.5"
+msgstr ""
+
+#: f38b4f854a664187afc5b1a0061661b7 of
+#: pymc_marketing.mmm.transformers.tanh_saturation_baselined:110
+msgid "ROAS at the baseline point, mathematically as :math:`gain = f(x0) / x0`."
+msgstr ""
+
+#: 59c1fd733d2542d78cb941289b127bb5 of
+#: pymc_marketing.mmm.transformers.tanh_saturation_baselined:112
+msgid "**r** : :obj:`tensor`, :obj:`by` default 0.5"
+msgstr ""
+
+#: 1b301028aca64533b0c9ce379b1ea298 of
+#: pymc_marketing.mmm.transformers.tanh_saturation_baselined:113
+#, python-brace-format
+msgid ""
+"The overspend fraction, mathematically as :math:`r = f(x0) / "
+"\\text{saturation}`."
+msgstr ""
+
+#: d3485655e473467fa794accced452b72 of
+#: pymc_marketing.mmm.transformers.tanh_saturation_baselined
+msgid "Returns"
+msgstr ""
+
+#: 161d899bee4f48e08b3384f51f844f3e of
+#: pymc_marketing.mmm.transformers.tanh_saturation_baselined:119
+msgid ":obj:`tensor`"
+msgstr ""
+
+#: 0869da87996d4510aeea22321ae99786 of
+#: pymc_marketing.mmm.transformers.tanh_saturation_baselined:120
+msgid "Transformed tensor."
+msgstr ""
+
+#: 408b2fe9418e4434b9590111217486d1 of
+#: pymc_marketing.mmm.transformers.tanh_saturation_baselined:131
+msgid "References"
+msgstr ""
+
+#: 529caa7f4f1a4df089f37392282aa16c of
+#: pymc_marketing.mmm.transformers.tanh_saturation_baselined:132
+msgid ""
+"Developed by Max Kochurov and Aziz Al-Maeeni doing innovative work in "
+"`PyMC Labs <pymc-labs.com>`_."
+msgstr ""
+
+#: e52e865768624c27b2c05ee60b38d26e of
+#: pymc_marketing.mmm.transformers.tanh_saturation_baselined:139
+msgid "Examples"
+msgstr ""

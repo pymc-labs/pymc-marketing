@@ -16,7 +16,12 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 ::::{grid} 1 2 3 3
 :gutter: 3
 
-:::{grid-item-card} MMM Example: Introduction Notebook
+:::{grid-item-card} MMM Quickstart Guide
+:img-top: ../gallery/images/mmm_quickstart.png
+:link: ../notebooks/mmm/mmm_quickstart.html
+:::
+
+:::{grid-item-card} MMM Example: Extensive Introduction Notebook
 :img-top: ../gallery/images/mmm_example.png
 :link: ../notebooks/mmm/mmm_example.html
 :::
@@ -29,6 +34,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::{grid-item-card} MMM Multidimensional Example Notebook (e.g. Geo-MMM)
 :img-top: ../gallery/images/mmm_multidimensional_example.png
 :link: ../notebooks/mmm/mmm_multidimensional_example.html
+:::
+
+:::{grid-item-card} Build MMM from YAML Configuration
+:img-top: ../gallery/images/mmm_build_from_yml_example.png
+:link: ../notebooks/mmm/mmm_build_from_yml_example.html
 :::
 
 :::{grid-item-card} Sensitivity Analysis and Marginal Effects

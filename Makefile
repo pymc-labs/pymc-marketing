@@ -46,6 +46,12 @@ cleandocs: ## Clean the documentation build directories
 run_notebooks: ## Run Jupyter notebooks
 	python scripts/run_notebooks/runner.py
 
+run_notebooks_mmm: ## Run MMM Jupyter notebooks only
+	python scripts/run_notebooks/runner.py --exclude-dirs clv bass customer_choice general
+
+run_notebooks_other: ## Run non-MMM Jupyter notebooks
+	python scripts/run_notebooks/runner.py --exclude-dirs mmm
+
 uml: ## Install documentation dependencies and generate UML diagrams
 	pip install .[docs]
 	pyreverse pymc_marketing/mmm -d docs/source/uml -f 'ALL' -o png -p mmm

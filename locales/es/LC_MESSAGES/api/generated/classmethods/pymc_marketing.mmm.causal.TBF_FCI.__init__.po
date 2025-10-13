@@ -1,0 +1,102 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.TBF_FCI.__init__.rst:2
+#: 2be1e50301c14da9af07fb41a3888c1a
+msgid "TBF\\_FCI.\\_\\_init\\_\\_"
+msgstr ""
+
+#: 7ed71947536c476b9eba3ce70443c1eb of
+#: pymc_marketing.mmm.causal.TBF_FCI.__init__:2
+msgid "Create a new temporal TBF-PC causal discovery model."
+msgstr ""
+
+#: e302cf5be5bf4078956a75718709a8ce of
+#: pymc_marketing.mmm.causal.TBF_FCI.__init__
+msgid "Parameters"
+msgstr ""
+
+#: f816a62e1c8a40c283bc7b936cf64837 of
+#: pymc_marketing.mmm.causal.TBF_FCI.__init__:7
+msgid "**target**"
+msgstr ""
+
+#: a3bba64df7124b09919a2c6b1f2ad554 of
+#: pymc_marketing.mmm.causal.TBF_FCI.__init__:8
+msgid "Target variable name at time ``t`` that the algorithm orients toward."
+msgstr ""
+
+#: 694a00940c43415d82da010fa95e7f98 of
+#: pymc_marketing.mmm.causal.TBF_FCI.__init__:11
+msgid "**target_edge_rule**"
+msgstr ""
+
+#: 21408e476b7049c0930704471217076e of
+#: pymc_marketing.mmm.causal.TBF_FCI.__init__:12
+msgid ""
+"Rule used to retain lagged → target edges. Choose from ``\"any\"``, "
+"``\"conservative\"``, or ``\"fullS\"``."
+msgstr ""
+
+#: ca76e2197065483a8ceac91248047d2c of
+#: pymc_marketing.mmm.causal.TBF_FCI.__init__:15
+msgid "**bf_thresh**"
+msgstr ""
+
+#: 40e16d8279ed456c9431b1256bbfe342 of
+#: pymc_marketing.mmm.causal.TBF_FCI.__init__:16
+msgid ""
+"Positive Bayes factor threshold applied during conditional independence "
+"testing."
+msgstr ""
+
+#: b0411dfcdc8f44ceb82cc0b944b5f60b of
+#: pymc_marketing.mmm.causal.TBF_FCI.__init__:19
+msgid "**forbidden_edges**"
+msgstr ""
+
+#: 089d3d1c785147d2a7a89891b6a4bbc4 of
+#: pymc_marketing.mmm.causal.TBF_FCI.__init__:20
+msgid ""
+"Optional sequence of node pairs that must be excluded from the final "
+"graph."
+msgstr ""
+
+#: 36ca2bc364f64015af0d4ce2b393be7f of
+#: pymc_marketing.mmm.causal.TBF_FCI.__init__:23
+msgid "**max_lag**"
+msgstr ""
+
+#: 5b0daded9f404b49aa9fc8230e05eb39 of
+#: pymc_marketing.mmm.causal.TBF_FCI.__init__:24
+msgid "Maximum lag (inclusive) to consider when constructing temporal drivers."
+msgstr ""
+
+#: a31d8ffdf9f44c129178c377bd7b2514 of
+#: pymc_marketing.mmm.causal.TBF_FCI.__init__:27
+msgid "**allow_contemporaneous**"
+msgstr ""
+
+#: 6a19b33f0ecc490d95ddc85918302486 of
+#: pymc_marketing.mmm.causal.TBF_FCI.__init__:28
+msgid "Whether contemporaneous edges at time ``t`` are permitted."
+msgstr ""
