@@ -145,39 +145,25 @@ class ShiftedBetaGeoModel(CLVModel):
             data=data,
             model_config=model_config,
             sampler_config=sampler_config,
-            non_distributions=[
-                "alpha_covariate_cols",
-                "beta_covariate_cols",
-            ],
         )
 
-        # Parse covariate configuration (defaults handled by parse_model_config)
-        self.alpha_covariate_cols = list(
-            self.model_config.get("alpha_covariate_cols", [])
-        )
-        self.beta_covariate_cols = list(
-            self.model_config.get("beta_covariate_cols", [])
-        )
+        # TODO: Could this be cleaned up? Or a separate _validate_prior_dims() method created?
+        # Validate provided Priors specify dims="cohort"
+        for key in ("alpha", "beta"):
+            prior = self.model_config.get(key)
+            if isinstance(prior, Prior):
+                # Normalize dims to a tuple of strings for comparison
+                dims = prior.dims
+                if isinstance(dims, str):
+                    dims_tuple = (dims,)
+                else:
+                    dims_tuple = tuple(dims) if dims is not None else tuple()
 
-        # Only validate prior dims when not using covariates
-        if not (self.alpha_covariate_cols or self.beta_covariate_cols):
-            # TODO: Could this be cleaned up? Or a separate _validate_prior_dims() method created?
-            # Validate provided Priors specify dims="cohort"
-            for key in ("alpha", "beta"):
-                prior = self.model_config.get(key)
-                if isinstance(prior, Prior):
-                    # Normalize dims to a tuple of strings for comparison
-                    dims = prior.dims
-                    if isinstance(dims, str):
-                        dims_tuple = (dims,)
-                    else:
-                        dims_tuple = tuple(dims) if dims is not None else tuple()
-
-                    if "cohort" not in dims_tuple:
-                        raise ValueError(
-                            f"ModelConfig Prior for '{key}' must include dims=\"cohort\". "
-                            f'Got dims={prior.dims!r}. Example: Prior("HalfFlat", dims="cohort").'
-                        )
+                if "cohort" not in dims_tuple:
+                    raise ValueError(
+                        f"ModelConfig Prior for '{key}' must include dims=\"cohort\". "
+                        f'Got dims={prior.dims!r}. Example: Prior("HalfFlat", dims="cohort").'
+                    )
 
         # create cohort dim & coords
         self.cohorts = self.data["cohort"].unique()
@@ -192,13 +178,6 @@ class ShiftedBetaGeoModel(CLVModel):
             # Cohort-level hierarchical defaults (no covariates)
             "phi": Prior("Uniform", lower=0, upper=1, dims="cohort"),
             "kappa": Prior("Pareto", alpha=1, m=1, dims="cohort"),
-            # Customer-level covariates (optional)
-            "alpha_covariate_cols": [],
-            "beta_covariate_cols": [],
-            "alpha_coefficient": Prior("Normal", mu=0, sigma=1),
-            "beta_coefficient": Prior("Normal", mu=0, sigma=1),
-            "alpha_scale": Prior("HalfFlat"),
-            "beta_scale": Prior("HalfFlat"),
         }
 
     def build_model(self) -> None:  # type: ignore[override]
@@ -207,97 +186,23 @@ class ShiftedBetaGeoModel(CLVModel):
             "customer_id": self.data["customer_id"],
             "cohort": self.cohorts,
         }
-        if self.alpha_covariate_cols:
-            coords["alpha_covariate"] = self.alpha_covariate_cols
-        if self.beta_covariate_cols:
-            coords["beta_covariate"] = self.beta_covariate_cols
         with pm.Model(coords=coords) as self.model:
-            # Customer-level covariates path (alpha, beta directly)
-            if self.alpha_covariate_cols or self.beta_covariate_cols:
-                if self.alpha_covariate_cols:
-                    alpha_data = pm.Data(
-                        "alpha_data",
-                        self.data[self.alpha_covariate_cols],
-                        dims=["customer_id", "alpha_covariate"],
-                    )
-                    self.model_config["alpha_coefficient"].dims = "alpha_covariate"
-                    alpha_coefficient = self.model_config[
-                        "alpha_coefficient"
-                    ].create_variable("alpha_coefficient")
-                    alpha_scale = self.model_config["alpha_scale"].create_variable(
-                        "alpha_scale"
-                    )
-                    alpha = pm.Deterministic(
-                        "alpha",
-                        alpha_scale
-                        * pm.math.exp(pm.math.dot(alpha_data, alpha_coefficient)),
-                        dims="customer_id",
-                    )
-                else:
-                    # No alpha covariates: allow alpha to be cohort-level or direct prior if provided
-                    if "alpha" in self.model_config:
-                        alpha = self.model_config["alpha"].create_variable("alpha")
-                    else:
-                        phi = self.model_config["phi"].create_variable("phi")
-                        kappa = self.model_config["kappa"].create_variable("kappa")
-                        alpha = pm.Deterministic("alpha", phi * kappa, dims="cohort")
-
-                if self.beta_covariate_cols:
-                    beta_data = pm.Data(
-                        "beta_data",
-                        self.data[self.beta_covariate_cols],
-                        dims=["customer_id", "beta_covariate"],
-                    )
-                    self.model_config["beta_coefficient"].dims = "beta_covariate"
-                    beta_coefficient = self.model_config[
-                        "beta_coefficient"
-                    ].create_variable("beta_coefficient")
-                    beta_scale = self.model_config["beta_scale"].create_variable(
-                        "beta_scale"
-                    )
-                    beta = pm.Deterministic(
-                        "beta",
-                        beta_scale
-                        * pm.math.exp(pm.math.dot(beta_data, beta_coefficient)),
-                        dims="customer_id",
-                    )
-                else:
-                    if "beta" in self.model_config:
-                        beta = self.model_config["beta"].create_variable("beta")
-                    else:
-                        phi = self.model_config["phi"].create_variable("phi")
-                        kappa = self.model_config["kappa"].create_variable("kappa")
-                        beta = pm.Deterministic(
-                            "beta", (1.0 - phi) * kappa, dims="cohort"
-                        )
-
-                # Broadcast alpha/beta to customer dimension if they are cohort-dimensioned
-                if "cohort" in self.model.named_vars_to_dims.get("alpha", []):
-                    alpha = alpha[self.cohort_idx]
-                if "cohort" in self.model.named_vars_to_dims.get("beta", []):
-                    beta = beta[self.cohort_idx]
-
-                dropout = ShiftedBetaGeometric.dist(
-                    alpha,
-                    beta,
-                )
+            # Cohort-level behavior only
+            if "alpha" in self.model_config and "beta" in self.model_config:
+                alpha = self.model_config["alpha"].create_variable("alpha")
+                beta = self.model_config["beta"].create_variable("beta")
             else:
-                # Original cohort-level behavior
-                if "alpha" in self.model_config and "beta" in self.model_config:
-                    alpha = self.model_config["alpha"].create_variable("alpha")
-                    beta = self.model_config["beta"].create_variable("beta")
-                else:
-                    # hierarchical pooling of purchase rate priors
-                    phi = self.model_config["phi"].create_variable("phi")
-                    kappa = self.model_config["kappa"].create_variable("kappa")
+                # hierarchical pooling of dropout rate priors
+                phi = self.model_config["phi"].create_variable("phi")
+                kappa = self.model_config["kappa"].create_variable("kappa")
 
-                    alpha = pm.Deterministic("alpha", phi * kappa, dims="cohort")
-                    beta = pm.Deterministic("beta", (1.0 - phi) * kappa, dims="cohort")
+                alpha = pm.Deterministic("alpha", phi * kappa, dims="cohort")
+                beta = pm.Deterministic("beta", (1.0 - phi) * kappa, dims="cohort")
 
-                dropout = ShiftedBetaGeometric.dist(
-                    alpha[self.cohort_idx],
-                    beta[self.cohort_idx],
-                )
+            dropout = ShiftedBetaGeometric.dist(
+                alpha[self.cohort_idx],
+                beta[self.cohort_idx],
+            )
 
             pm.Censored(
                 "dropout",
@@ -354,41 +259,7 @@ class ShiftedBetaGeoModel(CLVModel):
         alpha = self.fit_result["alpha"]
         beta = self.fit_result["beta"]
 
-        # Covariate path: rebuild alpha, beta for provided data
-        if self.alpha_covariate_cols or self.beta_covariate_cols:
-            model_coords = self.model.coords
-            if self.alpha_covariate_cols:
-                alpha_x = xarray.DataArray(
-                    pred_data[self.alpha_covariate_cols],
-                    dims=["customer_id", "alpha_covariate"],
-                    coords=[
-                        pred_data["customer_id"],
-                        list(model_coords.get("alpha_covariate", [])),
-                    ],
-                )
-                alpha_scale = self.fit_result.get("alpha_scale", None)
-                alpha_coef = self.fit_result.get("alpha_coefficient", None)
-                if (alpha_scale is not None) and (alpha_coef is not None):
-                    alpha = alpha_scale * np.exp(
-                        xarray.dot(alpha_x, alpha_coef, dim="alpha_covariate")
-                    )
-                    alpha.name = "alpha"
-            if self.beta_covariate_cols:
-                beta_x = xarray.DataArray(
-                    pred_data[self.beta_covariate_cols],
-                    dims=["customer_id", "beta_covariate"],
-                    coords=[
-                        pred_data["customer_id"],
-                        list(model_coords.get("beta_covariate", [])),
-                    ],
-                )
-                beta_scale = self.fit_result.get("beta_scale", None)
-                beta_coef = self.fit_result.get("beta_coefficient", None)
-                if (beta_scale is not None) and (beta_coef is not None):
-                    beta = beta_scale * np.exp(
-                        xarray.dot(beta_x, beta_coef, dim="beta_covariate")
-                    )
-                    beta.name = "beta"
+        # No covariate path; use cohort-based selection
 
         # Map from training data using customer_id if cohorts not passed explicitly
         # TODO: customer_ids are required for static covariate broadcasting, which is not yet supported
