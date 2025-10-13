@@ -23,37 +23,37 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.plot_curve_hdi.rst:2
 #: 62e7b4820de145b099067339a66704b6
 msgid "MichaelisMentenSaturation.plot\\_curve\\_hdi"
-msgstr ""
+msgstr "MichaelisMentenSaturation.plot\\_curve\\_hdi"
 
 #: 7cf9715ab7ef4623a8cd703ab17143e1 of
 #: pymc_marketing.mmm.components.base.Transformation.plot_curve_hdi:2
 msgid "Plot the HDI of the curve."
-msgstr ""
+msgstr "Trace el IDH de la curva."
 
 #: 5e9d6a2aa23c4a09b98598d95dd25d02 of
 #: pymc_marketing.mmm.components.base.Transformation.plot_curve_hdi
 msgid "Parameters"
-msgstr ""
+msgstr "Parámetros"
 
 #: 2daa6580b74c4d2790928c9fee4f7811 of
 #: pymc_marketing.mmm.components.base.Transformation.plot_curve_hdi:7
 msgid "**curve** : :obj:`xr.DataArray`"
-msgstr ""
+msgstr "**curva** : :obj:`xr.DataArray`"
 
 #: 68a8b514ecd6471c86d3ba91acf08b5a of
 #: pymc_marketing.mmm.components.base.Transformation.plot_curve_hdi:6
 msgid "xr.DataArray"
-msgstr ""
+msgstr "xr.DataArray"
 
 #: e0d956d836ac48feb573ee6e86f6cb4e of
 #: pymc_marketing.mmm.components.base.Transformation.plot_curve_hdi:8
 msgid "The curve to plot."
-msgstr ""
+msgstr "La curva a graficar."
 
 #: 2721a60e00a947e3b21888a826cd2aa0 of
 #: pymc_marketing.mmm.components.base.Transformation.plot_curve_hdi:10
 msgid "**hdi_kwargs** : :class:`python:dict`, optional"
-msgstr ""
+msgstr "**hdi_kwargs** : :class:`python:dict`, opcional"
 
 #: 55280bb0c8c541abafb2b5abb528f875 db3184b987b24e6e82dcdec8890ceff7
 #: f39140b961aa42c7afa9f1e386285369 of
@@ -61,52 +61,55 @@ msgstr ""
 #: pymc_marketing.mmm.components.base.Transformation.plot_curve_hdi:12
 #: pymc_marketing.mmm.components.base.Transformation.plot_curve_hdi:15
 msgid "python:dict, optional"
-msgstr ""
+msgstr "python:dict, opcional"
 
 #: 42b6f734fba64a708666c3559e72807d of
 #: pymc_marketing.mmm.components.base.Transformation.plot_curve_hdi:11
 msgid "Keyword arguments for the az.hdi function. Defaults to None."
 msgstr ""
+"Argumentos de palabras clave para la función az.hdi. Por defecto es None."
 
 #: 6ac2c7dd72e443039b90086bcec408d9 of
 #: pymc_marketing.mmm.components.base.Transformation.plot_curve_hdi:13
 msgid "**plot_kwargs** : :class:`python:dict`, optional"
-msgstr ""
+msgstr "**plot_kwargs** : :class:`python:dict`, opcional"
 
 #: f514c603013f4011b985ed9e3a7522ac of
 #: pymc_marketing.mmm.components.base.Transformation.plot_curve_hdi:14
 msgid "Keyword arguments for the fill_between function. Defaults to None."
 msgstr ""
+"Argumentos de palabras clave para la función fill_between. Por defecto es "
+"None."
 
 #: 375774e773084f89adeb496aa629790e of
 #: pymc_marketing.mmm.components.base.Transformation.plot_curve_hdi:16
 msgid "**subplot_kwargs** : :class:`python:dict`, optional"
-msgstr ""
+msgstr "**subplot_kwargs** : :class:`python:dict`, opcional"
 
 #: fea091a2ecc14e6e94450eea909992c0 of
 #: pymc_marketing.mmm.components.base.Transformation.plot_curve_hdi:17
 msgid "Keyword arguments for plt.subplots"
-msgstr ""
+msgstr "Argumentos de palabras clave para plt.subplots"
 
 #: b9690ceebeb2441eb3a08fcf6f77ff78 of
 #: pymc_marketing.mmm.components.base.Transformation.plot_curve_hdi:19
 msgid "**axes** : :obj:`npt.NDArray`\\[:obj:`plt.Axes`], optional"
-msgstr ""
+msgstr "**ejes** : :obj:`npt.NDArray`\\[:obj:`plt.Axes`], opcional"
 
 #: 125367e3333644e2b82b5d19dcda7345 of
 #: pymc_marketing.mmm.components.base.Transformation.plot_curve_hdi:18
 msgid "npt.NDArray[plt.Axes], optional"
-msgstr ""
+msgstr "npt.NDArray[plt.Axes], opcional"
 
 #: c7cf8e1bca6447668603758c92c03cec of
 #: pymc_marketing.mmm.components.base.Transformation.plot_curve_hdi:20
 msgid "The exact axes to plot on. Overrides any subplot_kwargs"
-msgstr ""
+msgstr "Los ejes exactos para trazar. Anula cualquier subplot_kwargs."
 
 #: 4d3498d2e3f8475a9cafc5a219acd463 of
 #: pymc_marketing.mmm.components.base.Transformation.plot_curve_hdi
 msgid "Returns"
-msgstr ""
+msgstr "Devoluciones"
 
 #: da933df8f83e4b1e9ecad36ba2d854fc of
 #: pymc_marketing.mmm.components.base.Transformation.plot_curve_hdi:26
@@ -114,3 +117,5 @@ msgid ""
 ":class:`python:tuple`\\[:obj:`plt.Figure`, "
 ":obj:`npt.NDArray`\\[:obj:`plt.Axes`]]"
 msgstr ""
+":class:`python:tuple`\\[:obj:`plt.Figure`, "
+":obj:`npt.NDArray`\\[:obj:`plt.Axes`]]"

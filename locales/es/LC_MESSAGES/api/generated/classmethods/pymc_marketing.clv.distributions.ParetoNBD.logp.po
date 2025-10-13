@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.distributions.ParetoNBD.logp.rst:2
 #: 92f344c412004c10a7312b153f220cde
 msgid "ParetoNBD.logp"
-msgstr ""
+msgstr "ParetoNBD.logp"
 
 #: 6ab49a8799954bd096630473b6e8c518 of
 #: pymc_marketing.clv.distributions.ParetoNBD.logp:2
 msgid "Log-likelihood of the distribution."
-msgstr ""
+msgstr "Log-verosimilitud de la distribución."

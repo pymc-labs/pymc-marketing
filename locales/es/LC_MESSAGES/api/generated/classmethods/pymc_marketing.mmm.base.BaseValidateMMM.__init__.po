@@ -23,40 +23,45 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.base.BaseValidateMMM.__init__.rst:2
 #: dc46af96dbf14c0f9be28e4767543ac9
 msgid "BaseValidateMMM.\\_\\_init\\_\\_"
-msgstr ""
+msgstr "BaseValidateMMM.__init__"
 
 #: 548fbe5393e343d7b548cd0ae04e92da of
 #: pymc_marketing.mmm.base.MMMModelBuilder.__init__:2
-msgid "Initialize model configuration and sampler configuration for the model."
+msgid ""
+"Initialize model configuration and sampler configuration for the model."
 msgstr ""
+"Inicializar la configuración del modelo y la configuración del muestreador "
+"para el modelo."
 
 #: 21295e3df3954ac9b4a723f60a464395 of
 #: pymc_marketing.mmm.base.MMMModelBuilder.__init__
 msgid "Parameters"
-msgstr ""
+msgstr "Parámetros"
 
 #: 93fc87b1431b4e47882d0ef663737940 of
 #: pymc_marketing.mmm.base.MMMModelBuilder.__init__:7
 msgid "**model_config** : :obj:`Dictionary`, optional"
-msgstr ""
+msgstr "**model_config** : :obj:`Diccionario`, opcional"
 
 #: 144972b76e864374ac494b0d82999245 71a6299172c44b65bfbe86742ad46f43 of
 #: pymc_marketing.mmm.base.MMMModelBuilder.__init__:6
 #: pymc_marketing.mmm.base.MMMModelBuilder.__init__:10
 msgid "Dictionary, optional"
-msgstr ""
+msgstr "Diccionario, opcional"
 
 #: 454e118febd343a7866ee2010710c426 of
 #: pymc_marketing.mmm.base.MMMModelBuilder.__init__:8
 msgid ""
-"dictionary of parameters that initialise model configuration. Class-"
-"default defined by the user default_model_config method."
+"dictionary of parameters that initialise model configuration. Class-default "
+"defined by the user default_model_config method."
 msgstr ""
+"diccionario de parámetros que inicializan la configuración del modelo. Clase"
+" predeterminada definida por el método default_model_config del usuario."
 
 #: 1699c808cda14427bf83895ac5131f8e of
 #: pymc_marketing.mmm.base.MMMModelBuilder.__init__:11
 msgid "**sampler_config** : :obj:`Dictionary`, optional"
-msgstr ""
+msgstr "**sampler_config** : :obj:`Diccionario`, opcional"
 
 #: 798871fa3f424511b4c738e8482d26db of
 #: pymc_marketing.mmm.base.MMMModelBuilder.__init__:12
@@ -64,8 +69,11 @@ msgid ""
 "dictionary of parameters that initialise sampler configuration. Class-"
 "default defined by the user default_sampler_config method."
 msgstr ""
+"diccionario de parámetros que inicializan la configuración del muestreador. "
+"Clase predeterminada definida por el método default_sampler_config del "
+"usuario."
 
 #: ed7071348e594b128238545119f3772e of
 #: pymc_marketing.mmm.base.MMMModelBuilder.__init__:28
 msgid "Examples"
-msgstr ""
+msgstr "Ejemplos"

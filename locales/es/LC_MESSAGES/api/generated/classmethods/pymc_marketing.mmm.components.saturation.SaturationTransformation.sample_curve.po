@@ -23,59 +23,61 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.components.saturation.SaturationTransformation.sample_curve.rst:2
 #: 43a35a4e0c3f45e19ab60a22e9df039c
 msgid "SaturationTransformation.sample\\_curve"
-msgstr ""
+msgstr "SaturationTransformation.curva\\_de\\_muestra"
 
 #: 56b26396dedb4a3c8431e683fc1fc9ce of
 #: pymc_marketing.mmm.components.saturation.SaturationTransformation.sample_curve:2
 msgid "Sample the curve of the saturation transformation given parameters."
 msgstr ""
+"Muestre la curva de la transformación de saturación dados los parámetros."
 
 #: c5924570f6904e24ba3774e30b5f678c of
 #: pymc_marketing.mmm.components.saturation.SaturationTransformation.sample_curve
 msgid "Parameters"
-msgstr ""
+msgstr "Parámetros"
 
 #: 14643c456e844ed1b59ebc33a48f75b8 of
 #: pymc_marketing.mmm.components.saturation.SaturationTransformation.sample_curve:7
 msgid "**parameters** : :obj:`xr.Dataset`"
-msgstr ""
+msgstr "**parámetros** : :obj:`xr.Dataset`"
 
 #: 9629c2e6f0da4662ad419880eec5f1e7 of
 #: pymc_marketing.mmm.components.saturation.SaturationTransformation.sample_curve:6
 msgid "xr.Dataset"
-msgstr ""
+msgstr "xr.ConjuntoDeDatos"
 
 #: 63b995f1a5564472b76e9156b16ebbb3 of
 #: pymc_marketing.mmm.components.saturation.SaturationTransformation.sample_curve:8
 msgid "Dataset with the parameters of the saturation transformation."
 msgstr ""
+"Conjunto de datos con los parámetros de la transformación de saturación."
 
 #: 68a52a830ad84f898ab4edaa131e8a84 of
 #: pymc_marketing.mmm.components.saturation.SaturationTransformation.sample_curve:10
 msgid "**max_value** : :class:`python:float`, optional"
-msgstr ""
+msgstr "**max_value** : :class:`python:float`, opcional"
 
 #: ea186571e70746a39d0f214cd7f31aa1 of
 #: pymc_marketing.mmm.components.saturation.SaturationTransformation.sample_curve:9
 msgid "python:float, optional"
-msgstr ""
+msgstr "python:float, opcional"
 
 #: feb2c0a6640243ff888bf9cd5cf43b95 of
 #: pymc_marketing.mmm.components.saturation.SaturationTransformation.sample_curve:11
 msgid "Maximum value of the curve, by default 1.0."
-msgstr ""
+msgstr "Valor máximo de la curva, por defecto 1.0."
 
 #: 6d6b57b3e41043d0bdee65353b6af485 of
 #: pymc_marketing.mmm.components.saturation.SaturationTransformation.sample_curve
 msgid "Returns"
-msgstr ""
+msgstr "Devoluciones"
 
 #: 3c0794aa55c2453484c4bb27cb569c7b of
 #: pymc_marketing.mmm.components.saturation.SaturationTransformation.sample_curve:17
 msgid ":obj:`xr.DataArray`"
-msgstr ""
+msgstr ":obj:`xr.DataArray`"
 
 #: 6760e12f3ee34a5b80f950d4f636c092 of
 #: pymc_marketing.mmm.components.saturation.SaturationTransformation.sample_curve:18
 msgid "Curve of the saturation transformation."
-msgstr ""
+msgstr "Curva de la transformación de saturación."

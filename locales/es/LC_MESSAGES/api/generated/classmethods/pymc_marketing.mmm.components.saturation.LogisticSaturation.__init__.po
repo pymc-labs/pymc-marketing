@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.components.saturation.LogisticSaturation.__init__.rst:2
 #: 564ae452b7804841bdd0b0cfb369a67b
 msgid "LogisticSaturation.\\_\\_init\\_\\_"
-msgstr ""
+msgstr "LogisticSaturation.__init__"

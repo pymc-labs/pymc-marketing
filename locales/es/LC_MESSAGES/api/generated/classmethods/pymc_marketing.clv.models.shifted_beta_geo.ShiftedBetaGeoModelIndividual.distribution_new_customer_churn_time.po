@@ -24,11 +24,13 @@ msgstr ""
 #: 12414e1abb9d40fab9c4e50fbc6cf404
 msgid "ShiftedBetaGeoModelIndividual.distribution\\_new\\_customer\\_churn\\_time"
 msgstr ""
+"ShiftedBetaGeoModelIndividual.distribución\\_nuevo\\_cliente\\_tiempo\\_de\\_deserción"
 
 #: 4ca7d61849444498b78ca1b8d1e77ea3 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.distribution_new_customer_churn_time:2
 msgid "Sample distribution of churn time for new customers."
 msgstr ""
+"Distribución de muestra del tiempo de cancelación para nuevos clientes."
 
 #: e86a48c0e6b543ba8ab28dba5fa9f7e3 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.distribution_new_customer_churn_time:4
@@ -36,8 +38,12 @@ msgid ""
 "The draws represent the number of periods into the future after which a "
 "customer cancels their contract."
 msgstr ""
+"Los sorteos representan el número de períodos en el futuro después de los "
+"cuales un cliente cancela su contrato."
 
 #: 69824681d6d6465c9087824f4ae1666c of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.distribution_new_customer_churn_time:7
 msgid "Use `n > 1` to simulate multiple identically distributed users."
 msgstr ""
+"Utilice `n > 1` para simular múltiples usuarios distribuidos de manera "
+"idéntica."

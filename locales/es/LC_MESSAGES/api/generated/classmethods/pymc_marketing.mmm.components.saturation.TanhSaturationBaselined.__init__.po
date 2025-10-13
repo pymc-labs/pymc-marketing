@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.components.saturation.TanhSaturationBaselined.__init__.rst:2
 #: 2c1d27a022ce4e3bb2aaa3b1d5b0dc18
 msgid "TanhSaturationBaselined.\\_\\_init\\_\\_"
-msgstr ""
+msgstr "TanhSaturationBaselined.__init__"

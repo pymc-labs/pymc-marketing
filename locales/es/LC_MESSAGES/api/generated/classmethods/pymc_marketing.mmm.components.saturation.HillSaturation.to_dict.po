@@ -23,24 +23,24 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.components.saturation.HillSaturation.to_dict.rst:2
 #: 0e346ef75bb3425f93251955cb9a0900
 msgid "HillSaturation.to\\_dict"
-msgstr ""
+msgstr "HillSaturation.to\\_dict"
 
 #: 4711853fa6a54fe18a3a5ea4ba65b065 of
 #: pymc_marketing.mmm.components.base.Transformation.to_dict:2
 msgid "Convert the transformation to a dictionary."
-msgstr ""
+msgstr "Convierte la transformación a un diccionario."
 
 #: 841bca2a3b0f40cfb0d28fbf8d5f1bd4 of
 #: pymc_marketing.mmm.components.base.Transformation.to_dict
 msgid "Returns"
-msgstr ""
+msgstr "Devoluciones"
 
 #: 08a75efe6c2c4526a4f7edfc6596b621 of
 #: pymc_marketing.mmm.components.base.Transformation.to_dict:10
 msgid ":class:`python:dict`"
-msgstr ""
+msgstr ":class:`python:dict`"
 
 #: 5243c5eaf7c3488c8578255ebcad994d of
 #: pymc_marketing.mmm.components.base.Transformation.to_dict:11
 msgid "The dictionary defining the transformation."
-msgstr ""
+msgstr "El diccionario que define la transformación."

@@ -23,31 +23,35 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.TBF_FCI.summary.rst:2
 #: b842c125d52e4ea4b6ab37444213bbc3
 msgid "TBF\\_FCI.summary"
-msgstr ""
+msgstr "TBF\\_FCI.resumen"
 
 #: b34d68161bec4ee49a307a30dac12a28 of
 #: pymc_marketing.mmm.causal.TBF_FCI.summary:2
 msgid "Return a human-readable summary of edges and test count."
 msgstr ""
+"Devuelve un resumen legible por humanos de los bordes y el conteo de "
+"pruebas."
 
 #: 26802ee663d74d67a4f169829a3dbb26 of
 #: pymc_marketing.mmm.causal.TBF_FCI.summary
 msgid "Returns"
-msgstr ""
+msgstr "Devoluciones"
 
 #: 72b9cdf31aab49c78cf38e865e3194a9 of
 #: pymc_marketing.mmm.causal.TBF_FCI.summary:10
 msgid ":class:`python:str`"
-msgstr ""
+msgstr ":class:`python:str`"
 
 #: 3b8779bdb0e94ba0801c1c071f2b6f6f of
 #: pymc_marketing.mmm.causal.TBF_FCI.summary:11
 msgid ""
-"Multiline description of directed edges, undirected edges, and the number"
-" of conditional independence tests executed."
+"Multiline description of directed edges, undirected edges, and the number of"
+" conditional independence tests executed."
 msgstr ""
+"Descripción multilínea de los bordes dirigidos, bordes no dirigidos y el "
+"número de pruebas de independencia condicional ejecutadas."
 
 #: c0d546e8a5234974b6fddc2d75e2cd5d of
 #: pymc_marketing.mmm.causal.TBF_FCI.summary:24
 msgid "Examples"
-msgstr ""
+msgstr "Ejemplos"

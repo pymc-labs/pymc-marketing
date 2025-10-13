@@ -23,44 +23,46 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.set_dims_for_all_priors.rst:2
 #: 47e44184af9c4455b44319ebd07f72ca
 msgid "MichaelisMentenSaturation.set\\_dims\\_for\\_all\\_priors"
-msgstr ""
+msgstr "MichaelisMentenSaturation.set\\_dims\\_for\\_all\\_priors"
 
 #: 36c3749faeb24356abc2cc11f675eac0 of
 #: pymc_marketing.mmm.components.base.Transformation.set_dims_for_all_priors:2
 msgid "Set the dims for all priors."
-msgstr ""
+msgstr "Establezca las dimensiones para todos los antecedentes."
 
 #: 9f6b6edffb0e4500855133b5428fa39b of
 #: pymc_marketing.mmm.components.base.Transformation.set_dims_for_all_priors:4
 msgid "Convenience method to loop through all the priors and set the dims."
 msgstr ""
+"Método conveniente para recorrer todos los priors y establecer las "
+"dimensiones."
 
 #: 8a5b932ee56f49d5b89a02eab726eaae of
 #: pymc_marketing.mmm.components.base.Transformation.set_dims_for_all_priors
 msgid "Parameters"
-msgstr ""
+msgstr "Parámetros"
 
 #: 031e083e9133472faf4bf431b117fb6e of
 #: pymc_marketing.mmm.components.base.Transformation.set_dims_for_all_priors:8
 msgid "**dims** : :obj:`Dims`"
-msgstr ""
+msgstr "**dims** : :obj:`Dims`"
 
 #: a1d4142631bd4d4597bb086ffc7638d0 of
 #: pymc_marketing.mmm.components.base.Transformation.set_dims_for_all_priors:7
 msgid "Dims"
-msgstr ""
+msgstr "Dimensiones"
 
 #: 0eda90a5ff98428d9417918814fa86ae of
 #: pymc_marketing.mmm.components.base.Transformation.set_dims_for_all_priors:9
 msgid "The dims for the priors."
-msgstr ""
+msgstr "Las dimensiones para los priors."
 
 #: 78ea0acef99447f2a5cb8726717dbf99 of
 #: pymc_marketing.mmm.components.base.Transformation.set_dims_for_all_priors
 msgid "Returns"
-msgstr ""
+msgstr "Devoluciones"
 
 #: ed74189849484d4a9c321dd2110802a7 of
 #: pymc_marketing.mmm.components.base.Transformation.set_dims_for_all_priors:15
 msgid ":obj:`Transformation`"
-msgstr ""
+msgstr ":obj:`Transformación`"

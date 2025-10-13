@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.events.AsymmetricGaussianBasis.__init__.rst:2
 #: d0a425478a4c4c3aadaed50a150226b2
 msgid "AsymmetricGaussianBasis.\\_\\_init\\_\\_"
-msgstr ""
+msgstr "AsymmetricGaussianBasis.\\_\\_init\\_\\_"

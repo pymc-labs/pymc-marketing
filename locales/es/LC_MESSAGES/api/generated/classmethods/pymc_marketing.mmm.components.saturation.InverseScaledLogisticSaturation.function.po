@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.components.saturation.InverseScaledLogisticSaturation.function.rst:2
 #: 5cc7144477c4410eb0641f30958f3668
 msgid "InverseScaledLogisticSaturation.function"
-msgstr ""
+msgstr "InverseScaledLogisticSaturation.función"
 
 #: ceaa73b7114c479dbd2687639067a009 of
 #: pymc_marketing.mmm.components.saturation.InverseScaledLogisticSaturation.function:2
 msgid "Inverse scaled logistic saturation function."
-msgstr ""
+msgstr "Función de saturación logística inversamente escalada."

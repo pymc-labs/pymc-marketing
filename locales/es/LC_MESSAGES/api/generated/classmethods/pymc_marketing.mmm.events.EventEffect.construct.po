@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.events.EventEffect.construct.rst:2
 #: 22097b5b974d4f01827fc184ef42e34f
 msgid "EventEffect.construct"
-msgstr ""
+msgstr "EventEffect.construct"

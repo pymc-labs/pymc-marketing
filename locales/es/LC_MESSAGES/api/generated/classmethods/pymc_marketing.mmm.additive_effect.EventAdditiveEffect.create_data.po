@@ -23,29 +23,29 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.create_data.rst:2
 #: 8bdafe8dc47c4c82879a5b537886815e
 msgid "EventAdditiveEffect.create\\_data"
-msgstr ""
+msgstr "EventAdditiveEffect.create\\_data"
 
 #: f9e232475d5048a285b9e82f8230caba of
 #: pymc_marketing.mmm.additive_effect.EventAdditiveEffect.create_data:2
 msgid "Create the required data in the model."
-msgstr ""
+msgstr "Cree los datos requeridos en el modelo."
 
 #: 0c39a8290ceb41ac814bf2ba32ae924e of
 #: pymc_marketing.mmm.additive_effect.EventAdditiveEffect.create_data
 msgid "Parameters"
-msgstr ""
+msgstr "Parámetros"
 
 #: f126927362014e09a4870178d15dbfda of
 #: pymc_marketing.mmm.additive_effect.EventAdditiveEffect.create_data:7
 msgid "**mmm** : :obj:`MMM`"
-msgstr ""
+msgstr "**mmm** : :obj:`MMM`"
 
 #: d24eb0f0506b42cfaa52070782eeacae of
 #: pymc_marketing.mmm.additive_effect.EventAdditiveEffect.create_data:6
 msgid "MMM"
-msgstr ""
+msgstr "MMM"
 
 #: 4d619665c6c5405a9f1b3c78aea9684d of
 #: pymc_marketing.mmm.additive_effect.EventAdditiveEffect.create_data:8
 msgid "The MMM model instance."
-msgstr ""
+msgstr "La instancia del modelo MMM."
