@@ -23,46 +23,49 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.gamma_gamma.GammaGammaModel.distribution_new_customer_spend.rst:2
 #: 5542444874f548b7a99702fd0fe78e9f
 msgid "GammaGammaModel.distribution\\_new\\_customer\\_spend"
-msgstr ""
+msgstr "GammaGammaModel.distribution\\_nuevo\\_gasto\\_cliente"
 
 #: efd8a40cc5e5449fab7cdb015109dc44 of
 #: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.distribution_new_customer_spend:2
 msgid "Posterior distribution of mean spend values for new customers."
 msgstr ""
+"Distribución posterior de los valores de gasto medio para nuevos clientes."
 
 #: c7a4da49f9a84f68833328b28f0482aa of
 #: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.distribution_new_customer_spend
 msgid "Parameters"
-msgstr ""
+msgstr "Parámetros"
 
 #: 29bff7495f004c2b8a79cb5dd30bcb16 of
 #: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.distribution_new_customer_spend:7
 msgid "**n** : :class:`python:int`, optional"
-msgstr ""
+msgstr "**n** : :class:`python:int`, opcional"
 
 #: ba4b361181834d2890313373a4db1c55 of
 #: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.distribution_new_customer_spend:6
 msgid "python:int, optional"
-msgstr ""
+msgstr "python:int, opcional"
 
 #: ef67a5da1df94539a167432e00978a14 of
 #: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.distribution_new_customer_spend:8
 msgid ""
-"Number of posterior distributions to generate. This can usually be left "
-"at the default value of 1."
+"Number of posterior distributions to generate. This can usually be left at "
+"the default value of 1."
 msgstr ""
+"Número de distribuciones posteriores a generar. Esto generalmente se puede "
+"dejar en el valor predeterminado de 1."
 
 #: 85a5d6e2df5e42edaebc90ce8f005a90 of
 #: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.distribution_new_customer_spend:10
 msgid "**random_seed** : :obj:`~RandomState`, optional"
-msgstr ""
+msgstr "**random_seed** : :obj:`~RandomState`, opcional"
 
 #: 9c88ad0fb2fd40e09cf8de42a01e7176 of
 #: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.distribution_new_customer_spend:9
 msgid "RandomState, optional"
-msgstr ""
+msgstr "RandomState, opcional"
 
 #: 192d44f253444784a4dccd991b8b6ed9 of
 #: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.distribution_new_customer_spend:11
 msgid "Optional random seed to fix sampling results."
-msgstr ""
+msgstr "Semilla aleatoria opcional para fijar los resultados de muestreo."

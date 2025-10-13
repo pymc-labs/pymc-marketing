@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.distributions.BetaGeoNBD.logp.rst:2
 #: c40e27b5914e4125b16b60bc9f59ff59
 msgid "BetaGeoNBD.logp"
-msgstr ""
+msgstr "BetaGeoNBD.logp"
 
 #: a76cbace44a04909b9216bb813e69f91 of
 #: pymc_marketing.clv.distributions.BetaGeoNBD.logp:2
 msgid "Log-likelihood of the distribution."
-msgstr ""
+msgstr "Log-verosimilitud de la distribución."

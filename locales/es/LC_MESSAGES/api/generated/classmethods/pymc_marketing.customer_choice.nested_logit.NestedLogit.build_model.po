@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.customer_choice.nested_logit.NestedLogit.build_model.rst:2
 #: a05ee9cefc7742cf8e501d878a0ba595
 msgid "NestedLogit.build\\_model"
-msgstr ""
+msgstr "NestedLogit.construir\\_modelo"
 
 #: c39e2df408e046849ff2327e6108a56e of
 #: pymc_marketing.customer_choice.nested_logit.NestedLogit.build_model:2
 msgid "Do not use, required by parent class. Prefer make_model()."
-msgstr ""
+msgstr "No utilizar, requerido por la clase padre. Preferir make_model()."

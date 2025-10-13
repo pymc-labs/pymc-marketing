@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.function.rst:2
 #: 346fb66432284670b5fda8987bb0cd2c
 msgid "MichaelisMentenSaturation.function"
-msgstr ""
+msgstr "MichaelisMentenSaturation.función"
 
 #: 275c93055e9c45559678635f82e0a128 of
 #: pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.function:2
 msgid "Michaelis-Menten saturation function."
-msgstr ""
+msgstr "Función de saturación de Michaelis-Menten."

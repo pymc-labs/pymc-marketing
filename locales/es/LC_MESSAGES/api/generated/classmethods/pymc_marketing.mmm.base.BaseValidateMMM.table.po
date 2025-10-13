@@ -23,39 +23,39 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.base.BaseValidateMMM.table.rst:2
 #: 60b3530a08a34980923486af4594982e
 msgid "BaseValidateMMM.table"
-msgstr ""
+msgstr "BaseValidateMMM.tabla"
 
 #: 6bf5761c146e46559f5ad20b9648f47f of
 #: pymc_marketing.model_builder.ModelBuilder.table:2
 msgid "Get the summary table of the model."
-msgstr ""
+msgstr "Obtenga la tabla resumen del modelo."
 
 #: 8f5b466866234a1c9f27ecb6429e108a of
 #: pymc_marketing.model_builder.ModelBuilder.table
 msgid "Parameters"
-msgstr ""
+msgstr "Parámetros"
 
 #: 137fe4cccda04b36adee34cd7b723369 of
 #: pymc_marketing.model_builder.ModelBuilder.table:7
 msgid "**\\*\\*model_table_kwargs**"
-msgstr ""
+msgstr "**\\*\\*model_table_kwargs**"
 
 #: 379022aaaa4646b9b21331d88a84d1f2 of
 #: pymc_marketing.model_builder.ModelBuilder.table:8
 msgid "Keyword arguments for the `model_table` function"
-msgstr ""
+msgstr "Argumentos de palabra clave para la función `model_table`"
 
 #: e4d1b20ecd924c04a825ee21a1d4a928 of
 #: pymc_marketing.model_builder.ModelBuilder.table
 msgid "Returns"
-msgstr ""
+msgstr "Devoluciones"
 
 #: ebfbd83034a541179ced8c9524ca480d of
 #: pymc_marketing.model_builder.ModelBuilder.table:14
 msgid ":obj:`rich.table.Table`"
-msgstr ""
+msgstr ":obj:`rich.table.Table`"
 
 #: 066f562b443846e4bddfb16efc2e03e0 of
 #: pymc_marketing.model_builder.ModelBuilder.table:15
 msgid "A rich table containing the summary of the model."
-msgstr ""
+msgstr "Una tabla rica que contiene el resumen del modelo."

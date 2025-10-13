@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.__init__.rst:2
 #: 971bb169e49544ddaf1585218d07f232
 msgid "MichaelisMentenSaturation.\\_\\_init\\_\\_"
-msgstr ""
+msgstr "MichaelisMentenSaturation.__init__"

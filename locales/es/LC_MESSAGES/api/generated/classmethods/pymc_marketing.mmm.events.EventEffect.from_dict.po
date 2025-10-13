@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.events.EventEffect.from_dict.rst:2
 #: 503bbbe0cf9f42f0b59ebe4419944211
 msgid "EventEffect.from\\_dict"
-msgstr ""
+msgstr "EventEffect.from\\_dict"
 
 #: c34f12d530c84078b80c8ff958a34830 of
 #: pymc_marketing.mmm.events.EventEffect.from_dict:2
 msgid "Create an event effect from a dictionary."
-msgstr ""
+msgstr "Cree un efecto de evento a partir de un diccionario."

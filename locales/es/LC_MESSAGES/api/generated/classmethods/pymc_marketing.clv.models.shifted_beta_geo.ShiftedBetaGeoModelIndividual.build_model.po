@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.build_model.rst:2
 #: d1060edc58784ae5ac2e4cf3e5189f40
 msgid "ShiftedBetaGeoModelIndividual.build\\_model"
-msgstr ""
+msgstr "ShiftedBetaGeoModelIndividual.build\\_model"
 
 #: 85a53c46a25a42ca921bd5c8c5f07c7f of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.build_model:2
 msgid "Build the model."
-msgstr ""
+msgstr "Construya el modelo."

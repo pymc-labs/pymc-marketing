@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.distributions.BetaGeoBetaBinom.dist.rst:2
 #: 1013a09da43e4203b9d5dc9e106fcfac
 msgid "BetaGeoBetaBinom.dist"
-msgstr ""
+msgstr "BetaGeoBetaBinom.dist"
 
 #: e65b764d114443f3ae5812cd7f2e1ad5 of
 #: pymc_marketing.clv.distributions.BetaGeoBetaBinom.dist:2
 msgid "Get the distribution from the parameters."
-msgstr ""
+msgstr "Obtenga la distribución de los parámetros."

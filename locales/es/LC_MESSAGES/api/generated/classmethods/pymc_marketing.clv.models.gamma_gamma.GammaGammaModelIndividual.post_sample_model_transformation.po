@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.post_sample_model_transformation.rst:2
 #: ffb071ad1ea3400d8b60401ecf1a7127
 msgid "GammaGammaModelIndividual.post\\_sample\\_model\\_transformation"
-msgstr ""
+msgstr "GammaGammaModelIndividual.post\\_sample\\_model\\_transformation"

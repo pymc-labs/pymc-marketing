@@ -23,34 +23,34 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.customer_choice.mnl_logit.MNLogit.graphviz.rst:2
 #: 5a2e17989e8f4851a5345ecd3c713e9e
 msgid "MNLogit.graphviz"
-msgstr ""
+msgstr "MNLogit.graphviz"
 
 #: 7c2cfad13b2549c8b998bc9aad45016d of
 #: pymc_marketing.model_builder.ModelBuilder.graphviz:2
 msgid "Get the graphviz representation of the model."
-msgstr ""
+msgstr "Obtenga la representación graphviz del modelo."
 
 #: 220b95ed2e03481dafb88e1600020d09 of
 #: pymc_marketing.model_builder.ModelBuilder.graphviz
 msgid "Parameters"
-msgstr ""
+msgstr "Parámetros"
 
 #: ccc461e6976f4b56a9e7d24daee56ed0 of
 #: pymc_marketing.model_builder.ModelBuilder.graphviz:7
 msgid "**\\*\\*kwargs**"
-msgstr ""
+msgstr "**\\*\\*kwargs**"
 
 #: c1358c9494e94c859051ce70f6a9040f of
 #: pymc_marketing.model_builder.ModelBuilder.graphviz:8
 msgid "Keyword arguments for the `pm.model_to_graphviz` function"
-msgstr ""
+msgstr "Argumentos de palabras clave para la función `pm.model_to_graphviz`"
 
 #: 840a60134a0c4e2699e8da5371013877 of
 #: pymc_marketing.model_builder.ModelBuilder.graphviz
 msgid "Returns"
-msgstr ""
+msgstr "Devoluciones"
 
 #: b2f80d4cc29d4f25ac5d45d15ee9d3fd of
 #: pymc_marketing.model_builder.ModelBuilder.graphviz:14
 msgid ":obj:`graphviz.Digraph`"
-msgstr ""
+msgstr ":obj:`graphviz.Digraph`"

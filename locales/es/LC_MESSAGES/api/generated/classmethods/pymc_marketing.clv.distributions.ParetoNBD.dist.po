@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.distributions.ParetoNBD.dist.rst:2
 #: 99198a4870d244f7bd6619f04bf7d5e4
 msgid "ParetoNBD.dist"
-msgstr ""
+msgstr "ParetoNBD.dist"
 
 #: 7efef58080af4c3385dcba6881c25c03 of
 #: pymc_marketing.clv.distributions.ParetoNBD.dist:2
 msgid "Get the distribution from the parameters."
-msgstr ""
+msgstr "Obtenga la distribución de los parámetros."

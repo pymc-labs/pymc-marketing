@@ -23,24 +23,24 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.create_idata_attrs.rst:2
 #: 236faa01d10d4eaa98b6aba7e0945df7
 msgid "ShiftedBetaGeoModelIndividual.create\\_idata\\_attrs"
-msgstr ""
+msgstr "ShiftedBetaGeoModelIndividual.create_idata_attrs"
 
 #: bf23382cab2a4b1b963ab5f37b1b60c2 of
 #: pymc_marketing.model_builder.ModelIO.create_idata_attrs:2
 msgid "Create attributes for the inference data."
-msgstr ""
+msgstr "Cree atributos para los datos de inferencia."
 
 #: a7573d78d418437cb90de113d63b2b2f of
 #: pymc_marketing.model_builder.ModelIO.create_idata_attrs
 msgid "Returns"
-msgstr ""
+msgstr "Devoluciones"
 
 #: 8f503e1a378c4494ba61f30b9a148505 of
 #: pymc_marketing.model_builder.ModelIO.create_idata_attrs:10
 msgid ":class:`python:dict`\\[:class:`python:str`, :class:`python:str`]"
-msgstr ""
+msgstr ":class:`python:dict`\\[:class:`python:str`, :class:`python:str`]"
 
 #: 7f3dfcfa4a624db6bb4ca4ca130679f0 of
 #: pymc_marketing.model_builder.ModelIO.create_idata_attrs:11
 msgid "A dictionary of attributes for the inference data."
-msgstr ""
+msgstr "Un diccionario de atributos para los datos de inferencia."

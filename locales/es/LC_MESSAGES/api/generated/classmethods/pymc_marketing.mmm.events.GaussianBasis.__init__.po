@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.events.GaussianBasis.__init__.rst:2
 #: bcb19ff1a92d406aaaa3cd2a7ea14a63
 msgid "GaussianBasis.\\_\\_init\\_\\_"
-msgstr ""
+msgstr "GaussianBasis.__init__"

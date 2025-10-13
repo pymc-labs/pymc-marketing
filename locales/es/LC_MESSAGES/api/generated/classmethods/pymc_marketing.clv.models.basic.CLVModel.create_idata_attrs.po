@@ -23,24 +23,24 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.basic.CLVModel.create_idata_attrs.rst:2
 #: eec8851fbb944d68b04e6f9cf68be0d6
 msgid "CLVModel.create\\_idata\\_attrs"
-msgstr ""
+msgstr "CLVModel.create_idata_attrs"
 
 #: 533cb27afde4433e91e480554f800dd1 of
 #: pymc_marketing.model_builder.ModelIO.create_idata_attrs:2
 msgid "Create attributes for the inference data."
-msgstr ""
+msgstr "Cree atributos para los datos de inferencia."
 
 #: e6946320c51c475cb0ed48ec83e7c16b of
 #: pymc_marketing.model_builder.ModelIO.create_idata_attrs
 msgid "Returns"
-msgstr ""
+msgstr "Devoluciones"
 
 #: f68a7f219f1d42eb94252e7945c95610 of
 #: pymc_marketing.model_builder.ModelIO.create_idata_attrs:10
 msgid ":class:`python:dict`\\[:class:`python:str`, :class:`python:str`]"
-msgstr ""
+msgstr ":class:`python:dict`\\[:class:`python:str`, :class:`python:str`]"
 
 #: f03ef729d9aa4819848c3ded8954930f of
 #: pymc_marketing.model_builder.ModelIO.create_idata_attrs:11
 msgid "A dictionary of attributes for the inference data."
-msgstr ""
+msgstr "Un diccionario de atributos para los datos de inferencia."

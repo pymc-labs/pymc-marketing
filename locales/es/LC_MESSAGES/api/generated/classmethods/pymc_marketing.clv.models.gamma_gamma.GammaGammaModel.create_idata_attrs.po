@@ -23,24 +23,24 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.gamma_gamma.GammaGammaModel.create_idata_attrs.rst:2
 #: 96b9e89965ee4e3dbed742b37bf404fb
 msgid "GammaGammaModel.create\\_idata\\_attrs"
-msgstr ""
+msgstr "GammaGammaModel.create_idata_attrs"
 
 #: b17a66d66b9b48d7ac9a078e23bab7b7 of
 #: pymc_marketing.model_builder.ModelIO.create_idata_attrs:2
 msgid "Create attributes for the inference data."
-msgstr ""
+msgstr "Cree atributos para los datos de inferencia."
 
 #: 963e404d45e2427bb14010c1e9eb3c02 of
 #: pymc_marketing.model_builder.ModelIO.create_idata_attrs
 msgid "Returns"
-msgstr ""
+msgstr "Devoluciones"
 
 #: b810c6c38cdc4f549bee42e0b5929b0e of
 #: pymc_marketing.model_builder.ModelIO.create_idata_attrs:10
 msgid ":class:`python:dict`\\[:class:`python:str`, :class:`python:str`]"
-msgstr ""
+msgstr ":class:`python:dict`\\[:class:`python:str`, :class:`python:str`]"
 
 #: c25b662727d446ee89ed3c91403a4c3f of
 #: pymc_marketing.model_builder.ModelIO.create_idata_attrs:11
 msgid "A dictionary of attributes for the inference data."
-msgstr ""
+msgstr "Un diccionario de atributos para los datos de inferencia."

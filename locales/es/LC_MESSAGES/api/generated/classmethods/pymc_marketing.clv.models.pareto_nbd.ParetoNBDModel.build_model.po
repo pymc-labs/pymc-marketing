@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.build_model.rst:2
 #: fa93c7bb80814af1889c1ce8bdd39dda
 msgid "ParetoNBDModel.build\\_model"
-msgstr ""
+msgstr "ParetoNBDModel.build\\_model"
 
 #: 25289b1d469b4676b2f69637f7ff9755 of
 #: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.build_model:2
 msgid "Build the model."
-msgstr ""
+msgstr "Construya el modelo."

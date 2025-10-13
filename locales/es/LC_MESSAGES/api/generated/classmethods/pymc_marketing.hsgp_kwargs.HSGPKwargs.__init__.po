@@ -23,20 +23,26 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.hsgp_kwargs.HSGPKwargs.__init__.rst:2
 #: 886d78a24de2467d98bda480404739e1
 msgid "HSGPKwargs.\\_\\_init\\_\\_"
-msgstr ""
+msgstr "HSGPKwargs.\\_\\_init\\_\\_"
 
 #: c26f7f39af5b4dd99e9471c788213cf2 of pydantic.main.BaseModel.__init__:2
 msgid ""
 "Create a new model by parsing and validating input data from keyword "
 "arguments."
 msgstr ""
+"Cree un nuevo modelo analizando y validando los datos de entrada de los "
+"argumentos de palabra clave."
 
 #: 970c9f7f262d4b11ac9f964ea5ea910a of pydantic.main.BaseModel.__init__:4
 msgid ""
-"Raises [`ValidationError`][pydantic_core.ValidationError] if the input "
-"data cannot be validated to form a valid model."
+"Raises [`ValidationError`][pydantic_core.ValidationError] if the input data "
+"cannot be validated to form a valid model."
 msgstr ""
+"Genera [`ValidationError`][pydantic_core.ValidationError] si los datos de "
+"entrada no pueden ser validados para formar un modelo válido."
 
 #: fe8653c189bf45c5bf3a90d97b4295dc of pydantic.main.BaseModel.__init__:7
 msgid "`self` is explicitly positional-only to allow `self` as a field name."
 msgstr ""
+"`self` es explícitamente solo posicional para permitir que `self` sea un "
+"nombre de campo."

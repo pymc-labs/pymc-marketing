@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.build_from_idata.rst:2
 #: 9aa0d71833264093ba2a98e3b922710e
 msgid "ParetoNBDModel.build\\_from\\_idata"
-msgstr ""
+msgstr "ParetoNBDModel.build\\_from\\_idata"
 
 #: c1a89a50f3ad490085e3363de36ba854 of
 #: pymc_marketing.clv.models.basic.CLVModel.build_from_idata:2
 msgid "Build the model from the InferenceData object."
-msgstr ""
+msgstr "Construya el modelo a partir del objeto InferenceData."

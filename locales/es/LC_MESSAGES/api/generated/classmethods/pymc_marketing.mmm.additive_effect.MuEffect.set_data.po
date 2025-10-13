@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.additive_effect.MuEffect.set_data.rst:2
 #: a3b77d037a9a47119f4d867e143d13c3
 msgid "MuEffect.set\\_data"
-msgstr ""
+msgstr "MuEffect.set\\_data"
 
 #: 8897939857b643bf9a6a5e5278a7e18d of
 #: pymc_marketing.mmm.additive_effect.MuEffect.set_data:2
 msgid "Set the data for new predictions."
-msgstr ""
+msgstr "Establezca los datos para nuevas predicciones."

@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.build_model.rst:2
 #: 3e9cb005e7d541b19c7d97185242a890
 msgid "GammaGammaModelIndividual.build\\_model"
-msgstr ""
+msgstr "GammaGammaModelIndividual.build\\_model"
 
 #: 5d926389244c4438b3a817a4d8b11050 of
 #: pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.build_model:2
 msgid "Build the model."
-msgstr ""
+msgstr "Construya el modelo."

@@ -23,9 +23,10 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.idata_to_init_kwargs.rst:2
 #: 7bab949ea1d047d5bc2df0a1644812fb
 msgid "ModifiedBetaGeoModel.idata\\_to\\_init\\_kwargs"
-msgstr ""
+msgstr "ModifiedBetaGeoModel.idata\\_to\\_init\\_kwargs"
 
 #: 0eefa91fb2f54de0ad515e8d44f6e01a of
 #: pymc_marketing.clv.models.basic.CLVModel.idata_to_init_kwargs:2
 msgid "Create the initialization kwargs from an InferenceData object."
 msgstr ""
+"Cree los kwargs de inicialización a partir de un objeto InferenceData."
