@@ -1,4 +1,4 @@
-customer_id,recency,T,cohorts
+customer_id,recency,T,cohort
 1,1,8,highend
 2,1,8,highend
 3,1,8,highend
