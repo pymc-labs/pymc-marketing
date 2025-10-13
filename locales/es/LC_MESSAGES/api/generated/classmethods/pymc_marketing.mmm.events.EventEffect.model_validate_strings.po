@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: pymc-marketing local\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"POT-Creation-Date: 2025-10-13 11:28+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: es\n"
@@ -21,36 +21,62 @@ msgstr ""
 "Generated-By: Babel 2.17.0\n"
 
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.events.EventEffect.model_validate_strings.rst:2
-#: 0f971483a773407da1f22088c64964a3
+#: 9fa1bd036f414db0a50660d4cf8495a3
 msgid "EventEffect.model\\_validate\\_strings"
 msgstr ""
 
-#: 56e4afa72f904fab8236e3d9e4e823d6 of
+#: d17324de4b304747a4d926bbf717c62e of
 #: pydantic.main.BaseModel.model_validate_strings:2
 msgid "Validate the given object with string data against the Pydantic model."
 msgstr ""
 
-#: b2e6b2e2806d43008e94da1742f605fb of
+#: a55159737fbf436f9e5a4a36670acada of
 #: pydantic.main.BaseModel.model_validate_strings:4
 msgid "Args:"
 msgstr ""
 
-#: 0b046d12d7c64db3a677c677d9389909 of
+#: 4b03474e6f5843da99a655f1802b6e2b of
 #: pydantic.main.BaseModel.model_validate_strings:5
 msgid ""
 "obj: The object containing string data to validate. strict: Whether to "
-"enforce types strictly. context: Extra variables to pass to the "
-"validator. by_alias: Whether to use the field's alias when validating "
-"against the provided input data. by_name: Whether to use the field's name"
-" when validating against the provided input data."
+"enforce types strictly. extra: Whether to ignore, allow, or forbid extra "
+"data during model validation."
 msgstr ""
 
-#: aa431fcc12554a4eb3f5faacc23fd4a8 of
-#: pydantic.main.BaseModel.model_validate_strings:11
+#: fc2d648d29454ef3be81c59b4b84fdab of
+#: pydantic.main.BaseModel.model_validate_strings:8
+msgid ""
+"See the [`extra` configuration value][pydantic.ConfigDict.extra] for "
+"details."
+msgstr ""
+
+#: d59b7999cb954b38b061fa810900f167 of
+#: pydantic.main.BaseModel.model_validate_strings:9
+msgid ""
+"context: Extra variables to pass to the validator. by_alias: Whether to "
+"use the field's alias when validating against the provided input data. "
+"by_name: Whether to use the field's name when validating against the "
+"provided input data."
+msgstr ""
+
+#: bf41f40b47974f6184e7cc8f6a006593 of
+#: pydantic.main.BaseModel.model_validate_strings:13
 msgid "Returns:"
 msgstr ""
 
-#: b5d989da88124a3694af7a87b4d87893 of
-#: pydantic.main.BaseModel.model_validate_strings:12
+#: deddd556d6e94ebe9b19498526b931a0 of
+#: pydantic.main.BaseModel.model_validate_strings:14
 msgid "The validated Pydantic model."
 msgstr ""
+
+#~ msgid ""
+#~ "obj: The object containing string data"
+#~ " to validate. strict: Whether to "
+#~ "enforce types strictly. context: Extra "
+#~ "variables to pass to the validator. "
+#~ "by_alias: Whether to use the field's "
+#~ "alias when validating against the "
+#~ "provided input data. by_name: Whether to"
+#~ " use the field's name when validating"
+#~ " against the provided input data."
+#~ msgstr ""
