@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: pymc-marketing local\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"POT-Creation-Date: 2025-10-13 11:28+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: es\n"
@@ -21,16 +21,16 @@ msgstr ""
 "Generated-By: Babel 2.17.0\n"
 
 #: ../source/api/generated/pymc_marketing.mmm.lift_test.add_cost_per_target_potentials.rst:2
-#: 854bb944396e4ad3ad32d01bdc483b93
+#: cc161bbc08174f068acab75ba8c95ee1
 msgid "add\\_cost\\_per\\_target\\_potentials"
 msgstr ""
 
-#: 5c1e32a248e444d1b4b96a9dd2c2c985 of
+#: e683fdd4097943e5bce99bc2286da793 of
 #: pymc_marketing.mmm.lift_test.add_cost_per_target_potentials:2
 msgid "Add ``pm.Potential`` penalties to calibrate cost-per-target."
 msgstr ""
 
-#: 7c30271ad2a14002bd5f0d86799c559c of
+#: 54450cc29ab84de7bee707121b17e54f of
 #: pymc_marketing.mmm.lift_test.add_cost_per_target_potentials:4
 msgid ""
 "For each row, we compute the mean of ``cpt_variable_name`` across the "
@@ -38,97 +38,136 @@ msgid ""
 "quadratic penalty:"
 msgstr ""
 
-#: f276e7482ed34d93a29c13c10b415fbb of
+#: 53525fda959e4e4692e34b13d5d631f2 of
 #: pymc_marketing.mmm.lift_test.add_cost_per_target_potentials:8
 msgid "``penalty = - |cpt_mean - target|^2 / (2 * sigma^2)``."
 msgstr ""
 
-#: 0878128afea141bb8f6e12cfc250a768 of
+#: efa8147164694337b61ef7d767bfcda6 of
 #: pymc_marketing.mmm.lift_test.add_cost_per_target_potentials
 msgid "Parameters"
 msgstr ""
 
-#: d255dcd0b1be4735969017f2e4dcc529 of
+#: f8377e5188b34786b430a41ccaddd2fb of
 #: pymc_marketing.mmm.lift_test.add_cost_per_target_potentials:12
 msgid "**calibration_df** : :obj:`pd.DataFrame`"
 msgstr ""
 
-#: 7ee0eb022edf4aa4a0faa49b53d1d12d of
+#: b6bc5f9e7ad34c82ba34206725d303a3 of
 #: pymc_marketing.mmm.lift_test.add_cost_per_target_potentials:11
 msgid "pd.DataFrame"
 msgstr ""
 
-#: 2a5c6f310bf44eacbe8c1fd458ff4c5f of
+#: 1caad0146813459ca7be13664d3a5796 of
 #: pymc_marketing.mmm.lift_test.add_cost_per_target_potentials:13
 msgid ""
 "Must include columns ``channel``, ``sigma``, and a target column. By "
-"default the target column is assumed to be ``cost_per_target``; if a "
-"column matching ``cpt_variable_name`` is present it will be used instead."
-" The DataFrame must also include one column per model dimension found in "
-"the CPT variable (excluding ``date``)."
+"default the target column is assumed to be ``cost_per_target``. The "
+"DataFrame must also include one column per model dimension found in the "
+"CPT variable (excluding ``date``)."
 msgstr ""
 
-#: 06860942a1634f089cd543ef5a4bf8b6 of
-#: pymc_marketing.mmm.lift_test.add_cost_per_target_potentials:19
+#: d7710f5de4c14e42a7c3ec544176b6e6 of
+#: pymc_marketing.mmm.lift_test.add_cost_per_target_potentials:18
 msgid "**model** : :obj:`pm.Model`, optional"
 msgstr ""
 
-#: 9455611bb6ae4670822aead56a8a1e82 of
-#: pymc_marketing.mmm.lift_test.add_cost_per_target_potentials:18
+#: 0fb4a0a2908c404d9537e0059cd3e172 of
+#: pymc_marketing.mmm.lift_test.add_cost_per_target_potentials:17
 msgid "pm.Model, optional"
 msgstr ""
 
-#: a9df3c98aa4e4683a7f9f86e6cb29087 of
-#: pymc_marketing.mmm.lift_test.add_cost_per_target_potentials:20
+#: 5673d6eb28a64da1b2e5b9a6b78f2911 of
+#: pymc_marketing.mmm.lift_test.add_cost_per_target_potentials:19
 msgid ""
-"Model containing the ``cpt_variable_name`` Deterministic with dims "
-"(\"date\", *dims, \"channel\"). If None, uses the current model context."
+"Model containing the cost-per-target tensor. If None, uses the current "
+"model context."
 msgstr ""
 
-#: 348937b1f4ec43409d63b284b9273772 of
-#: pymc_marketing.mmm.lift_test.add_cost_per_target_potentials:23
-msgid "**cpt_variable_name** : :class:`python:str`"
+#: ec6ce354f4d74376b4c0b216293b4ce3 of
+#: pymc_marketing.mmm.lift_test.add_cost_per_target_potentials:21
+msgid "**cpt_value** : :class:`~pytensor.tensor.TensorVariable`"
 msgstr ""
 
-#: 51628732927a42e5aab5f6b4a4c38285 7372db5eee184d1ebb08aa9f78ef160d of
+#: 25be161ed61c493cac6a577e7bbe056a of
+#: pymc_marketing.mmm.lift_test.add_cost_per_target_potentials:20
+msgid "TensorVariable"
+msgstr ""
+
+#: fdfc715fa848494187cf774e0b58a24e of
 #: pymc_marketing.mmm.lift_test.add_cost_per_target_potentials:22
-#: pymc_marketing.mmm.lift_test.add_cost_per_target_potentials:25
+msgid "Tensor representing cost-per-target values over the model coordinates."
+msgstr ""
+
+#: cab52c90f00e43b9a851449febba1af4 of
+#: pymc_marketing.mmm.lift_test.add_cost_per_target_potentials:24
+msgid "**target_column** : :class:`python:str`"
+msgstr ""
+
+#: 28d1c9e3c1be4db1ae7ae7fc7bf6d113 4149da51d37e43fa9f3c0ae63615fe76 of
+#: pymc_marketing.mmm.lift_test.add_cost_per_target_potentials:23
+#: pymc_marketing.mmm.lift_test.add_cost_per_target_potentials:26
 msgid "python:str"
 msgstr ""
 
-#: fdcab45ee5c14ea1ac0d73dbede82fc7 of
-#: pymc_marketing.mmm.lift_test.add_cost_per_target_potentials:24
-msgid "Name of the cost-per-target Deterministic variable."
+#: f85070a6242f4a248221aac06ee84e68 of
+#: pymc_marketing.mmm.lift_test.add_cost_per_target_potentials:25
+msgid "Column in ``calibration_df`` containing the calibration targets."
 msgstr ""
 
-#: 1cf841777b6c456d8fcc25aa93d5910c of
-#: pymc_marketing.mmm.lift_test.add_cost_per_target_potentials:26
+#: 829905762032485d8d953557ad1ab9a2 of
+#: pymc_marketing.mmm.lift_test.add_cost_per_target_potentials:27
 msgid "**name_prefix** : :class:`python:str`"
 msgstr ""
 
-#: 7bd189476028498f8cc080babf0c06e4 of
-#: pymc_marketing.mmm.lift_test.add_cost_per_target_potentials:27
+#: 1f2c721ff9e34b04bffe0dff699e7546 of
+#: pymc_marketing.mmm.lift_test.add_cost_per_target_potentials:28
 msgid "Prefix for created potential names."
 msgstr ""
 
-#: 535d710a649a48aa96e05ba0b425a5de of
-#: pymc_marketing.mmm.lift_test.add_cost_per_target_potentials:29
+#: 8fd9d3016c734c398c8ee4fb159544b3 of
+#: pymc_marketing.mmm.lift_test.add_cost_per_target_potentials:30
 msgid ""
 "**get_indices** : :obj:`Callable`\\[[:obj:`pd.DataFrame`, "
 ":obj:`pm.Model`], :obj:`Indices`]"
 msgstr ""
 
-#: 4f74f876d45c4259bc0c5a7c3ad8cc7e of
-#: pymc_marketing.mmm.lift_test.add_cost_per_target_potentials:28
+#: b3abbcde12fe4baea4072c98590bfc53 of
+#: pymc_marketing.mmm.lift_test.add_cost_per_target_potentials:29
 msgid "Callable[[pd.DataFrame, pm.Model], Indices]"
 msgstr ""
 
-#: 806df57c27cd425b953b2fceed57fc7e of
-#: pymc_marketing.mmm.lift_test.add_cost_per_target_potentials:30
+#: 03a670396c0941b9859c6e585c444166 of
+#: pymc_marketing.mmm.lift_test.add_cost_per_target_potentials:31
 msgid "Alignment function mapping rows to model coordinate indices."
 msgstr ""
 
-#: 9016df489f3a42bd8bea0281d59c556d of
-#: pymc_marketing.mmm.lift_test.add_cost_per_target_potentials:45
+#: 5c25fd2d6fdc494e93eace8f4e6bdff8 of
+#: pymc_marketing.mmm.lift_test.add_cost_per_target_potentials:46
 msgid "Examples"
 msgstr ""
+
+#~ msgid ""
+#~ "Must include columns ``channel``, ``sigma``,"
+#~ " and a target column. By default "
+#~ "the target column is assumed to be"
+#~ " ``cost_per_target``; if a column matching"
+#~ " ``cpt_variable_name`` is present it will"
+#~ " be used instead. The DataFrame must"
+#~ " also include one column per model"
+#~ " dimension found in the CPT variable"
+#~ " (excluding ``date``)."
+#~ msgstr ""
+
+#~ msgid ""
+#~ "Model containing the ``cpt_variable_name`` "
+#~ "Deterministic with dims (\"date\", *dims, "
+#~ "\"channel\"). If None, uses the current"
+#~ " model context."
+#~ msgstr ""
+
+#~ msgid "**cpt_variable_name** : :class:`python:str`"
+#~ msgstr ""
+
+#~ msgid "Name of the cost-per-target Deterministic variable."
+#~ msgstr ""
