@@ -23,7 +23,7 @@ msgstr ""
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:10003
 #: 0bf75e9e36cd4cb09a89b91263e7798c
 msgid "MMM Multidimensional Example Notebook"
-msgstr ""
+msgstr "Cuaderno de ejemplo multidimensional de MMM"
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:10005
 #: 3a57faa926e442449706de6105c121f5
@@ -34,6 +34,10 @@ msgid ""
 " its capabilities, we extend the {ref}`mmm_example` simulation to create "
 "a multidimensional hierarchical model."
 msgstr ""
+"En este cuaderno presentamos una nueva clase experimental de modelo de mezcla "
+"de medios para crear modelos de marketing mix multidimensionales y "
+"personalizados. Para mostrar sus capacidades, extendemos la simulación "
+"{ref}`mmm_example` para crear un modelo jerárquico multidimensional."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:10008
 #: 9f3c01cb85f142a08f104877310aaf55
@@ -45,22 +49,26 @@ msgid ""
 "marketing mix models. This model is under active development and will be "
 "further improved in the future (feedback welcome!)."
 msgstr ""
+"Aunque la nueva clase {class}`MMM <pymc_marketing.mmm.multidimensional.MMM>` "
+"es experimental, es totalmente funcional y puede utilizarse para crear modelos "
+"de marketing mix multidimensionales. Este modelo está en desarrollo activo y "
+"se seguirá mejorando en el futuro (¡se agradecen comentarios!)."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:20002
 #: 6b8c50f71c8f4c1d8bd26be6a3dcc302
 msgid "Prepare Notebook"
-msgstr ""
+msgstr "Preparar cuaderno"
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:50002
 #: 3783715d66d247cc908c7219c040201f
 msgid "Read Data"
-msgstr ""
+msgstr "Leer datos"
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:50004
 #: 453f41253c874e4186b21d5da4166880
 #, python-brace-format
 msgid "We read the simulated data from the {ref}`mmm_multidimensional_example`."
-msgstr ""
+msgstr "Leemos los datos simulados de {ref}`mmm_multidimensional_example`."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:70002
 #: 24b531740f6f44c19ef3230d9f60e2b0
@@ -73,6 +81,13 @@ msgid ""
 "sales, but the relationship is noisy. Our mission is to see if the MMM "
 "can parse the signal in the noise."
 msgstr ""
+"Para nuestro planteamiento, imagine que vendemos un producto en dos países "
+"distintos (`geo_a` y `geo_b`). Nuestro equipo de marketing gestiona dos "
+"canales: uno suele estar siempre activo y el otro es más táctico y se activa "
+"durante las campañas de marketing. La inspección visual de los datos sugiere "
+"que existe al menos algún efecto del marketing sobre las ventas, pero la "
+"relación es ruidosa. Nuestra misión es ver si el MMM puede separar la señal "
+"del ruido."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:70004
 #: fccde99728ee4daeb5a288e396a4bc0e
@@ -86,11 +101,18 @@ msgid ""
 "to fit an MMM to multiple markets at the same time and make decisions "
 "about how to pool information across the two contexts."
 msgstr ""
+"Una estrategia para tratar con datos ruidosos y de baja señal es aprovechar "
+"información de contextos similares. Si el canal 2 parece ser bastante "
+"efectivo en `geo_b`, eso nos da razones para sospechar que también lo será en "
+"`geo_a`. Esto puede implementarse con **full pooling** o **partial pooling** "
+"(los modelos de partial pooling a menudo se llaman 'jerárquicos' o 'multinivel'). "
+"Este cuaderno mostrará cómo ajustar un MMM a múltiples mercados al mismo tiempo "
+"y tomar decisiones sobre cómo agrupar información entre los dos contextos."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:90002
 #: e88259d625c348ffa5c1e524e71840da
 msgid "Prior Specification"
-msgstr ""
+msgstr "Especificación de priors"
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:90004
 #: 8601fca85a304466a14eb6b117cfb98d
@@ -103,6 +125,12 @@ msgid ""
 "product. To capture this, we'll allow the saturation point to vary across"
 " geography."
 msgstr ""
+"El parámetro Beta representa el número máximo de ventas semanales que podrías "
+"impulsar a través de un canal. Beta será el único parámetro jerárquico en este "
+"modelo. Hay buenas razones para pensar que distintos mercados se saturan en "
+"niveles diferentes. Un producto puede ser popular en un lugar y la audiencia "
+"potencial muy grande. En otro mercado, es un producto de nicho. Para capturar "
+"esto, permitiremos que el punto de saturación varíe según la geografía."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:90006
 #: a8fecacc72104a0691b9ba4367a0f580
@@ -120,6 +148,16 @@ msgid ""
 "Modeling\"](https://www.pymc.io/projects/examples/en/latest/generalized_linear_models/multilevel_modeling.html)"
 " in the PyMC documentation."
 msgstr ""
+"Un modelo jerárquico hace algo ingenioso: en lugar de suponer que cada "
+"geografía es diferente, suponemos que al menos están parcialmente relacionadas "
+"entre sí. Si tuvieras 10 geos y 9 de ellas tuvieran un alto punto de saturación, "
+"razonablemente esperarías que la décima también lo tuviera. Un modelo jerárquico "
+"agrupará adaptativamente información entre contextos. Cuando cada geo es muy "
+"diferente, transferirá menos información entre ellas. Cuando cada geo es muy "
+"similar, transferirá más información. A esto también se le llama **partial pooling**. "
+"Si necesitas una introducción a los modelos jerárquicos bayesianos, consulta el "
+"ejemplo completo [\"A Primer on Bayesian Methods for Multilevel Modeling\"](https://www.pymc.io/projects/examples/en/latest/generalized_linear_models/multilevel_modeling.html) "
+"en la documentación de PyMC."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:90008
 #: 5b587cd8eeb44fe4bafe4dc82a6d2e52
@@ -134,6 +172,14 @@ msgid ""
 "interior parameters, `mu` and `sigma`, they will act as constraints on "
 "the behaviour of the individual beta parameters."
 msgstr ""
+"Podemos construir parámetros jerárquicos con la API de priors. Observa que tenemos "
+"un objeto Prior con dimensiones `(channel, geos)` y luego tenemos más Priors para "
+"cada parámetro. El prior sobre `mu` captura lo que esperamos que hagan los canales, "
+"sin considerar su variación por geografía. El prior sobre `sigma` representa cuánto "
+"varía el efecto entre geografías. La inferencia bayesiana propaga información a lo "
+"largo de toda la red de parámetros: a medida que aprendemos los valores de los "
+"parámetros internos, `mu` y `sigma`, actuarán como restricciones sobre el "
+"comportamiento de los parámetros Beta individuales."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:90010
 #: c543e1d234354eb5b0cae53804b32564
@@ -147,6 +193,13 @@ msgid ""
 "ones that are independent. Channel 1 in `geo_a` influences channel 1 in "
 "`geo_b`, but channel 1 never influences channel 2."
 msgstr ""
+"Hay muchas opciones sobre cómo codificar cada tipo de efecto. Puede ser difícil "
+"llevar la cuenta de qué parámetros comparten información, cuáles están completamente "
+"separados y cuáles están compartidos. Pero hay un truco para recordarlo: fíjate que "
+"los Priors internos tienen menos dimensiones que el Prior principal. La dimensión extra "
+"representa la dimensión a lo largo de la cual se transfiere la información. Las "
+"dimensiones compartidas representan las que son independientes. El canal 1 en `geo_a` "
+"influye en el canal 1 en `geo_b`, pero el canal 1 nunca influye en el canal 2."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:110002
 #: ae4af118dd27432d898ac7c5caa4121f
@@ -160,6 +213,13 @@ msgid ""
 "do not specify \"geo\" dims. The package will automatically broadcast the"
 " channel effect for each geography."
 msgstr ""
+"Este cuaderno es solo ilustrativo, así que te mostraremos cómo codificar cada tipo "
+"de suposición que podrías hacer (¡no estamos recomendando una solución universal!). "
+"Lambda representa la eficiencia de un canal. Cuanto mayor sea lambda, más sensibles "
+"serán las ventas al gasto en ese canal. Haremos que el parámetro lambda esté **fully "
+"pooled** en todas las geografías. Suponemos que el canal 1 tiene la misma eficiencia "
+"en ambas geos, por lo que no especificamos dims de \"geo\". El paquete difundirá "
+"automáticamente el efecto del canal para cada geografía."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:130002
 #: b09cb73200d94a87ad3dc920e5c67c1b
@@ -170,6 +230,10 @@ msgid ""
 "each other. Notice that we put a dim for both geos and channels to "
 "indicate that we want 4 unique effects."
 msgstr ""
+"Adstock alpha representa cuánto tiempo recuerdan los clientes el marketing. Para "
+"adstock, ilustraremos la estrategia **unpooled**. Aquí, cada canal en cada geografía "
+"tiene su propio efecto y esos efectos no se influyen entre sí. Observa que ponemos "
+"una dim para geos y canales para indicar que queremos 4 efectos únicos."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:150002
 #: 1077108e23a94afc9f290e4d452d0e64
@@ -183,6 +247,13 @@ msgid ""
 " but it can make the model slower to estimate, more complicated to debug,"
 " and more difficult to reason about."
 msgstr ""
+"Puedes combinar las estrategias unpooled, fully pooled y partially pooled para "
+"cualquiera de tus efectos. Puedes extender esta estrategia a controles o parámetros "
+"de ruido también. Dada la variedad de opciones, puede ser difícil saber qué estrategia "
+"de agrupamiento elegir para un efecto dado. En nuestra opinión, la elección está "
+"impulsada principalmente por consideraciones computacionales. El partial pooling suele "
+"ser una suposición más razonable, pero puede hacer que el modelo sea más lento de "
+"estimar, más complicado de depurar y más difícil de razonar."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:150004
 #: e9817d2e159f4a03b8a4a4d7f015ce5f
@@ -197,6 +268,13 @@ msgid ""
 "complexity slowly, verifying your model performance and accuracy at each "
 "stage."
 msgstr ""
+"Por ejemplo, puedes notar que configuramos nuestro prior con `centered=False`. Esto "
+"se conoce como una reparametrización, una [estrategia para resolver dificultades "
+"computacionales](https://www.pymc.io/projects/examples/en/latest/diagnostics_and_criticism/Diagnosing_biased_Inference_with_Divergences.html) "
+"con las que los algoritmos MCMC pueden encontrarse al ajustar modelos jerárquicos. "
+"Recomendamos empezar con un modelo que use solo efectos fully pooled o unpooled. Una vez "
+"tengas un buen modelo funcionando, puedes añadir complejidad lentamente, verificando el "
+"rendimiento y la precisión del modelo en cada etapa."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:150006
 #: 406c43ecb33648d08f0c34867a2f675d
@@ -205,11 +283,12 @@ msgid ""
 "We complete the model specification with similar priors as in the "
 "{ref}`mmm_example`."
 msgstr ""
+"Completamos la especificación del modelo con priors similares a los de {ref}`mmm_example`."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:170002
 #: acf7029aeffe4c7bbd7c7aa67324a597
 msgid "Model Definition"
-msgstr ""
+msgstr "Definición del modelo"
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:170004
 #: fc3035cc9c9f4b3f9765e5a086caefec
@@ -218,16 +297,18 @@ msgid ""
 "We are now ready to define the model class. The API is very similar to "
 "the one in the {ref}`mmm_example`."
 msgstr ""
+"Ya estamos listos para definir la clase del modelo. La API es muy similar a la de "
+"{ref}`mmm_example`."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:190003
 #: 21bcbe12fc6e41c186c2b455796faa21
 msgid "Observe we have the following two new arguments:"
-msgstr ""
+msgstr "Observa que tenemos los dos argumentos nuevos siguientes:"
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:190004
 #: 357245987587423e9dbc0fc0b2b86d00
 msgid "`dims`: a tuple of strings that specify the dimensions of the model."
-msgstr ""
+msgstr "`dims`: una tupla de cadenas de texto que especifica las dimensiones del modelo."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:190005
 #: 2452575f81af4124be11eb03531ba39d
@@ -237,11 +318,15 @@ msgid ""
 " empty as we want to scale the target variable for each geo (see details "
 "below)."
 msgstr ""
+"`scaling`: un diccionario que especifica el método de escalado y las dimensiones "
+"para la variable objetivo y las variables de medios. En este caso dejamos las "
+"dimensiones vacías porque queremos escalar la variable objetivo por cada geo (ver "
+"detalles abajo)."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:200002
 #: 1a9af6633d5a444c8a70610d33d89dee
 msgid "We can now prepare the training data."
-msgstr ""
+msgstr "Ahora podemos preparar los datos de entrenamiento."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:220002
 #: 91b9de3f22f24d17b20a2ab98f6b34e3
@@ -249,6 +334,8 @@ msgid ""
 "To build the model, we need to specify the training data and the target "
 "variables."
 msgstr ""
+"Para construir el modelo, necesitamos especificar los datos de entrenamiento y las "
+"variables objetivo."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:220005
 #: c0f938c8c08e47c78d42111bf5cd1957
@@ -256,11 +343,13 @@ msgid ""
 "We do not need to build the model, we can simply fit the model. This is "
 "just to inspect the model structure."
 msgstr ""
+"No necesitamos construir el modelo; simplemente podemos ajustarlo. Esto es solo para "
+"inspeccionar la estructura del modelo."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:240002
 #: 944224604062418397685650009b3f06
 msgid "Let's look into the model graph:"
-msgstr ""
+msgstr "Veamos el grafo del modelo:"
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:260002
 #: 11907aa42f074c44a2cab4521802cb99
@@ -268,6 +357,8 @@ msgid ""
 "It is great to see that the model automatically vectorizes and creates "
 "the expected hierarchies and dimensions 🚀!"
 msgstr ""
+"¡Es genial ver que el modelo se vectoriza automáticamente y crea las jerarquías y "
+"dimensiones esperadas 🚀!"
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:270002
 #: ced9efe0f7cd489faaaf2def733e7adc
@@ -275,11 +366,13 @@ msgid ""
 "As we are scaling our data internally, we can add deterministic terms to "
 "recover the component contributions in the original scale."
 msgstr ""
+"Como estamos escalando nuestros datos internamente, podemos añadir términos deterministas "
+"para recuperar las contribuciones de los componentes en la escala original."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:290002
 #: 165f6576e8934710a239de364518a495
 msgid "Coming back to the scalers, we can get them as an xarray dataset."
-msgstr ""
+msgstr "Volviendo a los escaladores, podemos obtenerlos como un dataset de xarray."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:310002
 #: acd915f8c8614a0f8ed43d506e3eb6d3
@@ -287,11 +380,13 @@ msgid ""
 "As expected, from the model definition, we have scalers for the target "
 "and media variables across geos."
 msgstr ""
+"Como era de esperar por la definición del modelo, tenemos escaladores para la variable "
+"objetivo y las variables de medios en todas las geos."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:320002
 #: 8ee6d2c07bca442d8201f2cba421eeac
 msgid "Prior Predictive Checks"
-msgstr ""
+msgstr "Comprobaciones predictivas previas"
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:320004
 #: 57948d9c1c0c41e3983773de941c7118
@@ -299,16 +394,17 @@ msgid ""
 "Before fitting the model, we can inspect the prior predictive "
 "distribution."
 msgstr ""
+"Antes de ajustar el modelo, podemos inspeccionar la distribución predictiva previa."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:350002
 #: eaf052f0937e4a9eb9c1512a477456ef
 msgid "The prior predictive distribution looks good and not too restrictive."
-msgstr ""
+msgstr "La distribución predictiva previa se ve bien y no es demasiado restrictiva."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:360002
 #: 0180b396d53a45359ceabefb2d8e5444
 msgid "Model Fitting"
-msgstr ""
+msgstr "Ajuste del modelo"
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:360004
 #: 64925c06f1ff4238a51e0248573a90ee
@@ -316,6 +412,7 @@ msgid ""
 "We can now fit the model and generate the posterior predictive "
 "distribution."
 msgstr ""
+"Ahora podemos ajustar el modelo y generar la distribución predictiva posterior."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:380002
 #: c1b698f78a83470188885f95f10c2e3d
@@ -323,11 +420,12 @@ msgid ""
 "The sampling looks good. No divergences and the r-hat values are close to"
 " $1$."
 msgstr ""
+"El muestreo se ve bien. No hay divergencias y los valores de r-hat están cercanos a $1$."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:420002
 #: 072a00020a1e44b686c7a04da4ad0716
 msgid "Posterior Predictive Checks"
-msgstr ""
+msgstr "Comprobaciones predictivas posteriores"
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:420004
 #: 073ca47fe0624268a3310905c1a59d82
@@ -336,6 +434,9 @@ msgid ""
 "need to scale the posterior predictive to the original scale to make it "
 "comparable to the data."
 msgstr ""
+"Ahora podemos inspeccionar la distribución predictiva posterior. Como antes, "
+"necesitamos escalar la predictiva posterior a la escala original para hacerla "
+"comparable con los datos."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:440002
 #: 67569099ee824016a1fd180e46e4d03b
@@ -344,11 +445,14 @@ msgid ""
 " cannot predict. However, the main movements in the sales are either "
 "captured by our seasonality model or the MMM components."
 msgstr ""
+"¡El ajuste se ve bien! Hay mucho ruido blanco en el proceso de ventas que no podemos "
+"predecir. Sin embargo, los movimientos principales en las ventas están capturados ya "
+"sea por nuestro modelo de estacionalidad o por los componentes del MMM."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:450002
 #: ef3e83e9340d4103ac7cc3d448dc6e7a
 msgid "Model Components"
-msgstr ""
+msgstr "Componentes del modelo"
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:450004
 #: 99c8a5961179400da1b3615e34b2bcaf
@@ -356,11 +460,13 @@ msgid ""
 "We can extract the contributions of each component of the model in the "
 "original scale thanks to the deterministic variables added to the model."
 msgstr ""
+"Podemos extraer las contribuciones de cada componente del modelo en la escala original "
+"gracias a las variables deterministas añadidas al modelo."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:470002
 #: 234ec3b62ce94a56897782f06b84cc60
 msgid "Media Deep Dive"
-msgstr ""
+msgstr "Análisis profundo de medios"
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:470004
 #: a8cfe7693830463297f9c0ab67ce78cf
@@ -369,6 +475,9 @@ msgid ""
 "This new class has a new `plot` name space that contains many plotting "
 "methods."
 msgstr ""
+"A continuación, podemos analizar las contribuciones individuales por canal en las "
+"distintas geos. Esta nueva clase tiene un nuevo espacio de nombres `plot` que contiene "
+"muchos métodos de visualización."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:490002
 #: bed1a2a8593e4a33912361186c5c258a
@@ -376,6 +485,8 @@ msgid ""
 "We can plot the saturation curves for each channel and geo, using a few "
 "different functions:"
 msgstr ""
+"Podemos graficar las curvas de saturación para cada canal y geo usando varias funciones "
+"diferentes:"
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:490003
 #: 681ff9cf9e0f481891033e65891bbbfa
@@ -383,6 +494,8 @@ msgid ""
 "Using `saturation_scatterplot`, we can get only the scatterplot between "
 "investment and estimated returns."
 msgstr ""
+"Usando `saturation_scatterplot`, podemos obtener únicamente el diagrama de dispersión "
+"entre inversión y retornos estimados."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:490004
 #: acde4a2c881d42b5ac4be86abb97c4de
@@ -390,11 +503,13 @@ msgid ""
 "Using `saturation_curves`, we can get the posterior of the curves and "
 "their posterior fit regarding the given mean contribution."
 msgstr ""
+"Usando `saturation_curves`, podemos obtener la posterior de las curvas y su ajuste "
+"posterior respecto a la contribución media dada."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:520002
 #: 02f9d8df11314be29ef0e51ec53324a8
 msgid "Parameter recovery"
-msgstr ""
+msgstr "Recuperación de parámetros"
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:520004
 #: 0f07a9e7d79c4f7185ad68cc4a818b2b
@@ -411,6 +526,16 @@ msgid ""
 "parameter recovery in simulations that might be helpful if you need even "
 "more rigorous evidence the model is working correctly."
 msgstr ""
+"Una buena señal de que el modelo funciona como se pretende es que puede recuperar los "
+"valores verdaderos de los parámetros subyacentes al mecanismo de marketing. En nuestro "
+"caso, conocemos los valores verdaderos de los parámetros porque simulamos los datos. "
+"De forma informal, si la mayor parte de la distribución posterior cubre el valor del "
+"parámetro, es una buena señal. No esperamos que la media de la posterior siempre "
+"coincida con el valor verdadero: para datos pequeños o ruidosos, deberíamos esperar "
+"que la posterior cubra un intervalo amplio independientemente de si construimos un buen "
+"modelo o no. También existen [marcos formales](https://arxiv.org/abs/2502.03279) para "
+"pensar sobre la recuperación de parámetros en simulaciones que pueden ser útiles si "
+"necesitas evidencia aún más rigurosa de que el modelo funciona correctamente."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:520006
 #: 7affdfce5ca741f392817e9021591709
@@ -419,11 +544,13 @@ msgid ""
 "main MMM parameters (`saturation lambda`, `saturation beta` and `adstock "
 "alpha`)."
 msgstr ""
+"A continuación comparamos la distribución posterior con los valores verdaderos de los "
+"principales parámetros del MMM (`saturation lambda`, `saturation beta` y `adstock alpha`)."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:570002
 #: 640c37b481c04dab93820865f4501089
 msgid "Out of Sample Predictions"
-msgstr ""
+msgstr "Predicciones fuera de muestra"
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:570004
 #: 44b7e4456f36463886cf2dcad4b9d8b3
@@ -436,6 +563,12 @@ msgid ""
 "sample. This way we can create a new dataset with the future dates and "
 "channel spends and use the model to make predictions."
 msgstr ""
+"Es muy importante poder hacer predicciones fuera de la muestra. Esto es clave para la "
+"validación del modelo, la planificación de escenarios prospectivos y la toma de decisiones "
+"empresariales. De forma similar a {ref}`mmm_example`, asumimos que las inversiones futuras "
+"son las mismas que el último día de la muestra de entrenamiento. De este modo podemos crear "
+"un nuevo dataset con las fechas futuras y los gastos por canal y usar el modelo para hacer "
+"predicciones."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:590002
 #: ffd1a6763f234840a0112dffcdf58cae
@@ -443,11 +576,12 @@ msgid ""
 "Using the same `sample_posterior_predictive` method, we can now generate "
 "the forecast."
 msgstr ""
+"Usando el mismo método `sample_posterior_predictive`, ahora podemos generar el pronóstico."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:620002
 #: 8935b1632f084d918d0d0d3b890e5f2b
 msgid "Optimization"
-msgstr ""
+msgstr "Optimización"
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:620004
 #: 1b14e43c6ea54c65a39e326c3ba42a68
@@ -455,6 +589,7 @@ msgid ""
 "If you want to run optimizations, then you need to use the "
 "`MultiDimensionalBudgetOptimizerWrapper`."
 msgstr ""
+"Si quieres ejecutar optimizaciones, entonces necesitas usar `MultiDimensionalBudgetOptimizerWrapper`."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:640002
 #: df4cbb26cc5942979bfac9525aefe41e
@@ -462,11 +597,12 @@ msgid ""
 "This object is an xarray dataset with the allocation and posterior "
 "predictive responses!"
 msgstr ""
+"¡Este objeto es un dataset de xarray con la asignación y las respuestas predictivas posteriores!"
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:660002
 #: 71194ccb038046f5b17421f988db015a
 msgid "Once you get the allocation, you can plot a the results 🚀"
-msgstr ""
+msgstr "Una vez obtengas la asignación, puedes graficar los resultados 🚀"
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:680002
 #: 8ec02ddc0c4447a096578a41e82de477
@@ -476,6 +612,9 @@ msgid ""
 "identify automatically the number of dimensions and tries to create a "
 "plot based on them."
 msgstr ""
+"El gráfico muestra el presupuesto óptimo para cada canal en cada geo, junto a su "
+"contribución media respectiva dado el presupuesto óptimo. El método identifica "
+"automáticamente el número de dimensiones e intenta crear una gráfica en función de ellas."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:680004
 #: 61909db083a14281965d370d90fc8716
@@ -483,6 +622,8 @@ msgid ""
 "If you want to see the full uncertainty over time, you can use the plot "
 "suite and the method `allocated_contribution_by_channel_over_time`."
 msgstr ""
+"Si quieres ver la incertidumbre completa a lo largo del tiempo, puedes usar la suite de "
+"gráficos y el método `allocated_contribution_by_channel_over_time`."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:700002
 #: b8b939c7a4de4c149b99562e9f34ec0f
@@ -492,11 +633,14 @@ msgid ""
 "don't need to modify anything. Otherwise, for the plots, you may want to "
 "use `scale_factor=N`. E.g:"
 msgstr ""
+"Si tienes un modelo personalizado, puedes envolverlo en el protocolo del modelo y usar el "
+"optimizador después. Si tu modelo gestiona las escalas internamente, no necesitas modificar "
+"nada. De lo contrario, para las gráficas, quizá quieras usar `scale_factor=N`. Por ejemplo:"
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:710002
 #: 46b45f6105484e9282eba1f1c5845281
 msgid "Save Model"
-msgstr ""
+msgstr "Guardar modelo"
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:710004
 #: 506aa4f8c37c43b08583b8923941dbe0
@@ -506,6 +650,10 @@ msgid ""
 "dimensions. So it can sometimes be helpful to compress the idata before "
 "saving. Below are a couple of tricks."
 msgstr ""
+"Opcionalmente puedes guardar el resultado de tu trabajo. Los objetos de resultados del "
+"modelo (idata) pueden volverse muy grandes cuando empezamos a trabajar en múltiples "
+"dimensiones. Por ello, a veces puede ser útil comprimir el idata antes de guardarlo. A "
+"continuación hay un par de trucos."
 
 #: ../source/notebooks/mmm/mmm_multidimensional_example.ipynb:730003
 #: b8b6e6ac1e12482593b17e8d28a91e0a
@@ -513,3 +661,5 @@ msgid ""
 "We are very excited about this new feature and the possibilities it opens"
 " up. We are looking forward to hearing your feedback!"
 msgstr ""
+"Estamos muy entusiasmados con esta nueva funcionalidad y las posibilidades que abre. "
+"¡Esperamos tus comentarios!"

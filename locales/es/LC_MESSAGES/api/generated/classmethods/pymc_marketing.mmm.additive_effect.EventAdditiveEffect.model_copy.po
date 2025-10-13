@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: pymc-marketing local\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"POT-Creation-Date: 2025-10-13 11:28+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: es\n"
@@ -21,27 +21,27 @@ msgstr ""
 "Generated-By: Babel 2.17.0\n"
 
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.model_copy.rst:2
-#: 0143ee49caa946abae17f20c6e788f2f
+#: 446499f633604e24a876dc660d421a4a
 msgid "EventAdditiveEffect.model\\_copy"
 msgstr ""
 
-#: 47bd3fe246a8445b92bf5b4611becfbf of pydantic.main.BaseModel.model_copy:2
+#: 258be161dac14d37bbf4fde6a99413b0 of pydantic.main.BaseModel.model_copy:2
 msgid "!!! abstract \"Usage Documentation\""
 msgstr ""
 
-#: 77f9a685b4be41a1a9ef1761671b99fd of pydantic.main.BaseModel.model_copy:3
-msgid "[`model_copy`](../concepts/serialization.md#model_copy)"
+#: 2f8ab4e364e74d21a5b51b01fb0abbc9 of pydantic.main.BaseModel.model_copy:3
+msgid "[`model_copy`](../concepts/models.md#model-copy)"
 msgstr ""
 
-#: 5cf6161e08264962837483c9a1370efb of pydantic.main.BaseModel.model_copy:5
+#: a9832074b4f94b088b09b2cf00bc3938 of pydantic.main.BaseModel.model_copy:5
 msgid "Returns a copy of the model."
 msgstr ""
 
-#: fa03c71adda145b28436aedb8883c44d of pydantic.main.BaseModel.model_copy:7
+#: e8fdcb7f00474d5599d4abfe1a8d4226 of pydantic.main.BaseModel.model_copy:7
 msgid "!!! note"
 msgstr ""
 
-#: 35ab8ff4b2eb4cb8ba4735ff9ade0cb0 of pydantic.main.BaseModel.model_copy:8
+#: d6fde3c57cc14c08b0f839b05f47a755 of pydantic.main.BaseModel.model_copy:8
 msgid ""
 "The underlying instance's [`__dict__`][object.__dict__] attribute is "
 "copied. This might have unexpected side effects if you store anything in "
@@ -49,28 +49,31 @@ msgid ""
 "properties][functools.cached_property])."
 msgstr ""
 
-#: 86075a8ee90c42d38fe845900559cfe4 of pydantic.main.BaseModel.model_copy:12
+#: a05287ef30554aa28423de650a4a209a of pydantic.main.BaseModel.model_copy:12
 msgid "Args:"
 msgstr ""
 
-#: ae5694999b664852875712e05394e176 of pydantic.main.BaseModel.model_copy:13
+#: 081a332dafb044c3bbe90cea8796c2d8 of pydantic.main.BaseModel.model_copy:13
 msgid ""
 "update: Values to change/add in the new model. Note: the data is not "
 "validated"
 msgstr ""
 
-#: f4fb7716d06145eb8bdf87ebd5de91b1 of pydantic.main.BaseModel.model_copy:14
+#: a3f07c6addfa4eeeb99f287302418f85 of pydantic.main.BaseModel.model_copy:14
 msgid "before creating the new model. You should trust this data."
 msgstr ""
 
-#: 571a7411f8d04e0c9f08202d3ae02461 of pydantic.main.BaseModel.model_copy:15
+#: 1a5cc202059047d48bb6e7469da56e56 of pydantic.main.BaseModel.model_copy:15
 msgid "deep: Set to `True` to make a deep copy of the model."
 msgstr ""
 
-#: f94f8f6462514c89ab194009420c5a53 of pydantic.main.BaseModel.model_copy:17
+#: 3fc69505230840d883038cb3cab96fd9 of pydantic.main.BaseModel.model_copy:17
 msgid "Returns:"
 msgstr ""
 
-#: 4fb4aec8a5d44bd29dd7017a7485bd89 of pydantic.main.BaseModel.model_copy:18
+#: 95cdf908c15146d5a8a13dcf7fb9a19d of pydantic.main.BaseModel.model_copy:18
 msgid "New model instance."
 msgstr ""
+
+#~ msgid "[`model_copy`](../concepts/serialization.md#model_copy)"
+#~ msgstr ""
