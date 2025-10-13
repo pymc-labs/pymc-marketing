@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: pymc-marketing local\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"POT-Creation-Date: 2025-10-13 11:28+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: es\n"
@@ -21,21 +21,33 @@ msgstr ""
 "Generated-By: Babel 2.17.0\n"
 
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.model_validate.rst:2
-#: 06fa0d832c1649798d1143f1356619a8
+#: b0eb1104b49f446883ca6b7c88875e64
 msgid "BudgetOptimizer.model\\_validate"
 msgstr ""
 
-#: f2a6d2c3306c4fdf9bfeaceb7ee52b76 of pydantic.main.BaseModel.model_validate:2
+#: 2e482314813f4ab3919b340b5e74640f of pydantic.main.BaseModel.model_validate:2
 msgid "Validate a pydantic model instance."
 msgstr ""
 
-#: 93129ae5731d445fba095d823274b85f of pydantic.main.BaseModel.model_validate:4
+#: 55cd02b2ad7a43bc9c38bc147d2f5b99 of pydantic.main.BaseModel.model_validate:4
 msgid "Args:"
 msgstr ""
 
-#: 9917887270b14afabc1f37647b5adc90 of pydantic.main.BaseModel.model_validate:5
+#: a6004308963849608e3a946e2afd63de of pydantic.main.BaseModel.model_validate:5
 msgid ""
 "obj: The object to validate. strict: Whether to enforce types strictly. "
+"extra: Whether to ignore, allow, or forbid extra data during model "
+"validation."
+msgstr ""
+
+#: a458fcb51d5245a28eadec8346dea552 of pydantic.main.BaseModel.model_validate:8
+msgid ""
+"See the [`extra` configuration value][pydantic.ConfigDict.extra] for "
+"details."
+msgstr ""
+
+#: 44a06a53dd1643c3b53912f762086dfa of pydantic.main.BaseModel.model_validate:9
+msgid ""
 "from_attributes: Whether to extract data from object attributes. context:"
 " Additional context to pass to the validator. by_alias: Whether to use "
 "the field's alias when validating against the provided input data. "
@@ -43,22 +55,35 @@ msgid ""
 "provided input data."
 msgstr ""
 
-#: 2fbd6b0677fa4abea72be65332dd5c25 of
-#: pydantic.main.BaseModel.model_validate:12
+#: 16da5ed4192445429e0ac98436b6ae03 of
+#: pydantic.main.BaseModel.model_validate:14
 msgid "Raises:"
 msgstr ""
 
-#: 276da98b54e544c09a31c3ea52c954d0 of
-#: pydantic.main.BaseModel.model_validate:13
+#: b17b9fd4c8a34439abf0e4fbf807b144 of
+#: pydantic.main.BaseModel.model_validate:15
 msgid "ValidationError: If the object could not be validated."
 msgstr ""
 
-#: 8bb5bec8a6e54abc9c530ed066d8a8ba of
-#: pydantic.main.BaseModel.model_validate:15
+#: b9ce64b17db744cebc393a8f93f015ef of
+#: pydantic.main.BaseModel.model_validate:17
 msgid "Returns:"
 msgstr ""
 
-#: 9f8ed03a2ca74af09ec39b98e778e58d of
-#: pydantic.main.BaseModel.model_validate:16
+#: 1a6a677b833c4a39b2e8b6c9b2fefd2a of
+#: pydantic.main.BaseModel.model_validate:18
 msgid "The validated model instance."
 msgstr ""
+
+#~ msgid ""
+#~ "obj: The object to validate. strict: "
+#~ "Whether to enforce types strictly. "
+#~ "from_attributes: Whether to extract data "
+#~ "from object attributes. context: Additional"
+#~ " context to pass to the validator."
+#~ " by_alias: Whether to use the field's"
+#~ " alias when validating against the "
+#~ "provided input data. by_name: Whether to"
+#~ " use the field's name when validating"
+#~ " against the provided input data."
+#~ msgstr ""

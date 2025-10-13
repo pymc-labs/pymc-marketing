@@ -180,7 +180,7 @@ The steps to follow to update the translatable sources are:
 1. Update the Spanish `.po` files
 
    ```bash
-   sphinx-intl update -p docs/gettext -l es
+   sphinx-intl update -p docs/gettext -l es --locale-dir locales
    ```
 
 ### Translated build preview

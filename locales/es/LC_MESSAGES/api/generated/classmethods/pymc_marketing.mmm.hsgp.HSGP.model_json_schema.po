@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: pymc-marketing local\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"POT-Creation-Date: 2025-10-13 11:28+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: es\n"
@@ -21,44 +21,77 @@ msgstr ""
 "Generated-By: Babel 2.17.0\n"
 
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.hsgp.HSGP.model_json_schema.rst:2
-#: a4added0c58941fd992cfa1238a46b86
+#: 81b448bcd74b48bdbe47bb1df5ca199c
 msgid "HSGP.model\\_json\\_schema"
 msgstr ""
 
-#: 318fa47ad2764f739b441cdfa1b037d2 of
+#: fb3cde14334147729979bbd734601c4e of
 #: pydantic.main.BaseModel.model_json_schema:2
 msgid "Generates a JSON schema for a model class."
 msgstr ""
 
-#: 6ae4c42b79304bd8bab31f1d92b2f202 of
+#: 9215ed0b06ba4260a556fa2aedd4f796 of
 #: pydantic.main.BaseModel.model_json_schema:4
 msgid "Args:"
 msgstr ""
 
-#: 3598307053f74d5aba04ef3f9a415f98 of
+#: 61b425b00f4b4cdaa0e694a8084df054 of
 #: pydantic.main.BaseModel.model_json_schema:5
 msgid ""
 "by_alias: Whether to use attribute aliases or not. ref_template: The "
-"reference template. schema_generator: To override the logic used to "
-"generate the JSON schema, as a subclass of"
+"reference template. union_format: The format to use when combining "
+"schemas from unions together. Can be one of:"
 msgstr ""
 
-#: c9d3ea32e55c49a8abe0239c667b7f2a of
-#: pydantic.main.BaseModel.model_json_schema:8
+#: 7041a29e7d6b4f47a0aa14c6a81f034d of
+#: pydantic.main.BaseModel.model_json_schema:9
+msgid ""
+"`'any_of'`: Use the [`anyOf`](https://json-schema.org/understanding-json-"
+"schema/reference/combining#anyOf)"
+msgstr ""
+
+#: b4f91a6c06884346bc73033fd01d6ddc of
+#: pydantic.main.BaseModel.model_json_schema:10
+msgid ""
+"keyword to combine schemas (the default). - `'primitive_type_array'`: Use"
+" the [`type`](https://json-schema.org/understanding-json-"
+"schema/reference/type) keyword as an array of strings, containing each "
+"type of the combination. If any of the schemas is not a primitive type "
+"(`string`, `boolean`, `null`, `integer` or `number`) or contains "
+"constraints/metadata, falls back to `any_of`."
+msgstr ""
+
+#: bacd1e25507e40f3a30804ce3c27244d of
+#: pydantic.main.BaseModel.model_json_schema:15
+msgid ""
+"schema_generator: To override the logic used to generate the JSON schema,"
+" as a subclass of"
+msgstr ""
+
+#: 49cf906ee6b244d18411313c5b7310cf of
+#: pydantic.main.BaseModel.model_json_schema:16
 msgid "`GenerateJsonSchema` with your desired modifications"
 msgstr ""
 
-#: 66d2a0fafdb04a60abbc18f93c3b6f66 of
-#: pydantic.main.BaseModel.model_json_schema:9
+#: 6451acb5943c4264b4849b1b13fc1df6 of
+#: pydantic.main.BaseModel.model_json_schema:17
 msgid "mode: The mode in which to generate the schema."
 msgstr ""
 
-#: 601d7eedcee4499781366c38f5d476ac of
-#: pydantic.main.BaseModel.model_json_schema:11
+#: 90dac30c5622494688ce5585eefd87e3 of
+#: pydantic.main.BaseModel.model_json_schema:19
 msgid "Returns:"
 msgstr ""
 
-#: 07dd1d904ceb483cb41e6f3a6f56030f of
-#: pydantic.main.BaseModel.model_json_schema:12
+#: ef546083267d46b898010f408969bc62 of
+#: pydantic.main.BaseModel.model_json_schema:20
 msgid "The JSON schema for the given model class."
 msgstr ""
+
+#~ msgid ""
+#~ "by_alias: Whether to use attribute "
+#~ "aliases or not. ref_template: The "
+#~ "reference template. schema_generator: To "
+#~ "override the logic used to generate "
+#~ "the JSON schema, as a subclass of"
+#~ msgstr ""
