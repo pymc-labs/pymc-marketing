@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: pymc-marketing local\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"POT-Creation-Date: 2025-10-13 11:28+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: es\n"
@@ -21,40 +21,40 @@ msgstr ""
 "Generated-By: Babel 2.17.0\n"
 
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.hsgp.SoftPlusHSGP.model_dump.rst:2
-#: bbda7b54185540f79886a80790e59ff2
+#: 37b852f789634a4aa53c4e46302ca0b1
 msgid "SoftPlusHSGP.model\\_dump"
 msgstr ""
 
-#: 4ae1d545378940cdae3d18bb56ce46c4 of pydantic.main.BaseModel.model_dump:2
+#: 24186066cf6043f89cfb467a667f4e17 of pydantic.main.BaseModel.model_dump:2
 msgid "!!! abstract \"Usage Documentation\""
 msgstr ""
 
-#: 6f118908e23b479cbcb6491d1677c4e7 of pydantic.main.BaseModel.model_dump:3
-msgid "[`model_dump`](../concepts/serialization.md#modelmodel_dump)"
+#: 021a11f644504a8f9b2a5bb32609a62f of pydantic.main.BaseModel.model_dump:3
+msgid "[`model_dump`](../concepts/serialization.md#python-mode)"
 msgstr ""
 
-#: ba98bee830f04b6b8584071178ca7ff8 of pydantic.main.BaseModel.model_dump:5
+#: a5552dee6bde49d09cbdfba386b01f15 of pydantic.main.BaseModel.model_dump:5
 msgid ""
 "Generate a dictionary representation of the model, optionally specifying "
 "which fields to include or exclude."
 msgstr ""
 
-#: 6b31568300784c2a9e18a1af30f0066c of pydantic.main.BaseModel.model_dump:7
+#: 62a727e2f0a9461681411170259ef589 of pydantic.main.BaseModel.model_dump:7
 msgid "Args:"
 msgstr ""
 
-#: eccd122805f148e685b211870809c31c of pydantic.main.BaseModel.model_dump:8
+#: 70773ec425264c7f969a3c90db88a158 of pydantic.main.BaseModel.model_dump:8
 msgid "mode: The mode in which `to_python` should run."
 msgstr ""
 
-#: 91ed04194376414eae54937b7109a048 of pydantic.main.BaseModel.model_dump:9
+#: d917543d81c74946a4a794231c7d3499 of pydantic.main.BaseModel.model_dump:9
 msgid ""
 "If mode is 'json', the output will only contain JSON serializable types. "
 "If mode is 'python', the output may contain non-JSON-serializable Python "
 "objects."
 msgstr ""
 
-#: 77bbfd68ae67426188b57548b87d855f of pydantic.main.BaseModel.model_dump:11
+#: adf305c622b24c48bb0afa8b7604287d of pydantic.main.BaseModel.model_dump:11
 msgid ""
 "include: A set of fields to include in the output. exclude: A set of "
 "fields to exclude from the output. context: Additional context to pass to"
@@ -62,41 +62,77 @@ msgid ""
 "dictionary key if defined. exclude_unset: Whether to exclude fields that "
 "have not been explicitly set. exclude_defaults: Whether to exclude fields"
 " that are set to their default value. exclude_none: Whether to exclude "
-"fields that have a value of `None`. round_trip: If True, dumped values "
-"should be valid as input for non-idempotent types such as Json[T]. "
-"warnings: How to handle serialization errors. False/\"none\" ignores "
-"them, True/\"warn\" logs errors,"
+"fields that have a value of `None`. exclude_computed_fields: Whether to "
+"exclude computed fields."
 msgstr ""
 
-#: ce392fe885b64917a3afba5e93083c0a of pydantic.main.BaseModel.model_dump:20
+#: 92de220efebc4aae9fed04afdce58028 of pydantic.main.BaseModel.model_dump:19
+msgid ""
+"While this can be useful for round-tripping, it is usually recommended tu"
+" use the dedicated `round_trip` parameter instead."
+msgstr ""
+
+#: 3e2e1be3e973424593e24e05b184ea46 of pydantic.main.BaseModel.model_dump:21
+msgid ""
+"round_trip: If True, dumped values should be valid as input for non-"
+"idempotent types such as Json[T]. warnings: How to handle serialization "
+"errors. False/\"none\" ignores them, True/\"warn\" logs errors,"
+msgstr ""
+
+#: f7cbc0e90a4f4348a84f643c5b6730f5 of pydantic.main.BaseModel.model_dump:23
 msgid ""
 "\"error\" raises a "
 "[`PydanticSerializationError`][pydantic_core.PydanticSerializationError]."
 msgstr ""
 
-#: 81177dd744b346dbaaae749d1a98787b of pydantic.main.BaseModel.model_dump:21
+#: d4ed8b20f1a34c66a4fd644f2850e3ec of pydantic.main.BaseModel.model_dump:24
 msgid ""
 "fallback: A function to call when an unknown value is encountered. If not"
 " provided,"
 msgstr ""
 
-#: 91305965927c4f818992c786a2725cad of pydantic.main.BaseModel.model_dump:22
+#: 5dc0a9d84dca4dcab32a3ac6733000b1 of pydantic.main.BaseModel.model_dump:25
 msgid ""
 "a "
 "[`PydanticSerializationError`][pydantic_core.PydanticSerializationError] "
 "error is raised."
 msgstr ""
 
-#: b448e8d59a8d4823a1b6a24acb1582fa of pydantic.main.BaseModel.model_dump:23
+#: 9b7af086e90e4e61a46d4641fe56fbd7 of pydantic.main.BaseModel.model_dump:26
 msgid ""
 "serialize_as_any: Whether to serialize fields with duck-typing "
 "serialization behavior."
 msgstr ""
 
-#: 30e4b4a509d945378d8e02dbc38a279b of pydantic.main.BaseModel.model_dump:25
+#: a8614f5299b342ee8699dc421411821c of pydantic.main.BaseModel.model_dump:28
 msgid "Returns:"
 msgstr ""
 
-#: de45cc48a88b4498a913a2a96bc84b40 of pydantic.main.BaseModel.model_dump:26
+#: 25fb213ac6fa4067915396b6d9213966 of pydantic.main.BaseModel.model_dump:29
 msgid "A dictionary representation of the model."
 msgstr ""
+
+#~ msgid "[`model_dump`](../concepts/serialization.md#modelmodel_dump)"
+#~ msgstr ""
+
+#~ msgid ""
+#~ "include: A set of fields to "
+#~ "include in the output. exclude: A "
+#~ "set of fields to exclude from the"
+#~ " output. context: Additional context to "
+#~ "pass to the serializer. by_alias: "
+#~ "Whether to use the field's alias "
+#~ "in the dictionary key if defined. "
+#~ "exclude_unset: Whether to exclude fields "
+#~ "that have not been explicitly set. "
+#~ "exclude_defaults: Whether to exclude fields"
+#~ " that are set to their default "
+#~ "value. exclude_none: Whether to exclude "
+#~ "fields that have a value of "
+#~ "`None`. round_trip: If True, dumped "
+#~ "values should be valid as input "
+#~ "for non-idempotent types such as "
+#~ "Json[T]. warnings: How to handle "
+#~ "serialization errors. False/\"none\" ignores "
+#~ "them, True/\"warn\" logs errors,"
+#~ msgstr ""
