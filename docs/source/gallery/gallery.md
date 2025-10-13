@@ -48,11 +48,14 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 ::::
 
 ### Custom models
+::::{grid} 1 2 3 3
+:gutter: 3
 
 :::{grid-item-card} Custom Models with MMM components
 :img-top: ../gallery/images/mmm_components.png
 :link: ../notebooks/mmm/mmm_components.html
 :::
+::::
 
 ### Data Connectors
 
