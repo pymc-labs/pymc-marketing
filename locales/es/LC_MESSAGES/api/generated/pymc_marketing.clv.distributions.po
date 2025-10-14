@@ -12,42 +12,47 @@ msgstr ""
 "POT-Creation-Date: 2025-10-07 18:10+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language: es\n"
 "Language-Team: es <LL@li.org>\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Language: es\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "Generated-By: Babel 2.17.0\n"
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.rst:2
 #: fdbf52a58201489cb570a635559eb640
 msgid "distributions"
-msgstr ""
+msgstr "distribuciones"
 
 #: e9f3b860a690400b962af397a8a1fa75 of pymc_marketing.clv.distributions:1
 msgid "Distributions for the CLV module."
-msgstr ""
+msgstr "Distribuciones para el módulo CLV."
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.rst:17
 #: 509581d666f0460190fd3b6852728f7b
 msgid "Classes"
-msgstr ""
+msgstr "Clases"
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.rst:43:<autosummary>:1
 #: fff2727b3a9a4e68a58f6d732f799cdf
 msgid ""
 ":py:obj:`BetaGeoBetaBinom "
-"<pymc_marketing.clv.distributions.BetaGeoBetaBinom>`\\ \\(name\\, "
-"\\*args\\, \\*\\*kwargs\\)"
+"<pymc_marketing.clv.distributions.BetaGeoBetaBinom>`\\ \\(name\\, \\*args\\,"
+" \\*\\*kwargs\\)"
 msgstr ""
+":py:obj:`BetaGeoBetaBinom "
+"<pymc_marketing.clv.distributions.BetaGeoBetaBinom>`\\ \\(nombre\\, "
+"\\*args\\, \\*\\*kwargs\\)"
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.rst:43:<autosummary>:1
 #: 3d5045157c744c7c9d8c4dbfa9f67dac
 msgid ""
-"Population-level distribution class for a discrete, non-contractual, "
-"Beta-Geometric/Beta-Binomial process."
+"Population-level distribution class for a discrete, non-contractual, Beta-"
+"Geometric/Beta-Binomial process."
 msgstr ""
+"Clase de distribución a nivel poblacional para un proceso discreto, no "
+"contractual, Beta-Geométrico/Beta-Binomial."
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.rst:43:<autosummary>:1
 #: 5043595186ab41c491af034dc3961409
@@ -55,13 +60,17 @@ msgid ""
 ":py:obj:`BetaGeoNBD <pymc_marketing.clv.distributions.BetaGeoNBD>`\\ "
 "\\(name\\, \\*args\\[\\, rng\\, dims\\, ...\\]\\)"
 msgstr ""
+":py:obj:`BetaGeoNBD <pymc_marketing.clv.distributions.BetaGeoNBD>`\\ "
+"\\(nombre\\, \\*args\\[\\, rng\\, dims\\, ...\\]\\)"
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.rst:43:<autosummary>:1
 #: 3dccbabfe4ec404e9969314aa619dc13
 msgid ""
-"Population-level distribution class for a discrete, non-contractual, "
-"Beta-Geometric/Negative-Binomial process."
+"Population-level distribution class for a discrete, non-contractual, Beta-"
+"Geometric/Negative-Binomial process."
 msgstr ""
+"Clase de distribución a nivel poblacional para un proceso discreto, no "
+"contractual, Beta-Geométrico/Binomial Negativo."
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.rst:43:<autosummary>:1
 #: dc3c4838f43f4029a684505a4f296727
@@ -69,11 +78,16 @@ msgid ""
 ":py:obj:`ContContract <pymc_marketing.clv.distributions.ContContract>`\\ "
 "\\(name\\, \\*args\\[\\, rng\\, dims\\, ...\\]\\)"
 msgstr ""
+":py:obj:`ContContract <pymc_marketing.clv.distributions.ContContract>`\\ "
+"\\(nombre\\, \\*args\\[\\, rng\\, dims\\, ...\\]\\)"
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.rst:43:<autosummary>:1
 #: 6227b26b905146d1a8d8b22f092cbf49
-msgid "Distribution class of a continuous contractual data-generating process."
+msgid ""
+"Distribution class of a continuous contractual data-generating process."
 msgstr ""
+"Clase de distribución de un proceso continuo de generación de datos "
+"contractuales."
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.rst:43:<autosummary>:1
 #: d6c57f598b6e45f7bcee8e505051ed14
@@ -82,11 +96,15 @@ msgid ""
 "<pymc_marketing.clv.distributions.ContNonContract>`\\ \\(name\\, "
 "\\*args\\[\\, rng\\, dims\\, ...\\]\\)"
 msgstr ""
+":py:obj:`ContNonContract "
+"<pymc_marketing.clv.distributions.ContNonContract>`\\ \\(nombre\\, "
+"\\*args\\[\\, rng\\, dims\\, ...\\]\\)"
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.rst:43:<autosummary>:1
 #: 731eb7875eec45a68b169f320e29e68d
 msgid "Individual-level model for the customer lifetime value."
 msgstr ""
+"Modelo a nivel individual para el valor del tiempo de vida del cliente."
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.rst:43:<autosummary>:1
 #: 6047e3a24e81407c985b6c67fe2080ab
@@ -95,13 +113,18 @@ msgid ""
 "<pymc_marketing.clv.distributions.ModifiedBetaGeoNBD>`\\ \\(name\\, "
 "\\*args\\[\\, rng\\, dims\\, ...\\]\\)"
 msgstr ""
+":py:obj:`ModifiedBetaGeoNBD "
+"<pymc_marketing.clv.distributions.ModifiedBetaGeoNBD>`\\ \\(nombre\\, "
+"\\*args\\[\\, rng\\, dims\\, ...\\]\\)"
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.rst:43:<autosummary>:1
 #: b0943d803d294612957ec9e601df7a96
 msgid ""
-"Population-level distribution for a discrete, non-contractual Modified-"
-"Beta-Geometric/Negative-Binomial process."
+"Population-level distribution for a discrete, non-contractual Modified-Beta-"
+"Geometric/Negative-Binomial process."
 msgstr ""
+"Distribución a nivel poblacional para un proceso discreto, no contractual, "
+"Modificado-Beta-Geométrico/Binomial-Negativo."
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.rst:43:<autosummary>:1
 #: e76296e9c33f4fb9b8aa048285f7c36e
@@ -109,6 +132,8 @@ msgid ""
 ":py:obj:`ParetoNBD <pymc_marketing.clv.distributions.ParetoNBD>`\\ "
 "\\(name\\, \\*args\\[\\, rng\\, dims\\, initval\\, ...\\]\\)"
 msgstr ""
+":py:obj:`ParetoNBD <pymc_marketing.clv.distributions.ParetoNBD>`\\ "
+"\\(nombre\\, \\*args\\[\\, rng\\, dims\\, initval\\, ...\\]\\)"
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.rst:43:<autosummary>:1
 #: aec16638cb484c4dbdb10d4b7e4e48e8
@@ -116,3 +141,5 @@ msgid ""
 "Population-level distribution class for a continuous, non-contractual, "
 "Pareto/NBD process."
 msgstr ""
+"Clase de distribución a nivel poblacional para un proceso continuo, no "
+"contractual, Pareto/NBD."
