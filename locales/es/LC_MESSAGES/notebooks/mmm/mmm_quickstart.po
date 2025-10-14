@@ -324,7 +324,7 @@ msgstr "**Lado izquierdo**: Distribuciones suaves con forma de campana"
 #: ../source/notebooks/mmm/mmm_quickstart.ipynb:240004
 #: 633203436abb4e9dbbe45664b56cf16b
 msgid "**Right side**: \"Fuzzy caterpillar\" patterns (good mixing) with no trends"
-msgstr "**Lado derecho**: patrones de "oruga difusa" (buen mezclado) sin tendencias"
+msgstr "**Lado derecho**: patrones de \"oruga difusa\" (buen mezclado) sin tendencias"
 
 #: ../source/notebooks/mmm/mmm_quickstart.ipynb:250002
 #: 2c49ae6a3c18463584aea238b92a3371
