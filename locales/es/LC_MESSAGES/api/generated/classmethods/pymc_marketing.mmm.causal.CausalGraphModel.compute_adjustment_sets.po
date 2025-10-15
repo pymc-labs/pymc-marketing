@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.CausalGraphModel.compute_adjustment_sets.rst:2
 #: 7f884f8d58284b9cbdbe8068dab824d7
 msgid "CausalGraphModel.compute\\_adjustment\\_sets"
-msgstr ""
+msgstr "CausalGraphModel.calcular\\_conjuntos\\_de\\_ajuste"
 
 #: 139529bd0f4547eca0b64efbf3f70936 of
 #: pymc_marketing.mmm.causal.CausalGraphModel.compute_adjustment_sets:2
 msgid "Compute minimal adjustment sets and handle warnings."
-msgstr ""
+msgstr "Calcule conjuntos de ajuste mínimos y maneje las advertencias."

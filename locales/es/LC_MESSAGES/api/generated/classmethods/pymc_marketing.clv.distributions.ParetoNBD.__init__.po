@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.distributions.ParetoNBD.__init__.rst:2
 #: e4fdc5bd15814d628f131a16de321994
 msgid "ParetoNBD.\\_\\_init\\_\\_"
-msgstr ""
+msgstr "ParetoNBD.__init__"

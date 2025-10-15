@@ -23,20 +23,26 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.fourier.FourierBase.__init__.rst:2
 #: 8a33cd35da9a4c2288d9a497841b3cba
 msgid "FourierBase.\\_\\_init\\_\\_"
-msgstr ""
+msgstr "FourierBase.\\_\\_init\\_\\_"
 
 #: 848cc2cf893c49a099d045a174cc60f4 of pydantic.main.BaseModel.__init__:2
 msgid ""
 "Create a new model by parsing and validating input data from keyword "
 "arguments."
 msgstr ""
+"Cree un nuevo modelo analizando y validando los datos de entrada de los "
+"argumentos de palabra clave."
 
 #: 2a828de8162841a29a3d0947a5e7d463 of pydantic.main.BaseModel.__init__:4
 msgid ""
-"Raises [`ValidationError`][pydantic_core.ValidationError] if the input "
-"data cannot be validated to form a valid model."
+"Raises [`ValidationError`][pydantic_core.ValidationError] if the input data "
+"cannot be validated to form a valid model."
 msgstr ""
+"Genera [`ValidationError`][pydantic_core.ValidationError] si los datos de "
+"entrada no pueden ser validados para formar un modelo válido."
 
 #: 98a2650e12ab4cd49f4166acd127f9fd of pydantic.main.BaseModel.__init__:7
 msgid "`self` is explicitly positional-only to allow `self` as a field name."
 msgstr ""
+"`self` es explícitamente solo posicional para permitir que `self` sea un "
+"nombre de campo."

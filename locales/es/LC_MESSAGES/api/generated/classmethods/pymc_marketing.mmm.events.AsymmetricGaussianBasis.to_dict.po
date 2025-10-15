@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.events.AsymmetricGaussianBasis.to_dict.rst:2
 #: ce3d3f478f244f2e8d1288fe4a22aca1
 msgid "AsymmetricGaussianBasis.to\\_dict"
-msgstr ""
+msgstr "AsymmetricGaussianBasis.to\\_dict"
 
 #: 0ed81a43e8e04946a711967a65de0bc4 of
 #: pymc_marketing.mmm.events.AsymmetricGaussianBasis.to_dict:2
 msgid "Convert the asymmetric Gaussian basis to a dictionary."
-msgstr ""
+msgstr "Convierte la base gaussiana asimétrica en un diccionario."

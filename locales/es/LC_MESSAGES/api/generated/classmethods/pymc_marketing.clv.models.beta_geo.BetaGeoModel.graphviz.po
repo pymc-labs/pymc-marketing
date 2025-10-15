@@ -23,34 +23,34 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.beta_geo.BetaGeoModel.graphviz.rst:2
 #: 638d0baa3ae242dea7d7a2934d385061
 msgid "BetaGeoModel.graphviz"
-msgstr ""
+msgstr "BetaGeoModel.graphviz"
 
 #: 9a4708735da44ec9a5e1138475adde9a of
 #: pymc_marketing.model_builder.ModelBuilder.graphviz:2
 msgid "Get the graphviz representation of the model."
-msgstr ""
+msgstr "Obtenga la representación graphviz del modelo."
 
 #: 0776c1d3946b4c3bb9f09079bd8919bc of
 #: pymc_marketing.model_builder.ModelBuilder.graphviz
 msgid "Parameters"
-msgstr ""
+msgstr "Parámetros"
 
 #: 5651daaf2e474f90939bf49e491564a6 of
 #: pymc_marketing.model_builder.ModelBuilder.graphviz:7
 msgid "**\\*\\*kwargs**"
-msgstr ""
+msgstr "**\\*\\*kwargs**"
 
 #: 2f3ac6aeff8b41b1a3c9125e3246ecb3 of
 #: pymc_marketing.model_builder.ModelBuilder.graphviz:8
 msgid "Keyword arguments for the `pm.model_to_graphviz` function"
-msgstr ""
+msgstr "Argumentos de palabras clave para la función `pm.model_to_graphviz`"
 
 #: c573c4a87d324d4493e27510e17e7d02 of
 #: pymc_marketing.model_builder.ModelBuilder.graphviz
 msgid "Returns"
-msgstr ""
+msgstr "Devoluciones"
 
 #: b27626314af64cf4b67b896b446c85ef of
 #: pymc_marketing.model_builder.ModelBuilder.graphviz:14
 msgid ":obj:`graphviz.Digraph`"
-msgstr ""
+msgstr ":obj:`graphviz.Digraph`"

@@ -23,9 +23,10 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.idata_to_init_kwargs.rst:2
 #: f6edab93e6fa48ca83b38c826a926ead
 msgid "GammaGammaModelIndividual.idata\\_to\\_init\\_kwargs"
-msgstr ""
+msgstr "GammaGammaModelIndividual.idata\\_to\\_init\\_kwargs"
 
 #: 2d660d0d801649b19721330b71525a81 of
 #: pymc_marketing.clv.models.basic.CLVModel.idata_to_init_kwargs:2
 msgid "Create the initialization kwargs from an InferenceData object."
 msgstr ""
+"Cree los kwargs de inicialización a partir de un objeto InferenceData."

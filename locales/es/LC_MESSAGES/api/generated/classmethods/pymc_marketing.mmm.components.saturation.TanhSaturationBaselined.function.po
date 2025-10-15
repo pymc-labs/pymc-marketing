@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.components.saturation.TanhSaturationBaselined.function.rst:2
 #: 822768aeaf6e492782964b652d97e9aa
 msgid "TanhSaturationBaselined.function"
-msgstr ""
+msgstr "TanhSaturationBaselined.función"
 
 #: 8245a3b7137b4e6f98c6fad78599587f of
 #: pymc_marketing.mmm.components.saturation.TanhSaturationBaselined.function:2
 msgid "Tanh saturation function."
-msgstr ""
+msgstr "Función de saturación Tanh."

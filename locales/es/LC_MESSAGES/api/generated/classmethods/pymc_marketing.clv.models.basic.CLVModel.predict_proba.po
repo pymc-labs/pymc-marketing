@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.basic.CLVModel.predict_proba.rst:2
 #: f9d86decee6541a58a8bbfc6d5dd3b1a
 msgid "CLVModel.predict\\_proba"
-msgstr ""
+msgstr "CLVModel.predecir\\_probabilidad"

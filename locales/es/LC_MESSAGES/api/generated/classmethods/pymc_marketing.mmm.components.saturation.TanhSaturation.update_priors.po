@@ -23,12 +23,12 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.components.saturation.TanhSaturation.update_priors.rst:2
 #: bb754e3e03174fbbb4051f0a60fee27f
 msgid "TanhSaturation.update\\_priors"
-msgstr ""
+msgstr "TanhSaturation.actualizar\\_prioridades"
 
 #: 5cc57c829379407697a28e2917f7aa21 of
 #: pymc_marketing.mmm.components.base.Transformation.update_priors:2
 msgid "Update the priors for a function after initialization."
-msgstr ""
+msgstr "Actualice los priors para una función después de la inicialización."
 
 #: 764809ca5de146b98ff74dd07a628d16 of
 #: pymc_marketing.mmm.components.base.Transformation.update_priors:4
@@ -37,33 +37,37 @@ msgid ""
 "Uses {prefix}_{parameter_name} as the key for the priors instead of the "
 "parameter name in order to be used in the larger MMM."
 msgstr ""
+"Utiliza {prefix}_{parameter_name} como la clave para los priors en lugar del"
+" nombre del parámetro para ser utilizado en el MMM más grande."
 
 #: ee183d9dd22a42468aed2d72aa6dc92b of
 #: pymc_marketing.mmm.components.base.Transformation.update_priors
 msgid "Parameters"
-msgstr ""
+msgstr "Parámetros"
 
 #: 7555f0197e7d41669701b21878cd26ec of
 #: pymc_marketing.mmm.components.base.Transformation.update_priors:9
 msgid "**priors** : :class:`python:dict`\\[:class:`python:str`, :obj:`Prior`]"
 msgstr ""
+"**antecedentes** : :class:`python:dict`\\[:class:`python:str`, :obj:`Prior`]"
 
 #: b71c1a514d564523a1b1a2cb0eacc37f of
 #: pymc_marketing.mmm.components.base.Transformation.update_priors:8
 msgid "python:dict[python:str, Prior]"
-msgstr ""
+msgstr "python:dict[python:str, Prior]"
 
 #: efb1490a579143aa90f296da8e5917aa of
 #: pymc_marketing.mmm.components.base.Transformation.update_priors:10
 msgid "Dictionary with the new priors for the parameters of the function."
-msgstr ""
+msgstr "Diccionario con los nuevos priors para los parámetros de la función."
 
 #: 98660f6a0a7a47b5b531a584973d8856 of
 #: pymc_marketing.mmm.components.base.Transformation.update_priors:25
 msgid "Examples"
-msgstr ""
+msgstr "Ejemplos"
 
 #: 52bcc461a17b4ee19f94d712bf8c55ec of
 #: pymc_marketing.mmm.components.base.Transformation.update_priors:26
 msgid "Update the priors for a transformation after initialization."
 msgstr ""
+"Actualice los priors para una transformación después de la inicialización."

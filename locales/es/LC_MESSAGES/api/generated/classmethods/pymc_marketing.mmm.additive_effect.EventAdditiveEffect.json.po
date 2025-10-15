@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.json.rst:2
 #: fd3753f06d8e42b7bd9ec82cfa1ee6a1
 msgid "EventAdditiveEffect.json"
-msgstr ""
+msgstr "EfectoAditivoEvento.json"

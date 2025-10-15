@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.fit_summary.rst:2
 #: 41a533f11d624ebea06ef476036133dd
 msgid "ModifiedBetaGeoModel.fit\\_summary"
-msgstr ""
+msgstr "ModifiedBetaGeoModel.fit\\_summary"
 
 #: 36bda1d6bf824940b8620b83412fcb29 of
 #: pymc_marketing.clv.models.basic.CLVModel.fit_summary:2
 msgid "Compute the summary of the fit result."
-msgstr ""
+msgstr "Calcule el resumen del resultado del ajuste."

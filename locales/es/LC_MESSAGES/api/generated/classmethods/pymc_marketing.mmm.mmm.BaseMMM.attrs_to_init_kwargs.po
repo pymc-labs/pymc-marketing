@@ -12,35 +12,35 @@ msgstr ""
 "POT-Creation-Date: 2025-10-07 18:10+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language: es\n"
 "Language-Team: es <LL@li.org>\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Language: es\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "Generated-By: Babel 2.17.0\n"
 
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.mmm.BaseMMM.attrs_to_init_kwargs.rst:2
 #: 07278f950ad44023b8f1638b80788722
 msgid "BaseMMM.attrs\\_to\\_init\\_kwargs"
-msgstr ""
+msgstr "BaseMMM.attrs\\_to\\_init\\_kwargs"
 
 #: d6b422c41ccd42b49d1f863052c859fa of
 #: pymc_marketing.mmm.mmm.BaseMMM.attrs_to_init_kwargs:2
 msgid "Convert attributes to initialization kwargs."
-msgstr ""
+msgstr "Convertir atributos a kwargs de inicialización."
 
 #: 0e1016bfa5dc4831935ea7fc5284ce69 of
 #: pymc_marketing.mmm.mmm.BaseMMM.attrs_to_init_kwargs
 msgid "Returns"
-msgstr ""
+msgstr "Devoluciones"
 
 #: cb42de64d03546eb848884e25c8367b7 of
 #: pymc_marketing.mmm.mmm.BaseMMM.attrs_to_init_kwargs:10
 msgid ":class:`python:dict`\\[:class:`python:str`, :obj:`Any`]"
-msgstr ""
+msgstr ":class:`python:dict`\\[:class:`python:str`, :obj:`Cualquiera`]"
 
 #: cdece81d87ba4fada01f4b1e9d8d50fb of
 #: pymc_marketing.mmm.mmm.BaseMMM.attrs_to_init_kwargs:11
 msgid "The initialization kwargs."
-msgstr ""
+msgstr "Los kwargs de inicialización."

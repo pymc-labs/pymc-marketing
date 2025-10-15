@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.events.HalfGaussianBasis.to_dict.rst:2
 #: f25ff47be98e4b92945e3dcdcbc07aaf
 msgid "HalfGaussianBasis.to\\_dict"
-msgstr ""
+msgstr "HalfGaussianBasis.to\\_dict"
 
 #: 8dd0876d5f404ff7b9b818dc0d21cf44 of
 #: pymc_marketing.mmm.events.HalfGaussianBasis.to_dict:2
 msgid "Convert the half Gaussian basis to a dictionary."
-msgstr ""
+msgstr "Convierte la base gaussiana media a un diccionario."

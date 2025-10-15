@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.components.adstock.NoAdstock.__init__.rst:2
 #: 9cd9dd3be80c47579bee328159ffc665
 msgid "NoAdstock.\\_\\_init\\_\\_"
-msgstr ""
+msgstr "NoAdstock.__init__"

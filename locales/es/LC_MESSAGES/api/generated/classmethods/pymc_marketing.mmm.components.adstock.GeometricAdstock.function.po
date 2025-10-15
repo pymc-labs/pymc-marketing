@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.components.adstock.GeometricAdstock.function.rst:2
 #: 1136cfa5edb94117952d1e3ab9f99364
 msgid "GeometricAdstock.function"
-msgstr ""
+msgstr "GeometricAdstock.función"
 
 #: 545c0682d06f4930a146ffe807b5355e of
 #: pymc_marketing.mmm.components.adstock.GeometricAdstock.function:2
 msgid "Geometric adstock function."
-msgstr ""
+msgstr "Función de adstock geométrico."

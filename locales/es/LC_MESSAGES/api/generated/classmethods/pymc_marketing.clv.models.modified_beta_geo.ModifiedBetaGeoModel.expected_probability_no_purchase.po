@@ -23,16 +23,18 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.expected_probability_no_purchase.rst:2
 #: 00d1ef473db045a99e0636280d4adce5
 msgid "ModifiedBetaGeoModel.expected\\_probability\\_no\\_purchase"
-msgstr ""
+msgstr "ModifiedBetaGeoModel.expected\\_probability\\_no\\_purchase"
 
 #: 352aa1016b9f440b850252b75647dfd7 of
 #: pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.expected_probability_no_purchase:2
 msgid ""
-"Probability a customer with frequency, recency, and T will have 0 "
-"purchases in the period (T, T+t]."
+"Probability a customer with frequency, recency, and T will have 0 purchases "
+"in the period (T, T+t]."
 msgstr ""
+"Probabilidad de que un cliente con frecuencia, recencia y T tenga 0 compras "
+"en el período (T, T+t]."
 
 #: e861f56820874d74b41af73008664dfc of
 #: pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.expected_probability_no_purchase:4
 msgid "The MBG/NBD model does not support this method."
-msgstr ""
+msgstr "El modelo MBG/NBD no admite este método."

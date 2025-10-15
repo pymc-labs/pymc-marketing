@@ -23,7 +23,7 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.extract_response_distribution.rst:2
 #: cf9740e1bdfb4cf6b6d70f5d89528a61
 msgid "BudgetOptimizer.extract\\_response\\_distribution"
-msgstr ""
+msgstr "BudgetOptimizer.extraer\\_distribución\\_de\\_respuesta"
 
 #: d664155a9a5b4060bbf827d8b732c540 of
 #: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.extract_response_distribution:2
@@ -31,3 +31,5 @@ msgid ""
 "Extract the response distribution graph, conditioned on posterior "
 "parameters."
 msgstr ""
+"Extraiga el gráfico de distribución de respuestas, condicionado a los "
+"parámetros posteriores."

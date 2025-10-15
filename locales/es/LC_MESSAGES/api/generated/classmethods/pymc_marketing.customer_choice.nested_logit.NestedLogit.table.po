@@ -23,39 +23,39 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.customer_choice.nested_logit.NestedLogit.table.rst:2
 #: bb54f916f2d9429fb26b883894d59892
 msgid "NestedLogit.table"
-msgstr ""
+msgstr "NestedLogit.tabla"
 
 #: b6942d5b5718461faab8b0ae3826ba84 of
 #: pymc_marketing.model_builder.ModelBuilder.table:2
 msgid "Get the summary table of the model."
-msgstr ""
+msgstr "Obtenga la tabla resumen del modelo."
 
 #: 76663fc688c8479480b345f794f81766 of
 #: pymc_marketing.model_builder.ModelBuilder.table
 msgid "Parameters"
-msgstr ""
+msgstr "Parámetros"
 
 #: 85385d03f2474bc287b6d251a59fdf6e of
 #: pymc_marketing.model_builder.ModelBuilder.table:7
 msgid "**\\*\\*model_table_kwargs**"
-msgstr ""
+msgstr "**\\*\\*model_table_kwargs**"
 
 #: 82eead9ec58449c0b97cd67ffa619361 of
 #: pymc_marketing.model_builder.ModelBuilder.table:8
 msgid "Keyword arguments for the `model_table` function"
-msgstr ""
+msgstr "Argumentos de palabra clave para la función `model_table`"
 
 #: 76b48db0bbef46149e8aedacf62a6a28 of
 #: pymc_marketing.model_builder.ModelBuilder.table
 msgid "Returns"
-msgstr ""
+msgstr "Devoluciones"
 
 #: 9bf809c40a754bc5a303ad47b488a599 of
 #: pymc_marketing.model_builder.ModelBuilder.table:14
 msgid ":obj:`rich.table.Table`"
-msgstr ""
+msgstr ":obj:`rich.table.Table`"
 
 #: a31b598f6f8b4e6e92ba1bc097ed68aa of
 #: pymc_marketing.model_builder.ModelBuilder.table:15
 msgid "A rich table containing the summary of the model."
-msgstr ""
+msgstr "Una tabla rica que contiene el resumen del modelo."

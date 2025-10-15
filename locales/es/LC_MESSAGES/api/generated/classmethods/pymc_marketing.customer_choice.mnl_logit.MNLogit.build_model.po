@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.customer_choice.mnl_logit.MNLogit.build_model.rst:2
 #: ae968acabc5a4bd8b3ae4ed9392a67bb
 msgid "MNLogit.build\\_model"
-msgstr ""
+msgstr "MNLogit.construir\\_modelo"
 
 #: 05e4326c26a24bfdae53e1343c115dd4 of
 #: pymc_marketing.customer_choice.mnl_logit.MNLogit.build_model:2
 msgid "Do not use, required by parent class. Prefer make_model()."
-msgstr ""
+msgstr "No utilizar, requerido por la clase padre. Preferir make_model()."

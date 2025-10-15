@@ -23,7 +23,7 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.attrs_to_init_kwargs.rst:2
 #: 0ad15e5776a649cdbda3074a44ec00b3
 msgid "BaseGammaGammaModel.attrs\\_to\\_init\\_kwargs"
-msgstr ""
+msgstr "BaseGammaGammaModel.attrs\\_to\\_init\\_kwargs"
 
 #: 1dcbebc6297044b4bbad505883c60eeb of
 #: pymc_marketing.model_builder.ModelIO.attrs_to_init_kwargs:2
@@ -31,6 +31,8 @@ msgid ""
 "Convert the model configuration and sampler configuration from the "
 "attributes to keyword arguments."
 msgstr ""
+"Convierte la configuración del modelo y la configuración del muestreador de "
+"los atributos a argumentos de palabra clave."
 
 #: 99f795cda411419884f51032f20b4c7c of
 #: pymc_marketing.model_builder.ModelIO.attrs_to_init_kwargs:4
@@ -38,3 +40,5 @@ msgid ""
 "This method must be overridden in child classes if additional keyword "
 "arguments are needed."
 msgstr ""
+"Este método debe ser sobrescrito en las clases hijas si se necesitan "
+"argumentos de palabra clave adicionales."

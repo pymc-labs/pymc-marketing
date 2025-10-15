@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.distributions.ContNonContract.__init__.rst:2
 #: 78a30bdb4b144aa0bc2e0c2d9f892296
 msgid "ContNonContract.\\_\\_init\\_\\_"
-msgstr ""
+msgstr "ContNonContract.\\_\\_init\\_\\_"

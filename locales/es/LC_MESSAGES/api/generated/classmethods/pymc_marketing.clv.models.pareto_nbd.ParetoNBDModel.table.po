@@ -23,39 +23,39 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.table.rst:2
 #: 2934c20c5d004714a908604964525f64
 msgid "ParetoNBDModel.table"
-msgstr ""
+msgstr "ModeloParetoNBD.tabla"
 
 #: 3122ce2f592249eaaf435166246dff92 of
 #: pymc_marketing.model_builder.ModelBuilder.table:2
 msgid "Get the summary table of the model."
-msgstr ""
+msgstr "Obtenga la tabla resumen del modelo."
 
 #: 4f5467c3745e440f8d6c50cd06888549 of
 #: pymc_marketing.model_builder.ModelBuilder.table
 msgid "Parameters"
-msgstr ""
+msgstr "Parámetros"
 
 #: 63832772db8b4235a6dcaa51acc9d318 of
 #: pymc_marketing.model_builder.ModelBuilder.table:7
 msgid "**\\*\\*model_table_kwargs**"
-msgstr ""
+msgstr "**\\*\\*model_table_kwargs**"
 
 #: c7b4494cdf2245e38639799845b11b10 of
 #: pymc_marketing.model_builder.ModelBuilder.table:8
 msgid "Keyword arguments for the `model_table` function"
-msgstr ""
+msgstr "Argumentos de palabras clave para la función `model_table`"
 
 #: 2cc78028afeb4912b0a91e7f3e06c98b of
 #: pymc_marketing.model_builder.ModelBuilder.table
 msgid "Returns"
-msgstr ""
+msgstr "Devoluciones"
 
 #: 677bf85c540b40f9b4725df964315fbe of
 #: pymc_marketing.model_builder.ModelBuilder.table:14
 msgid ":obj:`rich.table.Table`"
-msgstr ""
+msgstr ":obj:`rich.table.Table`"
 
 #: 83437e5cef5c4b0481d69a3145c1c8a4 of
 #: pymc_marketing.model_builder.ModelBuilder.table:15
 msgid "A rich table containing the summary of the model."
-msgstr ""
+msgstr "Una tabla rica que contiene el resumen del modelo."

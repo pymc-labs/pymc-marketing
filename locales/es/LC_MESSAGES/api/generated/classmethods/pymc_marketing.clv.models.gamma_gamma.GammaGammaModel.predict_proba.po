@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.gamma_gamma.GammaGammaModel.predict_proba.rst:2
 #: 2cac1e6ac8704f7bb8c3d19b12574a0a
 msgid "GammaGammaModel.predict\\_proba"
-msgstr ""
+msgstr "GammaGammaModel.predict\\_proba"

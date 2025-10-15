@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.build_from_idata.rst:2
 #: 9317b5827afb41b6b3c7a26b174dc235
 msgid "BetaGeoBetaBinomModel.build\\_from\\_idata"
-msgstr ""
+msgstr "BetaGeoBetaBinomModel.build\\_from\\_idata"
 
 #: 50c32391567d4d508a10450dc54fcc71 of
 #: pymc_marketing.clv.models.basic.CLVModel.build_from_idata:2
 msgid "Build the model from the InferenceData object."
-msgstr ""
+msgstr "Construya el modelo a partir del objeto InferenceData."

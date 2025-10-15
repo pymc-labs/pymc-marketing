@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.fourier.FourierBase.parse_file.rst:2
 #: 80a755ad502c4956a5d725b2dcf77e6e
 msgid "FourierBase.parse\\_file"
-msgstr ""
+msgstr "FourierBase.parse\\_file"

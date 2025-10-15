@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.customer_choice.nested_logit.NestedLogit.make_model.rst:2
 #: 714ee2ccb3c443f0bd3b66c139841ecb
 msgid "NestedLogit.make\\_model"
-msgstr ""
+msgstr "NestedLogit.hacer\\_modelo"
 
 #: 813bd0cc652b4090a1570bb4c92196d6 of
 #: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_model:2
 msgid "Build Model."
-msgstr ""
+msgstr "Construir modelo."

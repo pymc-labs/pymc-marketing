@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.update_forward_refs.rst:2
 #: 7841d6b46f9e4598b278a47e0840a5d5
 msgid "BudgetOptimizer.update\\_forward\\_refs"
-msgstr ""
+msgstr "BudgetOptimizer.actualizar\\_referencias\\_adelante"

@@ -23,7 +23,7 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.base.MMMModelBuilder.attrs_to_init_kwargs.rst:2
 #: c521164d3a284f50a6db3662182e9d96
 msgid "MMMModelBuilder.attrs\\_to\\_init\\_kwargs"
-msgstr ""
+msgstr "MMMModelBuilder.attrs\\_to\\_init\\_kwargs"
 
 #: 95e0201eb48943d9ac0901fa121f4714 of
 #: pymc_marketing.model_builder.ModelIO.attrs_to_init_kwargs:2
@@ -31,6 +31,8 @@ msgid ""
 "Convert the model configuration and sampler configuration from the "
 "attributes to keyword arguments."
 msgstr ""
+"Convierte la configuración del modelo y la configuración del muestreador de "
+"los atributos a argumentos de palabra clave."
 
 #: d7d37f8b18594013945dc337aab272e1 of
 #: pymc_marketing.model_builder.ModelIO.attrs_to_init_kwargs:4
@@ -38,3 +40,5 @@ msgid ""
 "This method must be overridden in child classes if additional keyword "
 "arguments are needed."
 msgstr ""
+"Este método debe ser sobrescrito en las clases hijas si se necesitan "
+"argumentos de palabra clave adicionales."
