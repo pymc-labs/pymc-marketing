@@ -244,9 +244,9 @@ class ShiftedBetaGeoModel(CLVModel):
         )
 
         # Validate T requirements for predictions
-        if np.any((pred_data["T"] < 1) | np.isnan(pred_data["T"])):
+        if np.any((pred_data["T"] < 0) | np.isnan(pred_data["T"])):
             raise ValueError(
-                "T must be at least 2 and cannot contain null values.\n",
+                "T must be non-zero and cannot contain null values.\n",
             )
 
         # Validate external data cohorts match the model's cohorts
