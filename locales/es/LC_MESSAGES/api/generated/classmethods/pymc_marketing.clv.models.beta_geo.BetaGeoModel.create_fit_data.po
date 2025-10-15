@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.beta_geo.BetaGeoModel.create_fit_data.rst:2
 #: bff8e60dcc6b49ec92f347a04e5f76e0
 msgid "BetaGeoModel.create\\_fit\\_data"
-msgstr ""
+msgstr "BetaGeoModel.create\\_fit\\_data"

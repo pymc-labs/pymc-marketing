@@ -23,24 +23,24 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.base.MMMModelBuilder.create_idata_attrs.rst:2
 #: 1fcb7c3112674308a5bc1475a735dd13
 msgid "MMMModelBuilder.create\\_idata\\_attrs"
-msgstr ""
+msgstr "MMMModelBuilder.create_idata_attrs"
 
 #: 9c68148efce64694a85b7b8d8cfa51dc of
 #: pymc_marketing.model_builder.ModelIO.create_idata_attrs:2
 msgid "Create attributes for the inference data."
-msgstr ""
+msgstr "Cree atributos para los datos de inferencia."
 
 #: 5c42328b69664bf9a6ad1bf8ed26e47b of
 #: pymc_marketing.model_builder.ModelIO.create_idata_attrs
 msgid "Returns"
-msgstr ""
+msgstr "Devoluciones"
 
 #: 793a0ec217e849af930d16eab56bd919 of
 #: pymc_marketing.model_builder.ModelIO.create_idata_attrs:10
 msgid ":class:`python:dict`\\[:class:`python:str`, :class:`python:str`]"
-msgstr ""
+msgstr ":class:`python:dict`\\[:class:`python:str`, :class:`python:str`]"
 
 #: 0ec6a123461349b597e54cddd88c6b01 of
 #: pymc_marketing.model_builder.ModelIO.create_idata_attrs:11
 msgid "A dictionary of attributes for the inference data."
-msgstr ""
+msgstr "Un diccionario de atributos para los datos de inferencia."

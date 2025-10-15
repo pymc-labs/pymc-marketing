@@ -12,55 +12,55 @@ msgstr ""
 "POT-Creation-Date: 2025-10-07 18:10+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language: es\n"
 "Language-Team: es <LL@li.org>\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Language: es\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "Generated-By: Babel 2.17.0\n"
 
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.hsgp.HSGP.create_variable.rst:2
 #: f5e266b4eff243f8909a79420ffac897
 msgid "HSGP.create\\_variable"
-msgstr ""
+msgstr "HSGP.crear\\_variable"
 
 #: c239891563b744a98e451bcd397c1074 of
 #: pymc_marketing.mmm.hsgp.HSGP.create_variable:2
 msgid "Create a variable from HSGP configuration."
-msgstr ""
+msgstr "Cree una variable a partir de la configuración de HSGP."
 
 #: 020217edc8944f068947e98a7112742d of
 #: pymc_marketing.mmm.hsgp.HSGP.create_variable
 msgid "Parameters"
-msgstr ""
+msgstr "Parámetros"
 
 #: 2119eebae5bc4b0b9988741a46d55aec of
 #: pymc_marketing.mmm.hsgp.HSGP.create_variable:7
 msgid "**name** : :class:`python:str`"
-msgstr ""
+msgstr "**nombre** : :class:`python:str`"
 
 #: efd53cdff61a4d5fb5ad223207adc093 of
 #: pymc_marketing.mmm.hsgp.HSGP.create_variable:6
 msgid "python:str"
-msgstr ""
+msgstr "python:str"
 
 #: 7746a34731ff477da492276a4581e9a7 of
 #: pymc_marketing.mmm.hsgp.HSGP.create_variable:8
 msgid "The name of the variable."
-msgstr ""
+msgstr "El nombre de la variable."
 
 #: a53ea05d424b4a33a09454d106811580 of
 #: pymc_marketing.mmm.hsgp.HSGP.create_variable
 msgid "Returns"
-msgstr ""
+msgstr "Devoluciones"
 
 #: 67dfe5563a144edeb3fd0890e0662613 of
 #: pymc_marketing.mmm.hsgp.HSGP.create_variable:14
 msgid ":obj:`pt.TensorVariable`"
-msgstr ""
+msgstr ":obj:`pt.TensorVariable`"
 
 #: 21a76340340c4f7196b96e2b0a989d2b of
 #: pymc_marketing.mmm.hsgp.HSGP.create_variable:15
 msgid "The variable created from the HSGP configuration."
-msgstr ""
+msgstr "La variable creada a partir de la configuración de HSGP."

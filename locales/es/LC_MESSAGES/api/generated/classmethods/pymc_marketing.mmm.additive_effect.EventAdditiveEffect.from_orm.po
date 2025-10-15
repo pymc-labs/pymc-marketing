@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.from_orm.rst:2
 #: 5f7dd52d7b6b4f42a2a05fc775ff3d4a
 msgid "EventAdditiveEffect.from\\_orm"
-msgstr ""
+msgstr "EventAdditiveEffect.from\\_orm"

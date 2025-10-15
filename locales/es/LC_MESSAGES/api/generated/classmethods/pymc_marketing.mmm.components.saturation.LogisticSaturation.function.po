@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.components.saturation.LogisticSaturation.function.rst:2
 #: 73c2910ede2f4a7e99c2af27152d6965
 msgid "LogisticSaturation.function"
-msgstr ""
+msgstr "LogisticSaturation.función"
 
 #: df0584de66ac4cbb8331109fb3767c0d of
 #: pymc_marketing.mmm.components.saturation.LogisticSaturation.function:2
 msgid "Logistic saturation function."
-msgstr ""
+msgstr "Función de saturación logística."

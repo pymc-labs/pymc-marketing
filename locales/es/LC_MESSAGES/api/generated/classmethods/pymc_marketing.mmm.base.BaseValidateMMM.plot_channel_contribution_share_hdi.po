@@ -23,64 +23,67 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.base.BaseValidateMMM.plot_channel_contribution_share_hdi.rst:2
 #: 6c9989c5c2d04a68b6f5fa6c1f022594
 msgid "BaseValidateMMM.plot\\_channel\\_contribution\\_share\\_hdi"
-msgstr ""
+msgstr "BaseValidateMMM.plot\\_channel\\_contribution\\_share\\_hdi"
 
 #: 20a14794b2ec4e5da36095ef6ddc7895 of
 #: pymc_marketing.mmm.base.MMMModelBuilder.plot_channel_contribution_share_hdi:2
 msgid "Plot the share of channel contributions in a forest plot."
 msgstr ""
+"Trace la participación de las contribuciones del canal en un gráfico de "
+"bosque."
 
 #: 62b7464dfbc94b58861b53d51a359998 of
 #: pymc_marketing.mmm.base.MMMModelBuilder.plot_channel_contribution_share_hdi
 msgid "Parameters"
-msgstr ""
+msgstr "Parámetros"
 
 #: 5d7deb41653e4f23ac165c8f15bf966c of
 #: pymc_marketing.mmm.base.MMMModelBuilder.plot_channel_contribution_share_hdi:7
 msgid "**hdi_prob** : :class:`python:float`, optional"
-msgstr ""
+msgstr "**hdi_prob** : :class:`python:float`, opcional"
 
 #: 030637437a1041da863825410530a502 of
 #: pymc_marketing.mmm.base.MMMModelBuilder.plot_channel_contribution_share_hdi:6
 msgid "python:float, optional"
-msgstr ""
+msgstr "python:float, opcional"
 
 #: 599297abf46141338c6fa02ac847a00c of
 #: pymc_marketing.mmm.base.MMMModelBuilder.plot_channel_contribution_share_hdi:8
 msgid "HDI value to be displayed, by default 0.94"
-msgstr ""
+msgstr "Valor del HDI a mostrar, por defecto 0.94"
 
 #: c16f9eb25dff44baa0670e1be46f2f8e of
 #: pymc_marketing.mmm.base.MMMModelBuilder.plot_channel_contribution_share_hdi:10
 msgid "**prior** : :ref:`bool <python:bltin-boolean-values>`, optional"
-msgstr ""
+msgstr "**anterior** : :ref:`bool <python:bltin-boolean-values>`, opcional"
 
 #: c64ee3192a1146c2a96456a0c17c9bcd of
 #: pymc_marketing.mmm.base.MMMModelBuilder.plot_channel_contribution_share_hdi:9
 msgid "bool, optional"
-msgstr ""
+msgstr "bool, opcional"
 
 #: 456465f9bbb34adf9a9b9678901cc95a of
 #: pymc_marketing.mmm.base.MMMModelBuilder.plot_channel_contribution_share_hdi:11
 msgid "Whether to use the prior or posterior, by default False (posterior)"
-msgstr ""
+msgstr "Si utilizar el anterior o el posterior, por defecto Falso (posterior)"
 
 #: 2214cdea805441fead078078f677339b of
 #: pymc_marketing.mmm.base.MMMModelBuilder.plot_channel_contribution_share_hdi:13
 msgid "**\\*\\*plot_kwargs**"
-msgstr ""
+msgstr "**\\*\\*plot_kwargs**"
 
 #: 896b700ea0fa4c33ab14cc96cd1cad77 of
 #: pymc_marketing.mmm.base.MMMModelBuilder.plot_channel_contribution_share_hdi:14
 msgid "Additional keyword arguments to pass to `az.plot_forest`."
 msgstr ""
+"Argumentos adicionales de palabras clave para pasar a `az.plot_forest`."
 
 #: 067f8ba9e0124ca792dc980e2fd66e31 of
 #: pymc_marketing.mmm.base.MMMModelBuilder.plot_channel_contribution_share_hdi
 msgid "Returns"
-msgstr ""
+msgstr "Devoluciones"
 
 #: 4d9add2adeaf4f86842208c891cfb799 of
 #: pymc_marketing.mmm.base.MMMModelBuilder.plot_channel_contribution_share_hdi:20
 msgid ":obj:`plt.Figure`"
-msgstr ""
+msgstr ":obj:`plt.Figure`"

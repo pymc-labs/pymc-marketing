@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.events.HalfGaussianBasis.function.rst:2
 #: f6442c59ac8a4cf5a0ed00668a2220e2
 msgid "HalfGaussianBasis.function"
-msgstr ""
+msgstr "HalfGaussianBasis.función"
 
 #: ee0ed797c2a8479e9ca7f644dd38bc08 of
 #: pymc_marketing.mmm.events.HalfGaussianBasis.function:2
 msgid "One-sided Gaussian bump function."
-msgstr ""
+msgstr "Función de bache gaussiano unidireccional."

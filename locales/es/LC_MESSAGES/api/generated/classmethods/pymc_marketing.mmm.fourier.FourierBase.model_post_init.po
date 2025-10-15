@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.fourier.FourierBase.model_post_init.rst:2
 #: 5c46b84eeece4e668f5933454ac6cc5a
 msgid "FourierBase.model\\_post\\_init"
-msgstr ""
+msgstr "FourierBase.model\\_post\\_init"
 
 #: 32c3b69bb8c44e68aef9b289fc526227 of
 #: pymc_marketing.mmm.fourier.FourierBase.model_post_init:2
 msgid "Model post initialization for a Pydantic model."
-msgstr ""
+msgstr "Inicialización del modelo posterior para un modelo Pydantic."

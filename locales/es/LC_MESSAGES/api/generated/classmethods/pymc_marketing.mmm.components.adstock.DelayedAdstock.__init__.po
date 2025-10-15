@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.components.adstock.DelayedAdstock.__init__.rst:2
 #: b8e14aba92e345dbaaff60c3bdabf6c0
 msgid "DelayedAdstock.\\_\\_init\\_\\_"
-msgstr ""
+msgstr "DelayedAdstock.\\_\\_init\\_\\_"

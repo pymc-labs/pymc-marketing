@@ -12,27 +12,27 @@ msgstr ""
 "POT-Creation-Date: 2025-10-07 18:10+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language: es\n"
 "Language-Team: es <LL@li.org>\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Language: es\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "Generated-By: Babel 2.17.0\n"
 
 #: ../source/api/generated/pymc_marketing.mmm.linear_regression.rst:2
 #: 6da12bd3b30b4dc5ad17cdfcda92c44f
 msgid "linear\\_regression"
-msgstr ""
+msgstr "regresión_lineal"
 
 #: 8ae01473375640aa9779056e990f86d5 of pymc_marketing.mmm.linear_regression:1
 msgid "Linear regression model implemented using the MMM class."
-msgstr ""
+msgstr "Modelo de regresión lineal implementado utilizando la clase MMM."
 
 #: ../source/api/generated/pymc_marketing.mmm.linear_regression.rst:13
 #: 45e735924cd54b0598783e51d89ca4dd
 msgid "Functions"
-msgstr ""
+msgstr "Funciones"
 
 #: ../source/api/generated/pymc_marketing.mmm.linear_regression.rst:18:<autosummary>:1
 #: 5d697620e52a4adc885e45602deb5547
@@ -41,8 +41,12 @@ msgid ""
 "<pymc_marketing.mmm.linear_regression.FancyLinearRegression>`\\ "
 "\\(\\*\\*mmm\\_kwargs\\)"
 msgstr ""
+":py:obj:`FancyLinearRegression "
+"<pymc_marketing.mmm.linear_regression.FancyLinearRegression>`\\ "
+"\\(\\*\\*mmm\\_kwargs\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.linear_regression.rst:18:<autosummary>:1
 #: e6dde7e6f0994534949e71a179f7c510
 msgid "Create wrapper around MMM for a linear regression model."
 msgstr ""
+"Crear un envoltorio alrededor de MMM para un modelo de regresión lineal."

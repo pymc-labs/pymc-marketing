@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.fit_summary.rst:2
 #: 41b944f9feec4b4bb26f432b3c98d66b
 msgid "BaseGammaGammaModel.fit\\_summary"
-msgstr ""
+msgstr "BaseGammaGammaModel.fit\\_summary"
 
 #: 9223ba8bbbfb43f69e584b2da4034620 of
 #: pymc_marketing.clv.models.basic.CLVModel.fit_summary:2
 msgid "Compute the summary of the fit result."
-msgstr ""
+msgstr "Calcule el resumen del resultado del ajuste."

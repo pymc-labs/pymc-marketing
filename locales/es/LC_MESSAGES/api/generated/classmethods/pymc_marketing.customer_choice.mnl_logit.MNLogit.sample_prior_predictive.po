@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.customer_choice.mnl_logit.MNLogit.sample_prior_predictive.rst:2
 #: 7af5f3a40e0941d3b8607e74f04a6c6f
 msgid "MNLogit.sample\\_prior\\_predictive"
-msgstr ""
+msgstr "MNLogit.muestra\\_predictiva\\_previa"
 
 #: 67ca758c42954888b453b1d106c685c8 of
 #: pymc_marketing.customer_choice.mnl_logit.MNLogit.sample_prior_predictive:2
 msgid "Sample Prior Predictive Distribution."
-msgstr ""
+msgstr "Distribución Predictiva Prevista de Muestra."

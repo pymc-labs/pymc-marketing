@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.validate.rst:2
 #: ab95d5a9805a44058ff0273269db2817
 msgid "EventAdditiveEffect.validate"
-msgstr ""
+msgstr "EventAdditiveEffect.validar"

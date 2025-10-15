@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.events.EventEffect.apply.rst:2
 #: 61b25666ca7d422ebd948ba014446bb1
 msgid "EventEffect.apply"
-msgstr ""
+msgstr "EventEffect.aplicar"
 
 #: 43308ff85722445eaae697ef191ade47 of
 #: pymc_marketing.mmm.events.EventEffect.apply:2
 msgid "Apply the event effect to the data."
-msgstr ""
+msgstr "Aplica el efecto del evento a los datos."

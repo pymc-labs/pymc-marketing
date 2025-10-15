@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.customer_choice.mnl_logit.MNLogit.create_fit_data.rst:2
 #: 12106e0d0e824d5582edf75b78c01e05
 msgid "MNLogit.create\\_fit\\_data"
-msgstr ""
+msgstr "MNLogit.create\\_fit\\_data"
 
 #: f47ca55301ee42f7867d931706e6f6c8 of
 #: pymc_marketing.model_builder.RegressionModelBuilder.create_fit_data:2
 msgid "Create the fit_data group based on the input data."
-msgstr ""
+msgstr "Cree el grupo fit_data basado en los datos de entrada."

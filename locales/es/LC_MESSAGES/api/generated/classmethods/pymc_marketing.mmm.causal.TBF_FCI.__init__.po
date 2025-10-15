@@ -23,32 +23,34 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.TBF_FCI.__init__.rst:2
 #: 2be1e50301c14da9af07fb41a3888c1a
 msgid "TBF\\_FCI.\\_\\_init\\_\\_"
-msgstr ""
+msgstr "TBF\\_FCI.\\_\\_init\\_\\_"
 
 #: 7ed71947536c476b9eba3ce70443c1eb of
 #: pymc_marketing.mmm.causal.TBF_FCI.__init__:2
 msgid "Create a new temporal TBF-PC causal discovery model."
-msgstr ""
+msgstr "Cree un nuevo modelo de descubrimiento causal TBF-PC temporal."
 
 #: e302cf5be5bf4078956a75718709a8ce of
 #: pymc_marketing.mmm.causal.TBF_FCI.__init__
 msgid "Parameters"
-msgstr ""
+msgstr "Parámetros"
 
 #: f816a62e1c8a40c283bc7b936cf64837 of
 #: pymc_marketing.mmm.causal.TBF_FCI.__init__:7
 msgid "**target**"
-msgstr ""
+msgstr "**objetivo**"
 
 #: a3bba64df7124b09919a2c6b1f2ad554 of
 #: pymc_marketing.mmm.causal.TBF_FCI.__init__:8
 msgid "Target variable name at time ``t`` that the algorithm orients toward."
 msgstr ""
+"Nombre de la variable objetivo en el tiempo ``t`` hacia la cual el algoritmo"
+" se orienta."
 
 #: 694a00940c43415d82da010fa95e7f98 of
 #: pymc_marketing.mmm.causal.TBF_FCI.__init__:11
 msgid "**target_edge_rule**"
-msgstr ""
+msgstr "**regla_de_borde_objetivo**"
 
 #: 21408e476b7049c0930704471217076e of
 #: pymc_marketing.mmm.causal.TBF_FCI.__init__:12
@@ -56,11 +58,13 @@ msgid ""
 "Rule used to retain lagged → target edges. Choose from ``\"any\"``, "
 "``\"conservative\"``, or ``\"fullS\"``."
 msgstr ""
+"Regla utilizada para retener los bordes de destino retrasados. Elija entre "
+"``\"cualquiera\"``, ``\"conservadora\"`` o ``\"completaS\"``."
 
 #: ca76e2197065483a8ceac91248047d2c of
 #: pymc_marketing.mmm.causal.TBF_FCI.__init__:15
 msgid "**bf_thresh**"
-msgstr ""
+msgstr "**bf_thresh**"
 
 #: 40e16d8279ed456c9431b1256bbfe342 of
 #: pymc_marketing.mmm.causal.TBF_FCI.__init__:16
@@ -68,35 +72,41 @@ msgid ""
 "Positive Bayes factor threshold applied during conditional independence "
 "testing."
 msgstr ""
+"Umbral del factor Bayesiano positivo aplicado durante la prueba de "
+"independencia condicional."
 
 #: b0411dfcdc8f44ceb82cc0b944b5f60b of
 #: pymc_marketing.mmm.causal.TBF_FCI.__init__:19
 msgid "**forbidden_edges**"
-msgstr ""
+msgstr "**bordes_prohibidos**"
 
 #: 089d3d1c785147d2a7a89891b6a4bbc4 of
 #: pymc_marketing.mmm.causal.TBF_FCI.__init__:20
 msgid ""
-"Optional sequence of node pairs that must be excluded from the final "
-"graph."
+"Optional sequence of node pairs that must be excluded from the final graph."
 msgstr ""
+"Secuencia opcional de pares de nodos que deben ser excluidos del gráfico "
+"final."
 
 #: 36ca2bc364f64015af0d4ce2b393be7f of
 #: pymc_marketing.mmm.causal.TBF_FCI.__init__:23
 msgid "**max_lag**"
-msgstr ""
+msgstr "**máx_retraso**"
 
 #: 5b0daded9f404b49aa9fc8230e05eb39 of
 #: pymc_marketing.mmm.causal.TBF_FCI.__init__:24
-msgid "Maximum lag (inclusive) to consider when constructing temporal drivers."
+msgid ""
+"Maximum lag (inclusive) to consider when constructing temporal drivers."
 msgstr ""
+"Retraso máximo (inclusive) a considerar al construir controladores "
+"temporales."
 
 #: a31d8ffdf9f44c129178c377bd7b2514 of
 #: pymc_marketing.mmm.causal.TBF_FCI.__init__:27
 msgid "**allow_contemporaneous**"
-msgstr ""
+msgstr "**permitir_contemporáneo**"
 
 #: 6a19b33f0ecc490d95ddc85918302486 of
 #: pymc_marketing.mmm.causal.TBF_FCI.__init__:28
 msgid "Whether contemporaneous edges at time ``t`` are permitted."
-msgstr ""
+msgstr "Si se permiten bordes contemporáneos en el tiempo ``t``."

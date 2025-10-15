@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.fourier.MonthlyFourier.from_orm.rst:2
 #: daade5bc07d44504a54326dfc2b7392c
 msgid "MonthlyFourier.from\\_orm"
-msgstr ""
+msgstr "MonthlyFourier.from\\_orm"

@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.customer_choice.nested_logit.NestedLogit.create_fit_data.rst:2
 #: 465fba8767d64890a4e147140020fd36
 msgid "NestedLogit.create\\_fit\\_data"
-msgstr ""
+msgstr "NestedLogit.crear\\_ajuste\\_datos"
 
 #: 6aacdc5766af4f47ad61653b72fbd651 of
 #: pymc_marketing.model_builder.RegressionModelBuilder.create_fit_data:2
 msgid "Create the fit_data group based on the input data."
-msgstr ""
+msgstr "Cree el grupo fit_data basado en los datos de entrada."

@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.fit_summary.rst:2
 #: 7b08dc7cafa144b388b566d9666a0c0c
 msgid "BetaGeoBetaBinomModel.fit\\_summary"
-msgstr ""
+msgstr "BetaGeoBetaBinomModel.fit\\_summary"
 
 #: 79b74517015d4843adb247e7ebbab93e of
 #: pymc_marketing.clv.models.basic.CLVModel.fit_summary:2
 msgid "Compute the summary of the fit result."
-msgstr ""
+msgstr "Calcule el resumen del resultado del ajuste."

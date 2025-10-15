@@ -23,17 +23,17 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.TBF_FCI.collapsed_summary.rst:2
 #: e5f84027c61f48de8a1b34fa628cda60
 msgid "TBF\\_FCI.collapsed\\_summary"
-msgstr ""
+msgstr "TBF\\_FCI.resumen\\_colapsado"
 
 #: 52e5c2e236d44f3a8d0206c11bc743dc of
 #: pymc_marketing.mmm.causal.TBF_FCI.collapsed_summary:2
 msgid "Summarize lagged edges into a driver-level view."
-msgstr ""
+msgstr "Resumir los bordes retrasados en una vista a nivel de controlador."
 
 #: eb14923949934fb4898da189ae68b9e7 of
 #: pymc_marketing.mmm.causal.TBF_FCI.collapsed_summary
 msgid "Returns"
-msgstr ""
+msgstr "Devoluciones"
 
 #: 211ab7be17044643b75fb156ef8a7ec4 of
 #: pymc_marketing.mmm.causal.TBF_FCI.collapsed_summary:10
@@ -43,6 +43,10 @@ msgid ""
 ":class:`python:list`\\[:class:`python:tuple`\\[:class:`python:str`, "
 ":class:`python:str`]]]"
 msgstr ""
+":class:`python:tuple`\\[:class:`python:list`\\[:class:`python:tuple`\\[:class:`python:str`,"
+" :class:`python:str`, :class:`python:int`]], "
+":class:`python:list`\\[:class:`python:tuple`\\[:class:`python:str`, "
+":class:`python:str`]]]"
 
 #: be446526299546b99138d613927ffb36 of
 #: pymc_marketing.mmm.causal.TBF_FCI.collapsed_summary:11
@@ -50,8 +54,10 @@ msgid ""
 "A tuple with directed edges represented as ``(u, v, lag)`` and "
 "contemporaneous undirected edges represented as ``(u, v)`` pairs."
 msgstr ""
+"Una tupla con aristas dirigidas representadas como ``(u, v, lag)`` y aristas"
+" no dirigidas contemporáneas representadas como pares ``(u, v)``."
 
 #: d9a97cbf22474e11992633634cf37d95 of
 #: pymc_marketing.mmm.causal.TBF_FCI.collapsed_summary:24
 msgid "Examples"
-msgstr ""
+msgstr "Ejemplos"
