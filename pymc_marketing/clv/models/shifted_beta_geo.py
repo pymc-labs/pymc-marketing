@@ -129,17 +129,12 @@ class ShiftedBetaGeoModel(CLVModel):
             must_be_unique=["customer_id"],
         )
 
-        # TODO: Create another internal validation method in CLVBasic containing this logic
         if np.any(
-            (data["recency"] < 1)
-            | (data["recency"] > data["T"])
-            | np.isnan(data["recency"])
-            | (data["T"] < 2)
+            (data["recency"] < 1) | (data["recency"] > data["T"]) | (data["T"] < 2)
         ):
-            raise ValueError(
-                "recency must respect 1 <= recency <= T, and cannot contain null values.\n",
-                "Predictions require T >= 2.",
-            )
+            raise ValueError("recency must respect 1 <= recency <= T.\n")
+        if data["T"].min() < 2:
+            raise ValueError("Predictions require T >= 2.")
 
         super().__init__(
             data=data,
@@ -244,9 +239,19 @@ class ShiftedBetaGeoModel(CLVModel):
         )
 
         # Validate T requirements for predictions
-        if np.any((pred_data["T"] < 0) | np.isnan(pred_data["T"])):
+        if np.any(pred_data["T"] < 1):
             raise ValueError(
-                "T must be non-zero and cannot contain null values.\n",
+                "T must be a positive integer.",
+            )
+
+        # Validate T is homogeneous within each cohort
+        t_per_cohort = pred_data.groupby("cohort")["T"].nunique()
+        non_homogeneous_cohorts = t_per_cohort[t_per_cohort > 1]
+        if len(non_homogeneous_cohorts) > 0:
+            cohort_names = ", ".join(map(str, non_homogeneous_cohorts.index.tolist()))
+            raise ValueError(
+                f"T must be homogeneous within each cohort. "
+                f"The following cohorts have multiple T values: {cohort_names}"
             )
 
         # Validate external data cohorts match the model's cohorts

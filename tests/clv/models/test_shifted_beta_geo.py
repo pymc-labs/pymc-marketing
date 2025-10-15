@@ -39,9 +39,11 @@ class TestShiftedBetaGeoModel:
 
         # Test parameters for dual cohort MCMC fit of expected_probability_alive, expected_retention_rate
         # Highend and regular parameters from pg(7) of paper: https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf
-        cls.alpha_hi_lo = [0.688, 0.704]
-        cls.beta_hi_lo = [3.806, 1.182]
+        # TODO: might need to be 0.668 instead
+        cls.alpha_hi_reg = [0.688, 0.704]
+        cls.beta_hi_reg = [3.806, 1.182]
 
+        # TODO: These are needed to test predictive methods in an upcoming PR.
         # Test parameters for single cohort MAP fit of expected_lifetime_purchases, expected_retention_elasticity
         # Both parameter sets from from pg(4) of paper: https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_contractual_mksc_10.pdf
         cls.alpha_case1 = 3.80
@@ -64,8 +66,18 @@ class TestShiftedBetaGeoModel:
 
         # Mock a fitted model with multi-dim parameters
         cls.mock_cohort_fit(
-            cls.model, cls.alpha_hi_lo, cls.chains, cls.draws, cls.cohorts
+            cls.model,
+            cls.alpha_hi_reg,
+            cls.beta_hi_reg,
+            cls.chains,
+            cls.draws,
+            cls.cohorts,
         )
+
+        cls.test_reg_retention = []
+        cls.test_hi_retention = []
+        cls.test_reg_probability_alive = []
+        cls.test_hi_probability_alive = []
 
     # TODO: Generalize and move into conftest? create_mock_fit doesn't support multi-dim parameters
     @classmethod
@@ -193,12 +205,38 @@ class TestShiftedBetaGeoModel:
         data = pd.DataFrame(
             {
                 "customer_id": np.asarray([1, 2]),
-                "recency": np.asarray([1, 2]),
+                "recency": np.asarray([1, 3]),
+                "T": np.asarray([2, 2]),
+                "cohorts": np.asarray(["A", "A"]),
+            }
+        )
+        with pytest.raises(ValueError, match=r"recency must respect 1 < recency <= T"):
+            ShiftedBetaGeoModel(data=data)
+
+    def test_invalid_T(self):
+        data = pd.DataFrame(
+            {
+                "customer_id": np.asarray([1, 2]),
+                "recency": np.asarray([1, 1]),
                 "T": np.asarray([1, 1]),
                 "cohorts": np.asarray(["A", "A"]),
             }
         )
-        with pytest.raises(ValueError, match=r"recency must respect 0 < recency <= T"):
+        with pytest.raises(ValueError, match=r"Predictions require T >= 2."):
+            ShiftedBetaGeoModel(data=data)
+
+    def test_cohort_T_homogeneity(self):
+        data = pd.DataFrame(
+            {
+                "customer_id": np.asarray([1, 2]),
+                "recency": np.asarray([1, 1]),
+                "T": np.asarray([1, 2]),
+                "cohorts": np.asarray(["A", "A"]),
+            }
+        )
+        with pytest.raises(
+            ValueError, match=r"T must be homogeneous within each cohort."
+        ):
             ShiftedBetaGeoModel(data=data)
 
     def test_model_repr(self, custom_model_config):
@@ -329,6 +367,9 @@ class TestShiftedBetaGeoModel:
             data=self.data,
             model_config=config_ok,
         )
+
+    def test_extract_predictive_variables_invalid(self):
+        assert 1 == 2
 
 
 class TestShiftedBetaGeoModelIndividual:
