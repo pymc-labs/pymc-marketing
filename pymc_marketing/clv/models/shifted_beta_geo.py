@@ -123,22 +123,22 @@ class ShiftedBetaGeoModel(CLVModel):
         model_config: ModelConfig | None = None,
         sampler_config: dict | None = None,
     ):
-        # TODO: Should add homogeneity check for T per cohort, but groupings not supported in this method
         self._validate_cols(
             data,
             required_cols=["customer_id", "recency", "T", "cohort"],
             must_be_unique=["customer_id"],
         )
+
         # TODO: Create another internal validation method in CLVBasic containing this logic
-        # TODO: This function should also check fit data contains both active and inactive customers
         if np.any(
             (data["recency"] < 1)
             | (data["recency"] > data["T"])
             | np.isnan(data["recency"])
+            | (data["T"] < 2)
         ):
             raise ValueError(
-                "recency must respect 0 < recency <= T.\n",
-                "Customers still active should have recency = T",
+                "recency must respect 1 <= recency <= T, and cannot contain null values.\n",
+                "Predictions require T >= 2.",
             )
 
         super().__init__(
@@ -147,7 +147,6 @@ class ShiftedBetaGeoModel(CLVModel):
             sampler_config=sampler_config,
         )
 
-        # TODO: Could this be cleaned up? Or a separate _validate_prior_dims() method created?
         # Validate provided Priors specify dims="cohort"
         for key in ("alpha", "beta"):
             prior = self.model_config.get(key)
@@ -165,11 +164,21 @@ class ShiftedBetaGeoModel(CLVModel):
                         f'Got dims={prior.dims!r}. Example: Prior("HalfFlat", dims="cohort").'
                     )
 
-        # create cohort dim & coords
+        # Create cohort dim & coords
         self.cohorts = self.data["cohort"].unique()
         self.cohort_idx = pd.Categorical(
             self.data["cohort"], categories=self.cohorts
         ).codes
+
+        # Validate T is homogeneous within each cohort
+        t_per_cohort = self.data.groupby("cohort")["T"].nunique()
+        non_homogeneous_cohorts = t_per_cohort[t_per_cohort > 1]
+        if len(non_homogeneous_cohorts) > 0:
+            cohort_names = ", ".join(map(str, non_homogeneous_cohorts.index.tolist()))
+            raise ValueError(
+                f"T must be homogeneous within each cohort. "
+                f"The following cohorts have multiple T values: {cohort_names}"
+            )
 
     @property
     def default_model_config(self) -> ModelConfig:
@@ -216,7 +225,7 @@ class ShiftedBetaGeoModel(CLVModel):
     # TODO: can this be generalized and moved into BaseModel?
     def _extract_predictive_variables(
         self,
-        pred_data: pd.DataFrame | None = None,
+        pred_data: pd.DataFrame,
         customer_varnames: Sequence[str] = (),
     ) -> xarray.Dataset:
         """
@@ -225,38 +234,25 @@ class ShiftedBetaGeoModel(CLVModel):
         Utility function assigning default customer arguments
         for predictive methods and converting to xarrays.
         """
-        if pred_data is None:
-            # Filter to active customers only (recency == T)
-            pred_data = self.data.loc[self.data["recency"] == self.data["T"]].copy()
-        else:
-            self._validate_cols(
-                pred_data,
-                required_cols=[
-                    "customer_id",
-                    "cohort",
-                    *customer_varnames,
-                ],
-                must_be_unique=["customer_id"],
-            )
-            # Validate recency only if provided in the input data
-            if "recency" in pred_data.columns:
-                # Base validity check
-                if np.any(
-                    (pred_data["recency"] < 0)
-                    | (pred_data["recency"] > pred_data["T"])
-                    | np.isnan(pred_data["recency"])
-                ):
-                    raise ValueError(
-                        "recency must respect 0 < recency <= T.\n",
-                        "Customers still active should have recency = T",
-                    )
-                # External data must be active customers only
-                if np.any(pred_data["recency"] != pred_data["T"]):
-                    raise ValueError(
-                        "Predictions require active customers: recency must equal T."
-                    )
+        self._validate_cols(
+            pred_data,
+            required_cols=[
+                "customer_id",
+                "cohort",
+                *customer_varnames,
+            ],
+            must_be_unique=["customer_id"],
+        )
 
-        # Validate that external data cohorts match the model's cohorts
+        # Validate recency requirements for predictions
+        if "recency" in pred_data.columns:
+            # Base validity check
+            if np.any((pred_data["recency"] < 0) | np.isnan(pred_data["recency"])):
+                raise ValueError(
+                    "recency must be greater than zero, and cannot contain null values.\n",
+                )
+
+        # Validate external data cohorts match the model's cohorts
         cohorts_present = pd.Index(pred_data["cohort"].unique())
         cohorts_present = cohorts_present.intersection(pd.Index(self.cohorts))
 
@@ -265,27 +261,17 @@ class ShiftedBetaGeoModel(CLVModel):
                 "Cohorts in prediction data do not match cohorts used to fit the model."
             )
 
-        # Create cohort mapping for customers
-        customer_cohort_map = pred_data.set_index("customer_id")["cohort"]
-
-        # Select alpha and beta for cohorts present in the data
+        # Select alpha and beta only for cohorts present in the data
         pred_cohorts = xarray.DataArray(
             cohorts_present.values,
             dims=("cohort",),
             coords={"cohort": cohorts_present.values},
         )
+        alpha_pred = self.fit_result["alpha"].sel(cohort=pred_cohorts)
+        beta_pred = self.fit_result["beta"].sel(cohort=pred_cohorts)
 
-        alpha_sel = self.fit_result["alpha"].sel(cohort=pred_cohorts)
-        beta_sel = self.fit_result["beta"].sel(cohort=pred_cohorts)
-
-        # Convert additional customer variables to xarray
-        # customer_id is required for static covariate broadcasting, which is not yet supported
-        customer_vars = to_xarray(
-            pred_data["customer_id"],
-            *[pred_data[customer_varname] for customer_varname in customer_varnames],
-        )
-        if len(customer_varnames) == 1:
-            customer_vars = [customer_vars]
+        # Create cohort mapping for customers
+        customer_cohort_map = pred_data.set_index("customer_id")["cohort"]
 
         # Create a mapping DataArray for customer-to-cohort relationship
         customer_cohort_mapping = xarray.DataArray(
@@ -294,15 +280,26 @@ class ShiftedBetaGeoModel(CLVModel):
             coords={"customer_id": customer_cohort_map.index},
             name="customer_cohort_mapping",
         )
+        alpha_pred = alpha_pred.sel(cohort=customer_cohort_mapping)
+        beta_pred = beta_pred.sel(cohort=customer_cohort_mapping)
+
+        # Convert additional customer variables to xarray
+        customer_vars = to_xarray(
+            pred_data["customer_id"],
+            *[pred_data[customer_varname] for customer_varname in customer_varnames],
+        )
+        if len(customer_varnames) == 1:
+            customer_vars = [customer_vars]
 
         return xarray.combine_by_coords(
             (
-                alpha_sel,
-                beta_sel,
-                customer_cohort_mapping,
+                alpha_pred,
+                beta_pred,
                 *customer_vars,
             )
-        )
+        ).swap_dims(
+            {"customer_id": "cohort"}
+        )  # swap dims to select predictions by cohort
 
     def expected_retention_rate(
         self,
@@ -321,7 +318,7 @@ class ShiftedBetaGeoModel(CLVModel):
             https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf
         """
         if data is None:
-            data = self.data
+            data = self.data.query("recency == T").copy()
 
         if future_t is not None:
             data = data.assign(future_t=future_t)
@@ -330,13 +327,12 @@ class ShiftedBetaGeoModel(CLVModel):
             data, customer_varnames=["recency", "future_t"]
         )
 
-        customer_cohort_mapping = dataset["customer_cohort_mapping"]
-        alpha = dataset["alpha"].sel(cohort=customer_cohort_mapping)
-        beta = dataset["beta"].sel(cohort=customer_cohort_mapping)
+        alpha = dataset["alpha"]
+        beta = dataset["beta"]
         T = dataset["recency"]
-        ft = dataset["future_t"]
+        t = dataset["future_t"]
 
-        retention_rate = (beta + T + ft - 1) / (alpha + beta + T + ft - 1)
+        retention_rate = (beta + T + t - 1) / (alpha + beta + T + t - 1)
         return retention_rate.transpose(
             "chain", "draw", "customer_id", "cohort", missing_dims="ignore"
         )
@@ -358,34 +354,27 @@ class ShiftedBetaGeoModel(CLVModel):
             https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf
         """
         if data is None:
-            data = self.data
+            data = self.data.query("recency == T").copy()
 
         if future_t is not None:
             data = data.assign(future_t=future_t)
 
         dataset = self._extract_predictive_variables(
-            data, customer_varnames=["T", "future_t"]
+            data, customer_varnames=["recency", "future_t"]
         )
 
-        customer_cohort_mapping = dataset["customer_cohort_mapping"]
-        alpha = dataset["alpha"].sel(cohort=customer_cohort_mapping)
-        beta = dataset["beta"].sel(cohort=customer_cohort_mapping)
-        T = dataset["T"]
-        ft = dataset["future_t"]
+        alpha = dataset["alpha"]
+        beta = dataset["beta"]
+        T = dataset["recency"]
+        t = dataset["future_t"]
 
         logS = (
-            gammaln(beta + T + ft)
+            gammaln(beta + T + t)
             - gammaln(beta)
             + gammaln(alpha + beta)
-            - gammaln(alpha + beta + T + ft)
+            - gammaln(alpha + beta + T + t)
         )
         survival = np.exp(logS)
-
-        # Add cohort dimension back to the result
-        # survival = survival.drop_vars("cohort").copy()
-        # survival_with_cohort = survival.assign_coords(
-        #     cohort=customer_cohort_mapping
-        # ).expand_dims("cohort")
 
         return survival.transpose(
             "chain", "draw", "customer_id", "cohort", missing_dims="ignore"
