@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.customer_choice.nested_logit.NestedLogit.post_sample_model_transformation.rst:2
 #: 9ca832993a0241fbb841962fa577f591
 msgid "NestedLogit.post\\_sample\\_model\\_transformation"
-msgstr ""
+msgstr "NestedLogit.post\\_sample\\_model\\_transformation"
 
 #: 5856cd8d64d549cc82e94ac2e26c0cf1 of
 #: pymc_marketing.model_builder.RegressionModelBuilder.post_sample_model_transformation:2
 msgid "Perform transformation on the model after sampling."
-msgstr ""
+msgstr "Realice la transformación en el modelo después de muestrear."

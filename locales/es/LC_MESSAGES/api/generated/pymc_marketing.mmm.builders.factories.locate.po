@@ -12,40 +12,42 @@ msgstr ""
 "POT-Creation-Date: 2025-10-07 18:10+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language: es\n"
 "Language-Team: es <LL@li.org>\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Language: es\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "Generated-By: Babel 2.17.0\n"
 
 #: ../source/api/generated/pymc_marketing.mmm.builders.factories.locate.rst:2
 #: ca9b78ad240941c0b4a23511a8b3bf1d
 msgid "locate"
-msgstr ""
+msgstr "localizar"
 
 #: 798ee42dea104c7daee2026b36e42d0c of
 #: pymc_marketing.mmm.builders.factories.locate:2
 msgid "Resolve *qualname* to a Python callable."
-msgstr ""
+msgstr "Resolver *qualname* a un callable de Python."
 
 #: 7aad17f4e91b4597b8b35d710ee64808 of
 #: pymc_marketing.mmm.builders.factories.locate
 msgid "Parameters"
-msgstr ""
+msgstr "Parámetros"
 
 #: 6cea5ccf953e4c9cb52a3de9b57b7c89 of
 #: pymc_marketing.mmm.builders.factories.locate:7
 msgid "**qualname** : :class:`python:str`"
-msgstr ""
+msgstr "**qualname** : :class:`python:str`"
 
 #: 709c09e8dc80473aaceb24687bbe2c92 of
 #: pymc_marketing.mmm.builders.factories.locate:6
 msgid "python:str"
-msgstr ""
+msgstr "python:str"
 
 #: 368daa5751984fb295abe163122ed290 of
 #: pymc_marketing.mmm.builders.factories.locate:8
 msgid "Either a dotted import path ('pkg.mod.Class') or a key in REGISTRY."
 msgstr ""
+"Ya sea una ruta de importación con puntos ('pkg.mod.Class') o una clave en "
+"REGISTRY."

@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.post_sample_model_transformation.rst:2
 #: 10a60dd3c47d4e2f80d137c5d85cc778
 msgid "ParetoNBDModel.post\\_sample\\_model\\_transformation"
-msgstr ""
+msgstr "ParetoNBDModel.post\\_sample\\_model\\_transformation"

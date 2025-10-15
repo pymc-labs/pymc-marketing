@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.events.EventEffect.to_dict.rst:2
 #: e99aa8e23ea74256b284430b09579a7f
 msgid "EventEffect.to\\_dict"
-msgstr ""
+msgstr "EventEffect.to\\_dict"
 
 #: 57910d638aec41b48dd664e879f7882e of
 #: pymc_marketing.mmm.events.EventEffect.to_dict:2
 msgid "Convert the event effect to a dictionary."
-msgstr ""
+msgstr "Convierte el efecto del evento a un diccionario."

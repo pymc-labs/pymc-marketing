@@ -23,21 +23,23 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.beta_geo.BetaGeoModel.thin_fit_result.rst:2
 #: 688736eef94147d2900c7bc2995d2af6
 msgid "BetaGeoModel.thin\\_fit\\_result"
-msgstr ""
+msgstr "BetaGeoModel.thin\\_fit\\_result"
 
 #: 5a5e599bcd3e4c61a164decedc5c7420 of
 #: pymc_marketing.clv.models.basic.CLVModel.thin_fit_result:2
 msgid "Return a copy of the model with a thinned fit result."
-msgstr ""
+msgstr "Devuelva una copia del modelo con un resultado de ajuste reducido."
 
 #: 4c5e4407a9144fc2986c4005803e8d7c of
 #: pymc_marketing.clv.models.basic.CLVModel.thin_fit_result:4
 msgid ""
-"This is useful when computing summary statistics that may require too "
-"much memory per posterior draw."
+"This is useful when computing summary statistics that may require too much "
+"memory per posterior draw."
 msgstr ""
+"Esto es útil al calcular estadísticas resumidas que pueden requerir "
+"demasiada memoria por cada extracción posterior."
 
 #: 01e058c1bbd84052a780e68e6ef4337b of
 #: pymc_marketing.clv.models.basic.CLVModel.thin_fit_result:20
 msgid "Examples"
-msgstr ""
+msgstr "Ejemplos"

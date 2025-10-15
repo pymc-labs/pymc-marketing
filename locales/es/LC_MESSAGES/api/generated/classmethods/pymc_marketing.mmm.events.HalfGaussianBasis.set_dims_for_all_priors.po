@@ -23,44 +23,46 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.events.HalfGaussianBasis.set_dims_for_all_priors.rst:2
 #: ccec24c37d9c45bf8bf9ba901321fca7
 msgid "HalfGaussianBasis.set\\_dims\\_for\\_all\\_priors"
-msgstr ""
+msgstr "HalfGaussianBasis.establecer\\_dimensiones\\_para\\_todos\\_los\\_priors"
 
 #: 8a689bea142e44e5b0ddccfde260a917 of
 #: pymc_marketing.mmm.components.base.Transformation.set_dims_for_all_priors:2
 msgid "Set the dims for all priors."
-msgstr ""
+msgstr "Establezca las dimensiones para todos los antecedentes."
 
 #: e16d7179ebe74a938f962114ac0ee720 of
 #: pymc_marketing.mmm.components.base.Transformation.set_dims_for_all_priors:4
 msgid "Convenience method to loop through all the priors and set the dims."
 msgstr ""
+"Método conveniente para recorrer todos los anteriores y establecer las "
+"dimensiones."
 
 #: 4b51fac86cc04a5f9d33cedeb096b249 of
 #: pymc_marketing.mmm.components.base.Transformation.set_dims_for_all_priors
 msgid "Parameters"
-msgstr ""
+msgstr "Parámetros"
 
 #: 4ee4b2becd704027bdf4cfa68c9b2f00 of
 #: pymc_marketing.mmm.components.base.Transformation.set_dims_for_all_priors:8
 msgid "**dims** : :obj:`Dims`"
-msgstr ""
+msgstr "**dims** : :obj:`Dims`"
 
 #: e027da3994214280a1e30889d4bf0ac9 of
 #: pymc_marketing.mmm.components.base.Transformation.set_dims_for_all_priors:7
 msgid "Dims"
-msgstr ""
+msgstr "Dimensiones"
 
 #: dc8f03cfdc7d4b33b61fcde42fce2da1 of
 #: pymc_marketing.mmm.components.base.Transformation.set_dims_for_all_priors:9
 msgid "The dims for the priors."
-msgstr ""
+msgstr "Las dimensiones para los priors."
 
 #: cfc59fee16a648d494fc50ffe2556e55 of
 #: pymc_marketing.mmm.components.base.Transformation.set_dims_for_all_priors
 msgid "Returns"
-msgstr ""
+msgstr "Devoluciones"
 
 #: 0558cc81657c49888c1e6a8e7b444949 of
 #: pymc_marketing.mmm.components.base.Transformation.set_dims_for_all_priors:15
 msgid ":obj:`Transformation`"
-msgstr ""
+msgstr ":obj:`Transformación`"

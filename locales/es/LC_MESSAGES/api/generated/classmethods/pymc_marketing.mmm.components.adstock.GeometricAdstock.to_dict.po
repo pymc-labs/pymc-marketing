@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.components.adstock.GeometricAdstock.to_dict.rst:2
 #: b6724abd66644a6896e82d40cbd37080
 msgid "GeometricAdstock.to\\_dict"
-msgstr ""
+msgstr "GeometricAdstock.to\\_dict"
 
 #: 1f9778267d9045aa9d7f76a96247c1c6 of
 #: pymc_marketing.mmm.components.adstock.AdstockTransformation.to_dict:2
 msgid "Convert the adstock transformation to a dictionary."
-msgstr ""
+msgstr "Convierte la transformación de adstock a un diccionario."

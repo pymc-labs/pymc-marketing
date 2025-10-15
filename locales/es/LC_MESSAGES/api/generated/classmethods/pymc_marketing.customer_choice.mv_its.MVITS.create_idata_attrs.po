@@ -23,24 +23,24 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.customer_choice.mv_its.MVITS.create_idata_attrs.rst:2
 #: 2358a40c0ebe4616977ae5ae76e18625
 msgid "MVITS.create\\_idata\\_attrs"
-msgstr ""
+msgstr "MVITS.create\\_idata\\_attrs"
 
 #: 4afae4b4dd71417bb43653a6b43a205c of
 #: pymc_marketing.customer_choice.mv_its.MVITS.create_idata_attrs:2
 msgid "Create the attributes for the InferenceData object."
-msgstr ""
+msgstr "Cree los atributos para el objeto InferenceData."
 
 #: d75cf2b71f5846db8a2bdf57c851abdc of
 #: pymc_marketing.customer_choice.mv_its.MVITS.create_idata_attrs
 msgid "Returns"
-msgstr ""
+msgstr "Devoluciones"
 
 #: 593465117a9c4e6789439492544d30ea of
 #: pymc_marketing.customer_choice.mv_its.MVITS.create_idata_attrs:10
 msgid ":class:`python:dict`\\[:class:`python:str`, :class:`python:str`]"
-msgstr ""
+msgstr ":class:`python:dict`\\[:class:`python:str`, :class:`python:str`]"
 
 #: 77f9e0899e684debb9c3539167e55fdb of
 #: pymc_marketing.customer_choice.mv_its.MVITS.create_idata_attrs:11
 msgid "The attributes for the InferenceData object."
-msgstr ""
+msgstr "Los atributos del objeto InferenceData."

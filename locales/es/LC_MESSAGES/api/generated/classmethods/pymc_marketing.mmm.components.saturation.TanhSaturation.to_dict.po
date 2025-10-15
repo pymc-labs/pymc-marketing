@@ -23,24 +23,24 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.components.saturation.TanhSaturation.to_dict.rst:2
 #: 75a37779ed574de0b16a3245e8c87860
 msgid "TanhSaturation.to\\_dict"
-msgstr ""
+msgstr "TanhSaturation.to\\_dict"
 
 #: 31e3da764b9c424ca241da729c2a43d4 of
 #: pymc_marketing.mmm.components.base.Transformation.to_dict:2
 msgid "Convert the transformation to a dictionary."
-msgstr ""
+msgstr "Convierte la transformación a un diccionario."
 
 #: 2ad94791d63648c79375972a76b6b5af of
 #: pymc_marketing.mmm.components.base.Transformation.to_dict
 msgid "Returns"
-msgstr ""
+msgstr "Devoluciones"
 
 #: 8c5f0aa5155c4814984d38091aace8de of
 #: pymc_marketing.mmm.components.base.Transformation.to_dict:10
 msgid ":class:`python:dict`"
-msgstr ""
+msgstr ":class:`python:dict`"
 
 #: dd7bf59eebcf4cafa6319852660c081e of
 #: pymc_marketing.mmm.components.base.Transformation.to_dict:11
 msgid "The dictionary defining the transformation."
-msgstr ""
+msgstr "El diccionario que define la transformación."

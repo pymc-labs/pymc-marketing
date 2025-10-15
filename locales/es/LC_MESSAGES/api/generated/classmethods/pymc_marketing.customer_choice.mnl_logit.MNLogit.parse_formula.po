@@ -23,18 +23,23 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.customer_choice.mnl_logit.MNLogit.parse_formula.rst:2
 #: 5211059116284a0788505a045652a54b
 msgid "MNLogit.parse\\_formula"
-msgstr ""
+msgstr "MNLogit.parse\\_formula"
 
 #: 70db763183c24efda7e3a8c010bed07f of
 #: pymc_marketing.customer_choice.mnl_logit.MNLogit.parse_formula:2
 msgid "Parse the three-part structure of a formula specification."
 msgstr ""
+"Analice la estructura de tres partes de una especificación de fórmula."
 
 #: 406f0eb94b4a4195bf6b63bfd15120ca of
 #: pymc_marketing.customer_choice.mnl_logit.MNLogit.parse_formula:4
 msgid ""
-"Splits the formula into target, alternative-specific covariates, and "
-"fixed covariates. Ensures that the target variable appears in the "
-"dependent variable column and that all specified covariates exist in the "
-"input dataframe."
+"Splits the formula into target, alternative-specific covariates, and fixed "
+"covariates. Ensures that the target variable appears in the dependent "
+"variable column and that all specified covariates exist in the input "
+"dataframe."
 msgstr ""
+"Divide la fórmula en variables objetivo, covariables específicas de "
+"alternativas y covariables fijas. Asegura que la variable objetivo aparezca "
+"en la columna de variable dependiente y que todas las covariables "
+"especificadas existan en el dataframe de entrada."

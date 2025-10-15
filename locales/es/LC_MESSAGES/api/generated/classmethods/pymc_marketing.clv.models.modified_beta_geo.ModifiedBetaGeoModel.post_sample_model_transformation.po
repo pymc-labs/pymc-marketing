@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.post_sample_model_transformation.rst:2
 #: 2270270c8657496eb1fbae2d82b3ea36
 msgid "ModifiedBetaGeoModel.post\\_sample\\_model\\_transformation"
-msgstr ""
+msgstr "ModifiedBetaGeoModel.post\\_sample\\_model\\_transformation"

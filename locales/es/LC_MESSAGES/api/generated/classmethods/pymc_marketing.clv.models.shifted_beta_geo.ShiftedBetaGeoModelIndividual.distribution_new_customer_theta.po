@@ -23,14 +23,16 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.distribution_new_customer_theta.rst:2
 #: a7ad0c74969e4cd9a96f1ab08f2a7905
 msgid "ShiftedBetaGeoModelIndividual.distribution\\_new\\_customer\\_theta"
-msgstr ""
+msgstr "ShiftedBetaGeoModelIndividual.distribution\\_nuevo\\_cliente\\_theta"
 
 #: 44d13eceba9142aeae95781ceaa69e6b of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.distribution_new_customer_theta:2
 msgid "Sample distribution of theta parameter for new customers."
-msgstr ""
+msgstr "Distribución de muestra del parámetro theta para nuevos clientes."
 
 #: 683c468b16ef4a84a944ce567f293101 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.distribution_new_customer_theta:4
 msgid "Use `n > 1` to simulate multiple identically distributed users."
 msgstr ""
+"Utilice `n > 1` para simular múltiples usuarios distribuidos de manera "
+"idéntica."

@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.customer_choice.nested_logit.NestedLogit.sample_prior_predictive.rst:2
 #: b9099786a007421ea650546edf73fa13
 msgid "NestedLogit.sample\\_prior\\_predictive"
-msgstr ""
+msgstr "NestedLogit.muestra\\_predictiva\\_previa"
 
 #: 2fd0f546da54480fbeba69b4b7dcffd9 of
 #: pymc_marketing.customer_choice.nested_logit.NestedLogit.sample_prior_predictive:2
 msgid "Sample Prior Predictive Distribution."
-msgstr ""
+msgstr "Distribución Predictiva Previa de Muestra."

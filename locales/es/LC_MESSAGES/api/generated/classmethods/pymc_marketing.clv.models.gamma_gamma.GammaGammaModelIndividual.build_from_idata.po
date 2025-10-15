@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.build_from_idata.rst:2
 #: ea8824aeffa1487d86a7123129ab26e0
 msgid "GammaGammaModelIndividual.build\\_from\\_idata"
-msgstr ""
+msgstr "GammaGammaModelIndividual.build\\_from\\_idata"
 
 #: 57cc437021084ddbbf0771d2fa4c5284 of
 #: pymc_marketing.clv.models.basic.CLVModel.build_from_idata:2
 msgid "Build the model from the InferenceData object."
-msgstr ""
+msgstr "Construya el modelo a partir del objeto InferenceData."

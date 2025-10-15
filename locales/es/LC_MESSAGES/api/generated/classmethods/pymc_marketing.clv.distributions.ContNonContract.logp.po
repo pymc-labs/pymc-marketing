@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.distributions.ContNonContract.logp.rst:2
 #: 9f506f6b1817493d8709095ae2fac6d5
 msgid "ContNonContract.logp"
-msgstr ""
+msgstr "ContNonContract.logp"
 
 #: ef7d1afaa31b4b718545be48a8cdf2c0 of
 #: pymc_marketing.clv.distributions.ContNonContract.logp:2
 msgid "Log-likelihood of the distribution."
-msgstr ""
+msgstr "Log-verosimilitud de la distribución."

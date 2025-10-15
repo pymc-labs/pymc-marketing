@@ -23,21 +23,23 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.gamma_gamma.GammaGammaModel.thin_fit_result.rst:2
 #: e029ab0bb6de498a96fe5391d98f38ab
 msgid "GammaGammaModel.thin\\_fit\\_result"
-msgstr ""
+msgstr "GammaGammaModel.resultado\\_ajuste\\_delgado"
 
 #: 4ffe0aea013041f7a47b2f930d92cbf9 of
 #: pymc_marketing.clv.models.basic.CLVModel.thin_fit_result:2
 msgid "Return a copy of the model with a thinned fit result."
-msgstr ""
+msgstr "Devuelva una copia del modelo con un resultado de ajuste reducido."
 
 #: 9f51a248a8e2413b8c0852c8e6bd0446 of
 #: pymc_marketing.clv.models.basic.CLVModel.thin_fit_result:4
 msgid ""
-"This is useful when computing summary statistics that may require too "
-"much memory per posterior draw."
+"This is useful when computing summary statistics that may require too much "
+"memory per posterior draw."
 msgstr ""
+"Esto es útil al calcular estadísticas resumidas que pueden requerir "
+"demasiada memoria por cada extracción posterior."
 
 #: faf3c666f6e443c0a6fe6d0a7e5dd84e of
 #: pymc_marketing.clv.models.basic.CLVModel.thin_fit_result:20
 msgid "Examples"
-msgstr ""
+msgstr "Ejemplos"

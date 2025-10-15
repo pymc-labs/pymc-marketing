@@ -23,44 +23,44 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.create_effect.rst:2
 #: 039fe08c9d44422a866a0aa086fb9dfa
 msgid "EventAdditiveEffect.create\\_effect"
-msgstr ""
+msgstr "EventAdditiveEffect.crear\\_efecto"
 
 #: 73b5304d41364604bc95e377eeee65e9 of
 #: pymc_marketing.mmm.additive_effect.EventAdditiveEffect.create_effect:2
 msgid "Create the event effect in the model."
-msgstr ""
+msgstr "Cree el efecto del evento en el modelo."
 
 #: 0e671c221b564d32b4b81b7cec80403d of
 #: pymc_marketing.mmm.additive_effect.EventAdditiveEffect.create_effect
 msgid "Parameters"
-msgstr ""
+msgstr "Parámetros"
 
 #: 906c2289991b46debb896b96c889046d of
 #: pymc_marketing.mmm.additive_effect.EventAdditiveEffect.create_effect:7
 msgid "**mmm** : :obj:`MMM`"
-msgstr ""
+msgstr "**mmm** : :obj:`MMM`"
 
 #: 6874c807bc9b4999bcf6f4e4eec73741 of
 #: pymc_marketing.mmm.additive_effect.EventAdditiveEffect.create_effect:6
 msgid "MMM"
-msgstr ""
+msgstr "MMM"
 
 #: ac711f94e1774ac7bb9f5835f872dfbc of
 #: pymc_marketing.mmm.additive_effect.EventAdditiveEffect.create_effect:8
 msgid "The MMM model instance."
-msgstr ""
+msgstr "La instancia del modelo MMM."
 
 #: 3b81719942214284bca77aac89e7b708 of
 #: pymc_marketing.mmm.additive_effect.EventAdditiveEffect.create_effect
 msgid "Returns"
-msgstr ""
+msgstr "Devoluciones"
 
 #: ddcf5f7cdb0d4dc6aee80be6c62d9f60 of
 #: pymc_marketing.mmm.additive_effect.EventAdditiveEffect.create_effect:14
 msgid ":obj:`pt.TensorVariable`"
-msgstr ""
+msgstr ":obj:`pt.TensorVariable`"
 
 #: a40819f9d6e248579b326f8819c156cc of
 #: pymc_marketing.mmm.additive_effect.EventAdditiveEffect.create_effect:15
 msgid "The average event effect in the model."
-msgstr ""
+msgstr "El efecto promedio del evento en el modelo."

@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.sample_posterior_predictive.rst:2
 #: 4bf4a6a96b394b14abf8d4af579dfe33
 msgid "GammaGammaModelIndividual.sample\\_posterior\\_predictive"
-msgstr ""
+msgstr "GammaGammaModelIndividual.muestra\\_predictiva\\_posterior"

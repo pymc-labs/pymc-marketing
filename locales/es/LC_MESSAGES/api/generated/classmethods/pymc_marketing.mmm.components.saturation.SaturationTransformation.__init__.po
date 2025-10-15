@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.components.saturation.SaturationTransformation.__init__.rst:2
 #: bf0769f58cf7420aa1a495a8c40aef34
 msgid "SaturationTransformation.\\_\\_init\\_\\_"
-msgstr ""
+msgstr "SaturationTransformation.\\_\\_init\\_\\_"

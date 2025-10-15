@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.additive_effect.MuEffect.__init__.rst:2
 #: 6c6110e25ef741149d9d1323b3a48681
 msgid "MuEffect.\\_\\_init\\_\\_"
-msgstr ""
+msgstr "MuEffect.\\_\\_init\\_\\_"

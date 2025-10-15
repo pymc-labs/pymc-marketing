@@ -23,29 +23,29 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.BuildModelFromDAG.model_graph.rst:2
 #: f4ebd88ffe6f4ceda48d868bacfaa76a
 msgid "BuildModelFromDAG.model\\_graph"
-msgstr ""
+msgstr "BuildModelFromDAG.model\\_graph"
 
 #: e76c75780d3f4c92961e76e4b4ca6fb5 of
 #: pymc_marketing.mmm.causal.BuildModelFromDAG.model_graph:2
 msgid "Return a Graphviz visualization of the built PyMC model."
-msgstr ""
+msgstr "Devuelve una visualización de Graphviz del modelo PyMC construido."
 
 #: 656a3fc4eba345f4b32719977c7990fe of
 #: pymc_marketing.mmm.causal.BuildModelFromDAG.model_graph
 msgid "Returns"
-msgstr ""
+msgstr "Devoluciones"
 
 #: 87ead108478b49c89409c8141bee75ec of
 #: pymc_marketing.mmm.causal.BuildModelFromDAG.model_graph:10
 msgid ":obj:`graphviz.Source`"
-msgstr ""
+msgstr ":obj:`graphviz.Source`"
 
 #: 3d9452290b39472899c5aa30af1d138e of
 #: pymc_marketing.mmm.causal.BuildModelFromDAG.model_graph:11
 msgid "Graphviz object representing the model graph."
-msgstr ""
+msgstr "Objeto Graphviz que representa el gráfico del modelo."
 
 #: d0b9869d1839422fbc4cc615a219a70e of
 #: pymc_marketing.mmm.causal.BuildModelFromDAG.model_graph:23
 msgid "Examples"
-msgstr ""
+msgstr "Ejemplos"

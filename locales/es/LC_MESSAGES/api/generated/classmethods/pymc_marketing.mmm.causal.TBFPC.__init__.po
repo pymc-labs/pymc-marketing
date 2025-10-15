@@ -23,33 +23,36 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.TBFPC.__init__.rst:2
 #: 48e388f68bd64ce2a7d8d391cf8011ff
 msgid "TBFPC.\\_\\_init\\_\\_"
-msgstr ""
+msgstr "TBFPC.\\_\\_init\\_\\_"
 
 #: 5e4e0cc345cb43049c9d51c925c21ddb of
 #: pymc_marketing.mmm.causal.TBFPC.__init__:2
 msgid "Create a new TBFPC causal discovery model."
-msgstr ""
+msgstr "Cree un nuevo modelo de descubrimiento causal TBFPC."
 
-#: 74e320b700764e83ae46314dca60a2d7 of pymc_marketing.mmm.causal.TBFPC.__init__
+#: 74e320b700764e83ae46314dca60a2d7 of
+#: pymc_marketing.mmm.causal.TBFPC.__init__
 msgid "Parameters"
-msgstr ""
+msgstr "Parámetros"
 
 #: 454b248416ab457ca22dc5611dadc736 of
 #: pymc_marketing.mmm.causal.TBFPC.__init__:7
 msgid "**target**"
-msgstr ""
+msgstr "**objetivo**"
 
 #: a85942228acd4e6d86e9509fa0b187b4 of
 #: pymc_marketing.mmm.causal.TBFPC.__init__:8
 msgid ""
-"Variable name for the model outcome; must be present in the data used "
-"during fitting."
+"Variable name for the model outcome; must be present in the data used during"
+" fitting."
 msgstr ""
+"Nombre de la variable para el resultado del modelo; debe estar presente en "
+"los datos utilizados durante el ajuste."
 
 #: 950d815c4f364240b4e9940b90bb3236 of
 #: pymc_marketing.mmm.causal.TBFPC.__init__:11
 msgid "**target_edge_rule**"
-msgstr ""
+msgstr "**regla_de_borde_objetivo**"
 
 #: 95a994edb3cc41408e261b53f5d1fa86 of
 #: pymc_marketing.mmm.causal.TBFPC.__init__:12
@@ -57,11 +60,13 @@ msgid ""
 "Rule that controls which driver → target edges are retained. Options are "
 "``\"any\"``, ``\"conservative\"``, and ``\"fullS\"``."
 msgstr ""
+"Regla que controla qué bordes de controlador → objetivo se retienen. Las "
+"opciones son ``\"cualquiera\"``, ``\"conservadora\"`` y ``\"completaS\"``."
 
 #: eff5488d1a0a4ef296984eea4b51af83 of
 #: pymc_marketing.mmm.causal.TBFPC.__init__:15
 msgid "**bf_thresh**"
-msgstr ""
+msgstr "**bf_thresh**"
 
 #: 9b1d71da413d4686afa4f1bfde5bc583 of
 #: pymc_marketing.mmm.causal.TBFPC.__init__:16
@@ -69,15 +74,19 @@ msgid ""
 "Positive Bayes factor threshold applied during conditional independence "
 "tests."
 msgstr ""
+"Umbral del factor de Bayes positivo aplicado durante las pruebas de "
+"independencia condicional."
 
 #: 0ccd41746d8844e3a188716c5b426122 of
 #: pymc_marketing.mmm.causal.TBFPC.__init__:19
 msgid "**forbidden_edges**"
-msgstr ""
+msgstr "**bordes_prohibidos**"
 
 #: af647b1a213d4c70b304484a008c222f of
 #: pymc_marketing.mmm.causal.TBFPC.__init__:20
 msgid ""
-"Optional sequence of node pairs that must not be connected in the learned"
-" graph."
+"Optional sequence of node pairs that must not be connected in the learned "
+"graph."
 msgstr ""
+"Secuencia opcional de pares de nodos que no deben estar conectados en el "
+"grafo aprendido."
