@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.fourier.FourierBase.validate.rst:2
 #: 1c23396afd1440e89f1558c369be08ec
 msgid "FourierBase.validate"
-msgstr ""
+msgstr "FourierBase.validar"

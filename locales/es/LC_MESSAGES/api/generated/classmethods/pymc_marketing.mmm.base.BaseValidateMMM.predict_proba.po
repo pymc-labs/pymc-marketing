@@ -23,7 +23,7 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.base.BaseValidateMMM.predict_proba.rst:2
 #: 4b4c7144cb81415a884ebbff8f5abecd
 msgid "BaseValidateMMM.predict\\_proba"
-msgstr ""
+msgstr "BaseValidateMMM.predecir\\_probabilidad"
 
 #: dd754373396f4936b5374453a31d649b of
 #: pymc_marketing.model_builder.RegressionModelBuilder.predict_proba:2
@@ -31,3 +31,5 @@ msgid ""
 "Alias for `predict_posterior`, for consistency with scikit-learn "
 "probabilistic estimators."
 msgstr ""
+"Alias para `predict_posterior`, por consistencia con los estimadores "
+"probabilísticos de scikit-learn."

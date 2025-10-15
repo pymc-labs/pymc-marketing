@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.additive_effect.MuEffect.create_data.rst:2
 #: a5f7ec38a93f4204950a0dffeb918d7d
 msgid "MuEffect.create\\_data"
-msgstr ""
+msgstr "MuEffect.crear\\_datos"
 
 #: cf26ca3766f645ca8aefb44680471058 of
 #: pymc_marketing.mmm.additive_effect.MuEffect.create_data:2
 msgid "Create the required data in the model."
-msgstr ""
+msgstr "Cree los datos requeridos en el modelo."

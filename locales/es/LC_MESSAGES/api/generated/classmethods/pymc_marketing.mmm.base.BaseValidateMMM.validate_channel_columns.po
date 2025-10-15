@@ -23,41 +23,43 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.base.BaseValidateMMM.validate_channel_columns.rst:2
 #: ce1d0b73103242419a8c76357b044a58
 msgid "BaseValidateMMM.validate\\_channel\\_columns"
-msgstr ""
+msgstr "BaseValidateMMM.validar_columnas_de_canal"
 
 #: a8cbbe6b7b384371958a85b0947f0c3f of
 #: pymc_marketing.mmm.validating.ValidateChannelColumns.validate_channel_columns:2
 msgid "Validate the channel columns."
-msgstr ""
+msgstr "Valide las columnas del canal."
 
 #: 086b897a4743492e9dc1e0701f0f7796 of
 #: pymc_marketing.mmm.validating.ValidateChannelColumns.validate_channel_columns
 msgid "Parameters"
-msgstr ""
+msgstr "Parámetros"
 
 #: 8a82ac9cfd4346cb8fadc8bee8fedda1 of
 #: pymc_marketing.mmm.validating.ValidateChannelColumns.validate_channel_columns:7
 msgid "**data** : :obj:`pd.DataFrame`"
-msgstr ""
+msgstr "**datos** : :obj:`pd.DataFrame`"
 
 #: c328faeba33d457d8dbfbd9fe8cc9c35 of
 #: pymc_marketing.mmm.validating.ValidateChannelColumns.validate_channel_columns:6
 msgid "pd.DataFrame"
-msgstr ""
+msgstr "pd.DataFrame"
 
 #: a1f216ec1bf147818a9e4cd44d4d60e6 of
 #: pymc_marketing.mmm.validating.ValidateChannelColumns.validate_channel_columns:8
 msgid "The data to validate."
-msgstr ""
+msgstr "Los datos a validar."
 
 #: 3bc9ed4a534947a88964122475c36795 of
 #: pymc_marketing.mmm.validating.ValidateChannelColumns.validate_channel_columns
 msgid "Raises"
-msgstr ""
+msgstr "Aumentos"
 
 #: 8e62c44758384c8bb5a8cb1d9b73f05b of
 #: pymc_marketing.mmm.validating.ValidateChannelColumns.validate_channel_columns:18
 msgid ""
-"ValueError: :obj:`If` :obj:`the` :obj:`channel` :obj:`columns` :obj:`are`"
-" :obj:`not` valid."
+"ValueError: :obj:`If` :obj:`the` :obj:`channel` :obj:`columns` :obj:`are` "
+":obj:`not` valid."
 msgstr ""
+"ValueError: :obj:`Si` :obj:`las` :obj:`columnas` :obj:`del` :obj:`canal` "
+":obj:`no` :obj:`son` :obj:`válidas`."

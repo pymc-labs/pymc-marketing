@@ -23,17 +23,17 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.TBFPC.get_directed_edges.rst:2
 #: 6ab82a62a19d4fecbc8339b97c5f2548
 msgid "TBFPC.get\\_directed\\_edges"
-msgstr ""
+msgstr "TBFPC.obtener\\_aristas\\_dirigidas"
 
 #: 68575a148ef64103a46e588a17361cfe of
 #: pymc_marketing.mmm.causal.TBFPC.get_directed_edges:2
 msgid "Return directed edges learned by the algorithm."
-msgstr ""
+msgstr "Devolver los bordes dirigidos aprendidos por el algoritmo."
 
 #: e8ef45a836e34a14b6e98ed39c9585ab of
 #: pymc_marketing.mmm.causal.TBFPC.get_directed_edges
 msgid "Returns"
-msgstr ""
+msgstr "Devoluciones"
 
 #: 160bc3da420b4a15969b0cb27260fade of
 #: pymc_marketing.mmm.causal.TBFPC.get_directed_edges:10
@@ -41,13 +41,16 @@ msgid ""
 ":class:`python:list`\\[:class:`python:tuple`\\[:class:`python:str`, "
 ":class:`python:str`]]"
 msgstr ""
+":class:`python:list`\\[:class:`python:tuple`\\[:class:`python:str`, "
+":class:`python:str`]]"
 
 #: 7b019c55ce30481bab331f5442fbac23 of
 #: pymc_marketing.mmm.causal.TBFPC.get_directed_edges:11
 msgid "Sorted list of ``(u, v)`` pairs representing oriented edges."
 msgstr ""
+"Lista ordenada de pares ``(u, v)`` que representan aristas orientadas."
 
 #: 195f3afcac3345808469a77250513d96 of
 #: pymc_marketing.mmm.causal.TBFPC.get_directed_edges:23
 msgid "Examples"
-msgstr ""
+msgstr "Ejemplos"

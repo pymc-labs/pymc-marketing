@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.validate.rst:2
 #: 67113cf5013a4267b58752e80e4a10fd
 msgid "BudgetOptimizer.validate"
-msgstr ""
+msgstr "BudgetOptimizer.validar"

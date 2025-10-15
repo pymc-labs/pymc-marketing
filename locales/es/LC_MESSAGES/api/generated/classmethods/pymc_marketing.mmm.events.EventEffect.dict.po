@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.events.EventEffect.dict.rst:2
 #: 3456d8db16ee4eaead2dbff9f9f9a114
 msgid "EventEffect.dict"
-msgstr ""
+msgstr "EfectoEvento.dict"

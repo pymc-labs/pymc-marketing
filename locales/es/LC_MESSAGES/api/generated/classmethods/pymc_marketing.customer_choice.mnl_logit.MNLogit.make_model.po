@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.customer_choice.mnl_logit.MNLogit.make_model.rst:2
 #: a73045b7e86445bfbdf12f7ab3d83182
 msgid "MNLogit.make\\_model"
-msgstr ""
+msgstr "MNLogit.hacer\\_modelo"
 
 #: 01b20c07173042f9b538a60e9c60bca6 of
 #: pymc_marketing.customer_choice.mnl_logit.MNLogit.make_model:2
 msgid "Build Model."
-msgstr ""
+msgstr "Construir modelo."

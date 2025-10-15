@@ -23,21 +23,23 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.basic.CLVModel.thin_fit_result.rst:2
 #: 1da4d694105c49868ab35e9b357b4150
 msgid "CLVModel.thin\\_fit\\_result"
-msgstr ""
+msgstr "CLVModel.resultado\\_ajuste\\_delgado"
 
 #: ff47bb48586b4bb79c1fc67dda3acba3 of
 #: pymc_marketing.clv.models.basic.CLVModel.thin_fit_result:2
 msgid "Return a copy of the model with a thinned fit result."
-msgstr ""
+msgstr "Devuelva una copia del modelo con un resultado de ajuste reducido."
 
 #: c06189d90a8c4f93b5b06579de4f209d of
 #: pymc_marketing.clv.models.basic.CLVModel.thin_fit_result:4
 msgid ""
-"This is useful when computing summary statistics that may require too "
-"much memory per posterior draw."
+"This is useful when computing summary statistics that may require too much "
+"memory per posterior draw."
 msgstr ""
+"Esto es útil al calcular estadísticas resumidas que pueden requerir "
+"demasiada memoria por cada extracción posterior."
 
 #: 2c18bd59767d4f558d8399830fcb4ef8 of
 #: pymc_marketing.clv.models.basic.CLVModel.thin_fit_result:20
 msgid "Examples"
-msgstr ""
+msgstr "Ejemplos"

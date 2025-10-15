@@ -23,17 +23,18 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.TBFPC.get_undirected_edges.rst:2
 #: 3e950d88b5d04037888cec91a5e08901
 msgid "TBFPC.get\\_undirected\\_edges"
-msgstr ""
+msgstr "TBFPC.obtener\\_aristas\\_no\\_dirigidas"
 
 #: f9351033cdc54e3c96f0b03284ea98ad of
 #: pymc_marketing.mmm.causal.TBFPC.get_undirected_edges:2
 msgid "Return undirected edges remaining after orientation."
 msgstr ""
+"Devolver los bordes no dirigidos que quedan después de la orientación."
 
 #: 10f359de8bf44b0cbc902a800d5b7833 of
 #: pymc_marketing.mmm.causal.TBFPC.get_undirected_edges
 msgid "Returns"
-msgstr ""
+msgstr "Devoluciones"
 
 #: 11c0bbcd60964b93a5f22f708834fb7a of
 #: pymc_marketing.mmm.causal.TBFPC.get_undirected_edges:10
@@ -41,13 +42,15 @@ msgid ""
 ":class:`python:list`\\[:class:`python:tuple`\\[:class:`python:str`, "
 ":class:`python:str`]]"
 msgstr ""
+":class:`python:list`\\[:class:`python:tuple`\\[:class:`python:str`, "
+":class:`python:str`]]"
 
 #: 9bd73a3ff02e4c5780bf75fd95653d11 of
 #: pymc_marketing.mmm.causal.TBFPC.get_undirected_edges:11
 msgid "Sorted list of ``(u, v)`` pairs for unresolved adjacencies."
-msgstr ""
+msgstr "Lista ordenada de pares ``(u, v)`` para adyacencias no resueltas."
 
 #: bee986c120d94caba989b67d18d4476d of
 #: pymc_marketing.mmm.causal.TBFPC.get_undirected_edges:23
 msgid "Examples"
-msgstr ""
+msgstr "Ejemplos"

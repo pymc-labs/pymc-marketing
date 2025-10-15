@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.components.adstock.NoAdstock.update_priors.rst:2
 #: e9ef03e5634642f0a4eb652f94203a0d
 msgid "NoAdstock.update\\_priors"
-msgstr ""
+msgstr "NoAdstock.actualizar\\_previos"
 
 #: 5e1d90d647ef41da8ed6e722b83adf78 of
 #: pymc_marketing.mmm.components.adstock.NoAdstock.update_priors:2
 msgid "Update priors for the no adstock transformation."
-msgstr ""
+msgstr "Actualizar los antecedentes para la transformación sin adstock."

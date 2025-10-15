@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.components.saturation.NoSaturation.function.rst:2
 #: 3eacaf2c3e8c48beb6b756b0999cdedf
 msgid "NoSaturation.function"
-msgstr ""
+msgstr "NoSaturation.función"
 
 #: 599acbd4e772486c81bdd7e49e3b144d of
 #: pymc_marketing.mmm.components.saturation.NoSaturation.function:2
 msgid "Linear saturation function."
-msgstr ""
+msgstr "Función de saturación lineal."

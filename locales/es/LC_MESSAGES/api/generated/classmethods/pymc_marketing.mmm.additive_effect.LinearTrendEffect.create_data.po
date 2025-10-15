@@ -23,29 +23,29 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.additive_effect.LinearTrendEffect.create_data.rst:2
 #: edc35938b285469db072a05393b96f64
 msgid "LinearTrendEffect.create\\_data"
-msgstr ""
+msgstr "LinearTrendEffect.crear_datos"
 
 #: 64a1b296fe8a4bf18629b4c89999d61a of
 #: pymc_marketing.mmm.additive_effect.LinearTrendEffect.create_data:2
 msgid "Create the required data in the model."
-msgstr ""
+msgstr "Cree los datos requeridos en el modelo."
 
 #: a42885f15cce4fa68ef08482ecad6f7d of
 #: pymc_marketing.mmm.additive_effect.LinearTrendEffect.create_data
 msgid "Parameters"
-msgstr ""
+msgstr "Parámetros"
 
 #: 8446893ecfa6448eb4f2c1e96996bcea of
 #: pymc_marketing.mmm.additive_effect.LinearTrendEffect.create_data:7
 msgid "**mmm** : :obj:`MMM`"
-msgstr ""
+msgstr "**mmm** : :obj:`MMM`"
 
 #: b10bbfcaf6d44a509615149117af2fea of
 #: pymc_marketing.mmm.additive_effect.LinearTrendEffect.create_data:6
 msgid "MMM"
-msgstr ""
+msgstr "MMM"
 
 #: 7bd80298920c48ea8b1165107812bef4 of
 #: pymc_marketing.mmm.additive_effect.LinearTrendEffect.create_data:8
 msgid "The MMM model instance."
-msgstr ""
+msgstr "La instancia del modelo MMM."

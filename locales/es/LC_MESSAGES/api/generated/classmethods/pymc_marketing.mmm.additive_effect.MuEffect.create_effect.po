@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.additive_effect.MuEffect.create_effect.rst:2
 #: 8618191d3eeb4b728f299acb872d4033
 msgid "MuEffect.create\\_effect"
-msgstr ""
+msgstr "MuEffect.crear\\_efecto"
 
 #: 37be4d42bb344694a7324695d41029c9 of
 #: pymc_marketing.mmm.additive_effect.MuEffect.create_effect:2
 msgid "Create the additive effect in the model."
-msgstr ""
+msgstr "Cree el efecto aditivo en el modelo."

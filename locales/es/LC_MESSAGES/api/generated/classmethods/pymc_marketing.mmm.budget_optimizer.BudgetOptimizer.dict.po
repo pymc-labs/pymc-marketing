@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.dict.rst:2
 #: 1ae64a1d3edf437d93eb6a0e60d2b9e4
 msgid "BudgetOptimizer.dict"
-msgstr ""
+msgstr "PresupuestoOptimizador.dict"

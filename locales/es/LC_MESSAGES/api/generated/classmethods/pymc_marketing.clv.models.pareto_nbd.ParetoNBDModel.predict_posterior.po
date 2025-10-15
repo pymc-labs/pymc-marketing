@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.predict_posterior.rst:2
 #: 33630cb4c9fa48759567881f400e9019
 msgid "ParetoNBDModel.predict\\_posterior"
-msgstr ""
+msgstr "ParetoNBDModel.predecir\\_posterior"

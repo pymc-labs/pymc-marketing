@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.predict.rst:2
 #: 2a566a48d91546ff9d2f602dcd8af5da
 msgid "BetaGeoBetaBinomModel.predict"
-msgstr ""
+msgstr "BetaGeoBetaBinomModel.predecir"

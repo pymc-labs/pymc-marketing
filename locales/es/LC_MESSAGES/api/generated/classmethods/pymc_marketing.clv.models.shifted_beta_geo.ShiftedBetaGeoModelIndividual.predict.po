@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.predict.rst:2
 #: 8f74beffc65a47a282f57879ae0285c5
 msgid "ShiftedBetaGeoModelIndividual.predict"
-msgstr ""
+msgstr "ShiftedBetaGeoModelIndividual.predecir"

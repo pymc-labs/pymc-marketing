@@ -23,24 +23,24 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.events.Basis.to_dict.rst:2
 #: ae55b2c8d6b843cc9d4aebeafdcfff46
 msgid "Basis.to\\_dict"
-msgstr ""
+msgstr "Basis.to\\_dict"
 
 #: f0f53aede3304fffa579a6134f7e1af6 of
 #: pymc_marketing.mmm.components.base.Transformation.to_dict:2
 msgid "Convert the transformation to a dictionary."
-msgstr ""
+msgstr "Convierte la transformación a un diccionario."
 
 #: ac29cbae12ce4926aada3489dc9c966b of
 #: pymc_marketing.mmm.components.base.Transformation.to_dict
 msgid "Returns"
-msgstr ""
+msgstr "Devoluciones"
 
 #: 0c3ac49775a5412ab8cb7e840c5964c9 of
 #: pymc_marketing.mmm.components.base.Transformation.to_dict:10
 msgid ":class:`python:dict`"
-msgstr ""
+msgstr ":class:`python:dict`"
 
 #: 336b50494b8e4eb48e399fa88687bf2e of
 #: pymc_marketing.mmm.components.base.Transformation.to_dict:11
 msgid "The dictionary defining the transformation."
-msgstr ""
+msgstr "El diccionario que define la transformación."

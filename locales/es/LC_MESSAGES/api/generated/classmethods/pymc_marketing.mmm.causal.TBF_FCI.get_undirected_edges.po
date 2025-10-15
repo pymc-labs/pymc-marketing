@@ -23,17 +23,17 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.TBF_FCI.get_undirected_edges.rst:2
 #: 15850804c9994e0ebd5a008bcaee769b
 msgid "TBF\\_FCI.get\\_undirected\\_edges"
-msgstr ""
+msgstr "TBF\\_FCI.obtener\\_aristas\\_no\\_dirigidas"
 
 #: a3fb90038df74dc8b715bf6751868ab5 of
 #: pymc_marketing.mmm.causal.TBF_FCI.get_undirected_edges:2
 msgid "Return undirected edges in the time-unrolled graph."
-msgstr ""
+msgstr "Devolver aristas no dirigidas en el grafo desenrollado en el tiempo."
 
 #: ca7ba8695d274bdab26def0e01b5f10a of
 #: pymc_marketing.mmm.causal.TBF_FCI.get_undirected_edges
 msgid "Returns"
-msgstr ""
+msgstr "Devoluciones"
 
 #: 3ce9f2fd9c5440fe97e23d07ea53049d of
 #: pymc_marketing.mmm.causal.TBF_FCI.get_undirected_edges:10
@@ -41,13 +41,15 @@ msgid ""
 ":class:`python:list`\\[:class:`python:tuple`\\[:class:`python:str`, "
 ":class:`python:str`]]"
 msgstr ""
+":class:`python:list`\\[:class:`python:tuple`\\[:class:`python:str`, "
+":class:`python:str`]]"
 
 #: 20bfe02fa3c94102820a589c998aba5a of
 #: pymc_marketing.mmm.causal.TBF_FCI.get_undirected_edges:11
 msgid "Sorted list of undirected edges among lagged variables."
-msgstr ""
+msgstr "Lista ordenada de aristas no dirigidas entre variables rezagadas."
 
 #: 555452716287414eba0837f9a03a6c6a of
 #: pymc_marketing.mmm.causal.TBF_FCI.get_undirected_edges:23
 msgid "Examples"
-msgstr ""
+msgstr "Ejemplos"
