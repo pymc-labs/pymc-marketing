@@ -143,9 +143,10 @@ class TestShiftedBetaGeoModel:
                 if "beta" not in model.model_config
                 else model.model_config["beta"].pymc_distribution,
             )
-            assert model.model.coords["customer_id"] == tuple(range(1, self.N + 1))
-            assert model.model.coords["cohort"] == ("highend", "regular")
-            assert model.model.coords["cohort"] == tuple(model.cohorts)
+            assert model.model.coords == {
+                "customer_id": tuple(range(1, self.N + 1)),
+                "cohort": ("highend", "regular"),
+            }
 
         assert default_model.model.eval_rv_shapes() == {
             "kappa": (np.int64(2),),
