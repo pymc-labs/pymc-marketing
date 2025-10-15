@@ -238,19 +238,16 @@ class ShiftedBetaGeoModel(CLVModel):
             pred_data,
             required_cols=[
                 "customer_id",
-                "cohort",
                 *customer_varnames,
             ],
             must_be_unique=["customer_id"],
         )
 
-        # Validate recency requirements for predictions
-        if "recency" in pred_data.columns:
-            # Base validity check
-            if np.any((pred_data["recency"] < 0) | np.isnan(pred_data["recency"])):
-                raise ValueError(
-                    "recency must be greater than zero, and cannot contain null values.\n",
-                )
+        # Validate T requirements for predictions
+        if np.any((pred_data["T"] < 1) | np.isnan(pred_data["T"])):
+            raise ValueError(
+                "T must be at least 2 and cannot contain null values.\n",
+            )
 
         # Validate external data cohorts match the model's cohorts
         cohorts_present = pd.Index(pred_data["cohort"].unique())
@@ -261,7 +258,7 @@ class ShiftedBetaGeoModel(CLVModel):
                 "Cohorts in prediction data do not match cohorts used to fit the model."
             )
 
-        # Select alpha and beta only for cohorts present in the data
+        # Extract alpha and beta parametersonly for cohorts present in the data
         pred_cohorts = xarray.DataArray(
             cohorts_present.values,
             dims=("cohort",),
@@ -270,10 +267,10 @@ class ShiftedBetaGeoModel(CLVModel):
         alpha_pred = self.fit_result["alpha"].sel(cohort=pred_cohorts)
         beta_pred = self.fit_result["beta"].sel(cohort=pred_cohorts)
 
-        # Create cohort mapping for customers
+        # Create a cohort-by-customer DataArray to map cohort parameters to customers
+        # TODO: Can this be consolidated with the previous cohort validation & selection steps?
         customer_cohort_map = pred_data.set_index("customer_id")["cohort"]
 
-        # Create a mapping DataArray for customer-to-cohort relationship
         customer_cohort_mapping = xarray.DataArray(
             customer_cohort_map.values,
             dims=("customer_id",),
@@ -324,12 +321,12 @@ class ShiftedBetaGeoModel(CLVModel):
             data = data.assign(future_t=future_t)
 
         dataset = self._extract_predictive_variables(
-            data, customer_varnames=["recency", "future_t"]
+            data, customer_varnames=["T", "future_t", "cohort"]
         )
 
         alpha = dataset["alpha"]
         beta = dataset["beta"]
-        T = dataset["recency"]
+        T = dataset["T"]
         t = dataset["future_t"]
 
         retention_rate = (beta + T + t - 1) / (alpha + beta + T + t - 1)
@@ -360,12 +357,12 @@ class ShiftedBetaGeoModel(CLVModel):
             data = data.assign(future_t=future_t)
 
         dataset = self._extract_predictive_variables(
-            data, customer_varnames=["recency", "future_t"]
+            data, customer_varnames=["T", "future_t", "cohort"]
         )
 
         alpha = dataset["alpha"]
         beta = dataset["beta"]
-        T = dataset["recency"]
+        T = dataset["T"]
         t = dataset["future_t"]
 
         logS = (
