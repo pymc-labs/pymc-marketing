@@ -259,7 +259,7 @@ class ShiftedBetaGeoModel(CLVModel):
         )
 
         # Validate T requirements for predictions (T>=2 only required for fit data)
-        if np.any(pred_data["T"] < 1):
+        if np.any(pred_data["T"] <= 0):
             raise ValueError(
                 "T must be a non-zero, positive integer.",
             )

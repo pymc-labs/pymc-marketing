@@ -208,6 +208,24 @@ class TestShiftedBetaGeoModel:
             retention_rate_regular_obs,
         )
 
+    @pytest.fixture(scope="class")
+    def predicted_time_series_data(self):
+        """Format prediction data to compare against observed prediction_targets."""
+        # model was trained on 8 time periods, but will be evaluated against full time series
+        max_T = 13
+        cohort_names = np.array(["regular", "highend"])
+        cohorts_covar = np.array([0, 1])
+        T_rng = np.arange(1, max_T + 1, 1)  # T=1 to T=13
+
+        return pd.DataFrame(
+            {
+                "customer_id": np.arange(1, 1 + max_T * 2, 1),
+                "T": np.repeat(T_rng, len(cohort_names)),
+                "cohort": np.tile(cohort_names, max_T),
+                "covar_cohort": np.tile(cohorts_covar, max_T),
+            }
+        )
+
     def test_missing_cols(self):
         data_invalid = self.data.drop(columns="customer_id")
 
@@ -368,44 +386,60 @@ class TestShiftedBetaGeoModel:
         assert len(idata.posterior.draw) == 10
         assert model.idata is idata
 
-    def test_expected_probability_alive(self, prediction_targets):
+    def test_expected_probability_alive(
+        self, prediction_targets, predicted_time_series_data
+    ):
+        # extract observed active probability arrays by cohort
         alive_prob_highend_obs, alive_prob_regular_obs, _, _ = prediction_targets
-        # TODO: need full array comparison
-        expected_alive_prob_highend = (
-            self.model.expected_probability_alive(future_t=0)
-            .sel(cohort="highend")
-            .mean()
-        )
-        expected_alive_prob_regular = (
-            self.model.expected_probability_alive(future_t=0)
-            .sel(cohort="regular")
-            .mean()
+
+        # run full predictions and extract by cohort
+        expected_retention_rate_cohorts = self.model.expected_probability_alive(
+            predicted_time_series_data,
+            future_t=-1,  # prob_alive is always 1 when T==1
+        ).mean(("chains", "draws"))
+        expected_alive_prob_highend = expected_retention_rate_cohorts.sel(
+            cohort="highend"
+        ).values
+        expected_alive_prob_regular = expected_retention_rate_cohorts.sel(
+            cohort="regular"
+        ).values
+
+        np.testing.assert_allclose(
+            expected_alive_prob_highend, alive_prob_highend_obs, rtol=0.05
         )
         np.testing.assert_allclose(
-            expected_alive_prob_highend, alive_prob_highend_obs, rtol=0.01
-        )
-        np.testing.assert_allclose(
-            expected_alive_prob_regular, alive_prob_regular_obs, rtol=0.01
+            expected_alive_prob_regular, alive_prob_regular_obs, rtol=0.05
         )
 
-    def test_expected_retention_rate(self, prediction_targets):
+    def test_expected_retention_rate(
+        self, prediction_targets, predicted_time_series_data
+    ):
+        # extract observed retention rate data arrays by cohort
         _, _, retention_rate_highend_obs, retention_rate_regular_obs = (
             prediction_targets
         )
-        # TODO: need full array comparison
-        expected_retention_rate_highend = (
-            self.model.expected_retention_rate(future_t=0).sel(cohort="highend").mean()
-        )
-        expected_retention_rate_regular = (
-            self.model.expected_retention_rate(self.data, future_t=0)
-            .sel(cohort="regular")
-            .mean()
+
+        # retention rate is estimated from T-1 time periods, reducing array length by 1
+        retention_data = predicted_time_series_data[
+            predicted_time_series_data["T"] <= 12
+        ]
+        # run full predictions and extract by cohort
+        expected_retention_rate_cohorts = self.model.expected_retention_rate(
+            retention_data,
+            future_t=0,
+        ).mean(("chains", "draws"))
+        expected_retention_rate_highend = expected_retention_rate_cohorts.sel(
+            cohort="highend"
+        ).values
+        expected_retention_rate_regular = expected_retention_rate_cohorts.sel(
+            cohort="regular"
+        ).values
+
+        np.testing.assert_allclose(
+            expected_retention_rate_highend, retention_rate_highend_obs, rtol=0.05
         )
         np.testing.assert_allclose(
-            expected_retention_rate_highend, retention_rate_highend_obs, rtol=0.01
-        )
-        np.testing.assert_allclose(
-            expected_retention_rate_regular, retention_rate_regular_obs, rtol=0.01
+            expected_retention_rate_regular, retention_rate_regular_obs, rtol=0.05
         )
 
     def test_save_load(self):
@@ -453,7 +487,7 @@ class TestShiftedBetaGeoModel:
             )
 
     def test_extract_predictive_variables_invalid(self):
-        hetero_T_data = pd.DataFrame(
+        invalid_cohort_data = pd.DataFrame(
             {
                 "customer_id": np.asarray([1, 2]),
                 "recency": np.asarray([1, 1]),
@@ -463,10 +497,10 @@ class TestShiftedBetaGeoModel:
         )
         with pytest.raises(
             ValueError,
-            match=r"T must be homogeneous within each cohort. The following cohorts have multiple T values: A",
+            match=r"Cohorts in prediction data do not match cohorts used to fit the model.",
         ):
             self.model._extract_predictive_variables(
-                hetero_T_data,
+                invalid_cohort_data,
                 customer_varnames=["customer_id", "recency", "T", "cohort"],
             )
 
@@ -474,8 +508,8 @@ class TestShiftedBetaGeoModel:
             {
                 "customer_id": np.asarray([1, 2]),
                 "recency": np.asarray([1, 1]),
-                "T": np.asarray([1, 1]),
-                "cohort": np.asarray(["A", "A"]),
+                "T": np.asarray([0, 0]),
+                "cohort": np.asarray(["highend", "highend"]),
             }
         )
         with pytest.raises(
