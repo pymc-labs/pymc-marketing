@@ -553,15 +553,15 @@ class TestShiftedBetaGeoModelIndividual:
     @pytest.fixture(scope="class")
     def model_config(self):
         return {
-            "alpha": Prior("HalfNormal", sigma=10, dims="cohort"),
-            "beta": Prior("HalfStudentT", nu=4, sigma=10, dims="cohort"),
+            "alpha": Prior("HalfNormal", sigma=10),
+            "beta": Prior("HalfStudentT", nu=4, sigma=10),
         }
 
     @pytest.fixture(scope="class")
     def default_model_config(self):
         return {
-            "alpha": Prior("HalfFlat", dims="cohort"),
-            "beta": Prior("HalfFlat", dims="cohort"),
+            "alpha": Prior("HalfFlat"),
+            "beta": Prior("HalfFlat"),
         }
 
     @pytest.fixture(scope="class")
@@ -602,7 +602,7 @@ class TestShiftedBetaGeoModelIndividual:
 
     def test_model_repr(self, default_model_config):
         custom_model_config = default_model_config.copy()
-        custom_model_config["alpha"] = Prior("HalfNormal", sigma=10, dims="cohort")
+        custom_model_config["alpha"] = Prior("HalfNormal", sigma=10)
         dataset = pd.DataFrame(
             {"customer_id": self.customer_id, "t_churn": self.churn_time, "T": self.T}
         )
@@ -695,7 +695,7 @@ class TestShiftedBetaGeoModelIndividual:
             rtol=0.1,
         )
 
-    def test_distribution_cohort_churn(self):
+    def test_distribution_customer_churn_time(self):
         dataset = pd.DataFrame(
             {
                 "customer_id": [0, 1, 2],
@@ -719,7 +719,9 @@ class TestShiftedBetaGeoModelIndividual:
             dims={"theta": ["customer_id"]},
         )
 
-        res = model.distribution_cohort_churn(customer_id=[0, 1, 2], random_seed=116)
+        res = model.distribution_customer_churn_time(
+            customer_id=[0, 1, 2], random_seed=116
+        )
         np.testing.assert_allclose(
             res.mean(("chain", "draw")),
             stats.geom(customer_thetas).mean(),
