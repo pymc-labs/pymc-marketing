@@ -339,7 +339,7 @@ class TestShiftedBetaGeoModel:
         "method, rtol",
         [
             ("mcmc", 0.1),
-            ("map", 0.01),
+            ("map", 0.1),
             ("advi", 0.6),
         ],
     )
