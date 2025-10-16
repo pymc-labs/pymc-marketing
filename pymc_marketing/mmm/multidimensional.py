@@ -1713,7 +1713,10 @@ class MMM(RegressionModelBuilder):
         ...     sweep_type="multiplicative",
         ... )
         """
-        return SensitivityAnalysis(mmm=self)
+        # Provide the underlying PyMC model, the model's inference data, and dims
+        return SensitivityAnalysis(
+            pymc_model=self.model, idata=self.idata, dims=self.dims
+        )
 
     def _make_channel_transform(
         self, df_lift_test: pd.DataFrame
