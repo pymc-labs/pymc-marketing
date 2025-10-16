@@ -35,8 +35,8 @@ class ShiftedBetaGeoModel(CLVModel):
     """Shifted Beta Geometric (sBG) model for customers renewing contracts over discrete time periods.
 
     The sBG model has the following assumptions:
-      * Cohort dropout probabilities are Beta-distributed with hyperparameters `alpha` and `beta`.
-      * Cohort `theta` probabilities are Beta distributed.
+      * Dropout probabilities for each cohortare Beta-distributed with hyperparameters `alpha` and `beta`.
+      * Cohort retention rates change over time due to customer heterogeneity.
       * Customers in the same cohort began their contract in the same time period.
 
     This model requires data to be summarized by *recency*, *T*, and *cohort* for each customer.
@@ -142,7 +142,7 @@ class ShiftedBetaGeoModel(CLVModel):
             sampler_config=sampler_config,
         )
 
-        self._validate_cohorts(self.data, check_params=("alpha", "beta"))
+        self._validate_cohorts(self.data, check_param_dims=("alpha", "beta"))
 
         # Create cohort dim & coords
         self.cohorts = self.data["cohort"].unique()
@@ -153,39 +153,11 @@ class ShiftedBetaGeoModel(CLVModel):
     def _validate_cohorts(
         self,
         data,
-        check_params=None,
-        check_names=False,
+        check_pred_data=False,
+        check_param_dims=None,
     ):
         """Validate cohort parameter dims, T homogeneity, and if provided in external data."""
-        # Validate T is homogeneous within each cohort
-        t_per_cohort = data.groupby("cohort")["T"].nunique()
-        non_homogeneous_cohorts = t_per_cohort[t_per_cohort > 1]
-        if len(non_homogeneous_cohorts) > 0:
-            cohort_names = ", ".join(map(str, non_homogeneous_cohorts.index.tolist()))
-            raise ValueError(
-                f"T must be homogeneous within each cohort. "
-                f"The following cohorts have multiple T values: {cohort_names}"
-            )
-
-        if check_params is not None:
-            # Validate provided Priors specify dims="cohort"
-            for key in check_params:
-                prior = self.model_config.get(key)
-                if isinstance(prior, Prior):
-                    # Normalize dims to a tuple of strings for comparison
-                    dims = prior.dims
-                    if isinstance(dims, str):
-                        dims_tuple = (dims,)
-                    else:
-                        dims_tuple = tuple(dims) if dims is not None else tuple()
-
-                    if "cohort" not in dims_tuple:
-                        raise ValueError(
-                            f"ModelConfig Prior for '{key}' must include dims=\"cohort\". "
-                            f'Got dims={prior.dims!r}. Example: Prior("HalfFlat", dims="cohort").'
-                        )
-
-        if check_names:
+        if check_pred_data:
             # Validate cohorts in external prediction data match any or all cohorts used to fix model.
             cohorts_present = pd.Index(data["cohort"].unique())
             cohorts_present = cohorts_present.intersection(pd.Index(self.cohorts))
@@ -194,6 +166,35 @@ class ShiftedBetaGeoModel(CLVModel):
                     "Cohorts in prediction data do not match cohorts used to fit the model."
                 )
             return cohorts_present
+        else:
+            # Validate T is homogeneous within each cohort
+            t_per_cohort = data.groupby("cohort")["T"].nunique()
+            non_homogeneous_cohorts = t_per_cohort[t_per_cohort > 1]
+            if len(non_homogeneous_cohorts) > 0:
+                cohort_names = ", ".join(
+                    map(str, non_homogeneous_cohorts.index.tolist())
+                )
+                raise ValueError(
+                    f"T must be homogeneous within each cohort. "
+                    f"The following cohorts have multiple T values: {cohort_names}"
+                )
+            if check_param_dims is not None:
+                # Validate provided Priors specify dims="cohort"
+                for key in check_param_dims:
+                    prior = self.model_config.get(key)
+                    if isinstance(prior, Prior):
+                        # Normalize dims to a tuple of strings for comparison
+                        dims = prior.dims
+                        if isinstance(dims, str):
+                            dims_tuple = (dims,)
+                        else:
+                            dims_tuple = tuple(dims) if dims is not None else tuple()
+
+                        if "cohort" not in dims_tuple:
+                            raise ValueError(
+                                f"ModelConfig Prior for '{key}' must include dims=\"cohort\". "
+                                f'Got dims={prior.dims!r}. Example: Prior("HalfFlat", dims="cohort").'
+                            )
 
     @property
     def default_model_config(self) -> ModelConfig:
@@ -237,7 +238,6 @@ class ShiftedBetaGeoModel(CLVModel):
                 dims=("customer_id",),
             )
 
-    # TODO: can this be generalized and moved into BaseModel?
     def _extract_predictive_variables(
         self,
         pred_data: pd.DataFrame,
@@ -258,13 +258,13 @@ class ShiftedBetaGeoModel(CLVModel):
             must_be_unique=["customer_id"],
         )
 
-        # Validate T requirements for predictions
-        if np.any(pred_data["T"] < 2):
+        # Validate T requirements for predictions (T>=2 only required for fit data)
+        if np.any(pred_data["T"] < 1):
             raise ValueError(
-                "T must be a positive integer >= 2.",
+                "T must be a non-zero, positive integer.",
             )
 
-        cohorts_present = self._validate_cohorts(pred_data, check_names=True)
+        cohorts_present = self._validate_cohorts(pred_data, check_pred_data=True)
 
         # Extract alpha and beta parameters only for cohorts present in the data
         pred_cohorts = xarray.DataArray(

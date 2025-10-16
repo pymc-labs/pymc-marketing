@@ -38,7 +38,7 @@ class TestShiftedBetaGeoModel:
         # Test parameters for dual cohort MCMC fit of expected_probability_alive, expected_retention_rate
         # Highend and regular parameters from pg(7) of paper: https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf
         # TODO: might need to be 0.668 instead
-        cls.alpha_hi_reg = [0.688, 0.704]
+        cls.alpha_hi_reg = [0.668, 0.704]
         cls.beta_hi_reg = [3.806, 1.182]
 
         # TODO: These are needed to test predictive methods in an upcoming PR.
@@ -321,7 +321,7 @@ class TestShiftedBetaGeoModel:
         "method, rtol",
         [
             ("mcmc", 0.1),
-            ("map", 0.1),
+            ("map", 0.01),
             ("advi", 0.6),
         ],
     )
@@ -478,7 +478,9 @@ class TestShiftedBetaGeoModel:
                 "cohort": np.asarray(["A", "A"]),
             }
         )
-        with pytest.raises(ValueError, match=r"T must be a positive integer >= 2."):
+        with pytest.raises(
+            ValueError, match=r"T must be a non-zero, positive integer."
+        ):
             self.model._extract_predictive_variables(
                 T_lt_2_data, customer_varnames=["customer_id", "recency", "T", "cohort"]
             )
