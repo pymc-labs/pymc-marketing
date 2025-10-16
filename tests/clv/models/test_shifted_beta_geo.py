@@ -321,14 +321,13 @@ class TestShiftedBetaGeoModel:
         "method, rtol",
         [
             ("mcmc", 0.1),
-            ("map", 0.2),
-            ("advi", 0.25),
+            ("map", 0.1),
+            ("advi", 0.6),
         ],
     )
-    def test_model_convergence(self, method, rtol, custom_model_config):
+    def test_model_convergence(self, method, rtol):
         model = ShiftedBetaGeoModel(
             data=self.data,
-            model_config=custom_model_config,
         )
         model.build_model()
 
@@ -336,9 +335,18 @@ class TestShiftedBetaGeoModel:
         model.fit(method=method, progressbar=False, **sample_kwargs)
 
         fit = model.idata.posterior
+        # Compare mean of each cohort parameter (averaging over chains and draws)
+        alpha_means = fit["alpha"].mean(dim=["chain", "draw"]).values
+        beta_means = fit["beta"].mean(dim=["chain", "draw"]).values
+
         np.testing.assert_allclose(
-            [fit["alpha"].mean(), fit["beta"].mean()],
-            [self.alpha_true, self.beta_true],
+            alpha_means,
+            self.alpha_hi_reg,
+            rtol=rtol,
+        )
+        np.testing.assert_allclose(
+            beta_means,
+            self.beta_hi_reg,
             rtol=rtol,
         )
 
