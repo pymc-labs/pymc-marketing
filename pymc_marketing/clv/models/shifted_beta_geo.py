@@ -32,17 +32,15 @@ __all__ = ["ShiftedBetaGeoModel", "ShiftedBetaGeoModelIndividual"]
 
 
 class ShiftedBetaGeoModel(CLVModel):
-    """Shifted Beta Geometric (sBG) model for cohorts of customers renewing contracts across discrete time periods.
+    """Shifted Beta Geometric (sBG) model for customers renewing contracts over discrete time periods.
 
     The sBG model has the following assumptions:
-      * At the end of each time period, each cohort has a probability `theta` of contract cancellation.
-      * Cohort `theta` probabilities are Beta distributed with hyperparameters `alpha` and `beta`.
-      * Cohort retention rates increase over time due to customer heterogeneity.
+      * Cohort dropout probabilities are Beta-distributed with hyperparameters `alpha` and `beta`.
+      * Cohort `theta` probabilities are Beta distributed.
+      * Customers in the same cohort began their contract in the same time period.
 
-    This model requires data to be summarized by *recency*, and *T* for each customer.
-    Modeling assumptions require *1 <= recency <= T*.
-    If cohorts are not specified, the model will assume a single cohort,
-    in which all customers began their contract in the same time period.
+    This model requires data to be summarized by *recency*, *T*, and *cohort* for each customer.
+    Modeling assumptions require *1 <= recency <= T*, and *T >= 2*.
 
     First introduced by Fader & Hardie in [1]_.
 
@@ -50,18 +48,16 @@ class ShiftedBetaGeoModel(CLVModel):
     ----------
     data : ~pandas.DataFrame
         DataFrame containing the following columns:
-
             * `customer_id`: Unique customer identifier
             * `recency`: Time period of last contract renewal. It should equal *T* for active customers.
-            * `T`: Maximum observed time period in the cohort. Model assumptions require *T >= recency >= 1*.
-            All customers in a given cohort share the same value for *T*.
-            * `cohort`: Customer cohort label. This is usually the month or year the customer first signed up.
+            * `T`: Max observed time period in the cohort. All customers in a given cohort share the same value for *T*.
+            * `cohort`: Customer cohort label
     model_config : dict, optional
         Dictionary of model prior parameters:
             * `a`: Shape parameter of dropout process; defaults to `phi_purchase` * `kappa_purchase`
             * `b`: Shape parameter of dropout process; defaults to `1-phi_dropout` * `kappa_dropout`
-            * `phi_dropout`: Nested prior for a and b priors; defaults to `Prior("Uniform", lower=0, upper=1)`
-            * `kappa_dropout`: Nested prior for a and b priors; defaults to `Prior("Pareto", alpha=1, m=1)`
+            * `phi_dropout`: Pooling prior; defaults to `Prior("Uniform", lower=0, upper=1, dims="cohort")`
+            * `kappa_dropout`: Pooling prior; defaults to `Prior("Pareto", alpha=1, m=1, dims="cohort")`
     sampler_config : dict, optional
         Dictionary of sampler parameters. Defaults to *None*.
 
@@ -94,7 +90,7 @@ class ShiftedBetaGeoModel(CLVModel):
                 },
             )
 
-            # Fit model quickly to large datasets via the default Maximum a Posteriori method
+            # Fit model quickly to large datasets via Maximum a Posteriori
             model.fit(method="map")
             model.fit_summary()
 
@@ -102,11 +98,17 @@ class ShiftedBetaGeoModel(CLVModel):
             model.fit(method="mcmc")
             model.fit_summary()
 
-            # Predict likelihood active customers will renew in the next time period
+            # Predict probability customers are still active
             expected_alive_probability = model.expected_probability_alive(
-                active_customers  # ADD CREATE DATAFRAME HERE!
+                active_customers,
+                future_t=0,
             )
-            print(expected_churn_time.mean("customer_id"))
+
+            # Predict retention rate of a given cohort in the current time period
+            expected_alive_probability = model.expected_retention_rate(
+                future_t=0,
+            ).sel(cohort=cohort)
+
 
     References
     ----------
@@ -313,9 +315,21 @@ class ShiftedBetaGeoModel(CLVModel):
         *,
         future_t: int | np.ndarray | pd.Series | None = None,
     ) -> xarray.DataArray:
-        """Compute expected retention rate.
+        """Compute expected retention rate by cohort.
+
+        The *data* parameter is only required for out-of-sample customers.
 
         Adapted from equation (8) in [1]_.
+
+        Parameters
+        ----------
+        future_t : int, array_like
+            Number of time periods in the future to predict retention rate.
+        data : ~pandas.DataFrame
+            Optional dataframe containing the following columns:
+            * `customer_id`: Unique customer identifier
+            * `T`: Number of time periods customer has been active
+            * `cohort`: Customer cohort label
 
         References
         ----------
@@ -349,9 +363,21 @@ class ShiftedBetaGeoModel(CLVModel):
         *,
         future_t: int | np.ndarray | pd.Series | None = None,
     ) -> xarray.DataArray:
-        """Compute expected probability of being alive.
+        """Compute expected probability of contract renewal by cohort.
+
+        The *data* parameter is only required for out-of-sample customers.
 
         Adapted from equation (6) in [1]_.
+
+        Parameters
+        ----------
+        future_t : int, array_like
+            Number of time periods in the future to predict probability of being active.
+        data : ~pandas.DataFrame
+            Optional dataframe containing the following columns:
+            * `customer_id`: Unique customer identifier
+            * `T`: Number of time periods customer has been active
+            * `cohort`: Customer cohort label
 
         References
         ----------
