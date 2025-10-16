@@ -188,9 +188,7 @@ class ShiftedBetaGeoModel(CLVModel):
         if check_names:
             # Validate cohorts in external prediction data match any or all cohorts used to fix model.
             cohorts_present = pd.Index(data["cohort"].unique())
-            cohorts_present = cohorts_present.intersection(
-                pd.Index(self.model_config.keys())
-            )
+            cohorts_present = cohorts_present.intersection(pd.Index(self.cohorts))
             if len(cohorts_present) == 0:
                 raise ValueError(
                     "Cohorts in prediction data do not match cohorts used to fit the model."
@@ -261,9 +259,9 @@ class ShiftedBetaGeoModel(CLVModel):
         )
 
         # Validate T requirements for predictions
-        if np.any(pred_data["T"] < 1):
+        if np.any(pred_data["T"] < 2):
             raise ValueError(
-                "T must be a positive integer.",
+                "T must be a positive integer >= 2.",
             )
 
         cohorts_present = self._validate_cohorts(pred_data, check_names=True)
@@ -277,7 +275,7 @@ class ShiftedBetaGeoModel(CLVModel):
         alpha_pred = self.fit_result["alpha"].sel(cohort=pred_cohorts)
         beta_pred = self.fit_result["beta"].sel(cohort=pred_cohorts)
 
-        # Create a cohort-by-customer DataArray to map cohort parameters to customers
+        # Create a cohort-by-customer DataArray to map alpha and beta cohort parameters to each customer
         customer_cohort_map = pred_data.set_index("customer_id")["cohort"]
 
         customer_cohort_mapping = xarray.DataArray(
@@ -289,13 +287,30 @@ class ShiftedBetaGeoModel(CLVModel):
         alpha_pred = alpha_pred.sel(cohort=customer_cohort_mapping)
         beta_pred = beta_pred.sel(cohort=customer_cohort_mapping)
 
-        # Convert additional customer variables to xarray
-        customer_vars = to_xarray(
-            pred_data["customer_id"],
-            *[pred_data[customer_varname] for customer_varname in customer_varnames],
+        # Add cohorts as non-dimensional coordinates to merge with predictive variables
+        alpha_pred = alpha_pred.assign_coords(
+            cohort=("customer_id", customer_cohort_map.values)
         )
-        if len(customer_varnames) == 1:
-            customer_vars = [customer_vars]
+        beta_pred = beta_pred.assign_coords(
+            cohort=("customer_id", customer_cohort_map.values)
+        )
+
+        # Filter out cohort from customer_varnames to avoid merge conflict
+        # (it's already added as a coordinate above)
+        customer_varnames_filtered = [v for v in customer_varnames if v != "cohort"]
+
+        if customer_varnames_filtered:
+            customer_vars = to_xarray(
+                pred_data["customer_id"],
+                *[
+                    pred_data[customer_varname]
+                    for customer_varname in customer_varnames_filtered
+                ],
+            )
+            if len(customer_varnames_filtered) == 1:
+                customer_vars = [customer_vars]
+        else:
+            customer_vars = []
 
         return xarray.combine_by_coords(
             (
@@ -305,7 +320,7 @@ class ShiftedBetaGeoModel(CLVModel):
             )
         ).swap_dims(
             {"customer_id": "cohort"}
-        )  # swap dims to select predictions by cohort
+        )  # swap dims to enable cohort selection for predictions
 
     def expected_retention_rate(
         self,
@@ -352,7 +367,7 @@ class ShiftedBetaGeoModel(CLVModel):
 
         retention_rate = (beta + T + t - 1) / (alpha + beta + T + t - 1)
         return retention_rate.transpose(
-            "chain", "draw", "customer_id", "cohort", missing_dims="ignore"
+            "chains", "draws", "customer_id", "cohort", missing_dims="ignore"
         )
 
     def expected_probability_alive(
@@ -407,7 +422,7 @@ class ShiftedBetaGeoModel(CLVModel):
         survival = np.exp(logS)
 
         return survival.transpose(
-            "chain", "draw", "customer_id", "cohort", missing_dims="ignore"
+            "chains", "draws", "customer_id", "cohort", missing_dims="ignore"
         )
 
 
