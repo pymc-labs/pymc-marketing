@@ -23,59 +23,60 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.components.adstock.WeibullCDFAdstock.sample_curve.rst:2
 #: 10ab742fefdd4c9ca7b3d005bbcd4a89
 msgid "WeibullCDFAdstock.sample\\_curve"
-msgstr ""
+msgstr "WeibullCDFAdstock.curva\\_muestra"
 
 #: b6c09d44966b456b83a25df22a3e59cb of
 #: pymc_marketing.mmm.components.adstock.AdstockTransformation.sample_curve:2
 msgid "Sample the adstock transformation given parameters."
-msgstr ""
+msgstr "Muestre la transformación de adstock dados los parámetros."
 
 #: 293c27f7197c477b9d4ba800d73b1ce2 of
 #: pymc_marketing.mmm.components.adstock.AdstockTransformation.sample_curve
 msgid "Parameters"
-msgstr ""
+msgstr "Parámetros"
 
 #: 3b2916a171dc4f7390fc9927d21d91eb of
 #: pymc_marketing.mmm.components.adstock.AdstockTransformation.sample_curve:7
 msgid "**parameters** : :obj:`xr.Dataset`"
-msgstr ""
+msgstr "**parámetros** : :obj:`xr.Dataset`"
 
 #: 244620a6d9664504966e18252bce65d4 of
 #: pymc_marketing.mmm.components.adstock.AdstockTransformation.sample_curve:6
 msgid "xr.Dataset"
-msgstr ""
+msgstr "xr.ConjuntoDeDatos"
 
 #: 7053ae0897e4443e97c00f01088e9781 of
 #: pymc_marketing.mmm.components.adstock.AdstockTransformation.sample_curve:8
 msgid "Dataset with parameter values."
-msgstr ""
+msgstr "Conjunto de datos con valores de parámetros."
 
 #: 71e8de7d5058489b8ed6bdae0f5e65da of
 #: pymc_marketing.mmm.components.adstock.AdstockTransformation.sample_curve:10
 msgid "**amount** : :class:`python:float`, optional"
-msgstr ""
+msgstr "**cantidad** : :class:`python:float`, opcional"
 
 #: 10bba22c84e14858bf0b93c953a29715 of
 #: pymc_marketing.mmm.components.adstock.AdstockTransformation.sample_curve:9
 msgid "python:float, optional"
-msgstr ""
+msgstr "python:float, opcional"
 
 #: c9f367b5672343ccb259d02e4455584d of
 #: pymc_marketing.mmm.components.adstock.AdstockTransformation.sample_curve:11
 msgid "Amount to apply the adstock transformation to, by default 1.0."
 msgstr ""
+"Cantidad a la que se aplicará la transformación de adstock, por defecto 1.0."
 
 #: 571082102f1c421c9e2fd294347b2c73 of
 #: pymc_marketing.mmm.components.adstock.AdstockTransformation.sample_curve
 msgid "Returns"
-msgstr ""
+msgstr "Devoluciones"
 
 #: 954dae4e9595431e98dc7e69642457b7 of
 #: pymc_marketing.mmm.components.adstock.AdstockTransformation.sample_curve:17
 msgid ":obj:`xr.DataArray`"
-msgstr ""
+msgstr ":obj:`xr.DataArray`"
 
 #: a028d16105ab40a4af53d58dbfa929ad of
 #: pymc_marketing.mmm.components.adstock.AdstockTransformation.sample_curve:18
 msgid "Adstocked version of the amount."
-msgstr ""
+msgstr "Versión adstocked de la cantidad."

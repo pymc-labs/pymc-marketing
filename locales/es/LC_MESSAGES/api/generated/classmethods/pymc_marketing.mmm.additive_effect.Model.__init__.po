@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.additive_effect.Model.__init__.rst:2
 #: b9b841e266324e338c944dbd76805818
 msgid "Model.\\_\\_init\\_\\_"
-msgstr ""
+msgstr "Modelo.__init__"

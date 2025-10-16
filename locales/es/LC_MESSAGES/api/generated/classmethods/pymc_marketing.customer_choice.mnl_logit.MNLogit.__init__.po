@@ -23,40 +23,45 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.customer_choice.mnl_logit.MNLogit.__init__.rst:2
 #: 30e53fa0630249ea8de3e5a1c7bef0b1
 msgid "MNLogit.\\_\\_init\\_\\_"
-msgstr ""
+msgstr "MNLogit.__init__"
 
 #: 18053ac0f9464695afaebda4d262b04e of
 #: pymc_marketing.customer_choice.mnl_logit.MNLogit.__init__:2
-msgid "Initialize model configuration and sampler configuration for the model."
+msgid ""
+"Initialize model configuration and sampler configuration for the model."
 msgstr ""
+"Inicializar la configuración del modelo y la configuración del muestreador "
+"para el modelo."
 
 #: 70c0bc768bb04b53b06cff36b9db9cfa of
 #: pymc_marketing.customer_choice.mnl_logit.MNLogit.__init__
 msgid "Parameters"
-msgstr ""
+msgstr "Parámetros"
 
 #: be3f2ab7da4e4360802a9ed4241246c3 of
 #: pymc_marketing.customer_choice.mnl_logit.MNLogit.__init__:7
 msgid "**model_config** : :obj:`Dictionary`, optional"
-msgstr ""
+msgstr "**model_config** : :obj:`Diccionario`, opcional"
 
 #: 010a76806f334a428bc52ebee2d1d10e 3c0bc5d89ee74528b38c525d11cff63e of
 #: pymc_marketing.customer_choice.mnl_logit.MNLogit.__init__:6
 #: pymc_marketing.customer_choice.mnl_logit.MNLogit.__init__:10
 msgid "Dictionary, optional"
-msgstr ""
+msgstr "Diccionario, opcional"
 
 #: e101a3c0286b426da91a1d4fd3f4fabe of
 #: pymc_marketing.customer_choice.mnl_logit.MNLogit.__init__:8
 msgid ""
-"dictionary of parameters that initialise model configuration. Class-"
-"default defined by the user default_model_config method."
+"dictionary of parameters that initialise model configuration. Class-default "
+"defined by the user default_model_config method."
 msgstr ""
+"diccionario de parámetros que inicializan la configuración del modelo. Clase"
+" por defecto definida por el método default_model_config del usuario."
 
 #: 78606d011c514e4fa443c12a0f908091 of
 #: pymc_marketing.customer_choice.mnl_logit.MNLogit.__init__:11
 msgid "**sampler_config** : :obj:`Dictionary`, optional"
-msgstr ""
+msgstr "**sampler_config** : :obj:`Diccionario`, opcional"
 
 #: ace51d3fcd564ea28e9bb2643c202524 of
 #: pymc_marketing.customer_choice.mnl_logit.MNLogit.__init__:12
@@ -64,8 +69,11 @@ msgid ""
 "dictionary of parameters that initialise sampler configuration. Class-"
 "default defined by the user default_sampler_config method."
 msgstr ""
+"diccionario de parámetros que inicializan la configuración del muestreador. "
+"Clase predeterminada definida por el método default_sampler_config del "
+"usuario."
 
 #: ac945051c8484db8898740c93bf352fe of
 #: pymc_marketing.customer_choice.mnl_logit.MNLogit.__init__:28
 msgid "Examples"
-msgstr ""
+msgstr "Ejemplos"

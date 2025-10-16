@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.components.saturation.InverseScaledLogisticSaturation.__init__.rst:2
 #: 6b1f1a0aec464512a51508ac15ff7f5e
 msgid "InverseScaledLogisticSaturation.\\_\\_init\\_\\_"
-msgstr ""
+msgstr "InverseScaledLogisticSaturation.\\_\\_init\\_\\_"

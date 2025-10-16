@@ -23,37 +23,37 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.base.BaseValidateMMM.validate_date_col.rst:2
 #: 97b23fb3c1fe4844aaaac74faaa054d5
 msgid "BaseValidateMMM.validate\\_date\\_col"
-msgstr ""
+msgstr "BaseValidateMMM.validar\\_columna\\_fecha"
 
 #: a32686909ccb4f9a9a546e2eec230b12 of
 #: pymc_marketing.mmm.validating.ValidateDateColumn.validate_date_col:2
 msgid "Validate the date column."
-msgstr ""
+msgstr "Valide la columna de fecha."
 
 #: f4cb137a58024d81834573dc235d4081 of
 #: pymc_marketing.mmm.validating.ValidateDateColumn.validate_date_col
 msgid "Parameters"
-msgstr ""
+msgstr "Parámetros"
 
 #: 88e87c16cb49447c8416757006e2a6b2 of
 #: pymc_marketing.mmm.validating.ValidateDateColumn.validate_date_col:7
 msgid "**data** : :obj:`pd.DataFrame`"
-msgstr ""
+msgstr "**datos** : :obj:`pd.DataFrame`"
 
 #: 62a3474ff9d349fe98db6ca95b42d4cd of
 #: pymc_marketing.mmm.validating.ValidateDateColumn.validate_date_col:6
 msgid "pd.DataFrame"
-msgstr ""
+msgstr "pd.DataFrame"
 
 #: ccfa2dcd4a9a40da9915f469f9dc62dd of
 #: pymc_marketing.mmm.validating.ValidateDateColumn.validate_date_col:8
 msgid "The data to validate."
-msgstr ""
+msgstr "Los datos a validar."
 
 #: 822b4a1463934b4ab747b0d19389503a of
 #: pymc_marketing.mmm.validating.ValidateDateColumn.validate_date_col
 msgid "Raises"
-msgstr ""
+msgstr "Aumentos"
 
 #: 179fb0c507794d07a76bb63235611941 of
 #: pymc_marketing.mmm.validating.ValidateDateColumn.validate_date_col:18
@@ -61,3 +61,5 @@ msgid ""
 "ValueError: :obj:`If` :obj:`the` :obj:`date` :obj:`column` :obj:`is` "
 ":obj:`not` valid."
 msgstr ""
+"ValueError: :obj:`Si` :obj:`la` :obj:`columna` :obj:`de` :obj:`fecha` "
+":obj:`no` es :obj:`válida`."

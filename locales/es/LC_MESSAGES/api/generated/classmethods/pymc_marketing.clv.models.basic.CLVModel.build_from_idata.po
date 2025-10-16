@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.basic.CLVModel.build_from_idata.rst:2
 #: 9361b22d7b7848bbaa08250e7e263988
 msgid "CLVModel.build\\_from\\_idata"
-msgstr ""
+msgstr "CLVModel.build\\_from\\_idata"
 
 #: fb11c45291eb4108af2fe788aed17279 of
 #: pymc_marketing.clv.models.basic.CLVModel.build_from_idata:2
 msgid "Build the model from the InferenceData object."
-msgstr ""
+msgstr "Construya el modelo a partir del objeto InferenceData."

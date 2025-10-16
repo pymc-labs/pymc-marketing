@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.customer_choice.mnl_logit.MNLogit.plot_change.rst:2
 #: 5287eae8bed1442590403361cbfae73b
 msgid "MNLogit.plot\\_change"
-msgstr ""
+msgstr "MNLogit.plot\\_cambio"
 
 #: 99a38dd580734c96b90cce723a35b542 of
 #: pymc_marketing.customer_choice.mnl_logit.MNLogit.plot_change:2
 msgid "Plot change induced by a market intervention."
-msgstr ""
+msgstr "Cambio de trama inducido por una intervención en el mercado."

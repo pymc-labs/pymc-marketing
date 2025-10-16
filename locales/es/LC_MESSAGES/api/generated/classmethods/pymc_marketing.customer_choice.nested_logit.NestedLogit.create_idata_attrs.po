@@ -23,24 +23,24 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.customer_choice.nested_logit.NestedLogit.create_idata_attrs.rst:2
 #: 20c59ffd3fbb48a19d7472b032377326
 msgid "NestedLogit.create\\_idata\\_attrs"
-msgstr ""
+msgstr "NestedLogit.create_idata_attrs"
 
 #: c08a5ceb8e6849a99fe3481ceb90be14 of
 #: pymc_marketing.customer_choice.nested_logit.NestedLogit.create_idata_attrs:2
 msgid "Create the attributes for the InferenceData object."
-msgstr ""
+msgstr "Cree los atributos para el objeto InferenceData."
 
 #: 295fd9056eb34207858ebc0de7404714 of
 #: pymc_marketing.customer_choice.nested_logit.NestedLogit.create_idata_attrs
 msgid "Returns"
-msgstr ""
+msgstr "Devoluciones"
 
 #: 613bca1b5a924eb4b273748c286805bf of
 #: pymc_marketing.customer_choice.nested_logit.NestedLogit.create_idata_attrs:10
 msgid ":class:`python:dict`\\[:class:`python:str`, :class:`python:str`]"
-msgstr ""
+msgstr ":class:`python:dict`\\[:class:`python:str`, :class:`python:str`]"
 
 #: e198e7edf76341f1a0b60c20251ed87f of
 #: pymc_marketing.customer_choice.nested_logit.NestedLogit.create_idata_attrs:11
 msgid "The attributes for the InferenceData object."
-msgstr ""
+msgstr "Los atributos del objeto InferenceData."

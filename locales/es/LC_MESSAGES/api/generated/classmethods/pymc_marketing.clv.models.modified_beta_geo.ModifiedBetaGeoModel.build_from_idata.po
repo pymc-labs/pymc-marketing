@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.build_from_idata.rst:2
 #: 0f568078fc6b4b2daf6ec6ca82a85c5b
 msgid "ModifiedBetaGeoModel.build\\_from\\_idata"
-msgstr ""
+msgstr "ModifiedBetaGeoModel.build\\_from\\_idata"
 
 #: d77c948c9c3c4596b0307bb80be185ba of
 #: pymc_marketing.clv.models.basic.CLVModel.build_from_idata:2
 msgid "Build the model from the InferenceData object."
-msgstr ""
+msgstr "Construya el modelo a partir del objeto InferenceData."

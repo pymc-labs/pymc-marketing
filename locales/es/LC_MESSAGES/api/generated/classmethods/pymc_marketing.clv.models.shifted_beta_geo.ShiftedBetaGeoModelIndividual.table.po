@@ -23,39 +23,39 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.table.rst:2
 #: adcc35a9576149c190ee7cd502a2a9e8
 msgid "ShiftedBetaGeoModelIndividual.table"
-msgstr ""
+msgstr "ShiftedBetaGeoModelIndividual.tabla"
 
 #: 7fbf34fc1e6d4fd29b1dfc3d1463622b of
 #: pymc_marketing.model_builder.ModelBuilder.table:2
 msgid "Get the summary table of the model."
-msgstr ""
+msgstr "Obtenga la tabla resumen del modelo."
 
 #: a4eddb4a1b1044f3b307ff1df7bedb2f of
 #: pymc_marketing.model_builder.ModelBuilder.table
 msgid "Parameters"
-msgstr ""
+msgstr "Parámetros"
 
 #: 4de90ed9cd8d47d7878560ef0cce2036 of
 #: pymc_marketing.model_builder.ModelBuilder.table:7
 msgid "**\\*\\*model_table_kwargs**"
-msgstr ""
+msgstr "**\\*\\*model_table_kwargs**"
 
 #: b5d8054e216544b7b9337c5ed55e23ed of
 #: pymc_marketing.model_builder.ModelBuilder.table:8
 msgid "Keyword arguments for the `model_table` function"
-msgstr ""
+msgstr "Argumentos de palabras clave para la función `model_table`"
 
 #: b7993cbc6e474c499bc5cb1fccfa32f9 of
 #: pymc_marketing.model_builder.ModelBuilder.table
 msgid "Returns"
-msgstr ""
+msgstr "Devoluciones"
 
 #: 42879a54cd5249259199b459adfeae8c of
 #: pymc_marketing.model_builder.ModelBuilder.table:14
 msgid ":obj:`rich.table.Table`"
-msgstr ""
+msgstr ":obj:`rich.table.Table`"
 
 #: 73b5705e4067494fb3b8f7dde7de75da of
 #: pymc_marketing.model_builder.ModelBuilder.table:15
 msgid "A rich table containing the summary of the model."
-msgstr ""
+msgstr "Una tabla rica que contiene el resumen del modelo."

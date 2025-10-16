@@ -26,9 +26,9 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_example.html
 :::
 
-:::{grid-item-card} Custom Models with MMM components
-:img-top: ../gallery/images/mmm_components.png
-:link: ../notebooks/mmm/mmm_components.html
+:::{grid-item-card} Beyond MMMs: adding GAMs or anything else to your model.
+:img-top: ../gallery/images/mmm_example.png
+:link: ../notebooks/mmm/mmm_gam_options.html
 :::
 
 :::{grid-item-card} MMM Multidimensional Example Notebook (e.g. Geo-MMM)
@@ -44,6 +44,16 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::{grid-item-card} Sensitivity Analysis and Marginal Effects
 :img-top: ../gallery/images/mmm_sensitivity_analysis.png
 :link: ../notebooks/mmm/mmm_sensitivity_analysis.html
+:::
+::::
+
+### Custom models
+::::{grid} 1 2 3 3
+:gutter: 3
+
+:::{grid-item-card} Custom Models with MMM components
+:img-top: ../gallery/images/mmm_components.png
+:link: ../notebooks/mmm/mmm_components.html
 :::
 ::::
 
@@ -71,6 +81,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::{grid-item-card} Budget Allocation and Risk Assessment
 :img-top: ../gallery/images/mmm_allocation_assessment.png
 :link: ../notebooks/mmm/mmm_allocation_assessment.html
+:::
+
+:::{grid-item-card} Multi-Objective Optimization
+:img-top: ../gallery/images/mmm_allocation_assessment.png
+:link: ../notebooks/mmm/mmm_multi_objective_optimization.html
 :::
 ::::
 
@@ -182,7 +197,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 
 :::{grid-item-card} sBG Model
 :img-top: ../gallery/images/sBG.png
-:link: ../notebooks/clv/sBG.html
+:link: ../notebooks/clv/sBG_individual.html
 :::
 ::::
 

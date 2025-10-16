@@ -23,54 +23,55 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.components.adstock.AdstockTransformation.sample_prior.rst:2
 #: 47249ba82ca74a8dae2cf472792c2159
 msgid "AdstockTransformation.sample\\_prior"
-msgstr ""
+msgstr "AdstockTransformation.muestra\\_previa"
 
 #: 72e4646ab32143f59eb2ff8456b68747 of
 #: pymc_marketing.mmm.components.base.Transformation.sample_prior:2
 msgid "Sample the priors for the transformation."
-msgstr ""
+msgstr "Muestre las distribuciones previas para la transformación."
 
 #: 62aed4d5e7984212a80d91d7c3bc99d0 of
 #: pymc_marketing.mmm.components.base.Transformation.sample_prior
 msgid "Parameters"
-msgstr ""
+msgstr "Parámetros"
 
 #: e16489658f9245b7aa1cfe9cf853c27f of
 #: pymc_marketing.mmm.components.base.Transformation.sample_prior:7
 msgid "**coords** : :class:`python:dict`, optional"
-msgstr ""
+msgstr "**coords** : :class:`python:dict`, opcional"
 
 #: 243b60cef02d4cbe8594a7736cabdab7 of
 #: pymc_marketing.mmm.components.base.Transformation.sample_prior:6
 msgid "python:dict, optional"
-msgstr ""
+msgstr "python:dict, opcional"
 
 #: 85e59fd650b3417bab79ecf8ef1cb558 of
 #: pymc_marketing.mmm.components.base.Transformation.sample_prior:8
 msgid "The coordinates for the associated with dims"
-msgstr ""
+msgstr "Las coordenadas para el asociado con dims"
 
 #: 16759526e28a40499f67d3155f503fb2 of
 #: pymc_marketing.mmm.components.base.Transformation.sample_prior:10
 msgid "**\\*\\*sample_prior_predictive_kwargs**"
-msgstr ""
+msgstr "**\\*\\*sample_prior_predictive_kwargs**"
 
 #: 8f942242dfaa4475854d0232a5ae4fad of
 #: pymc_marketing.mmm.components.base.Transformation.sample_prior:11
 msgid "Keyword arguments for the pm.sample_prior_predictive function."
 msgstr ""
+"Argumentos de palabras clave para la función pm.sample_prior_predictive."
 
 #: 59d02286c66b47dcb85c5d098747a3ac of
 #: pymc_marketing.mmm.components.base.Transformation.sample_prior
 msgid "Returns"
-msgstr ""
+msgstr "Devoluciones"
 
 #: 914ee91714f14b538e133cde70dc0ff3 of
 #: pymc_marketing.mmm.components.base.Transformation.sample_prior:17
 msgid ":obj:`xr.Dataset`"
-msgstr ""
+msgstr ":obj:`xr.Dataset`"
 
 #: 75a956d75cac4cc28af65a6be230a06b of
 #: pymc_marketing.mmm.components.base.Transformation.sample_prior:18
 msgid "The dataset with the sampled priors."
-msgstr ""
+msgstr "El conjunto de datos con los priors muestreados."

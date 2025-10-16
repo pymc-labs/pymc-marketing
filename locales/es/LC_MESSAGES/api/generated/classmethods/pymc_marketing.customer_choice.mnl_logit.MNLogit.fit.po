@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.customer_choice.mnl_logit.MNLogit.fit.rst:2
 #: 342fc2d8566f47ff83cf6f7d8a750bc6
 msgid "MNLogit.fit"
-msgstr ""
+msgstr "MNLogit.ajustar"
 
 #: cb89dcbaed2f44a4a1c976c14ca0f8a7 of
 #: pymc_marketing.customer_choice.mnl_logit.MNLogit.fit:2
 msgid "Fit Nested Logit Model."
-msgstr ""
+msgstr "Ajustar el modelo de Logit anidado."

@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.base.MMMModelBuilder.post_sample_model_transformation.rst:2
 #: 9d20c8a4581a431f9a162222cef1737a
 msgid "MMMModelBuilder.post\\_sample\\_model\\_transformation"
-msgstr ""
+msgstr "MMMModelBuilder.post\\_sample\\_model\\_transformation"
 
 #: 688f01bbcecb4b8d817308b7a5c12ffa of
 #: pymc_marketing.model_builder.RegressionModelBuilder.post_sample_model_transformation:2
 msgid "Perform transformation on the model after sampling."
-msgstr ""
+msgstr "Realice la transformación en el modelo después de la muestreo."

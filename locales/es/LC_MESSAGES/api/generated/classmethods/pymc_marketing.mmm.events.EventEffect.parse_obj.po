@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.events.EventEffect.parse_obj.rst:2
 #: 542f99402b4c4fab8cd37807623a72c0
 msgid "EventEffect.parse\\_obj"
-msgstr ""
+msgstr "EventEffect.parse\\_obj"

@@ -23,44 +23,46 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.base.BaseValidateMMM.get_channel_contribution_share_samples.rst:2
 #: 3eb701c0b7b649c8b9e6dca0e253d4cb
 msgid "BaseValidateMMM.get\\_channel\\_contribution\\_share\\_samples"
-msgstr ""
+msgstr "BaseValidateMMM.obtener\\_muestras\\_de\\_contribución\\_del\\_canal"
 
 #: 8d02fdae073342949d633f65a5cb6b6c of
 #: pymc_marketing.mmm.base.MMMModelBuilder.get_channel_contribution_share_samples:2
 msgid ""
-"Get the share of channel contributions in the original scale of the "
-"target variable."
+"Get the share of channel contributions in the original scale of the target "
+"variable."
 msgstr ""
+"Obtenga la participación de las contribuciones del canal en la escala "
+"original de la variable objetivo."
 
 #: 945a98accd8f4175a758582dcbbf578d of
 #: pymc_marketing.mmm.base.MMMModelBuilder.get_channel_contribution_share_samples
 msgid "Parameters"
-msgstr ""
+msgstr "Parámetros"
 
 #: c5c98a04e46d43fc9628a251089355ba of
 #: pymc_marketing.mmm.base.MMMModelBuilder.get_channel_contribution_share_samples:7
 msgid "**prior** : :ref:`bool <python:bltin-boolean-values>`, optional"
-msgstr ""
+msgstr "**anterior** : :ref:`bool <python:bltin-boolean-values>`, opcional"
 
 #: 5e4b5d935b804a8587578ab0955eab45 of
 #: pymc_marketing.mmm.base.MMMModelBuilder.get_channel_contribution_share_samples:6
 msgid "bool, optional"
-msgstr ""
+msgstr "bool, opcional"
 
 #: 1e138d2838c444008f101833b3100e0c of
 #: pymc_marketing.mmm.base.MMMModelBuilder.get_channel_contribution_share_samples:8
 msgid "Whether to use the prior or posterior, by default False (posterior)"
-msgstr ""
+msgstr "Si utilizar el anterior o el posterior, por defecto Falso (posterior)"
 
 #: 3cc06fff79074184a3b8869dcf99f734 of
 #: pymc_marketing.mmm.base.MMMModelBuilder.get_channel_contribution_share_samples
 msgid "Returns"
-msgstr ""
+msgstr "Devoluciones"
 
 #: 1bdfc8faeec84ca6b813726aee3df970 of
 #: pymc_marketing.mmm.base.MMMModelBuilder.get_channel_contribution_share_samples:14
 msgid ":obj:`DataArray`"
-msgstr ""
+msgstr ":obj:`DataArray`"
 
 #: 366623ed6f4e4dfd93ac8af474cb7ff2 of
 #: pymc_marketing.mmm.base.MMMModelBuilder.get_channel_contribution_share_samples:15
@@ -68,3 +70,5 @@ msgid ""
 "The share of channel contributions in the original scale of the target "
 "variable."
 msgstr ""
+"La participación de las contribuciones del canal en la escala original de la"
+" variable objetivo."

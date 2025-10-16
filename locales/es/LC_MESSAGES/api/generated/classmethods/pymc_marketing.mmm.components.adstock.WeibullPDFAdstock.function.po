@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.function.rst:2
 #: cb615d7196134334b0676f3f6cdf4cb9
 msgid "WeibullPDFAdstock.function"
-msgstr ""
+msgstr "WeibullPDFAdstock.función"
 
 #: debc2610de1e4a4fb6475a7dbb742bfc of
 #: pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.function:2
 msgid "Weibull adstock function."
-msgstr ""
+msgstr "Función de adstock Weibull."

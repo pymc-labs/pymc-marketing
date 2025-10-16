@@ -23,37 +23,38 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.components.saturation.HillSaturationSigmoid.apply.rst:2
 #: a305a03ab00a43cb90fd92416b627c03
 msgid "HillSaturationSigmoid.apply"
-msgstr ""
+msgstr "HillSaturationSigmoid.aplicar"
 
 #: 62552ea13a534fd6bc88b77611846801 of
 #: pymc_marketing.mmm.components.base.Transformation.apply:2
 msgid "Call within a model context."
-msgstr ""
+msgstr "Llamar dentro de un contexto de modelo."
 
 #: e1f90588f112427394f1deb3f024890f of
 #: pymc_marketing.mmm.components.base.Transformation.apply:4
 msgid "Used internally of the MMM to apply the transformation to the data."
 msgstr ""
+"Utilizado internamente en el MMM para aplicar la transformación a los datos."
 
 #: 142d12324fe54e77a45ff9e3c6bf3632 of
 #: pymc_marketing.mmm.components.base.Transformation.apply
 msgid "Parameters"
-msgstr ""
+msgstr "Parámetros"
 
 #: 2e1a0a8e4b15403da1fa89f9869fc3ce of
 #: pymc_marketing.mmm.components.base.Transformation.apply:8
 msgid "**x** : :obj:`pt.TensorLike`"
-msgstr ""
+msgstr "**x** : :obj:`pt.TensorLike`"
 
 #: 171b4e2716534798a7cf0078992607b0 of
 #: pymc_marketing.mmm.components.base.Transformation.apply:7
 msgid "pt.TensorLike"
-msgstr ""
+msgstr "pt.TensorComo"
 
 #: 621daa867f924088b062b96d29bd3462 of
 #: pymc_marketing.mmm.components.base.Transformation.apply:9
 msgid "The data to be transformed."
-msgstr ""
+msgstr "Los datos que se van a transformar."
 
 #: fad7ac6dfdb3498da0a4644acb0d20a5 of
 #: pymc_marketing.mmm.components.base.Transformation.apply:11
@@ -61,38 +62,43 @@ msgid ""
 "**dims** : :class:`python:str`, "
 ":term:`python:sequence`\\[:class:`python:str`], optional"
 msgstr ""
+"**dims** : :class:`python:str`, "
+":term:`python:sequence`\\[:class:`python:str`], opcional"
 
 #: 03edf2f3224f48c1b659531644483843 of
 #: pymc_marketing.mmm.components.base.Transformation.apply:10
 msgid "python:str, python:sequence[python:str], optional"
-msgstr ""
+msgstr "python:str, python:secuencia[python:str], opcional"
 
 #: ab720af6fa3342cdb0003efdef2ea83f of
 #: pymc_marketing.mmm.components.base.Transformation.apply:12
-msgid "The dims of the parameters. Defaults to None. Not the dims of the data!"
+msgid ""
+"The dims of the parameters. Defaults to None. Not the dims of the data!"
 msgstr ""
+"Las dimensiones de los parámetros. Por defecto es None. ¡No son las "
+"dimensiones de los datos!"
 
 #: 0375446485e145d2b48bc12cc37f96a8 of
 #: pymc_marketing.mmm.components.base.Transformation.apply
 msgid "Returns"
-msgstr ""
+msgstr "Devoluciones"
 
 #: 87e0874146f8477583afa0d3138fa930 of
 #: pymc_marketing.mmm.components.base.Transformation.apply:19
 msgid ":obj:`pt.TensorVariable`"
-msgstr ""
+msgstr ":obj:`pt.TensorVariable`"
 
 #: b65807a319674044810076ee2ea4f609 of
 #: pymc_marketing.mmm.components.base.Transformation.apply:20
 msgid "The transformed data."
-msgstr ""
+msgstr "Los datos transformados."
 
 #: 07966559c7e943f58dc22c294a1557d6 of
 #: pymc_marketing.mmm.components.base.Transformation.apply:32
 msgid "Examples"
-msgstr ""
+msgstr "Ejemplos"
 
 #: 8143158f43954ebd9923620775776948 of
 #: pymc_marketing.mmm.components.base.Transformation.apply:33
 msgid "Call the function for custom use-case"
-msgstr ""
+msgstr "Llama a la función para un caso de uso personalizado"

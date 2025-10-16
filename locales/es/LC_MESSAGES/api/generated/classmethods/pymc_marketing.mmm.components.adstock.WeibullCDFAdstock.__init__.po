@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.components.adstock.WeibullCDFAdstock.__init__.rst:2
 #: 4fb29b8fabef4393931148ca3fd27323
 msgid "WeibullCDFAdstock.\\_\\_init\\_\\_"
-msgstr ""
+msgstr "WeibullCDFAdstock.__init__"

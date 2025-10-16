@@ -23,52 +23,63 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.TBF_FCI.fit.rst:2
 #: 4dc4ea626030414ab6e9283b81e803b4
 msgid "TBF\\_FCI.fit"
-msgstr ""
+msgstr "TBF\\_FCI.fit"
 
 #: 1e21dd77b39440caaaec101e74032d99 of pymc_marketing.mmm.causal.TBF_FCI.fit:2
 msgid "Fit the temporal causal discovery algorithm to ``df``."
-msgstr ""
+msgstr "Ajuste el algoritmo de descubrimiento causal temporal a ``df``."
 
 #: 4157432a2f434dd9b84716e1e68a3bcf of pymc_marketing.mmm.causal.TBF_FCI.fit
 msgid "Parameters"
-msgstr ""
+msgstr "Parámetros"
 
 #: e3b0fa5f0c7b4bd1b75649ac97ca21bb of pymc_marketing.mmm.causal.TBF_FCI.fit:7
 msgid "**df** : :obj:`pandas.DataFrame`"
-msgstr ""
+msgstr "**df** : :obj:`pandas.DataFrame`"
 
 #: aa7248c07e6c49d9ab5e61441c525491 of pymc_marketing.mmm.causal.TBF_FCI.fit:6
 msgid "pandas.DataFrame"
-msgstr ""
+msgstr "pandas.DataFrame"
 
 #: a21ab441569c49be8f93714c8d661b62 of pymc_marketing.mmm.causal.TBF_FCI.fit:8
 msgid "Input dataframe containing the target column and every driver column."
 msgstr ""
+"Marco de datos de entrada que contiene la columna objetivo y todas las "
+"columnas de control."
 
-#: 8dbd9f9da7fb485abdf5d243d5c7afe8 of pymc_marketing.mmm.causal.TBF_FCI.fit:11
+#: 8dbd9f9da7fb485abdf5d243d5c7afe8 of
+#: pymc_marketing.mmm.causal.TBF_FCI.fit:11
 msgid "**drivers** : :obj:`Sequence`\\[:class:`python:str`]"
-msgstr ""
+msgstr "**controladores** : :obj:`Secuencia`\\[:class:`python:str`]"
 
-#: 6e1cc902c8644d21a92e6d12013097a7 of pymc_marketing.mmm.causal.TBF_FCI.fit:10
+#: 6e1cc902c8644d21a92e6d12013097a7 of
+#: pymc_marketing.mmm.causal.TBF_FCI.fit:10
 msgid "Sequence[python:str]"
-msgstr ""
+msgstr "Secuencia[python:str]"
 
-#: 9684c3402f6340da8dabbf7dd160b857 of pymc_marketing.mmm.causal.TBF_FCI.fit:12
+#: 9684c3402f6340da8dabbf7dd160b857 of
+#: pymc_marketing.mmm.causal.TBF_FCI.fit:12
 msgid "Iterable of column names to be treated as drivers of the target."
 msgstr ""
+"Iterable de nombres de columnas que se tratarán como impulsores del "
+"objetivo."
 
 #: 1a08d4bd74c24f108b31b1bfda5a9a86 of pymc_marketing.mmm.causal.TBF_FCI.fit
 msgid "Returns"
-msgstr ""
+msgstr "Devoluciones"
 
-#: 8f2b900a55274135aee1efbb82b7235e of pymc_marketing.mmm.causal.TBF_FCI.fit:18
+#: 8f2b900a55274135aee1efbb82b7235e of
+#: pymc_marketing.mmm.causal.TBF_FCI.fit:18
 msgid ":obj:`TBF_FCI`"
-msgstr ""
+msgstr ":obj:`TBF_FCI`"
 
-#: 7a1775ae137e4c05838e99949b27e95b of pymc_marketing.mmm.causal.TBF_FCI.fit:19
+#: 7a1775ae137e4c05838e99949b27e95b of
+#: pymc_marketing.mmm.causal.TBF_FCI.fit:19
 msgid "The fitted instance with internal adjacency structures populated."
 msgstr ""
+"La instancia ajustada con estructuras de adyacencia internas pobladas."
 
-#: 5d8556a174a449ed8d0e903207ddf5c0 of pymc_marketing.mmm.causal.TBF_FCI.fit:31
+#: 5d8556a174a449ed8d0e903207ddf5c0 of
+#: pymc_marketing.mmm.causal.TBF_FCI.fit:31
 msgid "Examples"
-msgstr ""
+msgstr "Ejemplos"

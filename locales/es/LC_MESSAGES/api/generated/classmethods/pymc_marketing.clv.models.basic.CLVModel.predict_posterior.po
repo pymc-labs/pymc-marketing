@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.basic.CLVModel.predict_posterior.rst:2
 #: 44c573136c89487ba39f97c44862b71d
 msgid "CLVModel.predict\\_posterior"
-msgstr ""
+msgstr "CLVModel.predecir\\_posterior"

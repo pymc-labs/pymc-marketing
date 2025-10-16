@@ -12,66 +12,76 @@ msgstr ""
 "POT-Creation-Date: 2025-10-07 18:10+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language: es\n"
 "Language-Team: es <LL@li.org>\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Language: es\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "Generated-By: Babel 2.17.0\n"
 
 #: ../source/api/generated/pymc_marketing.mmm.causal.rst:2
 #: 80a2bfb1eb4d400a9bfd9c27769c6aff
 msgid "causal"
-msgstr ""
+msgstr "causal"
 
 #: 4f48b2e8c9684d5faa6d776e91f2f0a5 of pymc_marketing.mmm.causal:1
 msgid "Causal module."
-msgstr ""
+msgstr "Módulo causal."
 
 #: ../source/api/generated/pymc_marketing.mmm.causal.rst:17
 #: 2ad0890beb6a48e485cd2e8f454c4e85
 msgid "Classes"
-msgstr ""
+msgstr "Clases"
 
 #: ../source/api/generated/pymc_marketing.mmm.causal.rst:32:<autosummary>:1
 #: 0ba81000854f48159f41835b30e23650
 msgid ""
-":py:obj:`BuildModelFromDAG "
-"<pymc_marketing.mmm.causal.BuildModelFromDAG>`\\ \\(\\*\\[\\, dag\\, "
-"df\\, target\\, ...\\]\\)"
+":py:obj:`BuildModelFromDAG <pymc_marketing.mmm.causal.BuildModelFromDAG>`\\ "
+"\\(\\*\\[\\, dag\\, df\\, target\\, ...\\]\\)"
 msgstr ""
+":py:obj:`BuildModelFromDAG <pymc_marketing.mmm.causal.BuildModelFromDAG>`\\ "
+"\\(\\*\\[\\, dag\\, df\\, objetivo\\, ...\\]\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.causal.rst:32:<autosummary>:1
 #: 71c53f08044843838f60c35381cba338
 msgid ""
-"Build a PyMC probabilistic model directly from a Causal DAG and a tabular"
-" dataset."
+"Build a PyMC probabilistic model directly from a Causal DAG and a tabular "
+"dataset."
 msgstr ""
+"Construya un modelo probabilístico de PyMC directamente a partir de un DAG "
+"causal y un conjunto de datos tabular."
 
 #: ../source/api/generated/pymc_marketing.mmm.causal.rst:32:<autosummary>:1
 #: c06f585f4f2e460eb2833aceca357256
 msgid ""
-":py:obj:`CausalGraphModel <pymc_marketing.mmm.causal.CausalGraphModel>`\\"
-" \\(causal\\_model\\, treatment\\, ...\\)"
+":py:obj:`CausalGraphModel <pymc_marketing.mmm.causal.CausalGraphModel>`\\ "
+"\\(causal\\_model\\, treatment\\, ...\\)"
 msgstr ""
+":py:obj:`CausalGraphModel <pymc_marketing.mmm.causal.CausalGraphModel>`\\ "
+"\\(modelo\\_causal\\, tratamiento\\, ...\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.causal.rst:32:<autosummary>:1
 #: ca5c4faad9364d50bf3c46e9917df5f9
 msgid "Represent a causal model based on a Directed Acyclic Graph (DAG)."
 msgstr ""
+"Representar un modelo causal basado en un Grafo Acíclico Dirigido (DAG)."
 
 #: ../source/api/generated/pymc_marketing.mmm.causal.rst:32:<autosummary>:1
 #: 436493169be9410c8297e753a229107c
 msgid ""
-":py:obj:`TBFPC <pymc_marketing.mmm.causal.TBFPC>`\\ \\(target\\, "
-"\\*\\[\\, target\\_edge\\_rule\\, ...\\]\\)"
+":py:obj:`TBFPC <pymc_marketing.mmm.causal.TBFPC>`\\ \\(target\\, \\*\\[\\, "
+"target\\_edge\\_rule\\, ...\\]\\)"
 msgstr ""
+":py:obj:`TBFPC <pymc_marketing.mmm.causal.TBFPC>`\\ \\(objetivo\\, \\*\\[\\,"
+" regla\\_de\\_borde\\_objetivo\\, ...\\]\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.causal.rst:32:<autosummary>:1
 #: 370789e6e3fb4ddd85d5574d837742ed
 msgid "Target-first Bayes Factor PC (TBF-PC) causal discovery algorithm."
 msgstr ""
+"Algoritmo de descubrimiento causal del Factor Bayesiano de primera intención"
+" (TBF-PC)."
 
 #: ../source/api/generated/pymc_marketing.mmm.causal.rst:32:<autosummary>:1
 #: 66b82838c9b342409bbb31e08561148e
@@ -79,8 +89,10 @@ msgid ""
 ":py:obj:`TBF_FCI <pymc_marketing.mmm.causal.TBF_FCI>`\\ \\(target\\, "
 "\\*\\[\\, target\\_edge\\_rule\\, ...\\]\\)"
 msgstr ""
+":py:obj:`TBF_FCI <pymc_marketing.mmm.causal.TBF_FCI>`\\ \\(objetivo\\, "
+"\\*\\[\\, regla\\_de\\_borde\\_objetivo\\, ...\\]\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.causal.rst:32:<autosummary>:1
 #: 057aace2437a41a2ae550238a2395016
 msgid "Target-first Bayes Factor Temporal PC."
-msgstr ""
+msgstr "Factor Bayesiano Temporal PC de objetivo primero."

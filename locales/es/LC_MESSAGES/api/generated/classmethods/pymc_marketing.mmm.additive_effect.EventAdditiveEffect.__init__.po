@@ -23,20 +23,26 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.__init__.rst:2
 #: 641b544bf418499497df94fcce9f0855
 msgid "EventAdditiveEffect.\\_\\_init\\_\\_"
-msgstr ""
+msgstr "EventAdditiveEffect.__init__"
 
 #: acbc136793ec4839a0d221814a437cb3 of pydantic.main.BaseModel.__init__:2
 msgid ""
 "Create a new model by parsing and validating input data from keyword "
 "arguments."
 msgstr ""
+"Cree un nuevo modelo analizando y validando los datos de entrada de los "
+"argumentos de palabra clave."
 
 #: 531a7c58148f4fe696808b8c53b4116a of pydantic.main.BaseModel.__init__:4
 msgid ""
-"Raises [`ValidationError`][pydantic_core.ValidationError] if the input "
-"data cannot be validated to form a valid model."
+"Raises [`ValidationError`][pydantic_core.ValidationError] if the input data "
+"cannot be validated to form a valid model."
 msgstr ""
+"Genera [`ValidationError`][pydantic_core.ValidationError] si los datos de "
+"entrada no pueden ser validados para formar un modelo válido."
 
 #: defc89924d6f4224a0f589fc6bf0ff2e of pydantic.main.BaseModel.__init__:7
 msgid "`self` is explicitly positional-only to allow `self` as a field name."
 msgstr ""
+"`self` es explícitamente solo posicional para permitir que `self` sea un "
+"nombre de campo."

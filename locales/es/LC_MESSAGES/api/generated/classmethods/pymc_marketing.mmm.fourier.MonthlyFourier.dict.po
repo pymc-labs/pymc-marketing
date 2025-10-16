@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.fourier.MonthlyFourier.dict.rst:2
 #: ccea459df6174388abe4f9d94bfb4ada
 msgid "MonthlyFourier.dict"
-msgstr ""
+msgstr "MonthlyFourier.dict"
