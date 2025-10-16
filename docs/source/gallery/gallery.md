@@ -196,8 +196,8 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::
 
 :::{grid-item-card} sBG Model
-:img-top: ../gallery/images/sBG.png
-:link: ../notebooks/clv/sBG.html
+:img-top: ../gallery/images/sBG_individual.png
+:link: ../notebooks/clv/sBG_individual.html
 :::
 ::::
 
