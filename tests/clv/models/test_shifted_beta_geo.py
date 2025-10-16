@@ -209,7 +209,9 @@ class TestShiftedBetaGeoModel:
                 "cohort": np.asarray(["A", "A"]),
             }
         )
-        with pytest.raises(ValueError, match=r"recency must respect 1 < recency <= T"):
+        with pytest.raises(
+            ValueError, match=r"Model fitting requires 1 <= recency <= T, and T >= 2."
+        ):
             ShiftedBetaGeoModel(data=data)
 
     def test_invalid_T(self):
@@ -221,7 +223,9 @@ class TestShiftedBetaGeoModel:
                 "cohort": np.asarray(["A", "A"]),
             }
         )
-        with pytest.raises(ValueError, match=r"Predictions require T >= 2."):
+        with pytest.raises(
+            ValueError, match=r"Model fitting requires 1 <= recency <= T, and T >= 2."
+        ):
             ShiftedBetaGeoModel(data=data)
 
     def test_cohort_T_homogeneity(self):
@@ -229,7 +233,7 @@ class TestShiftedBetaGeoModel:
             {
                 "customer_id": np.asarray([1, 2]),
                 "recency": np.asarray([1, 1]),
-                "T": np.asarray([1, 2]),
+                "T": np.asarray([2, 3]),
                 "cohort": np.asarray(["A", "A"]),
             }
         )
@@ -368,6 +372,17 @@ class TestShiftedBetaGeoModel:
         )
 
     def test_extract_predictive_variables_invalid(self):
+        data = pd.DataFrame(
+            {
+                "customer_id": np.asarray([1, 2]),
+                "recency": np.asarray([1, 1]),
+                "T": np.asarray([2, 3]),
+                "cohort": np.asarray(["A", "A"]),
+            }
+        )
+        self.model._extract_predictive_variables(
+            data, required_cols=["customer_id", "recency", "T", "cohort"]
+        )
         assert 1 == 2
 
 

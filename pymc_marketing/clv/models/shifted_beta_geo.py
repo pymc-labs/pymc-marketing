@@ -134,9 +134,7 @@ class ShiftedBetaGeoModel(CLVModel):
         if np.any(
             (data["recency"] < 1) | (data["recency"] > data["T"]) | (data["T"] < 2)
         ):
-            raise ValueError("recency must respect 1 <= recency <= T.\n")
-        if data["T"].min() < 2:
-            raise ValueError("Predictions require T >= 2.")
+            raise ValueError("Model fitting requires 1 <= recency <= T, and T >= 2.")
 
         super().__init__(
             data=data,
