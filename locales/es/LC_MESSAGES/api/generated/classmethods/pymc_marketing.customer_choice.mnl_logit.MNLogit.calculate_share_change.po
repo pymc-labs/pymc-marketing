@@ -23,9 +23,11 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.customer_choice.mnl_logit.MNLogit.calculate_share_change.rst:2
 #: 8dba8eb8e0334001a9db476b1fae3ac6
 msgid "MNLogit.calculate\\_share\\_change"
-msgstr ""
+msgstr "MNLogit.calcular_cambio_de_participación"
 
 #: 802b7b5827a849ab909bbde7a3e66135 of
 #: pymc_marketing.customer_choice.mnl_logit.MNLogit.calculate_share_change:2
 msgid "Calculate difference in market share due to market intervention."
 msgstr ""
+"Calcular la diferencia en la cuota de mercado debido a la intervención en el"
+" mercado."

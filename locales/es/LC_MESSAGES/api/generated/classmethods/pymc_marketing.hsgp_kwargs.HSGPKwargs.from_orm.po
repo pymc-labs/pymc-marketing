@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.hsgp_kwargs.HSGPKwargs.from_orm.rst:2
 #: f29ff8f57b50497186f69dc8718ac9ef
 msgid "HSGPKwargs.from\\_orm"
-msgstr ""
+msgstr "HSGPKwargs.from\\_orm"

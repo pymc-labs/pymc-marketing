@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.customer_choice.mv_its.MVITS.post_sample_model_transformation.rst:2
 #: d51f39ee86c64633b2f6305415eec42a
 msgid "MVITS.post\\_sample\\_model\\_transformation"
-msgstr ""
+msgstr "MVITS.post\\_sample\\_model\\_transformation"
 
 #: 4bad02ee21344509a5e907652bf3bfa2 of
 #: pymc_marketing.model_builder.RegressionModelBuilder.post_sample_model_transformation:2
 msgid "Perform transformation on the model after sampling."
-msgstr ""
+msgstr "Realice la transformación en el modelo después de la muestreo."

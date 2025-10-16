@@ -23,14 +23,16 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.base.BaseValidateMMM.predict.rst:2
 #: dd40af180d8849e9ac8f67d5800f9f4c
 msgid "BaseValidateMMM.predict"
-msgstr ""
+msgstr "BaseValidateMMM.predecir"
 
 #: 9dac550dc13c491a8370d5664e56b49b of
 #: pymc_marketing.model_builder.RegressionModelBuilder.predict:2
 msgid ""
-"Use a model to predict on unseen data and return point prediction of all "
-"the samples."
+"Use a model to predict on unseen data and return point prediction of all the"
+" samples."
 msgstr ""
+"Utilice un modelo para predecir en datos no vistos y devuelva la predicción "
+"puntual de todas las muestras."
 
 #: 38eaa24b4d264f348fc929ee610304ed of
 #: pymc_marketing.model_builder.RegressionModelBuilder.predict:4
@@ -38,11 +40,13 @@ msgid ""
 "The point prediction for each input row is the expected output value, "
 "computed as the mean of MCMC samples."
 msgstr ""
+"La predicción puntual para cada fila de entrada es el valor de salida "
+"esperado, calculado como la media de las muestras MCMC."
 
 #: 521f8f2a30234de1b4179e3fe1d7ca7e of
 #: pymc_marketing.model_builder.RegressionModelBuilder.predict
 msgid "Parameters"
-msgstr ""
+msgstr "Parámetros"
 
 #: 9205ff11933649d6a50a728f82240ff4 of
 #: pymc_marketing.model_builder.RegressionModelBuilder.predict:8
@@ -50,11 +54,13 @@ msgid ""
 "**X** : :term:`numpy:array_like` | :obj:`array <numpy.ndarray>`, "
 ":obj:`shape` (:obj:`n_pred`, :obj:`n_features`)"
 msgstr ""
+"**X** : :term:`numpy:array_like` | :obj:`array <numpy.ndarray>`, "
+":obj:`shape` (:obj:`n_pred`, :obj:`n_features`)"
 
 #: b966cdb06fe84e96a5b2a606c7df2ab4 of
 #: pymc_marketing.model_builder.RegressionModelBuilder.predict:7
 msgid "numpy:array_like | array, shape (n_pred, n_features)"
-msgstr ""
+msgstr "numpy:array_like | arreglo, forma (n_pred, n_features)"
 
 #: 0a67a2085ea04340afc2d542c698baeb of
 #: pymc_marketing.model_builder.RegressionModelBuilder.predict:9
@@ -62,47 +68,53 @@ msgid ""
 "The input data used for prediction. If scikit-learn is available, array-"
 "like, otherwise array."
 msgstr ""
+"Los datos de entrada utilizados para la predicción. Si scikit-learn está "
+"disponible, tipo array, de lo contrario, array."
 
 #: 22a506f4ee9f4d9aa2173231d4f8dcbb of
 #: pymc_marketing.model_builder.RegressionModelBuilder.predict:11
 msgid "**extend_idata** : :obj:`Boolean`"
-msgstr ""
+msgstr "**extend_idata** : :obj:`Booleano`"
 
 #: ee6bfe0e61d4465d825dd04182075fa0 of
 #: pymc_marketing.model_builder.RegressionModelBuilder.predict:10
 msgid "Boolean"
-msgstr ""
+msgstr "Boolean"
 
 #: 1dda2857bba246d09f39fc9a3dc83823 of
 #: pymc_marketing.model_builder.RegressionModelBuilder.predict:12
 msgid ""
-"Determine whether the predictions should be added to inference data "
-"object. Defaults to True."
+"Determine whether the predictions should be added to inference data object. "
+"Defaults to True."
 msgstr ""
+"Determine si las predicciones deben ser añadidas al objeto de datos de "
+"inferencia. Por defecto es True."
 
 #: 15e9811be2274639b8159f162ea4f19d of
 #: pymc_marketing.model_builder.RegressionModelBuilder.predict:15
 msgid ""
-"**\\*\\*kwargs: Additional arguments to pass to "
-"sample_posterior_predictive method**"
+"**\\*\\*kwargs: Additional arguments to pass to sample_posterior_predictive "
+"method**"
 msgstr ""
+"**\\*\\*kwargs: Argumentos adicionales para pasar al método "
+"sample_posterior_predictive**"
 
 #: 4c4dd58b3e6642a999b119cfe54262cc of
 #: pymc_marketing.model_builder.RegressionModelBuilder.predict
 msgid "Returns"
-msgstr ""
+msgstr "Devoluciones"
 
 #: 4d97bf7fe05a484b8e1a0abb61d5d050 of
 #: pymc_marketing.model_builder.RegressionModelBuilder.predict:22
 msgid ":class:`~numpy.ndarray`, :obj:`shape` (n_pred,)"
-msgstr ""
+msgstr ":class:`~numpy.ndarray`, :obj:`shape` (n_pred,)"
 
 #: 25c1dc0fbe0a4582ac7bb4a611baf053 of
 #: pymc_marketing.model_builder.RegressionModelBuilder.predict:23
 msgid "Predicted output corresponding to input X."
-msgstr ""
+msgstr "Salida predicha correspondiente a la entrada X."
 
 #: 7cf042792b8e4655b88ba17ec98bdcaa of
 #: pymc_marketing.model_builder.RegressionModelBuilder.predict:35
 msgid "Examples"
-msgstr ""
+msgstr "Ejemplos"

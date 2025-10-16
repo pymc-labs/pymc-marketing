@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.events.HalfGaussianBasis.__init__.rst:2
 #: 55e63a26a558478eb3cdfc547848373f
 msgid "HalfGaussianBasis.\\_\\_init\\_\\_"
-msgstr ""
+msgstr "HalfGaussianBasis.__init__"

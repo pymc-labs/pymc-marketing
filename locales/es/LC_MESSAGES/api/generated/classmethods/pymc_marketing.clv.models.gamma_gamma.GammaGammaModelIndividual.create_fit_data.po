@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.create_fit_data.rst:2
 #: eb02d791e1e94588854aa538bb2c3ec5
 msgid "GammaGammaModelIndividual.create\\_fit\\_data"
-msgstr ""
+msgstr "GammaGammaModelIndividual.crear\\_ajuste\\_datos"

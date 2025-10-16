@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.create_fit_data.rst:2
 #: a902765c182f4c43a56b76fd2dd54aeb
 msgid "ParetoNBDModel.create\\_fit\\_data"
-msgstr ""
+msgstr "ParetoNBDModel.crear\\_ajuste\\_datos"

@@ -12,23 +12,25 @@ msgstr ""
 "POT-Creation-Date: 2025-10-07 18:10+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language: es\n"
 "Language-Team: es <LL@li.org>\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Language: es\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "Generated-By: Babel 2.17.0\n"
 
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.mmm.BaseMMM.forward_pass.rst:2
 #: f42fc063a3b24efe98fcb82ef6e9a478
 msgid "BaseMMM.forward\\_pass"
-msgstr ""
+msgstr "BaseMMM.forward\\_pass"
 
 #: cb00630d118043c0916a7dc6d40dbbdd of
 #: pymc_marketing.mmm.mmm.BaseMMM.forward_pass:2
 msgid "Transform channel input into target contributions of each channel."
 msgstr ""
+"Transformar la entrada del canal en las contribuciones objetivo de cada "
+"canal."
 
 #: 28fd8b99eb9c4257b101c3421ce8534f of
 #: pymc_marketing.mmm.mmm.BaseMMM.forward_pass:4
@@ -36,6 +38,8 @@ msgid ""
 "This method handles the ordering of the adstock and saturation "
 "transformations."
 msgstr ""
+"Este método gestiona el orden de las transformaciones de adstock y "
+"saturación."
 
 #: 63f6abae46b24354b51932cb745242c3 of
 #: pymc_marketing.mmm.mmm.BaseMMM.forward_pass:7
@@ -44,31 +48,34 @@ msgid ""
 "necessarily in the instance's model. A dim named \"channel\" is required "
 "associated with the number of columns of `x`."
 msgstr ""
+"Este método debe ser llamado desde fuera de un contexto de pm.Model, pero no"
+" necesariamente en el modelo de la instancia. Se requiere una dimensión "
+"llamada \"channel\" asociada con el número de columnas de `x`."
 
 #: 0187a17c2d114ffb8acd05dcceeeec42 of
 #: pymc_marketing.mmm.mmm.BaseMMM.forward_pass
 msgid "Parameters"
-msgstr ""
+msgstr "Parámetros"
 
 #: 6a79e91aa503466bb3bdf949677b165d of
 #: pymc_marketing.mmm.mmm.BaseMMM.forward_pass:13
 msgid "**x** : :obj:`pt.TensorVariable` | :obj:`npt.NDArray`"
-msgstr ""
+msgstr "**x** : :obj:`pt.TensorVariable` | :obj:`npt.NDArray`"
 
 #: 0659415ed8d445db8051c4949c611a9b of
 #: pymc_marketing.mmm.mmm.BaseMMM.forward_pass:12
 msgid "pt.TensorVariable | npt.NDArray"
-msgstr ""
+msgstr "pt.TensorVariable | npt.NDArray"
 
 #: 2d41dc75fc3046228935c28cdf98fb3e of
 #: pymc_marketing.mmm.mmm.BaseMMM.forward_pass:14
 msgid "The channel input which could be spends or impressions"
-msgstr ""
+msgstr "La entrada del canal que podría ser gastos o impresiones"
 
 #: f6424fc10bc747d694f7a851cde6a31b of
 #: pymc_marketing.mmm.mmm.BaseMMM.forward_pass
 msgid "Returns"
-msgstr ""
+msgstr "Devoluciones"
 
 #: cbe8a4eaf0e241e084b428bb891c9880 of
 #: pymc_marketing.mmm.mmm.BaseMMM.forward_pass:20
@@ -76,3 +83,5 @@ msgid ""
 ":obj:`The` :obj:`contributions` :obj:`associated` :obj:`with` :obj:`the` "
 ":obj:`channel` :obj:`input`"
 msgstr ""
+":obj:`Las` :obj:`contribuciones` :obj:`asociadas` :obj:`con` :obj:`el` "
+":obj:`entrada` :obj:`del` :obj:`canal`"

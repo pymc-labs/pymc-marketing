@@ -12,63 +12,78 @@ msgstr ""
 "POT-Creation-Date: 2025-10-07 18:10+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language: es\n"
 "Language-Team: es <LL@li.org>\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Language: es\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "Generated-By: Babel 2.17.0\n"
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:10003
 #: 12484411e64d4da98b107b21f601f1b3
 msgid "Budget Allocation Risk Assessment with PyMC-Marketing"
-msgstr ""
+msgstr "Evaluación de Riesgo de Asignación de Presupuesto con PyMC-Marketing"
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:10005
 #: 2764a01025564de3b07d469077c4d325
 msgid ""
 "This notebook is centered around evaluating the risks tied to different "
-"budget allocations across various marketing channels. You'll discover how"
-" to create an optimal budget allocation that aligns with your specific "
-"risk tolerance. This knowledge will empower you to make well-informed "
-"decisions regarding your budget distribution."
+"budget allocations across various marketing channels. You'll discover how to"
+" create an optimal budget allocation that aligns with your specific risk "
+"tolerance. This knowledge will empower you to make well-informed decisions "
+"regarding your budget distribution."
 msgstr ""
+"Este cuaderno se centra en evaluar los riesgos asociados a diferentes "
+"asignaciones presupuestarias en varios canales de marketing. Descubrirá cómo"
+" crear una asignación presupuestaria óptima que se alinee con su tolerancia "
+"al riesgo específica. Este conocimiento le permitirá tomar decisiones bien "
+"fundamentadas respecto a la distribución de su presupuesto."
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:10007
 #: 54e4d5ea81064021bf746c528823a53f
 msgid "Prerequisite Knowledge"
-msgstr ""
+msgstr "Conocimientos Previos"
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:10008
 #: f117e3bcd5db44079b7bacc88cd31ad1
 msgid ""
 "The notebook assumes the reader has knowledge of the essential "
-"functionalities of PyMC-Marketing. If one is unfamiliar, the [\"MMM "
-"Example Notebook\"](https://www.pymc-"
+"functionalities of PyMC-Marketing. If one is unfamiliar, the [\"MMM Example "
+"Notebook\"](https://www.pymc-"
 "marketing.io/en/stable/notebooks/mmm/mmm_example.html) serves as an "
-"excellent starting point, offering a comprehensive introduction to media "
-"mix models in this context."
+"excellent starting point, offering a comprehensive introduction to media mix"
+" models in this context."
 msgstr ""
+"El cuaderno asume que el lector tiene conocimiento de las funcionalidades "
+"esenciales de PyMC-Marketing. Si no está familiarizado, el [\"Cuaderno de "
+"Ejemplo de MMM\"](https://www.pymc-"
+"marketing.io/en/stable/notebooks/mmm/mmm_example.html) sirve como un "
+"excelente punto de partida, ofreciendo una introducción completa a los "
+"modelos de mezcla de medios en este contexto."
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:10010
 #: c31be1f588524387b24292c2ae8ed392
 msgid "Expected Outcomes"
-msgstr ""
+msgstr "Resultados Esperados"
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:10011
 #: 477d7723221346ad8166e37a2e3cd0e9
 msgid ""
 "Upon completion of this notebook, readers will acquire a comprehensive "
-"understanding of how to evaluate the risks associated with various budget"
-" allocations and how to develop an optimal budget allocation based on "
+"understanding of how to evaluate the risks associated with various budget "
+"allocations and how to develop an optimal budget allocation based on "
 "specified risk tolerance criteria."
 msgstr ""
+"Al completar este cuaderno, los lectores adquirirán una comprensión integral"
+" de cómo evaluar los riesgos asociados con diversas asignaciones "
+"presupuestarias y cómo desarrollar una asignación presupuestaria óptima "
+"basada en criterios de tolerancia al riesgo especificados."
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:10013
 #: 5460a1d26ad74c39a5c081689df635cb
 msgid "Preliminary Setup"
-msgstr ""
+msgstr "Configuración preliminar"
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:10014
 #: 1efb96ee1e1e4f8ba96a9fe0b5ca778b
@@ -77,231 +92,329 @@ msgid ""
 "document relies on a specific set of libraries. Below are the necessary "
 "imports required for executing the code snippets presented hereafter."
 msgstr ""
+"Consistente con los cuadernos anteriores de la serie PyMC-Marketing, este "
+"documento se basa en un conjunto específico de bibliotecas. A continuación "
+"se presentan las importaciones necesarias para ejecutar los fragmentos de "
+"código que se presentan a continuación."
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:30002
 #: 456a113ba90f4b7494cd9776bd898e12
 msgid ""
 "The expectation is that a model has already been trained using the "
-"functionalities provided in prior versions of the PyMC-Marketing library."
-" Thus, the data generation and training processes will be replicated in a"
-" different notebook. Those unfamiliar with these procedures are advised "
-"to refer to the [\"MMM Example Notebook.\"](https://www.pymc-"
+"functionalities provided in prior versions of the PyMC-Marketing library. "
+"Thus, the data generation and training processes will be replicated in a "
+"different notebook. Those unfamiliar with these procedures are advised to "
+"refer to the [\"MMM Example Notebook.\"](https://www.pymc-"
 "marketing.io/en/stable/notebooks/mmm/mmm_example.html)"
 msgstr ""
+"La expectativa es que un modelo ya ha sido entrenado utilizando las "
+"funcionalidades proporcionadas en versiones anteriores de la biblioteca "
+"PyMC-Marketing. Por lo tanto, los procesos de generación de datos y "
+"entrenamiento se replicarán en un cuaderno diferente. Se aconseja a aquellos"
+" que no estén familiarizados con estos procedimientos que consulten el "
+"[\"Cuaderno de Ejemplo de MMM.\"](https://www.pymc-"
+"marketing.io/en/stable/notebooks/mmm/mmm_example.html)"
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:30004
 #: 39186f6183da442987c56de1b1cc7eb5
 msgid "Loading a Pre-Trained Model"
-msgstr ""
+msgstr "Cargando un modelo preentrenado"
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:30005
 #: e670b83460874bb29aab5811a0afd2b0
 msgid ""
-"To utilize a saved model, load it into a new instance of the MMM class "
-"using the load method below."
+"To utilize a saved model, load it into a new instance of the MMM class using"
+" the load method below."
 msgstr ""
+"Para utilizar un modelo guardado, cárguelo en una nueva instancia de la "
+"clase MMM utilizando el método load a continuación."
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:80002
 #: 10f8733d3eec4691a870089fe6aa3c52
 msgid "Formulating the Budget Allocation Challenge"
-msgstr ""
+msgstr "Formulando el Desafío de Asignación del Presupuesto"
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:80003
 #: acb6dd551dfc41f39dfaba88c5c0c956
 msgid ""
-"As in earlier notebooks, it is essential to delineate the budget "
-"allocation challenge. Specifically, we must define the duration of our "
-"budget allocation and the permissible expenditure per time unit. Our "
-"model utilizes weekly data; therefore, we will maintain the same temporal"
-" granularity."
+"As in earlier notebooks, it is essential to delineate the budget allocation "
+"challenge. Specifically, we must define the duration of our budget "
+"allocation and the permissible expenditure per time unit. Our model utilizes"
+" weekly data; therefore, we will maintain the same temporal granularity."
 msgstr ""
+"Como en cuadernos anteriores, es esencial delinear el desafío de la "
+"asignación del presupuesto. Específicamente, debemos definir la duración de "
+"nuestra asignación presupuestaria y el gasto permitido por unidad de tiempo."
+" Nuestro modelo utiliza datos semanales; por lo tanto, mantendremos la misma"
+" granularidad temporal."
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:80005
 #: fd93e259a63b4a03a4d605b44ee1ceb7
 msgid ""
-"In this example, we aim to distribute a budget across two channels over "
-"the course of eight weeks, with a weekly budget of 3 Million. "
-"Consequently, the total budget available for allocation amounts to 24 "
-"Million."
+"In this example, we aim to distribute a budget across two channels over the "
+"course of eight weeks, with a weekly budget of 3 Million. Consequently, the "
+"total budget available for allocation amounts to 24 Million."
 msgstr ""
+"En este ejemplo, nuestro objetivo es distribuir un presupuesto entre dos "
+"canales a lo largo de ocho semanas, con un presupuesto semanal de 3 "
+"millones. En consecuencia, el presupuesto total disponible para asignación "
+"asciende a 24 millones."
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:100002
 #: deaa8036c8d3421a9ef5ade1c31a3995
 msgid ""
-"Based on our intuition, we were thinking of distributing this budget into"
-" 80% Million for Google ($x2$) and 20% Million for Facebook ($x1$). Using"
-" this allocation, we can compute the response distribution and plot it."
+"Based on our intuition, we were thinking of distributing this budget into "
+"80% Million for Google ($x2$) and 20% Million for Facebook ($x1$). Using "
+"this allocation, we can compute the response distribution and plot it."
 msgstr ""
+"Basado en nuestra intuición, estábamos pensando en distribuir este "
+"presupuesto en 80% millones para Google ($x2$) y 20% millones para Facebook "
+"($x1$). Usando esta asignación, podemos calcular la distribución de "
+"respuestas y graficarla."
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:130002
 #: 172b943efd1e49f181276e6eda7653d0
 msgid ""
-"This is great, apparently we could get 123,226 units sold given our "
-"39,000 total budget (3,000 Daily) which is mostly allocated to $X2$."
+"This is great, apparently we could get 123,226 units sold given our 39,000 "
+"total budget (3,000 Daily) which is mostly allocated to $X2$."
 msgstr ""
+"Esto es excelente, aparentemente podríamos vender 123,226 unidades dado "
+"nuestro presupuesto total de 39,000 (3,000 Diarios) que está mayormente "
+"asignado a $X2$."
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:130004
 #: 844a55cdc65a4c54bb5956414cd1dbbd
 msgid ""
-"Could we do better? The usual approach is to allocate the budget to "
-"maximize the response. We can use the `optimize_budget` method to do so, "
-"here we will compute the response given several budget combinations, and "
-"we'll prefer the one that maximizes the response. It's important to note "
-"that this example doesn't use any bounds, or constraints, so the "
-"optimizer will seek to use the entire budget."
+"Could we do better? The usual approach is to allocate the budget to maximize"
+" the response. We can use the `optimize_budget` method to do so, here we "
+"will compute the response given several budget combinations, and we'll "
+"prefer the one that maximizes the response. It's important to note that this"
+" example doesn't use any bounds, or constraints, so the optimizer will seek "
+"to use the entire budget."
 msgstr ""
+"¿Podríamos hacerlo mejor? El enfoque habitual es asignar el presupuesto para"
+" maximizar la respuesta. Podemos utilizar el método `optimize_budget` para "
+"ello; aquí calcularemos la respuesta dada varias combinaciones de "
+"presupuesto, y preferiremos la que maximice la respuesta. Es importante "
+"señalar que este ejemplo no utiliza ningún límite ni restricciones, por lo "
+"que el optimizador buscará utilizar el presupuesto completo."
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:160002
 #: b37a725e0e9c415dab05a517efd8609c
 msgid ""
-"Great! Looks like we could get 145,255 units sold given our 3,000 time "
-"unit budget, meaning the optimizer found a better allocation which "
-"maximizes the response for the same budget. We could follow the same "
-"approach and plot the two distributions to compare them."
+"Great! Looks like we could get 145,255 units sold given our 3,000 time unit "
+"budget, meaning the optimizer found a better allocation which maximizes the "
+"response for the same budget. We could follow the same approach and plot the"
+" two distributions to compare them."
 msgstr ""
+"¡Genial! Parece que podríamos vender 145,255 unidades dado nuestro "
+"presupuesto de 3,000 unidades de tiempo, lo que significa que el optimizador"
+" encontró una mejor asignación que maximiza la respuesta para el mismo "
+"presupuesto. Podríamos seguir el mismo enfoque y trazar las dos "
+"distribuciones para compararlas."
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:170002
 #: 8714817215624763ae5e6fcc1f3b5fbd
 msgid ""
-"This makes everything clear, the optimized allocation has a higher mean. "
-"But looks like the optimized allocation has a higher risk, as the "
-"distribution is wider, respect to the initial guessed allocation."
+"This makes everything clear, the optimized allocation has a higher mean. But"
+" looks like the optimized allocation has a higher risk, as the distribution "
+"is wider, respect to the initial guessed allocation."
 msgstr ""
+"Esto aclara todo, la asignación optimizada tiene una media más alta. Pero "
+"parece que la asignación optimizada tiene un mayor riesgo, ya que la "
+"distribución es más amplia, en comparación con la asignación inicial "
+"estimada."
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:170004
 #: a374ce73001448a5a7fd426f706f6f46
 msgid ""
 "Based on this, using the optimized allocation its very likely to get a "
 "respose of 145,255 units sold but also the budget could bring as low as "
-"125,000 units sold or as big as 162,000 units sold. On the other hand, "
-"using the guessed allocation its very likely to get a respose of 123,000 "
-"units sold but also the budget could bring as low as 117,000 units sold "
-"or as big as 133,000 units sold."
+"125,000 units sold or as big as 162,000 units sold. On the other hand, using"
+" the guessed allocation its very likely to get a respose of 123,000 units "
+"sold but also the budget could bring as low as 117,000 units sold or as big "
+"as 133,000 units sold."
 msgstr ""
+"Basado en esto, utilizando la asignación optimizada es muy probable obtener "
+"una respuesta de 145,255 unidades vendidas, pero también el presupuesto "
+"podría llevar a vender tan solo 125,000 unidades o hasta 162,000 unidades "
+"vendidas. Por otro lado, utilizando la asignación estimada es muy probable "
+"obtener una respuesta de 123,000 unidades vendidas, pero también el "
+"presupuesto podría llevar a vender tan solo 117,000 unidades o hasta 133,000"
+" unidades vendidas."
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:170006
 #: 3e0b4c75fae0478e89684d34b705430f
 msgid ""
-"During this notebook will give you the tools to answer this question. If "
-"you face a situation where the best bet is not the safer bet, which one "
-"would you prefer? Higher mean, but with more risk? Or lower mean, but "
-"with less risk? A safer bet or a riskier bet?"
+"During this notebook will give you the tools to answer this question. If you"
+" face a situation where the best bet is not the safer bet, which one would "
+"you prefer? Higher mean, but with more risk? Or lower mean, but with less "
+"risk? A safer bet or a riskier bet?"
 msgstr ""
+"Durante este cuaderno, le proporcionará las herramientas para responder a "
+"esta pregunta. Si se enfrenta a una situación en la que la mejor apuesta no "
+"es la más segura, ¿cuál preferiría? ¿Mayor media, pero con más riesgo? ¿O "
+"menor media, pero con menos riesgo? ¿Una apuesta más segura o una apuesta "
+"más arriesgada?"
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:170008
 #: 41733ddc922d49e8b6f0a94d3afdd303
 msgid ""
 "This is where risk assessment comes into play, we can use different risk "
-"assessment criteria to help us decide which allocation is better based on"
-" our risk tolerance."
+"assessment criteria to help us decide which allocation is better based on "
+"our risk tolerance."
 msgstr ""
+"Aquí es donde entra en juego la evaluación de riesgos; podemos utilizar "
+"diferentes criterios de evaluación de riesgos para ayudarnos a decidir cuál "
+"asignación es mejor según nuestra tolerancia al riesgo."
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:180002
 #: d0ef8c49d817498eb7c6ac4cbec256bf
 msgid "Introduction to Risk Assessment"
-msgstr ""
+msgstr "Introducción a la Evaluación de Riesgos"
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:180004
 #: 0e8d176f442541958cfb66e507b483f3
 msgid ""
-"The `budget_optimizer` module encompasses various risk assessment "
-"criteria that facilitate the evaluation of risks associated with "
-"different budget allocations."
+"The `budget_optimizer` module encompasses various risk assessment criteria "
+"that facilitate the evaluation of risks associated with different budget "
+"allocations."
 msgstr ""
+"El módulo `budget_optimizer` abarca diversos criterios de evaluación de "
+"riesgos que facilitan la evaluación de los riesgos asociados con diferentes "
+"asignaciones presupuestarias."
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:180006
 #: bd73a389e49c4501ba4f3817b819dce7
 msgid ""
-"Utilization of the `ut` class allows for the computation of risks linked "
-"to various budget allocations. Should the need arise to implement a "
-"customized risk assessment criterion, one can develop an individual "
-"function and incorporate it into the `optimize_budget` method as "
-"necessary. Subsequently, guidance on creating a personalized risk "
-"assessment criterion will be provided."
+"Utilization of the `ut` class allows for the computation of risks linked to "
+"various budget allocations. Should the need arise to implement a customized "
+"risk assessment criterion, one can develop an individual function and "
+"incorporate it into the `optimize_budget` method as necessary. Subsequently,"
+" guidance on creating a personalized risk assessment criterion will be "
+"provided."
 msgstr ""
+"La utilización de la clase `ut` permite el cálculo de riesgos vinculados a "
+"diversas asignaciones presupuestarias. Si surge la necesidad de implementar "
+"un criterio de evaluación de riesgos personalizado, se puede desarrollar una"
+" función individual e incorporarla al método `optimize_budget` según sea "
+"necesario. Posteriormente, se proporcionará orientación sobre cómo crear un "
+"criterio de evaluación de riesgos personalizado."
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:200002
 #: 07c192675fcc4950ba174e0a85a05012
 msgid "Optimizing Budget Allocation Using Mean Tightness Score (MTS)"
 msgstr ""
+"Optimización de la Asignación del Presupuesto Utilizando el Puntaje de "
+"Ajuste Medio (MTS)"
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:200004
 #: a1acf875fa8749db834c11a474965da8
 msgid ""
 "This section focuses on the optimization of marketing budget allocation "
-"while incorporating risk considerations. Specifically, we employ the Mean"
-" Tightness Score (MTS) as the utility function to ensure that our budget "
-"plan effectively minimizes potential losses within a defined HDI (highest"
-" density interval)."
+"while incorporating risk considerations. Specifically, we employ the Mean "
+"Tightness Score (MTS) as the utility function to ensure that our budget plan"
+" effectively minimizes potential losses within a defined HDI (highest "
+"density interval)."
 msgstr ""
+"Esta sección se centra en la optimización de la asignación del presupuesto "
+"de marketing, incorporando consideraciones de riesgo. Específicamente, "
+"empleamos el Puntaje de Ajuste Medio (MTS) como la función de utilidad para "
+"garantizar que nuestro plan de presupuesto minimice efectivamente las "
+"pérdidas potenciales dentro de un HDI (intervalo de mayor densidad) "
+"definido."
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:200006
 #: 02f379dc4fb84436bf58f5b45c39a968
 msgid "Overview of the Process"
-msgstr ""
+msgstr "Descripción general del proceso"
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:200008
 #: ceed04e04c14467a910515284e02fd10
 msgid ""
-"We invoke `mmm.optimize_budget` to ascertain the optimal allocation of "
-"the marketing budget across various channels over specified time periods,"
-" mirroring the approach undertaken in the prior section."
+"We invoke `mmm.optimize_budget` to ascertain the optimal allocation of the "
+"marketing budget across various channels over specified time periods, "
+"mirroring the approach undertaken in the prior section."
 msgstr ""
+"Invocamos `mmm.optimize_budget` para determinar la asignación óptima del "
+"presupuesto de marketing a través de varios canales durante períodos de "
+"tiempo específicos, reflejando el enfoque adoptado en la sección anterior."
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:200010
 #: c76fbbc93a2b487d82c5cc5ec91b4ffd
 msgid ""
-"The parameters remain consistent with those from the preceding section, "
-"with the addition of the `utility_function` parameters. In this instance:"
+"The parameters remain consistent with those from the preceding section, with"
+" the addition of the `utility_function` parameters. In this instance:"
 msgstr ""
+"Los parámetros se mantienen consistentes con los de la sección anterior, con"
+" la adición de los parámetros de `utility_function`. En este caso:"
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:200011
 #: 28cf7874b37d46f1a9dcaec68f459eb8
-msgid "`utility_function`: This parameter is assigned to `mean_tightness_score`."
+msgid ""
+"`utility_function`: This parameter is assigned to `mean_tightness_score`."
 msgstr ""
+"`utility_function`: Este parámetro se asigna a `mean_tightness_score`."
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:200013
 #: 3626ff385cc048089d6b8bafdea4ea4f
 msgid ""
-"The Mean Tightness Score represents a risk-adjusted metric that "
-"harmonizes the mean return with the tail variability within a "
-"distribution. This metric is computed as follows:"
+"The Mean Tightness Score represents a risk-adjusted metric that harmonizes "
+"the mean return with the tail variability within a distribution. This metric"
+" is computed as follows:"
 msgstr ""
+"El Puntaje Medio de Ajuste representa una métrica ajustada al riesgo que "
+"armoniza el retorno medio con la variabilidad en la cola dentro de una "
+"distribución. Esta métrica se calcula de la siguiente manera:"
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:200015
 #: 6da57749aebb4de085b19d33dc294fbd
 msgid ""
 "\n"
-"Mean\\ Tightness\\ Score = (\\mu - \\alpha \\cdot Tail\\ Distance) / \\mu"
-"\n"
+"Mean\\ Tightness\\ Score = (\\mu - \\alpha \\cdot Tail\\ Distance) / \\mu\n"
 msgstr ""
+"Puntuación de Tensión Media = (\\mu - \\alpha \\cdot Distancia de Cola) / "
+"\\mu"
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:200019
 #: 52282faafbf44f3ba66f9015da06c358
 msgid ""
-"In this formula, $\\mu$ signifies the mean of the sample returns, $Tail\\"
-" Distance$ represents the tail distance metric, and $\\alpha$ denotes the"
-" risk tolerance parameter."
+"In this formula, $\\mu$ signifies the mean of the sample returns, $Tail\\ "
+"Distance$ represents the tail distance metric, and $\\alpha$ denotes the "
+"risk tolerance parameter."
 msgstr ""
+"En esta fórmula, $\\mu$ significa la media de los retornos de la muestra, "
+"$Tail\\ Distance$ representa la métrica de distancia de cola, y $\\alpha$ "
+"denota el parámetro de tolerancia al riesgo."
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:250002
 #: 9853b2992d8c4cde95f03641e760a750
 msgid ""
-"The majority of the budget is allocated to $X1$. This allocation has been"
-" determined to minimize potential risk. Essentially, this approach "
-"indicates that we are prepared to accept lower returns if those returns "
-"are characterized by a higher degree of certainty. This is evident in the"
-" response distribution plot, which should exhibit a tight distribution "
-"with narrow tails."
+"The majority of the budget is allocated to $X1$. This allocation has been "
+"determined to minimize potential risk. Essentially, this approach indicates "
+"that we are prepared to accept lower returns if those returns are "
+"characterized by a higher degree of certainty. This is evident in the "
+"response distribution plot, which should exhibit a tight distribution with "
+"narrow tails."
 msgstr ""
+"La mayor parte del presupuesto se destina a $X1$. Esta asignación se ha "
+"determinado para minimizar el riesgo potencial. Esencialmente, este enfoque "
+"indica que estamos dispuestos a aceptar rendimientos más bajos si esos "
+"rendimientos se caracterizan por un mayor grado de certeza. Esto es evidente"
+" en el gráfico de distribución de respuestas, que debería mostrar una "
+"distribución ajustada con colas estrechas."
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:260002
 #: aff76a15df6c413f952fb5f9dc83d479
 msgid ""
 "Now the budget change quite a bit, but the risk is lower compared to the "
-"non-risk optimized allocation, if we observe the distributions the "
-"density is narrower for the MTS optimized allocation."
+"non-risk optimized allocation, if we observe the distributions the density "
+"is narrower for the MTS optimized allocation."
 msgstr ""
+"Ahora el cambio en el presupuesto es bastante significativo, pero el riesgo "
+"es menor en comparación con la asignación no optimizada por riesgo. Si "
+"observamos las distribuciones, la densidad es más estrecha para la "
+"asignación optimizada por MTS."
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:260004
 #: d0e5798421b44fb4a0e26fa6caac3b38
@@ -311,85 +424,128 @@ msgid ""
 "Consequently, the optimizer allocates a larger portion of the budget to "
 "$X1$, as it represents a more secure investment option."
 msgstr ""
+"Esta estrategia es lógica, ya que $X1$ demuestra una respuesta con menor "
+"incertidumbre, mientras que $X2$ está asociada con una mayor incertidumbre. "
+"En consecuencia, el optimizador asigna una mayor parte del presupuesto a "
+"$X1$, ya que representa una opción de inversión más segura."
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:280002
 #: 051b84c6f5a14466be337b510d3530fa
 msgid ""
-"We can exhibit this behavior on a more evident way; if we want to "
-"maximize a response that is less certain, we should get the opposite "
-"scenario. Let's set the mean tightness score with a higher alpha "
-"parameter, meaning, we have a higher risk tolerance."
+"We can exhibit this behavior on a more evident way; if we want to maximize a"
+" response that is less certain, we should get the opposite scenario. Let's "
+"set the mean tightness score with a higher alpha parameter, meaning, we have"
+" a higher risk tolerance."
 msgstr ""
+"Podemos exhibir este comportamiento de una manera más evidente; si queremos "
+"maximizar una respuesta que es menos cierta, deberíamos obtener el escenario"
+" opuesto. Establezcamos la puntuación de rigidez media con un parámetro alfa"
+" más alto, lo que significa que tenemos una mayor tolerancia al riesgo."
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:300002
 #: 259dad05b67e4761af598450920d6086
 msgid ""
 "We are spending more in $X2$, and less in $X1$ compared to the previous "
-"allocation. Let's see the response distribution plot, again to compare it"
-" with the previous one."
+"allocation. Let's see the response distribution plot, again to compare it "
+"with the previous one."
 msgstr ""
+"Estamos gastando más en $X2$ y menos en $X1$ en comparación con la "
+"asignación anterior. Veamos el gráfico de distribución de respuestas, "
+"nuevamente para compararlo con el anterior."
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:320002
 #: 80c2c6884acc40459958198e67fb98a9
 msgid ""
-"As expected, the distribution has bigger tails now, and the mean is "
-"higher as well. We got bigger returns, but with more risk. The extra risk"
-" is coming from the additional budget allocated to $X2$."
+"As expected, the distribution has bigger tails now, and the mean is higher "
+"as well. We got bigger returns, but with more risk. The extra risk is coming"
+" from the additional budget allocated to $X2$."
 msgstr ""
+"Como era de esperar, la distribución ahora tiene colas más grandes, y la "
+"media también es más alta. Obtuvimos mayores rendimientos, pero con más "
+"riesgo. El riesgo adicional proviene del presupuesto extra asignado a $X2$."
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:360002
 #: 247a62069472438bac48c3c949064f57
 msgid "Optimizing Budget Allocation through ROAS and Value at Risk (VaR)"
 msgstr ""
+"Optimización de la Asignación del Presupuesto a través del ROAS y el Valor "
+"en Riesgo (VaR)"
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:360004
 #: d24e26c4612c48fbb9d105e91b75e8e2
 msgid ""
 "In order to enhance decision-making regarding budget allocation, we can "
-"integrate various risk assessment criteria to develop a more "
-"sophisticated utility function. In this context, we will utilize the "
-"Return on Advertising Spend (ROAS) associated with each allocation, "
-"alongside the Value at Risk (VaR) as our risk assessment criterion. This "
-"approach will facilitate the identification of the allocation that "
-"maximizes ROAS while concurrently minimizing potential risks."
+"integrate various risk assessment criteria to develop a more sophisticated "
+"utility function. In this context, we will utilize the Return on Advertising"
+" Spend (ROAS) associated with each allocation, alongside the Value at Risk "
+"(VaR) as our risk assessment criterion. This approach will facilitate the "
+"identification of the allocation that maximizes ROAS while concurrently "
+"minimizing potential risks."
 msgstr ""
+"Para mejorar la toma de decisiones respecto a la asignación del presupuesto,"
+" podemos integrar diversos criterios de evaluación de riesgos para "
+"desarrollar una función de utilidad más sofisticada. En este contexto, "
+"utilizaremos el Retorno sobre la Inversión en Publicidad (ROAS) asociado a "
+"cada asignación, junto con el Valor en Riesgo (VaR) como nuestro criterio de"
+" evaluación de riesgos. Este enfoque facilitará la identificación de la "
+"asignación que maximiza el ROAS mientras minimiza simultáneamente los "
+"riesgos potenciales."
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:360006
 #: abcf88a957c54bf3a439e4e9b203a88b
 msgid ""
 "Value at Risk is a statistical method employed to quantify the risk of "
 "financial loss within a portfolio or investment. Within the realm of "
-"marketing, it assists in understanding the potential worst-case loss "
-"(ROAS) associated with a particular budget allocation, evaluated at a "
-"specified HDI (highest density interval). By minimizing VaR, we aim to "
-"select an allocation that ensures, even in adverse scenarios, the ROAS "
-"remains as elevated as feasibly possible."
+"marketing, it assists in understanding the potential worst-case loss (ROAS) "
+"associated with a particular budget allocation, evaluated at a specified HDI"
+" (highest density interval). By minimizing VaR, we aim to select an "
+"allocation that ensures, even in adverse scenarios, the ROAS remains as "
+"elevated as feasibly possible."
 msgstr ""
+"El Valor en Riesgo es un método estadístico utilizado para cuantificar el "
+"riesgo de pérdida financiera dentro de un portafolio o inversión. En el "
+"ámbito del marketing, ayuda a comprender la posible pérdida en el peor de "
+"los casos (ROAS) asociada con una asignación presupuestaria particular, "
+"evaluada en un HDI específico (intervalo de densidad más alta). Al minimizar"
+" el VaR, nuestro objetivo es seleccionar una asignación que garantice, "
+"incluso en escenarios adversos, que el ROAS se mantenga tan elevado como sea"
+" factiblemente posible."
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:400002
 #: 1ad74f632df442f6a1319bc27a86ea39
 msgid ""
 "The optimizer is once again allocating the budget to $X1$ majority, "
-"nevertheless $X2$ it's getting more money this time. However, this "
-"decision is informed by the expectation that the current combination will"
-" yield a higher Return on Advertising Spend (ROAS), while also presenting"
-" a small lower risk profile compared to the previous allocation."
+"nevertheless $X2$ it's getting more money this time. However, this decision "
+"is informed by the expectation that the current combination will yield a "
+"higher Return on Advertising Spend (ROAS), while also presenting a small "
+"lower risk profile compared to the previous allocation."
 msgstr ""
+"El optimizador está nuevamente asignando el presupuesto a $X1$ en su "
+"mayoría, sin embargo, $X2$ está recibiendo más dinero esta vez. Sin embargo,"
+" esta decisión se basa en la expectativa de que la combinación actual "
+"generará un mayor Retorno sobre el Gasto Publicitario (ROAS), al mismo "
+"tiempo que presenta un perfil de riesgo ligeramente más bajo en comparación "
+"con la asignación anterior."
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:420002
 #: 07efbf713bd84637882d5320ab1a1ee6
 msgid "Custom Risk Assessment Criterion"
-msgstr ""
+msgstr "Criterio de Evaluación de Riesgos Personalizado"
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:420003
 #: 8600fcdea60f496c86b01c9c21a0f4b1
 msgid ""
 "We have the capacity to establish a bespoke risk assessment criterion by "
 "formulating a function that inputs the samples and assets and outputs a "
-"scalar value to be optimized. In this context, our objective is to "
-"maximize the value at risk, with particular consideration given to the "
+"scalar value to be optimized. In this context, our objective is to maximize "
+"the value at risk, with particular consideration given to the "
 "diversification ratio."
 msgstr ""
+"Tenemos la capacidad de establecer un criterio de evaluación de riesgos a "
+"medida mediante la formulación de una función que introduce las muestras y "
+"activos y produce un valor escalar a optimizar. En este contexto, nuestro "
+"objetivo es maximizar el valor en riesgo, prestando especial atención al "
+"ratio de diversificación."
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:420005
 #: 4dd46f81c274484591ec843f36d52f0a
@@ -397,82 +553,120 @@ msgid ""
 "We aim to favor allocation strategies that exhibit the highest mean "
 "tightness score, while simultaneously ensuring a high level of "
 "diversification across marketing channels. As we already possess a "
-"foundational understanding of value at risk, we will concentrate our "
-"efforts on portfolio entropy."
+"foundational understanding of value at risk, we will concentrate our efforts"
+" on portfolio entropy."
 msgstr ""
+"Nuestro objetivo es favorecer estrategias de asignación que exhiban el "
+"puntaje medio de ajuste más alto, al mismo tiempo que garantizamos un alto "
+"nivel de diversificación a través de los canales de marketing. Dado que ya "
+"poseemos una comprensión fundamental del valor en riesgo, concentraremos "
+"nuestros esfuerzos en la entropía de la cartera."
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:440002
 #: 3c86ad1416f34677be18670acabd28f2
 msgid ""
-"We can see that the portfolio entropy is higher when the budget is "
-"allocated evenly, meaning that the diversification is higher."
+"We can see that the portfolio entropy is higher when the budget is allocated"
+" evenly, meaning that the diversification is higher."
 msgstr ""
+"Podemos ver que la entropía de la cartera es mayor cuando el presupuesto se "
+"asigna de manera uniforme, lo que significa que la diversificación es mayor."
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:440004
 #: 565acf540d2d44e5b1b0045b1873713d
 msgid ""
-"Now, we can create our own risk assessment criterion by combining the "
-"value at risk and the portfolio entropy. In this case, we'll compute the "
-"mean tightness score and will multiply the response by the entropy in the"
-" portafolio. This will moderate our score, and we'll prefer the "
-"allocation that has the highest score, but with a high diversification "
-"between the marketing channels."
+"Now, we can create our own risk assessment criterion by combining the value "
+"at risk and the portfolio entropy. In this case, we'll compute the mean "
+"tightness score and will multiply the response by the entropy in the "
+"portafolio. This will moderate our score, and we'll prefer the allocation "
+"that has the highest score, but with a high diversification between the "
+"marketing channels."
 msgstr ""
+"Ahora, podemos crear nuestro propio criterio de evaluación de riesgos "
+"combinando el valor en riesgo y la entropía de la cartera. En este caso, "
+"calcularemos la puntuación media de ajuste y multiplicaremos la respuesta "
+"por la entropía en la cartera. Esto moderará nuestra puntuación, y "
+"preferiremos la asignación que tenga la puntuación más alta, pero con una "
+"alta diversificación entre los canales de marketing."
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:490002
 #: 3a8ae3ae4c904cfc91a2caab569fe176
 msgid ""
-"We can see that the optimizer is allocating the budget more evenly "
-"between the two channels ($X1$ and $X2$), they are spending almost the "
-"same amount. This allocation is more balanced than the previous ones. "
-"Nevertheless, the total allocated budget is more balanced, the risk is "
-"higher, in response terms."
+"We can see that the optimizer is allocating the budget more evenly between "
+"the two channels ($X1$ and $X2$), they are spending almost the same amount. "
+"This allocation is more balanced than the previous ones. Nevertheless, the "
+"total allocated budget is more balanced, the risk is higher, in response "
+"terms."
 msgstr ""
+"Podemos ver que el optimizador está asignando el presupuesto de manera más "
+"equitativa entre los dos canales ($X1$ y $X2$), están gastando casi la misma"
+" cantidad. Esta asignación es más equilibrada que las anteriores. Sin "
+"embargo, el presupuesto total asignado es más equilibrado, el riesgo es "
+"mayor, en términos de respuesta."
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:520002
 #: f870ea8fc1d14119b5fcc60ff4b61005
 msgid ""
-"Great, here its clear how different strategies can lead to similar "
-"results, but with different risk profiles. Some distributions are more "
-"narrow, and some are more spread based on the risk tolerance."
+"Great, here its clear how different strategies can lead to similar results, "
+"but with different risk profiles. Some distributions are more narrow, and "
+"some are more spread based on the risk tolerance."
 msgstr ""
+"Excelente, aquí está claro cómo diferentes estrategias pueden llevar a "
+"resultados similares, pero con diferentes perfiles de riesgo. Algunas "
+"distribuciones son más estrechas, y algunas son más amplias según la "
+"tolerancia al riesgo."
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:520004
 #: a28edd4c9256424db78d79c52022a519
 msgid "Conclusion"
-msgstr ""
+msgstr "Conclusión"
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:520005
 #: fa8606847de2471e9825f17a9ac163be
 msgid ""
-"In this notebook, we have examined the methodology for assessing the risk"
-" associated with various budget allocations, utilizing distinct "
-"strategies. We have also demonstrated how to generate an optimal budget "
-"allocation that aligns with a specified risk tolerance criterion. Three "
-"separate risk assessment metrics were employed: the Mean Tightness Score "
-"(MTS), Value at Risk (VaR), and a custom criterion that integrates both "
-"the mean tightness score and the diversification ratio."
+"In this notebook, we have examined the methodology for assessing the risk "
+"associated with various budget allocations, utilizing distinct strategies. "
+"We have also demonstrated how to generate an optimal budget allocation that "
+"aligns with a specified risk tolerance criterion. Three separate risk "
+"assessment metrics were employed: the Mean Tightness Score (MTS), Value at "
+"Risk (VaR), and a custom criterion that integrates both the mean tightness "
+"score and the diversification ratio."
 msgstr ""
+"En este cuaderno, hemos examinado la metodología para evaluar el riesgo "
+"asociado con diversas asignaciones presupuestarias, utilizando estrategias "
+"distintas. También hemos demostrado cómo generar una asignación "
+"presupuestaria óptima que se alinee con un criterio de tolerancia al riesgo "
+"específico. Se emplearon tres métricas de evaluación de riesgos separadas: "
+"el Puntaje de Ajuste Medio (MTS), el Valor en Riesgo (VaR) y un criterio "
+"personalizado que integra tanto el puntaje de ajuste medio como el ratio de "
+"diversificación."
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:520007
 #: 9cb749697b3e43ce9a97b02f7ab21817
 msgid "Next Steps"
-msgstr ""
+msgstr "Próximos pasos"
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:520008
 #: 96135db2ffc144f7af5dae47675d68d0
 msgid ""
 "It is essential to recognize that not all risk assessment criteria are "
 "compatible with the output without appropriate transformations. For "
-"instance, to compute the VaR, we analyzed the Return on Advertising Spend"
-" (ROAS) distribution; utilizing the response distribution directly would "
-"not adhere to the assumptions inherent in the VaR formula, potentially "
-"resulting in inconsistent or nonsensical outcomes."
+"instance, to compute the VaR, we analyzed the Return on Advertising Spend "
+"(ROAS) distribution; utilizing the response distribution directly would not "
+"adhere to the assumptions inherent in the VaR formula, potentially resulting"
+" in inconsistent or nonsensical outcomes."
 msgstr ""
+"Es esencial reconocer que no todos los criterios de evaluación de riesgos "
+"son compatibles con la salida sin las transformaciones adecuadas. Por "
+"ejemplo, para calcular el VaR, analizamos la distribución del Retorno sobre "
+"el Gasto en Publicidad (ROAS); utilizar la distribución de respuesta "
+"directamente no se ajustaría a las suposiciones inherentes a la fórmula del "
+"VaR, lo que podría resultar en resultados inconsistentes o sin sentido."
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:520010
 #: c2c74b954d1843e8a8ad478be85b73c7
 msgid ""
-"The next step is for you to develop your own risk assessment criterion "
-"and apply it to optimize your budget allocation."
+"The next step is for you to develop your own risk assessment criterion and "
+"apply it to optimize your budget allocation."
 msgstr ""
+"El siguiente paso es que desarrolle su propio criterio de evaluación de "
+"riesgos y lo aplique para optimizar la asignación de su presupuesto."

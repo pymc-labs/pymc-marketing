@@ -23,43 +23,47 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.base.BaseValidateMMM.build_from_idata.rst:2
 #: ba8e9352dee64e75b9e46db49ede0fd0
 msgid "BaseValidateMMM.build\\_from\\_idata"
-msgstr ""
+msgstr "BaseValidateMMM.build\\_from\\_idata"
 
 #: c890e516ff974d7a8a51d9123ea3b4ee of
 #: pymc_marketing.model_builder.RegressionModelBuilder.build_from_idata:2
 msgid "Build model from the InferenceData object."
-msgstr ""
+msgstr "Construir el modelo a partir del objeto InferenceData."
 
 #: 4829c91b82b84c25a609e4e291a159f0 of
 #: pymc_marketing.model_builder.RegressionModelBuilder.build_from_idata:4
 msgid ""
-"This is part of the :func:`load` method. See :func:`load` for more larger"
-" context."
+"This is part of the :func:`load` method. See :func:`load` for more larger "
+"context."
 msgstr ""
+"Esto es parte del método :func:`load`. Consulte :func:`load` para obtener un"
+" contexto más amplio."
 
 #: b48a777e654542f2be5e41d59b15f0df of
 #: pymc_marketing.model_builder.RegressionModelBuilder.build_from_idata:6
 msgid ""
-"Usually a wrapper around the :func:`build_model` method unless the model "
-"has some additional steps to be built."
+"Usually a wrapper around the :func:`build_model` method unless the model has"
+" some additional steps to be built."
 msgstr ""
+"Normalmente es un envoltorio alrededor del método :func:`build_model` a "
+"menos que el modelo tenga algunos pasos adicionales para ser construido."
 
 #: cfd7649d64d84655a484848c80618bec of
 #: pymc_marketing.model_builder.RegressionModelBuilder.build_from_idata
 msgid "Parameters"
-msgstr ""
+msgstr "Parámetros"
 
 #: 538910d3740e47cda19a290776cf967b of
 #: pymc_marketing.model_builder.RegressionModelBuilder.build_from_idata:11
 msgid "**idata** : :obj:`az.InferenceData`"
-msgstr ""
+msgstr "**idata** : :obj:`az.InferenceData`"
 
 #: 81f489a21f604a5089f286cef5502024 of
 #: pymc_marketing.model_builder.RegressionModelBuilder.build_from_idata:10
 msgid "az.InferenceData"
-msgstr ""
+msgstr "az.InferenceData"
 
 #: 59e3419e5e434f6fb94e621a1aa2f788 of
 #: pymc_marketing.model_builder.RegressionModelBuilder.build_from_idata:12
 msgid "The InferenceData object to build the model from."
-msgstr ""
+msgstr "El objeto InferenceData para construir el modelo a partir de."

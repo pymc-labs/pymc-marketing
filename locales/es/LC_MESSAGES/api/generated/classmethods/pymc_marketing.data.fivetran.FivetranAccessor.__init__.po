@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.data.fivetran.FivetranAccessor.__init__.rst:2
 #: 7ccd158bf742459fbe167ea1bc4f953f
 msgid "FivetranAccessor.\\_\\_init\\_\\_"
-msgstr ""
+msgstr "FivetranAccessor.\\_\\_init\\_\\_"

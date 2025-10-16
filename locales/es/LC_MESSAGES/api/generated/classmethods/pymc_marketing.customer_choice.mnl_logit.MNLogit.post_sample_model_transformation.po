@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.customer_choice.mnl_logit.MNLogit.post_sample_model_transformation.rst:2
 #: 7d883836fd6b4b4e94d4e8d41becebfe
 msgid "MNLogit.post\\_sample\\_model\\_transformation"
-msgstr ""
+msgstr "MNLogit.post\\_sample\\_model\\_transformation"
 
 #: fdb772ba5a72472a9976c95eb33e16b4 of
 #: pymc_marketing.model_builder.RegressionModelBuilder.post_sample_model_transformation:2
 msgid "Perform transformation on the model after sampling."
-msgstr ""
+msgstr "Realice la transformación en el modelo después de muestrear."

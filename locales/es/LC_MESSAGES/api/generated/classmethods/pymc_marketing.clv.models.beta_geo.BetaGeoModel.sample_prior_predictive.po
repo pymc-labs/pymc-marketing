@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.beta_geo.BetaGeoModel.sample_prior_predictive.rst:2
 #: 5de5db4001cf4af5a4bcbd7deca98a4a
 msgid "BetaGeoModel.sample\\_prior\\_predictive"
-msgstr ""
+msgstr "BetaGeoModel.muestra\\_prevista\\_predictiva"

@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.components.saturation.HillSaturation.function.rst:2
 #: 40a2567b3d4e4fe1be3a3199c6294ec0
 msgid "HillSaturation.function"
-msgstr ""
+msgstr "HillSaturation.función"
 
 #: 83144add12024b13b6b7cbb04c10f0bd of
 #: pymc_marketing.mmm.components.saturation.HillSaturation.function:2
 msgid "Hill saturation function."
-msgstr ""
+msgstr "Función de saturación de colina."

@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.customer_choice.nested_logit.NestedLogit.sample_posterior_predictive.rst:2
 #: 7025ca92d1f8474eb2d39c2721aff97c
 msgid "NestedLogit.sample\\_posterior\\_predictive"
-msgstr ""
+msgstr "NestedLogit.muestra\\_predictiva\\_posterior"
 
 #: 47c1c735fc7e4225b0a439cafb8e8ee2 of
 #: pymc_marketing.customer_choice.nested_logit.NestedLogit.sample_posterior_predictive:2
 msgid "Sample Posterior Predictive Distribution."
-msgstr ""
+msgstr "Distribución Predictiva Posterior de Muestra."

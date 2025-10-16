@@ -23,37 +23,37 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.base.BaseValidateMMM.validate_target.rst:2
 #: 681796ce90854e439d5cb1a70dee71c9
 msgid "BaseValidateMMM.validate\\_target"
-msgstr ""
+msgstr "BaseValidateMMM.validar_objetivo"
 
 #: e4da46bf243146eeb11700038ce2b240 of
 #: pymc_marketing.mmm.validating.ValidateTargetColumn.validate_target:2
 msgid "Validate the target column."
-msgstr ""
+msgstr "Valide la columna objetivo."
 
 #: 2854b15439be41fba5ca144ba9fdf64e of
 #: pymc_marketing.mmm.validating.ValidateTargetColumn.validate_target
 msgid "Parameters"
-msgstr ""
+msgstr "Parámetros"
 
 #: ac1cddeb3619437b8f2eb7b8e6d7da35 of
 #: pymc_marketing.mmm.validating.ValidateTargetColumn.validate_target:7
 msgid "**data** : :obj:`pd.Series`"
-msgstr ""
+msgstr "**datos** : :obj:`pd.Series`"
 
 #: 04716d081733448f88610662437bc506 of
 #: pymc_marketing.mmm.validating.ValidateTargetColumn.validate_target:6
 msgid "pd.Series"
-msgstr ""
+msgstr "pd.Series"
 
 #: 0112621bd341435480d346a189efb6ac of
 #: pymc_marketing.mmm.validating.ValidateTargetColumn.validate_target:8
 msgid "The data to validate."
-msgstr ""
+msgstr "Los datos a validar."
 
 #: 806f528265d14c6d8fc0c58186b84687 of
 #: pymc_marketing.mmm.validating.ValidateTargetColumn.validate_target
 msgid "Raises"
-msgstr ""
+msgstr "Aumentos"
 
 #: e88ed4eb3cb34679817624abf9013451 of
 #: pymc_marketing.mmm.validating.ValidateTargetColumn.validate_target:18
@@ -61,3 +61,5 @@ msgid ""
 "ValueError: :obj:`If` :obj:`the` :obj:`target` :obj:`column` :obj:`is` "
 ":obj:`not` valid."
 msgstr ""
+"ValueError: :obj:`Si` :obj:`la` :obj:`columna` :obj:`objetivo` :obj:`no` es "
+":obj:`válida."

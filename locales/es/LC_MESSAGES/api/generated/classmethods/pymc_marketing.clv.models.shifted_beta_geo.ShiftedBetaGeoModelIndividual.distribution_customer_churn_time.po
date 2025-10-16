@@ -23,12 +23,13 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.distribution_customer_churn_time.rst:2
 #: df344658346d4bffb56b681386a7c495
 msgid "ShiftedBetaGeoModelIndividual.distribution\\_customer\\_churn\\_time"
-msgstr ""
+msgstr "ShiftedBetaGeoModelIndividual.distribution\\_customer\\_churn\\_time"
 
 #: 5c4e74c79cf048f5b5a8e2a01fc0f264 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.distribution_customer_churn_time:2
 msgid "Sample distribution of churn time for existing customers."
 msgstr ""
+"Distribución de muestra del tiempo de cancelación para clientes existentes."
 
 #: 1e9ef6cd3da547da9ab631543238152a of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.distribution_customer_churn_time:4
@@ -36,8 +37,10 @@ msgid ""
 "The draws represent the number of periods into the future after which a "
 "customer cancels their contract."
 msgstr ""
+"Los sorteos representan el número de períodos en el futuro después de los "
+"cuales un cliente cancela su contrato."
 
 #: 6b88d20b32c14b58906abf336b7ef482 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.distribution_customer_churn_time:7
 msgid "It ignores that some customers may have already cancelled."
-msgstr ""
+msgstr "Ignora que algunos clientes pueden haber cancelado ya."

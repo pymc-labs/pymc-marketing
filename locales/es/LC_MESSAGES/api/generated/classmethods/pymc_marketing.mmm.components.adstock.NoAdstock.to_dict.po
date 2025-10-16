@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.components.adstock.NoAdstock.to_dict.rst:2
 #: c5d8fce3a4754fb3911a28782c3a7b29
 msgid "NoAdstock.to\\_dict"
-msgstr ""
+msgstr "NoAdstock.to\\_dict"
 
 #: 3c32e6bb90ac490ab0e3670794c26cf7 of
 #: pymc_marketing.mmm.components.adstock.AdstockTransformation.to_dict:2
 msgid "Convert the adstock transformation to a dictionary."
-msgstr ""
+msgstr "Convierte la transformación de adstock a un diccionario."

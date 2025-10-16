@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.parse_file.rst:2
 #: 0a8e090bb2d94c20b3655f1d717b2f63
 msgid "EventAdditiveEffect.parse\\_file"
-msgstr ""
+msgstr "EventAdditiveEffect.parse\\_file"

@@ -23,7 +23,7 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.customer_choice.nested_logit.NestedLogit.idata_to_init_kwargs.rst:2
 #: 2d3b9382a6a4436889e115deff9472e1
 msgid "NestedLogit.idata\\_to\\_init\\_kwargs"
-msgstr ""
+msgstr "NestedLogit.idata\\_to\\_init\\_kwargs"
 
 #: 48a7e7210c88406eb603bd3d88bd8a5b of
 #: pymc_marketing.model_builder.ModelIO.idata_to_init_kwargs:2
@@ -31,6 +31,8 @@ msgid ""
 "Create  the model configuration and sampler configuration from the "
 "InferenceData to keyword arguments."
 msgstr ""
+"Cree la configuración del modelo y la configuración del muestreador a partir"
+" de InferenceData a argumentos de palabra clave."
 
 #: e534580225c84f75bfc6a9f694a80835 of
 #: pymc_marketing.model_builder.ModelIO.idata_to_init_kwargs:4
@@ -38,3 +40,5 @@ msgid ""
 "This method must be overridden in child classes if data is needed as a "
 "keyword argument."
 msgstr ""
+"Este método debe ser sobrescrito en las clases hijas si se necesitan datos "
+"como un argumento de palabra clave."

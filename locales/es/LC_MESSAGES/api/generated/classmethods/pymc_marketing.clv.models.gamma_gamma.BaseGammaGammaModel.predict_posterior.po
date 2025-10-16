@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.predict_posterior.rst:2
 #: 1220c268f6e3411faf255ad83756ae37
 msgid "BaseGammaGammaModel.predict\\_posterior"
-msgstr ""
+msgstr "BaseGammaGammaModel.predecir\\_posterior"

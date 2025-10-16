@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.schema.rst:2
 #: 0ade1f5e570140db811392e2cf7de524
 msgid "EventAdditiveEffect.schema"
-msgstr ""
+msgstr "EfectoAditivoEvento.schema"
