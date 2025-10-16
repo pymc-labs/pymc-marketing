@@ -44,6 +44,7 @@ __all__ = (
     "GammaGammaModelIndividual",
     "ModifiedBetaGeoModel",
     "ParetoNBDModel",
+    "ShiftedBetaGeoModel",
     "ShiftedBetaGeoModelIndividual",
     "customer_lifetime_value",
     "plot_customer_exposure",
