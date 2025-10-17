@@ -573,7 +573,7 @@ class NestedLogit(RegressionModelBuilder):
                 f"I_{nest}", pm.math.logsumexp((y_nest - max_y_nest) / lambda_, axis=-1)
             )
             # Reshape I_nest from (N,) to (N, 1) for broadcasting
-            W_nest = w_nest + (I_nest * lambda_)[:, None]
+            W_nest = w_nest + pt.expand_dims(I_nest * lambda_, axis=-1)
         else:
             l1 = lambdas_nests[lambda_lkup[nest]]
             l2 = lambdas_nests[lambda_lkup[parent]]
@@ -583,7 +583,7 @@ class NestedLogit(RegressionModelBuilder):
                 pm.math.logsumexp((y_nest - max_y_nest) / lambdas_, axis=-1),
             )
             # Reshape I_nest from (N,) to (N, 1) for broadcasting
-            W_nest = w_nest + (I_nest * lambdas_)[:, None]
+            W_nest = w_nest + pt.expand_dims(I_nest * lambdas_, axis=-1)
 
         exp_W_nest = pm.math.exp(W_nest)
         return exp_W_nest, P_y_given_nest
