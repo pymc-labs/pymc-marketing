@@ -547,7 +547,7 @@ class NestedLogit(RegressionModelBuilder):
         else:
             nest_alt_indices = nest_indices[level][nest]
             if n_alts_in_nest == 1:
-                # Use slicing [i:i+1] to maintain 2D shape when selecting single row
+                # Use slicing to maintain 2D shape when selecting single row
                 betas_fixed_temp = betas_fixed[
                     nest_alt_indices[0] : nest_alt_indices[0] + 1, :
                 ]
@@ -556,16 +556,14 @@ class NestedLogit(RegressionModelBuilder):
             betas_fixed_temp = pt.set_subtensor(betas_fixed_temp[-1, :], 0)
             w_nest = pm.math.dot(W, betas_fixed_temp.T)
 
+        max_y_nest = pm.math.max(y_nest, axis=-1, keepdims=True)
         if n_alts_in_nest > 1:
-            max_y_nest = pm.math.max(y_nest, axis=-1, keepdims=True)
             P_y_given_nest = pm.Deterministic(
                 f"p_y_given_{nest}",
                 pm.math.softmax(y_nest / lambdas_nests[lambda_lkup[nest]], axis=-1),
             )
         else:
-            max_y_nest = pm.math.max(y_nest, axis=-1, keepdims=True)
-            ones = pm.math.ones((N, 1))
-            P_y_given_nest = pm.Deterministic(f"p_y_given_{nest}", ones)
+            P_y_given_nest = pm.Deterministic(f"p_y_given_{nest}", pm.math.ones((N, 1)))
 
         if parent is None:
             lambda_ = lambdas_nests[lambda_lkup[nest]]
