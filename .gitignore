@@ -80,6 +80,7 @@ docs/build/
 docs/gettext/
 docs/jupyter_execute/
 docs/source/api/generated/
+docs/source/.jupyter_cache/
 
 # PyBuilder
 target/
