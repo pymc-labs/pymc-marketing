@@ -546,13 +546,10 @@ class NestedLogit(RegressionModelBuilder):
             w_nest = pm.math.zeros((N, n_alts_in_nest))
         else:
             nest_alt_indices = nest_indices[level][nest]
-            if n_alts_in_nest == 1:
-                # Use slicing to maintain 2D shape when selecting single row
-                betas_fixed_temp = betas_fixed[
-                    nest_alt_indices[0] : nest_alt_indices[0] + 1, :
-                ]
-            else:
-                betas_fixed_temp = betas_fixed[nest_alt_indices, :]
+            betas_fixed_temp = betas_fixed[nest_alt_indices, :]
+            betas_fixed_temp = pt.atleast_2d(betas_fixed_temp)
+            if n_alts_in_nest == 1 and betas_fixed_temp.shape[0] != 1:
+                betas_fixed_temp = betas_fixed_temp.T
             betas_fixed_temp = pt.set_subtensor(betas_fixed_temp[-1, :], 0)
             w_nest = pm.math.dot(W, betas_fixed_temp.T)
 
