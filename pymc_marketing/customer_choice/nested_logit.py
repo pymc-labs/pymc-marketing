@@ -545,18 +545,15 @@ class NestedLogit(RegressionModelBuilder):
         if W is None:
             w_nest = pm.math.zeros((N, n_alts_in_nest))
         else:
-            # Select rows for this nest's alternatives
             nest_alt_indices = nest_indices[level][nest]
             if n_alts_in_nest == 1:
-                # For single alternative nests, explicitly maintain 2D shape
+                # Use slicing [i:i+1] to maintain 2D shape when selecting single row
                 betas_fixed_temp = betas_fixed[
                     nest_alt_indices[0] : nest_alt_indices[0] + 1, :
                 ]
-                betas_fixed_temp = pt.set_subtensor(betas_fixed_temp[0:1, :], 0)
             else:
                 betas_fixed_temp = betas_fixed[nest_alt_indices, :]
-                # Set last alternative's coefficients to 0 (reference level)
-                betas_fixed_temp = pt.set_subtensor(betas_fixed_temp[-1:, :], 0)
+            betas_fixed_temp = pt.set_subtensor(betas_fixed_temp[-1, :], 0)
             w_nest = pm.math.dot(W, betas_fixed_temp.T)
 
         if n_alts_in_nest > 1:
