@@ -915,6 +915,7 @@ class ShiftedBetaGeometricRV(RandomVariable):
 
         return rng.geometric(p, size=size)
 
+
 sbg = ShiftedBetaGeometricRV()
 
 
