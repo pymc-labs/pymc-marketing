@@ -233,6 +233,7 @@ For more blogposts and resources, check out the [PyMC Labs Blog](https://www.pym
 getting_started/index
 contributing/index
 guide/index
+guide/mmm/comparison
 api/index
 gallery/gallery
 notebooks/index
