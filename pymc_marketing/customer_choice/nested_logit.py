@@ -539,38 +539,40 @@ class NestedLogit(RegressionModelBuilder):
             parent, _ = nest.split("_")
         else:
             parent = None
-        y_nest = U[:, nest_indices[level][nest]]
+        nest_idx = nest_indices[level][nest]
+        y_nest = U[:, nest_idx]
+        n_alts_in_nest = len(nest_idx)
+
         if W is None:
-            w_nest = pm.math.zeros((N, len(self.alternatives)))
+            w_nest = pm.math.zeros((N, n_alts_in_nest))
         else:
-            betas_fixed_temp = betas_fixed[nest_indices[level][nest], :]
-            betas_fixed_temp = pt.set_subtensor(betas_fixed_temp[-1], 0)
+            betas_fixed_temp = betas_fixed[nest_idx, :]
+            betas_fixed_temp = pt.atleast_2d(betas_fixed_temp)
+            if n_alts_in_nest == 1 and betas_fixed_temp.shape[0] != 1:
+                betas_fixed_temp = betas_fixed_temp.T
+            betas_fixed_temp = pt.set_subtensor(betas_fixed_temp[-1, :], 0)
             w_nest = pm.math.dot(W, betas_fixed_temp.T)
 
-        if len(nest_indices[level][nest]) > 1:
-            max_y_nest = pm.math.max(y_nest, axis=0)
+        max_y_nest = pm.math.max(y_nest, axis=-1, keepdims=True)
+        if n_alts_in_nest > 1:
             P_y_given_nest = pm.Deterministic(
                 f"p_y_given_{nest}",
-                pm.math.softmax(y_nest / lambdas_nests[lambda_lkup[nest]], axis=1),
+                pm.math.softmax(y_nest / lambdas_nests[lambda_lkup[nest]], axis=-1),
             )
         else:
-            max_y_nest = pm.math.max(y_nest)
-            ones = pm.math.ones((N, 1))
-            P_y_given_nest = pm.Deterministic(f"p_y_given_{nest}", ones)
+            P_y_given_nest = pm.Deterministic(f"p_y_given_{nest}", pt.ones((N, 1)))
+
         if parent is None:
             lambda_ = lambdas_nests[lambda_lkup[nest]]
-            I_nest = pm.Deterministic(
-                f"I_{nest}", pm.math.logsumexp((y_nest - max_y_nest) / lambda_)
-            )
-            W_nest = w_nest + I_nest * lambda_
         else:
-            l1 = lambdas_nests[lambda_lkup[nest]]
-            l2 = lambdas_nests[lambda_lkup[parent]]
-            lambdas_ = l1 * l2
-            I_nest = pm.Deterministic(
-                f"I_{nest}", pm.math.logsumexp((y_nest - max_y_nest) / lambdas_)
+            lambda_ = (
+                lambdas_nests[lambda_lkup[nest]] * lambdas_nests[lambda_lkup[parent]]
             )
-            W_nest = w_nest + I_nest * (lambdas_)
+
+        I_nest = pm.Deterministic(
+            f"I_{nest}", pm.math.logsumexp((y_nest - max_y_nest) / lambda_, axis=-1)
+        )
+        W_nest = w_nest + pt.expand_dims(I_nest * lambda_, axis=-1)
 
         exp_W_nest = pm.math.exp(W_nest)
         return exp_W_nest, P_y_given_nest
