@@ -908,11 +908,12 @@ class ShiftedBetaGeometricRV(RandomVariable):
         alpha = np.broadcast_to(alpha, size)
         beta = np.broadcast_to(beta, size)
 
-        p = rng.beta(a=alpha, b=beta, size=size)
+        p_samples = rng.beta(a=alpha, b=beta, size=size)
 
-        samples = rng.geometric(p, size=size)
+        # prevent log(0) by clipping small p samples
+        p = np.clip(p_samples, 1e-100, 1)
 
-        return samples
+        return rng.geometric(p, size=size)
 
 
 sbg = ShiftedBetaGeometricRV()
