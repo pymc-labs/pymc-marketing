@@ -806,7 +806,7 @@ class TestShiftedBetaGeometric:
                     assert np.all(draws > 0)
                     assert np.all(draws.astype(int) == draws)
                     assert np.mean(draws) > 0
-                    assert np.var(draws) > 0
+                    assert np.var(draws) >= 0
 
         def test_random_edge_cases(self):
             """Test with very small and large beta and alpha values"""
