@@ -557,20 +557,20 @@ class NestedLogit(RegressionModelBuilder):
             w_nest = pm.math.dot(W, betas_fixed_temp.T)
 
         if n_alts_in_nest > 1:
-            max_y_nest = pm.math.max(y_nest, axis=1, keepdims=True)
+            max_y_nest = pm.math.max(y_nest, axis=-1, keepdims=True)
             P_y_given_nest = pm.Deterministic(
                 f"p_y_given_{nest}",
-                pm.math.softmax(y_nest / lambdas_nests[lambda_lkup[nest]], axis=1),
+                pm.math.softmax(y_nest / lambdas_nests[lambda_lkup[nest]], axis=-1),
             )
         else:
-            max_y_nest = pm.math.max(y_nest, axis=1, keepdims=True)
+            max_y_nest = pm.math.max(y_nest, axis=-1, keepdims=True)
             ones = pm.math.ones((N, 1))
             P_y_given_nest = pm.Deterministic(f"p_y_given_{nest}", ones)
 
         if parent is None:
             lambda_ = lambdas_nests[lambda_lkup[nest]]
             I_nest = pm.Deterministic(
-                f"I_{nest}", pm.math.logsumexp((y_nest - max_y_nest) / lambda_, axis=1)
+                f"I_{nest}", pm.math.logsumexp((y_nest - max_y_nest) / lambda_, axis=-1)
             )
             # Reshape I_nest from (N,) to (N, 1) for broadcasting
             W_nest = w_nest + (I_nest * lambda_)[:, None]
@@ -579,7 +579,8 @@ class NestedLogit(RegressionModelBuilder):
             l2 = lambdas_nests[lambda_lkup[parent]]
             lambdas_ = l1 * l2
             I_nest = pm.Deterministic(
-                f"I_{nest}", pm.math.logsumexp((y_nest - max_y_nest) / lambdas_, axis=1)
+                f"I_{nest}",
+                pm.math.logsumexp((y_nest - max_y_nest) / lambdas_, axis=-1),
             )
             # Reshape I_nest from (N,) to (N, 1) for broadcasting
             W_nest = w_nest + (I_nest * lambdas_)[:, None]
