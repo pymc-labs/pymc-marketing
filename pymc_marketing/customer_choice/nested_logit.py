@@ -884,11 +884,7 @@ class NestedLogit(RegressionModelBuilder):
         self,
         new_choice_df: pd.DataFrame,
         new_utility_equations: list[str] | None = None,
-        fit_kwargs: dict = {
-        "target_accept": 0.97,
-        "tune": 2000,
-        "idata_kwargs": {"log_likelihood": True},
-        }
+        fit_kwargs: dict | None = None,
     ) -> az.InferenceData:
         r"""Apply one of two types of intervention.
 
@@ -918,6 +914,13 @@ class NestedLogit(RegressionModelBuilder):
             predicted probabilities (`"p"`) and likelihood draws (`"likelihood"`).
 
         """
+        if fit_kwargs is None:
+            fit_kwargs = {
+            "target_accept": 0.97,
+            "tune": 2000,
+            "idata_kwargs": {"log_likelihood": True},
+            }
+
         if not hasattr(self, "model"):
             self.sample()
         if new_utility_equations is None:

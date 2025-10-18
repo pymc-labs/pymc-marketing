@@ -20,8 +20,8 @@ import numpy as np
 import numpy.typing as npt
 import pymc as pm
 import pytensor.tensor as pt
-from pymc.distributions.dist_math import check_parameters
 from numpy.core.multiarray import normalize_axis_index
+from pymc.distributions.dist_math import check_parameters
 
 
 class ConvMode(str, Enum):
