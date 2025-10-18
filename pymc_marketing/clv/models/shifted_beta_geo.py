@@ -466,11 +466,10 @@ class ShiftedBetaGeoModel(CLVModel):
         alpha = dataset["alpha"]
         beta = dataset["beta"]
         T = dataset["T"]
+        d = dataset["discount_rate"]
 
         retention_rate = (beta + T - 1) / (alpha + beta + T - 1)
-        retention_elasticity = hyp2f1(
-            1, beta + T, alpha + beta, 1 / (1 + discount_rate)
-        )
+        retention_elasticity = hyp2f1(1, beta + T, alpha + beta, 1 / (1 + d))
         expected_lifetime_purchases = retention_rate * retention_elasticity
         # TODO: "cohorts" dim instead of "customer_id"?
         return expected_lifetime_purchases.transpose(
