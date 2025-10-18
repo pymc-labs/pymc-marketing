@@ -52,6 +52,7 @@ def utility_eqs():
         "another ~ another_X1 + another_X2 | income",
     ]
 
+
 @pytest.fixture
 def utility_eqs_non_fixed():
     return [
@@ -218,7 +219,10 @@ def test_counterfactual(
     idata_new_policy = nstL.apply_intervention(new, new_utility_eqs)
     assert "posterior_predictive" in idata_new_policy
 
-def test_counterfactual_removal(nstL, sample_df, utility_eqs_non_fixed, new_utility_eqs, mock_pymc_sample):
+
+def test_counterfactual_removal(
+    nstL, sample_df, utility_eqs_non_fixed, new_utility_eqs, mock_pymc_sample
+):
     X, F, y = nstL.preprocess_model_data(sample_df, utility_eqs_non_fixed)
     _ = nstL.make_model(X, F, y)
     nstL.sample()
@@ -226,6 +230,7 @@ def test_counterfactual_removal(nstL, sample_df, utility_eqs_non_fixed, new_util
     nstL.nesting_structure = {"nest1": ["alt", "other"], "nest2": ["option"]}
     idata_new_policy = nstL.apply_intervention(new, new_utility_eqs)
     assert "posterior_predictive" in idata_new_policy
+
 
 def test_make_change_plot_returns_figure(nstL, sample_change_df):
     fig = nstL.plot_change(sample_change_df, title="Test Intervention")

@@ -916,9 +916,9 @@ class NestedLogit(RegressionModelBuilder):
         """
         if fit_kwargs is None:
             fit_kwargs = {
-            "target_accept": 0.97,
-            "tune": 2000,
-            "idata_kwargs": {"log_likelihood": True},
+                "target_accept": 0.97,
+                "tune": 2000,
+                "idata_kwargs": {"log_likelihood": True},
             }
 
         if not hasattr(self, "model"):
@@ -949,11 +949,7 @@ class NestedLogit(RegressionModelBuilder):
             new_model = self.make_model(new_X, new_F, new_y)
             with new_model:
                 idata_new_policy = pm.sample_prior_predictive()
-                idata_new_policy.extend(
-                    pm.sample(
-                       **fit_kwargs
-                    )
-                )
+                idata_new_policy.extend(pm.sample(**fit_kwargs))
                 idata_new_policy.extend(
                     pm.sample_posterior_predictive(
                         idata_new_policy, var_names=["p", "likelihood"]
