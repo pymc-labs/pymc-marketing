@@ -461,7 +461,7 @@ class ShiftedBetaGeoModel(CLVModel):
             data = data.assign(discount_rate=discount_rate)
 
         dataset = self._extract_predictive_variables(
-            data, customer_varnames=["recency", "T", "discount_rate"]
+            data, customer_varnames=["T", "discount_rate"]
         )
         alpha = dataset["alpha"]
         beta = dataset["beta"]
@@ -471,9 +471,9 @@ class ShiftedBetaGeoModel(CLVModel):
         retention_rate = (beta + T - 1) / (alpha + beta + T - 1)
         retention_elasticity = hyp2f1(1, beta + T, alpha + beta, 1 / (1 + d))
         expected_lifetime_purchases = retention_rate * retention_elasticity
-        # TODO: "cohorts" dim instead of "customer_id"?
+
         return expected_lifetime_purchases.transpose(
-            "chain", "draw", "customer_id", missing_dims="ignore"
+            "chain", "draw", "customer_id", "cohort", missing_dims="ignore"
         )
 
 
