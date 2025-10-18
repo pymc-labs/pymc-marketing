@@ -21,7 +21,7 @@ import numpy.typing as npt
 import pymc as pm
 import pytensor.tensor as pt
 from pymc.distributions.dist_math import check_parameters
-from pytensor.npy_2_compat import normalize_axis_index
+from numpy.core.multiarray import normalize_axis_index
 
 
 class ConvMode(str, Enum):

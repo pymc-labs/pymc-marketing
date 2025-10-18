@@ -539,11 +539,16 @@ class NestedLogit(RegressionModelBuilder):
             parent, _ = nest.split("_")
         else:
             parent = None
-        y_nest = U[:, nest_indices[level][nest]]
+        nest_idx = nest_indices[level][nest]
+        y_nest = U[:, nest_idx]
+        n_alts_in_nest = len(nest_idx)
         if W is None:
-            w_nest = pm.math.zeros((N, len(self.alternatives)))
+            w_nest = pm.math.zeros((N, n_alts_in_nest))
         else:
-            betas_fixed_temp = betas_fixed[nest_indices[level][nest], :]
+            betas_fixed_temp = betas_fixed[nest_idx, :]
+            betas_fixed_temp = pt.atleast_2d(betas_fixed_temp)
+            if n_alts_in_nest == 1 and betas_fixed_temp.shape[0] != 1:
+                betas_fixed_temp = betas_fixed_temp.T
             betas_fixed_temp = pt.set_subtensor(betas_fixed_temp[-1], 0)
             w_nest = pm.math.dot(W, betas_fixed_temp.T)
 
@@ -879,6 +884,11 @@ class NestedLogit(RegressionModelBuilder):
         self,
         new_choice_df: pd.DataFrame,
         new_utility_equations: list[str] | None = None,
+        fit_kwargs: dict = {
+        "target_accept": 0.97,
+        "tune": 2000,
+        "idata_kwargs": {"log_likelihood": True},
+        }
     ) -> az.InferenceData:
         r"""Apply one of two types of intervention.
 
@@ -938,10 +948,7 @@ class NestedLogit(RegressionModelBuilder):
                 idata_new_policy = pm.sample_prior_predictive()
                 idata_new_policy.extend(
                     pm.sample(
-                        target_accept=0.99,
-                        tune=2000,
-                        idata_kwargs={"log_likelihood": True},
-                        random_seed=101,
+                       **fit_kwargs
                     )
                 )
                 idata_new_policy.extend(

@@ -52,13 +52,22 @@ def utility_eqs():
         "another ~ another_X1 + another_X2 | income",
     ]
 
+@pytest.fixture
+def utility_eqs_non_fixed():
+    return [
+        "alt ~ alt_X1 + alt_X2 ",
+        "other ~ other_X1 + other_X2 ",
+        "option ~ option_X1 + option_X2 ",
+        "another ~ another_X1 + another_X2",
+    ]
+
 
 @pytest.fixture
 def new_utility_eqs():
     return [
-        "alt ~ alt_X1 + alt_X2 | income",
-        "other ~ other_X1 + other_X2 | income",
-        "option ~ option_X1 + option_X2 | income",
+        "alt ~ alt_X1 + alt_X2 ",
+        "other ~ other_X1 + other_X2",
+        "option ~ option_X1 + option_X2",
     ]
 
 
@@ -209,6 +218,14 @@ def test_counterfactual(
     idata_new_policy = nstL.apply_intervention(new, new_utility_eqs)
     assert "posterior_predictive" in idata_new_policy
 
+def test_counterfactual_removal(nstL, sample_df, utility_eqs_non_fixed, new_utility_eqs, mock_pymc_sample):
+    X, F, y = nstL.preprocess_model_data(sample_df, utility_eqs_non_fixed)
+    _ = nstL.make_model(X, F, y)
+    nstL.sample()
+    new = sample_df[sample_df["choice"] != "another"]
+    nstL.nesting_structure = {"nest1": ["alt", "other"], "nest2": ["option"]}
+    idata_new_policy = nstL.apply_intervention(new, new_utility_eqs)
+    assert "posterior_predictive" in idata_new_policy
 
 def test_make_change_plot_returns_figure(nstL, sample_change_df):
     fig = nstL.plot_change(sample_change_df, title="Test Intervention")
