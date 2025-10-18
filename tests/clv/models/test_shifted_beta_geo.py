@@ -235,9 +235,9 @@ class TestShiftedBetaGeoModel:
         # DERL values from Table 3, pg(5) of paper: https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_contractual_mksc_10.pdf
         # Case 1: alpha=3.80, beta=15.20 (high retention case)
         # Case 2: alpha=0.067, beta=0.267 (low retention case)
-        # DERL for n=1,2,3,4,5 renewals with d=0.1 discount rate
-        residual_lifetime_case1_obs = np.array([4.31, 4.88, 5.45, 6.03, 6.60])
-        residual_lifetime_case2_obs = np.array([38.37, 76.39, 114.06, 151.39, 188.37])
+        # DERL for T=1,2,3,4,5 renewals with d=0.1 discount rate
+        residual_lifetime_case1_obs = np.array([3.31, 3.45, 3.59, 3.72, 3.84])
+        residual_lifetime_case2_obs = np.array([7.68, 9.46, 9.86, 10.06, 10.19])
 
         return (
             alive_prob_highend_obs,
@@ -269,8 +269,7 @@ class TestShiftedBetaGeoModel:
     @pytest.fixture(scope="class")
     def erl_test_data(self):
         """Test data for expected_residual_lifetime with case1/case2 cohorts."""
-        # Create test data for n=1,2,3,4,5 renewals (T=1,2,3,4,5)
-        # for both case1 and case2 cohorts
+        # Create test data for (T=1,2,3,4,5) renewals for both case1 and case2 cohorts
         n_periods = 5
         cohort_names = np.array(["case1", "case2"])
         T_rng = np.arange(1, n_periods + 1, 1)
