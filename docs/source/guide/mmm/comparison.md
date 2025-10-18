@@ -30,7 +30,7 @@ Last updated: 2025-10-17
 
 ---
 ### Key Takeaway
-Four of the five major libraries for MMM models implement different flavors of Bayesian models. While they share a broadly similar statistical foundation, they differ in API flexibility, underlying technology stack, and implementation approach. 
+Four of the five major libraries for MMMs implement different flavors of Bayesian models. While they share a broadly similar statistical foundation, they differ in API flexibility, underlying technology stack, and implementation approach. 
 
 PyMC-Marketing stands out as the most widely used library by PyPI downloads (see plot below), offering unmatched flexibility and a comprehensive set of advanced features. This makes it ideal for teams looking for a highly customizable, state-of-the-art solution. Its breadth and depth open the door to deeper understanding and mastery for those willing to explore its full capabilities.
 
