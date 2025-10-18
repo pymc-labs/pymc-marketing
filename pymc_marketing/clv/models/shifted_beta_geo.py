@@ -367,7 +367,7 @@ class ShiftedBetaGeoModel(CLVModel):
 
         retention_rate = (beta + T + t - 1) / (alpha + beta + T + t - 1)
         return retention_rate.transpose(
-            "chains", "draws", "customer_id", "cohort", missing_dims="ignore"
+            "chain", "draw", "customer_id", "cohort", missing_dims="ignore"
         )
 
     def expected_probability_alive(
@@ -422,7 +422,7 @@ class ShiftedBetaGeoModel(CLVModel):
         survival = np.exp(logS)
 
         return survival.transpose(
-            "chains", "draws", "customer_id", "cohort", missing_dims="ignore"
+            "chain", "draw", "customer_id", "cohort", missing_dims="ignore"
         )
 
     def expected_residual_lifetime(

@@ -87,10 +87,10 @@ class TestShiftedBetaGeoModel:
         param_arrays = [
             xr.DataArray(
                 param[0],
-                dims=("chains", "draws", "cohort"),
+                dims=("chain", "draw", "cohort"),
                 coords={
-                    "chains": np.arange(chains),
-                    "draws": np.arange(draws),
+                    "chain": np.arange(chains),
+                    "draw": np.arange(draws),
                     "cohort": cohorts,
                 },
                 name=param[1],
@@ -396,7 +396,7 @@ class TestShiftedBetaGeoModel:
         expected_retention_rate_cohorts = self.model.expected_probability_alive(
             predicted_time_series_data,
             future_t=-1,  # prob_alive is always 1 when T==1
-        ).mean(("chains", "draws"))
+        ).mean(("chain", "draw"))
         expected_alive_prob_highend = expected_retention_rate_cohorts.sel(
             cohort="highend"
         ).values
@@ -427,7 +427,7 @@ class TestShiftedBetaGeoModel:
         expected_retention_rate_cohorts = self.model.expected_retention_rate(
             retention_data,
             future_t=0,
-        ).mean(("chains", "draws"))
+        ).mean(("chain", "draw"))
         expected_retention_rate_highend = expected_retention_rate_cohorts.sel(
             cohort="highend"
         ).values
