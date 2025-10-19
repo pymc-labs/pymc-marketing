@@ -527,8 +527,16 @@ class MMM(RegressionModelBuilder):
         attrs["control_columns"] = json.dumps(self.control_columns)
         attrs["channel_columns"] = json.dumps(self.channel_columns)
         attrs["yearly_seasonality"] = json.dumps(self.yearly_seasonality)
-        attrs["time_varying_intercept"] = json.dumps(self.time_varying_intercept)
-        attrs["time_varying_media"] = json.dumps(self.time_varying_media)
+        attrs["time_varying_intercept"] = json.dumps(
+            self.time_varying_intercept
+            if not isinstance(self.time_varying_intercept, HSGPBase)
+            else self.time_varying_intercept.to_dict()
+        )
+        attrs["time_varying_media"] = json.dumps(
+            self.time_varying_media
+            if not isinstance(self.time_varying_media, HSGPBase)
+            else self.time_varying_media.to_dict()
+        )
         attrs["target_column"] = self.target_column
         attrs["scaling"] = json.dumps(self.scaling.model_dump(mode="json"))
         attrs["dag"] = json.dumps(getattr(self, "dag", None))
