@@ -603,10 +603,10 @@ class TestShiftedBetaGeoModel:
 
         # Compare against paper values (Table 3, pg 5)
         np.testing.assert_allclose(
-            expected_residual_lifetime_case1, residual_lifetime_case1_obs, rtol=0.05
+            expected_residual_lifetime_case1, residual_lifetime_case1_obs, rtol=1e-2
         )
         np.testing.assert_allclose(
-            expected_residual_lifetime_case2, residual_lifetime_case2_obs, rtol=0.05
+            expected_residual_lifetime_case2, residual_lifetime_case2_obs, rtol=1e-2
         )
 
 
