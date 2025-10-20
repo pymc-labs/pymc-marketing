@@ -12,12 +12,12 @@ msgstr ""
 "POT-Creation-Date: 2025-10-20 21:01+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language: es\n"
 "Language-Team: es <LL@li.org>\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Language: es\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "Generated-By: Babel 2.17.0\n"
 
 #: ../source/gallery/gallery.md:2 7c631ee182334c0c92e176ca44101ae4
@@ -30,15 +30,14 @@ msgstr "Introducción"
 
 #: ../source/gallery/gallery.md:10 79a20623ec7f4f538376c590b8e675f2
 msgid ""
-"Welcome to the PyMC-Marketing example gallery! This gallery provides "
-"visual navigation to all of our example notebooks to help you quickly "
-"find the techniques and models relevant to your marketing analytics "
-"needs."
+"Welcome to the PyMC-Marketing example gallery! This gallery provides visual "
+"navigation to all of our example notebooks to help you quickly find the "
+"techniques and models relevant to your marketing analytics needs."
 msgstr ""
 "Bienvenido a la galería de ejemplos de PyMC-Marketing! Esta galería "
 "proporciona navegación visual a todos nuestros cuadernos de ejemplo para "
-"ayudarte a encontrar rápidamente las técnicas y modelos relevantes para "
-"tus necesidades de análisis de marketing."
+"ayudarte a encontrar rápidamente las técnicas y modelos relevantes para tus "
+"necesidades de análisis de marketing."
 
 #: ../source/gallery/gallery.md:12 21e2a485ff67439ba21667efd6240b70
 msgid "Marketing Mix Models (MMM)"
@@ -104,6 +103,10 @@ msgstr "Asignación de Presupuesto y Evaluación de Riesgos"
 #: ../source/gallery/gallery.md:86 96fb78f09afc44c4aca771ff69c6483e
 msgid "Multi-Objective Optimization"
 msgstr ""
+"{\n"
+"  \"singular\": \"Optimización Multi-Objetivo\",\n"
+"  \"plural\": \"Optimización Multi-Objetivo\"\n"
+"}"
 
 #: ../source/gallery/gallery.md:92 2c5ee96b2d6f48a9945781de4d4e5ebd
 msgid "Lift Test Calibration"
@@ -115,7 +118,8 @@ msgstr "Introducción a la Calibración de Pruebas de Elevación"
 
 #: ../source/gallery/gallery.md:102 8f292d61e1ad4a48bc7b76857f760995
 msgid "Case Study: Unobserved Confounders, ROAS and Lift Tests"
-msgstr "Estudio de Caso: Confusores No Observados, ROAS y Pruebas de Incremento"
+msgstr ""
+"Estudio de Caso: Confusores No Observados, ROAS y Pruebas de Incremento"
 
 #: ../source/gallery/gallery.md:108 fbee470b6fb6411dbbcf1589a9bf2a3a
 msgid "Time-Varying Parameters"
