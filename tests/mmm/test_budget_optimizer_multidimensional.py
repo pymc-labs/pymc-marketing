@@ -20,7 +20,7 @@ import xarray as xr
 from pytensor import function
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
-from pymc_marketing.mmm.budget_optimizer import BuildMergedModel
+from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer, BuildMergedModel
 from pymc_marketing.mmm.multidimensional import (
     MMM,
     MultiDimensionalBudgetOptimizerWrapper,
@@ -594,6 +594,54 @@ def test_build_merged_model_with_budget_optimizer_and_prefixed_variables(
     eval_fun = function([optimizer._budgets_flat], resp)
     out = eval_fun(np.zeros(size, dtype=float))
     assert np.all(np.isfinite(np.asarray(out)))
+
+
+def test_budget_optimizer_prefixed_channel_contribution_defaults_to_full_mask(
+    tmp_path, fitted_mmm
+):
+    p1 = tmp_path / "mmm1.nc"
+    p2 = tmp_path / "mmm2.nc"
+    fitted_mmm.save(str(p1))
+    fitted_mmm.save(str(p2))
+
+    m1 = MMM.load(str(p1))
+    m2 = MMM.load(str(p2))
+
+    date_col = m1.date_column
+    last_date = pd.to_datetime(m1.idata.fit_data[date_col].values).max()
+    start_date = last_date + pd.Timedelta(days=7)
+    end_date = start_date + pd.Timedelta(weeks=4)
+
+    w1 = MultiDimensionalBudgetOptimizerWrapper(
+        model=m1, start_date=start_date, end_date=end_date
+    )
+    w2 = MultiDimensionalBudgetOptimizerWrapper(
+        model=m2, start_date=start_date, end_date=end_date
+    )
+
+    merged_wrapper = BuildMergedModel(
+        models=[w1, w2],
+        prefixes=["model1", "model2"],
+        merge_on="channel_data",
+    )
+
+    assert "channel_contribution" not in merged_wrapper.idata.posterior.data_vars
+
+    optimizer = BudgetOptimizer(
+        num_periods=merged_wrapper.num_periods,
+        model=merged_wrapper,
+        response_variable="model1_total_media_contribution_original_scale",
+    )
+
+    mask = optimizer.budgets_to_optimize
+    assert mask.dims == tuple(optimizer._budget_dims)
+    for dim in optimizer._budget_dims:
+        assert list(mask.coords[dim].values) == optimizer._budget_coords[dim]
+    assert mask.dtype == bool
+    np.testing.assert_array_equal(
+        mask.values,
+        np.ones_like(mask.values, dtype=bool),
+    )
 
 
 def test_build_merged_model_raises_with_no_models():

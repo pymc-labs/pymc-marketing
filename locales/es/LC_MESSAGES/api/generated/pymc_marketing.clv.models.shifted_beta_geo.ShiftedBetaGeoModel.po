@@ -1,0 +1,921 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-20 21:01+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:2
+#: fea3fc5f21e64a4cb74c5dc24c3f4566
+msgid "ShiftedBetaGeoModel"
+msgstr ""
+"{\n"
+"  \"singular\": \"ModeloGeoBetaDesplazado\",\n"
+"  \"plural\": \"ModelosGeoBetaDesplazados\"\n"
+"}"
+
+#: 8d5591c4aa184c0b909168e1629acce2 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:2
+msgid ""
+"Shifted Beta Geometric (sBG) model for customers renewing contracts over "
+"discrete time periods."
+msgstr ""
+"{\n"
+"  \"singular\": \"Modelo Geométrico Beta Desplazado (sBG) para clientes que renuevan contratos durante períodos de tiempo discretos.\",\n"
+"  \"plural\": \"Modelo Geométrico Beta Desplazado (sBG) para clientes que renuevan contratos durante períodos de tiempo discretos.\"\n"
+"}"
+
+#: 69abb70ca42d4b649211053939b18004 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:4
+msgid "The sBG model has the following assumptions:"
+msgstr ""
+"{\n"
+"  \"singular\": \"El modelo sBG tiene las siguientes suposiciones:\",\n"
+"  \"plural\": \"El modelo sBG tiene las siguientes suposiciones:\"\n"
+"}"
+
+#: 4d1e18e64cb9488f90265d73d7004339 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:5
+msgid ""
+"Dropout probabilities for each cohortare Beta-distributed with "
+"hyperparameters `alpha` and `beta`."
+msgstr ""
+"{\n"
+"  \"singular\": \"Las probabilidades de abandono para cada cohorte están distribuidas según una Beta con hiperparámetros `alpha` y `beta`.\",\n"
+"  \"plural\": \"Las probabilidades de abandono para cada cohorte están distribuidas según una Beta con hiperparámetros `alpha` y `beta`.\"\n"
+"}"
+
+#: 613810ab4b8349d48ab760800808fe2a of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:6
+msgid "Cohort retention rates change over time due to customer heterogeneity."
+msgstr ""
+"{\n"
+"  \"singular\": \"Las tasas de retención de cohortes cambian con el tiempo debido a la heterogeneidad de los clientes.\",\n"
+"  \"plural\": \"Las tasas de retención de cohortes cambian con el tiempo debido a la heterogeneidad de los clientes.\"\n"
+"}"
+
+#: c9cfe5aeedee4e36992acf737a55ea77 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:7
+msgid ""
+"Customers in the same cohort began their contract in the same time period."
+msgstr ""
+"{\n"
+"  \"singular\": \"Los clientes en la misma cohorte comenzaron su contrato en el mismo período de tiempo.\",\n"
+"  \"plural\": \"Los clientes en las mismas cohortes comenzaron sus contratos en los mismos períodos de tiempo.\"\n"
+"}"
+
+#: aec8e3065a79435db24c5e7b76d3ffe5 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:9
+msgid ""
+"This model requires data to be summarized by *recency*, *T*, and *cohort* "
+"for each customer. Modeling assumptions require *1 <= recency <= T*, and *T "
+">= 2*."
+msgstr ""
+"{\n"
+"  \"singular\": \"Este modelo requiere que los datos sean resumidos por *recencia*, *T* y *cohorte* para cada cliente. Las suposiciones del modelo requieren *1 <= recencia <= T* y *T >= 2*.\",\n"
+"  \"plural\": \"Este modelo requiere que los datos sean resumidos por *recencia*, *T* y *cohorte* para cada cliente. Las suposiciones del modelo requieren *1 <= recencia <= T* y *T >= 2*.\"\n"
+"}"
+
+#: 0b2de53129a546cab0e10400310ac362 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:12
+msgid "First introduced by Fader & Hardie in [Ra4208df6b784-1]_."
+msgstr ""
+"{\n"
+"  \"singular\": \"Primero introducido por Fader & Hardie en [Ra4208df6b784-1]_.\",\n"
+"  \"plural\": \"Primero introducido por Fader & Hardie en [Ra4208df6b784-1]_.\"\n"
+"}"
+
+#: 9c875020d54244cc9d2bfcaf9b232a84 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel
+msgid "Parameters"
+msgstr ""
+"{\n"
+"  \"singular\": \"Parámetro\",\n"
+"  \"plural\": \"Parámetros\"\n"
+"}"
+
+#: 14394edeba0d4588af3ce9bf24f14b38 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:16
+msgid "**data** : :obj:`~pandas.DataFrame`"
+msgstr ""
+"{\n"
+"  \"singular\": \"**datos** : :obj:`~pandas.DataFrame`\",\n"
+"  \"plural\": \"**datos** : :obj:`~pandas.DataFrame`\"\n"
+"}"
+
+#: 54209e9f60b943f3ad2ed404980e4578 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:15
+msgid "DataFrame"
+msgstr ""
+"{\n"
+"  \"singular\": \"DataFrame\",\n"
+"  \"plural\": \"DataFrames\"\n"
+"}"
+
+#: e30662c2c1a64af88da49cc19728a0a8 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:17
+msgid "DataFrame containing the following columns:"
+msgstr ""
+"{\n"
+"  \"singular\": \"DataFrame que contiene la siguiente columna:\",\n"
+"  \"plural\": \"DataFrame que contiene las siguientes columnas:\"\n"
+"}"
+
+#: b9fd975590184ef29fbb845399b3ffde of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:18
+msgid "`customer_id`: Unique customer identifier"
+msgstr ""
+"{\n"
+"  \"singular\": {\n"
+"    \"msgid\": \"`customer_id`: Unique customer identifier\",\n"
+"    \"msgstr\": \"`customer_id`: Identificador único del cliente\"\n"
+"  },\n"
+"  \"plural\": {\n"
+"    \"msgid\": \"`customer_id`: Unique customer identifier\",\n"
+"    \"msgstr\": \"`customer_id`: Identificador único de los clientes\"\n"
+"  }\n"
+"}"
+
+#: 05ad6f54333c487aa1826152a219d326 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:19
+msgid ""
+"`recency`: Time period of last contract renewal. It should equal *T* for "
+"active customers."
+msgstr ""
+"{\n"
+"  \"singular\": {\n"
+"    \"msgid\": \"recency: Time period of last contract renewal. It should equal *T* for active customers.\",\n"
+"    \"msgstr\": \"recency: Período de tiempo de la última renovación del contrato. Debe ser igual a *T* para los clientes activos.\"\n"
+"  },\n"
+"  \"plural\": {\n"
+"    \"msgid\": \"recency: Time period of last contract renewal. It should equal *T* for active customers.\",\n"
+"    \"msgstr\": \"recency: Período de tiempo de la última renovación del contrato. Debe ser igual a *T* para los clientes activos.\"\n"
+"  }\n"
+"}"
+
+#: c9b3557f5cad4a1386b122b7d5892d30 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:20
+msgid ""
+"`T`: Max observed time period in the cohort. All customers in a given cohort"
+" share the same value for *T*."
+msgstr ""
+"{\n"
+"  \"singular\": {\n"
+"    \"msgid\": \"T: Max observed time period in the cohort. All customers in a given cohort share the same value for *T*.\",\n"
+"    \"msgstr\": \"T: Período máximo de tiempo observado en la cohorte. Todos los clientes en una cohorte dada comparten el mismo valor para *T*.\"\n"
+"  },\n"
+"  \"plural\": {\n"
+"    \"msgid\": \"T: Max observed time period in the cohort. All customers in a given cohort share the same value for *T*.\",\n"
+"    \"msgstr\": \"T: Período máximo de tiempo observado en las cohortes. Todos los clientes en una cohorte dada comparten el mismo valor para *T*.\"\n"
+"  }\n"
+"}"
+
+#: 4746c60562b843459c041c51ed9aa8e3 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:21
+msgid "`cohort`: Customer cohort label"
+msgstr ""
+"{\n"
+"  \"singular\": {\n"
+"    \"msgid\": \"cohort\",\n"
+"    \"msgstr\": \"etiqueta de cohorte de clientes\"\n"
+"  },\n"
+"  \"plural\": {\n"
+"    \"msgid\": \"cohort\",\n"
+"    \"msgstr\": \"etiquetas de cohorte de clientes\"\n"
+"  }\n"
+"}"
+
+#: 65da4261b4d84db7927940f9f28bb265 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:23
+msgid "**model_config** : :class:`python:dict`, optional"
+msgstr ""
+"{\n"
+"  \"singular\": \"**model_config** : :class:`python:dict`, opcional\",\n"
+"  \"plural\": \"**model_config** : :class:`python:dict`, opcional\"\n"
+"}"
+
+#: 467f93bab3e1459abdf91c8f4ebcbb16 d90810d844b540e89caa07dff09ef3f1 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:22
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:29
+msgid "python:dict, optional"
+msgstr ""
+"{\n"
+"  \"singular\": \"python:dict, opcional\",\n"
+"  \"plural\": \"python:dict, opcional\"\n"
+"}"
+
+#: 789f51c372a1497fa39ca4afdf19d5bd of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:24
+msgid "Dictionary of model prior parameters:"
+msgstr ""
+"{\n"
+"  \"singular\": \"Diccionario de parámetros previos del modelo:\",\n"
+"  \"plural\": \"Diccionario de parámetros previos del modelo:\"\n"
+"}"
+
+#: 468a00f42dea437badccf55b68466a48 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:25
+msgid ""
+"`a`: Shape parameter of dropout process; defaults to `phi_purchase` * "
+"`kappa_purchase`"
+msgstr ""
+"{\n"
+"  \"singular\": {\n"
+"    \"msgid\": \"`a`: Shape parameter of dropout process; defaults to `phi_purchase` * `kappa_purchase`\",\n"
+"    \"msgstr\": \"`a`: Parámetro de forma del proceso de abandono; por defecto es `phi_purchase` * `kappa_purchase`\"\n"
+"  },\n"
+"  \"plural\": {\n"
+"    \"msgid\": \"`a`: Shape parameter of dropout process; defaults to `phi_purchase` * `kappa_purchase`\",\n"
+"    \"msgstr\": \"`a`: Parámetro de forma del proceso de abandono; por defecto es `phi_purchase` * `kappa_purchase`\"\n"
+"  }\n"
+"}"
+
+#: 134bcb4df4d74ef8aa357b11d5f6e7f7 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:26
+msgid ""
+"`b`: Shape parameter of dropout process; defaults to `1-phi_dropout` * "
+"`kappa_dropout`"
+msgstr ""
+"{\n"
+"  \"singular\": \"b: Parámetro de forma del proceso de abandono; por defecto es `1-phi_dropout` * `kappa_dropout`\",\n"
+"  \"plural\": \"b: Parámetro de forma del proceso de abandono; por defecto es `1-phi_dropout` * `kappa_dropout`\"\n"
+"}"
+
+#: 21faafd496eb4ed685d59ac462d9f996 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:27
+msgid ""
+"`phi_dropout`: Pooling prior; defaults to `Prior(\"Uniform\", lower=0, "
+"upper=1, dims=\"cohort\")`"
+msgstr ""
+"{\n"
+"  \"singular\": \"`phi_dropout`: Agrupación previa; por defecto es `Prior(\\\"Uniform\\\", lower=0, upper=1, dims=\\\"cohort\\\")`\",\n"
+"  \"plural\": \"`phi_dropout`: Agrupación previa; por defecto es `Prior(\\\"Uniform\\\", lower=0, upper=1, dims=\\\"cohort\\\")`\"\n"
+"}"
+
+#: 24b8cbde5754494bbc02184d18c6816e of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:28
+msgid ""
+"`kappa_dropout`: Pooling prior; defaults to `Prior(\"Pareto\", alpha=1, m=1,"
+" dims=\"cohort\")`"
+msgstr ""
+"{\n"
+"  \"singular\": \"`kappa_dropout`: Agrupación previa; por defecto es `Prior(\\\"Pareto\\\", alpha=1, m=1, dims=\\\"cohort\\\")`\",\n"
+"  \"plural\": \"`kappa_dropout`: Agrupación previa; por defecto es `Prior(\\\"Pareto\\\", alpha=1, m=1, dims=\\\"cohort\\\")`\"\n"
+"}"
+
+#: aa22ffb6fd9e41539e011ad632e08e7e of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:30
+msgid "**sampler_config** : :class:`python:dict`, optional"
+msgstr ""
+"{\n"
+"  \"singular\": \"**sampler_config** : :class:`python:dict`, opcional\",\n"
+"  \"plural\": \"**sampler_config** : :class:`python:dict`, opcional\"\n"
+"}"
+
+#: cdcbbce469504f89b83f9134c7318cf4 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:31
+msgid "Dictionary of sampler parameters. Defaults to *None*."
+msgstr ""
+"{\n"
+"  \"singular\": \"Diccionario de parámetros del muestreador. Por defecto es *Ninguno*.\",\n"
+"  \"plural\": \"Diccionario de parámetros del muestreador. Por defecto es *Ninguno*.\"\n"
+"}"
+
+#: 3ec4d57014414839ac6480e433936380 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:45
+msgid "References"
+msgstr ""
+"{\n"
+"  \"singular\": \"Referencia\",\n"
+"  \"plural\": \"Referencias\"\n"
+"}"
+
+#: 6e49174025a945acb5072145bdc7adba of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:46
+msgid ""
+"Fader, P. S., & Hardie, B. G. (2007). How to project customer retention. "
+"Journal of Interactive Marketing, 21(1), 76-90. "
+"https://faculty.wharton.upenn.edu/wp-"
+"content/uploads/2012/04/Fader_hardie_jim_07.pdf"
+msgstr ""
+"{\n"
+"  \"singular\": \"Fader, P. S., & Hardie, B. G. (2007). Cómo proyectar la retención de clientes. Journal of Interactive Marketing, 21(1), 76-90. https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf\",\n"
+"  \"plural\": \"Fader, P. S., & Hardie, B. G. (2007). Cómo proyectar la retención de clientes. Journal of Interactive Marketing, 21(1), 76-90. https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf\"\n"
+"}"
+
+#: eeef5b7940b74a388c96f4ba6f2e696c of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:52
+msgid "[Ra4208df6b784-1]_"
+msgstr ""
+"{\n"
+"  \"singular\": \"[Ra4208df6b784-1]_\",\n"
+"  \"plural\": \"[Ra4208df6b784-1]_\"\n"
+"}"
+
+#: 5e70ae8ee4b34b11923892904e6185f7 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:55
+msgid "Examples"
+msgstr ""
+"{\n"
+"  \"singular\": \"Ejemplo\",\n"
+"  \"plural\": \"Ejemplos\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:12
+#: bb533ad165db44e38c26aa775f5d5d71
+msgid "Methods"
+msgstr ""
+"{\n"
+"  \"singular\": \"Método\",\n"
+"  \"plural\": \"Métodos\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:39:<autosummary>:1
+#: 9bcfb93c05ad4720bf9fc26c25d69db1
+msgid ""
+":py:obj:`ShiftedBetaGeoModel.__init__ "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.__init__>`\\"
+" \\(data\\[\\, ...\\]\\)"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`ShiftedBetaGeoModel.__init__ <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.__init__>`\\ \\(data\\[\\, ...\\]\\)\",\n"
+"  \"plural\": \":py:obj:`ShiftedBetaGeoModel.__init__ <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.__init__>`\\ \\(data\\[\\, ...\\]\\)\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:39:<autosummary>:1
+#: 878cabe0ab4c4495b9b77cdc9aa6e753
+msgid ""
+"Initialize model configuration and sampler configuration for the model."
+msgstr ""
+"{\n"
+"  \"singular\": \"Inicializar la configuración del modelo y la configuración del muestreador para el modelo.\",\n"
+"  \"plural\": \"Inicializar las configuraciones del modelo y del muestreador para los modelos.\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:39:<autosummary>:1
+#: 28468030ce8c430f90c3d551e12dd5ea
+msgid ""
+":py:obj:`ShiftedBetaGeoModel.attrs_to_init_kwargs "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.attrs_to_init_kwargs>`\\"
+" \\(attrs\\)"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`ShiftedBetaGeoModel.attrs_to_init_kwargs <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.attrs_to_init_kwargs>`\\ \\(attrs\\)\",\n"
+"  \"plural\": \":py:obj:`ShiftedBetaGeoModel.attrs_to_init_kwargs <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.attrs_to_init_kwargs>`\\ \\(attrs\\)\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:39:<autosummary>:1
+#: 0495fe29737643efa3d34cf60252b7d6
+msgid ""
+"Convert the model configuration and sampler configuration from the "
+"attributes to keyword arguments."
+msgstr ""
+"{\n"
+"  \"singular\": \"Convierte la configuración del modelo y la configuración del muestreador de los atributos a argumentos de palabra clave.\",\n"
+"  \"plural\": \"Convierte las configuraciones del modelo y del muestreador de los atributos a argumentos de palabra clave.\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:39:<autosummary>:1
+#: 6354903cba814ea788506f525f25ebe1
+msgid ""
+":py:obj:`ShiftedBetaGeoModel.build_from_idata "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.build_from_idata>`\\"
+" \\(idata\\)"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`ShiftedBetaGeoModel.build_from_idata <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.build_from_idata>`\\ \\(idata\\)\",\n"
+"  \"plural\": \":py:obj:`ShiftedBetaGeoModel.build_from_idata <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.build_from_idata>`\\ \\(idata\\)\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:39:<autosummary>:1
+#: 06a9429a82b94ffda002ddfd9e3acf25
+msgid "Build the model from the InferenceData object."
+msgstr ""
+"{\n"
+"  \"singular\": \"Construya el modelo a partir del objeto InferenceData.\",\n"
+"  \"plural\": \"Construyan el modelo a partir del objeto InferenceData.\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:39:<autosummary>:1
+#: 24a5048c15b24933adaf64bc2935a1c5
+msgid ""
+":py:obj:`ShiftedBetaGeoModel.build_model "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.build_model>`\\"
+" \\(\\)"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`ShiftedBetaGeoModel.build_model <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.build_model>`\\ \\(\\)\",\n"
+"  \"plural\": \":py:obj:`ShiftedBetaGeoModel.build_model <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.build_model>`\\ \\(\\)\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:39:<autosummary>:1
+#: d4c29089fbe044b38e72dcb20fbbac38
+msgid "Build the model."
+msgstr ""
+"{\n"
+"  \"singular\": \"Construya el modelo.\",\n"
+"  \"plural\": \"Construyan el modelo.\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:39:<autosummary>:1
+#: 4ff1deb418cd4274a655a60777ee5432
+msgid ""
+":py:obj:`ShiftedBetaGeoModel.create_idata_attrs "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.create_idata_attrs>`\\"
+" \\(\\)"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`ShiftedBetaGeoModel.create_idata_attrs <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.create_idata_attrs>`\\ \\(\\)\",\n"
+"  \"plural\": \":py:obj:`ShiftedBetaGeoModel.create_idata_attrs <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.create_idata_attrs>`\\ \\(\\)\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:39:<autosummary>:1
+#: 14f2a202bcfa437b84d6cb05fdee836d
+msgid "Create attributes for the inference data."
+msgstr ""
+"{\n"
+"  \"singular\": \"Cree atributos para los datos de inferencia.\",\n"
+"  \"plural\": \"Cree atributos para los datos de inferencia.\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:39:<autosummary>:1
+#: baa315de12604d49bfe59749a1c95f69
+msgid ""
+":py:obj:`ShiftedBetaGeoModel.expected_probability_alive "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_probability_alive>`\\"
+" \\(\\[...\\]\\)"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`ShiftedBetaGeoModel.expected_probability_alive <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_probability_alive>`\\ \\(\\[...\\]\\)\",\n"
+"  \"plural\": \":py:obj:`ShiftedBetaGeoModel.expected_probability_alive <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_probability_alive>`\\ \\(\\[...\\]\\)\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:39:<autosummary>:1
+#: 5c2acfed2f324092a93ba83c564e6e87
+msgid "Compute expected probability of contract renewal by cohort."
+msgstr ""
+"{\n"
+"  \"singular\": \"Calcule la probabilidad esperada de renovación del contrato por cohorte.\",\n"
+"  \"plural\": \"Calcule la probabilidad esperada de renovación de los contratos por cohortes.\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:39:<autosummary>:1
+#: bb7fe621cb5f43a5a41118873439a310
+msgid ""
+":py:obj:`ShiftedBetaGeoModel.expected_residual_lifetime "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_residual_lifetime>`\\"
+" \\(\\[...\\]\\)"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`ShiftedBetaGeoModel.expected_residual_lifetime <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_residual_lifetime>`\\ \\(\\[...\\]\\)\",\n"
+"  \"plural\": \":py:obj:`ShiftedBetaGeoModel.expected_residual_lifetime <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_residual_lifetime>`\\ \\(\\[...\\]\\)\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:39:<autosummary>:1
+#: badb8067d56145feb5b44a4b959fc2b0
+msgid "Compute expected residual lifetime of customers by cohort."
+msgstr ""
+"{\n"
+"  \"singular\": \"Calcule la vida residual esperada de los clientes por cohorte.\",\n"
+"  \"plural\": \"Calcule la vida residual esperada de los clientes por cohortes.\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:39:<autosummary>:1
+#: a35a1051728d48388afdf1c74d2072bd
+msgid ""
+":py:obj:`ShiftedBetaGeoModel.expected_retention_rate "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_retention_rate>`\\"
+" \\(\\[...\\]\\)"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`ShiftedBetaGeoModel.expected_retention_rate <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_retention_rate>`\\ \\(\\[...\\]\\)\",\n"
+"  \"plural\": \":py:obj:`ShiftedBetaGeoModel.expected_retention_rate <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_retention_rate>`\\ \\(\\[...\\]\\)\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:39:<autosummary>:1
+#: 9c072a9ac7db4206a6a90fe3c69e51d8
+msgid "Compute expected retention rate by cohort."
+msgstr ""
+"{\n"
+"  \"singular\": \"Calcule la tasa de retención esperada por cohorte.\",\n"
+"  \"plural\": \"Calcule las tasas de retención esperadas por cohortes.\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:39:<autosummary>:1
+#: 6d00065307d94eb8b4ada74a0005a15d
+msgid ""
+":py:obj:`ShiftedBetaGeoModel.fit "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.fit>`\\ "
+"\\(\\[method\\, fit\\_method\\]\\)"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`ShiftedBetaGeoModel.fit <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.fit>`\\ \\(\\[método\\, fit\\_method\\]\\)\",\n"
+"  \"plural\": \":py:obj:`ShiftedBetaGeoModel.fit <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.fit>`\\ \\(\\[métodos\\, fit\\_method\\]\\)\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:39:<autosummary>:1
+#: 6c8b2bd7c2914e558d3fcf6872c24bfa
+msgid "Infer model posterior."
+msgstr ""
+"{\n"
+"  \"singular\": \"Inferir la posterior del modelo.\",\n"
+"  \"plural\": \"Inferir las posteriores del modelo.\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:39:<autosummary>:1
+#: a6958b892d374de78cb72535e0474deb
+msgid ""
+":py:obj:`ShiftedBetaGeoModel.fit_summary "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.fit_summary>`\\"
+" \\(\\*\\*kwargs\\)"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`ShiftedBetaGeoModel.fit_summary <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.fit_summary>`\\ \\(\\*\\*kwargs\\)\",\n"
+"  \"plural\": \":py:obj:`ShiftedBetaGeoModel.fit_summary <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.fit_summary>`\\ \\(\\*\\*kwargs\\)\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:39:<autosummary>:1
+#: 0412d648127141c394acefe0111a0f71
+msgid "Compute the summary of the fit result."
+msgstr ""
+"{\n"
+"  \"singular\": \"Calcule el resumen del resultado del ajuste.\",\n"
+"  \"plural\": \"Calcule el resumen de los resultados del ajuste.\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:39:<autosummary>:1
+#: 115ab31695934e68a1ce639fbf7b4cbf
+msgid ""
+":py:obj:`ShiftedBetaGeoModel.graphviz "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.graphviz>`\\"
+" \\(\\*\\*kwargs\\)"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`ShiftedBetaGeoModel.graphviz <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.graphviz>`\\ \\(\\*\\*kwargs\\)\",\n"
+"  \"plural\": \":py:obj:`ShiftedBetaGeoModel.graphviz <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.graphviz>`\\ \\(\\*\\*kwargs\\)\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:39:<autosummary>:1
+#: f340f3eb2b234da3a72cacbf002fbba8
+msgid "Get the graphviz representation of the model."
+msgstr ""
+"{\n"
+"  \"singular\": \"Obtenga la representación graphviz del modelo.\",\n"
+"  \"plural\": \"Obtengan la representación graphviz del modelo.\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:39:<autosummary>:1
+#: 5d8d877b14104b6491f4c3e2e6ee3fe2
+msgid ""
+":py:obj:`ShiftedBetaGeoModel.idata_to_init_kwargs "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.idata_to_init_kwargs>`\\"
+" \\(idata\\)"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`ShiftedBetaGeoModel.idata_to_init_kwargs <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.idata_to_init_kwargs>`\\ \\(idata\\)\",\n"
+"  \"plural\": \":py:obj:`ShiftedBetaGeoModel.idata_to_init_kwargs <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.idata_to_init_kwargs>`\\ \\(idata\\)\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:39:<autosummary>:1
+#: 366bda9a8d3e48869a0b0a8a79739e5b
+msgid "Create the initialization kwargs from an InferenceData object."
+msgstr ""
+"{\n"
+"  \"singular\": \"Cree los kwargs de inicialización a partir de un objeto InferenceData.\",\n"
+"  \"plural\": \"Cree los kwargs de inicialización a partir de objetos InferenceData.\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:39:<autosummary>:1
+#: 484465a0957b44fb98b26c8537803f10
+msgid ""
+":py:obj:`ShiftedBetaGeoModel.load "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.load>`\\ "
+"\\(fname\\[\\, check\\]\\)"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`ShiftedBetaGeoModel.load <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.load>`\\ (fname\\[\\, check\\])\",\n"
+"  \"plural\": \":py:obj:`ShiftedBetaGeoModel.load <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.load>`\\ (fname\\[\\, check\\])\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:39:<autosummary>:1
+#: db102ffcc5244491999359300d633a0c
+msgid "Create a ModelBuilder instance from a file."
+msgstr ""
+"{\n"
+"  \"singular\": \"Cree una instancia de ModelBuilder a partir de un archivo.\",\n"
+"  \"plural\": \"Cree instancias de ModelBuilder a partir de archivos.\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:39:<autosummary>:1
+#: db6e9a770c5b41518fa1491eeb4dd57d
+msgid ""
+":py:obj:`ShiftedBetaGeoModel.load_from_idata "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.load_from_idata>`\\"
+" \\(idata\\[\\, ...\\]\\)"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`ShiftedBetaGeoModel.load_from_idata <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.load_from_idata>`\\ \\(idata\\[\\, ...\\]\\)\",\n"
+"  \"plural\": \":py:obj:`ShiftedBetaGeoModel.load_from_idata <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.load_from_idata>`\\ \\(idata\\[\\, ...\\]\\)\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:39:<autosummary>:1
+#: 083a4dff33704afd87eef8413cb5ffdf
+msgid "Create a ModelBuilder instance from an InferenceData object."
+msgstr ""
+"{\n"
+"  \"singular\": \"Cree una instancia de ModelBuilder a partir de un objeto InferenceData.\",\n"
+"  \"plural\": \"\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:39:<autosummary>:1
+#: 83fc780e28ba4dd4be936da347f33838
+msgid ""
+":py:obj:`ShiftedBetaGeoModel.save "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.save>`\\ "
+"\\(fname\\, \\*\\*kwargs\\)"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`ShiftedBetaGeoModel.save <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.save>`\\ \\(fname\\, \\*\\*kwargs\\)\",\n"
+"  \"plural\": \":py:obj:`ShiftedBetaGeoModel.save <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.save>`\\ \\(fname\\, \\*\\*kwargs\\)\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:39:<autosummary>:1
+#: c4753b29c4634fbcbce44f948770a1f3
+msgid "Save the model's inference data to a file."
+msgstr ""
+"{\n"
+"  \"singular\": {\n"
+"    \"msgid\": \"Save the model's inference data to a file.\",\n"
+"    \"msgstr\": \"Guarde los datos de inferencia del modelo en un archivo.\"\n"
+"  },\n"
+"  \"plural\": {\n"
+"    \"msgid\": \"Save the model's inference data to a file.\",\n"
+"    \"msgstr\": \"Guarde los datos de inferencia del modelo en un archivo.\"\n"
+"  }\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:39:<autosummary>:1
+#: 1077010a10fd4adc8604ffa292366ca1
+msgid ""
+":py:obj:`ShiftedBetaGeoModel.set_idata_attrs "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.set_idata_attrs>`\\"
+" \\(\\[idata\\]\\)"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`ShiftedBetaGeoModel.set_idata_attrs <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.set_idata_attrs>`\\ \\(\\[idata\\]\\)\",\n"
+"  \"plural\": \":py:obj:`ShiftedBetaGeoModel.set_idata_attrs <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.set_idata_attrs>`\\ \\(\\[idata\\]\\)\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:39:<autosummary>:1
+#: 15aa4b06d59f4aa8a941c5cfa02f08bd
+msgid "Set attributes on an InferenceData object."
+msgstr ""
+"{\n"
+"  \"singular\": \"Establecer atributos en un objeto InferenceData.\",\n"
+"  \"plural\": \"Establecer atributos en objetos InferenceData.\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:39:<autosummary>:1
+#: 0d9b5c1d26854cf2a4952e5748aad4d6
+msgid ""
+":py:obj:`ShiftedBetaGeoModel.table "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.table>`\\ "
+"\\(\\*\\*model\\_table\\_kwargs\\)"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`ShiftedBetaGeoModel.table <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.table>`\\ \\(\\*\\*model\\_table\\_kwargs\\)\",\n"
+"  \"plural\": \":py:obj:`ShiftedBetaGeoModel.table <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.table>`\\ \\(\\*\\*model\\_table\\_kwargs\\)\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:39:<autosummary>:1
+#: 24bb659afcf044cf8978e6e719d25671
+msgid "Get the summary table of the model."
+msgstr ""
+"{\n"
+"  \"singular\": \"Obtenga la tabla resumen del modelo.\",\n"
+"  \"plural\": \"Obtenga la tabla resumen de los modelos.\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:39:<autosummary>:1
+#: 39920173a89e4b8e9325a873fdeecea3
+msgid ""
+":py:obj:`ShiftedBetaGeoModel.thin_fit_result "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.thin_fit_result>`\\"
+" \\(keep\\_every\\)"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`ShiftedBetaGeoModel.thin_fit_result <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.thin_fit_result>`\\ \\(mantener\\_cada\\)\",\n"
+"  \"plural\": \":py:obj:`ShiftedBetaGeoModel.thin_fit_result <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.thin_fit_result>`\\ \\(mantener\\_cada\\)\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:39:<autosummary>:1
+#: 1964a034c73c4a9db9db5f43e2fab5bb
+msgid "Return a copy of the model with a thinned fit result."
+msgstr ""
+"{\n"
+"  \"singular\": \"Devuelve una copia del modelo con un resultado de ajuste reducido.\",\n"
+"  \"plural\": \"Devuelven una copia del modelo con un resultado de ajuste reducido.\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:41
+#: 4a87924d92124f13bae215e5ab3440c6
+msgid "Attributes"
+msgstr ""
+"{\n"
+"  \"singular\": \"Atributo\",\n"
+"  \"plural\": \"Atributos\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:56:<autosummary>:1
+#: 07250bfbf2814b3eba8d7889378faae7
+msgid ""
+":py:obj:`default_model_config "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.default_model_config>`\\"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`default_model_config <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.default_model_config>`\",\n"
+"  \"plural\": \":py:obj:`default_model_config <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.default_model_config>`\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:56:<autosummary>:1
+#: 4480f3531a624b4ebba99e6ae519d0ae
+msgid "Default model configuration."
+msgstr ""
+"{\n"
+"  \"singular\": \"Configuración de modelo predeterminada.\",\n"
+"  \"plural\": \"Configuraciones de modelo predeterminadas.\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:56:<autosummary>:1
+#: f43f73a67fe548a78b87bee14d098b97
+msgid ""
+":py:obj:`default_sampler_config "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.default_sampler_config>`\\"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`configuración_del_muestreador_por_defecto <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.configuración_del_muestreador_por_defecto>`\",\n"
+"  \"plural\": \":py:obj:`configuraciones_del_muestreador_por_defecto <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.configuraciones_del_muestreador_por_defecto>`\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:56:<autosummary>:1
+#: 3351938b9b8340bab45cd7577f9c1672
+msgid "Default sampler configuration."
+msgstr ""
+"{\n"
+"  \"singular\": \"Configuración de muestreador predeterminada.\",\n"
+"  \"plural\": \"Configuraciones de muestreador predeterminadas.\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:56:<autosummary>:1
+#: 09a2bce09e524c40905bfad69cfd5695
+msgid ""
+":py:obj:`fit_result "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.fit_result>`\\"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`fit_result <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.fit_result>`\",\n"
+"  \"plural\": \":py:obj:`fit_result <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.fit_result>`\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:56:<autosummary>:1
+#: af4f4a085bf040e89520de82a9deb00f
+msgid "Get the posterior fit_result."
+msgstr ""
+"{\n"
+"  \"singular\": \"Obtenga el resultado de ajuste posterior.\",\n"
+"  \"plural\": \"Obtenga los resultados de ajuste posteriores.\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:56:<autosummary>:1
+#: b4027ed5ebe640d4afcaae55fa835b1f
+msgid ""
+":py:obj:`id "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.id>`\\"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`id <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.id>`\",\n"
+"  \"plural\": \":py:obj:`id <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.id>`\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:56:<autosummary>:1
+#: 9f371d2a0bc545a79fad858cb2cdff77
+msgid "Generate a unique hash value for the model."
+msgstr ""
+"{\n"
+"  \"singular\": \"Generar un valor hash único para el modelo.\",\n"
+"  \"plural\": \"Generar valores hash únicos para los modelos.\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:56:<autosummary>:1
+#: 0f3c988dc139482d81a955a15b53af8b
+msgid ""
+":py:obj:`posterior "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.posterior>`\\"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`posterior <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.posterior>`\",\n"
+"  \"plural\": \":py:obj:`posterior <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.posterior>`\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:56:<autosummary>:1
+#: 393a5f21c591496dbcab7cbdfbf46893
+msgid ""
+":py:obj:`posterior_predictive "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.posterior_predictive>`\\"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`predictivo_posterior <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.predictivo_posterior>`\",\n"
+"  \"plural\": \":py:obj:`predictivos_posteriores <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.predictivos_posteriores>`\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:56:<autosummary>:1
+#: acf05fe9a4a24324aa87223b2b7e73da
+msgid ""
+":py:obj:`predictions "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.predictions>`\\"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`predicciones <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.predictions>`\",\n"
+"  \"plural\": \":py:obj:`predicciones <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.predictions>`\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:56:<autosummary>:1
+#: c9213e6f75cf4464a433ba2948fa21cb
+msgid ""
+":py:obj:`prior "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.prior>`\\"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`prior <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.prior>`\",\n"
+"  \"plural\": \":py:obj:`prior <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.prior>`\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:56:<autosummary>:1
+#: b654d07245804b26a07349f2c2f7372f
+msgid ""
+":py:obj:`prior_predictive "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.prior_predictive>`\\"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`prior_predictive <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.prior_predictive>`\",\n"
+"  \"plural\": \":py:obj:`prior_predictive <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.prior_predictive>`\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:56:<autosummary>:1
+#: 171ce1d49f1d41d3b3dbd7e056080962
+msgid ""
+":py:obj:`version "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.version>`\\"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`versión <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.versión>`\",\n"
+"  \"plural\": \":py:obj:`versiones <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.versiones>`\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:56:<autosummary>:1
+#: 96da3a66b2534c5d91b7eb70bdbcefec
+msgid ""
+":py:obj:`idata "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.idata>`\\"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`idata <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.idata>`\",\n"
+"  \"plural\": \":py:obj:`idata <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.idata>`\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:56:<autosummary>:1
+#: 7dcce46456e54b50be366398ca1f914b
+msgid ""
+":py:obj:`sampler_config "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.sampler_config>`\\"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`sampler_config <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.sampler_config>`\",\n"
+"  \"plural\": \":py:obj:`sampler_config <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.sampler_config>`\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:56:<autosummary>:1
+#: 797382c646404a5793fa941c420ce35b
+msgid ""
+":py:obj:`model_config "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.model_config>`\\"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`model_config <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.model_config>`\",\n"
+"  \"plural\": \":py:obj:`model_config <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.model_config>`\"\n"
+"}"
