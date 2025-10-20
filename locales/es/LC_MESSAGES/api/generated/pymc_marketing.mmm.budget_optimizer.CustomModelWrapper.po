@@ -1,0 +1,370 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-20 21:01+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:2
+#: 4258d07aa06c4d558a3d451ba150d35d
+msgid "CustomModelWrapper"
+msgstr ""
+
+#: af8b6a815bee4a4eb8bae641c258c1c2 of
+#: pymc_marketing.mmm.budget_optimizer.CustomModelWrapper:2
+msgid "Wrapper for the BudgetOptimizer to handle custom PyMC models."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:12
+#: 76d079b09dd04814bd38e4afb385edbb
+msgid "Methods"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:45:<autosummary>:1
+#: 5b315e4a3c02494d9a35116b3db3b2bf
+msgid ""
+":py:obj:`CustomModelWrapper.__init__ "
+"<pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.__init__>`\\ "
+"\\(base\\_model\\, ...\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:45:<autosummary>:1
+#: 2b7a3cbbadba4f3bb1b94c244b2d7ed9
+msgid ""
+"Create a new model by parsing and validating input data from keyword "
+"arguments."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:45:<autosummary>:1
+#: 795f755019e74896af2aecb750b9d14a
+msgid ""
+":py:obj:`CustomModelWrapper.construct "
+"<pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.construct>`\\ "
+"\\(\\[\\_fields\\_set\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:45:<autosummary>:1
+#: 8f3bc50f1c1945a385048bda13d4c79a
+msgid ""
+":py:obj:`CustomModelWrapper.copy "
+"<pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.copy>`\\ "
+"\\(\\*\\[\\, include\\, ...\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:45:<autosummary>:1
+#: aa2d701ad6ea44059209e37bfdca8fa8
+msgid "Returns a copy of the model."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:45:<autosummary>:1
+#: 64d0ded7ccef420abe457108872588ea
+msgid ""
+":py:obj:`CustomModelWrapper.dict "
+"<pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.dict>`\\ "
+"\\(\\*\\[\\, include\\, ...\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:45:<autosummary>:1
+#: fda4487735974575bac34e955941ddf3
+msgid ""
+":py:obj:`CustomModelWrapper.from_orm "
+"<pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.from_orm>`\\ "
+"\\(obj\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:45:<autosummary>:1
+#: 0e6cdf77549e46b29d27983f975700e0
+msgid ""
+":py:obj:`CustomModelWrapper.json "
+"<pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.json>`\\ "
+"\\(\\*\\[\\, include\\, ...\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:45:<autosummary>:1
+#: 77f970504bdd4666ac80fa00fa18af34
+msgid ""
+":py:obj:`CustomModelWrapper.model_construct "
+"<pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.model_construct>`\\"
+" \\(\\[\\_fields\\_set\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:45:<autosummary>:1
+#: 79e04830895f4d289b61a7badf8bab6d
+msgid "Creates a new instance of the `Model` class with validated data."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:45:<autosummary>:1
+#: 2e568a67812648af89fd0f9486eba4c7
+msgid ""
+":py:obj:`CustomModelWrapper.model_copy "
+"<pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.model_copy>`\\ "
+"\\(\\*\\[\\, update\\, deep\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:45:<autosummary>:1
+#: 1e4aad2cc4e94e3cb9bd4842ed9ad48d 2655e79a97e349ae9236d16a67b9ddcd
+#: 5ae9a0e29b854531b4f2a44fa5027c01 7a1d3712e594468283ee79c94bdf310e
+msgid "!!! abstract \"Usage Documentation\""
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:45:<autosummary>:1
+#: 844043edbd4a4c96b348d1e33cf4b432
+msgid ""
+":py:obj:`CustomModelWrapper.model_dump "
+"<pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.model_dump>`\\ "
+"\\(\\*\\[\\, mode\\, ...\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:45:<autosummary>:1
+#: a093d8354473431b9e355dda856661ad
+msgid ""
+":py:obj:`CustomModelWrapper.model_dump_json "
+"<pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.model_dump_json>`\\"
+" \\(\\*\\[\\, ...\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:45:<autosummary>:1
+#: 573c0687d9554c10b5cb90cea137c970
+msgid ""
+":py:obj:`CustomModelWrapper.model_json_schema "
+"<pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.model_json_schema>`\\"
+" \\(\\[...\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:45:<autosummary>:1
+#: 095c366270b9443c8ed7c7c4f620cdd0
+msgid "Generates a JSON schema for a model class."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:45:<autosummary>:1
+#: 33cb61bd14644ca3963829b67fdf5152
+msgid ""
+":py:obj:`CustomModelWrapper.model_parametrized_name "
+"<pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.model_parametrized_name>`\\"
+" \\(params\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:45:<autosummary>:1
+#: 96439d5cadc548ada52374ecdbd2b01c
+msgid "Compute the class name for parametrizations of generic classes."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:45:<autosummary>:1
+#: b935701537d94573bc014e2143febb4c
+msgid ""
+":py:obj:`CustomModelWrapper.model_post_init "
+"<pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.model_post_init>`\\"
+" \\(context\\, \\/\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:45:<autosummary>:1
+#: daa1cc74c8d64d868f2444715cfbb640
+msgid ""
+"This function is meant to behave like a BaseModel method to initialise "
+"private attributes."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:45:<autosummary>:1
+#: b9610a834f214459b64bd9541a6e5c75
+msgid ""
+":py:obj:`CustomModelWrapper.model_rebuild "
+"<pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.model_rebuild>`\\"
+" \\(\\*\\[\\, force\\, ...\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:45:<autosummary>:1
+#: c03cbf7e7ead44f19d461e6efe257818
+msgid "Try to rebuild the pydantic-core schema for the model."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:45:<autosummary>:1
+#: ae841edd3b924c4399b620c40e2544c6
+msgid ""
+":py:obj:`CustomModelWrapper.model_validate "
+"<pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.model_validate>`\\"
+" \\(obj\\, \\*\\[\\, ...\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:45:<autosummary>:1
+#: 77be8ccd5dcd4a5a9f2712ee4dccebb5
+msgid "Validate a pydantic model instance."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:45:<autosummary>:1
+#: 0ecec7e0ee6a451690663f512ecebbc2
+msgid ""
+":py:obj:`CustomModelWrapper.model_validate_json "
+"<pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.model_validate_json>`\\"
+" \\(...\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:45:<autosummary>:1
+#: 5c8aa6d2b7c44821abacf56af691ceff
+msgid ""
+":py:obj:`CustomModelWrapper.model_validate_strings "
+"<pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.model_validate_strings>`\\"
+" \\(obj\\, \\*\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:45:<autosummary>:1
+#: 1b087dbd8d15462081a8e6ec3061ef61
+msgid "Validate the given object with string data against the Pydantic model."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:45:<autosummary>:1
+#: fb5120a74b014837ab2fde2f4cd384b1
+msgid ""
+":py:obj:`CustomModelWrapper.parse_file "
+"<pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.parse_file>`\\ "
+"\\(path\\, \\*\\[\\, ...\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:45:<autosummary>:1
+#: 9f0692b719bd474c804dba549e8ceafb
+msgid ""
+":py:obj:`CustomModelWrapper.parse_obj "
+"<pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.parse_obj>`\\ "
+"\\(obj\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:45:<autosummary>:1
+#: 166f8fb53d6746e3b4f7ae4efb8d7cc5
+msgid ""
+":py:obj:`CustomModelWrapper.parse_raw "
+"<pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.parse_raw>`\\ "
+"\\(b\\, \\*\\[\\, ...\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:45:<autosummary>:1
+#: 523f1c9cb52748e197420425998295c1
+msgid ""
+":py:obj:`CustomModelWrapper.schema "
+"<pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.schema>`\\ "
+"\\(\\[by\\_alias\\, ...\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:45:<autosummary>:1
+#: d6a7f02ea6ab493ababdc84135d5b693
+msgid ""
+":py:obj:`CustomModelWrapper.schema_json "
+"<pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.schema_json>`\\ "
+"\\(\\*\\[\\, ...\\]\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:45:<autosummary>:1
+#: 130b34df641341b88f732369f5494608
+msgid ""
+":py:obj:`CustomModelWrapper.update_forward_refs "
+"<pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.update_forward_refs>`\\"
+" \\(\\*\\*localns\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:45:<autosummary>:1
+#: d83f8d2fd9c045eb9298eb104ea5c835
+msgid ""
+":py:obj:`CustomModelWrapper.validate "
+"<pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.validate>`\\ "
+"\\(value\\)"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:47
+#: 6c2bc7ee1b6349e3bd5c90101397ad18
+msgid "Attributes"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:58:<autosummary>:1
+#: ddec62a4ddd1463fafbf7b8a20f29389
+msgid ""
+":py:obj:`model_computed_fields "
+"<pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.model_computed_fields>`\\"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:58:<autosummary>:1
+#: 65c9edcfc7374e3099c3698e5057b357
+msgid ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.model_config>`\\"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:58:<autosummary>:1
+#: c84c13574fa043eaaccddcb5273d0983
+msgid ""
+"Configuration for the model, should be a dictionary conforming to "
+"[`ConfigDict`][pydantic.config.ConfigDict]."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:58:<autosummary>:1
+#: 0f3330169b6145adb14b0016a96ee85d
+msgid ""
+":py:obj:`model_extra "
+"<pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.model_extra>`\\"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:58:<autosummary>:1
+#: 6bdeaaaa5de941faa1912a4d1dafedc0
+msgid "Get extra fields set during validation."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:58:<autosummary>:1
+#: a2fe4357980245ae9ce83eaf36113658
+msgid ""
+":py:obj:`model_fields "
+"<pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.model_fields>`\\"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:58:<autosummary>:1
+#: 897557c502214b538a5be0a0e04284f0
+msgid ""
+":py:obj:`model_fields_set "
+"<pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.model_fields_set>`\\"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:58:<autosummary>:1
+#: b1f8506111de4db5babbf234b1d97ce0
+msgid ""
+"Returns the set of fields that have been explicitly set on this model "
+"instance."
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:58:<autosummary>:1
+#: 3469e164776d4b038b8b8ed30685ce2d
+msgid ""
+":py:obj:`base_model "
+"<pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.base_model>`\\"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:58:<autosummary>:1
+#: 910490d2f7114fca8d189a6d9f789c7f
+msgid ""
+":py:obj:`idata "
+"<pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.idata>`\\"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:58:<autosummary>:1
+#: e8a1d4d600d34012b001302a167997c7
+msgid ""
+":py:obj:`channel_columns "
+"<pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.channel_columns>`\\"
+msgstr ""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:58:<autosummary>:1
+#: 7442fbd991e04c33981a2a746715802b
+msgid ""
+":py:obj:`adstock "
+"<pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.adstock>`\\"
+msgstr ""
