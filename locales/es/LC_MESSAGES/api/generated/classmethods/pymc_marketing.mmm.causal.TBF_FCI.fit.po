@@ -9,77 +9,124 @@ msgid ""
 msgstr ""
 "Project-Id-Version: pymc-marketing local\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"POT-Creation-Date: 2025-10-13 11:28+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language: es\n"
 "Language-Team: es <LL@li.org>\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Language: es\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "Generated-By: Babel 2.17.0\n"
 
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.TBF_FCI.fit.rst:2
-#: 4dc4ea626030414ab6e9283b81e803b4
+#: 955b8bfe885e451da0a3a455939913cd
 msgid "TBF\\_FCI.fit"
-msgstr "TBF\\_FCI.fit"
+msgstr ""
+"{\n"
+"  \"singular\": \"TBF_FCI.fit\",\n"
+"  \"plural\": \"TBF_FCI.fit\"\n"
+"}"
 
-#: 1e21dd77b39440caaaec101e74032d99 of pymc_marketing.mmm.causal.TBF_FCI.fit:2
+#: cf67249ca5f2467195681eab6088af7c of pymc_marketing.mmm.causal.TBF_FCI.fit:2
 msgid "Fit the temporal causal discovery algorithm to ``df``."
-msgstr "Ajuste el algoritmo de descubrimiento causal temporal a ``df``."
+msgstr ""
+"{\n"
+"  \"singular\": \"Ajuste el algoritmo de descubrimiento causal temporal a ``df``.\",\n"
+"  \"plural\": \"Ajusten el algoritmo de descubrimiento causal temporal a ``df``.\"\n"
+"}"
 
-#: 4157432a2f434dd9b84716e1e68a3bcf of pymc_marketing.mmm.causal.TBF_FCI.fit
+#: 59d0d78995464dd1a2f87d3c6272006a of pymc_marketing.mmm.causal.TBF_FCI.fit
 msgid "Parameters"
-msgstr "Parámetros"
+msgstr ""
+"{\n"
+"  \"singular\": \"Parámetro\",\n"
+"  \"plural\": \"Parámetros\"\n"
+"}"
 
-#: e3b0fa5f0c7b4bd1b75649ac97ca21bb of pymc_marketing.mmm.causal.TBF_FCI.fit:7
+#: 65be10a2197a4e5b9f2f87d615a4722e of pymc_marketing.mmm.causal.TBF_FCI.fit:7
 msgid "**df** : :obj:`pandas.DataFrame`"
-msgstr "**df** : :obj:`pandas.DataFrame`"
+msgstr ""
+"{\n"
+"  \"singular\": \"**df** : :obj:`pandas.DataFrame`\",\n"
+"  \"plural\": \"**df** : :obj:`pandas.DataFrame`\"\n"
+"}"
 
-#: aa7248c07e6c49d9ab5e61441c525491 of pymc_marketing.mmm.causal.TBF_FCI.fit:6
+#: 4ccb3d5a19c9418bab4031d68fe6c60d of pymc_marketing.mmm.causal.TBF_FCI.fit:6
 msgid "pandas.DataFrame"
-msgstr "pandas.DataFrame"
+msgstr ""
+"{\n"
+"  \"singular\": \"pandas.DataFrame\",\n"
+"  \"plural\": \"pandas.DataFrame\"\n"
+"}"
 
-#: a21ab441569c49be8f93714c8d661b62 of pymc_marketing.mmm.causal.TBF_FCI.fit:8
+#: b6fa009f729f412da3d8448243ca1c2c of pymc_marketing.mmm.causal.TBF_FCI.fit:8
 msgid "Input dataframe containing the target column and every driver column."
 msgstr ""
-"Marco de datos de entrada que contiene la columna objetivo y todas las "
-"columnas de control."
+"{\n"
+"  \"singular\": \"Marco de datos de entrada que contiene la columna objetivo y cada columna de controlador.\",\n"
+"  \"plural\": \"Marcos de datos de entrada que contienen la columna objetivo y cada columna de controlador.\"\n"
+"}"
 
-#: 8dbd9f9da7fb485abdf5d243d5c7afe8 of
+#: 64ebb2ab87d641809eece4679f6f2197 of
 #: pymc_marketing.mmm.causal.TBF_FCI.fit:11
 msgid "**drivers** : :obj:`Sequence`\\[:class:`python:str`]"
-msgstr "**controladores** : :obj:`Secuencia`\\[:class:`python:str`]"
+msgstr ""
+"{\n"
+"  \"singular\": \"**controlador** : :obj:`Secuencia`\\[:class:`python:str`]\",\n"
+"  \"plural\": \"**controladores** : :obj:`Secuencia`\\[:class:`python:str`]\"\n"
+"}"
 
-#: 6e1cc902c8644d21a92e6d12013097a7 of
+#: beff1508e9794dceabcb1259ea1b6cc4 of
 #: pymc_marketing.mmm.causal.TBF_FCI.fit:10
 msgid "Sequence[python:str]"
-msgstr "Secuencia[python:str]"
+msgstr ""
+"{\n"
+"  \"singular\": \"Secuencia[python:str]\",\n"
+"  \"plural\": \"Secuencias[python:str]\"\n"
+"}"
 
-#: 9684c3402f6340da8dabbf7dd160b857 of
+#: 11526d19c5c94377bfdaaf22dea23f17 of
 #: pymc_marketing.mmm.causal.TBF_FCI.fit:12
 msgid "Iterable of column names to be treated as drivers of the target."
 msgstr ""
-"Iterable de nombres de columnas que se tratarán como impulsores del "
-"objetivo."
+"{\n"
+"  \"singular\": \"Iterable de nombres de columna a ser tratados como impulsores del objetivo.\",\n"
+"  \"plural\": \"Iterables de nombres de columna a ser tratados como impulsores del objetivo.\"\n"
+"}"
 
-#: 1a08d4bd74c24f108b31b1bfda5a9a86 of pymc_marketing.mmm.causal.TBF_FCI.fit
+#: 320ac22d50b04b2b95efc00eda77e7cf of pymc_marketing.mmm.causal.TBF_FCI.fit
 msgid "Returns"
-msgstr "Devoluciones"
+msgstr ""
+"{\n"
+"  \"singular\": \"Devoluciones\",\n"
+"  \"plural\": \"Devoluciones\"\n"
+"}"
 
-#: 8f2b900a55274135aee1efbb82b7235e of
+#: 8161d9675f75467bb21a352e75f8617d of
 #: pymc_marketing.mmm.causal.TBF_FCI.fit:18
 msgid ":obj:`TBF_FCI`"
-msgstr ":obj:`TBF_FCI`"
+msgstr ""
+"{\n"
+"  \"singular\": \":obj:`TBF_FCI`\",\n"
+"  \"plural\": \":obj:`TBF_FCI`\"\n"
+"}"
 
-#: 7a1775ae137e4c05838e99949b27e95b of
+#: ef8386ce3986475f8417c0fd1fbdb5ee of
 #: pymc_marketing.mmm.causal.TBF_FCI.fit:19
 msgid "The fitted instance with internal adjacency structures populated."
 msgstr ""
-"La instancia ajustada con estructuras de adyacencia internas pobladas."
+"{\n"
+"  \"singular\": \"La instancia ajustada con estructuras de adyacencia internas pobladas.\",\n"
+"  \"plural\": \"Las instancias ajustadas con estructuras de adyacencia internas pobladas.\"\n"
+"}"
 
-#: 5d8556a174a449ed8d0e903207ddf5c0 of
+#: b8be3c4a4636429cbd673142eeb3978c of
 #: pymc_marketing.mmm.causal.TBF_FCI.fit:31
 msgid "Examples"
-msgstr "Ejemplos"
+msgstr ""
+"{\n"
+"  \"singular\": \"Ejemplo\",\n"
+"  \"plural\": \"Ejemplos\"\n"
+"}"
