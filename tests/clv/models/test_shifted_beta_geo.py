@@ -513,7 +513,7 @@ class TestShiftedBetaGeoModel:
             }
         )
         with pytest.raises(
-            ValueError, match=r"T must be a non-zero, positive integer."
+            ValueError, match=r"T must be a non-zero, positive whole number."
         ):
             self.model._extract_predictive_variables(
                 T_lt_2_data, customer_varnames=["customer_id", "recency", "T", "cohort"]

@@ -912,7 +912,8 @@ class ShiftedBetaGeometricRV(RandomVariable):
 
         # prevent log(0) by clipping small p samples
         p = np.clip(p_samples, 1e-100, 1)
-
+        # TODO: Consider returning np.float64 types instead of np.int64
+        #       See relevant PR comment: https://github.com/pymc-labs/pymc-marketing/pull/2010#discussion_r2444116986
         return rng.geometric(p, size=size)
 
 
