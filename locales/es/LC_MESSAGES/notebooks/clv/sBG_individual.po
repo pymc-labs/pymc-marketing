@@ -1,0 +1,285 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-20 21:01+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/clv/sBG_individual.ipynb:10002
+#: 1a5a91c73aab4d97859e56bca514caf6
+msgid "Shifted Beta Geometric model with individual customer data"
+msgstr ""
+"{\n"
+"  \"singular\": \"Modelo Geométrico Beta Desplazado con datos individuales del cliente\",\n"
+"  \"plural\": \"Modelos Geométricos Beta Desplazados con datos individuales del cliente\"\n"
+"}"
+
+#: ../source/notebooks/clv/sBG_individual.ipynb:20002
+#: 94191f3a3c43463caf95db0aa7be27f6
+msgid "In this notebook we replicate the main results and figures from"
+msgstr ""
+"{\n"
+"  \"singular\": \"En este cuaderno replicamos los resultados y figuras principales de\",\n"
+"  \"plural\": \"En estos cuadernos replicamos los resultados y figuras principales de\"\n"
+"}"
+
+#: ../source/notebooks/clv/sBG_individual.ipynb:20004
+#: 070498f9a96c466b8ad58543df9a3898
+msgid ""
+"Fader, P. S., & Hardie, B. G. (2007). How to project customer retention. "
+"Journal of Interactive Marketing, 21(1), 76-90. "
+"https://journals.sagepub.com/doi/pdf/10.1002/dir.20074"
+msgstr ""
+"{\n"
+"  \"singular\": \"Fader, P. S., & Hardie, B. G. (2007). Cómo proyectar la retención de clientes. Journal of Interactive Marketing, 21(1), 76-90. https://journals.sagepub.com/doi/pdf/10.1002/dir.20074\",\n"
+"  \"plural\": \"Fader, P. S., & Hardie, B. G. (2007). Cómo proyectar la retención de clientes. Journal of Interactive Marketing, 21(1), 76-90. https://journals.sagepub.com/doi/pdf/10.1002/dir.20074\"\n"
+"}"
+
+#: ../source/notebooks/clv/sBG_individual.ipynb:20006
+#: 0de109e9e27f4956881c4cbd41a6a09c
+msgid ""
+"The authors describe the Shifted Beta Geometric (sBG) model for customer "
+"behavior in a discrete contractual setting. It assumes that:"
+msgstr ""
+"{\n"
+"  \"singular\": \"Los autores describen el modelo de Beta Geométrica Desplazada (sBG) para el comportamiento del cliente en un entorno contractual discreto. Supone que:\",\n"
+"  \"plural\": \"Los autores describen los modelos de Beta Geométrica Desplazada (sBG) para el comportamiento de los clientes en entornos contractuales discretos. Suponen que:\"\n"
+"}"
+
+#: ../source/notebooks/clv/sBG_individual.ipynb:20007
+#: fe4cae04640e4fcaad3c7b020265258b
+msgid ""
+"At the end of each period, a customer has a probability `theta` of renewing "
+"the contract and `1-theta` of cancelling"
+msgstr ""
+"{\n"
+"  \"singular\": \"Al final de cada período, un cliente tiene una probabilidad `theta` de renovar el contrato y `1-theta` de cancelar.\",\n"
+"  \"plural\": \"Al final de cada período, los clientes tienen una probabilidad `theta` de renovar el contrato y `1-theta` de cancelar.\"\n"
+"}"
+
+#: ../source/notebooks/clv/sBG_individual.ipynb:20009
+#: df783855faee46409724c1de86db1d0e
+msgid "The probability `theta` does not change over time for a given customer"
+msgstr ""
+"{\n"
+"  \"singular\": \"La probabilidad `theta` no cambia con el tiempo para un cliente dado\",\n"
+"  \"plural\": \"La probabilidad `theta` no cambia con el tiempo para clientes dados\"\n"
+"}"
+
+#: ../source/notebooks/clv/sBG_individual.ipynb:20010
+#: 0c00751ac47b4228910fd10d59f2e3b6
+msgid ""
+"The probability `theta` varies across customers according to a Beta prior "
+"distribution with hyperparameters `alpha` and `beta`."
+msgstr ""
+"{\n"
+"  \"singular\": \"La probabilidad `theta` varía entre los clientes de acuerdo con una distribución previa Beta con hiperparámetros `alpha` y `beta`.\",\n"
+"  \"plural\": \"La probabilidad `theta` varía entre los clientes de acuerdo con una distribución previa Beta con hiperparámetros `alpha` y `beta`.\"\n"
+"}"
+
+#: ../source/notebooks/clv/sBG_individual.ipynb:50002
+#: 695b9fddb8ee4626bc3bf7405dbade70
+msgid "Recreating the dataset"
+msgstr ""
+"{\n"
+"  \"singular\": \"Recreando el conjunto de datos\",\n"
+"  \"plural\": \"Recreando los conjuntos de datos\"\n"
+"}"
+
+#: ../source/notebooks/clv/sBG_individual.ipynb:60002
+#: 6ffc6f2dabd544cf9b0e71c17062a772
+msgid ""
+"The dataset contains the percentage of customers still enrolled in the "
+"service after each time period. There are two distinct groups of users: "
+"regular and high-end, believed to have different attrition rates. Each group"
+" had 1000 customers at the start."
+msgstr ""
+"{\n"
+"  \"singular\": \"El conjunto de datos contiene el porcentaje de clientes que aún están inscritos en el servicio después de cada período de tiempo. Hay dos grupos distintos de usuarios: regular y de alta gama, que se cree que tienen diferentes tasas de deserción. Cada grupo tenía 1000 clientes al inicio.\",\n"
+"  \"plural\": \"Los conjuntos de datos contienen los porcentajes de clientes que aún están inscritos en los servicios después de cada período de tiempo. Hay dos grupos distintos de usuarios: regulares y de alta gama, que se cree que tienen diferentes tasas de deserción. Cada grupo tenía 1000 clientes al inicio.\"\n"
+"}"
+
+#: ../source/notebooks/clv/sBG_individual.ipynb:60004
+#: f2fe2c21b69a41e7ae767f0f3b661eea
+msgid ""
+"As in the original paper, we will fit the data from the first 7 time periods"
+" only, and use the following periods for validation."
+msgstr ""
+"{\n"
+"  \"singular\": \"Como en el documento original, ajustaremos los datos de los primeros 7 períodos de tiempo solamente, y utilizaremos los siguientes períodos para validación.\",\n"
+"  \"plural\": \"Como en el documento original, ajustaremos los datos de los primeros 7 períodos de tiempo solamente, y utilizaremos los siguientes períodos para validación.\"\n"
+"}"
+
+#: ../source/notebooks/clv/sBG_individual.ipynb:80002
+#: 5799245e35ab4105bb458b23cc0cb19e
+msgid ""
+"The implemented pymc-marketing model fits each individual `theta`,  in "
+"contrast to the paper approach where the inidividual parameters are "
+"marginalized out."
+msgstr ""
+"{\n"
+"  \"singular\": \"El modelo pymc-marketing implementado ajusta cada `theta` individual, en contraste con el enfoque del artículo donde los parámetros individuales se marginalizan.\",\n"
+"  \"plural\": \"Los modelos pymc-marketing implementados ajustan cada `theta` individual, en contraste con el enfoque del artículo donde los parámetros individuales se marginalizan.\"\n"
+"}"
+
+#: ../source/notebooks/clv/sBG_individual.ipynb:80005
+#: fa253d88f6c648929cac17f28030f9b1
+msgid ""
+"For our analysis we wil have to create a synthetic dataset with individual "
+"data, following the aggregate group trends."
+msgstr ""
+"{\n"
+"  \"singular\": \"Para nuestro análisis, tendremos que crear un conjunto de datos sintético con datos individuales, siguiendo las tendencias del grupo agregado.\",\n"
+"  \"plural\": \"Para nuestros análisis, tendremos que crear conjuntos de datos sintéticos con datos individuales, siguiendo las tendencias de los grupos agregados.\"\n"
+"}"
+
+#: ../source/notebooks/clv/sBG_individual.ipynb:110002
+#: 2c6b28a8513d4bfa935f46420043144c
+msgid ""
+"Customers which haven't churned have `t_churn == T == 8`.  The model will "
+"handle these differently, as their lifetimes are "
+"[censored](https://en.wikipedia.org/wiki/Censoring_(statistics))."
+msgstr ""
+"{\n"
+"  \"singular\": \"Los clientes que no han abandonado tienen `t_churn == T == 8`. El modelo manejará estos de manera diferente, ya que sus vidas útiles están [censuradas](https://es.wikipedia.org/wiki/Censura_(estad%C3%ADstica)).\",\n"
+"  \"plural\": \"Los clientes que no han abandonado tienen `t_churn == T == 8`. El modelo manejará estos de manera diferente, ya que sus vidas útiles están [censuradas](https://es.wikipedia.org/wiki/Censura_(estad%C3%ADstica)).\"\n"
+"}"
+
+#: ../source/notebooks/clv/sBG_individual.ipynb:120002
+#: 2982c15a19bb412dafe20f22ab194654
+msgid "Fitting the sBG models for high end and regular users"
+msgstr ""
+"{\n"
+"  \"singular\": \"Ajustando los modelos sBG para usuarios de alta gama y regulares\",\n"
+"  \"plural\": \"Ajustando los modelos sBG para usuarios de alta gama y regulares\"\n"
+"}"
+
+#: ../source/notebooks/clv/sBG_individual.ipynb:180002
+#: bee857e002724955a4acbd16eef2fe96
+msgid "Contrasting posterior inferences with the repo MLE estimates"
+msgstr ""
+"{\n"
+"  \"singular\": \"Contrastando las inferencias posteriores con las estimaciones MLE del repositorio\",\n"
+"  \"plural\": \"Contrastando las inferencias posteriores con las estimaciones MLE de los repositorios\"\n"
+"}"
+
+#: ../source/notebooks/clv/sBG_individual.ipynb:190002
+#: b3577de500e141929bba0528ece594fe
+msgid ""
+"The sBG model has 2 population parameters of interest: `alpha` and `beta`.  "
+"These parameters define the population distribution of the individual "
+"customer's churn rates `theta`.  The larger the values of `alpha` and `beta`"
+" the more homogenous the churn rates are across different customers."
+msgstr ""
+"{\n"
+"  \"singular\": \"El modelo sBG tiene 2 parámetros poblacionales de interés: `alpha` y `beta`. Estos parámetros definen la distribución poblacional de las tasas de abandono individuales de los clientes `theta`. Cuanto mayores sean los valores de `alpha` y `beta`, más homogéneas serán las tasas de abandono entre diferentes clientes.\",\n"
+"  \"plural\": \"\"\n"
+"}"
+
+#: ../source/notebooks/clv/sBG_individual.ipynb:190006
+#: 30ce4c8436ce4bae83e2d6b72ac3a6e6
+msgid ""
+"The ratio of `alpha` to `beta` tells us the expected churn rates. If "
+"`alpha/beta == 0.1`, we expect the average customer to have a `0.1` "
+"probability of churning between each time period."
+msgstr ""
+"{\n"
+"  \"singular\": \"La relación de `alpha` a `beta` nos indica las tasas de cancelación esperadas. Si `alpha/beta == 0.1`, esperamos que el cliente promedio tenga una probabilidad de `0.1` de cancelar entre cada período de tiempo.\",\n"
+"  \"plural\": \"La relación de `alpha` a `beta` nos indica las tasas de cancelación esperadas. Si `alpha/beta == 0.1`, esperamos que los clientes promedio tengan una probabilidad de `0.1` de cancelar entre cada período de tiempo.\"\n"
+"}"
+
+#: ../source/notebooks/clv/sBG_individual.ipynb:250002
+#: 6fb84db2af0c4f65bd0ba9985ab3f806
+msgid ""
+"The model fitting agrees with the Maximum Likelihood estimates described in "
+"the original paper. In addition, MCMC sampling, gives us useful information "
+"about the uncertainty of the fits."
+msgstr ""
+"{\n"
+"  \"singular\": \"El ajuste del modelo concuerda con las estimaciones de Máxima Verosimilitud descritas en el artículo original. Además, el muestreo MCMC nos proporciona información útil sobre la incertidumbre de los ajustes.\",\n"
+"  \"plural\": \"Los ajustes del modelo concuerdan con las estimaciones de Máxima Verosimilitud descritas en el artículo original. Además, el muestreo MCMC nos proporciona información útil sobre la incertidumbre de los ajustes.\"\n"
+"}"
+
+#: ../source/notebooks/clv/sBG_individual.ipynb:260002
+#: f8bde5f17c034d218524a9eeb706e9ed
+msgid "Recreating main results and figures from the paper"
+msgstr ""
+"{\n"
+"  \"singular\": \"Recreando los resultados y figuras principales del artículo\",\n"
+"  \"plural\": \"Recreando los resultados y figuras principales del artículo\"\n"
+"}"
+
+#: ../source/notebooks/clv/sBG_individual.ipynb:270002
+#: 1cd9a9e33ef148e29d8770146d155bc4
+msgid ""
+"Figure 6 from the paper shows the group distribution of `theta` churn rates."
+msgstr ""
+"{\n"
+"  \"singular\": \"La Figura 6 del documento muestra la distribución grupal de las tasas de abandono de `theta`.\",\n"
+"  \"plural\": \"Las Figuras 6 del documento muestran la distribución grupal de las tasas de abandono de `theta`.\"\n"
+"}"
+
+#: ../source/notebooks/clv/sBG_individual.ipynb:270004
+#: c179fab649764d28b8e314d7296fb709
+msgid ""
+"The inferred distributions are relatively wide in both groups, which follows"
+" directly from the fact that both `alpha` and `beta` were inferred to be < "
+"10."
+msgstr ""
+"{\n"
+"  \"singular\": \"Las distribuciones inferidas son relativamente amplias en ambos grupos, lo que sigue directamente del hecho de que tanto `alpha` como `beta` se inferieron como < 10.\",\n"
+"  \"plural\": \"Las distribuciones inferidas son relativamente amplias en ambos grupos, lo que sigue directamente del hecho de que tanto `alpha` como `beta` se inferieron como < 10.\"\n"
+"}"
+
+#: ../source/notebooks/clv/sBG_individual.ipynb:270006
+#: 554fef42d29c4aa89192dde1fca0c9e7
+msgid ""
+"It is still clear that the distribution of `theta` for the highend users has"
+" much more mass near lower values, suggesting highend users have lower "
+"attrition rates on average, when compared with regular users."
+msgstr ""
+"{\n"
+"  \"singular\": \"Todavía está claro que la distribución de `theta` para los usuarios de alto nivel tiene mucha más masa cerca de valores bajos, lo que sugiere que los usuarios de alto nivel tienen tasas de deserción más bajas en promedio, en comparación con los usuarios regulares.\",\n"
+"  \"plural\": \"Todavía está claro que la distribución de `theta` para los usuarios de alto nivel tiene mucha más masa cerca de valores bajos, lo que sugiere que los usuarios de alto nivel tienen tasas de deserción más bajas en promedio, en comparación con los usuarios regulares.\"\n"
+"}"
+
+#: ../source/notebooks/clv/sBG_individual.ipynb:300002
+#: 7f05395802db44bf9522f517f7d82e09
+msgid ""
+"Figures 4 and 5 show the predicted average churn and retention trends for "
+"the two groups. We can see that predictions nicely match the observed data "
+"(black line), even when extrapolating into the time periods that were held-"
+"out when fitting the model."
+msgstr ""
+"{\n"
+"  \"singular\": \"Las figuras 4 y 5 muestran las tendencias promedio de abandono y retención predichas para los dos grupos. Podemos ver que las predicciones coinciden bien con los datos observados (línea negra), incluso al extrapolar hacia los períodos de tiempo que se mantuvieron fuera al ajustar el modelo.\",\n"
+"  \"plural\": \"Las figuras 4 y 5 muestran las tendencias promedio de abandono y retención predichas para los dos grupos. Podemos ver que las predicciones coinciden bien con los datos observados (línea negra), incluso al extrapolar hacia los períodos de tiempo que se mantuvieron fuera al ajustar el modelo.\"\n"
+"}"
+
+#: ../source/notebooks/clv/sBG_individual.ipynb:300005
+#: 059a717b0e9d4bfb965e26869aaaf67e
+msgid ""
+"The plots also highlight an interesting implication from the model:  the "
+"retention rates are expected to increase over time, as the more precarious "
+"customers gradually drop out. This is a direct consequence of modelling "
+"individual churn rates as being fixed over time."
+msgstr ""
+"{\n"
+"  \"singular\": \"Las gráficas también destacan una implicación interesante del modelo: se espera que las tasas de retención aumenten con el tiempo, a medida que los clientes más precarios vayan abandonando gradualmente. Esta es una consecuencia directa de modelar las tasas de cancelación individuales como fijas a lo largo del tiempo.\",\n"
+"  \"plural\": \"Las gráficas también destacan implicaciones interesantes del modelo: se espera que las tasas de retención aumenten con el tiempo, a medida que los clientes más precarios vayan abandonando gradualmente. Estas son consecuencias directas de modelar las tasas de cancelación individuales como fijas a lo largo del tiempo.\"\n"
+"}"
