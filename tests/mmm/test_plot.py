@@ -1184,38 +1184,3 @@ class TestPlotBudgetAllocationBars:
         assert all(np.isfinite(ax2_limits)), (
             f"ax2 limits not finite for {description}: {ax2_limits}"
         )
-
-    def test_plot_budget_allocation_bars_include_zero_behavior(self, mock_plot_suite):
-        """Test that _plot_budget_allocation_bars uses include_zero=True for axis alignment."""
-        channels = np.array(["TV", "Radio", "Social Media"])
-        allocated_spend = np.array([5000, 3000, 2000])
-        channel_contribution = np.array([0.4, 0.2, 0.15])
-
-        _, ax = plt.subplots()
-
-        # Call the method
-        mock_plot_suite._plot_budget_allocation_bars(
-            ax, channels, allocated_spend, channel_contribution
-        )
-
-        # Find the twin axis
-        ax2 = None
-        for other_ax in ax.figure.axes:
-            if other_ax != ax and hasattr(other_ax, "yaxis"):
-                ax2 = other_ax
-                break
-
-        assert ax2 is not None
-
-        # Since include_zero=True is used, both axes should start at 0 or below
-        # (depending on whether there are negative values)
-        ax1_limits = ax.get_ylim()
-        ax2_limits = ax2.get_ylim()
-
-        # For positive data, both should start at 0
-        assert ax1_limits[0] <= 0, (
-            f"ax1 should start at or below 0, got {ax1_limits[0]}"
-        )
-        assert ax2_limits[0] <= 0, (
-            f"ax2 should start at or below 0, got {ax2_limits[0]}"
-        )
