@@ -681,7 +681,7 @@ class BudgetOptimizer(BaseModel):
         # Only perform non-zero channel detection for MMM instances.
         # For OptimizerCompatibleModelWrapper, default to optimizing all channels unless a mask is provided.
         is_wrapper = (
-            False if "channel_contribution" in self.mmm_model.idata.posterior else True
+            "channel_contribution" not in self.mmm_model.idata.posterior.data_vars
         )
 
         if self.budgets_to_optimize is None:
