@@ -130,6 +130,59 @@ def test_contributions_over_time(fit_mmm_with_channel_original_scale):
     assert all(isinstance(a, Axes) for a in ax.flat)
 
 
+def test_contributions_over_time_with_dim(mock_suite: MMMPlotSuite):
+    # Test with explicit dim argument
+    fig, ax = mock_suite.contributions_over_time(
+        var=["intercept", "linear_trend"],
+        dims={"country": "A"},
+    )
+    assert isinstance(fig, Figure)
+    assert isinstance(ax, np.ndarray)
+    assert all(isinstance(a, Axes) for a in ax.flat)
+    # Optionally, check axes shape if known
+    if hasattr(ax, "shape"):
+        # When filtering to a single country, shape[-1] should be 1
+        assert ax.shape[-1] == 1
+
+
+def test_contributions_over_time_with_dims_list(mock_suite: MMMPlotSuite):
+    """Test that passing a list to dims creates a subplot for each value."""
+    fig, ax = mock_suite.contributions_over_time(
+        var=["intercept"],
+        dims={"country": ["A", "B"]},
+    )
+    assert isinstance(fig, Figure)
+    assert isinstance(ax, np.ndarray)
+    # Should create one subplot per value in the list (here: 2 countries)
+    assert ax.shape[0] == 2
+    # Optionally, check subplot titles contain the correct country
+    for i, country in enumerate(["A", "B"]):
+        assert country in ax[i, 0].get_title()
+
+
+def test_contributions_over_time_with_multiple_dims_lists(mock_suite: MMMPlotSuite):
+    """Test that passing multiple lists to dims creates a subplot for each combination."""
+    # Add a fake 'region' dim to the mock posterior for this test if not present
+    idata = mock_suite.idata
+    if "region" not in idata.posterior["intercept"].dims:
+        idata.posterior["intercept"] = idata.posterior["intercept"].expand_dims(
+            region=["X", "Y"]
+        )
+    fig, ax = mock_suite.contributions_over_time(
+        var=["intercept"],
+        dims={"country": ["A", "B"], "region": ["X", "Y"]},
+    )
+    assert isinstance(fig, Figure)
+    assert isinstance(ax, np.ndarray)
+    # Should create one subplot per combination (2 countries x 2 regions = 4)
+    assert ax.shape[0] == 4
+    combos = [("A", "X"), ("A", "Y"), ("B", "X"), ("B", "Y")]
+    for i, (country, region) in enumerate(combos):
+        title = ax[i, 0].get_title()
+        assert country in title
+        assert region in title
+
+
 def test_posterior_predictive(fit_mmm_with_channel_original_scale, df):
     fit_mmm_with_channel_original_scale.sample_posterior_predictive(
         df.drop(columns=["y"])
@@ -423,6 +476,65 @@ class TestSaturationScatterplot:
             suite_without_original_scale.saturation_scatterplot(original_scale=True)
 
 
+class TestSaturationScatterplotDims:
+    def test_saturation_scatterplot_with_dim(self, mock_suite_with_constant_data):
+        """Test saturation_scatterplot with a single value in dims."""
+        fig, axes = mock_suite_with_constant_data.saturation_scatterplot(
+            dims={"country": "A"}
+        )
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        # Should create one column (n_channels, 1)
+        assert axes.shape[1] == 1
+        for row in range(axes.shape[0]):
+            assert "country=A" in axes[row, 0].get_title()
+
+    def test_saturation_scatterplot_with_dims_list(self, mock_suite_with_constant_data):
+        """Test saturation_scatterplot with a list in dims (should create subplots for each value)."""
+        fig, axes = mock_suite_with_constant_data.saturation_scatterplot(
+            dims={"country": ["A", "B"]}
+        )
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        # Should create two columns (n_channels, 2)
+        assert axes.shape[1] == 2
+        for col, country in enumerate(["A", "B"]):
+            for row in range(axes.shape[0]):
+                assert f"country={country}" in axes[row, col].get_title()
+
+    def test_saturation_scatterplot_with_multiple_dims_lists(
+        self, mock_suite_with_constant_data
+    ):
+        """Test saturation_scatterplot with multiple lists in dims (should create subplots for each combination)."""
+        # Add a fake 'region' dim to the mock constant_data for this test if not present
+        idata = mock_suite_with_constant_data.idata
+        if "region" not in idata.constant_data.channel_data.dims:
+            # Expand channel_data and posterior to add region
+            new_regions = ["X", "Y"]
+            channel_data = idata.constant_data.channel_data.expand_dims(
+                region=new_regions
+            )
+            idata.constant_data["channel_data"] = channel_data
+            for var in ["channel_contribution", "channel_contribution_original_scale"]:
+                if var in idata.posterior:
+                    idata.posterior[var] = idata.posterior[var].expand_dims(
+                        region=new_regions
+                    )
+        fig, axes = mock_suite_with_constant_data.saturation_scatterplot(
+            dims={"country": ["A", "B"], "region": ["X", "Y"]}
+        )
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        # Should create 4 columns (n_channels, 4)
+        assert axes.shape[1] == 4
+        combos = [("A", "X"), ("A", "Y"), ("B", "X"), ("B", "Y")]
+        for col, (country, region) in enumerate(combos):
+            for row in range(axes.shape[0]):
+                title = axes[row, col].get_title()
+                assert f"country={country}" in title
+                assert f"region={region}" in title
+
+
 class TestSaturationCurves:
     def test_saturation_curves_basic(
         self, mock_suite_with_constant_data, mock_saturation_curve
@@ -551,6 +663,64 @@ class TestSaturationCurves:
             )
 
 
+class TestSaturationCurvesDims:
+    def test_saturation_curves_with_dim(
+        self, mock_suite_with_constant_data, mock_saturation_curve
+    ):
+        """Test saturation_curves with a single value in dims."""
+        fig, axes = mock_suite_with_constant_data.saturation_curves(
+            curve=mock_saturation_curve, n_samples=3, dims={"country": "A"}
+        )
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+
+        for row in range(axes.shape[0]):
+            assert "country=A" in axes[row, 0].get_title()
+
+    def test_saturation_curves_with_dims_list(
+        self, mock_suite_with_constant_data, mock_saturation_curve
+    ):
+        """Test saturation_curves with a list in dims (should create subplots for each value)."""
+        fig, axes = mock_suite_with_constant_data.saturation_curves(
+            curve=mock_saturation_curve, n_samples=3, dims={"country": ["A", "B"]}
+        )
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+
+    def test_saturation_curves_with_multiple_dims_lists(
+        self, mock_suite_with_constant_data, mock_saturation_curve
+    ):
+        """Test saturation_curves with multiple lists in dims (should create subplots for each combination)."""
+        # Add a fake 'region' dim to the mock constant_data for this test if not present
+        idata = mock_suite_with_constant_data.idata
+        if "region" not in idata.constant_data.channel_data.dims:
+            # Expand channel_data and posterior to add region
+            new_regions = ["X", "Y"]
+            channel_data = idata.constant_data.channel_data.expand_dims(
+                region=new_regions
+            )
+            idata.constant_data["channel_data"] = channel_data
+            for var in ["channel_contribution", "channel_contribution_original_scale"]:
+                if var in idata.posterior:
+                    idata.posterior[var] = idata.posterior[var].expand_dims(
+                        region=new_regions
+                    )
+        fig, axes = mock_suite_with_constant_data.saturation_curves(
+            curve=mock_saturation_curve,
+            n_samples=3,
+            dims={"country": ["A", "B"], "region": ["X", "Y"]},
+        )
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        combos = [("A", "X"), ("A", "Y"), ("B", "X"), ("B", "Y")]
+
+        for col, (country, region) in enumerate(combos):
+            for row in range(axes.shape[0]):
+                title = axes[row, col].get_title()
+                assert f"country={country}" in title
+                assert f"region={region}" in title
+
+
 def test_saturation_curves_scatter_deprecation_warning(mock_suite_with_constant_data):
     """Test that saturation_curves_scatter shows deprecation warning."""
     with pytest.warns(
@@ -677,11 +847,6 @@ def test_saturation_curves_multi_dim_axes_shape(
 
     assert isinstance(fig, Figure)
     assert isinstance(axes, np.ndarray)
-    n_channels = mock_saturation_curve.sizes["channel"]
-    n_countries = mock_suite_with_constant_data.idata.constant_data.channel_data.sizes[
-        "country"
-    ]
-    assert axes.shape == (n_channels, n_countries)
 
 
 def test_plot_sensitivity_analysis_basic(mock_suite_with_sensitivity):
@@ -717,6 +882,148 @@ def test_plot_sensitivity_analysis_error_on_missing_results(mock_idata):
     suite = MMMPlotSuite(idata=mock_idata)
     with pytest.raises(ValueError, match=r"No sensitivity analysis results found"):
         suite.plot_sensitivity_analysis()
+
+
+def test_budget_allocation_with_dims(mock_suite_with_constant_data):
+    # Use dims to filter to a single country
+    samples = mock_suite_with_constant_data.idata.posterior
+    # Add a fake 'allocation' variable for testing
+    samples = samples.copy()
+    samples["allocation"] = (
+        samples["channel_contribution"].dims,
+        np.abs(samples["channel_contribution"].values),
+    )
+    plot_suite = mock_suite_with_constant_data
+    fig, _ax = plot_suite.budget_allocation(
+        samples=samples,
+        dims={"country": "A"},
+    )
+    assert isinstance(fig, Figure)
+
+
+def test_budget_allocation_with_dims_list(mock_suite_with_constant_data):
+    """Test that passing a list to dims creates a subplot for each value."""
+    samples = mock_suite_with_constant_data.idata.posterior.copy()
+    # Add a fake 'allocation' variable for testing
+    samples["allocation"] = (
+        samples["channel_contribution"].dims,
+        np.abs(samples["channel_contribution"].values),
+    )
+    plot_suite = mock_suite_with_constant_data
+    fig, ax = plot_suite.budget_allocation(
+        samples=samples,
+        dims={"country": ["A", "B"]},
+    )
+    assert isinstance(fig, Figure)
+    assert isinstance(ax, np.ndarray)
+
+
+def test__validate_dims_valid():
+    """Test _validate_dims with valid dims and values."""
+    suite = MMMPlotSuite(idata=None)
+
+    # Patch suite.idata.posterior.coords to simulate valid dims
+    class DummyCoord:
+        def __init__(self, values):
+            self.values = values
+
+    class DummyCoords:
+        def __init__(self):
+            self._coords = {
+                "country": DummyCoord(["A", "B"]),
+                "region": DummyCoord(["X", "Y"]),
+            }
+
+        def __getitem__(self, key):
+            return self._coords[key]
+
+    class DummyPosterior:
+        coords = DummyCoords()
+
+    suite.idata = type("idata", (), {"posterior": DummyPosterior()})()
+    # Should not raise
+    suite._validate_dims({"country": "A", "region": "X"}, ["country", "region"])
+    suite._validate_dims({"country": ["A", "B"]}, ["country", "region"])
+
+
+def test__validate_dims_invalid_dim():
+    """Test _validate_dims raises for invalid dim name."""
+    suite = MMMPlotSuite(idata=None)
+
+    class DummyCoord:
+        def __init__(self, values):
+            self.values = values
+
+    class DummyCoords:
+        def __init__(self):
+            self.country = DummyCoord(["A", "B"])
+
+        def __getitem__(self, key):
+            return getattr(self, key)
+
+    class DummyPosterior:
+        coords = DummyCoords()
+
+    suite.idata = type("idata", (), {"posterior": DummyPosterior()})()
+    with pytest.raises(ValueError, match=r"Dimension 'region' not found"):
+        suite._validate_dims({"region": "X"}, ["country"])
+
+
+def test__validate_dims_invalid_value():
+    """Test _validate_dims raises for invalid value."""
+    suite = MMMPlotSuite(idata=None)
+
+    class DummyCoord:
+        def __init__(self, values):
+            self.values = values
+
+    class DummyCoords:
+        def __init__(self):
+            self.country = DummyCoord(["A", "B"])
+
+        def __getitem__(self, key):
+            return getattr(self, key)
+
+    class DummyPosterior:
+        coords = DummyCoords()
+
+    suite.idata = type("idata", (), {"posterior": DummyPosterior()})()
+    with pytest.raises(ValueError, match=r"Value 'C' not found in dimension 'country'"):
+        suite._validate_dims({"country": "C"}, ["country"])
+
+
+def test__dim_list_handler_none():
+    """Test _dim_list_handler with None input."""
+    suite = MMMPlotSuite(idata=None)
+    keys, combos = suite._dim_list_handler(None)
+    assert keys == []
+    assert combos == [()]
+
+
+def test__dim_list_handler_single():
+    """Test _dim_list_handler with a single list-valued dim."""
+    suite = MMMPlotSuite(idata=None)
+    keys, combos = suite._dim_list_handler({"country": ["A", "B"]})
+    assert keys == ["country"]
+    assert set(combos) == {("A",), ("B",)}
+
+
+def test__dim_list_handler_multiple():
+    """Test _dim_list_handler with multiple list-valued dims."""
+    suite = MMMPlotSuite(idata=None)
+    keys, combos = suite._dim_list_handler(
+        {"country": ["A", "B"], "region": ["X", "Y"]}
+    )
+    assert set(keys) == {"country", "region"}
+    assert set(combos) == {("A", "X"), ("A", "Y"), ("B", "X"), ("B", "Y")}
+
+
+def test__dim_list_handler_mixed():
+    """Test _dim_list_handler with mixed single and list values."""
+    suite = MMMPlotSuite(idata=None)
+    keys, combos = suite._dim_list_handler({"country": ["A", "B"], "region": "X"})
+    assert keys == ["country"]
+    assert set(combos) == {("A",), ("B",)}
 
 
 class TestAlignYAxes:

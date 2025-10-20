@@ -1,0 +1,83 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases_new_customer.rst:2
+#: a73630f96b874b6a9e60430f1cb1bdfa
+msgid "BetaGeoBetaBinomModel.expected\\_purchases\\_new\\_customer"
+msgstr "BetaGeoBetaBinomModel.expected\\_purchases\\_new\\_customer"
+
+#: 89ea3bd9463b4156b22126362c51a101 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases_new_customer:2
+msgid ""
+"Predict the expected number of purchases for a new customer across *t* time "
+"periods."
+msgstr ""
+"Prediga el número esperado de compras para un nuevo cliente a lo largo de "
+"*t* períodos de tiempo."
+
+#: 925a29a8db0c472c8055d482a5332684 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases_new_customer:4
+msgid "Adapted from equation (8) in Bruce Hardie's notes [1]:"
+msgstr "Adaptado de la ecuación (8) en las notas de Bruce Hardie [1]:"
+
+#: 98573475a7724289a0aac8d574eea72f of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases_new_customer
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: de33b501a97f43e59257a21e4a946638 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases_new_customer:8
+msgid "**t** : :term:`numpy:array_like`"
+msgstr "**t** : :term:`numpy:array_like`"
+
+#: d94733b030614d0080de0a343650f6a2 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases_new_customer:7
+msgid "numpy:array_like"
+msgstr "numpy:similar_a_array"
+
+#: d29c695868c148268e97290690fda699 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases_new_customer:9
+msgid "Number of time periods over which to estimate purchases."
+msgstr "Número de períodos de tiempo sobre los cuales estimar las compras."
+
+#: a151320d3e5b44ca8914e46cd2487754 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases_new_customer:23
+msgid "References"
+msgstr "Referencias"
+
+#: 6bb2f968facc444eafde54b8ead5e931 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases_new_customer:24
+msgid ""
+"Peter Fader, Bruce Hardie, and Jen Shang. \"Customer-Base Analysis in a "
+"Discrete-Time Noncontractual Setting\". Marketing Science, Vol. 29, No. 6 "
+"(Nov-Dec, 2010), pp. 1086-1108. "
+"https://www.brucehardie.com/papers/020/fader_et_al_mksc_10.pdf"
+msgstr ""
+"Peter Fader, Bruce Hardie y Jen Shang. \"Análisis de la Base de Clientes en "
+"un Entorno No Contractual de Tiempo Discreto\". Marketing Science, Vol. 29, "
+"No. 6 (Nov-Dic, 2010), pp. 1086-1108. "
+"https://www.brucehardie.com/papers/020/fader_et_al_mksc_10.pdf"
+
+#: bde428c78d8449b885173ee0f6770252 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases_new_customer:31
+msgid "[R8ed10df4ab63-1]_"
+msgstr "[R8ed10df4ab63-1]_"

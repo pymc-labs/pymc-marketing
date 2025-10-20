@@ -1,0 +1,73 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.preprocessing.StandardizeControls.rst:2
+#: c28debebdc824d08973a6883044f5a83
+msgid "StandardizeControls"
+msgstr "EstandarizarControles"
+
+#: ../source/api/generated/pymc_marketing.mmm.preprocessing.StandardizeControls.rst:23:<autosummary>:1
+#: 766661498cf6442cb27e6d2dc7abf9db d6f1afe099fa47babd1dcfe5b0823249 of
+#: pymc_marketing.mmm.preprocessing.StandardizeControls:2
+msgid "StandardScaler for the control data."
+msgstr "StandardScaler para los datos de control."
+
+#: ../source/api/generated/pymc_marketing.mmm.preprocessing.StandardizeControls.rst:12
+#: d6a4f7a04a2e4eb097aeed7b41eb20d0
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.preprocessing.StandardizeControls.rst:23:<autosummary>:1
+#: b9a28dac9dbe47e0987bb8be07550d14
+msgid ""
+":py:obj:`StandardizeControls.__init__ "
+"<pymc_marketing.mmm.preprocessing.StandardizeControls.__init__>`\\ "
+"\\(\\*args\\, \\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`StandardizeControls.__init__ "
+"<pymc_marketing.mmm.preprocessing.StandardizeControls.__init__>`\\ "
+"\\(\\*args\\, \\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.preprocessing.StandardizeControls.rst:23:<autosummary>:1
+#: 7dad79c1bff740a7adacfe8819b873d8
+msgid ""
+":py:obj:`StandardizeControls.standardize_control_data "
+"<pymc_marketing.mmm.preprocessing.StandardizeControls.standardize_control_data>`\\"
+" \\(data\\)"
+msgstr ""
+":py:obj:`StandardizeControls.standardize_control_data "
+"<pymc_marketing.mmm.preprocessing.StandardizeControls.standardize_control_data>`\\"
+" \\(datos\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.preprocessing.StandardizeControls.rst:25
+#: 9abada9b93124bd6bc808cbc19d49bfe
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mmm.preprocessing.StandardizeControls.rst:28:<autosummary>:1
+#: 8c862a7798554c8cb0188617a6381f8a
+msgid ""
+":py:obj:`control_columns "
+"<pymc_marketing.mmm.preprocessing.StandardizeControls.control_columns>`\\"
+msgstr ""
+":py:obj:`control_columns "
+"<pymc_marketing.mmm.preprocessing.StandardizeControls.control_columns>`"

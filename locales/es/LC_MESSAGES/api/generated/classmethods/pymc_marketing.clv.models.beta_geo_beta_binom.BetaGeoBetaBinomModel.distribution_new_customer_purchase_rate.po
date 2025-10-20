@@ -1,0 +1,110 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_purchase_rate.rst:2
+#: 0afa2c52861d400e9ab417887c6d5456
+msgid "BetaGeoBetaBinomModel.distribution\\_new\\_customer\\_purchase\\_rate"
+msgstr "BetaGeoBetaBinomModel.tasa\\_de\\_compra\\_de\\_nuevos\\_clientes"
+
+#: 010b1bb3050a4608a923bf37cb4e7859 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_purchase_rate:2
+msgid ""
+"Sample from the Beta distribution representing purchase probabilities for "
+"new customers."
+msgstr ""
+"Muestra de la distribución Beta que representa las probabilidades de compra "
+"para nuevos clientes."
+
+#: df27c64c40ed4ca29a0d9cd6e0c98086 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_purchase_rate:4
+msgid ""
+"This is the probability a new customer will make a purchase given they are "
+"still active."
+msgstr ""
+"Esta es la probabilidad de que un nuevo cliente realice una compra dado que "
+"aún está activo."
+
+#: 561c82922e7047de86a10c6d4f378c1f of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_purchase_rate
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: b82e61bf27d440058b6a517e760acaef of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_purchase_rate:8
+msgid "**data** : :obj:`~pandas.DataFrame`, optional"
+msgstr "**datos** : :obj:`~pandas.DataFrame`, opcional"
+
+#: 9611b3c7903447938770a627570ceccb of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_purchase_rate:7
+msgid "DataFrame, optional"
+msgstr "DataFrame, opcional"
+
+#: 66767d5dc4bf46058261545463f804cf of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_purchase_rate:9
+msgid "DataFrame containing the following columns:"
+msgstr "DataFrame que contiene las siguientes columnas:"
+
+#: 7535ef72051a4532ab0dccce4bf4518c of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_purchase_rate:11
+msgid "`customer_id`: Unique customer identifier"
+msgstr "`customer_id`: Identificador único del cliente"
+
+#: 206be97120e94c969bd1d6461200e73e of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_purchase_rate:13
+msgid "If not provided, predictions will be ran with data used to fit model."
+msgstr ""
+"Si no se proporciona, las predicciones se realizarán con los datos "
+"utilizados para ajustar el modelo."
+
+#: 4dbf48c0157946649a13d47263568804 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_purchase_rate:15
+msgid "**random_seed** : :obj:`~numpy.random.RandomState`, optional"
+msgstr "**random_seed** : :obj:`~numpy.random.RandomState`, opcional"
+
+#: f3fda66ff45d4d42b85b9f0add016e1c of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_purchase_rate:14
+msgid "RandomState, optional"
+msgstr "RandomState, opcional"
+
+#: 03474ab4274d4059a39f8c16d21a5201 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_purchase_rate:16
+msgid "Random state to use for sampling."
+msgstr "Estado aleatorio a utilizar para muestreo."
+
+#: 5d22319b1cca40e09e3ae79968a8987e of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_purchase_rate
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 7e282346dad344c3a0a4769bb81e0185 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_purchase_rate:22
+msgid ":obj:`~xarray.Dataset`"
+msgstr ":obj:`~xarray.Dataset`"
+
+#: 5b1fbf7165184e9f96e6b7d4c656aaeb of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_purchase_rate:23
+msgid ""
+"Dataset containing the posterior samples for the population-level purchase "
+"rate."
+msgstr ""
+"Conjunto de datos que contiene las muestras posteriores para la tasa de "
+"compra a nivel de población."

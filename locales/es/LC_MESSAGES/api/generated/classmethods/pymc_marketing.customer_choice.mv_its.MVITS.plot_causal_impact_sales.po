@@ -1,0 +1,99 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.customer_choice.mv_its.MVITS.plot_causal_impact_sales.rst:2
+#: 2d7a5797f3a542638aeb2174812aeccb
+msgid "MVITS.plot\\_causal\\_impact\\_sales"
+msgstr "MVITS.plot\\_impacto\\_causal\\_ventas"
+
+#: e0de557ef394490ca995dc56fce12ec0 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_causal_impact_sales:2
+msgid "Plot causal impact of sales."
+msgstr "Trazar el impacto causal de las ventas."
+
+#: 121c43fd61dc4036a5f75493cbf15251 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_causal_impact_sales:4
+msgid ""
+"Plot the inferred causal impact of the new product on the sales of the "
+"existing products."
+msgstr ""
+"Trace el impacto causal inferido del nuevo producto en las ventas de los "
+"productos existentes."
+
+#: 974fa3821f844fc793791f6c16c23f69 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_causal_impact_sales:7
+msgid ""
+"Note: if we compare \"mu\" then we are comparing the expected sales, if we "
+"compare \"y\" then we are comparing the actual sales"
+msgstr ""
+"Nota: si comparamos \"mu\" entonces estamos comparando las ventas esperadas,"
+" si comparamos \"y\" entonces estamos comparando las ventas reales."
+
+#: fd2be3dd6596428798cd01b5a8344581 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_causal_impact_sales
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: c3862e57b4ce40c99279a39a99eab3e9 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_causal_impact_sales:12
+msgid "**variable** : :class:`python:str`, optional"
+msgstr "**variable** : :class:`python:str`, opcional"
+
+#: de25d5d9fedc4066bbb56b212b16cd8b of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_causal_impact_sales:11
+msgid "python:str, optional"
+msgstr "python:str, opcional"
+
+#: cca6435f57844104b76829620da03402 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_causal_impact_sales:13
+msgid "The variable to compare. Either \"mu\" or \"y\"."
+msgstr "La variable a comparar. Puede ser \"mu\" o \"y\"."
+
+#: 85e7db6f85e44d02ab5e4dde2e255b26 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_causal_impact_sales:15
+msgid "**ax** : :obj:`plt.Axes`, optional"
+msgstr "**ax** : :obj:`plt.Axes`, opcional"
+
+#: be3855dce2084c83829b896c11c145d4 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_causal_impact_sales:14
+msgid "plt.Axes, optional"
+msgstr "plt.Axes, opcional"
+
+#: 41b4624e29c44a488fdb93bfec4fea48 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_causal_impact_sales:16
+msgid "The matplotlib axes."
+msgstr "Los ejes de matplotlib."
+
+#: 72298a385bac48a49d08f9c29ded7279 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_causal_impact_sales
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 134528882d7943b9a8e997ff1c3b0398 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_causal_impact_sales:22
+msgid ":obj:`plt.Axes`"
+msgstr ":obj:`plt.Axes`"
+
+#: f1e33bb27a22488d9c8cae9a0a5a780c of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_causal_impact_sales:23
+msgid "The new or modified matplotlib axes."
+msgstr "Los nuevos ejes de matplotlib o los ejes modificados."

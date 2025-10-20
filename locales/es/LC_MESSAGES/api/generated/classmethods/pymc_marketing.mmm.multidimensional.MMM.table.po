@@ -1,0 +1,61 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.multidimensional.MMM.table.rst:2
+#: b59cfe1d11ef4e838fe249836d8f38bb
+msgid "MMM.table"
+msgstr "MMM.tabla"
+
+#: 79294f6bf29a45a3a5362cfd8e9c5b09 of
+#: pymc_marketing.model_builder.ModelBuilder.table:2
+msgid "Get the summary table of the model."
+msgstr "Obtenga la tabla resumen del modelo."
+
+#: 673ecb5da74141aa86088db9cc955915 of
+#: pymc_marketing.model_builder.ModelBuilder.table
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: c0a7a8645e624da5b25f75503ec2a571 of
+#: pymc_marketing.model_builder.ModelBuilder.table:7
+msgid "**\\*\\*model_table_kwargs**"
+msgstr "**\\*\\*model_table_kwargs**"
+
+#: 9d9f3e9a019744b3a119924ca19dd7f3 of
+#: pymc_marketing.model_builder.ModelBuilder.table:8
+msgid "Keyword arguments for the `model_table` function"
+msgstr "Argumentos de palabras clave para la función `model_table`"
+
+#: 15b29927442742ee93c4e695908c4026 of
+#: pymc_marketing.model_builder.ModelBuilder.table
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: c2e8b6e183dc4e10b5b923d0a407d7cf of
+#: pymc_marketing.model_builder.ModelBuilder.table:14
+msgid ":obj:`rich.table.Table`"
+msgstr ":obj:`rich.table.Table`"
+
+#: e4375d2926d14f81b26f2e08207949f6 of
+#: pymc_marketing.model_builder.ModelBuilder.table:15
+msgid "A rich table containing the summary of the model."
+msgstr "Una tabla rica que contiene el resumen del modelo."

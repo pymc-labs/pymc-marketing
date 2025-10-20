@@ -1,0 +1,210 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.customer_choice.nested_logit.NestedLogit.make_P_nest.rst:2
+#: ec633b0b0f564e7697555acd1edcdf66
+msgid "NestedLogit.make\\_P\\_nest"
+msgstr "NestedLogit.make\\_P\\_nest"
+
+#: 7a32ef9277444fb0b10bf00bae2bdbe5 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_P_nest:2
+msgid "Calculate the probability of choosing a nest."
+msgstr "Calcule la probabilidad de elegir un nido."
+
+#: 0543be630245481087d65d82052f9b5a of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_P_nest:4
+msgid ""
+"This function collates the exponentiated inclusive value (`exp_W_nest`) for "
+"each alternative group (nest), sums them, and then normalizes across nests "
+"to obtain the probability of selecting a nest. The within-nest conditional "
+"probabilities (`P_y_given`) are computed in the `make_exp_nest` method."
+msgstr ""
+"Esta función recopila el valor inclusivo exponenciado (`exp_W_nest`) para "
+"cada grupo alternativo (nido), los suma y luego los normaliza entre los "
+"nidos para obtener la probabilidad de seleccionar un nido. Las "
+"probabilidades condicionales dentro del nido (`P_y_given`) se calculan en el"
+" método `make_exp_nest`."
+
+#: 4d298327435a4c808daa03583398fce2 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_P_nest:10
+msgid ""
+"This is used within the PyMC model to construct the **tree-based "
+"aggregation** of utilities, where lower-level nodes (alternative-specific "
+"utilities) are passed upward in the tree structure to compute nest-level and"
+" top-level choice probabilities."
+msgstr ""
+"Esto se utiliza dentro del modelo PyMC para construir la **agregación basada"
+" en árboles** de utilidades, donde los nodos de nivel inferior (utilidades "
+"específicas de alternativas) se transmiten hacia arriba en la estructura del"
+" árbol para calcular las probabilidades de elección a nivel de nido y a "
+"nivel superior."
+
+#: 395eb4f15b094a8d8511440dd936eeb7 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_P_nest
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: ddd560fa83484c47bc2c9cdfc85fdcd5 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_P_nest:17
+msgid "**U** : :class:`~pytensor.tensor.TensorVariable`"
+msgstr "**U** : :class:`~pytensor.tensor.TensorVariable`"
+
+#: 93d63c00ce1145a6aa2198cc27045ad8 c3ae83e3e28648c0b4cd0fe146600f1d
+#: f87a1ad374f948e0ae942c6de45d4b93 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_P_nest:16
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_P_nest:22
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_P_nest:25
+msgid "TensorVariable"
+msgstr "TensorVariable"
+
+#: 5fbf67549b694d7b9db7434a2b7bff42 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_P_nest:18
+msgid "Tensor of systematic utilities with shape `(n_obs, n_alternatives)`."
+msgstr ""
+"Tensor de utilidades sistemáticas con forma `(n_obs, n_alternatives)`."
+
+#: 615f511d1bb94f889806af45c672e6b0 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_P_nest:20
+msgid "**W** : :class:`~pytensor.tensor.TensorVariable` | :data:`python:None`"
+msgstr ""
+"**W** : :class:`~pytensor.tensor.TensorVariable` | :data:`python:None`"
+
+#: fa77e91ade264702ba12dad770903c82 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_P_nest:19
+msgid "TensorVariable | python:None"
+msgstr "TensorVariable | python:None"
+
+#: 6033fef852084ce186aa10a73f476923 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_P_nest:21
+msgid "Fixed covariates design matrix (if used), else `None`."
+msgstr ""
+"Matriz de diseño de covariables fijas (si se utiliza), de lo contrario "
+"`None`."
+
+#: 5a6e9743ab45488ca58de7bc4125bc5d of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_P_nest:23
+msgid "**betas_fixed** : :class:`~pytensor.tensor.TensorVariable`"
+msgstr "**betas_fixed** : :class:`~pytensor.tensor.TensorVariable`"
+
+#: 8f96859000bd4e3b8426c2ca393ae2e9 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_P_nest:24
+msgid "Alternative-specific coefficients for the fixed covariates."
+msgstr ""
+"Coeficientes específicos de la alternativa para las covariables fijas."
+
+#: fac3915dad4240d6a2a5316c5a26ad7d of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_P_nest:26
+msgid "**lambdas_nests** : :class:`~pytensor.tensor.TensorVariable`"
+msgstr "**lambdas_nests** : :class:`~pytensor.tensor.TensorVariable`"
+
+#: c0c3e65c5a7d4c29a15db2d004d6dbe9 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_P_nest:27
+msgid "A Beta random variable for each of the nests"
+msgstr "Una variable aleatoria Beta para cada uno de los nidos"
+
+#: 4b9ccc1436424beebdad2dee390fc87f of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_P_nest:29
+msgid "**level** : :class:`python:str`"
+msgstr "**nivel** : :class:`python:str`"
+
+#: a7690484449f4eca8fea6a3f77c362a7 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_P_nest:28
+msgid "python:str"
+msgstr "python:str"
+
+#: d4f2a385eee24d7082140ee8389db416 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_P_nest:30
+msgid ""
+"Which nesting level to compute (\"top\" or \"mid\"), indicating whether to "
+"compute probabilities for top-level or mid-level nests."
+msgstr ""
+"Qué nivel de anidación calcular (\"superior\" o \"medio\"), indicando si se "
+"deben calcular probabilidades para nidos de nivel superior o de nivel medio."
+
+#: 888a2384bae843ce90b837b8b3d564c0 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_P_nest
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 24b1cec1146343359238bfa213dd4f9c of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_P_nest:37
+msgid ""
+"**conditional_probs** : :class:`python:dict`\\[:class:`python:str`, "
+":class:`python:dict`\\[:class:`python:str`, "
+":class:`~pytensor.tensor.TensorVariable`]]"
+msgstr ""
+"**conditional_probs** : :class:`python:dict`\\[:class:`python:str`, "
+":class:`python:dict`\\[:class:`python:str`, "
+":class:`~pytensor.tensor.TensorVariable`]]"
+
+#: 2a6a686c8a8d47f6b9277996286420bd of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_P_nest:36
+msgid "python:dict[python:str, python:dict[python:str, TensorVariable]]"
+msgstr "python:dict[python:str, python:dict[python:str, TensorVariable]]"
+
+#: f9fcb856af9943469e645b6b127be919 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_P_nest:38
+msgid ""
+"Dictionary for each nest containing: - \"exp\": the exponentiated inclusive "
+"value of the nest. - \"P_y_given\": conditional choice probabilities within "
+"the nest."
+msgstr ""
+"Diccionario para cada nido que contiene: - \"exp\": el valor inclusivo "
+"exponenciado del nido. - \"P_y_given\": probabilidades de elección "
+"condicionales dentro del nido."
+
+#: 29ffe389cc2442ed8336890f42970fd0 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_P_nest:42
+msgid ""
+"**nest_probs** : :class:`python:dict`\\[:class:`python:str`, "
+":class:`~pytensor.tensor.TensorVariable`]"
+msgstr ""
+"**nest_probs** : :class:`python:dict`\\[:class:`python:str`, "
+":class:`~pytensor.tensor.TensorVariable`]"
+
+#: e540621979ad462ea4d1f0314865ca5f of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_P_nest:41
+msgid "python:dict[python:str, TensorVariable]"
+msgstr "python:dict[python:str, TensorVariable]"
+
+#: 65f85ce0448b4857867dde8359c8f84c of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_P_nest:43
+msgid "Dictionary mapping each nest to its overall selection probability."
+msgstr ""
+"Diccionario que mapea cada nido a su probabilidad de selección general."
+
+#: 42ed5b2c84594b4594b12d578d8ab1d9 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_P_nest
+msgid "Raises"
+msgstr "Aumentos"
+
+#: 167461ad2fc24bd89c35b0e159a62ed9 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_P_nest:50
+msgid ":obj:`ValueError`"
+msgstr ":obj:`ValueError`"
+
+#: abed42ef22344a88a9de92af9d489629 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_P_nest:51
+msgid "If the nesting structure is invalid or the nest name is not found."
+msgstr ""
+"Si la estructura de anidamiento es inválida o no se encuentra el nombre del "
+"anidamiento."

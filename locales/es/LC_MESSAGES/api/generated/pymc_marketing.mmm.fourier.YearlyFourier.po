@@ -1,0 +1,712 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:2
+#: 0947cc81daf24c52a5e51092818c3aba
+msgid "YearlyFourier"
+msgstr "AnálisisAnualFourier"
+
+#: 64b7667456f348b38eb1ceb9b54a8bfa of
+#: pymc_marketing.mmm.fourier.YearlyFourier:2
+msgid "Yearly fourier seasonality."
+msgstr "Estacionalidad de Fourier anual."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:7
+#: 998c76646ff0495fbfcb4164fba19830
+msgid ""
+"(:download:`Source code "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-fourier-"
+"YearlyFourier-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-fourier-"
+"YearlyFourier-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-fourier-"
+"YearlyFourier-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-fourier-"
+"YearlyFourier-1.pdf>`)"
+msgstr ""
+"(:download:`Código fuente "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-fourier-"
+"YearlyFourier-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-fourier-"
+"YearlyFourier-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-fourier-"
+"YearlyFourier-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-fourier-"
+"YearlyFourier-1.pdf>`)"
+
+#: 04eae9c4d6ca429995ef69be76e66abb of
+#: pymc_marketing.mmm.fourier.YearlyFourier:30
+msgid "n_order"
+msgstr "n_order"
+
+#: c5a719345402404d9e91d2b21ce444bf of
+#: pymc_marketing.mmm.fourier.YearlyFourier:-1
+msgid "int"
+msgstr "int"
+
+#: 7008ae36a5314fcf810c33c721856bb7 of
+#: pymc_marketing.mmm.fourier.YearlyFourier:31
+msgid "Number of fourier modes to use."
+msgstr "Número de modos de Fourier a utilizar."
+
+#: 7b53e17a0ba44131b4b77930370ff54b of
+#: pymc_marketing.mmm.fourier.YearlyFourier:32
+msgid "prefix"
+msgstr "prefijo"
+
+#: 8f4035accce34bdb9c4c9ca8464dd899 9176ab83c49044a88a44009bdf18bf90
+#: c0d77f9aa36147dc90f88727eedcbb21 of
+#: pymc_marketing.mmm.fourier.YearlyFourier:-1
+msgid "str, optional"
+msgstr "str, opcional"
+
+#: 929fb9e50bf048119576d8b4412ed606 of
+#: pymc_marketing.mmm.fourier.YearlyFourier:33
+msgid ""
+"Alternative prefix for the fourier seasonality, by default None or "
+"\"fourier\""
+msgstr ""
+"Prefijo alternativo para la estacionalidad de Fourier, por defecto Ninguno o"
+" \"fourier\""
+
+#: fd5580fe655644ebb5947868494217f2 of
+#: pymc_marketing.mmm.fourier.YearlyFourier:35
+msgid "prior"
+msgstr "anterior"
+
+#: 0efb8b63ae6a4052aa80d2c623dc233c of
+#: pymc_marketing.mmm.fourier.YearlyFourier:-1
+msgid "Prior | VariableFactory, optional"
+msgstr "Prior | VariableFactory, opcional"
+
+#: c371e71c98cf41458142c84cd2372c16 of
+#: pymc_marketing.mmm.fourier.YearlyFourier:36
+msgid ""
+"Prior distribution or VariableFactory for the fourier seasonality beta "
+"parameters, by default `Prior(\"Laplace\", mu=0, b=1)`"
+msgstr ""
+"Distribución a priori o VariableFactory para los parámetros beta de la "
+"estacionalidad de Fourier, por defecto `Prior(\"Laplace\", mu=0, b=1)`"
+
+#: 9d926d0bad1d48c9ba96edae8171804a of
+#: pymc_marketing.mmm.fourier.YearlyFourier:38
+msgid "name"
+msgstr "nombre"
+
+#: c6cebd038b164510b72a371134e6997d ea0ab9dc431649f5a57ff32236b13bec of
+#: pymc_marketing.mmm.fourier.YearlyFourier:39
+#: pymc_marketing.mmm.fourier.YearlyFourier:41
+msgid ""
+"Name of the variable that multiplies the fourier modes, by default None"
+msgstr ""
+"Nombre de la variable que multiplica los modos de Fourier, por defecto None"
+
+#: 55360a3546b74df7983adb31e12e9b32 of
+#: pymc_marketing.mmm.fourier.YearlyFourier:40
+msgid "variable_name"
+msgstr "nombre_variable"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:12
+#: 26c5a1b4c8144b7d9c925ef3e87d40dc
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: 345da0336ac247b191681acd62e20c4b
+msgid ""
+":py:obj:`YearlyFourier.__init__ "
+"<pymc_marketing.mmm.fourier.YearlyFourier.__init__>`\\ \\(\\*\\*data\\)"
+msgstr ""
+":py:obj:`YearlyFourier.__init__ "
+"<pymc_marketing.mmm.fourier.YearlyFourier.__init__>`\\ \\(\\*\\*data\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: 12130a1047754c8bad75f6b4cf3aa54f
+msgid ""
+"Create a new model by parsing and validating input data from keyword "
+"arguments."
+msgstr ""
+"Cree un nuevo modelo analizando y validando los datos de entrada de los "
+"argumentos de palabras clave."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: 71b66c0d0eea4521b90c8bd6c34a6805
+msgid ""
+":py:obj:`YearlyFourier.apply "
+"<pymc_marketing.mmm.fourier.YearlyFourier.apply>`\\ \\(dayofperiod\\[\\, "
+"...\\]\\)"
+msgstr ""
+":py:obj:`YearlyFourier.apply "
+"<pymc_marketing.mmm.fourier.YearlyFourier.apply>`\\ \\(díadeperíodo\\[\\, "
+"...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: 70ceb087b9974cbbb0e7b942cfde57d9
+msgid "Apply fourier seasonality to day of year."
+msgstr "Aplicar estacionalidad de Fourier al día del año."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: 8af5b6c277fc41f6b015dd50873d4c3e
+msgid ""
+":py:obj:`YearlyFourier.construct "
+"<pymc_marketing.mmm.fourier.YearlyFourier.construct>`\\ "
+"\\(\\[\\_fields\\_set\\]\\)"
+msgstr ""
+":py:obj:`YearlyFourier.construct "
+"<pymc_marketing.mmm.fourier.YearlyFourier.construct>`\\ "
+"\\(\\[\\_fields\\_set\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: dc080b85c0334956b1bd72b27ba516d8
+msgid ""
+":py:obj:`YearlyFourier.copy "
+"<pymc_marketing.mmm.fourier.YearlyFourier.copy>`\\ \\(\\*\\[\\, include\\, "
+"exclude\\, ...\\]\\)"
+msgstr ""
+":py:obj:`YearlyFourier.copy "
+"<pymc_marketing.mmm.fourier.YearlyFourier.copy>`\\ \\(\\*\\[\\, incluir\\, "
+"excluir\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: e0c0d31ce0a84495afc1ced24fe210dd
+msgid "Returns a copy of the model."
+msgstr "Devuelve una copia del modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: 31e967e1d3d14eee8e904696edafd3b1
+msgid ""
+":py:obj:`YearlyFourier.dict "
+"<pymc_marketing.mmm.fourier.YearlyFourier.dict>`\\ \\(\\*\\[\\, include\\, "
+"exclude\\, ...\\]\\)"
+msgstr ""
+":py:obj:`YearlyFourier.dict "
+"<pymc_marketing.mmm.fourier.YearlyFourier.dict>`\\ \\(\\*\\[\\, incluir\\, "
+"excluir\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: cd2f3c1682554eff987be72589eef5d9
+msgid ""
+":py:obj:`YearlyFourier.from_dict "
+"<pymc_marketing.mmm.fourier.YearlyFourier.from_dict>`\\ \\(data\\)"
+msgstr ""
+":py:obj:`YearlyFourier.from_dict "
+"<pymc_marketing.mmm.fourier.YearlyFourier.from_dict>`\\ \\(datos\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: 4acc6c195f574b51a18beb34e6aa9253
+msgid "Deserialize the Fourier seasonality."
+msgstr "Deserializar la estacionalidad de Fourier."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: 99a6552862c444ad9e7518eb4a34b4d2
+msgid ""
+":py:obj:`YearlyFourier.from_orm "
+"<pymc_marketing.mmm.fourier.YearlyFourier.from_orm>`\\ \\(obj\\)"
+msgstr ""
+":py:obj:`YearlyFourier.from_orm "
+"<pymc_marketing.mmm.fourier.YearlyFourier.from_orm>`\\ \\(obj\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: 64b70f1fb2094154a6e07ef7ecdc5eb5
+msgid ""
+":py:obj:`YearlyFourier.get_default_start_date "
+"<pymc_marketing.mmm.fourier.YearlyFourier.get_default_start_date>`\\ "
+"\\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`YearlyFourier.get_default_start_date "
+"<pymc_marketing.mmm.fourier.YearlyFourier.get_default_start_date>`\\ "
+"\\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: cb3a788000e04e09a43eacc92a6f5a8c
+msgid "Get the start date for the Fourier curve."
+msgstr "Obtenga la fecha de inicio para la curva de Fourier."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: 1d44ad988af141c590579b1aaf0ae491
+msgid ""
+":py:obj:`YearlyFourier.json "
+"<pymc_marketing.mmm.fourier.YearlyFourier.json>`\\ \\(\\*\\[\\, include\\, "
+"exclude\\, ...\\]\\)"
+msgstr ""
+":py:obj:`YearlyFourier.json "
+"<pymc_marketing.mmm.fourier.YearlyFourier.json>`\\ \\(\\*\\[\\, incluir\\, "
+"excluir\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: c12a23995c7e4241b88e030cfcc2c3ac
+msgid ""
+":py:obj:`YearlyFourier.model_construct "
+"<pymc_marketing.mmm.fourier.YearlyFourier.model_construct>`\\ "
+"\\(\\[\\_fields\\_set\\]\\)"
+msgstr ""
+":py:obj:`YearlyFourier.model_construct "
+"<pymc_marketing.mmm.fourier.YearlyFourier.model_construct>`\\ "
+"\\(\\[\\_fields\\_set\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: 4ab2e1f851d64206a843e800745d345a
+msgid "Creates a new instance of the `Model` class with validated data."
+msgstr "Crea una nueva instancia de la clase `Model` con datos validados."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: babb19616ccf46df8421b7d79713e743
+msgid ""
+":py:obj:`YearlyFourier.model_copy "
+"<pymc_marketing.mmm.fourier.YearlyFourier.model_copy>`\\ \\(\\*\\[\\, "
+"update\\, deep\\]\\)"
+msgstr ""
+":py:obj:`YearlyFourier.model_copy "
+"<pymc_marketing.mmm.fourier.YearlyFourier.model_copy>`\\ \\(\\*\\[\\, "
+"actualizar\\, profundo\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: 1dc6fb3553ae4b748b464f7457f87597 2147c88b9ab348178d681cf742d493b3
+#: 59715f42119d475bbe82aad1e270c31b aeb7744151794d9fb427c93438773856
+msgid "!!! abstract \"Usage Documentation\""
+msgstr "!!! abstract \"Documentación de Uso\""
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: 5855e74127294147b97e6192edca6ca9
+msgid ""
+":py:obj:`YearlyFourier.model_dump "
+"<pymc_marketing.mmm.fourier.YearlyFourier.model_dump>`\\ \\(\\*\\[\\, "
+"mode\\, include\\, ...\\]\\)"
+msgstr ""
+":py:obj:`YearlyFourier.model_dump "
+"<pymc_marketing.mmm.fourier.YearlyFourier.model_dump>`\\ \\(\\*\\[\\, "
+"modo\\, incluir\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: 0f493b727495495e911594bd137e8755
+msgid ""
+":py:obj:`YearlyFourier.model_dump_json "
+"<pymc_marketing.mmm.fourier.YearlyFourier.model_dump_json>`\\ \\(\\*\\[\\, "
+"indent\\, ...\\]\\)"
+msgstr ""
+":py:obj:`YearlyFourier.model_dump_json "
+"<pymc_marketing.mmm.fourier.YearlyFourier.model_dump_json>`\\ \\(\\*\\[\\, "
+"indent\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: 53ee51b1d92e440ba1024809509f96a4
+msgid ""
+":py:obj:`YearlyFourier.model_json_schema "
+"<pymc_marketing.mmm.fourier.YearlyFourier.model_json_schema>`\\ "
+"\\(\\[by\\_alias\\, ...\\]\\)"
+msgstr ""
+":py:obj:`YearlyFourier.model_json_schema "
+"<pymc_marketing.mmm.fourier.YearlyFourier.model_json_schema>`\\ "
+"\\(\\[por\\_alias\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: e47a973700144771bcf8c23c7e19f92e
+msgid "Generates a JSON schema for a model class."
+msgstr "Genera un esquema JSON para una clase de modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: 0a7639d4248e49aba811b9f57f6b1aa4
+msgid ""
+":py:obj:`YearlyFourier.model_parametrized_name "
+"<pymc_marketing.mmm.fourier.YearlyFourier.model_parametrized_name>`\\ "
+"\\(params\\)"
+msgstr ""
+":py:obj:`YearlyFourier.model_parametrized_name "
+"<pymc_marketing.mmm.fourier.YearlyFourier.model_parametrized_name>`\\ "
+"\\(params\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: 464e78c9052f4f6baf0f8973c7ea0eb6
+msgid "Compute the class name for parametrizations of generic classes."
+msgstr ""
+"Calcule el nombre de la clase para las parametrizaciones de clases "
+"genéricas."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: 3c1c6b0ac0614d0e971dd6dcb3df190d
+msgid ""
+":py:obj:`YearlyFourier.model_post_init "
+"<pymc_marketing.mmm.fourier.YearlyFourier.model_post_init>`\\ \\(...\\)"
+msgstr ""
+":py:obj:`YearlyFourier.model_post_init "
+"<pymc_marketing.mmm.fourier.YearlyFourier.model_post_init>`\\ \\(...\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: 12146357fd54444d96603ff95db02fec
+msgid "Model post initialization for a Pydantic model."
+msgstr "Inicialización del modelo posterior para un modelo Pydantic."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: e4af9d0464354322a5eabad18b45aa63
+msgid ""
+":py:obj:`YearlyFourier.model_rebuild "
+"<pymc_marketing.mmm.fourier.YearlyFourier.model_rebuild>`\\ \\(\\*\\[\\, "
+"force\\, ...\\]\\)"
+msgstr ""
+":py:obj:`YearlyFourier.model_rebuild "
+"<pymc_marketing.mmm.fourier.YearlyFourier.model_rebuild>`\\ \\(\\*\\[\\, "
+"forzar\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: 0378865683f7424093ff9f612cc81aa2
+msgid "Try to rebuild the pydantic-core schema for the model."
+msgstr "Intente reconstruir el esquema de pydantic-core para el modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: fe6f586af01345dca601bc7fcf2d6ce8
+msgid ""
+":py:obj:`YearlyFourier.model_validate "
+"<pymc_marketing.mmm.fourier.YearlyFourier.model_validate>`\\ \\(obj\\, "
+"\\*\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`YearlyFourier.model_validate "
+"<pymc_marketing.mmm.fourier.YearlyFourier.model_validate>`\\ \\(obj\\, "
+"\\*\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: ea9cba08a6a3440e8251ea5715190f23
+msgid "Validate a pydantic model instance."
+msgstr "Valide una instancia de modelo pydantic."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: 6e9fc690518a4b98b63326336a6b7567
+msgid ""
+":py:obj:`YearlyFourier.model_validate_json "
+"<pymc_marketing.mmm.fourier.YearlyFourier.model_validate_json>`\\ "
+"\\(json\\_data\\, \\*\\)"
+msgstr ""
+":py:obj:`YearlyFourier.model_validate_json "
+"<pymc_marketing.mmm.fourier.YearlyFourier.model_validate_json>`\\ "
+"(json\\_data\\, \\*)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: ac5edface69042c482858f38a52f79ec
+msgid ""
+":py:obj:`YearlyFourier.model_validate_strings "
+"<pymc_marketing.mmm.fourier.YearlyFourier.model_validate_strings>`\\ "
+"\\(obj\\, \\*\\)"
+msgstr ""
+":py:obj:`YearlyFourier.model_validate_strings "
+"<pymc_marketing.mmm.fourier.YearlyFourier.model_validate_strings>`\\ "
+"\\(obj\\, \\*\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: 33dab0cb1079406a9f952464e794b10b
+msgid "Validate the given object with string data against the Pydantic model."
+msgstr ""
+"Valide el objeto dado con datos de cadena contra el modelo de Pydantic."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: b9145c99ec234c648f4d118e019f46f8
+msgid ""
+":py:obj:`YearlyFourier.parse_file "
+"<pymc_marketing.mmm.fourier.YearlyFourier.parse_file>`\\ \\(path\\, "
+"\\*\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`YearlyFourier.parse_file "
+"<pymc_marketing.mmm.fourier.YearlyFourier.parse_file>`\\ (ruta\\, \\*\\[\\, "
+"...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: 56014432ee1f438184af678237eeeeec
+msgid ""
+":py:obj:`YearlyFourier.parse_obj "
+"<pymc_marketing.mmm.fourier.YearlyFourier.parse_obj>`\\ \\(obj\\)"
+msgstr ""
+":py:obj:`YearlyFourier.parse_obj "
+"<pymc_marketing.mmm.fourier.YearlyFourier.parse_obj>`\\ \\(obj\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: 4c818fdc9046481ca0519d8cbf8efddd
+msgid ""
+":py:obj:`YearlyFourier.parse_raw "
+"<pymc_marketing.mmm.fourier.YearlyFourier.parse_raw>`\\ \\(b\\, \\*\\[\\, "
+"...\\]\\)"
+msgstr ""
+":py:obj:`YearlyFourier.parse_raw "
+"<pymc_marketing.mmm.fourier.YearlyFourier.parse_raw>`\\ \\(b\\, \\*\\[\\, "
+"...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: f9b3d603ead34e719cdf6876d9b48d8c
+msgid ""
+":py:obj:`YearlyFourier.plot_curve "
+"<pymc_marketing.mmm.fourier.YearlyFourier.plot_curve>`\\ \\(curve\\[\\, "
+"n\\_samples\\, ...\\]\\)"
+msgstr ""
+":py:obj:`YearlyFourier.plot_curve "
+"<pymc_marketing.mmm.fourier.YearlyFourier.plot_curve>`\\ \\(curve\\[\\, "
+"n\\_samples\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: 7b0576a70ad54a8aa9321c431a9dcf67
+msgid "Plot the seasonality for one full period."
+msgstr "Trace la estacionalidad para un período completo."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: 00056216b611426ab1ae6530f33db354
+msgid ""
+":py:obj:`YearlyFourier.plot_curve_hdi "
+"<pymc_marketing.mmm.fourier.YearlyFourier.plot_curve_hdi>`\\ \\(curve\\[\\, "
+"...\\]\\)"
+msgstr ""
+":py:obj:`YearlyFourier.plot_curve_hdi "
+"<pymc_marketing.mmm.fourier.YearlyFourier.plot_curve_hdi>`\\ \\(curve\\[\\, "
+"...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: 4183f279bec74a79a778017db9da95ae
+msgid "Plot full period of the fourier seasonality."
+msgstr "Trazar el período completo de la estacionalidad de Fourier."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: 709beeac40b643a5a8e6976c5d83e987
+msgid ""
+":py:obj:`YearlyFourier.plot_curve_samples "
+"<pymc_marketing.mmm.fourier.YearlyFourier.plot_curve_samples>`\\ "
+"\\(curve\\[\\, n\\, ...\\]\\)"
+msgstr ""
+":py:obj:`YearlyFourier.plot_curve_samples "
+"<pymc_marketing.mmm.fourier.YearlyFourier.plot_curve_samples>`\\ "
+"\\(curva\\[\\, n\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: ec66101ac53d4179b967182441a84b44
+msgid "Plot samples from the curve."
+msgstr "Trazar muestras de la curva."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: bc165134742c41dab91720a992ac2028
+msgid ""
+":py:obj:`YearlyFourier.sample_curve "
+"<pymc_marketing.mmm.fourier.YearlyFourier.sample_curve>`\\ "
+"\\(parameters\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`YearlyFourier.sample_curve "
+"<pymc_marketing.mmm.fourier.YearlyFourier.sample_curve>`\\ "
+"\\(parámetros\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: 78d990c0defd449f9b6420d3ebf4a285
+msgid "Create full period of the Fourier seasonality."
+msgstr "Crear el período completo de la estacionalidad de Fourier."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: db24c9412f2240d597a98184a59ef6da
+msgid ""
+":py:obj:`YearlyFourier.sample_prior "
+"<pymc_marketing.mmm.fourier.YearlyFourier.sample_prior>`\\ "
+"\\(\\[coords\\]\\)"
+msgstr ""
+":py:obj:`YearlyFourier.sample_prior "
+"<pymc_marketing.mmm.fourier.YearlyFourier.sample_prior>`\\ "
+"\\(\\[coords\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: a68b8c49927c47fe84dc8aea48b9d787
+msgid "Sample the prior distributions."
+msgstr "Muestree las distribuciones anteriores."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: 03b97a18c67c405b8c22a023e8f00f30
+msgid ""
+":py:obj:`YearlyFourier.schema "
+"<pymc_marketing.mmm.fourier.YearlyFourier.schema>`\\ \\(\\[by\\_alias\\, "
+"ref\\_template\\]\\)"
+msgstr ""
+":py:obj:`YearlyFourier.schema "
+"<pymc_marketing.mmm.fourier.YearlyFourier.schema>`\\ \\(\\[por\\_alias\\, "
+"ref\\_template\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: 9d66fa7121f94c3d94c2be8ff1945623
+msgid ""
+":py:obj:`YearlyFourier.schema_json "
+"<pymc_marketing.mmm.fourier.YearlyFourier.schema_json>`\\ \\(\\*\\[\\, "
+"by\\_alias\\, ...\\]\\)"
+msgstr ""
+":py:obj:`YearlyFourier.schema_json "
+"<pymc_marketing.mmm.fourier.YearlyFourier.schema_json>`\\ \\(\\*\\[\\, "
+"by\\_alias\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: bd6bb0500cdb4c9e834d73d763a7f6c1
+msgid ""
+":py:obj:`YearlyFourier.serialize_prior "
+"<pymc_marketing.mmm.fourier.YearlyFourier.serialize_prior>`\\ \\(\\)"
+msgstr ""
+":py:obj:`YearlyFourier.serialize_prior "
+"<pymc_marketing.mmm.fourier.YearlyFourier.serialize_prior>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: 9ecb195762f649409c3ea6d1cf73b972
+msgid "Serialize the prior distribution."
+msgstr "Serializar la distribución previa."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: 1a03f490e48046d2bf4ffd51cc179e31
+msgid ""
+":py:obj:`YearlyFourier.to_dict "
+"<pymc_marketing.mmm.fourier.YearlyFourier.to_dict>`\\ \\(\\)"
+msgstr ""
+":py:obj:`YearlyFourier.to_dict "
+"<pymc_marketing.mmm.fourier.YearlyFourier.to_dict>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: 1dbdb06cd4df4838af9310f5085af973
+msgid "Serialize the Fourier seasonality."
+msgstr "Serializar la estacionalidad de Fourier."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: 704a42ba9f13416cbc095f134286cc9b
+msgid ""
+":py:obj:`YearlyFourier.update_forward_refs "
+"<pymc_marketing.mmm.fourier.YearlyFourier.update_forward_refs>`\\ "
+"\\(\\*\\*localns\\)"
+msgstr ""
+":py:obj:`YearlyFourier.update_forward_refs "
+"<pymc_marketing.mmm.fourier.YearlyFourier.update_forward_refs>`\\ "
+"\\(\\*\\*localns\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
+#: 7638addb6aff49619e5100b02720e802
+msgid ""
+":py:obj:`YearlyFourier.validate "
+"<pymc_marketing.mmm.fourier.YearlyFourier.validate>`\\ \\(value\\)"
+msgstr ""
+":py:obj:`YearlyFourier.validate "
+"<pymc_marketing.mmm.fourier.YearlyFourier.validate>`\\ \\(valor\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:57
+#: a9fb655585be43f4ba0fd5df4ac93f93
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:70:<autosummary>:1
+#: 7ceaa40d957548c4877cdf1fe0facccf
+msgid ""
+":py:obj:`model_computed_fields "
+"<pymc_marketing.mmm.fourier.YearlyFourier.model_computed_fields>`\\"
+msgstr ""
+":py:obj:`model_computed_fields "
+"<pymc_marketing.mmm.fourier.YearlyFourier.model_computed_fields>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:70:<autosummary>:1
+#: 957836c019fc4af29e9e6feead41739b
+msgid ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.fourier.YearlyFourier.model_config>`\\"
+msgstr ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.fourier.YearlyFourier.model_config>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:70:<autosummary>:1
+#: 7a83ea0fd9b740c7bed8b1f6673ffc1a
+msgid ""
+"Configuration for the model, should be a dictionary conforming to "
+"[`ConfigDict`][pydantic.config.ConfigDict]."
+msgstr ""
+"Configuración para el modelo, debe ser un diccionario que cumpla con "
+"[`ConfigDict`][pydantic.config.ConfigDict]."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:70:<autosummary>:1
+#: e02122cf8e1b4aed8eca5138a353d57e
+msgid ""
+":py:obj:`model_extra "
+"<pymc_marketing.mmm.fourier.YearlyFourier.model_extra>`\\"
+msgstr ""
+":py:obj:`model_extra <pymc_marketing.mmm.fourier.YearlyFourier.model_extra>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:70:<autosummary>:1
+#: 6a9026aa15454db3ab401b391462e9bc
+msgid "Get extra fields set during validation."
+msgstr "Obtener campos adicionales establecidos durante la validación."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:70:<autosummary>:1
+#: b780a9fb0e844f9b9df97609dc6d931c
+msgid ""
+":py:obj:`model_fields "
+"<pymc_marketing.mmm.fourier.YearlyFourier.model_fields>`\\"
+msgstr ""
+":py:obj:`model_fields "
+"<pymc_marketing.mmm.fourier.YearlyFourier.model_fields>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:70:<autosummary>:1
+#: 3a3961e9d13a45598096da7ebf6d1075
+msgid ""
+":py:obj:`model_fields_set "
+"<pymc_marketing.mmm.fourier.YearlyFourier.model_fields_set>`\\"
+msgstr ""
+":py:obj:`model_fields_set "
+"<pymc_marketing.mmm.fourier.YearlyFourier.model_fields_set>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:70:<autosummary>:1
+#: 52334aae3a0744b3b9ecb0a715cad1cb
+msgid ""
+"Returns the set of fields that have been explicitly set on this model "
+"instance."
+msgstr ""
+"Devuelve el conjunto de campos que han sido establecidos explícitamente en "
+"esta instancia del modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:70:<autosummary>:1
+#: a0546c2dc60a49db8a20c510707d2037
+msgid ":py:obj:`nodes <pymc_marketing.mmm.fourier.YearlyFourier.nodes>`\\"
+msgstr ":py:obj:`nodes <pymc_marketing.mmm.fourier.YearlyFourier.nodes>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:70:<autosummary>:1
+#: bd9cc42165aa4e259f6ced91823d79e9
+msgid "Fourier node names for model coordinates."
+msgstr "Nombres de nodos de Fourier para coordenadas del modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:70:<autosummary>:1
+#: 320111f339684648920de8f4a1639a36
+msgid ""
+":py:obj:`days_in_period "
+"<pymc_marketing.mmm.fourier.YearlyFourier.days_in_period>`\\"
+msgstr ""
+":py:obj:`days_in_period "
+"<pymc_marketing.mmm.fourier.YearlyFourier.days_in_period>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:70:<autosummary>:1
+#: a6d0f04291f14b418f23be9b69401cdc
+msgid ":py:obj:`n_order <pymc_marketing.mmm.fourier.YearlyFourier.n_order>`\\"
+msgstr ":py:obj:`n_order <pymc_marketing.mmm.fourier.YearlyFourier.n_order>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:70:<autosummary>:1
+#: e28f3005c3ea49b5bf2b69383c7ef36e
+msgid ":py:obj:`prefix <pymc_marketing.mmm.fourier.YearlyFourier.prefix>`\\"
+msgstr ":py:obj:`prefix <pymc_marketing.mmm.fourier.YearlyFourier.prefix>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:70:<autosummary>:1
+#: 1098839dc3784821b7965ff65d95f408
+msgid ":py:obj:`prior <pymc_marketing.mmm.fourier.YearlyFourier.prior>`\\"
+msgstr ":py:obj:`prior <pymc_marketing.mmm.fourier.YearlyFourier.prior>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:70:<autosummary>:1
+#: 011c6575fa8a49e5950ad7172f2f8007
+msgid ""
+":py:obj:`variable_name "
+"<pymc_marketing.mmm.fourier.YearlyFourier.variable_name>`\\"
+msgstr ""
+":py:obj:`variable_name "
+"<pymc_marketing.mmm.fourier.YearlyFourier.variable_name>`"

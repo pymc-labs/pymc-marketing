@@ -1,6 +1,5 @@
 ci:
   autofix_prs: false
-  skip: [mypy]
 
 repos:
   - repo: https://github.com/lucianopaz/head_of_apache
@@ -13,7 +12,7 @@ repos:
           - --exclude=scripts/
           - --start-year=2022
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.13.2
+    rev: v0.14.0
     hooks:
       - id: ruff-check
         types_or: [python, pyi, jupyter]

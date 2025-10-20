@@ -1,0 +1,865 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:2
+#: 5063729467d7484194a2a4333d00a490
+msgid "MMM"
+msgstr "MMM"
+
+#: ded36dae73dc4425bc691c0a09f56543 of
+#: pymc_marketing.mmm.multidimensional.MMM:2
+msgid ""
+"Marketing Mix Model class for estimating the impact of marketing channels on"
+" a target variable."
+msgstr ""
+"Clase del Modelo de Mezcla de Marketing para estimar el impacto de los "
+"canales de marketing en una variable objetivo."
+
+#: 2f519cbe5ecb4056acdd2305a8859367 of
+#: pymc_marketing.mmm.multidimensional.MMM:4
+msgid ""
+"This class implements the core functionality of a Marketing Mix Model (MMM),"
+" allowing for the specification of various marketing channels, adstock "
+"transformations, saturation effects, and time-varying parameters. It "
+"provides methods for fitting the model to data, making predictions, and "
+"visualizing the results."
+msgstr ""
+"Esta clase implementa la funcionalidad principal de un Modelo de Mezcla de "
+"Marketing (MMM), permitiendo la especificación de varios canales de "
+"marketing, transformaciones de adstock, efectos de saturación y parámetros "
+"que varían en el tiempo. Proporciona métodos para ajustar el modelo a los "
+"datos, realizar predicciones y visualizar los resultados."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:50
+#: 4318591063fb4a79a9f2dccdf229fa23 c23929375c1a4fb5b9bab10f6945ecdb of
+#: pymc_marketing.mmm.multidimensional.MMM
+msgid "Attributes"
+msgstr "Atributos"
+
+#: 74c91c4d48d1434c85c2c4e1ef0164b6 of
+#: pymc_marketing.mmm.multidimensional.MMM:12
+msgid "**date_column** : :class:`python:str`"
+msgstr "**date_column** : :class:`python:str`"
+
+#: 3a3e52900aac480faa74cb7ce0a32e07 a858f5bc332b44b98b6b8722da09b02d of
+#: pymc_marketing.mmm.multidimensional.MMM:11
+#: pymc_marketing.mmm.multidimensional.MMM:17
+msgid "python:str"
+msgstr "python:str"
+
+#: a3349d78a96f4bb4acd2b3740887d11d of
+#: pymc_marketing.mmm.multidimensional.MMM:13
+msgid "The name of the column representing the date in the dataset."
+msgstr ""
+"El nombre de la columna que representa la fecha en el conjunto de datos."
+
+#: 2dd2923acbc14add88caf52442d6bdf5 of
+#: pymc_marketing.mmm.multidimensional.MMM:15
+msgid "**channel_columns** : :class:`python:list`\\[:class:`python:str`]"
+msgstr "**channel_columns** : :class:`python:list`\\[:class:`python:str`]"
+
+#: df3074e4796640c7a120b66f60d6c634 of
+#: pymc_marketing.mmm.multidimensional.MMM:14
+msgid "python:list[python:str]"
+msgstr "python:list[python:str]"
+
+#: 1caac5e63428465fb758939919a3635a of
+#: pymc_marketing.mmm.multidimensional.MMM:16
+msgid "A list of columns representing the marketing channels."
+msgstr "Una lista de columnas que representan los canales de marketing."
+
+#: 68af2e361cb0437e9c9c57a46d1e0f0c of
+#: pymc_marketing.mmm.multidimensional.MMM:18
+msgid "**target_column** : :class:`python:str`"
+msgstr "**target_column** : :class:`python:str`"
+
+#: ccd957b75ba340b5ab05929c02402a34 of
+#: pymc_marketing.mmm.multidimensional.MMM:19
+msgid ""
+"The name of the column representing the target variable to be predicted."
+msgstr ""
+"El nombre de la columna que representa la variable objetivo a predecir."
+
+#: 9d39c9e7ac594d7aae8978ca56803116 of
+#: pymc_marketing.mmm.multidimensional.MMM:21
+msgid "**adstock** : :obj:`AdstockTransformation`"
+msgstr "**adstock** : :obj:`TransformaciónAdstock`"
+
+#: 34b19cd7095448fa8c09625338fd78aa of
+#: pymc_marketing.mmm.multidimensional.MMM:20
+msgid "AdstockTransformation"
+msgstr "TransformaciónAdstock"
+
+#: 931333ab02e0496a86e3bafd4d6f6b92 of
+#: pymc_marketing.mmm.multidimensional.MMM:22
+msgid "The adstock transformation to apply to the channel data."
+msgstr "La transformación de adstock que se aplicará a los datos del canal."
+
+#: 72fa75e457904e5bafc76f6226f17e3e of
+#: pymc_marketing.mmm.multidimensional.MMM:24
+msgid "**saturation** : :obj:`SaturationTransformation`"
+msgstr "**saturación** : :obj:`SaturationTransformation`"
+
+#: 35618f6f0f6d4e0cbb2c3bf7807bc28e of
+#: pymc_marketing.mmm.multidimensional.MMM:23
+msgid "SaturationTransformation"
+msgstr "Transformación de Saturación"
+
+#: 902ab6554e9546989ae82d047be3eb69 of
+#: pymc_marketing.mmm.multidimensional.MMM:25
+msgid "The saturation transformation to apply to the channel data."
+msgstr ""
+"La transformación de saturación que se aplicará a los datos del canal."
+
+#: 720e703416154d37b85395af431d707c of
+#: pymc_marketing.mmm.multidimensional.MMM:27
+msgid "**time_varying_intercept** : :ref:`bool <python:bltin-boolean-values>`"
+msgstr ""
+"**intercepto_variable_en_el_tiempo** : :ref:`bool <python:bltin-boolean-"
+"values>`"
+
+#: 1dfaf88a7320401d9888da614f4f3547 2c106e8344454a988deea92e877e8b2c
+#: d839789241d6465a8fc68620cac8147d of
+#: pymc_marketing.mmm.multidimensional.MMM:26
+#: pymc_marketing.mmm.multidimensional.MMM:29
+#: pymc_marketing.mmm.multidimensional.MMM:51
+msgid "bool"
+msgstr "bool"
+
+#: ded323ac58044cacb4063565c235986c of
+#: pymc_marketing.mmm.multidimensional.MMM:28
+msgid "Whether to use a time-varying intercept in the model."
+msgstr "Si se debe utilizar un intercepto variable en el tiempo en el modelo."
+
+#: 3ec6ae024fb946518405f01b5f21f143 of
+#: pymc_marketing.mmm.multidimensional.MMM:30
+msgid "**time_varying_media** : :ref:`bool <python:bltin-boolean-values>`"
+msgstr ""
+"**media_variable_en_el_tiempo** : :ref:`bool <python:bltin-boolean-values>`"
+
+#: 2b53e7ee4e934258bc56afee57fe9d3c of
+#: pymc_marketing.mmm.multidimensional.MMM:31
+msgid "Whether to use time-varying effects for media channels."
+msgstr ""
+"Si se deben utilizar efectos variables en el tiempo para los canales de "
+"medios."
+
+#: 0d69c39a02e64b9dbf30362c802cc761 of
+#: pymc_marketing.mmm.multidimensional.MMM:33
+msgid "**dims** : :class:`python:tuple` | :data:`python:None`"
+msgstr "**dims** : :class:`python:tuple` | :data:`python:None`"
+
+#: b6e82050054b4aa6b707b5863e553c79 of
+#: pymc_marketing.mmm.multidimensional.MMM:32
+msgid "python:tuple | python:None"
+msgstr "python:tuple | python:None"
+
+#: 01f828ee65e34f498ba712044276b312 of
+#: pymc_marketing.mmm.multidimensional.MMM:34
+msgid "Additional dimensions for the model."
+msgstr "Dimensiones adicionales para el modelo."
+
+#: c320b9ef168f4bd6988112df45ddef6d of
+#: pymc_marketing.mmm.multidimensional.MMM:36
+msgid ""
+"**scaling** : :obj:`Scaling` | :class:`python:dict` | :data:`python:None`"
+msgstr ""
+"**escalado** : :obj:`Escalado` | :class:`python:dict` | :data:`python:None`"
+
+#: 8f10a3ddbe9e4f2c9ccdbd4f12266383 of
+#: pymc_marketing.mmm.multidimensional.MMM:35
+msgid "Scaling | python:dict | python:None"
+msgstr "Escalado | python:dict | python:None"
+
+#: 4496832fdf3447e4b77ccf6fa425bce8 of
+#: pymc_marketing.mmm.multidimensional.MMM:37
+msgid ""
+"Scaling methods to be used for the target variable and the marketing "
+"channels. Defaults to max scaling for both."
+msgstr ""
+"Métodos de escalado que se utilizarán para la variable objetivo y los "
+"canales de marketing. Por defecto, se utiliza escalado máximo para ambos."
+
+#: a0af1d6eae0c480aab0110ed3bec56d8 of
+#: pymc_marketing.mmm.multidimensional.MMM:40
+msgid "**model_config** : :class:`python:dict` | :data:`python:None`"
+msgstr "**model_config** : :class:`python:dict` | :data:`python:None`"
+
+#: 19485ad4387446b2a540de04297b5a1c 6e968f296a1b4cd3be4f8215ad74efdc of
+#: pymc_marketing.mmm.multidimensional.MMM:39
+#: pymc_marketing.mmm.multidimensional.MMM:42
+msgid "python:dict | python:None"
+msgstr "python:dict | python:None"
+
+#: f65b2b92e26b4d50848776de609c94f1 of
+#: pymc_marketing.mmm.multidimensional.MMM:41
+msgid "Configuration settings for the model."
+msgstr "Configuración de los ajustes para el modelo."
+
+#: 95924bea8032479b96f5318501857637 of
+#: pymc_marketing.mmm.multidimensional.MMM:43
+msgid "**sampler_config** : :class:`python:dict` | :data:`python:None`"
+msgstr "**sampler_config** : :class:`python:dict` | :data:`python:None`"
+
+#: 1bd9487733f0444a999442ce794db2a5 of
+#: pymc_marketing.mmm.multidimensional.MMM:44
+msgid "Configuration settings for the sampler."
+msgstr "Configuración de los ajustes para el muestreador."
+
+#: c8f92db26fb340889d175b8675fa400e of
+#: pymc_marketing.mmm.multidimensional.MMM:46
+msgid ""
+"**control_columns** : :class:`python:list`\\[:class:`python:str`] | "
+":data:`python:None`"
+msgstr ""
+"**control_columns** : :class:`python:list`\\[:class:`python:str`] | "
+":data:`python:None`"
+
+#: bbaafb23ffb1489bb6a93e8ddfec5f0b of
+#: pymc_marketing.mmm.multidimensional.MMM:45
+msgid "python:list[python:str] | python:None"
+msgstr "python:list[python:str] | python:None"
+
+#: d60c67ac40324aa0b157e9816a688464 of
+#: pymc_marketing.mmm.multidimensional.MMM:47
+msgid "A list of control variables to include in the model."
+msgstr "Una lista de variables de control para incluir en el modelo."
+
+#: d60a05db09324dc292a15cee16a1fa4b of
+#: pymc_marketing.mmm.multidimensional.MMM:49
+msgid "**yearly_seasonality** : :class:`python:int` | :data:`python:None`"
+msgstr "**estacionalidad_anual** : :class:`python:int` | :data:`python:None`"
+
+#: ce6a2d6ef6d74b53ab7214dd06c7e528 of
+#: pymc_marketing.mmm.multidimensional.MMM:48
+msgid "python:int | python:None"
+msgstr "python:int | python:None"
+
+#: 19a4d85dea7041b6bab8c2774cc0f2d7 of
+#: pymc_marketing.mmm.multidimensional.MMM:50
+msgid "The number of yearly seasonalities to include in the model."
+msgstr "El número de estacionalidades anuales a incluir en el modelo."
+
+#: 6c3b74ae87d94706855803aabcd4898c of
+#: pymc_marketing.mmm.multidimensional.MMM:52
+msgid "**adstock_first** : :ref:`bool <python:bltin-boolean-values>`"
+msgstr "**adstock_first** : :ref:`bool <python:valores-booleans>`"
+
+#: b4dbad0df9f640918f1d794f8763dbd6 of
+#: pymc_marketing.mmm.multidimensional.MMM:53
+msgid "Whether to apply adstock transformations before saturation."
+msgstr "Si aplicar transformaciones de adstock antes de la saturación."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:12
+#: 6bac181288cf4a3a9d3c36a5a21efed5
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: 2a147cfec68141efac33a6ca4b66dd75
+msgid ""
+":py:obj:`MMM.__init__ <pymc_marketing.mmm.multidimensional.MMM.__init__>`\\ "
+"\\(\\[date\\_column\\, channel\\_columns\\, ...\\]\\)"
+msgstr ""
+":py:obj:`MMM.__init__ <pymc_marketing.mmm.multidimensional.MMM.__init__>`\\ "
+"\\(\\[columna\\_fecha\\, columnas\\_canal\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: e2a145a2c2ab4680b797b0a08c051553
+msgid "Define the constructor method."
+msgstr "Defina el método constructor."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: c5f228a9a3fc45aab9a91a41e4beb29a
+msgid ""
+":py:obj:`MMM.add_cost_per_target_calibration "
+"<pymc_marketing.mmm.multidimensional.MMM.add_cost_per_target_calibration>`\\"
+" \\(data\\, ...\\)"
+msgstr ""
+":py:obj:`MMM.add_cost_per_target_calibration "
+"<pymc_marketing.mmm.multidimensional.MMM.add_cost_per_target_calibration>`\\"
+" \\(datos\\, ...\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: 8d22736165dc4519bd00108b31817e7a
+msgid "Calibrate cost-per-target using constraints via ``pm.Potential``."
+msgstr ""
+"Calibre el costo por objetivo utilizando restricciones a través de "
+"``pm.Potential``."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: def44b8772dd4cf198ab3259bf7ffa34
+msgid ""
+":py:obj:`MMM.add_events "
+"<pymc_marketing.mmm.multidimensional.MMM.add_events>`\\ \\(df\\_events\\, "
+"prefix\\, effect\\)"
+msgstr ""
+":py:obj:`MMM.add_events "
+"<pymc_marketing.mmm.multidimensional.MMM.add_events>`\\ \\(df\\_events\\, "
+"prefijo\\, efecto\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: c6ae2322ddd947e2ac7cd9fb3b3c36a3
+msgid "Add event effects to the model."
+msgstr "Agregue efectos de evento al modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: 6c0491b1cb5749f3a945973c38af67a9
+msgid ""
+":py:obj:`MMM.add_lift_test_measurements "
+"<pymc_marketing.mmm.multidimensional.MMM.add_lift_test_measurements>`\\ "
+"\\(df\\_lift\\_test\\)"
+msgstr ""
+":py:obj:`MMM.add_lift_test_measurements "
+"<pymc_marketing.mmm.multidimensional.MMM.add_lift_test_measurements>`\\ "
+"\\(df\\_lift\\_test\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: f6ec2667bbc44969bf88abae8c9a2e38
+msgid "Add lift tests to the model."
+msgstr "Agregue pruebas de elevación al modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: b4f2104681c94b6184c93ff5c4920f34
+msgid ""
+":py:obj:`MMM.add_original_scale_contribution_variable "
+"<pymc_marketing.mmm.multidimensional.MMM.add_original_scale_contribution_variable>`\\"
+" \\(var\\)"
+msgstr ""
+":py:obj:`MMM.add_original_scale_contribution_variable "
+"<pymc_marketing.mmm.multidimensional.MMM.add_original_scale_contribution_variable>`\\"
+" \\(var\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: e6cd4cd9ac004a32a889e000a966b82d
+msgid ""
+"Add a pm.Deterministic variable to the model that multiplies by the scaler."
+msgstr ""
+"Agregue una variable pm.Deterministic al modelo que multiplica por el "
+"escalador."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: 243a2542d8504d72951e31e0ed1876cb
+msgid ""
+":py:obj:`MMM.approximate_fit "
+"<pymc_marketing.mmm.multidimensional.MMM.approximate_fit>`\\ \\(X\\[\\, y\\,"
+" progressbar\\, ...\\]\\)"
+msgstr ""
+":py:obj:`MMM.approximate_fit "
+"<pymc_marketing.mmm.multidimensional.MMM.approximate_fit>`\\ \\(X\\[\\, y\\,"
+" barra_de_progreso\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: 22fe95bf12454f5d8babe8a5cfaeceb6
+msgid "Fit a model using Variational Inference and return InferenceData."
+msgstr ""
+"Ajuste un modelo utilizando Inferencia Variacional y devuelva InferenceData."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: 43c2533cdb2241758ab4cef0a93c1bb6
+msgid ""
+":py:obj:`MMM.attrs_to_init_kwargs "
+"<pymc_marketing.mmm.multidimensional.MMM.attrs_to_init_kwargs>`\\ "
+"\\(attrs\\)"
+msgstr ""
+":py:obj:`MMM.attrs_to_init_kwargs "
+"<pymc_marketing.mmm.multidimensional.MMM.attrs_to_init_kwargs>`\\ "
+"\\(attrs\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: 6a65481bdebd4b588fea86c37737bc93
+msgid "Convert the idata attributes to the model initialization kwargs."
+msgstr ""
+"Convierte los atributos idata a los kwargs de inicialización del modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: b8d505d1ad95485c80f753ec6c341f2c
+msgid ""
+":py:obj:`MMM.build_from_idata "
+"<pymc_marketing.mmm.multidimensional.MMM.build_from_idata>`\\ \\(idata\\)"
+msgstr ""
+":py:obj:`MMM.build_from_idata "
+"<pymc_marketing.mmm.multidimensional.MMM.build_from_idata>`\\ \\(idata\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: c5e57f7ff1bc468dbf11ca1ca73f06c9
+msgid "Rebuild the model from an ``InferenceData`` object."
+msgstr "Reconstruya el modelo a partir de un objeto ``InferenceData``."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: 09f30a2177d748658ad76c6e8ab30e64
+msgid ""
+":py:obj:`MMM.build_model "
+"<pymc_marketing.mmm.multidimensional.MMM.build_model>`\\ \\(X\\, y\\, "
+"\\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`MMM.build_model "
+"<pymc_marketing.mmm.multidimensional.MMM.build_model>`\\ \\(X\\, y\\, "
+"\\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: 638b308d4a144538adb0b008a60843c8
+msgid "Build a probabilistic model using PyMC for marketing mix modeling."
+msgstr ""
+"Construya un modelo probabilístico utilizando PyMC para el modelado de "
+"mezcla de marketing."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: f4103925a8d941a4b463323ff739e4dc
+msgid ""
+":py:obj:`MMM.create_fit_data "
+"<pymc_marketing.mmm.multidimensional.MMM.create_fit_data>`\\ \\(X\\, y\\)"
+msgstr ""
+":py:obj:`MMM.create_fit_data "
+"<pymc_marketing.mmm.multidimensional.MMM.create_fit_data>`\\ \\(X\\, y\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: ec40909640ad4883825a9460cb8a28db
+msgid "Create a fit dataset aligned on date and present dimensions."
+msgstr ""
+"Cree un conjunto de datos adecuado alineado en fecha y dimensiones "
+"presentes."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: 7761ac731f994637b29383de20069076
+msgid ""
+":py:obj:`MMM.create_idata_attrs "
+"<pymc_marketing.mmm.multidimensional.MMM.create_idata_attrs>`\\ \\(\\)"
+msgstr ""
+":py:obj:`MMM.create_idata_attrs "
+"<pymc_marketing.mmm.multidimensional.MMM.create_idata_attrs>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: 08889ae80f9044e88a57be46cb4f95fe
+msgid "Return the idata attributes for the model."
+msgstr "Devuelva los atributos idata para el modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: 41eb0edb95834d39b9c73e6f523f2a3a
+msgid ""
+":py:obj:`MMM.fit <pymc_marketing.mmm.multidimensional.MMM.fit>`\\ \\(X\\[\\,"
+" y\\, progressbar\\, random\\_seed\\]\\)"
+msgstr ""
+":py:obj:`MMM.fit <pymc_marketing.mmm.multidimensional.MMM.fit>`\\ \\(X\\[\\,"
+" y\\, barra\\_de\\_progreso\\, semilla\\_aleatoria\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: 5422a524f486401f904a00088c8f4497
+msgid "Fit a model using the data passed as a parameter."
+msgstr "Ajuste un modelo utilizando los datos pasados como parámetro."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: e61befaa3bd842eeb72ccdac8111548b
+msgid ""
+":py:obj:`MMM.forward_pass "
+"<pymc_marketing.mmm.multidimensional.MMM.forward_pass>`\\ \\(x\\, dims\\)"
+msgstr ""
+":py:obj:`MMM.forward_pass "
+"<pymc_marketing.mmm.multidimensional.MMM.forward_pass>`\\ \\(x\\, dims\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: 017724c9e860456283b46f526e95628f
+msgid "Transform channel input into target contributions of each channel."
+msgstr ""
+"Transformar la entrada del canal en las contribuciones objetivo de cada "
+"canal."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: 36a80881a3b2453da880804ae8460f7c
+msgid ""
+":py:obj:`MMM.get_scales_as_xarray "
+"<pymc_marketing.mmm.multidimensional.MMM.get_scales_as_xarray>`\\ \\(\\)"
+msgstr ""
+":py:obj:`MMM.get_scales_as_xarray "
+"<pymc_marketing.mmm.multidimensional.MMM.get_scales_as_xarray>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: d07ae2cb95fe45648c4bfcb32abec1bc
+msgid "Return the saved scaling factors as xarray DataArrays."
+msgstr ""
+"Devuelva los factores de escalado guardados como DataArrays de xarray."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: 1c0eaf67ecc84b13a20609c529f249bc
+msgid ""
+":py:obj:`MMM.graphviz <pymc_marketing.mmm.multidimensional.MMM.graphviz>`\\ "
+"\\(\\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`MMM.graphviz <pymc_marketing.mmm.multidimensional.MMM.graphviz>`\\ "
+"\\(\\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: 60efecfc20594b41915102e843d27db1
+msgid "Get the graphviz representation of the model."
+msgstr "Obtenga la representación graphviz del modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: 22ac8e0c5c0b4eae8585590275e34226
+msgid ""
+":py:obj:`MMM.idata_to_init_kwargs "
+"<pymc_marketing.mmm.multidimensional.MMM.idata_to_init_kwargs>`\\ "
+"\\(idata\\)"
+msgstr ""
+":py:obj:`MMM.idata_to_init_kwargs "
+"<pymc_marketing.mmm.multidimensional.MMM.idata_to_init_kwargs>`\\ "
+"\\(idata\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: 1858fc44b21d43469c49bd0a226a2f2e
+msgid ""
+"Create  the model configuration and sampler configuration from the "
+"InferenceData to keyword arguments."
+msgstr ""
+"Cree la configuración del modelo y la configuración del muestreador a partir"
+" de InferenceData a argumentos de palabra clave."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: 4845f260ea7346e6801932f8c0dcb5bd
+msgid ""
+":py:obj:`MMM.load <pymc_marketing.mmm.multidimensional.MMM.load>`\\ "
+"\\(fname\\[\\, check\\]\\)"
+msgstr ""
+":py:obj:`MMM.load <pymc_marketing.mmm.multidimensional.MMM.load>`\\ "
+"\\(fname\\[\\, check\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: 2f6de0420e964152a6c8f4f860b20370
+msgid "Create a ModelBuilder instance from a file."
+msgstr "Cree una instancia de ModelBuilder a partir de un archivo."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: 96ad62bad3614c678e8db4e6476452c2
+msgid ""
+":py:obj:`MMM.load_from_idata "
+"<pymc_marketing.mmm.multidimensional.MMM.load_from_idata>`\\ \\(idata\\[\\, "
+"check\\]\\)"
+msgstr ""
+":py:obj:`MMM.load_from_idata "
+"<pymc_marketing.mmm.multidimensional.MMM.load_from_idata>`\\ \\(idata\\[\\, "
+"check\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: d029eb0fb097425e919e56403c921f38
+msgid "Create a ModelBuilder instance from an InferenceData object."
+msgstr ""
+"Cree una instancia de ModelBuilder a partir de un objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: 6e5e855241b54f4da29bdb1327e6fb91
+msgid ""
+":py:obj:`MMM.post_sample_model_transformation "
+"<pymc_marketing.mmm.multidimensional.MMM.post_sample_model_transformation>`\\"
+" \\(\\)"
+msgstr ""
+":py:obj:`MMM.post_sample_model_transformation "
+"<pymc_marketing.mmm.multidimensional.MMM.post_sample_model_transformation>`\\"
+" \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: bbd649245c5647488296b2a64428c905
+msgid ""
+"Post-sample model transformation in order to store the HSGP state from fit."
+msgstr ""
+"Transformación del modelo posterior a la muestra para almacenar el estado de"
+" HSGP a partir del ajuste."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: a3460cf505434c0fb50cbc1ef0db712d
+msgid ""
+":py:obj:`MMM.predict <pymc_marketing.mmm.multidimensional.MMM.predict>`\\ "
+"\\(\\[X\\, extend\\_idata\\]\\)"
+msgstr ""
+":py:obj:`MMM.predict <pymc_marketing.mmm.multidimensional.MMM.predict>`\\ "
+"\\(\\[X\\, extend\\_idata\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: d342f81a40ba464db4f06c0476b2daf6
+msgid ""
+"Use a model to predict on unseen data and return point prediction of all the"
+" samples."
+msgstr ""
+"Utilice un modelo para predecir en datos no vistos y devuelva la predicción "
+"puntual de todas las muestras."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: d93b6557cd0c405e92742993ea259fea
+msgid ""
+":py:obj:`MMM.predict_posterior "
+"<pymc_marketing.mmm.multidimensional.MMM.predict_posterior>`\\ \\(\\[X\\, "
+"extend\\_idata\\, ...\\]\\)"
+msgstr ""
+":py:obj:`MMM.predict_posterior "
+"<pymc_marketing.mmm.multidimensional.MMM.predict_posterior>`\\ \\(\\[X\\, "
+"extend\\_idata\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: ec66137e637a4819b0f481f5b49872c4
+msgid "Generate posterior predictive samples on unseen data."
+msgstr "Generar muestras predictivas posteriores en datos no vistos."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: 14387310f2574e1880ae43483d177a4c
+msgid ""
+":py:obj:`MMM.predict_proba "
+"<pymc_marketing.mmm.multidimensional.MMM.predict_proba>`\\ \\(\\[X\\, "
+"extend\\_idata\\, combined\\]\\)"
+msgstr ""
+":py:obj:`MMM.predict_proba "
+"<pymc_marketing.mmm.multidimensional.MMM.predict_proba>`\\ \\(\\[X\\, "
+"extend\\_idata\\, combined\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: 6c64aa66f453422e99653d9857facafc
+msgid ""
+"Alias for `predict_posterior`, for consistency with scikit-learn "
+"probabilistic estimators."
+msgstr ""
+"Alias para `predict_posterior`, por consistencia con los estimadores "
+"probabilísticos de scikit-learn."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: 8c055f0dbc114d1b9f50443d186bd92e
+msgid ""
+":py:obj:`MMM.sample_posterior_predictive "
+"<pymc_marketing.mmm.multidimensional.MMM.sample_posterior_predictive>`\\ "
+"\\(\\[X\\, ...\\]\\)"
+msgstr ""
+":py:obj:`MMM.sample_posterior_predictive "
+"<pymc_marketing.mmm.multidimensional.MMM.sample_posterior_predictive>`\\ "
+"\\(\\[X\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: e6e6f37a9d3b40c0969324a5a5e02423
+msgid "Sample from the model's posterior predictive distribution."
+msgstr "Muestra de la distribución predictiva posterior del modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: 28c82b11f46c4f938aa0aad7521adbe2
+msgid ""
+":py:obj:`MMM.sample_prior_predictive "
+"<pymc_marketing.mmm.multidimensional.MMM.sample_prior_predictive>`\\ "
+"\\(\\[X\\, y\\, samples\\, ...\\]\\)"
+msgstr ""
+":py:obj:`MMM.sample_prior_predictive "
+"<pymc_marketing.mmm.multidimensional.MMM.sample_prior_predictive>`\\ "
+"\\(\\[X\\, y\\, muestras\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: 5a3e7c871d784b0c892e69e147630300
+msgid "Sample from the model's prior predictive distribution."
+msgstr "Muestra de la distribución predictiva previa del modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: b64760c74ac74dc38033a58829705b47
+msgid ""
+":py:obj:`MMM.save <pymc_marketing.mmm.multidimensional.MMM.save>`\\ "
+"\\(fname\\, \\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`MMM.save <pymc_marketing.mmm.multidimensional.MMM.save>`\\ "
+"\\(fname\\, \\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: 1b0824d414884f2da5247b50423670d6
+msgid "Save the model's inference data to a file."
+msgstr "Guarde los datos de inferencia del modelo en un archivo."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: 93d7b4f025a644be96817a7ceab57b89
+msgid ""
+":py:obj:`MMM.set_idata_attrs "
+"<pymc_marketing.mmm.multidimensional.MMM.set_idata_attrs>`\\ "
+"\\(\\[idata\\]\\)"
+msgstr ""
+":py:obj:`MMM.set_idata_attrs "
+"<pymc_marketing.mmm.multidimensional.MMM.set_idata_attrs>`\\ "
+"\\(\\[idata\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: 5cf1938865b84d66a0b2c2d8f69e0aa5
+msgid "Set attributes on an InferenceData object."
+msgstr "Establecer atributos en un objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: d834827e111f427b80041b1576648e9c
+msgid ""
+":py:obj:`MMM.table <pymc_marketing.mmm.multidimensional.MMM.table>`\\ "
+"\\(\\*\\*model\\_table\\_kwargs\\)"
+msgstr ""
+":py:obj:`MMM.table <pymc_marketing.mmm.multidimensional.MMM.table>`\\ "
+"\\(\\*\\*model\\_table\\_kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:48:<autosummary>:1
+#: 6ed094576b754f6a870d9c658dd4179b
+msgid "Get the summary table of the model."
+msgstr "Obtenga la tabla resumen del modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:68:<autosummary>:1
+#: bbfa3f0e67d74913b978f931bdf21e20
+msgid ""
+":py:obj:`default_model_config "
+"<pymc_marketing.mmm.multidimensional.MMM.default_model_config>`\\"
+msgstr ""
+":py:obj:`default_model_config "
+"<pymc_marketing.mmm.multidimensional.MMM.default_model_config>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:68:<autosummary>:1
+#: 67552cf7f9724b618864bf365faebd80
+msgid "Define the default model configuration."
+msgstr "Defina la configuración del modelo predeterminado."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:68:<autosummary>:1
+#: 9f6f33cb0e33458b87ade79c0f9e79f4
+msgid ""
+":py:obj:`default_sampler_config "
+"<pymc_marketing.mmm.multidimensional.MMM.default_sampler_config>`\\"
+msgstr ""
+":py:obj:`default_sampler_config "
+"<pymc_marketing.mmm.multidimensional.MMM.default_sampler_config>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:68:<autosummary>:1
+#: 2848515b1586421eb2c99546359800ea
+msgid "Default sampler configuration."
+msgstr "Configuración de muestreador predeterminada."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:68:<autosummary>:1
+#: 95b40b3e794d40c6b48f25f838d50703
+msgid ""
+":py:obj:`fit_result <pymc_marketing.mmm.multidimensional.MMM.fit_result>`\\"
+msgstr ""
+":py:obj:`fit_result <pymc_marketing.mmm.multidimensional.MMM.fit_result>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:68:<autosummary>:1
+#: 17cd3209b1c3419399e83d4704d96500
+msgid "Get the posterior fit_result."
+msgstr "Obtenga el resultado de ajuste posterior fit_result."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:68:<autosummary>:1
+#: 00a5ce9583414f33b3ce47af8398a396
+msgid ":py:obj:`id <pymc_marketing.mmm.multidimensional.MMM.id>`\\"
+msgstr ":py:obj:`id <pymc_marketing.mmm.multidimensional.MMM.id>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:68:<autosummary>:1
+#: 721f640946e241e391eba15708ce73af
+msgid "Generate a unique hash value for the model."
+msgstr "Generar un valor hash único para el modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:68:<autosummary>:1
+#: 673c646e581a49d5be929c96050e2874
+msgid ""
+":py:obj:`output_var <pymc_marketing.mmm.multidimensional.MMM.output_var>`\\"
+msgstr ""
+":py:obj:`output_var <pymc_marketing.mmm.multidimensional.MMM.output_var>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:68:<autosummary>:1
+#: a419811b8ac24d519817e4558c9a79f8
+msgid "Define target variable for the model."
+msgstr "Defina la variable objetivo para el modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:68:<autosummary>:1
+#: 0f84f396ae9c4a23a2f3cfb13537ce29
+msgid ":py:obj:`plot <pymc_marketing.mmm.multidimensional.MMM.plot>`\\"
+msgstr ":py:obj:`plot <pymc_marketing.mmm.multidimensional.MMM.plot>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:68:<autosummary>:1
+#: 194741bb82ff46ac8eb9b1b4f51718b5
+msgid "Use the MMMPlotSuite to plot the results."
+msgstr "Utilice el MMMPlotSuite para graficar los resultados."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:68:<autosummary>:1
+#: fb4654e5445349d3a7e7e365f66ef46f
+msgid ""
+":py:obj:`posterior <pymc_marketing.mmm.multidimensional.MMM.posterior>`\\"
+msgstr ""
+":py:obj:`posterior <pymc_marketing.mmm.multidimensional.MMM.posterior>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:68:<autosummary>:1
+#: c7700217926641a28c05ad0037832cb4
+msgid ""
+":py:obj:`posterior_predictive "
+"<pymc_marketing.mmm.multidimensional.MMM.posterior_predictive>`\\"
+msgstr ""
+":py:obj:`posterior_predictive "
+"<pymc_marketing.mmm.multidimensional.MMM.posterior_predictive>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:68:<autosummary>:1
+#: 14d5430646fe41a9b80e181d711e886d
+msgid ""
+":py:obj:`predictions "
+"<pymc_marketing.mmm.multidimensional.MMM.predictions>`\\"
+msgstr ""
+":py:obj:`predicciones "
+"<pymc_marketing.mmm.multidimensional.MMM.predictions>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:68:<autosummary>:1
+#: 52ab5984439f4b44bed5aaea33785265
+msgid ":py:obj:`prior <pymc_marketing.mmm.multidimensional.MMM.prior>`\\"
+msgstr ":py:obj:`prior <pymc_marketing.mmm.multidimensional.MMM.prior>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:68:<autosummary>:1
+#: a46e899942584ff3bc54ba213c78abec
+msgid ""
+":py:obj:`prior_predictive "
+"<pymc_marketing.mmm.multidimensional.MMM.prior_predictive>`\\"
+msgstr ""
+":py:obj:`prior_predictive "
+"<pymc_marketing.mmm.multidimensional.MMM.prior_predictive>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:68:<autosummary>:1
+#: dea63d71c8e348dd8da954b3a3a7722a
+msgid ""
+":py:obj:`sensitivity "
+"<pymc_marketing.mmm.multidimensional.MMM.sensitivity>`\\"
+msgstr ""
+":py:obj:`sensitivity <pymc_marketing.mmm.multidimensional.MMM.sensitivity>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:68:<autosummary>:1
+#: 75dd8ec0997d4d41bd3dc05858c745c1
+msgid "Access sensitivity analysis functionality."
+msgstr "Acceda a la funcionalidad de análisis de sensibilidad."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:68:<autosummary>:1
+#: 3f62a8446de74caf93ff0fef1eee80ed
+msgid ":py:obj:`version <pymc_marketing.mmm.multidimensional.MMM.version>`\\"
+msgstr ":py:obj:`versión <pymc_marketing.mmm.multidimensional.MMM.versión>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:68:<autosummary>:1
+#: d054585934f843eba1aea9d975b1a37e
+msgid ":py:obj:`idata <pymc_marketing.mmm.multidimensional.MMM.idata>`\\"
+msgstr ":py:obj:`idata <pymc_marketing.mmm.multidimensional.MMM.idata>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:68:<autosummary>:1
+#: d929ef8b3ba04dd3936fd13214696acc
+msgid ""
+":py:obj:`sampler_config "
+"<pymc_marketing.mmm.multidimensional.MMM.sampler_config>`\\"
+msgstr ""
+":py:obj:`sampler_config "
+"<pymc_marketing.mmm.multidimensional.MMM.sampler_config>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MMM.rst:68:<autosummary>:1
+#: 35415a512611448fb4798ff46f5caf7c
+msgid ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.multidimensional.MMM.model_config>`\\"
+msgstr ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.multidimensional.MMM.model_config>`"

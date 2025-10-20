@@ -1,0 +1,93 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.multidimensional.MMM.forward_pass.rst:2
+#: d553e805e2964f0497441a69aeaae8ff
+msgid "MMM.forward\\_pass"
+msgstr "MMM.forward\\_pass"
+
+#: 3937c8b6cb92468abcf900c76c799f2c of
+#: pymc_marketing.mmm.multidimensional.MMM.forward_pass:2
+msgid "Transform channel input into target contributions of each channel."
+msgstr ""
+"Transformar la entrada del canal en las contribuciones objetivo de cada "
+"canal."
+
+#: 7b505a108fb64f3bb758b0cc208c02c5 of
+#: pymc_marketing.mmm.multidimensional.MMM.forward_pass:4
+msgid ""
+"This method handles the ordering of the adstock and saturation "
+"transformations."
+msgstr ""
+"Este método maneja el orden de las transformaciones de adstock y saturación."
+
+#: 75374225ffca4a5bbc883f7b5c34a189 of
+#: pymc_marketing.mmm.multidimensional.MMM.forward_pass:7
+msgid ""
+"This method must be called from without a pm.Model context but not "
+"necessarily in the instance's model. A dim named \"channel\" is required "
+"associated with the number of columns of `x`."
+msgstr ""
+"Este método debe ser llamado desde fuera de un contexto de pm.Model, pero no"
+" necesariamente en el modelo de la instancia. Se requiere una dimensión "
+"llamada \"channel\" asociada con el número de columnas de `x`."
+
+#: 9d95e900650f4c0fa3d5fc1865356db2 of
+#: pymc_marketing.mmm.multidimensional.MMM.forward_pass
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: d0c19d874e3543eabd04cc3c45324d91 of
+#: pymc_marketing.mmm.multidimensional.MMM.forward_pass:13
+msgid ""
+"**x** : :obj:`pt.TensorVariable` | :obj:`npt.NDArray`\\[:obj:`np.float64`]"
+msgstr ""
+"**x** : :obj:`pt.TensorVariable` | :obj:`npt.NDArray`\\[:obj:`np.float64`]"
+
+#: ce67a11efd6544d0a57615595cc83543 of
+#: pymc_marketing.mmm.multidimensional.MMM.forward_pass:12
+msgid "pt.TensorVariable | npt.NDArray[np.float64]"
+msgstr "pt.TensorVariable | npt.NDArray[np.float64]"
+
+#: 2f527063a9be42dfa01648ce16a6454a of
+#: pymc_marketing.mmm.multidimensional.MMM.forward_pass:14
+msgid "The channel input which could be spends or impressions"
+msgstr "La entrada del canal que podría ser gastos o impresiones"
+
+#: bba179270e634d4aaa396bcc9848328b of
+#: pymc_marketing.mmm.multidimensional.MMM.forward_pass
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 5dea3350552c41ee980a101e1fbb1bb3 of
+#: pymc_marketing.mmm.multidimensional.MMM.forward_pass:20
+msgid ""
+":obj:`The` :obj:`contributions` :obj:`associated` :obj:`with` :obj:`the` "
+":obj:`channel` :obj:`input`"
+msgstr ""
+":obj:`Las` :obj:`contribuciones` :obj:`asociadas` :obj:`con` :obj:`la` "
+":obj:`entrada` :obj:`del` :obj:`canal`"
+
+#: 39947fd9897f4601babc9e330fac0515 of
+#: pymc_marketing.mmm.multidimensional.MMM.forward_pass:33
+msgid "Examples"
+msgstr "Ejemplos"

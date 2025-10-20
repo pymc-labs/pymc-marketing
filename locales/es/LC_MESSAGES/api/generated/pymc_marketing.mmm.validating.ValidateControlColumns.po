@@ -1,0 +1,73 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.ValidateControlColumns.rst:2
+#: b5b259c84ca74bd5a1693cff3f1321f6
+msgid "ValidateControlColumns"
+msgstr "ValidarColumnasDeControl"
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.ValidateControlColumns.rst:23:<autosummary>:1
+#: 0990d9c396c343f2af9dfcc3ca06f574 9ab328c14a344432a889abc0e8e33ec4 of
+#: pymc_marketing.mmm.validating.ValidateControlColumns:2
+msgid "Validate the control columns."
+msgstr "Valide las columnas de control."
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.ValidateControlColumns.rst:12
+#: d2a6c192deea465eb145e01d30885d5a
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.ValidateControlColumns.rst:23:<autosummary>:1
+#: 1101c632311a4ec7ab5601bfce501653
+msgid ""
+":py:obj:`ValidateControlColumns.__init__ "
+"<pymc_marketing.mmm.validating.ValidateControlColumns.__init__>`\\ "
+"\\(\\*args\\, \\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`ValidateControlColumns.__init__ "
+"<pymc_marketing.mmm.validating.ValidateControlColumns.__init__>`\\ "
+"\\(\\*args\\, \\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.ValidateControlColumns.rst:23:<autosummary>:1
+#: 3105dec22cd24ec6836cdba355c8af99
+msgid ""
+":py:obj:`ValidateControlColumns.validate_control_columns "
+"<pymc_marketing.mmm.validating.ValidateControlColumns.validate_control_columns>`\\"
+" \\(data\\)"
+msgstr ""
+":py:obj:`ValidateControlColumns.validate_control_columns "
+"<pymc_marketing.mmm.validating.ValidateControlColumns.validate_control_columns>`\\"
+" \\(datos\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.ValidateControlColumns.rst:25
+#: 1d4877ea9bdb4d589f1a46f3802f8fa3
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.ValidateControlColumns.rst:28:<autosummary>:1
+#: 5197dc80c04a4a539c30e9b6b1d147b7
+msgid ""
+":py:obj:`control_columns "
+"<pymc_marketing.mmm.validating.ValidateControlColumns.control_columns>`\\"
+msgstr ""
+":py:obj:`control_columns "
+"<pymc_marketing.mmm.validating.ValidateControlColumns.control_columns>`"

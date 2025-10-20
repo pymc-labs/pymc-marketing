@@ -1,0 +1,420 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:2
+#: 90e29fa18d254e7eb814b10bbb8ac6bb
+msgid "Scaling"
+msgstr "Escalado"
+
+#: 29a708889f2e43b4b85fdc6f17db48ee of pymc_marketing.mmm.scaling.Scaling:2
+msgid "Scaling configuration for the MMM."
+msgstr "Configuración de escalado para el MMM."
+
+#: 5368779c84324f0eb92d70af0837ceb5 of pymc_marketing.mmm.scaling.Scaling:19
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: 3f6fe893026d49beb67868c31f63f207 of pymc_marketing.mmm.scaling.Scaling:20
+msgid "Scale the target variable by max value by group of 'DMA'"
+msgstr "Escalar la variable objetivo por el valor máximo por grupo de 'DMA'"
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:12
+#: 5d1a3799e8834723b11981dc5ba9b366
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:45:<autosummary>:1
+#: 5f6304861d5647549de59f387c49cd9b
+msgid ""
+":py:obj:`Scaling.__init__ <pymc_marketing.mmm.scaling.Scaling.__init__>`\\ "
+"\\(\\*\\*data\\)"
+msgstr ""
+":py:obj:`Scaling.__init__ <pymc_marketing.mmm.scaling.Scaling.__init__>`\\ "
+"\\(\\*\\*data\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:45:<autosummary>:1
+#: a469171dc54b4ed98c38ee87eb6ee80d
+msgid ""
+"Create a new model by parsing and validating input data from keyword "
+"arguments."
+msgstr ""
+"Cree un nuevo modelo analizando y validando los datos de entrada de los "
+"argumentos de palabra clave."
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:45:<autosummary>:1
+#: 3f4f097e338a45f4a549b771906b57e7
+msgid ""
+":py:obj:`Scaling.construct <pymc_marketing.mmm.scaling.Scaling.construct>`\\"
+" \\(\\[\\_fields\\_set\\]\\)"
+msgstr ""
+":py:obj:`Scaling.construct <pymc_marketing.mmm.scaling.Scaling.construct>`\\"
+" \\(\\[\\_fields\\_set\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:45:<autosummary>:1
+#: 498466caa76844909ae9f0090b4f9451
+msgid ""
+":py:obj:`Scaling.copy <pymc_marketing.mmm.scaling.Scaling.copy>`\\ "
+"\\(\\*\\[\\, include\\, exclude\\, update\\, deep\\]\\)"
+msgstr ""
+":py:obj:`Scaling.copy <pymc_marketing.mmm.scaling.Scaling.copy>`\\ "
+"\\(\\*\\[\\, incluir\\, excluir\\, actualizar\\, profundo\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:45:<autosummary>:1
+#: ab801e8065d6430dbb6fcd0f7e3be9a8
+msgid "Returns a copy of the model."
+msgstr "Devuelve una copia del modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:45:<autosummary>:1
+#: bc293e1035ff41408426bd2b3e22c7d3
+msgid ""
+":py:obj:`Scaling.dict <pymc_marketing.mmm.scaling.Scaling.dict>`\\ "
+"\\(\\*\\[\\, include\\, exclude\\, ...\\]\\)"
+msgstr ""
+":py:obj:`Scaling.dict <pymc_marketing.mmm.scaling.Scaling.dict>`\\ "
+"\\(\\*\\[\\, incluir\\, excluir\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:45:<autosummary>:1
+#: 5e0787fbf11140c9980c5f9b0486373a
+msgid ""
+":py:obj:`Scaling.from_orm <pymc_marketing.mmm.scaling.Scaling.from_orm>`\\ "
+"\\(obj\\)"
+msgstr ""
+":py:obj:`Scaling.from_orm <pymc_marketing.mmm.scaling.Scaling.from_orm>`\\ "
+"\\(obj\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:45:<autosummary>:1
+#: f206b8f89f0440f2b546cc7462a6d4f4
+msgid ""
+":py:obj:`Scaling.json <pymc_marketing.mmm.scaling.Scaling.json>`\\ "
+"\\(\\*\\[\\, include\\, exclude\\, ...\\]\\)"
+msgstr ""
+":py:obj:`Scaling.json <pymc_marketing.mmm.scaling.Scaling.json>`\\ "
+"\\(\\*\\[\\, incluir\\, excluir\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:45:<autosummary>:1
+#: 32b7caed1ec145159869e3115db468a3
+msgid ""
+":py:obj:`Scaling.model_construct "
+"<pymc_marketing.mmm.scaling.Scaling.model_construct>`\\ "
+"\\(\\[\\_fields\\_set\\]\\)"
+msgstr ""
+":py:obj:`Scaling.model_construct "
+"<pymc_marketing.mmm.scaling.Scaling.model_construct>`\\ "
+"\\(\\[\\_fields\\_set\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:45:<autosummary>:1
+#: 0cc9b98f2cc5490582cfc791fa8cc99e
+msgid "Creates a new instance of the `Model` class with validated data."
+msgstr "Crea una nueva instancia de la clase `Model` con datos validados."
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:45:<autosummary>:1
+#: 8960e8e7eb5e42f39171830d5ddfc4b2
+msgid ""
+":py:obj:`Scaling.model_copy "
+"<pymc_marketing.mmm.scaling.Scaling.model_copy>`\\ \\(\\*\\[\\, update\\, "
+"deep\\]\\)"
+msgstr ""
+":py:obj:`Scaling.model_copy "
+"<pymc_marketing.mmm.scaling.Scaling.model_copy>`\\ \\(\\*\\[\\, "
+"actualizar\\, profundo\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:45:<autosummary>:1
+#: 9137ad2b22534558b064df18d11feda1 9fc1bc7d8e67483488d7dadc1f0e5e46
+#: bfc56bae7ac540c9a76f0bb3eee5afd9 e484478b02414b088059eab754ce4b25
+msgid "!!! abstract \"Usage Documentation\""
+msgstr "!!! abstract \"Documentación de Uso\""
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:45:<autosummary>:1
+#: 7125d543d98644a3b0649a0f495b9482
+msgid ""
+":py:obj:`Scaling.model_dump "
+"<pymc_marketing.mmm.scaling.Scaling.model_dump>`\\ \\(\\*\\[\\, mode\\, "
+"include\\, ...\\]\\)"
+msgstr ""
+":py:obj:`Scaling.model_dump "
+"<pymc_marketing.mmm.scaling.Scaling.model_dump>`\\ \\(\\*\\[\\, modo\\, "
+"incluir\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:45:<autosummary>:1
+#: aa70b1c44e634727ae2d9048d2657fbb
+msgid ""
+":py:obj:`Scaling.model_dump_json "
+"<pymc_marketing.mmm.scaling.Scaling.model_dump_json>`\\ \\(\\*\\[\\, "
+"indent\\, ...\\]\\)"
+msgstr ""
+":py:obj:`Scaling.model_dump_json "
+"<pymc_marketing.mmm.scaling.Scaling.model_dump_json>`\\ \\(\\*\\[\\, "
+"indent\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:45:<autosummary>:1
+#: 3423a5a62d6a4b4a822eb9d92d823f28
+msgid ""
+":py:obj:`Scaling.model_json_schema "
+"<pymc_marketing.mmm.scaling.Scaling.model_json_schema>`\\ "
+"\\(\\[by\\_alias\\, ...\\]\\)"
+msgstr ""
+":py:obj:`Scaling.model_json_schema "
+"<pymc_marketing.mmm.scaling.Scaling.model_json_schema>`\\ "
+"\\(\\[por\\_alias\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:45:<autosummary>:1
+#: 53929b9c494f45bb8ff705b0c34c4da2
+msgid "Generates a JSON schema for a model class."
+msgstr "Genera un esquema JSON para una clase de modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:45:<autosummary>:1
+#: 72443521d7b3470db44a428d6c8bf6cd
+msgid ""
+":py:obj:`Scaling.model_parametrized_name "
+"<pymc_marketing.mmm.scaling.Scaling.model_parametrized_name>`\\ \\(params\\)"
+msgstr ""
+":py:obj:`Scaling.model_parametrized_name "
+"<pymc_marketing.mmm.scaling.Scaling.model_parametrized_name>`\\ \\(params\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:45:<autosummary>:1
+#: b7ed26d915254a099e12fd6e74cea4a8
+msgid "Compute the class name for parametrizations of generic classes."
+msgstr ""
+"Calcule el nombre de la clase para parametrizaciones de clases genéricas."
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:45:<autosummary>:1
+#: b7f341eaa9c345a9a4b2b6cc6df48a5b
+msgid ""
+":py:obj:`Scaling.model_post_init "
+"<pymc_marketing.mmm.scaling.Scaling.model_post_init>`\\ \\(context\\, \\/\\)"
+msgstr ""
+":py:obj:`Scaling.model_post_init "
+"<pymc_marketing.mmm.scaling.Scaling.model_post_init>`\\ \\(context\\, \\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:45:<autosummary>:1
+#: e5dc12a1c0d845d3856ed29d616ce2bd
+msgid ""
+"Override this method to perform additional initialization after `__init__` "
+"and `model_construct`."
+msgstr ""
+"Sobrescriba este método para realizar una inicialización adicional después "
+"de `__init__` y `model_construct`."
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:45:<autosummary>:1
+#: a18f9afc919a4914a47503fadc574128
+msgid ""
+":py:obj:`Scaling.model_rebuild "
+"<pymc_marketing.mmm.scaling.Scaling.model_rebuild>`\\ \\(\\*\\[\\, force\\, "
+"...\\]\\)"
+msgstr ""
+":py:obj:`Scaling.model_rebuild "
+"<pymc_marketing.mmm.scaling.Scaling.model_rebuild>`\\ \\(\\*\\[\\, fuerza\\,"
+" ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:45:<autosummary>:1
+#: 35aa8a79ae74447ab3ddf7e7876170c0
+msgid "Try to rebuild the pydantic-core schema for the model."
+msgstr "Intente reconstruir el esquema de pydantic-core para el modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:45:<autosummary>:1
+#: f5a781ab611744108725f4360e51854b
+msgid ""
+":py:obj:`Scaling.model_validate "
+"<pymc_marketing.mmm.scaling.Scaling.model_validate>`\\ \\(obj\\, \\*\\[\\, "
+"strict\\, ...\\]\\)"
+msgstr ""
+":py:obj:`Scaling.model_validate "
+"<pymc_marketing.mmm.scaling.Scaling.model_validate>`\\ \\(obj\\, \\*\\[\\, "
+"estricto\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:45:<autosummary>:1
+#: bb7d4a83111e425490cbc9f1dc36e4da
+msgid "Validate a pydantic model instance."
+msgstr "Valide una instancia de modelo pydantic."
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:45:<autosummary>:1
+#: 0861d47cfa944d68991f0e7d553a3423
+msgid ""
+":py:obj:`Scaling.model_validate_json "
+"<pymc_marketing.mmm.scaling.Scaling.model_validate_json>`\\ "
+"\\(json\\_data\\, \\*\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`Scaling.model_validate_json "
+"<pymc_marketing.mmm.scaling.Scaling.model_validate_json>`\\ "
+"\\(json\\_data\\, \\*\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:45:<autosummary>:1
+#: 81890dffe4754a998d4c3021d2d1fcb5
+msgid ""
+":py:obj:`Scaling.model_validate_strings "
+"<pymc_marketing.mmm.scaling.Scaling.model_validate_strings>`\\ \\(obj\\, "
+"\\*\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`Scaling.model_validate_strings "
+"<pymc_marketing.mmm.scaling.Scaling.model_validate_strings>`\\ \\(obj\\, "
+"\\*\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:45:<autosummary>:1
+#: 403d194a0ce04a65a405928709a2c239
+msgid "Validate the given object with string data against the Pydantic model."
+msgstr ""
+"Valide el objeto dado con datos de cadena contra el modelo de Pydantic."
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:45:<autosummary>:1
+#: 7c147ab0ba2d4c1fa868ab29b8bbf1fb
+msgid ""
+":py:obj:`Scaling.parse_file "
+"<pymc_marketing.mmm.scaling.Scaling.parse_file>`\\ \\(path\\, \\*\\[\\, "
+"content\\_type\\, ...\\]\\)"
+msgstr ""
+":py:obj:`Scaling.parse_file "
+"<pymc_marketing.mmm.scaling.Scaling.parse_file>`\\ \\(ruta\\, \\*\\[\\, "
+"tipo\\_de\\_contenido\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:45:<autosummary>:1
+#: 388b87c39cf14785abd200b895893856
+msgid ""
+":py:obj:`Scaling.parse_obj <pymc_marketing.mmm.scaling.Scaling.parse_obj>`\\"
+" \\(obj\\)"
+msgstr ""
+":py:obj:`Scaling.parse_obj <pymc_marketing.mmm.scaling.Scaling.parse_obj>`\\"
+" \\(obj\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:45:<autosummary>:1
+#: 118c962ce3c049528b45504950cafe67
+msgid ""
+":py:obj:`Scaling.parse_raw <pymc_marketing.mmm.scaling.Scaling.parse_raw>`\\"
+" \\(b\\, \\*\\[\\, content\\_type\\, ...\\]\\)"
+msgstr ""
+":py:obj:`Scaling.parse_raw <pymc_marketing.mmm.scaling.Scaling.parse_raw>`\\"
+" \\(b\\, \\*\\[\\, tipo\\_de\\_contenido\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:45:<autosummary>:1
+#: e9f72a562fb94d24a3da8f5f6b36bd68
+msgid ""
+":py:obj:`Scaling.schema <pymc_marketing.mmm.scaling.Scaling.schema>`\\ "
+"\\(\\[by\\_alias\\, ref\\_template\\]\\)"
+msgstr ""
+":py:obj:`Scaling.schema <pymc_marketing.mmm.scaling.Scaling.schema>`\\ "
+"\\(\\[por\\_alias\\, ref\\_template\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:45:<autosummary>:1
+#: 9f01d3afbc65431a9ea648fd6d63babd
+msgid ""
+":py:obj:`Scaling.schema_json "
+"<pymc_marketing.mmm.scaling.Scaling.schema_json>`\\ \\(\\*\\[\\, "
+"by\\_alias\\, ref\\_template\\]\\)"
+msgstr ""
+":py:obj:`Scaling.schema_json "
+"<pymc_marketing.mmm.scaling.Scaling.schema_json>`\\ \\(\\*\\[\\, "
+"por\\_alias\\, ref\\_template\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:45:<autosummary>:1
+#: 4aac0f9c20014759b80c7bb7f34259eb
+msgid ""
+":py:obj:`Scaling.update_forward_refs "
+"<pymc_marketing.mmm.scaling.Scaling.update_forward_refs>`\\ "
+"\\(\\*\\*localns\\)"
+msgstr ""
+":py:obj:`Scaling.update_forward_refs "
+"<pymc_marketing.mmm.scaling.Scaling.update_forward_refs>`\\ "
+"\\(\\*\\*localns\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:45:<autosummary>:1
+#: c6a0fa95dbb5458cbb6676f3436a350e
+msgid ""
+":py:obj:`Scaling.validate <pymc_marketing.mmm.scaling.Scaling.validate>`\\ "
+"\\(value\\)"
+msgstr ""
+":py:obj:`Scaling.validate <pymc_marketing.mmm.scaling.Scaling.validate>`\\ "
+"\\(valor\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:47
+#: 1925c03d716a421ba8f0fb5b258eaa6b
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:56:<autosummary>:1
+#: 6305aca7406f4ef3a4d277bb59d3429b
+msgid ""
+":py:obj:`model_computed_fields "
+"<pymc_marketing.mmm.scaling.Scaling.model_computed_fields>`\\"
+msgstr ""
+":py:obj:`model_computed_fields "
+"<pymc_marketing.mmm.scaling.Scaling.model_computed_fields>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:56:<autosummary>:1
+#: 804f8a0b82744670892aec959d43cbbc
+msgid ""
+":py:obj:`model_config <pymc_marketing.mmm.scaling.Scaling.model_config>`\\"
+msgstr ""
+":py:obj:`model_config <pymc_marketing.mmm.scaling.Scaling.model_config>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:56:<autosummary>:1
+#: 68e968ed1c01475fac5be78583ecbbf7
+msgid ""
+"Configuration for the model, should be a dictionary conforming to "
+"[`ConfigDict`][pydantic.config.ConfigDict]."
+msgstr ""
+"Configuración para el modelo, debe ser un diccionario que cumpla con "
+"[`ConfigDict`][pydantic.config.ConfigDict]."
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:56:<autosummary>:1
+#: 3705291844a341e7910376c3f69252ac
+msgid ":py:obj:`model_extra <pymc_marketing.mmm.scaling.Scaling.model_extra>`\\"
+msgstr ""
+":py:obj:`model_extra <pymc_marketing.mmm.scaling.Scaling.model_extra>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:56:<autosummary>:1
+#: 1be66cc3258c460f9a13c3e4a74cba97
+msgid "Get extra fields set during validation."
+msgstr "Obtener campos adicionales establecidos durante la validación."
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:56:<autosummary>:1
+#: a923167899324a3497609b4ee70ca7f5
+msgid ""
+":py:obj:`model_fields <pymc_marketing.mmm.scaling.Scaling.model_fields>`\\"
+msgstr ""
+":py:obj:`model_fields <pymc_marketing.mmm.scaling.Scaling.model_fields>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:56:<autosummary>:1
+#: ead63938f6e44af4a456a8de8b6a5a95
+msgid ""
+":py:obj:`model_fields_set "
+"<pymc_marketing.mmm.scaling.Scaling.model_fields_set>`\\"
+msgstr ""
+":py:obj:`model_fields_set "
+"<pymc_marketing.mmm.scaling.Scaling.model_fields_set>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:56:<autosummary>:1
+#: a192ac8bac594c7c95e7cfed2e7c0d33
+msgid ""
+"Returns the set of fields that have been explicitly set on this model "
+"instance."
+msgstr ""
+"Devuelve el conjunto de campos que han sido establecidos explícitamente en "
+"esta instancia del modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:56:<autosummary>:1
+#: dbb6fc644b974bcdb4b7acfb80b3ac60
+msgid ":py:obj:`target <pymc_marketing.mmm.scaling.Scaling.target>`\\"
+msgstr ":py:obj:`target <pymc_marketing.mmm.scaling.Scaling.target>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.Scaling.rst:56:<autosummary>:1
+#: d7c29447e2154c2b9efb220f6a033658
+msgid ":py:obj:`channel <pymc_marketing.mmm.scaling.Scaling.channel>`\\"
+msgstr ":py:obj:`canal <pymc_marketing.mmm.scaling.Scaling.channel>`\\"

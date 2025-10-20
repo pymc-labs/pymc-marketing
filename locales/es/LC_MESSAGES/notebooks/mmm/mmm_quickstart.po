@@ -1,0 +1,808 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-13 11:28+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:10004
+#: 00e0ad4f3a324f91bc3f1ecb5f8e45d1
+msgid "MMM Quickstart Guide"
+msgstr "Guía de inicio rápido de MMM"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:10006
+#: b25a17a917b44c6198793c65814d7f85
+msgid ""
+"Welcome to **PyMC-Marketing**! This library provides powerful Bayesian "
+"modeling tools for marketing analytics. PyMC-Marketing is built on top of"
+" [PyMC](https://www.pymc.io/), a probabilistic programming library that "
+"enables Bayesian inferenc. In this quickstart, we'll walk through fitting"
+" a basic Media Mix Model (MMM) in PyMC-Marketing."
+msgstr ""
+"Bienvenido a **PyMC-Marketing**. Esta biblioteca ofrece poderosas "
+"herramientas de modelado bayesiano para analítica de marketing. PyMC-"
+"Marketing está construido sobre [PyMC](https://www.pymc.io/), una "
+"biblioteca de programación probabilística que habilita la inferencia "
+"bayesiana. En esta guía rápida, recorreremos cómo ajustar un modelo "
+"básico de Mezcla de Medios (MMM) en PyMC-Marketing."
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:10009
+#: 6e66b3fbc8d24b0ea35c4b6b69e5bf3d
+msgid "What is Media Mix Modeling?"
+msgstr "¿Qué es el Modelado de Mezcla de Medios?"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:10011
+#: e009d4cc9dc54af29959caf797d57227
+msgid ""
+"Media Mix Modeling (MMM) helps marketers understand how different "
+"advertising channels contribute to business outcomes (like sales or "
+"conversions). MMM answers key questions:"
+msgstr ""
+"El Modelado de Mezcla de Medios (MMM) ayuda a los especialistas en "
+"marketing a comprender cómo distintos canales de publicidad contribuyen a"
+" los resultados del negocio (como ventas o conversiones). MMM responde "
+"preguntas clave:"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:10013
+#: c46e4d26bc5447e58265e265ac5d5883
+msgid "**Which channels drive the most sales?**"
+msgstr "**¿Qué canales impulsan más las ventas?**"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:10014
+#: 9d4f3d79cb684921a976e7cdacba1cae
+msgid "**What is the Return on Ad Spend (ROAS) for each channel?**"
+msgstr "**¿Cuál es el Retorno de la Inversión Publicitaria (ROAS) de cada canal?**"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:10015
+#: ac560e7f1341477d8bcc2807dfce9d36
+msgid "**How should I allocate my marketing budget?**"
+msgstr "**¿Cómo debería asignar mi presupuesto de marketing?**"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:10017
+#: 6f4936fa8f09408b967f209de084e712
+msgid "Key Concepts"
+msgstr "Conceptos clave"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:10019
+#: 9cd8cba6c14e439793a941e9cb6c9939
+msgid "MMM accounts for two important phenomena in advertising:"
+msgstr "MMM tiene en cuenta dos fenómenos importantes en la publicidad:"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:10021
+#: 01e290434ef64ea5a1328c2c33f9a08a
+msgid ""
+"**Adstock (Carry-over effect)**: The impact of advertising doesn't happen"
+" instantaneously—it builds up over time and gradually decays."
+msgstr ""
+"**Adstock (efecto de arrastre)**: El impacto de la publicidad no ocurre "
+"de forma instantánea; se acumula con el tiempo y se atenúa gradualmente."
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:10022
+#: 083c91421eac47d2bf63b105e1298d12
+msgid ""
+"**Saturation**: Returns diminish as you increase spend—the first dollar "
+"spent is more effective than the millionth dollar."
+msgstr ""
+"**Saturación**: Los rendimientos disminuyen a medida que aumentas el "
+"gasto; el primer dólar gastado es más efectivo que el millonésimo."
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:10024
+#: 265e158fe0b343c4a826f2311b1cafc4
+msgid ""
+"Let's see how we can fit a basic MMM model to understand these effects "
+"and measure channel contributions."
+msgstr ""
+"Veamos cómo ajustar un modelo MMM básico para entender estos efectos y "
+"medir las contribuciones de los canales."
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:10027
+#: f0b21741a9ee4625af02302ea221788f
+msgid ""
+"The focus of PyMC-Marketing is to provide tooling for real application. "
+"Typically, we need to think about the causal structure, lift test "
+"calibration and advanced budget optimization. This example should be seen"
+" as a first step to a more complex and rich tool-box to drive marketing "
+"decisions of the order of millions of dollars. In our example gallery, "
+"you will find extensive resources to help you and guide you through the "
+"MMM modeling iterative process."
+msgstr ""
+"El objetivo de PyMC-Marketing es brindar herramientas para aplicaciones "
+"reales. Normalmente, necesitamos pensar en la estructura causal, la "
+"calibración de pruebas de lift y la optimización avanzada del "
+"presupuesto. Este ejemplo debe considerarse como un primer paso hacia un "
+"conjunto de herramientas más complejo y completo para impulsar decisiones"
+" de marketing por valor de millones de dólares. En nuestra galería de "
+"ejemplos encontrarás recursos extensos para ayudarte y guiarte a través "
+"del proceso iterativo de modelado MMM."
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:10031
+#: c18a6ae437b14561949452dbb6bc4a49
+#, python-brace-format
+msgid ""
+"For an extended version of this example, see {ref}`mmm_example`. Here we "
+"delve deeper into the data generating process and model diagnostics. We "
+"also include ROAS estimation and out of sample predictions."
+msgstr ""
+"Para una versión extendida de este ejemplo, consulta {ref}`mmm_example`. "
+"Aquí profundizamos en el proceso de generación de datos y en el "
+"diagnóstico del modelo. También incluimos la estimación del ROAS y las "
+"predicciones fuera de muestra."
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:10032
+#: a50da499fef1473895dcf906a3bb8041
+#, python-brace-format
+msgid ""
+"If you want to see a complete end-to-end analysis, see "
+"{ref}`mmm_case_study`. Here we take a \"real\" world dataset and go "
+"through the entire process of model specification, fitting, optimization "
+"and scenario planning."
+msgstr ""
+"Si deseas ver un análisis completo de principio a fin, consulta "
+"{ref}`mmm_case_study`. Aquí tomamos un conjunto de datos \"real\" y "
+"recorremos todo el proceso de especificación del modelo, ajuste, "
+"optimización y planificación de escenarios."
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:20002
+#: e2f959a8435b43fa91dc35998d1619cf
+msgid "Prepare Notebook"
+msgstr "Preparar el cuaderno"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:20004
+#: cd188eb88ce24b7aa0b270a5d71c6538
+msgid "Let's import the necessary libraries:"
+msgstr "Importemos las librerías necesarias:"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:50002
+#: 61c3b7ad76f9415ebef083abc216c7b4
+msgid "Load Data"
+msgstr "Cargar datos"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:50004
+#: bc26a97a14b6447b91a4869d28e7be7c
+msgid ""
+"We'll use a synthetic dataset that simulates weekly sales data along with"
+" spend on two marketing channels (`x1` and `x2`), plus some control "
+"variables for special events."
+msgstr ""
+"Usaremos un conjunto de datos sintético que simula datos semanales de "
+"ventas junto con el gasto en dos canales de marketing (`x1` y `x2`), "
+"además de algunas variables de control para eventos especiales."
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:70002
+#: 13d2c70db3114936923f5f485f28d642
+msgid "Let's visualize our target variable (sales) and the media spend over time:"
+msgstr ""
+"Visualicemos nuestra variable objetivo (ventas) y el gasto en medios a lo"
+" largo del tiempo:"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:90002
+#: c1323cd29cc9489e9f71bf6cc3f93f36
+msgid "Feature Engineering"
+msgstr "Ingeniería de características"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:90004
+#: 1dd131b11f8045bd914efbb7108b25f8
+msgid "For our MMM model, we'll include:"
+msgstr "Para nuestro modelo MMM, incluiremos:"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:90006
+#: 55d733a429094e67ae9d823372ae1e92
+msgid "**Trend**: A linear trend to capture long-term growth"
+msgstr ""
+"**Tendencia**: Una tendencia lineal para capturar el crecimiento a largo "
+"plazo"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:90007
+#: e65fe3f522f44083b955b0a2d619a2d0
+msgid "**Seasonality**: Yearly seasonality (handled automatically by the model)"
+msgstr ""
+"**Estacionalidad**: Estacionalidad anual (manejada automáticamente por el"
+" modelo)"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:90008
+#: f75807b5f8fc4c51ade5533758f56e0a
+msgid "**Events**: Binary indicators for special events"
+msgstr "**Eventos**: Indicadores binarios para eventos especiales"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:90009
+#: 5a1c7c298e384a83a57c7920cc609ac5
+msgid "**Media channels**: Our two advertising channels"
+msgstr "**Canales de medios**: Nuestros dos canales de publicidad"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:110002
+#: 351e119d4b444b95baf8b2e2ab5cd902
+msgid "Model Specification"
+msgstr "Especificación del modelo"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:110004
+#: e9822f2d1313410fa08bf9330e9619e8
+msgid "Now we'll configure our MMM model. The key components are:"
+msgstr "Ahora configuraremos nuestro modelo MMM. Los componentes clave son:"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:110006
+#: e25c8f73a1054544925f884546009c86
+msgid ""
+"**Adstock transformation**: We use `GeometricAdstock` with a maximum lag "
+"of 8 weeks"
+msgstr ""
+"**Transformación Adstock**: Usamos `GeometricAdstock` con un retraso "
+"máximo de 8 semanas"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:110007
+#: d5ba3c84d1d341678e32dbdec5bfcf69
+msgid ""
+"**Saturation transformation**: We use `LogisticSaturation` to capture "
+"diminishing returns"
+msgstr ""
+"**Transformación de saturación**: Usamos `LogisticSaturation` para "
+"capturar los rendimientos decrecientes"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:110008
+#: 74ee0234cf1c480daf082e4886faa946
+msgid "**Priors**: We can customize priors based on domain knowledge"
+msgstr ""
+"**Distribuciones a priori**: Podemos personalizar las distribuciones a "
+"priori según el conocimiento del dominio"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:110010
+#: b704ac81eb184abd8f3767aa3242a1e2
+msgid "Setting Priors"
+msgstr "Configuración de distribuciones a priori"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:110012
+#: 1a7ab7061e9a472798b1cb503f50000d
+msgid ""
+"One powerful feature of Bayesian modeling is the ability to incorporate "
+"prior knowledge. Here's a simple heuristic for channel priors based on "
+"spend share:"
+msgstr ""
+"Una característica poderosa del modelado bayesiano es la capacidad de "
+"incorporar conocimiento previo. Aquí hay una heurística sencilla para las"
+" distribuciones a priori de los canales basada en la participación de "
+"gasto:"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:130002
+#: fdff325d35f941d5a6f64cd79fe68c16
+msgid "Now let's define our model configuration:"
+msgstr "Ahora definamos la configuración de nuestro modelo:"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:150002
+#: 6e26ed671eb84f588e48da93783b127f
+msgid "Prior Predictive Check"
+msgstr "Verificación predictiva a priori"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:150005
+#: b55abcd984854e4391b9b312b5a2dabb
+#, python-brace-format
+msgid ""
+"The prior predictive check is a good way to check that our priors are "
+"reasonable. Hence, is strongly recommended to perform this check before "
+"fitting the model. If you are new to Bayesian modeling, take a look into "
+"our {ref}`prior_predictive` guide notebook."
+msgstr ""
+"La verificación predictiva a priori es una excelente manera de comprobar "
+"que nuestras distribuciones a priori son razonables. Por ello, se "
+"recomienda encarecidamente realizar esta verificación antes de ajustar el"
+" modelo. Si eres nuevo en el modelado bayesiano, consulta nuestro "
+"notebook de guía {ref}`prior_predictive`."
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:150008
+#: 85be1082000d454b98bda0a7ffff669f
+msgid "Before fitting, let's check that our priors are reasonable:"
+msgstr ""
+"Antes de ajustar, verifiquemos que nuestras distribuciones a priori sean "
+"razonables:"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:170002
+#: 4cc41ac04d624c20b79edcefa19a33a6
+msgid "Overall, the prior predictive check looks good."
+msgstr "En general, la verificación predictiva a priori se ve bien."
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:180002
+#: 7826122d72d24007b8aae78cc0156bba
+msgid "Model Fitting"
+msgstr "Ajuste del modelo"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:180004
+#: 21ec7b2872bc4a6ea90afd5134aa8052
+#, python-brace-format
+msgid ""
+"Now let's fit the model to our data using MCMC sampling. Observe that we "
+"can use different samplers by passing the `nuts_sampler` argument. For "
+"instance, we can use `numpyro` `nutpie` or `blackjax` samplers (see "
+"{ref}`other_nuts_samplers` for more details)."
+msgstr ""
+"Ahora ajustemos el modelo a nuestros datos usando muestreo MCMC. Ten en "
+"cuenta que podemos usar diferentes muestreadores pasando el argumento "
+"`nuts_sampler`. Por ejemplo, podemos usar los muestreadores `numpyro`, "
+"`nutpie` o `blackjax` (consulta {ref}`other_nuts_samplers` para más "
+"detalles)."
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:200002
+#: 181e869c982c4e0b868520d1309f6fb0
+msgid "Model Diagnostics"
+msgstr "Diagnóstico del modelo"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:200004
+#: 93e544013a34442f960e6bc5fbf8613b
+msgid ""
+"After fitting, we should check the model quality. Let's start with "
+"divergences:"
+msgstr ""
+"Después del ajuste, debemos verificar la calidad del modelo. Comencemos "
+"con las divergencias:"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:220002
+#: ba82c6f82b0149a898e80e1e6266db24
+msgid "Parameter Summary"
+msgstr "Resumen de parámetros"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:220004
+#: bb6604a139964310a98591d26acc0186
+msgid "Let's examine the estimated parameters:"
+msgstr "Examinemos los parámetros estimados:"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:240002
+#: a99992602b50400381b85438de8c1894
+msgid "Good trace plots should show:"
+msgstr "Los gráficos de traza adecuados deben mostrar:"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:240003
+#: 869401cdb9b54c6882162fc342dbcc6f
+msgid "**Left side**: Smooth, bell-shaped distributions"
+msgstr "**Lado izquierdo**: Distribuciones suaves con forma de campana"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:240004
+#: 0e8bd1ba19224688a966e98385dbbc1c
+msgid ""
+"**Right side**: \"Fuzzy caterpillar\" patterns (good mixing) with no "
+"trends"
+msgstr ""
+"**Lado derecho**: patrones de \"oruga difusa\" (buen mezclado) sin "
+"tendencias"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:250002
+#: 6a49d6d23e9f4ac8a7b0916ce28ed92e
+msgid "Posterior Predictive Check"
+msgstr "Verificación predictiva posterior"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:250004
+#: bfa0cfaf351546ad81621aa5d630305f
+msgid "How well does our model fit the observed data?"
+msgstr "¿Qué tan bien se ajusta nuestro modelo a los datos observados?"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:270002
+#: 0a371077ead34fc8b3f60dbc54285d45
+msgid ""
+"The model captures the observed data well if the black dots (actual "
+"sales) fall within the shaded uncertainty bands."
+msgstr ""
+"El modelo captura bien los datos observados si los puntos negros (ventas "
+"reales) caen dentro de las bandas de incertidumbre sombreadas."
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:280002
+#: aa026c99c2a542128e3c6806f7c9c1b6
+msgid "Contribution Analysis"
+msgstr "Análisis de contribución"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:280004
+#: 100a956a91054cdaa385ccfc28b6d882
+msgid ""
+"Now for the fun part—understanding how much each component contributes to"
+" sales!"
+msgstr ""
+"Ahora viene la parte divertida: ¡entender cuánto contribuye cada "
+"componente a las ventas!"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:280006
+#: f0d8c92a622046a5ab0d88a615bface8
+msgid "Component Contributions Over Time"
+msgstr "Contribuciones de componentes a lo largo del tiempo"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:280008
+#: da7c6131b1624bdeb50ed3983e68ea53
+msgid "Let's visualize the contribution of each component of the model over time:"
+msgstr ""
+"Visualicemos la contribución de cada componente del modelo a lo largo del"
+" tiempo:"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:300002
+#: b396092df5b34046be37b0232aba8ed6
+msgid ""
+"We see that we have captured the linear trend, events contributions and "
+"the seasonalities in the data. The remaining variation is due to the "
+"media channels, which is exactly what we want to understand."
+msgstr ""
+"Observamos que hemos capturado la tendencia lineal, las contribuciones de"
+" los eventos y las estacionalidades en los datos. La variación restante "
+"se debe a los canales de medios, que es exactamente lo que queremos "
+"entender."
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:310002
+#: e4aa0837abb1482c8a446c7a5f461b3b
+msgid "Waterfall Chart: Total Contribution by Component"
+msgstr "Gráfico de cascada: Contribución total por componente"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:310004
+#: 5a2acd91c6ae471b87c7d0bc0e77af43
+msgid ""
+"A waterfall chart shows the total contribution of each component across "
+"the entire time period:"
+msgstr ""
+"Un gráfico de cascada muestra la contribución total de cada componente en"
+" todo el período de tiempo:"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:330002
+#: d835b46f696242ec9675a3e5419c68df
+msgid ""
+"This chart answers the question: **\"How much did each component "
+"contribute to total sales?\"**"
+msgstr ""
+"Este gráfico responde a la pregunta: **\"¿Cuánto contribuyó cada "
+"componente a las ventas totales?\"**"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:340002
+#: ca66eaef55534326a1424a43bffaffbc
+msgid "Channel Contribution Share"
+msgstr "Participación de contribución por canal"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:340004
+#: 0f340f39c2684650a8fbc91ce1418371
+msgid "What percentage of media-driven sales comes from each channel?"
+msgstr "¿Qué porcentaje de ventas impulsadas por medios proviene de cada canal?"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:360002
+#: bf9b760791ee485db81bcc2748eeadd5
+msgid "Direct Contribution Curves"
+msgstr "Curvas de contribución directa"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:360004
+#: eeecdc10ff94420489e9b65629a3bd32
+msgid ""
+"These curves show the relationship between spend and contribution, "
+"accounting for saturation:"
+msgstr ""
+"Estas curvas muestran la relación entre gasto y contribución, teniendo en"
+" cuenta la saturación:"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:380002
+#: f97a2ce458374ab3af892a5214840771
+msgid ""
+"Notice how the curves flatten at higher spend levels—this is the "
+"saturation effect in action!"
+msgstr ""
+"Observa cómo las curvas se aplanan a niveles de gasto más altos: ¡este es"
+" el efecto de saturación en acción!"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:390002
+#: d16b6193ebce4fb2a9d2fc7631f718ea
+msgid "Channel Contribution Grid"
+msgstr "Cuadrícula de contribución por canal"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:400002
+#: 4739e938936649c1ab899a6f5a24e5ba
+msgid ""
+"A complementary view of the media performance is to evaluate the channel "
+"contribution at **different share spend levels for the complete training "
+"period**. Concretely, if we denote by $\\delta$ the input channel data "
+"percentage level, so that for $\\delta = 1$ we have the model input spend"
+" data and for $\\delta = 1.5$ we have a $50\\%$ increase in the spend, "
+"then we can compute the channel contribution at a grid of "
+"$\\delta$-values and plot the results:"
+msgstr ""
+"Una vista complementaria del rendimiento de los medios consiste en "
+"evaluar la contribución por canal en **diferentes niveles de "
+"participación de gasto durante todo el período de entrenamiento**. "
+"Concretamente, si denotamos por $\\delta$ el nivel porcentual del gasto "
+"de entrada del canal, de modo que para $\\delta = 1$ tenemos los datos de"
+" gasto de entrada del modelo y para $\\delta = 1.5$ tenemos un aumento "
+"del 50\\% en el gasto, entonces podemos calcular la contribución por "
+"canal en una cuadrícula de valores de $\\delta$ y graficar los "
+"resultados:"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:420002
+#: 874436973bb644e787dffd9a161e52b6
+msgid ""
+"Here we can also see the saturation effect and the relative contribution "
+"of each channel as a function of the share spend level on the aggregate "
+"time period."
+msgstr ""
+"Aquí también podemos ver el efecto de saturación y la contribución "
+"relativa de cada canal en función del nivel de participación de gasto en "
+"el período de tiempo agregado."
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:430002
+#: c1a4f8da72d446d5b779cd1b14703206
+msgid "Next Steps"
+msgstr "Próximos pasos"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:430004
+#: 1ddfe57ce8c34fceb1030e4d8bbfd006
+msgid ""
+"Congratulations! You've successfully fitted your first MMM model with "
+"PyMC-Marketing. 🎉"
+msgstr ""
+"¡Felicidades! Has ajustado con éxito tu primer modelo MMM con PyMC-"
+"Marketing. 🎉"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:430006
+#: d36f661740d649e38e3a05a52b41ba14
+msgid "To continue your journey, check out:"
+msgstr "Para continuar tu recorrido, revisa:"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:430008
+#: 688a0ba50b864b1296c354339de310a9
+#, python-brace-format
+msgid ""
+"{ref}`mmm_example`: A comprehensive walkthrough including data "
+"generation, ROAS calculation, and more advanced diagnostics"
+msgstr ""
+"{ref}`mmm_example`: Un recorrido completo que incluye generación de "
+"datos, cálculo de ROAS y diagnósticos avanzados"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:430009
+#: 3b82a989009146109cee8777c84dc237
+#, fuzzy, python-brace-format
+msgid ""
+"{ref}`mmm_budget_allocation_example`: Learn how to optimize your "
+"marketing budget allocation"
+msgstr ""
+"{ref}`mmm_budget_allocation_example`: Aprende cómo optimizar la "
+"asignación de tu presupuesto de marketing"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:430010
+#: 295d609205fa43e880c679f1445ece86
+#, python-brace-format
+msgid ""
+"{ref}`mmm_lift_test`: Incorporate experimental results to improve model "
+"accuracy"
+msgstr ""
+"{ref}`mmm_lift_test`: Incorpora resultados experimentales para mejorar la"
+" precisión del modelo"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:430011
+#: 84a37af70885442ca8c38453d5651683
+#, fuzzy, python-brace-format
+msgid "{ref}`mmm_tv_intercept`: Model changing baseline effects over time"
+msgstr ""
+"{ref}`mmm_tv_intercept`: Modela los cambios en los efectos de línea base "
+"a lo largo del tiempo"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:430012
+#: 5f7708d3b7f84df7b66f3edac1114925
+#, fuzzy, python-brace-format
+msgid ""
+"{ref}`mmm_time_varying_media_example`: Model changing media efficiency "
+"over time"
+msgstr ""
+"{ref}`mmm_time_varying_media_example`: Modela la eficiencia de los medios"
+" variable a lo largo del tiempo"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:440002
+#: 346ee8d334f141569cb98663d8b20fcf
+msgid "PyMC-Marketing MMM Features"
+msgstr "Características MMM de PyMC-Marketing"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:440004
+#: 11a27da05e4c4183bcd1551f90f3b9a9
+msgid ""
+"PyMC-Marketing provides a comprehensive suite of tools for Marketing Mix "
+"Modeling:"
+msgstr ""
+"PyMC-Marketing ofrece un conjunto completo de herramientas para el "
+"Modelado de Mezcla de Medios:"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:150004
+#: f8c182086d114198a65a3d6036fcea87
+msgid "Feature"
+msgstr "Característica"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:150004
+#: cb2af25dbc044924872ef9d615b36ab8
+msgid "Description"
+msgstr "Descripción"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:150004
+#: f8fd707cbc264c5484dfcce7e42be238
+msgid "**Custom Priors and Likelihoods**"
+msgstr "**Distribuciones a priori y verosimilitudes personalizadas**"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:150004
+#: a7987e1e444840caaffb8dc6725cf232
+msgid ""
+"Tailor your model to your specific business needs by including domain "
+"knowledge via prior distributions"
+msgstr ""
+"Adapta tu modelo a tus necesidades específicas de negocio incluyendo "
+"conocimiento del dominio mediante distribuciones a priori"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:150004
+#: 6040eeb8e41b47a4ad640bfa2a29589d
+msgid "**Adstock Transformation**"
+msgstr "**Transformación Adstock**"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:150004
+#: 193f968f1ac04835871f6b8b017edc6c
+msgid "Optimize the carry-over effects in your marketing channels"
+msgstr "Optimiza los efectos de arrastre en tus canales de marketing"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:150004
+#: ddb4282535814c5ebd779a1c78bd947f
+msgid "**Saturation Effects**"
+msgstr "**Efectos de saturación**"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:150004
+#: 78238d1b3ab844e19b4194d05b178d55
+msgid "Understand the diminishing returns in media investments"
+msgstr "Comprende los rendimientos decrecientes en las inversiones en medios"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:150004
+#: 2e6b854a0a0c4d55b0c5f50c0083aaa2
+msgid "**Customize adstock and saturation functions**"
+msgstr "**Personaliza las funciones de adstock y saturación**"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:150004
+#: 0ab5fb661339414bbfe9b013e0c3761c
+msgid ""
+"Select from a variety of adstock and saturation functions, or implement "
+"your own custom functions"
+msgstr ""
+"Elige entre una variedad de funciones de adstock y saturación, o "
+"implementa tus propias funciones personalizadas"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:150004
+#: 26828ac826994c8c9a62cb5537cec9d9
+msgid "**Time-varying Intercept**"
+msgstr "**Intercepto variable en el tiempo**"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:150004
+#: 81b66fa6585e4f8a856e864f574f7b57
+msgid ""
+"Capture time-varying baseline contributions using modern and efficient "
+"Gaussian processes approximation methods"
+msgstr ""
+"Captura las contribuciones de línea base variables en el tiempo "
+"utilizando métodos modernos y eficientes de aproximación con procesos "
+"Gaussianos"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:150004
+#: 784edbe4f3b240bca814e217b2e47b2c
+msgid "**Time-varying Media Contribution**"
+msgstr "**Contribución de medios variable en el tiempo**"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:150004
+#: b4c208ff03414507af0f9e2adc0ee9a0
+msgid "Capture time-varying media efficiency in your model"
+msgstr "Captura la eficiencia de los medios variable en el tiempo en tu modelo"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:150004
+#: 196ac6617d9a46abb6be6a3bab4b6fb9
+msgid "**Visualization and Model Diagnostics**"
+msgstr "**Visualización y diagnóstico del modelo**"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:150004
+#: a3223b809e364242a136ea05e057878a
+msgid "Get a comprehensive view of your model's performance and insights"
+msgstr "Obtén una visión completa del rendimiento y los insights de tu modelo"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:150004
+#: 6884d03fcf914c5ebb2a1a71d293c0b6
+msgid "**Causal Identification**"
+msgstr "**Identificación causal**"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:150004
+#: 94a494b43d384a109b955b339bd00689
+msgid ""
+"Input a business-driven directed acyclic graph to identify meaningful "
+"variables for causal conclusions"
+msgstr ""
+"Introduce un grafo acíclico dirigido basado en objetivos de negocio para "
+"identificar variables significativas para conclusiones causales"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:150004
+#: 02ca03388c0745f8bed423a4a9692c72
+msgid "**Multiple inference algorithms**"
+msgstr "**Múltiples algoritmos de inferencia**"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:150004
+#: edede268937c47fe88c2fd83f088e44b
+msgid "Choose between various NUTS samplers (e.g., BlackJax, NumPyro, and Nutpie)"
+msgstr "Elige entre varios muestreadores NUTS (p. ej., BlackJax, NumPyro y Nutpie)"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:150004
+#: de808e671dfa4ad5b835d6212d7aedc8
+msgid "**GPU Support**"
+msgstr "**Compatibilidad con GPU**"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:150004
+#: 4016421ee0464565a1efc841bd6bba59
+msgid "PyMC's multiple backends allow for GPU acceleration"
+msgstr "Los múltiples backends de PyMC permiten aceleración por GPU"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:150004
+#: 1f348bd43d624afd860f3ea4112e0dee
+msgid "**Out-of-sample Predictions**"
+msgstr "**Predicciones fuera de muestra**"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:150004
+#: 47b0fd81c57a46589509a02ae34f2d77
+msgid ""
+"Forecast future marketing performance with credible intervals for "
+"simulations and scenario planning"
+msgstr ""
+"Pronostica el rendimiento futuro de marketing con intervalos creíbles "
+"para simulaciones y planificación de escenarios"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:150004
+#: 3c4ebccc042443f1ae64dc5fa2de0b8e
+msgid "**Budget Optimization**"
+msgstr "**Optimización de presupuesto**"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:150004
+#: de6ab2d864fe4bb6966fbb89fc27c362
+msgid ""
+"Allocate your marketing spend efficiently across various channels for "
+"maximum ROI"
+msgstr ""
+"Asigna tu gasto de marketing de manera eficiente entre varios canales "
+"para maximizar el ROI"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:150004
+#: b87c807b071f47c9bcb292722b58d6cc
+msgid "**Experiment Calibration**"
+msgstr "**Calibración de experimentos**"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:150004
+#: dd5dd577a4584682a37f5d218ea5c507
+msgid ""
+"Fine-tune your model based on empirical experiments (lift tests) for a "
+"more unified view of marketing"
+msgstr ""
+"Ajusta tu modelo basándote en experimentos empíricos (pruebas de lift) "
+"para una visión de marketing más unificada"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:450002
+#: 12ace91396c448fc96ec84c1aaba4ae3
+msgid "References"
+msgstr "Referencias"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:450004
+#: 9e9bb3a3aea0400c9cb9999a2a6d4c6e
+msgid ""
+"Jin, Y., Wang, Y., Sun, Y., Chan, D., & Koehler, J. (2017). [Bayesian "
+"Methods for Media Mix Modeling with Carryover and Shape "
+"Effects.](https://research.google/pubs/pub46001/)"
+msgstr ""
+"Jin, Y., Wang, Y., Sun, Y., Chan, D. y Koehler, J. (2017). [Métodos "
+"bayesianos para el Modelado de Mezcla de Medios con efectos de arrastre y"
+" de forma.](https://research.google/pubs/pub46001/)"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:450005
+#: 70a8d369b73e40a1985d12d31e1ca290
+msgid "[PyMC-Marketing Documentation](https://www.pymc-marketing.io/)"
+msgstr "[Documentación de PyMC-Marketing](https://www.pymc-marketing.io/)"
+
+#: ../source/notebooks/mmm/mmm_quickstart.ipynb:450006
+#: fb504b28be5f4e7f930455898ab63c91
+msgid ""
+"Juan Orduz, [Media Effect Estimation with PyMC: Adstock, Saturation & "
+"Diminishing Returns](https://juanitorduz.github.io/pymc_mmm/)"
+msgstr ""
+"Juan Orduz, [Estimación de efectos de medios con PyMC: Adstock, "
+"Saturación y Rendimientos "
+"decrecientes](https://juanitorduz.github.io/pymc_mmm/)"

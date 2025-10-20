@@ -1,0 +1,52 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.model_graph.rst:2
+#: 1536be3413924efc9913d31ed32f9e90
+msgid "model\\_graph"
+msgstr "modelo\\_grafo"
+
+#: f64eae93f694418eaa80d557f7700f13 of pymc_marketing.model_graph:1
+msgid "Functions to manipulate PyMC models as graphs."
+msgstr "Funciones para manipular modelos de PyMC como gráficos."
+
+#: ../source/api/generated/pymc_marketing.model_graph.rst:13
+#: 488d3cbc20b14aa28feedbc4d9e019ba
+msgid "Functions"
+msgstr "Funciones"
+
+#: ../source/api/generated/pymc_marketing.model_graph.rst:18:<autosummary>:1
+#: f12d3b580f67470dac4e5b2f66f731f4
+msgid ""
+":py:obj:`deterministics_to_flat "
+"<pymc_marketing.model_graph.deterministics_to_flat>`\\ \\(model\\, names\\)"
+msgstr ""
+":py:obj:`deterministics_to_flat "
+"<pymc_marketing.model_graph.deterministics_to_flat>`\\ \\(nombres\\, del\\, "
+"modelo\\)"
+
+#: ../source/api/generated/pymc_marketing.model_graph.rst:18:<autosummary>:1
+#: d5e5b998c595418f94d0e8b3f63e2e39
+msgid "Replace all specified Deterministic nodes in a pm.Model with Flat."
+msgstr ""
+"Reemplace todos los nodos deterministas especificados en un pm.Model con "
+"Flat."

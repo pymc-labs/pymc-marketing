@@ -1,0 +1,247 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.geometric_adstock.rst:2
+#: 1295a019c5dc4b19a43f0d7565000990
+msgid "geometric\\_adstock"
+msgstr "adstock\\_geométrico"
+
+#: 18bc4777bd6d49609eeb60ce1a641617 of
+#: pymc_marketing.mmm.transformers.geometric_adstock:2
+msgid "Geometric adstock transformation."
+msgstr "Transformación adstock geométrica."
+
+#: 20e77b7e489c4a63af7f313de5c170aa of
+#: pymc_marketing.mmm.transformers.geometric_adstock:4
+msgid ""
+"Adstock with geometric decay assumes advertising effect peaks at the same "
+"time period as ad exposure. The cumulative media effect is a weighted "
+"average of media spend in the current time-period (e.g. week) and previous "
+"`l_max` - 1 periods (e.g. weeks). `l_max` is the maximum duration of "
+"carryover effect."
+msgstr ""
+"El Adstock con decaimiento geométrico asume que el efecto publicitario "
+"alcanza su punto máximo en el mismo período de tiempo que la exposición al "
+"anuncio. El efecto acumulativo de los medios es un promedio ponderado del "
+"gasto en medios en el período de tiempo actual (por ejemplo, semana) y en "
+"los `l_max` - 1 períodos anteriores (por ejemplo, semanas). `l_max` es la "
+"duración máxima del efecto de arrastre."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.geometric_adstock.rst:7
+#: a84bf73b52094918859bb0755e85e821
+msgid ""
+"(:download:`Source code "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-geometric_adstock-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-geometric_adstock-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-geometric_adstock-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-geometric_adstock-1.pdf>`)"
+msgstr ""
+"(:download:`Código fuente "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-geometric_adstock-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-geometric_adstock-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-geometric_adstock-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-geometric_adstock-1.pdf>`)"
+
+#: bc6c4bdad25d49d1bea542da3c0efc18 of
+#: pymc_marketing.mmm.transformers.geometric_adstock
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: efc29246b8644bf5858b9cf3578b9a74 of
+#: pymc_marketing.mmm.transformers.geometric_adstock:42
+msgid "**x** : :obj:`tensor`"
+msgstr "**x** : :obj:`tensor`"
+
+#: aa181118546c4f6b9de969c30171cb78 of
+#: pymc_marketing.mmm.transformers.geometric_adstock:41
+msgid "tensor"
+msgstr "tensor"
+
+#: 37b6e62135744813b06b734c6c3a0c50 of
+#: pymc_marketing.mmm.transformers.geometric_adstock:43
+msgid "Input tensor."
+msgstr "Tensor de entrada."
+
+#: fe1486ae21864fb78b3b9a65d736e986 of
+#: pymc_marketing.mmm.transformers.geometric_adstock:45
+msgid "**alpha** : :class:`python:float`, :obj:`by` default 0.0"
+msgstr "**alpha** : :class:`python:float`, :obj:`por` defecto 0.0"
+
+#: 996f02eb64e24d5794bddc6b496d400e of
+#: pymc_marketing.mmm.transformers.geometric_adstock:44
+msgid "python:float, by default 0.0"
+msgstr "python:float, por defecto 0.0"
+
+#: 7c7f370af5364143bd015e20cd7cabb2 of
+#: pymc_marketing.mmm.transformers.geometric_adstock:46
+msgid "Retention rate of ad effect. Must be between 0 and 1."
+msgstr "Tasa de retención del efecto del anuncio. Debe estar entre 0 y 1."
+
+#: 62ea30c17e574f7b907f2e326376cc63 of
+#: pymc_marketing.mmm.transformers.geometric_adstock:48
+msgid "**l_max** : :class:`python:int`, :obj:`by` default 12"
+msgstr "**l_max** : :class:`python:int`, :obj:`por` defecto 12"
+
+#: 84da869ef389415bb60f03f1c03e03a3 of
+#: pymc_marketing.mmm.transformers.geometric_adstock:47
+msgid "python:int, by default 12"
+msgstr "python:int, por defecto 12"
+
+#: 6ad02b44535648e19dddac22eb139551 of
+#: pymc_marketing.mmm.transformers.geometric_adstock:49
+msgid "Maximum duration of carryover effect."
+msgstr "Duración máxima del efecto de arrastre."
+
+#: 8fe11c3b1701474aa40385a1baca3d28 of
+#: pymc_marketing.mmm.transformers.geometric_adstock:51
+msgid ""
+"**normalize** : :ref:`bool <python:bltin-boolean-values>`, :obj:`by` default"
+" :data:`python:False`"
+msgstr ""
+"**normalizar** : :ref:`bool <python:bltin-boolean-values>`, :obj:`por` "
+"defecto :data:`python:False`"
+
+#: f5696533baa84219827c959d505d3c09 of
+#: pymc_marketing.mmm.transformers.geometric_adstock:50
+msgid "bool, by default python:False"
+msgstr "bool, por defecto python:False"
+
+#: f753bcd13cf14b3396f15e48b61699e2 of
+#: pymc_marketing.mmm.transformers.geometric_adstock:52
+msgid "Whether to normalize the weights."
+msgstr "Si se deben normalizar los pesos."
+
+#: 154b2b355d9f43d787999f0f6cfd36c7 of
+#: pymc_marketing.mmm.transformers.geometric_adstock:54
+msgid "**axis** : :class:`python:int`"
+msgstr "**eje** : :class:`python:int`"
+
+#: 00e6338f5b0a4b3e9d7b59d95ec3c426 of
+#: pymc_marketing.mmm.transformers.geometric_adstock:53
+msgid "python:int"
+msgstr "python:int"
+
+#: 25a9d2066a604fa1b9abdb53891c7614 of
+#: pymc_marketing.mmm.transformers.geometric_adstock:55
+msgid "The axis of ``x`` along witch to apply the convolution"
+msgstr "El eje de ``x`` a lo largo del cual aplicar la convolución"
+
+#: d3bafcbbe80c441a95bd36b779571303 of
+#: pymc_marketing.mmm.transformers.geometric_adstock:57
+msgid "**mode** : :obj:`ConvMode`, optional"
+msgstr "**modo** : :obj:`ConvMode`, opcional"
+
+#: 2934dbfe023f4bfea325ca376fbd4675 of
+#: pymc_marketing.mmm.transformers.geometric_adstock:56
+msgid "ConvMode, optional"
+msgstr "ConvMode, opcional"
+
+#: 1e8419bff46a48799431de4c519e2149 of
+#: pymc_marketing.mmm.transformers.geometric_adstock:58
+msgid ""
+"The convolution mode determines how the convolution is applied at the "
+"boundaries of the input signal, denoted as \"x.\" The default mode is "
+"ConvMode.After."
+msgstr ""
+"El modo de convolución determina cómo se aplica la convolución en los "
+"límites de la señal de entrada, denotada como \"x.\" El modo predeterminado "
+"es ConvMode.After."
+
+#: cf58980101744788b116868a7e4f9ac6 of
+#: pymc_marketing.mmm.transformers.geometric_adstock:61
+msgid ""
+"ConvMode.After: Applies the convolution with the \"Adstock\" effect, "
+"resulting in a trailing decay effect."
+msgstr ""
+"ConvMode.After: Aplica la convolución con el efecto \"Adstock\", resultando "
+"en un efecto de decaimiento en el tiempo."
+
+#: 866224b860634003926ae02b1e036a15 of
+#: pymc_marketing.mmm.transformers.geometric_adstock:62
+msgid ""
+"ConvMode.Before: Applies the convolution with the \"Excitement\" effect, "
+"creating a leading effect"
+msgstr ""
+"ConvMode.Before: Aplica la convolución con el efecto \"Emoción\", creando un"
+" efecto de anticipación."
+
+#: 5f4eb15196794f0a83a3b44babe48261 of
+#: pymc_marketing.mmm.transformers.geometric_adstock:63
+msgid "similar to the wow factor."
+msgstr "similar al factor wow."
+
+#: fecd7e0911234167b63368212e6c77f6 of
+#: pymc_marketing.mmm.transformers.geometric_adstock:64
+msgid ""
+"ConvMode.Overlap: Applies the convolution with both \"Pull-Forward\" and "
+"\"Pull-Backward\" effects,"
+msgstr ""
+"ConvMode.Overlap: Aplica la convolución con efectos de \"Pull-Forward\" y "
+"\"Pull-Backward\","
+
+#: 6f181d8dc89a44ab99779afc83289fd6 of
+#: pymc_marketing.mmm.transformers.geometric_adstock:65
+msgid "where the effect overlaps with both preceding and succeeding elements."
+msgstr ""
+"donde el efecto se superpone con los elementos precedentes y sucesivos."
+
+#: 50951b0603b9452c89acd8f877c97117 of
+#: pymc_marketing.mmm.transformers.geometric_adstock
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 4772e63d344f4987a2219733d90a40b4 of
+#: pymc_marketing.mmm.transformers.geometric_adstock:71
+msgid ":obj:`tensor`"
+msgstr ":obj:`tensor`"
+
+#: 59b7649b474c4999910f30f7e3ed8736 of
+#: pymc_marketing.mmm.transformers.geometric_adstock:72
+msgid "Transformed tensor."
+msgstr "Tensor transformado."
+
+#: 218fabb5044843359bc4ad89d9f8c543 of
+#: pymc_marketing.mmm.transformers.geometric_adstock:83
+msgid "References"
+msgstr "Referencias"
+
+#: 3654cacf1bcb488a8fe36f62a5b4896d of
+#: pymc_marketing.mmm.transformers.geometric_adstock:84
+msgid ""
+"Jin, Yuxue, et al. \"Bayesian methods for media mix modeling with carryover "
+"and shape effects.\" (2017)."
+msgstr ""
+"Jin, Yuxue, et al. \"Métodos bayesianos para la modelización de mezcla de "
+"medios con efectos de arrastre y forma.\" (2017)."
+
+#: 3d7d166be6fe4f4588d826b3227d6cd7 of
+#: pymc_marketing.mmm.transformers.geometric_adstock:89
+msgid "[Re77c0d36befa-1]_"
+msgstr "[Re77c0d36befa-1]_"

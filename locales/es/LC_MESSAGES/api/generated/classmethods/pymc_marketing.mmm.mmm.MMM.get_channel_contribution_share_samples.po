@@ -1,0 +1,74 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.mmm.MMM.get_channel_contribution_share_samples.rst:2
+#: 48da8af1f6d84edfb75083a960f1dff0
+msgid "MMM.get\\_channel\\_contribution\\_share\\_samples"
+msgstr "MMM.obtener\\_muestra\\_de\\_contribución\\_del\\_canal"
+
+#: b4cc34c8a92b455e91104ff62713bd37 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.get_channel_contribution_share_samples:2
+msgid ""
+"Get the share of channel contributions in the original scale of the target "
+"variable."
+msgstr ""
+"Obtenga la participación de las contribuciones del canal en la escala "
+"original de la variable objetivo."
+
+#: b2e65380f098402392b4a0c793c1921f of
+#: pymc_marketing.mmm.base.MMMModelBuilder.get_channel_contribution_share_samples
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 70985e1a506846dc84a4adf09df9d929 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.get_channel_contribution_share_samples:7
+msgid "**prior** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr "**anterior** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: d1be891b578c4382b095d8039604a74a of
+#: pymc_marketing.mmm.base.MMMModelBuilder.get_channel_contribution_share_samples:6
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: 28fc91d8c2464f878cf1f4bd961cfd1e of
+#: pymc_marketing.mmm.base.MMMModelBuilder.get_channel_contribution_share_samples:8
+msgid "Whether to use the prior or posterior, by default False (posterior)"
+msgstr "Si utilizar el anterior o el posterior, por defecto Falso (posterior)"
+
+#: 46fe6967314248e4aa429f736cf9abb8 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.get_channel_contribution_share_samples
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 9aa9909daabd455fb48d4bebac34c86c of
+#: pymc_marketing.mmm.base.MMMModelBuilder.get_channel_contribution_share_samples:14
+msgid ":obj:`DataArray`"
+msgstr ":obj:`DataArray`"
+
+#: 3ee3d12383434e158bf5e8dd9a8a69b8 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.get_channel_contribution_share_samples:15
+msgid ""
+"The share of channel contributions in the original scale of the target "
+"variable."
+msgstr ""
+"La participación de las contribuciones del canal en la escala original de la"
+" variable objetivo."

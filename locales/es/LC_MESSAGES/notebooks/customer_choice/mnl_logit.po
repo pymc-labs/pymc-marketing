@@ -1,0 +1,459 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/customer_choice/mnl_logit.ipynb:10002
+#: 83594f370a3842f887fd5e56d3d20c18
+msgid ""
+"Multinomial Choice Models and the Indepdence of Irrelevant Alternatives"
+msgstr ""
+"Modelos de Elección Multinomial y la Independencia de Alternativas "
+"Irrelevantes"
+
+#: ../source/notebooks/customer_choice/mnl_logit.ipynb:40002
+#: 1cacf65c58c94a16843625e85b3954d9
+msgid ""
+"Discrete choice models are a class of statistical models used to analyze and"
+" predict choices made by individuals among a finite set of alternatives. The"
+" set of alternatives ussually represent a choice between \"products\" "
+"broadly construed."
+msgstr ""
+"Los modelos de elección discreta son una clase de modelos estadísticos "
+"utilizados para analizar y predecir las elecciones realizadas por individuos"
+" entre un conjunto finito de alternativas. El conjunto de alternativas "
+"generalmente representa una elección entre \"productos\" en un sentido "
+"amplio."
+
+#: ../source/notebooks/customer_choice/mnl_logit.ipynb:40004
+#: 91e223afcf1742e38db47abf6ef8e044
+msgid ""
+"These models are grounded in utility maximization theory, where each option "
+"provides a certain level of utility to the decision-maker, and the option "
+"with the highest perceived utility is chosen."
+msgstr ""
+"Estos modelos se basan en la teoría de maximización de la utilidad, donde "
+"cada opción proporciona un cierto nivel de utilidad al tomador de "
+"decisiones, y se elige la opción con la mayor utilidad percibida."
+
+#: ../source/notebooks/customer_choice/mnl_logit.ipynb:40006
+#: c537dcbefedc43f9b928c6e52dbce76e
+msgid ""
+"Discrete choice models are widely applied in fields like transportation, "
+"marketing, and health economics to understand behavior and inform policy or "
+"design. Common variants include the multinomial logit, nested logit, and "
+"mixed logit models, each capturing different aspects of choice behavior, "
+"such as similarity among alternatives or individual heterogeneity. In this "
+"notebook we will demonstrate how to specify the multinomial logit model and "
+"highlight a property of this model known as the Independence of Irrelevant "
+"Alternatives."
+msgstr ""
+"Los modelos de elección discreta se aplican ampliamente en campos como el "
+"transporte, el marketing y la economía de la salud para comprender el "
+"comportamiento e informar políticas o diseños. Las variantes comunes "
+"incluyen el modelo logit multinomial, el logit anidado y el modelo logit "
+"mixto, cada uno de los cuales captura diferentes aspectos del comportamiento"
+" de elección, como la similitud entre alternativas o la heterogeneidad "
+"individual. En este cuaderno, demostraremos cómo especificar el modelo logit"
+" multinomial y destacaremos una propiedad de este modelo conocida como la "
+"Independencia de Alternativas Irrelevantes."
+
+#: ../source/notebooks/customer_choice/mnl_logit.ipynb:40009
+#: a61135ff499c4cfda117d830c2bb43f5
+msgid "The Data"
+msgstr "Los Datos"
+
+#: ../source/notebooks/customer_choice/mnl_logit.ipynb:40011
+#: d35ad183184544e08d5ad7644951eac1
+msgid ""
+"We will examine a case of choices between heating systems. This data is "
+"drawn from an example in the R package `mlogit`."
+msgstr ""
+"Examinaremos un caso de elecciones entre sistemas de calefacción. Estos "
+"datos se extraen de un ejemplo en el paquete R `mlogit`."
+
+#: ../source/notebooks/customer_choice/mnl_logit.ipynb:40013
+#: 1ea3a747554440f69a9879a36692619a
+msgid ""
+"Note the data has been formatted in a \"wide\" fashion where each row "
+"represents a choice scenario characterised by (a) the chosen outcome "
+"`depvar`, (b) the product attributes: installation costs (`ic_x`) and "
+"operating costs (`oc_x`) and (c) fixed attributs of the agent making the "
+"choice e.g. the consumer's income and rooms."
+msgstr ""
+"Tenga en cuenta que los datos han sido formateados de manera \"amplia\", "
+"donde cada fila representa un escenario de elección caracterizado por (a) el"
+" resultado elegido `depvar`, (b) los atributos del producto: costos de "
+"instalación (`ic_x`) y costos de operación (`oc_x`), y (c) atributos fijos "
+"del agente que toma la decisión, por ejemplo, el ingreso del consumidor y "
+"las habitaciones."
+
+#: ../source/notebooks/customer_choice/mnl_logit.ipynb:60002
+#: 98eb8414a6444c95a1353bc834e253b9
+msgid "Seeing that we have 5 alternatives to choose from:"
+msgstr "Viendo que tenemos 5 alternativas para elegir:"
+
+#: ../source/notebooks/customer_choice/mnl_logit.ipynb:80002
+#: 9f3a14e6d4834b8bbfba869ab76c7363
+msgid ""
+"The idea of discrete choice models is to determine how propensity to choose "
+"these products is driven by their observable attributes."
+msgstr ""
+"La idea de los modelos de elección discreta es determinar cómo la propensión"
+" a elegir estos productos está impulsada por sus atributos observables."
+
+#: ../source/notebooks/customer_choice/mnl_logit.ipynb:90002
+#: d9039e06228641668800d994b6a5e914
+msgid "Utility Theory and Maximisation"
+msgstr "Teoría de la Utilidad y Maximización"
+
+#: ../source/notebooks/customer_choice/mnl_logit.ipynb:90004
+#: 8e56cb98bc3942829c2fa546bafb5e06
+msgid ""
+"The general idea of these models is that an individuals’ choices among "
+"observed alternatives reflect the maximization of an underlying utility "
+"function. In this framework, each alternative in a choice set is associated "
+"with a latent utility composed of observable components (e.g., cost, travel "
+"time) and unobservable factors captured as random errors. Daniel McFadden "
+"formalized this approach using random utility models, including the "
+"multinomial logit model, which assumes that the unobserved components of "
+"utility follow an extreme value distribution. His models provided a rigorous"
+" econometric foundation for analyzing choice behavior from observed "
+"decisions, enabling estimation of how changes in attributes influence choice"
+" probabilities. This work earned McFadden the Nobel Prize in Economics in "
+"2000 and has had lasting influence in transportation, marketing, and labor "
+"economics."
+msgstr ""
+"La idea general de estos modelos es que las elecciones de los individuos "
+"entre alternativas observadas reflejan la maximización de una función de "
+"utilidad subyacente. En este marco, cada alternativa en un conjunto de "
+"elecciones está asociada con una utilidad latente compuesta de componentes "
+"observables (por ejemplo, costo, tiempo de viaje) y factores no observables "
+"capturados como errores aleatorios. Daniel McFadden formalizó este enfoque "
+"utilizando modelos de utilidad aleatoria, incluido el modelo logit "
+"multinomial, que asume que los componentes no observados de la utilidad "
+"siguen una distribución de valor extremo. Sus modelos proporcionaron una "
+"base econométrica rigurosa para analizar el comportamiento de elección a "
+"partir de decisiones observadas, permitiendo la estimación de cómo los "
+"cambios en los atributos influyen en las probabilidades de elección. Este "
+"trabajo le valió a McFadden el Premio Nobel de Economía en 2000 y ha tenido "
+"una influencia duradera en el transporte, el marketing y la economía "
+"laboral."
+
+#: ../source/notebooks/customer_choice/mnl_logit.ipynb:90006
+#: 9aba1be6ec6040c593b41eb5f31a49a8
+msgid ""
+"To specify our multinomial logit model we therefore specify the form of the "
+"utility equations that might drive consumers to purchase particular goods "
+"amongst a choice set. Note how we distinguish each of the individual "
+"alternatives and the alternative-specific-covariates and the individual-"
+"specific-covariates by using the `|` notation. This is a variant of the "
+"standard Wilkinson stlye formula notation for specifying regression models. "
+"Under the hood we fit N regression models for each of the N goods. These "
+"regressions are used to generate a Utility score which is fed through a "
+"softmax transform to give us probabilities of each particular choice. The "
+"most probable choice should be the one with the greatest predicted utility."
+msgstr ""
+"Para especificar nuestro modelo de logit multinomial, especificamos, por lo "
+"tanto, la forma de las ecuaciones de utilidad que podrían llevar a los "
+"consumidores a comprar bienes particulares entre un conjunto de opciones. "
+"Observe cómo distinguimos cada una de las alternativas individuales y las "
+"covariables específicas de la alternativa y las covariables específicas del "
+"individuo utilizando la notación `|`. Esta es una variante de la notación de"
+" fórmula al estilo Wilkinson estándar para especificar modelos de regresión."
+" En el fondo, ajustamos N modelos de regresión para cada uno de los N "
+"bienes. Estas regresiones se utilizan para generar una puntuación de "
+"utilidad que se alimenta a través de una transformación softmax para darnos "
+"las probabilidades de cada elección particular. La elección más probable "
+"debería ser la que tenga la mayor utilidad predicha."
+
+#: ../source/notebooks/customer_choice/mnl_logit.ipynb:90008
+#: 6460781d6d6341a6b3730f7a861f2187
+#, python-brace-format
+msgid ""
+" \\begin{split} \\begin{pmatrix}\n"
+"u_{gc}   \\\\\n"
+"u_{gr}   \\\\\n"
+"u_{ec}   \\\\\n"
+"u_{er}   \\\\\n"
+"u_{hp}   \\\\\n"
+"\\end{pmatrix} =  \\begin{pmatrix}\n"
+"gc_{ic} & gc_{oc}  \\\\\n"
+"gr_{ic} & gr_{oc}  \\\\\n"
+"ec_{ic} & ec_{oc}  \\\\\n"
+"er_{ic} & er_{oc}  \\\\\n"
+"hp_{ic} & hp_{oc}  \\\\\n"
+"\\end{pmatrix} \\begin{pmatrix}\n"
+"\\beta_{ic}   \\\\\n"
+"\\beta_{oc}   \\\\\n"
+"\\end{pmatrix}  \\end{split}\n"
+msgstr ""
+"\\begin{split} \\begin{pmatrix}\n"
+"u_{gc}   \\\\\n"
+"u_{gr}   \\\\\n"
+"u_{ec}   \\\\\n"
+"u_{er}   \\\\\n"
+"u_{hp}   \\\\\n"
+"\\end{pmatrix} =  \\begin{pmatrix}\n"
+"gc_{ic} & gc_{pmatrix}0  \\\\\n"
+"gr_{pmatrix}1 & gr_{pmatrix}2  \\\\\n"
+"ec_{pmatrix}3 & ec_{pmatrix}4  \\\\\n"
+"er_{pmatrix}5 & er_{pmatrix}6  \\\\\n"
+"hp_{pmatrix}7 & hp_{pmatrix}8  \\\\\n"
+"\\end{pmatrix}9 \\begin{gc}0\n"
+"\\beta_{gc}1   \\\\\n"
+"\\beta_{gc}2   \\\\\n"
+"\\end{gc}3  \\end{gc}4"
+
+#: ../source/notebooks/customer_choice/mnl_logit.ipynb:90026
+#: 72187707e2d84dac905cb40354cd304c
+msgid "\\text{softmax}(u)_{j} = \\frac{\\exp(u_{j})}{\\sum_{q=1}^{J}\\exp(u_{q})}"
+msgstr "\\text{softmax}(u)_{j} = \\frac{\\exp(u_{j})}{\\sum_{q=1}^{J}\\exp(u_{q})}"
+
+#: ../source/notebooks/customer_choice/mnl_logit.ipynb:90028
+#: a3ec31de937049b3a11ed810355d16d8
+msgid ""
+"For more details on the background theory and varieties of utility "
+"specification see the PyMC example "
+"[here](https://www.pymc.io/projects/examples/en/latest/generalized_linear_models/GLM-"
+"discrete-choice_models.html)"
+msgstr ""
+"Para más detalles sobre la teoría de fondo y las variedades de "
+"especificación de utilidad, consulte el ejemplo de PyMC "
+"[aquí](https://www.pymc.io/projects/examples/en/latest/generalized_linear_models/GLM-"
+"discrete-choice_models.html)"
+
+#: ../source/notebooks/customer_choice/mnl_logit.ipynb:110002
+#: 20d5a1347c33469e965d9a41f4116e9c
+msgid ""
+"Once we have initialised our model class we can estimate the model with the "
+"sample command"
+msgstr ""
+"Una vez que hemos inicializado nuestra clase de modelo, podemos estimar el "
+"modelo con el comando de muestra."
+
+#: ../source/notebooks/customer_choice/mnl_logit.ipynb:130002
+#: 0a522227b887445fbb1bdbdbe23033e9
+msgid ""
+"We can then access the fitted inference data object to inspect the posterior"
+" estimates for the model parameters of interest."
+msgstr ""
+"Podemos acceder entonces al objeto de datos de inferencia ajustada para "
+"inspeccionar las estimaciones posteriores de los parámetros del modelo de "
+"interés."
+
+#: ../source/notebooks/customer_choice/mnl_logit.ipynb:150002
+#: 9a9f4446f246420b9791758fab3923c8
+msgid ""
+"Note here how the beta coefficients attaching to the installation and "
+"operating costs are negative implying that unit increases in cost drive a "
+"**decrease** in latent subjective utility across the consumer base. It's "
+"this kind of behaviourial insight about the attributes of each product that "
+"these models are intended to uncover."
+msgstr ""
+"Observe aquí cómo los coeficientes beta asociados a los costos de "
+"instalación y operación son negativos, lo que implica que los aumentos "
+"unitarios en el costo provocan una **disminución** en la utilidad subjetiva "
+"latente en toda la base de consumidores. Es este tipo de conocimiento "
+"conductual sobre los atributos de cada producto lo que estos modelos están "
+"destinados a descubrir."
+
+#: ../source/notebooks/customer_choice/mnl_logit.ipynb:150004
+#: e8a38fdb1c0543029959abdd613fca13
+msgid ""
+"However, some care must be taken in the interpretation of the parameters in "
+"these models. Fundamentally discrete choice models are species of causal-"
+"inference model where we aim to not merely make inferences about relations "
+"in data but make claims about the causal effects of changes in product "
+"attributes e.g. how does the market respond to price changes? The criteria "
+"of adequacy of a discrete choice model is keyed to how plausible they are as"
+" guides to future action and action under counterfactual settings."
+msgstr ""
+"Sin embargo, se debe tener cuidado en la interpretación de los parámetros en"
+" estos modelos. Fundamentalmente, los modelos de elección discreta son una "
+"especie de modelo de inferencia causal donde nuestro objetivo no es "
+"simplemente hacer inferencias sobre las relaciones en los datos, sino hacer "
+"afirmaciones sobre los efectos causales de los cambios en los atributos del "
+"producto, por ejemplo, ¿cómo responde el mercado a los cambios de precio? El"
+" criterio de adecuación de un modelo de elección discreta está relacionado "
+"con cuán plausibles son como guías para la acción futura y la acción en "
+"escenarios contrafactuales."
+
+#: ../source/notebooks/customer_choice/mnl_logit.ipynb:160002
+#: 3caf210504cc4e6c981cada7452fdd7c
+msgid "New Pricing Intervention"
+msgstr "Nueva intervención de precios"
+
+#: ../source/notebooks/customer_choice/mnl_logit.ipynb:160004
+#: 2c9729b0954a4261ad9e57297b0de53b
+msgid ""
+"Consider the following intervention? How might the consumer popoulation "
+"respond to a price intervention which targets a particular market segment? "
+"We can fit the multinomial logit model as before under a pricing "
+"intervention."
+msgstr ""
+"¿Considera la siguiente intervención? ¿Cómo podría responder la población "
+"consumidora a una intervención de precios que se dirige a un segmento de "
+"mercado particular? Podemos ajustar el modelo logit multinomial como antes "
+"bajo una intervención de precios."
+
+#: ../source/notebooks/customer_choice/mnl_logit.ipynb:180002
+#: 2c00f87e8fb84a4e93042d69b3965dd8
+msgid ""
+"Then we can inspect how the market share allocated to each of the products "
+"is updated after this pricing intervention. On the one hand it makes sense "
+"to see a drop in demand for the electrical heating systems which just saw a "
+"price increase. However, we can also note a curious fact about the share "
+"allocation for the three remaining goods. Each of the goods absorbs an equal"
+" 0.08 lift in their market share. This is not a fluke."
+msgstr ""
+"Entonces podemos inspeccionar cómo se actualiza la cuota de mercado asignada"
+" a cada uno de los productos después de esta intervención de precios. Por un"
+" lado, tiene sentido observar una caída en la demanda de los sistemas de "
+"calefacción eléctrica que acaban de experimentar un aumento de precio. Sin "
+"embargo, también podemos notar un hecho curioso sobre la asignación de "
+"cuotas para los tres bienes restantes. Cada uno de los bienes absorbe un "
+"aumento igual de 0.08 en su cuota de mercado. Esto no es una casualidad."
+
+#: ../source/notebooks/customer_choice/mnl_logit.ipynb:180004
+#: 7e20651bef38469f86be2803a18c0de3
+msgid ""
+"The observation stems from IIA property of the multinomial logit model. "
+"Under counterfactual interventions market changes lead to somewhat counter "
+"intuitive patterns of market substitution. The remaining goods on the market"
+" exhibit proportional substitution, where all remaining choices \"compete\" "
+"equally. This is often a quite implausible assumption about market behaviour"
+" because it fails to respect properties of market structure or preference. "
+"In our case we may wonder if consumers inclined towards electrical heating "
+"systems would all equally flock to gas systems of if their is an inherent "
+"market bias among that consumer base towards the more eco-friendly heat pump"
+" systems?"
+msgstr ""
+"La observación proviene de la propiedad IIA del modelo logit multinomial. "
+"Bajo intervenciones contrafactuales, los cambios en el mercado conducen a "
+"patrones de sustitución de mercado algo contraintuitivos. Los bienes "
+"restantes en el mercado exhiben sustitución proporcional, donde todas las "
+"opciones restantes \"compiten\" de manera equitativa. Esta es a menudo una "
+"suposición bastante implausible sobre el comportamiento del mercado porque "
+"no respeta las propiedades de la estructura del mercado o de las "
+"preferencias. En nuestro caso, podemos preguntarnos si los consumidores "
+"inclinados hacia los sistemas de calefacción eléctrica se dirigirían todos "
+"por igual hacia los sistemas de gas o si existe un sesgo inherente en ese "
+"grupo de consumidores hacia los sistemas de bomba de calor más ecológicos."
+
+#: ../source/notebooks/customer_choice/mnl_logit.ipynb:210002
+#: 7c94684b11684ea1b1f448c707650669
+#, python-format
+msgid ""
+"The idea of structural preference or non-proportional substitution patterns "
+"simply cannot be accounted for with the multinomial logit model. This is "
+"occasionally called the Red-Bus, Blue Bus "
+"[paradox](https://www.youtube.com/watch?v=eciarlAhX6k) because the model "
+"property implies that even in a transport market with a 50% between a car "
+"and bus. If we introduce another bus similar in all respects to the "
+"original, then the new market is split equally between the three goods "
+"yielding a 33% share for each. This seems wrong because a new bus should "
+"only cannibalise market share from the bus consumers."
+msgstr ""
+"La idea de la preferencia estructural o los patrones de sustitución no "
+"proporcionales simplemente no pueden ser explicados con el modelo logit "
+"multinomial. Esto se llama ocasionalmente el "
+"[paradoja](https://www.youtube.com/watch?v=eciarlAhX6k) del autobús rojo y "
+"el autobús azul porque la propiedad del modelo implica que incluso en un "
+"mercado de transporte con un 50% entre un coche y un autobús. Si "
+"introducimos otro autobús similar en todos los aspectos al original, "
+"entonces el nuevo mercado se divide equitativamente entre los tres bienes, "
+"lo que da una participación del 33% para cada uno. Esto parece incorrecto "
+"porque un nuevo autobús debería solo canibalizar la cuota de mercado de los "
+"consumidores de autobuses."
+
+#: ../source/notebooks/customer_choice/mnl_logit.ipynb:210004
+#: fe9331d2f17e4be18c140f252afd1bf5
+msgid ""
+"Let's see how this pattern plays out in our example. We can remove a product"
+" as follows and re-estimate our multinomial logit."
+msgstr ""
+"Veamos cómo se desarrolla este patrón en nuestro ejemplo. Podemos eliminar "
+"un producto de la siguiente manera y volver a estimar nuestro logit "
+"multinomial."
+
+#: ../source/notebooks/customer_choice/mnl_logit.ipynb:220002
+#: 92fd2b759a424628a1180744e830cb20
+msgid "Market Product Intervention"
+msgstr "Intervención de Producto en el Mercado"
+
+#: ../source/notebooks/customer_choice/mnl_logit.ipynb:240002
+#: 64777a5a697e4333bf4a0cc99b5584f2
+msgid ""
+"Here agains we see a basically proportional re-allocation where the market "
+"demand is re-allocated equally across the remaining goods."
+msgstr ""
+"Aquí nuevamente vemos una reasignación básicamente proporcional donde la "
+"demanda del mercado se redistribuye equitativamente entre los bienes "
+"restantes."
+
+#: ../source/notebooks/customer_choice/mnl_logit.ipynb:270002
+#: f3c5da5d91e5433699cb0bf743fcb229
+msgid "Counterfactual Plausibility as a Criteria of Adequacy"
+msgstr "Plausibilidad contrafactual como criterio de adecuación"
+
+#: ../source/notebooks/customer_choice/mnl_logit.ipynb:270004
+#: 79416f0877b6409f8b0efbc477d31517
+msgid "Kenneth Train observes that"
+msgstr "Kenneth Train observa que"
+
+#: ../source/notebooks/customer_choice/mnl_logit.ipynb:270006
+#: f700e86f4b8b48e9865711d7d87c4547
+msgid ""
+"\"[The IIA] property can be seen either as a restriction imposed by the "
+"model or as the natural outcome of a wellspecified model that captures all "
+"sources of correlation over alternatives into representative utility, so "
+"that only white noise remains. Often the researcher is unable to capture all"
+" sources of correlation explicitly, so that the unobserved portions of "
+"utility are correlated and IIA does not hold.\" - pg 76 in \"Discrete Choice"
+" Methods with Simulation\""
+msgstr ""
+"La propiedad [IIA] puede verse como una restricción impuesta por el modelo o"
+" como el resultado natural de un modelo bien especificado que captura todas "
+"las fuentes de correlación entre alternativas en una utilidad "
+"representativa, de modo que solo queda ruido blanco. A menudo, el "
+"investigador no puede capturar todas las fuentes de correlación de manera "
+"explícita, de modo que las porciones no observadas de la utilidad están "
+"correlacionadas y la IIA no se cumple."
+
+#: ../source/notebooks/customer_choice/mnl_logit.ipynb:270009
+#: a9fa57fb0fea4a9d878992fb3291e4e8
+msgid ""
+"which suggests that the Multinomial Logit model can have a compelling role "
+"in markets where the structure of the preferences aren't governed by "
+"anything we haven't included in the utility equations. But given the "
+"difficulty of such a comprehensive model specification we might want to seek"
+" alternative model specifications that can support more plausible "
+"counterfactual inference about the patterns of market substitution under "
+"intervention. One such model specification is the nested logit model."
+msgstr ""
+"lo que sugiere que el modelo Logit multinomial puede tener un papel "
+"convincente en los mercados donde la estructura de las preferencias no está "
+"gobernada por nada que no hayamos incluido en las ecuaciones de utilidad. "
+"Pero dada la dificultad de una especificación de modelo tan completa, "
+"podríamos querer buscar especificaciones de modelo alternativas que puedan "
+"apoyar inferencias contrafactuales más plausibles sobre los patrones de "
+"sustitución en el mercado bajo intervención. Una de estas especificaciones "
+"de modelo es el modelo logit anidado."

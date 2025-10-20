@@ -1,0 +1,66 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.mmm.MMM.max_abs_scale_target_data.rst:2
+#: ed292ec4d5a047ad91df4aa8e2894dd7
+msgid "MMM.max\\_abs\\_scale\\_target\\_data"
+msgstr "MMM.max\\_abs\\_scale\\_target\\_data"
+
+#: 72ee0ca0a36b477e899bf72f4d15cd2d of
+#: pymc_marketing.mmm.preprocessing.MaxAbsScaleTarget.max_abs_scale_target_data:2
+msgid "MaxAbsScaler for the target data."
+msgstr "MaxAbsScaler para los datos objetivo."
+
+#: cba0fa41934443ee9fab0ee3e205923e of
+#: pymc_marketing.mmm.preprocessing.MaxAbsScaleTarget.max_abs_scale_target_data
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 6e75187e672a444399a403895efffb6a of
+#: pymc_marketing.mmm.preprocessing.MaxAbsScaleTarget.max_abs_scale_target_data:7
+msgid "**data** : :obj:`pd.Series` | :obj:`np.ndarray <numpy.ndarray>`"
+msgstr "**datos** : :obj:`pd.Series` | :obj:`np.ndarray <numpy.ndarray>`"
+
+#: 6183c3d3772f44638431de8b9335e721 of
+#: pymc_marketing.mmm.preprocessing.MaxAbsScaleTarget.max_abs_scale_target_data:6
+msgid "pd.Series | np.ndarray"
+msgstr "pd.Series | np.ndarray"
+
+#: b12c2afcc65e4df791c9c280b69af81a of
+#: pymc_marketing.mmm.preprocessing.MaxAbsScaleTarget.max_abs_scale_target_data:8
+msgid "The target data to scale."
+msgstr "Los datos objetivo para escalar."
+
+#: 9646a1405dab40528e6d4111f2f8f653 of
+#: pymc_marketing.mmm.preprocessing.MaxAbsScaleTarget.max_abs_scale_target_data
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 88896855732f441a9b17d1392532ccf7 of
+#: pymc_marketing.mmm.preprocessing.MaxAbsScaleTarget.max_abs_scale_target_data:14
+msgid ":obj:`np.ndarray <numpy.ndarray>` | :obj:`pd.Series`"
+msgstr ":obj:`np.ndarray <numpy.ndarray>` | :obj:`pd.Series`"
+
+#: fb44811db150459e9f25ab760cb1771e of
+#: pymc_marketing.mmm.preprocessing.MaxAbsScaleTarget.max_abs_scale_target_data:15
+msgid "The scaled target data."
+msgstr "Los datos de destino escalados."

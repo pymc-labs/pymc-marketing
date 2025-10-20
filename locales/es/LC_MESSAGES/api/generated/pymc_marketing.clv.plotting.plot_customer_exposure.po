@@ -1,0 +1,196 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.clv.plotting.plot_customer_exposure.rst:2
+#: c1057b78889446f38ce829f2be58c013
+msgid "plot\\_customer\\_exposure"
+msgstr "trazar\\_exposición\\_del\\_cliente"
+
+#: 9bfc175b890b46b2bdbaa3701548a316 of
+#: pymc_marketing.clv.plotting.plot_customer_exposure:2
+msgid "Plot the recency and T of DataFrame of customers."
+msgstr "Trace la recencia y T del DataFrame de clientes."
+
+#: 74830851c3b0445fb7f9b67dc64ed1f3 of
+#: pymc_marketing.clv.plotting.plot_customer_exposure:4
+msgid ""
+"Plots customers as horizontal lines with markers representing their recency "
+"and T starting. Order is the same as the DataFrame and plotted from the "
+"bottom up."
+msgstr ""
+"Representa a los clientes como líneas horizontales con marcadores que "
+"representan su recencia y el inicio de T. El orden es el mismo que el del "
+"DataFrame y se traza de abajo hacia arriba."
+
+#: 8db632e0223f4cd6aefa06b58c82aeb5 of
+#: pymc_marketing.clv.plotting.plot_customer_exposure:7
+msgid "The lines are colored by recency and T."
+msgstr "Las líneas están coloreadas por recencia y T."
+
+#: 51f2ecaffb32454aa00641fc22170fcb of
+#: pymc_marketing.clv.plotting.plot_customer_exposure
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 272a3cd8173442a19dcb6802b66599d7 of
+#: pymc_marketing.clv.plotting.plot_customer_exposure:11
+msgid "**df** : :obj:`pd.DataFrame`"
+msgstr "**df** : :obj:`pd.DataFrame`"
+
+#: c418b00237724789b4abdfc0e53c1506 of
+#: pymc_marketing.clv.plotting.plot_customer_exposure:10
+msgid "pd.DataFrame"
+msgstr "pd.DataFrame"
+
+#: 1ae3949658d640febdc26a39030d974f of
+#: pymc_marketing.clv.plotting.plot_customer_exposure:12
+msgid ""
+"A DataFrame with columns \"recency\" and \"T\" representing the recency and "
+"age of customers."
+msgstr ""
+"Un DataFrame con columnas \"recency\" y \"T\" que representan la recencia y "
+"la antigüedad de los clientes."
+
+#: 428941afaa5b4ffb92f30491d7b539b4 of
+#: pymc_marketing.clv.plotting.plot_customer_exposure:14
+msgid "**linewidth** : :class:`python:float`, optional"
+msgstr "**linewidth** : :class:`python:float`, opcional"
+
+#: c26150d4483843cf9b321ef5c345e3bb d1e15e41ff0444fa8d5eba1a427a3a67
+#: ff202ef1487d45c0b1a3af30513168df of
+#: pymc_marketing.clv.plotting.plot_customer_exposure:13
+#: pymc_marketing.clv.plotting.plot_customer_exposure:16
+#: pymc_marketing.clv.plotting.plot_customer_exposure:25
+msgid "python:float, optional"
+msgstr "python:flotante, opcional"
+
+#: 83b08dec093845a08ad480cc2623c0ae of
+#: pymc_marketing.clv.plotting.plot_customer_exposure:15
+msgid "The width of the horizontal lines in the plot."
+msgstr "El ancho de las líneas horizontales en el gráfico."
+
+#: 0cc3341cd0ba4eb0b41bedd1f4c1b067 of
+#: pymc_marketing.clv.plotting.plot_customer_exposure:17
+msgid "**size** : :class:`python:float`, optional"
+msgstr "**tamaño** : :class:`python:float`, opcional"
+
+#: 46241b1ac0f74fbc963dcfe92d38ee13 of
+#: pymc_marketing.clv.plotting.plot_customer_exposure:18
+msgid "The size of the markers in the plot."
+msgstr "El tamaño de los marcadores en el gráfico."
+
+#: 0db16d9427014a878246c3d86492576b of
+#: pymc_marketing.clv.plotting.plot_customer_exposure:20
+msgid "**labels** : :obj:`Sequence`\\[:class:`python:str`], optional"
+msgstr "**etiquetas** : :obj:`Secuencia`\\[:class:`python:str`], opcional"
+
+#: 31e7a158325247dbbead25f89cea0f42 fc92d07413b147f3b2e5320c733af152 of
+#: pymc_marketing.clv.plotting.plot_customer_exposure:19
+#: pymc_marketing.clv.plotting.plot_customer_exposure:22
+msgid "Sequence[python:str], optional"
+msgstr "Secuencia[python:str], opcional"
+
+#: 58762dc0cb594779923e08de3c8d4f6e of
+#: pymc_marketing.clv.plotting.plot_customer_exposure:21
+msgid "A sequence of labels for the legend. Default is [\"Recency\", \"T\"]."
+msgstr ""
+"Una secuencia de etiquetas para la leyenda. El valor predeterminado es "
+"[\"Recency\", \"T\"]."
+
+#: e4bb08c45f87468d9e4bf4d16b5a8d09 of
+#: pymc_marketing.clv.plotting.plot_customer_exposure:23
+msgid "**colors** : :obj:`Sequence`\\[:class:`python:str`], optional"
+msgstr "**colores** : :obj:`Secuencia`\\[:class:`python:str`], opcional"
+
+#: 33d4b2445d5f4a60bedf5ee4d82d6ca9 of
+#: pymc_marketing.clv.plotting.plot_customer_exposure:24
+msgid "A sequence of colors for the legend. Default is [\"C0\", \"C1\"]."
+msgstr ""
+"Una secuencia de colores para la leyenda. El valor predeterminado es "
+"[\"C0\", \"C1\"]."
+
+#: c3c0c748b8854808bfe5969cbe79545f of
+#: pymc_marketing.clv.plotting.plot_customer_exposure:26
+msgid "**padding** : :class:`python:float`, optional"
+msgstr "**padding** : :class:`python:float`, opcional"
+
+#: c79c3f407f444fe5a2d6c2ddfd6b31f0 of
+#: pymc_marketing.clv.plotting.plot_customer_exposure:27
+msgid "The padding around the plot. Default is 0.25."
+msgstr "El relleno alrededor del gráfico. El valor predeterminado es 0.25."
+
+#: 5115130ed5844fd1b90bb436592ed4df of
+#: pymc_marketing.clv.plotting.plot_customer_exposure:29
+msgid "**ax** : :obj:`plt.Axes`, optional"
+msgstr "**ax** : :obj:`plt.Axes`, opcional"
+
+#: 936ec4d5df604ca3bfa755e891656c3e of
+#: pymc_marketing.clv.plotting.plot_customer_exposure:28
+msgid "plt.Axes, optional"
+msgstr "plt.Axes, opcional"
+
+#: c4f4b29245534b2fb3868e7ef02dd1d5 of
+#: pymc_marketing.clv.plotting.plot_customer_exposure:30
+msgid ""
+"A matplotlib axes instance to plot on. If None, a new figure and axes is "
+"created."
+msgstr ""
+"Una instancia de ejes de matplotlib en la que trazar. Si es None, se crea "
+"una nueva figura y ejes."
+
+#: 8771a51246f3473eaafed01aedf5f8b2 of
+#: pymc_marketing.clv.plotting.plot_customer_exposure
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 5cd6c6b4438e490195f375d14ceb9450 of
+#: pymc_marketing.clv.plotting.plot_customer_exposure:36
+msgid ":obj:`plt.Axes`"
+msgstr ":obj:`plt.Axes`"
+
+#: 5e691155aa984ea2a81660e309b36a07 of
+#: pymc_marketing.clv.plotting.plot_customer_exposure:37
+msgid "The matplotlib axes instance."
+msgstr "La instancia de ejes de matplotlib."
+
+#: 5cf85dae515c4481bbcf19bcb18853b6 of
+#: pymc_marketing.clv.plotting.plot_customer_exposure:49
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: 94e51badadfd4331afda238a8cfb3149 of
+#: pymc_marketing.clv.plotting.plot_customer_exposure:50
+msgid "Plot customer exposure"
+msgstr "Trazar la exposición del cliente"
+
+#: 1c8cdd7654df459faac2cfe00c9f65b7 of
+#: pymc_marketing.clv.plotting.plot_customer_exposure:58
+msgid "Plot customer exposure ordered by recency and T"
+msgstr "Trazar la exposición del cliente ordenada por recencia y T"
+
+#: 038e8bd3b73145ee8fcd2a1cc18b278e of
+#: pymc_marketing.clv.plotting.plot_customer_exposure:64
+msgid ""
+"Plot exposure for only those with time until last purchase is less than 3"
+msgstr ""
+"Mostrar exposición solo para aquellos con tiempo hasta la última compra "
+"menor a 3"

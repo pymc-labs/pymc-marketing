@@ -1,0 +1,79 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.__init__.rst:2
+#: d726a23c71754129806e8e743b8d5e09
+msgid "ParetoNBDModel.\\_\\_init\\_\\_"
+msgstr "ParetoNBDModel.\\_\\_init\\_\\_"
+
+#: 7a9ab8a8eaee456ab89d0d4db8254b9c of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.__init__:2
+msgid ""
+"Initialize model configuration and sampler configuration for the model."
+msgstr ""
+"Inicializar la configuración del modelo y la configuración del muestreador "
+"para el modelo."
+
+#: 1b57d747e9ec401d840191e9d99f3123 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.__init__
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 0bc8c569e1264fdc9b991249b0d5232a of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.__init__:7
+msgid "**model_config** : :obj:`Dictionary`, optional"
+msgstr "**model_config** : :obj:`Diccionario`, opcional"
+
+#: 272e2f1bb699460b878630fe41967d0c ff193a175dbe4661828aef05ae2847ea of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.__init__:6
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.__init__:10
+msgid "Dictionary, optional"
+msgstr "Diccionario, opcional"
+
+#: bf9c1b46ccb44292a46c64db2b54c6e9 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.__init__:8
+msgid ""
+"dictionary of parameters that initialise model configuration. Class-default "
+"defined by the user default_model_config method."
+msgstr ""
+"diccionario de parámetros que inicializan la configuración del modelo. Clase"
+" por defecto definida por el método default_model_config del usuario."
+
+#: 82ce83f1e3ff475e8a7bf3c9853ad867 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.__init__:11
+msgid "**sampler_config** : :obj:`Dictionary`, optional"
+msgstr "**sampler_config** : :obj:`Diccionario`, opcional"
+
+#: bbb67950a64d4be1851440d0ce127f3a of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.__init__:12
+msgid ""
+"dictionary of parameters that initialise sampler configuration. Class-"
+"default defined by the user default_sampler_config method."
+msgstr ""
+"diccionario de parámetros que inicializan la configuración del muestreador. "
+"Clase predeterminada definida por el método default_sampler_config del "
+"usuario."
+
+#: 976238790f39442596b433ce07721602 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.__init__:28
+msgid "Examples"
+msgstr "Ejemplos"

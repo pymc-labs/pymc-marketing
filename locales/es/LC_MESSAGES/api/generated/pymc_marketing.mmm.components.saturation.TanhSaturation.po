@@ -1,0 +1,326 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturation.rst:2
+#: 49f5032f7ddb4ce4a1f6a836030601b9
+msgid "TanhSaturation"
+msgstr "SaturaciónTanh"
+
+#: 2c1e429314d246d19b1f525b4c70b8c3 of
+#: pymc_marketing.mmm.components.saturation.TanhSaturation:2
+msgid "Wrapper around tanh saturation function."
+msgstr "Envoltura alrededor de la función de saturación tanh."
+
+#: 47154ce545a74a6c9ac05f03dcae627b of
+#: pymc_marketing.mmm.components.saturation.TanhSaturation:4
+msgid ""
+"For more information, see "
+":func:`pymc_marketing.mmm.transformers.tanh_saturation`."
+msgstr ""
+"Para más información, consulte "
+":func:`pymc_marketing.mmm.transformers.tanh_saturation`."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturation.rst:7
+#: 4eaa0c083d4e411caeeb873375d8c861
+msgid ""
+"(:download:`Source code "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-TanhSaturation-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-TanhSaturation-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-TanhSaturation-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-TanhSaturation-1.pdf>`)"
+msgstr ""
+"(:download:`Código fuente "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-TanhSaturation-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-TanhSaturation-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-TanhSaturation-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-TanhSaturation-1.pdf>`)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturation.rst:12
+#: 03f016249f9747efbd48c4ac21117271
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturation.rst:32:<autosummary>:1
+#: 48bebcfb8a9048968a250dd8e916c926
+msgid ""
+":py:obj:`TanhSaturation.__init__ "
+"<pymc_marketing.mmm.components.saturation.TanhSaturation.__init__>`\\ "
+"\\(\\[priors\\, prefix\\]\\)"
+msgstr ""
+":py:obj:`TanhSaturation.__init__ "
+"<pymc_marketing.mmm.components.saturation.TanhSaturation.__init__>`\\ "
+"\\(\\[priors\\, prefix\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturation.rst:32:<autosummary>:1
+#: e3a7d45df7e6467684498951467b11f7
+msgid ""
+":py:obj:`TanhSaturation.apply "
+"<pymc_marketing.mmm.components.saturation.TanhSaturation.apply>`\\ "
+"\\(x\\[\\, dims\\, idx\\]\\)"
+msgstr ""
+":py:obj:`TanhSaturation.apply "
+"<pymc_marketing.mmm.components.saturation.TanhSaturation.apply>`\\ "
+"\\(x\\[\\, dims\\, idx\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturation.rst:32:<autosummary>:1
+#: 87f4176d688849f596753df3078c677f
+msgid "Call within a model context."
+msgstr "Llamar dentro de un contexto de modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturation.rst:32:<autosummary>:1
+#: 268b8887cc6c420fb62b0178e9224808
+msgid ""
+":py:obj:`TanhSaturation.function "
+"<pymc_marketing.mmm.components.saturation.TanhSaturation.function>`\\ "
+"\\(x\\, b\\, c\\)"
+msgstr ""
+":py:obj:`TanhSaturation.function "
+"<pymc_marketing.mmm.components.saturation.TanhSaturation.function>`\\ "
+"\\(x\\, b\\, c\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturation.rst:32:<autosummary>:1
+#: 7f32a81484d342dba6a9e15e84f99636
+msgid "Tanh saturation function."
+msgstr "Función de saturación Tanh."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturation.rst:32:<autosummary>:1
+#: ec742147dc814c8ab80df8c2b89aaa8b
+msgid ""
+":py:obj:`TanhSaturation.plot_curve "
+"<pymc_marketing.mmm.components.saturation.TanhSaturation.plot_curve>`\\ "
+"\\(curve\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`TanhSaturation.plot_curve "
+"<pymc_marketing.mmm.components.saturation.TanhSaturation.plot_curve>`\\ "
+"\\(curva\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturation.rst:32:<autosummary>:1
+#: 3859ccc66a61454284b856a27aa20c90
+msgid "Plot curve HDI and samples."
+msgstr "Trazar curva HDI y muestras."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturation.rst:32:<autosummary>:1
+#: b24889d51aaa410aaa74224595477679
+msgid ""
+":py:obj:`TanhSaturation.plot_curve_hdi "
+"<pymc_marketing.mmm.components.saturation.TanhSaturation.plot_curve_hdi>`\\ "
+"\\(curve\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`TanhSaturation.plot_curve_hdi "
+"<pymc_marketing.mmm.components.saturation.TanhSaturation.plot_curve_hdi>`\\ "
+"\\(curva\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturation.rst:32:<autosummary>:1
+#: 3c17942bcc58458eaf1166549dcf36c3
+msgid "Plot the HDI of the curve."
+msgstr "Trace el IDH de la curva."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturation.rst:32:<autosummary>:1
+#: 4af2942b8a8647a88f6f19cb769d3a37
+msgid ""
+":py:obj:`TanhSaturation.plot_curve_samples "
+"<pymc_marketing.mmm.components.saturation.TanhSaturation.plot_curve_samples>`\\"
+" \\(curve\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`TanhSaturation.plot_curve_samples "
+"<pymc_marketing.mmm.components.saturation.TanhSaturation.plot_curve_samples>`\\"
+" \\(curve\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturation.rst:32:<autosummary>:1
+#: d76caf63c9c14ff6b327a07d819b379c
+msgid "Plot samples from the curve."
+msgstr "Trazar muestras de la curva."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturation.rst:32:<autosummary>:1
+#: 4131833766bd4c01be68887aa2541f06
+msgid ""
+":py:obj:`TanhSaturation.sample_curve "
+"<pymc_marketing.mmm.components.saturation.TanhSaturation.sample_curve>`\\ "
+"\\(\\[parameters\\, ...\\]\\)"
+msgstr ""
+":py:obj:`TanhSaturation.sample_curve "
+"<pymc_marketing.mmm.components.saturation.TanhSaturation.sample_curve>`\\ "
+"\\(\\[parámetros\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturation.rst:32:<autosummary>:1
+#: 7054a669cf3343929e48a6e071bb6438
+msgid "Sample the curve of the saturation transformation given parameters."
+msgstr ""
+"Muestre la curva de la transformación de saturación dadas las parámetros."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturation.rst:32:<autosummary>:1
+#: 473e0bcd5293437c8211cd015412ba2b
+msgid ""
+":py:obj:`TanhSaturation.sample_prior "
+"<pymc_marketing.mmm.components.saturation.TanhSaturation.sample_prior>`\\ "
+"\\(\\[coords\\]\\)"
+msgstr ""
+":py:obj:`TanhSaturation.sample_prior "
+"<pymc_marketing.mmm.components.saturation.TanhSaturation.sample_prior>`\\ "
+"\\(\\[coords\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturation.rst:32:<autosummary>:1
+#: 504b7088c43048fa9d9206310a229860
+msgid "Sample the priors for the transformation."
+msgstr "Muestree las distribuciones a priori para la transformación."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturation.rst:32:<autosummary>:1
+#: f92cc4d4f1404154993a6e2c6c6c5fcf
+msgid ""
+":py:obj:`TanhSaturation.set_dims_for_all_priors "
+"<pymc_marketing.mmm.components.saturation.TanhSaturation.set_dims_for_all_priors>`\\"
+" \\(dims\\)"
+msgstr ""
+":py:obj:`TanhSaturation.set_dims_for_all_priors "
+"<pymc_marketing.mmm.components.saturation.TanhSaturation.set_dims_for_all_priors>`\\"
+" \\(dims\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturation.rst:32:<autosummary>:1
+#: f46bb1e520c94e11acde9d1ad11fa3b5
+msgid "Set the dims for all priors."
+msgstr "Establezca las dimensiones para todos los antecedentes."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturation.rst:32:<autosummary>:1
+#: 49a8bbb1db784e0f9d6b755f11b66c25
+msgid ""
+":py:obj:`TanhSaturation.to_dict "
+"<pymc_marketing.mmm.components.saturation.TanhSaturation.to_dict>`\\ \\(\\)"
+msgstr ""
+":py:obj:`TanhSaturation.to_dict "
+"<pymc_marketing.mmm.components.saturation.TanhSaturation.to_dict>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturation.rst:32:<autosummary>:1
+#: 8571e956392a4ed88f6bc47fd8d052a7
+msgid "Convert the transformation to a dictionary."
+msgstr "Convierte la transformación a un diccionario."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturation.rst:32:<autosummary>:1
+#: c712bfe783924841a738348dc4277761
+msgid ""
+":py:obj:`TanhSaturation.update_priors "
+"<pymc_marketing.mmm.components.saturation.TanhSaturation.update_priors>`\\ "
+"\\(priors\\)"
+msgstr ""
+":py:obj:`TanhSaturation.update_priors "
+"<pymc_marketing.mmm.components.saturation.TanhSaturation.update_priors>`\\ "
+"\\(priors\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturation.rst:32:<autosummary>:1
+#: 7bb3e197dded4e5abe75ee4d7884637f
+msgid "Update the priors for a function after initialization."
+msgstr "Actualiza los priors para una función después de la inicialización."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturation.rst:34
+#: e92494a9e3bc4b6d98126eaea4dd1b47
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturation.rst:43:<autosummary>:1
+#: 5a6d1ba49b2440309fd5ca2b7198d10b
+msgid ""
+":py:obj:`combined_dims "
+"<pymc_marketing.mmm.components.saturation.TanhSaturation.combined_dims>`\\"
+msgstr ""
+":py:obj:`combined_dims "
+"<pymc_marketing.mmm.components.saturation.TanhSaturation.combined_dims>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturation.rst:43:<autosummary>:1
+#: 6df21a2d9628437eb79b5459b07e6789
+msgid "Get the combined dims for all the parameters."
+msgstr "Obtenga las dimensiones combinadas para todos los parámetros."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturation.rst:43:<autosummary>:1
+#: f2402c746f8440fc8bbd05650cda9ab5
+msgid ""
+":py:obj:`default_priors "
+"<pymc_marketing.mmm.components.saturation.TanhSaturation.default_priors>`\\"
+msgstr ""
+":py:obj:`default_priors "
+"<pymc_marketing.mmm.components.saturation.TanhSaturation.default_priors>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturation.rst:43:<autosummary>:1
+#: cc306cbbf0da41369b9cd020ffa3e842
+msgid ""
+":py:obj:`function_priors "
+"<pymc_marketing.mmm.components.saturation.TanhSaturation.function_priors>`\\"
+msgstr ""
+":py:obj:`function_priors "
+"<pymc_marketing.mmm.components.saturation.TanhSaturation.function_priors>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturation.rst:43:<autosummary>:1
+#: 7bf1a1cc5fba4a269a859d4bd97ec3fa
+msgid "Get the priors for the function."
+msgstr "Obtenga los antecedentes para la función."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturation.rst:43:<autosummary>:1
+#: 7af1abff49e549a7b7ab4f98bce1803a
+msgid ""
+":py:obj:`lookup_name "
+"<pymc_marketing.mmm.components.saturation.TanhSaturation.lookup_name>`\\"
+msgstr ""
+":py:obj:`lookup_name "
+"<pymc_marketing.mmm.components.saturation.TanhSaturation.lookup_name>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturation.rst:43:<autosummary>:1
+#: 36da4657db664bd281d9636a28da52ba
+msgid ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.components.saturation.TanhSaturation.model_config>`\\"
+msgstr ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.components.saturation.TanhSaturation.model_config>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturation.rst:43:<autosummary>:1
+#: a490d42d6d5d468daa41e4b8d1d4efc5
+msgid "Mapping from variable name to prior for the model."
+msgstr "Mapeo del nombre de la variable a la prior para el modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturation.rst:43:<autosummary>:1
+#: c8fcc851466f4024a6aeb26511774dab
+msgid ""
+":py:obj:`prefix "
+"<pymc_marketing.mmm.components.saturation.TanhSaturation.prefix>`\\"
+msgstr ""
+":py:obj:`prefix "
+"<pymc_marketing.mmm.components.saturation.TanhSaturation.prefix>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturation.rst:43:<autosummary>:1
+#: a4d9919d9a6c4f12beb5772bdd0c09d2
+msgid ""
+":py:obj:`variable_mapping "
+"<pymc_marketing.mmm.components.saturation.TanhSaturation.variable_mapping>`\\"
+msgstr ""
+":py:obj:`variable_mapping "
+"<pymc_marketing.mmm.components.saturation.TanhSaturation.variable_mapping>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturation.rst:43:<autosummary>:1
+#: 2b773d372e71430e911a0b2fa34903b8
+msgid "Mapping from parameter name to variable name in the model."
+msgstr "Mapeo del nombre del parámetro al nombre de la variable en el modelo."

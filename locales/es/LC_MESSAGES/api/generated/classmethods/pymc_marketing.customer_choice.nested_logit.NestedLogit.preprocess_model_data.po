@@ -1,0 +1,183 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.customer_choice.nested_logit.NestedLogit.preprocess_model_data.rst:2
+#: e390f2f4382542c9a468567cdd656774
+msgid "NestedLogit.preprocess\\_model\\_data"
+msgstr "NestedLogit.preprocess\\_model\\_data"
+
+#: dc18a86fcad944a79df44259fc2c1091 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.preprocess_model_data:2
+msgid ""
+"Pre-process the model initiation inputs into a format that can be used by "
+"the PyMC model."
+msgstr ""
+"Preprocesar las entradas de iniciación del modelo en un formato que pueda "
+"ser utilizado por el modelo PyMC."
+
+#: 1c59e364fb8641659f26743627cc2725 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.preprocess_model_data:4
+msgid ""
+"This method prepares the 3D design matrix `X`, fixed covariate matrix `F` "
+"(if applicable), and the encoded response vector `y`, while also extracting "
+"and storing relevant metadata such as alternatives, fixed covariate names, "
+"product index mappings, and nesting structures."
+msgstr ""
+"Este método prepara la matriz de diseño 3D `X`, la matriz de covariables "
+"fijas `F` (si es aplicable) y el vector de respuesta codificado `y`, "
+"mientras extrae y almacena metadatos relevantes como alternativas, nombres "
+"de covariables fijas, asignaciones de índices de productos y estructuras de "
+"anidamiento."
+
+#: 84b0512ea715458587d5b8d169ac6b13 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.preprocess_model_data
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 6ed806d1529e4386a9397d764c906cde of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.preprocess_model_data:10
+msgid "**choice_df** : :obj:`pd.DataFrame`"
+msgstr "**choice_df** : :obj:`pd.DataFrame`"
+
+#: 5fcbee26591d4d9da421573fe02d5ddf of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.preprocess_model_data:9
+msgid "pd.DataFrame"
+msgstr "pd.DataFrame"
+
+#: e8b8cde7b42744289b4261259e886b87 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.preprocess_model_data:11
+msgid ""
+"A pandas DataFrame containing the observed choices and covariates for each "
+"alternative. Each row represents an individual choice observation."
+msgstr ""
+"Un DataFrame de pandas que contiene las elecciones observadas y las "
+"covariables para cada alternativa. Cada fila representa una observación de "
+"elección individual."
+
+#: 1756aeaf24f64dbb88d339fc0ac2283d of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.preprocess_model_data:14
+msgid "**utility_equations** : :class:`python:list`\\[:class:`python:str`]"
+msgstr "**utility_equations** : :class:`python:list`\\[:class:`python:str`]"
+
+#: 8b582b2f497a4ce79646caf6ca67cde0 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.preprocess_model_data:13
+msgid "python:list[python:str]"
+msgstr "python:list[python:str]"
+
+#: e6d58761eff94eec8533139da3953cf6 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.preprocess_model_data:15
+msgid ""
+"A list of model formulas, one per alternative. Each formula should be of the"
+" form: `\"alt_name ~ alt_covariates | fixed_covariates\"`. The left-hand "
+"side identifies the alternative name; the right-hand side specifies the "
+"covariates used to explain utility for that alternative."
+msgstr ""
+"Una lista de fórmulas de modelo, una por alternativa. Cada fórmula debe "
+"tener la forma: `\"alt_name ~ alt_covariates | fixed_covariates\"`. El lado "
+"izquierdo identifica el nombre de la alternativa; el lado derecho especifica"
+" las covariables utilizadas para explicar la utilidad de esa alternativa."
+
+#: a10016aa36a542bcb0fe9f474aeccf73 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.preprocess_model_data
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: fd8f26c3668c4a7ebd9c4f45b3fba11f of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.preprocess_model_data:24
+msgid "**X** : :obj:`np.ndarray <numpy.ndarray>`"
+msgstr "**X** : :obj:`np.ndarray <numpy.ndarray>`"
+
+#: 9ae366f7de8a496bb7c1e07a28adba71 b5460c01ee1244fea8697370ed1b0660 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.preprocess_model_data:23
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.preprocess_model_data:31
+msgid "np.ndarray"
+msgstr "np.ndarray"
+
+#: 2580934a1b34409db7d9da35f5a88017 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.preprocess_model_data:25
+msgid ""
+"A 3D numpy array of shape (n_observations, n_alternatives, n_covariates), "
+"representing the covariate tensor for alternative-specific attributes."
+msgstr ""
+"Un array numpy 3D de forma (n_observations, n_alternatives, n_covariates), "
+"que representa el tensor de covariables para atributos específicos de "
+"alternativas."
+
+#: 614ea90e96244b078c8d3fc65b087bd0 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.preprocess_model_data:28
+msgid "**F** : :obj:`np.ndarray <numpy.ndarray>` | :data:`python:None`"
+msgstr "**F** : :obj:`np.ndarray <numpy.ndarray>` | :data:`python:None`"
+
+#: e42ec1a5e5c64519b179130b01da7493 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.preprocess_model_data:27
+msgid "np.ndarray | python:None"
+msgstr "np.ndarray | python:None"
+
+#: 89c18bb142054cf1a5df0aab63b2f518 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.preprocess_model_data:29
+msgid ""
+"A 2D numpy array (n_observations, n_fixed_covariates) for covariates shared "
+"across alternatives, or None if no such covariates are used."
+msgstr ""
+"Un array numpy 2D (n_observaciones, n_covariables_fijas) para covariables "
+"compartidas entre alternativas, o None si no se utilizan tales covariables."
+
+#: d3c9bbd68e1a4495933772b66a84b503 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.preprocess_model_data:32
+msgid "**y** : :obj:`np.ndarray <numpy.ndarray>`"
+msgstr "**y** : :obj:`np.ndarray <numpy.ndarray>`"
+
+#: 7f73053f3d5446d58a52c3fc3206d5ef of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.preprocess_model_data:33
+msgid ""
+"A 1D numpy array of encoded target labels (integers), where each entry "
+"represents the chosen alternative for an observation."
+msgstr ""
+"Un array numpy unidimensional de etiquetas de destino codificadas (enteros),"
+" donde cada entrada representa la alternativa elegida para una observación."
+
+#: c5a70a3ed9644e43addba814c732e81a of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.preprocess_model_data:44
+msgid "Notes"
+msgstr "Notas"
+
+#: c897b09bbc8249c58f5fb31043a180a2 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.preprocess_model_data:45
+msgid ""
+"Updates internal state: assigns `X_data`, `F`, `alternatives`, "
+"`fixed_covar`, `y`,"
+msgstr ""
+"Actualiza el estado interno: asigna `X_data`, `F`, `alternatives`, "
+"`fixed_covar`, `y`,"
+
+#: 2c7fb8b418bf4913b100e0135d2732e5 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.preprocess_model_data:46
+msgid ""
+"`prod_indices`, `nest_indices`, `all_nests`, `lambda_lkup`, and `coords`. - "
+"Handles multi-level nesting structures if provided in "
+"`self.nesting_structure`. - Assumes the existence of instance attributes "
+"`depvar`, `covariates`, and `nesting_structure`."
+msgstr ""
+"`prod_indices`, `nest_indices`, `all_nests`, `lambda_lkup` y `coords`. - "
+"Maneja estructuras de anidamiento de múltiples niveles si se proporcionan en"
+" `self.nesting_structure`. - Asume la existencia de atributos de instancia "
+"`depvar`, `covariates` y `nesting_structure`."

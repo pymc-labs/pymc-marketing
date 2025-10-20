@@ -1,0 +1,183 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.clv.plotting.plot_expected_purchases_ppc.rst:2
+#: c1065461a5724268b368f3a863d4c01e
+msgid "plot\\_expected\\_purchases\\_ppc"
+msgstr "trazar\\_compras\\_esperadas\\_ppc"
+
+#: ca677239d2bd46b985d7cca9eea6f147 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_ppc:2
+msgid ""
+"Plot a prior or posterior predictive check for the customer purchase "
+"frequency distribution."
+msgstr ""
+"Trace un chequeo predictivo previo o posterior para la distribución de "
+"frecuencia de compra del cliente."
+
+#: 243f47322f794ef983f91b2ac9ea1b7c of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_ppc:4
+msgid ""
+"``ParetoNBDModel``, ``BetaGeoBetaBinomModel``, ``BetaGeoModel`` and "
+"``ModifiedBetaGeoModel`` are supported."
+msgstr ""
+"Los modelos ``ParetoNBDModel``, ``BetaGeoBetaBinomModel``, ``BetaGeoModel`` "
+"y ``ModifiedBetaGeoModel`` son compatibles."
+
+#: bff895fbd6fe450386da947c0a815c06 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_ppc:6
+msgid ""
+"Adapted from legacy ``lifetimes`` library: "
+"https://github.com/CamDavidsonPilon/lifetimes/blob/master/lifetimes/plotting.py#L25"
+msgstr ""
+"Adaptado de la biblioteca heredada ``lifetimes``: "
+"https://github.com/CamDavidsonPilon/lifetimes/blob/master/lifetimes/plotting.py#L25"
+
+#: 945813020c18434a8e2b05189b48e3d2 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_ppc
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 894da34648694c7faec6041070813415 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_ppc:11
+msgid "**model** : :obj:`CLVModel`"
+msgstr "**modelo** : :obj:`CLVModel`"
+
+#: 6152ad42bec44611a6ff351225572a28 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_ppc:10
+msgid "CLVModel"
+msgstr "CLVModel"
+
+#: f252b28458bd40229b8c3c11bd55aa05 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_ppc:12
+msgid ""
+"Prior predictive checks can be performed before or after a model is fit. "
+"Posterior predictive checks require a fitted model."
+msgstr ""
+"Se pueden realizar verificaciones predictivas previas antes o después de "
+"ajustar un modelo. Las verificaciones predictivas posteriores requieren un "
+"modelo ajustado."
+
+#: d87f876bb9b94411bae55c382aedc617 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_ppc:15
+msgid "**ppc** : :class:`python:str`, optional"
+msgstr "**ppc** : :class:`python:str`, opcional"
+
+#: c2fa8f09020d4051afd6710ead61051d of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_ppc:14
+msgid "python:str, optional"
+msgstr "python:str, opcional"
+
+#: a77797eeb247417093a9248d993ced5e of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_ppc:16
+msgid ""
+"Type of predictive check to perform. Options are 'prior' or 'posterior'; "
+"defaults to 'posterior'."
+msgstr ""
+"Tipo de verificación predictiva a realizar. Las opciones son 'previa' o "
+"'posterior'; por defecto es 'posterior'."
+
+#: 3201ea7667b447a695cf0d95d4eae975 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_ppc:18
+msgid "**max_purchases** : :class:`python:int`, optional"
+msgstr "**max_purchases** : :class:`python:int`, opcional"
+
+#: 110bf71b1e7f465b9e2e910f585da26f 33b3e1a9038f4025a312670e7786e5d9
+#: a3be8eae85184322a055719846969933 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_ppc:17
+#: pymc_marketing.clv.plotting.plot_expected_purchases_ppc:20
+#: pymc_marketing.clv.plotting.plot_expected_purchases_ppc:23
+msgid "python:int, optional"
+msgstr "python:int, opcional"
+
+#: d1258c4a73ed4987b6999bb707085790 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_ppc:19
+msgid "Cutoff for bars of purchase counts to plot. Default is 10."
+msgstr ""
+"Límite para la cantidad de barras de compra a trazar. El valor "
+"predeterminado es 10."
+
+#: 6f9d66b50c63418e97364f5e545341f0 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_ppc:21
+msgid "**samples** : :class:`python:int`, optional"
+msgstr "**muestras** : :class:`python:int`, opcional"
+
+#: bf06b37e092247aead3e0a8b90fc1bae of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_ppc:22
+msgid ""
+"Number of samples to draw for prior predictive checks. This is not used for "
+"posterior predictive checks."
+msgstr ""
+"Número de muestras a extraer para las verificaciones predictivas previas. "
+"Esto no se utiliza para las verificaciones predictivas posteriores."
+
+#: a68af90c827b4a89920fa327df4d2ef5 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_ppc:24
+msgid "**random_seed** : :class:`python:int`, optional"
+msgstr "**random_seed** : :class:`python:int`, opcional"
+
+#: 6d8a26a344f8421aa6130d39ac79e4da of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_ppc:25
+msgid "Random seed to fix sampling results"
+msgstr "Semilla aleatoria para fijar los resultados de muestreo"
+
+#: 6cc1a4878699406e89b7576538018dad of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_ppc:27
+msgid "**ax** : :obj:`matplotlib.Axes`, optional"
+msgstr "**ax** : :obj:`matplotlib.Axes`, opcional"
+
+#: 33114322477f420081cf1ba0479eb79e of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_ppc:26
+msgid "matplotlib.Axes, optional"
+msgstr "matplotlib.Axes, opcional"
+
+#: 2c19a970a1374033adef6a7e2b4cad6c of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_ppc:28
+msgid "A matplotlib Axes instance. Creates new axes instance by default."
+msgstr ""
+"Una instancia de Axes de matplotlib. Crea una nueva instancia de ejes por "
+"defecto."
+
+#: 80c699217459452c932da0f38969d898 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_ppc:30
+msgid "**\\*\\*kwargs**"
+msgstr "**\\*\\*kwargs**"
+
+#: 67776dee367d4c09a550d17813ab0f06 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_ppc:31
+msgid "Additional arguments to pass into the pandas.DataFrame.plot command."
+msgstr "Argumentos adicionales para pasar al comando pandas.DataFrame.plot."
+
+#: 19f785abdb0644ad8ba6071864ab0dc7 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_ppc
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 5f796a0c03064e1499a9542602526f0f of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_ppc:37
+msgid "**axes** : :obj:`matplotlib.AxesSubplot`"
+msgstr "**ejes** : :obj:`matplotlib.AxesSubplot`"
+
+#: 4f31ffc4d39f4065987dee903e4b2ba6 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_ppc:36
+msgid "matplotlib.AxesSubplot"
+msgstr "matplotlib.AxesSubplot"

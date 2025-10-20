@@ -1,0 +1,431 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-13 11:28+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBF_FCI.rst:2
+#: 803bc565863d42f6a9d4b2d93458690e
+msgid "TBF\\_FCI"
+msgstr ""
+"{\n"
+"  \"singular\": \"TBF_FCI\",\n"
+"  \"plural\": \"TBF_FCI\"\n"
+"}"
+
+#: 0b38a4ea1a87498982bcb7b4a90e368f of pymc_marketing.mmm.causal.TBF_FCI:2
+msgid "Target-first Bayes Factor Temporal PC."
+msgstr ""
+"{\n"
+"  \"singular\": \"Factor Bayesiano Temporal PC de objetivo primero.\",\n"
+"  \"plural\": \"Factores Bayesianos Temporales PC de objetivo primero.\"\n"
+"}"
+
+#: 78afe3455cfe403e88971307fb169d2e of pymc_marketing.mmm.causal.TBF_FCI:4
+msgid ""
+"This is a time-series–adapted version of TBF-PC. It combines ideas from "
+"temporal FCI/PCMCI with a Bayes-factor ΔBIC conditional independence test."
+msgstr ""
+"{\n"
+"  \"singular\": \"Esta es una versión adaptada de TBF-PC para series temporales. Combina ideas del FCI/PCMCI temporal con una prueba de independencia condicional ΔBIC basada en el factor de Bayes.\",\n"
+"  \"plural\": \"Estas son versiones adaptadas de TBF-PC para series temporales. Combinan ideas del FCI/PCMCI temporal con pruebas de independencia condicional ΔBIC basadas en el factor de Bayes.\"\n"
+"}"
+
+#: 5e03fc82b5304426b3dd5aa085a66b5a of pymc_marketing.mmm.causal.TBF_FCI:7
+msgid "For each test :math:`X \\perp Y \\mid S`, compare:"
+msgstr ""
+"{\n"
+"  \"singular\": \"Para cada prueba :math:`X \\perp Y \\mid S`, compara:\",\n"
+"  \"plural\": \"Para cada prueba :math:`X \\perp Y \\mid S`, compara:\"\n"
+"}"
+
+#: 5f1bdd3de916417591e7b357b9cea653 of pymc_marketing.mmm.causal.TBF_FCI:9
+msgid ""
+"M_0 : Y \\sim S\n"
+"\\\\\n"
+"M_1 : Y \\sim S + X"
+msgstr ""
+"{\n"
+"  \"singular\": \"M_0 : Y \\\\sim S\\n\\\\M_1 : Y \\\\sim S + X\",\n"
+"  \"plural\": \"M_0 : Y \\\\sim S\\n\\\\M_1 : Y \\\\sim S + X\"\n"
+"}"
+
+#: 40d55407ce3b441abd75eb9ff6c54431 of pymc_marketing.mmm.causal.TBF_FCI:15
+msgid "with BIC scores"
+msgstr ""
+"{\n"
+"  \"singular\": \"con puntuaciones BIC\",\n"
+"  \"plural\": \"con puntuaciones BIC\"\n"
+"}"
+
+#: 69eb83688ceb4c4a958f3ec5436d6d91 of pymc_marketing.mmm.causal.TBF_FCI:17
+msgid ""
+"\\mathrm{BIC}(M) = n \\log\\!\\left(\\tfrac{\\mathrm{RSS}}{n}\\right)\n"
+"                  + k \\log(n),"
+msgstr ""
+"{\n"
+"  \"singular\": \"\\mathrm{BIC}(M) = n \\log\\!\\left(\\tfrac{\\mathrm{RSS}}{n}\\right) + k \\log(n),\",\n"
+"  \"plural\": \"\\mathrm{BIC}(M) = n \\log\\!\\left(\\tfrac{\\mathrm{RSS}}{n}\\right) + k \\log(n),\"\n"
+"}"
+
+#: ce9902895fa549308acb1ce0d5222052 of pymc_marketing.mmm.causal.TBF_FCI:22
+msgid "and Bayes factor approximation"
+msgstr ""
+"{\n"
+"  \"singular\": \"y aproximación del factor de Bayes\",\n"
+"  \"plural\": \"y aproximaciones del factor de Bayes\"\n"
+"}"
+
+#: b27aba07dfdc4f008e9fc60c6561933d of pymc_marketing.mmm.causal.TBF_FCI:24
+#, python-brace-format
+msgid ""
+"\\log \\mathrm{BF}_{10} \\approx -\\tfrac{1}{2}\n"
+"\\left[ \\mathrm{BIC}(M_1) - \\mathrm{BIC}(M_0) \\right]."
+msgstr ""
+"{\n"
+"  \"singular\": \"\\log \\mathrm{BF}_{10} \\approx -\\tfrac{1}{2} \\left[ \\mathrm{BIC}(M_1) - \\mathrm{BIC}(M_0) \\right].\",\n"
+"  \"plural\": \"\\log \\mathrm{BF}_{10} \\approx -\\tfrac{1}{2} \\left[ \\mathrm{BIC}(M_1) - \\mathrm{BIC}(M_0) \\right].\"\n"
+"}"
+
+#: 86fb8133d0144319acde32474c6c116d of pymc_marketing.mmm.causal.TBF_FCI:29
+#, python-brace-format
+msgid "Declare independence if :math:`\\mathrm{BF}_{10} < \\tau`."
+msgstr ""
+"{\n"
+"  \"singular\": \"Declare independencia si :math:`\\mathrm{BF}_{10} < \\tau`.\",\n"
+"  \"plural\": \"Declare independencia si :math:`\\mathrm{BF}_{10} < \\tau`.\"\n"
+"}"
+
+#: 8c1ed623067f4e248ecfaba223639446 of pymc_marketing.mmm.causal.TBF_FCI
+msgid "Parameters"
+msgstr ""
+"{\n"
+"  \"singular\": {\n"
+"    \"msgid\": \"Parameters\",\n"
+"    \"msgstr\": \"Parámetro\"\n"
+"  },\n"
+"  \"plural\": {\n"
+"    \"msgid\": \"Parameters\",\n"
+"    \"msgstr\": \"Parámetros\"\n"
+"  }\n"
+"}"
+
+#: fed8e344a36a45cab4d614d0f45acbab of pymc_marketing.mmm.causal.TBF_FCI:33
+msgid "**target** : :class:`python:str`"
+msgstr ""
+"{\n"
+"  \"singular\": \"**objetivo** : :class:`python:str`\",\n"
+"  \"plural\": \"**objetivo** : :class:`python:str`\"\n"
+"}"
+
+#: f23046598a2346aea585ab27372fafa8 of pymc_marketing.mmm.causal.TBF_FCI:32
+msgid "python:str"
+msgstr ""
+"{\n"
+"  \"singular\": \"python:str\",\n"
+"  \"plural\": \"python:str\"\n"
+"}"
+
+#: fc3e03ec26ae4254ac62cfde56ec10e5 of pymc_marketing.mmm.causal.TBF_FCI:34
+msgid "Name of the target variable (at time t)."
+msgstr ""
+"{\n"
+"  \"singular\": \"Nombre de la variable objetivo (en el tiempo t).\",\n"
+"  \"plural\": \"Nombre de las variables objetivo (en el tiempo t).\"\n"
+"}"
+
+#: 73b82adc01594d50ae54d09349dfcb2b of pymc_marketing.mmm.causal.TBF_FCI:36
+msgid "**target_edge_rule**"
+msgstr ""
+"{\n"
+"  \"singular\": \"**regla_de_borde_objetivo**\",\n"
+"  \"plural\": \"**reglas_de_borde_objetivo**\"\n"
+"}"
+
+#: 295686aabd054a829d4b0301e3926fe1 of pymc_marketing.mmm.causal.TBF_FCI:-1
+#, python-brace-format
+msgid "{\"any\", \"conservative\", \"fullS\"}"
+msgstr ""
+"{\n"
+"  \"singular\": \"{\"any\", \"conservative\", \"fullS\"}\",\n"
+"  \"plural\": \"{\"any\", \"conservative\", \"fullS\"}\"\n"
+"}"
+
+#: 692d0838b9c3470a860c336b573f0215 of pymc_marketing.mmm.causal.TBF_FCI:37
+msgid "Rule for keeping lagged → target edges."
+msgstr ""
+"{\n"
+"  \"singular\": \"Regla para mantener los bordes rezagados → objetivo.\",\n"
+"  \"plural\": \"Reglas para mantener los bordes rezagados → objetivo.\"\n"
+"}"
+
+#: 5d53142e6f974d1cbfa3df28c18ec950 of pymc_marketing.mmm.causal.TBF_FCI:39
+msgid "**bf_thresh** : :class:`python:float`, default=1.0"
+msgstr ""
+"{\n"
+"  \"singular\": \"**bf_thresh** : :class:`python:float`, predeterminado=1.0\",\n"
+"  \"plural\": \"**bf_thresh** : :class:`python:float`, predeterminado=1.0\"\n"
+"}"
+
+#: 9a2e33d706af49edbd47cef3352f02c9 of pymc_marketing.mmm.causal.TBF_FCI:38
+msgid "python:float, default=1.0"
+msgstr ""
+"{\n"
+"  \"singular\": \"python:float, predeterminado=1.0\",\n"
+"  \"plural\": \"python:float, predeterminado=1.0\"\n"
+"}"
+
+#: d23e3af4cafa4df9a5d1935c724ace69 of pymc_marketing.mmm.causal.TBF_FCI:40
+msgid "Declare independence if BF10 < bf_thresh."
+msgstr ""
+"{\n"
+"  \"singular\": \"Declare independencia si BF10 < bf_thresh.\",\n"
+"  \"plural\": \"Declare independencia si BF10 < bf_thresh.\"\n"
+"}"
+
+#: dd3c0abbd7e8428aa6556e29ea0743ec of pymc_marketing.mmm.causal.TBF_FCI:42
+msgid ""
+"**forbidden_edges** : :class:`python:list` of "
+":class:`python:tuple`\\[:class:`python:str`, :class:`python:str`], optional"
+msgstr ""
+"{\n"
+"  \"singular\": \"**bordes_prohibidos** : :class:`python:list` de :class:`python:tuple`\\[:class:`python:str`, :class:`python:str`], opcional\",\n"
+"  \"plural\": \"**bordes_prohibidos** : :class:`python:list` de :class:`python:tuple`\\[:class:`python:str`, :class:`python:str`], opcionales\"\n"
+"}"
+
+#: 8e1f1a86caf84ae49455fa125d7a8880 of pymc_marketing.mmm.causal.TBF_FCI:41
+msgid "python:list of python:tuple[python:str, python:str], optional"
+msgstr ""
+"{\n"
+"  \"singular\": \"python:lista de python:tupla[python:str, python:str], opcional\",\n"
+"  \"plural\": \"python:listas de python:tupla[python:str, python:str], opcional\"\n"
+"}"
+
+#: afc76e446d1743e7b6b856c43d96222e of pymc_marketing.mmm.causal.TBF_FCI:43
+msgid "Prior knowledge: edges to exclude."
+msgstr ""
+"{\n"
+"  \"singular\": \"Conocimientos previos: bordes a excluir.\",\n"
+"  \"plural\": \"Conocimientos previos: bordes a excluir.\"\n"
+"}"
+
+#: 5acdb00ea149470a9b1306a48d83762b of pymc_marketing.mmm.causal.TBF_FCI:45
+msgid "**max_lag** : :class:`python:int`, default=2"
+msgstr ""
+"{\n"
+"  \"singular\": \"**max_lag** : :class:`python:int`, predeterminado=2\",\n"
+"  \"plural\": \"**max_lag** : :class:`python:int`, predeterminado=2\"\n"
+"}"
+
+#: 687977c719144c4488975f77120c7640 of pymc_marketing.mmm.causal.TBF_FCI:44
+msgid "python:int, default=2"
+msgstr ""
+"{\n"
+"  \"singular\": \"python:int, predeterminado=2\",\n"
+"  \"plural\": \"python:int, predeterminado=2\"\n"
+"}"
+
+#: 732e063e21eb4e9da53e70cec57e9626 of pymc_marketing.mmm.causal.TBF_FCI:46
+msgid "Maximum lag to include (t-1, t-2, …)."
+msgstr ""
+"{\n"
+"  \"singular\": \"Retraso máximo a incluir (t-1, t-2, …).\",\n"
+"  \"plural\": \"Retrasos máximos a incluir (t-1, t-2, …).\"\n"
+"}"
+
+#: 052d8904ea5147fabf667f4895d98687 of pymc_marketing.mmm.causal.TBF_FCI:48
+msgid ""
+"**allow_contemporaneous** : :ref:`bool <python:bltin-boolean-values>`, "
+"default=True"
+msgstr ""
+"{\n"
+"  \"singular\": \"**allow_contemporaneous** : :ref:`bool <python:bltin-boolean-values>`, predeterminado=True\",\n"
+"  \"plural\": \"**allow_contemporaneous** : :ref:`bool <python:bltin-boolean-values>`, predeterminado=True\"\n"
+"}"
+
+#: 6aa32aac4e094d498e4e4909c6a1aa36 of pymc_marketing.mmm.causal.TBF_FCI:47
+msgid "bool, default=True"
+msgstr ""
+"{\n"
+"  \"singular\": \"bool, predeterminado=True\",\n"
+"  \"plural\": \"bool, predeterminado=True\"\n"
+"}"
+
+#: 3532e04c5ef547ec97731a0221956436 of pymc_marketing.mmm.causal.TBF_FCI:49
+msgid "Whether to allow contemporaneous edges at time t."
+msgstr ""
+"{\n"
+"  \"singular\": \"Si permitir bordes contemporáneos en el tiempo t.\",\n"
+"  \"plural\": \"Si permitir bordes contemporáneos en los tiempos t.\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBF_FCI.rst:12
+#: cc9623612a2b41d4be4232449f5cc851
+msgid "Methods"
+msgstr ""
+"{\n"
+"  \"singular\": \"Método\",\n"
+"  \"plural\": \"Métodos\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBF_FCI.rst:23:<autosummary>:1
+#: cc3afd5cc354449aab4a2b01e2f89c1f
+msgid ""
+":py:obj:`TBF_FCI.__init__ <pymc_marketing.mmm.causal.TBF_FCI.__init__>`\\ "
+"\\(target\\, \\*\\[\\, ...\\]\\)"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`TBF_FCI.__init__ <pymc_marketing.mmm.causal.TBF_FCI.__init__>`\\ \\(objetivo\\, \\*\\[\\, ...\\]\\)\",\n"
+"  \"plural\": \":py:obj:`TBF_FCI.__init__ <pymc_marketing.mmm.causal.TBF_FCI.__init__>`\\ \\(objetivos\\, \\*\\[\\, ...\\]\\)\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBF_FCI.rst:23:<autosummary>:1
+#: 73245599c39e49fc8b6bbe2ec43a12d6
+msgid "Create a new temporal TBF-PC causal discovery model."
+msgstr ""
+"{\n"
+"  \"singular\": \"Cree un nuevo modelo de descubrimiento causal TBF-PC temporal.\",\n"
+"  \"plural\": \"Cree nuevos modelos de descubrimiento causal TBF-PC temporales.\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBF_FCI.rst:23:<autosummary>:1
+#: 1050101f5f7e467c95e5fa29d9038b63
+msgid ""
+":py:obj:`TBF_FCI.collapsed_summary "
+"<pymc_marketing.mmm.causal.TBF_FCI.collapsed_summary>`\\ \\(\\)"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`TBF_FCI.collapsed_summary <pymc_marketing.mmm.causal.TBF_FCI.collapsed_summary>`\\ \\(\\)\",\n"
+"  \"plural\": \":py:obj:`TBF_FCI.collapsed_summary <pymc_marketing.mmm.causal.TBF_FCI.collapsed_summary>`\\ \\(\\)\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBF_FCI.rst:23:<autosummary>:1
+#: 98395a663ca74bd3bfe7c709b3a026f7
+msgid "Summarize lagged edges into a driver-level view."
+msgstr ""
+"{\n"
+"  \"singular\": \"Resume los bordes retrasados en una vista a nivel de controlador.\",\n"
+"  \"plural\": \"Resume los bordes retrasados en una vista a nivel de controlador.\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBF_FCI.rst:23:<autosummary>:1
+#: ed22845cd0ba475ca912330b73b5ec8c
+msgid ""
+":py:obj:`TBF_FCI.fit <pymc_marketing.mmm.causal.TBF_FCI.fit>`\\ \\(df\\, "
+"drivers\\)"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`TBF_FCI.fit <pymc_marketing.mmm.causal.TBF_FCI.fit>`\\ \\(df\\, conductores\\)\",\n"
+"  \"plural\": \":py:obj:`TBF_FCI.fit <pymc_marketing.mmm.causal.TBF_FCI.fit>`\\ \\(df\\, conductores\\)\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBF_FCI.rst:23:<autosummary>:1
+#: a20247bb6fc141ebb757a9d77e4d330b
+msgid "Fit the temporal causal discovery algorithm to ``df``."
+msgstr ""
+"{\n"
+"  \"singular\": \"Ajuste el algoritmo de descubrimiento causal temporal a ``df``.\",\n"
+"  \"plural\": \"Ajusten el algoritmo de descubrimiento causal temporal a ``df``.\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBF_FCI.rst:23:<autosummary>:1
+#: fe4b41e702ad4bc1a8c35ecc11271aa3
+msgid ""
+":py:obj:`TBF_FCI.get_directed_edges "
+"<pymc_marketing.mmm.causal.TBF_FCI.get_directed_edges>`\\ \\(\\)"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`TBF_FCI.get_directed_edges <pymc_marketing.mmm.causal.TBF_FCI.get_directed_edges>`\\ \\(\\)\",\n"
+"  \"plural\": \":py:obj:`TBF_FCI.get_directed_edges <pymc_marketing.mmm.causal.TBF_FCI.get_directed_edges>`\\ \\(\\)\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBF_FCI.rst:23:<autosummary>:1
+#: f73b36411f3644c081c253c8e27aba01
+msgid "Return directed edges in the time-unrolled graph."
+msgstr ""
+"{\n"
+"  \"singular\": \"Devolver aristas dirigidas en el grafo desenrollado en el tiempo.\",\n"
+"  \"plural\": \"Devolver aristas dirigidas en los grafos desenrollados en el tiempo.\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBF_FCI.rst:23:<autosummary>:1
+#: 486c743a3e65476f8f5d58417fce41bf
+msgid ""
+":py:obj:`TBF_FCI.get_undirected_edges "
+"<pymc_marketing.mmm.causal.TBF_FCI.get_undirected_edges>`\\ \\(\\)"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`TBF_FCI.get_undirected_edges <pymc_marketing.mmm.causal.TBF_FCI.get_undirected_edges>`\\ \\(\\)\",\n"
+"  \"plural\": \":py:obj:`TBF_FCI.get_undirected_edges <pymc_marketing.mmm.causal.TBF_FCI.get_undirected_edges>`\\ \\(\\)\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBF_FCI.rst:23:<autosummary>:1
+#: ff1b829977c14a57843b4e5d2ccc9fa0
+msgid "Return undirected edges in the time-unrolled graph."
+msgstr ""
+"{\n"
+"  \"singular\": \"Devuelve los bordes no dirigidos en el gráfico desenrollado en el tiempo.\",\n"
+"  \"plural\": \"Devuelven los bordes no dirigidos en el gráfico desenrollado en el tiempo.\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBF_FCI.rst:23:<autosummary>:1
+#: 58cab3ed2c654b6fb6a2c88655a09457
+msgid ""
+":py:obj:`TBF_FCI.summary <pymc_marketing.mmm.causal.TBF_FCI.summary>`\\ "
+"\\(\\)"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`TBF_FCI.resumen <pymc_marketing.mmm.causal.TBF_FCI.resumen>`\\ \\(\\)\",\n"
+"  \"plural\": \":py:obj:`TBF_FCI.resúmenes <pymc_marketing.mmm.causal.TBF_FCI.resúmenes>`\\ \\(\\)\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBF_FCI.rst:23:<autosummary>:1
+#: 3f6a654d570448f7bdc3191c7a497e35
+msgid "Return a human-readable summary of edges and test count."
+msgstr ""
+"{\n"
+"  \"singular\": \"Devuelve un resumen legible por humanos de los bordes y el conteo de pruebas.\",\n"
+"  \"plural\": \"Devuelven un resumen legible por humanos de los bordes y el conteo de pruebas.\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBF_FCI.rst:23:<autosummary>:1
+#: 5ee70be24a0a444aa834b46583601812
+msgid ""
+":py:obj:`TBF_FCI.to_digraph "
+"<pymc_marketing.mmm.causal.TBF_FCI.to_digraph>`\\ \\(\\[collapsed\\]\\)"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`TBF_FCI.to_digraph <pymc_marketing.mmm.causal.TBF_FCI.to_digraph>`\\ \\(\\[collapsed\\]\\)\",\n"
+"  \"plural\": \":py:obj:`TBF_FCI.to_digraph <pymc_marketing.mmm.causal.TBF_FCI.to_digraph>`\\ \\(\\[collapsed\\]\\)\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBF_FCI.rst:23:<autosummary>:1
+#: b2eb4e09646842f6a226bdefc9913ad9
+msgid "Export the learned graph as DOT text."
+msgstr ""
+"{\n"
+"  \"singular\": {\n"
+"    \"msgid\": \"Export the learned graph as DOT text.\",\n"
+"    \"msgstr\": \"Exporte el gráfico aprendido como texto DOT.\"\n"
+"  },\n"
+"  \"plural\": {\n"
+"    \"msgid\": \"Export the learned graph as DOT text.\",\n"
+"    \"msgstr\": \"Exporte los gráficos aprendidos como texto DOT.\"\n"
+"  }\n"
+"}"

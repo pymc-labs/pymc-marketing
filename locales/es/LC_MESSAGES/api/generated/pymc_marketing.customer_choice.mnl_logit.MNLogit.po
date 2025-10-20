@@ -1,0 +1,891 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:2
+#: 8ac89bb5fe264f8fbeca8f9c92f27e10
+msgid "MNLogit"
+msgstr "MNLogit"
+
+#: 54bf318f35bb4388b36643e5221ae3e2 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:2
+msgid "Multinomial Logit class."
+msgstr "Clase de Logit Multinomial."
+
+#: c7751f4d72434860a9446200f64651b5 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:4
+msgid ""
+"Class to perform a multinomial logit analysis with the specific intent of "
+"determining the product attribute effects on consumer preference."
+msgstr ""
+"Clase para realizar un análisis logit multinomial con la intención "
+"específica de determinar los efectos de los atributos del producto en la "
+"preferencia del consumidor."
+
+#: 51a205f4ebc1499a86dd1dfb56cf17a1 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 5489e934c38c442abb746874a7c50d15 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:10
+msgid "**choice_df** : :obj:`pd.DataFrame`"
+msgstr "**choice_df** : :obj:`pd.DataFrame`"
+
+#: d45a3285bfcb4c0e86c2d3d8382e550c of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:9
+msgid "pd.DataFrame"
+msgstr "pd.DataFrame"
+
+#: 84f63a0b48684d869ab1e66b82707747 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:11
+msgid ""
+"A wide DataFrame where each row is a choice scenario. Product-specific "
+"attributes are stored in columns, and the dependent variable identifies the "
+"chosen product."
+msgstr ""
+"Un DataFrame amplio donde cada fila es un escenario de elección. Los "
+"atributos específicos del producto se almacenan en columnas, y la variable "
+"dependiente identifica el producto elegido."
+
+#: 56ffa6ad54e14d5cba13d2bd67e7e1a7 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:15
+msgid ""
+"**utility_equations** : :class:`python:list` of :obj:`formula` "
+":obj:`strings`"
+msgstr ""
+"**utility_equations** : :class:`python:list` de :obj:`fórmula` "
+":obj:`cadenas`"
+
+#: 1b824ec920cb4e20a215afe4ec14be67 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:14
+msgid "python:list of formula strings"
+msgstr "python:lista de cadenas de fórmulas"
+
+#: 1aac5558e77c456095c82d17e110c060 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:16
+msgid ""
+"A list of formulas specifying how to model the utility of each product "
+"alternative. The formulas should be in Wilkinson style notation and allow "
+"the target product to be specified as as a function of the alternative "
+"specific attributes and the individual specific attributes: target_product ~"
+" target_attribute1 + target_attribute2 | individual_attribute"
+msgstr ""
+"Una lista de fórmulas que especifican cómo modelar la utilidad de cada "
+"alternativa de producto. Las fórmulas deben estar en notación de estilo "
+"Wilkinson y permitir que el producto objetivo se especifique como una "
+"función de los atributos específicos de la alternativa y los atributos "
+"específicos del individuo: target_product ~ target_attribute1 + "
+"target_attribute2 | individual_attribute"
+
+#: e54ad28a89e1490692b5f7288ada41b8 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:23
+msgid "**depvar** : :class:`python:str`"
+msgstr "**depvar** : :class:`python:str`"
+
+#: fb0c065922e14f7fa1c348bb02afa41f of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:22
+msgid "python:str"
+msgstr "python:str"
+
+#: 42f2ee6859ac429993c711a57c612a9e of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:24
+msgid "The name of the dependent variable in the choice_df."
+msgstr "El nombre de la variable dependiente en el choice_df."
+
+#: c1ad58532d754cb4a3c2c7d7fb9fbbf5 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:26
+msgid "**covariates** : :class:`python:list` of :class:`python:str`"
+msgstr "**covariables** : :class:`python:list` de :class:`python:str`"
+
+#: 1b4ac4754b1747399f375af7a66b0f5d of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:25
+msgid "python:list of python:str"
+msgstr "python:lista de python:str"
+
+#: 09e7dd54c55c49339ae1ad855101d362 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:27
+msgid "Covariate names (e.g., ['X1', 'X2'])."
+msgstr "Nombres de covariables (por ejemplo, ['X1', 'X2'])."
+
+#: 7d4179b2f0fd4ee7b0d693d9f1fd0556 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:29
+msgid "**model_config** : :class:`python:dict`, optional"
+msgstr "**model_config** : :class:`python:dict`, opcional"
+
+#: 0b49964e60cf492ea8631eb87b93114d aaf575d897d74028bedb2fe1bf525bf7 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:28
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:31
+msgid "python:dict, optional"
+msgstr "python:dict, opcional"
+
+#: 2444ab36fd7b44dabaaa1c83c2904790 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:30
+msgid "Model configuration. If None, the default config is used."
+msgstr ""
+"Configuración del modelo. Si es None, se utiliza la configuración "
+"predeterminada."
+
+#: 58e16e4d114e4891b57c96f60370726d of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:32
+msgid "**sampler_config** : :class:`python:dict`, optional"
+msgstr "**sampler_config** : :class:`python:dict`, opcional"
+
+#: d30a00da8f6c48fbb28bb9177989470f of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:33
+msgid "Sampler configuration. If None, the default config is used."
+msgstr ""
+"Configuración del muestreador. Si es None, se utiliza la configuración "
+"predeterminada."
+
+#: 51710fe1be374544859b30bea651e224 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:46
+msgid "Notes"
+msgstr "Notas"
+
+#: 9529495775a84530ba40a7e347f3dd8a of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:48
+msgid "Example:"
+msgstr "Ejemplo:"
+
+#: 68574d2d6b7a451bb27036692aaa9306 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:49
+msgid "The format of `choice_df`:"
+msgstr "El formato de `choice_df`:"
+
+#: 5b2f332645a24a17a92808abb109429a of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:52
+msgid "Depvar"
+msgstr "Depvar"
+
+#: 551792f2b7724a79a7d7c01d917a3898 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:52
+msgid "alt_1_X1"
+msgstr "alt_1_X1"
+
+#: 354593ec9edf4a16a81ddfe22f3f6626 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:52
+msgid "alt_1_X2"
+msgstr "alt_1_X2"
+
+#: cb4a937e758b4ed2a78033c77ca38549 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:52
+msgid "alt_2_X1"
+msgstr "alt_2_X1"
+
+#: 65944943c21c445a8ffabfd0181ba224 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:52
+msgid "alt_2_X2"
+msgstr "alt_2_X2"
+
+#: cccd1914aa9c4cb080a7d2150f7d1002 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:54
+msgid "alt_1"
+msgstr "alt_1"
+
+#: 55a883d3fca44b8f99ab20559a83a4c2 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:54
+msgid "2.4"
+msgstr "2.4"
+
+#: d00bec1f7ec6490c9ab586ab283da0ed of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:54
+msgid "4.5"
+msgstr "4.5"
+
+#: b9b70947da774eba95aa1c6d02c5e45d of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:54
+msgid "5.4"
+msgstr "5.4"
+
+#: 80ed17c93e7e48bab60bf00aecbd32e8 a97f0ddab5734d9aa37f31f87702560c of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:54
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:56
+msgid "6.7"
+msgstr "6.7"
+
+#: 79e944a0f21b41c191a073cfb8c35561 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:56
+msgid "alt_2"
+msgstr "alt_2"
+
+#: 922354d0c4be49e48ea98f29ea9db22e of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:56
+msgid "3.5"
+msgstr "3.5"
+
+#: 301baf7a53dd4abab46db9528bc8e887 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:56
+msgid "2.3"
+msgstr "2.3"
+
+#: ef5536a88d524209b6d5fdd25a2a76aa of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:56
+msgid "8.9"
+msgstr "8.9"
+
+#: bdf82d61691a4a5d919d476619057f40 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit:59
+msgid "Example `utility_equations` list:"
+msgstr "Ejemplo de lista `utility_equations`:"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:12
+#: e1c93d4501284ceca8280d9f7bea41d6
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: 7a0d1bb3913e4d1a812f6d1d194039a9
+msgid ""
+":py:obj:`MNLogit.__init__ "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.__init__>`\\ "
+"\\(choice\\_df\\, ...\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`MNLogit.__init__ "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.__init__>`\\ "
+"\\(choice\\_df\\, ...\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: 5e3f712474a141ebbf0055361f4094a8
+msgid ""
+"Initialize model configuration and sampler configuration for the model."
+msgstr ""
+"Inicializar la configuración del modelo y la configuración del muestreador "
+"para el modelo."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: e7006fbf0007447fab8ddd3c5203a8d0
+msgid ""
+":py:obj:`MNLogit.apply_intervention "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.apply_intervention>`\\ "
+"\\(new\\_choice\\_df\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`MNLogit.apply_intervention "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.apply_intervention>`\\ "
+"\\(new\\_choice\\_df\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: aeae3b7b24004b59902a2d131642b6d8
+msgid "Apply one of two types of intervention."
+msgstr "Aplique uno de los dos tipos de intervención."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: ab5fd789379546e4b6a2c34c6d54c512
+msgid ""
+":py:obj:`MNLogit.approximate_fit "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.approximate_fit>`\\ "
+"\\(X\\[\\, y\\, progressbar\\, ...\\]\\)"
+msgstr ""
+":py:obj:`MNLogit.approximate_fit "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.approximate_fit>`\\ "
+"\\(X\\[\\, y\\, barra_de_progreso\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: 44a9e6837cf74a4d81f6e0b089995c1b
+msgid "Fit a model using Variational Inference and return InferenceData."
+msgstr ""
+"Ajuste un modelo utilizando Inferencia Variacional y devuelva InferenceData."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: 85d8912282a34fe68f564ada92fb9607
+msgid ""
+":py:obj:`MNLogit.attrs_to_init_kwargs "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.attrs_to_init_kwargs>`\\ "
+"\\(attrs\\)"
+msgstr ""
+":py:obj:`MNLogit.attrs_to_init_kwargs "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.attrs_to_init_kwargs>`\\ "
+"\\(attrs\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: f651dee4ff694f0ca84d89125b0bcc35
+msgid ""
+"Convert the model configuration and sampler configuration from the "
+"attributes to keyword arguments."
+msgstr ""
+"Convierte la configuración del modelo y la configuración del muestreador de "
+"los atributos a argumentos de palabra clave."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: c93dc21b37c64fd98e8aaf510ffc0238
+msgid ""
+":py:obj:`MNLogit.build_from_idata "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.build_from_idata>`\\ "
+"\\(idata\\)"
+msgstr ""
+":py:obj:`MNLogit.build_from_idata "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.build_from_idata>`\\ "
+"\\(idata\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: 992c5abc698d40739196ad0218b6251b
+msgid "Build model from the InferenceData object."
+msgstr "Construir el modelo a partir del objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: 42bad8d22c2e46e09078d4032980f97a
+msgid ""
+":py:obj:`MNLogit.build_model "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.build_model>`\\ \\(X\\, "
+"y\\, \\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`MNLogit.build_model "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.build_model>`\\ \\(X\\, "
+"y\\, \\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: 6748f84073e146a1aa6461cdf9244dbf
+msgid "Do not use, required by parent class."
+msgstr "No utilizar, requerido por la clase padre."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: 6834e065e18b42d5959ecbf1682e8865
+msgid ""
+":py:obj:`MNLogit.calculate_share_change "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.calculate_share_change>`\\"
+" \\(idata\\, new\\_idata\\)"
+msgstr ""
+":py:obj:`MNLogit.calculate_share_change "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.calculate_share_change>`\\"
+" \\(idata\\, new\\_idata\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: fe26483bdbea47c5a51661fe431c30ab
+msgid "Calculate difference in market share due to market intervention."
+msgstr ""
+"Calcular la diferencia en la cuota de mercado debido a la intervención en el"
+" mercado."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: 6c4574db869b49d5abdac73b05c998bc
+msgid ""
+":py:obj:`MNLogit.create_fit_data "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.create_fit_data>`\\ "
+"\\(X\\, y\\)"
+msgstr ""
+":py:obj:`MNLogit.create_fit_data "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.create_fit_data>`\\ "
+"\\(X\\, y\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: 397045e1752f4cf9a2e920b96920ea38
+msgid "Create the fit_data group based on the input data."
+msgstr "Cree el grupo fit_data basado en los datos de entrada."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: 1ab89032e3b94c00a6d16c7a3fff6f43
+msgid ""
+":py:obj:`MNLogit.create_idata_attrs "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.create_idata_attrs>`\\ "
+"\\(\\)"
+msgstr ""
+":py:obj:`MNLogit.create_idata_attrs "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.create_idata_attrs>`\\ "
+"\\(\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: b9b102a6739045b785207862310262b3
+msgid "Create the attributes for the InferenceData object."
+msgstr "Cree los atributos para el objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: 235927fd3e8b4bc0a7a39d4e6a857183
+msgid ""
+":py:obj:`MNLogit.fit "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.fit>`\\ "
+"\\(extend\\_idata\\, kwargs\\)"
+msgstr ""
+":py:obj:`MNLogit.fit "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.fit>`\\ "
+"\\(extend\\_idata\\, kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: b57f8708bc0049c4a49e0d9c5d5552f7
+msgid "Fit Nested Logit Model."
+msgstr "Ajustar el modelo de Logit anidado."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: 5a004cfba6f940d487633eee769a7c78
+msgid ""
+":py:obj:`MNLogit.graphviz "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.graphviz>`\\ "
+"\\(\\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`MNLogit.graphviz "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.graphviz>`\\ "
+"\\(\\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: eda47ec2e2014ff995943ed5ccc1dc34
+msgid "Get the graphviz representation of the model."
+msgstr "Obtenga la representación graphviz del modelo."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: 2b58d8e5fde94f7490b82677066d17ea
+msgid ""
+":py:obj:`MNLogit.idata_to_init_kwargs "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.idata_to_init_kwargs>`\\ "
+"\\(idata\\)"
+msgstr ""
+":py:obj:`MNLogit.idata_to_init_kwargs "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.idata_to_init_kwargs>`\\ "
+"\\(idata\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: 08b263d4f6c44462b48bc8b3876de374
+msgid ""
+"Create  the model configuration and sampler configuration from the "
+"InferenceData to keyword arguments."
+msgstr ""
+"Cree la configuración del modelo y la configuración del muestreador a partir"
+" de InferenceData como argumentos de palabra clave."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: 7f2d53849e66496b83dd0441ecf52aa3
+msgid ""
+":py:obj:`MNLogit.load "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.load>`\\ \\(fname\\[\\, "
+"check\\]\\)"
+msgstr ""
+":py:obj:`MNLogit.load "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.load>`\\ \\(fname\\[\\, "
+"check\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: a74971efa52d48d385c4791481953480
+msgid "Create a ModelBuilder instance from a file."
+msgstr "Cree una instancia de ModelBuilder a partir de un archivo."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: 89cddcb9d6af4dacabe2dd9e476c3d93
+msgid ""
+":py:obj:`MNLogit.load_from_idata "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.load_from_idata>`\\ "
+"\\(idata\\[\\, check\\]\\)"
+msgstr ""
+":py:obj:`MNLogit.load_from_idata "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.load_from_idata>`\\ "
+"\\(idata\\[\\, check\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: 7a5fb7cf71614ee19dac5918e1b29477
+msgid "Create a ModelBuilder instance from an InferenceData object."
+msgstr ""
+"Cree una instancia de ModelBuilder a partir de un objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: 791429922d0d4b5993b08ac0ccc5c63f
+msgid ""
+":py:obj:`MNLogit.make_model "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.make_model>`\\ \\(X\\, "
+"F\\, y\\)"
+msgstr ""
+":py:obj:`MNLogit.make_model "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.make_model>`\\ \\(X\\, "
+"F\\, y\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: 86d817e7768d4f7b9caf58db514a3043
+msgid "Build Model."
+msgstr "Construir modelo."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: 596dc778f451494ab875905f61e7abd9
+msgid ""
+":py:obj:`MNLogit.parse_formula "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.parse_formula>`\\ \\(df\\,"
+" formula\\, depvar\\)"
+msgstr ""
+":py:obj:`MNLogit.parse_formula "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.parse_formula>`\\ \\(df\\,"
+" fórmula\\, depvar\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: cb9f815d62fb4292adbed0c903d25ca5
+msgid "Parse the three-part structure of a formula specification."
+msgstr ""
+"Analice la estructura de tres partes de una especificación de fórmula."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: 8d754b297cc44d2cb759b6b51d75307b
+msgid ""
+":py:obj:`MNLogit.plot_change "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.plot_change>`\\ "
+"\\(change\\_df\\[\\, title\\, figsize\\]\\)"
+msgstr ""
+":py:obj:`MNLogit.plot_change "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.plot_change>`\\ "
+"\\(change\\_df\\[\\, título\\, figsize\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: 78f05f2ea8fb44e0bf7daae3bd8a61a3
+msgid "Plot change induced by a market intervention."
+msgstr "Cambio de trama inducido por una intervención en el mercado."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: 55493f94b9254dfdb2973df6f7918522
+msgid ""
+":py:obj:`MNLogit.post_sample_model_transformation "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.post_sample_model_transformation>`\\"
+" \\(\\)"
+msgstr ""
+":py:obj:`MNLogit.post_sample_model_transformation "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.post_sample_model_transformation>`\\"
+" \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: a2e98d3ef189477fbccdcddd4b7363bf
+msgid "Perform transformation on the model after sampling."
+msgstr "Realice la transformación en el modelo después de muestrear."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: 172c1515bd364568beef2052bf968223
+msgid ""
+":py:obj:`MNLogit.predict "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.predict>`\\ \\(\\[X\\, "
+"extend\\_idata\\]\\)"
+msgstr ""
+":py:obj:`MNLogit.predict "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.predict>`\\ \\(\\[X\\, "
+"extend\\_idata\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: c85e2562bd924c10a7958b1e49d1f1e4
+msgid ""
+"Use a model to predict on unseen data and return point prediction of all the"
+" samples."
+msgstr ""
+"Utilice un modelo para predecir sobre datos no vistos y devuelva la "
+"predicción puntual de todas las muestras."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: fc819d3020694bb48e31b54f937089ee
+msgid ""
+":py:obj:`MNLogit.predict_posterior "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.predict_posterior>`\\ "
+"\\(\\[X\\, extend\\_idata\\, ...\\]\\)"
+msgstr ""
+":py:obj:`MNLogit.predict_posterior "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.predict_posterior>`\\ "
+"\\(\\[X\\, extend\\_idata\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: 77a954a3254749e8881145cb937c5aef
+msgid "Generate posterior predictive samples on unseen data."
+msgstr "Generar muestras predictivas posteriores en datos no vistos."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: 63e29523cb4747ed918b4383cb1c5edb
+msgid ""
+":py:obj:`MNLogit.predict_proba "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.predict_proba>`\\ "
+"\\(\\[X\\, extend\\_idata\\, ...\\]\\)"
+msgstr ""
+":py:obj:`MNLogit.predict_proba "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.predict_proba>`\\ "
+"\\(\\[X\\, extend\\_idata\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: 2fc50a3ddd074b5cb00e42ac3e9eaf87
+msgid ""
+"Alias for `predict_posterior`, for consistency with scikit-learn "
+"probabilistic estimators."
+msgstr ""
+"Alias para `predict_posterior`, por coherencia con los estimadores "
+"probabilísticos de scikit-learn."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: 8b98b72419974caaaa3b505277aff500
+msgid ""
+":py:obj:`MNLogit.prepare_X_matrix "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.prepare_X_matrix>`\\ "
+"\\(df\\, ...\\)"
+msgstr ""
+":py:obj:`MNLogit.prepare_X_matrix "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.prepare_X_matrix>`\\ "
+"\\(df\\, ...\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: ee6c2f38a3c0408d893603b88a6eef08
+msgid "Prepare the X matrix for the utility equations."
+msgstr "Prepare la matriz X para las ecuaciones de utilidad."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: b85a9e8a6fe84c49bc4a8f2dec114f2b
+msgid ""
+":py:obj:`MNLogit.preprocess_model_data "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.preprocess_model_data>`\\ "
+"\\(choice\\_df\\, ...\\)"
+msgstr ""
+":py:obj:`MNLogit.preprocess_model_data "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.preprocess_model_data>`\\ "
+"\\(choice\\_df\\, ...\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: 0fc54b6f196d48b4b3872e5f0b5ec62f
+msgid ""
+"Pre-process the model initiation inputs into a format that can be used by "
+"the PyMC model."
+msgstr ""
+"Preprocesar las entradas de iniciación del modelo en un formato que pueda "
+"ser utilizado por el modelo PyMC."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: 4ecff977a944453fb429dfb216b1b445
+msgid ""
+":py:obj:`MNLogit.sample "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.sample>`\\ \\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`MNLogit.sample "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.sample>`\\ \\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: a7c288c4752f4f41ae9df6a901cf1232
+msgid "Sample all the things."
+msgstr "Muestrea todas las cosas."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: 133ba69b7fc94b88a8823cb62a0b7855
+msgid ""
+":py:obj:`MNLogit.sample_posterior_predictive "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.sample_posterior_predictive>`\\"
+" \\(...\\)"
+msgstr ""
+":py:obj:`MNLogit.sample_posterior_predictive "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.sample_posterior_predictive>`\\"
+" \\(...\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: 71a71e13ab774ffa9f46571cb6fccb39
+msgid "Sample Posterior Predictive Distribution."
+msgstr "Distribución Predictiva Posterior de Muestra."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: 82c1074f61be45739b2893cbc1af5280
+msgid ""
+":py:obj:`MNLogit.sample_prior_predictive "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.sample_prior_predictive>`\\"
+" \\(...\\)"
+msgstr ""
+":py:obj:`MNLogit.sample_prior_predictive "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.sample_prior_predictive>`\\"
+" \\(...\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: ef232fe0de7c4892a51182bf932cd6dd
+msgid "Sample Prior Predictive Distribution."
+msgstr "Distribución Predictiva Prevista de Muestra."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: bb6035ce4cdf422e995576f002a6cb4f
+msgid ""
+":py:obj:`MNLogit.save "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.save>`\\ \\(fname\\, "
+"\\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`MNLogit.save "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.save>`\\ \\(fname\\, "
+"\\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: eb8f25beedde43a5b8387e8f0ef4902e
+msgid "Save the model's inference data to a file."
+msgstr "Guarde los datos de inferencia del modelo en un archivo."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: 08a978f0d0bf47b38577283c9f1813d5
+msgid ""
+":py:obj:`MNLogit.set_idata_attrs "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.set_idata_attrs>`\\ "
+"\\(\\[idata\\]\\)"
+msgstr ""
+":py:obj:`MNLogit.set_idata_attrs "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.set_idata_attrs>`\\ "
+"\\(\\[idata\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: bde1cc58ce644550ad7869ee68e76b7b
+msgid "Set attributes on an InferenceData object."
+msgstr "Establecer atributos en un objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: f0d967aeebde457e9d106d4b808b5c8d
+msgid ""
+":py:obj:`MNLogit.table "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.table>`\\ "
+"\\(\\*\\*model\\_table\\_kwargs\\)"
+msgstr ""
+":py:obj:`MNLogit.table "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.table>`\\ "
+"\\(\\*\\*model\\_table\\_kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
+#: 13963a0446754f068245062aea5dc8f6
+msgid "Get the summary table of the model."
+msgstr "Obtenga la tabla resumen del modelo."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:52
+#: 232f051323f649e9a877e429cc6996b8
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:68:<autosummary>:1
+#: 9f1fdd0da7c644b8a3351f64c1914629
+msgid ""
+":py:obj:`default_model_config "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.default_model_config>`\\"
+msgstr ""
+":py:obj:`default_model_config "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.default_model_config>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:68:<autosummary>:1
+#: 8278ec6e2c9d4163b44c2dd9378c4e2e
+msgid "Default model configuration."
+msgstr "Configuración de modelo predeterminada."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:68:<autosummary>:1
+#: 7a30a7797d364a3895bba6cffea034c2
+msgid ""
+":py:obj:`default_sampler_config "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.default_sampler_config>`\\"
+msgstr ""
+":py:obj:`default_sampler_config "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.default_sampler_config>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:68:<autosummary>:1
+#: 04b88bf94d084597ab7a2ce64a990a15
+msgid "Default sampler configuration."
+msgstr "Configuración de muestreador predeterminada."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:68:<autosummary>:1
+#: 2fb8dc34c8fb40699aaad7f63be0934f
+msgid ""
+":py:obj:`fit_result "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.fit_result>`\\"
+msgstr ""
+":py:obj:`fit_result "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.fit_result>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:68:<autosummary>:1
+#: 371b1b9657d8438592cd42667621526c
+msgid "Get the posterior fit_result."
+msgstr "Obtenga el resultado de ajuste posterior fit_result."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:68:<autosummary>:1
+#: 75972243d2344bb29a49811c066757e9
+msgid ":py:obj:`id <pymc_marketing.customer_choice.mnl_logit.MNLogit.id>`\\"
+msgstr ":py:obj:`id <pymc_marketing.customer_choice.mnl_logit.MNLogit.id>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:68:<autosummary>:1
+#: 63efd841af6644ada04e30c78900ad05
+msgid "Generate a unique hash value for the model."
+msgstr "Generar un valor hash único para el modelo."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:68:<autosummary>:1
+#: e5f43db4e7a7449f8f938228af1c84df
+msgid ""
+":py:obj:`output_var "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.output_var>`\\"
+msgstr ""
+":py:obj:`output_var "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.output_var>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:68:<autosummary>:1
+#: ed622546f049412095b6ef25e457597d
+msgid "The output variable of the model."
+msgstr "La variable de salida del modelo."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:68:<autosummary>:1
+#: 4e210f958ae241cfa86d96a0f4750bda
+msgid ""
+":py:obj:`posterior "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.posterior>`\\"
+msgstr ""
+":py:obj:`posterior "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.posterior>`\\"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:68:<autosummary>:1
+#: 0ae3777bc91b4c2d8a9b827574f3859d
+msgid ""
+":py:obj:`posterior_predictive "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.posterior_predictive>`\\"
+msgstr ""
+":py:obj:`posterior_predictive "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.posterior_predictive>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:68:<autosummary>:1
+#: 10b0b0fb9fe147cf97bd2ab4145d3920
+msgid ""
+":py:obj:`predictions "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.predictions>`\\"
+msgstr ""
+":py:obj:`predicciones "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.predictions>`\\"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:68:<autosummary>:1
+#: dfee4f56350348539175fc9ec5872145
+msgid ""
+":py:obj:`prior <pymc_marketing.customer_choice.mnl_logit.MNLogit.prior>`\\"
+msgstr ""
+":py:obj:`prior <pymc_marketing.customer_choice.mnl_logit.MNLogit.prior>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:68:<autosummary>:1
+#: 41de84674efe4c43a4b7acbc48fab591
+msgid ""
+":py:obj:`prior_predictive "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.prior_predictive>`\\"
+msgstr ""
+":py:obj:`prior_predictive "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.prior_predictive>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:68:<autosummary>:1
+#: 39381d6c96914ec6bf6a95066667f6be
+msgid ""
+":py:obj:`version "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.version>`\\"
+msgstr ""
+":py:obj:`versión "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.version>`\\"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:68:<autosummary>:1
+#: e45fcdd9f5a549f5a9cf8aa6f0dd8474
+msgid ""
+":py:obj:`idata <pymc_marketing.customer_choice.mnl_logit.MNLogit.idata>`\\"
+msgstr ""
+":py:obj:`idata <pymc_marketing.customer_choice.mnl_logit.MNLogit.idata>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:68:<autosummary>:1
+#: 25d0e37e8a704257b1a5c5c62b071810
+msgid ""
+":py:obj:`sampler_config "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.sampler_config>`\\"
+msgstr ""
+":py:obj:`sampler_config "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.sampler_config>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:68:<autosummary>:1
+#: d3305625634c439ca194dd91ed41ae70
+msgid ""
+":py:obj:`model_config "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.model_config>`\\"
+msgstr ""
+":py:obj:`model_config "
+"<pymc_marketing.customer_choice.mnl_logit.MNLogit.model_config>`"

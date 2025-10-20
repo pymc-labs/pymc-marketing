@@ -1,0 +1,98 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.plot_product.rst:2
+#: 4a16b57352a04eb587a5c3dd080d78c8
+msgid "plot\\_product"
+msgstr "trazar\\_producto"
+
+#: 51e16def4fb5458688c31cd73f2ebdf4 of
+#: pymc_marketing.customer_choice.mv_its.plot_product:2
+msgid "Plot the sales of a single product."
+msgstr "Grafique las ventas de un solo producto."
+
+#: fb515d93cd0347998bfd08109046fca0 of
+#: pymc_marketing.customer_choice.mv_its.plot_product
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: dd00ed3e60894976a97df03663c269c2 of
+#: pymc_marketing.customer_choice.mv_its.plot_product:7
+msgid "**data** : :obj:`pd.DataFrame`"
+msgstr "**datos** : :obj:`pd.DataFrame`"
+
+#: e16e2853bf794f2b83cd2c4af97adc39 of
+#: pymc_marketing.customer_choice.mv_its.plot_product:6
+msgid "pd.DataFrame"
+msgstr "pd.DataFrame"
+
+#: f115c8a9343249e2bd86ebb755d5430e of
+#: pymc_marketing.customer_choice.mv_its.plot_product:8
+msgid "The sales data."
+msgstr "Los datos de ventas."
+
+#: 1db132e64ae041e9b69e75c3da223d09 of
+#: pymc_marketing.customer_choice.mv_its.plot_product:10
+msgid ""
+"**plot_total_sales** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+"**plot_total_sales** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: f2f9c2862bef456996ff889c6a5cd033 of
+#: pymc_marketing.customer_choice.mv_its.plot_product:9
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: 5bfe28a371be48708ca863cdf9e24439 of
+#: pymc_marketing.customer_choice.mv_its.plot_product:11
+msgid "Whether to plot the total sales or not."
+msgstr "Si se debe trazar las ventas totales o no."
+
+#: 64c2ed06ac174b2b84374c8dd2059a9f of
+#: pymc_marketing.customer_choice.mv_its.plot_product:13
+msgid "**ax** : :obj:`plt.Axes`, optional"
+msgstr "**ax** : :obj:`plt.Axes`, opcional"
+
+#: 3b81bc558aa847e192d2dc71ac6fec33 of
+#: pymc_marketing.customer_choice.mv_its.plot_product:12
+msgid "plt.Axes, optional"
+msgstr "plt.Axes, opcional"
+
+#: 3f4b81c1514b4071b3d88d1409e9a236 of
+#: pymc_marketing.customer_choice.mv_its.plot_product:14
+msgid "The matplotlib axes."
+msgstr "Los ejes de matplotlib."
+
+#: 8a50746f128e4ddbbd48532eb3159106 of
+#: pymc_marketing.customer_choice.mv_its.plot_product
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: e43babb242ad4f7a8b85a9ea1e0451e2 of
+#: pymc_marketing.customer_choice.mv_its.plot_product:20
+msgid ":obj:`plt.Axes`"
+msgstr ":obj:`plt.Axes`"
+
+#: facda09863804007b42dc61ef5f9030d of
+#: pymc_marketing.customer_choice.mv_its.plot_product:21
+msgid "The new or modified matplotlib axes."
+msgstr "Los ejes de matplotlib nuevos o modificados."

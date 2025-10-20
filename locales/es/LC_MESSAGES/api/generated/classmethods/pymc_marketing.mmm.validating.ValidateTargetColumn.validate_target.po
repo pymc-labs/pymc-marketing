@@ -1,0 +1,65 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.validating.ValidateTargetColumn.validate_target.rst:2
+#: 10baebd82cee4e9b92f3eb2edcaf73e9
+msgid "ValidateTargetColumn.validate\\_target"
+msgstr "ValidateTargetColumn.validar\\_objetivo"
+
+#: 981ee482f12d49b890e6c66c9f5e8427 of
+#: pymc_marketing.mmm.validating.ValidateTargetColumn.validate_target:2
+msgid "Validate the target column."
+msgstr "Valide la columna objetivo."
+
+#: 85f75e4ca8c743e3ae93692300faf8d0 of
+#: pymc_marketing.mmm.validating.ValidateTargetColumn.validate_target
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 9506be2bfd0a432db55eab41276ce317 of
+#: pymc_marketing.mmm.validating.ValidateTargetColumn.validate_target:7
+msgid "**data** : :obj:`pd.Series`"
+msgstr "**datos** : :obj:`pd.Series`"
+
+#: b6117079def344af81b5c81aba6649aa of
+#: pymc_marketing.mmm.validating.ValidateTargetColumn.validate_target:6
+msgid "pd.Series"
+msgstr "pd.Series"
+
+#: 0ae2a117c9b94871818914c238c50439 of
+#: pymc_marketing.mmm.validating.ValidateTargetColumn.validate_target:8
+msgid "The data to validate."
+msgstr "Los datos a validar."
+
+#: 30198e9dff4945e0936dd385b49ae825 of
+#: pymc_marketing.mmm.validating.ValidateTargetColumn.validate_target
+msgid "Raises"
+msgstr "Aumentos"
+
+#: 3bf3b4d77df84c94b2ffb1f1ae95edb1 of
+#: pymc_marketing.mmm.validating.ValidateTargetColumn.validate_target:18
+msgid ""
+"ValueError: :obj:`If` :obj:`the` :obj:`target` :obj:`column` :obj:`is` "
+":obj:`not` valid."
+msgstr ""
+"ValueError: :obj:`Si` :obj:`la` :obj:`columna` :obj:`objetivo` :obj:`no` es "
+":obj:`válida."

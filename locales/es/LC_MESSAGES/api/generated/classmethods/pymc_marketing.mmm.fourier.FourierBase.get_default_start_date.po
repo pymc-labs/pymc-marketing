@@ -1,0 +1,93 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.fourier.FourierBase.get_default_start_date.rst:2
+#: 475e2046011c4c629f1af993705c952d
+msgid "FourierBase.get\\_default\\_start\\_date"
+msgstr "FourierBase.obtener\\_fecha\\_de\\_inicio\\_predeterminada"
+
+#: 124953b5ad484e99b0ec82b0ebe198a4 of
+#: pymc_marketing.mmm.fourier.FourierBase.get_default_start_date:2
+msgid "Get the start date for the Fourier curve."
+msgstr "Obtenga la fecha de inicio para la curva de Fourier."
+
+#: b8c62f0e420f41e8875210c611062afb of
+#: pymc_marketing.mmm.fourier.FourierBase.get_default_start_date:4
+msgid ""
+"If `start_date` is provided, validate its type. Otherwise, provide the "
+"default start date based on the subclass implementation."
+msgstr ""
+"Si se proporciona `start_date`, valide su tipo. De lo contrario, proporcione"
+" la fecha de inicio predeterminada según la implementación de la subclase."
+
+#: 9861d2fe99c745edb2bf5319d62e9092 of
+#: pymc_marketing.mmm.fourier.FourierBase.get_default_start_date
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 84d176934e1347d19b1e752a51329e81 of
+#: pymc_marketing.mmm.fourier.FourierBase.get_default_start_date:9
+msgid ""
+"**start_date** : :class:`python:str` or :obj:`datetime.datetime`, optional"
+msgstr ""
+"**start_date** : :class:`python:str` o :obj:`datetime.datetime`, opcional"
+
+#: e80ae9f1baa547c1bf5a6ee76c909622 of
+#: pymc_marketing.mmm.fourier.FourierBase.get_default_start_date:8
+msgid "python:str or datetime.datetime, optional"
+msgstr "python:str o datetime.datetime, opcional"
+
+#: 0e9b647f0d47406080d0ce583fc77e95 of
+#: pymc_marketing.mmm.fourier.FourierBase.get_default_start_date:10
+msgid "Provided start date. Can be a string or a datetime object."
+msgstr ""
+"Fecha de inicio proporcionada. Puede ser una cadena o un objeto datetime."
+
+#: e3ce28da868b41fe924a0f9eeddb7d48 of
+#: pymc_marketing.mmm.fourier.FourierBase.get_default_start_date
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: b2fa315c11ae4c538cbe80446c16ecd9 of
+#: pymc_marketing.mmm.fourier.FourierBase.get_default_start_date:16
+msgid ":class:`python:str` or :obj:`datetime.datetime`"
+msgstr ":class:`python:str` o :obj:`datetime.datetime`"
+
+#: 785a44e0b96e4f3aa9c0e36a1ebe954f of
+#: pymc_marketing.mmm.fourier.FourierBase.get_default_start_date:17
+msgid "The validated start date."
+msgstr "La fecha de inicio validada."
+
+#: 850d5bee80f74a2281292a396766a035 of
+#: pymc_marketing.mmm.fourier.FourierBase.get_default_start_date
+msgid "Raises"
+msgstr "Aumentos"
+
+#: 7a6b2f3e6446492b88d1c9bd0dddc19e of
+#: pymc_marketing.mmm.fourier.FourierBase.get_default_start_date:24
+msgid ":obj:`TypeError`"
+msgstr ":obj:`TypeError`"
+
+#: c1ff9de41fe649019715894d06a2d6a1 of
+#: pymc_marketing.mmm.fourier.FourierBase.get_default_start_date:25
+msgid "If `start_date` is neither a string nor a datetime object."
+msgstr "Si `start_date` no es ni una cadena ni un objeto datetime."

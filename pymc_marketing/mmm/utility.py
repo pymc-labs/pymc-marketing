@@ -163,35 +163,45 @@ def mean_tightness_score(
     alpha: float = 0.5, confidence_level: float = 0.75
 ) -> UtilityFunctionType:
     R"""
-    Calculate the mean tightness score.
+    Calculate the Mean Tightness Score (MTS).
 
-    The mean tightness score is a risk metric that balances the mean return and the tail variability.
-    It is calculated as:
+    MTS balances the posterior mean against a symmetric, quantile-based tail spread and
+    returns a dimensionless, normalized score:
 
     .. math::
-        Mean\ Tightness\ Score = \mu - \alpha \cdot Tail\ Distance / \mu
+        \mathrm{MTS}(X; \alpha, p) = 1 - \alpha \frac{T_p(X)}{\mu}
 
     where:
-        - :math:`\mu` is the mean of the sample returns.
-        - :math:`Tail\ Distance` is the tail distance metric.
-        - :math:`\alpha` is the risk tolerance parameter.
+        - :math:`\mu` is the posterior mean of the samples.
+        - :math:`T_p(X) = |Q_p - \mu| + |\mu - Q_{1-p}|` is a symmetric tail distance.
 
-    alpha (Risk Tolerance Parameter): This parameter controls the trade-off.
-        - Higher :math:`\alpha` increases sensitivity to variability, making the metric value higher for spread dist
-        - Lower :math:`\alpha` decreases sensitivity to variability, making the metric value lower for spread dist
+    Larger :math:`T_p` indicates a more dispersed posterior and thus a lower score.
+
+    This formulation makes the following properties explicit:
+        - :math:`\alpha` controls risk aversion: increasing :math:`\alpha` increases the
+          penalty on dispersion, so the score decreases for more spread posteriors (all else equal).
+        - With :math:`\alpha = 0`, the score is identically 1 for any samples (no preference signal).
+        - For fixed :math:`X` and :math:`p`, the score is linear and non-increasing in :math:`\alpha`.
+        - For fixed :math:`X` and :math:`\alpha`, the score is non-increasing in :math:`p`
+          (since :math:`Q_p - Q_{1-p}` widens as :math:`p` moves away from 0.5).
 
     Parameters
     ----------
     alpha : float, optional
-        Risk tolerance parameter (default is 0.5).
+        Risk-aversion weight. Larger values increase the penalty from tail spread (default 0.5).
     confidence_level : float, optional
-        Confidence level for the quantiles (default is 0.75).
-        Confidence level must be between 0 and 1.
+        Quantile probability :math:`p \in (0, 1)` used to compute :math:`T_p`.
+        Typical choices are :math:`p \in [0.6, 0.9]` (default 0.75).
 
     Returns
     -------
     UtilityFunctionType
-        A function that calculates the mean tightness score given samples and budgets.
+        A function that calculates the normalized mean tightness score given samples and budgets.
+
+    Raises
+    ------
+    ValueError
+        If ``confidence_level`` is not between 0 and 1.
     """
     if not 0 < confidence_level < 1:
         raise ValueError("Confidence level must be between 0 and 1.")
@@ -202,7 +212,7 @@ def mean_tightness_score(
         samples = _check_samples_dimensionality(samples)
         mean = pt.mean(samples)
         tail_metric = tail_distance(confidence_level)
-        return (mean - alpha * tail_metric(samples, budgets)) / mean
+        return 1 - alpha * tail_metric(samples, budgets) / mean
 
     return _mean_tightness_score
 

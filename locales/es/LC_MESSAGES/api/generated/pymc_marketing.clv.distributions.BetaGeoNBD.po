@@ -1,0 +1,194 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.BetaGeoNBD.rst:2
+#: dcc7a8b31dff48c8876c69618e7537c3
+msgid "BetaGeoNBD"
+msgstr "BetaGeoNBD"
+
+#: a0161ef1cb804304b35dc7a62b81ef9f of
+#: pymc_marketing.clv.distributions.BetaGeoNBD:2
+msgid ""
+"Population-level distribution class for a discrete, non-contractual, Beta-"
+"Geometric/Negative-Binomial process."
+msgstr ""
+"Clase de distribución a nivel poblacional para un proceso discreto, no "
+"contractual, Beta-Geométrico/Binomial Negativo."
+
+#: a6cf9deb9ba044749babea450cb9f8a2 of
+#: pymc_marketing.clv.distributions.BetaGeoNBD:4
+msgid ""
+"Based on Fader, et al. in [R7df1192fa0ab-1]_, [R7df1192fa0ab-2]_ and "
+"enhancements for numerical stability in [R7df1192fa0ab-3]_."
+msgstr ""
+"Basado en Fader, et al. en [R7df1192fa0ab-1]_, [R7df1192fa0ab-2]_ y mejoras "
+"para la estabilidad numérica en [R7df1192fa0ab-3]_."
+
+#: 936047b5db2546778d362a70f8fb2667 of
+#: pymc_marketing.clv.distributions.BetaGeoNBD:6
+#, python-brace-format
+msgid ""
+"\\mathbb{LL}(r, \\alpha, a, b  | x, t_x, T) =\n"
+"D_1 + D_2 + \\ln(C_3 + \\delta_{x>0} C_4) \\text{, where:} \\\\\n"
+"\\begin{align}\n"
+"D_1 &= \\ln \\left[ \\Gamma(r+x) \\right] - \\ln \\left[ \\Gamma(r) \\right] + \\ln \\left[ \\Gamma(a+b) \\right] + \\ln \\left[ \\Gamma(b+x) \\right] \\\\\n"
+"D_2 &= r \\ln(\\alpha) - (r+x) \\ln(\\alpha + t_x) \\\\\n"
+"C_3 &= \\left(\\frac{\\alpha + t_x}{\\alpha + T} \\right)^{r+x} \\\\\n"
+"C_4 &= \\left(\\frac{a}{b+x-1} \\right) \\\\\n"
+"\\end{align}"
+msgstr ""
+"\\mathbb{LL}(r, \\alpha, a, b  | x, t_x, T) =\n"
+"D_1 + D_2 + \\ln(C_3 + \\delta_{x>0} C_4) \\text{, where:} \\\\\n"
+"\\begin{align}\n"
+"D_1 &= \\ln \\left[ \\Gamma(r+x) \\right] - \\ln \\left[ \\Gamma(r) \\right] + \\ln \\left[ \\Gamma(a+b) \\right] + \\ln \\left[ \\Gamma(b+x) \\right] \\\\\n"
+"D_2 &= r \\ln(\\alpha) - (r+x) \\ln(\\alpha + t_x) \\\\\n"
+"C_3 &= \\left(\\frac{\\alpha + t_x}{\\alpha + T} \\right)^{r+x} \\\\\n"
+"C_4 &= \\left(\\frac{a}{b+x-1} \\right) \\\\\n"
+"\\end{align}"
+
+#: 8b4e92034501429797e6823d6c2b367f of
+#: pymc_marketing.clv.distributions.BetaGeoNBD:18
+msgid "Support"
+msgstr "Soporte"
+
+#: 7ea83a2f0a2343e1bfcccc3d7929fab6 of
+#: pymc_marketing.clv.distributions.BetaGeoNBD:18
+msgid ":math:`t_j >= 0` for :math:`j = 1, \\dots,x`"
+msgstr ":math:`t_j >= 0` para :math:`j = 1, \\dots,x`"
+
+#: 5ca0dc67c5de4b909a7f50d879c3b270 of
+#: pymc_marketing.clv.distributions.BetaGeoNBD:19
+msgid "Mean"
+msgstr "Media"
+
+#: 2952b93008eb4482b3bcce60016fb74c of
+#: pymc_marketing.clv.distributions.BetaGeoNBD:19
+#, python-brace-format
+msgid ""
+":math:`\\mathbb{E}[X(n) | r, \\alpha, a, b] = \\frac{a+b-1}{a-1} \\left[ 1 -"
+" \\left(\\frac{\\alpha}{\\alpha + T}\\right)^r "
+"{_2}{F}{_1}(r,b;a+b-1;\\frac{t}{\\alpha + t}) \\right]`"
+msgstr ""
+":math:`\\mathbb{E}[X(n) | r, \\alpha, a, b] = \\frac{a+b-1}{a-1} \\left[ 1 -"
+" \\left(\\frac{\\alpha}{\\alpha + T}\\right)^r "
+"{_2}{F}{_1}(r,b;a+b-1;\\frac{t}{\\alpha + t}) \\right]`"
+
+#: 8d488adbf0654c6781ebc122561afed8 of
+#: pymc_marketing.clv.distributions.BetaGeoNBD:35
+msgid "References"
+msgstr "Referencias"
+
+#: 1a54c14a991743feb279962cf0c07e4a of
+#: pymc_marketing.clv.distributions.BetaGeoNBD:36
+msgid ""
+"Fader, Peter S., Bruce G.S. Hardie, and Jen Shang (2010), \"Counting Your "
+"Customers\" the Easy Way: An Alternative to the Pareto/NBD Model Marketing "
+"Science, 24 (Spring), 275-284"
+msgstr ""
+"Fader, Peter S., Bruce G.S. Hardie y Jen Shang (2010), \"Contando a sus "
+"Clientes\" de la Manera Fácil: Una Alternativa al Modelo Pareto/NBD "
+"Marketing Science, 24 (Primavera), 275-284"
+
+#: 8c045c94bb67418794e35e7c0d6fcc81 of
+#: pymc_marketing.clv.distributions.BetaGeoNBD:40
+msgid ""
+"Implementing the BG/NBD Model for Customer Base Analysis in Excel "
+"http://brucehardie.com/notes/004/bgnbd_spreadsheet_note.pdf"
+msgstr ""
+"Implementación del Modelo BG/NBD para el Análisis de la Base de Clientes en "
+"Excel http://brucehardie.com/notes/004/bgnbd_spreadsheet_note.pdf"
+
+#: fa5e3f7f5a5548a3b2261cf965136f8e of
+#: pymc_marketing.clv.distributions.BetaGeoNBD:41
+msgid ""
+"Overcoming the BG/NBD Model's #NUM! Error Problem "
+"https://brucehardie.com/notes/027/bgnbd_num_error.pdf"
+msgstr ""
+"Superando el problema de error #NUM! del modelo BG/NBD "
+"https://brucehardie.com/notes/027/bgnbd_num_error.pdf"
+
+#: 125d1777068f4ccaa292fb75c1deaafe of
+#: pymc_marketing.clv.distributions.BetaGeoNBD:45
+msgid "[R7df1192fa0ab-1]_, [R7df1192fa0ab-2]_, [R7df1192fa0ab-3]_"
+msgstr "[R7df1192fa0ab-1]_, [R7df1192fa0ab-2]_, [R7df1192fa0ab-3]_"
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.BetaGeoNBD.rst:12
+#: ab88b94fc3a540d19b179253f6316fc8
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.BetaGeoNBD.rst:24:<autosummary>:1
+#: 09f67ddaa6604c1e8d187a1ed54357c7
+msgid ""
+":py:obj:`BetaGeoNBD.__init__ "
+"<pymc_marketing.clv.distributions.BetaGeoNBD.__init__>`\\ \\(\\*args\\, "
+"\\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`BetaGeoNBD.__init__ "
+"<pymc_marketing.clv.distributions.BetaGeoNBD.__init__>`\\ \\(\\*args\\, "
+"\\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.BetaGeoNBD.rst:24:<autosummary>:1
+#: 580b79dc5c2f4e10aa81a0265662bad9
+msgid ""
+":py:obj:`BetaGeoNBD.dist "
+"<pymc_marketing.clv.distributions.BetaGeoNBD.dist>`\\ \\(a\\, b\\, r\\, "
+"alpha\\, T\\, \\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`BetaGeoNBD.dist "
+"<pymc_marketing.clv.distributions.BetaGeoNBD.dist>`\\ \\(a\\, b\\, r\\, "
+"alpha\\, T\\, \\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.BetaGeoNBD.rst:24:<autosummary>:1
+#: 5f1ff3795b8647d39728f800e539556e
+msgid "Get the distribution from the parameters."
+msgstr "Obtenga la distribución de los parámetros."
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.BetaGeoNBD.rst:24:<autosummary>:1
+#: a62711cea08f413db82999e4f0d8b9e5
+msgid ""
+":py:obj:`BetaGeoNBD.logp "
+"<pymc_marketing.clv.distributions.BetaGeoNBD.logp>`\\ \\(a\\, b\\, r\\, "
+"alpha\\, T\\)"
+msgstr ""
+":py:obj:`BetaGeoNBD.logp "
+"<pymc_marketing.clv.distributions.BetaGeoNBD.logp>`\\ \\(a\\, b\\, r\\, "
+"alpha\\, T\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.BetaGeoNBD.rst:24:<autosummary>:1
+#: b58ce2f4e20c4777b4e813a174fa1134
+msgid "Log-likelihood of the distribution."
+msgstr "Log-verosimilitud de la distribución."
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.BetaGeoNBD.rst:26
+#: 09d2277637e74979959d0b24bd76ae2c
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.BetaGeoNBD.rst:29:<autosummary>:1
+#: 8e93d91a34ec4eff9778971f7469c968
+msgid ""
+":py:obj:`rv_op <pymc_marketing.clv.distributions.BetaGeoNBD.rv_op>`\\ "
+"\\(a\\, b\\, r\\, alpha\\, T\\[\\, size\\]\\)"
+msgstr ""
+":py:obj:`rv_op <pymc_marketing.clv.distributions.BetaGeoNBD.rv_op>`\\ "
+"\\(a\\, b\\, r\\, alpha\\, T\\[\\, tamaño\\]\\)"

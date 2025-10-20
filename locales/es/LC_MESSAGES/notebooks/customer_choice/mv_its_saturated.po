@@ -1,0 +1,669 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:10002
+#: 372fabc37fdc4ed6a65a5c6feed1995d
+msgid "Multivariate ITS model for saturated markets"
+msgstr "Modelo ITS multivariante para mercados saturados"
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:10004
+#: 877e3f6f4ab4430aba3c3fbf081ad6b4
+msgid ""
+"This notebook focusses on the use of the Multivariate Interrupted Time "
+"Series (MVITS) model to estimate where new product sales come from. If you "
+"have not yet done so, we recommend that you read our [Introduction to "
+"product incrementality](../../guide/customer_choice/incrementality_intro.md)"
+" guide as well as the [Multivariate interrupted time series "
+"model](../../guide/customer_choice/mv_its_intro.md) guide before continuing."
+msgstr ""
+"Este cuaderno se centra en el uso del modelo de Series de Tiempo "
+"Interrumpidas Multivariadas (MVITS) para estimar de dónde provienen las "
+"ventas de nuevos productos. Si aún no lo ha hecho, le recomendamos que lea "
+"nuestra guía de [Introducción a la incrementalidad del "
+"producto](../../guide/customer_choice/incrementality_intro.md) así como la "
+"guía de [modelo de series de tiempo interrumpidas "
+"multivariadas](../../guide/customer_choice/mv_its_intro.md) antes de "
+"continuar."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:10006
+#: 714aa67b712c48ffa6cfd8051a37d0e1
+msgid ""
+"We will walk through a number of scenarios, from simple to complex, to show "
+"how the MVITS model can be used to estimate the impact of a new product on "
+"existing products."
+msgstr ""
+"Recorreremos una serie de escenarios, desde simples hasta complejos, para "
+"mostrar cómo se puede utilizar el modelo MVITS para estimar el impacto de un"
+" nuevo producto en los productos existentes."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:20002
+#: 68c916dc18b847c2ae832c84e0e0e04c
+msgid "Notebook setup"
+msgstr "Configuración del cuaderno"
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:40002
+#: c5cf5804377f4a6893768fd69fe13734
+msgid "Synthetic data generation"
+msgstr "Generación de datos sintéticos"
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:40004
+#: 039f8e9b096d470e95e522fee710265b
+msgid ""
+"We will generate synthetic data according to the following causal model. "
+"This is intentionally simple in this introduction to the MVITS model and is "
+"likely not going to capture the complexities of real-world data."
+msgstr ""
+"Generaremos datos sintéticos de acuerdo con el siguiente modelo causal. Esto"
+" es intencionadamente simple en esta introducción al modelo MVITS y es "
+"probable que no capture las complejidades de los datos del mundo real."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:60002
+#: f365082a619642e398b0d34ac5e839dc
+msgid ""
+"We assume that there is a latent (unobserved) market share which equates to "
+"the popularity of different broducts or brands."
+msgstr ""
+"Asumimos que existe una cuota de mercado latente (no observada) que equivale"
+" a la popularidad de diferentes productos o marcas."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:60003
+#: 1bfeb02f78f949f88f61e5eeeaf33ec1
+msgid ""
+"We assume that there is a level of demand which is broadly stable, but is "
+"noisy. Some times more product is sold than other times."
+msgstr ""
+"Asumimos que existe un nivel de demanda que es en gran medida estable, pero "
+"es ruidoso. A veces se vende más producto que en otras ocasiones."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:60004
+#: b9df0cc0996740db9e86c25210c936c9
+#, python-brace-format
+msgid ""
+"The empirically observed sales counts are causally influenced by both the "
+"latent market share and the total demand. This relationship could be "
+"modelled in different ways, but here we assume $\\text{sales counts} \\sim "
+"\\mathrm{Multinomial}(\\text{total demand}, \\text{latent market share})$."
+msgstr ""
+"Los recuentos de ventas observados empíricamente están influenciados "
+"causalmente tanto por la cuota de mercado latente como por la demanda total."
+" Esta relación podría modelarse de diferentes maneras, pero aquí asumimos "
+"$\\text{sales counts} \\sim \\mathrm{Multinomial}(\\text{total demand}, "
+"\\text{latent market share})$."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:70002
+#: 6cc313c9c85b4216bac795abc6831864
+msgid "Empirical market share"
+msgstr "Participación de mercado empírica"
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:70005
+#: b9873d4907e44641a10dd2d0ebbd9a16
+msgid ""
+"Based off of the observed sales counts, we could calculate empirical market "
+"shares. This does not play an important role in our data generation process,"
+" but it is important to highlight the difference between noisy empirical "
+"observed market shares versus the latent market shares which represent some "
+"form of underlying popularity of products or brands."
+msgstr ""
+"Basado en los recuentos de ventas observados, podríamos calcular "
+"participaciones de mercado empíricas. Esto no juega un papel importante en "
+"nuestro proceso de generación de datos, pero es importante resaltar la "
+"diferencia entre las participaciones de mercado empíricas observadas "
+"ruidosas y las participaciones de mercado latentes, que representan alguna "
+"forma de popularidad subyacente de productos o marcas."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:70007
+#: 8e53641fa4bb4076a0461f234aa34569
+msgid ""
+"If we wanted to calculate empirical market share, this would simply be a "
+"case of dividing the observed sales (for each product/brand) by the total "
+"observed sales."
+msgstr ""
+"Si quisiéramos calcular la cuota de mercado empírica, esto sería simplemente"
+" un caso de dividir las ventas observadas (para cada producto/marca) por el "
+"total de ventas observadas."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:80002
+#: ade4a9053e21434699d6e1d77316dbf5
+msgid "Scenario 1 - own versus competitor sales"
+msgstr "Escenario 1 - ventas propias versus ventas de competidores"
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:80004
+#: 20b3828dfb694f889d481d1877abe23e
+msgid "The first scenario we will examine is the simplest."
+msgstr "El primer escenario que examinaremos es el más simple."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:80006
+#: abaed1e2eb214c47a842f9b6ce426df4
+msgid "Our company has launched a new product"
+msgstr "Nuestra empresa ha lanzado un nuevo producto"
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:80007
+#: b239f6fb3be14be991c74019c74f352e
+msgid "We have sales data covering before and after this product launch"
+msgstr ""
+"Tenemos datos de ventas que cubren antes y después del lanzamiento de este "
+"producto."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:80008
+#: 0bfba67a845a41e6a9a05b676117955e
+msgid ""
+"Regardless of whether we have product level sales data or not, we focus "
+"purely on whether the sales of the new product are incremental (taking sales"
+" from competitors) or cannibalistic (taking sales from your existing "
+"products). As such we operate on data aggregated into \"your company total "
+"sales\" and \"all competitor total sales\"."
+msgstr ""
+"Independientemente de si tenemos datos de ventas a nivel de producto o no, "
+"nos enfocamos únicamente en si las ventas del nuevo producto son "
+"incrementales (sustrayendo ventas de los competidores) o canibalísticas "
+"(sustrayendo ventas de sus productos existentes). Por lo tanto, operamos con"
+" datos agregados en \"las ventas totales de su empresa\" y \"las ventas "
+"totales de todos los competidores\"."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:80009
+#: 7eb3b77f83f642cca157fb6160584801
+msgid ""
+"To keep the example simple we have stable market shares which only shift at "
+"the point of introducing the new product."
+msgstr ""
+"Para mantener el ejemplo simple, tenemos cuotas de mercado estables que solo"
+" cambian en el momento de introducir el nuevo producto."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:80010
+#: f947558354394e3cac36f899cd11bd9e
+msgid ""
+"Complexities such as seasonality in total demand, product pricing or other "
+"attributes are ignored and do not feature in this model."
+msgstr ""
+"Complejidades como la estacionalidad en la demanda total, la fijación de "
+"precios de productos u otros atributos se ignoran y no se incluyen en este "
+"modelo."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:80012
+#: 633b0372013d494a9033e5ec0ee33370
+msgid ""
+"We can generate synthetic data from the causal model described above using "
+"the `generate_saturated_data` utility function."
+msgstr ""
+"Podemos generar datos sintéticos a partir del modelo causal descrito "
+"anteriormente utilizando la función de utilidad `generate_saturated_data`."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:100002
+#: 12535d3184344017b0e2b7b087dae035
+msgid ""
+"As always, we must visualise the data! We can see noisy but broadly flat "
+"sales of your own and all competitor products. Then you launch a new product"
+" which sells quite well. Visually we get a sense that the sales of your own "
+"and competitor sales drop, but can we put numbers on how incremental or "
+"cannabalistic the new product is? That will be the goal of our analysis."
+msgstr ""
+"Como siempre, ¡debemos visualizar los datos! Podemos observar ventas "
+"ruidosas pero en general estables de sus propios productos y de todos los "
+"productos de la competencia. Luego, lanza un nuevo producto que se vende "
+"bastante bien. Visualmente, tenemos la impresión de que las ventas de sus "
+"propios productos y las ventas de la competencia disminuyen, pero ¿podemos "
+"cuantificar cuán incrementales o canibalistas es el nuevo producto? Ese será"
+" el objetivo de nuestro análisis."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:100004
+#: 6d72c3e9cb6b48f1b58b3431592ec955
+msgid ""
+"Note: In this example we assume we have a saturated market, so sales of the "
+"new product necessarily take sales away from other products."
+msgstr ""
+"Nota: En este ejemplo asumimos que tenemos un mercado saturado, por lo que "
+"las ventas del nuevo producto necesariamente restan ventas a otros "
+"productos."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:120002
+#: 78bd85d3918e4223b6010f812a4e0647
+msgid ""
+"Let's take a look at the relationship between the new product sales and both"
+" the own and competitor sales. We can see negative correlations, and this "
+"makes sense from the MVITS modeling perspective. This is because it models "
+"sales of existing products as being _decreased_ by some fraction of the new "
+"product sales. So the model assumes that (in the post product launch period)"
+" that as the new product sales increase, the sales of the own or competitor "
+"will either decrease or remain unchanged."
+msgstr ""
+"Analicemos la relación entre las ventas del nuevo producto y tanto las "
+"ventas propias como las de la competencia. Podemos observar correlaciones "
+"negativas, lo cual tiene sentido desde la perspectiva del modelado MVITS. "
+"Esto se debe a que modela las ventas de productos existentes como "
+"_disminuidas_ por una fracción de las ventas del nuevo producto. Por lo "
+"tanto, el modelo asume que (en el período posterior al lanzamiento del "
+"producto) a medida que aumentan las ventas del nuevo producto, las ventas "
+"propias o las de la competencia disminuirán o permanecerán sin cambios."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:140002
+#: f67d4c93980147fb9c04b8f953c9535a
+msgid "Model building and fitting"
+msgstr "Construcción y ajuste de modelos"
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:140004
+#: 14a71f110f7444b2a851440b73eb6363
+msgid ""
+"We will use the `MVITS` class to analyse the data. We provide the column "
+"names corresponding to sales of existing products before the new product "
+"introduction. We also set the `saturated_market` flag to `True`. Note, the "
+"actual data is provided to the model at a later stage."
+msgstr ""
+"Usaremos la clase `MVITS` para analizar los datos. Proporcionamos los "
+"nombres de las columnas correspondientes a las ventas de productos "
+"existentes antes de la introducción del nuevo producto. También establecemos"
+" la bandera `saturated_market` en `True`. Tenga en cuenta que los datos "
+"reales se proporcionan al modelo en una etapa posterior."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:180002
+#: d8e99feb70074693988e13e30c1a4dad
+msgid "Now we provide the data to the model and fit it."
+msgstr "Ahora proporcionamos los datos al modelo y lo ajustamos."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:200002
+#: b808d398f1494a439c0e38b3c2d16333
+msgid "Model diagnostics"
+msgstr "Diagnósticos del modelo"
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:210002
+#: 1bcc6d4ea4074f87a4cd953eb1fbbb95
+msgid ""
+"Let's check the traces of the parameters to see if they are stationary, and "
+"to see if the posteriors are well mixed. Looks good."
+msgstr ""
+"Verifiquemos las trazas de los parámetros para ver si son estacionarios y "
+"para comprobar si las posteriores están bien mezcladas. Se ve bien."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:230002
+#: 0052bc88bd964e68badcd6a81a0a20b5
+msgid ""
+"And seeing as this is our first encounter with the MV-ITS model, let's "
+"compare the prior and posteriors of the model parameters."
+msgstr ""
+"Y dado que este es nuestro primer encuentro con el modelo MV-ITS, comparemos"
+" los anteriores y posteriores de los parámetros del modelo."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:270002
+#: f9e68c2adc154555abe7f202cfdfde06
+msgid "Model results"
+msgstr "Resultados del modelo"
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:280002
+#: 7f433d15358e4ee2b57090f68788243d
+msgid ""
+"Let's (visually) evaluate to what extent the model can account for the sales"
+" data by plotting posterior predictive fits. The plot below looks pretty "
+"good - we can see that the model predictions (shaded regions) capture the "
+"main properties of the actual sales data, namely the step change at the time"
+" of the new product introduction."
+msgstr ""
+"Evaluemos (visualmente) hasta qué punto el modelo puede explicar los datos "
+"de ventas trazando los ajustes predictivos posteriores. El gráfico a "
+"continuación se ve bastante bien; podemos observar que las predicciones del "
+"modelo (regiones sombreadas) capturan las principales propiedades de los "
+"datos de ventas reales, a saber, el cambio abrupto en el momento de la "
+"introducción del nuevo producto."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:300002
+#: d40ec0337488408595c4203c3806a393
+msgid ""
+"Now let's look at the model's predicted sales in the counterfactual scenario"
+" where the company did not launch the new product. We can evaluate this "
+"visually to see if the counterfactual scenario makes sense. In this ultra-"
+"simplified example it is easy to evaluate this as a \"yes\". The model "
+"predicts what we would intuitively expect, that the own and competitor sales"
+" would have continued as they were prior to the new product launch."
+msgstr ""
+"Ahora examinemos las ventas predichas por el modelo en el escenario "
+"contrafactual donde la empresa no lanzó el nuevo producto. Podemos evaluar "
+"esto visualmente para ver si el escenario contrafactual tiene sentido. En "
+"este ejemplo ultra simplificado, es fácil evaluar esto como un \"sí\". El "
+"modelo predice lo que intuitivamente esperaríamos, que las ventas propias y "
+"las de los competidores habrían continuado como estaban antes del "
+"lanzamiento del nuevo producto."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:320002
+#: 58d73a8eea964f10b89858efd763795c
+msgid "Counterfactual scenario of not releasing the new product"
+msgstr "Escenario contrafactual de no lanzar el nuevo producto"
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:320005
+#: 1d99221f405f485a89f0066fb26ee764
+msgid ""
+"The counterfactual scenario is evaluated by setting the sales of the new "
+"product (using PyMC's `do` operator) to zero in the model's input data. We "
+"then run posterior predictive sampling to see how the expected and actual "
+"sales counts are affected by this intervention in the causal graph."
+msgstr ""
+"El escenario contrafactual se evalúa estableciendo las ventas del nuevo "
+"producto (utilizando el operador `do` de PyMC) en cero en los datos de "
+"entrada del modelo. Luego, realizamos un muestreo predictivo posterior para "
+"observar cómo se ven afectadas las cuentas de ventas esperadas y reales por "
+"esta intervención en el gráfico causal."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:330002
+#: c67b9c8ebe9b4c7690419c23c51cdce9
+msgid ""
+"By comparing the two (the model predictions in the _actual_ and the "
+"_counterfactual_ scenarios), we have our estimated causal impacts upon each "
+"of the existing products of the new product launch. Here we can see that "
+"both own and competitor sales were reduced by the launch of the new product "
+"sales. So the model is attributing the sales of the new product as having "
+"come from both own and competitor sales in (approximately) equal amounts."
+msgstr ""
+"Al comparar los dos (las predicciones del modelo en los escenarios _actual_ "
+"y _contrafactual_), tenemos nuestros impactos causales estimados sobre cada "
+"uno de los productos existentes del lanzamiento del nuevo producto. Aquí "
+"podemos ver que tanto las ventas propias como las de los competidores se "
+"redujeron debido al lanzamiento de las ventas del nuevo producto. Por lo "
+"tanto, el modelo está atribuyendo las ventas del nuevo producto como "
+"provenientes tanto de las ventas propias como de las de los competidores en "
+"(aproximadamente) cantidades iguales."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:350002
+#: 5728477d96e842f4a8dd76cf8c90008e
+msgid ""
+"However we can see that it is not exactly 50/50 in terms of sales. In order "
+"to look more precisely, we can examine the $\\beta$ parameters."
+msgstr ""
+"Sin embargo, podemos ver que no es exactamente 50/50 en términos de ventas. "
+"Para mirar más precisamente, podemos examinar los parámetros $\\beta$."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:350004
+#: a6a78c50e3db47658da0338b16ace6f5
+msgid ""
+"The `beta[competitor]` coefficient represents the proportion of sales of the"
+" new product which came from competitor sales. So this represents the "
+"incrementality in terms of sales (not market share)."
+msgstr ""
+"El coeficiente `beta[competitor]` representa la proporción de ventas del "
+"nuevo producto que provienen de las ventas del competidor. Por lo tanto, "
+"esto representa la incrementalidad en términos de ventas (no de cuota de "
+"mercado)."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:350005
+#: 1e02a9160fbc4061a5596f3529fefcc8
+msgid ""
+"The `beta[own]` coefficient represents the proportion of sales of the new "
+"product which came from your own sales."
+msgstr ""
+"El coeficiente `beta[own]` representa la proporción de ventas del nuevo "
+"producto que provino de sus propias ventas."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:350007
+#: 2a0f9a4262764996999302db1a11dbd6
+#, python-format
+msgid ""
+"We can see that the 94% credible intervals are relatively tight and are "
+"roughly centered on 50/50. So practically we may conclude that we have "
+"approximately 50% incrementality, 50% cannibalization."
+msgstr ""
+"Podemos observar que los intervalos de credibilidad del 94% son "
+"relativamente ajustados y están aproximadamente centrados en 50/50. Por lo "
+"tanto, prácticamente podemos concluir que tenemos aproximadamente un 50% de "
+"incrementalidad y un 50% de canibalización."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:370002
+#: 5abb7e2983cb4d37a18bad6452982ad8
+msgid "Sales versus market share"
+msgstr "Ventas frente a la cuota de mercado"
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:370005
+#: bcfdc7bb596641df960b58c8a0c6644d
+msgid ""
+"Remember that the $\\beta$ coefficients represent the proportion of _sales_ "
+"of the new product which are attributable to competitor and own product "
+"sales."
+msgstr ""
+"Recuerde que los coeficientes $\\beta$ representan la proporción de _ventas_"
+" del nuevo producto que son atribuibles a las ventas de productos de la "
+"competencia y de su propio producto."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:380002
+#: 43fe88dfea804a2a8bc589ef3d4fa724
+msgid ""
+"We can also plot this in 'market share space'. In this example with stable "
+"total sales the plot looks similar to above. But this need not be the case "
+"in more general scenarios, so being able to plot the causal impact both in "
+"terms of sales and in terms of market share is useful."
+msgstr ""
+"También podemos representar esto en el 'espacio de participación de "
+"mercado'. En este ejemplo, con ventas totales estables, el gráfico se "
+"asemeja al anterior. Pero esto no tiene que ser así en escenarios más "
+"generales, por lo que poder representar el impacto causal tanto en términos "
+"de ventas como en términos de participación de mercado es útil."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:400002
+#: 57a0c5da71ec4eddb6b9514f3d5442ad
+msgid "Scenario 2 - high total sales variability"
+msgstr "Escenario 2 - alta variabilidad en las ventas totales"
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:400004
+#: 9d02912fd5ad4f769ea60c9106ca63ff
+msgid ""
+"This scenario is exactly the same as the previous, except for having much "
+"greater variability in total sales figures. We will not run through all the "
+"steps in the same level of detail as above because the main focus is to "
+"examine the effects of increased variability in total sales."
+msgstr ""
+"Este escenario es exactamente el mismo que el anterior, excepto por tener "
+"una variabilidad mucho mayor en las cifras de ventas totales. No "
+"recorreremos todos los pasos con el mismo nivel de detalle que antes porque "
+"el enfoque principal es examinar los efectos de la mayor variabilidad en las"
+" ventas totales."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:430002
+#: 470787c6cf1a4464b488e10308551ab7
+msgid ""
+"Let's take a look at the relationships between the new product sales and the"
+" own and competitor sales. In comparison to the first scenario, we now see "
+"positive correlations. This might be a bit of a warning sign because it runs"
+" counter to the assumption of the model - when new sales are higher the own "
+"and competitor sales are lower."
+msgstr ""
+"Echemos un vistazo a las relaciones entre las ventas del nuevo producto y "
+"las ventas propias y de los competidores. En comparación con el primer "
+"escenario, ahora observamos correlaciones positivas. Esto podría ser una "
+"señal de advertencia, ya que va en contra de la suposición del modelo: "
+"cuando las nuevas ventas son más altas, las ventas propias y de los "
+"competidores son más bajas."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:450002
+#: ab29dc0a09114cfd9896a12d9ea99ce1
+msgid ""
+"Why is this happening? For any given point in time, because own and "
+"competitor sales are drawn from a multinomial distribution, we would expect "
+"the empirical sales counts to reflect the (unchanging in this example) "
+"latent market shares. However, the high variability in total sales induces a"
+" positive correlation in sales counts. On days where there are more total "
+"sales, there tends to be more new product sales and more own and competitor "
+"sales."
+msgstr ""
+"¿Por qué está sucediendo esto? En un momento dado, dado que las ventas "
+"propias y las de los competidores se extraen de una distribución "
+"multinomial, esperaríamos que los conteos de ventas empíricos reflejen las "
+"cuotas de mercado latentes (que no cambian en este ejemplo). Sin embargo, la"
+" alta variabilidad en las ventas totales induce una correlación positiva en "
+"los conteos de ventas. En los días en que hay más ventas totales, tiende a "
+"haber más ventas de nuevos productos y más ventas propias y de competidores."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:450004
+#: d72b0ebb8f1f4c3a8640251201e3fcdd
+msgid ""
+"This need not mean that the model is dead in the water, but it does "
+"highlight a potential mismatch between the data generating process and the "
+"MVITS model. But let's fit the model and see if it's estimates are "
+"reasonable."
+msgstr ""
+"Esto no significa que el modelo esté muerto en el agua, pero sí resalta una "
+"posible desajuste entre el proceso de generación de datos y el modelo MVITS."
+" Pero ajustemos el modelo y veamos si sus estimaciones son razonables."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:450006
+#: e5916cdd5a034e86b6b3fc4ea1cc8941
+msgid ""
+"As we said, this is a forewarning of potential problems. Let's see how this "
+"pans out by applying the MVITS model to the data."
+msgstr ""
+"Como mencionamos, esto es un aviso previo de problemas potenciales. Veamos "
+"cómo se desarrolla esto aplicando el modelo MVITS a los datos."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:470002
+#: 0c37c0de46674c1c8ad891b30797a342
+msgid ""
+"So how does the model do? Plotting the causal impact of the new product upon"
+" the sales of the existing products looks reasonable. This is primarily "
+"because the changes in sales caused by the new product are roughly equally "
+"split between the competitor and own sales, and this is how we set up the "
+"simulated data. However, compared to the first example we can see a much "
+"greater level of uncertainty in the causal impacts of the new product."
+msgstr ""
+"Entonces, ¿cómo se desempeña el modelo? Trazar el impacto causal del nuevo "
+"producto sobre las ventas de los productos existentes parece razonable. Esto"
+" se debe principalmente a que los cambios en las ventas causados por el "
+"nuevo producto se dividen aproximadamente de manera equitativa entre las "
+"ventas de la competencia y las propias, y así es como configuramos los datos"
+" simulados. Sin embargo, en comparación con el primer ejemplo, podemos "
+"observar un nivel de incertidumbre mucho mayor en los impactos causales del "
+"nuevo producto."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:490002
+#: 23834d04c8f7498eb116d3e09b7b9665
+#, python-format
+msgid ""
+"This can be seen quantitatively by examining the $\\beta$ weights. The 94% "
+"credible intervals of the relative contribition of new product sales to the "
+"competitor and own sales are much broader, at roughly $\\pm 10\\%$."
+msgstr ""
+"Esto se puede observar cuantitativamente al examinar los pesos $\\beta$. Los"
+" intervalos creíbles del 94% de la contribución relativa de las ventas de "
+"nuevos productos a las ventas del competidor y propias son mucho más "
+"amplios, aproximadamente a $\\pm 10\\%$."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:510002
+#: 2b74afe666994a18b2bf2b4e1fadbbea
+msgid ""
+"So far, we've seen that for pretty simple synthetic datasets, the MVITS "
+"model does a reasonable job inferring the level of incrementality and "
+"cannibalization. However, in many situations the model will likely not be "
+"robust enough to do well. Scenario 2 has demonstrated this - on the plus "
+"side the estimates don't seem to be biased, but the level of uncertainty in "
+"the level of cannibalization/incrementality are quite high."
+msgstr ""
+"Hasta ahora, hemos visto que para conjuntos de datos sintéticos bastante "
+"simples, el modelo MVITS realiza un trabajo razonable al inferir el nivel de"
+" incrementalidad y canibalización. Sin embargo, en muchas situaciones, es "
+"probable que el modelo no sea lo suficientemente robusto para desempeñarse "
+"bien. El escenario 2 ha demostrado esto: por el lado positivo, las "
+"estimaciones no parecen estar sesgadas, pero el nivel de incertidumbre en el"
+" nivel de canibalización/incrementalidad es bastante alto."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:520002
+#: 900825d841d34607adf97de9a648d1f3
+msgid "Scenario 3 - modeling products individually"
+msgstr "Escenario 3 - modelando productos individualmente"
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:520004
+#: 01fdf98be9774912809618385ac7d397
+msgid ""
+"Now we will expand beyond modeling at the highly aggregated level of \"own\""
+" and \"competitor\" sales. We will now model the sales of individual "
+"products."
+msgstr ""
+"Ahora ampliaremos más allá de la modelización a un nivel altamente agregado "
+"de ventas de \"propias\" y \"competidoras\". Ahora modelaremos las ventas de"
+" productos individuales."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:540002
+#: f67bb4901c224b308744f7f029392702
+msgid ""
+"So let's visualize the sales data. We can see that the sales of the new "
+"product are quite high, and that the sales of _some_ of the existing "
+"products have decreased."
+msgstr ""
+"Así que visualicemos los datos de ventas. Podemos ver que las ventas del "
+"nuevo producto son bastante altas y que las ventas de _algunos_ de los "
+"productos existentes han disminuido."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:560002
+#: af0e33a5e0b14c3ba7c90d27fb9788d1
+msgid ""
+"So let's run the analysis. This time we will provide optional kwargs for the"
+" sampling process."
+msgstr ""
+"Así que procedamos con el análisis. Esta vez proporcionaremos kwargs "
+"opcionales para el proceso de muestreo."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:580002
+#: 39803c91c7e4430891a204c2123e87bd
+msgid ""
+"There aren't any reported issues in the sampling process, and the chains "
+"look well mixed."
+msgstr ""
+"No se han reportado problemas en el proceso de muestreo, y las cadenas "
+"parecen estar bien mezcladas."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:600002
+#: d7e45b98997a4933a9333ab165b7af13
+msgid "Visual plotting of the model fit looks pretty good."
+msgstr "La representación visual del ajuste del modelo se ve bastante bien."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:620002
+#: bea1932f02134abb8ca3054434a495da
+msgid "As does the plot of the model's estimate of the counterfactual sales."
+msgstr ""
+"Así lo hace el gráfico de la estimación del modelo de las ventas "
+"contrafactuales."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:640002
+#: 358f30aee02c49a5a2e3cf8726fd8f5b
+msgid ""
+"And we can visualise the causal impact in terms of sales first, and then in "
+"terms of market share."
+msgstr ""
+"Y podemos visualizar el impacto causal en términos de ventas primero, y "
+"luego en términos de cuota de mercado."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:670002
+#: bd01680849e84f199369d252d482d020
+msgid ""
+"Finally, we can inspect the $\\beta$ coefficients which tells us what "
+"proportion of the new sales come from any given existing product."
+msgstr ""
+"Finalmente, podemos inspeccionar los coeficientes $\\beta$ que nos indican "
+"qué proporción de las nuevas ventas proviene de cualquier producto "
+"existente."
+
+#: ../source/notebooks/customer_choice/mv_its_saturated.ipynb:690002
+#: 1c6aa4135c6d4edf8de587455419a906
+msgid ""
+"So we have seen how it is possible to extend the simplified \"our\" versus "
+"\"competitor\" analysis to a more detailed analysis of individual products. "
+"This is more realistic, but it is still a quite simple scenario. In the real"
+" world we would likely have to deal with more complex data, and the MVITS "
+"model may not be able to handle these complexities."
+msgstr ""
+"Así que hemos visto cómo es posible extender el análisis simplificado de "
+"\"nuestro\" frente a \"competidor\" a un análisis más detallado de productos"
+" individuales. Esto es más realista, pero sigue siendo un escenario bastante"
+" simple. En el mundo real, probablemente tendríamos que lidiar con datos más"
+" complejos, y el modelo MVITS puede que no sea capaz de manejar estas "
+"complejidades."

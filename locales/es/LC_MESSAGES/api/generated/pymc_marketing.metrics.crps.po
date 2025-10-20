@@ -1,0 +1,117 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.metrics.crps.rst:2
+#: 1eea303aff9a43f2b21a1e59c4948bc6
+msgid "crps"
+msgstr "crps"
+
+#: 9d4c7c08035643498d3d90bab8b11f79 of pymc_marketing.metrics.crps:2
+msgid ""
+"Compute the (possibly weighted) average of the continuous ranked probability"
+" score."
+msgstr ""
+"Calcule el promedio (posiblemente ponderado) de la puntuación de "
+"probabilidad continua clasificada."
+
+#: 5689601a37f04a11a6ef77396c2379d8 of pymc_marketing.metrics.crps
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 4630a5e843554c55a65ab8a1ae34eef3 of pymc_marketing.metrics.crps:7
+msgid "**y_true** : :term:`numpy:array_like`"
+msgstr "**y_true** : :term:`numpy:array_like`"
+
+#: 0616075738404f4595ba8e910836df3f 531bf14643134b86a8ae46ff69eb22e1 of
+#: pymc_marketing.metrics.crps:6 pymc_marketing.metrics.crps:9
+msgid "numpy:array_like"
+msgstr "numpy:similar_a_array"
+
+#: fa85745a3b174fa6ae88e7c029555eb7 of pymc_marketing.metrics.crps:8
+msgid "The ground truth values."
+msgstr "Los valores de la verdad fundamental."
+
+#: 4e0505052ac34fa0b019d1fc8aca104b of pymc_marketing.metrics.crps:10
+msgid "**y_pred** : :term:`numpy:array_like`"
+msgstr "**y_pred** : :term:`numpy:array_like`"
+
+#: f399bf1c13d0456fa057026e0042d65d of pymc_marketing.metrics.crps:11
+msgid ""
+"The predicted values. It is expected that y_pred has one extra sample "
+"dimension on the left."
+msgstr ""
+"Los valores predichos. Se espera que y_pred tenga una dimensión de muestra "
+"adicional a la izquierda."
+
+#: e671ae3eafa141f3b20b148e14a4069d of pymc_marketing.metrics.crps:14
+msgid "**sample_weight** : :term:`numpy:array_like`, optional"
+msgstr "**sample_weight** : :term:`numpy:array_like`, opcional"
+
+#: 3b64c6136edb45358e07e795e95ad816 of pymc_marketing.metrics.crps:13
+msgid "numpy:array_like, optional"
+msgstr "numpy:similar_a_array, opcional"
+
+#: 2d90516bf0704b7f821f280ce9cf865f of pymc_marketing.metrics.crps:15
+msgid "The sample weights."
+msgstr "Los pesos de la muestra."
+
+#: 21fa15523bb74272b2a7f212da915a61 of pymc_marketing.metrics.crps
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: ed33a976bf2d4b5cbfb4158ecbb1e438 of pymc_marketing.metrics.crps:21
+msgid ":class:`python:float`"
+msgstr ":class:`python:float`"
+
+#: e46ae92177e941688df2fdcf981903d8 of pymc_marketing.metrics.crps:22
+msgid ""
+"The CRPS value as a (possibly weighted) average of the per-observation CRPS "
+"values."
+msgstr ""
+"El valor de CRPS como un promedio (posiblemente ponderado) de los valores de"
+" CRPS por observación."
+
+#: 201d2fc50d544bdb928937ce5d9e5f63 of pymc_marketing.metrics.crps:33
+msgid "References"
+msgstr "Referencias"
+
+#: 63dd812c7f1940c6872386a851832141 of pymc_marketing.metrics.crps:34
+msgid ""
+"This implementation is a minimal adaptation from the one in the Pyro "
+"project: "
+"https://docs.pyro.ai/en/dev/_modules/pyro/ops/stats.html#crps_empirical"
+msgstr ""
+"Esta implementación es una adaptación mínima de la que se encuentra en el "
+"proyecto Pyro: "
+"https://docs.pyro.ai/en/dev/_modules/pyro/ops/stats.html#crps_empirical"
+
+#: bded42d1164d4f4180879385ee48af34 of pymc_marketing.metrics.crps:35
+msgid ""
+"For an introduction to CRPS, see https://towardsdatascience.com/crps-a-"
+"scoring-function-for-bayesian-machine-learning-models-dd55a7a337a8"
+msgstr ""
+"Para una introducción al CRPS, consulte https://towardsdatascience.com/crps-"
+"a-scoring-function-for-bayesian-machine-learning-models-dd55a7a337a8"
+
+#: 6015b390abce4dcaae72870feefae1ec of pymc_marketing.metrics.crps:42
+msgid "Examples"
+msgstr "Ejemplos"

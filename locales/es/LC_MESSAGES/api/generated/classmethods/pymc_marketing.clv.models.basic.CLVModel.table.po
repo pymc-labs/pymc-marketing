@@ -1,0 +1,61 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.basic.CLVModel.table.rst:2
+#: 7f617ca7847b429e8b1e0dfe1ca77770
+msgid "CLVModel.table"
+msgstr "CLVModel.tabla"
+
+#: 015fdce771ae42b7a222cb193178e0f3 of
+#: pymc_marketing.model_builder.ModelBuilder.table:2
+msgid "Get the summary table of the model."
+msgstr "Obtenga la tabla resumen del modelo."
+
+#: 178fb761893d49948edbc5c8aad18321 of
+#: pymc_marketing.model_builder.ModelBuilder.table
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 6b873d4a32674258b751b6d6b96d693c of
+#: pymc_marketing.model_builder.ModelBuilder.table:7
+msgid "**\\*\\*model_table_kwargs**"
+msgstr "**\\*\\*model_table_kwargs**"
+
+#: bfba72e438f841e6a0853836211fe5a3 of
+#: pymc_marketing.model_builder.ModelBuilder.table:8
+msgid "Keyword arguments for the `model_table` function"
+msgstr "Argumentos de palabra clave para la función `model_table`"
+
+#: 41243c1c20124c79b15b50bc2cd21b48 of
+#: pymc_marketing.model_builder.ModelBuilder.table
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 1a48dd9084a74651929eb36d3f4eae31 of
+#: pymc_marketing.model_builder.ModelBuilder.table:14
+msgid ":obj:`rich.table.Table`"
+msgstr ":obj:`rich.table.Table`"
+
+#: 2572d190fd2e4ad08b08e98a868536d5 of
+#: pymc_marketing.model_builder.ModelBuilder.table:15
+msgid "A rich table containing the summary of the model."
+msgstr "Una tabla rica que contiene el resumen del modelo."

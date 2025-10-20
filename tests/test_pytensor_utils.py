@@ -35,6 +35,7 @@ from pymc_marketing.pytensor_utils import (
     ModelSamplerEstimator,
     _prefix_model,
     merge_models,
+    validate_unique_value_vars,
 )
 
 
@@ -76,7 +77,7 @@ def sample_multidim_data():
 
 
 @pytest.fixture
-def fitted_multidim_mmm(sample_multidim_data):
+def fitted_multidim_mmm(sample_multidim_data, mock_pymc_sample):
     """Create and fit a multidimensional MMM model."""
     mmm = MMM(
         date_column="date",
@@ -91,7 +92,7 @@ def fitted_multidim_mmm(sample_multidim_data):
     X = sample_multidim_data.drop(columns=["y"])
     y = sample_multidim_data["y"]
 
-    # Fit with minimal sampling for speed
+    # Fit with mocked sampling for speed and determinism
     mmm.fit(X, y, draws=100, chains=2, random_seed=42, tune=100)
 
     return mmm
@@ -468,6 +469,35 @@ def test_merge_models_prefix_and_merge_on_channel_data(
     channel_data_dims = merged.named_vars_to_dims["channel_data"]
     for d in ("date", "channel", "country"):
         assert d in channel_data_dims
+
+
+def test_merge_models_value_vars_unique_and_logp_compiles(
+    fitted_multidim_mmm, sample_multidim_data
+):
+    # Build two wrapped models with identical structure to force potential name collisions
+    dates = sample_multidim_data["date"].unique()
+    start_date = dates[-1] + pd.Timedelta(days=7)
+    end_date = start_date + pd.Timedelta(weeks=4)
+
+    wrapper1 = MultiDimensionalBudgetOptimizerWrapper(
+        model=fitted_multidim_mmm, start_date=start_date, end_date=end_date
+    )
+    wrapper2 = MultiDimensionalBudgetOptimizerWrapper(
+        model=fitted_multidim_mmm, start_date=start_date, end_date=end_date
+    )
+
+    m1 = wrapper1._set_predictors_for_optimization(num_periods=wrapper1.num_periods)
+    m2 = wrapper2._set_predictors_for_optimization(num_periods=wrapper2.num_periods)
+
+    merged = merge_models(
+        models=[m1, m2], prefixes=["model1", "model2"], merge_on="channel_data"
+    )
+
+    # Validate uniqueness of value var names and mapping consistency
+    validate_unique_value_vars(merged)
+
+    # Additionally ensure PyMC can create the logp+dlogp function without raising
+    _ = merged.logp_dlogp_function(ravel_inputs=True)
 
 
 def test_merge_models_raises_with_too_few_models(fitted_multidim_mmm):

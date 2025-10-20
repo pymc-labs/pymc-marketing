@@ -1,0 +1,116 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-13 11:28+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.events.EventEffect.model_validate_json.rst:2
+#: ad38334cd5eb465e8b0f191e3f307e23
+msgid "EventEffect.model\\_validate\\_json"
+msgstr "EventEffect.model\\_validate\\_json"
+
+#: 12ad20b6392b4aa78a9001be330b0a13 of
+#: pydantic.main.BaseModel.model_validate_json:2
+msgid "!!! abstract \"Usage Documentation\""
+msgstr "!!! abstract \"Documentación de Uso\""
+
+#: 7cddacb3bc6b464b853ec28491c6aaef of
+#: pydantic.main.BaseModel.model_validate_json:3
+msgid "[JSON Parsing](../concepts/json.md#json-parsing)"
+msgstr "[Análisis de JSON](../concepts/json.md#json-parsing)"
+
+#: f4a5f5ffd9ae487f8dd343ae680812b6 of
+#: pydantic.main.BaseModel.model_validate_json:5
+msgid "Validate the given JSON data against the Pydantic model."
+msgstr "Valide los datos JSON proporcionados contra el modelo de Pydantic."
+
+#: 911ba58218074fbdb54d1e78b9386bf9 of
+#: pydantic.main.BaseModel.model_validate_json:7
+msgid "Args:"
+msgstr "Args:"
+
+#: 5752c2a9573849f6b6037ca931e362a9 of
+#: pydantic.main.BaseModel.model_validate_json:8
+msgid ""
+"json_data: The JSON data to validate. strict: Whether to enforce types "
+"strictly. extra: Whether to ignore, allow, or forbid extra data during model"
+" validation."
+msgstr ""
+"json_data: Los datos JSON a validar. strict: Si se deben aplicar "
+"estrictamente los tipos. extra: Si se debe ignorar, permitir o prohibir "
+"datos adicionales durante la validación del modelo."
+
+#: 70e8dd69218f405e84283de4d2e067c6 of
+#: pydantic.main.BaseModel.model_validate_json:11
+msgid ""
+"See the [`extra` configuration value][pydantic.ConfigDict.extra] for "
+"details."
+msgstr ""
+"Consulte el valor de configuración [`extra`][pydantic.ConfigDict.extra] para"
+" más detalles."
+
+#: db36c4f29d6049468dfbb7b2d2602e5e of
+#: pydantic.main.BaseModel.model_validate_json:12
+msgid ""
+"context: Extra variables to pass to the validator. by_alias: Whether to use "
+"the field's alias when validating against the provided input data. by_name: "
+"Whether to use the field's name when validating against the provided input "
+"data."
+msgstr ""
+"context: Variables adicionales para pasar al validador. by_alias: Si se debe"
+" utilizar el alias del campo al validar contra los datos de entrada "
+"proporcionados. by_name: Si se debe utilizar el nombre del campo al validar "
+"contra los datos de entrada proporcionados."
+
+#: ffc7bcec13dc487087f28623df9d2905 of
+#: pydantic.main.BaseModel.model_validate_json:16
+msgid "Returns:"
+msgstr "Devoluciones:"
+
+#: 78e9c9a6f0644f539c70ed9b558a3d4b of
+#: pydantic.main.BaseModel.model_validate_json:17
+msgid "The validated Pydantic model."
+msgstr "El modelo Pydantic validado."
+
+#: 9c4c19e9c7e342b482c7b61512540873 of
+#: pydantic.main.BaseModel.model_validate_json:19
+msgid "Raises:"
+msgstr "Aumentos:"
+
+#: b41427e3b7ad426ab108daed489f51e3 of
+#: pydantic.main.BaseModel.model_validate_json:20
+msgid ""
+"ValidationError: If `json_data` is not a JSON string or the object could not"
+" be validated."
+msgstr ""
+"ValidationError: Si `json_data` no es una cadena JSON o el objeto no pudo "
+"ser validado."
+
+#~ msgid ""
+#~ "json_data: The JSON data to validate. strict: Whether to enforce types "
+#~ "strictly. context: Extra variables to pass to the validator. by_alias: "
+#~ "Whether to use the field's alias when validating against the provided input "
+#~ "data. by_name: Whether to use the field's name when validating against the "
+#~ "provided input data."
+#~ msgstr ""
+#~ "json_data: Los datos JSON a validar. strict: Si se deben imponer los tipos "
+#~ "de manera estricta. context: Variables adicionales para pasar al validador. "
+#~ "by_alias: Si se debe utilizar el alias del campo al validar contra los datos"
+#~ " de entrada proporcionados. by_name: Si se debe utilizar el nombre del campo"
+#~ " al validar contra los datos de entrada proporcionados."

@@ -1,0 +1,138 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.clv.plotting.plot_probability_alive_matrix.rst:2
+#: 9a90cf7ba134467090cc22c9990230bb
+msgid "plot\\_probability\\_alive\\_matrix"
+msgstr "matriz\\_probabilidad\\_vivo"
+
+#: 1e7bc87c91b74b2eba06e491e153ed51 of
+#: pymc_marketing.clv.plotting.plot_probability_alive_matrix:2
+msgid ""
+"Plot probability alive matrix as a heatmap based on customer population "
+"*frequency* and *recency*."
+msgstr ""
+"Trazar la matriz de probabilidad de estar vivo como un mapa de calor basado "
+"en la *frecuencia* y *recencia* de la población de clientes."
+
+#: 7d1bf2b98cef4ca6b0e4b4237ed1a117 of
+#: pymc_marketing.clv.plotting.plot_probability_alive_matrix
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 314a5db2dd1f4fafbcfe288d4af6ca3f of
+#: pymc_marketing.clv.plotting.plot_probability_alive_matrix:7
+msgid "**model: CLV model**"
+msgstr "**modelo: modelo CLV**"
+
+#: cc6358c2e7414e8d8180bf3270d652bd of
+#: pymc_marketing.clv.plotting.plot_probability_alive_matrix:8
+msgid "A fitted CLV model."
+msgstr "Un modelo CLV ajustado."
+
+#: 03ae552c64384fb5a27d54500ee56ea9 of
+#: pymc_marketing.clv.plotting.plot_probability_alive_matrix:10
+msgid "**max_frequency: int, optional**"
+msgstr "**max_frequency: int, opcional**"
+
+#: 83a8717fca8d419aa4eb12ea50239de9 of
+#: pymc_marketing.clv.plotting.plot_probability_alive_matrix:11
+msgid "The maximum *frequency* to plot. Defaults to max observed *frequency*."
+msgstr ""
+"La *frecuencia* máxima a graficar. Por defecto, se establece en la "
+"*frecuencia* máxima observada."
+
+#: 2492d1d75f2f441e8abfda7b2d8243c9 of
+#: pymc_marketing.clv.plotting.plot_probability_alive_matrix:13
+msgid "**max_recency: int, optional**"
+msgstr "**max_recency: int, opcional**"
+
+#: 3014ca9f69cb4e869524bb858ccd1c36 of
+#: pymc_marketing.clv.plotting.plot_probability_alive_matrix:14
+msgid ""
+"The maximum *recency* to plot. This also determines the age of the customer."
+" Defaults to max observed *recency*."
+msgstr ""
+"La *recencia* máxima para graficar. Esto también determina la antigüedad del"
+" cliente. Por defecto, se establece en la *recencia* máxima observada."
+
+#: 360efafd692e47f09e5bc9cd62faa367 of
+#: pymc_marketing.clv.plotting.plot_probability_alive_matrix:16
+msgid "**title: str, optional**"
+msgstr "**título: str, opcional**"
+
+#: d76d0f5e77f743a1904ac59e739ca7bd of
+#: pymc_marketing.clv.plotting.plot_probability_alive_matrix:17
+msgid "Figure title"
+msgstr "Título de la figura"
+
+#: 222becfca3bd4406a16fec1358bac371 of
+#: pymc_marketing.clv.plotting.plot_probability_alive_matrix:19
+msgid "**xlabel: str, optional**"
+msgstr "**xlabel: str, opcional**"
+
+#: 02aad70aa5794c5bbd15e305ad94348b of
+#: pymc_marketing.clv.plotting.plot_probability_alive_matrix:20
+msgid "Figure xlabel"
+msgstr "Etiqueta de figura"
+
+#: bf702f1019924834a933145fe755fcfd of
+#: pymc_marketing.clv.plotting.plot_probability_alive_matrix:22
+msgid "**ylabel: str, optional**"
+msgstr "**ylabel: str, opcional**"
+
+#: e6bdaf47ab59478eaf20bcd700fee8a4 of
+#: pymc_marketing.clv.plotting.plot_probability_alive_matrix:23
+msgid "Figure ylabel"
+msgstr "Etiqueta del eje y"
+
+#: 7fbde5a9d6054a07a028aebe015c2511 of
+#: pymc_marketing.clv.plotting.plot_probability_alive_matrix:25
+msgid "**ax: plt.Axes, optional**"
+msgstr "**ax: plt.Axes, opcional**"
+
+#: 296848f2f30c408a8d9d57a95d92ada5 of
+#: pymc_marketing.clv.plotting.plot_probability_alive_matrix:26
+msgid "A matplotlib axes instance. Creates new axes instance by default."
+msgstr ""
+"Una instancia de ejes de matplotlib. Crea una nueva instancia de ejes por "
+"defecto."
+
+#: 85cc5f7b343043ed8edca037106f0857 of
+#: pymc_marketing.clv.plotting.plot_probability_alive_matrix:28
+msgid "**kwargs**"
+msgstr "**kwargs**"
+
+#: a28a6024e7d74a44a5f7dc3ccff9ce1f of
+#: pymc_marketing.clv.plotting.plot_probability_alive_matrix:29
+msgid "Passed into the matplotlib.imshow command."
+msgstr "Pasado al comando matplotlib.imshow."
+
+#: a8c1081cf59745a299985dceca08b98f of
+#: pymc_marketing.clv.plotting.plot_probability_alive_matrix
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 9def72f6a4c54ae1bc301ea100f89dc4 of
+#: pymc_marketing.clv.plotting.plot_probability_alive_matrix:35
+msgid "axes: :obj:`matplotlib.AxesSubplot`"
+msgstr "ejes: :obj:`matplotlib.AxesSubplot`"

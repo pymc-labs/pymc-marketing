@@ -1,0 +1,892 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:2
+#: 76220c77c457478099bb7a9473398a0d
+msgid "BaseMMM"
+msgstr "BaseMMM"
+
+#: bd80d9a2d92f4e8db8e3d800f1c81627 of pymc_marketing.mmm.mmm.BaseMMM:2
+msgid ""
+"Base class for a media mix model using Delayed Adstock and Logistic "
+"Saturation (see [R0dde17d13326-1]_)."
+msgstr ""
+"Clase base para un modelo de mezcla de medios que utiliza Adstock Retrasado "
+"y Saturación Logística (ver [R0dde17d13326-1]_."
+
+#: 314087bf5c5b4fa88f6eed5895c4a526 of pymc_marketing.mmm.mmm.BaseMMM:18
+msgid "References"
+msgstr "Referencias"
+
+#: 0b09d531e4e74290821adcd2b949ceab of pymc_marketing.mmm.mmm.BaseMMM:19
+msgid ""
+"Jin, Yuxue, et al. \"Bayesian methods for media mix modeling with carryover "
+"and shape effects.\" (2017)."
+msgstr ""
+"Jin, Yuxue, et al. \"Métodos bayesianos para la modelización de mezcla de "
+"medios con efectos de arrastre y forma.\" (2017)."
+
+#: 7755afa5c7664e17b1f66025b4a4005c of pymc_marketing.mmm.mmm.BaseMMM:23
+msgid "[R0dde17d13326-1]_"
+msgstr "[R0dde17d13326-1]_"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:12
+#: 0282a98d964845938cdf6bd7f14eb999
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 945b464fce03476f8279da1656a762d1
+msgid ""
+":py:obj:`BaseMMM.__init__ <pymc_marketing.mmm.mmm.BaseMMM.__init__>`\\ "
+"\\(\\[date\\_column\\, ...\\]\\)"
+msgstr ""
+":py:obj:`BaseMMM.__init__ <pymc_marketing.mmm.mmm.BaseMMM.__init__>`\\ "
+"\\(\\[date\\_column\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: d570a611197548cd802d7e1b99d1e785
+msgid "Define the constructor method."
+msgstr "Defina el método constructor."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: b902a9b4e5a843f89218b52a4fd0a56f
+msgid ""
+":py:obj:`BaseMMM.approximate_fit "
+"<pymc_marketing.mmm.mmm.BaseMMM.approximate_fit>`\\ \\(X\\[\\, y\\, "
+"progressbar\\, ...\\]\\)"
+msgstr ""
+":py:obj:`BaseMMM.approximate_fit "
+"<pymc_marketing.mmm.mmm.BaseMMM.approximate_fit>`\\ \\(X\\[\\, y\\, barra de"
+" progreso\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: bd36414d9e754440931e7d10cc0310a3
+msgid "Fit a model using Variational Inference and return InferenceData."
+msgstr ""
+"Ajuste un modelo utilizando Inferencia Variacional y devuelva InferenceData."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 896493e2d42045388f06bee0604bf650
+msgid ""
+":py:obj:`BaseMMM.attrs_to_init_kwargs "
+"<pymc_marketing.mmm.mmm.BaseMMM.attrs_to_init_kwargs>`\\ \\(attrs\\)"
+msgstr ""
+":py:obj:`BaseMMM.attrs_to_init_kwargs "
+"<pymc_marketing.mmm.mmm.BaseMMM.attrs_to_init_kwargs>`\\ \\(attrs\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 92391cdcc4a449f1b6685fbe277ae012
+msgid "Convert attributes to initialization kwargs."
+msgstr "Convertir atributos a kwargs de inicialización."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: dd926e6a16b5466a812f8ab603662fea
+msgid ""
+":py:obj:`BaseMMM.build_from_idata "
+"<pymc_marketing.mmm.mmm.BaseMMM.build_from_idata>`\\ \\(idata\\)"
+msgstr ""
+":py:obj:`BaseMMM.build_from_idata "
+"<pymc_marketing.mmm.mmm.BaseMMM.build_from_idata>`\\ \\(idata\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 58ac41cb9e23468c9611925801ae1d12
+msgid "Build model from the InferenceData object."
+msgstr "Construir el modelo a partir del objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: a2a74b1c9a9f425cb5ad6c225255307e
+msgid ""
+":py:obj:`BaseMMM.build_model <pymc_marketing.mmm.mmm.BaseMMM.build_model>`\\"
+" \\(X\\, y\\, \\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`BaseMMM.build_model <pymc_marketing.mmm.mmm.BaseMMM.build_model>`\\"
+" \\(X\\, y\\, \\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 5350c0f58be14b8d9cca35fcb673e31e
+msgid "Build a probabilistic model using PyMC for marketing mix modeling."
+msgstr ""
+"Construya un modelo probabilístico utilizando PyMC para el modelado de "
+"mezcla de marketing."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: d461515eb52e4733928cbce336c5beff
+msgid ""
+":py:obj:`BaseMMM.channel_contribution_forward_pass "
+"<pymc_marketing.mmm.mmm.BaseMMM.channel_contribution_forward_pass>`\\ "
+"\\(...\\)"
+msgstr ""
+":py:obj:`BaseMMM.channel_contribution_forward_pass "
+"<pymc_marketing.mmm.mmm.BaseMMM.channel_contribution_forward_pass>`\\ "
+"\\(...\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: cd43de90f17a4aa4baf2bf02c5c98ad5
+msgid ""
+"Evaluate the channel contribution for a given channel data and a fitted "
+"model, ie."
+msgstr ""
+"Evalúe la contribución del canal para unos datos de canal dados y un modelo "
+"ajustado, es decir."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 494479a232a34d81b75c394794e10bc3
+msgid ""
+":py:obj:`BaseMMM.compute_channel_contribution_original_scale "
+"<pymc_marketing.mmm.mmm.BaseMMM.compute_channel_contribution_original_scale>`\\"
+" \\(\\[prior\\]\\)"
+msgstr ""
+":py:obj:`BaseMMM.compute_channel_contribution_original_scale "
+"<pymc_marketing.mmm.mmm.BaseMMM.compute_channel_contribution_original_scale>`\\"
+" \\(\\[previo\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 082e9624a0234ff2a1d0fc408753b511
+msgid ""
+"Compute the channel contributions in the original scale of the target "
+"variable."
+msgstr ""
+"Calcule las contribuciones del canal en la escala original de la variable "
+"objetivo."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: c23043d2c2ff4131b097f8092b571401
+msgid ""
+":py:obj:`BaseMMM.compute_mean_contributions_over_time "
+"<pymc_marketing.mmm.mmm.BaseMMM.compute_mean_contributions_over_time>`\\ "
+"\\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`BaseMMM.compute_mean_contributions_over_time "
+"<pymc_marketing.mmm.mmm.BaseMMM.compute_mean_contributions_over_time>`\\ "
+"\\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 2c8932439c20419d9553776e71d8b183
+msgid "Get the contributions of each channel over time."
+msgstr "Obtenga las contribuciones de cada canal a lo largo del tiempo."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: bf405ea9b1dd4dc4bc56f29c2e3e75d4
+msgid ""
+":py:obj:`BaseMMM.create_fit_data "
+"<pymc_marketing.mmm.mmm.BaseMMM.create_fit_data>`\\ \\(X\\, y\\)"
+msgstr ""
+":py:obj:`BaseMMM.create_fit_data "
+"<pymc_marketing.mmm.mmm.BaseMMM.create_fit_data>`\\ \\(X\\, y\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 57487b61dd6744cebb5bce3f8bf20e69
+msgid "Create the fit_data group based on the input data."
+msgstr "Cree el grupo fit_data basado en los datos de entrada."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 6d040067a7fe4d80aa6740c7635187e0
+msgid ""
+":py:obj:`BaseMMM.create_idata_attrs "
+"<pymc_marketing.mmm.mmm.BaseMMM.create_idata_attrs>`\\ \\(\\)"
+msgstr ""
+":py:obj:`BaseMMM.create_idata_attrs "
+"<pymc_marketing.mmm.mmm.BaseMMM.create_idata_attrs>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 98a11d7d4b68411a9f0a7a7ec02df4fd
+msgid "Create attributes for the inference data."
+msgstr "Cree atributos para los datos de inferencia."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: eb37dfc7316b44b1957ef347fd77aba9
+msgid ""
+":py:obj:`BaseMMM.fit <pymc_marketing.mmm.mmm.BaseMMM.fit>`\\ \\(X\\[\\, y\\,"
+" progressbar\\, random\\_seed\\]\\)"
+msgstr ""
+":py:obj:`BaseMMM.fit <pymc_marketing.mmm.mmm.BaseMMM.fit>`\\ \\(X\\[\\, y\\,"
+" barra\\_de\\_progreso\\, semilla\\_aleatoria\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 714603faa2304effbb7f8760115bb2e0
+msgid "Fit a model using the data passed as a parameter."
+msgstr "Ajuste un modelo utilizando los datos pasados como parámetro."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 2e9e6543f5204bb685e140d4bd8ec975
+msgid ""
+":py:obj:`BaseMMM.forward_pass "
+"<pymc_marketing.mmm.mmm.BaseMMM.forward_pass>`\\ \\(x\\)"
+msgstr ""
+":py:obj:`BaseMMM.forward_pass "
+"<pymc_marketing.mmm.mmm.BaseMMM.forward_pass>`\\ \\(x\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 1164eb0c0cbf4244abc538e92dfc7e67
+msgid "Transform channel input into target contributions of each channel."
+msgstr ""
+"Transformar la entrada del canal en las contribuciones objetivo de cada "
+"canal."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 8605e4c85fff48628dea8e32d7a9abe0
+msgid ""
+":py:obj:`BaseMMM.get_channel_contribution_share_samples "
+"<pymc_marketing.mmm.mmm.BaseMMM.get_channel_contribution_share_samples>`\\ "
+"\\(\\[prior\\]\\)"
+msgstr ""
+":py:obj:`BaseMMM.get_channel_contribution_share_samples "
+"<pymc_marketing.mmm.mmm.BaseMMM.get_channel_contribution_share_samples>`\\ "
+"\\(\\[anterior\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: abff909ecc814d959510d9f29231d70a
+msgid ""
+"Get the share of channel contributions in the original scale of the target "
+"variable."
+msgstr ""
+"Obtenga la participación de las contribuciones del canal en la escala "
+"original de la variable objetivo."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: d5e978236c764423bb2ffe3748dc3b15
+msgid ""
+":py:obj:`BaseMMM.get_errors <pymc_marketing.mmm.mmm.BaseMMM.get_errors>`\\ "
+"\\(\\[original\\_scale\\]\\)"
+msgstr ""
+":py:obj:`BaseMMM.get_errors <pymc_marketing.mmm.mmm.BaseMMM.get_errors>`\\ "
+"\\(\\[original\\_scale\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 353c74dce4914aea81b58b808ccd60ce
+msgid "Get model errors posterior distribution."
+msgstr "Obtener la distribución posterior de errores del modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 506bb92298344c8c86b2c8dbc5265996
+msgid ""
+":py:obj:`BaseMMM.get_target_transformer "
+"<pymc_marketing.mmm.mmm.BaseMMM.get_target_transformer>`\\ \\(\\)"
+msgstr ""
+":py:obj:`BaseMMM.get_target_transformer "
+"<pymc_marketing.mmm.mmm.BaseMMM.get_target_transformer>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: f12c173f998940059f69f3574e3dc434
+msgid ""
+"Return the target transformer pipeline used for preprocessing the target "
+"variable."
+msgstr ""
+"Devuelve la tubería del transformador objetivo utilizada para el "
+"preprocesamiento de la variable objetivo."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: f9e1f3a7839242f99bcebc796cfe1924
+msgid ""
+":py:obj:`BaseMMM.graphviz <pymc_marketing.mmm.mmm.BaseMMM.graphviz>`\\ "
+"\\(\\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`BaseMMM.graphviz <pymc_marketing.mmm.mmm.BaseMMM.graphviz>`\\ "
+"\\(\\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 76e8150938c94cc2a8500e23eb0f0e0a
+msgid "Get the graphviz representation of the model."
+msgstr "Obtenga la representación graphviz del modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: d74ee5d41b484742acfaa396b8e8839a
+msgid ""
+":py:obj:`BaseMMM.idata_to_init_kwargs "
+"<pymc_marketing.mmm.mmm.BaseMMM.idata_to_init_kwargs>`\\ \\(idata\\)"
+msgstr ""
+":py:obj:`BaseMMM.idata_to_init_kwargs "
+"<pymc_marketing.mmm.mmm.BaseMMM.idata_to_init_kwargs>`\\ \\(idata\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 3f4dca632669490893b6afe9040a1106
+msgid ""
+"Create  the model configuration and sampler configuration from the "
+"InferenceData to keyword arguments."
+msgstr ""
+"Cree la configuración del modelo y la configuración del muestreador a partir"
+" de InferenceData a argumentos de palabra clave."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 4491b721f274454da1d5cf854c1f0d88
+msgid ""
+":py:obj:`BaseMMM.load <pymc_marketing.mmm.mmm.BaseMMM.load>`\\ "
+"\\(fname\\[\\, check\\]\\)"
+msgstr ""
+":py:obj:`BaseMMM.load <pymc_marketing.mmm.mmm.BaseMMM.load>`\\ "
+"\\(fname\\[\\, check\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 50fdbf4e64034f4da8f88d727f5dae79
+msgid "Create a ModelBuilder instance from a file."
+msgstr "Cree una instancia de ModelBuilder a partir de un archivo."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 33fa29df0ff24094abfb726183e339db
+msgid ""
+":py:obj:`BaseMMM.load_from_idata "
+"<pymc_marketing.mmm.mmm.BaseMMM.load_from_idata>`\\ \\(idata\\[\\, "
+"check\\]\\)"
+msgstr ""
+":py:obj:`BaseMMM.load_from_idata "
+"<pymc_marketing.mmm.mmm.BaseMMM.load_from_idata>`\\ \\(idata\\[\\, "
+"verificar\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 64c819117d994c7a8cff8e6e47b28e2b
+msgid "Create a ModelBuilder instance from an InferenceData object."
+msgstr ""
+"Cree una instancia de ModelBuilder a partir de un objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 486431b0ae9c4290b4e6ebfa2d6c44bc
+msgid ""
+":py:obj:`BaseMMM.plot_channel_contribution_share_hdi "
+"<pymc_marketing.mmm.mmm.BaseMMM.plot_channel_contribution_share_hdi>`\\ "
+"\\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`BaseMMM.plot_channel_contribution_share_hdi "
+"<pymc_marketing.mmm.mmm.BaseMMM.plot_channel_contribution_share_hdi>`\\ "
+"\\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 6630e8068fc6441f9594b428fcb04c1e
+msgid "Plot the share of channel contributions in a forest plot."
+msgstr ""
+"Trace la proporción de contribuciones del canal en un gráfico de bosque."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 3423445f50c8422eb1bbd77e531c25eb
+msgid ""
+":py:obj:`BaseMMM.plot_components_contributions "
+"<pymc_marketing.mmm.mmm.BaseMMM.plot_components_contributions>`\\ \\(...\\)"
+msgstr ""
+":py:obj:`BaseMMM.plot_components_contributions "
+"<pymc_marketing.mmm.mmm.BaseMMM.plot_components_contributions>`\\ \\(...\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 54aec837301342c1970af2f38c77542f
+msgid ""
+"Plot the target variable and the posterior predictive model components."
+msgstr ""
+"Trace la variable objetivo y los componentes del modelo predictivo "
+"posterior."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 4fc57215c6084f909f877b3647cdcb6c
+msgid ""
+":py:obj:`BaseMMM.plot_errors <pymc_marketing.mmm.mmm.BaseMMM.plot_errors>`\\"
+" \\(\\[original\\_scale\\, ax\\]\\)"
+msgstr ""
+":py:obj:`BaseMMM.plot_errors <pymc_marketing.mmm.mmm.BaseMMM.plot_errors>`\\"
+" \\(\\[escala\\_original\\, ax\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: c9bfe137b14e4e1bb6f909542d5f234e
+msgid ""
+"Plot model errors by taking the difference between true values and "
+"predicted."
+msgstr ""
+"Grafique los errores del modelo tomando la diferencia entre los valores "
+"reales y los predichos."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: a184c00338bd450faa6b3d3ce06582ce
+msgid ""
+":py:obj:`BaseMMM.plot_grouped_contribution_breakdown_over_time "
+"<pymc_marketing.mmm.mmm.BaseMMM.plot_grouped_contribution_breakdown_over_time>`\\"
+" \\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`BaseMMM.plot_grouped_contribution_breakdown_over_time "
+"<pymc_marketing.mmm.mmm.BaseMMM.plot_grouped_contribution_breakdown_over_time>`\\"
+" \\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: a870e1ddc94b4e4183a50d606c92a6fd
+msgid "Plot a time series area chart for all channel contributions."
+msgstr ""
+"Trace un gráfico de área de series temporales para todas las contribuciones "
+"del canal."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: ccdb1263755e47d09cb63ada697a8e07
+msgid ""
+":py:obj:`BaseMMM.plot_posterior_predictive "
+"<pymc_marketing.mmm.mmm.BaseMMM.plot_posterior_predictive>`\\ "
+"\\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`BaseMMM.plot_posterior_predictive "
+"<pymc_marketing.mmm.mmm.BaseMMM.plot_posterior_predictive>`\\ "
+"\\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 5bb488108c814482bba6fce855a6038d
+msgid "Plot the posterior predictive distribution from the model fit."
+msgstr "Trace la distribución predictiva posterior del ajuste del modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: e8c8f2b6d90c44489de259cbc5f46490
+msgid ""
+":py:obj:`BaseMMM.plot_prior_predictive "
+"<pymc_marketing.mmm.mmm.BaseMMM.plot_prior_predictive>`\\ \\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`BaseMMM.plot_prior_predictive "
+"<pymc_marketing.mmm.mmm.BaseMMM.plot_prior_predictive>`\\ \\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 081f98891cd94c0b82ccd30c9fce24cf
+msgid "Plot the prior predictive distribution from the model fit."
+msgstr ""
+"Trace la distribución predictiva previa a partir del ajuste del modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: b2d4c4705fcf42ad8dddcffe9fb4a11c
+msgid ""
+":py:obj:`BaseMMM.plot_prior_vs_posterior "
+"<pymc_marketing.mmm.mmm.BaseMMM.plot_prior_vs_posterior>`\\ "
+"\\(var\\_name\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`BaseMMM.plot_prior_vs_posterior "
+"<pymc_marketing.mmm.mmm.BaseMMM.plot_prior_vs_posterior>`\\ "
+"\\(var\\_name\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 99db44417d524cbc8b40bb453b100808
+msgid ""
+"Plot the prior vs posterior distribution for a specified variable in a 3 "
+"columngrid layout."
+msgstr ""
+"Trace la distribución previa frente a la distribución posterior para una "
+"variable especificada en un diseño de cuadrícula de 3 columnas."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: d531f1d82e694e9e9707e9e025f2e433
+msgid ""
+":py:obj:`BaseMMM.plot_waterfall_components_decomposition "
+"<pymc_marketing.mmm.mmm.BaseMMM.plot_waterfall_components_decomposition>`\\ "
+"\\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`BaseMMM.plot_waterfall_components_decomposition "
+"<pymc_marketing.mmm.mmm.BaseMMM.plot_waterfall_components_decomposition>`\\ "
+"\\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: ffb7fb42f5a24a62a5f73e248be50b01
+msgid "Create a waterfall plot."
+msgstr "Cree un gráfico de cascada."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: aa1ce2a5418b42adad137277af7717c9
+msgid ""
+":py:obj:`BaseMMM.post_sample_model_transformation "
+"<pymc_marketing.mmm.mmm.BaseMMM.post_sample_model_transformation>`\\ \\(\\)"
+msgstr ""
+":py:obj:`BaseMMM.post_sample_model_transformation "
+"<pymc_marketing.mmm.mmm.BaseMMM.post_sample_model_transformation>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: d613e15566cb4f73b60534d1dc356e85
+msgid ""
+"Post-sample model transformation in order to store the HSGP state from fit."
+msgstr ""
+"Transformación del modelo posterior a la muestra para almacenar el estado de"
+" HSGP a partir del ajuste."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 54b0d518c34e4746bacd6104911d9797
+msgid ""
+":py:obj:`BaseMMM.predict <pymc_marketing.mmm.mmm.BaseMMM.predict>`\\ "
+"\\(\\[X\\, extend\\_idata\\]\\)"
+msgstr ""
+":py:obj:`BaseMMM.predict <pymc_marketing.mmm.mmm.BaseMMM.predict>`\\ "
+"\\(\\[X\\, extend\\_idata\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 3de78ef87d09435ea58150a25107600e
+msgid ""
+"Use a model to predict on unseen data and return point prediction of all the"
+" samples."
+msgstr ""
+"Utilice un modelo para predecir sobre datos no vistos y devuelva la "
+"predicción puntual de todas las muestras."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: f0926afa2c9b4e269acb761be7e28ca7
+msgid ""
+":py:obj:`BaseMMM.predict_posterior "
+"<pymc_marketing.mmm.mmm.BaseMMM.predict_posterior>`\\ \\(\\[X\\, "
+"extend\\_idata\\, ...\\]\\)"
+msgstr ""
+":py:obj:`BaseMMM.predict_posterior "
+"<pymc_marketing.mmm.mmm.BaseMMM.predict_posterior>`\\ \\(\\[X\\, "
+"extend\\_idata\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: f19374da16d34d018d2cbdc022fadf30
+msgid "Generate posterior predictive samples on unseen data."
+msgstr "Generar muestras predictivas posteriores en datos no vistos."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: cdcc53036bdd4de294b55b608ce3470e
+msgid ""
+":py:obj:`BaseMMM.predict_proba "
+"<pymc_marketing.mmm.mmm.BaseMMM.predict_proba>`\\ \\(\\[X\\, "
+"extend\\_idata\\, ...\\]\\)"
+msgstr ""
+":py:obj:`BaseMMM.predict_proba "
+"<pymc_marketing.mmm.mmm.BaseMMM.predict_proba>`\\ \\(\\[X\\, "
+"extend\\_idata\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 9cee07c9d86a4063944ae60d0f45b776
+msgid ""
+"Alias for `predict_posterior`, for consistency with scikit-learn "
+"probabilistic estimators."
+msgstr ""
+"Alias para `predict_posterior`, por consistencia con los estimadores "
+"probabilísticos de scikit-learn."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: e886e2be19c64813bcaf21c99aa20635
+msgid ""
+":py:obj:`BaseMMM.preprocess <pymc_marketing.mmm.mmm.BaseMMM.preprocess>`\\ "
+"\\(target\\, data\\)"
+msgstr ""
+":py:obj:`BaseMMM.preprocess <pymc_marketing.mmm.mmm.BaseMMM.preprocess>`\\ "
+"\\(objetivo\\, datos\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 143ae35edcb444ada2cc412b458a8743
+msgid "Preprocess the provided data according to the specified target."
+msgstr ""
+"Preprocese los datos proporcionados de acuerdo con el objetivo especificado."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: f86e0ec0862e4b068573b7fb3157b334
+msgid ""
+":py:obj:`BaseMMM.sample_posterior_predictive "
+"<pymc_marketing.mmm.mmm.BaseMMM.sample_posterior_predictive>`\\ \\(\\[X\\, "
+"...\\]\\)"
+msgstr ""
+":py:obj:`BaseMMM.sample_posterior_predictive "
+"<pymc_marketing.mmm.mmm.BaseMMM.sample_posterior_predictive>`\\ \\(\\[X\\, "
+"...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: ed8b8c5996bf40bb9925ee7383bfe515
+msgid "Sample from the model's posterior predictive distribution."
+msgstr "Muestra de la distribución predictiva posterior del modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 98bf11b3467b49ceb2213ebd9f83e0de
+msgid ""
+":py:obj:`BaseMMM.sample_prior_predictive "
+"<pymc_marketing.mmm.mmm.BaseMMM.sample_prior_predictive>`\\ \\(\\[X\\, y\\, "
+"...\\]\\)"
+msgstr ""
+":py:obj:`BaseMMM.sample_prior_predictive "
+"<pymc_marketing.mmm.mmm.BaseMMM.sample_prior_predictive>`\\ \\(\\[X\\, y\\, "
+"...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 01aaf5a86ba64003a42c23d80b5288df
+msgid "Sample from the model's prior predictive distribution."
+msgstr "Muestra de la distribución predictiva previa del modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 3e7bfcd9fee74f7bbfc2f8c50a8ff104
+msgid ""
+":py:obj:`BaseMMM.save <pymc_marketing.mmm.mmm.BaseMMM.save>`\\ \\(fname\\, "
+"\\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`BaseMMM.save <pymc_marketing.mmm.mmm.BaseMMM.save>`\\ \\(fname\\, "
+"\\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 68873703baaf402a8331cdf8931edd71
+msgid "Save the model's inference data to a file."
+msgstr "Guarde los datos de inferencia del modelo en un archivo."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: c84e0b4e5bc648a38c1173aebf95375e
+msgid ""
+":py:obj:`BaseMMM.set_idata_attrs "
+"<pymc_marketing.mmm.mmm.BaseMMM.set_idata_attrs>`\\ \\(\\[idata\\]\\)"
+msgstr ""
+":py:obj:`BaseMMM.set_idata_attrs "
+"<pymc_marketing.mmm.mmm.BaseMMM.set_idata_attrs>`\\ \\(\\[idata\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 04c8c09046024b32bd6f5b9ae0497bf1
+msgid "Set attributes on an InferenceData object."
+msgstr "Establecer atributos en un objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 4e8c51cc9b5e42f99c33da3818833d49
+msgid ""
+":py:obj:`BaseMMM.table <pymc_marketing.mmm.mmm.BaseMMM.table>`\\ "
+"\\(\\*\\*model\\_table\\_kwargs\\)"
+msgstr ""
+":py:obj:`BaseMMM.table <pymc_marketing.mmm.mmm.BaseMMM.table>`\\ "
+"\\(\\*\\*model\\_table\\_kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: e8fdb46960d2447fa846927a5172319d
+msgid "Get the summary table of the model."
+msgstr "Obtenga la tabla resumen del modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 49360741338d4e2eb0ab5f48763f06ca
+msgid ""
+":py:obj:`BaseMMM.validate <pymc_marketing.mmm.mmm.BaseMMM.validate>`\\ "
+"\\(target\\, data\\)"
+msgstr ""
+":py:obj:`BaseMMM.validate <pymc_marketing.mmm.mmm.BaseMMM.validate>`\\ "
+"\\(objetivo\\, datos\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 52e20ff193f14337ab59c9a48df0cdbd
+msgid "Validate the input data based on the specified target type."
+msgstr "Valide los datos de entrada según el tipo de destino especificado."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: ca20bcc02b214c32830f11a5a249810b
+msgid ""
+":py:obj:`BaseMMM.validate_channel_columns "
+"<pymc_marketing.mmm.mmm.BaseMMM.validate_channel_columns>`\\ \\(data\\)"
+msgstr ""
+":py:obj:`BaseMMM.validate_channel_columns "
+"<pymc_marketing.mmm.mmm.BaseMMM.validate_channel_columns>`\\ \\(datos\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 66294a7926e842b1893d144300e33afa
+msgid "Validate the channel columns."
+msgstr "Valide las columnas del canal."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: babc608cfe5d471aaa5051cbb261b94d
+msgid ""
+":py:obj:`BaseMMM.validate_date_col "
+"<pymc_marketing.mmm.mmm.BaseMMM.validate_date_col>`\\ \\(data\\)"
+msgstr ""
+":py:obj:`BaseMMM.validate_date_col "
+"<pymc_marketing.mmm.mmm.BaseMMM.validate_date_col>`\\ \\(datos\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: b96fdfd3b487494c9a9b3576e3815450
+msgid "Validate the date column."
+msgstr "Valide la columna de fecha."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: fe0c335f21734bc8bfb10c0c691a0d58
+msgid ""
+":py:obj:`BaseMMM.validate_target "
+"<pymc_marketing.mmm.mmm.BaseMMM.validate_target>`\\ \\(data\\)"
+msgstr ""
+":py:obj:`BaseMMM.validate_target "
+"<pymc_marketing.mmm.mmm.BaseMMM.validate_target>`\\ \\(datos\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
+#: 9f8ffac6beee4214a2536edefa676284
+msgid "Validate the target column."
+msgstr "Valide la columna objetivo."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:64
+#: e834ed23656c445a8e8b96b9b74831e5
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:86:<autosummary>:1
+#: 5bfbeee1e1aa412c87efc0a0e1796d6e
+msgid ""
+":py:obj:`default_model_config "
+"<pymc_marketing.mmm.mmm.BaseMMM.default_model_config>`\\"
+msgstr ""
+":py:obj:`default_model_config "
+"<pymc_marketing.mmm.mmm.BaseMMM.default_model_config>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:86:<autosummary>:1
+#: d03726bbd33b481b92005fb113f264ea
+msgid "Define the default model configuration."
+msgstr "Defina la configuración del modelo predeterminado."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:86:<autosummary>:1
+#: 55ad4656a5a4423b92cf7ffd44429116
+msgid ""
+":py:obj:`default_sampler_config "
+"<pymc_marketing.mmm.mmm.BaseMMM.default_sampler_config>`\\"
+msgstr ""
+":py:obj:`default_sampler_config "
+"<pymc_marketing.mmm.mmm.BaseMMM.default_sampler_config>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:86:<autosummary>:1
+#: 7ba65a80e4bd4d76af1d0cece0766de7
+msgid "Default sampler configuration for the model."
+msgstr "Configuración de muestreador predeterminada para el modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:86:<autosummary>:1
+#: a64e415fae324e11807cf4a9904e49f9
+msgid ":py:obj:`fit_result <pymc_marketing.mmm.mmm.BaseMMM.fit_result>`\\"
+msgstr ":py:obj:`fit_result <pymc_marketing.mmm.mmm.BaseMMM.fit_result>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:86:<autosummary>:1
+#: 6313b99140034acca1b71a06a5eb0375
+msgid "Get the posterior fit_result."
+msgstr "Obtenga el resultado de ajuste posterior."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:86:<autosummary>:1
+#: 12bd74718e8b49189fdc63b49c645dd8
+msgid ":py:obj:`id <pymc_marketing.mmm.mmm.BaseMMM.id>`\\"
+msgstr ":py:obj:`id <pymc_marketing.mmm.mmm.BaseMMM.id>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:86:<autosummary>:1
+#: 769ae9a1dab64c7dadd87ffe29388e0e
+msgid "Generate a unique hash value for the model."
+msgstr "Generar un valor hash único para el modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:86:<autosummary>:1
+#: d0363e0c753a41b6bcc1def49803b125
+msgid ":py:obj:`methods <pymc_marketing.mmm.mmm.BaseMMM.methods>`\\"
+msgstr ":py:obj:`métodos <pymc_marketing.mmm.mmm.BaseMMM.methods>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:86:<autosummary>:1
+#: d9c4df7d3d634d649884e8d055afc947
+msgid "Get all methods of the object."
+msgstr "Obtenga todos los métodos del objeto."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:86:<autosummary>:1
+#: d716ea947a2a4df3b7393835e3f02569
+msgid ":py:obj:`output_var <pymc_marketing.mmm.mmm.BaseMMM.output_var>`\\"
+msgstr ":py:obj:`output_var <pymc_marketing.mmm.mmm.BaseMMM.output_var>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:86:<autosummary>:1
+#: 5470974ce98d4e9c9c66e4f92bb71809
+msgid "Define target variable for the model."
+msgstr "Defina la variable objetivo para el modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:86:<autosummary>:1
+#: 116920174cfa418f879bd796d583b9c4
+msgid ":py:obj:`posterior <pymc_marketing.mmm.mmm.BaseMMM.posterior>`\\"
+msgstr ":py:obj:`posterior <pymc_marketing.mmm.mmm.BaseMMM.posterior>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:86:<autosummary>:1
+#: 1c041dc2874442ed8f1f52c1939bb5e6
+msgid ""
+":py:obj:`posterior_predictive "
+"<pymc_marketing.mmm.mmm.BaseMMM.posterior_predictive>`\\"
+msgstr ""
+":py:obj:`posterior_predictive "
+"<pymc_marketing.mmm.mmm.BaseMMM.posterior_predictive>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:86:<autosummary>:1
+#: a88911fb7d564010816b350e84ca5a72
+msgid ":py:obj:`predictions <pymc_marketing.mmm.mmm.BaseMMM.predictions>`\\"
+msgstr ":py:obj:`predicciones <pymc_marketing.mmm.mmm.BaseMMM.predictions>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:86:<autosummary>:1
+#: c3bf5ab35b3c4f1a93ad3944f2ad55a0
+msgid ""
+":py:obj:`preprocessing_methods "
+"<pymc_marketing.mmm.mmm.BaseMMM.preprocessing_methods>`\\"
+msgstr ""
+":py:obj:`métodos_de_preprocesamiento "
+"<pymc_marketing.mmm.mmm.BaseMMM.métodos_de_preprocesamiento>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:86:<autosummary>:1
+#: f2dc8398761d4b8c936b66174544a707
+msgid ""
+"A property that provides preprocessing methods for features (\"X\") and the "
+"target variable (\"y\")."
+msgstr ""
+"Una propiedad que proporciona métodos de preprocesamiento para las "
+"características (\"X\") y la variable objetivo (\"y\")."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:86:<autosummary>:1
+#: 6a6a0fc2bf8a448dbc9e3e404f6f3c06
+msgid ":py:obj:`prior <pymc_marketing.mmm.mmm.BaseMMM.prior>`\\"
+msgstr ":py:obj:`prior <pymc_marketing.mmm.mmm.BaseMMM.prior>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:86:<autosummary>:1
+#: 5b068cccbcab46578685513b8a2a1dc6
+msgid ""
+":py:obj:`prior_predictive "
+"<pymc_marketing.mmm.mmm.BaseMMM.prior_predictive>`\\"
+msgstr ""
+":py:obj:`prior_predictive <pymc_marketing.mmm.mmm.BaseMMM.prior_predictive>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:86:<autosummary>:1
+#: a194e3dbc82a4cf59c53965451a1e96f
+msgid ""
+":py:obj:`validation_methods "
+"<pymc_marketing.mmm.mmm.BaseMMM.validation_methods>`\\"
+msgstr ""
+":py:obj:`métodos_de_validación "
+"<pymc_marketing.mmm.mmm.BaseMMM.validation_methods>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:86:<autosummary>:1
+#: 7a9345b3423343fdb2904bf0d90b59ad
+msgid ""
+"A property that provides validation methods for features (\"X\") and the "
+"target variable (\"y\")."
+msgstr ""
+"Una propiedad que proporciona métodos de validación para las características"
+" (\"X\") y la variable objetivo (\"y\")."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:86:<autosummary>:1
+#: 94b6846262354c63b8ac84f80fbffa0f
+msgid ":py:obj:`version <pymc_marketing.mmm.mmm.BaseMMM.version>`\\"
+msgstr ":py:obj:`versión <pymc_marketing.mmm.mmm.BaseMMM.version>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:86:<autosummary>:1
+#: 1926612bd7a0439e86f7ea06548a0669
+msgid ":py:obj:`model <pymc_marketing.mmm.mmm.BaseMMM.model>`\\"
+msgstr ":py:obj:`modelo <pymc_marketing.mmm.mmm.BaseMMM.model>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:86:<autosummary>:1
+#: 8353280c6c424b428451b46db5ed8852
+msgid ":py:obj:`idata <pymc_marketing.mmm.mmm.BaseMMM.idata>`\\"
+msgstr ":py:obj:`idata <pymc_marketing.mmm.mmm.BaseMMM.idata>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:86:<autosummary>:1
+#: a1330556a8dd44e7a534ba1180b96fb0
+msgid ""
+":py:obj:`sampler_config <pymc_marketing.mmm.mmm.BaseMMM.sampler_config>`\\"
+msgstr ""
+":py:obj:`sampler_config <pymc_marketing.mmm.mmm.BaseMMM.sampler_config>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:86:<autosummary>:1
+#: 60d77806fbb1457d90426a99d4b3bf79
+msgid ":py:obj:`model_config <pymc_marketing.mmm.mmm.BaseMMM.model_config>`\\"
+msgstr ":py:obj:`model_config <pymc_marketing.mmm.mmm.BaseMMM.model_config>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:86:<autosummary>:1
+#: 89683dfffde84f91b275bd49294a9a21
+msgid ":py:obj:`date_column <pymc_marketing.mmm.mmm.BaseMMM.date_column>`\\"
+msgstr ":py:obj:`date_column <pymc_marketing.mmm.mmm.BaseMMM.date_column>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:86:<autosummary>:1
+#: 2230786c6e774f0887e57458c9c0d024
+msgid ""
+":py:obj:`channel_columns <pymc_marketing.mmm.mmm.BaseMMM.channel_columns>`\\"
+msgstr ""
+":py:obj:`channel_columns <pymc_marketing.mmm.mmm.BaseMMM.channel_columns>`"

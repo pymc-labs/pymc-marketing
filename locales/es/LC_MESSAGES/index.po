@@ -1,0 +1,755 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-20 21:01+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/index.md:17 d5f16cc3c0804239be3e5ef1cf3d25f6
+msgid ""
+"[![Downloads](https://static.pepy.tech/badge/pymc-"
+"marketing)](https://pepy.tech/project/pymc-marketing) "
+"[![Downloads](https://static.pepy.tech/badge/pymc-"
+"marketing/month)](https://pepy.tech/project/pymc-marketing) "
+"[![Downloads](https://static.pepy.tech/badge/pymc-"
+"marketing/week)](https://pepy.tech/project/pymc-marketing)"
+msgstr ""
+"[![Descargas](https://static.pepy.tech/badge/pymc-"
+"marketing)](https://pepy.tech/project/pymc-marketing) "
+"[![Descargas](https://static.pepy.tech/badge/pymc-"
+"marketing/month)](https://pepy.tech/project/pymc-marketing) "
+"[![Descargas](https://static.pepy.tech/badge/pymc-"
+"marketing/week)](https://pepy.tech/project/pymc-marketing)"
+
+#: ../source/index.md:17 30f79a31c9264a0c81e2ca1039def1ee
+#: 5cba778ada5a48c794017448c3c147c3 b74a8de7ec744072960b6a68030d903d
+msgid "Downloads"
+msgstr "Descargas"
+
+#: ../source/index.md:24 ../source/index.md:32
+#: 12c992e38cbf440fbd5a3517b455a7a5 20c8e5391f17491b9423a17536a3301b
+msgid "PyMC Labs logo"
+msgstr "Logotipo de PyMC Labs"
+
+#: ../source/index.md:42 f0f03db3a51f4050893818bed0611e59
+msgid "📞 Schedule a Free Strategy Consultation"
+msgstr "📞 Programa una consulta estratégica gratuita"
+
+#: ../source/index.md:44 ff6b514d4cda48c69f6e1f8670db9931
+#, fuzzy
+msgid ""
+"Maximize your marketing ROI with a [free 30-minute strategy "
+"session](https://calendly.com/niall-oulton) with our PyMC-Marketing experts "
+"or [send us a message](https://www.pymc-labs.com/contact). Learn how "
+"Bayesian Marketing Mix Modeling and Customer Lifetime Value analytics can "
+"boost your organization by making smarter, data-driven decisions."
+msgstr ""
+"Maximiza el ROI de tu marketing con una [sesión estratégica gratuita de 30 "
+"minutos](https://calendly.com/niall-oulton) con nuestros expertos en PyMC-"
+"Marketing. Aprende cómo el Modelado Bayesiano de Marketing Mix y los "
+"análisis de Customer Lifetime Value pueden impulsar tu organización tomando "
+"decisiones más inteligentes basadas en datos."
+
+#: ../source/index.md:46 54cdbf7d16fe451c883f9f4ae1ee953c
+msgid ""
+"For businesses looking to integrate PyMC-Marketing into their operational "
+"framework, [PyMC Labs](https://www.pymc-labs.com) offers expert consulting "
+"and training. Our team is proficient in state-of-the-art Bayesian modeling "
+"techniques, with a focus on Marketing Mix Models (MMMs) and Customer "
+"Lifetime Value (CLV)."
+msgstr ""
+"Para las empresas que buscan integrar PyMC-Marketing en su marco operativo, "
+"[PyMC Labs](https://www.pymc-labs.com) ofrece consultoría y formación "
+"expertas. Nuestro equipo domina técnicas de modelado bayesiano de "
+"vanguardia, con foco en los Modelos de Marketing Mix (MMM) y el Customer "
+"Lifetime Value (CLV)."
+
+#: ../source/index.md:48 6652a2ea6ca4436c9ea19a8bb2600445
+msgid "We provide the following professional services:"
+msgstr "Ofrecemos los siguientes servicios profesionales:"
+
+#: ../source/index.md:50 4d1821912f3b490899222596f6fec368
+msgid ""
+"**Custom Models**: Bespoke Bayesian models tailored to your business "
+"requirements and data structure."
+msgstr ""
+"{\n"
+"  \"singular\": {\n"
+"    \"msgid\": \"**Custom Models**: Bespoke Bayesian models tailored to your business requirements and data structure.\",\n"
+"    \"msgstr\": \"**Modelos Personalizados**: Modelos bayesianos a medida adaptados a los requisitos de su negocio y a la estructura de sus datos.\"\n"
+"  },\n"
+"  \"plural\": {\n"
+"    \"msgid\": \"**Custom Models**: Bespoke Bayesian models tailored to your business requirements and data structure.\",\n"
+"    \"msgstr\": \"**Modelos Personalizados**: Modelos bayesianos a medida adaptados a los requisitos de su negocio y a la estructura de sus datos.\"\n"
+"  }\n"
+"}"
+
+#: ../source/index.md:51 b0c022b898b545e18e9ae36e77ff7e03
+msgid ""
+"**Training & Coaching**: Comprehensive training programs to master PyMC-"
+"Marketing and Bayesian marketing analytics."
+msgstr ""
+"{\n"
+"  \"singular\": {\n"
+"    \"msgid\": \"**Training & Coaching**: Comprehensive training programs to master PyMC-Marketing and Bayesian marketing analytics.\",\n"
+"    \"msgstr\": \"**Entrenamiento y Coaching**: Programas de entrenamiento integrales para dominar PyMC-Marketing y análisis de marketing bayesiano.\"\n"
+"  },\n"
+"  \"plural\": {\n"
+"    \"msgid\": \"**Training & Coaching**: Comprehensive training programs to master PyMC-Marketing and Bayesian marketing analytics.\",\n"
+"    \"msgstr\": \"**Entrenamiento y Coaching**: Programas de entrenamiento integrales para dominar PyMC-Marketing y análisis de marketing bayesiano.\"\n"
+"  }\n"
+"}"
+
+#: ../source/index.md:52 fad54f98d03a41da96bf1eb4b6e8da54
+msgid ""
+"**Implementation Support**: End-to-end integration into your existing data "
+"infrastructure and workflows."
+msgstr ""
+"{\n"
+"  \"singular\": \"**Soporte de Implementación**: Integración de extremo a extremo en su infraestructura de datos y flujos de trabajo existentes.\",\n"
+"  \"plural\": \"**Soporte de Implementación**: Integración de extremo a extremo en sus infraestructuras de datos y flujos de trabajo existentes.\"\n"
+"}"
+
+#: ../source/index.md:53 4a815562a7364a6ba6eac4755cd46a56
+msgid ""
+"**Strategic Advisory**: Expert guidance on marketing measurement strategy "
+"and data-driven decision frameworks."
+msgstr ""
+"{\n"
+"  \"singular\": \"**Asesoría Estratégica**: Orientación experta sobre la estrategia de medición de marketing y marcos de decisión basados en datos.\",\n"
+"  \"plural\": \"**Asesoría Estratégica**: Orientación experta sobre las estrategias de medición de marketing y marcos de decisión basados en datos.\"\n"
+"}"
+
+#: ../source/index.md:54 703f0ede24c64f87877df51df8baf07a
+#, fuzzy
+msgid ""
+"**SaaS Solutions**: State-of-the-art software solutions to streamline your "
+"data-driven marketing initiatives."
+msgstr ""
+"**Soluciones SaaS**: Aprovecha la potencia de nuestras soluciones de "
+"software de vanguardia para agilizar tus iniciativas de marketing basadas en"
+" datos."
+
+#: ../source/index.md:56 b5e4f669fb4c4f769c1f9bc8d370c72a
+msgid "PyMC Labs Client Testimonials"
+msgstr "Testimonios de clientes de PyMC Labs"
+
+#: ../source/index.md:61 f2eb567f9beb4a6c844bc5497cc3d744
+msgid "Quick links"
+msgstr "Enlaces rápidos"
+
+#: ../source/index.md:71 7541ff7b9263490baad26a0b03333148
+#, python-brace-format
+msgid "{material-outlined}`photo_library;5em`"
+msgstr "{material-outlined}`photo_library;5em`"
+
+#: ../source/index.md:66 bdcf259b816b40e0a36a4d7eb5a1a70e
+msgid "Example Gallery"
+msgstr "Galería de ejemplos"
+
+#: ../source/index.md:74 db9f80d3c7cf402aacb003ac5cc06a78
+msgid ""
+"Browse our visual gallery of example notebooks to quickly find the "
+"techniques and models relevant to your marketing analytics needs."
+msgstr ""
+"Explora nuestra galería visual de cuadernos de ejemplo para encontrar "
+"rápidamente las técnicas y modelos relevantes para tus necesidades de "
+"analítica de marketing."
+
+#: ../source/index.md:80 e49c7130818f43db99cf2e9f9032e0d9
+msgid "To the example gallery"
+msgstr "Ir a la galería de ejemplos"
+
+#: ../source/index.md:95 808413429cbe46b883b2e3c39a1aa7a5
+#, python-brace-format
+msgid "{material-outlined}`menu_book;5em`"
+msgstr "{material-outlined}`menu_book;5em`"
+
+#: ../source/index.md:90 17df0fee604641c9b4695a98f7b8a7bf
+msgid "Example notebooks"
+msgstr "Cuadernos de ejemplo"
+
+#: ../source/index.md:98 eed0583dacd8474da632c466dfb402d0
+msgid ""
+"The example notebooks provide examples of using the library in both real "
+"case scenarios and synthetic data. They explain how to use the library and "
+"showcase its features."
+msgstr ""
+"Los cuadernos de ejemplo muestran cómo usar la biblioteca tanto en casos "
+"reales como con datos sintéticos. Explican cómo utilizar la biblioteca y "
+"destacan sus funcionalidades."
+
+#: ../source/index.md:105 81eb883ab1e44d90b770eefc30782306
+msgid "To the example notebooks"
+msgstr "Ir a los cuadernos de ejemplo"
+
+#: ../source/index.md:119 ccd1a6cfb0ee4eb0a48cb4535294700a
+#, python-brace-format
+msgid "{material-outlined}`data_object;5em`"
+msgstr "{material-outlined}`data_object;5em`"
+
+#: ../source/index.md:114 43a6c8014f434ba8a1d5aa1e9e77dc62
+msgid "API Reference"
+msgstr "Referencia de la API"
+
+#: ../source/index.md:122 d6af1c970cc44d0181b4711e1246a11c
+msgid ""
+"The reference guide contains a detailed description of the functions, "
+"modules, and objects included in the library. The reference describes how "
+"the methods work and which parameters can be used. It assumes that you have "
+"an understanding of the key concepts."
+msgstr ""
+"La guía de referencia contiene una descripción detallada de las funciones, "
+"módulos y objetos incluidos en la biblioteca. Describe cómo funcionan los "
+"métodos y qué parámetros se pueden utilizar. Se asume que ya comprendes los "
+"conceptos clave."
+
+#: ../source/index.md:129 74de4893aa2548439053a9a43108e2ce
+msgid "To the reference guide"
+msgstr "Ir a la guía de referencia"
+
+#: ../source/index.md:140 5b863be1666347e191dde00777937627
+msgid "Bayesian Marketing Mix Modeling (MMM) in PyMC"
+msgstr "Modelado bayesiano de Marketing Mix (MMM) en PyMC"
+
+#: ../source/index.md:142 1cd4260967554fc6bc0a6f8f2829862a
+msgid ""
+"Leverage our Bayesian MMM API to tailor your marketing strategies "
+"effectively. Leveraging on top of the research article [Jin, Yuxue, et al. "
+"\"Bayesian methods for media mix modeling with carryover and shape "
+"effects.\" (2017)](https://research.google/pubs/pub46001/),  and extending "
+"it by integrating the expertise from core PyMC developers, our API provides:"
+msgstr ""
+"Aprovecha nuestra API bayesiana de MMM para adaptar tus estrategias de "
+"marketing de forma efectiva. Basándonos en el artículo de investigación "
+"[Jin, Yuxue, et al. \"Bayesian methods for media mix modeling with carryover"
+" and shape effects.\" (2017)](https://research.google/pubs/pub46001/) y "
+"ampliándolo con la experiencia de los desarrolladores principales de PyMC, "
+"nuestra API ofrece:"
+
+#: ../source/index.md:129 3069b830d13c4d0b815b3177319d880e
+msgid "Feature"
+msgstr "Funcionalidad"
+
+#: ../source/index.md:129 174a75d218a14f06bb84fab11bd8cfd6
+msgid "Benefit"
+msgstr "Beneficio"
+
+#: ../source/index.md:129 e7a24ea547cb4c068c2010f520c10b0b
+msgid "Custom Priors and Likelihoods"
+msgstr "Distribuciones previas y verosimilitudes personalizadas"
+
+#: ../source/index.md:129 0a7cdf39184f4cd1b061ea6f8d86c074
+msgid ""
+"Tailor your model to your specific business needs by including domain "
+"knowledge via prior distributions."
+msgstr ""
+"Adapta tu modelo a las necesidades específicas de tu negocio incluyendo "
+"conocimiento de dominio mediante distribuciones previas."
+
+#: ../source/index.md:129 3329bb097ca04cc3a041fde0529c3c26
+msgid "Adstock Transformation"
+msgstr "Transformación de adstock"
+
+#: ../source/index.md:129 d27a577c20f44e94ad3b4e2c3cb386d3
+msgid "Optimize the carry-over effects in your marketing channels."
+msgstr "Optimiza los efectos de arrastre en tus canales de marketing."
+
+#: ../source/index.md:129 3f0437e162e9486bb25f03a1d83e2d3f
+msgid "Saturation Effects"
+msgstr "Efectos de saturación"
+
+#: ../source/index.md:129 949c2ebb05814f84b4bf6482deefc114
+msgid "Understand the diminishing returns in media investments."
+msgstr "Comprende los rendimientos decrecientes en las inversiones en medios."
+
+#: ../source/index.md:129 0c3f32153f3747efb85e7893efd97d83
+msgid "Customize adstock and saturation functions"
+msgstr "Personaliza las funciones de adstock y saturación"
+
+#: ../source/index.md:129 50ef05b0010f4a29a5540b44592d97f4
+msgid ""
+"You can select from a variety of adstock and saturation functions. You can "
+"even implement your own custom functions. See [documentation "
+"guide](https://www.pymc-"
+"marketing.io/en/stable/notebooks/mmm/mmm_components.html)."
+msgstr ""
+"Puedes seleccionar entre una variedad de funciones de adstock y saturación, "
+"e incluso implementar tus propias funciones personalizadas. Consulta la "
+"[guía de documentación](https://www.pymc-"
+"marketing.io/en/stable/notebooks/mmm/mmm_components.html)."
+
+#: ../source/index.md:129 d933aabe112f4c238ccb480af949baae
+msgid "Time-varying Intercept"
+msgstr "Intercepto variable en el tiempo"
+
+#: ../source/index.md:129 f8be8416a1664ceeaaea7bb066e5ee40
+msgid ""
+"Capture time-varying baseline contributions in your model (using modern and "
+"efficient Gaussian processes approximation methods). See [guide "
+"notebook](https://www.pymc-"
+"marketing.io/en/stable/notebooks/mmm/mmm_time_varying_media_example.html)."
+msgstr ""
+"Captura contribuciones base que varían en el tiempo en tu modelo (usando "
+"métodos modernos y eficientes de aproximación con procesos gaussianos). "
+"Consulta el [cuaderno guía](https://www.pymc-"
+"marketing.io/en/stable/notebooks/mmm/mmm_time_varying_media_example.html)."
+
+#: ../source/index.md:129 461c9289006c4c099d0ecb3304159a26
+msgid "Time-varying Media Contribution"
+msgstr "Contribución de medios variable en el tiempo"
+
+#: ../source/index.md:129 2742f9b5451c4af091e9ea01b2e71c00
+msgid ""
+"Capture time-varying media efficiency in your model (using modern and "
+"efficient Gaussian processes approximation methods). See the [guide "
+"notebook](https://www.pymc-"
+"marketing.io/en/stable/notebooks/mmm/mmm_tvp_example.html)."
+msgstr ""
+"Captura la eficiencia de los medios que varía en el tiempo en tu modelo "
+"(usando métodos modernos y eficientes de aproximación con procesos "
+"gaussianos). Consulta el [cuaderno guía](https://www.pymc-"
+"marketing.io/en/stable/notebooks/mmm/mmm_tvp_example.html)."
+
+#: ../source/index.md:129 750d09a16e814966b27500f84f6c79ea
+msgid "Visualization and Model Diagnostics"
+msgstr "Visualización y diagnósticos del modelo"
+
+#: ../source/index.md:129 037d6625e8df457ea39ad65188ef02ad
+msgid "Get a comprehensive view of your model's performance and insights."
+msgstr "Obtén una visión integral del desempeño de tu modelo y sus insights."
+
+#: ../source/index.md:129 91738ee9e2654dc081b5db1d00743c37
+msgid "Choose among many inference algorithms"
+msgstr "Elige entre numerosos algoritmos de inferencia"
+
+#: ../source/index.md:129 933d2982b957496a90d188d87e3b404c
+msgid ""
+"We provide the option to choose between various NUTS samplers (e.g. "
+"BlackJax, NumPyro and Nutpie). See the [example notebook](https://www.pymc-"
+"marketing.io/en/stable/notebooks/general/other_nuts_samplers.html) for more "
+"details."
+msgstr ""
+"Ofrecemos la opción de elegir entre varios muestreadores NUTS (p. ej., "
+"BlackJax, NumPyro y Nutpie). Consulta el [cuaderno de "
+"ejemplo](https://www.pymc-"
+"marketing.io/en/stable/notebooks/general/other_nuts_samplers.html) para más "
+"detalles."
+
+#: ../source/index.md:129 70212d40e4ae4fda97d6097349c2f9de
+msgid "GPU Support"
+msgstr "Compatibilidad con GPU"
+
+#: ../source/index.md:129 4b93f4b37a114f9d8a6a3257e80fd205
+msgid "PyMC's multiple backends allow for GPU acceleration."
+msgstr "Los múltiples backends de PyMC permiten la aceleración con GPU."
+
+#: ../source/index.md:129 95f552a250324c77a25d19aede2720a9
+msgid "Out-of-sample Predictions"
+msgstr "Predicciones fuera de muestra"
+
+#: ../source/index.md:129 43afacd8d47946c0aea83976e74428fa
+msgid ""
+"Forecast future marketing performance with credible intervals. Use this for "
+"simulations and scenario planning."
+msgstr ""
+"Pronostica el rendimiento de marketing futuro con intervalos creíbles. Úsalo"
+" para simulaciones y planificación de escenarios."
+
+#: ../source/index.md:129 3daae54f72624171adc771035d2506f4
+msgid "Budget Optimization"
+msgstr "Optimización del presupuesto"
+
+#: ../source/index.md:129 d41abbaad58b45e494e2ac7623ea4c2f
+msgid ""
+"Allocate your marketing spend efficiently across various channels for "
+"maximum ROI. See the [budget optimization example "
+"notebook](https://www.pymc-"
+"marketing.io/en/stable/notebooks/mmm/mmm_budget_allocation_example.html)"
+msgstr ""
+"Asigna tu gasto de marketing de forma eficiente entre varios canales para "
+"maximizar el ROI. Consulta el [cuaderno de ejemplo de optimización del "
+"presupuesto](https://www.pymc-"
+"marketing.io/en/stable/notebooks/mmm/mmm_budget_allocation_example.html)"
+
+#: ../source/index.md:129 130d7e0432ca4b05b05b7b2b5b51718f
+msgid "Experiment Calibration"
+msgstr "Calibración de experimentos"
+
+#: ../source/index.md:129 3f8335a579194f409039f778880fa126
+msgid ""
+"Fine-tune your model based on empirical experiments for a more unified view "
+"of marketing. See the [lift test integration explanation](https://www.pymc-"
+"marketing.io/en/stable/notebooks/mmm/mmm_lift_test.html) for more details. "
+"[Here](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_roas.html) "
+"you can find a *Case Study: Unobserved Confounders, ROAS and Lift Tests*."
+msgstr ""
+"Ajusta tu modelo basándote en experimentos empíricos para obtener una visión"
+" más unificada del marketing. Consulta la [explicación de la integración de "
+"lift test](https://www.pymc-"
+"marketing.io/en/stable/notebooks/mmm/mmm_lift_test.html) para más detalles. "
+"[Aquí](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_roas.html) "
+"puedes encontrar un *Estudio de caso: Confusores no observados, ROAS y "
+"pruebas de elevación*."
+
+#: ../source/index.md:159 0a030d8465d44475a1df09ed0eb72a3b
+msgid "Unlock Customer Lifetime Value (CLV) with PyMC"
+msgstr "Impulsa el Customer Lifetime Value (CLV) con PyMC"
+
+#: ../source/index.md:161 54c2a5f7f71b4a289410e68897d38e9b
+msgid ""
+"Understand and optimize your customer's value with our **CLV models**. Our "
+"API supports various types of CLV models, catering to both contractual and "
+"non-contractual settings, as well as continuous and discrete transaction "
+"modes:"
+msgstr ""
+"Comprende y optimiza el valor de tus clientes con nuestros **modelos de "
+"CLV**. Nuestra API admite diversos tipos de modelos de CLV, tanto en "
+"entornos contractuales como no contractuales, así como en modos de "
+"transacción continuos y discretos:"
+
+#: ../source/index.md:163 763a73caea9543d69cd99cbd4dcc8121
+msgid ""
+"[CLV Quickstart](https://www.pymc-"
+"marketing.io/en/stable/notebooks/clv/clv_quickstart.html)"
+msgstr ""
+"[Inicio rápido de CLV](https://www.pymc-"
+"marketing.io/en/stable/notebooks/clv/clv_quickstart.html)"
+
+#: ../source/index.md:164 66cd97a654a1461295bcfcee63d73502
+msgid ""
+"[BG/NBD model](https://www.pymc-"
+"marketing.io/en/stable/notebooks/clv/bg_nbd.html)"
+msgstr ""
+"[Modelo BG/NBD](https://www.pymc-"
+"marketing.io/en/stable/notebooks/clv/bg_nbd.html)"
+
+#: ../source/index.md:165 0cd27d0783c741daa2223ba45270af5d
+msgid ""
+"[Pareto/NBD model](https://www.pymc-"
+"marketing.io/en/stable/notebooks/clv/pareto_nbd.html)"
+msgstr ""
+"[Modelo Pareto/NBD](https://www.pymc-"
+"marketing.io/en/stable/notebooks/clv/pareto_nbd.html)"
+
+#: ../source/index.md:166 13f96b31522045e198c677fd8f3b9022
+msgid ""
+"[Gamma-Gamma model](https://www.pymc-"
+"marketing.io/en/stable/notebooks/clv/gamma_gamma.html)"
+msgstr ""
+"[Modelo Gamma-Gamma](https://www.pymc-"
+"marketing.io/en/stable/notebooks/clv/gamma_gamma.html)"
+
+#: ../source/index.md:167 43b744095e02450f8e868759de3ad000
+#, fuzzy
+msgid ""
+"[Shifted Beta-Geo model](https://www.pymc-"
+"marketing.io/en/stable/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.html)"
+msgstr ""
+"[Modelo Beta-Geo desplazado](https://www.pymc-"
+"marketing.io/en/stable/notebooks/clv/sBG.html)"
+
+#: ../source/index.md:168 4f670d3961604dc2b927d5284239351c
+msgid ""
+"[Modified BG/NBD model](https://www.pymc-"
+"marketing.io/en/stable/notebooks/clv/mbg_nbd.html)"
+msgstr ""
+"[Modelo BG/NBD modificado](https://www.pymc-"
+"marketing.io/en/stable/notebooks/clv/mbg_nbd.html)"
+
+#: ../source/index.md:170 df4d3436f24e4c75b2a79b800acb2737
+msgid ""
+"Each of these models is tailored to different types of data and business "
+"scenarios:"
+msgstr ""
+"Cada uno de estos modelos se ajusta a distintos tipos de datos y escenarios "
+"de negocio:"
+
+#: ../source/index.md:129 bc2298287838490da4c0dc3c1cde5292
+msgid "**Non-contractual**"
+msgstr "**No contractual**"
+
+#: ../source/index.md:129 cfe76481d04b47e0a4d059806cacaf31
+msgid "**Contractual**"
+msgstr "**Contractual**"
+
+#: ../source/index.md:129 05b718a5bd1b463187aff868c30bfd53
+msgid "**Continuous**"
+msgstr "**Continuo**"
+
+#: ../source/index.md:129 8d43ff8fab9641a3ab25a7908e972501
+msgid "online purchases"
+msgstr "compras en línea"
+
+#: ../source/index.md:129 16935625240d41d5a198ff6e6610874e
+msgid "ad conversion time"
+msgstr "tiempo de conversión de anuncios"
+
+#: ../source/index.md:129 a785bc29d0c444678e34f3933af9f500
+msgid "**Discrete**"
+msgstr "**Discreto**"
+
+#: ../source/index.md:129 3001daead75040eca5434219368586f5
+msgid "concerts & sports events"
+msgstr "conciertos y eventos deportivos"
+
+#: ../source/index.md:129 870eeb1a8c4c48e5bed28e18b51eb2b9
+msgid "recurring subscriptions"
+msgstr "suscripciones recurrentes"
+
+#: ../source/index.md:177 766a0a54976a47dab44ffcf005e63e59
+msgid "Customer Choice Analysis"
+msgstr "Análisis de elección del cliente"
+
+#: ../source/index.md:179 9a96b2f8af63489ab40089c1d730d8c1
+msgid ""
+"Analyze the impact of new product launches and understand customer choice "
+"behavior with our **Multivariate Interrupted Time Series (MVITS)** models. "
+"Our API supports analysis in both saturated and unsaturated markets to help "
+"you:"
+msgstr ""
+"Analiza el impacto de los lanzamientos de nuevos productos y comprende el "
+"comportamiento de elección del cliente con nuestros modelos de **Series de "
+"Tiempo Interrumpidas Multivariadas (MVITS)**. Nuestra API admite análisis "
+"tanto en mercados saturados como no saturados para ayudarte a:"
+
+#: ../source/index.md:129 f4acba0699c5451e97886f83ec60ba14
+msgid "Market Share Analysis"
+msgstr "Análisis de cuota de mercado"
+
+#: ../source/index.md:129 5ba21ae4dd044041bd3bda992bcef818
+msgid "Understand how new products affect existing product market shares"
+msgstr ""
+"Comprende cómo los productos nuevos afectan las cuotas de mercado de los "
+"productos existentes"
+
+#: ../source/index.md:129 246713b85d6649cbb05cd70c7fc8ff5d
+msgid "Causal Impact Assessment"
+msgstr "Evaluación del impacto causal"
+
+#: ../source/index.md:129 a3873b1392b74e9c9867e8e06a6c5319
+msgid "Measure the true causal effect of product launches on sales"
+msgstr ""
+"Mide el efecto causal real de los lanzamientos de productos en las ventas"
+
+#: ../source/index.md:129 98b07ebe4eb74f139004fb2d98fc5bcf
+msgid "Saturated Market Analysis"
+msgstr "Análisis de mercados saturados"
+
+#: ../source/index.md:129 efbe07ab4e5a4721bc4cdf24c76f1ed2
+msgid "Model scenarios where total market size remains constant"
+msgstr ""
+"Modela escenarios en los que el tamaño total del mercado permanece constante"
+
+#: ../source/index.md:129 45cc097bb1a04bafafca6d085648fb92
+msgid "Unsaturated Market Analysis"
+msgstr "Análisis de mercados no saturados"
+
+#: ../source/index.md:129 0ba6517767a04526a4f97fa23d2e065c
+msgid "Handle cases where new products grow the total market size"
+msgstr ""
+"Gestiona casos en los que los nuevos productos hacen crecer el tamaño total "
+"del mercado"
+
+#: ../source/index.md:129 b17455e950c34da098e142ed0d65fd58
+msgid "Visualization Tools"
+msgstr "Herramientas de visualización"
+
+#: ../source/index.md:129 3293630fd7024f9ea2a5570b107fb185
+msgid "Plot market shares, causal impacts, and counterfactuals"
+msgstr "Grafica cuotas de mercado, impactos causales y contrafactuales"
+
+#: ../source/index.md:129 a6f218b10e3a46248e6229639039808b
+msgid "Bayesian Inference"
+msgstr "Inferencia bayesiana"
+
+#: ../source/index.md:129 d8e40804207f4cc4b58070b747254a7f
+msgid "Get uncertainty estimates around all predictions"
+msgstr "Obtén estimaciones de incertidumbre para todas las predicciones"
+
+#: ../source/index.md:190 82b35387455f4d7f9ae68b6022803cd7
+msgid ""
+"See our example notebooks for [saturated markets](https://www.pymc-"
+"marketing.io/en/stable/notebooks/customer_choice/mv_its_saturated.html) and "
+"[unsaturated markets](https://www.pymc-"
+"marketing.io/en/stable/notebooks/customer_choice/mv_its_unsaturated.html) to"
+" learn more about customer choice modeling with PyMC-Marketing."
+msgstr ""
+"Consulta nuestros cuadernos de ejemplo para [mercados "
+"saturados](https://www.pymc-"
+"marketing.io/en/stable/notebooks/customer_choice/mv_its_saturated.html) y "
+"[mercados no saturados](https://www.pymc-"
+"marketing.io/en/stable/notebooks/customer_choice/mv_its_unsaturated.html) "
+"para saber más sobre el modelado de la elección del cliente con PyMC-"
+"Marketing."
+
+#: ../source/index.md:196 627611cd2cbd4a4880a609b44bec4c4d
+msgid "Bolt's success story with PyMC-Marketing"
+msgstr "Historia de éxito de Bolt con PyMC-Marketing"
+
+#: ../source/index.md:197 7a810ac203764b27a4b966613a614145
+msgid ""
+"**Checkout the video below to see how Bolt leverages PyMC-Marketing to "
+"assess the impact of their marketing efforts.**"
+msgstr ""
+"**Mira el video a continuación para ver cómo Bolt aprovecha PyMC-Marketing "
+"para evaluar el impacto de sus esfuerzos de marketing.**"
+
+#: ../source/index.md:200 df2f6667ecb1472087a7eb8886a1fe94
+msgid "Time-varying parameters in MMMs in PyMC-Marketing"
+msgstr "Parámetros variables en el tiempo en MMMs con PyMC-Marketing"
+
+#: ../source/index.md:203 a64e96544c2f4cccbeb212d5e73b9b96
+msgid "Customer Lifetime Value Modeling in Marine Industry"
+msgstr "Modelado de Customer Lifetime Value en la industria marítima"
+
+#: ../source/index.md:206 5f6318425ad0420fbd521c5574255c4e
+msgid ""
+"For more videos, webinars and resources, check out the [PyMC Labs YouTube "
+"channel](https://www.youtube.com/@PyMCLabs)."
+msgstr ""
+"Para más videos, seminarios web y recursos, visita el [canal de YouTube de "
+"PyMC Labs](https://www.youtube.com/@PyMCLabs)."
+
+#: ../source/index.md:210 66ff98a6520a4dfea3a5f32b7d8093e1
+msgid "More [PyMC Labs](https://www.pymc-labs.com/) Blog Posts and Resources"
+msgstr ""
+"Más entradas y recursos del blog de [PyMC Labs](https://www.pymc-labs.com/)"
+
+#: ../source/index.md:212 337c077f12ee4f0d97a6ad662a338822
+msgid "Marketing Mix Models"
+msgstr "Modelos de Marketing Mix"
+
+#: ../source/index.md:214 616184af9d454b4eb3675b92bd496dd0
+msgid ""
+"[Unobserved Confounders, ROAS and Lift Tests in Media Mix "
+"Models](https://www.pymc-labs.com/blog-posts/mmm_roas_lift/)"
+msgstr ""
+"[Confusores no observados, ROAS y pruebas de elevación en modelos de mezcla "
+"de medios](https://www.pymc-labs.com/blog-posts/mmm_roas_lift/)"
+
+#: ../source/index.md:215 0fa71f94618449e78b7f148af8e003b0
+msgid ""
+"[MMM Explainer App: Dynamic and Interactive Visualization of Key MMM "
+"Concepts](https://pymc-marketing-app.streamlit.app/)"
+msgstr ""
+"[Aplicación explicativa de MMM: visualización dinámica e interactiva de "
+"conceptos clave de MMM](https://pymc-marketing-app.streamlit.app/)"
+
+#: ../source/index.md:217 0e5e8ca07b7b499681a89f45611eeb9c
+msgid "Customer Lifetime Value"
+msgstr "Valor del ciclo de vida del cliente"
+
+#: ../source/index.md:219 2f8cb46f197a48cf991695674653308d
+msgid ""
+"[Hierarchical Customer Lifetime Value Models](https://www.pymc-"
+"labs.com/blog-posts/hierarchical_clv/)"
+msgstr ""
+"[Modelos jerárquicos de Customer Lifetime Value](https://www.pymc-"
+"labs.com/blog-posts/hierarchical_clv/)"
+
+#: ../source/index.md:220 414a350f5fbc4682859f4279d95e3679
+msgid ""
+"[Customer Lifetime Value in the non-contractual continuous case: The "
+"Bayesian Pareto NBD Model](https://www.pymc-labs.com/blog-posts/pareto-nbd/)"
+msgstr ""
+"[Customer Lifetime Value en el caso continuo no contractual: el modelo "
+"bayesiano Pareto NBD](https://www.pymc-labs.com/blog-posts/pareto-nbd/)"
+
+#: ../source/index.md:221 84d314f3c85842bfa3e16b9ee0ab44b1
+msgid ""
+"[Cohort Revenue & Retention Analysis](https://www.pymc-labs.com/blog-"
+"posts/cohort-revenue-retention/)"
+msgstr ""
+"[Análisis de ingresos y retención por cohortes](https://www.pymc-"
+"labs.com/blog-posts/cohort-revenue-retention/)"
+
+#: ../source/index.md:223 fc2720e928b74f539582435f0a6c1cc4
+msgid "Case Studies"
+msgstr "Casos de estudio"
+
+#: ../source/index.md:225 25eaff142b674cabbc71eb873b397be5
+msgid ""
+"[Building an in-house marketing analytics solution](https://www.pymc-"
+"labs.com/blog-posts/2023-07-18-niall-In-house-marketing/)"
+msgstr ""
+"[Construyendo una solución interna de analítica de "
+"marketing](https://www.pymc-labs.com/blog-posts/2023-07-18-niall-In-house-"
+"marketing/)"
+
+#: ../source/index.md:226 dbb874e5089a464d94a7b69fe29a8156
+msgid ""
+"[Bayesian Media Mix Models: Modelling changes in marketing effectiveness "
+"over time](https://www.pymc-labs.com/blog-posts/modelling-changes-marketing-"
+"effectiveness-over-time/)"
+msgstr ""
+"[Modelos bayesianos de mezcla de medios: modelando cambios en la eficacia "
+"del marketing a lo largo del tiempo](https://www.pymc-labs.com/blog-"
+"posts/modelling-changes-marketing-effectiveness-over-time/)"
+
+#: ../source/index.md:227 59b6ed6e41a34ef79a87f457e81aba28
+msgid ""
+"[Improving the Speed and Accuracy of Bayesian Media Mix "
+"Models](https://www.pymc-labs.com/blog-posts/reducing-customer-acquisition-"
+"costs-how-we-helped-optimizing-hellofreshs-marketing-budget/)"
+msgstr ""
+"[Mejorando la velocidad y la precisión de los modelos bayesianos de mezcla "
+"de medios](https://www.pymc-labs.com/blog-posts/reducing-customer-"
+"acquisition-costs-how-we-helped-optimizing-hellofreshs-marketing-budget/)"
+
+#: ../source/index.md:228 c7cb7c98e5f54702a8c8f3ba201e20d8
+msgid ""
+"[Bayesian Media Mix Modeling for Marketing Optimization](https://www.pymc-"
+"labs.com/blog-posts/bayesian-media-mix-modeling-for-marketing-optimization/)"
+msgstr ""
+"[Modelado bayesiano de mezcla de medios para la optimización del "
+"marketing](https://www.pymc-labs.com/blog-posts/bayesian-media-mix-modeling-"
+"for-marketing-optimization/)"
+
+#: ../source/index.md:229 b93c82cdad7b45749b3f506ff526109f
+msgid ""
+"[Bayesian inference at scale: Running A/B tests with millions of "
+"observations](https://www.pymc-labs.com/blog-posts/bayesian-inference-at-"
+"scale-running-ab-tests-with-millions-of-observations/)"
+msgstr ""
+"[Inferencia bayesiana a escala: ejecución de pruebas A/B con millones de "
+"observaciones](https://www.pymc-labs.com/blog-posts/bayesian-inference-at-"
+"scale-running-ab-tests-with-millions-of-observations/)"
+
+#: ../source/index.md:231 86c56ec6e326427f816e11bb883b69aa
+msgid ""
+"For more blogposts and resources, check out the [PyMC Labs "
+"Blog](https://www.pymc-labs.com/blog-posts/)."
+msgstr ""
+"Para más publicaciones y recursos, visita el [Blog de PyMC "
+"Labs](https://www.pymc-labs.com/blog-posts/)."
+
+#~ msgid ""
+#~ "**Custom Models**: We develop models that fit your organization's unique "
+#~ "needs."
+#~ msgstr ""
+#~ "**Modelos personalizados**: Desarrollamos modelos que se ajustan a las "
+#~ "necesidades únicas de tu organización."
+
+#~ msgid ""
+#~ "**Coaching**: Regular, personalized coaching to ensure your team is well-"
+#~ "equipped to confidently use PyMC-Marketing and related approaches."
+#~ msgstr ""
+#~ "**Mentoría**: Acompañamiento regular y personalizado para asegurar que tu "
+#~ "equipo esté bien preparado para usar PyMC-Marketing y enfoques afines con "
+#~ "confianza."

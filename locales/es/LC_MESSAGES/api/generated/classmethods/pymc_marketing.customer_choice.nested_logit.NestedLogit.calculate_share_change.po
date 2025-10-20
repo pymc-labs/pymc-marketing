@@ -1,0 +1,99 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.customer_choice.nested_logit.NestedLogit.calculate_share_change.rst:2
+#: ded01f3399ac4b37b7ab3c0fda80e226
+msgid "NestedLogit.calculate\\_share\\_change"
+msgstr "NestedLogit.calcular_cambio_de_participación"
+
+#: d193d44430fe4e41baee61f8906f54f6 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.calculate_share_change:2
+msgid "Calculate difference in market share due to market intervention."
+msgstr ""
+"Calcular la diferencia en la cuota de mercado debido a la intervención en el"
+" mercado."
+
+#: 65c82a64cedb4ed9a361f5f0eb2e36da of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.calculate_share_change
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 9bab7e9de73a4b0aa2e0b7054a5f3f1d of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.calculate_share_change:7
+msgid "**idata** : :obj:`az.InferenceData`"
+msgstr "**idata** : :obj:`az.InferenceData`"
+
+#: 03ff01662ca44c79983cee161e26e4fa cbe16e2317b849dfb8da29f3cc7873f0 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.calculate_share_change:6
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.calculate_share_change:11
+msgid "az.InferenceData"
+msgstr "az.InferenceData"
+
+#: 2b30485fe9424c459309f3fd03b9b132 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.calculate_share_change:8
+msgid ""
+"Posterior predictive samples under the baseline (pre-intervention) policy. "
+"Must contain a \"posterior_predictive\" group with a \"p\" variable "
+"representing predicted market shares."
+msgstr ""
+"Muestras predictivas posteriores bajo la política de referencia (pre-"
+"intervención). Debe contener un grupo \"posterior_predictive\" con una "
+"variable \"p\" que represente las cuotas de mercado predichas."
+
+#: 372756c9634d453aa3b4e8f45d51037a of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.calculate_share_change:12
+msgid "**new_idata** : :obj:`az.InferenceData`"
+msgstr "**new_idata** : :obj:`az.InferenceData`"
+
+#: 9c709f1aca8849b4be22a7bf2947bad4 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.calculate_share_change:13
+msgid ""
+"Posterior predictive samples under the new (post-intervention) policy. "
+"Structure should match `idata`, with a \"posterior_predictive\" group "
+"containing \"p\"."
+msgstr ""
+"Muestras predictivas posteriores bajo la nueva política (post-intervención)."
+" La estructura debe coincidir con `idata`, con un grupo "
+"\"posterior_predictive\" que contenga \"p\"."
+
+#: 627db8e449e34ccd8fe92078600e9c0a of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.calculate_share_change
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 89036178d4b44e27abd0c15037753d73 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.calculate_share_change:20
+msgid ":obj:`pd.DataFrame`"
+msgstr ":obj:`pd.DataFrame`"
+
+#: ff52a6e9dc1d4964b8d9f967ef373749 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.calculate_share_change:21
+msgid ""
+"A DataFrame indexed by product, containing: - 'policy_share': mean predicted"
+" share under the baseline policy - 'new_policy_share': mean predicted share "
+"under the new policy - 'relative_change': relative change in share due to "
+"the intervention"
+msgstr ""
+"Un DataFrame indexado por producto, que contiene: - 'policy_share': "
+"participación media predicha bajo la política base - 'new_policy_share': "
+"participación media predicha bajo la nueva política - 'relative_change': "
+"cambio relativo en la participación debido a la intervención"

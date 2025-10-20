@@ -1,0 +1,56 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.graphviz.rst:2
+#: e02b274ee338431eb055dcc0f4b075e1
+msgid "BaseGammaGammaModel.graphviz"
+msgstr "BaseGammaGammaModel.graphviz"
+
+#: f9454093581b4cb89f3307ae88fbda1b of
+#: pymc_marketing.model_builder.ModelBuilder.graphviz:2
+msgid "Get the graphviz representation of the model."
+msgstr "Obtenga la representación graphviz del modelo."
+
+#: e3ffe14ae0a34cf5bd4384c9663b5c37 of
+#: pymc_marketing.model_builder.ModelBuilder.graphviz
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: bb2ba6b55ebd45ad9dd06bb65e845234 of
+#: pymc_marketing.model_builder.ModelBuilder.graphviz:7
+msgid "**\\*\\*kwargs**"
+msgstr "**\\*\\*kwargs**"
+
+#: 1d4289d8b7f44e62b4f6731f88abee76 of
+#: pymc_marketing.model_builder.ModelBuilder.graphviz:8
+msgid "Keyword arguments for the `pm.model_to_graphviz` function"
+msgstr "Argumentos de palabra clave para la función `pm.model_to_graphviz`"
+
+#: 914be5825ddd42d8a97cb25137fd2eff of
+#: pymc_marketing.model_builder.ModelBuilder.graphviz
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 4f083127b97748a18c0c429f757fe61e of
+#: pymc_marketing.model_builder.ModelBuilder.graphviz:14
+msgid ":obj:`graphviz.Digraph`"
+msgstr ":obj:`graphviz.Digraph`"

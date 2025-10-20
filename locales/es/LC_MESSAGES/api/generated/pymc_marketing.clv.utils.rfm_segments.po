@@ -1,0 +1,356 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.clv.utils.rfm_segments.rst:2
+#: 98c39687beef4af5aff1fad2d352303e
+msgid "rfm\\_segments"
+msgstr "rfm\\_segments"
+
+#: f3da962a81334a4baf3bf7029248f16a of pymc_marketing.clv.utils.rfm_segments:2
+msgid ""
+"Assign customers to segments based on spending behavior derived from RFM "
+"scores."
+msgstr ""
+"Asigne clientes a segmentos basados en el comportamiento de gasto derivado "
+"de las puntuaciones RFM."
+
+#: b1b3024b79ef4f85a88e4d946a9d16f8 of pymc_marketing.clv.utils.rfm_segments:4
+msgid "This transforms a DataFrame of transaction data of the form:"
+msgstr "Esto transforma un DataFrame de datos de transacciones de la forma:"
+
+#: 6c4305b30c464e4ba4bdfe674f1e2a27 of pymc_marketing.clv.utils.rfm_segments:5
+msgid "*customer_id, datetime, monetary_value*"
+msgstr "*id_cliente, fecha_hora, valor_monetario*"
+
+#: 1f6f52ebed2149cb99bf891b6908f7d9 of pymc_marketing.clv.utils.rfm_segments:6
+msgid "to a DataFrame of the form:"
+msgstr "a un DataFrame de la forma:"
+
+#: ce4739601a774f378c6e996a45ec0740 of pymc_marketing.clv.utils.rfm_segments:7
+msgid "*customer_id, frequency, recency, monetary_value, rfm_score, segment*"
+msgstr ""
+"*id_cliente, frecuencia, recencia, valor_monetario, puntuación_rfm, "
+"segmento*"
+
+#: 138b2f8b530b47838e1b870e04e338e1 of pymc_marketing.clv.utils.rfm_segments:9
+msgid ""
+"Customer purchasing data is aggregated into three variables: `recency`, "
+"`frequency`, and `monetary_value`. Quartiles are estimated for each "
+"variable, and a three-digit RFM score is then assigned to each customer. For"
+" example, a customer with a score of '234' is in the second quartile for "
+"`recency`, third quartile for `frequency`, and fourth quartile for "
+"`monetary_value`. RFM scores corresponding to segments such as \"Top "
+"Spender\", \"Frequent Buyer\", or \"At-Risk\" are determined, and customers "
+"are then segmented based on their RFM score."
+msgstr ""
+"Los datos de compra de los clientes se agrupan en tres variables: `recency`,"
+" `frequency` y `monetary_value`. Se estiman los cuartiles para cada "
+"variable, y luego se asigna un puntaje RFM de tres dígitos a cada cliente. "
+"Por ejemplo, un cliente con un puntaje de '234' se encuentra en el segundo "
+"cuartil para `recency`, en el tercer cuartil para `frequency` y en el cuarto"
+" cuartil para `monetary_value`. Se determinan los puntajes RFM "
+"correspondientes a segmentos como \"Top Spender\", \"Frequent Buyer\" o "
+"\"At-Risk\", y luego se segmentan los clientes en función de su puntaje RFM."
+
+#: bb7ef890f1cc4a0ea01ddd4524d730b3 of
+#: pymc_marketing.clv.utils.rfm_segments:16
+msgid "By default, the following segments are created:"
+msgstr "Por defecto, se crean los siguientes segmentos:"
+
+#: a32dcd206f274e228005088855353053 of
+#: pymc_marketing.clv.utils.rfm_segments:17
+msgid "\"Premium Customer\": Customers in top 2 quartiles for all variables."
+msgstr ""
+"Cliente Premium: Clientes en los 2 cuartiles superiores para todas las "
+"variables."
+
+#: 45dcc86ae8dc4d5a96def79caddc8934 of
+#: pymc_marketing.clv.utils.rfm_segments:18
+msgid ""
+"\"Repeat Customer\": Customers in top 2 quartiles for frequency, and either "
+"recency or monetary value."
+msgstr ""
+"\"Cliente Recurrente\": Clientes en los 2 cuartiles superiores por "
+"frecuencia, y ya sea por recencia o valor monetario."
+
+#: 77914a92f26f4b768f5414ab4af59a27 of
+#: pymc_marketing.clv.utils.rfm_segments:19
+msgid ""
+"\"Top Spender\": Customers in top 2 quartiles for monetary value, and either"
+" frequency or recency."
+msgstr ""
+"\"Mejor Gastador\": Clientes en los 2 cuartiles superiores por valor "
+"monetario, y ya sea por frecuencia o por recencia."
+
+#: ccb2df3d2afe4c059d4755b6dfa97cea of
+#: pymc_marketing.clv.utils.rfm_segments:20
+msgid ""
+"\"At-Risk Customer\": Customers in bottom 2 quartiles for two or more "
+"variables."
+msgstr ""
+"\"Cliente en riesgo\": Clientes en los dos cuartiles inferiores para dos o "
+"más variables."
+
+#: 372b1ea6e9e14a73809379ab8bce2470 of
+#: pymc_marketing.clv.utils.rfm_segments:21
+msgid ""
+"\"Inactive Customer\": Customers in bottom quartile for two or more "
+"variables."
+msgstr ""
+"Cliente inactivo: Clientes en el cuartil inferior para dos o más variables."
+
+#: 03da100be5c54d75986c947390c684f4 of
+#: pymc_marketing.clv.utils.rfm_segments:22
+msgid ""
+"Customers with unspecified RFM scores will be assigned to a segment named "
+"\"Other\"."
+msgstr ""
+"Los clientes con puntuaciones RFM no especificadas serán asignados a un "
+"segmento llamado \"Otro\"."
+
+#: b0ffab23210d4d8cbf435ee8938eabfe of
+#: pymc_marketing.clv.utils.rfm_segments:24
+msgid ""
+"If an alternative segmentation approach is desired, use "
+"`rfm_summary(include_first_transaction=True, *args, **kwargs)` instead to "
+"preprocess data for segmentation. In either case, the returned DataFrame "
+"cannot be used for modeling. If assigning model predictions to RFM segments,"
+" create a separate DataFrame for modeling and join by Customer ID."
+msgstr ""
+"Si se desea un enfoque de segmentación alternativo, utilice "
+"`rfm_summary(include_first_transaction=True, *args, **kwargs)` en su lugar "
+"para preprocesar los datos para la segmentación. En cualquier caso, el "
+"DataFrame devuelto no puede ser utilizado para modelado. Si se asignan las "
+"predicciones del modelo a los segmentos RFM, cree un DataFrame separado para"
+" el modelado y únalo por ID de Cliente."
+
+#: 03bccf0fcea64b76aa2857cd3a25393f of pymc_marketing.clv.utils.rfm_segments
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 7812cc5268744b1a9f2435b55c56e110 of
+#: pymc_marketing.clv.utils.rfm_segments:31
+msgid "**transactions** : :obj:`~pandas.DataFrame`"
+msgstr "**transacciones** : :obj:`~pandas.DataFrame`"
+
+#: f71fd8627402475689dc970ed9c63272 of
+#: pymc_marketing.clv.utils.rfm_segments:30
+msgid "DataFrame"
+msgstr "DataFrame"
+
+#: 556c675b5206491788c80be5c2bc18c3 of
+#: pymc_marketing.clv.utils.rfm_segments:32
+msgid "A Pandas DataFrame containing *customer_id_col* and *datetime_col*."
+msgstr ""
+"Un DataFrame de Pandas que contiene *customer_id_col* y *datetime_col*."
+
+#: ccddd8a847a54ae9a82bbd3f4c9bfdb0 of
+#: pymc_marketing.clv.utils.rfm_segments:34
+msgid "**customer_id_col** : :class:`python:str`"
+msgstr "**customer_id_col** : :class:`python:str`"
+
+#: 2d05063cc05348d481bff54f24e49f7d 600488f565704a48886a7d54472c6c26
+#: d9cb88834de84e23ba1c87fc917a3149 of
+#: pymc_marketing.clv.utils.rfm_segments:33
+#: pymc_marketing.clv.utils.rfm_segments:36
+#: pymc_marketing.clv.utils.rfm_segments:39
+msgid "python:str"
+msgstr "python:str"
+
+#: 9e19a566236b49a591edfd82634def20 of
+#: pymc_marketing.clv.utils.rfm_segments:35
+msgid "Column in the *transactions* DataFrame denoting the *customer_id*."
+msgstr ""
+"Columna en el DataFrame de *transacciones* que denota el *customer_id*."
+
+#: 03a13c4551544811b0014bf57ac06727 of
+#: pymc_marketing.clv.utils.rfm_segments:37
+msgid "**datetime_col** :  :class:`python:str`"
+msgstr "**datetime_col** :  :class:`python:str`"
+
+#: 17efa406706d4b1a823f6e31ba1e3986 of
+#: pymc_marketing.clv.utils.rfm_segments:38
+msgid ""
+"Column in the *transactions* DataFrame denoting datetimes purchase were "
+"made."
+msgstr ""
+"Columna en el DataFrame de *transacciones* que denota las fechas y horas en "
+"que se realizaron las compras."
+
+#: 535ea1bf5015404a876b607ab577d665 of
+#: pymc_marketing.clv.utils.rfm_segments:40
+msgid "**monetary_value_col** : :class:`python:str`"
+msgstr "**monetary_value_col** : :class:`python:str`"
+
+#: 44d36f4937854d779db7da7f15a0f46d of
+#: pymc_marketing.clv.utils.rfm_segments:41
+msgid ""
+"Column in the *transactions* DataFrame that denotes the monetary value of "
+"the transaction."
+msgstr ""
+"Columna en el DataFrame de *transacciones* que denota el valor monetario de "
+"la transacción."
+
+#: d5dcbd155bb44891bd1ab2925d43dee1 of
+#: pymc_marketing.clv.utils.rfm_segments:43
+msgid "**segment_config** : :class:`python:dict`, optional"
+msgstr "**segment_config** : :class:`python:dict`, opcional"
+
+#: 81bf0f9aae7c4c0dbeb0bed699250e52 of
+#: pymc_marketing.clv.utils.rfm_segments:42
+msgid "python:dict, optional"
+msgstr "python:dict, opcional"
+
+#: f2a918e80a0f4c6b8666759a90a0feee of
+#: pymc_marketing.clv.utils.rfm_segments:44
+#, python-brace-format
+msgid ""
+"Dictionary containing segment names and list of RFM score assignments; "
+"key/value pairs should be formatted as `{\"segment\": ['111', '123', '321'],"
+" ...}`. If not provided, default segment names and definitions are applied."
+msgstr ""
+"Diccionario que contiene nombres de segmentos y lista de asignaciones de "
+"puntuaciones RFM; los pares clave/valor deben estar formateados como "
+"`{\"segment\": ['111', '123', '321'], ...}`. Si no se proporciona, se "
+"aplican los nombres y definiciones de segmentos predeterminados."
+
+#: d8ae036ce01d446eafe91801ca8c8529 of
+#: pymc_marketing.clv.utils.rfm_segments:48
+msgid ""
+"**observation_period_end** : :obj:`Union`\\[:class:`python:str`, "
+":obj:`pandas.Period`, :obj:`datetime`, :data:`python:None`], optional"
+msgstr ""
+"**observation_period_end** : :obj:`Union`\\[:class:`python:str`, "
+":obj:`pandas.Period`, :obj:`datetime`, :data:`python:None`], opcional"
+
+#: eaf587d21bc449df994c0eb9d0536bc5 of
+#: pymc_marketing.clv.utils.rfm_segments:47
+msgid "Union[python:str, pandas.Period, datetime, python:None], optional"
+msgstr "Unión[python:str, pandas.Period, datetime, python:None], opcional"
+
+#: f09bc3e6900b41788ff3a2bd8f42d33f of
+#: pymc_marketing.clv.utils.rfm_segments:49
+msgid ""
+"A string or datetime to denote the final date of the study. Events after "
+"this date are truncated. If not given, defaults to the max of "
+"*datetime_col*."
+msgstr ""
+"Una cadena o fecha y hora para denotar la fecha final del estudio. Los "
+"eventos después de esta fecha se truncarán. Si no se proporciona, se "
+"establece por defecto en el máximo de *datetime_col*."
+
+#: bcabefaea88b4bd4a94248821ea989af of
+#: pymc_marketing.clv.utils.rfm_segments:52
+msgid "**datetime_format** : :class:`python:str`, optional"
+msgstr "**datetime_format** : :class:`python:str`, opcional"
+
+#: 6841d82c9ac24b0692851ca7ade5030f 7066f44202a34e669046cedaa3411874 of
+#: pymc_marketing.clv.utils.rfm_segments:51
+#: pymc_marketing.clv.utils.rfm_segments:54
+msgid "python:str, optional"
+msgstr "python:str, opcional"
+
+#: 68fc55e40b1a44a5aa49f854b0c8a0e8 of
+#: pymc_marketing.clv.utils.rfm_segments:53
+msgid ""
+"A string that represents the timestamp format. Useful if Pandas doesn't "
+"recognize the provided format."
+msgstr ""
+"Una cadena que representa el formato de la marca de tiempo. Útil si Pandas "
+"no reconoce el formato proporcionado."
+
+#: 16a1a9214a4b4074ba5950900cc1e64a of
+#: pymc_marketing.clv.utils.rfm_segments:55
+msgid "**time_unit** : :class:`python:str`, optional"
+msgstr "**unidad_tiempo** : :class:`python:str`, opcional"
+
+#: e37a9c051749471db617ed85f739332f of
+#: pymc_marketing.clv.utils.rfm_segments:56
+msgid ""
+"Time granularity for study. Default: 'D' for days. Possible values listed "
+"here: https://numpy.org/devdocs/reference/arrays.datetime.html#datetime-"
+"units"
+msgstr ""
+"Granularidad de tiempo para el estudio. Predeterminado: 'D' para días. Los "
+"valores posibles se enumeran aquí: "
+"https://numpy.org/devdocs/reference/arrays.datetime.html#datetime-units"
+
+#: 4224952ecf0c48b1b40b4e935c074875 of
+#: pymc_marketing.clv.utils.rfm_segments:60
+msgid "**time_scaler** : :class:`python:int`, optional"
+msgstr "**time_scaler** : :class:`python:int`, opcional"
+
+#: 8edd9d69032b4405abf2e51f7c70abff of
+#: pymc_marketing.clv.utils.rfm_segments:59
+msgid "python:int, optional"
+msgstr "python:int, opcional"
+
+#: 4a73439817434d3aaa3486ebed8c3d01 of
+#: pymc_marketing.clv.utils.rfm_segments:61
+msgid ""
+"Default: 1. Scales *recency* & *T* to a different time granularity. This is "
+"useful for datasets spanning many years, and running predictions in "
+"different time scales."
+msgstr ""
+"Predeterminado: 1. Escala *recencia* y *T* a una granularidad temporal "
+"diferente. Esto es útil para conjuntos de datos que abarcan muchos años y "
+"para realizar predicciones en diferentes escalas de tiempo."
+
+#: aed09f2b6a834952976b8285c8204e99 of
+#: pymc_marketing.clv.utils.rfm_segments:64
+msgid ""
+"**sort_transactions** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+"**sort_transactions** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 46114ec7abbf4c87b298d6662c62c3bb of
+#: pymc_marketing.clv.utils.rfm_segments:63
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: 5ecafb453b094a6f934b2d5f90da344d of
+#: pymc_marketing.clv.utils.rfm_segments:65
+msgid ""
+"Default: *True* If raw data is already sorted in chronological order, set to"
+" *False* to improve computational efficiency."
+msgstr ""
+"Predeterminado: *Verdadero* Si los datos sin procesar ya están ordenados en "
+"orden cronológico, establezca en *Falso* para mejorar la eficiencia "
+"computacional."
+
+#: e7d91d13a54243b59d01bda2920598da of pymc_marketing.clv.utils.rfm_segments
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 8f0b32527a6a4d2aa8816b500b1483af of
+#: pymc_marketing.clv.utils.rfm_segments:72
+msgid ":obj:`DataFrame`"
+msgstr ":obj:`DataFrame`"
+
+#: 73f89dc09cde48f389138b7f7d47f5ef of
+#: pymc_marketing.clv.utils.rfm_segments:73
+msgid ""
+"Dataframe containing summarized RFM data, RFM scores, and segment "
+"assignments"
+msgstr ""
+"Dataframe que contiene datos RFM resumidos, puntuaciones RFM y asignaciones "
+"de segmentos"

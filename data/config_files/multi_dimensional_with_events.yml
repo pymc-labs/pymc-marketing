@@ -67,9 +67,6 @@ model:
       chains: 4
       random_seed: 42
       target_accept: 0.92
-      # nuts_sampler: "nutpie"
-      # nuts_sampler_kwargs:
-      #   backend: "jax"
 
 # ----------------------------------------------------------------------
 # Effects with complex priors

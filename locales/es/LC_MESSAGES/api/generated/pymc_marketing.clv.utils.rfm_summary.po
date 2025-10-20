@@ -1,0 +1,276 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.clv.utils.rfm_summary.rst:2
+#: bbb5852d5c074df9a2db35d5d91077ca
+msgid "rfm\\_summary"
+msgstr "rfm\\_summary"
+
+#: 733f40f968d442d589dbe17ce9fe8224 of pymc_marketing.clv.utils.rfm_summary:2
+msgid ""
+"Summarize transaction data for use in CLV modeling or RFM segmentation."
+msgstr ""
+"Resuma los datos de transacciones para su uso en la modelización de CLV o en"
+" la segmentación RFM."
+
+#: bc6b20f627ba4666b636e49be1c17240 of pymc_marketing.clv.utils.rfm_summary:4
+msgid "This transforms a DataFrame of transaction data of the form:"
+msgstr "Esto transforma un DataFrame de datos de transacciones de la forma:"
+
+#: 76df3547f5284c2289f9608afd54c973 of pymc_marketing.clv.utils.rfm_summary:5
+msgid "*customer_id, datetime [, monetary_value]*"
+msgstr "*customer_id, fecha y hora [, valor_monetario]*"
+
+#: e5f96df1bc3c4cb3b3b27307ba5af082 of pymc_marketing.clv.utils.rfm_summary:6
+msgid "to a DataFrame for CLV modeling:"
+msgstr "a un DataFrame para el modelado de CLV:"
+
+#: 06925841c67b4718afc6e577778ac2e5 of pymc_marketing.clv.utils.rfm_summary:7
+msgid "*customer_id, frequency, recency, T [, monetary_value]*"
+msgstr "*customer_id, frecuencia, recencia, T [, valor_monetario]*"
+
+#: 0c520e7538f5432ba8704ecb0f9274e2 of pymc_marketing.clv.utils.rfm_summary:9
+msgid ""
+"If the `include_first_transaction = True` argument is specified, a DataFrame"
+" for RFM segmentation is returned:"
+msgstr ""
+"Si se especifica el argumento `include_first_transaction = True`, se "
+"devuelve un DataFrame para la segmentación RFM:"
+
+#: b320a7ffb7a8421b9ad412ddae26214d of pymc_marketing.clv.utils.rfm_summary:10
+msgid "*customer_id, frequency, recency, monetary_value*"
+msgstr "*id_cliente, frecuencia, recencia, valor_monetario*"
+
+#: 4577106511484695ba1a3096f6189096 of pymc_marketing.clv.utils.rfm_summary:12
+msgid "This function is not required if using the `clv.rfm_segments` utility."
+msgstr ""
+"Esta función no es necesaria si se utiliza la utilidad `clv.rfm_segments`."
+
+#: 4b8dadaa762d4a738444421998c4d880 of pymc_marketing.clv.utils.rfm_summary:14
+msgid ""
+"Adapted from lifetimes package "
+"https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/utils.py#L230"
+msgstr ""
+"Adaptado del paquete lifetimes "
+"https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/utils.py#L230"
+
+#: 85bf68bdc1bc4de288704dd71a762fff of pymc_marketing.clv.utils.rfm_summary
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: dcfde679d12b4b16bd8fdffcd822d737 of pymc_marketing.clv.utils.rfm_summary:19
+msgid "**transactions** : :obj:`~pandas.DataFrame`"
+msgstr "**transacciones** : :obj:`~pandas.DataFrame`"
+
+#: b40d3b1922894027aab54298823880cb of pymc_marketing.clv.utils.rfm_summary:18
+msgid "DataFrame"
+msgstr "DataFrame"
+
+#: 318eab06ba004e6abd926cb2d012caeb of pymc_marketing.clv.utils.rfm_summary:20
+msgid "A Pandas DataFrame containing *customer_id_col* and *datetime_col*."
+msgstr ""
+"Un DataFrame de Pandas que contiene *customer_id_col* y *datetime_col*."
+
+#: 9b0998c021f64b00b72f7987813fa332 of pymc_marketing.clv.utils.rfm_summary:22
+msgid "**customer_id_col** : :class:`python:str`"
+msgstr "**customer_id_col** : :class:`python:str`"
+
+#: 246f06be707e46d8bce003fc3db3ed7e a9feeb7ccbcd45e095802ba94095c1c0 of
+#: pymc_marketing.clv.utils.rfm_summary:21
+#: pymc_marketing.clv.utils.rfm_summary:24
+msgid "python:str"
+msgstr "python:str"
+
+#: 69e39866cd6342a0b96d030bb6570193 of pymc_marketing.clv.utils.rfm_summary:23
+msgid "Column in the *transactions* DataFrame denoting the *customer_id*."
+msgstr ""
+"Columna en el DataFrame de *transacciones* que denota el *customer_id*."
+
+#: 611e4d37e07444f49d8f3523b4b6fed7 of pymc_marketing.clv.utils.rfm_summary:25
+msgid "**datetime_col** :  :class:`python:str`"
+msgstr "**datetime_col** :  :class:`python:str`"
+
+#: b6865f3223ab456e9e3eede394cc4115 of pymc_marketing.clv.utils.rfm_summary:26
+msgid ""
+"Column in the *transactions* DataFrame denoting datetimes purchase were "
+"made."
+msgstr ""
+"Columna en el DataFrame de *transacciones* que denota las fechas y horas en "
+"las que se realizaron las compras."
+
+#: 03763c09d88e4b29906e8c58b3c36a95 a43a33d43d22492ebcf29dc63ecec381 of
+#: pymc_marketing.clv.utils.rfm_summary:28
+#: pymc_marketing.clv.utils.rfm_summary:51
+msgid "**monetary_value_col** : :class:`python:str`, optional"
+msgstr "**monetary_value_col** : :class:`python:str`, opcional"
+
+#: 04bcf7277e0a40e89b1cfc1e06f1453e 1864f0654fb14d16bb044e48f399df34
+#: 75296c6c06d94e0a80a85d9a260203df 79ef84748d8e4e65b20499dc4a91e07e
+#: 98dcbbf727d64260bf0c10a0c1bf5413 of pymc_marketing.clv.utils.rfm_summary:27
+#: pymc_marketing.clv.utils.rfm_summary:35
+#: pymc_marketing.clv.utils.rfm_summary:38
+#: pymc_marketing.clv.utils.rfm_summary:47
+#: pymc_marketing.clv.utils.rfm_summary:50
+msgid "python:str, optional"
+msgstr "python:str, opcional"
+
+#: 9daabf0b1d6b410a8516daefe4670ce7 of pymc_marketing.clv.utils.rfm_summary:29
+msgid ""
+"Column in the transactions DataFrame denoting the monetary value of the "
+"transaction. Optional; only needed for RFM segmentation and spend estimation"
+" models like the Gamma-Gamma model."
+msgstr ""
+"Columna en el DataFrame de transacciones que denota el valor monetario de la"
+" transacción. Opcional; solo se necesita para la segmentación RFM y modelos "
+"de estimación de gasto como el modelo Gamma-Gamma."
+
+#: c4d021d2f1c7417e9bc19a7cfb4ad52e of pymc_marketing.clv.utils.rfm_summary:32
+msgid ""
+"**observation_period_end** : :obj:`Union`\\[:class:`python:str`, "
+":obj:`pandas.Period`, :obj:`datetime`], optional"
+msgstr ""
+"**fin_del_período_de_observación** : :obj:`Union`\\[:class:`python:str`, "
+":obj:`pandas.Period`, :obj:`datetime`], opcional"
+
+#: 4f49e070878f4fe5974fd979f18ea057 of pymc_marketing.clv.utils.rfm_summary:31
+msgid "Union[python:str, pandas.Period, datetime], optional"
+msgstr "Unión[python:str, pandas.Period, datetime], opcional"
+
+#: 9a95d92696634c65a7ccb1116fb74e4b of pymc_marketing.clv.utils.rfm_summary:33
+msgid ""
+"A string or datetime to denote the final date of the study. Events after "
+"this date are truncated. If not given, defaults to the max 'datetime_col'."
+msgstr ""
+"Una cadena o fecha y hora para denotar la fecha final del estudio. Los "
+"eventos posteriores a esta fecha se truncarán. Si no se proporciona, se "
+"establece por defecto en el máximo 'datetime_col'."
+
+#: 53501b0ec4bb458da1c8b954362baf5d a592ff8df92d489893f92d6909d49617 of
+#: pymc_marketing.clv.utils.rfm_summary:36
+#: pymc_marketing.clv.utils.rfm_summary:48
+msgid "**datetime_format** : :class:`python:str`, optional"
+msgstr "**datetime_format** : :class:`python:str`, opcional"
+
+#: 2b916ce179cd4264877045f14fe329c7 a8a44fe0a4dd4a5ca60d8d41e5ac280b of
+#: pymc_marketing.clv.utils.rfm_summary:37
+#: pymc_marketing.clv.utils.rfm_summary:49
+msgid ""
+"A string that represents the timestamp format. Useful if Pandas doesn't "
+"recognize the provided format."
+msgstr ""
+"Una cadena que representa el formato de la marca de tiempo. Útil si Pandas "
+"no reconoce el formato proporcionado."
+
+#: 918244989eab4f97a12c2b239fac69f2 of pymc_marketing.clv.utils.rfm_summary:39
+msgid "**time_unit** : :class:`python:str`, optional"
+msgstr "**unidad_tiempo** : :class:`python:str`, opcional"
+
+#: 2b0007eb2e514cf6a145ef5bd5ce4a2c of pymc_marketing.clv.utils.rfm_summary:40
+msgid ""
+"Time granularity for study. Default: 'D' for days. Possible values listed "
+"here: https://numpy.org/devdocs/reference/arrays.datetime.html#datetime-"
+"units"
+msgstr ""
+"Granularidad de tiempo para el estudio. Predeterminado: 'D' para días. Los "
+"valores posibles se enumeran aquí: "
+"https://numpy.org/devdocs/reference/arrays.datetime.html#datetime-units"
+
+#: 859a40376c694002b0586234ab047f34 of pymc_marketing.clv.utils.rfm_summary:44
+msgid "**time_scaler** : :class:`python:int`, optional"
+msgstr "**time_scaler** : :class:`python:int`, opcional"
+
+#: 7452e548c209457f967d8204e701c6c3 of pymc_marketing.clv.utils.rfm_summary:43
+msgid "python:int, optional"
+msgstr "python:int, opcional"
+
+#: 6e52b957371f47ea900f1eb304bc1d7c of pymc_marketing.clv.utils.rfm_summary:45
+msgid ""
+"Default: 1. Scales *recency* & *T* to a different time granularity. This is "
+"useful for datasets spanning many years, and running predictions in "
+"different time scales."
+msgstr ""
+"Predeterminado: 1. Escala *recency* y *T* a una granularidad temporal "
+"diferente. Esto es útil para conjuntos de datos que abarcan muchos años y "
+"para realizar predicciones en diferentes escalas de tiempo."
+
+#: 2cb3b37d387e4b59a4fcb81244c67235 of pymc_marketing.clv.utils.rfm_summary:52
+msgid ""
+"Column in the *transactions* DataFrame that denotes the monetary value of "
+"the transaction. Optional; only needed for spend estimation models like the "
+"Gamma-Gamma model."
+msgstr ""
+"Columna en el DataFrame de *transacciones* que denota el valor monetario de "
+"la transacción. Opcional; solo se necesita para modelos de estimación de "
+"gastos como el modelo Gamma-Gamma."
+
+#: e6e0ec932f5c4aa1b27eb1af9b63756b of pymc_marketing.clv.utils.rfm_summary:55
+msgid ""
+"**include_first_transaction** : :ref:`bool <python:bltin-boolean-values>`, "
+"optional"
+msgstr ""
+"**include_first_transaction** : :ref:`bool <python:bltin-boolean-values>`, "
+"opcional"
+
+#: 1a65f95197b7453288ae69232eb2d404 60cc41ea95274ab7b55603bc83b31eff of
+#: pymc_marketing.clv.utils.rfm_summary:54
+#: pymc_marketing.clv.utils.rfm_summary:59
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: eccead1b91f1427b8678e673fadfacc9 of pymc_marketing.clv.utils.rfm_summary:56
+msgid ""
+"Default: *False* For predictive CLV modeling, this should be *False*. Set to"
+" *True* if performing RFM segmentation."
+msgstr ""
+"Predeterminado: *Falso* Para el modelado predictivo del CLV, esto debe ser "
+"*Falso*. Establezca en *Verdadero* si está realizando segmentación RFM."
+
+#: 8679ebc8f25945e982707913f9b205a2 of pymc_marketing.clv.utils.rfm_summary:60
+msgid ""
+"**sort_transactions** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+"**sort_transactions** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: d5914c62f81742e2b7625db67cf62861 of pymc_marketing.clv.utils.rfm_summary:61
+msgid ""
+"Default: *True* If raw data is already sorted in chronological order, set to"
+" *False* to improve computational efficiency."
+msgstr ""
+"Predeterminado: *Verdadero* Si los datos sin procesar ya están ordenados en "
+"orden cronológico, establezca en *Falso* para mejorar la eficiencia "
+"computacional."
+
+#: 0177fed006c84ff3be1c73fbe0bea9ef of pymc_marketing.clv.utils.rfm_summary
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 2a32f7021dc4434fbadc4020ca7cb7ee of pymc_marketing.clv.utils.rfm_summary:68
+msgid ":obj:`DataFrame`"
+msgstr ":obj:`DataFrame`"
+
+#: bbdf63f982174896b39402af527bfb40 of pymc_marketing.clv.utils.rfm_summary:69
+msgid ""
+"Dataframe containing summarized RFM data, and test columns for *frequency*, "
+"*T*, and *monetary_value* if specified"
+msgstr ""
+"Dataframe que contiene datos RFM resumidos y columnas de prueba para "
+"*frecuencia*, *T* y *valor_monetario* si se especifican."

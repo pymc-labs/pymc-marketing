@@ -1,0 +1,292 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest.rst:2
+#: feabe1ad7cea43d29a99e252effa4b4b
+msgid "NestedLogit.make\\_exp\\_nest"
+msgstr "NestedLogit.hacer\\_exp\\_nido"
+
+#: 4b1436bb4ad142528423da7d4f94e98f of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:2
+msgid "Calculate within-nest probabilities for nested logit models."
+msgstr ""
+"Calcular las probabilidades dentro del nido para modelos logit anidados."
+
+#: 474ed4135a7142da88dbfa1236956349 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:4
+msgid ""
+"This function recursively computes the utility aggregates used to build a "
+"nested logit model within a PyMC probabilistic framework. Specifically, it "
+"calculates:"
+msgstr ""
+"Esta función calcula recursivamente los agregados de utilidad utilizados "
+"para construir un modelo logit anidado dentro de un marco probabilístico de "
+"PyMC. Específicamente, calcula:"
+
+#: ff7420094c8d439599186bfe23f9a03b of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:7
+msgid "**Conditional choice probabilities within a nest**:"
+msgstr "**Probabilidades de elección condicional dentro de un nido**:"
+
+#: 2e5e3cf2e0cb45ea9bab6538b8be38d5 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:9
+msgid ""
+"$$ P(y_i = j \\mid j \\in \\text{nest}) = \\frac{\\exp\\left( "
+"\\frac{U_{ij}}{\\lambda} \\right)}"
+msgstr ""
+"$$ P(y_i = j \\mid j \\in \\text{nest}) = \\frac{\\exp\\left( "
+"\\frac{U_{ij}}{\\lambda} \\right)}"
+
+#: 8e333649349b4187a41409687aa68b6c of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:12
+msgid "{\\sum_{j \\in \\text{nest}} \\exp\\left( \\frac{U_{ij}}{\\lambda} \\right)}"
+msgstr "{\\sum_{j \\in \\text{nest}} \\exp\\left( \\frac{U_{ij}}{\\lambda} \\right)}"
+
+#: 22eab0f8645647fbb44265e8db57d4d0 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:13
+msgid "$$"
+msgstr ""
+"Lo siento, pero no hay texto para traducir. Por favor, proporciona el texto "
+"que deseas traducir."
+
+#: 6d6ed8a93da8433b80d398031ef02d01 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:15
+msgid ""
+"This is a softmax probability scaled by the nest-specific temperature "
+"(scale) parameter \\\\( \\lambda \\\\)."
+msgstr ""
+"Esta es una probabilidad softmax escalada por el parámetro de temperatura "
+"específico del nido (escala) \\\\( \\lambda \\\\)."
+
+#: e1ed125933d54c4385c53a5ef5b6791f of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:18
+msgid "**Inclusive value (or log-sum utility)**:"
+msgstr "**Valor inclusivo (o utilidad de suma logarítmica)**:"
+
+#: 0338df8865964267a42deb023a207eb4 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:20
+msgid ""
+"$$ I_{\\text{nest}}(i) = \\lambda \\cdot \\log \\left( \\sum_{j \\in "
+"\\text{nest}} \\exp \\left( \\frac{U_{ij}}{\\lambda} \\right) \\right) $$"
+msgstr ""
+"$$ I_{\\text{nest}}(i) = \\lambda \\cdot \\log \\left( \\sum_{j \\in "
+"\\text{nest}} \\exp \\left( \\frac{U_{ij}}{\\lambda} \\right) \\right) $$"
+
+#: 226dec8c34a84340a02fe22a8f78bd7d of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:25
+msgid ""
+"This quantity represents the “meta-utility” of a nest, passed up the "
+"hierarchy in nested logit models."
+msgstr ""
+"Esta cantidad representa la “meta-utilidad” de un nido, transmitida a través"
+" de la jerarquía en modelos de logit anidados."
+
+#: b3fe686042eb4cd288a4a53a1b7bbcb2 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:28
+msgid "**Exponentiated meta-utility**:"
+msgstr "**Meta-utilidad exponenciada**:"
+
+#: cbecc35451bf4187a66cc81778f081dc of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:30
+msgid ""
+"An exponentiated term combining inclusive value and fixed covariate "
+"contributions, used when computing choice probabilities in the parent nest."
+msgstr ""
+"Un término exponenciado que combina el valor inclusivo y las contribuciones "
+"de covariables fijas, utilizado al calcular las probabilidades de elección "
+"en el nido principal."
+
+#: 6b66f74bf99447b8965da5e72de41ddb of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 981887bb2cd543b2b994fce6b34b0bdb of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:35
+msgid "**U** : :class:`~pytensor.tensor.TensorVariable`"
+msgstr "**U** : :class:`~pytensor.tensor.TensorVariable`"
+
+#: 161ba50a27974ad99a3d3ebf70196f2e 322a5b4a08a4472fbd66dffdc85ccbda
+#: 6fb995635da040b3ad31952c36f3ac8e f40ecc3f279546e3b4b6272e00f4f9d0
+#: fa84daf9da2e4f4f8fbbd475091297b2 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:34
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:42
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:46
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:62
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:66
+msgid "TensorVariable"
+msgstr "TensorVariable"
+
+#: 596cbaac72a245a3890cb074024cd735 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:36
+msgid ""
+"Tensor of shape (N, J), where N is the number of observations and J is the "
+"number of alternatives. Represents latent utilities."
+msgstr ""
+"Tensor de forma (N, J), donde N es el número de observaciones y J es el "
+"número de alternativas. Representa utilidades latentes."
+
+#: 7aa9aea1223749f78deb710e2922cd4a of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:39
+msgid ""
+"**W** : :class:`~pytensor.tensor.TensorVariable` or :data:`python:None`"
+msgstr ""
+"**W** : :class:`~pytensor.tensor.TensorVariable` o :data:`python:None`"
+
+#: a94e8430181a4c5aa5ec02113d490e8a of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:38
+msgid "TensorVariable or python:None"
+msgstr "TensorVariable o python:None"
+
+#: dca99dba30eb46debd4be9e4b26c849d of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:40
+msgid ""
+"Optional tensor of shape (N, K), where K is the number of fixed covariates. "
+"Represents covariate contributions that do not vary across alternatives."
+msgstr ""
+"Tensor opcional de forma (N, K), donde K es el número de covariables fijas. "
+"Representa las contribuciones de covariables que no varían entre "
+"alternativas."
+
+#: aa08bb6da2384a8f96a154f1481930f2 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:43
+msgid "**betas_fixed** : :class:`~pytensor.tensor.TensorVariable`"
+msgstr "**betas_fixed** : :class:`~pytensor.tensor.TensorVariable`"
+
+#: 505b72c1451c409bbe54346355e8bb02 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:44
+msgid ""
+"Tensor of shape (J, K), with one coefficient vector per alternative for "
+"fixed (non-alternative-varying) covariates."
+msgstr ""
+"Tensor de forma (J, K), con un vector de coeficientes por alternativa para "
+"covariables fijas (no variables según la alternativa)."
+
+#: 9e332d91fd184058b348a7e2c19dd0e8 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:47
+msgid "**lambdas_nests** : :class:`~pytensor.tensor.TensorVariable`"
+msgstr "**lambdas_nests** : :class:`~pytensor.tensor.TensorVariable`"
+
+#: c4aab4788da8457e97930c9095c5190b of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:48
+msgid ""
+"A tensor containing the nest-specific scale parameters \\\\( \\lambda \\\\),"
+" typically modeled with a Beta distribution."
+msgstr ""
+"Un tensor que contiene los parámetros de escala específicos del nido \\\\( "
+"\\lambda \\\\), modelados típicamente con una distribución Beta."
+
+#: c2676b77b0924ed19123dfd99bdfd573 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:51
+msgid "**nest** : :class:`python:str`"
+msgstr "**nido** : :class:`python:str`"
+
+#: 1ab148acd156478ea9beab55ec8cadad of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:50
+msgid "python:str"
+msgstr "python:str"
+
+#: 8803cfaf736e45b390a2329ce26c7136 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:52
+msgid ""
+"Name of the current nest to process (e.g., `\"Land\"` or `\"Land_Car\"`). "
+"Determines which subset of alternatives belongs to the nest."
+msgstr ""
+"Nombre del nido actual a procesar (por ejemplo, {Land} o {Land_Car}). "
+"Determina qué subconjunto de alternativas pertenece al nido."
+
+#: 17b2c2f8cf394e3082725c856eacb1ff of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:55
+msgid "**level** : :class:`python:str`, default=\"top\""
+msgstr "**nivel** : :class:`python:str`, predeterminado=\"top\""
+
+#: 1cccd1c9f15e481da3ab0291000f3c81 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:54
+msgid "python:str, default=\"top\""
+msgstr "python:str, predeterminado=\"top\""
+
+#: a7c5a58464c84821b03815450e2911d4 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:56
+msgid ""
+"Either `\"top\"` or `\"mid\"`, indicating the level of the nest in the "
+"hierarchical structure. Used to select the correct index mapping."
+msgstr ""
+"Ya sea `\"top\"` o `\"mid\"`, indicando el nivel del nido en la estructura "
+"jerárquica. Se utiliza para seleccionar el mapeo de índice correcto."
+
+#: 7e8c58b856b74efda6329c449484e375 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: e19c257a31f9433aa75f09e0ea6c8d3a of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:63
+msgid "**exp_W_nest** : :class:`~pytensor.tensor.TensorVariable`"
+msgstr "**exp_W_nest** : :class:`~pytensor.tensor.TensorVariable`"
+
+#: 4fe2e361cd1d449abeaa083947d2560e of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:64
+msgid ""
+"Exponentiated meta-utility for the current nest, used in the parent nest’s "
+"softmax normalization."
+msgstr ""
+"Meta-utilidad exponenciada para el nido actual, utilizada en la "
+"normalización softmax del nido padre."
+
+#: 6e12093ee6ab449d927d3543305e1d6d of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:67
+msgid "**P_y_given_nest** : :class:`~pytensor.tensor.TensorVariable`"
+msgstr "**P_y_dado_nido** : :class:`~pytensor.tensor.TensorVariable`"
+
+#: 9bf84d98954046289d2ab14a75b69906 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:68
+msgid ""
+"Conditional probability of choosing each alternative within the current "
+"nest."
+msgstr ""
+"Probabilidad condicional de elegir cada alternativa dentro del nido actual."
+
+#: a354847ba6274d758e22d3f7a85b3eea of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:78
+msgid "Notes"
+msgstr "Notas"
+
+#: 64129d428f494b09901189ea229ce8cf of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:79
+msgid ""
+"This function supports two-level nested logit models, where alternatives are"
+" grouped into mutually exclusive nests. The scale parameter \\\\( \\lambda "
+"\\\\) controls the degree of substitutability within each nest."
+msgstr ""
+"Esta función admite modelos logit anidados de dos niveles, donde las "
+"alternativas se agrupan en nidos mutuamente excluyentes. El parámetro de "
+"escala \\\\( \\lambda \\\\) controla el grado de sustituibilidad dentro de "
+"cada nido."
+
+#: 2e6d8c3cd8b44a4f8723bebab2c0ac3a of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:83
+msgid ""
+"Currently, deeper nesting levels (more than two) are not supported, to "
+"simplify both modeling and computation."
+msgstr ""
+"Actualmente, no se admiten niveles de anidamiento más profundos (más de dos)"
+" para simplificar tanto la modelización como el cálculo."

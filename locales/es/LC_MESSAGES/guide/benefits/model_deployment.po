@@ -1,0 +1,331 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/guide/benefits/model_deployment.ipynb:10003
+#: 1b0c8a70411c46d2b1fe60ace462868c
+msgid "Model deployment"
+msgstr "Despliegue del modelo"
+
+#: ../source/guide/benefits/model_deployment.ipynb:20002
+#: 0cf2b0c2ce4b458483f7395095859ea4
+msgid ""
+"One of the main goals of PyMC-Marketing is to facilitate the deployment of "
+"its models."
+msgstr ""
+"Uno de los principales objetivos de PyMC-Marketing es facilitar el "
+"despliegue de sus modelos."
+
+#: ../source/guide/benefits/model_deployment.ipynb:30002
+#: 77f24e91f4e94dbe8d56d37406ff2baa
+msgid ""
+"This is achieved by building our models on top of "
+"[ModelBuilder](https://www.pymc-"
+"marketing.io/en/stable/api/generated/pymc_marketing.model_builder.ModelBuilder.html#pymc_marketing.model_builder.ModelBuilder)"
+" that offers a scikit-learn-like API and makes PyMC models easy to deploy."
+msgstr ""
+"Esto se logra construyendo nuestros modelos sobre "
+"[ModelBuilder](https://www.pymc-"
+"marketing.io/en/stable/api/generated/pymc_marketing.model_builder.ModelBuilder.html#pymc_marketing.model_builder.ModelBuilder)"
+" que ofrece una API similar a scikit-learn y facilita el despliegue de "
+"modelos PyMC."
+
+#: ../source/guide/benefits/model_deployment.ipynb:30004
+#: 73431aca18b143abad87526e070d00ef
+msgid ""
+"PyMC-marketing models inherit 2 easy-to-use methods: `save` and `load` that "
+"can be used after the model has been fitted. All models can be configured "
+"with two standard dictionaries: `model_config` and `sampler_config` that are"
+" serialized during `save` and persisted after `load`, allowing model reuse "
+"across workflows."
+msgstr ""
+"Los modelos de PyMC-marketing heredan 2 métodos fáciles de usar: `save` y "
+"`load` que se pueden utilizar después de que el modelo ha sido ajustado. "
+"Todos los modelos se pueden configurar con dos diccionarios estándar: "
+"`model_config` y `sampler_config` que se serializan durante `save` y se "
+"persisten después de `load`, permitiendo la reutilización del modelo a "
+"través de flujos de trabajo."
+
+#: ../source/guide/benefits/model_deployment.ipynb:40002
+#: 5d47164867a74f68ba25fef66bb36963
+msgid ""
+"We will illustrate this functionality with the example model described in "
+"the [MMM Example Notebook](https://www.pymc-"
+"marketing.io/en/stable/notebooks/mmm/mmm_example.html). For sake of "
+"generality, we ommit most technical details here."
+msgstr ""
+"Ilustraremos esta funcionalidad con el modelo de ejemplo descrito en el "
+"[Cuaderno de Ejemplo MMM](https://www.pymc-"
+"marketing.io/en/stable/notebooks/mmm/mmm_example.html). Por el bien de la "
+"generalidad, omitimos la mayoría de los detalles técnicos aquí."
+
+#: ../source/guide/benefits/model_deployment.ipynb:70002
+#: a0f35f4d847a474795ef8ca8bd512fda
+msgid "Let's load the dataset:"
+msgstr "Carguemos el conjunto de datos:"
+
+#: ../source/guide/benefits/model_deployment.ipynb:90002
+#: 5f2d15a27e024c83aa7308b34ebc9642
+msgid ""
+"But for our model we need much smaller dataset, many of the previous "
+"features were contributing to generation of others, now as our target "
+"variable is computed we can filter out not needed columns:"
+msgstr ""
+"Pero para nuestro modelo necesitamos un conjunto de datos mucho más pequeño,"
+" muchas de las características anteriores estaban contribuyendo a la "
+"generación de otras, ahora que nuestra variable objetivo se ha calculado "
+"podemos filtrar las columnas que no son necesarias:"
+
+#: ../source/guide/benefits/model_deployment.ipynb:100002
+#: 83998522d0aa45c39e10b7c35f16950b
+msgid "Model and sampling configuration"
+msgstr "Configuración del modelo y muestreo"
+
+#: ../source/guide/benefits/model_deployment.ipynb:110002
+#: 559a08caa58545edae125e66d6c87dac
+msgid "Model configuration"
+msgstr "Configuración del modelo"
+
+#: ../source/guide/benefits/model_deployment.ipynb:120002
+#: 490b09ed1ce1464898455f427c182505
+msgid ""
+"We first illustrate the use of `model_config` to define custom priors within"
+" the model."
+msgstr ""
+"Primero ilustramos el uso de `model_config` para definir priors "
+"personalizados dentro del modelo."
+
+#: ../source/guide/benefits/model_deployment.ipynb:120004
+#: cb627ce62e6f48cf908538cf8623d2b8
+msgid ""
+"Because there are potentially many variables that can be configured, each "
+"model provides a `default_model_config` attribute. This will allow you to "
+"see which settings are available by default and only define the ones you "
+"need to change."
+msgstr ""
+"Porque hay potencialmente muchas variables que se pueden configurar, cada "
+"modelo proporciona un atributo `default_model_config`. Esto te permitirá ver"
+" qué configuraciones están disponibles por defecto y solo definir las que "
+"necesitas cambiar."
+
+#: ../source/guide/benefits/model_deployment.ipynb:120006
+#: 3cd5e135457a4fbd99071c71a27006c9
+msgid ""
+"We need to create a dummy model to be able to see the configuration "
+"dictionary."
+msgstr ""
+"Necesitamos crear un modelo ficticio para poder ver el diccionario de "
+"configuración."
+
+#: ../source/guide/benefits/model_deployment.ipynb:140002
+#: 68548186c2ff4037b81437baeaa9f82a
+msgid ""
+"We can change the parameters that go into the distribution of each term. In "
+"this case we'll just simply replace the `sigma` for `saturation_beta` with a"
+" custom one:"
+msgstr ""
+"Podemos cambiar los parámetros que se utilizan en la distribución de cada "
+"término. En este caso, simplemente reemplazaremos el `sigma` por "
+"`saturation_beta` con uno personalizado:"
+
+#: ../source/guide/benefits/model_deployment.ipynb:180002
+#: 8e94d8249d554b35a1fb49f9ea31f783
+msgid ""
+"As mentioned in the original notebook: _\"For the prior specification there "
+"is no right or wrong answer. It all depends on the data, the context and the"
+" assumptions you are willing to make. It is always recommended to do some "
+"prior predictive sampling and sensitivity analysis to check the impact of "
+"the priors on the posterior. We skip this here for the sake of simplicity. "
+"If you are not sure about specific priors, the `MMM` class has some default "
+"priors that you can use as a starting point.\"_"
+msgstr ""
+"Como se mencionó en el cuaderno original: _\"Para la especificación previa "
+"no hay una respuesta correcta o incorrecta. Todo depende de los datos, el "
+"contexto y las suposiciones que estés dispuesto a hacer. Siempre se "
+"recomienda hacer un muestreo predictivo previo y un análisis de sensibilidad"
+" para verificar el impacto de las priors en el posterior. Saltamos esto aquí"
+" por el bien de la simplicidad. Si no estás seguro sobre priors específicos,"
+" la clase `MMM` tiene algunos priors predeterminados que puedes usar como "
+"punto de partida.\"_"
+
+#: ../source/guide/benefits/model_deployment.ipynb:190002
+#: 0d5ee4ae75dd4b1f9778941e15a46045
+msgid "Sampling  configuration"
+msgstr "Configuración de muestreo"
+
+#: ../source/guide/benefits/model_deployment.ipynb:200002
+#: 32243f9a06be4299847590e0f3b71e98
+msgid ""
+"The second feature we can customize is `sampler_config`. Similar to "
+"`model_config`, it's a dictionary that gets saved and contains things you "
+"would usually pass to the `fit()` kwargs. It's not mandatory to create your "
+"own `sampler_config`. The default `MMM.sampler_config` is empty because the "
+"default sampling parameters usually prove sufficient for a start."
+msgstr ""
+"La segunda característica que podemos personalizar es `sampler_config`. "
+"Similar a `model_config`, es un diccionario que se guarda y contiene cosas "
+"que normalmente pasarías a los kwargs de `fit()`. No es obligatorio crear tu"
+" propio `sampler_config`. El `MMM.sampler_config` por defecto está vacío "
+"porque los parámetros de muestreo por defecto suelen ser suficientes para "
+"comenzar."
+
+#: ../source/guide/benefits/model_deployment.ipynb:230002
+#: 1ef58be7071a405aa98cee935fa7f7cb
+msgid "Let's finally assemble our model!"
+msgstr "¡Finalmente ensamblamos nuestro modelo!"
+
+#: ../source/guide/benefits/model_deployment.ipynb:250002
+#: 52be13bb23f84c33905221151fd5ae9e
+msgid "We can confirm our settings are being used"
+msgstr "Podemos confirmar que se están utilizando nuestras configuraciones."
+
+#: ../source/guide/benefits/model_deployment.ipynb:280002
+#: 11d99bdf9d6f41bea42ea60b505f673d
+msgid "Model Fitting"
+msgstr "Ajuste del modelo"
+
+#: ../source/guide/benefits/model_deployment.ipynb:290002
+#: 25dcf8a5ddcd4002b28b6f083dca33d4
+msgid ""
+"Note that we didn't pass the dataset to the class constructor itself. This "
+"is done to mimick the `scikit-learn` API, and make it easier to get started "
+"on PyMC-Marketing models."
+msgstr ""
+"Nota que no pasamos el conjunto de datos al constructor de la clase en sí. "
+"Esto se hace para imitar la API de `scikit-learn` y facilitar el inicio en "
+"los modelos de PyMC-Marketing."
+
+#: ../source/guide/benefits/model_deployment.ipynb:310002
+#: 9396ac49b8cd499fb2bd523de9aa63d0
+msgid "All that's left now is to finally fit the model:"
+msgstr "Todo lo que queda ahora es finalmente ajustar el modelo:"
+
+#: ../source/guide/benefits/model_deployment.ipynb:310004
+#: 0f279b3e962b48fda049d6f8c1e9c951
+msgid ""
+"As you can see below, you can still pass the sampler kwargs directly to "
+"`fit()` method. However, only those kwargs passed using `sampler_config` "
+"will be saved and reused after loading the model."
+msgstr ""
+"Como puedes ver a continuación, aún puedes pasar los kwargs del muestreador "
+"directamente al método `fit()`. Sin embargo, solo aquellos kwargs pasados "
+"usando `sampler_config` serán guardados y reutilizados después de cargar el "
+"modelo."
+
+#: ../source/guide/benefits/model_deployment.ipynb:330002
+#: a2936c641a8d463e8c214fc371dd7715
+msgid ""
+"The `fit()` method automatically builds the model using the priors from "
+"`model_config`, and assigns the created model to our instance. You can "
+"access it as a normal attribute."
+msgstr ""
+"El método `fit()` construye automáticamente el modelo utilizando los priors "
+"de `model_config`, y asigna el modelo creado a nuestra instancia. Puedes "
+"acceder a él como un atributo normal."
+
+#: ../source/guide/benefits/model_deployment.ipynb:360002
+#: a0c9cd9d686a412aa142f55e0c6555d3
+msgid "posterior trace can be accessed by `fit_result` attribute"
+msgstr ""
+"el rastro posterior se puede acceder a través del atributo `fit_result`"
+
+#: ../source/guide/benefits/model_deployment.ipynb:380002
+#: 74e7496b71894520a2a5747e3d28bcd7
+msgid ""
+"If you wish to inspect the entire inference data, use the `idata` attribute."
+" Within `idata`, you can find the entire dataset passed to the model under "
+"`fit_data`."
+msgstr ""
+"Si deseas inspeccionar todos los datos de inferencia, utiliza el atributo "
+"`idata`. Dentro de `idata`, puedes encontrar todo el conjunto de datos "
+"pasado al modelo bajo `fit_data`."
+
+#: ../source/guide/benefits/model_deployment.ipynb:400002
+#: 8ecf0d2b971a4adcba04b2f2b3c5f9bb
+msgid "Saving and loading a fitted model"
+msgstr "Guardando y cargando un modelo ajustado"
+
+#: ../source/guide/benefits/model_deployment.ipynb:410002
+#: 98dbca4cb385495db4bab010c971ff97
+msgid ""
+"All the data passed to the model on initialization is stored in "
+"`idata.attrs`. This will be used later in the `save()` method to convert "
+"both this data and all the fit data into the netCDF format. You can read "
+"more about this format "
+"[here](https://python.arviz.org/en/stable/getting_started/XarrayforArviZ.html)."
+msgstr ""
+"Todos los datos pasados al modelo en la inicialización se almacenan en "
+"`idata.attrs`. Esto se utilizará más tarde en el método `save()` para "
+"convertir tanto estos datos como todos los datos de ajuste en el formato "
+"netCDF. Puedes leer más sobre este formato "
+"[aquí](https://python.arviz.org/en/stable/getting_started/XarrayforArviZ.html)."
+
+#: ../source/guide/benefits/model_deployment.ipynb:420002
+#: 819e38330234465c8cc40e4558972615
+msgid ""
+"The `save` and `load` method only require a path to inform where the model "
+"should be saved and loaded from."
+msgstr ""
+"El método `save` y el método `load` solo requieren una ruta para informar "
+"dónde se debe guardar y cargar el modelo."
+
+#: ../source/guide/benefits/model_deployment.ipynb:490002
+#: 368db73d164b4b149daac6b3d3b4b4a0
+msgid ""
+"A loaded model is ready to be used for sampling and prediction, making use "
+"of the previous fitting results and data if needed."
+msgstr ""
+"Un modelo cargado está listo para ser utilizado para muestreo y predicción, "
+"aprovechando los resultados de ajuste anteriores y los datos si es "
+"necesario."
+
+#: ../source/guide/benefits/model_deployment.ipynb:520002
+#: 7fa9be8ff5e4491dbcd424ed038869c9
+msgid "Other models"
+msgstr "Otros modelos"
+
+#: ../source/guide/benefits/model_deployment.ipynb:530002
+#: 008c829248034c1eab382db4683c8ed0
+msgid ""
+"Even though this introduction is using `MMM`, all other PyMC-Marketing "
+"models (MMM and CLV) provide these functionalities as well."
+msgstr ""
+"Aunque esta introducción está utilizando `MMM`, todos los demás modelos de "
+"PyMC-Marketing (MMM y CLV) también ofrecen estas funcionalidades."
+
+#: ../source/guide/benefits/model_deployment.ipynb:540002
+#: 392a5bea5c84426e896e830f2f0adfa7
+msgid "Summary"
+msgstr "Resumen"
+
+#: ../source/guide/benefits/model_deployment.ipynb:550002
+#: 0985bf85eec042e58252484dbca32016
+msgid ""
+"The PyMC-Marketing functionalities described here are intended to facilitate"
+" model sharing among data science teams without demanding extensive "
+"modelling technical knowledge for everyone involved. We are still iterating "
+"on our API and would love to hear more feedback from our users!"
+msgstr ""
+"Las funcionalidades de PyMC-Marketing descritas aquí están destinadas a "
+"facilitar el intercambio de modelos entre equipos de ciencia de datos sin "
+"exigir un amplio conocimiento técnico de modelado para todos los "
+"involucrados. ¡Todavía estamos iterando en nuestra API y nos encantaría "
+"recibir más comentarios de nuestros usuarios!"

@@ -1,0 +1,51 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mlflow.log_likelihood_type.rst:2
+#: 4a16a480cbd14cf5b70e21a4e45c93b7
+msgid "log\\_likelihood\\_type"
+msgstr "tipo\\_de\\_log\\_verosimilitud"
+
+#: a7a42324f3764ff39eb23d18ff83566a of
+#: pymc_marketing.mlflow.log_likelihood_type:2
+msgid "Save the likelihood type of the model to MLflow."
+msgstr "Guarde el tipo de probabilidad del modelo en MLflow."
+
+#: d88a96b8162d42ea851f38055331b229 of
+#: pymc_marketing.mlflow.log_likelihood_type
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: d221453b7dce40f0929cc8ab77b109b9 of
+#: pymc_marketing.mlflow.log_likelihood_type:7
+msgid "**model** : :class:`~pymc.Model`"
+msgstr "**modelo** : :class:`~pymc.Model`"
+
+#: 97796d1d82c34a668b0796bf184b13e7 of
+#: pymc_marketing.mlflow.log_likelihood_type:6
+msgid "Model"
+msgstr "Modelo"
+
+#: 4557da6e425a400fbe34476f0a0bd12d of
+#: pymc_marketing.mlflow.log_likelihood_type:8
+msgid "The PyMC model object."
+msgstr "El objeto del modelo PyMC."

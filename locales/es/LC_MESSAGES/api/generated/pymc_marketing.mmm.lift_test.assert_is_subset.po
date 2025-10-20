@@ -1,0 +1,80 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.assert_is_subset.rst:2
+#: 30f18d83292941f893d95c34780ea4db
+msgid "assert\\_is\\_subset"
+msgstr "assert\\_is\\_subset"
+
+#: b648879c54ee4a1988d99939d00aeca3 of
+#: pymc_marketing.mmm.lift_test.assert_is_subset:2
+msgid "Check if the available set is a subset of the required set."
+msgstr ""
+"Verifique si el conjunto disponible es un subconjunto del conjunto "
+"requerido."
+
+#: ebc904907aca4a838b2d4c69da7738e6 of
+#: pymc_marketing.mmm.lift_test.assert_is_subset
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: bdff8bfe00a04dcf9d6a58edc661d463 of
+#: pymc_marketing.mmm.lift_test.assert_is_subset:7
+msgid "**required** : :obj:`set`\\[:class:`python:str`]"
+msgstr "**requerido** : :obj:`set`\\[:class:`python:str`]"
+
+#: 305519b2eb754e0a87d8c370edc8369e 863899698c45477c9fc11d473dcee950 of
+#: pymc_marketing.mmm.lift_test.assert_is_subset:6
+#: pymc_marketing.mmm.lift_test.assert_is_subset:9
+msgid "set[python:str]"
+msgstr "set[python:str]"
+
+#: bc22c21ed658498fb1942718e6e15167 of
+#: pymc_marketing.mmm.lift_test.assert_is_subset:8
+msgid "Required values."
+msgstr "Valores requeridos."
+
+#: c89745e59b0b4a1eb9b50a43fe69218e of
+#: pymc_marketing.mmm.lift_test.assert_is_subset:10
+msgid "**available** : :obj:`set`\\[:class:`python:str`]"
+msgstr "**disponible** : :obj:`set`\\[:class:`python:str`]"
+
+#: a48bbaad4b174dc1a76167f4a1250ef3 of
+#: pymc_marketing.mmm.lift_test.assert_is_subset:11
+msgid "Available values."
+msgstr "Valores disponibles."
+
+#: ee8d59cffe8847a9ba7146948b638780 of
+#: pymc_marketing.mmm.lift_test.assert_is_subset
+msgid "Raises"
+msgstr "Aumentos"
+
+#: ba7bdcfb765a439f83c8ce46f0be8719 of
+#: pymc_marketing.mmm.lift_test.assert_is_subset:21
+msgid ":obj:`MissingValueError`"
+msgstr ":obj:`MissingValueError`"
+
+#: f8f6079ef06344cf96476557e6ddc00b of
+#: pymc_marketing.mmm.lift_test.assert_is_subset:22
+msgid "If the available set is not a subset of the required set."
+msgstr ""
+"Si el conjunto disponible no es un subconjunto del conjunto requerido."

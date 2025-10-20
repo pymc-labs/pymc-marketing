@@ -1,0 +1,219 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.media_transformation.MediaTransformation.rst:2
+#: 38036239fcce4a149147f3e8a993a536
+msgid "MediaTransformation"
+msgstr "TransformaciónDeMedios"
+
+#: fe022531c0de432da4c398178fbc4837 of
+#: pymc_marketing.mmm.media_transformation.MediaTransformation:2
+msgid ""
+"Wrapper for applying adstock and saturation transformation to media data."
+msgstr ""
+"Envoltura para aplicar la transformación de adstock y saturación a los datos"
+" de medios."
+
+#: 3cde554d6d3d481a92f453e0b95b3146 of
+#: pymc_marketing.mmm.media_transformation.MediaTransformation
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 1268b89122e546c4a0425a29ad8c4acb of
+#: pymc_marketing.mmm.media_transformation.MediaTransformation:7
+msgid "**adstock** : :obj:`AdstockTransformation`"
+msgstr "**adstock** : :obj:`TransformaciónAdstock`"
+
+#: baa60e7fb16a44deaf48559ac6ff8996 of
+#: pymc_marketing.mmm.media_transformation.MediaTransformation:6
+msgid "AdstockTransformation"
+msgstr "TransformaciónAdstock"
+
+#: f2febecf44b4406c831c4756fc5d47b9 of
+#: pymc_marketing.mmm.media_transformation.MediaTransformation:8
+msgid "The adstock transformation to apply."
+msgstr "La transformación de adstock a aplicar."
+
+#: 68ae9aa8a5be4775aee66bcf1a22fdbe of
+#: pymc_marketing.mmm.media_transformation.MediaTransformation:10
+msgid "**saturation** : :obj:`SaturationTransformation`"
+msgstr "**saturación** : :obj:`SaturationTransformation`"
+
+#: 59f6ca90226240e5b0d43d30975962f6 of
+#: pymc_marketing.mmm.media_transformation.MediaTransformation:9
+msgid "SaturationTransformation"
+msgstr "Transformación de Saturación"
+
+#: 85a1440741bb4d0c96f184ababe6deec of
+#: pymc_marketing.mmm.media_transformation.MediaTransformation:11
+msgid "The saturation transformation to apply."
+msgstr "La transformación de saturación a aplicar."
+
+#: feee7fd9c6cd43af9a05c1b9da920d35 of
+#: pymc_marketing.mmm.media_transformation.MediaTransformation:13
+msgid "**adstock_first** : :ref:`bool <python:bltin-boolean-values>`"
+msgstr "**adstock_first** : :ref:`bool <python:valores-boleanos>`"
+
+#: c3901f25b60049e7833bb1f91ed07f36 of
+#: pymc_marketing.mmm.media_transformation.MediaTransformation:12
+msgid "bool"
+msgstr "bool"
+
+#: b1cde9a182e442eab0b74273d8330fc8 of
+#: pymc_marketing.mmm.media_transformation.MediaTransformation:14
+msgid "Flag to apply the adstock transformation first."
+msgstr "Bandera para aplicar primero la transformación de adstock."
+
+#: 3d863e1b353a4cb6b6b5f08c76c5c100 of
+#: pymc_marketing.mmm.media_transformation.MediaTransformation:16
+msgid "**dims** : :obj:`Dims`"
+msgstr "**dims** : :obj:`Dims`"
+
+#: 670fde06d5e84ce5a1581fc61abb9811 of
+#: pymc_marketing.mmm.media_transformation.MediaTransformation:15
+msgid "Dims"
+msgstr "Dimensiones"
+
+#: 6d3d525cca6a4a1a967f86274aba11b9 of
+#: pymc_marketing.mmm.media_transformation.MediaTransformation:17
+msgid "The dimensions of the parameters."
+msgstr "Las dimensiones de los parámetros."
+
+#: ../source/api/generated/pymc_marketing.mmm.media_transformation.MediaTransformation.rst:26
+#: 2e6b02b243e940ccb55844d92ed39d43 afcd26e8ad2d49c6bd6eb552eae1c466 of
+#: pymc_marketing.mmm.media_transformation.MediaTransformation
+msgid "Attributes"
+msgstr "Atributos"
+
+#: 0acdf247ba164ea299570dfd776e709c of
+#: pymc_marketing.mmm.media_transformation.MediaTransformation:21
+msgid ""
+"**first** : :obj:`AdstockTransformation` | :obj:`SaturationTransformation`"
+msgstr ""
+"**primero** : :obj:`AdstockTransformation` | :obj:`SaturationTransformation`"
+
+#: bd887a6fbd544c5dbc305aac42b2ad86 d8656ba7e39246a9b377351a8e4d3449 of
+#: pymc_marketing.mmm.media_transformation.MediaTransformation:20
+#: pymc_marketing.mmm.media_transformation.MediaTransformation:23
+msgid "AdstockTransformation | SaturationTransformation"
+msgstr "AdstockTransformation | SaturationTransformation"
+
+#: 587a0bfbec704708aa0f16dc40554032 of
+#: pymc_marketing.mmm.media_transformation.MediaTransformation:22
+msgid "The first transformation to apply."
+msgstr "La primera transformación a aplicar."
+
+#: 718bed22669848889a052e97faaa809c of
+#: pymc_marketing.mmm.media_transformation.MediaTransformation:24
+msgid ""
+"**second** : :obj:`AdstockTransformation` | :obj:`SaturationTransformation`"
+msgstr ""
+"**segundo** : :obj:`AdstockTransformation` | :obj:`SaturationTransformation`"
+
+#: d8dd3fb809b749ae973aa8b5ff6a42e9 of
+#: pymc_marketing.mmm.media_transformation.MediaTransformation:25
+msgid "The second transformation to apply."
+msgstr "La segunda transformación a aplicar."
+
+#: ../source/api/generated/pymc_marketing.mmm.media_transformation.MediaTransformation.rst:12
+#: 2b50afa176d3444bb00a580ed6524889
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.media_transformation.MediaTransformation.rst:24:<autosummary>:1
+#: bbda19be132248e9972a672b80e49139
+msgid ""
+":py:obj:`MediaTransformation.__init__ "
+"<pymc_marketing.mmm.media_transformation.MediaTransformation.__init__>`\\ "
+"\\(adstock\\, ...\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`MediaTransformation.__init__ "
+"<pymc_marketing.mmm.media_transformation.MediaTransformation.__init__>`\\ "
+"\\(adstock\\, ...\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.media_transformation.MediaTransformation.rst:24:<autosummary>:1
+#: bfdbb0f3a661451fb1411f879329418f
+msgid ""
+":py:obj:`MediaTransformation.from_dict "
+"<pymc_marketing.mmm.media_transformation.MediaTransformation.from_dict>`\\ "
+"\\(data\\)"
+msgstr ""
+":py:obj:`MediaTransformation.from_dict "
+"<pymc_marketing.mmm.media_transformation.MediaTransformation.from_dict>`\\ "
+"\\(datos\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.media_transformation.MediaTransformation.rst:24:<autosummary>:1
+#: 7a3bf2656f6e4f819daa6066ff07e6b1
+msgid "Create a media transformation from a dictionary."
+msgstr "Cree una transformación de medios a partir de un diccionario."
+
+#: ../source/api/generated/pymc_marketing.mmm.media_transformation.MediaTransformation.rst:24:<autosummary>:1
+#: ab58309e408a4257a81522cd3687818e
+msgid ""
+":py:obj:`MediaTransformation.to_dict "
+"<pymc_marketing.mmm.media_transformation.MediaTransformation.to_dict>`\\ "
+"\\(\\)"
+msgstr ""
+":py:obj:`MediaTransformation.to_dict "
+"<pymc_marketing.mmm.media_transformation.MediaTransformation.to_dict>`\\ "
+"\\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.media_transformation.MediaTransformation.rst:24:<autosummary>:1
+#: 597a7997a25b4ce891546fc6a670b764
+msgid "Convert the media transformation to a dictionary."
+msgstr "Convierte la transformación de medios en un diccionario."
+
+#: ../source/api/generated/pymc_marketing.mmm.media_transformation.MediaTransformation.rst:32:<autosummary>:1
+#: 5d26fc483e27482aa1b913219f6ea324
+msgid ""
+":py:obj:`dims "
+"<pymc_marketing.mmm.media_transformation.MediaTransformation.dims>`\\"
+msgstr ""
+":py:obj:`dims "
+"<pymc_marketing.mmm.media_transformation.MediaTransformation.dims>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.media_transformation.MediaTransformation.rst:32:<autosummary>:1
+#: f658abf4ded44a0abf65236faea6937a
+msgid ""
+":py:obj:`adstock "
+"<pymc_marketing.mmm.media_transformation.MediaTransformation.adstock>`\\"
+msgstr ""
+":py:obj:`adstock "
+"<pymc_marketing.mmm.media_transformation.MediaTransformation.adstock>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.media_transformation.MediaTransformation.rst:32:<autosummary>:1
+#: cd74f2e605734bde965dbced96936e30
+msgid ""
+":py:obj:`saturation "
+"<pymc_marketing.mmm.media_transformation.MediaTransformation.saturation>`\\"
+msgstr ""
+":py:obj:`saturación "
+"<pymc_marketing.mmm.media_transformation.MediaTransformation.saturación>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.media_transformation.MediaTransformation.rst:32:<autosummary>:1
+#: 9c67df2be3f04ab09a30d9e71f20fb74
+msgid ""
+":py:obj:`adstock_first "
+"<pymc_marketing.mmm.media_transformation.MediaTransformation.adstock_first>`\\"
+msgstr ""
+":py:obj:`adstock_first "
+"<pymc_marketing.mmm.media_transformation.MediaTransformation.adstock_first>`"

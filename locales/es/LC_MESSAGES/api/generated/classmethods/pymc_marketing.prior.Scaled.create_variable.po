@@ -1,0 +1,66 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.prior.Scaled.create_variable.rst:2
+#: fae71ea38ed443b1a8166808ca5cc3cd
+msgid "Scaled.create\\_variable"
+msgstr "Scaled.create\\_variable"
+
+#: 45eeee5edaed43e5b5904ba472af6fd9 of
+#: pymc_extras.prior.Scaled.create_variable:2
+msgid "Create a scaled variable."
+msgstr "Cree una variable escalada."
+
+#: 4870209ee2d845de92236a0566db0736 of
+#: pymc_extras.prior.Scaled.create_variable
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 64d1a9d0d70d4eac9151b4a64668b611 of
+#: pymc_extras.prior.Scaled.create_variable:7
+msgid "**name** : :class:`python:str`"
+msgstr "**nombre** : :class:`python:str`"
+
+#: abf86bcd7b044f8e997aa3878e9ed126 of
+#: pymc_extras.prior.Scaled.create_variable:6
+msgid "python:str"
+msgstr "python:str"
+
+#: ab061f9b584346869caa6357cb8d476a of
+#: pymc_extras.prior.Scaled.create_variable:8
+msgid "The name of the variable."
+msgstr "El nombre de la variable."
+
+#: 9f0fe5ecbb9f41a9b20b8049f4481da7 of
+#: pymc_extras.prior.Scaled.create_variable
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 5109059360c644eeade3ba82f33cc4f0 of
+#: pymc_extras.prior.Scaled.create_variable:14
+msgid ":obj:`pt.TensorVariable`"
+msgstr ":obj:`pt.TensorVariable`"
+
+#: e52b6db208b24347a6d31caef5670e00 of
+#: pymc_extras.prior.Scaled.create_variable:15
+msgid "The scaled variable."
+msgstr "La variable escalada."

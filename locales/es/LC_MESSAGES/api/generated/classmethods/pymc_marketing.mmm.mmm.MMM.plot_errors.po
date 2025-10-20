@@ -1,0 +1,97 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.mmm.MMM.plot_errors.rst:2
+#: dfcb5965031349a583115a1c307a7f8e
+msgid "MMM.plot\\_errors"
+msgstr "MMM.plot\\_errors"
+
+#: dc174db1f49f4ef9a79ec1d724d9f9a1 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_errors:2
+msgid ""
+"Plot model errors by taking the difference between true values and "
+"predicted."
+msgstr ""
+"Grafique los errores del modelo tomando la diferencia entre los valores "
+"verdaderos y los predichos."
+
+#: 1b2b3111a5dd433fa1c5eb79ce6aeccd of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_errors:4
+msgid "errors = true values - predicted"
+msgstr "errores = valores verdaderos - predicho"
+
+#: 048124a1c6414ec0849da4dcf0c699b9 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_errors
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 9b8aea43445d47488f388e76e4d1dfb7 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_errors:8
+msgid ""
+"**original_scale** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+"**original_scale** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 17a59f95c0d549d8bb5fb62c117996d8 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_errors:7
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: 489799ada33141dc9f5b07fccc5fe20a of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_errors:9
+msgid "Whether to plot in the original scale."
+msgstr "Si se debe trazar en la escala original."
+
+#: a0922256328d40e182e3ed26dce6b522 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_errors:11
+msgid "**ax** : :obj:`plt.Axes`, optional"
+msgstr "**ax** : :obj:`plt.Axes`, opcional"
+
+#: dc54a1d466da4db2944bdc1f71e0a772 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_errors:10
+msgid "plt.Axes, optional"
+msgstr "plt.Axes, opcional"
+
+#: cd65ebf0d73c4c5a8ee8f660cd389f54 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_errors:12
+msgid "Matplotlib axis object."
+msgstr "Objeto de eje de Matplotlib."
+
+#: aa61e82be50e4b9b87ca0f2f1ab32afe of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_errors:14
+msgid "**\\*\\*plt_kwargs**"
+msgstr "**\\*\\*plt_kwargs**"
+
+#: 8c006a755d714da3a162892a1fcb52ba of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_errors:15
+msgid "Keyword arguments passed to `plt.subplots`."
+msgstr "Argumentos de palabras clave pasados a `plt.subplots`."
+
+#: f1f839fc2b2b4cc1ae51e2171405f6c2 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_errors
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 706d1c32f9fd46a5801a044238a6a0c5 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_errors:21
+msgid ":obj:`plt.Figure`"
+msgstr ":obj:`plt.Figure`"

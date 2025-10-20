@@ -1,0 +1,75 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.builders.factories.rst:2
+#: 13594084f79247e3a9df75ddc89842da
+msgid "factories"
+msgstr "fábricas"
+
+#: add4250718484528b32a32b1289a55b2 of pymc_marketing.mmm.builders.factories:1
+msgid "Generic recursive factory for the MMM YAML schema."
+msgstr "Fábrica recursiva genérica para el esquema YAML de MMM."
+
+#: ../source/api/generated/pymc_marketing.mmm.builders.factories.rst:13
+#: f5674d58aca3402d82cfd1bff39fe9fe
+msgid "Functions"
+msgstr "Funciones"
+
+#: ../source/api/generated/pymc_marketing.mmm.builders.factories.rst:20:<autosummary>:1
+#: d7f39082ad6e46ffa84101aa1dec2ac6
+msgid ":py:obj:`build <pymc_marketing.mmm.builders.factories.build>`\\ \\(spec\\)"
+msgstr ""
+":py:obj:`build <pymc_marketing.mmm.builders.factories.build>`\\ "
+"\\(especificación\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.builders.factories.rst:20:<autosummary>:1
+#: e28e2da7a9c446519c3850cd206fb1b8
+msgid "Instantiate the object described by *spec*."
+msgstr "Instanciar el objeto descrito por *spec*."
+
+#: ../source/api/generated/pymc_marketing.mmm.builders.factories.rst:20:<autosummary>:1
+#: 482b413e3919469eb267e71275961813
+msgid ""
+":py:obj:`locate <pymc_marketing.mmm.builders.factories.locate>`\\ "
+"\\(qualname\\)"
+msgstr ""
+":py:obj:`localizar <pymc_marketing.mmm.builders.factories.localizar>`\\ "
+"\\(qualname\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.builders.factories.rst:20:<autosummary>:1
+#: a751648bc5724268ba62b14ca10273a4
+msgid "Resolve *qualname* to a Python callable."
+msgstr "Resuelva *qualname* a un callable de Python."
+
+#: ../source/api/generated/pymc_marketing.mmm.builders.factories.rst:20:<autosummary>:1
+#: f00b836d56d64dcb81780bccefa4a09a
+msgid ""
+":py:obj:`resolve <pymc_marketing.mmm.builders.factories.resolve>`\\ "
+"\\(value\\)"
+msgstr ""
+":py:obj:`resolve <pymc_marketing.mmm.builders.factories.resolve>`\\ "
+"\\(valor\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.builders.factories.rst:20:<autosummary>:1
+#: eeb1f9c871644fe0bcb847c55979bda0
+msgid "Resolve a value by recursively building nested objects."
+msgstr "Resuelva un valor construyendo recursivamente objetos anidados."

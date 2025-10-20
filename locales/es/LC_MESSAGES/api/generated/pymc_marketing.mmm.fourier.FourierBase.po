@@ -1,0 +1,691 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:2
+#: 44cc28b782b142f0bb5a177072f05e28
+msgid "FourierBase"
+msgstr "FourierBase"
+
+#: 168424342d734d02ad82908d521c9324 of
+#: pymc_marketing.mmm.fourier.FourierBase:2
+msgid "Base class for Fourier seasonality transformations."
+msgstr "Clase base para transformaciones de estacionalidad de Fourier."
+
+#: 7e9b6f53eb5b422cafc17b3b8df955fe of pymc_marketing.mmm.fourier.FourierBase
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 225061e508ca4a509c15b69f9d44e4a6 of
+#: pymc_marketing.mmm.fourier.FourierBase:7
+msgid "**n_order** : :class:`python:int`"
+msgstr "**n_order** : :class:`python:int`"
+
+#: 6eca81fbb7784601b51c8211a877b429 of
+#: pymc_marketing.mmm.fourier.FourierBase:6
+msgid "python:int"
+msgstr "python:int"
+
+#: 5fabcb515bd64c9a92784e0a2cee6809 of
+#: pymc_marketing.mmm.fourier.FourierBase:8
+msgid "Number of fourier modes to use."
+msgstr "Número de modos de Fourier a utilizar."
+
+#: bc5c25e7f1e94e808cd897d768385d86 of
+#: pymc_marketing.mmm.fourier.FourierBase:10
+msgid "**days_in_period** : :class:`python:float`"
+msgstr "**days_in_period** : :class:`python:float`"
+
+#: b50be187b230455aa9b9595333fe99c3 of
+#: pymc_marketing.mmm.fourier.FourierBase:9
+msgid "python:float"
+msgstr "python:float"
+
+#: 692fc28ebaa44d64a6560a9592132819 of
+#: pymc_marketing.mmm.fourier.FourierBase:11
+msgid "Number of days in a period."
+msgstr "Número de días en un período."
+
+#: 3e9809a9012f4b1990437abab13b6e86 of
+#: pymc_marketing.mmm.fourier.FourierBase:13
+msgid "**prefix** : :class:`python:str`, optional"
+msgstr "**prefijo** : :class:`python:str`, opcional"
+
+#: 621fd6b95ab04e9ab96168731946122c b3c284bc3c344d848521b49cf6d70105 of
+#: pymc_marketing.mmm.fourier.FourierBase:12
+#: pymc_marketing.mmm.fourier.FourierBase:20
+msgid "python:str, optional"
+msgstr "python:str, opcional"
+
+#: fa8c79f9a9b1482c91f186f128811b76 of
+#: pymc_marketing.mmm.fourier.FourierBase:14
+msgid ""
+"Alternative prefix for the fourier seasonality, by default None or "
+"\"fourier\""
+msgstr ""
+"Prefijo alternativo para la estacionalidad de Fourier, por defecto Ninguno o"
+" \"fourier\""
+
+#: 9c4a504ab2104bc69faf20fd6a7aa22f of
+#: pymc_marketing.mmm.fourier.FourierBase:17
+msgid "**prior** : :obj:`Prior` | :obj:`VariableFactory`, optional"
+msgstr "**previo** : :obj:`Previo` | :obj:`FábricaDeVariables`, opcional"
+
+#: a9c76d700fd64c2194bdba4a71093a79 of
+#: pymc_marketing.mmm.fourier.FourierBase:16
+msgid "Prior | VariableFactory, optional"
+msgstr "Prior | VariableFactory, opcional"
+
+#: 44163d7b85ae42968c2d78d8a657d40d of
+#: pymc_marketing.mmm.fourier.FourierBase:18
+msgid ""
+"Prior distribution or VariableFactory for the fourier seasonality beta "
+"parameters, by default `Prior(\"Laplace\", mu=0, b=1)`"
+msgstr ""
+"Distribución previa o VariableFactory para los parámetros beta de la "
+"estacionalidad de Fourier, por defecto `Prior(\"Laplace\", mu=0, b=1)`"
+
+#: 0b55febd281b4a25afd25acc3b908c9a of
+#: pymc_marketing.mmm.fourier.FourierBase:21
+msgid "**variable_name** : :class:`python:str`, optional"
+msgstr "**nombre_variable** : :class:`python:str`, opcional"
+
+#: 531782e5587647b09c96afcfe2e036b7 of
+#: pymc_marketing.mmm.fourier.FourierBase:22
+#, python-brace-format
+msgid ""
+"Name of the variable that multiplies the fourier modes. By default None, in "
+"which case it is set to the `{prefix}_beta`."
+msgstr ""
+"Nombre de la variable que multiplica los modos de Fourier. Por defecto None,"
+" en cuyo caso se establece en el `{prefix}_beta`."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:12
+#: 00272d8abbbf45f18afb2f86b0d2a6f1
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: 8dbd4c3d2c3945898bf825221c2913eb
+msgid ""
+":py:obj:`FourierBase.__init__ "
+"<pymc_marketing.mmm.fourier.FourierBase.__init__>`\\ \\(\\*\\*data\\)"
+msgstr ""
+":py:obj:`FourierBase.__init__ "
+"<pymc_marketing.mmm.fourier.FourierBase.__init__>`\\ \\(\\*\\*data\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: 38d271b8a11242d4af2ada90af61c3d3
+msgid ""
+"Create a new model by parsing and validating input data from keyword "
+"arguments."
+msgstr ""
+"Cree un nuevo modelo analizando y validando los datos de entrada de los "
+"argumentos de palabras clave."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: 0962adf4f15f415e86c5926a0935cb33
+msgid ""
+":py:obj:`FourierBase.apply <pymc_marketing.mmm.fourier.FourierBase.apply>`\\"
+" \\(dayofperiod\\[\\, result\\_callback\\]\\)"
+msgstr ""
+":py:obj:`FourierBase.apply <pymc_marketing.mmm.fourier.FourierBase.apply>`\\"
+" \\(dayofperiod\\[\\, result\\_callback\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: 538e20cb713e483b9ccfbf3440291028
+msgid "Apply fourier seasonality to day of year."
+msgstr "Aplicar estacionalidad de Fourier al día del año."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: 7b1a12121f534467b5411464a7302589
+msgid ""
+":py:obj:`FourierBase.construct "
+"<pymc_marketing.mmm.fourier.FourierBase.construct>`\\ "
+"\\(\\[\\_fields\\_set\\]\\)"
+msgstr ""
+":py:obj:`FourierBase.construct "
+"<pymc_marketing.mmm.fourier.FourierBase.construct>`\\ "
+"\\(\\[\\_fields\\_set\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: a9e8aee1deea4de79c3344434ff0a622
+msgid ""
+":py:obj:`FourierBase.copy <pymc_marketing.mmm.fourier.FourierBase.copy>`\\ "
+"\\(\\*\\[\\, include\\, exclude\\, ...\\]\\)"
+msgstr ""
+":py:obj:`FourierBase.copy <pymc_marketing.mmm.fourier.FourierBase.copy>`\\ "
+"\\(\\*\\[\\, incluir\\, excluir\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: 13ef54310ff64a0f9111a297b057a4fd
+msgid "Returns a copy of the model."
+msgstr "Devuelve una copia del modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: 48582e461cd2434b98c26bd1a2e82153
+msgid ""
+":py:obj:`FourierBase.dict <pymc_marketing.mmm.fourier.FourierBase.dict>`\\ "
+"\\(\\*\\[\\, include\\, exclude\\, ...\\]\\)"
+msgstr ""
+":py:obj:`FourierBase.dict <pymc_marketing.mmm.fourier.FourierBase.dict>`\\ "
+"\\(\\*\\[\\, incluir\\, excluir\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: 8865277584f74101bc4c5941907ee0e2
+msgid ""
+":py:obj:`FourierBase.from_dict "
+"<pymc_marketing.mmm.fourier.FourierBase.from_dict>`\\ \\(data\\)"
+msgstr ""
+":py:obj:`FourierBase.from_dict "
+"<pymc_marketing.mmm.fourier.FourierBase.from_dict>`\\ \\(datos\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: d8b9a0471ab740259604f3df0863c7aa
+msgid "Deserialize the Fourier seasonality."
+msgstr "Deserializar la estacionalidad de Fourier."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: e74c191d69c146f6b42adb5d618295eb
+msgid ""
+":py:obj:`FourierBase.from_orm "
+"<pymc_marketing.mmm.fourier.FourierBase.from_orm>`\\ \\(obj\\)"
+msgstr ""
+":py:obj:`FourierBase.from_orm "
+"<pymc_marketing.mmm.fourier.FourierBase.from_orm>`\\ \\(obj\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: 3f27ab7b8a3b4999b98f5e238e1b0585
+msgid ""
+":py:obj:`FourierBase.get_default_start_date "
+"<pymc_marketing.mmm.fourier.FourierBase.get_default_start_date>`\\ "
+"\\(\\[start\\_date\\]\\)"
+msgstr ""
+":py:obj:`FourierBase.get_default_start_date "
+"<pymc_marketing.mmm.fourier.FourierBase.get_default_start_date>`\\ "
+"\\(\\[start\\_date\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: f378deb05d0b428ca3bcbd757e33adcd
+msgid "Get the start date for the Fourier curve."
+msgstr "Obtenga la fecha de inicio para la curva de Fourier."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: e8c3b7cea10849b3b06e49355ffaa972
+msgid ""
+":py:obj:`FourierBase.json <pymc_marketing.mmm.fourier.FourierBase.json>`\\ "
+"\\(\\*\\[\\, include\\, exclude\\, ...\\]\\)"
+msgstr ""
+":py:obj:`FourierBase.json <pymc_marketing.mmm.fourier.FourierBase.json>`\\ "
+"\\(\\*\\[\\, incluir\\, excluir\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: b2e433e2b20b41cf8ddac4c079da8227
+msgid ""
+":py:obj:`FourierBase.model_construct "
+"<pymc_marketing.mmm.fourier.FourierBase.model_construct>`\\ "
+"\\(\\[\\_fields\\_set\\]\\)"
+msgstr ""
+":py:obj:`FourierBase.model_construct "
+"<pymc_marketing.mmm.fourier.FourierBase.model_construct>`\\ "
+"\\(\\[\\_fields\\_set\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: 5dac2d514e6a4ac7b5a05bd6fbd7d3b9
+msgid "Creates a new instance of the `Model` class with validated data."
+msgstr "Crea una nueva instancia de la clase `Model` con datos validados."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: 8e0c1351fea74e81acd671735246de81
+msgid ""
+":py:obj:`FourierBase.model_copy "
+"<pymc_marketing.mmm.fourier.FourierBase.model_copy>`\\ \\(\\*\\[\\, "
+"update\\, deep\\]\\)"
+msgstr ""
+":py:obj:`FourierBase.model_copy "
+"<pymc_marketing.mmm.fourier.FourierBase.model_copy>`\\ \\(\\*\\[\\, "
+"actualizar\\, profundo\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: 18e6a0d9cac043efbe397413c1c5848c b2bf48b11e154b1eb8f36204a5c32087
+#: bb08a2b4cfe748b18813d927919402be c870d6ae11154a8cb457ad482cf61d26
+msgid "!!! abstract \"Usage Documentation\""
+msgstr "!!! abstract \"Documentación de Uso\""
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: 17141ef2ce334d82beea085380680467
+msgid ""
+":py:obj:`FourierBase.model_dump "
+"<pymc_marketing.mmm.fourier.FourierBase.model_dump>`\\ \\(\\*\\[\\, mode\\, "
+"include\\, ...\\]\\)"
+msgstr ""
+":py:obj:`FourierBase.model_dump "
+"<pymc_marketing.mmm.fourier.FourierBase.model_dump>`\\ \\(\\*\\[\\, modo\\, "
+"incluir\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: b3e754980c1a48e98e68e902be8451ac
+msgid ""
+":py:obj:`FourierBase.model_dump_json "
+"<pymc_marketing.mmm.fourier.FourierBase.model_dump_json>`\\ \\(\\*\\[\\, "
+"indent\\, ...\\]\\)"
+msgstr ""
+":py:obj:`FourierBase.model_dump_json "
+"<pymc_marketing.mmm.fourier.FourierBase.model_dump_json>`\\ \\(\\*\\[\\, "
+"indent\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: 80d2781fde9848a299984a210aa45489
+msgid ""
+":py:obj:`FourierBase.model_json_schema "
+"<pymc_marketing.mmm.fourier.FourierBase.model_json_schema>`\\ "
+"\\(\\[by\\_alias\\, ...\\]\\)"
+msgstr ""
+":py:obj:`FourierBase.model_json_schema "
+"<pymc_marketing.mmm.fourier.FourierBase.model_json_schema>`\\ "
+"\\(\\[por\\_alias\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: 3cd28d36e7e54f9d81430befe335a85a
+msgid "Generates a JSON schema for a model class."
+msgstr "Genera un esquema JSON para una clase de modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: 8bdd2feb6e6a4d0bad7adc0e2862c5f4
+msgid ""
+":py:obj:`FourierBase.model_parametrized_name "
+"<pymc_marketing.mmm.fourier.FourierBase.model_parametrized_name>`\\ "
+"\\(params\\)"
+msgstr ""
+":py:obj:`FourierBase.model_parametrized_name "
+"<pymc_marketing.mmm.fourier.FourierBase.model_parametrized_name>`\\ "
+"\\(params\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: 63ce520b7e7b40b3918f7f1285cd9155
+msgid "Compute the class name for parametrizations of generic classes."
+msgstr ""
+"Calcule el nombre de la clase para parametrizaciones de clases genéricas."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: ed5995090fa74f32ae3b626df178c284
+msgid ""
+":py:obj:`FourierBase.model_post_init "
+"<pymc_marketing.mmm.fourier.FourierBase.model_post_init>`\\ \\(...\\)"
+msgstr ""
+":py:obj:`FourierBase.model_post_init "
+"<pymc_marketing.mmm.fourier.FourierBase.model_post_init>`\\ \\(...\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: 1c5b848b83e340aa85d85fb3cb180997
+msgid "Model post initialization for a Pydantic model."
+msgstr "Inicialización del modelo posterior para un modelo Pydantic."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: 563909651247489cad02e5c0f4a286bb
+msgid ""
+":py:obj:`FourierBase.model_rebuild "
+"<pymc_marketing.mmm.fourier.FourierBase.model_rebuild>`\\ \\(\\*\\[\\, "
+"force\\, ...\\]\\)"
+msgstr ""
+":py:obj:`FourierBase.model_rebuild "
+"<pymc_marketing.mmm.fourier.FourierBase.model_rebuild>`\\ \\(\\*\\[\\, "
+"forzar\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: fa3373ab72244473b84012f968a2713c
+msgid "Try to rebuild the pydantic-core schema for the model."
+msgstr "Intente reconstruir el esquema de pydantic-core para el modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: c21e7cc4ca634620aabcb61d54d4258d
+msgid ""
+":py:obj:`FourierBase.model_validate "
+"<pymc_marketing.mmm.fourier.FourierBase.model_validate>`\\ \\(obj\\, "
+"\\*\\[\\, strict\\, ...\\]\\)"
+msgstr ""
+":py:obj:`FourierBase.model_validate "
+"<pymc_marketing.mmm.fourier.FourierBase.model_validate>`\\ (obj\\, \\*\\[\\,"
+" estricto\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: 02f14295dd524e51b8d3aa94c6bf3547
+msgid "Validate a pydantic model instance."
+msgstr "Valide una instancia de modelo pydantic."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: 9767523f7e1f43d5bd96ce1e53c2666c
+msgid ""
+":py:obj:`FourierBase.model_validate_json "
+"<pymc_marketing.mmm.fourier.FourierBase.model_validate_json>`\\ "
+"\\(json\\_data\\, \\*\\)"
+msgstr ""
+":py:obj:`FourierBase.model_validate_json "
+"<pymc_marketing.mmm.fourier.FourierBase.model_validate_json>`\\ "
+"\\(json\\_data\\, \\*\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: 322a2d5707c64d948444d4c7cc21b737
+msgid ""
+":py:obj:`FourierBase.model_validate_strings "
+"<pymc_marketing.mmm.fourier.FourierBase.model_validate_strings>`\\ \\(obj\\,"
+" \\*\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`FourierBase.model_validate_strings "
+"<pymc_marketing.mmm.fourier.FourierBase.model_validate_strings>`\\ \\(obj\\,"
+" \\*\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: 911d4354fb5343188a2b9543fbcd6fed
+msgid "Validate the given object with string data against the Pydantic model."
+msgstr ""
+"Valide el objeto dado con datos de cadena contra el modelo de Pydantic."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: e840d9f851394129812ec852ed4c212d
+msgid ""
+":py:obj:`FourierBase.parse_file "
+"<pymc_marketing.mmm.fourier.FourierBase.parse_file>`\\ \\(path\\, \\*\\[\\, "
+"...\\]\\)"
+msgstr ""
+":py:obj:`FourierBase.parse_file "
+"<pymc_marketing.mmm.fourier.FourierBase.parse_file>`\\ \\(ruta\\, \\*\\[\\, "
+"...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: ba56b6e6698b48349e52bdee2c5e59b8
+msgid ""
+":py:obj:`FourierBase.parse_obj "
+"<pymc_marketing.mmm.fourier.FourierBase.parse_obj>`\\ \\(obj\\)"
+msgstr ""
+":py:obj:`FourierBase.parse_obj "
+"<pymc_marketing.mmm.fourier.FourierBase.parse_obj>`\\ \\(obj\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: 37166c89569a4ade9eed286bf2a113af
+msgid ""
+":py:obj:`FourierBase.parse_raw "
+"<pymc_marketing.mmm.fourier.FourierBase.parse_raw>`\\ \\(b\\, \\*\\[\\, "
+"content\\_type\\, ...\\]\\)"
+msgstr ""
+":py:obj:`FourierBase.parse_raw "
+"<pymc_marketing.mmm.fourier.FourierBase.parse_raw>`\\ \\(b\\, \\*\\[\\, "
+"tipo\\_de\\_contenido\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: 0ccc109038c94af996aec278dc88680c
+msgid ""
+":py:obj:`FourierBase.plot_curve "
+"<pymc_marketing.mmm.fourier.FourierBase.plot_curve>`\\ \\(curve\\[\\, "
+"n\\_samples\\, ...\\]\\)"
+msgstr ""
+":py:obj:`FourierBase.plot_curve "
+"<pymc_marketing.mmm.fourier.FourierBase.plot_curve>`\\ \\(curve\\[\\, "
+"n\\_samples\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: ca9bc2c405a845ba8add58e3e0c01d48
+msgid "Plot the seasonality for one full period."
+msgstr "Trace la estacionalidad para un período completo."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: f5b47b0e088741758ea9a08711959232
+msgid ""
+":py:obj:`FourierBase.plot_curve_hdi "
+"<pymc_marketing.mmm.fourier.FourierBase.plot_curve_hdi>`\\ \\(curve\\[\\, "
+"...\\]\\)"
+msgstr ""
+":py:obj:`FourierBase.plot_curve_hdi "
+"<pymc_marketing.mmm.fourier.FourierBase.plot_curve_hdi>`\\ \\(curva\\[\\, "
+"...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: 7f9ace45036242b4804ef2c4120a64c3
+msgid "Plot full period of the fourier seasonality."
+msgstr "Trazar el período completo de la estacionalidad de Fourier."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: 79a4c49923f54961b485f8b8b50b5331
+msgid ""
+":py:obj:`FourierBase.plot_curve_samples "
+"<pymc_marketing.mmm.fourier.FourierBase.plot_curve_samples>`\\ "
+"\\(curve\\[\\, n\\, ...\\]\\)"
+msgstr ""
+":py:obj:`FourierBase.plot_curve_samples "
+"<pymc_marketing.mmm.fourier.FourierBase.plot_curve_samples>`\\ "
+"\\(curva\\[\\, n\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: 8af36b4b13124d55b6d2d85248b6f5ab
+msgid "Plot samples from the curve."
+msgstr "Trazar muestras de la curva."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: 7b4ad7ddd0e4417f9c7d4250aa59da5f
+msgid ""
+":py:obj:`FourierBase.sample_curve "
+"<pymc_marketing.mmm.fourier.FourierBase.sample_curve>`\\ \\(parameters\\[\\,"
+" ...\\]\\)"
+msgstr ""
+":py:obj:`FourierBase.sample_curve "
+"<pymc_marketing.mmm.fourier.FourierBase.sample_curve>`\\ \\(parámetros\\[\\,"
+" ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: 6a5e87e1efc847dcaab3b5d4b23f6b3b
+msgid "Create full period of the Fourier seasonality."
+msgstr "Crear el período completo de la estacionalidad de Fourier."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: 36de07ee85b04b5aa831001ce336cff1
+msgid ""
+":py:obj:`FourierBase.sample_prior "
+"<pymc_marketing.mmm.fourier.FourierBase.sample_prior>`\\ \\(\\[coords\\]\\)"
+msgstr ""
+":py:obj:`FourierBase.sample_prior "
+"<pymc_marketing.mmm.fourier.FourierBase.sample_prior>`\\ \\(\\[coords\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: 109e302f2501429985f5600ffebaf237
+msgid "Sample the prior distributions."
+msgstr "Muestree las distribuciones anteriores."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: a4e9ac75a006478ab85c31b03fa7f13b
+msgid ""
+":py:obj:`FourierBase.schema "
+"<pymc_marketing.mmm.fourier.FourierBase.schema>`\\ \\(\\[by\\_alias\\, "
+"ref\\_template\\]\\)"
+msgstr ""
+":py:obj:`FourierBase.schema "
+"<pymc_marketing.mmm.fourier.FourierBase.schema>`\\ \\(\\[por\\_alias\\, "
+"ref\\_template\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: 46d1bfc4082c457aa8b1f77dd8e7075b
+msgid ""
+":py:obj:`FourierBase.schema_json "
+"<pymc_marketing.mmm.fourier.FourierBase.schema_json>`\\ \\(\\*\\[\\, "
+"by\\_alias\\, ...\\]\\)"
+msgstr ""
+":py:obj:`FourierBase.schema_json "
+"<pymc_marketing.mmm.fourier.FourierBase.schema_json>`\\ \\(\\*\\[\\, "
+"por\\_alias\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: 27c39feca6514228b97eb027f55886fc
+msgid ""
+":py:obj:`FourierBase.serialize_prior "
+"<pymc_marketing.mmm.fourier.FourierBase.serialize_prior>`\\ \\(\\)"
+msgstr ""
+":py:obj:`FourierBase.serialize_prior "
+"<pymc_marketing.mmm.fourier.FourierBase.serialize_prior>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: 328d69a96fc14ed09921f54f03d07864
+msgid "Serialize the prior distribution."
+msgstr "Serializar la distribución previa."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: 9299fb429f9c43778b23d2f2f494caff
+msgid ""
+":py:obj:`FourierBase.to_dict "
+"<pymc_marketing.mmm.fourier.FourierBase.to_dict>`\\ \\(\\)"
+msgstr ""
+":py:obj:`FourierBase.to_dict "
+"<pymc_marketing.mmm.fourier.FourierBase.to_dict>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: 882a5ec16c6d45239764a9fda9c92576
+msgid "Serialize the Fourier seasonality."
+msgstr "Serializar la estacionalidad de Fourier."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: b03b09a068bc4e8d99f5f70b3ad0a4ed
+msgid ""
+":py:obj:`FourierBase.update_forward_refs "
+"<pymc_marketing.mmm.fourier.FourierBase.update_forward_refs>`\\ "
+"\\(\\*\\*localns\\)"
+msgstr ""
+":py:obj:`FourierBase.update_forward_refs "
+"<pymc_marketing.mmm.fourier.FourierBase.update_forward_refs>`\\ "
+"\\(\\*\\*localns\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
+#: f668a443eb094fd2bc16e2d3ba93b19f
+msgid ""
+":py:obj:`FourierBase.validate "
+"<pymc_marketing.mmm.fourier.FourierBase.validate>`\\ \\(value\\)"
+msgstr ""
+":py:obj:`FourierBase.validate "
+"<pymc_marketing.mmm.fourier.FourierBase.validate>`\\ \\(valor\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:57
+#: a3c77d4dc2414c24bd0345761176ad24
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:70:<autosummary>:1
+#: bed8a26856834d8a84572fa64aa1e440
+msgid ""
+":py:obj:`model_computed_fields "
+"<pymc_marketing.mmm.fourier.FourierBase.model_computed_fields>`\\"
+msgstr ""
+":py:obj:`model_computed_fields "
+"<pymc_marketing.mmm.fourier.FourierBase.model_computed_fields>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:70:<autosummary>:1
+#: 194efedabdd04f13913c7437a3305d76
+msgid ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.fourier.FourierBase.model_config>`\\"
+msgstr ""
+":py:obj:`model_config <pymc_marketing.mmm.fourier.FourierBase.model_config>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:70:<autosummary>:1
+#: 76a6ed2e381e471a927fe16cc07d06f8
+msgid ""
+"Configuration for the model, should be a dictionary conforming to "
+"[`ConfigDict`][pydantic.config.ConfigDict]."
+msgstr ""
+"Configuración para el modelo, debe ser un diccionario que cumpla con "
+"[`ConfigDict`][pydantic.config.ConfigDict]."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:70:<autosummary>:1
+#: d3548af3883e4322a53139bc95bf0aa5
+msgid ""
+":py:obj:`model_extra <pymc_marketing.mmm.fourier.FourierBase.model_extra>`\\"
+msgstr ""
+":py:obj:`model_extra <pymc_marketing.mmm.fourier.FourierBase.model_extra>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:70:<autosummary>:1
+#: 47ad29db9e9646ee952ecde15cc238e1
+msgid "Get extra fields set during validation."
+msgstr "Obtener campos adicionales establecidos durante la validación."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:70:<autosummary>:1
+#: 30d9a3206e97439584729d992fea02cc
+msgid ""
+":py:obj:`model_fields "
+"<pymc_marketing.mmm.fourier.FourierBase.model_fields>`\\"
+msgstr ""
+":py:obj:`model_fields <pymc_marketing.mmm.fourier.FourierBase.model_fields>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:70:<autosummary>:1
+#: 4ee784ba4e3d4c1facc38c29dd0b095a
+msgid ""
+":py:obj:`model_fields_set "
+"<pymc_marketing.mmm.fourier.FourierBase.model_fields_set>`\\"
+msgstr ""
+":py:obj:`model_fields_set "
+"<pymc_marketing.mmm.fourier.FourierBase.model_fields_set>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:70:<autosummary>:1
+#: 1b4b337e181443139c092c2936f988b2
+msgid ""
+"Returns the set of fields that have been explicitly set on this model "
+"instance."
+msgstr ""
+"Devuelve el conjunto de campos que han sido establecidos explícitamente en "
+"esta instancia del modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:70:<autosummary>:1
+#: bd0e48bc363b4410ab95394ae777fd51
+msgid ":py:obj:`nodes <pymc_marketing.mmm.fourier.FourierBase.nodes>`\\"
+msgstr ":py:obj:`nodes <pymc_marketing.mmm.fourier.FourierBase.nodes>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:70:<autosummary>:1
+#: 692f35a8e8184dbea53d464461256a9c
+msgid "Fourier node names for model coordinates."
+msgstr "Nombres de nodos de Fourier para coordenadas del modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:70:<autosummary>:1
+#: 27c05255562841a5b94c7f54ae4fd2aa
+msgid ":py:obj:`n_order <pymc_marketing.mmm.fourier.FourierBase.n_order>`\\"
+msgstr ":py:obj:`n_order <pymc_marketing.mmm.fourier.FourierBase.n_order>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:70:<autosummary>:1
+#: 5483e36c6b5348f8b6b751a09888822b
+msgid ""
+":py:obj:`days_in_period "
+"<pymc_marketing.mmm.fourier.FourierBase.days_in_period>`\\"
+msgstr ""
+":py:obj:`días_en_período "
+"<pymc_marketing.mmm.fourier.FourierBase.días_en_período>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:70:<autosummary>:1
+#: f8850e6ab1b44c8f848d7b0f736c22e8
+msgid ":py:obj:`prefix <pymc_marketing.mmm.fourier.FourierBase.prefix>`\\"
+msgstr ":py:obj:`prefijo <pymc_marketing.mmm.fourier.FourierBase.prefix>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:70:<autosummary>:1
+#: 56d0e8c5d8c94bf7a231a2870fa22b75
+msgid ":py:obj:`prior <pymc_marketing.mmm.fourier.FourierBase.prior>`\\"
+msgstr ":py:obj:`prior <pymc_marketing.mmm.fourier.FourierBase.prior>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:70:<autosummary>:1
+#: 8bb32e7643864acf815510061a0c8052
+msgid ""
+":py:obj:`variable_name "
+"<pymc_marketing.mmm.fourier.FourierBase.variable_name>`\\"
+msgstr ""
+":py:obj:`variable_name "
+"<pymc_marketing.mmm.fourier.FourierBase.variable_name>`"

@@ -1,0 +1,616 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/guide/customer_choice/mv_its_intro.md:1
+#: 034ad6411712497888c0a038f19ae4f5
+msgid "Multivariate interrupted time series models"
+msgstr "Modelos de series de tiempo interrumpidas multivariantes"
+
+#: ../source/guide/customer_choice/mv_its_intro.md:3
+#: cb42819a186c44c6938df1af2b2de39b
+msgid ""
+"One modeling approach we could use for causal analysis of product "
+"incrementality is the multivariate interrupted time series (MV-ITS) model. "
+"This model is a generalization of the interrupted time series model (ITS), "
+"which is a common approach in causal inference. The MV-ITS model allows us "
+"to estimate the causal impact of an intervention (e.g., a new product "
+"introduction) on multiple outcomes (e.g., sales of multiple products) "
+"simultaneously."
+msgstr ""
+"Un enfoque de modelado que podríamos utilizar para el análisis causal de la "
+"incrementalidad del producto es el modelo de series temporales interrumpidas"
+" multivariadas (MV-ITS). Este modelo es una generalización del modelo de "
+"series temporales interrumpidas (ITS), que es un enfoque común en la "
+"inferencia causal. El modelo MV-ITS nos permite estimar el impacto causal de"
+" una intervención (por ejemplo, la introducción de un nuevo producto) en "
+"múltiples resultados (por ejemplo, las ventas de múltiples productos) "
+"simultáneamente."
+
+#: ../source/guide/customer_choice/mv_its_intro.md:5
+#: c0493869c37748b1bbedffe3c3874cc0
+msgid ""
+"One of the differences between this model and the standard ITS modeling "
+"approach is that rather than having a binary off/on intervention, the time "
+"series of sales of the new product can be thought of as a graded "
+"intervention."
+msgstr ""
+"Una de las diferencias entre este modelo y el enfoque estándar de modelado "
+"ITS es que, en lugar de tener una intervención binaria de apagado/encendido,"
+" la serie temporal de ventas del nuevo producto puede considerarse como una "
+"intervención graduada."
+
+#: ../source/guide/customer_choice/mv_its_intro.md:7
+#: 8675b6da6de7499bba5384ea3d4f824e
+msgid "Building our intuition"
+msgstr "Construyendo nuestra intuición"
+
+#: ../source/guide/customer_choice/mv_its_intro.md:9
+#: ac5092c68afa40808f02b7eaa3d15c75
+msgid ""
+"Below we outline the simplest possible version of the model to build up our "
+"intuition before we move on to more complex versions."
+msgstr ""
+"A continuación, describimos la versión más simple posible del modelo para "
+"desarrollar nuestra intuición antes de pasar a versiones más complejas."
+
+#: ../source/guide/customer_choice/mv_its_intro.md:11
+#: f7f3f4b6894e41b98c28563b6773bb5d
+msgid "![](mv_its_schematic.jpg)"
+msgstr "![](mv_its_schematic.jpg)"
+
+#: ../source/guide/customer_choice/mv_its_intro.md:13
+#: df60a62f472c4dc9bcdb5d8c94584b91
+msgid ""
+"In this example we aggregate sales data into your companies total sales and "
+"your competitors total sales. We then have a time series of sales data for "
+"your company and your competitors. We can see that when we release a new "
+"product, our sales are not really affected, but our competitors' total sales"
+" decrease. So an intuitively right answer here is that our new product has a"
+" high level of incrementality."
+msgstr ""
+"En este ejemplo, agregamos los datos de ventas en las ventas totales de su "
+"empresa y las ventas totales de sus competidores. Luego tenemos una serie "
+"temporal de datos de ventas para su empresa y sus competidores. Podemos ver "
+"que cuando lanzamos un nuevo producto, nuestras ventas no se ven realmente "
+"afectadas, pero las ventas totales de nuestros competidores disminuyen. Así "
+"que una respuesta intuitivamente correcta aquí es que nuestro nuevo producto"
+" tiene un alto nivel de incrementalidad."
+
+#: ../source/guide/customer_choice/mv_its_intro.md:15
+#: 5e60771cc65f4984999d4fd8eb68bfd0
+msgid "The MV-ITS approach"
+msgstr "El enfoque MV-ITS"
+
+#: ../source/guide/customer_choice/mv_its_intro.md:17
+#: 275a548dc9e048aaaafe23215587e633
+msgid "The MV-ITS approach models works as follows:"
+msgstr "El enfoque MV-ITS modela los trabajos de la siguiente manera:"
+
+#: ../source/guide/customer_choice/mv_its_intro.md:18
+#: 8f4f5176bc4d4f62a1b7d7580265f083
+msgid ""
+"It models the time series of sales data for your company and your "
+"competitors."
+msgstr ""
+"Modela la serie temporal de datos de ventas para tu empresa y tus "
+"competidores."
+
+#: ../source/guide/customer_choice/mv_its_intro.md:19
+#: c06f2ea6ed8a4850b553ab306ca6dbaa
+msgid ""
+"These sales are modeled as normally distributed around an expected value "
+"with some degree of observation noise."
+msgstr ""
+"Estas ventas se modelan como distribuidas normalmente alrededor de un valor "
+"esperado con cierto grado de ruido de observación."
+
+#: ../source/guide/customer_choice/mv_its_intro.md:20
+#: 56e79951017544909909550269c766f1
+msgid ""
+"The model expectation could be built up of multiple components, such as a "
+"trend, seasonality, and the impact of marketing campaigns. However for this "
+"simple example we have an intercept only model."
+msgstr ""
+"La expectativa del modelo podría estar compuesta por múltiples componentes, "
+"como una tendencia, estacionalidad y el impacto de las campañas de "
+"marketing. Sin embargo, para este ejemplo simple, tenemos un modelo solo con"
+" intercepto."
+
+#: ../source/guide/customer_choice/mv_its_intro.md:21
+#: 4f2021403ac441549c18f5d2604bf7c0
+msgid ""
+"Importantly, the expectation described above is decreased by some fraction "
+"of the new product sales. This fraction (across multiple sales outcomes) "
+"determines where the sales of the new product are coming from. From this, we"
+" can work out the level of incrementality of the new product."
+msgstr ""
+"Es importante destacar que la expectativa descrita anteriormente se reduce "
+"por una fracción de las ventas del nuevo producto. Esta fracción (a través "
+"de múltiples resultados de ventas) determina de dónde provienen las ventas "
+"del nuevo producto. A partir de esto, podemos calcular el nivel de "
+"incrementalidad del nuevo producto."
+
+#: ../source/guide/customer_choice/mv_its_intro.md:24
+#: f93392d847ab4078b99b8f21af70d3b5
+msgid "The simplest saturated market model"
+msgstr "El modelo de mercado saturado más simple"
+
+#: ../source/guide/customer_choice/mv_its_intro.md:26
+#: a7f489a45ac6453c94ab53857b4f4591
+msgid "Let's start with the simplest case:"
+msgstr "Empecemos con el caso más simple:"
+
+#: ../source/guide/customer_choice/mv_its_intro.md:27
+#: e6a998d1e1c640de98361a71b95421d1
+msgid ""
+"The model description below assumes a saturated market. That is, new product"
+" sales have to be taken from existing sales and there is no growth of the "
+"overal size of the market."
+msgstr ""
+"La descripción del modelo a continuación asume un mercado saturado. Es "
+"decir, las ventas de nuevos productos deben tomarse de las ventas existentes"
+" y no hay crecimiento del tamaño total del mercado."
+
+#: ../source/guide/customer_choice/mv_its_intro.md:28
+#: 1575250bd5f443e5a104cb691505f209
+msgid ""
+"We operate on aggregated sales data in that we have total sales for all your"
+" products and all your competitors products. We also have all the sales data"
+" for the new product that you released."
+msgstr ""
+"Operamos con datos de ventas agregados en el sentido de que tenemos las "
+"ventas totales de todos tus productos y de todos los productos de tus "
+"competidores. También tenemos todos los datos de ventas del nuevo producto "
+"que lanzaste."
+
+#: ../source/guide/customer_choice/mv_its_intro.md:30
+#: a87862edd2cb4e138a508c9f837df972
+msgid "We'll start by defining the model likelihood terms:"
+msgstr "Comenzaremos definiendo los términos de verosimilitud del modelo:"
+
+#: ../source/guide/customer_choice/mv_its_intro.md:32
+#: 3ccfe681d1234f3f985626203e6d4003
+#, python-brace-format
+msgid ""
+"\n"
+"\\begin{aligned}\n"
+"\\vec{sales}_{your} \\sim & \\mathrm{Normal}(\\gamma_{your} - c \\cdot \\vec{sales}_{new}, \\sigma_{your})\\\\\n"
+"\\vec{sales}_{comp} \\sim & \\mathrm{Normal}(\\gamma_{comp} - (1-c) \\cdot \\vec{sales}_{new}, \\sigma_{comp})\n"
+"\\end{aligned}\n"
+msgstr ""
+"\\begin{aligned}\n"
+"\\vec{sales}_{your} \\sim & \\mathrm{Normal}(\\gamma_{your} - c \\cdot \\vec{sales}_{new}, \\sigma_{your})\\\\\n"
+"\\vec{sales}_{comp} \\sim & \\mathrm{sales}0(\\gamma_{sales}1 - (1-c) \\cdot \\vec{sales}2_{sales}3, \\sigma_{sales}4)\n"
+"\\end{sales}5"
+
+#: ../source/guide/customer_choice/mv_its_intro.md:39
+#: 2399354bf10a48c09a008297fe1fc07c
+#, python-brace-format
+msgid ""
+"where $\\vec{sales}_{your}$, $\\vec{sales}_{comp}$, and $\\vec{sales}_{new}$"
+" are the observed time series of sales of all your products, your "
+"competitors products, and your new product, respectively."
+msgstr ""
+"donde $\\vec{sales}_{your}$, $\\vec{sales}_{comp}$, y $\\vec{sales}_{new}$ "
+"son las series temporales observadas de ventas de todos tus productos, los "
+"productos de tus competidores y tu nuevo producto, respectivamente."
+
+#: ../source/guide/customer_choice/mv_its_intro.md:41
+#: 8afc6361328745f3a3e2a26ecd1a6225
+msgid ""
+"The parameter $c \\in [0, 1]$ is the proportion of new product sales that "
+"are cannibalistic, that is, have been taken from your existing products. "
+"Then $1-c$ is the proportion of new product sales that are incremental, that"
+" is, have been taken from your competitors products. We can place a Beta "
+"prior on $c$ to reflect our prior beliefs about the level of incrementality "
+"of the new product for example"
+msgstr ""
+"El parámetro $c \\in [0, 1]$ es la proporción de ventas de nuevos productos "
+"que son canibalísticas, es decir, que han sido tomadas de tus productos "
+"existentes. Entonces $1-c$ es la proporción de ventas de nuevos productos "
+"que son incrementales, es decir, que han sido tomadas de los productos de "
+"tus competidores. Podemos colocar un prior Beta sobre $c$ para reflejar "
+"nuestras creencias previas sobre el nivel de incrementalidad del nuevo "
+"producto, por ejemplo."
+
+#: ../source/guide/customer_choice/mv_its_intro.md:43
+#: 455ece80ab914893b3dd6478cf910ea0
+#, python-brace-format
+msgid ""
+"The parameters  $\\sigma_{your}$ and $\\sigma_{comp}$ are the standard "
+"deviations of the observation noise for your sales and your competitors "
+"sales, respectively. We can also place priors on these parameters to reflect"
+" our prior beliefs about the level of noise in the data."
+msgstr ""
+"Los parámetros  $\\sigma_{your}$ y $\\sigma_{comp}$ son las desviaciones "
+"estándar del ruido de observación para tus ventas y las ventas de tus "
+"competidores, respectivamente. También podemos colocar priors en estos "
+"parámetros para reflejar nuestras creencias previas sobre el nivel de ruido "
+"en los datos."
+
+#: ../source/guide/customer_choice/mv_its_intro.md:45
+#: d27edb6d01484b45bb317526dfc8a39e
+#, python-brace-format
+msgid ""
+"This leaves the terms $\\gamma_{your}$ and $\\gamma_{comp}$, which are terms"
+" that model the sales of your products and your competitors products in the "
+"absence of the new product (which from a causal perspective we could also "
+"call the 'intervention'). One way to think about this would be to construct "
+"a model for sales prior to the new product release. This could be a simple "
+"model with an intercept term, or a more complex model with trend and "
+"seasonality terms. Right now we will just use an intercept term to keep "
+"things simple in this first model. In this case $\\gamma_{your}$ and "
+"$\\gamma_{comp}$ are simply parameters, intercept terms for your sales and "
+"your competitors sales, respectively. Again, we can place priors on these "
+"parameters to reflect our prior beliefs about the level of sales in the "
+"absence of the new product, but the exact form is not crucial at this point."
+msgstr ""
+"Esto deja los términos $\\gamma_{your}$ y $\\gamma_{comp}$, que son términos"
+" que modelan las ventas de tus productos y los productos de tus competidores"
+" en ausencia del nuevo producto (que desde una perspectiva causal también "
+"podríamos llamar la 'intervención'). Una forma de pensar en esto sería "
+"construir un modelo para las ventas antes del lanzamiento del nuevo "
+"producto. Esto podría ser un modelo simple con un término de intercepto, o "
+"un modelo más complejo con términos de tendencia y estacionalidad. En este "
+"momento solo usaremos un término de intercepto para mantener las cosas "
+"simples en este primer modelo. En este caso, $\\gamma_{your}$ y "
+"$\\gamma_{comp}$ son simplemente parámetros, términos de intercepto para tus"
+" ventas y las ventas de tus competidores, respectivamente. Nuevamente, "
+"podemos colocar priors sobre estos parámetros para reflejar nuestras "
+"creencias previas sobre el nivel de ventas en ausencia del nuevo producto, "
+"pero la forma exacta no es crucial en este momento."
+
+#: ../source/guide/customer_choice/mv_its_intro.md:47
+#: 6c81a1b4e05a46488986b0594d167847
+msgid "Modelling products"
+msgstr "Modelando productos"
+
+#: ../source/guide/customer_choice/mv_its_intro.md:48
+#: b70868e9352d40d2b417ac3f72a88c36
+msgid ""
+"We could relax one of the simplifications - rather than model aggregated "
+"sales for your or your competitors products, we could model sales for each "
+"product individually. This would allow us to see which products are most "
+"affected by the new product release. We could write the new likelihood terms"
+" as:"
+msgstr ""
+"Podríamos relajar una de las simplificaciones: en lugar de modelar las "
+"ventas agregadas de tus productos o de los productos de tus competidores, "
+"podríamos modelar las ventas de cada producto individualmente. Esto nos "
+"permitiría ver qué productos están más afectados por el lanzamiento del "
+"nuevo producto. Podríamos escribir los nuevos términos de probabilidad como:"
+
+#: ../source/guide/customer_choice/mv_its_intro.md:50
+#: 485853ad48bf4174b876fe8c3ce59f86
+#, python-brace-format
+msgid ""
+"\n"
+"\\begin{aligned}\n"
+"\\vec{sales}_1 \\sim & \\mathrm{Normal}(\\gamma_1 - \\beta_1 \\cdot \\vec{sales}_{new}, \\sigma_1)\\\\\n"
+"\\vec{sales}_2 \\sim & \\mathrm{Normal}(\\gamma_2 - \\beta_2 \\cdot \\vec{sales}_{new}, \\sigma_2)\\\\\n"
+"\\vdots \\\\\n"
+"\\vec{sales}_P \\sim & \\mathrm{Normal}(\\gamma_P - \\beta_P \\cdot \\vec{sales}_{new}, \\sigma_P)\n"
+"\\end{aligned}\n"
+msgstr ""
+"\\begin{aligned}\n"
+"\\vec{sales}_1 \\sim & \\mathrm{Normal}(\\gamma_1 - \\beta_1 \\cdot \\vec{sales}_{new}, \\sigma_1)\\\\\n"
+"\\vec{sales}_2 \\sim & \\mathrm{Normal}(\\gamma_2 - \\beta_2 \\cdot \\vec{sales}_{new}, \\sigma_2)\\\\\n"
+"\\vdots \\\\\n"
+"\\vec{sales}_P \\sim & \\mathrm{sales}0(\\gamma_P - \\beta_P \\cdot \\vec{sales}1_{sales}2, \\sigma_P)\n"
+"\\end{sales}3"
+
+#: ../source/guide/customer_choice/mv_its_intro.md:59
+#: 211f7bbd9985483eab21c63a26ae09f8
+msgid ""
+"So now we have products $p=1, \\ldots, P$ and we could model the sales of "
+"each product individually. We now have a new parameter $\\beta_i$ for each "
+"product, which is the proportion of new product sales that are cannibalistic"
+" for that product. This allows us to see which products are most affected by"
+" the new product release. Because we have the assumption that the market is "
+"saturated, we can see that the sum of the $\\beta_i$'s should equal 1. So it"
+" might be natural to place a "
+"[Dirichlet](https://en.wikipedia.org/wiki/Dirichlet_distribution) prior on "
+"the $\\beta_i$'s:"
+msgstr ""
+"TEXT:\n"
+"Así que ahora tenemos productos $p=1, \\ldots, P$ y podríamos modelar las ventas de cada producto individualmente. Ahora tenemos un nuevo parámetro $\\beta_i$ para cada producto, que es la proporción de ventas de nuevos productos que son canibalísticas para ese producto. Esto nos permite ver qué productos están más afectados por el lanzamiento del nuevo producto. Debido a que tenemos la suposición de que el mercado está saturado, podemos ver que la suma de los $\\beta_i$ debe ser igual a 1. Así que podría ser natural colocar un [Dirichlet](https://en.wikipedia.org/wiki/Dirichlet_distribution) previo sobre los $\\beta_i$:"
+
+#: ../source/guide/customer_choice/mv_its_intro.md:61
+#: 3738a127364549b7a5f4767b35fc4b0f
+#, python-brace-format
+msgid ""
+"\n"
+"\\beta_1, \\beta_2, \\ldots, \\beta_P \\sim \\mathrm{Dirichlet}(\\alpha_1, \\ldots, \\alpha_P)\n"
+msgstr ""
+"\\beta_1, \\beta_2, \\ldots, \\beta_P \\sim \\mathrm{Dirichlet}(\\alpha_1, "
+"\\ldots, \\alpha_P)"
+
+#: ../source/guide/customer_choice/mv_its_intro.md:65
+#: 7215402c7db14000951382d95d583707
+msgid "where all the $\\alpha$ hyperparameters could be 1, for example."
+msgstr "donde todos los $\\alpha$ hiperparámetros podrían ser 1, por ejemplo."
+
+#: ../source/guide/customer_choice/mv_its_intro.md:67
+#: 47ab2390434f4ed085bf096fa6c671de
+msgid ""
+"As long as we have a list of which products are your products and which are "
+"your competitors products, we can simply sum the approriate $\\beta_i$'s to "
+"get the cannibalistic and incremental sales for your products and your "
+"competitors products."
+msgstr ""
+"Mientras tengamos una lista de cuáles productos son tus productos y cuáles "
+"son los productos de tus competidores, simplemente podemos sumar los "
+"$\\beta_i$ apropiados para obtener las ventas canibalísticas e incrementales"
+" de tus productos y de los productos de tus competidores."
+
+#: ../source/guide/customer_choice/mv_its_intro.md:69
+#: 022d9e813ce94be0ad94e41e35fce67a
+msgid "The multivariate normal form"
+msgstr "La forma normal multivariante"
+
+#: ../source/guide/customer_choice/mv_its_intro.md:71
+#: a5e72ec008484012a567283c1c6588c8
+msgid "Note that you could re-write this model equivalently as:"
+msgstr ""
+"Tenga en cuenta que podría reescribir este modelo de manera equivalente "
+"como:"
+
+#: ../source/guide/customer_choice/mv_its_intro.md:73
+#: f8f15a36b4e84676ae30cd42efa3dbc3
+#, python-brace-format
+msgid ""
+"\n"
+"\\begin{bmatrix}\n"
+"\\vec{sales}_1 \\\\\n"
+"\\vec{sales}_2 \\\\\n"
+"\\vdots \\\\\n"
+"\\vec{sales}_P\n"
+"\\end{bmatrix}\n"
+"\\sim \\mathrm{MultivariateNormal}\\left(\n"
+"\\begin{bmatrix}\n"
+"\\gamma_{1} - \\beta_1 \\cdot \\vec{sales}_{new} \\\\\n"
+"\\gamma_{2} - \\beta_2 \\cdot \\vec{sales}_{new} \\\\\n"
+"\\vdots \\\\\n"
+"\\gamma_{P} - \\beta_P \\cdot \\vec{sales}_{new}\n"
+"\\end{bmatrix},\n"
+"\\Sigma\n"
+"\\right)\n"
+msgstr ""
+"\\begin{bmatrix}\n"
+"\\vec{sales}_1 \\\\\n"
+"\\vec{sales}_2 \\\\\n"
+"\\vdots \\\\\n"
+"\\vec{sales}_P\n"
+"\\end{bmatrix}\n"
+"\\sim \\mathrm{MultivariateNormal}\\left(\n"
+"\\begin{bmatrix}\n"
+"\\gamma_{1} - \\beta_1 \\cdot \\vec{sales}_{new} \\\\\n"
+"\\gamma_{sales}0 - \\beta_2 \\cdot \\vec{sales}1_{sales}2 \\\\\n"
+"\\vdots \\\\\n"
+"\\gamma_{sales}3 - \\beta_P \\cdot \\vec{sales}4_{sales}5\n"
+"\\end{sales}6,\n"
+"\\Sigma\n"
+"\\right)"
+
+#: ../source/guide/customer_choice/mv_its_intro.md:91
+#: 1a771e123582429d8d802eb5110bb833
+msgid ""
+"We can embody the assumption that all the product sales are independent of "
+"each other by setting the off-diagonal elements of the covariance matrix "
+"$\\Sigma$ to zero. The diagonal elements of the covariance matrix are the "
+"variances of the observation noise for each product $[ \\sigma_1, \\sigma_2 "
+"\\ldots, \\sigma_P ]$. So the covariance matrix would look like:"
+msgstr ""
+"Podemos encarnar la suposición de que todas las ventas de productos son "
+"independientes entre sí al establecer los elementos fuera de la diagonal de "
+"la matriz de covarianza $\\Sigma$ en cero. Los elementos diagonales de la "
+"matriz de covarianza son las varianzas del ruido de observación para cada "
+"producto $[ \\sigma_1, \\sigma_2 \\ldots, \\sigma_P ]$. Así que la matriz de"
+" covarianza se vería así:"
+
+#: ../source/guide/customer_choice/mv_its_intro.md:94
+#: eed7d26d90a34e2e94b897a7a9a2bb74
+#, python-brace-format
+msgid ""
+"\n"
+"\\Sigma =\n"
+"\\begin{pmatrix}\n"
+"\\sigma_{1}^2 & 0 & \\cdots & 0 \\\\\n"
+"0 & \\sigma_{2}^2 & \\cdots & 0 \\\\\n"
+"\\vdots & \\vdots & \\ddots & \\vdots \\\\\n"
+"0 & 0 & \\cdots & \\sigma_{P}^2\n"
+"\\end{pmatrix}\n"
+msgstr ""
+"\\Sigma =\n"
+"\\begin{pmatrix}\n"
+"\\sigma_{1}^2 & 0 & \\cdots & 0 \\\\\n"
+"0 & \\sigma_{2}^2 & \\cdots & 0 \\\\\n"
+"\\vdots & \\vdots & \\ddots & \\vdots \\\\\n"
+"0 & 0 & \\cdots & \\sigma_{P}^2\n"
+"\\end{pmatrix}"
+
+#: ../source/guide/customer_choice/mv_its_intro.md:105
+#: 730cae1507ca4740b24139b3c6ee5a84
+msgid "Relaxing independence assumptions"
+msgstr "Relajando las suposiciones de independencia"
+
+#: ../source/guide/customer_choice/mv_its_intro.md:106
+#: bb76329df6b0451387277f3458cb3692
+msgid ""
+"We could relax the assumption that the sales of your products and your "
+"competitors products are independent. We could model the sales of your "
+"products and your competitors products as a multivariate normal distribution"
+" (see box above)."
+msgstr ""
+"Podríamos relajar la suposición de que las ventas de tus productos y los "
+"productos de tus competidores son independientes. Podríamos modelar las "
+"ventas de tus productos y los productos de tus competidores como una "
+"distribución normal multivariante (ver cuadro arriba)."
+
+#: ../source/guide/customer_choice/mv_its_intro.md:108
+#: d6c6260383124030952f2531137bfde1
+msgid ""
+"The key difference would be to additionally estimate the off-diagnal "
+"elements of the covariance matrix. This would allow us to model the "
+"correlation between the sales of all products. This might require us to put "
+"more work in to specifying the prior on the covariance matrix, but in some "
+"situations the benefits of this approach could be worth it. The covariance "
+"matrix would now look like:"
+msgstr ""
+"La diferencia clave sería estimar además los elementos fuera de la diagonal "
+"de la matriz de covarianza. Esto nos permitiría modelar la correlación entre"
+" las ventas de todos los productos. Esto podría requerir que pongamos más "
+"esfuerzo en especificar el prior sobre la matriz de covarianza, pero en "
+"algunas situaciones los beneficios de este enfoque podrían valer la pena. La"
+" matriz de covarianza ahora se vería así:"
+
+#: ../source/guide/customer_choice/mv_its_intro.md:110
+#: 093a5752a4874a6c840e26f43994fa9f
+#, python-brace-format
+msgid ""
+"\n"
+"\\Sigma =\n"
+"\\begin{pmatrix}\n"
+"\\sigma_{11}^2 & \\sigma_{12} & \\cdots & \\sigma_{1P} \\\\\n"
+"\\sigma_{21} & \\sigma_{22}^2 & \\cdots & \\sigma_{2P} \\\\\n"
+"\\vdots & \\vdots & \\ddots & \\vdots \\\\\n"
+"\\sigma_{P1} & \\sigma_{P2} & \\cdots & \\sigma_{PP}^2\n"
+"\\end{pmatrix}\n"
+msgstr ""
+"\\Sigma =\n"
+"\\begin{pmatrix}\n"
+"\\sigma_{11}^2 & \\sigma_{12} & \\cdots & \\sigma_{1P} \\\\\n"
+"\\sigma_{21} & \\sigma_{22}^2 & \\cdots & \\sigma_{2P} \\\\\n"
+"\\vdots & \\vdots & \\ddots & \\vdots \\\\\n"
+"\\sigma_{P1} & \\sigma_{P2} & \\cdots & \\sigma_{PP}^2\n"
+"\\end{11}0"
+
+#: ../source/guide/customer_choice/mv_its_intro.md:120
+#: 1723b30278a1464fbc581adf3654d8c9
+msgid ""
+"The disadvantage of this model is that we would have a lot of parameters to "
+"estimate. For example, if there are $P$ products then we could have to "
+"estimate $P$ $\\beta_i$'s and $P$ standard deviations and $P(P-1)/2$ "
+"covariances. This need not be a problem - we could place hierarchical priors"
+" on the $\\beta_i$'s and the standard deviations for example, but it could "
+"be problematic with the covariances if we have a large number of products."
+msgstr ""
+"La desventaja de este modelo es que tendríamos muchos parámetros que "
+"estimar. Por ejemplo, si hay $P$ productos, entonces podríamos tener que "
+"estimar $P$ $\\beta_i$'s y $P$ desviaciones estándar y $P(P-1)/2$ "
+"covarianzas. Esto no tiene por qué ser un problema; podríamos colocar priors"
+" jerárquicos sobre los $\\beta_i$'s y las desviaciones estándar, por "
+"ejemplo, pero podría ser problemático con las covarianzas si tenemos un gran"
+" número de productos."
+
+#: ../source/guide/customer_choice/mv_its_intro.md:122
+#: f56473fe88874296802c84ece3bd5f50
+msgid "Moving to an unsaturated market"
+msgstr "Moviéndose a un mercado no saturado"
+
+#: ../source/guide/customer_choice/mv_its_intro.md:124
+#: 644369eca2214782a24f54c7468cc4d9
+msgid ""
+"Thus far we have considered the market as saturated. That is, it is assumed "
+"that the total sales of existing products are reduced by the same amount as "
+"the sales of the new product."
+msgstr ""
+"Hasta ahora hemos considerado el mercado como saturado. Es decir, se asume "
+"que las ventas totales de los productos existentes se reducen en la misma "
+"cantidad que las ventas del nuevo producto."
+
+#: ../source/guide/customer_choice/mv_its_intro.md:126
+#: 48048c4566bd43399786b159221d4f21
+msgid ""
+"We could relax this assumption and consider an unsaturated market. More "
+"specifically, we could model the reduction of sales of existing products is "
+"less than the sales of the new product. Putting that another way, "
+"introduction of a new product leads to a reduction in existing product sales"
+" _but_ there are _additional_ sales of the new product which do not come "
+"from a reduction in the sales of existing products."
+msgstr ""
+"Podríamos relajar esta suposición y considerar un mercado no saturado. Más "
+"específicamente, podríamos modelar que la reducción de ventas de los "
+"productos existentes es menor que las ventas del nuevo producto. Dicho de "
+"otra manera, la introducción de un nuevo producto conduce a una reducción en"
+" las ventas de los productos existentes _pero_ hay _ventas adicionales_ del "
+"nuevo producto que no provienen de una reducción en las ventas de los "
+"productos existentes."
+
+#: ../source/guide/customer_choice/mv_its_intro.md:128
+#: 0ea33d7c03474ee9b1c1ffe8dc027030
+msgid ""
+"This requires only a minor change to the multivariate normal form of the "
+"model."
+msgstr ""
+"Esto requiere solo un cambio menor en la forma normal multivariante del "
+"modelo."
+
+#: ../source/guide/customer_choice/mv_its_intro.md:130
+#: 10826a88aa3e42239d038ff653c6ba5e
+msgid ""
+"Specifically, rather than having $P$ products which are the source of new "
+"product sales, we could simply add a psuedo-product which represents new "
+"sales. The first $P$ products are as normal, all the existing products. The "
+"final pseudo product would represent the market growth. We could simply add "
+"an additional $\\beta$ parameter and specify the prior as:"
+msgstr ""
+"Específicamente, en lugar de tener $P$ productos que son la fuente de nuevas"
+" ventas de productos, podríamos simplemente agregar un pseudo-producto que "
+"represente nuevas ventas. Los primeros $P$ productos son como de costumbre, "
+"todos los productos existentes. El último pseudo producto representaría el "
+"crecimiento del mercado. Podríamos simplemente agregar un parámetro "
+"adicional $\\beta$ y especificar el previo como:"
+
+#: ../source/guide/customer_choice/mv_its_intro.md:132
+#: e2de6a0f2b884734b48161e387fe8360
+#, python-brace-format
+msgid ""
+"\n"
+"\\beta_1, \\beta_2, \\ldots, \\beta_P, \\beta_{P+1} \\sim \\mathrm{Dirichlet}(\\alpha_1, \\ldots, \\alpha_P, \\alpha_{P+1})\n"
+msgstr ""
+"\\beta_1, \\beta_2, \\ldots, \\beta_P, \\beta_{P+1} \\sim "
+"\\mathrm{Dirichlet}(\\alpha_1, \\ldots, \\alpha_P, \\alpha_{P+1})"
+
+#: ../source/guide/customer_choice/mv_its_intro.md:136
+#: c99b73326c6142e48cfd4f1fd19ec099
+msgid "The rest of the model remains unchanged."
+msgstr "El resto del modelo permanece sin cambios."
+
+#: ../source/guide/customer_choice/mv_its_intro.md:138
+#: 1c8c4d0411644bccababad822045390e
+#, python-brace-format
+msgid ""
+"Previously the sum of the $\\beta$ parameters would be 1, which means that "
+"all new product sales are taken from existing products. Now the sum of the "
+"$\\beta$ parameters relating to existing products ($\\beta_1, \\beta_2, "
+"\\ldots, \\beta_P$) could be less than 1. When $\\beta_{P+1}>0$ then it "
+"means that the new product has caused the market to grow - some of the new "
+"product sales not come from reductions in sales of existing products."
+msgstr ""
+"Anteriormente, la suma de los parámetros $\\beta$ sería 1, lo que significa "
+"que todas las ventas de nuevos productos provienen de productos existentes. "
+"Ahora la suma de los parámetros $\\beta$ relacionados con productos "
+"existentes ($\\beta_1, \\beta_2, \\ldots, \\beta_P$) podría ser menor que 1."
+" Cuando $\\beta_{P+1}>0$, significa que el nuevo producto ha hecho que el "
+"mercado crezca: algunas de las ventas del nuevo producto no provienen de "
+"reducciones en las ventas de productos existentes."

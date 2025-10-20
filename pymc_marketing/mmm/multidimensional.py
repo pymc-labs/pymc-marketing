@@ -187,6 +187,7 @@ from pymc_marketing.mmm.events import EventEffect
 from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.hsgp import HSGPBase
 from pymc_marketing.mmm.lift_test import (
+    add_cost_per_target_potentials,
     add_lift_measurements_to_likelihood_from_saturation,
     scale_lift_measurements,
 )
@@ -489,7 +490,7 @@ class MMM(RegressionModelBuilder):
             If the event effect dimensions do not contain the prefix and model dimensions.
 
         """
-        if not set(effect.dims).issubset((prefix, self.dims)):
+        if not set(effect.dims).issubset((prefix, *self.dims)):
             raise ValueError(
                 f"Event effect dims {effect.dims} must contain {prefix} and {self.dims}"
             )
@@ -1948,6 +1949,135 @@ class MMM(RegressionModelBuilder):
             model=self.model,
             dist=dist,
             name=name,
+        )
+
+    def add_cost_per_target_calibration(
+        self,
+        data: pd.DataFrame,
+        calibration_data: pd.DataFrame,
+        name_prefix: str = "cpt_calibration",
+    ) -> None:
+        """Calibrate cost-per-target using constraints via ``pm.Potential``.
+
+        This adds a deterministic ``cpt_variable_name`` computed as
+        ``channel_data_spend / channel_contribution_original_scale`` and creates
+        per-row penalty terms based on ``calibration_data`` using a quadratic penalty:
+
+        ``penalty = - |cpt_mean - target|^2 / (2 * sigma^2)``.
+
+        Parameters
+        ----------
+        data : pd.DataFrame
+            Feature-like DataFrame with columns matching training ``X`` but with
+            channel values representing spend (original units). Must include the
+            same ``date`` and any model ``dims`` columns.
+        calibration_data : pd.DataFrame
+            DataFrame with rows specifying calibration targets. Must include:
+              - ``channel``: channel name in ``self.channel_columns``
+              - ``cost_per_target``: desired CPT value
+              - ``sigma``: accepted deviation; larger => weaker penalty
+            and one column per dimension in ``self.dims``.
+        cpt_variable_name : str
+            Name for the cost-per-target Deterministic in the model.
+        name_prefix : str
+            Prefix to use for generated potential names.
+
+        Examples
+        --------
+        Build a model and calibrate CPT for selected (dims, channel):
+
+        .. code-block:: python
+
+            # spend data in original scale with the same structure as X
+            spend_df = X.copy()
+            # e.g., if X contains impressions, replace with monetary spend
+            # spend_df[channels] = ...
+
+            calibration_df = pd.DataFrame(
+                {
+                    "channel": ["C1", "C2"],
+                    "geo": ["US", "US"],  # dims columns as needed
+                    "cost_per_target": [30.0, 45.0],
+                    "sigma": [2.0, 3.0],
+                }
+            )
+
+            mmm.add_cost_per_target_calibration(
+                data=spend_df,
+                calibration_data=calibration_df,
+                name_prefix="cpt_calibration",
+            )
+        """
+        if not hasattr(self, "model"):
+            raise RuntimeError("Model must be built before adding calibration.")
+
+        # Validate required columns in calibration_data
+        if "channel" not in calibration_data.columns:
+            raise KeyError("'channel' column missing in calibration_data")
+        for dim in self.dims:
+            if dim not in calibration_data.columns:
+                raise KeyError(
+                    f"The {dim} column is required in calibration_data to map to model dims."
+                )
+
+        # Prepare spend data as xarray (original units)
+        spend_ds = (
+            self._create_xarray_from_pandas(
+                data=data,
+                date_column=self.date_column,
+                dims=self.dims,
+                metric_list=self.channel_columns,
+                metric_coordinate_name="channel",
+            )
+            .transpose("date", *self.dims, "channel")
+            .fillna(0)
+        )
+
+        spend_array = spend_ds._channel
+        # Compute expected shape from the model
+        channel_data_dims = self.model.named_vars_to_dims["channel_data"]
+        expected_shape = tuple(len(self.model.coords[dim]) for dim in channel_data_dims)
+
+        # Align spend array to the models dim order
+        spend_aligned = spend_array.transpose(*channel_data_dims)
+
+        # Now the check will fail when a coord (e.g., a country) is missing
+        if spend_aligned.shape != expected_shape:
+            raise ValueError(
+                "Spend data shape does not match channel data dims in the model: "
+                f"expected {expected_shape}, got {spend_aligned.shape}"
+            )
+
+        for dim in channel_data_dims:
+            spend_labels = np.asarray(spend_aligned.coords[dim].values)
+            model_labels = np.asarray(self.model.coords[dim])
+            if not np.array_equal(spend_labels, model_labels):
+                raise ValueError(
+                    f"Spend data coordinates for dim {dim!r} do not match model coords: "
+                    f"expected {model_labels.tolist()}, got {spend_labels.tolist()}"
+                )
+
+        spend_tensor = pt.as_tensor_variable(spend_aligned.values)
+
+        with self.model:
+            # Ensure original-scale contribution exists
+            if "channel_contribution_original_scale" not in self.model.named_vars:
+                self.add_original_scale_contribution_variable(
+                    [
+                        "channel_contribution",
+                    ]
+                )
+
+            denom = pt.clip(
+                self.model["channel_contribution_original_scale"], 1e-12, np.inf
+            )
+            cpt_tensor = spend_tensor / denom
+
+        add_cost_per_target_potentials(
+            calibration_df=calibration_data,
+            model=self.model,
+            cpt_value=cpt_tensor,
+            name_prefix=name_prefix,
         )
 
     def create_fit_data(

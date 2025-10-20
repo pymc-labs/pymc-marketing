@@ -1,0 +1,156 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.model_builder.rst:2
+#: 9cbfed043023401faf4ed18432e421c9
+msgid "model\\_builder"
+msgstr "constructor_de_modelos"
+
+#: 769ce85c14ca4c3dabb5d25b5681fc29 of pymc_marketing.model_builder:1
+msgid ""
+"Base classes containing primitives and high-level API for model building, "
+"fitting, saving, and loading."
+msgstr ""
+"Clases base que contienen primitivas y una API de alto nivel para la "
+"construcción, ajuste, guardado y carga de modelos."
+
+#: ../source/api/generated/pymc_marketing.model_builder.rst:13
+#: 89b1be3d311b46b09a87f08e8409b38e
+msgid "Functions"
+msgstr "Funciones"
+
+#: ../source/api/generated/pymc_marketing.model_builder.rst:25:<autosummary>:1
+#: f2b973ec06c8488585f869fa7b7224f6
+msgid ""
+":py:obj:`create_idata_accessor "
+"<pymc_marketing.model_builder.create_idata_accessor>`\\ \\(value\\, "
+"message\\)"
+msgstr ""
+":py:obj:`create_idata_accessor "
+"<pymc_marketing.model_builder.create_idata_accessor>`\\ \\(valor\\, "
+"mensaje\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.rst:25:<autosummary>:1
+#: d83d149af3b44d9faaaa1b0367bb5d7c
+msgid "Create a property accessor for an InferenceData object."
+msgstr "Cree un accesor de propiedad para un objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.model_builder.rst:25:<autosummary>:1
+#: 0c0a6ead37f14a13913deaaa8279ad96
+msgid ""
+":py:obj:`create_sample_kwargs "
+"<pymc_marketing.model_builder.create_sample_kwargs>`\\ "
+"\\(sampler\\_config\\, ...\\)"
+msgstr ""
+":py:obj:`create_sample_kwargs "
+"<pymc_marketing.model_builder.create_sample_kwargs>`\\ "
+"\\(sampler\\_config\\, ...\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.rst:25:<autosummary>:1
+#: db0e758f577244e1a92237a342fa0ab7
+msgid "Create the dictionary of keyword arguments for `pm.sample`."
+msgstr "Cree el diccionario de argumentos clave para `pm.sample`."
+
+#: ../source/api/generated/pymc_marketing.model_builder.rst:25:<autosummary>:1
+#: ece0b8e526534be18806209aac018d6f
+msgid ""
+":py:obj:`requires_model <pymc_marketing.model_builder.requires_model>`\\ "
+"\\(func\\)"
+msgstr ""
+":py:obj:`requires_model <pymc_marketing.model_builder.requires_model>`\\ "
+"\\(func\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.rst:25:<autosummary>:1
+#: 0a7ad1795a8c49ce9104c5ef1cf01fca
+msgid "Ensure that the model is built before calling a method."
+msgstr ""
+"Asegúrese de que el modelo esté construido antes de llamar a un método."
+
+#: ../source/api/generated/pymc_marketing.model_builder.rst:27
+#: a479fa38e1b44e0fa3c071c9e381abf3
+msgid "Classes"
+msgstr "Clases"
+
+#: ../source/api/generated/pymc_marketing.model_builder.rst:45:<autosummary>:1
+#: 9e47cd2e4c174163bfef9e923cadff88
+msgid ""
+":py:obj:`ModelBuilder <pymc_marketing.model_builder.ModelBuilder>`\\ "
+"\\(\\[model\\_config\\, sampler\\_config\\]\\)"
+msgstr ""
+":py:obj:`ModelBuilder <pymc_marketing.model_builder.ModelBuilder>`\\ "
+"\\(\\[configuración\\_del\\_modelo\\, "
+"configuración\\_del\\_muestreador\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.rst:45:<autosummary>:1
+#: 3997763521fc4c95b1e0aab308f2dfed
+msgid "Base class for building PyMC-Marketing models."
+msgstr "Clase base para construir modelos de PyMC-Marketing."
+
+#: ../source/api/generated/pymc_marketing.model_builder.rst:45:<autosummary>:1
+#: fa68c4455022418c93a6210ca9bcaa0f
+msgid ":py:obj:`ModelIO <pymc_marketing.model_builder.ModelIO>`\\ \\(\\)"
+msgstr ":py:obj:`ModelIO <pymc_marketing.model_builder.ModelIO>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.rst:45:<autosummary>:1
+#: 6b267c0e7b5b4b678cfacfe6de36046b
+msgid "Mixin to handle saving and loading of models."
+msgstr "Mixin para manejar el guardado y la carga de modelos."
+
+#: ../source/api/generated/pymc_marketing.model_builder.rst:45:<autosummary>:1
+#: d4948bd5fd0c4c4babec5ee27d9fe4f4
+msgid ""
+":py:obj:`RegressionModelBuilder "
+"<pymc_marketing.model_builder.RegressionModelBuilder>`\\ "
+"\\(\\[model\\_config\\, ...\\]\\)"
+msgstr ""
+":py:obj:`RegressionModelBuilder "
+"<pymc_marketing.model_builder.RegressionModelBuilder>`\\ "
+"\\(\\[model\\_config\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.rst:45:<autosummary>:1
+#: 834999c6934e4bf795628c392c27b0f0
+msgid ""
+"ModelBuilder class providing an easy-to-use API similar to scikit-learn for "
+"regression models."
+msgstr ""
+"Clase ModelBuilder que proporciona una API fácil de usar similar a scikit-"
+"learn para modelos de regresión."
+
+#: ../source/api/generated/pymc_marketing.model_builder.rst:47
+#: 8cb9e8439d4e4996af5dc8523112e52c
+msgid "Exceptions"
+msgstr "Excepciones"
+
+#: ../source/api/generated/pymc_marketing.model_builder.rst:50:<autosummary>:1
+#: c8338e7b634248c6ac29b1fe743d1b28
+msgid ""
+":py:obj:`DifferentModelError "
+"<pymc_marketing.model_builder.DifferentModelError>`\\"
+msgstr ""
+":py:obj:`DifferentModelError "
+"<pymc_marketing.model_builder.DifferentModelError>`"
+
+#: ../source/api/generated/pymc_marketing.model_builder.rst:50:<autosummary>:1
+#: 2c59e0b91fc1429bb8f77b42f2e36d0d
+msgid "Error raised when a model loaded is different than one saved."
+msgstr ""
+"Error generado cuando un modelo cargado es diferente al que se guardó."
