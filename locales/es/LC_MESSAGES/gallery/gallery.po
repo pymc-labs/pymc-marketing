@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: pymc-marketing local\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-10-15 10:52+0300\n"
+"POT-Creation-Date: 2025-10-20 21:01+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: es <LL@li.org>\n"
@@ -100,131 +100,139 @@ msgstr "Ejemplo de Asignación de Presupuesto"
 msgid "Budget Allocation and Risk Assessment"
 msgstr "Asignación de Presupuesto y Evaluación de Riesgos"
 
-#: ../source/gallery/gallery.md:87 2c5ee96b2d6f48a9945781de4d4e5ebd
+#: ../source/gallery/gallery.md:86 96fb78f09afc44c4aca771ff69c6483e
+msgid "Multi-Objective Optimization"
+msgstr ""
+"{\n"
+"  \"singular\": \"Optimización Multi-Objetivo\",\n"
+"  \"plural\": \"Optimización Multi-Objetivo\"\n"
+"}"
+
+#: ../source/gallery/gallery.md:92 2c5ee96b2d6f48a9945781de4d4e5ebd
 msgid "Lift Test Calibration"
 msgstr "Calibración de Prueba de Elevación"
 
-#: ../source/gallery/gallery.md:92 3dc7db5124794a17ace8fb2029b2395f
+#: ../source/gallery/gallery.md:97 3dc7db5124794a17ace8fb2029b2395f
 msgid "Introduction to Lift Test Calibration"
 msgstr "Introducción a la Calibración de Pruebas de Elevación"
 
-#: ../source/gallery/gallery.md:97 8f292d61e1ad4a48bc7b76857f760995
+#: ../source/gallery/gallery.md:102 8f292d61e1ad4a48bc7b76857f760995
 msgid "Case Study: Unobserved Confounders, ROAS and Lift Tests"
 msgstr ""
 "Estudio de Caso: Confusores No Observados, ROAS y Pruebas de Incremento"
 
-#: ../source/gallery/gallery.md:103 fbee470b6fb6411dbbcf1589a9bf2a3a
+#: ../source/gallery/gallery.md:108 fbee470b6fb6411dbbcf1589a9bf2a3a
 msgid "Time-Varying Parameters"
 msgstr "Parámetros que varían con el tiempo"
 
-#: ../source/gallery/gallery.md:108 b63e5d3db0eb4e72b2a08f49120b9300
+#: ../source/gallery/gallery.md:113 b63e5d3db0eb4e72b2a08f49120b9300
 msgid "MMM with time-varying media baseline"
 msgstr "MMM con línea base de medios variable en el tiempo"
 
-#: ../source/gallery/gallery.md:113 5534c7302e124280b9fd8ca3aef56e0e
+#: ../source/gallery/gallery.md:118 5534c7302e124280b9fd8ca3aef56e0e
 msgid "MMM with time-varying parameters"
 msgstr "MMM con parámetros que varían con el tiempo"
 
-#: ../source/gallery/gallery.md:119 3de958634b714c8ba850af1d44509288
+#: ../source/gallery/gallery.md:124 3de958634b714c8ba850af1d44509288
 msgid "Model Evaluation"
 msgstr "Evaluación del Modelo"
 
-#: ../source/gallery/gallery.md:124 e5c0b7fe619b44998a8858d996782603
+#: ../source/gallery/gallery.md:129 e5c0b7fe619b44998a8858d996782603
 msgid "Cross-Validation"
 msgstr "Validación cruzada"
 
-#: ../source/gallery/gallery.md:129 d39fcb1ae88542a5ad0c8ddd8f10ffd4
+#: ../source/gallery/gallery.md:134 d39fcb1ae88542a5ad0c8ddd8f10ffd4
 msgid "Metrics and Model Evaluation"
 msgstr "Métricas y Evaluación del Modelo"
 
-#: ../source/gallery/gallery.md:135 f95e1ebafff240ce9643ab5d0c6f2ae5
+#: ../source/gallery/gallery.md:140 f95e1ebafff240ce9643ab5d0c6f2ae5
 msgid "Causal Inference"
 msgstr "Inferencia Causal"
 
-#: ../source/gallery/gallery.md:141 fc22ec2ad28443b5a90c7e5a2123d387
+#: ../source/gallery/gallery.md:146 fc22ec2ad28443b5a90c7e5a2123d387
 msgid "Causal Identification"
 msgstr "Identificación Causal"
 
-#: ../source/gallery/gallery.md:146 d77165fa710c4f42802d37369d56e1e3
+#: ../source/gallery/gallery.md:151 d77165fa710c4f42802d37369d56e1e3
 msgid "MMMs and Pearl's ladder of causal inference"
 msgstr "MMMs y la escalera de inferencia causal de Pearl"
 
-#: ../source/gallery/gallery.md:152 fef62973b5eb47f891a1c05de5793477
+#: ../source/gallery/gallery.md:157 fef62973b5eb47f891a1c05de5793477
 msgid "Case Studies"
 msgstr "Estudios de Caso"
 
-#: ../source/gallery/gallery.md:157 7c5b73e8ee8340d1b38ebf28399eac6c
+#: ../source/gallery/gallery.md:162 7c5b73e8ee8340d1b38ebf28399eac6c
 msgid "MMM End-to-End Case Study"
 msgstr "MMM Estudio de Caso de Extremo a Extremo"
 
-#: ../source/gallery/gallery.md:163 8292077d497b43eba7feafd6cb06c2fb
+#: ../source/gallery/gallery.md:168 8292077d497b43eba7feafd6cb06c2fb
 msgid "Customer Lifetime Value (CLV) Models"
 msgstr "Modelos de Valor del Tiempo de Vida del Cliente (CLV)"
 
-#: ../source/gallery/gallery.md:168 efc8468983734b35bc83435e5b1587d8
+#: ../source/gallery/gallery.md:173 efc8468983734b35bc83435e5b1587d8
 msgid "CLV Quickstart"
 msgstr "CLV Guía Rápida"
 
-#: ../source/gallery/gallery.md:173 b83c0e39c7a54b68a95464453d422e05
+#: ../source/gallery/gallery.md:178 b83c0e39c7a54b68a95464453d422e05
 msgid "BG/NBD Model"
 msgstr "Modelo BG/NBD"
 
-#: ../source/gallery/gallery.md:178 14d06c8570fb4fe9bbe8b17106a9e269
+#: ../source/gallery/gallery.md:183 14d06c8570fb4fe9bbe8b17106a9e269
 msgid "MBG/NBD Model"
 msgstr "Modelo MBG/NBD"
 
-#: ../source/gallery/gallery.md:183 e531361a86a84a98982cddfdd11f17ce
+#: ../source/gallery/gallery.md:188 e531361a86a84a98982cddfdd11f17ce
 msgid "Pareto/NBD Model"
 msgstr "Modelo Pareto/NBD"
 
-#: ../source/gallery/gallery.md:188 ac07a5af28c44633b8567cf7989a8769
+#: ../source/gallery/gallery.md:193 ac07a5af28c44633b8567cf7989a8769
 msgid "Gamma-Gamma Model"
 msgstr "Modelo Gamma-Gamma"
 
-#: ../source/gallery/gallery.md:193 ebd1263e214f49829ebee1d9a7d0fb0f
+#: ../source/gallery/gallery.md:198 ebd1263e214f49829ebee1d9a7d0fb0f
 msgid "sBG Model"
 msgstr "Modelo sBG"
 
-#: ../source/gallery/gallery.md:199 05897427bba6442aa8df53a415654157
+#: ../source/gallery/gallery.md:204 05897427bba6442aa8df53a415654157
 msgid "Customer Choice Models"
 msgstr "Modelos de Elección del Cliente"
 
-#: ../source/gallery/gallery.md:204 7482954ec11f40b5a11ad452bd310ae9
+#: ../source/gallery/gallery.md:209 7482954ec11f40b5a11ad452bd310ae9
 msgid "MV-ITS Saturated"
 msgstr "MV-ITS Saturado"
 
-#: ../source/gallery/gallery.md:209 5cac2d1b3e7c439ba7cd176fe4bc4f2b
+#: ../source/gallery/gallery.md:214 5cac2d1b3e7c439ba7cd176fe4bc4f2b
 msgid "MV-ITS Unsaturated"
 msgstr "MV-ITS No saturado"
 
-#: ../source/gallery/gallery.md:214 e6b5177530fa47abb3992b7f73ea2446
+#: ../source/gallery/gallery.md:219 e6b5177530fa47abb3992b7f73ea2446
 msgid "Multinomial Logit Discrete Choice"
 msgstr "Logit Multinomial de Elección Discreta"
 
-#: ../source/gallery/gallery.md:219 24b5c370a236403abb5edef69778444b
+#: ../source/gallery/gallery.md:224 24b5c370a236403abb5edef69778444b
 msgid "Nested Logit Discrete Choice"
 msgstr "Logit Anidado de Elección Discreta"
 
-#: ../source/gallery/gallery.md:225 1283f8d3d4424ebda85fac2d72a224b7
+#: ../source/gallery/gallery.md:230 1283f8d3d4424ebda85fac2d72a224b7
 msgid "Bass Diffusion Model"
 msgstr "Modelo de Difusión de Bass"
 
-#: ../source/gallery/gallery.md:230 e0f41d93b2454531ae4f8384856ba147
+#: ../source/gallery/gallery.md:235 e0f41d93b2454531ae4f8384856ba147
 msgid "Bass Diffusion Model Example"
 msgstr "Ejemplo de Modelo de Difusión de Bass"
 
-#: ../source/gallery/gallery.md:236 637a6402134e4a2b9c19a07e202f1272
+#: ../source/gallery/gallery.md:241 637a6402134e4a2b9c19a07e202f1272
 msgid "General Tutorials"
 msgstr "Tutoriales Generales"
 
-#: ../source/gallery/gallery.md:241 720002d201ac493490334ea8b2d3fd85
+#: ../source/gallery/gallery.md:246 720002d201ac493490334ea8b2d3fd85
 msgid "Model Configuration"
 msgstr "Configuración del Modelo"
 
-#: ../source/gallery/gallery.md:246 e58485e3ef314393a03d1c08793e6073
+#: ../source/gallery/gallery.md:251 e58485e3ef314393a03d1c08793e6073
 msgid "Prior Predictive Checks"
 msgstr "Comprobaciones Predictivas Previas"
 
-#: ../source/gallery/gallery.md:251 0e544396188b4f1b954aa1bb633a56d6
+#: ../source/gallery/gallery.md:256 0e544396188b4f1b954aa1bb633a56d6
 msgid "NUTS Samplers"
 msgstr "Muestras de NUTS"

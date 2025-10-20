@@ -9,48 +9,69 @@ msgid ""
 msgstr ""
 "Project-Id-Version: pymc-marketing local\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"POT-Creation-Date: 2025-10-13 11:28+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language: es\n"
 "Language-Team: es <LL@li.org>\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Language: es\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "Generated-By: Babel 2.17.0\n"
 
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.TBF_FCI.get_directed_edges.rst:2
-#: 002c458f66324b35aece98d8f5a1a9ec
+#: e5db0aba8cb943cc882118930d0d997c
 msgid "TBF\\_FCI.get\\_directed\\_edges"
-msgstr "TBF\\_FCI.obtener\\_aristas\\_dirigidas"
+msgstr ""
+"{\n"
+"  \"singular\": \"TBF_FCI.obtener_aristas_dirigidas\",\n"
+"  \"plural\": \"TBF_FCI.obtener_aristas_dirigidas\"\n"
+"}"
 
-#: 8bd816487aa64fdb9b928eb34c9f3bce of
+#: 77d7014944b24655b566e7143a9e3f43 of
 #: pymc_marketing.mmm.causal.TBF_FCI.get_directed_edges:2
 msgid "Return directed edges in the time-unrolled graph."
-msgstr "Devolver aristas dirigidas en el grafo desenrollado en el tiempo."
+msgstr ""
+"{\n"
+"  \"singular\": \"Devuelve los bordes dirigidos en el grafo desenrollado en el tiempo.\",\n"
+"  \"plural\": \"Devuelven los bordes dirigidos en el grafo desenrollado en el tiempo.\"\n"
+"}"
 
-#: 1b251481541a4896aa4302680435e307 of
+#: c92103d9deb24f49954b32467582cd1e of
 #: pymc_marketing.mmm.causal.TBF_FCI.get_directed_edges
 msgid "Returns"
-msgstr "Devoluciones"
+msgstr ""
+"{\n"
+"  \"singular\": \"Devoluciones\",\n"
+"  \"plural\": \"Devoluciones\"\n"
+"}"
 
-#: 1df5690af5c948858de9c11c4dcaa5d7 of
+#: 6ac9bbbf503245dc83e99108d1455ae4 of
 #: pymc_marketing.mmm.causal.TBF_FCI.get_directed_edges:10
 msgid ""
 ":class:`python:list`\\[:class:`python:tuple`\\[:class:`python:str`, "
 ":class:`python:str`]]"
 msgstr ""
-":class:`python:list`\\[:class:`python:tuple`\\[:class:`python:str`, "
-":class:`python:str`]]"
+"{\n"
+"  \"singular\": \":class:`python:list`\\[:class:`python:tuple`\\[:class:`python:str`, :class:`python:str`]]\",\n"
+"  \"plural\": \":class:`python:list`\\[:class:`python:tuple`\\[:class:`python:str`, :class:`python:str`]]\"\n"
+"}"
 
-#: 3afc293b17b641fc9ecbaa4a0ad73816 of
+#: f6123646a3cd4731b9e402d473bd82c6 of
 #: pymc_marketing.mmm.causal.TBF_FCI.get_directed_edges:11
 msgid "Sorted list of directed edges in the expanded (lagged) graph."
 msgstr ""
-"Lista ordenada de aristas dirigidas en el grafo expandido (con retraso)."
+"{\n"
+"  \"singular\": \"Lista ordenada de aristas dirigidas en el gráfico expandido (con retraso).\",\n"
+"  \"plural\": \"Listas ordenadas de aristas dirigidas en los gráficos expandidos (con retraso).\"\n"
+"}"
 
-#: 634ea974e4cb4ead96bf43ebd9d7ff59 of
+#: b36f314d4ad8403aa2124871db2189f5 of
 #: pymc_marketing.mmm.causal.TBF_FCI.get_directed_edges:23
 msgid "Examples"
-msgstr "Ejemplos"
+msgstr ""
+"{\n"
+"  \"singular\": \"Ejemplo\",\n"
+"  \"plural\": \"Ejemplos\"\n"
+"}"

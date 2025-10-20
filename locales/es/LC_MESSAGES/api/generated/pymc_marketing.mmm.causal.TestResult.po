@@ -1,0 +1,327 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-20 21:01+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TestResult.rst:2
+#: 562b2be8843046478757c2aef60d5bf4
+msgid "TestResult"
+msgstr ""
+"{\n"
+"  \"singular\": \"ResultadoDePrueba\",\n"
+"  \"plural\": \"ResultadosDePrueba\"\n"
+"}"
+
+#: 4ab195dcb178472aa2d0df8e17f61511 of pymc_marketing.mmm.causal.TestResult:2
+msgid "Conditional independence test statistics recorded during fitting."
+msgstr ""
+"{\n"
+"  \"singular\": \"Estadísticas de prueba de independencia condicional registradas durante el ajuste.\",\n"
+"  \"plural\": \"Estadísticas de prueba de independencia condicional registradas durante los ajustes.\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TestResult.rst:12
+#: 996f09c105a244c18dedc8d85c6b8fce
+msgid "Methods"
+msgstr ""
+"{\n"
+"  \"singular\": \"Método\",\n"
+"  \"plural\": \"Métodos\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TestResult.rst:33:<autosummary>:1
+#: 77bc201bf2d04f618110e570ca12ee08
+msgid ""
+":py:obj:`TestResult.__init__ "
+"<pymc_marketing.mmm.causal.TestResult.__init__>`\\ \\(\\*args\\, "
+"\\*\\*kwargs\\)"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`TestResult.__init__ <pymc_marketing.mmm.causal.TestResult.__init__>`\\ \\(\\*args\\, \\*\\*kwargs\\)\",\n"
+"  \"plural\": \":py:obj:`TestResult.__init__ <pymc_marketing.mmm.causal.TestResult.__init__>`\\ \\(\\*args\\, \\*\\*kwargs\\)\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TestResult.rst:33:<autosummary>:1
+#: 977b93d28b504edab11e259df4d344d6
+msgid ""
+":py:obj:`TestResult.clear <pymc_marketing.mmm.causal.TestResult.clear>`\\ "
+"\\(\\)"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`TestResult.clear <pymc_marketing.mmm.causal.TestResult.clear>`\\ \\(\\)\",\n"
+"  \"plural\": \":py:obj:`TestResult.clear <pymc_marketing.mmm.causal.TestResult.clear>`\\ \\(\\)\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TestResult.rst:33:<autosummary>:1
+#: bb0f8a6c5b2c4c869cd63b29c72884af
+msgid ""
+":py:obj:`TestResult.copy <pymc_marketing.mmm.causal.TestResult.copy>`\\ "
+"\\(\\)"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`TestResult.copy <pymc_marketing.mmm.causal.TestResult.copy>`\\ \\(\\)\",\n"
+"  \"plural\": \":py:obj:`TestResult.copy <pymc_marketing.mmm.causal.TestResult.copy>`\\ \\(\\)\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TestResult.rst:33:<autosummary>:1
+#: 5699bf24acc54a7da705a8a551f9dec7
+msgid ""
+":py:obj:`TestResult.fromkeys "
+"<pymc_marketing.mmm.causal.TestResult.fromkeys>`\\ \\(iterable\\[\\, "
+"value\\]\\)"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`TestResult.fromkeys <pymc_marketing.mmm.causal.TestResult.fromkeys>`\\ \\(iterable\\[\\, value\\]\\)\",\n"
+"  \"plural\": \":py:obj:`TestResult.fromkeys <pymc_marketing.mmm.causal.TestResult.fromkeys>`\\ \\(iterable\\[\\, value\\]\\)\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TestResult.rst:33:<autosummary>:1
+#: 8a6de8c4d3074f0e97bbed1b51d375cf
+msgid ""
+"Create a new dictionary with keys from iterable and values set to value."
+msgstr ""
+"{\n"
+"  \"singular\": \"Cree un nuevo diccionario con claves del iterable y valores establecidos en el valor.\",\n"
+"  \"plural\": \"Cree nuevos diccionarios con claves del iterable y valores establecidos en el valor.\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TestResult.rst:33:<autosummary>:1
+#: 80e3f9de651141cba486e765547fe5c9
+msgid ""
+":py:obj:`TestResult.get <pymc_marketing.mmm.causal.TestResult.get>`\\ "
+"\\(key\\[\\, default\\]\\)"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`TestResult.get <pymc_marketing.mmm.causal.TestResult.get>`\\ \\(clave\\[\\, predeterminado\\]\\)\",\n"
+"  \"plural\": \":py:obj:`TestResult.get <pymc_marketing.mmm.causal.TestResult.get>`\\ \\(claves\\[\\, predeterminados\\]\\)\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TestResult.rst:33:<autosummary>:1
+#: 4b36096ca48648808224d840a91d1652
+msgid "Return the value for key if key is in the dictionary, else default."
+msgstr ""
+"{\n"
+"  \"singular\": \"Devuelve el valor para la clave si la clave está en el diccionario, de lo contrario, el valor por defecto.\",\n"
+"  \"plural\": \"Devuelven el valor para la clave si la clave está en el diccionario, de lo contrario, el valor por defecto.\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TestResult.rst:33:<autosummary>:1
+#: eca5954505524f7b8dd45f45ae5d765a
+msgid ""
+":py:obj:`TestResult.items <pymc_marketing.mmm.causal.TestResult.items>`\\ "
+"\\(\\)"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`ResultadoDePrueba.items <pymc_marketing.mmm.causal.ResultadoDePrueba.items>`\\ \\(\\)\",\n"
+"  \"plural\": \":py:obj:`ResultadosDePrueba.items <pymc_marketing.mmm.causal.ResultadosDePrueba.items>`\\ \\(\\)\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TestResult.rst:33:<autosummary>:1
+#: 63d8012944a44aa99cb1bd4260935e48
+msgid ""
+":py:obj:`TestResult.keys <pymc_marketing.mmm.causal.TestResult.keys>`\\ "
+"\\(\\)"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`TestResult.keys <pymc_marketing.mmm.causal.TestResult.keys>`\\ \\(\\)\",\n"
+"  \"plural\": \":py:obj:`TestResult.keys <pymc_marketing.mmm.causal.TestResult.keys>`\\ \\(\\)\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TestResult.rst:33:<autosummary>:1
+#: 6fb016e46e744412bcf19e352ff650c7
+msgid ""
+":py:obj:`TestResult.pop <pymc_marketing.mmm.causal.TestResult.pop>`\\ "
+"\\(key\\[\\, default\\]\\)"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`TestResult.pop <pymc_marketing.mmm.causal.TestResult.pop>`\\ \\(clave\\[\\, predeterminado\\]\\)\",\n"
+"  \"plural\": \":py:obj:`TestResult.pop <pymc_marketing.mmm.causal.TestResult.pop>`\\ \\(claves\\[\\, predeterminados\\]\\)\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TestResult.rst:33:<autosummary>:1
+#: 6c49aabb50324f449dad86927e30a865
+msgid ""
+"If the key is not found, return the default if given; otherwise, raise a "
+"KeyError."
+msgstr ""
+"{\n"
+"  \"singular\": \"Si la clave no se encuentra, devuelve el valor predeterminado si se proporciona; de lo contrario, genera un KeyError.\",\n"
+"  \"plural\": \"Si las claves no se encuentran, devuelve el valor predeterminado si se proporciona; de lo contrario, genera un KeyError.\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TestResult.rst:33:<autosummary>:1
+#: 48b38ab99aea4a89bcd38fff87da2c0a
+msgid ""
+":py:obj:`TestResult.popitem "
+"<pymc_marketing.mmm.causal.TestResult.popitem>`\\ \\(\\/\\)"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`TestResult.popitem <pymc_marketing.mmm.causal.TestResult.popitem>`\\ \\(\\/\\)\",\n"
+"  \"plural\": \":py:obj:`TestResult.popitem <pymc_marketing.mmm.causal.TestResult.popitem>`\\ \\(\\/\\)\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TestResult.rst:33:<autosummary>:1
+#: 26e26c35d27146dd9951d8749fd13172
+msgid "Remove and return a (key, value) pair as a 2-tuple."
+msgstr ""
+"{\n"
+"  \"singular\": \"Elimine y devuelva un par (clave, valor) como una tupla de 2 elementos.\",\n"
+"  \"plural\": \"Elimine y devuelva pares (clave, valor) como tuplas de 2 elementos.\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TestResult.rst:33:<autosummary>:1
+#: cb57bc524d40433f901768aa3fc1cfc7
+msgid ""
+":py:obj:`TestResult.setdefault "
+"<pymc_marketing.mmm.causal.TestResult.setdefault>`\\ \\(key\\[\\, "
+"default\\]\\)"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`TestResult.setdefault <pymc_marketing.mmm.causal.TestResult.setdefault>`\\ (clave\\[\\, predeterminado\\])\",\n"
+"  \"plural\": \":py:obj:`TestResult.setdefault <pymc_marketing.mmm.causal.TestResult.setdefault>`\\ (claves\\[\\, predeterminado\\])\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TestResult.rst:33:<autosummary>:1
+#: 4fe22623adf440a7a97e0c60e7bae37d
+msgid "Insert key with a value of default if key is not in the dictionary."
+msgstr ""
+"{\n"
+"  \"singular\": \"Inserte la clave con un valor de predeterminado si la clave no está en el diccionario.\",\n"
+"  \"plural\": \"Inserte las claves con un valor de predeterminado si las claves no están en el diccionario.\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TestResult.rst:33:<autosummary>:1
+#: c0c4a76ee0444d1e9c92b9162479a871
+msgid ""
+":py:obj:`TestResult.update <pymc_marketing.mmm.causal.TestResult.update>`\\ "
+"\\(\\[E\\, \\]\\*\\*F\\)"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`TestResult.update <pymc_marketing.mmm.causal.TestResult.update>`\\ \\(\\[E\\, \\]\\*\\*F\\)\",\n"
+"  \"plural\": \":py:obj:`TestResult.update <pymc_marketing.mmm.causal.TestResult.update>`\\ \\(\\[E\\, \\]\\*\\*F\\)\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TestResult.rst:33:<autosummary>:1
+#: ec0e74ef2d954a6a99f2b845e8b5be42
+msgid ""
+"If E is present and has a .keys() method, then does:  for k in E.keys(): "
+"D[k] = E[k] If E is present and lacks a .keys() method, then does:  for k, v"
+" in E: D[k] = v In either case, this is followed by: for k in F:  D[k] = "
+"F[k]"
+msgstr ""
+"{\n"
+"  \"singular\": \"Si E está presente y tiene un método .keys(), entonces hace:  for k in E.keys(): D[k] = E[k] Si E está presente y carece de un método .keys(), entonces hace:  for k, v in E: D[k] = v En cualquiera de los casos, esto es seguido por: for k in F:  D[k] = F[k]\",\n"
+"  \"plural\": \"Si E está presente y tiene un método .keys(), entonces hace:  for k in E.keys(): D[k] = E[k] Si E está presente y carece de un método .keys(), entonces hace:  for k, v in E: D[k] = v En cualquiera de los casos, esto es seguido por: for k in F:  D[k] = F[k]\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TestResult.rst:33:<autosummary>:1
+#: 86f2e14c813c43249403c774117dd5b4
+msgid ""
+":py:obj:`TestResult.values <pymc_marketing.mmm.causal.TestResult.values>`\\ "
+"\\(\\)"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`TestResult.values <pymc_marketing.mmm.causal.TestResult.values>`\\ \\(\\)\",\n"
+"  \"plural\": \":py:obj:`TestResult.values <pymc_marketing.mmm.causal.TestResult.values>`\\ \\(\\)\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TestResult.rst:35
+#: 0f60d19d5780486facfe472a23ee1c24
+msgid "Attributes"
+msgstr ""
+"{\n"
+"  \"singular\": \"Atributo\",\n"
+"  \"plural\": \"Atributos\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TestResult.rst:45:<autosummary>:1
+#: c490605abdb54c47bc408d9785de3fd2
+msgid ":py:obj:`bic0 <pymc_marketing.mmm.causal.TestResult.bic0>`\\"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`bic0 <pymc_marketing.mmm.causal.TestResult.bic0>`\",\n"
+"  \"plural\": \":py:obj:`bic0 <pymc_marketing.mmm.causal.TestResult.bic0>`\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TestResult.rst:45:<autosummary>:1
+#: 41536177d81448da98c6d74e11240f8f
+msgid ":py:obj:`bic1 <pymc_marketing.mmm.causal.TestResult.bic1>`\\"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`bic1 <pymc_marketing.mmm.causal.TestResult.bic1>`\",\n"
+"  \"plural\": \":py:obj:`bic1 <pymc_marketing.mmm.causal.TestResult.bic1>`\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TestResult.rst:45:<autosummary>:1
+#: a9281ef2c7ab4cccba936789f29f64e2
+msgid ":py:obj:`delta_bic <pymc_marketing.mmm.causal.TestResult.delta_bic>`\\"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`delta_bic <pymc_marketing.mmm.causal.TestResult.delta_bic>`\",\n"
+"  \"plural\": \":py:obj:`delta_bic <pymc_marketing.mmm.causal.TestResult.delta_bic>`\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TestResult.rst:45:<autosummary>:1
+#: d565d916d9c84efda516de96757862f6
+msgid ":py:obj:`logBF10 <pymc_marketing.mmm.causal.TestResult.logBF10>`\\"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`logBF10 <pymc_marketing.mmm.causal.TestResult.logBF10>`\",\n"
+"  \"plural\": \":py:obj:`logBF10 <pymc_marketing.mmm.causal.TestResult.logBF10>`\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TestResult.rst:45:<autosummary>:1
+#: b64844b8ff1042c58b53ea7ae17f91f0
+msgid ":py:obj:`BF10 <pymc_marketing.mmm.causal.TestResult.BF10>`\\"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`BF10 <pymc_marketing.mmm.causal.TestResult.BF10>`\",\n"
+"  \"plural\": \":py:obj:`BF10 <pymc_marketing.mmm.causal.TestResult.BF10>`\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TestResult.rst:45:<autosummary>:1
+#: 384d1bf5a2934fd49d1924d84c3d2fb6
+msgid ""
+":py:obj:`independent <pymc_marketing.mmm.causal.TestResult.independent>`\\"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`independiente <pymc_marketing.mmm.causal.TestResult.independent>`\",\n"
+"  \"plural\": \":py:obj:`independientes <pymc_marketing.mmm.causal.TestResult.independent>`\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TestResult.rst:45:<autosummary>:1
+#: ae221fef1c444007b316f80d07200cb5
+msgid ""
+":py:obj:`conditioning_set "
+"<pymc_marketing.mmm.causal.TestResult.conditioning_set>`\\"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`conjunto_de_condicionamiento <pymc_marketing.mmm.causal.TestResult.conditioning_set>`\",\n"
+"  \"plural\": \":py:obj:`conjuntos_de_condicionamiento <pymc_marketing.mmm.causal.TestResult.conditioning_set>`\"\n"
+"}"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TestResult.rst:45:<autosummary>:1
+#: 1c7d283ed25541f5bf8609a4273ff571
+msgid ":py:obj:`forced <pymc_marketing.mmm.causal.TestResult.forced>`\\"
+msgstr ""
+"{\n"
+"  \"singular\": \":py:obj:`forzado <pymc_marketing.mmm.causal.TestResult.forced>`\",\n"
+"  \"plural\": \":py:obj:`forzados <pymc_marketing.mmm.causal.TestResult.forced>`\"\n"
+"}"
