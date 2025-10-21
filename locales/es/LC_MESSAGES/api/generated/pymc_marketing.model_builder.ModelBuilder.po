@@ -123,9 +123,8 @@ msgid ""
 "<pymc_marketing.model_builder.ModelBuilder.attrs_to_init_kwargs>`\\ "
 "\\(attrs\\)"
 msgstr ""
-":py:obj:`ModelBuilder.attrs_to_init_kwargs "
-"<pymc_marketing.model_builder.ModelBuilder.attrs_to_init_kwargs>`\\ "
-"\\(attrs\\)"
+"msgid: :py:obj:`ModelBuilder.attrs_to_init_kwargs <pymc_marketing.model_builder.ModelBuilder.attrs_to_init_kwargs>`\\ \\(attrs\\)  \n"
+"msgstr: :py:obj:`ModelBuilder.attrs_to_init_kwargs <pymc_marketing.model_builder.ModelBuilder.attrs_to_init_kwargs>`\\ \\(attrs\\)"
 
 #: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:34:<autosummary>:1
 #: 831917873e9f4267915b7acd62a62eb0
@@ -218,9 +217,8 @@ msgid ""
 "<pymc_marketing.model_builder.ModelBuilder.idata_to_init_kwargs>`\\ "
 "\\(idata\\)"
 msgstr ""
-":py:obj:`ModelBuilder.idata_to_init_kwargs "
-"<pymc_marketing.model_builder.ModelBuilder.idata_to_init_kwargs>`\\ "
-"\\(idata\\)"
+"msgid: :py:obj:`ModelBuilder.idata_to_init_kwargs <pymc_marketing.model_builder.ModelBuilder.idata_to_init_kwargs>`\\ \\(idata\\)  \n"
+"msgstr: :py:obj:`ModelBuilder.idata_to_init_kwargs <pymc_marketing.model_builder.ModelBuilder.idata_to_init_kwargs>`\\ \\(idata\\)"
 
 #: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:34:<autosummary>:1
 #: ce612c3dc3624fe6a29d596150f9281c
