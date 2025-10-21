@@ -311,9 +311,8 @@ msgid ""
 "<pymc_marketing.customer_choice.mnl_logit.MNLogit.attrs_to_init_kwargs>`\\ "
 "\\(attrs\\)"
 msgstr ""
-":py:obj:`MNLogit.attrs_to_init_kwargs "
-"<pymc_marketing.customer_choice.mnl_logit.MNLogit.attrs_to_init_kwargs>`\\ "
-"\\(attrs\\)"
+"msgid: :py:obj:`MNLogit.attrs_to_init_kwargs <pymc_marketing.customer_choice.mnl_logit.MNLogit.attrs_to_init_kwargs>`\\ \\(attrs\\)  \n"
+"msgstr: :py:obj:`MNLogit.attrs_to_init_kwargs <pymc_marketing.customer_choice.mnl_logit.MNLogit.attrs_to_init_kwargs>`\\ \\(attrs\\)"
 
 #: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
 #: f651dee4ff694f0ca84d89125b0bcc35
@@ -445,9 +444,8 @@ msgid ""
 "<pymc_marketing.customer_choice.mnl_logit.MNLogit.idata_to_init_kwargs>`\\ "
 "\\(idata\\)"
 msgstr ""
-":py:obj:`MNLogit.idata_to_init_kwargs "
-"<pymc_marketing.customer_choice.mnl_logit.MNLogit.idata_to_init_kwargs>`\\ "
-"\\(idata\\)"
+"msgid: :py:obj:`MNLogit.idata_to_init_kwargs <pymc_marketing.customer_choice.mnl_logit.MNLogit.idata_to_init_kwargs>`\\ \\(idata\\)  \n"
+"msgstr: :py:obj:`MNLogit.idata_to_init_kwargs <pymc_marketing.customer_choice.mnl_logit.MNLogit.idata_to_init_kwargs>`\\ \\(idata\\)"
 
 #: ../source/api/generated/pymc_marketing.customer_choice.mnl_logit.MNLogit.rst:50:<autosummary>:1
 #: 08b263d4f6c44462b48bc8b3876de374
