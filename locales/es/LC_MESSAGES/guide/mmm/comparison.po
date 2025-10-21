@@ -94,8 +94,7 @@ msgstr "PyMC"
 msgid "-"
 msgstr ""
 "It seems that there is no text provided for translation. Please provide the "
-"text you would like to have translated into Spanish, and I'll be happy to "
-"assist you!"
+"text you would like to have translated into Spanish."
 
 #: ../source/guide/mmm/comparison.md b82060222af5406891b2f41d81faf3f2
 msgid "STAN/Pyro"
@@ -176,17 +175,7 @@ msgstr "**Priorizaciones Personalizadas**"
 #: ../source/guide/mmm/comparison.md 708b845129d24ebcae99c17759126ed5
 #: ca359f41287b4c58be9744540f21a180 f77e9b7d03184cdb854efaaa4e0bd035
 msgid "NA"
-msgstr ""
-"{\n"
-"  \"singular\": {\n"
-"    \"msgid\": \"NA\",\n"
-"    \"msgstr\": \"NA\"\n"
-"  },\n"
-"  \"plural\": {\n"
-"    \"msgid\": \"NA\",\n"
-"    \"msgstr\": \"NA\"\n"
-"  }\n"
-"}"
+msgstr "NA"
 
 #: ../source/guide/mmm/comparison.md 73af6534a3164c139557d269e420c3ad
 msgid "**Custom Model Terms**"
@@ -203,27 +192,19 @@ msgstr "**Modelado Geográfico**"
 
 #: ../source/guide/mmm/comparison.md 7d7956a5f4d74dbcba04c19f3b1bff53
 msgid "**Standardized Database Connectors**"
-msgstr ""
-"{\n"
-"  \"singular\": \"**Conectores de Base de Datos Estandarizados**\",\n"
-"  \"plural\": \"**Conectores de Base de Datos Estandarizados**\"\n"
-"}"
+msgstr "**Standardized Database Connectors**"
 
 #: ../source/guide/mmm/comparison.md 5db6eafb100d44d4a2b1a42cb0eff856
 msgid "✅ (with Fivetran)"
 msgstr ""
-"{\n"
-"  \"singular\": \"✅ (con Fivetran)\",\n"
-"  \"plural\": \"✅ (con Fivetran)\"\n"
-"}"
+"msgid: ✅ (with Fivetran)  \n"
+"msgstr: ✅ (con Fivetran)"
 
 #: ../source/guide/mmm/comparison.md 7c0b5b56145e4a84897b9f6ff5cccb75
 msgid "✅ (limited to Google ecosystem)"
 msgstr ""
-"{\n"
-"  \"singular\": \"✅ (limitado al ecosistema de Google)\",\n"
-"  \"plural\": \"✅ (limitado al ecosistema de Google)\"\n"
-"}"
+"msgid: ✅ (limited to Google ecosystem)  \n"
+"msgstr: ✅ (limitado al ecosistema de Google)"
 
 #: ../source/guide/mmm/comparison.md de7751968a8142d4a51e7518e95e9e7b
 msgid "**Unit-Tested**"
@@ -312,10 +293,9 @@ msgid ""
 "popular in the R community and provides extensive tutorials and "
 "documentation."
 msgstr ""
-"{\n"
-"  \"singular\": \"Sin embargo, otras bibliotecas tienen sus propias fortalezas; por ejemplo, Robyn es popular en la comunidad de R y proporciona tutoriales y documentación extensos.\",\n"
-"  \"plural\": \"Sin embargo, otras bibliotecas tienen sus propias fortalezas; por ejemplo, Robyn es popular en la comunidad de R y proporciona tutoriales y documentación extensos.\"\n"
-"}"
+"Sin embargo, otras bibliotecas tienen sus propias fortalezas; por ejemplo, "
+"Robyn es popular en la comunidad de R y proporciona tutoriales y "
+"documentación extensos."
 
 #: ../source/guide/mmm/comparison.md:39 daae905a5e394f6d8d0338529b0ccaa7
 msgid "Your optimal choice should depend primarily on:"
@@ -347,11 +327,7 @@ msgstr "Análisis de Descargas MMM"
 
 #: ../source/guide/mmm/comparison.md:47 b3f51875ed024a58b47f635620836b22
 msgid "Detailed Performance Benchmark"
-msgstr ""
-"{\n"
-"  \"singular\": \"Referencia de Rendimiento Detallada\",\n"
-"  \"plural\": \"Referencias de Rendimiento Detalladas\"\n"
-"}"
+msgstr "Detailed Performance Benchmark"
 
 #: ../source/guide/mmm/comparison.md:49 1194b2c789624f08b1604fb3e676b163
 #, python-format
@@ -369,10 +345,19 @@ msgid ""
 "marketing-vs-google-meridian) for complete results and open-source "
 "methodology."
 msgstr ""
-"{\n"
-"  \"singular\": \"Cuando se trata de Modelado de Mezcla de Medios Bayesiano, las dos opciones más utilizadas son PyMC-Marketing y Google Meridian. Nuestro exhaustivo análisis técnico que compara PyMC-Marketing con Google Meridian a través de conjuntos de datos realistas (desde startups hasta empresas grandes) revela el rendimiento superior de PyMC-Marketing: **2-20x más rápido en muestreo**, **40% menos error** en las estimaciones de contribución de canales, y **escalado exitoso** a grandes conjuntos de datos empresariales donde Meridian no logra converger. Los backends de muestreo flexibles de PyMC-Marketing (NumPyro, BlackJAX, Nutpie) ofrecen ventajas significativas sobre la implementación fija de TensorFlow Probability de Meridian. Consulte nuestro [análisis de benchmark detallado](https://www.pymc-labs.com/blog-posts/pymc-marketing-vs-google-meridian) para obtener resultados completos y metodología de código abierto.\",\n"
-"  \"plural\": \"Cuando se trata de Modelado de Mezcla de Medios Bayesiano, las dos opciones más utilizadas son PyMC-Marketing y Google Meridian. Nuestro exhaustivo análisis técnico que compara PyMC-Marketing con Google Meridian a través de conjuntos de datos realistas (desde startups hasta empresas grandes) revela el rendimiento superior de PyMC-Marketing: **2-20x más rápido en muestreo**, **40% menos error** en las estimaciones de contribución de canales, y **escalado exitoso** a grandes conjuntos de datos empresariales donde Meridian no logra converger. Los backends de muestreo flexibles de PyMC-Marketing (NumPyro, BlackJAX, Nutpie) ofrecen ventajas significativas sobre la implementación fija de TensorFlow Probability de Meridian. Consulte nuestro [análisis de benchmark detallado](https://www.pymc-labs.com/blog-posts/pymc-marketing-vs-google-meridian) para obtener resultados completos y metodología de código abierto.\"\n"
-"}"
+"Cuando se trata de Modelado de Mezcla de Medios Bayesiano, las dos opciones "
+"más utilizadas son PyMC-Marketing y Google Meridian. Nuestro exhaustivo "
+"análisis técnico que compara PyMC-Marketing con Google Meridian en conjuntos"
+" de datos realistas (desde startups hasta escalas empresariales) revela el "
+"rendimiento superior de PyMC-Marketing: **2-20 veces más rápido en "
+"muestreo**, **40% menos error** en las estimaciones de contribución de "
+"canales, y **escalado exitoso** a grandes conjuntos de datos empresariales "
+"donde Meridian no logra converger. Los backends de muestreo flexibles de "
+"PyMC-Marketing (NumPyro, BlackJAX, Nutpie) ofrecen ventajas significativas "
+"sobre la implementación fija de TensorFlow Probability de Meridian. Consulte"
+" nuestro [análisis de benchmark detallado](https://www.pymc-labs.com/blog-"
+"posts/pymc-marketing-vs-google-meridian) para obtener resultados completos y"
+" metodología de código abierto."
 
 #: ../source/guide/mmm/comparison.md:51 3ad7109bd7e24088be8f1fa403630ea6
 msgid "Our Recommendation"
@@ -420,10 +405,8 @@ msgstr ""
 #: ../source/guide/mmm/comparison.md:63 9ec0c198f509421c98b296af0de12be1
 msgid "You can allow for reduced predictive accuracy and explainability"
 msgstr ""
-"{\n"
-"  \"singular\": \"Puede permitir una precisión predictiva y una explicabilidad reducidas\",\n"
-"  \"plural\": \"Puede permitir precisiones predictivas y explicabilidades reducidas\"\n"
-"}"
+"msgid: You can allow for reduced predictive accuracy and explainability  \n"
+"msgstr: Puede permitir una precisión predictiva y una explicabilidad reducidas."
 
 #: ../source/guide/mmm/comparison.md:65 c73e150252284706adb1af0219925443
 msgid "Choose PyMC-Marketing if:"

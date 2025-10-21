@@ -273,9 +273,8 @@ msgid ""
 "<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.attrs_to_init_kwargs>`\\"
 " \\(attrs\\)"
 msgstr ""
-":py:obj:`BetaGeoBetaBinomModel.attrs_to_init_kwargs "
-"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.attrs_to_init_kwargs>`\\"
-" \\(attrs\\)"
+"msgid: :py:obj:`BetaGeoBetaBinomModel.attrs_to_init_kwargs <pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.attrs_to_init_kwargs>`\\ \\(attrs\\)  \n"
+"msgstr: :py:obj:`BetaGeoBetaBinomModel.attrs_to_init_kwargs <pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.attrs_to_init_kwargs>`\\ \\(attrs\\)"
 
 #: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
 #: c8b27f329daf4cdca39b07e3ccfbd2d3
@@ -499,9 +498,8 @@ msgid ""
 "<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.idata_to_init_kwargs>`\\"
 " \\(idata\\)"
 msgstr ""
-":py:obj:`BetaGeoBetaBinomModel.idata_to_init_kwargs "
-"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.idata_to_init_kwargs>`\\"
-" \\(idata\\)"
+"msgid: :py:obj:`BetaGeoBetaBinomModel.idata_to_init_kwargs <pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.idata_to_init_kwargs>`\\ \\(idata\\)  \n"
+"msgstr: :py:obj:`BetaGeoBetaBinomModel.idata_to_init_kwargs <pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.idata_to_init_kwargs>`\\ \\(idata\\)"
 
 #: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
 #: 36a696463143453a9ce103d9fc1bbc4c

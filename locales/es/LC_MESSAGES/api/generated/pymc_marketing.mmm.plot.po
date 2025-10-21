@@ -81,7 +81,9 @@ msgstr ""
 
 #: 7c2b230b600345ae9ca0982e40174c2a of pymc_marketing.mmm.plot:81
 msgid "Custom contributions_over_time"
-msgstr "Contribuciones personalizadas_a_lo_largo_del_tiempo"
+msgstr ""
+"msgid: Custom contributions_over_time  \n"
+"msgstr: Contribuciones personalizadas_a_lo_largo_del_tiempo"
 
 #: 1244df20e656475d95443075f36e6592 of pymc_marketing.mmm.plot:103
 msgid "Saturation plots with a custom model"

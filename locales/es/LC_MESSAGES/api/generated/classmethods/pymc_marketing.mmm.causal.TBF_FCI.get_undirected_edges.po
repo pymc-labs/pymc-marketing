@@ -23,29 +23,19 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.TBF_FCI.get_undirected_edges.rst:2
 #: 15322c5a907b4bffb6efc0529d8ffd28
 msgid "TBF\\_FCI.get\\_undirected\\_edges"
-msgstr ""
-"{\n"
-"  \"singular\": \"TBF_FCI.obtener_aristas_no_dirigidas\",\n"
-"  \"plural\": \"TBF_FCI.obtener_aristas_no_dirigidas\"\n"
-"}"
+msgstr "TBF\\_FCI.get\\_undirected\\_edges"
 
 #: 98495057ecc844ff80d19242b3df91c3 of
 #: pymc_marketing.mmm.causal.TBF_FCI.get_undirected_edges:2
 msgid "Return undirected edges in the time-unrolled graph."
 msgstr ""
-"{\n"
-"  \"singular\": \"Devuelve los bordes no dirigidos en el gráfico desenrollado en el tiempo.\",\n"
-"  \"plural\": \"Devuelven los bordes no dirigidos en el gráfico desenrollado en el tiempo.\"\n"
-"}"
+"msgid: Return undirected edges in the time-unrolled graph.  \n"
+"msgstr: Devuelve los bordes no dirigidos en el grafo desenrollado en el tiempo."
 
 #: 18982d50bea541df9d4dec5a8f1c3cb2 of
 #: pymc_marketing.mmm.causal.TBF_FCI.get_undirected_edges
 msgid "Returns"
-msgstr ""
-"{\n"
-"  \"singular\": \"Devoluciones\",\n"
-"  \"plural\": \"Devoluciones\"\n"
-"}"
+msgstr "Returns"
 
 #: 9dc5fac82bde42289f90112fd1ad5bd2 of
 #: pymc_marketing.mmm.causal.TBF_FCI.get_undirected_edges:10
@@ -53,25 +43,15 @@ msgid ""
 ":class:`python:list`\\[:class:`python:tuple`\\[:class:`python:str`, "
 ":class:`python:str`]]"
 msgstr ""
-"{\n"
-"  \"singular\": \":class:`python:list`\\[:class:`python:tuple`\\[:class:`python:str`, :class:`python:str`]]\",\n"
-"  \"plural\": \":class:`python:list`\\[:class:`python:tuple`\\[:class:`python:str`, :class:`python:str`]]\"\n"
-"}"
+":class:`python:list`\\[:class:`python:tuple`\\[:class:`python:str`, "
+":class:`python:str`]]"
 
 #: 83969d4f06bd4d019aabd96898bba170 of
 #: pymc_marketing.mmm.causal.TBF_FCI.get_undirected_edges:11
 msgid "Sorted list of undirected edges among lagged variables."
-msgstr ""
-"{\n"
-"  \"singular\": \"Lista ordenada de aristas no dirigidas entre variables rezagadas.\",\n"
-"  \"plural\": \"Listas ordenadas de aristas no dirigidas entre variables rezagadas.\"\n"
-"}"
+msgstr "Lista ordenada de aristas no dirigidas entre variables rezagadas."
 
 #: bfd79c4d7f344a2fb7f4f5204b3096f2 of
 #: pymc_marketing.mmm.causal.TBF_FCI.get_undirected_edges:23
 msgid "Examples"
-msgstr ""
-"{\n"
-"  \"singular\": \"Ejemplo\",\n"
-"  \"plural\": \"Ejemplos\"\n"
-"}"
+msgstr "Examples"

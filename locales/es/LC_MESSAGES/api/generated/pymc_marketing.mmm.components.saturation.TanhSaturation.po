@@ -198,9 +198,8 @@ msgid ""
 "<pymc_marketing.mmm.components.saturation.TanhSaturation.set_dims_for_all_priors>`\\"
 " \\(dims\\)"
 msgstr ""
-":py:obj:`TanhSaturation.set_dims_for_all_priors "
-"<pymc_marketing.mmm.components.saturation.TanhSaturation.set_dims_for_all_priors>`\\"
-" \\(dims\\)"
+"msgid: :py:obj:`TanhSaturation.set_dims_for_all_priors <pymc_marketing.mmm.components.saturation.TanhSaturation.set_dims_for_all_priors>`\\ \\(dims\\)  \n"
+"msgstr: :py:obj:`TanhSaturation.set_dims_for_all_priors <pymc_marketing.mmm.components.saturation.TanhSaturation.set_dims_for_all_priors>`\\ \\(dims\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturation.rst:32:<autosummary>:1
 #: f46bb1e520c94e11acde9d1ad11fa3b5
@@ -213,8 +212,8 @@ msgid ""
 ":py:obj:`TanhSaturation.to_dict "
 "<pymc_marketing.mmm.components.saturation.TanhSaturation.to_dict>`\\ \\(\\)"
 msgstr ""
-":py:obj:`TanhSaturation.to_dict "
-"<pymc_marketing.mmm.components.saturation.TanhSaturation.to_dict>`\\ \\(\\)"
+"msgid: :py:obj:`TanhSaturation.to_dict <pymc_marketing.mmm.components.saturation.TanhSaturation.to_dict>`\\ \\(\\)  \n"
+"msgstr: :py:obj:`TanhSaturation.to_dict <pymc_marketing.mmm.components.saturation.TanhSaturation.to_dict>`\\ \\(\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturation.rst:32:<autosummary>:1
 #: 8571e956392a4ed88f6bc47fd8d052a7

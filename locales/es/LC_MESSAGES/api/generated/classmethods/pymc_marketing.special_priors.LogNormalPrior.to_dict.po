@@ -23,7 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.special_priors.LogNormalPrior.to_dict.rst:2
 #: 4b99b8cab3e4453aa832bf859087c105
 msgid "LogNormalPrior.to\\_dict"
-msgstr "LogNormalPrior.to\\_dict"
+msgstr ""
+"msgid: LogNormalPrior.to\\_dict  \n"
+"msgstr: LogNormalPrior.to\\_dict"
 
 #: be933c38a02f46d3be41885e8a3f9e04 of
 #: pymc_marketing.special_priors.LogNormalPrior.to_dict:2

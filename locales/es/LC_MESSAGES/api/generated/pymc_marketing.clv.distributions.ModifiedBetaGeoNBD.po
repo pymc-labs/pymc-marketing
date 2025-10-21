@@ -93,9 +93,8 @@ msgid ""
 " \\left(\\frac{\\alpha}{\\alpha + T}\\right)^r "
 "{_2}{F}{_1}(r,b;a+b-1;\\frac{t}{\\alpha + t}) \\right]`"
 msgstr ""
-":math:`\\mathbb{E}[X(n) | r, \\alpha, a, b] = \\frac{a+b-1}{a-1} \\left[ 1 -"
-" \\left(\\frac{\\alpha}{\\alpha + T}\\right)^r "
-"{_2}{F}{_1}(r,b;a+b-1;\\frac{t}{\\alpha + t}) \\right]`"
+"msgid: :math:`\\mathbb{E}[X(n) | r, \\alpha, a, b] = \\frac{a+b-1}{a-1} \\left[ 1 - \\left(\\frac{\\alpha}{\\alpha + T}\\right)^r {_2}{F}{_1}(r,b;a+b-1;\\frac{t}{\\alpha + t}) \\right]`\n"
+"msgstr: :math:`\\mathbb{E}[X(n) | r, \\alpha, a, b] = \\frac{a+b-1}{a-1} \\left[ 1 - \\left(\\frac{\\alpha}{\\alpha + T}\\right)^r {_2}{F}{_1}(r,b;a+b-1;\\frac{t}{\\alpha + t}) \\right]`"
 
 #: 335a82a92cc64d7eabbcbb6c9ddf8609 of
 #: pymc_marketing.clv.distributions.ModifiedBetaGeoNBD:35
@@ -150,9 +149,8 @@ msgid ""
 "<pymc_marketing.clv.distributions.ModifiedBetaGeoNBD.dist>`\\ \\(a\\, b\\, "
 "r\\, alpha\\, T\\, ...\\)"
 msgstr ""
-":py:obj:`ModifiedBetaGeoNBD.dist "
-"<pymc_marketing.clv.distributions.ModifiedBetaGeoNBD.dist>`\\ \\(a\\, b\\, "
-"r\\, alpha\\, T\\, ...\\)"
+"msgid: :py:obj:`ModifiedBetaGeoNBD.dist <pymc_marketing.clv.distributions.ModifiedBetaGeoNBD.dist>`\\ \\(a\\, b\\, r\\, alpha\\, T\\, ...\\)  \n"
+"msgstr: :py:obj:`ModifiedBetaGeoNBD.dist <pymc_marketing.clv.distributions.ModifiedBetaGeoNBD.dist>`\\ \\(a\\, b\\, r\\, alpha\\, T\\, ...\\)"
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.ModifiedBetaGeoNBD.rst:24:<autosummary>:1
 #: 0682abf3156040bc8f2c2afbf79a39d0
@@ -166,9 +164,8 @@ msgid ""
 "<pymc_marketing.clv.distributions.ModifiedBetaGeoNBD.logp>`\\ \\(a\\, b\\, "
 "r\\, alpha\\, T\\)"
 msgstr ""
-":py:obj:`ModifiedBetaGeoNBD.logp "
-"<pymc_marketing.clv.distributions.ModifiedBetaGeoNBD.logp>`\\ \\(a\\, b\\, "
-"r\\, alpha\\, T\\)"
+"msgid: :py:obj:`ModifiedBetaGeoNBD.logp <pymc_marketing.clv.distributions.ModifiedBetaGeoNBD.logp>`\\ \\(a\\, b\\, r\\, alpha\\, T\\)  \n"
+"msgstr: :py:obj:`ModifiedBetaGeoNBD.logp <pymc_marketing.clv.distributions.ModifiedBetaGeoNBD.logp>`\\ \\(a\\, b\\, r\\, alpha\\, T\\)"
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.ModifiedBetaGeoNBD.rst:24:<autosummary>:1
 #: 8a8bf47f4d8741f89d2a90209cd54834

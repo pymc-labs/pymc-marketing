@@ -101,9 +101,8 @@ msgid ""
 "<pymc_marketing.model_builder.RegressionModelBuilder.attrs_to_init_kwargs>`\\"
 " \\(attrs\\)"
 msgstr ""
-":py:obj:`RegressionModelBuilder.attrs_to_init_kwargs "
-"<pymc_marketing.model_builder.RegressionModelBuilder.attrs_to_init_kwargs>`\\"
-" \\(attrs\\)"
+"msgid: :py:obj:`RegressionModelBuilder.attrs_to_init_kwargs <pymc_marketing.model_builder.RegressionModelBuilder.attrs_to_init_kwargs>`\\ \\(attrs\\)  \n"
+"msgstr: :py:obj:`RegressionModelBuilder.attrs_to_init_kwargs <pymc_marketing.model_builder.RegressionModelBuilder.attrs_to_init_kwargs>`\\ \\(attrs\\)"
 
 #: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
 #: d0568013dd41467684fc4d2b0c7943d1
@@ -220,9 +219,8 @@ msgid ""
 "<pymc_marketing.model_builder.RegressionModelBuilder.idata_to_init_kwargs>`\\"
 " \\(idata\\)"
 msgstr ""
-":py:obj:`RegressionModelBuilder.idata_to_init_kwargs "
-"<pymc_marketing.model_builder.RegressionModelBuilder.idata_to_init_kwargs>`\\"
-" \\(idata\\)"
+"msgid: :py:obj:`RegressionModelBuilder.idata_to_init_kwargs <pymc_marketing.model_builder.RegressionModelBuilder.idata_to_init_kwargs>`\\ \\(idata\\)  \n"
+"msgstr: :py:obj:`RegressionModelBuilder.idata_to_init_kwargs <pymc_marketing.model_builder.RegressionModelBuilder.idata_to_init_kwargs>`\\ \\(idata\\)"
 
 #: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
 #: 1b76a0a11cab4a45a429e9e5dca704b0

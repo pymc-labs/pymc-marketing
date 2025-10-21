@@ -23,7 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.mmm.BaseMMM.attrs_to_init_kwargs.rst:2
 #: 07278f950ad44023b8f1638b80788722
 msgid "BaseMMM.attrs\\_to\\_init\\_kwargs"
-msgstr "BaseMMM.attrs\\_to\\_init\\_kwargs"
+msgstr ""
+"msgid: BaseMMM.attrs\\_to\\_init\\_kwargs  \n"
+"msgstr: BaseMMM.attrs\\_to\\_init\\_kwargs"
 
 #: d6b422c41ccd42b49d1f863052c859fa of
 #: pymc_marketing.mmm.mmm.BaseMMM.attrs_to_init_kwargs:2

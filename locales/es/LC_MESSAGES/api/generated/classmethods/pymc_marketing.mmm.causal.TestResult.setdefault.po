@@ -23,26 +23,18 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.TestResult.setdefault.rst:2
 #: 8632b6ddf0f54db7a2ffd18ae413e729
 msgid "TestResult.setdefault"
-msgstr ""
-"{\n"
-"  \"singular\": \"TestResult.setdefault\",\n"
-"  \"plural\": \"TestResult.setdefault\"\n"
-"}"
+msgstr "TestResult.setdefault"
 
 #: 34c9ec9f105645af9e138e0d6c792a54 of
 #: pymc_marketing.mmm.causal.TestResult.setdefault:2
 msgid "Insert key with a value of default if key is not in the dictionary."
 msgstr ""
-"{\n"
-"  \"singular\": \"Inserte la clave con un valor de predeterminado si la clave no está en el diccionario.\",\n"
-"  \"plural\": \"Inserte las claves con un valor de predeterminado si las claves no están en el diccionario.\"\n"
-"}"
+"msgid: Insert key with a value of default if key is not in the dictionary.  \n"
+"msgstr: Inserte la clave con un valor de predeterminado si la clave no está en el diccionario."
 
 #: c039a218cab14305a560d2da4f6c2cb6 of
 #: pymc_marketing.mmm.causal.TestResult.setdefault:4
 msgid "Return the value for key if key is in the dictionary, else default."
 msgstr ""
-"{\n"
-"  \"singular\": \"Devuelve el valor para la clave si la clave está en el diccionario, de lo contrario, el valor por defecto.\",\n"
-"  \"plural\": \"Devuelve el valor para las claves si las claves están en el diccionario, de lo contrario, el valor por defecto.\"\n"
-"}"
+"msgid: Return the value for key if key is in the dictionary, else default.  \n"
+"msgstr: Devuelve el valor para la clave si la clave está en el diccionario, de lo contrario, devuelve el valor por defecto."

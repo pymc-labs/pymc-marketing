@@ -23,20 +23,14 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.TestResult.popitem.rst:2
 #: 47760638c3314a3fb95477251cf5d7f7
 msgid "TestResult.popitem"
-msgstr ""
-"{\n"
-"  \"singular\": \"TestResult.popitem\",\n"
-"  \"plural\": \"TestResult.popitem\"\n"
-"}"
+msgstr "TestResult.popitem"
 
 #: d223d387664d453e9a63fd27812a7be5 of
 #: pymc_marketing.mmm.causal.TestResult.popitem:2
 msgid "Remove and return a (key, value) pair as a 2-tuple."
 msgstr ""
-"{\n"
-"  \"singular\": \"Elimina y devuelve un par (clave, valor) como una tupla de 2 elementos.\",\n"
-"  \"plural\": \"Elimina y devuelve pares (clave, valor) como tuplas de 2 elementos.\"\n"
-"}"
+"msgid: Remove and return a (key, value) pair as a 2-tuple.  \n"
+"msgstr: Eliminar y devolver un par (clave, valor) como una tupla de 2 elementos."
 
 #: ee12a602463b456ebb219d610e4bcf89 of
 #: pymc_marketing.mmm.causal.TestResult.popitem:4
@@ -44,7 +38,5 @@ msgid ""
 "Pairs are returned in LIFO (last-in, first-out) order. Raises KeyError if "
 "the dict is empty."
 msgstr ""
-"{\n"
-"  \"singular\": \"Los pares se devuelven en orden LIFO (último en entrar, primero en salir). Genera KeyError si el diccionario está vacío.\",\n"
-"  \"plural\": \"Los pares se devuelven en orden LIFO (último en entrar, primero en salir). Genera KeyError si los diccionarios están vacíos.\"\n"
-"}"
+"msgid: Pairs are returned in LIFO (last-in, first-out) order. Raises KeyError if the dict is empty.  \n"
+"msgstr: Los pares se devuelven en orden LIFO (último en entrar, primero en salir). Se genera un KeyError si el diccionario está vacío."

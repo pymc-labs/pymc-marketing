@@ -162,9 +162,8 @@ msgid ""
 "<pymc_marketing.mmm.events.GaussianBasis.set_dims_for_all_priors>`\\ "
 "\\(dims\\)"
 msgstr ""
-":py:obj:`GaussianBasis.set_dims_for_all_priors "
-"<pymc_marketing.mmm.events.GaussianBasis.set_dims_for_all_priors>`\\ "
-"\\(dims\\)"
+"msgid: :py:obj:`GaussianBasis.set_dims_for_all_priors <pymc_marketing.mmm.events.GaussianBasis.set_dims_for_all_priors>`\\ \\(dims\\)  \n"
+"msgstr: :py:obj:`GaussianBasis.set_dims_for_all_priors <pymc_marketing.mmm.events.GaussianBasis.set_dims_for_all_priors>`\\ \\(dims\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.events.GaussianBasis.rst:32:<autosummary>:1
 #: 329cd73bed5742d6bb9e18aa5e656f7d
@@ -177,8 +176,8 @@ msgid ""
 ":py:obj:`GaussianBasis.to_dict "
 "<pymc_marketing.mmm.events.GaussianBasis.to_dict>`\\ \\(\\)"
 msgstr ""
-":py:obj:`GaussianBasis.to_dict "
-"<pymc_marketing.mmm.events.GaussianBasis.to_dict>`\\ \\(\\)"
+"msgid: :py:obj:`GaussianBasis.to_dict <pymc_marketing.mmm.events.GaussianBasis.to_dict>`\\ \\(\\)  \n"
+"msgstr: :py:obj:`GaussianBasis.to_dict <pymc_marketing.mmm.events.GaussianBasis.to_dict>`\\ \\(\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.events.GaussianBasis.rst:32:<autosummary>:1
 #: 4e11663c3a23431ca651732becbe825b

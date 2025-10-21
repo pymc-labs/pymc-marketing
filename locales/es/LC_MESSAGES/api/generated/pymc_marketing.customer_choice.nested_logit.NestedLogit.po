@@ -333,9 +333,8 @@ msgid ""
 "<pymc_marketing.customer_choice.nested_logit.NestedLogit.attrs_to_init_kwargs>`\\"
 " \\(attrs\\)"
 msgstr ""
-":py:obj:`NestedLogit.attrs_to_init_kwargs "
-"<pymc_marketing.customer_choice.nested_logit.NestedLogit.attrs_to_init_kwargs>`\\"
-" \\(attrs\\)"
+"msgid: :py:obj:`NestedLogit.attrs_to_init_kwargs <pymc_marketing.customer_choice.nested_logit.NestedLogit.attrs_to_init_kwargs>`\\ \\(attrs\\)  \n"
+"msgstr: :py:obj:`NestedLogit.attrs_to_init_kwargs <pymc_marketing.customer_choice.nested_logit.NestedLogit.attrs_to_init_kwargs>`\\ \\(attrs\\)"
 
 #: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
 #: 8b9a8363a4944ba5ab754fd87b5af014
@@ -467,9 +466,8 @@ msgid ""
 "<pymc_marketing.customer_choice.nested_logit.NestedLogit.idata_to_init_kwargs>`\\"
 " \\(idata\\)"
 msgstr ""
-":py:obj:`NestedLogit.idata_to_init_kwargs "
-"<pymc_marketing.customer_choice.nested_logit.NestedLogit.idata_to_init_kwargs>`\\"
-" \\(idata\\)"
+"msgid: :py:obj:`NestedLogit.idata_to_init_kwargs <pymc_marketing.customer_choice.nested_logit.NestedLogit.idata_to_init_kwargs>`\\ \\(idata\\)  \n"
+"msgstr: :py:obj:`NestedLogit.idata_to_init_kwargs <pymc_marketing.customer_choice.nested_logit.NestedLogit.idata_to_init_kwargs>`\\ \\(idata\\)"
 
 #: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
 #: d09891254dc44acebcd2ee3595226d62

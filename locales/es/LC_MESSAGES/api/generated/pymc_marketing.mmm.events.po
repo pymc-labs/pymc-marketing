@@ -107,9 +107,8 @@ msgid ""
 "<pymc_marketing.mmm.events.AsymmetricGaussianBasis>`\\ "
 "\\(\\[event\\_in\\]\\)"
 msgstr ""
-":py:obj:`AsymmetricGaussianBasis "
-"<pymc_marketing.mmm.events.AsymmetricGaussianBasis>`\\ "
-"\\(\\[event\\_in\\]\\)"
+"msgid: :py:obj:`AsymmetricGaussianBasis <pymc_marketing.mmm.events.AsymmetricGaussianBasis>`\\ \\(\\[event\\_in\\]\\)  \n"
+"msgstr: :py:obj:`AsymmetricGaussianBasis <pymc_marketing.mmm.events.AsymmetricGaussianBasis>`\\ \\(\\[event\\_in\\]\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.events.rst:44:<autosummary>:1
 #: e64575d30e134f54835bb155bc0458d8

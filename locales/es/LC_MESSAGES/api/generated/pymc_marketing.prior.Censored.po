@@ -109,7 +109,9 @@ msgstr "Muestre la distribución previa para la variable."
 #: ../source/api/generated/pymc_marketing.prior.Censored.rst:28:<autosummary>:1
 #: cfa184e1665d4e8cb65340dc1d07b0bc
 msgid ":py:obj:`Censored.to_dict <pymc_marketing.prior.Censored.to_dict>`\\ \\(\\)"
-msgstr ":py:obj:`Censored.to_dict <pymc_marketing.prior.Censored.to_dict>`\\ \\(\\)"
+msgstr ""
+"msgid: :py:obj:`Censored.to_dict <pymc_marketing.prior.Censored.to_dict>`\\ \\(\\)  \n"
+"msgstr: :py:obj:`Censored.to_dict <pymc_marketing.prior.Censored.to_dict>`\\ \\(\\)"
 
 #: ../source/api/generated/pymc_marketing.prior.Censored.rst:28:<autosummary>:1
 #: 228015d5367845f0a14f6d200e20f93d
@@ -122,8 +124,8 @@ msgid ""
 ":py:obj:`Censored.to_graph <pymc_marketing.prior.Censored.to_graph>`\\ "
 "\\(\\)"
 msgstr ""
-":py:obj:`Censored.to_graph <pymc_marketing.prior.Censored.to_graph>`\\ "
-"\\(\\)"
+"msgid: :py:obj:`Censored.to_graph <pymc_marketing.prior.Censored.to_graph>`\\ \\(\\)  \n"
+"msgstr: :py:obj:`Censored.to_graph <pymc_marketing.prior.Censored.to_graph>`\\ \\(\\)"
 
 #: ../source/api/generated/pymc_marketing.prior.Censored.rst:28:<autosummary>:1
 #: b770267ecc8846948d8de82233ad9764

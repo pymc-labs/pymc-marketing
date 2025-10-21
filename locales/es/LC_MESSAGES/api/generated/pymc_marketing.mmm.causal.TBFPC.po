@@ -221,10 +221,8 @@ msgstr ""
 msgid ""
 "Enumerate all acyclic orientations (consistent extensions) of the CPDAG."
 msgstr ""
-"{\n"
-"  \"singular\": \"Enumere todas las orientaciones acíclicas (extensiones consistentes) del CPDAG.\",\n"
-"  \"plural\": \"Enumeren todas las orientaciones acíclicas (extensiones consistentes) del CPDAG.\"\n"
-"}"
+"msgid: Enumerate all acyclic orientations (consistent extensions) of the CPDAG.\n"
+"msgstr: Enumere todas las orientaciones acíclicas (extensiones consistentes) del CPDAG."
 
 #: ../source/api/generated/pymc_marketing.mmm.causal.TBFPC.rst:24:<autosummary>:1
 #: e53debdf91324fc8850f9117e0cdab33
@@ -286,8 +284,8 @@ msgid ""
 ":py:obj:`TBFPC.to_digraph <pymc_marketing.mmm.causal.TBFPC.to_digraph>`\\ "
 "\\(\\)"
 msgstr ""
-":py:obj:`TBFPC.to_digraph <pymc_marketing.mmm.causal.TBFPC.to_digraph>`\\ "
-"\\(\\)"
+"msgid: :py:obj:`TBFPC.to_digraph <pymc_marketing.mmm.causal.TBFPC.to_digraph>`\\ \\(\\)  \n"
+"msgstr: :py:obj:`TBFPC.to_digraph <pymc_marketing.mmm.causal.TBFPC.to_digraph>`\\ \\(\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.causal.TBFPC.rst:24:<autosummary>:1
 #: 8399dc2ec11f4bf4b25dc5b9ea81160f

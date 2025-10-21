@@ -12,18 +12,20 @@ msgstr ""
 "POT-Creation-Date: 2025-10-07 18:10+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language: es\n"
 "Language-Team: es <LL@li.org>\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Language: es\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "Generated-By: Babel 2.17.0\n"
 
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.gamma_gamma.GammaGammaModel.attrs_to_init_kwargs.rst:2
 #: bdd1be747839450195e08e7b9e5a686d
 msgid "GammaGammaModel.attrs\\_to\\_init\\_kwargs"
-msgstr "GammaGammaModel.attrs\\_to\\_init\\_kwargs"
+msgstr ""
+"msgid: GammaGammaModel.attrs\\_to\\_init\\_kwargs  \n"
+"msgstr: GammaGammaModel.attrs\\_to\\_init\\_kwargs"
 
 #: f9c8b50049dd475fbd4bf1c364faddc9 of
 #: pymc_marketing.model_builder.ModelIO.attrs_to_init_kwargs:2

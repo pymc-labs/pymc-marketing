@@ -124,8 +124,8 @@ msgid ""
 ":py:obj:`is_alternative_prior <pymc_marketing.prior.is_alternative_prior>`\\"
 " \\(data\\)"
 msgstr ""
-":py:obj:`is_alternative_prior <pymc_marketing.prior.is_alternative_prior>`\\"
-" \\(datos\\)"
+"msgid: :py:obj:`is_alternative_prior <pymc_marketing.prior.is_alternative_prior>`\\ \\(data\\)  \n"
+"msgstr: :py:obj:`is_alternative_prior <pymc_marketing.prior.is_alternative_prior>`\\ \\(data\\)"
 
 #: ../source/api/generated/pymc_marketing.prior.rst:26:<autosummary>:1
 #: 02991c7514264b68aa4004e139ed8891

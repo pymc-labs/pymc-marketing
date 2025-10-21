@@ -88,7 +88,9 @@ msgstr ""
 #: ../source/notebooks/clv/dev/gamma_gamma_dev.ipynb:330002
 #: 1c5da048d26b429c920e3d66ade57d77
 msgid "Gamma-Gamma model conditioned on individual transactions $z$"
-msgstr "Modelo Gamma-Gamma condicionado a transacciones individuales $z$"
+msgstr ""
+"msgid: Gamma-Gamma model conditioned on individual transactions $z$  \n"
+"msgstr: Modelo Gamma-Gamma condicionado a transacciones individuales $z$"
 
 #: ../source/notebooks/clv/dev/gamma_gamma_dev.ipynb:370002
 #: 87e6f39792924203a2f8216084925e83

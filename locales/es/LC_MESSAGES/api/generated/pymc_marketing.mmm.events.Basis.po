@@ -140,8 +140,8 @@ msgid ""
 ":py:obj:`Basis.set_dims_for_all_priors "
 "<pymc_marketing.mmm.events.Basis.set_dims_for_all_priors>`\\ \\(dims\\)"
 msgstr ""
-":py:obj:`Basis.set_dims_for_all_priors "
-"<pymc_marketing.mmm.events.Basis.set_dims_for_all_priors>`\\ \\(dims\\)"
+"msgid: :py:obj:`Basis.set_dims_for_all_priors <pymc_marketing.mmm.events.Basis.set_dims_for_all_priors>`\\ \\(dims\\)  \n"
+"msgstr: :py:obj:`Basis.set_dims_for_all_priors <pymc_marketing.mmm.events.Basis.set_dims_for_all_priors>`\\ \\(dims\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.events.Basis.rst:31:<autosummary>:1
 #: 7a83313830664dfcbf51543c8a2bce36
@@ -151,7 +151,9 @@ msgstr "Establezca las dimensiones para todos los antecedentes."
 #: ../source/api/generated/pymc_marketing.mmm.events.Basis.rst:31:<autosummary>:1
 #: b04afb7b76d54ce0af27f08d2b307997
 msgid ":py:obj:`Basis.to_dict <pymc_marketing.mmm.events.Basis.to_dict>`\\ \\(\\)"
-msgstr ":py:obj:`Basis.to_dict <pymc_marketing.mmm.events.Basis.to_dict>`\\ \\(\\)"
+msgstr ""
+"msgid: :py:obj:`Basis.to_dict <pymc_marketing.mmm.events.Basis.to_dict>`\\ \\(\\)  \n"
+"msgstr: :py:obj:`Basis.to_dict <pymc_marketing.mmm.events.Basis.to_dict>`\\ \\(\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.events.Basis.rst:31:<autosummary>:1
 #: 21e930c2ce334f42916429087c53d4e7

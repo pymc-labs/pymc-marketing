@@ -23,7 +23,9 @@ msgstr ""
 #: ../source/api/generated/pymc_marketing.clv.utils.to_xarray.rst:2
 #: 6f17cb01d8744b3d83d9757e494d18fd
 msgid "to\\_xarray"
-msgstr "to\\_xarray"
+msgstr ""
+"msgid: to\\_xarray  \n"
+"msgstr: to\\_xarray"
 
 #: 42d0b0648a154530a69758d2872f1c85 of pymc_marketing.clv.utils.to_xarray:2
 msgid ""

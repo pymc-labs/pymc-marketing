@@ -73,8 +73,9 @@ msgstr "Especifica qué variables agrupar. Ejemplo: pasando"
 #: pymc_marketing.mmm.base.MMMModelBuilder.plot_grouped_contribution_breakdown_over_time:13
 msgid "{"
 msgstr ""
-"It seems that your message was cut off. Please provide the complete text you"
-" would like to have translated, and I will be happy to assist you!"
+"Lo siento, pero parece que no has proporcionado el texto que deseas "
+"traducir. Por favor, proporciona el texto completo para que pueda ayudarte "
+"con la traducción."
 
 #: 32c9d38777e94977bd8a2fcdc9231104 of
 #: pymc_marketing.mmm.base.MMMModelBuilder.plot_grouped_contribution_breakdown_over_time:14
@@ -86,9 +87,7 @@ msgstr ""
 #: b868835948704f32ae6ec9c268cf82c2 of
 #: pymc_marketing.mmm.base.MMMModelBuilder.plot_grouped_contribution_breakdown_over_time:17
 msgid "}"
-msgstr ""
-"It seems that there is no text provided for translation. Please provide the "
-"text you would like to have translated, and I'll be happy to assist you!"
+msgstr "}"
 
 #: dae4b1a22fee4d5f88cbbc48222f7185 of
 #: pymc_marketing.mmm.base.MMMModelBuilder.plot_grouped_contribution_breakdown_over_time:18

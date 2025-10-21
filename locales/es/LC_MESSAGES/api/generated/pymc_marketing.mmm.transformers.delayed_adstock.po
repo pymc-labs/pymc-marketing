@@ -254,4 +254,6 @@ msgstr ""
 #: 8731fc4b025e4d8fa2fda2852c5b6bba of
 #: pymc_marketing.mmm.transformers.delayed_adstock:87
 msgid "[Rc11c08f63a7a-1]_"
-msgstr "[Rc11c08f63a7a-1]_"
+msgstr ""
+"msgid: [Rc11c08f63a7a-1]  \n"
+"msgstr: [Rc11c08f63a7a-1]"

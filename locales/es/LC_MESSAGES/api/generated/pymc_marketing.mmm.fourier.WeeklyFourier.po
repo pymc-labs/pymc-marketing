@@ -567,8 +567,8 @@ msgid ""
 ":py:obj:`WeeklyFourier.to_dict "
 "<pymc_marketing.mmm.fourier.WeeklyFourier.to_dict>`\\ \\(\\)"
 msgstr ""
-":py:obj:`WeeklyFourier.to_dict "
-"<pymc_marketing.mmm.fourier.WeeklyFourier.to_dict>`\\ \\(\\)"
+"msgid: :py:obj:`WeeklyFourier.to_dict <pymc_marketing.mmm.fourier.WeeklyFourier.to_dict>`\\ \\(\\)  \n"
+"msgstr: :py:obj:`WeeklyFourier.to_dict <pymc_marketing.mmm.fourier.WeeklyFourier.to_dict>`\\ \\(\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
 #: c5d37b3f24ee4d33b996e453d1d7be00

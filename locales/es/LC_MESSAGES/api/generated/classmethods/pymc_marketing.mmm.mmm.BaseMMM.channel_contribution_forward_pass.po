@@ -47,7 +47,9 @@ msgstr "**channel_data** : :term:`numpy:array_like`"
 #: 1f4b4d49652b4bfea98ba33d244ae85e of
 #: pymc_marketing.mmm.mmm.BaseMMM.channel_contribution_forward_pass:6
 msgid "numpy:array_like"
-msgstr "numpy:similar_a_array"
+msgstr ""
+"msgid: numpy:array_like  \n"
+"msgstr: numpy:array_like"
 
 #: 1aeddaf64bdd495bbabacdb46aeec985 of
 #: pymc_marketing.mmm.mmm.BaseMMM.channel_contribution_forward_pass:8
