@@ -378,7 +378,9 @@ msgstr ""
 #: ab33e841a26c4344bebe4e791d1a3f0f
 #, python-brace-format
 msgid "\\lim_{t \\to \\infty} \\text{Cumulative Adoption}(t) = m"
-msgstr "\\lim_{t \\to \\infty} \\text{Cumulative Adoption}(t) = m"
+msgstr ""
+"msgid: \\lim_{t \\to \\infty} \\text{Cumulative Adoption}(t) = m  \n"
+"msgstr: \\lim_{t \\to \\infty} \\text{Cumulative Adoption}(t) = m"
 
 #: ../source/notebooks/bass/bass_example.ipynb:10093
 #: 70bea935695644ada317c52b812563fa
