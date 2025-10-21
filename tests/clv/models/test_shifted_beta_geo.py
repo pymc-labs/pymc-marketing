@@ -609,6 +609,45 @@ class TestShiftedBetaGeoModel:
             expected_residual_lifetime_case2, residual_lifetime_case2_obs, rtol=1e-2
         )
 
+    def test_expected_retention_elasticity(self, prediction_targets, erl_test_data):
+        """Test expected_retention_elasticity against Table 3 values from the paper.
+        Note no values for retention elasticity are provided in the paper,
+        but it is defined as the expected residual lifetime (T-1) divided by the retention rate.
+        """
+        # Extract observed residual lifetime data arrays by cohort
+        (
+            _,
+            _,
+            _,
+            _,
+            residual_lifetime_case1_obs,
+            residual_lifetime_case2_obs,
+        ) = prediction_targets
+
+        # TODO: Difference these and use T-1 instead of T
+        # TODO: Expected retention rate must also be estimated to compare against elasticity.
+        # Run full predictions with discount_rate=0.1 (as used in paper Table 3)
+        expected_residual_lifetime_cohorts = self.erl_model.expected_residual_lifetime(
+            erl_test_data,
+            discount_rate=0.1,
+        ).mean(("chain", "draw"))
+
+        # Extract predictions by cohort
+        expected_residual_lifetime_case1 = expected_residual_lifetime_cohorts.sel(
+            cohort="case1"
+        ).values
+        expected_residual_lifetime_case2 = expected_residual_lifetime_cohorts.sel(
+            cohort="case2"
+        ).values
+
+        # Compare against paper values (Table 3, pg 5)
+        np.testing.assert_allclose(
+            expected_residual_lifetime_case1, residual_lifetime_case1_obs, rtol=1e-2
+        )
+        np.testing.assert_allclose(
+            expected_residual_lifetime_case2, residual_lifetime_case2_obs, rtol=1e-2
+        )
+
 
 class TestShiftedBetaGeoModelIndividual:
     @classmethod
