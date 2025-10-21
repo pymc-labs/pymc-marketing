@@ -189,9 +189,8 @@ msgid ""
 "<pymc_marketing.mmm.components.saturation.NoSaturation.set_dims_for_all_priors>`\\"
 " \\(dims\\)"
 msgstr ""
-":py:obj:`NoSaturation.set_dims_for_all_priors "
-"<pymc_marketing.mmm.components.saturation.NoSaturation.set_dims_for_all_priors>`\\"
-" \\(dims\\)"
+"msgid: :py:obj:`NoSaturation.set_dims_for_all_priors <pymc_marketing.mmm.components.saturation.NoSaturation.set_dims_for_all_priors>`\\ \\(dims\\)  \n"
+"msgstr: :py:obj:`NoSaturation.set_dims_for_all_priors <pymc_marketing.mmm.components.saturation.NoSaturation.set_dims_for_all_priors>`\\ \\(dims\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.components.saturation.NoSaturation.rst:32:<autosummary>:1
 #: f29f6588192d4056aba075e0773726b2
@@ -204,8 +203,8 @@ msgid ""
 ":py:obj:`NoSaturation.to_dict "
 "<pymc_marketing.mmm.components.saturation.NoSaturation.to_dict>`\\ \\(\\)"
 msgstr ""
-":py:obj:`NoSaturation.to_dict "
-"<pymc_marketing.mmm.components.saturation.NoSaturation.to_dict>`\\ \\(\\)"
+"msgid: :py:obj:`NoSaturation.to_dict <pymc_marketing.mmm.components.saturation.NoSaturation.to_dict>`\\ \\(\\)  \n"
+"msgstr: :py:obj:`NoSaturation.to_dict <pymc_marketing.mmm.components.saturation.NoSaturation.to_dict>`\\ \\(\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.components.saturation.NoSaturation.rst:32:<autosummary>:1
 #: 0159460c1bb14944b12dc033212c2a48
