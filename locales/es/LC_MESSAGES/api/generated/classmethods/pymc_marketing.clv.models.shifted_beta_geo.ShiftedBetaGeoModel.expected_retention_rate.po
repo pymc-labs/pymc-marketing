@@ -33,12 +33,14 @@ msgstr "Compute expected retention rate by cohort."
 #: 526f8ad46597472cbac533a475029798 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_retention_rate:4
 msgid "The *data* parameter is only required for out-of-sample customers."
-msgstr "The *data* parameter is only required for out-of-sample customers."
+msgstr ""
+"msgid: The *data* parameter is only required for out-of-sample customers.  \n"
+"msgstr: El parámetro *data* solo es necesario para clientes fuera de la muestra."
 
 #: abde1f93924b4695bd27c0235d5545a0 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_retention_rate:6
 msgid "Adapted from equation (8) in [R927d290b7e25-1]_."
-msgstr "Adapted from equation (8) in [R927d290b7e25-1]_."
+msgstr "Adaptado de la ecuación (8) en [R927d290b7e25-1]_."
 
 #: 7c5938327210468bb80565446baae130 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_retention_rate
@@ -58,7 +60,9 @@ msgstr "python:int, numpy:array_like"
 #: 3661edf2a67c448ab905f3ba947ea2e6 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_retention_rate:11
 msgid "Number of time periods in the future to predict retention rate."
-msgstr "Number of time periods in the future to predict retention rate."
+msgstr ""
+"msgid: Number of time periods in the future to predict retention rate.  \n"
+"msgstr: Número de períodos de tiempo en el futuro para predecir la tasa de retención."
 
 #: ef3e9d56819a4c7b9769ddb376d93c23 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_retention_rate:13
@@ -77,9 +81,8 @@ msgid ""
 " customer identifier * `T`: Number of time periods customer has been active "
 "* `cohort`: Customer cohort label"
 msgstr ""
-"Optional dataframe containing the following columns: * `customer_id`: Unique"
-" customer identifier * `T`: Number of time periods customer has been active "
-"* `cohort`: Customer cohort label"
+"msgid: Optional dataframe containing the following columns: * `customer_id`: Unique customer identifier * `T`: Number of time periods customer has been active * `cohort`: Customer cohort label  \n"
+"msgstr: Dataframe opcional que contiene las siguientes columnas: * `customer_id`: Identificador único del cliente * `T`: Número de períodos de tiempo en los que el cliente ha estado activo * `cohort`: Etiqueta de cohorte del cliente"
 
 #: 74812b80d3bc48e796799c74f067b518 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_retention_rate:31
@@ -94,10 +97,8 @@ msgid ""
 "https://faculty.wharton.upenn.edu/wp-"
 "content/uploads/2012/04/Fader_hardie_jim_07.pdf"
 msgstr ""
-"Fader, P. S., & Hardie, B. G. (2007). How to project customer retention. "
-"Journal of Interactive Marketing, 21(1), 76-90. "
-"https://faculty.wharton.upenn.edu/wp-"
-"content/uploads/2012/04/Fader_hardie_jim_07.pdf"
+"msgid: Fader, P. S., & Hardie, B. G. (2007). How to project customer retention. Journal of Interactive Marketing, 21(1), 76-90. https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf  \n"
+"msgstr: Fader, P. S., & Hardie, B. G. (2007). Cómo proyectar la retención de clientes. Journal of Interactive Marketing, 21(1), 76-90. https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf"
 
 #: 643ff03624f34132a4208aaaa44388a2 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_retention_rate:38
