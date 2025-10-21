@@ -28,7 +28,7 @@ msgstr "ShiftedBetaGeometric.dist"
 #: bcb4ac6e554546feb68460771b8431ba of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric.dist:2
 msgid "Create a tensor variable corresponding to the `cls` distribution."
-msgstr "Create a tensor variable corresponding to the `cls` distribution."
+msgstr "Cree una variable tensor correspondiente a la distribución `cls`."
 
 #: 8ecf15c0f01d457a8f96f3c21d0de6e1 of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric.dist
@@ -48,7 +48,9 @@ msgstr "numpy:array_like"
 #: bca44da6f4354469ae97d5f1a75446eb of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric.dist:8
 msgid "The inputs to the `RandomVariable` `Op`."
-msgstr "The inputs to the `RandomVariable` `Op`."
+msgstr ""
+"msgid: The inputs to the `RandomVariable` `Op`.  \n"
+"msgstr: Las entradas al `RandomVariable` `Op`."
 
 #: 13f3ba3a6c344cba83e186adbc076954 of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric.dist:10
@@ -67,7 +69,9 @@ msgstr "python:int, python:tuple, Variable, optional"
 #: 735a8430c4ee4bda99967570d5139310 of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric.dist:11
 msgid "A tuple of sizes for each dimension of the new RV."
-msgstr "A tuple of sizes for each dimension of the new RV."
+msgstr ""
+"msgid: A tuple of sizes for each dimension of the new RV.  \n"
+"msgstr: Una tupla de tamaños para cada dimensión del nuevo RV."
 
 #: c8fc3db993ed4413baecbbc2f5992aa2 of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric.dist:13
@@ -80,8 +84,8 @@ msgid ""
 "Keyword arguments that will be forwarded to the PyTensor RV Op. Most "
 "prominently: ``size`` or ``dtype``."
 msgstr ""
-"Keyword arguments that will be forwarded to the PyTensor RV Op. Most "
-"prominently: ``size`` or ``dtype``."
+"msgid: Keyword arguments that will be forwarded to the PyTensor RV Op. Most prominently: ``size`` or ``dtype``.  \n"
+"msgstr: Argumentos clave que se enviarán a la operación RV de PyTensor. Más notablemente: ``size`` o ``dtype``."
 
 #: 684e75c6e3c54182b588d7d8e1e912c4 of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric.dist
@@ -101,4 +105,6 @@ msgstr "TensorVariable"
 #: 0e39e87547604531b3bc4158fb2d0f36 of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric.dist:22
 msgid "The created random variable tensor."
-msgstr "The created random variable tensor."
+msgstr ""
+"msgid: The created random variable tensor.  \n"
+"msgstr: El tensor de variable aleatoria creado."
