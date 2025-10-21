@@ -28,27 +28,36 @@ msgstr "ShiftedBetaGeoModel.load\\_from\\_idata"
 #: 12d9d00232f44ab3b1ecd3ac2cbb8021 of
 #: pymc_marketing.model_builder.ModelIO.load_from_idata:2
 msgid "Create a ModelBuilder instance from an InferenceData object."
-msgstr "Create a ModelBuilder instance from an InferenceData object."
+msgstr ""
+"Cree una instancia de ModelBuilder a partir de un objeto InferenceData."
 
 #: ea3177772fff46e282b3322589def190 of
 #: pymc_marketing.model_builder.ModelIO.load_from_idata:4
 msgid "This class method has a few steps:"
-msgstr "This class method has a few steps:"
+msgstr ""
+"msgid: This class method has a few steps:  \n"
+"msgstr: Este método de clase tiene algunos pasos:"
 
 #: ff0e0499941049bca302040e5dce0441 of
 #: pymc_marketing.model_builder.ModelIO.load_from_idata:6
 msgid "Construct a new instance of the model using the InferenceData attrs"
-msgstr "Construct a new instance of the model using the InferenceData attrs"
+msgstr ""
+"msgid: Construct a new instance of the model using the InferenceData attrs  \n"
+"msgstr: Construya una nueva instancia del modelo utilizando los atributos de InferenceData"
 
 #: 812cce050604447f867ef0505201f185 of
 #: pymc_marketing.model_builder.ModelIO.load_from_idata:7
 msgid "Build the model from the InferenceData"
-msgstr "Build the model from the InferenceData"
+msgstr ""
+"msgid: Build the model from the InferenceData  \n"
+"msgstr: Construya el modelo a partir de los InferenceData"
 
 #: bedb182188904c82936fb3dcf17d6fe7 of
 #: pymc_marketing.model_builder.ModelIO.load_from_idata:8
 msgid "Check if the model id matches the id in the InferenceData loaded."
-msgstr "Check if the model id matches the id in the InferenceData loaded."
+msgstr ""
+"msgid: Check if the model id matches the id in the InferenceData loaded.  \n"
+"msgstr: Verifique si el id del modelo coincide con el id en los InferenceData cargados."
 
 #: 22429107f341493199f9eeee9eee3448 of
 #: pymc_marketing.model_builder.ModelIO.load_from_idata
@@ -68,7 +77,9 @@ msgstr "az.InferenceData"
 #: cf2228f837664267bf57e2d74a5ade18 of
 #: pymc_marketing.model_builder.ModelIO.load_from_idata:13
 msgid "The InferenceData object to load the model from."
-msgstr "The InferenceData object to load the model from."
+msgstr ""
+"msgid: The InferenceData object to load the model from.  \n"
+"msgstr: El objeto InferenceData del cual cargar el modelo."
 
 #: 874fd79e17ba4f48a43636b59d7660e9 of
 #: pymc_marketing.model_builder.ModelIO.load_from_idata:15
@@ -86,8 +97,8 @@ msgid ""
 "Whether to check if the model id matches the id in the InferenceData loaded."
 " Defaults to True."
 msgstr ""
-"Whether to check if the model id matches the id in the InferenceData loaded."
-" Defaults to True."
+"msgid: Whether to check if the model id matches the id in the InferenceData loaded. Defaults to True.  \n"
+"msgstr: Si se debe verificar si el id del modelo coincide con el id en los InferenceData cargados. Por defecto es True."
 
 #: 234dfea86fdc4db89fa330d9ff0ea13e of
 #: pymc_marketing.model_builder.ModelIO.load_from_idata
@@ -102,7 +113,9 @@ msgstr ":obj:`ModelBuilder`"
 #: dcaa45ab1a3646cd89ec6e87c66c3f0d of
 #: pymc_marketing.model_builder.ModelIO.load_from_idata:24
 msgid "An instance of the ModelBuilder class."
-msgstr "An instance of the ModelBuilder class."
+msgstr ""
+"msgid: An instance of the ModelBuilder class.  \n"
+"msgstr: Una instancia de la clase ModelBuilder."
 
 #: bd935697758b46b7b70fd74cba228e61 of
 #: pymc_marketing.model_builder.ModelIO.load_from_idata
@@ -119,4 +132,5 @@ msgstr ":obj:`DifferentModelError`"
 msgid ""
 "If the model id in the InferenceData does not match the model id built."
 msgstr ""
-"If the model id in the InferenceData does not match the model id built."
+"msgid: If the model id in the InferenceData does not match the model id built.  \n"
+"msgstr: Si el id del modelo en los InferenceData no coincide con el id del modelo construido."
