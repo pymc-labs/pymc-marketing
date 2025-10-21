@@ -23,7 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.fourier.MonthlyFourier.to_dict.rst:2
 #: 553c7bf306354c5dba030322f92744a2
 msgid "MonthlyFourier.to\\_dict"
-msgstr "MonthlyFourier.to\\_dict"
+msgstr ""
+"msgid: MonthlyFourier.to\\_dict  \n"
+"msgstr: MonthlyFourier.to\\_dict"
 
 #: 338bd27c436f499896642fccbc89486d of
 #: pymc_marketing.mmm.fourier.FourierBase.to_dict:2
