@@ -23,7 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.special_priors.MaskedPrior.to_dict.rst:2
 #: c1ce7d0018344f4cad654884590f9a00
 msgid "MaskedPrior.to\\_dict"
-msgstr "MaskedPrior.to\\_dict"
+msgstr ""
+"msgid: MaskedPrior.to\\_dict  \n"
+"msgstr: MaskedPrior.to\\_dict"
 
 #: f538bceee3454f5bb687ef583b3baf15 of
 #: pymc_marketing.special_priors.MaskedPrior.to_dict:2
