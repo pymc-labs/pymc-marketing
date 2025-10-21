@@ -36,7 +36,7 @@ msgstr "[`model_copy`](../concepts/models.md#model-copy)"
 #: f3541f272b4e4bd189702588d7b85325 of pydantic.main.BaseModel.model_copy:5
 msgid "Returns a copy of the model."
 msgstr ""
-"msgid: Returns a copy of the model.\n"
+"msgid: Returns a copy of the model.  \n"
 "msgstr: Devuelve una copia del modelo."
 
 #: 493f9222169d4799a91ce2c137d21efe of pydantic.main.BaseModel.model_copy:7
