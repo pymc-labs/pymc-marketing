@@ -28,4 +28,4 @@ msgstr "ShiftedBetaGeoModel.build\\_model"
 #: bcfb0938dbfe494f9f7000aa81d69b0c of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.build_model:2
 msgid "Build the model."
-msgstr "Build the model."
+msgstr "Construya el modelo."
