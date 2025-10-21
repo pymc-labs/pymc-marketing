@@ -35,7 +35,9 @@ msgstr "[`model_copy`](../concepts/models.md#model-copy)"
 
 #: f3541f272b4e4bd189702588d7b85325 of pydantic.main.BaseModel.model_copy:5
 msgid "Returns a copy of the model."
-msgstr "Returns a copy of the model."
+msgstr ""
+"msgid: Returns a copy of the model.\n"
+"msgstr: Devuelve una copia del modelo."
 
 #: 493f9222169d4799a91ce2c137d21efe of pydantic.main.BaseModel.model_copy:7
 msgid "!!! note"
@@ -48,10 +50,8 @@ msgid ""
 " of the model fields (e.g. the value of [cached "
 "properties][functools.cached_property])."
 msgstr ""
-"The underlying instance's [`__dict__`][object.__dict__] attribute is copied."
-" This might have unexpected side effects if you store anything in it, on top"
-" of the model fields (e.g. the value of [cached "
-"properties][functools.cached_property])."
+"msgid: The underlying instance's [`__dict__`][object.__dict__] attribute is copied. This might have unexpected side effects if you store anything in it, on top of the model fields (e.g. the value of [cached properties][functools.cached_property]).\n"
+"msgstr: Se copia el atributo [`__dict__`][object.__dict__] de la instancia subyacente. Esto podría tener efectos secundarios inesperados si almacena algo en él, además de los campos del modelo (por ejemplo, el valor de [propiedades en caché][functools.cached_property])."
 
 #: dd7ea9bce9b7468f80936947b11f0046 of pydantic.main.BaseModel.model_copy:12
 msgid "Args:"
@@ -62,16 +62,20 @@ msgid ""
 "update: Values to change/add in the new model. Note: the data is not "
 "validated"
 msgstr ""
-"update: Values to change/add in the new model. Note: the data is not "
-"validated"
+"msgid: update: Values to change/add in the new model. Note: the data is not validated  \n"
+"msgstr: actualización: Valores a cambiar/agregar en el nuevo modelo. Nota: los datos no están validados"
 
 #: e9ab38a20be94e7e8fab468f9bb1ec34 of pydantic.main.BaseModel.model_copy:14
 msgid "before creating the new model. You should trust this data."
-msgstr "before creating the new model. You should trust this data."
+msgstr ""
+"msgid: before creating the new model. You should trust this data.  \n"
+"msgstr: antes de crear el nuevo modelo. Debería confiar en estos datos."
 
 #: bb854e77b1fc4d3b8ea4321c45866f17 of pydantic.main.BaseModel.model_copy:15
 msgid "deep: Set to `True` to make a deep copy of the model."
-msgstr "deep: Set to `True` to make a deep copy of the model."
+msgstr ""
+"msgid: deep: Set to `True` to make a deep copy of the model.  \n"
+"msgstr: deep: Establezca en `True` para hacer una copia profunda del modelo."
 
 #: 2f8a3d6f872a47f2bb3b5b329dfe0ac8 of pydantic.main.BaseModel.model_copy:17
 msgid "Returns:"
