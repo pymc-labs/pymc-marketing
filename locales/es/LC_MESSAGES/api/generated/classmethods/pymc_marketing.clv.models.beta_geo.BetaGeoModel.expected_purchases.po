@@ -131,5 +131,5 @@ msgstr ""
 #: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_purchases:42
 msgid "[Ra6295b03a31b-1]_"
 msgstr ""
-"msgid: [Ra6295b03a31b-1]  \n"
-"msgstr: [Ra6295b03a31b-1]"
+"msgid: [Ra6295b03a31b-1]_  \n"
+"msgstr: [Ra6295b03a31b-1]_"
