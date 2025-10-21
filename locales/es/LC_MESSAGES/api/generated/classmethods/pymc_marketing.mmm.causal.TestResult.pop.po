@@ -23,11 +23,7 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.TestResult.pop.rst:2
 #: 4d9459942d144e0b9079c3af1f236a4b
 msgid "TestResult.pop"
-msgstr ""
-"{\n"
-"  \"singular\": \"TestResult.pop\",\n"
-"  \"plural\": \"TestResult.pop\"\n"
-"}"
+msgstr "TestResult.pop"
 
 #: c475fefe6b8d4e42979c23f60d1ef621 of
 #: pymc_marketing.mmm.causal.TestResult.pop:2
@@ -35,7 +31,5 @@ msgid ""
 "If the key is not found, return the default if given; otherwise, raise a "
 "KeyError."
 msgstr ""
-"{\n"
-"  \"singular\": \"Si la clave no se encuentra, devuelve el valor predeterminado si se proporciona; de lo contrario, genera un KeyError.\",\n"
-"  \"plural\": \"Si las claves no se encuentran, devuelve los valores predeterminados si se proporcionan; de lo contrario, genera un KeyError.\"\n"
-"}"
+"msgid: If the key is not found, return the default if given; otherwise, raise a KeyError.  \n"
+"msgstr: Si la clave no se encuentra, devuelve el valor predeterminado si se proporciona; de lo contrario, genera un KeyError."

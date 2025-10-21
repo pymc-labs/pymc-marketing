@@ -104,8 +104,8 @@ msgid ""
 ":py:obj:`MediaConfigList.to_dict "
 "<pymc_marketing.mmm.media_transformation.MediaConfigList.to_dict>`\\ \\(\\)"
 msgstr ""
-":py:obj:`MediaConfigList.to_dict "
-"<pymc_marketing.mmm.media_transformation.MediaConfigList.to_dict>`\\ \\(\\)"
+"msgid: :py:obj:`MediaConfigList.to_dict <pymc_marketing.mmm.media_transformation.MediaConfigList.to_dict>`\\ \\(\\)  \n"
+"msgstr: :py:obj:`MediaConfigList.to_dict <pymc_marketing.mmm.media_transformation.MediaConfigList.to_dict>`\\ \\(\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.media_transformation.MediaConfigList.rst:24:<autosummary>:1
 #: d51d6a71b86148a384bef337d7746052

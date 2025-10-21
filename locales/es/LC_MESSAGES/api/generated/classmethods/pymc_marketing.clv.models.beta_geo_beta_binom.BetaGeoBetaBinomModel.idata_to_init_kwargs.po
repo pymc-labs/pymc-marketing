@@ -12,18 +12,20 @@ msgstr ""
 "POT-Creation-Date: 2025-10-07 18:10+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language: es\n"
 "Language-Team: es <LL@li.org>\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Language: es\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "Generated-By: Babel 2.17.0\n"
 
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.idata_to_init_kwargs.rst:2
 #: 982a8594b36c455e8fac7bb70d807295
 msgid "BetaGeoBetaBinomModel.idata\\_to\\_init\\_kwargs"
-msgstr "BetaGeoBetaBinomModel.idata\\_to\\_init\\_kwargs"
+msgstr ""
+"msgid: BetaGeoBetaBinomModel.idata\\_to\\_init\\_kwargs  \n"
+"msgstr: BetaGeoBetaBinomModel.idata\\_to\\_init\\_kwargs"
 
 #: 0de7b4a0e5524f508c73f70ef05418cd of
 #: pymc_marketing.clv.models.basic.CLVModel.idata_to_init_kwargs:2

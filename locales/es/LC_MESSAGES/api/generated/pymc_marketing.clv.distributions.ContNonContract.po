@@ -92,7 +92,9 @@ msgstr ""
 #: f210da05512747cab156d4d1a8829e4b of
 #: pymc_marketing.clv.distributions.ContNonContract:37
 msgid "[Rfb0d03a05431-1]_"
-msgstr "[Rfb0d03a05431-1]_"
+msgstr ""
+"msgid: [Rfb0d03a05431-1]  \n"
+"msgstr: [Rfb0d03a05431-1]"
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.ContNonContract.rst:12
 #: f263925fee234fdc8d2df7e21da2e1c3

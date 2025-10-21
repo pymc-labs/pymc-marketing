@@ -341,9 +341,8 @@ msgid ""
 "<pymc_marketing.clv.models.beta_geo.BetaGeoModel.attrs_to_init_kwargs>`\\ "
 "\\(attrs\\)"
 msgstr ""
-":py:obj:`BetaGeoModel.attrs_to_init_kwargs "
-"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.attrs_to_init_kwargs>`\\ "
-"\\(attrs\\)"
+"msgid: :py:obj:`BetaGeoModel.attrs_to_init_kwargs <pymc_marketing.clv.models.beta_geo.BetaGeoModel.attrs_to_init_kwargs>`\\ \\(attrs\\)  \n"
+"msgstr: :py:obj:`BetaGeoModel.attrs_to_init_kwargs <pymc_marketing.clv.models.beta_geo.BetaGeoModel.attrs_to_init_kwargs>`\\ \\(attrs\\)"
 
 #: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
 #: 3968e1414e904985b0b5929716948ec9
@@ -607,9 +606,8 @@ msgid ""
 "<pymc_marketing.clv.models.beta_geo.BetaGeoModel.idata_to_init_kwargs>`\\ "
 "\\(idata\\)"
 msgstr ""
-":py:obj:`BetaGeoModel.idata_to_init_kwargs "
-"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.idata_to_init_kwargs>`\\ "
-"\\(idata\\)"
+"msgid: :py:obj:`BetaGeoModel.idata_to_init_kwargs <pymc_marketing.clv.models.beta_geo.BetaGeoModel.idata_to_init_kwargs>`\\ \\(idata\\)  \n"
+"msgstr: :py:obj:`BetaGeoModel.idata_to_init_kwargs <pymc_marketing.clv.models.beta_geo.BetaGeoModel.idata_to_init_kwargs>`\\ \\(idata\\)"
 
 #: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
 #: cb1f704618b441bd843e0e75c16a3b10

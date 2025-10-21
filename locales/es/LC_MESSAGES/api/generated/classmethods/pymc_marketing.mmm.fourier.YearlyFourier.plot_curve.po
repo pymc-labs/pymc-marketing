@@ -209,7 +209,9 @@ msgstr "Mostrar la leyenda, por defecto Ninguno"
 #: b67754ced39841dabf5527dc6c0143a0 of
 #: pymc_marketing.mmm.fourier.FourierBase.plot_curve:41
 msgid "**sel_to_string** : :obj:`SelToString`, optional"
-msgstr "**sel_to_string** : :obj:`SelToString`, opcional"
+msgstr ""
+"msgid: **sel_to_string** : :obj:`SelToString`, optional  \n"
+"msgstr: **sel_to_string** : :obj:`SelToString`, opcional"
 
 #: b0a9dd279b7148a4bfb8a16504ff4528 of
 #: pymc_marketing.mmm.fourier.FourierBase.plot_curve:40

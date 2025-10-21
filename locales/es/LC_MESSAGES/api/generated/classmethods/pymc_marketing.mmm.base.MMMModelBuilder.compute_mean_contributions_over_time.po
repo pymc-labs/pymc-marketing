@@ -12,18 +12,20 @@ msgstr ""
 "POT-Creation-Date: 2025-10-07 18:10+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language: es\n"
 "Language-Team: es <LL@li.org>\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Language: es\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "Generated-By: Babel 2.17.0\n"
 
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.base.MMMModelBuilder.compute_mean_contributions_over_time.rst:2
 #: d75263df120343349fe063a6b3ceaf3c
 msgid "MMMModelBuilder.compute\\_mean\\_contributions\\_over\\_time"
-msgstr "MMMModelBuilder.calcular\\_contribuciones\\_medias\\_a\\_lo\\_largo\\_del\\_tiempo"
+msgstr ""
+"msgid: MMMModelBuilder.compute\\_mean\\_contributions\\_over\\_time  \n"
+"msgstr: MMMModelBuilder.compute\\_mean\\_contributions\\_over\\_time"
 
 #: 2287e3811f3b43d0ba0b76cda0734ef1 of
 #: pymc_marketing.mmm.base.MMMModelBuilder.compute_mean_contributions_over_time:2

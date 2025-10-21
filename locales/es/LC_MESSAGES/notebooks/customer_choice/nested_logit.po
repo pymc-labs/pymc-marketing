@@ -135,8 +135,8 @@ msgid ""
 " P(i) = P(\\text{choose nest B}) \\cdot P(\\text{choose i} | \\text{ i} \\in"
 " \\text{B}) "
 msgstr ""
-"P(i) = P(\\text{choose nest B}) \\cdot P(\\text{choose i} | \\text{ i} \\in "
-"\\text{B})"
+"msgid: P(i) = P(\\text{choose nest B}) \\cdot P(\\text{choose i} | \\text{ i} \\in \\text{B})  \n"
+"msgstr: P(i) = P(\\text{choose nest B}) \\cdot P(\\text{choose i} | \\text{ i} \\in \\text{B})"
 
 #: ../source/notebooks/customer_choice/nested_logit.ipynb:90010
 #: f2a0bcca5ed14e0a86fedf9668ef7313
@@ -321,10 +321,8 @@ msgid ""
 "We can additionally test counterfactuals about the removal of products from "
 "the market."
 msgstr ""
-"{\n"
-"  \"singular\": \"Podemos además probar contrahechos sobre la eliminación de productos del mercado.\",\n"
-"  \"plural\": \"Podemos además probar contrahechos sobre la eliminación de productos del mercado.\"\n"
-"}"
+"msgid: We can additionally test counterfactuals about the removal of products from the market.  \n"
+"msgstr: También podemos probar contrafactuales sobre la eliminación de productos del mercado."
 
 #: ../source/notebooks/customer_choice/nested_logit.ipynb:340002
 #: da539e1adfa8494fa041018687cbaf72

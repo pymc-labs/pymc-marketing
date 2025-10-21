@@ -42,9 +42,8 @@ msgid ""
 "<pymc_marketing.mmm.utils.add_noise_to_channel_allocation>`\\ \\(df\\, "
 "channels\\)"
 msgstr ""
-":py:obj:`add_noise_to_channel_allocation "
-"<pymc_marketing.mmm.utils.add_noise_to_channel_allocation>`\\ \\(df\\, "
-"canales\\)"
+"msgid: :py:obj:`add_noise_to_channel_allocation <pymc_marketing.mmm.utils.add_noise_to_channel_allocation>`\\ \\(df\\, channels\\)  \n"
+"msgstr: :py:obj:`add_noise_to_channel_allocation <pymc_marketing.mmm.utils.add_noise_to_channel_allocation>`\\ \\(df\\, channels\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.utils.rst:23:<autosummary>:1
 #: 66d0d4ea86554c4cb90402fa43f2fd79

@@ -274,8 +274,8 @@ msgid ""
 ":py:obj:`HSGP.deterministics_to_replace "
 "<pymc_marketing.mmm.hsgp.HSGP.deterministics_to_replace>`\\ \\(name\\)"
 msgstr ""
-":py:obj:`HSGP.deterministics_to_replace "
-"<pymc_marketing.mmm.hsgp.HSGP.deterministics_to_replace>`\\ \\(nombre\\)"
+"msgid: :py:obj:`HSGP.deterministics_to_replace <pymc_marketing.mmm.hsgp.HSGP.deterministics_to_replace>`\\ \\(name\\)  \n"
+"msgstr: :py:obj:`HSGP.deterministics_to_replace <pymc_marketing.mmm.hsgp.HSGP.deterministics_to_replace>`\\ \\(name\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
 #: 81db8750a3a44788bbbfb74349e206da
@@ -590,7 +590,9 @@ msgstr ""
 #: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
 #: be8771ed0ed048fdb76d4c768bfbdf08
 msgid ":py:obj:`HSGP.to_dict <pymc_marketing.mmm.hsgp.HSGP.to_dict>`\\ \\(\\)"
-msgstr ":py:obj:`HSGP.to_dict <pymc_marketing.mmm.hsgp.HSGP.to_dict>`\\ \\(\\)"
+msgstr ""
+"msgid: :py:obj:`HSGP.to_dict <pymc_marketing.mmm.hsgp.HSGP.to_dict>`\\ \\(\\)  \n"
+"msgstr: :py:obj:`HSGP.to_dict <pymc_marketing.mmm.hsgp.HSGP.to_dict>`\\ \\(\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
 #: c989a8b8886540b4954457b710959388

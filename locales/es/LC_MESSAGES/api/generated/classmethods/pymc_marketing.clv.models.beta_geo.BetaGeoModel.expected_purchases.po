@@ -12,12 +12,12 @@ msgstr ""
 "POT-Creation-Date: 2025-10-07 18:10+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language: es\n"
 "Language-Team: es <LL@li.org>\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Language: es\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "Generated-By: Babel 2.17.0\n"
 
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_purchases.rst:2
@@ -130,4 +130,6 @@ msgstr ""
 #: 9cd9ce905fab4f26a3c3285587e2f50b of
 #: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_purchases:42
 msgid "[Ra6295b03a31b-1]_"
-msgstr "[Ra6295b03a31b-1]_"
+msgstr ""
+"msgid: [Ra6295b03a31b-1]_  \n"
+"msgstr: [Ra6295b03a31b-1]_"

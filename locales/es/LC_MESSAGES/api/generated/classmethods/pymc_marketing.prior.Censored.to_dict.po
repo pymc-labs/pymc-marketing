@@ -23,7 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.prior.Censored.to_dict.rst:2
 #: 10c5c8085cbf40a9abdbabea8af8a8e6
 msgid "Censored.to\\_dict"
-msgstr "Censurado.a\\_dict"
+msgstr ""
+"msgid: Censored.to\\_dict  \n"
+"msgstr: Censored.to\\_dict"
 
 #: 0170d095529844a6a14e6b235534fa0f of pymc_extras.prior.Censored.to_dict:2
 msgid "Convert the censored distribution to a dictionary."

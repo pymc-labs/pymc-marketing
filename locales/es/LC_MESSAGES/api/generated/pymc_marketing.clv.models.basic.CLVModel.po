@@ -61,9 +61,8 @@ msgid ""
 "<pymc_marketing.clv.models.basic.CLVModel.attrs_to_init_kwargs>`\\ "
 "\\(attrs\\)"
 msgstr ""
-":py:obj:`CLVModel.attrs_to_init_kwargs "
-"<pymc_marketing.clv.models.basic.CLVModel.attrs_to_init_kwargs>`\\ "
-"\\(attrs\\)"
+"msgid: :py:obj:`CLVModel.attrs_to_init_kwargs <pymc_marketing.clv.models.basic.CLVModel.attrs_to_init_kwargs>`\\ \\(attrs\\)  \n"
+"msgstr: :py:obj:`CLVModel.attrs_to_init_kwargs <pymc_marketing.clv.models.basic.CLVModel.attrs_to_init_kwargs>`\\ \\(attrs\\)"
 
 #: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
 #: 42e2ca533a14479f942874fd5f51990f
@@ -168,9 +167,8 @@ msgid ""
 "<pymc_marketing.clv.models.basic.CLVModel.idata_to_init_kwargs>`\\ "
 "\\(idata\\)"
 msgstr ""
-":py:obj:`CLVModel.idata_to_init_kwargs "
-"<pymc_marketing.clv.models.basic.CLVModel.idata_to_init_kwargs>`\\ "
-"\\(idata\\)"
+"msgid: :py:obj:`CLVModel.idata_to_init_kwargs <pymc_marketing.clv.models.basic.CLVModel.idata_to_init_kwargs>`\\ \\(idata\\)  \n"
+"msgstr: :py:obj:`CLVModel.idata_to_init_kwargs <pymc_marketing.clv.models.basic.CLVModel.idata_to_init_kwargs>`\\ \\(idata\\)"
 
 #: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
 #: ab36ea8e9d1f4015a6bebf5d7e0b9f5d

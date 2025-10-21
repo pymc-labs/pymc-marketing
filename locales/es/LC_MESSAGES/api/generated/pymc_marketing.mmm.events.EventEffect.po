@@ -359,8 +359,8 @@ msgid ""
 ":py:obj:`EventEffect.to_dict "
 "<pymc_marketing.mmm.events.EventEffect.to_dict>`\\ \\(\\)"
 msgstr ""
-":py:obj:`EventEffect.to_dict "
-"<pymc_marketing.mmm.events.EventEffect.to_dict>`\\ \\(\\)"
+"msgid: :py:obj:`EventEffect.to_dict <pymc_marketing.mmm.events.EventEffect.to_dict>`\\ \\(\\)  \n"
+"msgstr: :py:obj:`EventEffect.to_dict <pymc_marketing.mmm.events.EventEffect.to_dict>`\\ \\(\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.events.EventEffect.rst:48:<autosummary>:1
 #: 0d3961249f1944349f6ee4e1560ddcdb

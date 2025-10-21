@@ -215,10 +215,8 @@ msgstr ""
 #: 5d41075f4d614e5eab514f749bcb285b
 msgid "Wrapper for the BudgetOptimizer to handle custom PyMC models."
 msgstr ""
-"{\n"
-"  \"singular\": \"Envoltura para el BudgetOptimizer para manejar modelos PyMC personalizados.\",\n"
-"  \"plural\": \"Envolturas para el BudgetOptimizer para manejar modelos PyMC personalizados.\"\n"
-"}"
+"msgid: Wrapper for the BudgetOptimizer to handle custom PyMC models.  \n"
+"msgstr: Envoltorio para el BudgetOptimizer para manejar modelos PyMC personalizados."
 
 #: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.rst:46:<autosummary>:1
 #: d9686c2f29e54a359167a4b3387bcf51

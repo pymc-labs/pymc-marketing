@@ -472,10 +472,8 @@ msgid ""
 "1 your risk profile is high, and the optimization start to become closer to "
 "a simple `mean(posterior)`."
 msgstr ""
-"{\n"
-"  \"singular\": \"Si ve esta distribución, probablemente notará que es similar a la optimización de riesgo inicial no consciente. Esto se debe a que, a medida que alpha se aproxima a 1, su perfil de riesgo es alto, y la optimización comienza a acercarse a un simple `mean(posterior)`.\",\n"
-"  \"plural\": \"Si ven esta distribución, probablemente notarán que es similar a la optimización de riesgo inicial no consciente. Esto se debe a que, a medida que alpha se aproxima a 1, su perfil de riesgo es alto, y la optimización comienza a acercarse a un simple `mean(posterior)`.\"\n"
-"}"
+"msgid: If you see this distribution, you'll probably note it is similar to the initial unaware risk optimization. This is because, as alpha approximate to 1 your risk profile is high, and the optimization start to become closer to a simple `mean(posterior)`.\n"
+"msgstr: Si observa esta distribución, probablemente notará que es similar a la optimización de riesgo inicial no consciente. Esto se debe a que, a medida que alpha se aproxima a 1, su perfil de riesgo es alto, y la optimización comienza a acercarse a una simple `mean(posterior)`."
 
 #: ../source/notebooks/mmm/mmm_allocation_assessment.ipynb:360002
 #: 6cc1e5671cfe4f299358da00fecf6c22

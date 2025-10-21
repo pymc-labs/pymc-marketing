@@ -88,9 +88,8 @@ msgid ""
 " \\left(\\frac{\\alpha}{\\alpha + T}\\right)^r "
 "{_2}{F}{_1}(r,b;a+b-1;\\frac{t}{\\alpha + t}) \\right]`"
 msgstr ""
-":math:`\\mathbb{E}[X(n) | r, \\alpha, a, b] = \\frac{a+b-1}{a-1} \\left[ 1 -"
-" \\left(\\frac{\\alpha}{\\alpha + T}\\right)^r "
-"{_2}{F}{_1}(r,b;a+b-1;\\frac{t}{\\alpha + t}) \\right]`"
+"msgid: :math:`\\mathbb{E}[X(n) | r, \\alpha, a, b] = \\frac{a+b-1}{a-1} \\left[ 1 - \\left(\\frac{\\alpha}{\\alpha + T}\\right)^r {_2}{F}{_1}(r,b;a+b-1;\\frac{t}{\\alpha + t}) \\right]`\n"
+"msgstr: :math:`\\mathbb{E}[X(n) | r, \\alpha, a, b] = \\frac{a+b-1}{a-1} \\left[ 1 - \\left(\\frac{\\alpha}{\\alpha + T}\\right)^r {_2}{F}{_1}(r,b;a+b-1;\\frac{t}{\\alpha + t}) \\right]`"
 
 #: 8d488adbf0654c6781ebc122561afed8 of
 #: pymc_marketing.clv.distributions.BetaGeoNBD:35
@@ -154,9 +153,8 @@ msgid ""
 "<pymc_marketing.clv.distributions.BetaGeoNBD.dist>`\\ \\(a\\, b\\, r\\, "
 "alpha\\, T\\, \\*\\*kwargs\\)"
 msgstr ""
-":py:obj:`BetaGeoNBD.dist "
-"<pymc_marketing.clv.distributions.BetaGeoNBD.dist>`\\ \\(a\\, b\\, r\\, "
-"alpha\\, T\\, \\*\\*kwargs\\)"
+"msgid: :py:obj:`BetaGeoNBD.dist <pymc_marketing.clv.distributions.BetaGeoNBD.dist>`\\ \\(a\\, b\\, r\\, alpha\\, T\\, \\*\\*kwargs\\)  \n"
+"msgstr: :py:obj:`BetaGeoNBD.dist <pymc_marketing.clv.distributions.BetaGeoNBD.dist>`\\ \\(a\\, b\\, r\\, alpha\\, T\\, \\*\\*kwargs\\)"
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.BetaGeoNBD.rst:24:<autosummary>:1
 #: 5f1ff3795b8647d39728f800e539556e
@@ -170,9 +168,8 @@ msgid ""
 "<pymc_marketing.clv.distributions.BetaGeoNBD.logp>`\\ \\(a\\, b\\, r\\, "
 "alpha\\, T\\)"
 msgstr ""
-":py:obj:`BetaGeoNBD.logp "
-"<pymc_marketing.clv.distributions.BetaGeoNBD.logp>`\\ \\(a\\, b\\, r\\, "
-"alpha\\, T\\)"
+"msgid: :py:obj:`BetaGeoNBD.logp <pymc_marketing.clv.distributions.BetaGeoNBD.logp>`\\ \\(a\\, b\\, r\\, alpha\\, T\\)  \n"
+"msgstr: :py:obj:`BetaGeoNBD.logp <pymc_marketing.clv.distributions.BetaGeoNBD.logp>`\\ \\(a\\, b\\, r\\, alpha\\, T\\)"
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.BetaGeoNBD.rst:24:<autosummary>:1
 #: b58ce2f4e20c4777b4e813a174fa1134

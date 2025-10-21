@@ -111,8 +111,8 @@ msgid ""
 ":py:obj:`to_xarray <pymc_marketing.clv.utils.to_xarray>`\\ "
 "\\(customer\\_id\\, \\*arrays\\[\\, dim\\]\\)"
 msgstr ""
-":py:obj:`to_xarray <pymc_marketing.clv.utils.to_xarray>`\\ "
-"\\(customer\\_id\\, \\*arrays\\[\\, dim\\]\\)"
+"msgid: :py:obj:`to_xarray <pymc_marketing.clv.utils.to_xarray>`\\ \\(customer\\_id\\, \\*arrays\\[\\, dim\\]\\)  \n"
+"msgstr: :py:obj:`to_xarray <pymc_marketing.clv.utils.to_xarray>`\\ \\(customer\\_id\\, \\*arrays\\[\\, dim\\]\\)"
 
 #: ../source/api/generated/pymc_marketing.clv.utils.rst:22:<autosummary>:1
 #: 54717de493394ef9a9dbd4250671da74

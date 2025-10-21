@@ -23,7 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.multidimensional.MMM.attrs_to_init_kwargs.rst:2
 #: 5cd863a1288e4b8fb49aa4b8341a11c0
 msgid "MMM.attrs\\_to\\_init\\_kwargs"
-msgstr "MMM.attrs\\_to\\_init\\_kwargs"
+msgstr ""
+"msgid: MMM.attrs\\_to\\_init\\_kwargs  \n"
+"msgstr: MMM.attrs\\_to\\_init\\_kwargs"
 
 #: 211a10cd9ad94d9ab519b031c702475b of
 #: pymc_marketing.mmm.multidimensional.MMM.attrs_to_init_kwargs:2

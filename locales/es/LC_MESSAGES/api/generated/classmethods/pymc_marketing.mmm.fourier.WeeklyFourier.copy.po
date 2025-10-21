@@ -47,9 +47,8 @@ msgid ""
 "self.model_dump(include=include, exclude=exclude, round_trip=True) data = "
 "{**data, **(update or {})} copied = self.model_validate(data) ```"
 msgstr ""
-"python {test=\"skip\" lint=\"skip\"} data = self.model_dump(include=include,"
-" exclude=exclude, round_trip=True) data = {**data, **(update or {})} copied "
-"= self.model_validate(data)"
+"msgid: ```python {test=\"skip\" lint=\"skip\"} data = self.model_dump(include=include, exclude=exclude, round_trip=True) data = {**data, **(update or {})} copied = self.model_validate(data) ```\n"
+"msgstr: ```python {test=\"skip\" lint=\"skip\"} data = self.model_dump(include=include, exclude=exclude, round_trip=True) data = {**data, **(update or {})} copied = self.model_validate(data) ```"
 
 #: aa86f5735d62443484aa3b907c2394b4 of pydantic.main.BaseModel.copy:15
 msgid "Args:"

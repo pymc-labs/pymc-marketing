@@ -23,7 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.fourier.WeeklyFourier.to_dict.rst:2
 #: 50cfa717bf164636a338166b6e490c9b
 msgid "WeeklyFourier.to\\_dict"
-msgstr "WeeklyFourier.to\\_dict"
+msgstr ""
+"msgid: WeeklyFourier.to\\_dict  \n"
+"msgstr: WeeklyFourier.to\\_dict"
 
 #: 584044a2d52e409980c9dbbf37cbaa0f of
 #: pymc_marketing.mmm.fourier.FourierBase.to_dict:2

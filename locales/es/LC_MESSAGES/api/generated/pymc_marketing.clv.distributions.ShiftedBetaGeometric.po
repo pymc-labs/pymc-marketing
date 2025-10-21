@@ -23,20 +23,12 @@ msgstr ""
 #: ../source/api/generated/pymc_marketing.clv.distributions.ShiftedBetaGeometric.rst:2
 #: e909e04b4fdb43d48d079136d85e84b9
 msgid "ShiftedBetaGeometric"
-msgstr ""
-"{\n"
-"  \"singular\": \"BetaGeométricoDesplazado\",\n"
-"  \"plural\": \"BetaGeométricosDesplazados\"\n"
-"}"
+msgstr "ShiftedBetaGeometric"
 
 #: 72a2e13b53bb4c20a5dece153451c244 of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric:2
 msgid "Shifted Beta-Geometric distribution."
-msgstr ""
-"{\n"
-"  \"singular\": \"Distribución Beta-Geométrica desplazada.\",\n"
-"  \"plural\": \"Distribuciones Beta-Geométricas desplazadas.\"\n"
-"}"
+msgstr "Shifted Beta-Geometric distribution."
 
 #: 9816982cb6f642d8bed9ad4f9e66abea of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric:4
@@ -44,10 +36,8 @@ msgid ""
 "This mixture distribution extends the Geometric distribution to support "
 "heterogeneity across observations."
 msgstr ""
-"{\n"
-"  \"singular\": \"Esta distribución de mezcla extiende la distribución geométrica para soportar la heterogeneidad entre las observaciones.\",\n"
-"  \"plural\": \"Estas distribuciones de mezcla extienden la distribución geométrica para soportar la heterogeneidad entre las observaciones.\"\n"
-"}"
+"msgid: This mixture distribution extends the Geometric distribution to support heterogeneity across observations.  \n"
+"msgstr: Esta distribución de mezcla extiende la distribución geométrica para soportar la heterogeneidad entre las observaciones."
 
 #: ac6171502dcd4a3d9e2892265bff7852 of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric:6
@@ -55,10 +45,9 @@ msgid ""
 "Hardie and Fader describe this distribution with the following PMF and "
 "survival functions in [Rc5a17811fe1d-1]_:"
 msgstr ""
-"{\n"
-"  \"singular\": \"Hardie y Fader describen esta distribución con las siguientes funciones de masa de probabilidad (PMF) y funciones de supervivencia en [Rc5a17811fe1d-1]:\",\n"
-"  \"plural\": \"Hardie y Fader describen estas distribuciones con las siguientes funciones de masa de probabilidad (PMF) y funciones de supervivencia en [Rc5a17811fe1d-1]:\"\n"
-"}"
+"Hardie y Fader describen esta distribución con las siguientes funciones de "
+"masa de probabilidad (PMF) y funciones de supervivencia en "
+"[Rc5a17811fe1d-1]_:"
 
 #: 2a0786efd4384d18a6bc7491205e0b1e of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric:8
@@ -70,99 +59,65 @@ msgid ""
 "\\end{align}\n"
 "\n"
 msgstr ""
-"{\n"
-"  \"singular\": \"\\mathbb{P}(T=t|\\alpha,\\beta) = (\\frac{B(\\alpha+1,\\beta+t-1)}{B(\\alpha,\\beta}),t=1,2,...  \\\\\\n\\\\begin{align}\\n\\\\mathbb{S}(t|\\alpha,\\beta) = (\\frac{B(\\alpha,\\beta+t)}{B(\\alpha,\\beta}),t=1,2,... \\\\\\n\\\\end{align}\",\n"
-"  \"plural\": \"\\mathbb{P}(T=t|\\alpha,\\beta) = (\\frac{B(\\alpha+1,\\beta+t-1)}{B(\\alpha,\\beta}),t=1,2,...  \\\\\\n\\\\begin{align}\\n\\\\mathbb{S}(t|\\alpha,\\beta) = (\\frac{B(\\alpha,\\beta+t)}{B(\\alpha,\\beta}),t=1,2,... \\\\\\n\\\\end{align}\"\n"
-"}"
+"\\mathbb{P}(T=t|\\alpha,\\beta) = "
+"(\\frac{B(\\alpha+1,\\beta+t-1)}{B(\\alpha,\\beta}),t=1,2,...  "
+"\\\\\\begin{align}\\mathbb{S}(t|\\alpha,\\beta) = "
+"(\\frac{B(\\alpha,\\beta+t)}{B(\\alpha,\\beta}),t=1,2,... \\\\\\end{align}"
 
 #: 33064910906c4aa486500e8bf763ddb8 of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric:15
 msgid "Support"
-msgstr ""
-"{\n"
-"  \"singular\": \"Soporte\",\n"
-"  \"plural\": \"Soportes\"\n"
-"}"
+msgstr "Support"
 
 #: eef3f0c82b8f4e54ab9f1e69ef7de09e of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric:15
 #, python-brace-format
 msgid ":math:`t \\in \\mathbb{N}_{>0}`"
 msgstr ""
-"{\n"
-"  \"singular\": \":math:`t \\in \\mathbb{N}_{>0}`\",\n"
-"  \"plural\": \":math:`t \\in \\mathbb{N}_{>0}`\"\n"
-"}"
+"msgid: :math:`t \\in \\mathbb{N}_{>0}`  \n"
+"msgstr: :math:`t \\in \\mathbb{N}_{>0}`"
 
 #: 4af4877f91e14c4abe20e57b11f42d31 of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric
 msgid "Parameters"
-msgstr ""
-"{\n"
-"  \"singular\": {\n"
-"    \"msgid\": \"Parameter\",\n"
-"    \"msgstr\": \"Parámetro\"\n"
-"  },\n"
-"  \"plural\": {\n"
-"    \"msgid\": \"Parameters\",\n"
-"    \"msgstr\": \"Parámetros\"\n"
-"  }\n"
-"}"
+msgstr "Parameters"
 
 #: 65213a95597c44e7a180562615409d1c of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric:20
 msgid "**alpha** : :term:`tensor_like` of :class:`python:float`"
 msgstr ""
-"{\n"
-"  \"singular\": \"**alpha** : :term:`tensor_like` de :class:`python:float`\",\n"
-"  \"plural\": \"**alpha** : :term:`tensor_like` de :class:`python:float`\"\n"
-"}"
+"msgid: **alpha** : :term:`tensor_like` of :class:`python:float`  \n"
+"msgstr: **alpha** : :term:`tensor_like` de :class:`python:float`"
 
 #: 42d0b5d112174da0b2415aaaf6bc03cb d92677bea5b94bc8aa0af847c4acc3be of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric:19
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric:22
 msgid "tensor_like of python:float"
 msgstr ""
-"{\n"
-"  \"singular\": \"tensor_like de python:float\",\n"
-"  \"plural\": \"tensor_like de python:float\"\n"
-"}"
+"msgid: tensor_like of python:float  \n"
+"msgstr: tensor_like de python:float"
 
 #: 62d9db59a5624b12961525cd17e3fe9d of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric:21
 msgid "Scale parameter (alpha > 0)."
-msgstr ""
-"{\n"
-"  \"singular\": \"Parámetro de escala (alpha > 0).\",\n"
-"  \"plural\": \"Parámetro de escala (alpha > 0).\"\n"
-"}"
+msgstr "Scale parameter (alpha > 0)."
 
 #: 5fdfe3ffac5c4ef595a0db82d6030b88 of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric:23
 msgid "**beta** : :term:`tensor_like` of :class:`python:float`"
 msgstr ""
-"{\n"
-"  \"singular\": \"**beta** : :term:`tensor_like` de :class:`python:float`\",\n"
-"  \"plural\": \"**beta** : :term:`tensor_like` de :class:`python:float`\"\n"
-"}"
+"msgid: **beta** : :term:`tensor_like` of :class:`python:float`  \n"
+"msgstr: **beta** : :term:`tensor_like` de :class:`python:float`"
 
 #: b4a91878832946d990589775abd388b3 of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric:24
 msgid "Scale parameter (beta > 0)."
-msgstr ""
-"{\n"
-"  \"singular\": \"Parámetro de escala (beta > 0).\",\n"
-"  \"plural\": \"Parámetro de escala (beta > 0).\"\n"
-"}"
+msgstr "Scale parameter (beta > 0)."
 
 #: 3c5d973177384081af18418ece365b07 of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric:38
 msgid "References"
-msgstr ""
-"{\n"
-"  \"singular\": \"Referencia\",\n"
-"  \"plural\": \"Referencias\"\n"
-"}"
+msgstr "References"
 
 #: 2318454b696f48c8b7ee14a7e7e278c9 of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric:39
@@ -172,28 +127,20 @@ msgid ""
 "https://faculty.wharton.upenn.edu/wp-"
 "content/uploads/2012/04/Fader_hardie_jim_07.pdf"
 msgstr ""
-"{\n"
-"  \"singular\": \"Fader, P. S., & Hardie, B. G. (2007). Cómo proyectar la retención de clientes. Journal of Interactive Marketing, 21(1), 76-90. https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf\",\n"
-"  \"plural\": \"Fader, P. S., & Hardie, B. G. (2007). Cómo proyectar la retención de clientes. Journal of Interactive Marketing, 21(1), 76-90. https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf\"\n"
-"}"
+"msgid: Fader, P. S., & Hardie, B. G. (2007). How to project customer retention. Journal of Interactive Marketing, 21(1), 76-90. https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf  \n"
+"msgstr: Fader, P. S., & Hardie, B. G. (2007). Cómo proyectar la retención de clientes. Journal of Interactive Marketing, 21(1), 76-90. https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf"
 
 #: 214f4228c61448c0b817ffec5d900a11 of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric:45
 msgid "[Rc5a17811fe1d-1]_"
 msgstr ""
-"{\n"
-"  \"singular\": \"[Rc5a17811fe1d-1]_\",\n"
-"  \"plural\": \"[Rc5a17811fe1d-1]_\"\n"
-"}"
+"msgid: [Rc5a17811fe1d-1]  \n"
+"msgstr: [Rc5a17811fe1d-1]"
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.ShiftedBetaGeometric.rst:12
 #: 83bc37c6f40c44e9b76a2999a8d4e869
 msgid "Methods"
-msgstr ""
-"{\n"
-"  \"singular\": \"Método\",\n"
-"  \"plural\": \"Métodos\"\n"
-"}"
+msgstr "Methods"
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.ShiftedBetaGeometric.rst:26:<autosummary>:1
 #: 3d1a10e2c839412d91a34b2a1cfc6d83
@@ -202,10 +149,9 @@ msgid ""
 "<pymc_marketing.clv.distributions.ShiftedBetaGeometric.__init__>`\\ "
 "\\(\\*args\\, \\*\\*kwargs\\)"
 msgstr ""
-"{\n"
-"  \"singular\": \":py:obj:`ShiftedBetaGeometric.__init__ <pymc_marketing.clv.distributions.ShiftedBetaGeometric.__init__>`\\ \\(\\*args\\, \\*\\*kwargs\\)\",\n"
-"  \"plural\": \":py:obj:`ShiftedBetaGeometric.__init__ <pymc_marketing.clv.distributions.ShiftedBetaGeometric.__init__>`\\ \\(\\*args\\, \\*\\*kwargs\\)\"\n"
-"}"
+":py:obj:`ShiftedBetaGeometric.__init__ "
+"<pymc_marketing.clv.distributions.ShiftedBetaGeometric.__init__>`\\ "
+"\\(\\*args\\, \\*\\*kwargs\\)"
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.ShiftedBetaGeometric.rst:26:<autosummary>:1
 #: 33ebbb9924784a8b88c66673818953eb
@@ -214,19 +160,14 @@ msgid ""
 "<pymc_marketing.clv.distributions.ShiftedBetaGeometric.dist>`\\ \\(alpha\\, "
 "beta\\, ...\\)"
 msgstr ""
-"{\n"
-"  \"singular\": \":py:obj:`ShiftedBetaGeometric.dist <pymc_marketing.clv.distributions.ShiftedBetaGeometric.dist>`\\ \\(alpha\\, beta\\, ...\\)\",\n"
-"  \"plural\": \":py:obj:`ShiftedBetaGeometric.dist <pymc_marketing.clv.distributions.ShiftedBetaGeometric.dist>`\\ \\(alpha\\, beta\\, ...\\)\"\n"
-"}"
+":py:obj:`ShiftedBetaGeometric.dist "
+"<pymc_marketing.clv.distributions.ShiftedBetaGeometric.dist>`\\ \\(alpha\\, "
+"beta\\, ...\\)"
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.ShiftedBetaGeometric.rst:26:<autosummary>:1
 #: bb96265c2d994cf49f77aed47e2096b1
 msgid "Create a tensor variable corresponding to the `cls` distribution."
-msgstr ""
-"{\n"
-"  \"singular\": \"Cree una variable tensor correspondiente a la distribución `cls`.\",\n"
-"  \"plural\": \"Cree variables tensor correspondientes a las distribuciones `cls`.\"\n"
-"}"
+msgstr "Cree una variable tensor correspondiente a la distribución `cls`."
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.ShiftedBetaGeometric.rst:26:<autosummary>:1
 #: 6346576dca334becb065f4ca41134a0f
@@ -235,19 +176,14 @@ msgid ""
 "<pymc_marketing.clv.distributions.ShiftedBetaGeometric.logcdf>`\\ "
 "\\(alpha\\, beta\\)"
 msgstr ""
-"{\n"
-"  \"singular\": \":py:obj:`ShiftedBetaGeometric.logcdf <pymc_marketing.clv.distributions.ShiftedBetaGeometric.logcdf>`\\ (alpha\\, beta)\",\n"
-"  \"plural\": \":py:obj:`ShiftedBetaGeometric.logcdf <pymc_marketing.clv.distributions.ShiftedBetaGeometric.logcdf>`\\ (alpha\\, beta)\"\n"
-"}"
+":py:obj:`ShiftedBetaGeometric.logcdf "
+"<pymc_marketing.clv.distributions.ShiftedBetaGeometric.logcdf>`\\ "
+"\\(alpha\\, beta\\)"
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.ShiftedBetaGeometric.rst:26:<autosummary>:1
 #: 3df2c29197ca461194d085c0204b226e
 msgid "Adapted from Expression (6) on p.6 of Fader & Hardie (2007)."
-msgstr ""
-"{\n"
-"  \"singular\": \"Adaptado de la Expresión (6) en la p.6 de Fader & Hardie (2007).\",\n"
-"  \"plural\": \"Adaptado de la Expresión (6) en la p.6 de Fader & Hardie (2007).\"\n"
-"}"
+msgstr "Adaptado de la Expresión (6) en la p.6 de Fader & Hardie (2007)."
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.ShiftedBetaGeometric.rst:26:<autosummary>:1
 #: 7c320d084314471f96e127ec37c9d9f1
@@ -256,19 +192,14 @@ msgid ""
 "<pymc_marketing.clv.distributions.ShiftedBetaGeometric.logp>`\\ \\(alpha\\, "
 "beta\\)"
 msgstr ""
-"{\n"
-"  \"singular\": \":py:obj:`ShiftedBetaGeometric.logp <pymc_marketing.clv.distributions.ShiftedBetaGeometric.logp>`\\ (alpha\\, beta)\",\n"
-"  \"plural\": \":py:obj:`ShiftedBetaGeometric.logp <pymc_marketing.clv.distributions.ShiftedBetaGeometric.logp>`\\ (alpha\\, beta)\"\n"
-"}"
+":py:obj:`ShiftedBetaGeometric.logp "
+"<pymc_marketing.clv.distributions.ShiftedBetaGeometric.logp>`\\ \\(alpha\\, "
+"beta\\)"
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.ShiftedBetaGeometric.rst:26:<autosummary>:1
 #: 1886c3b0a00945f8824f0dd117c09427
 msgid "From Expression (5) on p.6 of Fader & Hardie (2007)."
-msgstr ""
-"{\n"
-"  \"singular\": \"De la Expresión (5) en la p.6 de Fader & Hardie (2007).\",\n"
-"  \"plural\": \"De las Expresiones (5) en las p.6 de Fader & Hardie (2007).\"\n"
-"}"
+msgstr "Desde la Expresión (5) en la p.6 de Fader & Hardie (2007)."
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.ShiftedBetaGeometric.rst:26:<autosummary>:1
 #: 270a10c2adf3430ba08b487e63c2eb6d
@@ -277,28 +208,21 @@ msgid ""
 "<pymc_marketing.clv.distributions.ShiftedBetaGeometric.support_point>`\\ "
 "\\(size\\, ...\\)"
 msgstr ""
-"{\n"
-"  \"singular\": \":py:obj:`ShiftedBetaGeometric.support_point <pymc_marketing.clv.distributions.ShiftedBetaGeometric.support_point>`\\ (tamaño\\, ...\\)\",\n"
-"  \"plural\": \":py:obj:`ShiftedBetaGeometric.support_point <pymc_marketing.clv.distributions.ShiftedBetaGeometric.support_point>`\\ (tamaño\\, ...\\)\"\n"
-"}"
+":py:obj:`ShiftedBetaGeometric.support_point "
+"<pymc_marketing.clv.distributions.ShiftedBetaGeometric.support_point>`\\ "
+"\\(size\\, ...\\)"
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.ShiftedBetaGeometric.rst:26:<autosummary>:1
 #: cecec77326ad462c9601a37d8277de35
 msgid "Calculate a reasonable starting point for sampling."
 msgstr ""
-"{\n"
-"  \"singular\": \"Calcule un punto de partida razonable para el muestreo.\",\n"
-"  \"plural\": \"Calcule un punto de partida razonable para los muestreos.\"\n"
-"}"
+"msgid: Calculate a reasonable starting point for sampling.  \n"
+"msgstr: Calcule un punto de partida razonable para el muestreo."
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.ShiftedBetaGeometric.rst:28
 #: 9e7bf1a4027b499a901c8fbc7fd8f77c
 msgid "Attributes"
-msgstr ""
-"{\n"
-"  \"singular\": \"Atributo\",\n"
-"  \"plural\": \"Atributos\"\n"
-"}"
+msgstr "Attributes"
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.ShiftedBetaGeometric.rst:31:<autosummary>:1
 #: 361e4b68fd384c69ba73c27f3d2dc5cd
@@ -307,7 +231,6 @@ msgid ""
 "<pymc_marketing.clv.distributions.ShiftedBetaGeometric.rv_op>`\\ "
 "\\(\\*args\\[\\, size\\, name\\, rng\\, dtype\\]\\)"
 msgstr ""
-"{\n"
-"  \"singular\": \":py:obj:`rv_op <pymc_marketing.clv.distributions.ShiftedBetaGeometric.rv_op>`\\ \\(\\*args\\[\\, tamaño\\, nombre\\, rng\\, dtype\\]\\)\",\n"
-"  \"plural\": \":py:obj:`rv_op <pymc_marketing.clv.distributions.ShiftedBetaGeometric.rv_op>`\\ \\(\\*args\\[\\, tamaños\\, nombres\\, rng\\, dtype\\]\\)\"\n"
-"}"
+":py:obj:`rv_op "
+"<pymc_marketing.clv.distributions.ShiftedBetaGeometric.rv_op>`\\ "
+"\\(\\*args\\[\\, size\\, name\\, rng\\, dtype\\]\\)"
