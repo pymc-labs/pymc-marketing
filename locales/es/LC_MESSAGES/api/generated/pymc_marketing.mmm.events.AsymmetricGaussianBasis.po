@@ -131,9 +131,8 @@ msgid ""
 "<pymc_marketing.mmm.events.AsymmetricGaussianBasis.__init__>`\\ "
 "\\(\\[event\\_in\\]\\)"
 msgstr ""
-":py:obj:`AsymmetricGaussianBasis.__init__ "
-"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.__init__>`\\ "
-"\\(\\[event\\_in\\]\\)"
+"msgid: :py:obj:`AsymmetricGaussianBasis.__init__ <pymc_marketing.mmm.events.AsymmetricGaussianBasis.__init__>`\\ \\(\\[event\\_in\\]\\)  \n"
+"msgstr: :py:obj:`AsymmetricGaussianBasis.__init__ <pymc_marketing.mmm.events.AsymmetricGaussianBasis.__init__>`\\ \\(\\[event\\_in\\]\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:32:<autosummary>:1
 #: 6e4e5ad617ba4ec3b7c0cee24465863f
@@ -255,9 +254,8 @@ msgid ""
 "<pymc_marketing.mmm.events.AsymmetricGaussianBasis.set_dims_for_all_priors>`\\"
 " \\(dims\\)"
 msgstr ""
-":py:obj:`AsymmetricGaussianBasis.set_dims_for_all_priors "
-"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.set_dims_for_all_priors>`\\"
-" \\(dims\\)"
+"msgid: :py:obj:`AsymmetricGaussianBasis.set_dims_for_all_priors <pymc_marketing.mmm.events.AsymmetricGaussianBasis.set_dims_for_all_priors>`\\ \\(dims\\)  \n"
+"msgstr: :py:obj:`AsymmetricGaussianBasis.set_dims_for_all_priors <pymc_marketing.mmm.events.AsymmetricGaussianBasis.set_dims_for_all_priors>`\\ \\(dims\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:32:<autosummary>:1
 #: 645c1e7e04e0486083548cf0c4758b0c
@@ -270,8 +268,8 @@ msgid ""
 ":py:obj:`AsymmetricGaussianBasis.to_dict "
 "<pymc_marketing.mmm.events.AsymmetricGaussianBasis.to_dict>`\\ \\(\\)"
 msgstr ""
-":py:obj:`AsymmetricGaussianBasis.to_dict "
-"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.to_dict>`\\ \\(\\)"
+"msgid: :py:obj:`AsymmetricGaussianBasis.to_dict <pymc_marketing.mmm.events.AsymmetricGaussianBasis.to_dict>`\\ \\(\\)  \n"
+"msgstr: :py:obj:`AsymmetricGaussianBasis.to_dict <pymc_marketing.mmm.events.AsymmetricGaussianBasis.to_dict>`\\ \\(\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:32:<autosummary>:1
 #: 50b1b78acb2b4778aacc15bf8898ff67
