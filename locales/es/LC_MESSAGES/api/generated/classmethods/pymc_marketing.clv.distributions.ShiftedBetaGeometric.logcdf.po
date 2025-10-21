@@ -28,4 +28,4 @@ msgstr "ShiftedBetaGeometric.logcdf"
 #: 2dfbd002910a464f8738e7d6e094c7c4 of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric.logcdf:2
 msgid "Adapted from Expression (6) on p.6 of Fader & Hardie (2007)."
-msgstr "Adapted from Expression (6) on p.6 of Fader & Hardie (2007)."
+msgstr "Adaptado de la Expresión (6) en la p.6 de Fader & Hardie (2007)."
