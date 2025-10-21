@@ -29,7 +29,8 @@ msgstr "CustomModelWrapper.model\\_validate\\_strings"
 #: pydantic.main.BaseModel.model_validate_strings:2
 msgid "Validate the given object with string data against the Pydantic model."
 msgstr ""
-"Validate the given object with string data against the Pydantic model."
+"msgid: Validate the given object with string data against the Pydantic model.\n"
+"msgstr: Valide el objeto dado con datos de cadena contra el modelo Pydantic."
 
 #: da3895db7de74c2a8c486198e4e28d4d of
 #: pydantic.main.BaseModel.model_validate_strings:4
@@ -43,9 +44,8 @@ msgid ""
 "enforce types strictly. extra: Whether to ignore, allow, or forbid extra "
 "data during model validation."
 msgstr ""
-"obj: The object containing string data to validate. strict: Whether to "
-"enforce types strictly. extra: Whether to ignore, allow, or forbid extra "
-"data during model validation."
+"msgid: obj: The object containing string data to validate. strict: Whether to enforce types strictly. extra: Whether to ignore, allow, or forbid extra data during model validation.  \n"
+"msgstr: obj: El objeto que contiene datos de cadena para validar. strict: Si se deben aplicar estrictamente los tipos. extra: Si se debe ignorar, permitir o prohibir datos adicionales durante la validación del modelo."
 
 #: 634554127d1749fa9d3dc82a442d5b63 of
 #: pydantic.main.BaseModel.model_validate_strings:8
@@ -53,8 +53,8 @@ msgid ""
 "See the [`extra` configuration value][pydantic.ConfigDict.extra] for "
 "details."
 msgstr ""
-"See the [`extra` configuration value][pydantic.ConfigDict.extra] for "
-"details."
+"msgid: See the [`extra` configuration value][pydantic.ConfigDict.extra] for details.  \n"
+"msgstr: Consulte el valor de configuración [`extra`][pydantic.ConfigDict.extra] para más detalles."
 
 #: 105be37eb18446aa849f4105087da60e of
 #: pydantic.main.BaseModel.model_validate_strings:9
@@ -64,10 +64,8 @@ msgid ""
 "Whether to use the field's name when validating against the provided input "
 "data."
 msgstr ""
-"context: Extra variables to pass to the validator. by_alias: Whether to use "
-"the field's alias when validating against the provided input data. by_name: "
-"Whether to use the field's name when validating against the provided input "
-"data."
+"msgid: context: Extra variables to pass to the validator. by_alias: Whether to use the field's alias when validating against the provided input data. by_name: Whether to use the field's name when validating against the provided input data.\n"
+"msgstr: contexto: Variables adicionales para pasar al validador. by_alias: Si se debe utilizar el alias del campo al validar contra los datos de entrada proporcionados. by_name: Si se debe utilizar el nombre del campo al validar contra los datos de entrada proporcionados."
 
 #: 58015d68f8a043699f91d5e353f928bc of
 #: pydantic.main.BaseModel.model_validate_strings:13
@@ -77,4 +75,4 @@ msgstr "Returns:"
 #: a04ddf49c4ac49f9a60c8139a2370ee8 of
 #: pydantic.main.BaseModel.model_validate_strings:14
 msgid "The validated Pydantic model."
-msgstr "The validated Pydantic model."
+msgstr "El modelo Pydantic validado."
