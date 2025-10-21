@@ -27,7 +27,9 @@ msgstr "CustomModelWrapper.model\\_rebuild"
 
 #: c2b71f599715437386521a9a191a0d47 of pydantic.main.BaseModel.model_rebuild:2
 msgid "Try to rebuild the pydantic-core schema for the model."
-msgstr "Try to rebuild the pydantic-core schema for the model."
+msgstr ""
+"msgid: Try to rebuild the pydantic-core schema for the model.  \n"
+"msgstr: Intente reconstruir el esquema de pydantic-core para el modelo."
 
 #: 8cbda747316d45828d24753d3af04daf of pydantic.main.BaseModel.model_rebuild:4
 msgid ""
@@ -35,9 +37,8 @@ msgid ""
 "could not be resolved during the initial attempt to build the schema, and "
 "automatic rebuilding fails."
 msgstr ""
-"This may be necessary when one of the annotations is a ForwardRef which "
-"could not be resolved during the initial attempt to build the schema, and "
-"automatic rebuilding fails."
+"msgid: This may be necessary when one of the annotations is a ForwardRef which could not be resolved during the initial attempt to build the schema, and automatic rebuilding fails.  \n"
+"msgstr: Esto puede ser necesario cuando una de las anotaciones es un ForwardRef que no pudo ser resuelto durante el intento inicial de construir el esquema, y la reconstrucción automática falla."
 
 #: 5bca828c58454684886155e86e776dcc of pydantic.main.BaseModel.model_rebuild:7
 msgid "Args:"
@@ -50,10 +51,8 @@ msgid ""
 "_parent_namespace_depth: The depth level of the parent namespace, defaults "
 "to 2. _types_namespace: The types namespace, defaults to `None`."
 msgstr ""
-"force: Whether to force the rebuilding of the model schema, defaults to "
-"`False`. raise_errors: Whether to raise errors, defaults to `True`. "
-"_parent_namespace_depth: The depth level of the parent namespace, defaults "
-"to 2. _types_namespace: The types namespace, defaults to `None`."
+"msgid: force: Whether to force the rebuilding of the model schema, defaults to `False`. raise_errors: Whether to raise errors, defaults to `True`. _parent_namespace_depth: The depth level of the parent namespace, defaults to 2. _types_namespace: The types namespace, defaults to `None`.\n"
+"msgstr: force: Si se debe forzar la reconstrucción del esquema del modelo, por defecto es `False`. raise_errors: Si se deben generar errores, por defecto es `True`. _parent_namespace_depth: El nivel de profundidad del espacio de nombres padre, por defecto es 2. _types_namespace: El espacio de nombres de tipos, por defecto es `None`."
 
 #: 00a154b225c04c678c74565ce1d1c8b2 of
 #: pydantic.main.BaseModel.model_rebuild:13
