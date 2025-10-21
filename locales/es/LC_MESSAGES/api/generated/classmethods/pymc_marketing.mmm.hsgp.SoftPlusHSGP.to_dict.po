@@ -23,7 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.hsgp.SoftPlusHSGP.to_dict.rst:2
 #: c9e2e962e0f24667bdb01af3e7ce468d
 msgid "SoftPlusHSGP.to\\_dict"
-msgstr "SoftPlusHSGP.to\\_dict"
+msgstr ""
+"msgid: SoftPlusHSGP.to\\_dict  \n"
+"msgstr: SoftPlusHSGP.to\\_dict"
 
 #: aa2f5792da084b5cb11c3345d81cc1fa of
 #: pymc_marketing.mmm.hsgp.HSGPBase.to_dict:2
