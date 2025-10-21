@@ -50,7 +50,7 @@ msgstr "xr.DataArray"
 msgid "Curve to plot"
 msgstr ""
 "msgid: Curve to plot  \n"
-"msgstr: Curva a graficar"
+"msgstr: Curva a trazar"
 
 #: 223b20729e374cc399f037fc9abdf565 of
 #: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:10
