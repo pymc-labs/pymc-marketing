@@ -23,7 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.attrs_to_init_kwargs.rst:2
 #: 5c44b9c622d04a1abae1740424a7c9d7
 msgid "ShiftedBetaGeoModel.attrs\\_to\\_init\\_kwargs"
-msgstr "ShiftedBetaGeoModel.attrs\\_to\\_init\\_kwargs"
+msgstr ""
+"msgid: ShiftedBetaGeoModel.attrs\\_to\\_init\\_kwargs  \n"
+"msgstr: ShiftedBetaGeoModel.attrs\\_to\\_init\\_kwargs"
 
 #: 0e1c1b0d4e8b4577b0e6d86738520536 of
 #: pymc_marketing.model_builder.ModelIO.attrs_to_init_kwargs:2
@@ -31,8 +33,8 @@ msgid ""
 "Convert the model configuration and sampler configuration from the "
 "attributes to keyword arguments."
 msgstr ""
-"Convert the model configuration and sampler configuration from the "
-"attributes to keyword arguments."
+"msgid: Convert the model configuration and sampler configuration from the attributes to keyword arguments.  \n"
+"msgstr: Convierta la configuración del modelo y la configuración del muestreador de los atributos a argumentos de palabra clave."
 
 #: a8466a951dbb4dd8973694fe82cf4058 of
 #: pymc_marketing.model_builder.ModelIO.attrs_to_init_kwargs:4
@@ -40,5 +42,5 @@ msgid ""
 "This method must be overridden in child classes if additional keyword "
 "arguments are needed."
 msgstr ""
-"This method must be overridden in child classes if additional keyword "
-"arguments are needed."
+"msgid: This method must be overridden in child classes if additional keyword arguments are needed.  \n"
+"msgstr: Este método debe ser sobrescrito en las clases hijas si se necesitan argumentos de palabra clave adicionales."
