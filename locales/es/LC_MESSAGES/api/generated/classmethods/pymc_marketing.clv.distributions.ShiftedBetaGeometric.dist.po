@@ -1,0 +1,180 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-21 09:54+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.distributions.ShiftedBetaGeometric.dist.rst:2
+#: 78e25c215c3b4e9594051e243f54f909
+msgid "ShiftedBetaGeometric.dist"
+msgstr ""
+"{\n"
+"  \"singular\": \"ShiftedBetaGeometric.dist\",\n"
+"  \"plural\": \"ShiftedBetaGeometric.dist\"\n"
+"}"
+
+#: bcb4ac6e554546feb68460771b8431ba of
+#: pymc_marketing.clv.distributions.ShiftedBetaGeometric.dist:2
+msgid "Create a tensor variable corresponding to the `cls` distribution."
+msgstr ""
+"{\n"
+"  \"singular\": \"Cree una variable tensor correspondiente a la distribución `cls`.\",\n"
+"  \"plural\": \"Cree variables tensor correspondientes a las distribuciones `cls`.\"\n"
+"}"
+
+#: 8ecf15c0f01d457a8f96f3c21d0de6e1 of
+#: pymc_marketing.clv.distributions.ShiftedBetaGeometric.dist
+msgid "Parameters"
+msgstr ""
+"{\n"
+"  \"singular\": \"Parámetro\",\n"
+"  \"plural\": \"Parámetros\"\n"
+"}"
+
+#: 9a33e3cf102d43eaa11e58dc5644effc of
+#: pymc_marketing.clv.distributions.ShiftedBetaGeometric.dist:7
+msgid "**dist_params** : :term:`numpy:array_like`"
+msgstr ""
+"{\n"
+"  \"singular\": \"**dist_params** : :term:`numpy:array_like`\",\n"
+"  \"plural\": \"**dist_params** : :term:`numpy:array_like`\"\n"
+"}"
+
+#: 32d6d76a936341afaa1e38cd4484e1d2 of
+#: pymc_marketing.clv.distributions.ShiftedBetaGeometric.dist:6
+msgid "numpy:array_like"
+msgstr ""
+"{\n"
+"  \"singular\": \"numpy:array_like\",\n"
+"  \"plural\": \"numpy:array_like\"\n"
+"}"
+
+#: bca44da6f4354469ae97d5f1a75446eb of
+#: pymc_marketing.clv.distributions.ShiftedBetaGeometric.dist:8
+msgid "The inputs to the `RandomVariable` `Op`."
+msgstr ""
+"{\n"
+"  \"singular\": \"Las entradas a la `VariableAleatoria` `Op`.\",\n"
+"  \"plural\": \"Las entradas a las `VariablesAleatorias` `Op`.\"\n"
+"}"
+
+#: 13f3ba3a6c344cba83e186adbc076954 of
+#: pymc_marketing.clv.distributions.ShiftedBetaGeometric.dist:10
+msgid ""
+"**shape** : :class:`python:int`, :class:`python:tuple`, :obj:`Variable`, "
+"optional"
+msgstr ""
+"{\n"
+"  \"singular\": \"**forma** : :class:`python:int`, :class:`python:tuple`, :obj:`Variable`, opcional\",\n"
+"  \"plural\": \"**formas** : :class:`python:int`, :class:`python:tuple`, :obj:`Variable`, opcional\"\n"
+"}"
+
+#: bb0df20bf85649e3822d2ada794560ad of
+#: pymc_marketing.clv.distributions.ShiftedBetaGeometric.dist:9
+msgid "python:int, python:tuple, Variable, optional"
+msgstr ""
+"{\n"
+"  \"singular\": {\n"
+"    \"msgid\": \"python:int\",\n"
+"    \"msgstr\": \"python:int\"\n"
+"  },\n"
+"  \"plural\": {\n"
+"    \"msgid\": \"python:tuple\",\n"
+"    \"msgstr\": \"python:tuple\"\n"
+"  },\n"
+"  \"variable\": {\n"
+"    \"msgid\": \"Variable\",\n"
+"    \"msgstr\": \"Variable\"\n"
+"  },\n"
+"  \"optional\": {\n"
+"    \"msgid\": \"optional\",\n"
+"    \"msgstr\": \"opcional\"\n"
+"  }\n"
+"}"
+
+#: 735a8430c4ee4bda99967570d5139310 of
+#: pymc_marketing.clv.distributions.ShiftedBetaGeometric.dist:11
+msgid "A tuple of sizes for each dimension of the new RV."
+msgstr ""
+"{\n"
+"  \"singular\": \"Una tupla de tamaños para cada dimensión del nuevo RV.\",\n"
+"  \"plural\": \"Tuplas de tamaños para cada dimensión de los nuevos RV.\"\n"
+"}"
+
+#: c8fc3db993ed4413baecbbc2f5992aa2 of
+#: pymc_marketing.clv.distributions.ShiftedBetaGeometric.dist:13
+msgid "**\\*\\*kwargs**"
+msgstr ""
+"{\n"
+"  \"singular\": \"**\\*\\*kwargs**\",\n"
+"  \"plural\": \"**\\*\\*kwargs**\"\n"
+"}"
+
+#: 2daa25ca0590492b906c8c82c72b7a56 of
+#: pymc_marketing.clv.distributions.ShiftedBetaGeometric.dist:14
+msgid ""
+"Keyword arguments that will be forwarded to the PyTensor RV Op. Most "
+"prominently: ``size`` or ``dtype``."
+msgstr ""
+"{\n"
+"  \"singular\": \"Argumentos clave que se enviarán a la operación RV de PyTensor. Más notablemente: ``size`` o ``dtype``.\",\n"
+"  \"plural\": \"Argumentos clave que se enviarán a la operación RV de PyTensor. Más notablemente: ``size`` o ``dtype``.\"\n"
+"}"
+
+#: 684e75c6e3c54182b588d7d8e1e912c4 of
+#: pymc_marketing.clv.distributions.ShiftedBetaGeometric.dist
+msgid "Returns"
+msgstr ""
+"{\n"
+"  \"singular\": {\n"
+"    \"msgid\": \"Returns\",\n"
+"    \"msgstr\": \"Devoluciones\"\n"
+"  },\n"
+"  \"plural\": {\n"
+"    \"msgid\": \"Returns\",\n"
+"    \"msgstr\": \"Devoluciones\"\n"
+"  }\n"
+"}"
+
+#: 6e528dabfe904b8a80e06bf41d1ebe48 of
+#: pymc_marketing.clv.distributions.ShiftedBetaGeometric.dist:21
+msgid "**rv** : :class:`~pytensor.tensor.TensorVariable`"
+msgstr ""
+"{\n"
+"  \"singular\": \"**rv** : :class:`~pytensor.tensor.TensorVariable`\",\n"
+"  \"plural\": \"**rv** : :class:`~pytensor.tensor.TensorVariable`\"\n"
+"}"
+
+#: be4e2586477d48e3a70d3804108eecf8 of
+#: pymc_marketing.clv.distributions.ShiftedBetaGeometric.dist:20
+msgid "TensorVariable"
+msgstr ""
+"{\n"
+"  \"singular\": \"TensorVariable\",\n"
+"  \"plural\": \"TensorVariables\"\n"
+"}"
+
+#: 0e39e87547604531b3bc4158fb2d0f36 of
+#: pymc_marketing.clv.distributions.ShiftedBetaGeometric.dist:22
+msgid "The created random variable tensor."
+msgstr ""
+"{\n"
+"  \"singular\": \"El tensor de variable aleatoria creado.\",\n"
+"  \"plural\": \"Los tensores de variable aleatoria creados.\"\n"
+"}"
