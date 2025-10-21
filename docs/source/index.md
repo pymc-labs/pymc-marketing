@@ -63,7 +63,7 @@ We provide the following professional services:
 :::::{grid} 1 1 2 3
 :gutter: 2
 
-::::{grid-item-card} Example Gallery
+::::{grid-item-card} Getting Started
 :class-header: sd-text-center no-border
 :class-title: sd-text-center
 :class-footer: no-border
@@ -71,19 +71,18 @@ We provide the following professional services:
 {material-outlined}`photo_library;5em`
 ^^^^^^^^^^^^^^^
 
-Browse our visual gallery of example notebooks to quickly
-find the techniques and models relevant to your
-marketing analytics needs.
+Browse our getting started guide to quickly
+get started with PyMC-Marketing.
 
 +++
 
-:::{button-ref} gallery/gallery
+:::{button-ref} getting_started/index
 :expand:
 :color: secondary
 :click-parent:
 :ref-type: doc
 
-To the example gallery
+To the getting started guide
 :::
 ::::
 
@@ -102,7 +101,7 @@ the library and showcase its features.
 
 +++
 
-:::{button-ref} notebooks/index
+:::{button-ref} gallery/gallery
 :expand:
 :color: secondary
 :click-parent:
@@ -235,8 +234,7 @@ For more blogposts and resources, check out the [PyMC Labs Blog](https://www.pym
 getting_started/index
 contributing/index
 guide/index
-guide/mmm/comparison
-api/index
 gallery/gallery
-notebooks/index
+api/index
+guide/mmm/comparison
 :::
