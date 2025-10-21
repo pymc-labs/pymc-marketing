@@ -28,17 +28,21 @@ msgstr "ShiftedBetaGeoModel.expected\\_probability\\_alive"
 #: 07e1796cf654455696921cccb8d52c27 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_probability_alive:2
 msgid "Compute expected probability of contract renewal by cohort."
-msgstr "Compute expected probability of contract renewal by cohort."
+msgstr ""
+"msgid: Compute expected probability of contract renewal by cohort.  \n"
+"msgstr: Calcule la probabilidad esperada de renovación de contrato por cohorte."
 
 #: 41c6a580d78d4efc8b54bbf5d7bd5c26 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_probability_alive:4
 msgid "The *data* parameter is only required for out-of-sample customers."
-msgstr "The *data* parameter is only required for out-of-sample customers."
+msgstr ""
+"msgid: The *data* parameter is only required for out-of-sample customers.  \n"
+"msgstr: El parámetro *data* solo es necesario para clientes fuera de muestra."
 
 #: 74a0e29fed3943739ce09a2a89a9c607 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_probability_alive:6
 msgid "Adapted from equation (6) in [Rd106291fdaca-1]_."
-msgstr "Adapted from equation (6) in [Rd106291fdaca-1]_."
+msgstr "Adaptado de la ecuación (6) en [Rd106291fdaca-1]_."
 
 #: 7117900f63bc46e287b9f76aaccddf8c of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_probability_alive
@@ -60,7 +64,8 @@ msgstr "python:int, numpy:array_like"
 msgid ""
 "Number of time periods in the future to predict probability of being active."
 msgstr ""
-"Number of time periods in the future to predict probability of being active."
+"msgid: Number of time periods in the future to predict probability of being active.  \n"
+"msgstr: Número de períodos de tiempo en el futuro para predecir la probabilidad de estar activo."
 
 #: 5c7446e36a544f2187bb8f0fb90ecc79 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_probability_alive:13
@@ -79,9 +84,8 @@ msgid ""
 " customer identifier * `T`: Number of time periods customer has been active "
 "* `cohort`: Customer cohort label"
 msgstr ""
-"Optional dataframe containing the following columns: * `customer_id`: Unique"
-" customer identifier * `T`: Number of time periods customer has been active "
-"* `cohort`: Customer cohort label"
+"msgid: Optional dataframe containing the following columns: * `customer_id`: Unique customer identifier * `T`: Number of time periods customer has been active * `cohort`: Customer cohort label  \n"
+"msgstr: Dataframe opcional que contiene las siguientes columnas: * `customer_id`: Identificador único del cliente * `T`: Número de períodos de tiempo en los que el cliente ha estado activo * `cohort`: Etiqueta de cohorte del cliente"
 
 #: b9f41d0bf06c4d5cbdc10cee10a97658 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_probability_alive:31
@@ -96,10 +100,8 @@ msgid ""
 "https://faculty.wharton.upenn.edu/wp-"
 "content/uploads/2012/04/Fader_hardie_jim_07.pdf"
 msgstr ""
-"Fader, P. S., & Hardie, B. G. (2007). How to project customer retention. "
-"Journal of Interactive Marketing, 21(1), 76-90. "
-"https://faculty.wharton.upenn.edu/wp-"
-"content/uploads/2012/04/Fader_hardie_jim_07.pdf"
+"msgid: Fader, P. S., & Hardie, B. G. (2007). How to project customer retention. Journal of Interactive Marketing, 21(1), 76-90. https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf  \n"
+"msgstr: Fader, P. S., & Hardie, B. G. (2007). Cómo proyectar la retención de clientes. Journal of Interactive Marketing, 21(1), 76-90. https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf"
 
 #: 6b148e06d88d4390bad7cb819961617b of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_probability_alive:38
