@@ -28,7 +28,9 @@ msgstr "ShiftedBetaGeoModel.create\\_idata\\_attrs"
 #: f90f6e131ac6494ea1b6d36ef4c53f01 of
 #: pymc_marketing.model_builder.ModelIO.create_idata_attrs:2
 msgid "Create attributes for the inference data."
-msgstr "Create attributes for the inference data."
+msgstr ""
+"msgid: Create attributes for the inference data.\n"
+"msgstr: Crear atributos para los datos de inferencia."
 
 #: e5978c7e53ea471f9d5eefb418cd60c3 of
 #: pymc_marketing.model_builder.ModelIO.create_idata_attrs
@@ -43,4 +45,6 @@ msgstr ":class:`python:dict`\\[:class:`python:str`, :class:`python:str`]"
 #: 088e3bce03e64093884aadf87b5e81a2 of
 #: pymc_marketing.model_builder.ModelIO.create_idata_attrs:11
 msgid "A dictionary of attributes for the inference data."
-msgstr "A dictionary of attributes for the inference data."
+msgstr ""
+"msgid: A dictionary of attributes for the inference data.  \n"
+"msgstr: Un diccionario de atributos para los datos de inferencia."
