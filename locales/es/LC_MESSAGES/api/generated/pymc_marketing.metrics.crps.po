@@ -46,7 +46,7 @@ msgstr "**y_true** : :term:`numpy:array_like`"
 msgid "numpy:array_like"
 msgstr ""
 "msgid: numpy:array_like  \n"
-"msgstr: numpy:similar_a_array"
+"msgstr: numpy:array_like"
 
 #: fa85745a3b174fa6ae88e7c029555eb7 of pymc_marketing.metrics.crps:8
 msgid "The ground truth values."
