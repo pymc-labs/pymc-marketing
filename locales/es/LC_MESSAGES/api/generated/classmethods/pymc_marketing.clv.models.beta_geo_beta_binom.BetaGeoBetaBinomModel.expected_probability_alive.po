@@ -12,12 +12,12 @@ msgstr ""
 "POT-Creation-Date: 2025-10-07 18:10+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language: es\n"
 "Language-Team: es <LL@li.org>\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Language: es\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "Generated-By: Babel 2.17.0\n"
 
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_probability_alive.rst:2
@@ -118,7 +118,9 @@ msgstr "**future_t** : :term:`numpy:array_like`"
 #: 42cff0cdedfe45139aa67a0de02a37bf of
 #: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_probability_alive:23
 msgid "numpy:array_like"
-msgstr "numpy:similar_a_array"
+msgstr ""
+"msgid: numpy:array_like  \n"
+"msgstr: numpy:similar_a_array"
 
 #: 3b1aa1bb19974d2e91448f916a918358 of
 #: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_probability_alive:25
