@@ -12,12 +12,12 @@ msgstr ""
 "POT-Creation-Date: 2025-10-07 18:10+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language: es\n"
 "Language-Team: es <LL@li.org>\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Language: es\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "Generated-By: Babel 2.17.0\n"
 
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases.rst:2
@@ -127,7 +127,9 @@ msgstr "**future_t** : :term:`numpy:array_like`"
 #: 4bda4c5a36bf4d088afdbfd993475a83 of
 #: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases:35
 msgid "numpy:array_like"
-msgstr "numpy:similar_a_array"
+msgstr ""
+"msgid: numpy:array_like  \n"
+"msgstr: numpy:array_like"
 
 #: 6b04748efbf2475da1e95fbc3234efb8 of
 #: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases:37
@@ -159,4 +161,6 @@ msgstr ""
 #: 2126d815577c4b05b0f774dd080c6408 of
 #: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases:60
 msgid "[R067e70a5a093-1]_"
-msgstr "[R067e70a5a093-1]_"
+msgstr ""
+"msgid: [R067e70a5a093-1]  \n"
+"msgstr: [R067e70a5a093-1]"
