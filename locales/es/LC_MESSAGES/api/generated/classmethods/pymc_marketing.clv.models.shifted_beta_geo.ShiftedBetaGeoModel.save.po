@@ -28,7 +28,9 @@ msgstr "ShiftedBetaGeoModel.save"
 #: eef4f42958024b0aba275d7561e31360 of
 #: pymc_marketing.model_builder.ModelIO.save:2
 msgid "Save the model's inference data to a file."
-msgstr "Save the model's inference data to a file."
+msgstr ""
+"msgid: Save the model's inference data to a file.  \n"
+"msgstr: Guarde los datos de inferencia del modelo en un archivo."
 
 #: 98cde20ee48f4c3592f9faad1b9b1ff7 of
 #: pymc_marketing.model_builder.ModelIO.save
@@ -51,8 +53,8 @@ msgid ""
 "The name and path of the file to save the inference data with model "
 "parameters."
 msgstr ""
-"The name and path of the file to save the inference data with model "
-"parameters."
+"msgid: The name and path of the file to save the inference data with model parameters.  \n"
+"msgstr: El nombre y la ruta del archivo para guardar los datos de inferencia con los parámetros del modelo."
 
 #: 88e493ed82744e57ae9e59cb95f58660 of
 #: pymc_marketing.model_builder.ModelIO.save:10
@@ -65,13 +67,15 @@ msgid ""
 "Additional keyword arguments to pass to arviz.InferenceData.to_netcdf(). "
 "Common options include: - engine : str, optional (default \"netcdf4\")"
 msgstr ""
-"Additional keyword arguments to pass to arviz.InferenceData.to_netcdf(). "
-"Common options include: - engine : str, optional (default \"netcdf4\")"
+"msgid: Additional keyword arguments to pass to arviz.InferenceData.to_netcdf(). Common options include: - engine : str, optional (default \"netcdf4\")  \n"
+"msgstr: Argumentos adicionales de palabras clave para pasar a arviz.InferenceData.to_netcdf(). Las opciones comunes incluyen: - engine : str, opcional (predeterminado \"netcdf4\")"
 
 #: 83dbbbf5984b4898b6ec910b82134190 of
 #: pymc_marketing.model_builder.ModelIO.save:14
 msgid "Library to use for writing files."
-msgstr "Library to use for writing files."
+msgstr ""
+"msgid: Library to use for writing files.  \n"
+"msgstr: Biblioteca para usar para escribir archivos."
 
 #: d7a086b8b94943dbbba0a0df1018f1ec of
 #: pymc_marketing.model_builder.ModelIO.save:15
@@ -81,12 +85,16 @@ msgstr "groups"
 #: 545b8ca0b4f841d6b6b4e2bc29a0d209 of
 #: pymc_marketing.model_builder.ModelIO.save:-1
 msgid "list of str, optional"
-msgstr "list of str, optional"
+msgstr ""
+"msgid: list of str, optional  \n"
+"msgstr: lista de str, opcional"
 
 #: 82af4577efe44a5a88e62cd203aeec3b of
 #: pymc_marketing.model_builder.ModelIO.save:16
 msgid "Groups to save to netcdf. If None, all groups are saved."
-msgstr "Groups to save to netcdf. If None, all groups are saved."
+msgstr ""
+"msgid: Groups to save to netcdf. If None, all groups are saved.  \n"
+"msgstr: Grupos para guardar en netcdf. Si es None, se guardan todos los grupos."
 
 #: bcf746edd26f4574958a95ef05d0c9e7 of
 #: pymc_marketing.model_builder.ModelIO.save
@@ -111,7 +119,9 @@ msgstr ":obj:`RuntimeError`"
 #: 7d5963d1e32c4136b341407788568e02 of
 #: pymc_marketing.model_builder.ModelIO.save:31
 msgid "If the model hasn't been fit yet (no inference data available)."
-msgstr "If the model hasn't been fit yet (no inference data available)."
+msgstr ""
+"msgid: If the model hasn't been fit yet (no inference data available).  \n"
+"msgstr: Si el modelo aún no ha sido ajustado (no hay datos de inferencia disponibles)."
 
 #: 571519a9c0534d37888152e138648112 of
 #: pymc_marketing.model_builder.ModelIO.save:39
@@ -124,5 +134,5 @@ msgid ""
 "This method is meant to be overridden and implemented by subclasses. It "
 "should not be called directly on the base abstract class or its instances."
 msgstr ""
-"This method is meant to be overridden and implemented by subclasses. It "
-"should not be called directly on the base abstract class or its instances."
+"msgid: This method is meant to be overridden and implemented by subclasses. It should not be called directly on the base abstract class or its instances.\n"
+"msgstr: Este método está destinado a ser sobreescrito e implementado por las subclases. No debe ser llamado directamente en la clase abstracta base o en sus instancias."
