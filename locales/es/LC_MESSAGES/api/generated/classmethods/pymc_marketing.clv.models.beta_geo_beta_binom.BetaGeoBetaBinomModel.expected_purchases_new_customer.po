@@ -54,7 +54,7 @@ msgstr "**t** : :term:`numpy:array_like`"
 msgid "numpy:array_like"
 msgstr ""
 "msgid: numpy:array_like  \n"
-"msgstr: numpy:similar_a_array"
+"msgstr: numpy:array_like"
 
 #: d29c695868c148268e97290690fda699 of
 #: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases_new_customer:9
