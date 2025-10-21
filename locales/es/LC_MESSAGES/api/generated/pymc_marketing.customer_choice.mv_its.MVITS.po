@@ -311,8 +311,9 @@ msgid ""
 "<pymc_marketing.customer_choice.mv_its.MVITS.idata_to_init_kwargs>`\\ "
 "\\(idata\\)"
 msgstr ""
-"msgid: :py:obj:`MVITS.idata_to_init_kwargs <pymc_marketing.customer_choice.mv_its.MVITS.idata_to_init_kwargs>`\\ \\(idata\\)  \n"
-"msgstr: :py:obj:`MVITS.idata_to_init_kwargs <pymc_marketing.customer_choice.mv_its.MVITS.idata_to_init_kwargs>`\\ \\(idata\\)"
+":py:obj:`MVITS.idata_to_init_kwargs "
+"<pymc_marketing.customer_choice.mv_its.MVITS.idata_to_init_kwargs>`\\ "
+"\\(idata\\)"
 
 #: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
 #: fb34679819674b11a8aff8f3196386af
