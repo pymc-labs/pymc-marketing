@@ -28,4 +28,4 @@ msgstr "ShiftedBetaGeoModel.build\\_from\\_idata"
 #: e6753cea052c4517a1274762928cf436 of
 #: pymc_marketing.clv.models.basic.CLVModel.build_from_idata:2
 msgid "Build the model from the InferenceData object."
-msgstr "Build the model from the InferenceData object."
+msgstr "Construya el modelo a partir del objeto InferenceData."
