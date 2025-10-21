@@ -211,9 +211,7 @@ msgstr "Si se debe mostrar la leyenda. Por defecto es None."
 #: 4dd2b16eb0d64abca863d9d7fb0b797b of
 #: pymc_marketing.mmm.components.base.Transformation.plot_curve:41
 msgid "**sel_to_string** : :obj:`SelToString`, optional"
-msgstr ""
-"msgid: **sel_to_string** : :obj:`SelToString`, optional  \n"
-"msgstr: **sel_to_string** : :obj:`SelToString`, opcional"
+msgstr "**sel_to_string** : :obj:`SelToString`, opcional"
 
 #: 94d50ed9b072496cb1559aa692f48907 of
 #: pymc_marketing.mmm.components.base.Transformation.plot_curve:40
