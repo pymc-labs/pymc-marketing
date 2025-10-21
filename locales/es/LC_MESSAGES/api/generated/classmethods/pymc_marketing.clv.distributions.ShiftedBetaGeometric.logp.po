@@ -28,4 +28,4 @@ msgstr "ShiftedBetaGeometric.logp"
 #: b50a1f4af2b34df5b9825a8ec0451583 of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric.logp:2
 msgid "From Expression (5) on p.6 of Fader & Hardie (2007)."
-msgstr "From Expression (5) on p.6 of Fader & Hardie (2007)."
+msgstr "Desde la Expresión (5) en la p.6 de Fader & Hardie (2007)."
