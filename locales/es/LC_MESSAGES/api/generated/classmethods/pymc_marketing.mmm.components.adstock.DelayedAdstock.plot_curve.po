@@ -12,12 +12,12 @@ msgstr ""
 "POT-Creation-Date: 2025-10-07 18:10+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language: es\n"
 "Language-Team: es <LL@li.org>\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Language: es\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "Generated-By: Babel 2.17.0\n"
 
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.components.adstock.DelayedAdstock.plot_curve.rst:2
@@ -211,7 +211,9 @@ msgstr "Si se debe mostrar la leyenda. Por defecto es None."
 #: 3f19208f8ebb4869a0e42beebb0900e4 of
 #: pymc_marketing.mmm.components.base.Transformation.plot_curve:41
 msgid "**sel_to_string** : :obj:`SelToString`, optional"
-msgstr "**sel_to_string** : :obj:`SelToString`, opcional"
+msgstr ""
+"msgid: **sel_to_string** : :obj:`SelToString`, optional  \n"
+"msgstr: **sel_to_string** : :obj:`SelToString`, opcional"
 
 #: 2617da8516c14f7f9bdecdb0ab458852 of
 #: pymc_marketing.mmm.components.base.Transformation.plot_curve:40
