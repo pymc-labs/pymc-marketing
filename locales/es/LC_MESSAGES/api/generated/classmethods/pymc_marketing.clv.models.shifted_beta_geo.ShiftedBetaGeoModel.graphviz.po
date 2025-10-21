@@ -28,7 +28,9 @@ msgstr "ShiftedBetaGeoModel.graphviz"
 #: c80f03c1c4ec4a48927750197b08e1d3 of
 #: pymc_marketing.model_builder.ModelBuilder.graphviz:2
 msgid "Get the graphviz representation of the model."
-msgstr "Get the graphviz representation of the model."
+msgstr ""
+"msgid: Get the graphviz representation of the model.  \n"
+"msgstr: Obtenga la representación graphviz del modelo."
 
 #: f81dc8516b1a414aa12d9d785528a3d6 of
 #: pymc_marketing.model_builder.ModelBuilder.graphviz
@@ -43,7 +45,9 @@ msgstr "**\\*\\*kwargs**"
 #: f5aedebb071a455eb4c17f495d4297a6 of
 #: pymc_marketing.model_builder.ModelBuilder.graphviz:8
 msgid "Keyword arguments for the `pm.model_to_graphviz` function"
-msgstr "Keyword arguments for the `pm.model_to_graphviz` function"
+msgstr ""
+"msgid: Keyword arguments for the `pm.model_to_graphviz` function  \n"
+"msgstr: Argumentos clave para la función `pm.model_to_graphviz`"
 
 #: 8a8a0c6b29da463fba100a9de06240b2 of
 #: pymc_marketing.model_builder.ModelBuilder.graphviz
