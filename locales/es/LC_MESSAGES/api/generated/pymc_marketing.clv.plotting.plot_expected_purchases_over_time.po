@@ -25,7 +25,7 @@ msgstr ""
 msgid "plot\\_expected\\_purchases\\_over\\_time"
 msgstr ""
 "msgid: plot\\_expected\\_purchases\\_over\\_time  \n"
-"msgstr: trazar\\_compras\\_esperadas\\_a\\_lo\\_largo\\_del\\_tiempo"
+"msgstr: graficar\\_compras\\_esperadas\\_a\\_lo\\_largo\\_del\\_tiempo"
 
 #: 209b6a8329704ef2b1c8e6062ce73e9e of
 #: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:2
