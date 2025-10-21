@@ -40,9 +40,8 @@ msgid ""
 ":py:obj:`deterministics_to_flat "
 "<pymc_marketing.model_graph.deterministics_to_flat>`\\ \\(model\\, names\\)"
 msgstr ""
-":py:obj:`deterministics_to_flat "
-"<pymc_marketing.model_graph.deterministics_to_flat>`\\ \\(nombres\\, del\\, "
-"modelo\\)"
+"msgid: :py:obj:`deterministics_to_flat <pymc_marketing.model_graph.deterministics_to_flat>`\\ \\(model\\, names\\)  \n"
+"msgstr: :py:obj:`deterministics_to_flat <pymc_marketing.model_graph.deterministics_to_flat>`\\ \\(nombres\\, del\\, modelo\\)"
 
 #: ../source/api/generated/pymc_marketing.model_graph.rst:18:<autosummary>:1
 #: d5e5b998c595418f94d0e8b3f63e2e39
