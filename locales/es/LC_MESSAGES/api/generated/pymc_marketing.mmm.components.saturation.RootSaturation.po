@@ -198,9 +198,8 @@ msgid ""
 "<pymc_marketing.mmm.components.saturation.RootSaturation.set_dims_for_all_priors>`\\"
 " \\(dims\\)"
 msgstr ""
-":py:obj:`RootSaturation.set_dims_for_all_priors "
-"<pymc_marketing.mmm.components.saturation.RootSaturation.set_dims_for_all_priors>`\\"
-" \\(dims\\)"
+"msgid: :py:obj:`RootSaturation.set_dims_for_all_priors <pymc_marketing.mmm.components.saturation.RootSaturation.set_dims_for_all_priors>`\\ \\(dims\\)  \n"
+"msgstr: :py:obj:`RootSaturation.set_dims_for_all_priors <pymc_marketing.mmm.components.saturation.RootSaturation.set_dims_for_all_priors>`\\ \\(dims\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.components.saturation.RootSaturation.rst:32:<autosummary>:1
 #: ffacf506a57247cabf991e60160db0a3
@@ -213,8 +212,8 @@ msgid ""
 ":py:obj:`RootSaturation.to_dict "
 "<pymc_marketing.mmm.components.saturation.RootSaturation.to_dict>`\\ \\(\\)"
 msgstr ""
-":py:obj:`RootSaturation.to_dict "
-"<pymc_marketing.mmm.components.saturation.RootSaturation.to_dict>`\\ \\(\\)"
+"msgid: :py:obj:`RootSaturation.to_dict <pymc_marketing.mmm.components.saturation.RootSaturation.to_dict>`\\ \\(\\)  \n"
+"msgstr: :py:obj:`RootSaturation.to_dict <pymc_marketing.mmm.components.saturation.RootSaturation.to_dict>`\\ \\(\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.components.saturation.RootSaturation.rst:32:<autosummary>:1
 #: 9f0ce68047f348c08bcb86382c872505
