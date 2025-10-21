@@ -42,7 +42,7 @@ class ShiftedBetaGeoModel(CLVModel):
     This model requires data to be summarized by *recency*, *T*, and *cohort* for each customer.
     Modeling assumptions require *1 <= recency <= T*, and *T >= 2*.
 
-    First introduced by Fader & Hardie in [1]_.
+    First introduced by Fader & Hardie in [1]_, with additional expressions described in [2]_.
 
     Parameters
     ----------
@@ -98,23 +98,39 @@ class ShiftedBetaGeoModel(CLVModel):
             model.fit(method="mcmc")
             model.fit_summary()
 
+
             # Predict probability customers are still active
             expected_alive_probability = model.expected_probability_alive(
                 active_customers,
                 future_t=0,
             )
 
-            # Predict retention rate of a given cohort in the current time period
+            # Predict retention rate for a specific cohort
+            cohort_name = "2025-02-01"
+
             expected_alive_probability = model.expected_retention_rate(
                 future_t=0,
-            ).sel(cohort=cohort)
+            ).sel(cohort=cohort_name)
+
+            # Predict expected remaining lifetime for all customers with a 5% discount rate
+            expected_alive_probability = model.expected_residual_lifetime(
+                discount_rate=0.05,
+            )
+
+            # Predict expected retention elasticity for all customers in a specific cohort
+            expected_alive_probability = model.expected_retention_elasticity(
+                discount_rate=0.05,
+            ).sel(cohort=cohort_name)
 
 
     References
     ----------
-    .. [1] Fader, P. S., & Hardie, B. G. (2007). How to project customer retention.
-           Journal of Interactive Marketing, 21(1), 76-90.
-           https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf
+    .. [1] Fader, P. S., & Hardie, B. G. (2007). "How to project customer retention."
+        Journal of Interactive Marketing, 21(1), 76-90.
+        https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf
+    .. [2] Fader, P. S., & Hardie, B. G. (2010). "Customer-Base Valuation in a Contractual Setting:
+        The Perils of Ignoring Heterogeneity." Marketing Science, 29(1), 85-93.
+    https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_contractual_mksc_10.pdf
     """
 
     _model_type = "Shifted Beta-Geometric"
@@ -328,7 +344,10 @@ class ShiftedBetaGeoModel(CLVModel):
         *,
         future_t: int | np.ndarray | pd.Series | None = None,
     ) -> xarray.DataArray:
-        """Compute expected retention rate by cohort.
+        """Compute expected retention rate for each customer.
+
+        This is the percentage of customers who were active in the previous time period
+        and are still active in the current period. Retention rates are expected to increase over time.
 
         The *data* parameter is only required for out-of-sample customers.
 
@@ -346,7 +365,7 @@ class ShiftedBetaGeoModel(CLVModel):
 
         References
         ----------
-        .. [1] Fader, P. S., & Hardie, B. G. (2007). How to project customer retention.
+        .. [1] Fader, P. S., & Hardie, B. G. (2007). "How to project customer retention."
             Journal of Interactive Marketing, 21(1), 76-90.
             https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf
         """
@@ -376,7 +395,7 @@ class ShiftedBetaGeoModel(CLVModel):
         *,
         future_t: int | np.ndarray | pd.Series | None = None,
     ) -> xarray.DataArray:
-        """Compute expected probability of contract renewal by cohort.
+        """Compute expected probability of contract renewal for each customer.
 
         The *data* parameter is only required for out-of-sample customers.
 
@@ -394,7 +413,7 @@ class ShiftedBetaGeoModel(CLVModel):
 
         References
         ----------
-        .. [1] Fader, P. S., & Hardie, B. G. (2007). How to project customer retention.
+        .. [1] Fader, P. S., & Hardie, B. G. (2007). "How to project customer retention."
             Journal of Interactive Marketing, 21(1), 76-90.
             https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf
         """
@@ -431,10 +450,11 @@ class ShiftedBetaGeoModel(CLVModel):
         *,
         discount_rate: float | np.ndarray | pd.Series | None = 0.0,
     ) -> xarray.DataArray:
-        """Compute expected residual lifetime of customers by cohort.
+        """Compute expected residual lifetime of each customer.
 
         This is the expected number of periods a customer will remain active after the current time period,
-        given a discount rate. If no discount rate is provided, infinite lifetime estimates may be returned.
+        subject to a discount rate for net present value (NPV) calculations.
+        It is recommended to set a discount rate > 0 to avoid infinite lifetime estimates.
 
         Adapted from equation (6) in [1]_.
 
@@ -450,8 +470,8 @@ class ShiftedBetaGeoModel(CLVModel):
 
         References
         ----------
-        .. [1] Fader, P. S., & Hardie, B. G. (2010). Customer-Base Valuation in a Contractual Setting:
-            The Perils of Ignoring Heterogeneity. Marketing Science, 29(1), 85-93.
+        .. [1] Fader, P. S., & Hardie, B. G. (2010). "Customer-Base Valuation in a Contractual Setting:
+            The Perils of Ignoring Heterogeneity". Marketing Science, 29(1), 85-93.
             https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_contractual_mksc_10.pdf
         """
         if data is None:
