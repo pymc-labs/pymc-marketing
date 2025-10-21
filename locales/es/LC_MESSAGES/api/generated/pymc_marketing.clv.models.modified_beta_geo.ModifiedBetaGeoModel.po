@@ -282,7 +282,7 @@ msgstr ""
 #: pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel:64
 msgid "[Rd9315d94a886-1]_, [Rd9315d94a886-2]_"
 msgstr ""
-"msgid: [Rd9315d94a886-1]_, [Rd9315d94a886-2]_  \n"
+"msgid: [Rd9315d94a886-1]_, [Rd9315d94a886-2]_\n"
 "msgstr: [Rd9315d94a886-1]_, [Rd9315d94a886-2]_"
 
 #: 12ccf956e2b64fb9a559fba561ca6270 of
