@@ -205,7 +205,9 @@ msgstr "Demostremos esto con un ejemplo:"
 #: ../source/notebooks/mmm/mmm_evaluation.ipynb:130002
 #: e740d30c952643028fa33cd877ae20e9
 msgid "Comparing Prior vs Posterior Distributions"
-msgstr "Comparando distribuciones a priori vs a posteriori"
+msgstr ""
+"msgid: Comparing Prior vs Posterior Distributions  \n"
+"msgstr: Comparando distribuciones a priori vs a posteriori"
 
 #: ../source/notebooks/mmm/mmm_evaluation.ipynb:130004
 #: da157a4ac0a5424b90205060a8da8482
