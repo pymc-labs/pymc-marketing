@@ -50,7 +50,7 @@ msgstr "xr.DataArray"
 msgid "Curve to plot"
 msgstr ""
 "msgid: Curve to plot  \n"
-"msgstr: Curva a graficar"
+"msgstr: Curva a trazar"
 
 #: bd897472918c4ff59334df7113e82a42 of
 #: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:10
@@ -198,8 +198,8 @@ msgid ""
 "**sel_to_string** : :obj:`Callable`\\[[:obj:`Selection`], "
 ":class:`python:str`], optional"
 msgstr ""
-"msgid: **sel_to_string** : :obj:`Callable`\\[[:obj:`Selection`], :class:`python:str`], optional  \n"
-"msgstr: **sel_to_string** : :obj:`Callable`\\[[:obj:`Selection`], :class:`python:str`], opcional"
+"**sel_to_string** : :obj:`Callable`\\[[:obj:`Selection`], "
+":class:`python:str`], opcional"
 
 #: d3783f45355942128eb2c7b87892e01a of
 #: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:37
