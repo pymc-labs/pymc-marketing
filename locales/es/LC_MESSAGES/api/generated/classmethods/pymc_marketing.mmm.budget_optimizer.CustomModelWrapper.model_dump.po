@@ -134,7 +134,7 @@ msgid ""
 "error is raised."
 msgstr ""
 "msgid: a [`PydanticSerializationError`][pydantic_core.PydanticSerializationError] error is raised.  \n"
-"msgstr: se genera un error [`PydanticSerializationError`][pydantic_core.PydanticSerializationError]."
+"msgstr: se genera un error de [`PydanticSerializationError`][pydantic_core.PydanticSerializationError]."
 
 #: eaf51be5d06b4a3e9962af57d4f0528c of pydantic.main.BaseModel.model_dump:26
 msgid ""
