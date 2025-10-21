@@ -73,8 +73,8 @@ msgid ""
 "String representing the new class where `params` are passed to `cls` as type"
 " variables."
 msgstr ""
-"msgid: String representing the new class where `params` are passed to `cls` as type variables.  \n"
-"msgstr: Cadena que representa la nueva clase donde `params` se pasan a `cls` como variables de tipo."
+"Cadena que representa la nueva clase donde se pasan `params` a `cls` como "
+"variables de tipo."
 
 #: 4d995de4292e4ac58c2067d536a7c3a2 of
 #: pydantic.main.BaseModel.model_parametrized_name:14

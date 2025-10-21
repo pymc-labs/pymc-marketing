@@ -53,8 +53,8 @@ msgstr "Cargue el InferenceData desde el archivo."
 #: pymc_marketing.model_builder.ModelIO.load:9
 msgid "Construct a new instance of the model using the InferenceData attrs"
 msgstr ""
-"msgid: Construct a new instance of the model using the InferenceData attrs  \n"
-"msgstr: Construya una nueva instancia del modelo utilizando los atributos de InferenceData"
+"Construya una nueva instancia del modelo utilizando los atributos de "
+"InferenceData."
 
 #: b2579da28cb34d00923462e443ffaaf6 of
 #: pymc_marketing.model_builder.ModelIO.load:10
@@ -137,9 +137,7 @@ msgstr ":obj:`DifferentModelError`"
 #: a4b3d7453dc74e7fbc956bbf18b395a2 of
 #: pymc_marketing.model_builder.ModelIO.load:35
 msgid "If the inference data that is loaded doesn't match with the model."
-msgstr ""
-"msgid: If the inference data that is loaded doesn't match with the model.  \n"
-"msgstr: Si los datos de inferencia que se cargan no coinciden con el modelo."
+msgstr "Si los datos de inferencia que se cargan no coinciden con el modelo."
 
 #: dff1ef4a022e49b8a3cfd7a95f91c53e of
 #: pymc_marketing.model_builder.ModelIO.load:43

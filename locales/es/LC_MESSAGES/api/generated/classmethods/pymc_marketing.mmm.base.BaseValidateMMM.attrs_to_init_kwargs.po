@@ -23,9 +23,7 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.base.BaseValidateMMM.attrs_to_init_kwargs.rst:2
 #: a99dad7e90a34d6e947976c54184c240
 msgid "BaseValidateMMM.attrs\\_to\\_init\\_kwargs"
-msgstr ""
-"msgid: BaseValidateMMM.attrs\\_to\\_init\\_kwargs  \n"
-"msgstr: BaseValidateMMM.attrs\\_to\\_init\\_kwargs"
+msgstr "BaseValidateMMM.attrs\\_to\\_init\\_kwargs"
 
 #: b6c7df14dad6402b84900f8b45de8264 of
 #: pymc_marketing.model_builder.ModelIO.attrs_to_init_kwargs:2

@@ -281,9 +281,7 @@ msgstr ""
 #: ac3ec62f7d2047f4a305f85e4286fc83 of
 #: pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel:64
 msgid "[Rd9315d94a886-1]_, [Rd9315d94a886-2]_"
-msgstr ""
-"msgid: [Rd9315d94a886-1]_, [Rd9315d94a886-2]_\n"
-"msgstr: [Rd9315d94a886-1]_, [Rd9315d94a886-2]_"
+msgstr "[Rd9315d94a886-1]_, [Rd9315d94a886-2]_"
 
 #: 12ccf956e2b64fb9a559fba561ca6270 of
 #: pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel:67
@@ -321,8 +319,9 @@ msgid ""
 "<pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.attrs_to_init_kwargs>`\\"
 " \\(attrs\\)"
 msgstr ""
-"msgid: :py:obj:`ModifiedBetaGeoModel.attrs_to_init_kwargs <pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.attrs_to_init_kwargs>`\\ \\(attrs\\)  \n"
-"msgstr: :py:obj:`ModifiedBetaGeoModel.attrs_to_init_kwargs <pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.attrs_to_init_kwargs>`\\ \\(attrs\\)"
+":py:obj:`ModifiedBetaGeoModel.attrs_to_init_kwargs "
+"<pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.attrs_to_init_kwargs>`\\"
+" \\(attrs\\)"
 
 #: ../source/api/generated/pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.rst:44:<autosummary>:1
 #: e947c481942d4badad35c1789bf65238
@@ -588,8 +587,9 @@ msgid ""
 "<pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.idata_to_init_kwargs>`\\"
 " \\(idata\\)"
 msgstr ""
-"msgid: :py:obj:`ModifiedBetaGeoModel.idata_to_init_kwargs <pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.idata_to_init_kwargs>`\\ \\(idata\\)  \n"
-"msgstr: :py:obj:`ModifiedBetaGeoModel.idata_to_init_kwargs <pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.idata_to_init_kwargs>`\\ \\(idata\\)"
+":py:obj:`ModifiedBetaGeoModel.idata_to_init_kwargs "
+"<pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.idata_to_init_kwargs>`\\"
+" \\(idata\\)"
 
 #: ../source/api/generated/pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.rst:44:<autosummary>:1
 #: 817e8dd57c4a485d99f0b3ee4f792fb3

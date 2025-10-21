@@ -23,9 +23,7 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.to_dict.rst:2
 #: a53afa5856c44bc493b0d0e1dcea3e49
 msgid "WeibullPDFAdstock.to\\_dict"
-msgstr ""
-"msgid: WeibullPDFAdstock.to\\_dict  \n"
-"msgstr: WeibullPDFAdstock.to\\_dict"
+msgstr "WeibullPDFAdstock.to\\_dict"
 
 #: fe93ee189d444756b6c1a09573b3064e of
 #: pymc_marketing.mmm.components.adstock.AdstockTransformation.to_dict:2

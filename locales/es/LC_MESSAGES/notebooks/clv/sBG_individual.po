@@ -197,8 +197,9 @@ msgid ""
 " directly from the fact that both `alpha` and `beta` were inferred to be < "
 "10."
 msgstr ""
-"msgid: The inferred distributions are relatively wide in both groups, which follows directly from the fact that both `alpha` and `beta` were inferred to be < 10.  \n"
-"msgstr: Las distribuciones inferidas son relativamente amplias en ambos grupos, lo que sigue directamente del hecho de que tanto `alpha` como `beta` se inferieron como < 10."
+"Las distribuciones inferidas son relativamente amplias en ambos grupos, lo "
+"que se deriva directamente del hecho de que tanto `alpha` como `beta` se "
+"inferieron como < 10."
 
 #: ../source/notebooks/clv/sBG_individual.ipynb:270006
 #: 554fef42d29c4aa89192dde1fca0c9e7

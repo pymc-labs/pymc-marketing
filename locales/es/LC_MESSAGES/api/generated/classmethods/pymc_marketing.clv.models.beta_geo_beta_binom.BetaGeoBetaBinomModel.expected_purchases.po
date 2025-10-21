@@ -161,6 +161,4 @@ msgstr ""
 #: 2126d815577c4b05b0f774dd080c6408 of
 #: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases:60
 msgid "[R067e70a5a093-1]_"
-msgstr ""
-"msgid: [R067e70a5a093-1]  \n"
-"msgstr: [R067e70a5a093-1]"
+msgstr "[R067e70a5a093-1]_"

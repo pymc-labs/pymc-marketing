@@ -23,9 +23,7 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.fourier.FourierBase.to_dict.rst:2
 #: ed3528d778604fbf86fcdb69691e46f0
 msgid "FourierBase.to\\_dict"
-msgstr ""
-"msgid: FourierBase.to\\_dict  \n"
-"msgstr: FourierBase.to\\_dict"
+msgstr "FourierBase.to\\_dict"
 
 #: 91f99ab9f9d54530b17c348cad29817f of
 #: pymc_marketing.mmm.fourier.FourierBase.to_dict:2

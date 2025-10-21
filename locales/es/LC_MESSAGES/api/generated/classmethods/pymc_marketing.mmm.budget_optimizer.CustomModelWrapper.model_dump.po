@@ -47,9 +47,7 @@ msgstr "Args:"
 
 #: b5b75764bbde4d04a9d49c2653e99028 of pydantic.main.BaseModel.model_dump:8
 msgid "mode: The mode in which `to_python` should run."
-msgstr ""
-"msgid: mode: The mode in which `to_python` should run.  \n"
-"msgstr: modo: El modo en el que `to_python` debe ejecutarse."
+msgstr "modo: El modo en el que `to_python` debe ejecutarse."
 
 #: 0a3706bd7b7b4e91895b64aece99dce7 of pydantic.main.BaseModel.model_dump:9
 msgid ""

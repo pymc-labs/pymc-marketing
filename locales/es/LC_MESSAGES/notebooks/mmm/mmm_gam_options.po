@@ -566,8 +566,9 @@ msgid ""
 "\n"
 "\\text{Seasonality}(t) = \\sum_{n=1}^{N} \\big[ a_n \\cos\\!\\left(\\frac{2\\pi n t}{P}\\right) + b_n \\sin\\!\\left(\\frac{2\\pi n t}{P}\\right) \\big]\n"
 msgstr ""
-"msgid: \\text{Seasonality}(t) = \\sum_{n=1}^{N} \\big[ a_n \\cos\\!\\left(\\frac{2\\pi n t}{P}\\right) + b_n \\sin\\!\\left(\\frac{2\\pi n t}{P}\\right) \\big]  \n"
-"msgstr: \\text{Seasonality}(t) = \\sum_{n=1}^{N} \\big[ a_n \\cos\\!\\left(\\frac{2\\pi n t}{P}\\right) + b_n \\sin\\!\\left(\\frac{2\\pi n t}{P}\\right) \\big]"
+"\\text{Seasonality}(t) = \\sum_{n=1}^{N} \\big[ a_n "
+"\\cos\\!\\left(\\frac{2\\pi n t}{P}\\right) + b_n "
+"\\sin\\!\\left(\\frac{2\\pi n t}{P}\\right) \\big]"
 
 #: ../source/notebooks/mmm/mmm_gam_options.ipynb:340029
 #: aa0527e4d67f4f9d80e09ba53c835ba6

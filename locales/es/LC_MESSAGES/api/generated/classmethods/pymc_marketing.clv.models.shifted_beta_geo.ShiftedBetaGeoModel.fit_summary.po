@@ -28,6 +28,4 @@ msgstr "ShiftedBetaGeoModel.fit\\_summary"
 #: e6798b78cd564f3290d1a2e31849215a of
 #: pymc_marketing.clv.models.basic.CLVModel.fit_summary:2
 msgid "Compute the summary of the fit result."
-msgstr ""
-"msgid: Compute the summary of the fit result.\n"
-"msgstr: Calcule el resumen del resultado del ajuste."
+msgstr "Calcule el resumen del resultado del ajuste."

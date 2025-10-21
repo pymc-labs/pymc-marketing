@@ -57,8 +57,8 @@ msgid ""
 "`'any_of'`: Use the [`anyOf`](https://json-schema.org/understanding-json-"
 "schema/reference/combining#anyOf)"
 msgstr ""
-"msgid: `'any_of'`: Use the [`anyOf`](https://json-schema.org/understanding-json-schema/reference/combining#anyOf)  \n"
-"msgstr: `'any_of'`: Utilice el [`anyOf`](https://json-schema.org/understanding-json-schema/reference/combining#anyOf)"
+"`'any_of'`: Utilice el [`anyOf`](https://json-schema.org/understanding-json-"
+"schema/reference/combining#anyOf)"
 
 #: e04a35e38d5d4d5ca69e24a33d2a36ac of
 #: pydantic.main.BaseModel.model_json_schema:10

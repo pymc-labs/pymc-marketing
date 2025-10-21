@@ -61,8 +61,9 @@ msgid ""
 "<pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.attrs_to_init_kwargs>`\\"
 " \\(attrs\\)"
 msgstr ""
-"msgid: :py:obj:`BaseGammaGammaModel.attrs_to_init_kwargs <pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.attrs_to_init_kwargs>`\\ \\(attrs\\)  \n"
-"msgstr: :py:obj:`BaseGammaGammaModel.attrs_to_init_kwargs <pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.attrs_to_init_kwargs>`\\ \\(attrs\\)"
+":py:obj:`BaseGammaGammaModel.attrs_to_init_kwargs "
+"<pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.attrs_to_init_kwargs>`\\"
+" \\(attrs\\)"
 
 #: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.rst:41:<autosummary>:1
 #: e301e82337ba4890aae5e244c0bb4d58
@@ -263,8 +264,9 @@ msgid ""
 "<pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.idata_to_init_kwargs>`\\"
 " \\(idata\\)"
 msgstr ""
-"msgid: :py:obj:`BaseGammaGammaModel.idata_to_init_kwargs <pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.idata_to_init_kwargs>`\\ \\(idata\\)  \n"
-"msgstr: :py:obj:`BaseGammaGammaModel.idata_to_init_kwargs <pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.idata_to_init_kwargs>`\\ \\(idata\\)"
+":py:obj:`BaseGammaGammaModel.idata_to_init_kwargs "
+"<pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.idata_to_init_kwargs>`\\"
+" \\(idata\\)"
 
 #: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.rst:41:<autosummary>:1
 #: db440195c7604872807142b44d2790ac

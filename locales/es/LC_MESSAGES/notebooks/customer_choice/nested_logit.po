@@ -135,8 +135,8 @@ msgid ""
 " P(i) = P(\\text{choose nest B}) \\cdot P(\\text{choose i} | \\text{ i} \\in"
 " \\text{B}) "
 msgstr ""
-"msgid: P(i) = P(\\text{choose nest B}) \\cdot P(\\text{choose i} | \\text{ i} \\in \\text{B})  \n"
-"msgstr: P(i) = P(\\text{choose nest B}) \\cdot P(\\text{choose i} | \\text{ i} \\in \\text{B})"
+"P(i) = P(\\text{choose nest B}) \\cdot P(\\text{choose i} | \\text{ i} \\in "
+"\\text{B})"
 
 #: ../source/notebooks/customer_choice/nested_logit.ipynb:90010
 #: f2a0bcca5ed14e0a86fedf9668ef7313
@@ -178,7 +178,7 @@ msgid ""
 " I_{k} = ln \\sum_{j \\in B_{k}}  e^{Y_{j} / \\lambda_{k}} \\text{ and } "
 "\\lambda_{k} \\sim Beta(1, 1) "
 msgstr ""
-"I_{k} = ln \\sum_{j \\in B_{k}}  e^{Y_{j} / \\lambda_{k}} \\text{ and } "
+"I_{k} = ln \\sum_{j \\in B_{k}} e^{Y_{j} / \\lambda_{k}} \\text{ and } "
 "\\lambda_{k} \\sim Beta(1, 1)"
 
 #: ../source/notebooks/customer_choice/nested_logit.ipynb:90022

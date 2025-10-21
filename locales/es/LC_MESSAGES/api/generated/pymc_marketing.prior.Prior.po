@@ -136,9 +136,7 @@ msgstr "Muestre la distribución previa para la variable."
 #: ../source/api/generated/pymc_marketing.prior.Prior.rst:30:<autosummary>:1
 #: 247c052d60c34905a571289b641a4937
 msgid ":py:obj:`Prior.to_dict <pymc_marketing.prior.Prior.to_dict>`\\ \\(\\)"
-msgstr ""
-"msgid: :py:obj:`Prior.to_dict <pymc_marketing.prior.Prior.to_dict>`\\ \\(\\)  \n"
-"msgstr: :py:obj:`Prior.to_dict <pymc_marketing.prior.Prior.to_dict>`\\ \\(\\)"
+msgstr ":py:obj:`Prior.to_dict <pymc_marketing.prior.Prior.to_dict>`\\ \\(\\)"
 
 #: ../source/api/generated/pymc_marketing.prior.Prior.rst:30:<autosummary>:1
 #: 38014f91cc934c9c96a518c43562fbdd
@@ -148,9 +146,7 @@ msgstr "Convierte lo anterior al formato de diccionario."
 #: ../source/api/generated/pymc_marketing.prior.Prior.rst:30:<autosummary>:1
 #: 7f8ff007a7b64ff2bdc4660a9effcaa5
 msgid ":py:obj:`Prior.to_graph <pymc_marketing.prior.Prior.to_graph>`\\ \\(\\)"
-msgstr ""
-"msgid: :py:obj:`Prior.to_graph <pymc_marketing.prior.Prior.to_graph>`\\ \\(\\)  \n"
-"msgstr: :py:obj:`Prior.to_graph <pymc_marketing.prior.Prior.to_graph>`\\ \\(\\)"
+msgstr ":py:obj:`Prior.to_graph <pymc_marketing.prior.Prior.to_graph>`\\ \\(\\)"
 
 #: ../source/api/generated/pymc_marketing.prior.Prior.rst:30:<autosummary>:1
 #: da0a878fee9f41fdaa587aa135217b85

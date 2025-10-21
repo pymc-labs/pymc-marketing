@@ -821,9 +821,7 @@ msgstr ""
 msgid ""
 "\n"
 "X_1 \\to (X_2, X_3) \\to X_4 \\to Y\n"
-msgstr ""
-"msgid: X_1 \\to (X_2, X_3) \\to X_4 \\to Y  \n"
-"msgstr: X_1 \\to (X_2, X_3) \\to X_4 \\to Y"
+msgstr "X_1 \\to (X_2, X_3) \\to X_4 \\to Y"
 
 #: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490016
 #: 6b1a400790d84b22a269a2a21981d437
@@ -854,16 +852,9 @@ msgid ""
 "\\times\\;\n"
 "\\text{(sensitivity of } Y \\text{ to } X_4).\n"
 msgstr ""
-"msgid: \\text{Total effect of } X_1 \\text{ on } Y\n"
-"\\;\\propto\\;\n"
-"\\text{(effect of } X_1 \\text{ on } X_4)\\;\n"
-"\\times\\;\n"
-"\\text{(sensitivity of } Y \\text{ to } X_4).\n"
-"msgstr: \\text{Total effect of } X_1 \\text{ on } Y\n"
-"\\;\\propto\\;\n"
-"\\text{(effect of } X_1 \\text{ on } X_4)\\;\n"
-"\\times\\;\n"
-"\\text{(sensitivity of } Y \\text{ to } X_4)."
+"\\text{Total effect of } X_1 \\text{ on } Y \\;\\propto\\; \\text{(effect of"
+" } X_1 \\text{ on } X_4)\\; \\times\\; \\text{(sensitivity of } Y \\text{ to"
+" } X_4)."
 
 #: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490028
 #: 3476615ebac84f64a2e6f4361e923a96
@@ -1365,8 +1356,8 @@ msgstr ""
 #: ef5a1bae67f743e3be13026d837d126b
 msgid "Let's plot the recovered effect against the true effect, side‑by‑side."
 msgstr ""
-"msgid: Let's plot the recovered effect against the true effect, side‑by‑side.  \n"
-"msgstr: Vamos a graficar el efecto recuperado contra el efecto verdadero, uno al lado del otro."
+"Vamos a trazar el efecto recuperado frente al efecto verdadero, uno al lado "
+"del otro."
 
 #: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:720002
 #: 8c4f975942b94af290bc7cdb5e816fde

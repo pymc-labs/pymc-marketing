@@ -28,9 +28,7 @@ msgstr "ShiftedBetaGeoModel.table"
 #: c62031711c1d4be196423f133805d516 of
 #: pymc_marketing.model_builder.ModelBuilder.table:2
 msgid "Get the summary table of the model."
-msgstr ""
-"msgid: Get the summary table of the model.  \n"
-"msgstr: Obtenga la tabla resumen del modelo."
+msgstr "Obtenga la tabla resumen del modelo."
 
 #: a75000097fc846e6abbeea0adb6f5fb3 of
 #: pymc_marketing.model_builder.ModelBuilder.table
@@ -62,6 +60,4 @@ msgstr ":obj:`rich.table.Table`"
 #: 877690b17dd245e2951252cfd79b07f9 of
 #: pymc_marketing.model_builder.ModelBuilder.table:15
 msgid "A rich table containing the summary of the model."
-msgstr ""
-"msgid: A rich table containing the summary of the model.  \n"
-"msgstr: Una tabla rica que contiene el resumen del modelo."
+msgstr "Una tabla rica que contiene el resumen del modelo."

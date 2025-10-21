@@ -279,9 +279,7 @@ msgstr ""
 #: ../source/notebooks/general/prior_predictive.ipynb:10066
 #: c9240c3f0eb24af0926a9f203cf0d02c
 msgid "**A/B Testing**:"
-msgstr ""
-"msgid: **A/B Testing**  \n"
-"msgstr: **Pruebas A/B**"
+msgstr "**Pruebas A/B**:"
 
 #: ../source/notebooks/general/prior_predictive.ipynb:10067
 #: 86db3b41a8414d878eb2ff52c9ba07cd

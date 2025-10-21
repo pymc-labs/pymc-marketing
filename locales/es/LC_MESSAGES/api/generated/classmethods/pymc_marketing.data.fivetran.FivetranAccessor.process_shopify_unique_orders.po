@@ -101,9 +101,7 @@ msgstr "Columna de identificador de pedido único."
 #: 4f2edf108ca845bba3270ade7b6f957c of
 #: pymc_marketing.data.fivetran.process_fivetran_shopify_unique_orders:19
 msgid "**rename_date_to** : :class:`python:str`, default \"date\""
-msgstr ""
-"msgid: **rename_date_to** : :class:`python:str`, default \"date\"  \n"
-"msgstr: **rename_date_to** : :class:`python:str`, predeterminado \"date\""
+msgstr "**rename_date_to** : :class:`python:str`, predeterminado \"date\""
 
 #: 9812820931e242efb7262983d33c1d2c of
 #: pymc_marketing.data.fivetran.process_fivetran_shopify_unique_orders:18

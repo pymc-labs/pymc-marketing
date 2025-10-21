@@ -23,9 +23,7 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.basic.CLVModel.idata_to_init_kwargs.rst:2
 #: 464b3300e80a458ab5867c47a87ff8d0
 msgid "CLVModel.idata\\_to\\_init\\_kwargs"
-msgstr ""
-"msgid: CLVModel.idata\\_to\\_init\\_kwargs  \n"
-"msgstr: CLVModel.idata\\_to\\_init\\_kwargs"
+msgstr "CLVModel.idata\\_to\\_init\\_kwargs"
 
 #: c1f33769f68b4bb59e0ca805b1e98704 of
 #: pymc_marketing.clv.models.basic.CLVModel.idata_to_init_kwargs:2

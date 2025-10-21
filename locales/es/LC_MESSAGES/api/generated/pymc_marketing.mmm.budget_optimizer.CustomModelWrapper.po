@@ -82,9 +82,7 @@ msgstr ""
 #: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:45:<autosummary>:1
 #: aa2d701ad6ea44059209e37bfdca8fa8
 msgid "Returns a copy of the model."
-msgstr ""
-"msgid: Returns a copy of the model.  \n"
-"msgstr: Devuelve una copia del modelo."
+msgstr "Devuelve una copia del modelo."
 
 #: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.rst:45:<autosummary>:1
 #: 64d0ded7ccef420abe457108872588ea

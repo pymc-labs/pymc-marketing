@@ -27,9 +27,7 @@ msgstr "CustomModelWrapper.copy"
 
 #: 34a99088db4846c0a22f4d2633de7152 of pydantic.main.BaseModel.copy:2
 msgid "Returns a copy of the model."
-msgstr ""
-"msgid: Returns a copy of the model.  \n"
-"msgstr: Devuelve una copia del modelo."
+msgstr "Devuelve una copia del modelo."
 
 #: 84de23bdf627420aa616992eaebf1758 of pydantic.main.BaseModel.copy:4
 msgid "!!! warning \"Deprecated\""
@@ -53,8 +51,8 @@ msgid ""
 "self.model_dump(include=include, exclude=exclude, round_trip=True) data = "
 "{**data, **(update or {})} copied = self.model_validate(data) ```"
 msgstr ""
-"msgid: ```python {test=\"skip\" lint=\"skip\"} data = self.model_dump(include=include, exclude=exclude, round_trip=True) data = {**data, **(update or {})} copied = self.model_validate(data) ```\n"
-"msgstr: ```python {test=\"skip\" lint=\"skip\"} data = self.model_dump(include=include, exclude=exclude, round_trip=True) data = {**data, **(update or {})} copied = self.model_validate(data) ```"
+"data = self.model_dump(include=include, exclude=exclude, round_trip=True) "
+"data = {**data, **(update or {})} copied = self.model_validate(data)"
 
 #: aa702a1a59344f5a9a983d69a242db2c of pydantic.main.BaseModel.copy:15
 msgid "Args:"

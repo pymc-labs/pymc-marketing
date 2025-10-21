@@ -23,9 +23,7 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.idata_to_init_kwargs.rst:2
 #: f48b267cb42948d4bfd2a169fba5e4fa
 msgid "ParetoNBDModel.idata\\_to\\_init\\_kwargs"
-msgstr ""
-"msgid: ParetoNBDModel.idata\\_to\\_init\\_kwargs  \n"
-"msgstr: ParetoNBDModel.idata\\_to\\_init\\_kwargs"
+msgstr "ParetoNBDModel.idata\\_to\\_init\\_kwargs"
 
 #: 6c2a1d9a69b4408d9d4e2a00eee76f8a of
 #: pymc_marketing.clv.models.basic.CLVModel.idata_to_init_kwargs:2

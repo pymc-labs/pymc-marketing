@@ -87,6 +87,4 @@ msgstr ""
 #: bb7716f096a64e1f86ae297b36e00226 of
 #: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_purchases_new_customer:32
 msgid "[R53a3f7142a27-1]_"
-msgstr ""
-"msgid: [R53a3f7142a27-1]  \n"
-"msgstr: [R53a3f7142a27-1]"
+msgstr "[R53a3f7142a27-1]_"

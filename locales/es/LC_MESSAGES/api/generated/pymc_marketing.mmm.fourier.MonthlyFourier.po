@@ -567,8 +567,8 @@ msgid ""
 ":py:obj:`MonthlyFourier.to_dict "
 "<pymc_marketing.mmm.fourier.MonthlyFourier.to_dict>`\\ \\(\\)"
 msgstr ""
-"msgid: :py:obj:`MonthlyFourier.to_dict <pymc_marketing.mmm.fourier.MonthlyFourier.to_dict>`\\ \\(\\)  \n"
-"msgstr: :py:obj:`MonthlyFourier.to_dict <pymc_marketing.mmm.fourier.MonthlyFourier.to_dict>`\\ \\(\\)"
+":py:obj:`MonthlyFourier.to_dict "
+"<pymc_marketing.mmm.fourier.MonthlyFourier.to_dict>`\\ \\(\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.fourier.MonthlyFourier.rst:55:<autosummary>:1
 #: bc97ec4353cd47c2b1dfb8c9766f77f3
@@ -684,8 +684,8 @@ msgid ""
 ":py:obj:`days_in_period "
 "<pymc_marketing.mmm.fourier.MonthlyFourier.days_in_period>`\\"
 msgstr ""
-"msgid: :py:obj:`days_in_period <pymc_marketing.mmm.fourier.MonthlyFourier.days_in_period>`  \n"
-"msgstr: :py:obj:`days_in_period <pymc_marketing.mmm.fourier.MonthlyFourier.days_in_period>`"
+":py:obj:`días_en_periodo "
+"<pymc_marketing.mmm.fourier.MonthlyFourier.días_en_periodo>`"
 
 #: ../source/api/generated/pymc_marketing.mmm.fourier.MonthlyFourier.rst:70:<autosummary>:1
 #: 262f9eaab7f24215b8a5f6a576cd365e

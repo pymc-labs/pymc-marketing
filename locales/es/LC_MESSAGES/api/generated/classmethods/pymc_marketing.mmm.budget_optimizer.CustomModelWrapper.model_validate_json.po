@@ -74,8 +74,10 @@ msgid ""
 "Whether to use the field's name when validating against the provided input "
 "data."
 msgstr ""
-"msgid: context: Extra variables to pass to the validator. by_alias: Whether to use the field's alias when validating against the provided input data. by_name: Whether to use the field's name when validating against the provided input data.\n"
-"msgstr: contexto: Variables adicionales para pasar al validador. by_alias: Si se debe utilizar el alias del campo al validar contra los datos de entrada proporcionados. by_name: Si se debe utilizar el nombre del campo al validar contra los datos de entrada proporcionados."
+"contexto: Variables adicionales para pasar al validador. by_alias: Si se "
+"debe usar el alias del campo al validar contra los datos de entrada "
+"proporcionados. by_name: Si se debe usar el nombre del campo al validar "
+"contra los datos de entrada proporcionados."
 
 #: bda4aeddab4f4d6d9ed3aeed59bb4772 of
 #: pydantic.main.BaseModel.model_validate_json:16

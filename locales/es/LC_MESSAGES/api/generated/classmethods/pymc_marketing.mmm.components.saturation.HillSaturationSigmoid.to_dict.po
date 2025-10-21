@@ -23,9 +23,7 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.components.saturation.HillSaturationSigmoid.to_dict.rst:2
 #: cb92e7a1705346daa44011d24c9bf66f
 msgid "HillSaturationSigmoid.to\\_dict"
-msgstr ""
-"msgid: HillSaturationSigmoid.to\\_dict  \n"
-"msgstr: HillSaturationSigmoid.to\\_dict"
+msgstr "HillSaturationSigmoid.to\\_dict"
 
 #: 1d6f89b388604363ac9427dd3ccb8d4b of
 #: pymc_marketing.mmm.components.base.Transformation.to_dict:2
