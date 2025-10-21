@@ -1,0 +1,1110 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10003
+#: 54184626209047c19b66dd55f4cb39cb
+msgid "Introduction to the Bass Diffusion Model"
+msgstr "Introducción al Modelo de Difusión de Bass"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10005
+#: f724f8780d294649bfeec906c4049188
+msgid "What is the Bass Model?"
+msgstr "¿Qué es el Modelo de Bass?"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10007
+#: f169af7f099743d7bc37756da7253275
+msgid ""
+"The Bass diffusion model, developed by Frank Bass in 1969, is a mathematical"
+" model that describes how new products get adopted in a population over "
+"time. It's widely used in marketing to forecast sales of new products, "
+"especially when historical data is limited or non-existent."
+msgstr ""
+"El modelo de difusión de Bass, desarrollado por Frank Bass en 1969, es un "
+"modelo matemático que describe cómo los nuevos productos son adoptados en "
+"una población a lo largo del tiempo. Se utiliza ampliamente en marketing "
+"para prever las ventas de nuevos productos, especialmente cuando los datos "
+"históricos son limitados o inexistentes."
+
+#: ../source/notebooks/bass/bass_example.ipynb:10009
+#: 8af59fde7e1449cf9c52dfc18b129879
+msgid ""
+"The model captures the entire lifecycle of product adoption, from "
+"introduction to saturation, making it a powerful tool for product planning "
+"and marketing strategy development."
+msgstr ""
+"El modelo captura todo el ciclo de vida de la adopción del producto, desde "
+"la introducción hasta la saturación, convirtiéndolo en una herramienta "
+"poderosa para la planificación de productos y el desarrollo de estrategias "
+"de marketing."
+
+#: ../source/notebooks/bass/bass_example.ipynb:10011
+#: d7b8b0d74d85411bb99af447e2bd11e5
+msgid "The Motivation Behind the Bass Model"
+msgstr "La motivación detrás del modelo Bass"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10013
+#: 3cddbe46ba3c481da7160eee66fa4934
+msgid ""
+"Before the Bass model, companies struggled to predict the adoption patterns "
+"of new products. Traditional forecasting methods often failed because they "
+"couldn't account for the social dynamics that drive product adoption. Frank "
+"Bass recognized that product adoption follows a distinct pattern:"
+msgstr ""
+"Antes del modelo de Bass, las empresas luchaban por predecir los patrones de"
+" adopción de nuevos productos. Los métodos de pronóstico tradicionales a "
+"menudo fallaban porque no podían tener en cuenta las dinámicas sociales que "
+"impulsan la adopción de productos. Frank Bass reconoció que la adopción de "
+"productos sigue un patrón distinto:"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10015
+#: 6ce075bfede541b9a7c5332f2d94b4e8
+msgid ""
+"**Initial slow growth**: When a product first launches, adoption starts "
+"slowly"
+msgstr ""
+"**Crecimiento inicial lento**: Cuando un producto se lanza por primera vez, "
+"la adopción comienza lentamente."
+
+#: ../source/notebooks/bass/bass_example.ipynb:10016
+#: 07f1565bebc744fca6231acdc4633d4d
+msgid ""
+"**Rapid acceleration**: As more people adopt, word-of-mouth spreads and "
+"adoption accelerates"
+msgstr ""
+"**Aceleración rápida**: A medida que más personas adoptan, el boca a boca se"
+" difunde y la adopción se acelera."
+
+#: ../source/notebooks/bass/bass_example.ipynb:10017
+#: 6511d28e907c47c0890e63acbd837ba9
+msgid ""
+"**Eventual saturation**: Eventually, the market becomes saturated and "
+"adoption slows down"
+msgstr ""
+"**Saturación eventual**: Eventualmente, el mercado se satura y la adopción "
+"se ralentiza."
+
+#: ../source/notebooks/bass/bass_example.ipynb:10019
+#: c9ec301cbfd34e15ae749967a62bbcd1
+msgid ""
+"The Bass model provides a mathematical framework to capture these patterns, "
+"enabling businesses to make more informed decisions about production "
+"planning, inventory management, and marketing resource allocation."
+msgstr ""
+"El modelo de Bass proporciona un marco matemático para capturar estos "
+"patrones, lo que permite a las empresas tomar decisiones más informadas "
+"sobre la planificación de la producción, la gestión de inventarios y la "
+"asignación de recursos de marketing."
+
+#: ../source/notebooks/bass/bass_example.ipynb:10021
+#: 03e28917a49f4cd9ad456df623d7e30f
+msgid "Mathematical Formulation"
+msgstr "Formulación Matemática"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10023
+#: da59db61d5724b149439186a1b9810e6
+msgid ""
+"The Bass model is based on a differential equation that describes the rate "
+"of adoption:"
+msgstr ""
+"El modelo de Bass se basa en una ecuación diferencial que describe la tasa "
+"de adopción:"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10025
+#: 72f8d008efa74bbf8f306dadafa36366
+#, python-brace-format
+msgid "\\frac{f(t)}{1-F(t)} = p + q F(t)"
+msgstr "\\frac{f(t)}{1-F(t)} = p + q F(t)"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10027
+#: 02aa39f1e4284aebb6eb85aed9eb4359
+msgid "Where:"
+msgstr "Dónde:"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10029
+#: 124797dbc7284bb1b492d3001978d990
+msgid ""
+"$F(t)$ is the installed base fraction (cumulative proportion of adopters)"
+msgstr ""
+"$F(t)$ es la fracción de base instalada (proporción acumulativa de "
+"adoptantes)"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10030
+#: 4809938b3fa3452a81f3728307c8b655
+msgid ""
+"$f(t)$ is the rate of change of the installed base fraction ($f(t) = F'(t)$)"
+msgstr ""
+"$f(t)$ es la tasa de cambio de la fracción de la base instalada ($f(t) = "
+"F'(t)$)"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10031
+#: 1aaf6c2059a14f42a4c83f06b1676097
+msgid "$p$ is the coefficient of innovation or external influence"
+msgstr "$p$ es el coeficiente de innovación o influencia externa"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10032
+#: 7d8a792738954d72873231b7f4db6fc6
+msgid "$q$ is the coefficient of imitation or internal influence"
+msgstr "$q$ es el coeficiente de imitación o influencia interna"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10034
+#: 8cdfb19a56734a6d8bcfa89b9ab8d503
+msgid "The solution to this equation gives the adoption curve:"
+msgstr "La solución a esta ecuación proporciona la curva de adopción:"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10036
+#: 9ae7b294088145d88a589b34ff9835c7
+msgid "F(t) = \\frac{1 - e^{-(p+q)t}}{1 + (\\frac{q}{p})e^{-(p+q)t}}"
+msgstr "F(t) = \\frac{1 - e^{-(p+q)t}}{1 + (\\frac{q}{p})e^{-(p+q)t}}"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10038
+#: 207609fff92848d7bb4de372b8835c09
+msgid "The adoption rate at time $t$ is given by:"
+msgstr "La tasa de adopción en el tiempo $t$ se da por:"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10040
+#: b12054652b16478bbadae539384b9fbd
+msgid "f(t) = (p + q F(t))(1 - F(t))"
+msgstr "f(t) = (p + q F(t))(1 - F(t))"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10042
+#: 3dcc7c47a9ce454aa67ac80bd105da44
+msgid "Alternatively, this can be written as:"
+msgstr "Alternativamente, esto se puede escribir como:"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10044
+#: 925e9a14ab6342f4be953039493b208c
+msgid ""
+"f(t) = \\frac{(p+q)^2 \\cdot e^{-(p+q)t}}{p \\cdot "
+"(1+\\frac{q}{p}e^{-(p+q)t})^2}"
+msgstr ""
+"f(t) = \\frac{(p+q)^2 \\cdot e^{-(p+q)t}}{p \\cdot "
+"(1+\\frac{q}{p}e^{-(p+q)t})^2}"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10046
+#: 9a3ed7a293c34c6d8a34557ae7895aa4
+msgid "Key Components of the Bass Model Implementation"
+msgstr "Componentes Clave de la Implementación del Modelo Bass"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10048
+#: a9664c47a7fd4f3a97e535e22d093869
+msgid ""
+"The Bass model implementation in PyMC-Marketing consists of several key "
+"components:"
+msgstr ""
+"La implementación del modelo Bass en PyMC-Marketing consiste en varios "
+"componentes clave:"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10050
+#: d32e280a59a64166846ff219650017b8
+msgid "**Adopters** - The number of new adoptions at time $t$:"
+msgstr "**Adoptantes** - El número de nuevas adopciones en el momento $t$:"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10052
+#: cd06494cf1c14b03af2240bab338d47a
+#, python-brace-format
+msgid "\\text{adopters}(t) = m \\cdot f(p, q, t)"
+msgstr "\\text{adopters}(t) = m \\cdot f(p, q, t)"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10054
+#: eb0d8988039f43579c3fdf1d85937d45
+msgid ""
+"**Innovators** - Adoptions driven by external influence (advertising, etc.):"
+msgstr ""
+"**Innovadores** - Adopciones impulsadas por influencia externa (publicidad, "
+"etc.):"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10056
+#: aa65ee78fffb4f319b912ff0fd27277c
+#, python-brace-format
+msgid "\\text{innovators}(t) = m \\cdot p \\cdot (1 - F(p, q, t))"
+msgstr "\\text{innovators}(t) = m \\cdot p \\cdot (1 - F(p, q, t))"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10058
+#: 5eb251f6325b4703a530ad457c0aee0b
+msgid ""
+"**Imitators** - Adoptions driven by internal influence (word-of-mouth):"
+msgstr ""
+"**Imitadores** - Adopciones impulsadas por influencia interna (boca a boca):"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10060
+#: 5bfb0fb3e67a4379b7e47900646083bd
+#, python-brace-format
+msgid "\\text{imitators}(t) = m \\cdot q \\cdot F(p, q, t) \\cdot (1 - F(p, q, t))"
+msgstr "\\text{imitators}(t) = m \\cdot q \\cdot F(p, q, t) \\cdot (1 - F(p, q, t))"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10062
+#: 1035e4ed65d04588a107619c720e6c9e
+msgid "**Peak Adoption Time** - When the adoption rate reaches its maximum:"
+msgstr ""
+"**Hora de Adopción Máxima** - Cuando la tasa de adopción alcanza su máximo:"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10064
+#: 3ecd48655f134ec9962acfe73f278e56
+#, python-brace-format
+msgid "\\text{peak} = \\frac{\\ln(q) - \\ln(p)}{p + q}"
+msgstr "\\text{peak} = \\frac{\\ln(q) - \\ln(p)}{p + q}"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10066
+#: cd84eeeb1a5e4f4b86d9f0792a092f42
+#, python-brace-format
+msgid ""
+"The total number of adopters over time is the sum of innovators and "
+"imitators, which equals $\\text{adopters}(t)$. All of these components are "
+"directly implemented in the PyMC model, allowing us to analyze each aspect "
+"of the diffusion process separately."
+msgstr ""
+"El número total de adoptantes a lo largo del tiempo es la suma de "
+"innovadores e imitadores, lo que equivale a $\\text{adopters}(t)$. Todos "
+"estos componentes están implementados directamente en el modelo de PyMC, lo "
+"que nos permite analizar cada aspecto del proceso de difusión por separado."
+
+#: ../source/notebooks/bass/bass_example.ipynb:10068
+#: 65f671bcd433499a809bb3f3792b5b3b
+msgid "Understanding the Relationship Between Components"
+msgstr "Comprendiendo la Relación Entre los Componentes"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10070
+#: 5dd7195b86ae459ebee9f74ef0150f42
+msgid ""
+"A key insight of the Bass model is how it decomposes adoption into two "
+"sources:"
+msgstr ""
+"Una idea clave del modelo de Bass es cómo descompone la adopción en dos "
+"fuentes:"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10072
+#: 1601068fbeaa4fe4a28da20ce674dddd
+#, python-brace-format
+msgid "\\text{adopters}(t) = \\text{innovators}(t) + \\text{imitators}(t)"
+msgstr "\\text{adopters}(t) = \\text{innovators}(t) + \\text{imitators}(t)"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10074
+#: 6ab50b735cdc491587527ab6e308dc24
+msgid "At each time point:"
+msgstr "En cada punto temporal:"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10076
+#: 699312fd6e594092ad5f8e4de99e7b9b
+msgid ""
+"**Innovators** ($m \\cdot p \\cdot (1 - F(t))$) represents new adoptions "
+"coming from people who are influenced by external factors like advertising"
+msgstr ""
+"**Innovadores** ($m \\cdot p \\cdot (1 - F(t))$) representa nuevas "
+"adopciones provenientes de personas que están influenciadas por factores "
+"externos como la publicidad."
+
+#: ../source/notebooks/bass/bass_example.ipynb:10077
+#: 5fbf4101f3c244ad9f8e4c96e89478f3
+msgid ""
+"**Imitators** ($m \\cdot q \\cdot F(t) \\cdot (1 - F(t))$) represents new "
+"adoptions coming from people who are influenced by previous adopters"
+msgstr ""
+"**Imitadores** ($m \\cdot q \\cdot F(t) \\cdot (1 - F(t))$) representa las "
+"nuevas adopciones que provienen de personas que están influenciadas por los "
+"adoptantes anteriores."
+
+#: ../source/notebooks/bass/bass_example.ipynb:10079
+#: 1584b7ed16da4e93907033ba78d817ee
+msgid "As time progresses:"
+msgstr "A medida que avanza el tiempo:"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10081
+#: 5850ed8535894d88b35ea12d1a80e850
+msgid ""
+"Initially, **innovators** dominate the adoption process when few people have"
+" adopted ($F(t)$ is small)"
+msgstr ""
+"Inicialmente, **los innovadores** dominan el proceso de adopción cuando "
+"pocas personas han adoptado ($F(t)$ es pequeño)"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10082
+#: b79f86c79f6347fcb9e836487783b594
+msgid ""
+"Later, **imitators** become the primary source of new adoptions as the word-"
+"of-mouth effect grows"
+msgstr ""
+"Más tarde, los **imitadores** se convierten en la fuente principal de nuevas"
+" adopciones a medida que crece el efecto de boca a boca."
+
+#: ../source/notebooks/bass/bass_example.ipynb:10083
+#: cca8dd6c931e487f825f8d6a378cffdc
+msgid ""
+"Eventually, both decrease as the market approaches saturation ($F(t)$ "
+"approaches 1)"
+msgstr ""
+"Eventualmente, ambos disminuyen a medida que el mercado se acerca a la "
+"saturación ($F(t)$ se aproxima a 1)"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10085
+#: 87e3c3e371bf43b8875f79ecc32fa6a4
+msgid "The **cumulative adoption** at any time point is:"
+msgstr "La **adopción acumulativa** en cualquier momento es:"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10087
+#: 311c4411f52c416d8588df9565b4e5a1
+#, python-brace-format
+msgid "\\text{Cumulative Adoption}(t) = m \\cdot F(t)"
+msgstr "\\text{Cumulative Adoption}(t) = m \\cdot F(t)"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10089
+#: 407d33aa8e3c4d2488f32c18ee83d2f9
+msgid ""
+"This means that as $t \\to \\infty$, the cumulative adoption approaches the "
+"total market potential $m$:"
+msgstr ""
+"Esto significa que a medida que $t \\to \\infty$, la adopción acumulativa se"
+" aproxima al potencial total del mercado $m$:"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10091
+#: ab33e841a26c4344bebe4e791d1a3f0f
+#, python-brace-format
+msgid "\\lim_{t \\to \\infty} \\text{Cumulative Adoption}(t) = m"
+msgstr "\\lim_{t \\to \\infty} \\text{Cumulative Adoption}(t) = m"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10093
+#: 70bea935695644ada317c52b812563fa
+msgid ""
+"Therefore, the Bass model provides a complete accounting of the market:"
+msgstr ""
+"Por lo tanto, el modelo de Bass proporciona un análisis completo del "
+"mercado:"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10095
+#: 421bcf0459ab44c4acf768a4c68810ad
+msgid "At each time point, new adopters are either innovators or imitators"
+msgstr "En cada momento, los nuevos adoptantes son innovadores o imitadores."
+
+#: ../source/notebooks/bass/bass_example.ipynb:10096
+#: f4ca0fb099a040f5b7b76321c0666152
+msgid ""
+"Over the entire product lifecycle, all potential adopters (m) eventually "
+"adopt the product"
+msgstr ""
+"A lo largo de todo el ciclo de vida del producto, todos los posibles "
+"adoptantes (m) eventualmente adoptan el producto."
+
+#: ../source/notebooks/bass/bass_example.ipynb:10097
+#: 4df074c340464d65b1182d290c604ebb
+msgid ""
+"The model tracks both the adoption rate (new adopters per time period) and "
+"the cumulative adoption (total adopters to date)"
+msgstr ""
+"El modelo rastrea tanto la tasa de adopción (nuevos adoptantes por período "
+"de tiempo) como la adopción acumulativa (total de adoptantes hasta la "
+"fecha)."
+
+#: ../source/notebooks/bass/bass_example.ipynb:10099
+#: e84b190f7c7f48dea9dce3c0dc43bc82
+msgid ""
+"This structure enables marketers to understand not just how many people will"
+" adopt over time, but also the driving forces behind adoption at different "
+"stages of the product lifecycle."
+msgstr ""
+"Esta estructura permite a los comercializadores comprender no solo cuántas "
+"personas adoptarán a lo largo del tiempo, sino también las fuerzas "
+"impulsoras detrás de la adopción en diferentes etapas del ciclo de vida del "
+"producto."
+
+#: ../source/notebooks/bass/bass_example.ipynb:10101
+#: 0e58d11f08484ad087f9d4c2a1789136
+msgid "Understanding the Key Parameters"
+msgstr "Comprendiendo los Parámetros Clave"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10103
+#: d35769520a544d27abd232b44787b687
+msgid "The model has three main parameters:"
+msgstr "El modelo tiene tres parámetros principales:"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10105
+#: 1a559b25075e4e56823f57672fedce1d
+msgid ""
+"**Market potential (m)**: Total number of eventual adopters (the ultimate "
+"market size)"
+msgstr ""
+"**Potencial de mercado (m)**: Número total de adoptantes eventuales (el "
+"tamaño final del mercado)"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10106
+#: ../source/notebooks/bass/bass_example.ipynb:130004
+#: 9fb4c2736f4d4082861a0a8b835bbf03 ae8d9e6d33f8403280b336c6e4dd2b4c
+msgid ""
+"**Innovation coefficient (p)**: Measures external influence like advertising"
+" and media - typically $0.01-0.03$"
+msgstr ""
+"**Coeficiente de innovación (p)**: Mide la influencia externa como la "
+"publicidad y los medios - típicamente $0.01-0.03$"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10107
+#: ../source/notebooks/bass/bass_example.ipynb:130005
+#: d5f78aa59b654c43b9dc1292c46071fc e4af6ccd2e484433892d5bb091b16791
+msgid ""
+"**Imitation coefficient (q)**: Measures internal influence like word-of-"
+"mouth - typically $0.3-0.5$"
+msgstr ""
+"**Coeficiente de imitación (q)**: Mide la influencia interna como el boca a "
+"boca - típicamente $0.3-0.5$"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10109
+#: 8480c525fd16472ab95a16cd712249d2
+msgid "Parameter Interpretation"
+msgstr "Interpretación de Parámetros"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10111
+#: 50db0e7e54714cd398834e3d80e13278
+msgid ""
+"A higher **p** value indicates stronger external influence (advertising, "
+"marketing)"
+msgstr ""
+"Un valor **p** más alto indica una influencia externa más fuerte "
+"(publicidad, marketing)"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10112
+#: af62729e962f48ee835531050380d0c5
+msgid ""
+"A higher **q** value indicates stronger internal influence (word-of-mouth, "
+"social interactions)"
+msgstr ""
+"Un valor **q** más alto indica una influencia interna más fuerte (boca a "
+"boca, interacciones sociales)"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10113
+#: 7fe2143a97a44ae89edcf68d0e0cdeca
+msgid ""
+"The ratio **q/p** indicates the relative strength of internal vs. external "
+"influences"
+msgstr ""
+"La relación **q/p** indica la fuerza relativa de las influencias internas "
+"frente a las externas."
+
+#: ../source/notebooks/bass/bass_example.ipynb:10114
+#: a2fdc8fd5e8349e6bf0eee61d7c325ec
+msgid "The peak of adoption occurs at time"
+msgstr "El pico de adopción ocurre en el momento {like_this}."
+
+#: ../source/notebooks/bass/bass_example.ipynb:10116
+#: f72f7910a6cd46b3911a9d76f906f6e0
+#, python-brace-format
+msgid "t^* = \\frac{\\ln(q / p)}{p + q}"
+msgstr "t^* = \\frac{\\ln(q / p)}{p + q}"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10118
+#: abeb8bedd1ec4579852f3e58c589fcb8
+msgid "Innovators vs. Imitators"
+msgstr "Innovadores vs. Imitadores"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10120
+#: 00a0cf76a4ff474ab5e4d89613e12722
+msgid "The Bass model distinguishes between two types of adopters:"
+msgstr "El modelo de Bass distingue entre dos tipos de adoptantes:"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10122
+#: aa27f428b34c4267b2ba644f47935b7b
+msgid ""
+"**Innovators**: People who adopt independently of others' decisions, "
+"influenced mainly by mass media and external communications"
+msgstr ""
+"**Innovadores**: Personas que adoptan independientemente de las decisiones "
+"de otros, influenciadas principalmente por los medios de comunicación "
+"masivos y las comunicaciones externas."
+
+#: ../source/notebooks/bass/bass_example.ipynb:10123
+#: 8375810e8ab3420ebea4474cb715aee7
+#, python-brace-format
+msgid ""
+"Mathematically represented as: $\\text{innovators}(t) = m \\cdot p \\cdot (1"
+" - F(p, q, t))$"
+msgstr ""
+"Representado matemáticamente como: $\\text{innovators}(t) = m \\cdot p "
+"\\cdot (1 - F(p, q, t))$"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10125
+#: e96ff222f03b4313aac9d33987e7e67f
+msgid ""
+"**Imitators**: People who adopt because of social influence and word-of-"
+"mouth from previous adopters"
+msgstr ""
+"**Imitadores**: Personas que adoptan debido a la influencia social y el boca"
+" a boca de adoptantes anteriores."
+
+#: ../source/notebooks/bass/bass_example.ipynb:10126
+#: 3fcc8753ebb248b2ac91b858dfcc58b9
+#, python-brace-format
+msgid ""
+"Mathematically represented as: $\\text{imitators}(t) = m \\cdot q \\cdot "
+"F(p, q, t) \\cdot (1 - F(p, q, t))$"
+msgstr ""
+"Representado matemáticamente como: $\\text{imitators}(t) = m \\cdot q \\cdot"
+" F(p, q, t) \\cdot (1 - F(p, q, t))$"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10128
+#: e534c569e8fd41368793bc6a6a77bd74
+msgid "Real-World Applications"
+msgstr "Aplicaciones del mundo real"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10130
+#: ce2c5159250749f1a24f50dfb629ce58
+msgid ""
+"The Bass model has been successfully applied to forecast the adoption of "
+"various products and technologies:"
+msgstr ""
+"El modelo Bass se ha aplicado con éxito para predecir la adopción de "
+"diversos productos y tecnologías:"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10132
+#: 4e0287531ee24f399135310fbf27d41b
+msgid "**Consumer durables**: TVs, refrigerators, washing machines"
+msgstr ""
+"**Bienes de consumo duraderos**: televisores, refrigeradores, lavadoras"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10133
+#: bc95d47746f8430cb7519debaf4b0de0
+msgid "**Technology products**: Smartphones, computers, software"
+msgstr "**Productos tecnológicos**: Smartphones, computadoras, software"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10134
+#: c9bca96bb9a84d7a8841dc6129ea043c
+msgid "**Pharmaceutical products**: New drugs and treatments"
+msgstr "**Productos farmacéuticos**: Nuevos medicamentos y tratamientos"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10135
+#: 8ccf34d7b4054b09994514a2a7f0cf0d
+msgid "**Entertainment products**: Movies, games, streaming services"
+msgstr ""
+"**Productos de entretenimiento**: Películas, juegos, servicios de streaming"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10136
+#: 10db44da10e84ec7b21e4376e16931a7
+msgid "**Services and subscriptions**: Banking services, subscription plans"
+msgstr ""
+"**Servicios y suscripciones**: Servicios bancarios, planes de suscripción"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10138
+#: 89f6b6922c4a4e17ad932f1aae47625e
+msgid "Business Value: Why the Bass Model Matters to Executives and Marketers"
+msgstr ""
+"Valor Empresarial: Por qué el Modelo Bass es Importante para Ejecutivos y "
+"Marketers"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10140
+#: 726b1d96a15747cf85ea649c0b135359
+msgid ""
+"From a business perspective, the Bass diffusion model provides substantial "
+"competitive advantages and ROI benefits:"
+msgstr ""
+"Desde una perspectiva empresarial, el modelo de difusión de Bass proporciona"
+" ventajas competitivas sustanciales y beneficios de ROI:"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10142
+#: 3f0297647e3d47c98be1b1b115b59bff
+msgid "1. Resource Optimization and Cash Flow Management"
+msgstr "1. Optimización de Recursos y Gestión de Flujo de Efectivo"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10144
+#: 8c4ed0862ba84d0998596807da37d4c2
+msgid ""
+"**Production Planning**: Avoid costly overproduction or stockouts by "
+"accurately forecasting demand curves"
+msgstr ""
+"**Planificación de la Producción**: Evite la costosa sobreproducción o falta"
+" de stock al prever con precisión las curvas de demanda."
+
+#: ../source/notebooks/bass/bass_example.ipynb:10145
+#: ab2a1a8512614df8b4fddc1387f9dcde
+msgid ""
+"**Marketing Budget Allocation**: Optimize spending across the product "
+"lifecycle, investing more during key inflection points"
+msgstr ""
+"**Asignación del Presupuesto de Marketing**: Optimizar el gasto a lo largo "
+"del ciclo de vida del producto, invirtiendo más durante los puntos de "
+"inflexión clave."
+
+#: ../source/notebooks/bass/bass_example.ipynb:10146
+#: 5cb7a4583aef41b6af0f55dc0e2713ae
+msgid ""
+"**Supply Chain Efficiency**: Coordinate with suppliers and distributors "
+"based on predicted adoption rates"
+msgstr ""
+"**Eficiencia de la Cadena de Suministro**: Coordinar con proveedores y "
+"distribuidores en función de las tasas de adopción previstas."
+
+#: ../source/notebooks/bass/bass_example.ipynb:10147
+#: 93be31aa54c14b61a62311a0d29111c2
+msgid ""
+"**Cash Flow Optimization**: Better predict revenue streams, improving "
+"financial planning and investor relations"
+msgstr ""
+"**Optimización del Flujo de Efectivo**: Predecir mejor los flujos de "
+"ingresos, mejorando la planificación financiera y las relaciones con los "
+"inversores."
+
+#: ../source/notebooks/bass/bass_example.ipynb:10149
+#: 108cd8fe61964c30bd6075d19f73c9f7
+msgid "2. Strategic Decision Making"
+msgstr "2. Toma de Decisiones Estratégicas"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10151
+#: a667323d14b44d588c97645e67035986
+msgid ""
+"**Launch Timing**: Determine the optimal time to enter a market based on "
+"diffusion patterns"
+msgstr ""
+"**Tiempo de Lanzamiento**: Determine el momento óptimo para ingresar a un "
+"mercado basado en patrones de difusión."
+
+#: ../source/notebooks/bass/bass_example.ipynb:10152
+#: 616f48b405504e50ba9f867f8de68d4e
+msgid ""
+"**Pricing Strategy**: Implement dynamic pricing strategies aligned with the "
+"adoption curve"
+msgstr ""
+"**Estrategia de Precios**: Implementar estrategias de precios dinámicos "
+"alineadas con la curva de adopción"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10153
+#: 6df4eb245a5240c18f1b039faf5bd42f
+msgid ""
+"**Competitive Analysis**: Compare your product's adoption parameters with "
+"competitors to identify strengths and weaknesses"
+msgstr ""
+"**Análisis Competitivo**: Compare los parámetros de adopción de su producto "
+"con los de los competidores para identificar fortalezas y debilidades."
+
+#: ../source/notebooks/bass/bass_example.ipynb:10154
+#: 013ee4ecbb26457ca6053ec90435a520
+msgid ""
+"**Product Portfolio Management**: Make informed decisions about when to "
+"phase out older products and introduce new ones"
+msgstr ""
+"**Gestión del Portafolio de Productos**: Tome decisiones informadas sobre "
+"cuándo retirar productos antiguos e introducir nuevos."
+
+#: ../source/notebooks/bass/bass_example.ipynb:10156
+#: 0042d5ccefc543919dd28e3affa70a66
+msgid "3. Risk Mitigation"
+msgstr "3. Mitigación de Riesgos"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10158
+#: ee78840c4fcd4428bf5004dee94923c9
+msgid ""
+"**Scenario Planning**: Test different market assumptions and external "
+"factors through parameter variations"
+msgstr ""
+"**Planificación de Escenarios**: Pruebe diferentes supuestos de mercado y "
+"factores externos a través de variaciones de parámetros"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10159
+#: c37b2f6c65c14d59ba1454c15a95b693
+msgid ""
+"**Early Warning System**: Identify deviations from expected adoption curves "
+"early, enabling faster intervention"
+msgstr ""
+"**Sistema de Alerta Temprana**: Identificar desviaciones de las curvas de "
+"adopción esperadas de manera temprana, lo que permite una intervención más "
+"rápida."
+
+#: ../source/notebooks/bass/bass_example.ipynb:10160
+#: 8706dae14c884a60bab7434380b066ee
+msgid ""
+"**Investment Justification**: Provide data-driven forecasts to justify R&D "
+"and marketing investments to stakeholders"
+msgstr ""
+"**Justificación de la Inversión**: Proporcione pronósticos basados en datos "
+"para justificar las inversiones en I+D y marketing ante los interesados."
+
+#: ../source/notebooks/bass/bass_example.ipynb:10162
+#: 72c30300bc034a6aa48bc858839cf07b
+msgid "4. Performance Measurement"
+msgstr "4. Medición del rendimiento"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10164
+#: d84334ef6aef47e8a5e7e88ffcff5198
+msgid ""
+"**Marketing Effectiveness**: Measure the impact of marketing campaigns on "
+"the innovation coefficient (p)"
+msgstr ""
+"**Efectividad del Marketing**: Mida el impacto de las campañas de marketing "
+"en el coeficiente de innovación (p)"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10165
+#: ac25d1ea1e6b47128295bece566aba42
+msgid ""
+"**Word-of-Mouth Strength**: Quantify the power of your brand's social "
+"influence through the imitation coefficient (q)"
+msgstr ""
+"**Fuerza del Boca a Boca**: Cuantifique el poder de la influencia social de "
+"su marca a través del coeficiente de imitación (q)"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10166
+#: 1e9c3776646244cfa61290b168761f4f
+msgid ""
+"**Total Market Potential**: Validate or adjust your total addressable market"
+" estimates (m)"
+msgstr ""
+"**Potencial Total del Mercado**: Valide o ajuste sus estimaciones del "
+"mercado total direccionable (m)"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10168
+#: d1607129de3f42e5bab3ba7e055ce29b
+msgid ""
+"In today's data-driven business environment, companies that effectively "
+"utilize models like Bass diffusion gain a significant competitive edge "
+"through more precise forecasting, better resource allocation, and strategic "
+"market timing."
+msgstr ""
+"En el entorno empresarial actual impulsado por datos, las empresas que "
+"utilizan eficazmente modelos como la difusión de Bass obtienen una ventaja "
+"competitiva significativa a través de pronósticos más precisos, una mejor "
+"asignación de recursos y un momento estratégico en el mercado."
+
+#: ../source/notebooks/bass/bass_example.ipynb:10170
+#: e5fe4e2e420a42f88cda2ae84358d954
+msgid "Bayesian Extensions"
+msgstr "Extensiones Bayesianas"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10172
+#: f9c35465c0d5457fbe79b300ea5dff12
+msgid ""
+"In this notebook, we show how to generate simulated data from the Bass model"
+" and fit a Bayesian model to it. The Bayesian formulation  offers several "
+"advantages:"
+msgstr ""
+"En este cuaderno, mostramos cómo generar datos simulados a partir del modelo"
+" de Bass y ajustar un modelo bayesiano a estos. La formulación bayesiana "
+"ofrece varias ventajas:"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10174
+#: 9c04a1c1ab624b548349ffb29e99097a
+msgid ""
+"**Uncertainty quantification** through prior distributions on parameters"
+msgstr ""
+"**Cuantificación de la incertidumbre** a través de distribuciones a priori "
+"sobre parámetros"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10175
+#: 70169e60fb4a442b85f92321f230d3bc
+msgid "**Hierarchical modeling** for multiple products or markets"
+msgstr "**Modelado jerárquico** para múltiples productos o mercados"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10176
+#: cf8808d843d643e488ff75d1b30f14fb
+msgid "**Incorporation of expert knowledge** through informative priors"
+msgstr "Incorporación de conocimiento experto a través de priors informativos"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10177
+#: 198956df91eb433ebcff189adf784687
+msgid "**Full probability distributions** for future adoption forecasts"
+msgstr ""
+"**Distribuciones de probabilidad completas** para pronósticos de adopción "
+"futuros"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10179
+#: e47247d56be9443e91103e3ac4d8fed5
+msgid "What we'll do in this notebook"
+msgstr "Lo que haremos en este cuaderno"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10181
+#: ec0b20df170e47f49398b0dabddece62
+msgid "In this notebook, we'll:"
+msgstr "En este cuaderno, vamos a:"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10182
+#: 31a1878837c04c4088455c64a80baa08
+msgid "Set up parameters for a Bass model simulation"
+msgstr "Configurar parámetros para una simulación del modelo Bass"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10183
+#: e577d520d84a46b19f1461a889ce99d5
+msgid "Generate simulated adoption data for multiple products"
+msgstr "Generar datos de adopción simulados para múltiples productos"
+
+#: ../source/notebooks/bass/bass_example.ipynb:10184
+#: 033e6096588440eb92520c7d8c4246b5
+msgid "Fit the Bass model to our simulated data using PyMC"
+msgstr "Ajuste el modelo Bass a nuestros datos simulados utilizando PyMC."
+
+#: ../source/notebooks/bass/bass_example.ipynb:10185
+#: 7954d3b964ac41c6bacbc430fed385b5
+msgid "Visualize the adoption curves"
+msgstr "Visualizar las curvas de adopción"
+
+#: ../source/notebooks/bass/bass_example.ipynb:20002
+#: fbb3ac67af3841be8b4a179c3bc8e6ac
+msgid "Prepare Notebook"
+msgstr "Preparar el cuaderno"
+
+#: ../source/notebooks/bass/bass_example.ipynb:50002
+#: 8666dd5cd6f04c9e9765212f2cde3852
+msgid "Setting Up Simulation Parameters"
+msgstr "Configuración de los parámetros de simulación"
+
+#: ../source/notebooks/bass/bass_example.ipynb:50004
+#: da1f7406debd473f8577ca1f376ab59d
+msgid "First, we'll set up the parameters for our simulation. This includes:"
+msgstr ""
+"Primero, configuraremos los parámetros para nuestra simulación. Esto "
+"incluye:"
+
+#: ../source/notebooks/bass/bass_example.ipynb:50006
+#: 1c0e27f9179d4e0fa0f405614d7118e1
+msgid "The time period for our simulation (in weeks)"
+msgstr "El período de tiempo para nuestra simulación (en semanas)"
+
+#: ../source/notebooks/bass/bass_example.ipynb:50007
+#: 9f02a66db66e4992947cb7e1f28a95bb
+msgid "The number of products to simulate"
+msgstr "El número de productos a simular"
+
+#: ../source/notebooks/bass/bass_example.ipynb:50008
+#: ac7df582720e4949963c51f71c349251
+msgid "Start dates for the simulation period"
+msgstr "Fechas de inicio para el período de simulación"
+
+#: ../source/notebooks/bass/bass_example.ipynb:70002
+#: a401025b03dc4454ad7f7af3b5907b95
+msgid "Creating Prior Distributions"
+msgstr "Creando Distribuciones Previas"
+
+#: ../source/notebooks/bass/bass_example.ipynb:70004
+#: 6c021e15d6a347e9be80b6da977144f8
+msgid ""
+"For our Bayesian Bass model, we need to specify prior distributions for the "
+"key parameters:"
+msgstr ""
+"Para nuestro modelo de Bass bayesiano, necesitamos especificar "
+"distribuciones a priori para los parámetros clave:"
+
+#: ../source/notebooks/bass/bass_example.ipynb:70006
+#: 137900739b1242fc98d94387f1a56272
+msgid ""
+"**m (market potential)**: How many units can potentially be sold in total"
+msgstr ""
+"**m (potencial de mercado)**: Cuántas unidades se pueden vender "
+"potencialmente en total"
+
+#: ../source/notebooks/bass/bass_example.ipynb:70007
+#: c87e0e42c4e94d2fa7aedd94ec2e7719
+msgid ""
+"**p (innovation coefficient)**: Rate of adoption from external influences"
+msgstr ""
+"**p (coeficiente de innovación)**: Tasa de adopción de influencias externas"
+
+#: ../source/notebooks/bass/bass_example.ipynb:70008
+#: 6257598c78bb4804a749e05a6b0b6072
+msgid ""
+"**q (imitation coefficient)**: Rate of adoption from internal/social "
+"influences"
+msgstr ""
+"**q (coeficiente de imitación)**: Tasa de adopción a partir de influencias "
+"internas/sociales"
+
+#: ../source/notebooks/bass/bass_example.ipynb:70009
+#: 1c03e2bcadfb4b18ae9abf11b40b06d3
+msgid ""
+"**likelihood**: The probability distribution that models the observed "
+"adoption data"
+msgstr ""
+"**probabilidad**: La distribución de probabilidad que modela los datos de "
+"adopción observados"
+
+#: ../source/notebooks/bass/bass_example.ipynb:80002
+#: 1b70a17134fe424fb6ba1cf850de620a
+msgid ""
+"For the market potential `m` we use a *scaling* trick to specify a scale-"
+"free prior and then add a global factor:"
+msgstr ""
+"Para el potencial de mercado `m`, utilizamos un truco de *escalado* para "
+"especificar un prior sin escala y luego añadimos un factor global:"
+
+#: ../source/notebooks/bass/bass_example.ipynb:100002
+#: 44d68c3ad9004e6893b7cd1e7734e76d
+msgid "Let's generate and visualize the priors."
+msgstr "Generemos y visualicemos los priors."
+
+#: ../source/notebooks/bass/bass_example.ipynb:130002
+#: fbd7c6604b74467f83d31e57cf09588a
+msgid ""
+"Observe we have chosen the priors within the usual ranges of empirical "
+"studies:"
+msgstr ""
+"Observe que hemos elegido los priors dentro de los rangos habituales de los "
+"estudios empíricos:"
+
+#: ../source/notebooks/bass/bass_example.ipynb:140002
+#: b8d3a8886a1d42588e1c0eec49bf3bda
+msgid "Generate Synthetic Data"
+msgstr "Generar Datos Sintéticos"
+
+#: ../source/notebooks/bass/bass_example.ipynb:140004
+#: fdf96f18c038431fa65bed7f33458677
+msgid ""
+"With the generative Bass model, we can generate a synthetic dataset by "
+"sampling from the prior and choosing one particular sample to use as "
+"*observed* data. For this purpose we define two auxiliary functions."
+msgstr ""
+"Con el modelo generativo Bass, podemos generar un conjunto de datos "
+"sintético muestreando del previo y eligiendo una muestra particular para "
+"usar como datos *observados*. Para este propósito, definimos dos funciones "
+"auxiliares."
+
+#: ../source/notebooks/bass/bass_example.ipynb:160002
+#: 78e48f5f96144f318f4910225952769f
+msgid "Now we can generate the observed data:"
+msgstr "Ahora podemos generar los datos observados:"
+
+#: ../source/notebooks/bass/bass_example.ipynb:180002
+#: f444b7f20aaf41f89c8d7f28f61d66c7
+msgid "The `actual_data` data frame has the typical format of a real dataset."
+msgstr ""
+"El marco de datos `actual_data` tiene el formato típico de un conjunto de "
+"datos real."
+
+#: ../source/notebooks/bass/bass_example.ipynb:200002
+#: f29fcbc042df46728c3b4e641de71216
+msgid ""
+"On the other hand, the `bass_data` has the same data as arrays indexed by "
+"time (relative) and product."
+msgstr ""
+"Por otro lado, los `bass_data` tienen los mismos datos que los arreglos "
+"indexados por tiempo (relativo) y producto."
+
+#: ../source/notebooks/bass/bass_example.ipynb:200004
+#: 438263c4deab4ea9b0702781a276a86e
+msgid "Let's visualize both."
+msgstr "Visualicemos ambos."
+
+#: ../source/notebooks/bass/bass_example.ipynb:220002
+#: a95c096ac6d845c2b8a0a28513a0eda6
+msgid "Fit the Model"
+msgstr "Ajustar el Modelo"
+
+#: ../source/notebooks/bass/bass_example.ipynb:220004
+#: 4fda60c37b50491781316eef63391510
+msgid ""
+"We are now ready to fit the model and generate the posterior predictive "
+"distributions."
+msgstr ""
+"Ahora estamos listos para ajustar el modelo y generar las distribuciones "
+"predictivas posteriores."
+
+#: ../source/notebooks/bass/bass_example.ipynb:240002
+#: 376567a828a440a1be7041f56f21ccde
+msgid ""
+"We do not have any divergences. Let's look at the summary of the parameters."
+msgstr "No tenemos ninguna divergencia. Veamos el resumen de los parámetros."
+
+#: ../source/notebooks/bass/bass_example.ipynb:270002
+#: 18a7b06f3e494839b30243e4511c44bc
+msgid "Overall, the diagnostics and trace look good."
+msgstr "En general, los diagnósticos y el seguimiento se ven bien."
+
+#: ../source/notebooks/bass/bass_example.ipynb:280002
+#: 947b10914a414b35914bfec083866471
+msgid "Next, we look into the posterior distributions of the parameters."
+msgstr ""
+"A continuación, examinamos las distribuciones posteriores de los parámetros."
+
+#: ../source/notebooks/bass/bass_example.ipynb:310002
+#: c36048f8a30741a4a5bed7ae18097d8c
+msgid ""
+"We do see some heterogeneity in the parameters, but overall they are "
+"centered around the true values (from the generative model)."
+msgstr ""
+"Observamos cierta heterogeneidad en los parámetros, pero en general están "
+"centrados en los valores verdaderos (del modelo generativo)."
+
+#: ../source/notebooks/bass/bass_example.ipynb:320002
+#: 08f13283a9d543c7a413202bc9936213
+msgid "Examining Posterior Predictions for Specific Products"
+msgstr "Examinando las Predicciones Posteriores para Productos Específicos"
+
+#: ../source/notebooks/bass/bass_example.ipynb:320004
+#: 671f756e55dd44e89ab077e497da84ce
+msgid ""
+"Let's look at the posterior predictive distributions  to see how well our "
+"model captures the simulated data."
+msgstr ""
+"Veamos las distribuciones predictivas posteriores para ver qué tan bien "
+"nuestro modelo captura los datos simulados."
+
+#: ../source/notebooks/bass/bass_example.ipynb:360002
+#: 80f7c4b176724e7094bd0655a33c245a
+msgid "Overall, the model does a good job of capturing the data."
+msgstr "En general, el modelo hace un buen trabajo al capturar los datos."
+
+#: ../source/notebooks/bass/bass_example.ipynb:360004
+#: 3ce3c0b117764ed0b426ce4206a2fdc3
+msgid ""
+"Next, we look into the *adopters*, which represent the expected value of the"
+" likelihood."
+msgstr ""
+"A continuación, examinamos a los *adoptantes*, que representan el valor "
+"esperado de la probabilidad."
+
+#: ../source/notebooks/bass/bass_example.ipynb:380002
+#: 75d7a4f2cbce4143a5444a96a520cd86
+msgid "This show the fit is indeed quite reasonable."
+msgstr "Esto muestra que el ajuste es, de hecho, bastante razonable."
+
+#: ../source/notebooks/bass/bass_example.ipynb:390002
+#: 81c794d116a348c1959bc4e7b00f5f9d
+msgid ""
+"We can also evaluate the model goodness by looking into the cumulative data:"
+msgstr ""
+"También podemos evaluar la calidad del modelo analizando los datos "
+"acumulativos:"
+
+#: ../source/notebooks/bass/bass_example.ipynb:390005
+#: ff4f61088f3f4687898e4053218e7393
+msgid ""
+"Remember that the adopters is the mean of the distribution so we see some "
+"cumulative curves above and some below."
+msgstr ""
+"Recuerde que los adoptantes son la media de la distribución, por lo que "
+"vemos algunas curvas acumulativas por encima y algunas por debajo."
+
+#: ../source/notebooks/bass/bass_example.ipynb:390007
+#: 382330f9229b4434be55f5a3fc05d5d4
+msgid "Look at the `idata[\"posterior_predictive\"][\"y\"]` for the observed data."
+msgstr "Mire el `idata[\"posterior_predictive\"][\"y\"]` para los datos observados."
+
+#: ../source/notebooks/bass/bass_example.ipynb:410002
+#: d7f54a5e91de44f3a6711d55096ff6e6
+msgid ""
+"We can enhance this view by looking into the components of the model: "
+"*innovators* and *imitators* (in orange and green, respectively)."
+msgstr ""
+"Podemos mejorar esta vista al analizar los componentes del modelo: "
+"*innovadores* e *imitadores* (en naranja y verde, respectivamente)."
+
+#: ../source/notebooks/bass/bass_example.ipynb:430002
+#: 94066c980035412c986c7ae675042aad
+msgid "Finally, we can inspect the peak of the adoption curve."
+msgstr "Finalmente, podemos inspeccionar el pico de la curva de adopción."
+
+#: ../source/notebooks/bass/bass_example.ipynb:450002
+#: 7138e72a7d6a4091bc90f4d33fe84fac
+msgid ""
+"This fits the observed data quite well. Let's see for example the product "
+"`P4`."
+msgstr ""
+"Esto se ajusta bastante bien a los datos observados. Veamos, por ejemplo, el"
+" producto `P4`."

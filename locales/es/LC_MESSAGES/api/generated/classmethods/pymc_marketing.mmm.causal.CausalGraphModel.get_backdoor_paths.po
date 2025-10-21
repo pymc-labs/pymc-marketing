@@ -1,0 +1,74 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.CausalGraphModel.get_backdoor_paths.rst:2
+#: 649fca66f4b24c7f84adddbf9cbcb8ae
+msgid "CausalGraphModel.get\\_backdoor\\_paths"
+msgstr "CausalGraphModel.obtener_rutas\\_backdoor"
+
+#: 6ba1ea75cbbd466dba518821b3dbca62 of
+#: pymc_marketing.mmm.causal.CausalGraphModel.get_backdoor_paths:2
+msgid ""
+"Find all backdoor paths between the combined treatment and outcome "
+"variables."
+msgstr ""
+"Encuentra todos los caminos de puerta trasera entre las variables de "
+"tratamiento combinadas y las variables de resultado."
+
+#: 663050c1234b428aa875237bf17970d6 of
+#: pymc_marketing.mmm.causal.CausalGraphModel.get_backdoor_paths
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 0809280c98f9458681c6beb4e56b4f36 of
+#: pymc_marketing.mmm.causal.CausalGraphModel.get_backdoor_paths:10
+msgid ":class:`python:list`\\[:class:`python:list`\\[:class:`python:str`]]"
+msgstr ":class:`python:list`\\[:class:`python:list`\\[:class:`python:str`]]"
+
+#: 65f356359bdf4c36b668f2c38a35fc60 of
+#: pymc_marketing.mmm.causal.CausalGraphModel.get_backdoor_paths:11
+msgid ""
+"A list of backdoor paths, where each path is represented as a list of "
+"variable names."
+msgstr ""
+"Una lista de rutas de acceso no autorizadas, donde cada ruta se representa "
+"como una lista de nombres de variables."
+
+#: f8db61fb7a614047b18e75ac188af3d7 of
+#: pymc_marketing.mmm.causal.CausalGraphModel.get_backdoor_paths:22
+msgid "References"
+msgstr "Referencias"
+
+#: 7c469b651f764deca0c445b4aeeb39e6 of
+#: pymc_marketing.mmm.causal.CausalGraphModel.get_backdoor_paths:23
+msgid "Causal Inference in Statistics: A Primer"
+msgstr "Inferencia Causal en Estadística: Una Introducción"
+
+#: b5cfdf8f24fd4012a1a908c91890a8d9 of
+#: pymc_marketing.mmm.causal.CausalGraphModel.get_backdoor_paths:24
+msgid "By Judea Pearl, Madelyn Glymour, Nicholas P. Jewell · 2016"
+msgstr "Por Judea Pearl, Madelyn Glymour, Nicholas P. Jewell · 2016"
+
+#: df7eb75a770b4c4b99df48fe678bae03 of
+#: pymc_marketing.mmm.causal.CausalGraphModel.get_backdoor_paths:28
+msgid "[R8e128b697525-1]_"
+msgstr "[R8e128b697525-1]_"

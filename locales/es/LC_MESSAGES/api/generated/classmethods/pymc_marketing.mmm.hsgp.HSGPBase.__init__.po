@@ -1,0 +1,48 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.hsgp.HSGPBase.__init__.rst:2
+#: 38d2e2189b234c309b4713716351de93
+msgid "HSGPBase.\\_\\_init\\_\\_"
+msgstr "HSGPBase.\\_\\_init\\_\\_"
+
+#: 89e1f37b346748d184d601b9a0ef2343 of pydantic.main.BaseModel.__init__:2
+msgid ""
+"Create a new model by parsing and validating input data from keyword "
+"arguments."
+msgstr ""
+"Cree un nuevo modelo analizando y validando los datos de entrada de los "
+"argumentos de palabra clave."
+
+#: fb38f23e7b9343b8b7554cb63f7a806f of pydantic.main.BaseModel.__init__:4
+msgid ""
+"Raises [`ValidationError`][pydantic_core.ValidationError] if the input data "
+"cannot be validated to form a valid model."
+msgstr ""
+"Genera [`ValidationError`][pydantic_core.ValidationError] si los datos de "
+"entrada no pueden ser validados para formar un modelo válido."
+
+#: eff48499de2c466a919ccf86fbe6bf0c of pydantic.main.BaseModel.__init__:7
+msgid "`self` is explicitly positional-only to allow `self` as a field name."
+msgstr ""
+"`self` es explícitamente solo posicional para permitir que `self` sea un "
+"nombre de campo."

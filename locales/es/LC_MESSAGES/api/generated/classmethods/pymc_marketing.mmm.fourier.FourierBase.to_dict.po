@@ -1,0 +1,46 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.fourier.FourierBase.to_dict.rst:2
+#: ed3528d778604fbf86fcdb69691e46f0
+msgid "FourierBase.to\\_dict"
+msgstr "FourierBase.to\\_dict"
+
+#: 91f99ab9f9d54530b17c348cad29817f of
+#: pymc_marketing.mmm.fourier.FourierBase.to_dict:2
+msgid "Serialize the Fourier seasonality."
+msgstr "Serializar la estacionalidad de Fourier."
+
+#: 73f30bbd1a2c4570ae17f4f19b88df99 of
+#: pymc_marketing.mmm.fourier.FourierBase.to_dict
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 7d48fbc61ba946b3be6e2064b0447c52 of
+#: pymc_marketing.mmm.fourier.FourierBase.to_dict:10
+msgid ":class:`python:dict`\\[:class:`python:str`, :obj:`Any`]"
+msgstr ":class:`python:dict`\\[:class:`python:str`, :obj:`Cualquiera`]"
+
+#: 30d1d01a20104944b0f9998129870755 of
+#: pymc_marketing.mmm.fourier.FourierBase.to_dict:11
+msgid "Serialized Fourier seasonality"
+msgstr "Estacionalidad de Fourier serializada"

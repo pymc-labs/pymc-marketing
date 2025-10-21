@@ -1,0 +1,311 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:2
+#: ba318630745648da9f69388228fc1534
+msgid "mmm"
+msgstr "mmm"
+
+#: f081322c7eea4f869945a00e44d75ce7 of pymc_marketing.mmm:1
+msgid "Marketing Mix Models (MMM)."
+msgstr "Modelos de Mezcla de Marketing (MMM)."
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:25
+#: d98a69b2dd334d8f8870dc69967ff861
+msgid "Modules"
+msgstr "Módulos"
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: 2acd811fbe5642969486d9b4e313d01f
+msgid ":py:obj:`additive_effect <pymc_marketing.mmm.additive_effect>`\\"
+msgstr ":py:obj:`efecto_aditivo <pymc_marketing.mmm.efecto_aditivo>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: 124e2ce03a204d27a7feff0c6922b059
+msgid "Additive effects for the multidimensional Marketing Mix Model."
+msgstr ""
+"Efectos aditivos para el modelo de mezcla de marketing multidimensional."
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: ea8f278ade26416eab9d39114d5f453f
+msgid ":py:obj:`base <pymc_marketing.mmm.base>`\\"
+msgstr ":py:obj:`base <pymc_marketing.mmm.base>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: 8e5f693eae094c33a428661c36bb0744
+msgid "Base class for Marketing Mix Models (MMM)."
+msgstr "Clase base para Modelos de Mezcla de Marketing (MMM)."
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: f580e3d7a51341208ea72a5487a05537
+msgid ":py:obj:`budget_optimizer <pymc_marketing.mmm.budget_optimizer>`\\"
+msgstr ""
+":py:obj:`optimizador_de_presupuesto "
+"<pymc_marketing.mmm.optimizador_de_presupuesto>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: 5e99b4a72816487aafb0b566a44ec860
+msgid "Budget optimization module."
+msgstr "Módulo de optimización de presupuesto."
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: 1499209feb654978b67b720e0e17eaed
+msgid ":py:obj:`builders <pymc_marketing.mmm.builders>`\\"
+msgstr ":py:obj:`constructores <pymc_marketing.mmm.builders>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: 46d32220f2774ac2ae94e26a5ecee966
+msgid "Configuration I/O for PyMC-Marketing."
+msgstr "Configuración de I/O para PyMC-Marketing."
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: 9b715f3d1f884df9bf46ef6b0d7d641c
+msgid ":py:obj:`causal <pymc_marketing.mmm.causal>`\\"
+msgstr ":py:obj:`causal <pymc_marketing.mmm.causal>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: 99a61e0e78a04d018fd5972e8d97026d
+msgid "Causal module."
+msgstr "Módulo causal."
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: d4ffe62590574c8fa0a0e31207984929
+msgid ":py:obj:`components <pymc_marketing.mmm.components>`\\"
+msgstr ":py:obj:`componentes <pymc_marketing.mmm.components>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: 6a2948e1a05c4708bedc898b89f7de50
+msgid "Components for media transformation in the MMM model."
+msgstr "Componentes para la transformación de medios en el modelo MMM."
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: ff10183c4f634ef99b2c12d0860c5b2d
+msgid ":py:obj:`constraints <pymc_marketing.mmm.constraints>`\\"
+msgstr ":py:obj:`constraints <pymc_marketing.mmm.constraints>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: 868f718de99e41ec88e3e35095698db7
+msgid "Constraints for the BudgetOptimizer."
+msgstr "Restricciones para el BudgetOptimizer."
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: 64673b309c264c10b59b0e5c3950d5e7
+msgid ":py:obj:`evaluation <pymc_marketing.mmm.evaluation>`\\"
+msgstr ":py:obj:`evaluación <pymc_marketing.mmm.evaluación>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: ff423b61fac54c19b5b9566d1de181ce
+msgid "Evaluation and diagnostics for MMM models."
+msgstr "Evaluación y diagnósticos para modelos MMM."
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: 19cc69ec634a497681bbecaa739b232e
+msgid ":py:obj:`events <pymc_marketing.mmm.events>`\\"
+msgstr ":py:obj:`events <pymc_marketing.mmm.events>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: 64cbba7afa6a4b5e92f072cabd720db5
+msgid "Event transformations."
+msgstr "Transformaciones de eventos."
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: c60c05b8b3aa4c8d83720c8a3cc978a8
+msgid ":py:obj:`fourier <pymc_marketing.mmm.fourier>`\\"
+msgstr ":py:obj:`fourier <pymc_marketing.mmm.fourier>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: 353dc35826924773b6e519d742a171b3
+msgid "Fourier seasonality transformations."
+msgstr "Transformaciones de estacionalidad de Fourier."
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: 4f10806d3f8d4c8193831553e52288f5
+msgid ":py:obj:`hsgp <pymc_marketing.mmm.hsgp>`\\"
+msgstr ":py:obj:`hsgp <pymc_marketing.mmm.hsgp>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: 5cadd86c2a134336beda5301c78540d8
+msgid "HSGP components."
+msgstr "Componentes HSGP."
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: 47d19cd497fd40e1966dd8c30c8ba080
+msgid ":py:obj:`lift_test <pymc_marketing.mmm.lift_test>`\\"
+msgstr ":py:obj:`lift_test <pymc_marketing.mmm.lift_test>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: 95d60b7585e346bea338b96a42772e0f
+msgid "Adding lift tests as observations of saturation function."
+msgstr ""
+"Agregando pruebas de elevación como observaciones de la función de "
+"saturación."
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: 75b55a71ebba4cb2aacf3321e510a4ae
+msgid ":py:obj:`linear_regression <pymc_marketing.mmm.linear_regression>`\\"
+msgstr ":py:obj:`linear_regression <pymc_marketing.mmm.linear_regression>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: 7c960b89c4ed4cb391cfbba0b6043222
+msgid "Linear regression model implemented using the MMM class."
+msgstr "Modelo de regresión lineal implementado utilizando la clase MMM."
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: b45753fcf4084e1bbba4015fcae94dce
+msgid ":py:obj:`linear_trend <pymc_marketing.mmm.linear_trend>`\\"
+msgstr ":py:obj:`tendencia_lineal <pymc_marketing.mmm.tendencia_lineal>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: 4ae3e3bbe92344008271842b04330541
+msgid "Linear trend using change points."
+msgstr "Tendencia lineal utilizando puntos de cambio."
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: d5c56740c76f4eaca2fa4bca79f70b66
+msgid ""
+":py:obj:`media_transformation <pymc_marketing.mmm.media_transformation>`\\"
+msgstr ""
+":py:obj:`transformación_de_medios "
+"<pymc_marketing.mmm.transformación_de_medios>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: 4fe1c3b5f6564e2eb4851da5e28da934
+msgid "Module for applying media transformations to media data."
+msgstr "Módulo para aplicar transformaciones de medios a datos de medios."
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: 165aa88ca1ac4cd7926341ba3d02eefc
+msgid ":py:obj:`mmm <pymc_marketing.mmm.mmm>`\\"
+msgstr ":py:obj:`mmm <pymc_marketing.mmm.mmm>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: 5860336a2b3041b3a05953d3eb0d4b42
+msgid "Media Mix Model class."
+msgstr "Clase de Modelo de Mezcla de Medios."
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: abfdcfd12b224db1980f5e21084233d9
+msgid ":py:obj:`multidimensional <pymc_marketing.mmm.multidimensional>`\\"
+msgstr ":py:obj:`multidimensional <pymc_marketing.mmm.multidimensional>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: 8ee9d6d6ddfc4c64bc0c84f88d20289e
+msgid "Multidimensional Marketing Mix Model (MMM)."
+msgstr "Modelo de Mezcla de Marketing Multidimensional (MMM)."
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: 4810f1f7c7e344aa954a26525c1376e0
+msgid ":py:obj:`plot <pymc_marketing.mmm.plot>`\\"
+msgstr ":py:obj:`plot <pymc_marketing.mmm.plot>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: 56a057eb2d924bceaea92b9788421091
+msgid "MMM related plotting class."
+msgstr "Clase de trazado relacionada con MMM."
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: 11510544416546c18a770f480926fb22
+msgid ":py:obj:`preprocessing <pymc_marketing.mmm.preprocessing>`\\"
+msgstr ":py:obj:`preprocesamiento <pymc_marketing.mmm.preprocessing>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: ac5d05b07e924ebfa24f0ce59cb7267e
+msgid "Preprocessing methods for the Marketing Mix Model."
+msgstr "Métodos de preprocesamiento para el Modelo de Mezcla de Marketing."
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: a13e20746e63494a9e5b1806b41f9b03
+msgid ":py:obj:`scaling <pymc_marketing.mmm.scaling>`\\"
+msgstr ":py:obj:`escalado <pymc_marketing.mmm.escalado>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: 7ca13c812ab648318264d52e935ef860
+msgid "Scaling configuration for the MMMM."
+msgstr "Configuración de escalado para el MMMM."
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: f1c73ae788d54084919da7aebb09501d
+msgid ""
+":py:obj:`sensitivity_analysis <pymc_marketing.mmm.sensitivity_analysis>`\\"
+msgstr ""
+":py:obj:`análisis_de_sensibilidad "
+"<pymc_marketing.mmm.análisis_de_sensibilidad>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: fec785073b8c4191b2ce16aee76aeb50
+msgid "Counterfactual sweeps for Marketing Mix Models (MMM)."
+msgstr "Barridos contrafactuales para Modelos de Mezcla de Marketing (MMM)."
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: 30b03cebf38f46b3bf167078b6f50bb1
+msgid ":py:obj:`transformers <pymc_marketing.mmm.transformers>`\\"
+msgstr ":py:obj:`transformers <pymc_marketing.mmm.transformers>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: 74fa018ae3d34424ba1351525448d509
+msgid "Media transformation functions for Marketing Mix Models."
+msgstr ""
+"Funciones de transformación de medios para Modelos de Mezcla de Marketing."
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: c5f8768b0bd0484fa5f1a0a81dd9316b
+msgid ":py:obj:`tvp <pymc_marketing.mmm.tvp>`\\"
+msgstr ":py:obj:`tvp <pymc_marketing.mmm.tvp>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: 80b12618b32e4f32ba1f93e46c5b0054
+msgid ""
+"Time Varying Gaussian Process Multiplier for Marketing Mix Modeling (MMM)."
+msgstr ""
+"Multiplicador de Proceso Gaussiano Variable en el Tiempo para Modelado de "
+"Mezcla de Marketing (MMM)."
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: 567cd4ca8cfb4ab4adbf3c2c477b0431
+msgid ":py:obj:`utility <pymc_marketing.mmm.utility>`\\"
+msgstr ":py:obj:`utility <pymc_marketing.mmm.utility>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: c9cb9bbde90d4e78b2405b5b8861980d
+msgid "Utility functions for Bayesian optimization."
+msgstr "Funciones utilitarias para la optimización bayesiana."
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: e3eca019389740e7a7c651cf1aeb4a09
+msgid ":py:obj:`utils <pymc_marketing.mmm.utils>`\\"
+msgstr ":py:obj:`utils <pymc_marketing.mmm.utils>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: 9496dcc2f6ef4a849b552e82a95b235b
+msgid "Utility functions for the Marketing Mix Modeling module."
+msgstr ""
+"Funciones utilitarias para el módulo de Modelado de Mezcla de Marketing."
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: 41c2d2121dc6492dbf014d30032d2535
+msgid ":py:obj:`validating <pymc_marketing.mmm.validating>`\\"
+msgstr ":py:obj:`validando <pymc_marketing.mmm.validando>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
+#: 9582195ed8da4a3c97f5deeca534fd85
+msgid "Validating methods for MMM classes."
+msgstr "Validando métodos para las clases MMM."

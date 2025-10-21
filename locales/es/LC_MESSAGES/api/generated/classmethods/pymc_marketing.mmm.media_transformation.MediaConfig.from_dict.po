@@ -1,0 +1,66 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.media_transformation.MediaConfig.from_dict.rst:2
+#: 3dc7850847e94060ac9f666c70c632c3
+msgid "MediaConfig.from\\_dict"
+msgstr "MediaConfig.from\\_dict"
+
+#: 69b0f15617b14740aa1bc4946bc05790 of
+#: pymc_marketing.mmm.media_transformation.MediaConfig.from_dict:2
+msgid "Create a media configuration from a dictionary."
+msgstr "Cree una configuración de medios a partir de un diccionario."
+
+#: 339ba1df13c644ad8c635dfe5269d2c2 of
+#: pymc_marketing.mmm.media_transformation.MediaConfig.from_dict
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: db297996e7264c918f2d73114b7ea89f of
+#: pymc_marketing.mmm.media_transformation.MediaConfig.from_dict:7
+msgid "**data** : :class:`python:dict`"
+msgstr "**datos** : :class:`python:dict`"
+
+#: 7ddab81de36243be8bb9d4f494b434f3 of
+#: pymc_marketing.mmm.media_transformation.MediaConfig.from_dict:6
+msgid "python:dict"
+msgstr "python:dict"
+
+#: 921ea1cff3eb48ff9b0f8f801e5b11fb of
+#: pymc_marketing.mmm.media_transformation.MediaConfig.from_dict:8
+msgid "The data to create the media configuration from."
+msgstr "Los datos para crear la configuración de los medios."
+
+#: f4fc0e42702d4a639828c8cdaf9dc9c6 of
+#: pymc_marketing.mmm.media_transformation.MediaConfig.from_dict
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 2a75b07096644532afcf862731fb4a7f of
+#: pymc_marketing.mmm.media_transformation.MediaConfig.from_dict:14
+msgid ":obj:`MediaConfig`"
+msgstr ":obj:`MediaConfig`"
+
+#: f3b91abaff484fac90cfdf9852ebd7a9 of
+#: pymc_marketing.mmm.media_transformation.MediaConfig.from_dict:15
+msgid "The media configuration created from the dictionary."
+msgstr "La configuración de medios creada a partir del diccionario."

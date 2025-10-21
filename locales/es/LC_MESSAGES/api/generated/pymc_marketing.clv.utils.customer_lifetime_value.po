@@ -1,0 +1,188 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.clv.utils.customer_lifetime_value.rst:2
+#: 22ff9cd2023840f498233de37050349c
+msgid "customer\\_lifetime\\_value"
+msgstr "valor\\_de\\_vida\\_del\\_cliente"
+
+#: aa0743803683499197287b09fe76b2b6 of
+#: pymc_marketing.clv.utils.customer_lifetime_value:2
+msgid "Compute customer lifetime value."
+msgstr "Calcular el valor de vida del cliente."
+
+#: 578697b44cc54c628a5e478d6dab7b5a of
+#: pymc_marketing.clv.utils.customer_lifetime_value:4
+msgid ""
+"Compute the average lifetime value for a group of one or more customers and "
+"apply a discount rate for net present value estimations. Note `future_t` is "
+"measured in months regardless of `time_unit` specified."
+msgstr ""
+"Calcule el valor promedio de vida útil para un grupo de uno o más clientes y"
+" aplique una tasa de descuento para las estimaciones del valor presente "
+"neto. Tenga en cuenta que `future_t` se mide en meses, independientemente de"
+" la `time_unit` especificada."
+
+#: 588a64b6afc54f54af177be6a5ab572f of
+#: pymc_marketing.clv.utils.customer_lifetime_value:8
+msgid ""
+"Adapted from lifetimes package "
+"https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/utils.py#L449"
+msgstr ""
+"Adaptado del paquete lifetimes "
+"https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/utils.py#L449"
+
+#: ee11f065d3d04d7592e1738a549bd0dc of
+#: pymc_marketing.clv.utils.customer_lifetime_value
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: d0f413477a584c29931efaad465e6a92 of
+#: pymc_marketing.clv.utils.customer_lifetime_value:13
+msgid "**transaction_model** : :obj:`~CLVModel`"
+msgstr "**transaction_model** : :obj:`~CLVModel`"
+
+#: 8b00a948f45146ada32ba523491bec7d of
+#: pymc_marketing.clv.utils.customer_lifetime_value:12
+msgid "CLVModel"
+msgstr "CLVModel"
+
+#: 503af6a5d34f4689919e2163c4c93536 of
+#: pymc_marketing.clv.utils.customer_lifetime_value:14
+msgid ""
+"Predictive model for future transactions. `BetaGeoModel` and "
+"`ParetoNBDModel` are currently supported."
+msgstr ""
+"Modelo predictivo para transacciones futuras. `BetaGeoModel` y "
+"`ParetoNBDModel` son actualmente compatibles."
+
+#: f4f65200aec44067a1108305e4d9fc6c of
+#: pymc_marketing.clv.utils.customer_lifetime_value:16
+msgid "**data** : :obj:`~pandas.DataFrame`"
+msgstr "**datos** : :obj:`~pandas.DataFrame`"
+
+#: eacdac448596450888681b55be57b3d6 of
+#: pymc_marketing.clv.utils.customer_lifetime_value:15
+msgid "DataFrame"
+msgstr "DataFrame"
+
+#: 6ec3b5e7d7f047a2bf539f355705c4b4 of
+#: pymc_marketing.clv.utils.customer_lifetime_value:17
+msgid "DataFrame containing the following columns:"
+msgstr "DataFrame que contiene las siguientes columnas:"
+
+#: 2605a89e6e6e44bd96dd5eb05c9528ef of
+#: pymc_marketing.clv.utils.customer_lifetime_value:19
+msgid "`customer_id`: Unique customer identifier"
+msgstr "`customer_id`: Identificador único del cliente"
+
+#: c9955e9ca18c413da86a8e30ad17c719 of
+#: pymc_marketing.clv.utils.customer_lifetime_value:20
+msgid "`frequency`: Number of repeat purchases observed for each customer"
+msgstr "`frequency`: Número de compras repetidas observadas para cada cliente"
+
+#: cbc8fbcd545e49658e86c750bdd2114d of
+#: pymc_marketing.clv.utils.customer_lifetime_value:21
+msgid "`recency`: Time between the first and the last purchase"
+msgstr "`recency`: Tiempo entre la primera y la última compra"
+
+#: a946fc3ff3654b2b852000f7af9899ed of
+#: pymc_marketing.clv.utils.customer_lifetime_value:22
+msgid ""
+"`T`: Time between the first purchase and the end of the observation period"
+msgstr ""
+"T: Tiempo entre la primera compra y el final del período de observación"
+
+#: ea369676d5e049b5ba963095c22872bb of
+#: pymc_marketing.clv.utils.customer_lifetime_value:23
+msgid "`future_spend`: Predicted monetary values for each customer"
+msgstr "`future_spend`: Valores monetarios predichos para cada cliente"
+
+#: 348b4e92a4b04324ae40d426ab09c846 of
+#: pymc_marketing.clv.utils.customer_lifetime_value:25
+msgid "**future_t** : :class:`python:int`, optional"
+msgstr "**future_t** : :class:`python:int`, opcional"
+
+#: f75960fedfa84b2ea7177a45fda5570d of
+#: pymc_marketing.clv.utils.customer_lifetime_value:24
+msgid "python:int, optional"
+msgstr "python:int, opcional"
+
+#: 430fc247441a4863ae49526283647df6 of
+#: pymc_marketing.clv.utils.customer_lifetime_value:26
+msgid "The lifetime expected for the user in months. Default: 12"
+msgstr ""
+"La duración esperada de la vida útil para el usuario en meses. "
+"Predeterminado: 12"
+
+#: 1ce9f970327140bfbacb2cfbf48831b7 of
+#: pymc_marketing.clv.utils.customer_lifetime_value:28
+msgid "**discount_rate** : :class:`python:float`, optional"
+msgstr "**tasa_de_descuento** : :class:`python:float`, opcional"
+
+#: 985b6d5e19fb437b90df6f7cca8fb021 of
+#: pymc_marketing.clv.utils.customer_lifetime_value:27
+msgid "python:float, optional"
+msgstr "python:float, opcional"
+
+#: 2b994e81cfb744f9b477bd9c7f39e018 of
+#: pymc_marketing.clv.utils.customer_lifetime_value:29
+msgid "The monthly adjusted discount rate. Default: 0.00"
+msgstr "La tasa de descuento ajustada mensual. Predeterminado: 0.00"
+
+#: 6d4f4468a1884df6972b7a13f4819a7c of
+#: pymc_marketing.clv.utils.customer_lifetime_value:31
+msgid "**time_unit** : :class:`python:str`, optional"
+msgstr "**unidad_tiempo** : :class:`python:str`, opcional"
+
+#: 40af0201aef442538453295205a04036 of
+#: pymc_marketing.clv.utils.customer_lifetime_value:30
+msgid "python:str, optional"
+msgstr "python:str, opcional"
+
+#: a5dd6d84213b4535807663b31fe497f8 of
+#: pymc_marketing.clv.utils.customer_lifetime_value:32
+msgid ""
+"Unit of time of the purchase history. Defaults to \"D\" for daily. Other "
+"options are \"W\" (weekly), \"M\" (monthly), and \"H\" (hourly). Example: If"
+" your dataset contains information about weekly purchases, you should use "
+"\"W\"."
+msgstr ""
+"Unidad de tiempo del historial de compras. Por defecto es \"D\" para diario."
+" Otras opciones son \"W\" (semanal), \"M\" (mensual) y \"H\" (horario). "
+"Ejemplo: Si su conjunto de datos contiene información sobre compras "
+"semanales, debe usar \"W\"."
+
+#: bdd8d0e7855b4ab894336dcc69a798d0 of
+#: pymc_marketing.clv.utils.customer_lifetime_value
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 149a9ba9fe60448d8c3b7e89e3d392fe of
+#: pymc_marketing.clv.utils.customer_lifetime_value:41
+msgid ":obj:`xarray`"
+msgstr ":obj:`xarray`"
+
+#: 16e9f39ebe67453a8c28fb67c4f40546 of
+#: pymc_marketing.clv.utils.customer_lifetime_value:42
+msgid "DataArray containing estimated customer lifetime values"
+msgstr "DataArray que contiene los valores de vida del cliente estimados"

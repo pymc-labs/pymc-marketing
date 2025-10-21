@@ -1,0 +1,327 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:2
+#: 0e38441dab234b8a830c4f4e3eb7f459
+msgid "HillSaturation"
+msgstr "SaturaciónDeColina"
+
+#: 133f8871aebf47d58c8242809318b437 of
+#: pymc_marketing.mmm.components.saturation.HillSaturation:2
+msgid "Wrapper around Hill saturation function."
+msgstr "Envoltorio alrededor de la función de saturación de Hill."
+
+#: 5a0f52da580848989da0872134c7b4c4 of
+#: pymc_marketing.mmm.components.saturation.HillSaturation:4
+msgid ""
+"For more information, see "
+":func:`pymc_marketing.mmm.transformers.hill_function`."
+msgstr ""
+"Para más información, consulte "
+":func:`pymc_marketing.mmm.transformers.hill_function`."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:7
+#: 813e91034b814191ae1473cc88c419cc
+msgid ""
+"(:download:`Source code "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-HillSaturation-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-HillSaturation-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-HillSaturation-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-HillSaturation-1.pdf>`)"
+msgstr ""
+"(:download:`Código fuente "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-HillSaturation-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-HillSaturation-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-HillSaturation-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-HillSaturation-1.pdf>`)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:12
+#: b58819cf758144a7ac9b194113c7243c
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:32:<autosummary>:1
+#: 58b144f8faaf4320b2457f749b4795d8
+msgid ""
+":py:obj:`HillSaturation.__init__ "
+"<pymc_marketing.mmm.components.saturation.HillSaturation.__init__>`\\ "
+"\\(\\[priors\\, prefix\\]\\)"
+msgstr ""
+":py:obj:`HillSaturation.__init__ "
+"<pymc_marketing.mmm.components.saturation.HillSaturation.__init__>`\\ "
+"\\(\\[priors\\, prefix\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:32:<autosummary>:1
+#: 5b894600589140e387d947d27ce42b52
+msgid ""
+":py:obj:`HillSaturation.apply "
+"<pymc_marketing.mmm.components.saturation.HillSaturation.apply>`\\ "
+"\\(x\\[\\, dims\\, idx\\]\\)"
+msgstr ""
+":py:obj:`HillSaturation.apply "
+"<pymc_marketing.mmm.components.saturation.HillSaturation.apply>`\\ "
+"\\(x\\[\\, dims\\, idx\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:32:<autosummary>:1
+#: 1a8d426b9e19456481deeec2a02f7e49
+msgid "Call within a model context."
+msgstr "Llamar dentro de un contexto de modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:32:<autosummary>:1
+#: 478bdc2da48f4bfebbf7bdd687e77aba
+msgid ""
+":py:obj:`HillSaturation.function "
+"<pymc_marketing.mmm.components.saturation.HillSaturation.function>`\\ "
+"\\(x\\, slope\\, kappa\\, beta\\)"
+msgstr ""
+":py:obj:`HillSaturation.function "
+"<pymc_marketing.mmm.components.saturation.HillSaturation.function>`\\ "
+"\\(x\\, pendiente\\, kappa\\, beta\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:32:<autosummary>:1
+#: 50a56688959c4924b1b57b4ce2c78139
+msgid "Hill saturation function."
+msgstr "Función de saturación de colina."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:32:<autosummary>:1
+#: f7928710a6dc4cfc9652feb5b8dc8016
+msgid ""
+":py:obj:`HillSaturation.plot_curve "
+"<pymc_marketing.mmm.components.saturation.HillSaturation.plot_curve>`\\ "
+"\\(curve\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`HillSaturation.plot_curve "
+"<pymc_marketing.mmm.components.saturation.HillSaturation.plot_curve>`\\ "
+"\\(curva\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:32:<autosummary>:1
+#: c008e358b1eb4d6d9350d457d58ab0f9
+msgid "Plot curve HDI and samples."
+msgstr "Trazar curva HDI y muestras."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:32:<autosummary>:1
+#: db1004b837b74b5aac5cffdd6469c268
+msgid ""
+":py:obj:`HillSaturation.plot_curve_hdi "
+"<pymc_marketing.mmm.components.saturation.HillSaturation.plot_curve_hdi>`\\ "
+"\\(curve\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`HillSaturation.plot_curve_hdi "
+"<pymc_marketing.mmm.components.saturation.HillSaturation.plot_curve_hdi>`\\ "
+"\\(curva\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:32:<autosummary>:1
+#: 355dac03d946401eaffcf0b020021e1a
+msgid "Plot the HDI of the curve."
+msgstr "Trace el IDH de la curva."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:32:<autosummary>:1
+#: e3f28e78efae45109de6e04c235f2aeb
+msgid ""
+":py:obj:`HillSaturation.plot_curve_samples "
+"<pymc_marketing.mmm.components.saturation.HillSaturation.plot_curve_samples>`\\"
+" \\(curve\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`HillSaturation.plot_curve_samples "
+"<pymc_marketing.mmm.components.saturation.HillSaturation.plot_curve_samples>`\\"
+" \\(curve\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:32:<autosummary>:1
+#: d6eac64b4bba41619b89452d51a90f81
+msgid "Plot samples from the curve."
+msgstr "Trazar muestras de la curva."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:32:<autosummary>:1
+#: a12e86341feb4f939f889620d6faf877
+msgid ""
+":py:obj:`HillSaturation.sample_curve "
+"<pymc_marketing.mmm.components.saturation.HillSaturation.sample_curve>`\\ "
+"\\(\\[parameters\\, ...\\]\\)"
+msgstr ""
+":py:obj:`HillSaturation.sample_curve "
+"<pymc_marketing.mmm.components.saturation.HillSaturation.sample_curve>`\\ "
+"\\(\\[parámetros\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:32:<autosummary>:1
+#: c7aebd57612941bea57232ad14186baa
+msgid "Sample the curve of the saturation transformation given parameters."
+msgstr ""
+"Muestree la curva de la transformación de saturación dadas las parámetros."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:32:<autosummary>:1
+#: ac2c981ac1b34c7e9e4f09b06531aa42
+msgid ""
+":py:obj:`HillSaturation.sample_prior "
+"<pymc_marketing.mmm.components.saturation.HillSaturation.sample_prior>`\\ "
+"\\(\\[coords\\]\\)"
+msgstr ""
+":py:obj:`HillSaturation.sample_prior "
+"<pymc_marketing.mmm.components.saturation.HillSaturation.sample_prior>`\\ "
+"\\(\\[coords\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:32:<autosummary>:1
+#: 56ea91624b6e4b43a1423df453930289
+msgid "Sample the priors for the transformation."
+msgstr "Muestree las distribuciones a priori para la transformación."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:32:<autosummary>:1
+#: 5e5af2796ac3424a81e7a723c9fa4340
+msgid ""
+":py:obj:`HillSaturation.set_dims_for_all_priors "
+"<pymc_marketing.mmm.components.saturation.HillSaturation.set_dims_for_all_priors>`\\"
+" \\(dims\\)"
+msgstr ""
+":py:obj:`HillSaturation.set_dims_for_all_priors "
+"<pymc_marketing.mmm.components.saturation.HillSaturation.set_dims_for_all_priors>`\\"
+" \\(dims\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:32:<autosummary>:1
+#: 3d5041d529c74f18b3bbeb3298eabeb9
+msgid "Set the dims for all priors."
+msgstr "Establezca las dimensiones para todos los antecedentes."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:32:<autosummary>:1
+#: 76a63ecb787c4daf8c34b6ddedbf90b3
+msgid ""
+":py:obj:`HillSaturation.to_dict "
+"<pymc_marketing.mmm.components.saturation.HillSaturation.to_dict>`\\ \\(\\)"
+msgstr ""
+":py:obj:`HillSaturation.to_dict "
+"<pymc_marketing.mmm.components.saturation.HillSaturation.to_dict>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:32:<autosummary>:1
+#: ebc1ecb825f04919964c7778a0a896fd
+msgid "Convert the transformation to a dictionary."
+msgstr "Convierte la transformación a un diccionario."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:32:<autosummary>:1
+#: 58d0edc8b52540ec968a9e2f52d14a89
+msgid ""
+":py:obj:`HillSaturation.update_priors "
+"<pymc_marketing.mmm.components.saturation.HillSaturation.update_priors>`\\ "
+"\\(priors\\)"
+msgstr ""
+":py:obj:`HillSaturation.update_priors "
+"<pymc_marketing.mmm.components.saturation.HillSaturation.update_priors>`\\ "
+"\\(priors\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:32:<autosummary>:1
+#: aeb1cfd666944cbea82fad0fe142a8ba
+msgid "Update the priors for a function after initialization."
+msgstr ""
+"Actualiza los antecedentes para una función después de la inicialización."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:34
+#: 2c5890c23a2447ef8de8737631cdeb5d
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:43:<autosummary>:1
+#: f6429738a15b425e86a728e061c3c755
+msgid ""
+":py:obj:`combined_dims "
+"<pymc_marketing.mmm.components.saturation.HillSaturation.combined_dims>`\\"
+msgstr ""
+":py:obj:`combined_dims "
+"<pymc_marketing.mmm.components.saturation.HillSaturation.combined_dims>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:43:<autosummary>:1
+#: 7cb44b12e49d4e52b091dea83fa23237
+msgid "Get the combined dims for all the parameters."
+msgstr "Obtenga las dimensiones combinadas para todos los parámetros."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:43:<autosummary>:1
+#: 33279dafdad9480597c27e3663be02e1
+msgid ""
+":py:obj:`default_priors "
+"<pymc_marketing.mmm.components.saturation.HillSaturation.default_priors>`\\"
+msgstr ""
+":py:obj:`default_priors "
+"<pymc_marketing.mmm.components.saturation.HillSaturation.default_priors>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:43:<autosummary>:1
+#: 4456864801c249509fae5383bbb1be36
+msgid ""
+":py:obj:`function_priors "
+"<pymc_marketing.mmm.components.saturation.HillSaturation.function_priors>`\\"
+msgstr ""
+":py:obj:`function_priors "
+"<pymc_marketing.mmm.components.saturation.HillSaturation.function_priors>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:43:<autosummary>:1
+#: da5bad1f45e248fe9e17c380c6c0cb41
+msgid "Get the priors for the function."
+msgstr "Obtenga los priors para la función."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:43:<autosummary>:1
+#: 27f0c4189081453e812091df5a7fddcc
+msgid ""
+":py:obj:`lookup_name "
+"<pymc_marketing.mmm.components.saturation.HillSaturation.lookup_name>`\\"
+msgstr ""
+":py:obj:`lookup_name "
+"<pymc_marketing.mmm.components.saturation.HillSaturation.lookup_name>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:43:<autosummary>:1
+#: f909805870cc4d0f808c1ccb84f82bce
+msgid ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.components.saturation.HillSaturation.model_config>`\\"
+msgstr ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.components.saturation.HillSaturation.model_config>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:43:<autosummary>:1
+#: 5952557ffa3a48b0b9deb05078f0f69f
+msgid "Mapping from variable name to prior for the model."
+msgstr "Mapeo del nombre de la variable a la prior para el modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:43:<autosummary>:1
+#: 7e5a9ac5c21c48eebb689694f0fd27b7
+msgid ""
+":py:obj:`prefix "
+"<pymc_marketing.mmm.components.saturation.HillSaturation.prefix>`\\"
+msgstr ""
+":py:obj:`prefix "
+"<pymc_marketing.mmm.components.saturation.HillSaturation.prefix>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:43:<autosummary>:1
+#: e77868876fb14c26adb61e2d60db154e
+msgid ""
+":py:obj:`variable_mapping "
+"<pymc_marketing.mmm.components.saturation.HillSaturation.variable_mapping>`\\"
+msgstr ""
+":py:obj:`variable_mapping "
+"<pymc_marketing.mmm.components.saturation.HillSaturation.variable_mapping>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:43:<autosummary>:1
+#: 1bc57f4dc61046d5b3d6c5e686da6152
+msgid "Mapping from parameter name to variable name in the model."
+msgstr "Mapeo del nombre del parámetro al nombre de la variable en el modelo."

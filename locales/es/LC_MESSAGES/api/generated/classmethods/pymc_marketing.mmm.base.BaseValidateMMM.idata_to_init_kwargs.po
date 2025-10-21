@@ -1,0 +1,44 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.base.BaseValidateMMM.idata_to_init_kwargs.rst:2
+#: cb5ada6642ad46b9b192121e26d2bf34
+msgid "BaseValidateMMM.idata\\_to\\_init\\_kwargs"
+msgstr "BaseValidateMMM.idata\\_to\\_init\\_kwargs"
+
+#: f630e74098b2400981e55bd9d8b403af of
+#: pymc_marketing.model_builder.ModelIO.idata_to_init_kwargs:2
+msgid ""
+"Create  the model configuration and sampler configuration from the "
+"InferenceData to keyword arguments."
+msgstr ""
+"Cree la configuración del modelo y la configuración del muestreador a partir"
+" de InferenceData a argumentos de palabra clave."
+
+#: 27b7d7daf88d4336b1c8c45807f70268 of
+#: pymc_marketing.model_builder.ModelIO.idata_to_init_kwargs:4
+msgid ""
+"This method must be overridden in child classes if data is needed as a "
+"keyword argument."
+msgstr ""
+"Este método debe ser sobrescrito en las clases hijas si se necesitan datos "
+"como argumento de palabra clave."

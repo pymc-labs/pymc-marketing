@@ -1,0 +1,77 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-13 11:28+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.TBF_FCI.get_undirected_edges.rst:2
+#: 15322c5a907b4bffb6efc0529d8ffd28
+msgid "TBF\\_FCI.get\\_undirected\\_edges"
+msgstr ""
+"{\n"
+"  \"singular\": \"TBF_FCI.obtener_aristas_no_dirigidas\",\n"
+"  \"plural\": \"TBF_FCI.obtener_aristas_no_dirigidas\"\n"
+"}"
+
+#: 98495057ecc844ff80d19242b3df91c3 of
+#: pymc_marketing.mmm.causal.TBF_FCI.get_undirected_edges:2
+msgid "Return undirected edges in the time-unrolled graph."
+msgstr ""
+"{\n"
+"  \"singular\": \"Devuelve los bordes no dirigidos en el gráfico desenrollado en el tiempo.\",\n"
+"  \"plural\": \"Devuelven los bordes no dirigidos en el gráfico desenrollado en el tiempo.\"\n"
+"}"
+
+#: 18982d50bea541df9d4dec5a8f1c3cb2 of
+#: pymc_marketing.mmm.causal.TBF_FCI.get_undirected_edges
+msgid "Returns"
+msgstr ""
+"{\n"
+"  \"singular\": \"Devoluciones\",\n"
+"  \"plural\": \"Devoluciones\"\n"
+"}"
+
+#: 9dc5fac82bde42289f90112fd1ad5bd2 of
+#: pymc_marketing.mmm.causal.TBF_FCI.get_undirected_edges:10
+msgid ""
+":class:`python:list`\\[:class:`python:tuple`\\[:class:`python:str`, "
+":class:`python:str`]]"
+msgstr ""
+"{\n"
+"  \"singular\": \":class:`python:list`\\[:class:`python:tuple`\\[:class:`python:str`, :class:`python:str`]]\",\n"
+"  \"plural\": \":class:`python:list`\\[:class:`python:tuple`\\[:class:`python:str`, :class:`python:str`]]\"\n"
+"}"
+
+#: 83969d4f06bd4d019aabd96898bba170 of
+#: pymc_marketing.mmm.causal.TBF_FCI.get_undirected_edges:11
+msgid "Sorted list of undirected edges among lagged variables."
+msgstr ""
+"{\n"
+"  \"singular\": \"Lista ordenada de aristas no dirigidas entre variables rezagadas.\",\n"
+"  \"plural\": \"Listas ordenadas de aristas no dirigidas entre variables rezagadas.\"\n"
+"}"
+
+#: bfd79c4d7f344a2fb7f4f5204b3096f2 of
+#: pymc_marketing.mmm.causal.TBF_FCI.get_undirected_edges:23
+msgid "Examples"
+msgstr ""
+"{\n"
+"  \"singular\": \"Ejemplo\",\n"
+"  \"plural\": \"Ejemplos\"\n"
+"}"

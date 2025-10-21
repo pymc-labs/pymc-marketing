@@ -1,0 +1,183 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mlflow.log_mmm.rst:2
+#: 637a93b09cd04d4092a0ad9e858dd69b
+msgid "log\\_mmm"
+msgstr "log\\_mmm"
+
+#: 6a37b3716a6b45cf9225a0f21d098eef of pymc_marketing.mlflow.log_mmm:2
+msgid "Log a PyMC-Marketing MMM as a native MLflow model for the current run."
+msgstr ""
+"Registrar un MMM de PyMC-Marketing como un modelo nativo de MLflow para la "
+"ejecución actual."
+
+#: 49b9f7ae0d75406da4948dd39ae7c2af of pymc_marketing.mlflow.log_mmm
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 7d7be9048b094c06a7264c1a7b20413f of pymc_marketing.mlflow.log_mmm:7
+msgid "**mmm** : :obj:`MMM`"
+msgstr "**mmm** : :obj:`MMM`"
+
+#: eaf9a0f2a066489c92e64975d2c65c0b of pymc_marketing.mlflow.log_mmm:6
+msgid "MMM"
+msgstr "MMM"
+
+#: 828315a06c864891b4c818e33cd0959e of pymc_marketing.mlflow.log_mmm:8
+msgid "The MMM to be logged."
+msgstr "El MMM debe ser registrado."
+
+#: 46c5300cd3e1482cbc60678a840f0bff of pymc_marketing.mlflow.log_mmm:10
+msgid "**artifact_path** : :class:`python:str`, optional"
+msgstr "**ruta_del_artifacto** : :class:`python:str`, opcional"
+
+#: 7caf82dc09d34ab9bc3c1af6882d4c3e b0578780547b450f82977ba354362233 of
+#: pymc_marketing.mlflow.log_mmm:9 pymc_marketing.mlflow.log_mmm:15
+msgid "python:str, optional"
+msgstr "python:str, opcional"
+
+#: 46fbd0dc4f7e425d9af69263ab2ed6bd of pymc_marketing.mlflow.log_mmm:11
+msgid "The path to the artifact to be logged. Defaults to \"mmm_model\"."
+msgstr "La ruta al artefacto que se registrará. Por defecto es \"mmm_model\"."
+
+#: 1c696d2ce96847d6bf85ad6fa3c15a59 of pymc_marketing.mlflow.log_mmm:13
+msgid "**conda_env** : :class:`python:dict`, optional"
+msgstr "**conda_env** : :class:`python:dict`, opcional"
+
+#: 66ed21b67eaa4c10a5f9ea2b1a7dd658 of pymc_marketing.mlflow.log_mmm:12
+msgid "python:dict, optional"
+msgstr "python:dict, opcional"
+
+#: fef58b21397b4003bfa59b9adf43d1ee of pymc_marketing.mlflow.log_mmm:14
+msgid ""
+"A dictionary representation of a Conda environment. Defaults to the default "
+"conda environment."
+msgstr ""
+"Una representación en diccionario de un entorno Conda. Por defecto, se "
+"utiliza el entorno conda predeterminado."
+
+#: 0807074ff4874cc9a69b9988647c9b56 of pymc_marketing.mlflow.log_mmm:16
+msgid "**registered_model_name** : :class:`python:str`, optional"
+msgstr "**registered_model_name** : :class:`python:str`, opcional"
+
+#: 2acf45c6b5c24a119a96a49d31d21cc6 of pymc_marketing.mlflow.log_mmm:17
+msgid ""
+"The name of the registered model to be logged. Defaults to None. If "
+"specified, the model will be registered under this name, otherwise it will "
+"not be registered."
+msgstr ""
+"El nombre del modelo registrado que se registrará. Por defecto es None. Si "
+"se especifica, el modelo se registrará bajo este nombre; de lo contrario, no"
+" se registrará."
+
+#: 479f4d721f944a14a65f1bec0bdfa333 of pymc_marketing.mlflow.log_mmm:20
+msgid "**extend_idata** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+"**extend_idata** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 5e07f1b9fd07481eb11bf959c1d1060a 810f0eaa4f7c4110ad812b97250272ee
+#: bea500f4c7ce4b99b0511a087e9b8ff1 def8e8371e29497cb13569843eacaf4c of
+#: pymc_marketing.mlflow.log_mmm:19 pymc_marketing.mlflow.log_mmm:23
+#: pymc_marketing.mlflow.log_mmm:27 pymc_marketing.mlflow.log_mmm:32
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: 0722cacdb3a247a1b923533d39425bbd of pymc_marketing.mlflow.log_mmm:21
+msgid ""
+"Whether to extend the inference data with predictions. Used for all "
+"prediction methods. Defaults to False."
+msgstr ""
+"Si se debe extender los datos de inferencia con predicciones. Utilizado para"
+" todos los métodos de predicción. Por defecto es False."
+
+#: b17b47281b124474859c22b7293ef7c7 of pymc_marketing.mlflow.log_mmm:24
+msgid "**combined** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr "**combinado** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 92c7652c78c14969b434af3bd6dde5aa of pymc_marketing.mlflow.log_mmm:25
+msgid ""
+"Whether to combine chain and draw dims into sample. Won't work if a dim "
+"named sample already exists. Used for posterior/prior predictive sampling. "
+"Defaults to True."
+msgstr ""
+"Si se debe combinar las dimensiones de cadena y de dibujo en la muestra. No "
+"funcionará si ya existe una dimensión llamada sample. Se utiliza para el "
+"muestreo predictivo posterior/anterior. Por defecto es True."
+
+#: c88eaea984fb47d1b58a52c8dd5e53ca of pymc_marketing.mlflow.log_mmm:28
+msgid ""
+"**include_last_observations** : :ref:`bool <python:bltin-boolean-values>`, "
+"optional"
+msgstr ""
+"**include_last_observations** : :ref:`bool <python:bltin-boolean-values>`, "
+"opcional"
+
+#: 7535a9c5a7ed40b784b45712581f5627 of pymc_marketing.mlflow.log_mmm:29
+msgid ""
+"Whether to include the last observations of training data for adstock "
+"transformation. Assumes X are next predictions following training data. Used"
+" for all prediction methods. Defaults to False."
+msgstr ""
+"Si incluir las últimas observaciones de los datos de entrenamiento para la "
+"transformación de adstock. Se asume que X son las siguientes predicciones "
+"que siguen a los datos de entrenamiento. Utilizado para todos los métodos de"
+" predicción. Por defecto es False."
+
+#: 998722a47095407ea106ae60715f29f6 of pymc_marketing.mlflow.log_mmm:33
+msgid ""
+"**original_scale** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+"**original_scale** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 5e0fa13e8a814e7194f774213df7f093 of pymc_marketing.mlflow.log_mmm:34
+msgid ""
+"Whether to return predictions in original scale of target variable. Used for"
+" all prediction methods. Defaults to True."
+msgstr ""
+"Si se deben devolver las predicciones en la escala original de la variable "
+"objetivo. Utilizado para todos los métodos de predicción. Por defecto es "
+"True."
+
+#: 3db12b55a295476f8d969d0d1e5ac676 of pymc_marketing.mlflow.log_mmm:48
+msgid "Notes"
+msgstr "Notas"
+
+#: 608e1cc8a2254dd19ebd3de076c14efe of pymc_marketing.mlflow.log_mmm:49
+msgid ""
+"This function logs the model as a native MLflow model, this is different to "
+"the full model object, which includes the InferenceData. Doing this allows "
+"for the model to be stored in the MLFlow registry, helping with model "
+"versioning and deployment."
+msgstr ""
+"Esta función registra el modelo como un modelo nativo de MLflow, lo cual es "
+"diferente del objeto completo del modelo, que incluye los InferenceData. "
+"Hacer esto permite que el modelo se almacene en el registro de MLFlow, "
+"ayudando con la versionado y el despliegue del modelo."
+
+#: fc81560c212949b8a6b3f49ced9bd34e of pymc_marketing.mlflow.log_mmm:55
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: 1a0ceba0fd184b979e2f53f78776dcae of pymc_marketing.mlflow.log_mmm:56
+msgid "MLFlow Registering for a PyMC-Marketing MMM:"
+msgstr "MLFlow Registrando para un PyMC-Marketing MMM:"

@@ -1,0 +1,209 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.approx_hsgp_hyperparams.rst:2
+#: ee665f91aeaf4f37b67f35093f5cf6fa
+msgid "approx\\_hsgp\\_hyperparams"
+msgstr "approx\\_hsgp\\_hyperparams"
+
+#: 34a816e7936a4622bbbfc90b1de44e23 of
+#: pymc_marketing.mmm.hsgp.approx_hsgp_hyperparams:2
+msgid "Use heuristics for minimum `m` and `c` values."
+msgstr "Utilice heurísticas para los valores mínimos de `m` y `c`."
+
+#: d8025f0387be46d7bfb55e8fff84781e of
+#: pymc_marketing.mmm.hsgp.approx_hsgp_hyperparams:4
+msgid "Based on recommendations from Ruitort-Mayol et. al."
+msgstr "Basado en las recomendaciones de Ruitort-Mayol et. al."
+
+#: 0b2ae3f0469045a0a906e472ec19fdba of
+#: pymc_marketing.mmm.hsgp.approx_hsgp_hyperparams:6
+msgid ""
+"In practice, you need to choose `c` large enough to handle the largest "
+"lengthscales, and `m` large enough to accommodate the smallest lengthscales."
+msgstr ""
+"En la práctica, necesita elegir `c` lo suficientemente grande como para "
+"manejar las escalas de longitud más grandes, y `m` lo suficientemente grande"
+" como para acomodar las escalas de longitud más pequeñas."
+
+#: 99bd8088e98e46beb8f387298723ae52 of
+#: pymc_marketing.mmm.hsgp.approx_hsgp_hyperparams:9
+msgid "NOTE: These recommendations are based on a one-dimensional GP."
+msgstr "NOTA: Estas recomendaciones se basan en un GP unidimensional."
+
+#: e4c458e776444d2587a767e7c80e48c5 of
+#: pymc_marketing.mmm.hsgp.approx_hsgp_hyperparams
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: fa60d81c7fde46bbbf7470a72c6e521a of
+#: pymc_marketing.mmm.hsgp.approx_hsgp_hyperparams:13
+msgid "**x** : :term:`tensor_like`"
+msgstr "**x** : :term:`tensor_like`"
+
+#: d2726372bac747d5abe0babd8858b669 ee6c83527c7b45c78ba72df7aa14e4f6 of
+#: pymc_marketing.mmm.hsgp.approx_hsgp_hyperparams:12
+#: pymc_marketing.mmm.hsgp.approx_hsgp_hyperparams:15
+msgid "tensor_like"
+msgstr "tensor_like"
+
+#: 22de9946cec34f4281ced03d4f44cd4a of
+#: pymc_marketing.mmm.hsgp.approx_hsgp_hyperparams:14
+msgid "The x values the HSGP will be evaluated over."
+msgstr "Los valores x sobre los cuales se evaluará el HSGP."
+
+#: 0a7a83066b24499385991c841d7f4387 of
+#: pymc_marketing.mmm.hsgp.approx_hsgp_hyperparams:16
+msgid "**x_center** : :term:`tensor_like`"
+msgstr "**x_center** : :term:`tensor_like`"
+
+#: 11f8994e047f471988c6c366a5840470 of
+#: pymc_marketing.mmm.hsgp.approx_hsgp_hyperparams:17
+msgid "The center of the data."
+msgstr "El centro de los datos."
+
+#: 39b90e78358a48bda65ab49f11849ad0 of
+#: pymc_marketing.mmm.hsgp.approx_hsgp_hyperparams:19
+msgid ""
+"**lengthscale_range** : :class:`python:tuple`\\[:class:`python:float`, "
+":class:`python:float`]"
+msgstr ""
+"**rango_de_longitud** : :class:`python:tuple`\\[:class:`python:float`, "
+":class:`python:float`]"
+
+#: 4b673888e34a4790bbe7455c32e26d1f of
+#: pymc_marketing.mmm.hsgp.approx_hsgp_hyperparams:18
+msgid "python:tuple[python:float, python:float]"
+msgstr "python:tupla[python:flotante, python:flotante]"
+
+#: 4f70b75891b2427f972aae65ebfa88cd of
+#: pymc_marketing.mmm.hsgp.approx_hsgp_hyperparams:20
+msgid ""
+"The range of the lengthscales. Should be a list with two elements "
+"[lengthscale_min, lengthscale_max]."
+msgstr ""
+"El rango de las escalas de longitud. Debe ser una lista con dos elementos "
+"[lengthscale_min, lengthscale_max]."
+
+#: 1f55d2d118d146139424750ed224f9d2 of
+#: pymc_marketing.mmm.hsgp.approx_hsgp_hyperparams:22
+msgid "**cov_func** : :obj:`Literal`\\[\"expquad\", \"matern32\", \"matern52\"]"
+msgstr "**cov_func** : :obj:`Literal`\\[\"expquad\", \"matern32\", \"matern52\"]"
+
+#: fa2b057834aa45aca8391d8aa6256d59 of
+#: pymc_marketing.mmm.hsgp.approx_hsgp_hyperparams:21
+msgid "Literal[\"expquad\", \"matern32\", \"matern52\"]"
+msgstr "Literal[\"expquad\", \"matern32\", \"matern52\"]"
+
+#: ed5894a86ac64bc0be61894f45ac1e0a of
+#: pymc_marketing.mmm.hsgp.approx_hsgp_hyperparams:23
+msgid ""
+"The covariance function to use. Supported options are \"expquad\", "
+"\"matern52\", and \"matern32\"."
+msgstr ""
+"La función de covarianza a utilizar. Las opciones soportadas son "
+"\"expquad\", \"matern52\" y \"matern32\"."
+
+#: 356d7ca5d50b410f91aa49f6f5a9370a of
+#: pymc_marketing.mmm.hsgp.approx_hsgp_hyperparams
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 44042789bd674a44911995d463d553aa of
+#: pymc_marketing.mmm.hsgp.approx_hsgp_hyperparams:29
+msgid "**- `m`** : :class:`python:int`"
+msgstr "**- `m`** : :class:`python:int`"
+
+#: 80e40b79eb354f94baf6fb174854c70c of
+#: pymc_marketing.mmm.hsgp.approx_hsgp_hyperparams:28
+msgid "python:int"
+msgstr "python:int"
+
+#: 360407c2fc134c32a668e7809f3cea95 of
+#: pymc_marketing.mmm.hsgp.approx_hsgp_hyperparams:30
+msgid ""
+"Number of basis vectors. Increasing it helps approximate smaller "
+"lengthscales, but increases computational cost."
+msgstr ""
+"Número de vectores base. Aumentarlo ayuda a aproximar escalas de longitud "
+"más pequeñas, pero incrementa el costo computacional."
+
+#: ed93a0dd86c84899860ae3da93615faa of
+#: pymc_marketing.mmm.hsgp.approx_hsgp_hyperparams:32
+msgid "**- `c`** : :class:`python:float`"
+msgstr "**- `c`** : :class:`python:float`"
+
+#: 68f2c674931b450e85ee845bc4d8ff73 of
+#: pymc_marketing.mmm.hsgp.approx_hsgp_hyperparams:31
+msgid "python:float"
+msgstr "python:float"
+
+#: 774fc3da30944ab0b3a561ce6658e406 of
+#: pymc_marketing.mmm.hsgp.approx_hsgp_hyperparams:33
+msgid ""
+"Scaling factor such that L = c * S, where L is the boundary of the "
+"approximation. Increasing it helps approximate larger lengthscales, but may "
+"require increasing m."
+msgstr ""
+"Factor de escalado tal que L = c * S, donde L es el límite de la "
+"aproximación. Aumentarlo ayuda a aproximar escalas de longitud más grandes, "
+"pero puede requerir aumentar m."
+
+#: cbe20d2c76f440f4bf501d44969f7970 of
+#: pymc_marketing.mmm.hsgp.approx_hsgp_hyperparams
+msgid "Raises"
+msgstr "Aumentos"
+
+#: e1eb68d444c44bea9c22b500bc15675b of
+#: pymc_marketing.mmm.hsgp.approx_hsgp_hyperparams:41
+msgid ":obj:`ValueError`"
+msgstr ":obj:`ValueError`"
+
+#: 92733a7d7f1d4c828bf9921af680ddbe of
+#: pymc_marketing.mmm.hsgp.approx_hsgp_hyperparams:42
+msgid ""
+"If either `x_range` or `lengthscale_range` is not in the correct order."
+msgstr "Si `x_range` o `lengthscale_range` no están en el orden correcto."
+
+#: 3f8137e4e8e440078c4879b73f8f5c65 of
+#: pymc_marketing.mmm.hsgp.approx_hsgp_hyperparams:49
+msgid "References"
+msgstr "Referencias"
+
+#: 039f43c218cf41829443d2a2b671dbf4 of
+#: pymc_marketing.mmm.hsgp.approx_hsgp_hyperparams:50
+msgid "Ruitort-Mayol, G., Anderson, M., Solin, A., Vehtari, A. (2022)."
+msgstr "Ruitort-Mayol, G., Anderson, M., Solin, A., Vehtari, A. (2022)."
+
+#: d1707058af164095a7f63f0f412fc648 of
+#: pymc_marketing.mmm.hsgp.approx_hsgp_hyperparams:51
+msgid ""
+"Practical Hilbert Space Approximate Bayesian Gaussian Processes for "
+"Probabilistic Programming"
+msgstr ""
+"Espacios de Hilbert Prácticos Aproximados de Procesos Gaussianos Bayesianos "
+"para Programación Probabilística"
+
+#: 105bbee867754530bb79336f7841881f of
+#: pymc_marketing.mmm.hsgp.approx_hsgp_hyperparams:55
+msgid "[R1e65e32b2457-1]_"
+msgstr "[R1e65e32b2457-1]_"

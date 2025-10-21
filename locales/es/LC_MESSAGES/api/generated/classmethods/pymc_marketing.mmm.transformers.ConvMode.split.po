@@ -1,0 +1,85 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.transformers.ConvMode.split.rst:2
+#: 63af70bd010d4d75a6576cdfafa9b7b4
+msgid "ConvMode.split"
+msgstr "ConvMode.dividir"
+
+#: 694651ec891340458ef4f0f090c31836 of
+#: pymc_marketing.mmm.transformers.ConvMode.split:2
+msgid ""
+"Return a list of the substrings in the string, using sep as the separator "
+"string."
+msgstr ""
+"Devuelve una lista de las subcadenas en la cadena, utilizando sep como la "
+"cadena separadora."
+
+#: 0d1c141a1fb64806ba0f1578c5c63582 of
+#: pymc_marketing.mmm.transformers.ConvMode.split:4
+msgid "sep"
+msgstr "sep"
+
+#: a5681fbb33cb4337af3f9d54a728beca of
+#: pymc_marketing.mmm.transformers.ConvMode.split:5
+msgid "The separator used to split the string."
+msgstr "El separador utilizado para dividir la cadena."
+
+#: 2a9e3394986144669cf1b9a2a43be0cd of
+#: pymc_marketing.mmm.transformers.ConvMode.split:7
+msgid ""
+"When set to None (the default value), will split on any whitespace character"
+" (including \\n \\r \\t \\f and spaces) and will discard empty strings from "
+"the result."
+msgstr ""
+"Cuando se establece en Ninguno (el valor predeterminado), se dividirá en "
+"cualquier carácter de espacio en blanco (incluyendo \\n \\r \\t \\f y "
+"espacios) y se descartarán las cadenas vacías del resultado."
+
+#: 1e5da50387b74b908d5efc2645d2655d of
+#: pymc_marketing.mmm.transformers.ConvMode.split:10
+msgid "maxsplit"
+msgstr "maxsplit"
+
+#: d5b90d00dbf6456bb7cb3bb09453f5b8 of
+#: pymc_marketing.mmm.transformers.ConvMode.split:11
+msgid "Maximum number of splits. -1 (the default value) means no limit."
+msgstr ""
+"Número máximo de divisiones. -1 (el valor predeterminado) significa sin "
+"límite."
+
+#: 1edc703fe5be4734b48db505140021f2 of
+#: pymc_marketing.mmm.transformers.ConvMode.split:14
+msgid "Splitting starts at the front of the string and works to the end."
+msgstr ""
+"La división comienza al principio de la cadena y avanza hasta el final."
+
+#: 221489ce776f4138bdedb9138b63d500 of
+#: pymc_marketing.mmm.transformers.ConvMode.split:16
+msgid ""
+"Note, str.split() is mainly useful for data that has been intentionally "
+"delimited.  With natural text that includes punctuation, consider using the "
+"regular expression module."
+msgstr ""
+"Nota: str.split() es principalmente útil para datos que han sido delimitados"
+" intencionadamente. Con texto natural que incluye puntuación, considere "
+"utilizar el módulo de expresiones regulares."

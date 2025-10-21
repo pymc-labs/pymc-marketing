@@ -1,0 +1,107 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.customer_choice.mv_its.MVITS.plot_counterfactual.rst:2
+#: bf8f8ad37d6545c985438ca7921227d6
+msgid "MVITS.plot\\_counterfactual"
+msgstr "MVITS.plot\\_counterfactual"
+
+#: ccd08f6f1bc140f8a1d9c1aa7003580b of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_counterfactual:2
+msgid "Plot counterfactual scenario."
+msgstr "Trazar un escenario contrafactual."
+
+#: a1e1a5a75e7848cfbe5b835a02442175 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_counterfactual:4
+msgid ""
+"Plot the predicted sales of the existing products under the counterfactual "
+"scenario of never releasing the new product."
+msgstr ""
+"Trace las ventas previstas de los productos existentes bajo el escenario "
+"contrafactual de nunca haber lanzado el nuevo producto."
+
+#: 275cde78fc6449da9f5d6792119cc19a of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_counterfactual
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 5c612981988e4b24bd988cf3793ed1ab of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_counterfactual:9
+msgid "**variable** : :class:`python:str`, optional"
+msgstr "**variable** : :class:`python:str`, opcional"
+
+#: 7db800ee8bc34a298975609e26328d02 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_counterfactual:8
+msgid "python:str, optional"
+msgstr "python:str, opcional"
+
+#: d38ddd6bd7974f81bc0839b441361f40 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_counterfactual:10
+msgid "The variable to compare. Either \"mu\" or \"y\"."
+msgstr "La variable a comparar. Puede ser \"mu\" o \"y\"."
+
+#: 24489f12467a4777bf54b41d5c1d5058 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_counterfactual:12
+msgid ""
+"**plot_total_sales** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+"**plot_total_sales** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 7319b86a392e4ff1b4ad87a91e196fc1 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_counterfactual:11
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: d254ce993d8a40a4ac51a146ba8b0fbe of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_counterfactual:13
+msgid "Whether to plot the total sales or not."
+msgstr "Si se debe trazar las ventas totales o no."
+
+#: a741b28631c94848b196d7c0feded92a of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_counterfactual:15
+msgid "**axes** : :obj:`plt.Axes`, optional"
+msgstr "**ejes** : :obj:`plt.Axes`, opcional"
+
+#: 6d326a29ab4243438430a7ba8d56f31b of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_counterfactual:14
+msgid "plt.Axes, optional"
+msgstr "plt.Axes, opcional"
+
+#: 928dd0981e8647699dcb43cb32e826d3 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_counterfactual:16
+msgid "The matplotlib axes."
+msgstr "Los ejes de matplotlib."
+
+#: c55a31dda1d143f095b25c7dc2302659 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_counterfactual
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 8134afedb3964973b39283993ded75d3 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_counterfactual:22
+msgid ":obj:`plt.Axes`"
+msgstr ":obj:`plt.Axes`"
+
+#: 2be7b78f552f42fe84cc1897d8dd478f of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_counterfactual:23
+msgid "The new or modified matplotlib axes."
+msgstr "Los nuevos ejes de matplotlib o los ejes modificados."

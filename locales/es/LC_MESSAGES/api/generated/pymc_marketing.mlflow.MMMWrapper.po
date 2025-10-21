@@ -1,0 +1,272 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mlflow.MMMWrapper.rst:2
+#: 9de71696be5b4981bd9e8ffb05b20a1d
+msgid "MMMWrapper"
+msgstr "MMMWrapper"
+
+#: 68559dfa122649f4969993993ca4e149 of pymc_marketing.mlflow.MMMWrapper:2
+msgid ""
+"A class to prepare a PyMC-Marketing Mix Model (MMM) for logging and "
+"registering in MLflow."
+msgstr ""
+"Una clase para preparar un modelo de mezcla de marketing (MMM) de PyMC para "
+"registrar y registrar en MLflow."
+
+#: f008df2bedb3403a903e4c66aac2c50f of pymc_marketing.mlflow.MMMWrapper:4
+msgid ""
+"This class extends MLflow's PythonModel to handle prediction tasks using a "
+"PyMC-based MMM. It supports several prediction methods, including point-"
+"prediction, posterior and prior predictive sampling."
+msgstr ""
+"Esta clase extiende el PythonModel de MLflow para manejar tareas de "
+"predicción utilizando un MMM basado en PyMC. Soporta varios métodos de "
+"predicción, incluyendo predicción puntual, muestreo predictivo posterior y "
+"muestreo predictivo anterior."
+
+#: d2edf80035ce46f88a72902113c6006f of pymc_marketing.mlflow.MMMWrapper
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 4f58ee8ebc334ff0a962c88655065380 of pymc_marketing.mlflow.MMMWrapper:9
+msgid "**model** : :obj:`pymc_marketing.mmm.MMM`"
+msgstr "**modelo** : :obj:`pymc_marketing.mmm.MMM`"
+
+#: 57e925439f054ae1b8758179072fa3ab of pymc_marketing.mlflow.MMMWrapper:8
+msgid "pymc_marketing.mmm.MMM"
+msgstr "pymc_marketing.mmm.MMM"
+
+#: 660812af127c49e194c0827ed021537a of pymc_marketing.mlflow.MMMWrapper:10
+msgid "The marketing mix model to be registered and used for predictions."
+msgstr ""
+"El modelo de mezcla de marketing que se registrará y utilizará para "
+"predicciones."
+
+#: 19a86e011d5b42e7995f6a8e58cd9481 of pymc_marketing.mlflow.MMMWrapper:12
+msgid "**predict_method** : :class:`python:str`, optional, default=\"predict\""
+msgstr ""
+"**predict_method** : :class:`python:str`, opcional, "
+"predeterminado=\"predict\""
+
+#: 6336d1e3042743fd813b593d7ae6b85a of pymc_marketing.mlflow.MMMWrapper:11
+msgid "python:str, optional, default=\"predict\""
+msgstr "python:str, opcional, predeterminado=\"predict\""
+
+#: 00a75b4a14fe4238858f77bf9f4f35ba of pymc_marketing.mlflow.MMMWrapper:13
+msgid ""
+"The default prediction method to use, such as \"predict\", "
+"\"sample_posterior_predictive\", or \"sample_prior_predictive\"."
+msgstr ""
+"El método de predicción predeterminado a utilizar, como \"predict\", "
+"\"sample_posterior_predictive\" o \"sample_prior_predictive\"."
+
+#: d3a1a40771114c3ca4a0337460979a42 of pymc_marketing.mlflow.MMMWrapper:16
+msgid ""
+"**extend_idata** : :ref:`bool <python:bltin-boolean-values>`, default=False"
+msgstr ""
+"**extend_idata** : :ref:`bool <python:bltin-boolean-values>`, "
+"predeterminado=False"
+
+#: 2a6df126070c4924bb0a04ae659199d0 67789806183d450b863dbf597dfdfb74 of
+#: pymc_marketing.mlflow.MMMWrapper:15 pymc_marketing.mlflow.MMMWrapper:21
+msgid "bool, default=False"
+msgstr "bool, predeterminado=False"
+
+#: ba0650ac9145411a8b6cd1740538d8aa of pymc_marketing.mlflow.MMMWrapper:17
+msgid ""
+"Boolean determining whether the predictions should be added to inference "
+"data object. Defaults to False."
+msgstr ""
+"Boolean que determina si las predicciones deben ser añadidas al objeto de "
+"datos de inferencia. Por defecto es False."
+
+#: b237a1525db243179c37d13dceced101 of pymc_marketing.mlflow.MMMWrapper:19
+msgid "**combined** : :ref:`bool <python:bltin-boolean-values>`, default=True"
+msgstr ""
+"**combinado** : :ref:`bool <python:bltin-boolean-values>`, "
+"predeterminado=True"
+
+#: 47cf329300344b43be16ae7d7312ad72 494535e733994cecbd121bed89c1f79b of
+#: pymc_marketing.mlflow.MMMWrapper:18 pymc_marketing.mlflow.MMMWrapper:26
+msgid "bool, default=True"
+msgstr "bool, predeterminado=True"
+
+#: 6f77fd9780944b448be5b9d643d7affe of pymc_marketing.mlflow.MMMWrapper:20
+msgid ""
+"Combine chain and draw dims into sample. Won't work if a dim named sample "
+"already exists. Defaults to True."
+msgstr ""
+"Combina la cadena y las dimensiones de dibujo en la muestra. No funcionará "
+"si ya existe una dimensión llamada muestra. Por defecto es True."
+
+#: 624912d8bcc845039d2abb2f3b268d76 of pymc_marketing.mlflow.MMMWrapper:22
+msgid ""
+"**include_last_observations** : :ref:`bool <python:bltin-boolean-values>`, "
+"default=False"
+msgstr ""
+"**include_last_observations** : :ref:`bool <python:bltin-boolean-values>`, "
+"predeterminado=False"
+
+#: 457aa6182f5343c5b48e59423ab217f5 of pymc_marketing.mlflow.MMMWrapper:23
+msgid ""
+"Boolean determining whether to include the last observations of the training"
+" data in order to carry over costs with the adstock transformation. Assumes "
+"that X are the next predictions following the training data. Defaults to "
+"False."
+msgstr ""
+"Boolean que determina si se deben incluir las últimas observaciones de los "
+"datos de entrenamiento para trasladar los costos con la transformación de "
+"adstock. Se asume que X son las siguientes predicciones que siguen a los "
+"datos de entrenamiento. Por defecto es False."
+
+#: 9d15fb838bee4d27bb35ea3f3f05315d of pymc_marketing.mlflow.MMMWrapper:27
+msgid ""
+"**original_scale** : :ref:`bool <python:bltin-boolean-values>`, default=True"
+msgstr ""
+"**original_scale** : :ref:`bool <python:bltin-boolean-values>`, "
+"predeterminado=True"
+
+#: 59a99395b49e44b2834017f74bd10592 of pymc_marketing.mlflow.MMMWrapper:28
+msgid ""
+"Boolean determining whether to return the predictions in the original scale "
+"of the target variable."
+msgstr ""
+"Boolean que determina si se deben devolver las predicciones en la escala "
+"original de la variable objetivo."
+
+#: a1d11d760c61468ca624fe2f358ca2a0 of pymc_marketing.mlflow.MMMWrapper:30
+msgid ""
+"**var_names** : :class:`python:list` of :class:`python:str`, optional, "
+"default=None"
+msgstr ""
+"**var_names** : :class:`python:list` de :class:`python:str`, opcional, "
+"predeterminado=None"
+
+#: 2dfd670b709b43d29b3969fe5894555c of pymc_marketing.mlflow.MMMWrapper:29
+msgid "python:list of python:str, optional, default=None"
+msgstr "python:lista de python:str, opcional, predeterminado=None"
+
+#: c25a24fd4f4946bba5912935b1eea7e6 of pymc_marketing.mlflow.MMMWrapper:31
+msgid "The variable names to include in the predictions."
+msgstr "Los nombres de las variables a incluir en las predicciones."
+
+#: eb5be25da6b24348b9085f0d9ab897d4 of pymc_marketing.mlflow.MMMWrapper:33
+msgid "**sample_kwargs** : :class:`python:dict`, optional"
+msgstr "**sample_kwargs** : :class:`python:dict`, opcional"
+
+#: 4c769aff000c417ab0dba0e9bdcd3531 of pymc_marketing.mlflow.MMMWrapper:32
+msgid "python:dict, optional"
+msgstr "python:dict, opcional"
+
+#: 5c08093b6a4b439e9e7e021031b8c852 of pymc_marketing.mlflow.MMMWrapper:34
+msgid "Additional keyword arguments to pass to the selected sampling methods."
+msgstr ""
+"Argumentos adicionales de palabras clave para pasar a los métodos de "
+"muestreo seleccionados."
+
+#: ../source/api/generated/pymc_marketing.mlflow.MMMWrapper.rst:12
+#: 3da6671f8f1d400094b42195b37eef42
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mlflow.MMMWrapper.rst:25:<autosummary>:1
+#: 4a09e25285794ccf97bfba11c2f73c75
+msgid ""
+":py:obj:`MMMWrapper.__init__ <pymc_marketing.mlflow.MMMWrapper.__init__>`\\ "
+"\\(model\\[\\, predict\\_method\\, ...\\]\\)"
+msgstr ""
+":py:obj:`MMMWrapper.__init__ <pymc_marketing.mlflow.MMMWrapper.__init__>`\\ "
+"\\(modelo\\[\\, método\\_de\\_predicción\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mlflow.MMMWrapper.rst:25:<autosummary>:1
+#: a331003639b14a8bbcddaa4eeacc88c9
+msgid ""
+":py:obj:`MMMWrapper.load_context "
+"<pymc_marketing.mlflow.MMMWrapper.load_context>`\\ \\(context\\)"
+msgstr ""
+":py:obj:`MMMWrapper.load_context "
+"<pymc_marketing.mlflow.MMMWrapper.load_context>`\\ \\(contexto\\)"
+
+#: ../source/api/generated/pymc_marketing.mlflow.MMMWrapper.rst:25:<autosummary>:1
+#: c9a5486c140445b598d757b95262d67d
+msgid ""
+"Loads artifacts from the specified :class:`~PythonModelContext` that can be "
+"used by :func:`~PythonModel.predict` when evaluating inputs."
+msgstr ""
+"Carga artefactos del :class:`~PythonModelContext` especificado que pueden "
+"ser utilizados por :func:`~PythonModel.predict` al evaluar entradas."
+
+#: ../source/api/generated/pymc_marketing.mlflow.MMMWrapper.rst:25:<autosummary>:1
+#: 24fa322a84974bce96b2125a677fbfa0
+msgid ""
+":py:obj:`MMMWrapper.predict <pymc_marketing.mlflow.MMMWrapper.predict>`\\ "
+"\\(context\\, model\\_input\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`MMMWrapper.predict <pymc_marketing.mlflow.MMMWrapper.predict>`\\ "
+"\\(contexto\\, modelo\\_entrada\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mlflow.MMMWrapper.rst:25:<autosummary>:1
+#: 0b308340355a417195be740c78f94db8
+msgid "Perform predictions or sampling using the specified prediction method."
+msgstr ""
+"Realice predicciones o muestreo utilizando el método de predicción "
+"especificado."
+
+#: ../source/api/generated/pymc_marketing.mlflow.MMMWrapper.rst:25:<autosummary>:1
+#: 8271813ca12d48a1b8c50aada1a2fe61
+msgid ""
+":py:obj:`MMMWrapper.predict_stream "
+"<pymc_marketing.mlflow.MMMWrapper.predict_stream>`\\ \\(context\\, "
+"model\\_input\\)"
+msgstr ""
+":py:obj:`MMMWrapper.predict_stream "
+"<pymc_marketing.mlflow.MMMWrapper.predict_stream>`\\ \\(contexto\\, "
+"entrada\\_modelo\\)"
+
+#: ../source/api/generated/pymc_marketing.mlflow.MMMWrapper.rst:25:<autosummary>:1
+#: fb464f0b5d6846389792ba3ba9b157ac
+msgid ""
+"Evaluates a pyfunc-compatible input and produces an iterator of output."
+msgstr ""
+"Evalúa una entrada compatible con pyfunc y produce un iterador de salida."
+
+#: ../source/api/generated/pymc_marketing.mlflow.MMMWrapper.rst:27
+#: 1c168716922242c7977e5596bef0259e
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mlflow.MMMWrapper.rst:30:<autosummary>:1
+#: 6790044cc6014eb4b3262c42bde81ff6
+msgid ""
+":py:obj:`predict_type_hints "
+"<pymc_marketing.mlflow.MMMWrapper.predict_type_hints>`\\"
+msgstr ""
+":py:obj:`predict_type_hints "
+"<pymc_marketing.mlflow.MMMWrapper.predict_type_hints>`"
+
+#: ../source/api/generated/pymc_marketing.mlflow.MMMWrapper.rst:30:<autosummary>:1
+#: 599ad13c77a04d66bf497185f6305cc6
+msgid "Internal method to get type hints from the predict function signature."
+msgstr ""
+"Método interno para obtener sugerencias de tipo de la firma de la función "
+"predict."

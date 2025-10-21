@@ -1,0 +1,74 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.transformers.ConvMode.rsplit.rst:2
+#: 8804504e19de49cd9262bd997fff062a
+msgid "ConvMode.rsplit"
+msgstr "ConvMode.rsplit"
+
+#: e02d29c306f442038cecfcd4aebb02eb of
+#: pymc_marketing.mmm.transformers.ConvMode.rsplit:2
+msgid ""
+"Return a list of the substrings in the string, using sep as the separator "
+"string."
+msgstr ""
+"Devuelve una lista de las subcadenas en la cadena, utilizando sep como la "
+"cadena separadora."
+
+#: 9c94dc4e78764470a03a7fd88dd09721 of
+#: pymc_marketing.mmm.transformers.ConvMode.rsplit:4
+msgid "sep"
+msgstr "sep"
+
+#: 958b0b4dc11247ac81a1154af3bcfb37 of
+#: pymc_marketing.mmm.transformers.ConvMode.rsplit:5
+msgid "The separator used to split the string."
+msgstr "El separador utilizado para dividir la cadena."
+
+#: a387441172604fb4b53efebeb65f818d of
+#: pymc_marketing.mmm.transformers.ConvMode.rsplit:7
+msgid ""
+"When set to None (the default value), will split on any whitespace character"
+" (including \\n \\r \\t \\f and spaces) and will discard empty strings from "
+"the result."
+msgstr ""
+"Cuando se establece en Ninguno (el valor predeterminado), se dividirá en "
+"cualquier carácter de espacio en blanco (incluyendo \\n \\r \\t \\f y "
+"espacios) y se descartarán las cadenas vacías del resultado."
+
+#: 5abd66c3e8c4462686d5605946786978 of
+#: pymc_marketing.mmm.transformers.ConvMode.rsplit:10
+msgid "maxsplit"
+msgstr "maxsplit"
+
+#: bef47be23d4e457ba79cf8e29b620cf4 of
+#: pymc_marketing.mmm.transformers.ConvMode.rsplit:11
+msgid "Maximum number of splits. -1 (the default value) means no limit."
+msgstr ""
+"Número máximo de divisiones. -1 (el valor predeterminado) significa sin "
+"límite."
+
+#: 05b0c637ef1b4f6aba8b0e9b59bdedc7 of
+#: pymc_marketing.mmm.transformers.ConvMode.rsplit:14
+msgid "Splitting starts at the end of the string and works to the front."
+msgstr ""
+"La división comienza al final de la cadena y avanza hacia el principio."

@@ -1,0 +1,46 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.media_transformation.MediaConfig.to_dict.rst:2
+#: 6d854a8369334e80b2248b03c3d34392
+msgid "MediaConfig.to\\_dict"
+msgstr "MediaConfig.to\\_dict"
+
+#: 35b100057f2447689849f1d252623080 of
+#: pymc_marketing.mmm.media_transformation.MediaConfig.to_dict:2
+msgid "Convert the media configuration to a dictionary."
+msgstr "Convierte la configuración de medios a un diccionario."
+
+#: 7c4acc3fa328483bb2e9d3de81bb052f of
+#: pymc_marketing.mmm.media_transformation.MediaConfig.to_dict
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 377f20c6b0744cf789c27798c29c343b of
+#: pymc_marketing.mmm.media_transformation.MediaConfig.to_dict:10
+msgid ":class:`python:dict`"
+msgstr ":class:`python:dict`"
+
+#: 4f5e9d17059f43408ab716ce587d5845 of
+#: pymc_marketing.mmm.media_transformation.MediaConfig.to_dict:11
+msgid "The media configuration as a dictionary."
+msgstr "La configuración de medios como un diccionario."

@@ -85,9 +85,9 @@ def test_validate_date_col():
     obj = ValidateDateColumn()
     obj.date_column = "date"
     assert obj.validate_date_col(toy_X) is None
-    with pytest.raises(ValueError, match="date_col date not in data"):
+    with pytest.raises(ValueError, match=r"date_col date not in data"):
         obj.validate_date_col(toy_X.drop(columns=["date"]))
-    with pytest.raises(ValueError, match="date_col date has repeated values"):
+    with pytest.raises(ValueError, match=r"date_col date has repeated values"):
         obj.validate_date_col(pd.concat([toy_X, toy_X], ignore_index=True, axis=0))
 
 
@@ -96,10 +96,10 @@ def test_channel_columns():
     obj.channel_columns = ["channel_1", "channel_2"]
     assert obj.validate_channel_columns(toy_X) is None
 
-    with pytest.raises(ValueError, match="channel_columns must be a list or tuple"):
+    with pytest.raises(ValueError, match=r"channel_columns must be a list or tuple"):
         obj.channel_columns = {}
         obj.validate_channel_columns(toy_X)
-    with pytest.raises(ValueError, match="channel_columns must not be empty"):
+    with pytest.raises(ValueError, match=r"channel_columns must not be empty"):
         obj.channel_columns = []
         obj.validate_channel_columns(toy_X)
     with pytest.raises(
@@ -132,12 +132,12 @@ def test_control_columns():
     assert obj.validate_control_columns(toy_X) is None
 
     with pytest.raises(
-        ValueError, match="control_columns must be None, a list or tuple"
+        ValueError, match=r"control_columns must be None, a list or tuple"
     ):
         obj.control_columns = {}
         obj.validate_control_columns(toy_X)
     with pytest.raises(
-        ValueError, match="If control_columns is not None, then it must not be empty"
+        ValueError, match=r"If control_columns is not None, then it must not be empty"
     ):
         obj.control_columns = []
         obj.validate_control_columns(toy_X)
@@ -157,5 +157,5 @@ def test_control_columns():
 
 def test_y_len_0():
     obj = ValidateTargetColumn()
-    with pytest.raises(ValueError, match="y must have at least one element"):
+    with pytest.raises(ValueError, match=r"y must have at least one element"):
         obj.validate_target(pd.Series())

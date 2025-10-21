@@ -1,0 +1,776 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:10003
+#: b0293b79b3ff41b5a45d25d7990b325a
+msgid "Custom Models with MMM components"
+msgstr "Modelos personalizados con componentes MMM"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:10005
+#: 2965a9fc43e349f68ff73b7ab90a85c5
+msgid ""
+"The underlying components used in the `MMM` class provide flexibility to "
+"build other, custom models. With a little knowledge of `PyMC` and how to "
+"customize these `PyMC-Marketing` components, a lot of different use-cases "
+"can be covered."
+msgstr ""
+"Los componentes subyacentes utilizados en la clase `MMM` ofrecen "
+"flexibilidad para construir otros modelos personalizados. Con un poco de "
+"conocimiento de `PyMC` y de cómo personalizar estos componentes de `PyMC-"
+"Marketing`, se pueden cubrir muchos casos de uso diferentes."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:10007
+#: 88dac599ebe147cbab67e1e580a2582a
+msgid ""
+"This notebook is not an introduction but rather an advance example for those"
+" trying to understand the `PyMC-Marketing` internals for flexibility for "
+"custom use-cases."
+msgstr ""
+"Este cuaderno no es una introducción, sino un ejemplo avanzado para aquellos"
+" que intentan comprender los internals de `PyMC-Marketing` para la "
+"flexibilidad en casos de uso personalizados."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:10009
+#: abd47864bec446f9923ac3511f91973b
+msgid "Overview"
+msgstr "Descripción general"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:10011
+#: 425f4642c46c4ed19d853c6c1805f3c5
+msgid ""
+"This notebook will cover the currently exposed model components from the "
+"PyMC-Marketing API. At the moment, this includes:"
+msgstr ""
+"Este cuaderno cubrirá los componentes del modelo actualmente expuestos de la"
+" API de PyMC-Marketing. En este momento, esto incluye:"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:10013
+#: e29623e16af34e83a02c85d0cd763b7d
+msgid "media transformations"
+msgstr "transformaciones de medios"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:10014
+#: 16af3c108b014b2889b797f232c025ba
+msgid "adstock: how today's media has an effect in the future"
+msgstr "adstock: cómo los medios de hoy tienen un efecto en el futuro"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:10015
+#: 672508c4183a486f81720a041c800d4d
+msgid "saturation: the diminishing returns for media"
+msgstr "saturación: los rendimientos decrecientes para los medios"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:10016
+#: 38e108d9a884456e89e6643ccc13051e
+msgid "recurring seasonality"
+msgstr "estacionalidad recurrente"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:10018
+#: 872f39384ed44f91b20e6b219bba8b5c
+msgid ""
+"For each of these, the flexibility and customization will be showcased and "
+"combined together in a toy model with with `PyMC` directly."
+msgstr ""
+"Para cada uno de estos, se mostrará la flexibilidad y personalización, "
+"combinándolas en un modelo de juguete directamente con `PyMC`."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:20002
+#: c76e3176ac1b4f4a994cbcd632f8c12e
+msgid "Setup"
+msgstr "Configuración"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:50002
+#: 68a3a4ee8bb0465f9d2781325d39e0d7
+msgid "Media Transformations"
+msgstr "Transformaciones de Medios"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:50004
+#: 0baaf1b70cec4ac780294a48d38e5a3b
+msgid ""
+"There are classes for each of the adstock and saturation transformations. "
+"They can be imported from the `pymc_marketing.mmm` module."
+msgstr ""
+"Hay clases para cada una de las transformaciones de adstock y saturación. "
+"Pueden ser importadas del módulo `pymc_marketing.mmm`."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:70002
+#: 8323ae90663144ac95fcc080ce414405
+msgid ""
+"Saturation curves can take many different forms. In this example, we will "
+"use the Michaelis Menten curve which we provide in the "
+"`MichaelisMentenSaturation` class."
+msgstr ""
+"Las curvas de saturación pueden adoptar muchas formas diferentes. En este "
+"ejemplo, utilizaremos la curva de Michaelis-Menten que proporcionamos en la "
+"clase `MichaelisMentenSaturation`."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:70004
+#: 073a01d400224c1694d983798fa6305b
+msgid "This curve has two parameters, `alpha` and `lam`."
+msgstr "Esta curva tiene dos parámetros, `alpha` y `lam`."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:70006
+#: 2d196af11c1d4a0d846d62ecf5dcb8b4
+msgid ""
+"A characteristic of these curves are diminishing returns in order to "
+"indicate saturation of a media variable. This can be seen in the plateauing "
+"as x increases."
+msgstr ""
+"Una característica de estas curvas son los rendimientos decrecientes para "
+"indicar la saturación de una variable media. Esto se puede observar en el "
+"estancamiento a medida que x aumenta."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:90002
+#: f0a5cd29d0794ef18aaf5d7d665f15df
+msgid "Sampling Transformation Function"
+msgstr "Función de Transformación de Muestreo"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:90004
+#: c6e13b1ec64246afb289dd45cfb40b02
+msgid ""
+"Each of the transformation will have a set of default priors. These can be "
+"altered at initialization with the `priors` parameter but will ultimately be"
+" stored in the `function_priors` attribute of the instance. There will be a "
+"prior for each of the estimated parameters used in the function."
+msgstr ""
+"Cada una de las transformaciones tendrá un conjunto de priors "
+"predeterminados. Estos pueden ser modificados en la inicialización con el "
+"parámetro `priors`, pero finalmente se almacenarán en el atributo "
+"`function_priors` de la instancia. Habrá un prior para cada uno de los "
+"parámetros estimados utilizados en la función."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:110002
+#: e181bb610c514c9b99c2791e80400580
+msgid ""
+"The `sample_prior` method can be used to sample the parameters of the "
+"functions."
+msgstr ""
+"El método `sample_prior` se puede utilizar para muestrear los parámetros de "
+"las funciones."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:110005
+#: be7b18e714dd4209b7567b3c323196bb
+msgid ""
+"There is the prefix `saturation_` on each of the parameters in order to not "
+"clash with the larger model. This is the default but can be changed as well."
+msgstr ""
+"Hay el prefijo `saturation_` en cada uno de los parámetros para no chocar "
+"con el modelo más grande. Este es el valor predeterminado, pero también se "
+"puede cambiar."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:130002
+#: 3cf4b36c2d3d44099fae06bda80f2537
+msgid ""
+"With parameters for the function, the curve can be sampled as well. "
+"Combining `sample_curve` and `plot_curve` together can provide good insight "
+"into the shape the curve makes!"
+msgstr ""
+"Con parámetros para la función, la curva también se puede muestrear. "
+"Combinar `sample_curve` y `plot_curve` juntos puede proporcionar una buena "
+"visión de la forma que toma la curva."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:130004
+#: f179e2c470e249fe8f96ed2b15b5cc46
+msgid "This shows the most likely curves under the prior distributions."
+msgstr ""
+"Esto muestra las curvas más probables bajo las distribuciones a priori."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:150003
+#: 3f4a9df848a945e5b22b6978397f8e79
+msgid ""
+"The posterior can be used instead of the prior in both the `sample_curve` "
+"and `plot_curve` methods. Any additional coordinates from the parameters "
+"will be handled automatically!"
+msgstr ""
+"El posterior puede ser utilizado en lugar del anterior en ambos métodos "
+"`sample_curve` y `plot_curve`. ¡Cualquier coordenada adicional de los "
+"parámetros será manejada automáticamente!"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:160002
+#: 1a858e0b85344762a0d8e6807fa5f0d5
+msgid "Adding Parameter Dimensions"
+msgstr "Añadiendo Dimensiones de Parámetro"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:160004
+#: a683cafbcdae4755be42a740660257d4
+msgid ""
+"In most cases, a separate saturation function will be estimated for each "
+"media channel. A dimension needs to be added to the prior of the function "
+"parameters to account for this."
+msgstr ""
+"En la mayoría de los casos, se estimará una función de saturación separada "
+"para cada canal de medios. Se necesita agregar una dimensión al prior de los"
+" parámetros de la función para tener en cuenta esto."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:160006
+#: 40a8b6097efa414bb8458eeba211c509
+msgid "Let's create some example data to work toward this transformation."
+msgstr ""
+"Creemos algunos datos de ejemplo para trabajar en esta transformación."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:180002
+#: 62a090e33a394a5eb0db547e8ab6ec34
+msgid "For this example, we will have 2 years of media spend for 4 channels"
+msgstr ""
+"Para este ejemplo, tendremos 2 años de gasto en medios para 4 canales."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:220002
+#: 170d6ea7513e48919d0f0a559da18863
+msgid ""
+"As mentioned, the default priors **do not** have a channel dimension. In "
+"order to use with the in our model with \"channel\" dim, we have to add the "
+"dims to each of the function priors."
+msgstr ""
+"Como se mencionó, los priors predeterminados **no** tienen una dimensión de "
+"canal. Para utilizarlos en nuestro modelo con dimensión de \"canal\", "
+"debemos agregar las dimensiones a cada uno de los priors de función."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:240002
+#: b871116bf62c4c959fb41acaf46caabc
+msgid ""
+"The previous workflow can be used to understand our priors still. Just pass "
+"the `coords` to the `sample_prior` method in order to add dims to the "
+"appropriate variables."
+msgstr ""
+"El flujo de trabajo anterior se puede utilizar para comprender nuestros "
+"priors aún. Simplemente pase las `coords` al método `sample_prior` para "
+"agregar dimensiones a las variables apropiadas."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:260002
+#: ff0fe207934f494d87c3376227794cee
+msgid ""
+"Since each channel prior is the same, there will just be some noise between "
+"the HDI and curve samples."
+msgstr ""
+"Dado que cada canal previo es el mismo, solo habrá algo de ruido entre las "
+"muestras de HDI y de la curva."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:280002
+#: c1dfdcd67f1e48ff97489ad8071c00cb
+msgid "Using in PyMC Model"
+msgstr "Usando en el modelo de PyMC"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:280004
+#: d1109f1c389f49de91ce90f85fd55918
+msgid ""
+"When using the transformation in a larger `PyMC` model, the `apply` method "
+"will be used."
+msgstr ""
+"Al utilizar la transformación en un modelo más grande de `PyMC`, se "
+"utilizará el método `apply`."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:280006
+#: 8add92eebfa143d19b6e80ca6828efd3
+msgid "This method will:"
+msgstr "Este método hará:"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:280008
+#: 24cd0c8961da411e81262bf1cadcbc2f
+msgid "create distributions based on prior specification of the instance"
+msgstr ""
+"crear distribuciones basadas en la especificación previa de la instancia"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:280009
+#: 9194d0e392164922bb42280508ee475f
+msgid "apply the transformation to the data"
+msgstr "aplicar la transformación a los datos"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:280011
+#: 85cefd986e444dd5a252a19faad99a57
+msgid ""
+"The `dims` parameter is the shape of parameters and not the data. The data "
+"has a different shape but will need to be broadcastable with the parameters!"
+msgstr ""
+"El parámetro `dims` es la forma de los parámetros y no de los datos. Los "
+"datos tienen una forma diferente, pero deberán ser compatibles para la "
+"transmisión con los parámetros."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:300002
+#: 63e478e54e244dff83a9093d93c1954a
+msgid ""
+"Since independent alpha and lam were specified, we see that in the model "
+"graph below:"
+msgstr ""
+"Dado que se especificaron alpha y lam independientes, vemos que en el "
+"gráfico del modelo a continuación:"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:320003
+#: b1883eec9fd34ebe8eb7e355403d9f98
+msgid ""
+"Neither the `df_spends` nor `saturated_spends` show in the model. If needed,"
+" use `pm.Data` and `pm.Deterministic` to save off."
+msgstr ""
+"Ni `df_spends` ni `saturated_spends` se muestran en el modelo. Si es "
+"necesario, utiliza `pm.Data` y `pm.Deterministic` para guardar."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:320006
+#: d24852ace86e4e1abe311a0751849e6a
+msgid "Our variable will be (date, channel) dims."
+msgstr "Nuestra variable será (fecha, canal) dimensiones."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:330002
+#: ../source/notebooks/mmm/mmm_components.ipynb:410002
+#: 0f1fc72f10984144a9f1d3eafbb76de8 b2efb955190d4746924ae1d49e45d60e
+msgid "\\displaystyle \\left( 104, \\  4\\right)"
+msgstr "\\displaystyle \\left( 104, \\  4\\right)"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:340002
+#: fe07a9c114794ea4acac81d466bb4948
+msgid ""
+"We can manipulate this in anyway we'd like to connect it in with the larger "
+"model."
+msgstr ""
+"Podemos manipular esto de cualquier manera que deseemos para conectarlo con "
+"el modelo más grande."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:350002
+#: 20dc4de52e1f4162a787ba8eff99e803
+msgid "Changing Assumptions"
+msgstr "Cambiando Suposiciones"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:350004
+#: 78266fcce0b84c5e91712919aa2955f8
+msgid ""
+"As hinted above, the priors for the function parameters are customizable "
+"which can lead to many different models. Change the priors, change the "
+"model."
+msgstr ""
+"Como se insinuó anteriormente, los priors para los parámetros de la función "
+"son personalizables, lo que puede dar lugar a muchos modelos diferentes. "
+"Cambie los priors, cambie el modelo."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:350006
+#: b4db78bd01774d60b1fa7e10f16d08af
+msgid ""
+"The prior distributions just need to follow the distribution API "
+"[here](https://www.pymc-"
+"marketing.io/en/stable/api/generated/pymc_marketing.model_config.html)."
+msgstr ""
+"Las distribuciones previas solo necesitan seguir la API de distribución "
+"[aquí](https://www.pymc-"
+"marketing.io/en/stable/api/generated/pymc_marketing.model_config.html)."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:360002
+#: 7f136a8007984b368143392756d3c973
+msgid "Instead of the defaults, we can use:"
+msgstr "En lugar de los valores predeterminados, podemos usar:"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:360003
+#: 523fa2d08e6646c9affadc52fde8c96b
+msgid "hierarchical parameter for `lam` parameter"
+msgstr "parámetro jerárquico para el parámetro `lam`"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:360004
+#: 7d6ec59a5c434280bc64a1bf425d2dae
+msgid "common `alpha` parameter"
+msgstr "parámetro `alpha` común"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:380002
+#: 7ecf0d7e1213493b83d79abd306fb87a
+msgid ""
+"Then this can be used in a new `PyMC` model which leads to a much different "
+"model graph than before!"
+msgstr ""
+"Entonces, esto se puede utilizar en un nuevo modelo `PyMC`, lo que conduce a"
+" un gráfico de modelo muy diferente al anterior."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:400002
+#: f7d598509246485ba9f5f8ce15a601af
+msgid ""
+"The shape of the output will still be (date, channel) even though some of "
+"the parameter's dims has changed."
+msgstr ""
+"La forma de la salida seguirá siendo (fecha, canal) aunque algunas de las "
+"dimensiones del parámetro hayan cambiado."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:420002
+#: 7c4d0e309fa648a584a860ca12da9069
+msgid "The previous workflow still helps us understand the produced curves:"
+msgstr ""
+"El flujo de trabajo anterior aún nos ayuda a comprender las curvas "
+"producidas:"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:420004
+#: ccee37bf1eb1481fbb2d8fdfa6a4cee8
+msgid "`sample_prior`"
+msgstr "muestra_anterior"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:420005
+#: 6ab5d898ca714ea189f732319b72e35d
+msgid "`sample_curve`"
+msgstr "`sample_curve`"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:420006
+#: a1ec4eda8fb1468a8e500787f1a8772e
+msgid "`plot_curve`"
+msgstr "`trazar_curva`"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:440002
+#: d931abadb87f4b24be6ac88a081d6368
+msgid ""
+"Though they all look the same in the prior, the data generation process is "
+"indeed different as seen in the model graph."
+msgstr ""
+"Aunque todos parecen iguales en el anterior, el proceso de generación de "
+"datos es, de hecho, diferente como se observa en el gráfico del modelo."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:460002
+#: 54c06c4921b741e099cee0acabf36fd4
+msgid "Geo Hierarchical Model"
+msgstr "Modelo Geo Jerárquico"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:460004
+#: fe02e60475a247609eb30ac68d85e418
+msgid ""
+"The dimensions of the parameters are not limited to 1D so additional "
+"hierarchies can be defined."
+msgstr ""
+"Las dimensiones de los parámetros no están limitadas a 1D, por lo que se "
+"pueden definir jerarquías adicionales."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:460006
+#: 0ce82c2674d8449f8f7e8a58ca6c6c27
+msgid "Below defines:"
+msgstr "A continuación se define:"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:460008
+#: c187c0c29e34416bb0b6aec455439769
+msgid "alpha which is hierarchical across channels"
+msgstr "alpha que es jerárquico a través de los canales"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:460009
+#: cb6dcc984b4949e78a17f57bcc5173eb
+msgid "lam which is common across all geos but different channels"
+msgstr "lam que es común en todas las geos pero en diferentes canales"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:490002
+#: 1783c8ad27c64df391401642ebb26385
+msgid ""
+"Our new data set needs to have information for geo now. This is channel "
+"spends by date **and geo**. This is stored in an `xarray.DataArray` which "
+"can be converted to a 3D `numpy.ndarray`."
+msgstr ""
+"Nuestro nuevo conjunto de datos necesita tener información para geo ahora. "
+"Esto son los gastos del canal por fecha **y geo**. Esto se almacena en un "
+"`xarray.DataArray` que puede ser convertido a un `numpy.ndarray` 3D."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:490004
+#: 901036d0009743c589f4845159082353
+msgid "Displaying the data is easy with pandas."
+msgstr "Mostrar los datos es fácil con pandas."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:520002
+#: f5259e3287a343f1bfe6aafd392ce4b8
+msgid ""
+"As long as the `dims` argument of `apply` can broadcast with the data going "
+"in, then the media transformations can be used!"
+msgstr ""
+"Mientras el argumento `dims` de `apply` pueda transmitirse con los datos que"
+" se ingresan, ¡entonces se pueden utilizar las transformaciones de medios!"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:520004
+#: ff762e59630c47f198c4fdebe84ed61d
+msgid ""
+"Here, the data is in the shape (date, channel, geo) so it can broadcast with"
+" the parameters in shape (channel, geo) to create the saturated spends."
+msgstr ""
+"Aquí, los datos están en la forma (fecha, canal, geo) para que se puedan "
+"transmitir con los parámetros en la forma (canal, geo) para crear los gastos"
+" saturados."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:540002
+#: e3435173b53e418ca03c187824ef7b6a
+msgid "The saturation assumptions can be seen in the model graph:"
+msgstr ""
+"Las suposiciones de saturación se pueden ver en el gráfico del modelo:"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:560003
+#: fa726686ff8142008ca87d7c5f07a486
+msgid ""
+"The `PyMC` model context will stay the same but changing model assumptions "
+"will happen with input data and prior configuration!"
+msgstr ""
+"El contexto del modelo `PyMC` permanecerá igual, pero los cambios en las "
+"suposiciones del modelo ocurrirán con los datos de entrada y la "
+"configuración previa."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:570002
+#: b86194db20f941eaaf29ad01621ad54d
+msgid "Seasonality"
+msgstr "Estacionalidad"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:570004
+#: 08c517f80c0d4fac89f1bc5c6e4aa493
+msgid ""
+"Recurring seasonality can be modeled with either a `MonthlyFourier` or "
+"`YearlyFourier` instance."
+msgstr ""
+"La estacionalidad recurrente se puede modelar con una instancia de "
+"`MonthlyFourier` o `YearlyFourier`."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:590002
+#: aba24faecbf24be99c8e38ba2a7c3af2
+msgid "There is a similar workflow to understand these priors as before:"
+msgstr ""
+"Hay un flujo de trabajo similar para entender estos antecedentes como antes:"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:590004
+#: 5c31e242711b45528f90274836415048
+msgid "`sample_prior`: Sample all the priors"
+msgstr "`sample_prior`: Muestre todos los priors"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:590005
+#: 9c397ebb70c34766a642e94bdad8c696
+msgid "`sample_curve`: Sample the curve across the whole period"
+msgstr "`sample_curve`: Muestre la curva a lo largo de todo el período"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:590006
+#: bc5ba15899434cdf9875f8e93201e345
+msgid "`plot_curve`: Plot the HDI and few samples"
+msgstr "`plot_curve`: Graficar el IDH y algunas muestras"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:610002
+#: cb5f1ae3b4084fd1be9823c7a7d74176
+msgid ""
+"This also supports arbitrary hierarchies that can be defined with the "
+"`Prior` class. Pass these in with the `prior` parameters."
+msgstr ""
+"Esto también admite jerarquías arbitrarias que se pueden definir con la "
+"clase `Prior`. Pásalas con los parámetros `prior`."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:610005
+#: 1c0aeb57c38d4feba3a134c0c5bfe971
+msgid ""
+"A dimension associated with the prefix will be required! By default it is "
+"`fourier`"
+msgstr ""
+"¡Se requerirá una dimensión asociada con el prefijo! Por defecto es "
+"`fourier`"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:630002
+#: 9a9773255bfa4b6984c13c0f58bc29e0
+msgid ""
+"The above workflow works here as well! The coords just need to be passed "
+"like in `pm.Model`."
+msgstr ""
+"¡El flujo de trabajo anterior también funciona aquí! Las coordenadas solo "
+"necesitan ser pasadas como en `pm.Model`."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:650002
+#: 21b5f69e71b24bb5ab72e5487c139ad5
+msgid ""
+"Based on the hierarchical priors, we can see similar seasonality betweens "
+"geos. However, they are not exactly the same!"
+msgstr ""
+"Basado en los priors jerárquicos, podemos observar una estacionalidad "
+"similar entre las geos. Sin embargo, ¡no son exactamente iguales!"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:670002
+#: a468749e4cbd43b08d1997be90d284ce
+msgid "Events"
+msgstr "Eventos"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:670003
+#: a5744009756a4e4d9fe4c196a44ecc90
+msgid ""
+"You can add latent events using Gaussian Basis, this will [model events as "
+"Gaussian bumps](https://juanitorduz.github.io/bump_func/) as described by "
+"Juan Orduz."
+msgstr ""
+"Puedes añadir eventos latentes utilizando la Base Gaussiana, esto [modelará "
+"eventos como bultos gaussianos](https://juanitorduz.github.io/bump_func/) "
+"como lo describe Juan Orduz."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:700002
+#: de22b76cb81c49e2889367523d5ae087
+msgid "Example Custom MMM"
+msgstr "Ejemplo de MMM personalizado"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:700004
+#: 3a4a9e6d5162446f8debfa4dd1a94b5f
+msgid ""
+"Lots of flexibility by combining them together. This will build off the "
+"example above and now include an adstock transformation of the data as well."
+msgstr ""
+"Mucha flexibilidad al combinarlos. Esto se basará en el ejemplo anterior e "
+"incluirá también una transformación de adstock de los datos."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:720002
+#: bef2802b51d74b6eaf832f8f3963c281
+msgid ""
+"Our adstock function will have a hierarchical parameter for each geo. Our "
+"configuration is flexible enough to change this as long as the final dims "
+"will broadcast with the data!"
+msgstr ""
+"Nuestra función de adstock tendrá un parámetro jerárquico para cada geo. "
+"Nuestra configuración es lo suficientemente flexible como para cambiar esto "
+"siempre que las dimensiones finales se transmitan con los datos."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:740002
+#: 2f93ecc6950a4d0e98f33e17942f9ccb
+msgid ""
+"These are also hierarchical parameters but across a different dimensions "
+"than the saturation transformation."
+msgstr ""
+"Estos también son parámetros jerárquicos, pero en dimensiones diferentes a "
+"la transformación de saturación."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:760002
+#: 712958afd0b84e448910a37e14ce12dc
+msgid ""
+"Then for some additional differences between geo and observations, we will "
+"assume an intercept and noise around observations. The intercept will be "
+"independent across geos and the noise will be assumed to be hierarchical "
+"across geos."
+msgstr ""
+"Luego, para algunas diferencias adicionales entre geo y observaciones, "
+"asumiremos una intersección y ruido alrededor de las observaciones. La "
+"intersección será independiente entre geos y se asumirá que el ruido es "
+"jerárquico entre geos."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:760004
+#: 729f2bc6b6cb456b9b24d45b29d70bf5
+msgid ""
+"The `Prior` class will be used to reflect these assumptions outside of the "
+"model context"
+msgstr ""
+"La clase `Prior` se utilizará para reflejar estas suposiciones fuera del "
+"contexto del modelo."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:790002
+#: fefcdce4648343a4a4391da4553ccc1e
+msgid "The combined data generation process can be seen below:"
+msgstr ""
+"El proceso de generación de datos combinados se puede ver a continuación:"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:810002
+#: f6fe4de287324544951db31824d24d9f
+msgid ""
+"We can then sample from this model to investigate the target variable of the"
+" MMM."
+msgstr ""
+"Podemos entonces muestrear de este modelo para investigar la variable "
+"objetivo del MMM."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:830002
+#: a72cec4143df4ecfa7ea82cd9a603334
+msgid ""
+"We will use the `plot_curve` helper function to plot the `target` variable "
+"across time for each region. This shows the HDI and 2 prior samples for each"
+" of the 3 time series."
+msgstr ""
+"Usaremos la función auxiliar `plot_curve` para graficar la variable `target`"
+" a lo largo del tiempo para cada región. Esto muestra el IDH y 2 muestras "
+"anteriores para cada una de las 3 series temporales."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:850002
+#: d1c7d2c0f39d476186b86cfc0360092b
+msgid "Summary"
+msgstr "Resumen"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:850004
+#: cfc98037312546c0a658e79fd2c0f87a
+msgid ""
+"Custom models are possible using the components that build up the `MMM` "
+"class and `PyMC` distributions themselves. With some prior distribution "
+"configuration and the components that PyMC-Marketing provides, novel models "
+"can be built up to fit various use-cases and various model assumptions."
+msgstr ""
+"Los modelos personalizados son posibles utilizando los componentes que "
+"conforman la clase `MMM` y las distribuciones de `PyMC` en sí. Con una "
+"configuración previa de la distribución y los componentes que proporciona "
+"PyMC-Marketing, se pueden construir modelos novedosos para ajustarse a "
+"diversos casos de uso y diversas suposiciones del modelo."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:850006
+#: 3501e74253184a2eb1669df343e22f0c
+msgid ""
+"Much of the flexibility will come from the prior distribution configuration "
+"rather then the transformation themselves. This is meant to keep a standard "
+"interface while working with them regardless what their role is."
+msgstr ""
+"Gran parte de la flexibilidad provendrá de la configuración de distribución "
+"previa en lugar de las transformaciones en sí. Esto está destinado a "
+"mantener una interfaz estándar al trabajar con ellos, independientemente de "
+"cuál sea su función."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:850008
+#: e58d4e9a8e88481db566783b1a7b38a8
+msgid ""
+"If there is any suggestions or feedback on how to make better custom models "
+"with the package, [create a GitHub Issue](https://github.com/pymc-labs/pymc-"
+"marketing/issues/new) or chime into the various discussions."
+msgstr ""
+"Si tiene alguna sugerencia o comentario sobre cómo mejorar los modelos "
+"personalizados con el paquete, [cree un problema en "
+"GitHub](https://github.com/pymc-labs/pymc-marketing/issues/new) o participe "
+"en las diversas discusiones."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:850010
+#: 1c0f30bbf0e741749245d7830c647329
+msgid ""
+"Though models can be built up like this, the prebuilt structures provide "
+"many benefits as well. For instance, the `MMM` class provides:"
+msgstr ""
+"Aunque los modelos se pueden construir de esta manera, las estructuras "
+"preconstruidas también ofrecen muchos beneficios. Por ejemplo, la clase "
+"`MMM` proporciona:"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:850012
+#: a05103cd109b4aaebb1dd3b0aaded32a
+msgid "scaling of input and output data"
+msgstr "escalado de datos de entrada y salida"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:850013
+#: b8985f68827b483580823b9b5745106e
+msgid "plotting methods for parameters, predictive data, contributions, etc"
+msgstr ""
+"métodos de representación para parámetros, datos predictivos, "
+"contribuciones, etc."
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:850014
+#: 32ac85379b804c64a083f67cafa70774
+msgid "customized adstock and saturation transformations"
+msgstr "transformaciones de adstock y saturación personalizadas"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:850015
+#: ac5a111a14d0421fac48d1551caa88a6
+msgid "out of sample predictions"
+msgstr "predicciones fuera de muestra"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:850016
+#: 15c5750768124ddcb349db6c38e935f0
+msgid "lift test integration"
+msgstr "integración de prueba de elevación"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:850017
+#: e8988f704e8a43f6be73962667e97ecf
+msgid "budget optimization"
+msgstr "optimización del presupuesto"
+
+#: ../source/notebooks/mmm/mmm_components.ipynb:850019
+#: c0780fc0834241e89e4ea9bef721333f
+msgid ""
+"Our recommendation is to start with the prebuilt models and work up from "
+"there."
+msgstr ""
+"Nuestra recomendación es comenzar con los modelos preconstruidos y avanzar a"
+" partir de ahí."

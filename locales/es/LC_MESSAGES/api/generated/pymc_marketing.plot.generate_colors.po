@@ -1,0 +1,78 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.plot.generate_colors.rst:2
+#: 1eabe540fe4642ffa9981030682fb6d3
+msgid "generate\\_colors"
+msgstr "generar_colores"
+
+#: d5d78923e34644949ce12cbac123d88b of pymc_marketing.plot.generate_colors:2
+msgid "Generate list of colors."
+msgstr "Generar lista de colores."
+
+#: a11058660d834640adfbde389ee71988 of pymc_marketing.plot.generate_colors
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 902e62cdb43d44e2ad18081a23c32667 of pymc_marketing.plot.generate_colors:7
+msgid "**n** : :class:`python:int`"
+msgstr "**n** : :class:`python:int`"
+
+#: 3b14a37109814c74b3c94f8938321a8c of pymc_marketing.plot.generate_colors:6
+msgid "python:int"
+msgstr "python:int"
+
+#: 03e7d7745e6c4d1eb24a9fcf4db636f1 of pymc_marketing.plot.generate_colors:8
+msgid "Number of colors to generate"
+msgstr "Número de colores a generar"
+
+#: 8f57e8ca8ffc4d929196c8e212e06d34 of pymc_marketing.plot.generate_colors:10
+msgid "**start** : :class:`python:int`, optional"
+msgstr "**inicio** : :class:`python:int`, opcional"
+
+#: c9aeac165cc44188a88c106b0606b880 of pymc_marketing.plot.generate_colors:9
+msgid "python:int, optional"
+msgstr "python:int, opcional"
+
+#: a34b02d2fe3e4ba9973689ccf087ae9b of pymc_marketing.plot.generate_colors:11
+msgid "Starting index, by default 0"
+msgstr "Índice inicial, por defecto 0"
+
+#: 94af4621e9914bc38f2360aaf3e07e5f of pymc_marketing.plot.generate_colors
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 01f3b4824f1e40bea9ee40da634165be of pymc_marketing.plot.generate_colors:17
+msgid ":class:`python:list`\\[:class:`python:str`]"
+msgstr ":class:`python:list`\\[:class:`python:str`]"
+
+#: dcaa9f6b4dc1493286af8d9c1096cb51 of pymc_marketing.plot.generate_colors:18
+msgid "List of colors"
+msgstr "Lista de colores"
+
+#: 2ef4a0ef379b4aaa81bc73e550cde933 of pymc_marketing.plot.generate_colors:30
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: 00ac0d64dbd04e0ca1fcca45f0f07488 of pymc_marketing.plot.generate_colors:31
+msgid "Generate 5 colors starting from index 1"
+msgstr "Generar 5 colores comenzando desde el índice 1"

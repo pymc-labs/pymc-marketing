@@ -1,0 +1,113 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.customer_choice.nested_logit.NestedLogit.sample.rst:2
+#: 8e7ef3ad5d6c430e96c308e24fb585f9
+msgid "NestedLogit.sample"
+msgstr "NestedLogit.muestra"
+
+#: ba5bbf7a3af54b0690139cf5e630c987 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.sample:2
+msgid "Sample all the things."
+msgstr "Muestrea todas las cosas."
+
+#: 4b279855979e4c2cb6c639e7ad660de3 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.sample:4
+msgid "Run all of the sample methods in the sequence:"
+msgstr "Ejecute todos los métodos de muestra en la secuencia:"
+
+#: 92b32dde06a544209046314f688b36ba of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.sample:6
+msgid ":meth:`sample_prior_predictive`"
+msgstr ":meth:`sample_prior_predictive`"
+
+#: 424d8885aa324eaaa566a0109e711a5d of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.sample:7
+msgid ":meth:`fit`"
+msgstr ":meth:`fit`"
+
+#: 965e214160ff41b9a833084f9fa6c901 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.sample:8
+msgid ":meth:`sample_posterior_predictive`"
+msgstr ":meth:`sample_posterior_predictive`"
+
+#: a109338fd6e642d4b9a6094a24747c13 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.sample
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: ed56d36a919241dd8bb7a5f07c4c8306 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.sample:12
+msgid "**sample_prior_predictive_kwargs** : :class:`python:dict`, optional"
+msgstr "**sample_prior_predictive_kwargs** : :class:`python:dict`, opcional"
+
+#: 36b8c0bdc08748b7a3317c47707a746c 497d6ee18e6f4672927c5dbb17681adc
+#: e7405c6e832c437f9be7821efab26bce of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.sample:11
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.sample:14
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.sample:17
+msgid "python:dict, optional"
+msgstr "python:dict, opcional"
+
+#: 8745f4a755db4dcb9ec315b8080386c5 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.sample:13
+msgid "The keyword arguments for the sample_prior_predictive method."
+msgstr ""
+"Los argumentos de palabra clave para el método sample_prior_predictive."
+
+#: 7cdffcca3ec24ffb818b2b3f3da1685f of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.sample:15
+msgid "**fit_kwargs** : :class:`python:dict`, optional"
+msgstr "**fit_kwargs** : :class:`python:dict`, opcional"
+
+#: a435408d86f849adb3ec7c428104fb3f of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.sample:16
+msgid "The keyword arguments for the fit method."
+msgstr "Los argumentos de palabra clave para el método fit."
+
+#: 147846f2f76e4cf79bf069efbff42b2f of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.sample:18
+msgid ""
+"**sample_posterior_predictive_kwargs** : :class:`python:dict`, optional"
+msgstr ""
+"**sample_posterior_predictive_kwargs** : :class:`python:dict`, opcional"
+
+#: 7c00bdc146744cdcafa305fdf1bed536 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.sample:19
+msgid "The keyword arguments for the sample_posterior_predictive method."
+msgstr ""
+"Los argumentos de palabra clave para el método sample_posterior_predictive."
+
+#: 568e20fbb36f487897a0813d0a29796c of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.sample
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: d146acf8bdb047b2a98a1b5b1a1b0042 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.sample:25
+msgid ":obj:`Self`"
+msgstr ":obj:`Self`"
+
+#: 9bda631238e4430d8a86c9d475c89563 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.sample:26
+msgid "The model instance."
+msgstr "La instancia del modelo."

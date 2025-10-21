@@ -1,0 +1,81 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-13 11:28+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.TBF_FCI.collapsed_summary.rst:2
+#: ffdd845119c24ede9a4ca0798c856995
+msgid "TBF\\_FCI.collapsed\\_summary"
+msgstr ""
+"{\n"
+"  \"singular\": \"TBF_FCI.resumen_colapsado\",\n"
+"  \"plural\": \"TBF_FCI.resúmenes_colapsados\"\n"
+"}"
+
+#: 486f32aedfc14f1289733ae23f95cc00 of
+#: pymc_marketing.mmm.causal.TBF_FCI.collapsed_summary:2
+msgid "Summarize lagged edges into a driver-level view."
+msgstr ""
+"{\n"
+"  \"singular\": \"Resume los bordes retrasados en una vista a nivel de controlador.\",\n"
+"  \"plural\": \"Resume los bordes retrasados en una vista a nivel de controlador.\"\n"
+"}"
+
+#: b4d90e23e0524cb8a1167380218972fb of
+#: pymc_marketing.mmm.causal.TBF_FCI.collapsed_summary
+msgid "Returns"
+msgstr ""
+"{\n"
+"  \"singular\": \"Devoluciones\",\n"
+"  \"plural\": \"Devoluciones\"\n"
+"}"
+
+#: 114164d50a834e8c9cc2c02787965d23 of
+#: pymc_marketing.mmm.causal.TBF_FCI.collapsed_summary:10
+msgid ""
+":class:`python:tuple`\\[:class:`python:list`\\[:class:`python:tuple`\\[:class:`python:str`,"
+" :class:`python:str`, :class:`python:int`]], "
+":class:`python:list`\\[:class:`python:tuple`\\[:class:`python:str`, "
+":class:`python:str`]]]"
+msgstr ""
+"{\n"
+"  \"singular\": \":class:`python:tuple`\\[:class:`python:list`\\[:class:`python:tuple`\\[:class:`python:str`, :class:`python:str`, :class:`python:int`]], :class:`python:list`\\[:class:`python:tuple`\\[:class:`python:str`, :class:`python:str`]]]\",\n"
+"  \"plural\": \":class:`python:tuple`\\[:class:`python:list`\\[:class:`python:tuple`\\[:class:`python:str`, :class:`python:str`, :class:`python:int`]], :class:`python:list`\\[:class:`python:tuple`\\[:class:`python:str`, :class:`python:str`]]]\"\n"
+"}"
+
+#: 87fff4e069c64ad8938bb539802625d0 of
+#: pymc_marketing.mmm.causal.TBF_FCI.collapsed_summary:11
+msgid ""
+"A tuple with directed edges represented as ``(u, v, lag)`` and "
+"contemporaneous undirected edges represented as ``(u, v)`` pairs."
+msgstr ""
+"{\n"
+"  \"singular\": \"Una tupla con aristas dirigidas representadas como ``(u, v, lag)`` y aristas no dirigidas contemporáneas representadas como pares ``(u, v)``.\",\n"
+"  \"plural\": \"Tuplas con aristas dirigidas representadas como ``(u, v, lag)`` y aristas no dirigidas contemporáneas representadas como pares ``(u, v)``.\"\n"
+"}"
+
+#: 4d5156cc5a5c4495a0e5e48951a64f72 of
+#: pymc_marketing.mmm.causal.TBF_FCI.collapsed_summary:24
+msgid "Examples"
+msgstr ""
+"{\n"
+"  \"singular\": \"Ejemplo\",\n"
+"  \"plural\": \"Ejemplos\"\n"
+"}"

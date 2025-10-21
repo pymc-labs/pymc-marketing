@@ -1,0 +1,133 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_purchases.rst:2
+#: d2550c0cfade445e9887774d0feb8ffb
+msgid "BetaGeoModel.expected\\_purchases"
+msgstr "BetaGeoModel.compras\\_esperadas"
+
+#: d6af7ebb86464bfb9ae95d30dde16221 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_purchases:2
+msgid ""
+"Compute the expected number of future purchases across *future_t* time "
+"periods given *recency*, *frequency*, and *T* for each customer."
+msgstr ""
+"Calcule el número esperado de compras futuras a lo largo de *future_t* "
+"períodos de tiempo dado *recency*, *frequency* y *T* para cada cliente."
+
+#: 79287fda466c4b358c64380a6abbaba5 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_purchases:4
+msgid "The *data* parameter is only required for out-of-sample customers."
+msgstr ""
+"El parámetro *data* solo es obligatorio para clientes fuera de muestra."
+
+#: 0586b3c3972c44e1aa8d3e979a3a2b3c of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_purchases:6
+msgid ""
+"Adapted from equation (10) in [Ra6295b03a31b-1]_, and *lifetimes* package: "
+"https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/beta_geo_fitter.py#L201"
+msgstr ""
+"Adaptado de la ecuación (10) en [Ra6295b03a31b-1]_, y el paquete "
+"*lifetimes*: "
+"https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/beta_geo_fitter.py#L201"
+
+#: 9ef0fc51e34d43028e9f08aa3821d785 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_purchases
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 32b669e0311c45b6b1abda3b93ab186f of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_purchases:11
+msgid "**future_t** : :class:`python:int`, :term:`numpy:array_like`"
+msgstr "**future_t** : :class:`python:int`, :term:`numpy:array_like`"
+
+#: f930e67792c54efb98a2b8002cc67daf of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_purchases:10
+msgid "python:int, numpy:array_like"
+msgstr "python:int, numpy:array_like"
+
+#: 5d3dcbee4ce246fcaeff5e7b742953a3 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_purchases:12
+msgid "Number of time periods to predict expected purchases."
+msgstr "Número de períodos de tiempo para predecir las compras esperadas."
+
+#: 965d1ee588df4dfc9889e58f33d5b459 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_purchases:14
+msgid "**data** : :obj:`~pandas.DataFrame`"
+msgstr "**datos** : :obj:`~pandas.DataFrame`"
+
+#: 4721b1e20b7641c4bfef3a983acf39c5 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_purchases:13
+msgid "DataFrame"
+msgstr "DataFrame"
+
+#: f13ef4cba5ef4b879a96bb1060f3acb7 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_purchases:15
+msgid "Optional dataframe containing the following columns:"
+msgstr "Dataframe opcional que contiene las siguientes columnas:"
+
+#: 19a5c07b9a5042dc89da4707bf16354a of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_purchases:17
+msgid "`customer_id`: Unique customer identifier"
+msgstr "`customer_id`: Identificador único del cliente"
+
+#: dee0432cbc5d464fbc821955ec4ca5a0 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_purchases:18
+msgid "`frequency`: Number of repeat purchases"
+msgstr "`frequency`: Número de compras repetidas"
+
+#: 8a6f60d2fd044a93b5a839f5281761d5 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_purchases:19
+msgid "`recency`: Time between the first and the last purchase"
+msgstr "`recency`: Tiempo entre la primera y la última compra"
+
+#: 88e1f5de80e54b13a3969ea07e85975e of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_purchases:20
+msgid ""
+"`T`: Time between first purchase and end of observation period; model "
+"assumptions require T >= recency"
+msgstr ""
+"T: Tiempo entre la primera compra y el final del período de observación; las"
+" suposiciones del modelo requieren T >= recencia"
+
+#: 64dc861a1ac74cfaa3f746139ee1b7ac of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_purchases:34
+msgid "References"
+msgstr "Referencias"
+
+#: 7f1510e50137405697880a11d625b9b3 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_purchases:35
+msgid ""
+"Fader, Peter S., Bruce G.S. Hardie, and Ka Lok Lee (2005a), \"Counting Your "
+"Customers the Easy Way: An Alternative to the Pareto/NBD Model,\" Marketing "
+"Science, 24 (2), 275-84. "
+"https://www.brucehardie.com/papers/bgnbd_2004-04-20.pdf"
+msgstr ""
+"Fader, Peter S., Bruce G.S. Hardie y Ka Lok Lee (2005a), \"Contando a sus "
+"clientes de la manera fácil: Una alternativa al modelo Pareto/NBD,\" "
+"Marketing Science, 24 (2), 275-84. "
+"https://www.brucehardie.com/papers/bgnbd_2004-04-20.pdf"
+
+#: 9cd9ce905fab4f26a3c3285587e2f50b of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_purchases:42
+msgid "[Ra6295b03a31b-1]_"
+msgstr "[Ra6295b03a31b-1]_"

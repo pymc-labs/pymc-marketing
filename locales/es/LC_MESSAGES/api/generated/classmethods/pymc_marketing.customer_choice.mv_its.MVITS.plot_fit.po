@@ -1,0 +1,100 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.customer_choice.mv_its.MVITS.plot_fit.rst:2
+#: ab4cc829e332476fae50ca524840ae3f
+msgid "MVITS.plot\\_fit"
+msgstr "MVITS.plot\\_fit"
+
+#: bc7a8be383b543c3b9a7677473df4cd2 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_fit:2
+msgid "Plot the model fit (posterior predictive) of the existing products."
+msgstr ""
+"Trace el ajuste del modelo (predictivo posterior) de los productos "
+"existentes."
+
+#: 48a692cae38d449d849b5cb3beb5f68d of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_fit
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 695c2ab37ca049069a153ffd329ab276 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_fit:7
+msgid "**variable** : :class:`python:str`, optional"
+msgstr "**variable** : :class:`python:str`, opcional"
+
+#: e2788d15f89041eba4172c5f1848ae01 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_fit:6
+msgid "python:str, optional"
+msgstr "python:str, opcional"
+
+#: d99156ec9f7b44bdb353235f41bc2cf8 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_fit:8
+msgid "The variable to compare. Either \"mu\" or \"y\"."
+msgstr "La variable a comparar. Puede ser \"mu\" o \"y\"."
+
+#: 896440e00e224389b04e4b284a93fe73 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_fit:10
+msgid ""
+"**plot_total_sales** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+"**plot_total_sales** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 65743940256f43a79f98d03f33689814 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_fit:9
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: f0ca7c2d67684d37adbbce1442708525 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_fit:11
+msgid "Whether to plot the total sales or not."
+msgstr "Si se debe trazar las ventas totales o no."
+
+#: 37374d14169440e7975f7e5a22a19aa8 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_fit:13
+msgid "**ax** : :obj:`plt.Axes`, optional"
+msgstr "**ax** : :obj:`plt.Axes`, opcional"
+
+#: d8f3f236707e4143a15ccd8caf5b1138 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_fit:12
+msgid "plt.Axes, optional"
+msgstr "plt.Axes, opcional"
+
+#: ed94e3be2f8c4f56b4930d2974315788 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_fit:14
+msgid "The matplotlib axes."
+msgstr "Los ejes de matplotlib."
+
+#: c623df174264472fae1f5c19a4076e05 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_fit
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 6d0c8c80b23249b2a1deac4b2e104ec3 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_fit:20
+msgid ":obj:`plt.Axes`"
+msgstr ":obj:`plt.Axes`"
+
+#: ac25bb75d6b34ed0816baa1bb417d42b of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_fit:21
+msgid "The new or modified matplotlib axes."
+msgstr "Los nuevos ejes de matplotlib o los ejes modificados."

@@ -1,0 +1,55 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.BuildModelFromDAG.dag_graph.rst:2
+#: 6f04a3c7c2c74f9fb75c1b0c441f4c14
+msgid "BuildModelFromDAG.dag\\_graph"
+msgstr "BuildModelFromDAG.dag\\_graph"
+
+#: 42e01d27076b47dd9a6dc74b961c9ea9 of
+#: pymc_marketing.mmm.causal.BuildModelFromDAG.dag_graph:2
+msgid "Return a copy of the parsed DAG as a NetworkX directed graph."
+msgstr ""
+"Devuelve una copia del DAG analizado como un grafo dirigido de NetworkX."
+
+#: 1a578760d78a4f2b9422e27175ec9ced of
+#: pymc_marketing.mmm.causal.BuildModelFromDAG.dag_graph
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: f8b99b0e52894b4f9a41645dfd79cea1 of
+#: pymc_marketing.mmm.causal.BuildModelFromDAG.dag_graph:10
+msgid ":obj:`networkx.DiGraph`"
+msgstr ":obj:`networkx.DiGraph`"
+
+#: 92606f666870437ab5f91cc327b7c0c2 of
+#: pymc_marketing.mmm.causal.BuildModelFromDAG.dag_graph:11
+msgid ""
+"A directed acyclic graph with the same nodes and edges as the input DAG."
+msgstr ""
+"Un grafo acíclico dirigido con los mismos nodos y aristas que el DAG de "
+"entrada."
+
+#: 06404efc7da141b2a4c705041eaceb1d of
+#: pymc_marketing.mmm.causal.BuildModelFromDAG.dag_graph:23
+msgid "Examples"
+msgstr "Ejemplos"

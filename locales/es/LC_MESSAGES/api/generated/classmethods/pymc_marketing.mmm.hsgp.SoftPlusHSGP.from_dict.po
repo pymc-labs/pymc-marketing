@@ -1,0 +1,64 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.hsgp.SoftPlusHSGP.from_dict.rst:2
+#: ae629a546cd24cdab086f3ed0de06c68
+msgid "SoftPlusHSGP.from\\_dict"
+msgstr "SoftPlusHSGP.from\\_dict"
+
+#: d62c0052873f4628971a08a8e138dc7c of
+#: pymc_marketing.mmm.hsgp.HSGP.from_dict:2
+msgid "Create an object from a dictionary."
+msgstr "Cree un objeto a partir de un diccionario."
+
+#: 6f6de5878c5b4c66acf2f4de393eedcf of pymc_marketing.mmm.hsgp.HSGP.from_dict
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 2e33611c3f4040d1834ee5efff2fd3d5 of
+#: pymc_marketing.mmm.hsgp.HSGP.from_dict:7
+msgid "**data** : :class:`python:dict`"
+msgstr "**datos** : :class:`python:dict`"
+
+#: 5cd3a281c0e94fdbb316c42bec3e06b9 of
+#: pymc_marketing.mmm.hsgp.HSGP.from_dict:6
+msgid "python:dict"
+msgstr "python:dict"
+
+#: e36b139314e54d648ad04eb392241dc4 of
+#: pymc_marketing.mmm.hsgp.HSGP.from_dict:8
+msgid "The data to create the object from."
+msgstr "Los datos para crear el objeto a partir de."
+
+#: 81d2a99f8e664f879243023c55ba8379 of pymc_marketing.mmm.hsgp.HSGP.from_dict
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 7ef47133ad5e4d73871a571bc8ed2b49 of
+#: pymc_marketing.mmm.hsgp.HSGP.from_dict:14
+msgid ":obj:`HSGP`"
+msgstr ":obj:`HSGP`"
+
+#: 2e13e84fb11240c290c4f40677fc7c0d of
+#: pymc_marketing.mmm.hsgp.HSGP.from_dict:15
+msgid "The object created from the data."
+msgstr "El objeto creado a partir de los datos."

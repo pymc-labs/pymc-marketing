@@ -1,0 +1,72 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.customer_choice.mnl_logit.MNLogit.prepare_X_matrix.rst:2
+#: a707c1c4ae2d48a4acb7e6a3d9dc6dcf
+msgid "MNLogit.prepare\\_X\\_matrix"
+msgstr "MNLogit.preparar\\_matriz\\_X"
+
+#: a99e219801f94051a3f05736faea4f3f of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit.prepare_X_matrix:2
+msgid "Prepare the X matrix for the utility equations."
+msgstr "Prepare la matriz X para las ecuaciones de utilidad."
+
+#: 05c965f063db4f558d9d8f6824c738ff of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit.prepare_X_matrix:4
+msgid ""
+"The X matrix is a tensor with dimensions: (N observations) x (Alternatives) "
+"x (Covariates). Assumes that the utility formulas specify an equal number of"
+" covariates per alternative; these can be zero-valued if an alternative "
+"lacks a specific attribute."
+msgstr ""
+"La matriz X es un tensor con dimensiones: (N observaciones) x (Alternativas)"
+" x (Covariables). Se asume que las fórmulas de utilidad especifican un "
+"número igual de covariables por alternativa; estas pueden tener un valor "
+"cero si una alternativa carece de un atributo específico."
+
+#: 918266f8ad7e42e4a1d7a9ca02300515 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit.prepare_X_matrix:10
+msgid ""
+"Utility formulas should express the relationship between the choice outcome "
+"(dependent variable) and the attributes of each alternative that incentivize"
+" that choice. The left-hand side (LHS) of each formula must correspond to a "
+"value of the dependent variable, while the right-hand side (RHS) should "
+"define an additive combination of the available covariates."
+msgstr ""
+"Las fórmulas de utilidad deben expresar la relación entre el resultado de la"
+" elección (variable dependiente) y los atributos de cada alternativa que "
+"incentivan esa elección. El lado izquierdo (LHS) de cada fórmula debe "
+"corresponder a un valor de la variable dependiente, mientras que el lado "
+"derecho (RHS) debe definir una combinación aditiva de las covariables "
+"disponibles."
+
+#: 0ac1ccf17c6e4678b697d0d9fe82d889 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit.prepare_X_matrix:17
+msgid ""
+"We also allow the incorporation of fixed covariates that do not vary across "
+"alternatives. For these, an alternative-specific parameter is used to allow "
+"the contribution to utility to vary by alternative."
+msgstr ""
+"También permitimos la incorporación de covariables fijas que no varían entre"
+" alternativas. Para estas, se utiliza un parámetro específico de la "
+"alternativa para permitir que la contribución a la utilidad varíe según la "
+"alternativa."

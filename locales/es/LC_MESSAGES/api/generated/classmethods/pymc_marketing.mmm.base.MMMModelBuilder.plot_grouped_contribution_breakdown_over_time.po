@@ -1,0 +1,150 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.base.MMMModelBuilder.plot_grouped_contribution_breakdown_over_time.rst:2
+#: d897ffa14298428f8f1f7504d4f15b1d
+msgid "MMMModelBuilder.plot\\_grouped\\_contribution\\_breakdown\\_over\\_time"
+msgstr ""
+"MMMModelBuilder.trazar\\_contribución\\_agrupada\\_desglose\\_a\\_lo\\_largo\\_del\\_tiempo"
+
+#: 4fa61b2978af458990db8248f5f1570f of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_grouped_contribution_breakdown_over_time:2
+msgid "Plot a time series area chart for all channel contributions."
+msgstr ""
+"Traza un gráfico de área de series temporales para todas las contribuciones "
+"del canal."
+
+#: 948e6db659344dc3bd9f603742bd3610 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_grouped_contribution_breakdown_over_time:4
+msgid ""
+"Since a chart like this can become quite crowded if you have many channels "
+"or control variables, you can group certain variables together using the "
+"`stack_groups` keyword."
+msgstr ""
+"Dado que un gráfico como este puede volverse bastante abarrotado si tiene "
+"muchos canales o variables de control, puede agrupar ciertas variables "
+"utilizando la palabra clave `stack_groups`."
+
+#: 68860f432c34446da1549c565b54fda2 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_grouped_contribution_breakdown_over_time
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 23755375d06a4067852af9224043c586 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_grouped_contribution_breakdown_over_time:10
+#, python-brace-format
+msgid ""
+"**stack_groups** : :class:`python:dict` of {str: :class:`python:list` of "
+":class:`python:str`}, optional"
+msgstr ""
+"**stack_groups** : :class:`python:dict` de {str: :class:`python:list` of "
+":class:`python:str`}, opcional"
+
+#: 762e901f469c4d588a0277456e615fa4 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_grouped_contribution_breakdown_over_time:9
+#, python-brace-format
+msgid "python:dict of {str: python:list of python:str}, optional"
+msgstr "python:diccionario de {str: python:list of python:str}, opcional"
+
+#: 5a8cee3d29824ceaa6f062419af786cb of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_grouped_contribution_breakdown_over_time:11
+msgid "Specifies which variables to group together. Example: passing"
+msgstr "Especifica qué variables agrupar. Ejemplo: passing"
+
+#: d5d515736cd04d1b85881bfcc1a7c0ec of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_grouped_contribution_breakdown_over_time:13
+msgid "{"
+msgstr ""
+"It seems that your message was cut off. Please provide the complete text you"
+" would like translated, and I'll be happy to assist you!"
+
+#: b8ae53b7d15c4e98a732a1f3ef2b5c47 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_grouped_contribution_breakdown_over_time:14
+msgid "\"Baseline\": [\"intercept\"], \"Offline\": [\"TV\", \"Radio\"], \"Online\": [\"Banners\"]"
+msgstr ""
+"\"Base\": [\"intercepción\"], \"Fuera de línea\": [\"TV\", \"Radio\"], \"En "
+"línea\": [\"Banners\"]"
+
+#: 3e3dd0f58c6445b0841faadbd80a4249 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_grouped_contribution_breakdown_over_time:17
+msgid "}"
+msgstr ""
+"It seems there is no text provided for translation. Please provide the text "
+"you would like to have translated, and I'll be happy to assist you!"
+
+#: fd0d1beeed4c47dfb46309441682e19c of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_grouped_contribution_breakdown_over_time:18
+msgid ""
+"results in a chart with three colors, one for Baseline, one for Online, and "
+"one for Offline. If `stack_groups` is None, the chart would have four colors"
+" since TV and Radio would be separated."
+msgstr ""
+"resulta en un gráfico con tres colores, uno para Baseline, uno para Online y"
+" uno para Offline. Si `stack_groups` es None, el gráfico tendría cuatro "
+"colores ya que TV y Radio estarían separados."
+
+#: 9370b50534444233ab8f7bc32f8bb62a of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_grouped_contribution_breakdown_over_time:22
+#, python-brace-format
+msgid ""
+"Note: If you only pass {\"Baseline\": \"intercept\", \"Online\": "
+"[\"Banners\"]}, you will not see the TV and Radio channels in the chart."
+msgstr ""
+"Nota: Si solo pasa {\"Baseline\": \"intercept\", \"Online\": [\"Banners\"]},"
+" no verá los canales de TV y Radio en el gráfico."
+
+#: b78c70038378486c9645ec3aa91da4c8 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_grouped_contribution_breakdown_over_time:25
+msgid ""
+"**original_scale** : :ref:`bool <python:bltin-boolean-values>`, :obj:`by` "
+"default :data:`python:False`"
+msgstr ""
+"**original_scale** : :ref:`bool <python:bltin-boolean-values>`, :obj:`por` "
+"defecto :data:`python:False`"
+
+#: bde72b09def3441ea47c9bc98fe5e62a of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_grouped_contribution_breakdown_over_time:24
+msgid "bool, by default python:False"
+msgstr "bool, por defecto python:False"
+
+#: 8908e06e7fe34573833493497a6851d0 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_grouped_contribution_breakdown_over_time:26
+msgid ""
+"If True, the contributions are plotted in the original scale of the target."
+msgstr ""
+"Si es verdadero, las contribuciones se representan en la escala original del"
+" objetivo."
+
+#: eb62c3f5c9074648a79a5dc4c0a72203 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_grouped_contribution_breakdown_over_time
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 995854e987e84562be129852ab52aee6 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_grouped_contribution_breakdown_over_time:32
+msgid ":obj:`plt.Figure`"
+msgstr ":obj:`plt.Figure`"
+
+#: bd123efcd63f4fc692c12ca795f5d65a of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_grouped_contribution_breakdown_over_time:33
+msgid "Matplotlib figure with the plot."
+msgstr "Figura de Matplotlib con el gráfico."

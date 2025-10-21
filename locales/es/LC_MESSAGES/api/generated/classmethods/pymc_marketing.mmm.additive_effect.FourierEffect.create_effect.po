@@ -1,0 +1,66 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.additive_effect.FourierEffect.create_effect.rst:2
+#: 790504f126364fb6b8040d617b2e8d6c
+msgid "FourierEffect.create\\_effect"
+msgstr "FourierEffect.crear\\_efecto"
+
+#: 96010595f0eb4f8682de93062a7af07e of
+#: pymc_marketing.mmm.additive_effect.FourierEffect.create_effect:2
+msgid "Create the Fourier effect in the model."
+msgstr "Cree el efecto de Fourier en el modelo."
+
+#: a5806d2748b54e309bedfcda534e5e17 of
+#: pymc_marketing.mmm.additive_effect.FourierEffect.create_effect
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: a7081cabc0f245499ce9fd9132ba13a2 of
+#: pymc_marketing.mmm.additive_effect.FourierEffect.create_effect:7
+msgid "**mmm** : :obj:`MMM`"
+msgstr "**mmm** : :obj:`MMM`"
+
+#: edfa0835a552468ca05eccd832c8d102 of
+#: pymc_marketing.mmm.additive_effect.FourierEffect.create_effect:6
+msgid "MMM"
+msgstr "MMM"
+
+#: e0a728e4d5d9498a9e03092d842136d4 of
+#: pymc_marketing.mmm.additive_effect.FourierEffect.create_effect:8
+msgid "The MMM model instance"
+msgstr "La instancia del modelo MMM"
+
+#: af1059f549b2404ab17064fec9da0b97 of
+#: pymc_marketing.mmm.additive_effect.FourierEffect.create_effect
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 2cd4ddd5c7424649b6805c30dcfed00b of
+#: pymc_marketing.mmm.additive_effect.FourierEffect.create_effect:14
+msgid ":obj:`pt.TensorVariable`"
+msgstr ":obj:`pt.TensorVariable`"
+
+#: 7f776f9c1f444a51a1c21c5da18d57c3 of
+#: pymc_marketing.mmm.additive_effect.FourierEffect.create_effect:15
+msgid "The Fourier effect"
+msgstr "El efecto de Fourier"

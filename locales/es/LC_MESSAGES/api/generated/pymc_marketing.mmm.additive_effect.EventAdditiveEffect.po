@@ -1,0 +1,647 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:2
+#: 2a077627de784df6b70139a454f7dc7b
+msgid "EventAdditiveEffect"
+msgstr "EfectoAditivoEvento"
+
+#: 4106be7f1aef4d2eb91c0f582b3327fe of
+#: pymc_marketing.mmm.additive_effect.EventAdditiveEffect:2
+msgid "Event effect class for the MMM."
+msgstr "Clase de efecto de evento para el MMM."
+
+#: edb22a4bb5bd45ff84ff6f7f0ae790f2 of
+#: pymc_marketing.mmm.additive_effect.EventAdditiveEffect
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 778ea9ef462146789fbf453f1a5ef467 of
+#: pymc_marketing.mmm.additive_effect.EventAdditiveEffect:7
+msgid "**df_events** : :obj:`pd.DataFrame`"
+msgstr "**df_events** : :obj:`pd.DataFrame`"
+
+#: e43688b1e93a4063a05cd51db686f942 of
+#: pymc_marketing.mmm.additive_effect.EventAdditiveEffect:6
+msgid "pd.DataFrame"
+msgstr "pd.DataFrame"
+
+#: c50d12575e5f48859e2a755029416a29 of
+#: pymc_marketing.mmm.additive_effect.EventAdditiveEffect:8
+msgid "The DataFrame containing the event data."
+msgstr "El DataFrame que contiene los datos del evento."
+
+#: c82805d4d4904066a3077c1b0120c808 of
+#: pymc_marketing.mmm.additive_effect.EventAdditiveEffect:9
+msgid "`name`: name of the event. Used as the model coordinates."
+msgstr "`name`: nombre del evento. Utilizado como las coordenadas del modelo."
+
+#: 6d878e10033b44418cd102ad13c997a1 of
+#: pymc_marketing.mmm.additive_effect.EventAdditiveEffect:10
+msgid "`start_date`: start date of the event"
+msgstr "`start_date`: fecha de inicio del evento"
+
+#: 9e14ed7548194c4ab2aebdb85097284e of
+#: pymc_marketing.mmm.additive_effect.EventAdditiveEffect:11
+msgid "`end_date`: end date of the event"
+msgstr "`end_date`: fecha de finalización del evento"
+
+#: 239af607339044568d4958b6da8c7d80 of
+#: pymc_marketing.mmm.additive_effect.EventAdditiveEffect:13
+msgid "**prefix** : :class:`python:str`"
+msgstr "**prefijo** : :class:`python:str`"
+
+#: 32d14f0aeb6d4797b739e839a1409743 3839010c017f4d7a9f8a33137dbeea6d
+#: c83510bb614d4f4e8efcded0a9d9950d of
+#: pymc_marketing.mmm.additive_effect.EventAdditiveEffect:12
+#: pymc_marketing.mmm.additive_effect.EventAdditiveEffect:18
+#: pymc_marketing.mmm.additive_effect.EventAdditiveEffect:22
+msgid "python:str"
+msgstr "python:str"
+
+#: 72bfa35339c44cde895a5148e51a9927 of
+#: pymc_marketing.mmm.additive_effect.EventAdditiveEffect:14
+msgid "The prefix to use for the event effect and associated variables."
+msgstr ""
+"El prefijo a utilizar para el efecto del evento y las variables asociadas."
+
+#: 2b64a62db7ea4c499750de75bac3564a of
+#: pymc_marketing.mmm.additive_effect.EventAdditiveEffect:16
+msgid "**effect** : :obj:`EventEffect`"
+msgstr "**efecto** : :obj:`EventEffect`"
+
+#: 8a76b31370b4424c80f2292172bb3cd0 of
+#: pymc_marketing.mmm.additive_effect.EventAdditiveEffect:15
+msgid "EventEffect"
+msgstr "EfectoEvento"
+
+#: 7296923f1f88459f8bed3b7319e10df5 of
+#: pymc_marketing.mmm.additive_effect.EventAdditiveEffect:17
+msgid "The event effect to apply."
+msgstr "El efecto del evento a aplicar."
+
+#: 48650af29e0442caa0ec5cd3681b8994 of
+#: pymc_marketing.mmm.additive_effect.EventAdditiveEffect:19
+msgid "**reference_date** : :class:`python:str`"
+msgstr "**fecha_referencia** : :class:`python:str`"
+
+#: 35b47bbe9855458aa9dc507708d1c33d of
+#: pymc_marketing.mmm.additive_effect.EventAdditiveEffect:20
+msgid ""
+"The arbitrary reference date to calculate distance from events in days. "
+"Default is \"2025-01-01\"."
+msgstr ""
+"La fecha de referencia arbitraria para calcular la distancia desde los "
+"eventos en días. El valor predeterminado es \"2025-01-01\"."
+
+#: da88b099a4444db9bb12dc0adf9e9786 of
+#: pymc_marketing.mmm.additive_effect.EventAdditiveEffect:23
+msgid "**date_dim_name** : :class:`python:str`"
+msgstr "**date_dim_name** : :class:`python:str`"
+
+#: 7e61f71a5bd44d1088f1062022bb27ff of
+#: pymc_marketing.mmm.additive_effect.EventAdditiveEffect:24
+msgid "The name of the date dimension in the model. Default is \"date\"."
+msgstr ""
+"El nombre de la dimensión de fecha en el modelo. El valor predeterminado es "
+"\"date\"."
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:12
+#: b6561e3d1edd45068dbe076b4aa0f6ce
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: 24f21e3d0bd54ec5894da9e202488582
+msgid ""
+":py:obj:`EventAdditiveEffect.__init__ "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.__init__>`\\ "
+"\\(\\*\\*data\\)"
+msgstr ""
+":py:obj:`EventAdditiveEffect.__init__ "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.__init__>`\\ "
+"\\(\\*\\*data\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: 3aefd9c98b644a038f908d873190b2ec
+msgid ""
+"Create a new model by parsing and validating input data from keyword "
+"arguments."
+msgstr ""
+"Cree un nuevo modelo analizando y validando los datos de entrada de los "
+"argumentos de palabra clave."
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: 7bdfd42946e240f19a72acb2d05f3381
+msgid ""
+":py:obj:`EventAdditiveEffect.construct "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.construct>`\\ "
+"\\(\\[\\_fields\\_set\\]\\)"
+msgstr ""
+":py:obj:`EventAdditiveEffect.construct "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.construct>`\\ "
+"\\(\\[\\_fields\\_set\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: 35db0ff0092a43af8a1fa94e91ae7419
+msgid ""
+":py:obj:`EventAdditiveEffect.copy "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.copy>`\\ "
+"\\(\\*\\[\\, include\\, ...\\]\\)"
+msgstr ""
+":py:obj:`EventAdditiveEffect.copy "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.copy>`\\ "
+"\\(\\*\\[\\, incluir\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: 86e37bfe2bd644e3a6aeae683ea2463b
+msgid "Returns a copy of the model."
+msgstr "Devuelve una copia del modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: 8017393b1f834187b030cab2cb11c684
+msgid ""
+":py:obj:`EventAdditiveEffect.create_data "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.create_data>`\\ "
+"\\(mmm\\)"
+msgstr ""
+":py:obj:`EventAdditiveEffect.create_data "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.create_data>`\\ "
+"\\(mmm\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: c585939ca9774420b7407e1eaf77033d
+msgid "Create the required data in the model."
+msgstr "Cree los datos requeridos en el modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: 211a73b7e8174fe1bc1cb6d836ca41b3
+msgid ""
+":py:obj:`EventAdditiveEffect.create_effect "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.create_effect>`\\ "
+"\\(mmm\\)"
+msgstr ""
+":py:obj:`EventAdditiveEffect.create_effect "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.create_effect>`\\ "
+"\\(mmm\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: 926ab788d2d44c92be3acc3508e95535
+msgid "Create the event effect in the model."
+msgstr "Cree el efecto del evento en el modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: 930d545ba98340eca6b5945812309f6a
+msgid ""
+":py:obj:`EventAdditiveEffect.dict "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.dict>`\\ "
+"\\(\\*\\[\\, include\\, ...\\]\\)"
+msgstr ""
+":py:obj:`EventAdditiveEffect.dict "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.dict>`\\ "
+"\\(\\*\\[\\, incluir\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: 8e245b32507c4d998b87c93d5cdef029
+msgid ""
+":py:obj:`EventAdditiveEffect.from_orm "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.from_orm>`\\ "
+"\\(obj\\)"
+msgstr ""
+":py:obj:`EventAdditiveEffect.from_orm "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.from_orm>`\\ "
+"\\(obj\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: d9912fc8cf224884a5d2b6d60cf0a584
+msgid ""
+":py:obj:`EventAdditiveEffect.json "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.json>`\\ "
+"\\(\\*\\[\\, include\\, ...\\]\\)"
+msgstr ""
+":py:obj:`EventAdditiveEffect.json "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.json>`\\ "
+"\\(\\*\\[\\, incluir\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: 7489806f1c4a4416907ef092f30d47e7
+msgid ""
+":py:obj:`EventAdditiveEffect.model_construct "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.model_construct>`\\ "
+"\\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`EventAdditiveEffect.model_construct "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.model_construct>`\\ "
+"\\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: 3561295b62e94a03905ba68a76f07429
+msgid "Creates a new instance of the `Model` class with validated data."
+msgstr "Crea una nueva instancia de la clase `Model` con datos validados."
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: 0c678d7ba7c84830b2a108e905e0ebbb
+msgid ""
+":py:obj:`EventAdditiveEffect.model_copy "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.model_copy>`\\ "
+"\\(\\*\\[\\, update\\, deep\\]\\)"
+msgstr ""
+":py:obj:`EventAdditiveEffect.model_copy "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.model_copy>`\\ "
+"\\(\\*\\[\\, actualizar\\, profundo\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: 05a324da4d2c4abb8bf781158d691a40 7367944e0855407b87ada013af766e99
+#: b819c8a5c4f9474c950dea99d1c955fb d935b724d9024f3d88b7b1822a599310
+msgid "!!! abstract \"Usage Documentation\""
+msgstr "!!! abstract \"Documentación de Uso\""
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: e458eb6bf8ff4f17baed7370a1ac317f
+msgid ""
+":py:obj:`EventAdditiveEffect.model_dump "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.model_dump>`\\ "
+"\\(\\*\\[\\, mode\\, ...\\]\\)"
+msgstr ""
+":py:obj:`EventAdditiveEffect.model_dump "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.model_dump>`\\ "
+"\\(\\*\\[\\, modo\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: 0bae1beed9af4a67bdef5b0b2354557c
+msgid ""
+":py:obj:`EventAdditiveEffect.model_dump_json "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.model_dump_json>`\\ "
+"\\(\\*\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`EventAdditiveEffect.model_dump_json "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.model_dump_json>`\\ "
+"\\(\\*\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: 64089e9686104461bb6dc9f140999b0d
+msgid ""
+":py:obj:`EventAdditiveEffect.model_json_schema "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.model_json_schema>`\\"
+" \\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`EventAdditiveEffect.model_json_schema "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.model_json_schema>`\\"
+" \\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: 66e04f4c511541a1afec79f1d7fc0991
+msgid "Generates a JSON schema for a model class."
+msgstr "Genera un esquema JSON para una clase de modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: d2c9d1cea8e64da6966f5eb5208dbdbc
+msgid ""
+":py:obj:`EventAdditiveEffect.model_parametrized_name "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.model_parametrized_name>`\\"
+" \\(params\\)"
+msgstr ""
+":py:obj:`EventAdditiveEffect.model_parametrized_name "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.model_parametrized_name>`\\"
+" \\(params\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: e893394e726a47a58923d9ab6aab2117
+msgid "Compute the class name for parametrizations of generic classes."
+msgstr ""
+"Calcule el nombre de la clase para las parametrizaciones de clases "
+"genéricas."
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: adab226072c141c99aea66464296295d
+msgid ""
+":py:obj:`EventAdditiveEffect.model_post_init "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.model_post_init>`\\ "
+"\\(context\\, \\/\\)"
+msgstr ""
+":py:obj:`EventAdditiveEffect.model_post_init "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.model_post_init>`\\ "
+"\\(context\\, \\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: 6dcf2336441f4578b710cf3aebad73e4
+msgid "Post initialization of the model."
+msgstr "Post inicialización del modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: 30d99514746d441ea3042c9be07645ac
+msgid ""
+":py:obj:`EventAdditiveEffect.model_rebuild "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.model_rebuild>`\\ "
+"\\(\\*\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`EventAdditiveEffect.model_rebuild "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.model_rebuild>`\\ "
+"\\(\\*\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: 79314c0a709b4e1f9af5a575e2bb0a16
+msgid "Try to rebuild the pydantic-core schema for the model."
+msgstr "Intente reconstruir el esquema de pydantic-core para el modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: caeb3a5263a34f1c8102ca153475014f
+msgid ""
+":py:obj:`EventAdditiveEffect.model_validate "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.model_validate>`\\ "
+"\\(obj\\, \\*\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`EventAdditiveEffect.model_validate "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.model_validate>`\\ "
+"\\(obj\\, \\*\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: 91e836f3360a40c79ee12ae701bfa745
+msgid "Validate a pydantic model instance."
+msgstr "Valide una instancia de modelo pydantic."
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: 32c2e4d4b37c44efaa45fe5d90ccb268
+msgid ""
+":py:obj:`EventAdditiveEffect.model_validate_json "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.model_validate_json>`\\"
+" \\(...\\)"
+msgstr ""
+":py:obj:`EventAdditiveEffect.model_validate_json "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.model_validate_json>`\\"
+" \\(...\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: 4422d57115a64b8ca6549b255022d742
+msgid ""
+":py:obj:`EventAdditiveEffect.model_validate_strings "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.model_validate_strings>`\\"
+" \\(obj\\, \\*\\)"
+msgstr ""
+":py:obj:`EventAdditiveEffect.model_validate_strings "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.model_validate_strings>`\\"
+" \\(obj\\, \\*\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: dee7f847a5974a96b610dcbbc96133e8
+msgid "Validate the given object with string data against the Pydantic model."
+msgstr ""
+"Valide el objeto dado con datos de cadena contra el modelo de Pydantic."
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: 37d0a54a2e4e4ba29617cbb6f18b25e2
+msgid ""
+":py:obj:`EventAdditiveEffect.parse_file "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.parse_file>`\\ "
+"\\(path\\, \\*\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`EventAdditiveEffect.parse_file "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.parse_file>`\\ "
+"\\(ruta\\, \\*\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: aa9afdb4e6ab4635a1f9579712aae26a
+msgid ""
+":py:obj:`EventAdditiveEffect.parse_obj "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.parse_obj>`\\ "
+"\\(obj\\)"
+msgstr ""
+":py:obj:`EventAdditiveEffect.parse_obj "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.parse_obj>`\\ "
+"\\(obj\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: 4d98f0b1cd7e4c47b77903f1f3e80ad9
+msgid ""
+":py:obj:`EventAdditiveEffect.parse_raw "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.parse_raw>`\\ "
+"\\(b\\, \\*\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`EventAdditiveEffect.parse_raw "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.parse_raw>`\\ "
+"\\(b\\, \\*\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: f9366fbaff7f4c1fb9fe5032ce7b3d21
+msgid ""
+":py:obj:`EventAdditiveEffect.schema "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.schema>`\\ "
+"\\(\\[by\\_alias\\, ...\\]\\)"
+msgstr ""
+":py:obj:`EventAdditiveEffect.schema "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.schema>`\\ "
+"\\(\\[por\\_alias\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: c9375a8b06ab41869224cbfc8be2d2c1
+msgid ""
+":py:obj:`EventAdditiveEffect.schema_json "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.schema_json>`\\ "
+"\\(\\*\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`EventAdditiveEffect.schema_json "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.schema_json>`\\ "
+"\\(\\*\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: e31e287e9d434852a1650c09f22054a0
+msgid ""
+":py:obj:`EventAdditiveEffect.set_data "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.set_data>`\\ "
+"\\(mmm\\, model\\, X\\)"
+msgstr ""
+":py:obj:`EventAdditiveEffect.set_data "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.set_data>`\\ "
+"\\(mmm\\, modelo\\, X\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: 4c548eee77d94d2cac28490f1911f317
+msgid "Set the data for new predictions."
+msgstr "Establezca los datos para nuevas predicciones."
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: 6702b8a78e5647299e832938894fdb21
+msgid ""
+":py:obj:`EventAdditiveEffect.update_forward_refs "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.update_forward_refs>`\\"
+" \\(...\\)"
+msgstr ""
+":py:obj:`EventAdditiveEffect.update_forward_refs "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.update_forward_refs>`\\"
+" \\(...\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:48:<autosummary>:1
+#: f37c3e70ad5f4f6ea3346dce9f0396e5
+msgid ""
+":py:obj:`EventAdditiveEffect.validate "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.validate>`\\ "
+"\\(value\\)"
+msgstr ""
+":py:obj:`EventAdditiveEffect.validate "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.validate>`\\ "
+"\\(valor\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:50
+#: 070a4f32aae0455db47bc850f1843083
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:64:<autosummary>:1
+#: 02f55a6fa8d849cd90f17aa4aa95561f
+msgid ""
+":py:obj:`end_dates "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.end_dates>`\\"
+msgstr ""
+":py:obj:`end_dates "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.end_dates>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:64:<autosummary>:1
+#: 364ddd586fd94d66ad2b32dcbcbac2fe
+msgid "The end dates of the events."
+msgstr "Las fechas de finalización de los eventos."
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:64:<autosummary>:1
+#: d0559bc766c449a08bac9ea4a981de5a
+msgid ""
+":py:obj:`model_computed_fields "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.model_computed_fields>`\\"
+msgstr ""
+":py:obj:`model_computed_fields "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.model_computed_fields>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:64:<autosummary>:1
+#: 09926bd7403048c6b0a51bf7abb342c3
+msgid ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.model_config>`\\"
+msgstr ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.model_config>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:64:<autosummary>:1
+#: f9ef0cc93fb4469c9282d5974d827816
+msgid ""
+"Configuration for the model, should be a dictionary conforming to "
+"[`ConfigDict`][pydantic.config.ConfigDict]."
+msgstr ""
+"Configuración para el modelo, debe ser un diccionario que cumpla con "
+"[`ConfigDict`][pydantic.config.ConfigDict]."
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:64:<autosummary>:1
+#: 098e03323db542f7b5e4c2f1e43396f0
+msgid ""
+":py:obj:`model_extra "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.model_extra>`\\"
+msgstr ""
+":py:obj:`model_extra "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.model_extra>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:64:<autosummary>:1
+#: fe5f16c00c6b4946ab10c980278bf55e
+msgid "Get extra fields set during validation."
+msgstr "Obtener campos adicionales establecidos durante la validación."
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:64:<autosummary>:1
+#: 4e03acabea2e4f60bcdf80153f9ace32
+msgid ""
+":py:obj:`model_fields "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.model_fields>`\\"
+msgstr ""
+":py:obj:`model_fields "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.model_fields>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:64:<autosummary>:1
+#: 89647e0ee02943dbaaff30962b4d8507
+msgid ""
+":py:obj:`model_fields_set "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.model_fields_set>`\\"
+msgstr ""
+":py:obj:`model_fields_set "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.model_fields_set>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:64:<autosummary>:1
+#: c595dcc1f4a847da9499c9b9dad8b7b1
+msgid ""
+"Returns the set of fields that have been explicitly set on this model "
+"instance."
+msgstr ""
+"Devuelve el conjunto de campos que han sido establecidos explícitamente en "
+"esta instancia del modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:64:<autosummary>:1
+#: bb2f03a9dea541e3986d7618698ebd7d
+msgid ""
+":py:obj:`start_dates "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.start_dates>`\\"
+msgstr ""
+":py:obj:`start_dates "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.start_dates>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:64:<autosummary>:1
+#: ea9b7bde12e448b2937b7e6fe744da24
+msgid "The start dates of the events."
+msgstr "Las fechas de inicio de los eventos."
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:64:<autosummary>:1
+#: a4b03692c05b4762b7f988f91248b5b4
+msgid ""
+":py:obj:`df_events "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.df_events>`\\"
+msgstr ""
+":py:obj:`df_events "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.df_events>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:64:<autosummary>:1
+#: a179d510770844cdb1bbc7a8cc37ca6a
+msgid ""
+":py:obj:`prefix "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.prefix>`\\"
+msgstr ""
+":py:obj:`prefix "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.prefix>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:64:<autosummary>:1
+#: 6b88bc5a1fbb414c816c6b0e5541c375
+msgid ""
+":py:obj:`effect "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.effect>`\\"
+msgstr ""
+":py:obj:`efecto "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.effect>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:64:<autosummary>:1
+#: 974581a007b2467d89d8791795b9681c
+msgid ""
+":py:obj:`reference_date "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.reference_date>`\\"
+msgstr ""
+":py:obj:`fecha_de_referencia "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.reference_date>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.rst:64:<autosummary>:1
+#: c8606724d2d1431ba1b4e01d1d55267a
+msgid ""
+":py:obj:`date_dim_name "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.date_dim_name>`\\"
+msgstr ""
+":py:obj:`date_dim_name "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect.date_dim_name>`"

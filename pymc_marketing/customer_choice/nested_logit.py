@@ -536,14 +536,19 @@ class NestedLogit(RegressionModelBuilder):
         lambda_lkup = self.lambda_lkup
         N = U.shape[0]
         if "_" in nest:
-            parent, child = nest.split("_")
+            parent, _ = nest.split("_")
         else:
             parent = None
-        y_nest = U[:, nest_indices[level][nest]]
+        nest_idx = nest_indices[level][nest]
+        y_nest = U[:, nest_idx]
+        n_alts_in_nest = len(nest_idx)
         if W is None:
-            w_nest = pm.math.zeros((N, len(self.alternatives)))
+            w_nest = pm.math.zeros((N, n_alts_in_nest))
         else:
-            betas_fixed_temp = betas_fixed[nest_indices[level][nest], :]
+            betas_fixed_temp = betas_fixed[nest_idx, :]
+            betas_fixed_temp = pt.atleast_2d(betas_fixed_temp)
+            if n_alts_in_nest == 1 and betas_fixed_temp.shape[0] != 1:
+                betas_fixed_temp = betas_fixed_temp.T
             betas_fixed_temp = pt.set_subtensor(betas_fixed_temp[-1], 0)
             w_nest = pm.math.dot(W, betas_fixed_temp.T)
 
@@ -707,7 +712,7 @@ class NestedLogit(RegressionModelBuilder):
 
                 for idx, n in enumerate(middle_nests):
                     is_last = idx == len(middle_nests) - 1
-                    parent, child = n.split("_")
+                    parent, _ = n.split("_")
                     P_nest = nest_prob_m[n]
                     P_y_given_nest = cond_prob_m[n]["P_y_given"]
                     prod = pm.Deterministic(
@@ -879,6 +884,7 @@ class NestedLogit(RegressionModelBuilder):
         self,
         new_choice_df: pd.DataFrame,
         new_utility_equations: list[str] | None = None,
+        fit_kwargs: dict | None = None,
     ) -> az.InferenceData:
         r"""Apply one of two types of intervention.
 
@@ -908,6 +914,13 @@ class NestedLogit(RegressionModelBuilder):
             predicted probabilities (`"p"`) and likelihood draws (`"likelihood"`).
 
         """
+        if fit_kwargs is None:
+            fit_kwargs = {
+                "target_accept": 0.97,
+                "tune": 2000,
+                "idata_kwargs": {"log_likelihood": True},
+            }
+
         if not hasattr(self, "model"):
             self.sample()
         if new_utility_equations is None:
@@ -936,14 +949,7 @@ class NestedLogit(RegressionModelBuilder):
             new_model = self.make_model(new_X, new_F, new_y)
             with new_model:
                 idata_new_policy = pm.sample_prior_predictive()
-                idata_new_policy.extend(
-                    pm.sample(
-                        target_accept=0.99,
-                        tune=2000,
-                        idata_kwargs={"log_likelihood": True},
-                        random_seed=101,
-                    )
-                )
+                idata_new_policy.extend(pm.sample(**fit_kwargs))
                 idata_new_policy.extend(
                     pm.sample_posterior_predictive(
                         idata_new_policy, var_names=["p", "likelihood"]

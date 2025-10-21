@@ -21,5 +21,6 @@
   model_graph
   plot
   prior
+  special_priors
   utils
 ```

@@ -1,0 +1,96 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.mmm.MMM.get_channel_contribution_forward_pass_grid.rst:2
+#: 9b7a3a3ac79043c594f4c10386470a21
+msgid "MMM.get\\_channel\\_contribution\\_forward\\_pass\\_grid"
+msgstr "MMM.get\\_channel\\_contribution\\_forward\\_pass\\_grid"
+
+#: e1267e2ad8124c078b03c65aed5e4c84 of
+#: pymc_marketing.mmm.mmm.MMM.get_channel_contribution_forward_pass_grid:2
+msgid ""
+"Generate a grid of scaled channel contributions for a given grid of shared "
+"values."
+msgstr ""
+"Generar una cuadrícula de contribuciones de canal escaladas para una "
+"cuadrícula dada de valores compartidos."
+
+#: b97a12edd0a3473db734f1e7081684b7 of
+#: pymc_marketing.mmm.mmm.MMM.get_channel_contribution_forward_pass_grid
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 24f8850123e046db96a7e08b6d6a93b8 of
+#: pymc_marketing.mmm.mmm.MMM.get_channel_contribution_forward_pass_grid:7
+msgid "**start** : :class:`python:float`"
+msgstr "**inicio** : :class:`python:float`"
+
+#: 347a95bb277f4115bbe10edc6ab425a3 b20ed11f9c40405bb2bf1335c9bef70b of
+#: pymc_marketing.mmm.mmm.MMM.get_channel_contribution_forward_pass_grid:6
+#: pymc_marketing.mmm.mmm.MMM.get_channel_contribution_forward_pass_grid:9
+msgid "python:float"
+msgstr "python:float"
+
+#: bfb6b0fd7e584174836ba84bb64591f7 of
+#: pymc_marketing.mmm.mmm.MMM.get_channel_contribution_forward_pass_grid:8
+msgid "Start of the grid. It must be equal or greater than 0."
+msgstr "Inicio de la cuadrícula. Debe ser igual o mayor que 0."
+
+#: 834a7df7328a4de696d5b382114ba2a1 of
+#: pymc_marketing.mmm.mmm.MMM.get_channel_contribution_forward_pass_grid:10
+msgid "**stop** : :class:`python:float`"
+msgstr "**detener** : :class:`python:float`"
+
+#: aa5fbe59451f492da408486bbbde1c52 of
+#: pymc_marketing.mmm.mmm.MMM.get_channel_contribution_forward_pass_grid:11
+msgid "End of the grid. It must be greater than start."
+msgstr "Fin de la cuadrícula. Debe ser mayor que el inicio."
+
+#: 9ae877a252e44098985ca56f2e283408 of
+#: pymc_marketing.mmm.mmm.MMM.get_channel_contribution_forward_pass_grid:13
+msgid "**num** : :class:`python:int`"
+msgstr "**num** : :class:`python:int`"
+
+#: 69808054c96347a68fe12a5185b430cb of
+#: pymc_marketing.mmm.mmm.MMM.get_channel_contribution_forward_pass_grid:12
+msgid "python:int"
+msgstr "python:int"
+
+#: 0c478d70fb5646c0b84a689f868febd8 of
+#: pymc_marketing.mmm.mmm.MMM.get_channel_contribution_forward_pass_grid:14
+msgid "Number of points in the grid."
+msgstr "Número de puntos en la cuadrícula."
+
+#: 46d83c6a34e044d08bfc806375ed2d23 of
+#: pymc_marketing.mmm.mmm.MMM.get_channel_contribution_forward_pass_grid
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 415195f5e3154daf900a79d5ed5d8f3a of
+#: pymc_marketing.mmm.mmm.MMM.get_channel_contribution_forward_pass_grid:20
+msgid ":obj:`DataArray`"
+msgstr ":obj:`DataArray`"
+
+#: 444d32ffd5294bf9abde112a832594ba of
+#: pymc_marketing.mmm.mmm.MMM.get_channel_contribution_forward_pass_grid:21
+msgid "Grid of channel contributions."
+msgstr "Cuadrícula de contribuciones de canal."

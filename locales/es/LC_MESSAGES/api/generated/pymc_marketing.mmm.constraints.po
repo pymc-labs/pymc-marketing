@@ -1,0 +1,86 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.constraints.rst:2
+#: bfa12434a4e548958e1e5fe15e8fc96f
+msgid "constraints"
+msgstr "restricciones"
+
+#: 3afef625f8f94b70ab09b6da104d1ac6 of pymc_marketing.mmm.constraints:1
+msgid "Constraints for the BudgetOptimizer."
+msgstr "Restricciones para el BudgetOptimizer."
+
+#: ../source/api/generated/pymc_marketing.mmm.constraints.rst:13
+#: cc8c9508fa90487e9fc9e0036bdc063d
+msgid "Functions"
+msgstr "Funciones"
+
+#: ../source/api/generated/pymc_marketing.mmm.constraints.rst:24:<autosummary>:1
+#: 4269177fae084f4f9ac313f14a176a3c
+msgid ""
+":py:obj:`build_default_sum_constraint "
+"<pymc_marketing.mmm.constraints.build_default_sum_constraint>`\\ "
+"\\(\\[key\\]\\)"
+msgstr ""
+":py:obj:`build_default_sum_constraint "
+"<pymc_marketing.mmm.constraints.build_default_sum_constraint>`\\ "
+"\\(\\[key\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.constraints.rst:24:<autosummary>:1
+#: 2cbdfac3454549c6b9ed82a996656b1f
+msgid "Return a Constraint enforcing sum(budgets) == total_budget."
+msgstr "Devuelve una restricción que impone sum(budgets) == total_budget."
+
+#: ../source/api/generated/pymc_marketing.mmm.constraints.rst:24:<autosummary>:1
+#: a7e5f8e5172949a6a7937a9683f9da38
+msgid ""
+":py:obj:`compile_constraints_for_scipy "
+"<pymc_marketing.mmm.constraints.compile_constraints_for_scipy>`\\ "
+"\\(constraints\\, ...\\)"
+msgstr ""
+":py:obj:`compile_constraints_for_scipy "
+"<pymc_marketing.mmm.constraints.compile_constraints_for_scipy>`\\ "
+"\\(restricciones\\, ...\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.constraints.rst:24:<autosummary>:1
+#: 71d8e8f058eb4efb95e56d733600ae15
+msgid "Compile constraints for scipy."
+msgstr "Compilar restricciones para scipy."
+
+#: ../source/api/generated/pymc_marketing.mmm.constraints.rst:26
+#: 21402844bc4a45b3aca6308f88cdbb12
+msgid "Classes"
+msgstr "Clases"
+
+#: ../source/api/generated/pymc_marketing.mmm.constraints.rst:32:<autosummary>:1
+#: 841612d4946649beaf6e45167880b0a3
+msgid ""
+":py:obj:`Constraint <pymc_marketing.mmm.constraints.Constraint>`\\ \\(key\\,"
+" constraint\\_type\\, constraint\\_fun\\)"
+msgstr ""
+":py:obj:`Constraint <pymc_marketing.mmm.constraints.Constraint>`\\ "
+"\\(clave\\, tipo\\_de\\_restricción\\, función\\_de\\_restricción\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.constraints.rst:32:<autosummary>:1
+#: 8d76fa5578aa40f8ba31eee776cce8b3
+msgid "Represents a constraint for the BudgetOptimizer."
+msgstr "Representa una restricción para el BudgetOptimizer."

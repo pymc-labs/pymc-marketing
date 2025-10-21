@@ -1,0 +1,64 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.hsgp.HSGP.from_dict.rst:2
+#: 2bb481b90af849f4a25432849d4c7c54
+msgid "HSGP.from\\_dict"
+msgstr "HSGP.from\\_dict"
+
+#: 6c879c07ae8b402d8ffc098f95c4e930 of
+#: pymc_marketing.mmm.hsgp.HSGP.from_dict:2
+msgid "Create an object from a dictionary."
+msgstr "Cree un objeto a partir de un diccionario."
+
+#: c2d172f80f944d5885bcf58e0c487625 of pymc_marketing.mmm.hsgp.HSGP.from_dict
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 8a22b454f1c64a8985691b44f03c65f5 of
+#: pymc_marketing.mmm.hsgp.HSGP.from_dict:7
+msgid "**data** : :class:`python:dict`"
+msgstr "**datos** : :class:`python:dict`"
+
+#: 8876abfa96004f08a33de6c7b1f3059e of
+#: pymc_marketing.mmm.hsgp.HSGP.from_dict:6
+msgid "python:dict"
+msgstr "python:dict"
+
+#: db4e2a73b4464259a47968d652d43679 of
+#: pymc_marketing.mmm.hsgp.HSGP.from_dict:8
+msgid "The data to create the object from."
+msgstr "Los datos para crear el objeto a partir de."
+
+#: c1a722884aa04552a10bca3155a41d8a of pymc_marketing.mmm.hsgp.HSGP.from_dict
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: b417624ca6d64b4a9ab02deb14ae27aa of
+#: pymc_marketing.mmm.hsgp.HSGP.from_dict:14
+msgid ":obj:`HSGP`"
+msgstr ":obj:`HSGP`"
+
+#: e43e04a76fc64b7b8d64207bfe37cb5a of
+#: pymc_marketing.mmm.hsgp.HSGP.from_dict:15
+msgid "The object created from the data."
+msgstr "El objeto creado a partir de los datos."

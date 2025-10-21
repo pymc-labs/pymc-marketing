@@ -1,0 +1,79 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.__init__.rst:2
+#: f109b1e7bb4c4054901bcda3cd597ab3
+msgid "GammaGammaModelIndividual.\\_\\_init\\_\\_"
+msgstr "GammaGammaModelIndividual.__init__"
+
+#: 57083cbc1e3047ca85b011a093e0c39b of
+#: pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.__init__:2
+msgid ""
+"Initialize model configuration and sampler configuration for the model."
+msgstr ""
+"Inicializar la configuración del modelo y la configuración del muestreador "
+"para el modelo."
+
+#: 1744cb0f8e1442388fcb8cebca5c62f1 of
+#: pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.__init__
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 1229399f2d5d47598eeba6745d522325 of
+#: pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.__init__:7
+msgid "**model_config** : :obj:`Dictionary`, optional"
+msgstr "**model_config** : :obj:`Diccionario`, opcional"
+
+#: 45837ec5098a4c049fc74020505392b2 9bed69aeb6d44a99be63cb8bc6690a5a of
+#: pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.__init__:6
+#: pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.__init__:10
+msgid "Dictionary, optional"
+msgstr "Diccionario, opcional"
+
+#: 5b01375c127544bb8f15297e623bdd07 of
+#: pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.__init__:8
+msgid ""
+"dictionary of parameters that initialise model configuration. Class-default "
+"defined by the user default_model_config method."
+msgstr ""
+"diccionario de parámetros que inicializan la configuración del modelo. Clase"
+" por defecto definida por el método default_model_config del usuario."
+
+#: 24e5e0dc068b4a47964907a206584fb9 of
+#: pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.__init__:11
+msgid "**sampler_config** : :obj:`Dictionary`, optional"
+msgstr "**sampler_config** : :obj:`Diccionario`, opcional"
+
+#: 191cb41a90c64445a703287aae905435 of
+#: pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.__init__:12
+msgid ""
+"dictionary of parameters that initialise sampler configuration. Class-"
+"default defined by the user default_sampler_config method."
+msgstr ""
+"diccionario de parámetros que inicializan la configuración del muestreador. "
+"Clase predeterminada definida por el método default_sampler_config del "
+"usuario."
+
+#: 192e27432f1a4f31be8b2eb4dc740845 of
+#: pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.__init__:28
+msgid "Examples"
+msgstr "Ejemplos"

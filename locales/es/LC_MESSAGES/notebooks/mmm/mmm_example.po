@@ -1,0 +1,1579 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-08-23 20:57+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:10003
+#: c654c6ecde9c431090d9169bad8e8945
+msgid "MMM Example Notebook"
+msgstr "Cuaderno de ejemplo para MMM"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:10005
+#: e233bda1b29549e682bbbb1e37321f9f
+msgid ""
+"In this notebook we work out a simulated example to showcase the media mix "
+"Model (MMM) API from `pymc-marketing`. This package provides a `pymc` "
+"implementation of the MMM presented in the paper [Jin, Yuxue, et al. "
+"“Bayesian methods for media mix modeling with carryover and shape effects.” "
+"(2017)](https://research.google/pubs/pub46001/). We work with synthetic data"
+" as we want to do *parameter recovery* to better understand the model "
+"assumptions. That is, we explicitly set values for our adstock and "
+"saturation parameters (see model specification below) and recover them back "
+"from the model. The data generation process is as an adaptation of the blog "
+"post [\"Media Effect Estimation with PyMC: Adstock, Saturation & Diminishing"
+" Returns\"](https://juanitorduz.github.io/pymc_mmm/) by [Juan "
+"Orduz](https://juanitorduz.github.io/)."
+msgstr ""
+"En este cuaderno desarrollamos un ejemplo simulado para mostrar la API del "
+"Modelo de Mezcla de Medios (MMM) de `pymc-marketing`. Este paquete "
+"proporciona una implementación en `pymc` del MMM presentado en el artículo "
+"[Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover "
+"and shape effects.” (2017)](https://research.google/pubs/pub46001/). "
+"Trabajamos con datos sintéticos porque queremos realizar una *recuperación "
+"de parámetros* para comprender mejor los supuestos del modelo. Es decir, "
+"fijamos explícitamente valores para nuestros parámetros de adstock y "
+"saturación (véase la especificación del modelo más abajo) y los recuperamos "
+"desde el modelo. El proceso de generación de datos es una adaptación de la "
+"entrada del blog [\"Media Effect Estimation with PyMC: Adstock, Saturation &"
+" Diminishing Returns\"](https://juanitorduz.github.io/pymc_mmm/) de [Juan "
+"Orduz](https://juanitorduz.github.io/)."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:10007
+#: 25576bec10394ced920d6285e8c4aea1
+msgid "Business Problem"
+msgstr "Problema de negocio"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:10009
+#: 1f2428ee76dd46efa010434df0fa4f3d
+msgid ""
+"Before jumping into the data, let's first define the business problem we are"
+" trying to solve. We are a marketing agency and we want to optimize the "
+"marketing budget of a client. We have access to the following data:"
+msgstr ""
+"Antes de adentrarnos en los datos, definamos primero el problema de negocio "
+"que estamos intentando resolver. Somos una agencia de marketing y queremos "
+"optimizar el presupuesto de marketing de un cliente. Tenemos acceso a los "
+"siguientes datos:"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:10011
+#: 1b8bdcbb0bff41049f991b4192dfe5b6
+msgid "Sales data: weekly sales of the client."
+msgstr "Datos de ventas: ventas semanales del cliente."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:10012
+#: 5a5ef481ecc24a9490fbb7a4915c3262
+#, python-brace-format
+msgid ""
+"Media spend data: weekly spend on different media channels (e.g. TV, radio, "
+"online, etc.). In this example we consider 2 media channels: $x_{1}$ and "
+"$x_{2}$."
+msgstr ""
+"Datos de inversión en medios: gasto semanal en diferentes canales de medios "
+"(p. ej., TV, radio, online, etc.). En este ejemplo consideramos 2 canales de"
+" medios: $x_{1}$ y $x_{2}$."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:10013
+#: d33947a9b028419ea62d33efd66326fb
+msgid "Domain knowledge:"
+msgstr "Conocimiento del dominio:"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:10014
+#: 6b4392cea8434eeaac6f267ca1cfd428
+msgid ""
+"We know that there has a been an positive sales trend which we believe comes"
+" from a strong economic growth."
+msgstr ""
+"Sabemos que ha habido una tendencia positiva en las ventas que creemos "
+"proviene de un fuerte crecimiento económico."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:10015
+#: 09bdbc00e20046c3bfc59b42d56ac519
+msgid "We also know that there is a yearly seasonality effect."
+msgstr "También sabemos que existe un efecto de estacionalidad anual."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:10016
+#: 1413dca18b704bb89178f4c299e9f92b
+msgid ""
+"In addition, we were informed about two outliers in the data during the "
+"weeks `2019-05-13` and `2021-09-14`."
+msgstr ""
+"Además, se nos informó de dos valores atípicos en los datos durante las "
+"semanas `2019-05-13` y `2021-09-14`."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:10018
+#: 989ab11882244e399c75943d17c318dd
+msgid ""
+"Given this information we can draw a Directed Acyclic Graph (DAG) or "
+"graphical model of how we believe our variables are related. In other words,"
+" represent how we believe our system is causally related."
+msgstr ""
+"Con esta información podemos dibujar un Gráfico Acíclico Dirigido (DAG) o "
+"modelo gráfico de cómo creemos que nuestras variables están relacionadas. En"
+" otras palabras, representar cómo creemos que nuestro sistema está "
+"causalmente relacionado."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:30002
+#: f006a3a2721b4131b2c54af9923e84df
+msgid "In this example, we will consider a simple system where:"
+msgstr "En este ejemplo, consideraremos un sistema sencillo donde:"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:30003
+#: e07261ece64a45cc9270e1f2c429f56a
+#, python-brace-format
+msgid ""
+"**Marketing**: It represents the actions generated by $x_{1}$ and $x_{2}$."
+msgstr ""
+"**Marketing**: Representa las acciones generadas por $x_{1}$ y $x_{2}$."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:30004
+#: f6ac4f22144f44f2b34624d25390abd8
+msgid ""
+"**Special Events**: Outliers on specific days, which are possibly given by "
+"special dates."
+msgstr ""
+"**Eventos especiales**: Valores atípicos en días específicos, posiblemente "
+"debidos a fechas especiales."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:30005
+#: bf5790cd0ee1458c9624080aff6ef783
+msgid ""
+"**Exogenous Variables**: We will consider variables that are determined by "
+"external factors, not determined in the model (E.g: Country economic growth "
+"or weather conditions that determine seasonal behavior)."
+msgstr ""
+"**Variables exógenas**: Consideraremos variables determinadas por factores "
+"externos, no determinadas en el modelo (p. ej.: crecimiento económico del "
+"país o condiciones meteorológicas que determinan un comportamiento "
+"estacional)."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:30007
+#: fc9ebc34e3df45749f55821b112b97c1
+msgid ""
+"Understanding this ecosystem is essential to create a model that reveals the"
+" true causal signals and allows us to optimize our advertising budget. But, "
+"What do we mean by optimize the marketing budget? We want to find the "
+"optimal media mix that maximizes sales."
+msgstr ""
+"Comprender este ecosistema es esencial para crear un modelo que revele las "
+"señales causales reales y nos permita optimizar nuestro presupuesto "
+"publicitario. Pero, ¿qué entendemos por optimizar el presupuesto de "
+"marketing? Queremos encontrar la mezcla de medios óptima que maximice las "
+"ventas."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:30009
+#: fbcffc8518714204b92761a1594e4493
+#, python-brace-format
+msgid ""
+"Now, given the DAG outlined above, we understand that there is a causal "
+"relationship between marketing and sales, but *what is the nature of that "
+"relationship*? In this case, we will assume that this relationship is not "
+"linear, for example, a $10\\%$ increase in channel $x_{1}$ spend does not "
+"necessarily translate into a $10\\%$ increase in sales. This can be "
+"explained by two phenomena:"
+msgstr ""
+"Ahora, dado el DAG descrito arriba, entendemos que existe una relación "
+"causal entre marketing y ventas, pero ¿*cuál es la naturaleza de esa "
+"relación*? En este caso, asumiremos que esta relación no es lineal; por "
+"ejemplo, un aumento del $10\\%$ en el gasto del canal $x_{1}$ no se traduce "
+"necesariamente en un aumento del $10\\%$ en las ventas. Esto puede "
+"explicarse por dos fenómenos:"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:30011
+#: 0e63a0e40ebb40a3bd6a4b5a62e74ded
+msgid ""
+"On the one hand side, there is a carry-over effect. Meaning, the effect of "
+"spend on sales is not instantaneous but accumulates over time."
+msgstr ""
+"Por un lado, existe un efecto de arrastre. Es decir, el efecto del gasto en "
+"las ventas no es instantáneo, sino que se acumula con el tiempo."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:30012
+#: 3bf8a76ad7b84a6d8485ce2130923490
+msgid ""
+"In addition, there is a saturation effect. Meaning, the effect of spend on "
+"sales is not linear but saturates at some point."
+msgstr ""
+"Además, existe un efecto de saturación. Es decir, el efecto del gasto sobre "
+"las ventas no es lineal, sino que se satura en algún punto."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:30014
+#: 66e71958656e4d868a48b1b36b048188
+#, python-brace-format
+msgid ""
+"The equation implemented to describe the DAG presented above will be the one"
+" expressed in [Jin, Yuxue, et al. “Bayesian methods for media mix modeling "
+"with carryover and shape effects.” "
+"(2017)](https://research.google/pubs/pub46001/), adding a causal assumption "
+"around the media effects and their exclusively positive impact. Concretely, "
+"given a time series target variable $y_{t}$ (e.g. sales or conversions), "
+"media variables $x_{m, t}$ (e.g. impressions, clicks or costs) and a set of "
+"control covariates $z_{c, t}$ (e.g. holidays, special events) we consider a "
+"linear model of the form"
+msgstr ""
+"La ecuación implementada para describir el DAG presentado arriba será la "
+"expresada en [Jin, Yuxue, et al. “Bayesian methods for media mix modeling "
+"with carryover and shape effects.” "
+"(2017)](https://research.google/pubs/pub46001/), añadiendo un supuesto "
+"causal sobre los efectos de los medios y su impacto exclusivamente positivo."
+" Concretamente, dada una variable objetivo de serie temporal $y_{t}$ (p. "
+"ej., ventas o conversiones), variables de medios $x_{m, t}$ (p. ej., "
+"impresiones, clics o costes) y un conjunto de covariables de control $z_{c, "
+"t}$ (p. ej., festivos, eventos especiales), consideramos un modelo lineal de"
+" la forma"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:30016
+#: fdb41fe275f6472cbb0a772560581633
+#, python-brace-format
+msgid ""
+"\n"
+"y_{t} = \\alpha + \\sum_{m=1}^{M}\\beta_{m}f(x_{m, t}) +  \\sum_{c=1}^{C}\\gamma_{c}z_{c, t} + \\varepsilon_{t},\n"
+msgstr ""
+"y_{t} = \\alpha + \\sum_{m=1}^{M}\\beta_{m}f(x_{m, t}) +  "
+"\\sum_{c=1}^{C}\\gamma_{c}z_{c, t} + \\varepsilon_{t},"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:30020
+#: 079b964f1c0246b69d4cd483448769db
+#, python-brace-format
+msgid ""
+"where $\\alpha$ is the intercept, $f$ is a media transformation function and"
+" $\\varepsilon_{t}$ is the error term which we assume is normally "
+"distributed. The function $f$ encodes the positive media contribution on the"
+" target variable. Typically we consider two types of transformation: adstock"
+" (carry-over) and saturation effects."
+msgstr ""
+"donde $\\alpha$ es el intercepto, $f$ es una función de transformación de "
+"medios y $\\varepsilon_{t}$ es el término de error que asumimos normalmente "
+"distribuido. La función $f$ codifica la contribución positiva de los medios "
+"sobre la variable objetivo. Normalmente consideramos dos tipos de "
+"transformaciones: adstock (arrastre) y efectos de saturación."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:30022
+#: 6157f0a4a6c046be86f74f122a0e6ed1
+msgid ""
+"In **PyMC-Marketing**, we offer an API for a Bayesian Media Mix Model (MMM) "
+"with various specifications. In the example, we’ll implement `Geometric "
+"Adstock` and `Logistic Saturation` as the chosen transformations for our "
+"previously discussed Structural Causal Equation."
+msgstr ""
+"En **PyMC-Marketing**, ofrecemos una API para un Modelo Bayesiano de Mezcla "
+"de Medios (MMM) con varias especificaciones. En el ejemplo, implementaremos "
+"`Adstock geométrico` y `Saturación logística` como las transformaciones "
+"elegidas para nuestra Ecuación Causal Estructural previamente discutida."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:40003
+#: 7b43dcb2635b48c3b2963cf8a7666098
+msgid ""
+"The MMM model in `pymc-marketing` provides additional features on top of "
+"this base model:"
+msgstr ""
+"El modelo MMM en `pymc-marketing` proporciona funciones adicionales sobre "
+"este modelo base:"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:40005
+#: fdaaa1e14ef6462890d760a2ac385437
+#, python-brace-format
+msgid ""
+"**Experiment Calibration**: We have the option to add empirical experiments "
+"(lift tests) to calibrate the model using custom likelihood functions. See "
+"{ref}`mmm_lift_test`."
+msgstr ""
+"**Calibración con experimentos**: Tenemos la opción de añadir experimentos "
+"empíricos (pruebas de lift) para calibrar el modelo usando funciones de "
+"verosimilitud personalizadas. Consulta {ref}`mmm_lift_test`."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:40007
+#: 8eb648e94a474a36b02c1871a41fc1bb
+#, python-brace-format
+msgid ""
+"**Time-varying Intercept:** Capture time-varying baseline contributions in "
+"your model (using modern and efficient Gaussian processes approximation "
+"methods). That is, we allow the intercept term $\\alpha = \\alpha(t)$ to "
+"vary over time. See {ref}`mmm_tvp_example`."
+msgstr ""
+"**Intercepto variable en el tiempo:** Captura contribuciones base que varían"
+" en el tiempo en tu modelo (usando métodos modernos y eficientes de "
+"aproximación con procesos gaussianos). Es decir, permitimos que el término "
+"de intercepto $\\alpha = \\alpha(t)$ varíe con el tiempo. Consulta "
+"{ref}`mmm_tvp_example`."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:40009
+#: 4704fcdd2afd4691b0a9a20908b76add
+#, python-brace-format
+msgid ""
+"**Budget Optimization:** Allocate your marketing budget based on the "
+"parameters recover by the model, finding the spend distribution to maximizes"
+" the amount of contribution given a limited budget. See "
+"{ref}`mmm_budget_allocation_example`."
+msgstr ""
+"**Optimización del presupuesto:** Asigna tu presupuesto de marketing en "
+"función de los parámetros recuperados por el modelo, encontrando la "
+"distribución de gasto que maximiza la contribución con un presupuesto "
+"limitado. Consulta {ref}`mmm_budget_allocation_example`."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:40012
+#: 000aadb21b0342249f32c7a2edf9aa8e
+msgid "References:"
+msgstr "Referencias:"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:40014
+#: 1dcc217073bd47d58a0a9baf70905849
+msgid ""
+"[Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover "
+"and shape effects.” (2017).](https://research.google/pubs/pub46001/)"
+msgstr ""
+"[Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover "
+"and shape effects.” (2017).](https://research.google/pubs/pub46001/)"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:40015
+#: c06af3184b31401299d550def85ac3b2
+msgid "PyMC Labs Blog:"
+msgstr "Blog de PyMC Labs:"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:40016
+#: 43da25de100549a5a9477ab927509f7d
+msgid ""
+"[Bayesian Media Mix Modeling for Marketing Optimization](https://www.pymc-"
+"labs.com/blog-posts/bayesian-media-mix-modeling-for-marketing-optimization/)"
+msgstr ""
+"[Bayesian Media Mix Modeling for Marketing Optimization](https://www.pymc-"
+"labs.com/blog-posts/bayesian-media-mix-modeling-for-marketing-optimization/)"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:40017
+#: 4dfddff9d5b743a2acabbc20a7067424
+msgid ""
+"[Improving the Speed and Accuracy of Bayesian Media Mix "
+"Models](https://www.pymc-labs.com/blog-posts/reducing-customer-acquisition-"
+"costs-how-we-helped-optimizing-hellofreshs-marketing-budget/)"
+msgstr ""
+"[Improving the Speed and Accuracy of Bayesian Media Mix "
+"Models](https://www.pymc-labs.com/blog-posts/reducing-customer-acquisition-"
+"costs-how-we-helped-optimizing-hellofreshs-marketing-budget/)"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:40018
+#: daffe6f7e4da450db92a5094d5f9f23e
+msgid ""
+"[Johns, Michael and Wang,  Zhenyu. \"A Bayesian Approach to Media Mix "
+"Modeling\"](https://www.youtube.com/watch?v=UznM_-_760Y)"
+msgstr ""
+"[Johns, Michael y Wang, Zhenyu. \"A Bayesian Approach to Media Mix "
+"Modeling\"](https://www.youtube.com/watch?v=UznM_-_760Y)"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:40019
+#: 07eef60cdea84b37884a310647550516
+msgid ""
+"[Orduz, Juan. \"Media Effect Estimation with PyMC: Adstock, Saturation & "
+"Diminishing Returns\"](https://juanitorduz.github.io/pymc_mmm/)"
+msgstr ""
+"[Orduz, Juan. \"Media Effect Estimation with PyMC: Adstock, Saturation & "
+"Diminishing Returns\"](https://juanitorduz.github.io/pymc_mmm/)"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:50004
+#: e50764e75bf548429ac07663827c9e9c
+msgid "Part I: Data Generation Process"
+msgstr "Parte I: Proceso de generación de datos"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:50006
+#: 5895e85a512d41b8b317fdded92f0e3e
+#, python-brace-format
+msgid ""
+"In Part I of this notebook we focus on the data generating process. That is,"
+" we want to construct the target variable $y_{t}$ (sales) by adding each of "
+"the components described in the *Business Problem* section."
+msgstr ""
+"En la Parte I de este cuaderno nos centramos en el proceso de generación de "
+"datos. Es decir, queremos construir la variable objetivo $y_{t}$ (ventas) "
+"añadiendo cada uno de los componentes descritos en la sección *Problema de "
+"negocio*."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:50008
+#: 71f02e40801c4588aa9cfdf5f5795d72
+msgid "Prepare Notebook"
+msgstr "Preparar el cuaderno"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:70002
+#: e9257084361c4f0facf405f127d01f1b
+msgid "Generate Data"
+msgstr "Generar datos"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:80002
+#: a8ce4ee273ae4538b5e4ad24e4c466e3
+msgid "1. Date Range"
+msgstr "1. Rango de fechas"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:80004
+#: 08874b90c0614dc59c803789d8889922
+msgid ""
+"First we set a time range for our data. We consider a bit more than 2 years "
+"of data at weekly granularity."
+msgstr ""
+"Primero definimos un rango temporal para nuestros datos. Consideramos un "
+"poco más de 2 años de datos con granularidad semanal."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:100002
+#: bcfa757a23534d32b1d933e6948cca45
+msgid "2. Media Costs Data"
+msgstr "2. Datos de costes de medios"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:100004
+#: b1475dd0cf49410099a62288ba59f679
+msgid ""
+"Now we generate synthetic data from two channels $x_1$ and $x_2$. We refer "
+"to it as the raw signal as it is going to be the input at the modeling "
+"phase. We expect the contribution of each channel to be different, based on "
+"the carryover and saturation parameters."
+msgstr ""
+"Ahora generamos datos sintéticos de dos canales $x_1$ y $x_2$. Nos referimos"
+" a ello como la señal bruta ya que será la entrada en la fase de modelado. "
+"Esperamos que la contribución de cada canal sea diferente, en función de los"
+" parámetros de arrastre y saturación."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:110002
+#: 217a85cfb6c6409680faa9bed6888969
+msgid "Raw Signal"
+msgstr "Señal inicial"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:130002
+#: d420d07babe1474093a8f9644f72d4cc
+#, python-brace-format
+msgid ""
+"**Remark:** By design, $x_{1}$ should resemble a typical paid social channel"
+" and $x_{2}$ a offline (e.g. TV) spend time series."
+msgstr ""
+"**Nota:** Por diseño, $x_{1}$ debería asemejarse a un canal típico de redes "
+"sociales de pago y $x_{2}$ a una serie temporal de gasto offline (p. ej., "
+"TV)."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:140002
+#: d1d70f7ea81c435cbcb553786a29af60
+msgid "Effect Signal"
+msgstr "Señal de efecto"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:140004
+#: cf076876e55c496492ee05bdc74464f2
+msgid ""
+"Next, we pass the raw signal through the two transformations: first the "
+"geometric adstock (carryover effect) and then the logistic saturation. Note "
+"that we set the parameters ourselves, but we will recover them back from the"
+" model."
+msgstr ""
+"A continuación, pasamos la señal bruta por las dos transformaciones: primero"
+" el adstock geométrico (efecto de arrastre) y luego la saturación logística."
+" Ten en cuenta que fijamos nosotros mismos los parámetros, pero los "
+"recuperaremos desde el modelo."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:140006
+#: 2cefc689bdfa4c9289d0a5f8d10a9916
+msgid ""
+"Let's start with the adstock transformation. We set the adstock parameter $0"
+" < \\alpha < 1$ to be $0.4$ and $0.2$ for $x_1$ and $x_2$ respectively. We "
+"set a maximum lag effect of $8$ weeks."
+msgstr ""
+"Comencemos con la transformación de adstock. Fijamos el parámetro de adstock"
+" $0 < \\alpha < 1$ en $0.4$ y $0.2$ para $x_1$ y $x_2$ respectivamente. "
+"Establecemos un efecto de rezago máximo de $8$ semanas."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:160002
+#: 79a8c67dca6448fd8c61332aa9b00803
+msgid ""
+"Next, we compose the resulting adstock signals with the logistic saturation "
+"function. We set the parameter $\\lambda > 0$ to be $4$ and $3$ for $z_1$ "
+"and $z_2$ respectively."
+msgstr ""
+"A continuación, componemos las señales de adstock resultantes con la función"
+" de saturación logística. Fijamos el parámetro $\\lambda > 0$ en $4$ y $3$ "
+"para $z_1$ y $z_2$ respectivamente."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:180002
+#: acb8ed6cb8094680af94738ef7747db9
+msgid ""
+"We can now visualize the effect signal for each channel after each "
+"transformation:"
+msgstr ""
+"Ahora podemos visualizar la señal de efecto para cada canal después de cada "
+"transformación:"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:200002
+#: b7f006e865cd4d15854f32a3bb906104
+msgid "3. Trend \\& Seasonal Components"
+msgstr "3. Componentes de tendencia y estacionalidad"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:200004
+#: 5bbd13ce211c4f34b2bf47919d4ee720
+msgid ""
+"Now we add synthetic trend and seasonal components to the effect signal."
+msgstr ""
+"Ahora añadimos componentes sintéticos de tendencia y estacionalidad a la "
+"señal de efecto."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:220002
+#: 30133d26876f49de92f8ad1c9c7bdd1c
+msgid "4. Control Variables"
+msgstr "4. Variables de control"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:220004
+#: 8af8f719029b4577babfaec3f8ddb6de
+msgid ""
+"We add two *events* where there was a remarkable peak in our target "
+"variable. We assume they are independent and not seasonal (e.g. launch of a "
+"particular product)."
+msgstr ""
+"Añadimos dos *eventos* en los que hubo un pico notable en nuestra variable "
+"objetivo. Suponemos que son independientes y no estacionales (p. ej., "
+"lanzamiento de un producto concreto)."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:240002
+#: b515646445234329a03f820dcb4826c5
+msgid "5. Target Variable"
+msgstr "5. Variable objetivo"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:240004
+#: 51497ce0849e438586285969d6105bec
+msgid ""
+"Finally, we define the target variable (sales) $y$. We assume it is a linear"
+" combination of the effect signal, the trend and the seasonal components, "
+"plus the two events and an intercept. We also add some Gaussian noise."
+msgstr ""
+"Por último, definimos la variable objetivo (ventas) $y$. Suponemos que es "
+"una combinación lineal de la señal de efecto, la tendencia y los componentes"
+" estacionales, más los dos eventos y un intercepto. También añadimos algo de"
+" ruido gaussiano."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:260002
+#: 26dbc31c039d44aca13e64937968f1c5
+msgid ""
+"We can visualize the true component contributions over the historical "
+"period:"
+msgstr ""
+"Podemos visualizar las contribuciones reales de los componentes durante el "
+"período histórico:"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:280002
+#: cc8777a1fa344d12af993ccbe1fc1d11
+msgid "We would like to recover these values from the model."
+msgstr "Nos gustaría recuperar estos valores a partir del modelo."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:290002
+#: 50502ce1494b4c02891adf5ec013b02b
+msgid "6. Media Contribution Interpretation"
+msgstr "6. Interpretación de la contribución de medios"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:300002
+#: 15e59c74c11c457e82d62ce0f2f4092e
+msgid ""
+"From the data generating process we can compute the relative contribution of"
+" each channel to the target variable. We will recover these values back from"
+" the model."
+msgstr ""
+"A partir del proceso de generación de datos podemos calcular la contribución"
+" relativa de cada canal a la variable objetivo. Recuperaremos estos valores "
+"desde el modelo."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:320002
+#: bb9dedabfec24c8aa991745be80f5102
+msgid ""
+"We can obtain the contribution plots for each channel where we clearly see "
+"the effect of the adstock and saturation transformations."
+msgstr ""
+"Podemos obtener las gráficas de contribución para cada canal donde vemos "
+"claramente el efecto de las transformaciones de adstock y saturación."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:340002
+#: 8a900029db834e029d88e5df1c847f16
+msgid "This plot shows some interesting aspects of the media contribution:"
+msgstr ""
+"Esta gráfica muestra algunos aspectos interesantes de la contribución de los"
+" medios:"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:340004
+#: 738caf0c01ce466fb95c2d0068cebba6
+msgid ""
+"The adstock effect is reflected in the non-zero contribution of the channel "
+"even when the spend is zero."
+msgstr ""
+"El efecto de adstock se refleja en la contribución distinta de cero del "
+"canal incluso cuando el gasto es cero."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:340005
+#: 8d4ae27946164890a9e86a173f8af340
+msgid ""
+"One clearly see the saturation effect as the contribution growth (slope) "
+"decreases as the spend increases."
+msgstr ""
+"Se observa claramente el efecto de saturación, ya que el crecimiento de la "
+"contribución (pendiente) disminuye a medida que aumenta el gasto."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:340007
+#: ec8d10736abe4f37808e55a90a0f7f91
+msgid ""
+"As we will see in Part II of this notebook, we will recover these plots from"
+" the model!"
+msgstr ""
+"Como veremos en la Parte II de este cuaderno, ¡recuperaremos estas gráficas "
+"desde el modelo!"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:350002
+#: 1e85e427b059412690b89b17397aff21
+#, python-brace-format
+msgid ""
+"We see that channel $x_{1}$ has a higher contribution than $x_{2}$. This "
+"could be explained by the fact that there was more spend in channel  $x_{1}$"
+" than in channel $x_{2}$:"
+msgstr ""
+"Vemos que el canal $x_{1}$ tiene una contribución mayor que $x_{2}$. Esto "
+"podría explicarse por el hecho de que hubo más gasto en el canal $x_{1}$ que"
+" en el canal $x_{2}$:"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:370002
+#: 3b990191718542c9818b2d2314e2b9c7
+msgid ""
+"However, one usually is not only interested in the contribution itself but "
+"rather the Return on Ad Spend (ROAS). That is, the contribution divided by "
+"the cost. We can compute the ROAS for each channel as follows:"
+msgstr ""
+"Sin embargo, normalmente no solo interesa la contribución en sí, sino el "
+"Retorno sobre la Inversión Publicitaria (ROAS). Es decir, la contribución "
+"dividida por el coste. Podemos calcular el ROAS para cada canal de la "
+"siguiente manera:"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:400002
+#: e3df27f6a3ef4508abb0d5f03f43fb6b
+#, python-brace-format
+msgid ""
+"That is, channel $x_{1}$ seems to be more efficient than channel $x_{2}$."
+msgstr ""
+"Es decir, el canal $x_{1}$ parece ser más eficiente que el canal $x_{2}$."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:410003
+#: a9a86210b4ec40909605d49c4d676986
+msgid ""
+"We recommended reading Section 4.1 in [Jin, Yuxue, et al. “Bayesian methods "
+"for media mix modeling with carryover and shape effects.” "
+"(2017)](https://research.google/pubs/pub46001/) for a detailed explanation "
+"of the ROAS (and mROAS). In particular:"
+msgstr ""
+"Recomendamos leer la Sección 4.1 en [Jin, Yuxue, et al. “Bayesian methods "
+"for media mix modeling with carryover and shape effects.” "
+"(2017)](https://research.google/pubs/pub46001/) para una explicación "
+"detallada del ROAS (y mROAS). En particular:"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:410005
+#: ecf9d5f92f5d4bf7afa86c867c739546
+msgid ""
+"If we transform our target variable $y$ (e.g. with a log transformation), "
+"one needs to be careful with the ROAS computation as setting the spend to "
+"zero does not commute with the transformation."
+msgstr ""
+"Si transformamos nuestra variable objetivo $y$ (p. ej., con una "
+"transformación logarítmica), hay que tener cuidado con el cálculo del ROAS, "
+"ya que fijar el gasto en cero no conmuta con la transformación."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:410007
+#: 060b6b39613c40a685a01052b9c26681
+msgid ""
+"One has to be careful with the adstock effect so that we include a carryover"
+" period to fully account for the effect of the spend. The ROAS estimation "
+"above is an approximation."
+msgstr ""
+"Hay que tener cuidado con el efecto de adstock para incluir un período de "
+"arrastre que contabilice completamente el efecto del gasto. La estimación de"
+" ROAS anterior es una aproximación."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:420002
+#: 1238bdd6e4024781bd7bb21a0973eef7
+msgid "7. Data Output"
+msgstr "7. Salida de datos"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:430002
+#: 3104429c7e9b459593a135e83eed17e6
+msgid ""
+"We of course will not have all of these features in our real data. Let's "
+"filter out the features we will use for modeling:"
+msgstr ""
+"Por supuesto, no tendremos todas estas características en nuestros datos "
+"reales. Filtraremos las características que utilizaremos para el modelado:"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:450002
+#: c6c7017f20b84261b3859733a10e2135
+msgid "Part II: Modeling"
+msgstr "Parte II: Modelado"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:450004
+#: 63c7a30627b044bb88ddcc0040585d7d
+msgid ""
+"On this second part, we focus on the modeling process. We will use the data "
+"generated in Part I."
+msgstr ""
+"En esta segunda parte, nos centramos en el proceso de modelado. Usaremos los"
+" datos generados en la Parte I."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:450006
+#: 1870e86c7c3e42acb5611efa3cdb9c48
+msgid "1. Feature Engineering"
+msgstr "1. Ingeniería de características"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:450008
+#: ae1f7c052a8c4d809622b459472bb834
+msgid ""
+"Assuming we did an EDA and we have a good understanding of the data (we did "
+"not do it here as we generated the data ourselves, but please never skip the"
+" EDA!), we can start building our model. One thing we immediately see is the"
+" seasonality and the trend component. We can generate features ourselves as "
+"*control variables*, for example using a uniformly increasing straight line "
+"to model the trend component. In addition, we include *dummy variables* to "
+"encode the `event_1`  and `event_2` contributions."
+msgstr ""
+"Suponiendo que hicimos un EDA y comprendemos bien los datos (aquí no lo "
+"hicimos porque generamos los datos nosotros mismos, ¡pero por favor nunca te"
+" saltes el EDA!), podemos empezar a construir nuestro modelo. Una cosa que "
+"vemos inmediatamente es la estacionalidad y el componente de tendencia. "
+"Podemos generar características nosotros mismos como *variables de control*,"
+" por ejemplo usando una línea recta de incremento uniforme para modelar el "
+"componente de tendencia. Además, incluimos *variables ficticias* para "
+"codificar las contribuciones de `event_1` y `event_2`."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:450010
+#: d19cf58052074d4692ad1791af3a6dc6
+msgid ""
+"For the seasonality component we use Fourier modes (similar as in "
+"[Prophet](https://facebook.github.io/prophet/)). We do not need to add the "
+"Fourier modes by hand as they are handled by the model API through the "
+"`yearly_seasonality` argument (see below). We use 4 modes for the "
+"seasonality component."
+msgstr ""
+"Para el componente de estacionalidad usamos modos de Fourier (similar a "
+"[Prophet](https://facebook.github.io/prophet/)). No necesitamos añadir los "
+"modos de Fourier a mano ya que la API del modelo los gestiona mediante el "
+"argumento `yearly_seasonality` (ver abajo). Usamos 4 modos para el "
+"componente estacional."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:470002
+#: b0011bbe624945e7bcee4d6f35f448c5
+msgid "2. Model Specification"
+msgstr "2. Especificación del modelo"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:480002
+#: 08fedceae2324b69a4507fb1504d9276
+#, python-brace-format
+msgid ""
+"We can specify the model structure using the {class}`MMM "
+"<pymc_marketing.mmm.mmm.MMM>` class. This class, handles a lot of internal "
+"boilerplate code for us such us scaling the data (see details below) and "
+"handy diagnostics and reporting plots. One great feature is that we can "
+"specify the channel priors distributions ourselves, which fundamental "
+"component of the [bayesian workflow](https://arxiv.org/abs/2011.01808) as we"
+" can incorporate our prior knowledge into the model. This is one of the most"
+" important advantages of using a bayesian approach. Let's see how we can do "
+"it."
+msgstr ""
+"Podemos especificar la estructura del modelo usando la clase {class}`MMM "
+"<pymc_marketing.mmm.mmm.MMM>`. Esta clase maneja gran parte del código "
+"interno repetitivo por nosotros, como el escalado de los datos (ver detalles"
+" más abajo) y útiles diagnósticos y gráficas de reporte. Una gran "
+"característica es que podemos especificar nosotros mismos las distribuciones"
+" a priori por canal, lo cual es un componente fundamental del [flujo de "
+"trabajo bayesiano](https://arxiv.org/abs/2011.01808) ya que podemos "
+"incorporar nuestro conocimiento previo en el modelo. Esta es una de las "
+"ventajas más importantes de usar un enfoque bayesiano. Veamos cómo hacerlo."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:480004
+#: 8a1b028d82c645ee84494616c2d7eb10
+msgid ""
+"As we do not know much more about the channels, we start with a simple "
+"heuristic:"
+msgstr ""
+"Como no sabemos mucho más sobre los canales, empezamos con una heurística "
+"sencilla:"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:480006
+#: ba7f7a9ac0fc427faac1c47145dbf4fb
+#, python-brace-format
+msgid ""
+"The channel contributions should be positive, so we can for example use a "
+"{class}`HalfNormal <pymc.distributions.continuous.HalfNormal>` distribution "
+"as prior. We need to set the `sigma` parameter per channel. The higher the "
+"`sigma`, the more \"freedom\" it has to fit the data. To specify `sigma` we "
+"can use the following point."
+msgstr ""
+"Las contribuciones de los canales deberían ser positivas, por lo que, por "
+"ejemplo, podemos usar una distribución {class}`HalfNormal "
+"<pymc.distributions.continuous.HalfNormal>` como prior. Necesitamos fijar el"
+" parámetro `sigma` por canal. Cuanto mayor sea `sigma`, más \"libertad\" "
+"tendrá para ajustar los datos. Para especificar `sigma` podemos usar el "
+"siguiente punto."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:480008
+#: 4ec9144e7317470192815b83910274d9
+msgid ""
+"We expect channels where we spend the most to have more attributed sales , "
+"before seeing the data. This is a very reasonable assumption (note that we "
+"are not imposing anything at the level of efficiency!)."
+msgstr ""
+"Esperamos que los canales donde más gastamos tengan más ventas atribuidas, "
+"antes de ver los datos. Este es un supuesto muy razonable (¡ten en cuenta "
+"que no estamos imponiendo nada a nivel de eficiencia!)."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:480010
+#: b845db6cca1d482c99028ade1271a11e
+#, python-brace-format
+msgid ""
+"How to incorporate this heuristic into the model? To begin with, it is "
+"important to note that the {class}`MMM <pymc_marketing.mmm.mmm.MMM>` class "
+"scales the target and input variables through an "
+"[`MaxAbsScaler`](https://scikit-"
+"learn.org/stable/modules/generated/sklearn.preprocessing.MaxAbsScaler.html) "
+"transformer from [`scikit-learn`](https://scikit-learn.org/stable/), its "
+"important to specify the priors in the scaled space (i.e. between 0 and 1). "
+"One way to do it is to use the spend share as the `sigma` parameter for the "
+"`HalfNormal` distribution. We can actually add a scaling factor to take into"
+" account the support of the distribution."
+msgstr ""
+"¿Cómo incorporar esta heurística en el modelo? Para empezar, es importante "
+"notar que la clase {class}`MMM <pymc_marketing.mmm.mmm.MMM>` escala las "
+"variables objetivo y de entrada mediante un transformador "
+"[`MaxAbsScaler`](https://scikit-"
+"learn.org/stable/modules/generated/sklearn.preprocessing.MaxAbsScaler.html) "
+"de [`scikit-learn`](https://scikit-learn.org/stable/); es importante "
+"especificar los priors en el espacio escalado (es decir, entre 0 y 1). Una "
+"forma de hacerlo es usar la cuota de gasto como parámetro `sigma` para la "
+"distribución `HalfNormal`. De hecho, podemos añadir un factor de escalado "
+"para tener en cuenta el soporte de la distribución."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:480012
+#: 90e71ea5532c4b7a959776d2ecf7fcd9
+msgid "First, let's compute the share of spend per channel:"
+msgstr "Primero, calculemos la cuota de gasto por canal:"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:500002
+#: c0425678bfb74dcfb7b61143d00627e4
+msgid "Next, we specify the `sigma` parameter per channel:"
+msgstr "A continuación, especificamos el parámetro `sigma` por canal:"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:510002
+#: dcc7339b1ab44c99be7097b06983e995
+msgid "\\displaystyle \\left[ 1.31263902694007, \\  0.687360973059932\\right]"
+msgstr "\\displaystyle \\left[ 1.31263902694007, \\  0.687360973059932\\right]"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:520002
+#: 76252e67bee847a6b66b7a4981bfc4e6
+msgid ""
+"Delayed Saturated MMM follows sklearn convention, so we need to split our "
+"data into X (predictors) and y(target value)"
+msgstr ""
+"El MMM Saturado con Retardo sigue la convención de sklearn, por lo que "
+"debemos dividir nuestros datos en X (predictores) e y (valor objetivo)"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:540002
+#: 698a671cf8004c63b95479974efff77a
+msgid ""
+"You can use the optional parameter 'model_config' to apply your own priors "
+"to the model. Each entry in the 'model_config' contains a key that "
+"corresponds to a registered distribution name in our model. The value of the"
+" key is a dictionary that describes the input parameters of that specific "
+"distribution."
+msgstr ""
+"Puedes usar el parámetro opcional 'model_config' para aplicar tus propios "
+"priors al modelo. Cada entrada en 'model_config' contiene una clave que "
+"corresponde a un nombre de distribución registrado en nuestro modelo. El "
+"valor de la clave es un diccionario que describe los parámetros de entrada "
+"de esa distribución específica."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:540004
+#: 7d38270be39442aba296d18ad9502b10
+#, python-brace-format
+msgid ""
+"If you're unsure how to define your own priors, you can use the "
+"'default_model_config' property of {class}`MMM <pymc_marketing.mmm.mmm.MMM>`"
+" to see the required structure."
+msgstr ""
+"Si no estás seguro de cómo definir tus propios priors, puedes usar la "
+"propiedad 'default_model_config' de {class}`MMM "
+"<pymc_marketing.mmm.mmm.MMM>` para ver la estructura requerida."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:560002
+#: c72c00f260fc49a29a0f054852a3c4ea
+msgid ""
+"You can change only the prior parameters that you wish, no need to alter all"
+" of them, unless you'd like to!"
+msgstr ""
+"Puedes cambiar únicamente los parámetros a priori que desees; no es "
+"necesario modificar todos, ¡a menos que quieras!"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:580002
+#: a7dcf3bb6a1e4f2999d558345c7d0804
+#, python-brace-format
+msgid ""
+"**Remark:** For the prior specification there is no right or wrong answer. "
+"It all depends on the data, the context and the assumptions you are willing "
+"to make. It is always recommended to do some prior predictive sampling and "
+"sensitivity analysis to check the impact of the priors on the posterior. We "
+"skip this here for the sake of simplicity. If you are not sure about "
+"specific priors, the {class}`MMM <pymc_marketing.mmm.mmm.MMM>` class has "
+"some default priors that you can use as a starting point."
+msgstr ""
+"**Nota:** Para la especificación de priors no hay una respuesta correcta o "
+"incorrecta. Todo depende de los datos, el contexto y los supuestos que estés"
+" dispuesto a hacer. Siempre se recomienda realizar muestreo predictivo "
+"previo y análisis de sensibilidad para comprobar el impacto de los priors en"
+" el posterior. Omitimos esto aquí por simplicidad. Si no estás seguro sobre "
+"priors específicos, la clase {class}`MMM <pymc_marketing.mmm.mmm.MMM>` tiene"
+" algunos priors predeterminados que puedes usar como punto de partida."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:590002
+#: 6d70f32a9bde4120bd2962437ac6b75c
+#, python-brace-format
+msgid ""
+"Model sampler allows specifying set of parameters that will be passed to fit"
+" the same way as the `kwargs` are getting passed so far. It doesn't disable "
+"the fit kwargs, but rather extend them, to enable customizable and "
+"preservable configuration. By default the sampler_config for {class}`MMM "
+"<pymc_marketing.mmm.mmm.MMM>` is empty. But if you'd like to use it, you can"
+" define it like showed below:"
+msgstr ""
+"El muestreador del modelo permite especificar un conjunto de parámetros que "
+"se pasarán a `fit` de la misma manera que se han estado pasando los `kwargs`"
+" hasta ahora. No deshabilita los kwargs de `fit`, sino que los amplía para "
+"permitir una configuración personalizable y preservable. Por defecto, "
+"`sampler_config` para {class}`MMM <pymc_marketing.mmm.mmm.MMM>` está vacío. "
+"Pero si deseas usarlo, puedes definirlo como se muestra a continuación:"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:610002
+#: aed0e8cc54b84e149daed22baa05c845
+#, python-brace-format
+msgid ""
+"Now we are ready to use the {class}`MMM <pymc_marketing.mmm.mmm.MMM>` class "
+"to define the model."
+msgstr ""
+"Ahora estamos listos para usar la clase {class}`MMM "
+"<pymc_marketing.mmm.mmm.MMM>` para definir el modelo."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:630002
+#: 7b318837026b4abe9c0bd7999fb3455c
+msgid "Observe how the media transformations were handled by the class `MMM`."
+msgstr "Observa cómo la clase `MMM` gestionó las transformaciones de medios."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:640002
+#: 6be7d08cb7964f07a75c65dd6b9222d8
+msgid ""
+"To assess the model prior parameters we can look into the prior predictive "
+"plot:"
+msgstr ""
+"Para evaluar los parámetros a priori del modelo podemos consultar la gráfica"
+" predictiva previa:"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:660002
+#: 3c1d6db327ed45e2bd29ccc46b370bd6
+msgid ""
+"The prior predictive plot shows that the priors are not too informative."
+msgstr ""
+"La gráfica predictiva previa muestra que los priors no son demasiado "
+"informativos."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:670002
+#: d495fbf7fc2e4648a991accd90e92687
+msgid "3. Model Fitting"
+msgstr "3. Ajuste del modelo"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:680002
+#: 492b99e061014deead8456765fd7a093
+msgid "We can now fit the model:"
+msgstr "Ahora podemos ajustar el modelo:"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:690003
+#: f0306d3964e94066b1fe8e19c8fb4f40
+#, python-brace-format
+msgid ""
+"You can use other NUTS samplers to fit the model as one can do with PyMC "
+"models. You just need to make sure to have the packages installed in your "
+"local environment. See {ref}`other_nuts_samplers`."
+msgstr ""
+"Puedes usar otros muestreadores NUTS para ajustar el modelo como se puede "
+"hacer con modelos de PyMC. Solo necesitas asegurarte de tener los paquetes "
+"instalados en tu entorno local. Consulta {ref}`other_nuts_samplers`."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:710002
+#: f60ef0cbc7c9438d9d5d20ef1d640a28
+msgid "You can access `pymc` model as `mmm.model`."
+msgstr "Puedes acceder al modelo `pymc` como `mmm.model`."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:740002
+#: ebef060df5ea40e9a09cc4d50372aa8d
+msgid "We can easily see the explicit model structure:"
+msgstr "Podemos ver fácilmente la estructura explícita del modelo:"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:760002
+#: d4ca46110c7b49b5a10953a8447f7654
+msgid ""
+"Note: You may notice that the graph here is an explicit version of our "
+"initial drawing (DAG), where we can now explicitly see all the different "
+"components that were included in each node, including their dimensionality. "
+"This graph is another way of looking at the same causal assumptions, made "
+"during the construction of the bayesian generative model."
+msgstr ""
+"Nota: Puedes notar que el gráfico aquí es una versión explícita de nuestro "
+"dibujo inicial (DAG), donde ahora podemos ver explícitamente todos los "
+"componentes diferentes que se incluyeron en cada nodo, incluyendo su "
+"dimensionalidad. Este gráfico es otra forma de ver las mismas suposiciones "
+"causales, realizadas durante la construcción del modelo generativo "
+"bayesiano."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:770002
+#: cdc6a35184c54048a23b7af8ceed700f
+msgid "4. Model Diagnostics"
+msgstr "4. Diagnóstico del modelo"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:780002
+#: 5960a500da8b43e3b60c01d71f4993bb
+msgid "A good place to start is by looking if the model had any divergences:"
+msgstr ""
+"Un buen lugar para empezar es verificar si el modelo tuvo alguna "
+"divergencia:"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:790002
+#: ea2a4e2f2ee84b4db4036996b681bfd1
+msgid "\\displaystyle 0"
+msgstr "\\displaystyle 0"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:800002
+#: c2f4c343e64a416bb3ef0197d4938b1f
+msgid "We got none! 🙌"
+msgstr "¡No obtuvimos ninguna! 🙌"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:810002
+#: 2f22890d66ed435bb554b54796bde2c3
+#, python-brace-format
+msgid ""
+"The {func}`fit_result <pymc_marketing.mmm.mmm.MMM.fit_result>` attribute "
+"contains the `pymc` trace object."
+msgstr ""
+"El atributo {func}`fit_result <pymc_marketing.mmm.mmm.MMM.fit_result>` "
+"contiene el objeto de traza `pymc`."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:830002
+#: c06e48fc4aed4a0c962273d9c9d36439
+msgid ""
+"We can therefore use all the `pymc` machinery to run model diagnostics. "
+"First, let's see the summary of the trace:"
+msgstr ""
+"Por lo tanto, podemos usar toda la maquinaria `pymc` para ejecutar el "
+"diagnóstico del modelo. Primero, veamos el resumen de la traza:"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:850002
+#: 379439c3c4a84fd187357cae192390a6
+msgid ""
+"Observe that the estimated parameters for $\\alpha$ and $\\lambda$ are very "
+"close to the ones we set in the data generation process! Let's plot the "
+"trace for the parameters:"
+msgstr ""
+"Observa que los parámetros estimados para $\\alpha$ y $\\lambda$ son muy "
+"cercanos a los que establecimos en el proceso de generación de datos! Vamos "
+"a trazar la traza para los parámetros:"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:870002
+#: ba3ff60fbe5f48d788cfba59db475d34
+msgid "Now we sample from the posterior predictive distribution:"
+msgstr "Ahora tomamos muestras de la distribución predictiva posterior:"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:890002
+#: 69d93b3ad2fd42de813a90afe69b9ebf
+msgid ""
+"We can now plot the posterior predictive distribution for the target "
+"variable. By default, the `plot_posterior_predictive` method will plot the "
+"mean prediction along with a 94% and 50% HDI."
+msgstr ""
+"Ahora podemos trazar la distribución predictiva posterior para la variable "
+"objetivo. Por defecto, el método `plot_posterior_predictive` trazará la "
+"predicción media junto con un 94% y 50% HDI."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:910002
+#: 4c018064463f4c7596daf60fed330aa6
+msgid ""
+"But you can also remove the mean and HDI and add a gradient, which shows the"
+" range of the posterior predictive distribution."
+msgstr ""
+"Pero también puedes eliminar la media y el HDI y añadir un gradiente, que "
+"muestra el rango de la distribución predictiva posterior."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:930002
+#: 95ce9854541d47b9ba7bdc77ea485de5
+msgid "The fit looks very good (as expected)!"
+msgstr "El ajuste parece muy bueno (como se esperaba)!"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:940002
+#: eee0501a7c684d54b312db0412af79cd
+msgid "We can inspect the model errors:"
+msgstr "Podemos inspeccionar los errores del modelo:"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:960002
+#: 94fc94623711446e91969fa02baa13b5
+msgid ""
+"We can actually extract the whole error posterior distribution for custom "
+"error analyzes:"
+msgstr ""
+"Podemos extraer realmente la distribución posterior completa de los errores "
+"para análisis de errores personalizados:"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:990002
+#: af1c38c504554c48aa6c03892bd6f05c
+msgid ""
+"Next, we can decompose the posterior predictive distribution into the "
+"different components:"
+msgstr ""
+"A continuación, podemos descomponer la distribución predictiva posterior en "
+"los diferentes componentes:"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1010002
+#: c7232e02e45d43f4a29d349e0a45e99a
+msgid ""
+"**Remark:** This plot shows the decomposition of the normalized target "
+"variable when by dividing by its maximum value. Do not forget that "
+"internally we are scaling the variables to make the model sample more "
+"efficiently. You can recover the transformations from the API methods, e.g."
+msgstr ""
+"**Nota:** Este gráfico muestra la descomposición de la variable objetivo "
+"normalizada al dividir por su valor máximo. No olvides que internamente "
+"escalamos las variables para hacer que el modelo muestre más eficientemente."
+" Puedes recuperar las transformaciones de los métodos de API, por ejemplo."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1030002
+#: 65ac64437c9545779a994aae83f07bc0
+msgid ""
+"We plot in the original scale by simply passing the `original_scale=True` "
+"argument:"
+msgstr ""
+"Trazamos en la escala original pasando el argumento `original_scale=True`:"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1050002
+#: 642d109fb22b46239ba55642f02d6241
+msgid "A similar decomposition can be achieved using an area plot:"
+msgstr "Se puede lograr una descomposición similar usando un gráfico de área:"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1070002
+#: 00dad88791f840b3a72fc7591ad77ce7
+msgid ""
+"Note that this only works if the contributions of the channel or control "
+"variable are strictly positive."
+msgstr ""
+"Nota: Esto solo funciona si las contribuciones del canal o la variable de "
+"control son estrictamente positivas."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1080002
+#: 377ec6bf16f945dbb561ffde859ca9a5
+msgid ""
+"Next, we look into the absolute historical contributions of each component:"
+msgstr ""
+"A continuación, miramos las contribuciones históricas absolutas de cada "
+"componente:"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1100002
+#: 4f7328abec9b41a1a9b1bc2f9c83636a
+msgid ""
+"Note that we have recovered the true values for all the parameters! Well, in"
+" fact the contributions of the `intercept` and `t` are not exactly the same "
+"as int the data generating process, but the aggregate does match the true "
+"values of `intercept` + `trend`. The reason is that the true latent trend is"
+" not completely linear. One could use the time-varying intercept feature to "
+"capture this effect."
+msgstr ""
+"Nota: Hemos recuperado los valores verdaderos para todos los parámetros! "
+"Bueno, de hecho, las contribuciones de `intercept` y `t` no son exactamente "
+"las mismas que en el proceso de generación de datos, pero el agregado "
+"coincide con los valores verdaderos de `intercept` + `trend`. La razón es "
+"que la tendencia latente verdadera no es completamente lineal. Uno podría "
+"usar el `intercepto variable en el tiempo` para capturar este efecto."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1110002
+#: eac53829320e4ed8a7a4f31fa34e70a8
+msgid ""
+"We can extract the data itself of all the input variables contributions over"
+" time, i.e. the regression coefficients times the feature values, as "
+"follows:"
+msgstr ""
+"Podemos extraer los datos de las contribuciones de todas las variables de "
+"entrada a lo largo del tiempo, es decir, los coeficientes de regresión por "
+"los valores de las características, de la siguiente manera:"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1130002
+#: ef4e288cf3fe4068a0170ca6bef66e78
+msgid "5. Media Parameters"
+msgstr "5. Parámetros de medios"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1130004
+#: c71dce08de66450fb63f42bae6d26159
+msgid ""
+"We can deep-dive into the media transformation parameters. We want to "
+"compare the posterior distributions against the true values."
+msgstr ""
+"Podemos profundizar en los parámetros de transformación de medios. Queremos "
+"comparar las distribuciones posteriores con los valores verdaderos."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1160002
+#: a35b13f52fd8472b9cac147ae8c5ddf2
+msgid "We indeed see that our media parameter were successfully recovered!"
+msgstr ""
+"En efecto, vemos que nuestros parámetros de medios se recuperaron con éxito!"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1170002
+#: ca152a7e026c49b781d70be1fa984119
+msgid "6. Media Deep-Dive"
+msgstr "6. Profundización en medios"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1170004
+#: 3be1e0b048e74a8bbe9f709d36042561
+msgid ""
+"First we can compute the relative contribution of each channel to the target"
+" variable. Note that we recover the true values!"
+msgstr ""
+"Primero podemos calcular la contribución relativa de cada canal a la "
+"variable objetivo. Ten en cuenta que recuperamos los valores verdaderos!"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1190002
+#: 75fd0374199f4c5cbd5ae9e6a29c46d4
+msgid ""
+"Next, we can plot the relative contribution of each channel to the target "
+"variable."
+msgstr ""
+"A continuación, podemos trazar la contribución relativa de cada canal a la "
+"variable objetivo."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1190004
+#: 373ec763d8fa4623872fa101e36e0fda
+msgid ""
+"First we plot the **direct contribution** per channel. Again, we get very "
+"close values as the ones obtained in Part I."
+msgstr ""
+"Primero trazamos la **contribución directa** por canal. De nuevo, obtenemos "
+"valores muy cercanos a los obtenidos en la Parte I."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1210002
+#: c725354e669f46439b191e85f4c402c5
+msgid ""
+"Note that trying to get the delayed cumulative contribution is not that easy"
+" as contributions from the past leak into the future. Specifically, note "
+"that we apply the saturation function to the aggregation. As the saturation "
+"function is non-linear. This is not the same as taking the sum of the "
+"saturation contributions Hence, is very hard to reverse engineer the "
+"contribution after carryover and saturation composition this way."
+msgstr ""
+"Nota: Intentar obtener la contribución acumulada con retardo no es tan fácil"
+" como las contribuciones del pasado se filtran al futuro. Específicamente, "
+"ten en cuenta que aplicamos la función de saturación a la agregación. Como "
+"la función de saturación es no lineal. Esto no es lo mismo que tomar la suma"
+" de las contribuciones de saturación. Por lo tanto, es muy difícil invertir "
+"el cálculo de la contribución después de la composición de adstock y "
+"saturación de esta manera."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1210004
+#: 4db3eab59f6d48af8604a355466f2a1f
+msgid ""
+"A more transparent alternative is to evaluate the channel contribution at "
+"different share spend levels for the complete training period. Concretely, "
+"if the denote by $\\delta$ the input channel data percentage level, so that "
+"for $\\delta = 1$ we have the model input spend data and for $\\delta = 1.5$"
+" we have a $50\\%$ increase in the spend, then we can compute the channel "
+"contribution at a grid of $\\delta$-values and plot the results:"
+msgstr ""
+"Una alternativa más transparente es evaluar la contribución del canal en "
+"diferentes niveles de gasto compartido para el período de entrenamiento "
+"completo. Concretamente, si denotamos por $\\delta$ el nivel porcentual de "
+"los datos de entrada del canal, de modo que para $\\delta = 1$ tenemos los "
+"datos de gasto de entrada del modelo y para $\\delta = 1.5$ tenemos un "
+"aumento del 50% en el gasto, entonces podemos calcular la contribución del "
+"canal en una cuadrícula de valores $\\delta$ y trazar los resultados:"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1230002
+#: b1d5e7b4475042c5854dbb14fd7ddaa2
+msgid "This plot does account for carryover (adstock) and saturation effects."
+msgstr ""
+"Este gráfico tiene en cuenta el arrastre (adstock) y el efecto de "
+"saturación."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1230003
+#: 56d0311842ed4994a0edb8a006124424
+msgid ""
+"We see that when we have no spend, the contribution is zero (assuming there "
+"twas no spend in the past, otherwise the carryover effect would be non-"
+"zero)."
+msgstr ""
+"Vemos que cuando no hay gasto, la contribución es cero (suponiendo que no "
+"hubo gasto en el pasado, de lo contrario el efecto de arrastre no sería "
+"cero)."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1230005
+#: 69f5c48dc3574c3fa0eb51af25f34765
+msgid ""
+"Observe that these grid values serve as inputs for an optimization step."
+msgstr ""
+"Observa que estos valores de cuadrícula sirven como entradas para un paso de"
+" optimización."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1240002
+#: c7e420e4723a43f8bbba212b9b0f93e5
+msgid ""
+"We can also plot the same contribution using the x-axis as the total channel"
+" input (e.g. total spend in EUR)."
+msgstr ""
+"También podemos trazar la misma contribución usando el eje x como la entrada"
+" total del canal (p. ej., el gasto total en EUR)."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1260002
+#: 2526ad4ac23d4e85a635b6efae036e78
+msgid "7. Contribution  Recovery"
+msgstr "7. Recuperación de contribuciones"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1270002
+#: 04563acb28ec4090a1285d10d6360dda
+msgid ""
+"Next, we can plot the direct contribution of each channel to the target "
+"variable over time."
+msgstr ""
+"A continuación, podemos trazar la contribución directa de cada canal a la "
+"variable objetivo a lo largo del tiempo."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1290002
+#: 0356012c322645179992104095defc49
+#, python-brace-format
+msgid ""
+"The results look great! We therefore successfully recovered the true values "
+"from the data generation process. We have also seen how easy is to use the "
+"{class}`MMM <pymc_marketing.mmm.mmm.MMM>` class to fit media mix models! It "
+"takes over the model specification and the media transformations, while "
+"having all the flexibility of `pymc`!"
+msgstr ""
+"¡Los resultados son excelentes! Por lo tanto, recuperamos con éxito los "
+"valores del proceso de generación de datos. También hemos visto lo fácil que"
+" es usar la clase {class}`MMM <pymc_marketing.mmm.mmm.MMM>` para ajustar "
+"modelos de mezcla de medios! Toma sobre la especificación del modelo y las "
+"transformaciones de medios, mientras que tiene toda la flexibilidad de "
+"`pymc`!"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1300002
+#: 4efbb412926d4d64ab66eb96256dabcc
+msgid "8. ROAS"
+msgstr "8. ROAS"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1300004
+#: d3931497e5da4300a6f3cca146b28586
+msgid ""
+"Finally, we can compute the (approximate) ROAS posterior distribution for "
+"each channel."
+msgstr ""
+"Finalmente, podemos calcular la distribución posterior (aproximada) de ROAS "
+"para cada canal."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1320002
+#: ef93cdb55d2c4866b21545d07711a964
+#, python-brace-format
+msgid ""
+"We see that the ROAS posterior distributions are centered around the true "
+"values! We also see that, even considering the uncertainty, channel $x_{1}$ "
+"is more efficient than channel $x_{2}$."
+msgstr ""
+"Vemos que las distribuciones posteriores de ROAS están centradas en los "
+"valores verdaderos. También vemos que, incluso considerando la "
+"incertidumbre, el canal $x_{1}$ es más eficiente que el canal $x_{2}$."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1330002
+#: 2f627d96a4e241b3870cb4ba25cb73c2
+msgid ""
+"It is also useful to compare the ROAS and the contribution share. In the "
+"next plot we plot these two these two inferred estimates per channel."
+msgstr ""
+"También es útil comparar el ROAS y la contribución de la cuota. En el "
+"siguiente gráfico trazamos estas dos estimaciones inferidas por canal."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1350002
+#: 825f855888d648d6af6f121c03a20b02
+msgid ""
+"This plot is very effective summarizing channel efficiency. In this example,"
+" it turns out that the most efficient channel $x_1$ has a higher "
+"contribution share than the less efficient channel $x_2$."
+msgstr ""
+"Este gráfico es muy efectivo para resumir la eficiencia del canal. En este "
+"ejemplo, resulta que el canal más eficiente $x_1$ tiene una cuota de "
+"contribución mayor que el canal menos eficiente $x_2$."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1360002
+#: 19649018ccd74277bddcc2682cbd0e5b
+msgid "9. Out of Sample Predictions"
+msgstr "9. Predicciones fuera de muestra"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1360004
+#: 279e53f1452940e1bf37f41aaeff1b01
+msgid ""
+"Out of sample predictions are done with the `predict` and "
+"`posterior_predictive` methods. These include"
+msgstr ""
+"Las predicciones fuera de muestra se realizan con los métodos `predict` y "
+"`posterior_predictive`. Estos incluyen"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1360006
+#: 2579b37a99d04337b2994095699bd007
+msgid ""
+"`sample_posterior_predictive` : Get the full posterior predictive "
+"distribution"
+msgstr ""
+"`sample_posterior_predictive` : Obtener la distribución predictiva posterior"
+" completa"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1360007
+#: a31936c066eb4150985701e1fb6c98ed
+msgid "`predict`: Get the mean of the posterior predictive distribution"
+msgstr "`predict`: Obtener la media de la distribución predictiva posterior"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1360009
+#: ec3459e7e4eb42a69ea1ca20d3dc10ae
+msgid ""
+"These methods take new data, `X`, and some additional `kwargs` for new "
+"predictions. Namely,"
+msgstr ""
+"Estos métodos toman nuevos datos, `X`, y algunos `kwargs` adicionales para "
+"nuevas predicciones. Específicamente,"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1360011
+#: 6000af35ed754f1aa9048290510d6aeb
+msgid ""
+"`include_last_observations` : boolean flag in order to carry adstock effects"
+" from last observations in the training dataset"
+msgstr ""
+"`include_last_observations` : booleano para llevar efectos de adstock de las"
+" últimas observaciones en el conjunto de datos de entrenamiento"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1370002
+#: 6336c218674441c9bd042feb1286cc16
+msgid ""
+"The new data needs to have all the features that are specified in the model."
+" There is no need to worry about:"
+msgstr ""
+"Los nuevos datos necesitan tener todas las características que se "
+"especifican en el modelo. No hay que preocuparse por:"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1370004
+#: c22b61e3ef6043f3bae3f2308d8962ff
+msgid "input scaling of channel spends"
+msgstr "escalado de gastos de canales de entrada"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1370005
+#: 632f9f5a91df41d4947ad6ccb208c174
+msgid "creating fourier transformations on the `date_column`"
+msgstr "creación de transformaciones de Fourier en la columna `date_column`"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1370006
+#: dbfcb717d342422eb2e98d17be9d576e
+msgid "inverse scaling back to target domain"
+msgstr "escalado inverso al dominio de destino"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1370008
+#: 2900a52789d5447dbfd56a862833d42a
+msgid ""
+"That will be done automatically! However, please note that control variables"
+" are NOT automatically scaled - if needed, you must scale them before "
+"passing the data to the model."
+msgstr ""
+"¡Esto se hará automáticamente! Sin embargo, por favor ten en cuenta que las "
+"variables de control NO se escalan automáticamente - si es necesario, debes "
+"escalarlas antes de pasar los datos al modelo."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1390002
+#: a7ddebd0c8244e39a0cb1ccaab298701
+msgid ""
+"Call the desired method to get the new samples! The new coordinates will be "
+"from the new dates"
+msgstr ""
+"Llama al método deseado para obtener las nuevas muestras! Las nuevas "
+"coordenadas serán de las nuevas fechas"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1420002
+#: 06a8f059c3fb48cf82322f0bda7bc0eb
+msgid ""
+"**NOTE:** If the method is being called **multiple times**, set the "
+"`extend_idata` argument to False in order to not overwrite the "
+"`observed_data` in the `InferenceData`"
+msgstr ""
+"**NOTA:** Si el método se llama **múltiples veces**, establece el argumento "
+"`extend_idata` a False para no sobrescribir los `observed_data` en el "
+"`InferenceData`"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1430002
+#: 390bdfd5aa4b4bc48107a3d5e50ed284
+msgid ""
+"The new predictions are transformed back to the original scale of the target"
+" by default. That can be seen below:"
+msgstr ""
+"Las nuevas predicciones se transforman de nuevo a la escala original de la "
+"variable objetivo por defecto. Esto se puede ver a continuación:"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1450002
+#: b055692042f7433597e2c3e5b56a0580
+msgid ""
+"If the out of sample data is being extended from the original predictions, "
+"consider setting the `include_last_observations` to True in order to carry "
+"over the effects from the last channel spends in the training set."
+msgstr ""
+"Si los datos fuera de muestra se extienden desde las predicciones "
+"originales, considera establecer el `include_last_observations` a True para "
+"llevar los efectos de los gastos del último canal en el conjunto de "
+"entrenamiento."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1450004
+#: e7d4d3f286194f6b960a4fd0b008dce3
+msgid ""
+"The predictions are higher since the channel contributions the final spends "
+"still have an impact that eventually subside."
+msgstr ""
+"Las predicciones son más altas ya que las contribuciones de los canales a "
+"los gastos finales aún tienen un impacto que eventualmente se disipa."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1480002
+#: f8ae4cec121f4d1384cc3f779b130f3b
+msgid ""
+"Finally we can use the model to understand the expected sales for different "
+"media spend scenarios considering the adstock and saturation effects learned"
+" from the data."
+msgstr ""
+"Finalmente podemos usar el modelo para entender las ventas esperadas para "
+"diferentes escenarios de gasto en medios considerando los efectos de adstock"
+" y saturación aprendidos de los datos."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1500002
+#: 1fd86e39625e4c64946ef3ebacecc9ec
+msgid ""
+"We clearly see that since $x_1$ has a higher adstock parameter $\\alpha$ "
+"than $x_2$, then for new spend on a single date (i.e. `one_time`)  $x_1$ has"
+" larger delayed contributions than $x_2$."
+msgstr ""
+"Vemos claramente que, dado que $x_1$ tiene un parámetro de adstock $\\alpha$"
+" mayor que $x_2$, entonces, para un nuevo gasto en una sola fecha (es decir,"
+" `one_time`) $x_1$ tiene contribuciones con retardo más grandes que $x_2$."
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1510002
+#: 777f9ac3e988492ba9adf5df154c7253
+msgid "10. Save Model"
+msgstr "10. Guardar modelo"
+
+#: ../source/notebooks/mmm/mmm_example.ipynb:1510003
+#: fe0bbecfd3904a7c932915bac0531362
+#, python-brace-format
+msgid ""
+"After your model is train, you can quickly save it using the `save` method. "
+"For more information about model deployment see {ref}`model_deployment`."
+msgstr ""
+"Después de que tu modelo esté entrenado, puedes guardarlo rápidamente usando"
+" el método `save`. Para más información sobre el despliegue del modelo, "
+"consulta {ref}`model_deployment`."

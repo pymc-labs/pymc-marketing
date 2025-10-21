@@ -1,0 +1,363 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:10002
+#: 83d092225c0843eeba9f916d6e4a6fb4
+msgid "FiveTran Data Loaders"
+msgstr "Cargadores de Datos FiveTran"
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:10004
+#: 3bc215c1da134de1a0ad59b609f5466b
+msgid ""
+"This notebook demonstrates how to use PyMC-Marketing's Fivetran data loaders"
+" to quickly prepare data for MMM modeling."
+msgstr ""
+"Este cuaderno demuestra cómo utilizar los cargadores de datos Fivetran de "
+"PyMC-Marketing para preparar rápidamente los datos para el modelado de MMM."
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:10006
+#: 86b03d09924a4e95a687d05cee643254
+msgid ""
+"If you're using Fivetran to sync data from various sources (like Shopify, "
+"Google Ads, Facebook Ads, etc.) and have implemented the corresponding dbt "
+"packages, you can leverage our data loaders to streamline your MMM workflow."
+msgstr ""
+"Si está utilizando Fivetran para sincronizar datos de diversas fuentes (como"
+" Shopify, Google Ads, Facebook Ads, etc.) y ha implementado los paquetes dbt"
+" correspondientes, puede aprovechar nuestros cargadores de datos para "
+"optimizar su flujo de trabajo de MMM."
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:10008
+#: 5c210c8c610643e88f39576e5901f4b9
+msgid "Pre-requisites"
+msgstr "Pre-requisitos"
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:10010
+#: a0363fdaea984e62b3ba1e4dde3fc7b0
+msgid ""
+"**Fivetran dbt packages**: Ensure you have the relevant schemas configured:"
+msgstr ""
+"**Paquetes de dbt de Fivetran**: Asegúrese de tener los esquemas relevantes "
+"configurados:"
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:10011
+#: 4c0f523b5d3f4a46ac114600edf9fb3b
+msgid ""
+"[dbt_shopify](https://github.com/fivetran/dbt_shopify?tab=readme-ov-"
+"file#step-3-define-database-and-schema-variables) for e-commerce data"
+msgstr ""
+"[dbt_shopify](https://github.com/fivetran/dbt_shopify?tab=readme-ov-"
+"file#step-3-define-database-and-schema-variables) para datos de comercio "
+"electrónico"
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:10012
+#: 14c64a7e109e4e90a3865af50822c1d8
+msgid ""
+"[dbt_ad_reporting](https://github.com/fivetran/dbt_ad_reporting?tab=readme-"
+"ov-file#union-multiple-connections) for advertising data across multiple "
+"platforms"
+msgstr ""
+"[dbt_ad_reporting](https://github.com/fivetran/dbt_ad_reporting?tab=readme-"
+"ov-file#union-multiple-connections) para datos publicitarios en múltiples "
+"plataformas"
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:10014
+#: a9b18532eaee42bca3d56f373ee68a58
+msgid ""
+"**Database queries**: Create queries from your database that follow the "
+"Fivetran dbt schema structure. The dbt packages standardize the output "
+"format, making it easy to work with data from multiple sources."
+msgstr ""
+"**Consultas de base de datos**: Crea consultas desde tu base de datos que "
+"sigan la estructura del esquema dbt de Fivetran. Los paquetes dbt "
+"estandarizan el formato de salida, facilitando el trabajo con datos de "
+"múltiples fuentes."
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:10016
+#: 53b8026a2a6849bd94311114667c2763
+msgid "Workflow"
+msgstr "Flujo de trabajo"
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:10018
+#: 1f10aeb9dc2c47219fb90e139648e56c
+msgid "Once your data follows the Fivetran dbt schema, you can:"
+msgstr "Una vez que sus datos sigan el esquema dbt de Fivetran, puede:"
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:10019
+#: db048e361a054181a45ad4c8a18f6abe
+msgid "Use our data loaders to automatically process and format your data"
+msgstr ""
+"Utilice nuestros cargadores de datos para procesar y formatear "
+"automáticamente su información."
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:10020
+#: 103f2650430a43dc9d5fe5b9b2131f01
+msgid "Generate X (media channels) and y (target variable) datasets"
+msgstr ""
+"Generar conjuntos de datos de X (canales de medios) y y (variable objetivo)"
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:10021
+#: c826c0e851524edda4382173c43c4049
+msgid "Quickly train MMM models with minimal data preprocessing"
+msgstr ""
+"Entrene rápidamente modelos MMM con un mínimo de preprocesamiento de datos."
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:10023
+#: 84bd151224b745ff91e602b5499b12eb
+msgid "Let's see this in action:"
+msgstr "Veamos esto en acción:"
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:30002
+#: 08f7cdcaf5904acebe4050b28fc77324
+msgid "Loading Data from Fivetran dbt Schema"
+msgstr "Cargando datos del esquema dbt de Fivetran"
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:30004
+#: 019823cab4ff4f94a7c8c348ed12e5f0
+msgid ""
+"In a real-world scenario, you would typically query your database directly "
+"using the Fivetran dbt schema structure. For example:"
+msgstr ""
+"En un escenario del mundo real, normalmente consultarías tu base de datos "
+"directamente utilizando la estructura del esquema dbt de Fivetran. Por "
+"ejemplo:"
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:30018
+#: 52bd7744507647a6a36d8974c65caee2
+msgid ""
+"As mentioned, the `ad_reporting__ad_report` table is created by the "
+"[dbt_ad_reporting](https://github.com/fivetran/dbt_ad_reporting)."
+msgstr ""
+"Como se mencionó, la tabla `ad_reporting__ad_report` es creada por el "
+"[dbt_ad_reporting](https://github.com/fivetran/dbt_ad_reporting)."
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:30020
+#: 505ed8e20adf4ae29e59cbe87e2870d0
+msgid ""
+"For this demonstration, we're importing a CSV file that follows the exact "
+"same schema structure."
+msgstr ""
+"Para esta demostración, estamos importando un archivo CSV que sigue la misma"
+" estructura de esquema exacta."
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:60002
+#: da631e3d7a3549f582d7074bd571bbd9
+msgid "Data Processing"
+msgstr "Procesamiento de Datos"
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:60004
+#: 8987658ae40041ebb041949688909449
+msgid ""
+"From this raw data, we don't need all the columns and granular details. The "
+"data is currently in long format (one row per ad/campaign/day combination), "
+"but for MMM modeling we need it in wide format with aggregated metrics by "
+"platform and date."
+msgstr ""
+"A partir de estos datos en bruto, no necesitamos todas las columnas y "
+"detalles granulares. Actualmente, los datos están en formato largo (una fila"
+" por combinación de anuncio/campaña/día), pero para el modelado de MMM los "
+"necesitamos en formato ancho con métricas agregadas por plataforma y fecha."
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:60006
+#: 014b7e3668474d508f976e47a4b6abc0
+msgid ""
+"We can quickly transform this using the `process_fivetran_ad_reporting` "
+"function, which will:"
+msgstr ""
+"Podemos transformar esto rápidamente utilizando la función "
+"`process_fivetran_ad_reporting`, que:"
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:60007
+#: 5f240d4cb3b6410eb14b07259ae970c0
+msgid "Aggregate the data by platform and date"
+msgstr "Agregue los datos por plataforma y fecha"
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:60008
+#: 38e7daae921149e5b88402b17c8146e3
+msgid "Convert from long to wide format"
+msgstr "Convertir de formato largo a formato ancho"
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:60009
+#: 2e27eb2a68fe489dbb1d8b0a806e14a5
+msgid "Keep only the essential columns needed for MMM modeling"
+msgstr ""
+"Mantenga solo las columnas esenciales necesarias para el modelado MMM."
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:60011
+#: e68845b1ffa948ef8fc4dd42588dba86
+msgid ""
+"[!NOTE]  Remember tables like this one usually contain information from all "
+"countries and types of media activities, by consequence the idea should be "
+"to filter by the type of media activity (e.g: awareness, retargeting, etc) "
+"and country you want to analyse before apply the data helper functions, "
+"**otherwise you'll aggregate across all type of media and markets.**"
+msgstr ""
+"[!NOTE] Recuerde que las tablas como esta suelen contener información de "
+"todos los países y tipos de actividades mediáticas; por lo tanto, la idea "
+"debería ser filtrar por el tipo de actividad mediática (por ejemplo: "
+"concienciación, retargeting, etc.) y el país que desea analizar antes de "
+"aplicar las funciones auxiliares de datos, **de lo contrario, agregará todos"
+" los tipos de medios y mercados.**"
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:80002
+#: 6075008b88894be09a96babe917e865f
+msgid ""
+"by default we are using impressions, but we could decide to model with "
+"**spend** and it's easy to change using a single parameter."
+msgstr ""
+"por defecto estamos utilizando impresiones, pero podríamos decidir modelar "
+"con **gasto** y es fácil cambiarlo utilizando un solo parámetro."
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:100002
+#: b17a0a2c066d4632aae5f007f31742a4
+msgid ""
+"You can modify a few things, changing the columns to pivot, the operation to"
+" run at the moment of aggregation, among others. You can take a look to the "
+"full function here:"
+msgstr ""
+"Puede modificar algunas cosas, cambiando las columnas a pivotar, la "
+"operación a ejecutar en el momento de la agregación, entre otras. Puede "
+"consultar la función completa aquí:"
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:120002
+#: b9082c0eb5064a5a9259ecb6adacd225
+msgid ""
+"All `ad_reporting` tables can provide information about your drivers (media "
+"channels) which affect your target metric. But how can you get information "
+"from your target?"
+msgstr ""
+"Todas las tablas `ad_reporting` pueden proporcionar información sobre sus "
+"controladores (canales de medios) que afectan su métrica objetivo. Pero, "
+"¿cómo puede obtener información de su objetivo?"
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:120004
+#: c15ef9aa07ee443992470b21b67682a8
+msgid ""
+"Currently, FiveTran allows you to get information from Shopify, using "
+"[dbt_shopify](https://github.com/fivetran/dbt_shopify?tab=readme-ov-"
+"file#step-3-define-database-and-schema-variables). You can use the data "
+"loaders to access the `shopify__orders` schema and then transform the "
+"dataset to get the output ready for your media mix model."
+msgstr ""
+"Actualmente, FiveTran le permite obtener información de Shopify, utilizando "
+"[dbt_shopify](https://github.com/fivetran/dbt_shopify?tab=readme-ov-"
+"file#step-3-define-database-and-schema-variables). Puede utilizar los "
+"cargadores de datos para acceder al esquema `shopify__orders` y luego "
+"transformar el conjunto de datos para preparar la salida para su modelo de "
+"mezcla de medios."
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:150002
+#: a4d85cf020e04417bf62f847fcd59952
+msgid ""
+"As with the previous examples, we're using a CSV file for demonstration "
+"purposes. However, in a real-world scenario, you would query the proper "
+"schema and data table directly from your Fivetran-connected database to get "
+"an output like this one."
+msgstr ""
+"Al igual que en los ejemplos anteriores, estamos utilizando un archivo CSV "
+"con fines de demostración. Sin embargo, en un escenario del mundo real, "
+"usted consultaría el esquema y la tabla de datos adecuados directamente "
+"desde su base de datos conectada a Fivetran para obtener una salida como "
+"esta."
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:150010
+#: 45396cd7c610456688d371c7294faa82
+msgid ""
+"Once you get the data from it, you can apply the data loaders in order to "
+"simplify your media mix model pipeline."
+msgstr ""
+"Una vez que obtenga los datos de él, puede aplicar los cargadores de datos "
+"para simplificar su pipeline del modelo de mezcla de medios."
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:150012
+#: cfa82ddba1ce4f988222982a9dfa8839
+msgid ""
+"[!NOTE]  Nevertheless, remember tables like this one usually contain "
+"information from all countries or type of transactions, by consequence the "
+"idea should be to filter by the type of transactions and country you want to"
+" analyse before apply the data helper functions, **otherwise you'll "
+"aggregate across all type of transactions and markets.**"
+msgstr ""
+"[!NOTE] Sin embargo, recuerda que tablas como esta suelen contener "
+"información de todos los países o tipos de transacciones; por lo tanto, la "
+"idea debería ser filtrar por el tipo de transacciones y el país que deseas "
+"analizar antes de aplicar las funciones auxiliares de datos, **de lo "
+"contrario, agregarás información de todos los tipos de transacciones y "
+"mercados.**"
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:170002
+#: 9173a5d96ff84d2fa28fbc1c6fb01adb
+msgid ""
+"You can check the full function to validate all things which you could "
+"possibly adjust."
+msgstr ""
+"Puede consultar la función completa para validar todas las cosas que podría "
+"ajustar."
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:200002
+#: 40a2ffc1fa6e4a0eb98e5df7fbe122f5
+msgid "lternative way to load data using the data pre-processing functions"
+msgstr ""
+"Forma alternativa de cargar datos utilizando las funciones de "
+"preprocesamiento de datos"
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:210002
+#: 96e40378a0174cedb497e4c396635a93
+msgid "Once all your data it's prepare, you can train your model 🙌🏻"
+msgstr ""
+"Una vez que todos sus datos estén preparados, puede entrenar su modelo 🙌🏻"
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:250002
+#: af0d6b4dc90a4efeacb08ba9bfae9f86
+msgid ""
+"Just like that, you are ready to fit your model and unlock different "
+"insights from your data. If you want to know what to explore next, then take"
+" a look to the followinc documents:"
+msgstr ""
+"Así de simple, estás listo para ajustar tu modelo y desbloquear diferentes "
+"perspectivas de tus datos. Si deseas saber qué explorar a continuación, "
+"entonces echa un vistazo a los siguientes documentos:"
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:250004
+#: e768f445dcf64ad78f865bd58757c9de
+msgid ""
+"[Multidimensional MMM Example (From Zero to Hero)](https://www.pymc-"
+"marketing.io/en/latest/notebooks/mmm/mmm_multidimensional_example.html)."
+msgstr ""
+"[Ejemplo de MMM Multidimensional (De Cero a Héroe)](https://www.pymc-"
+"marketing.io/en/latest/notebooks/mmm/mmm_multidimensional_example.html)."
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:250005
+#: 1baef31e4fec471b9cb26745b9f338df
+msgid ""
+"[Marketing Mix Models and Budget allocation](https://www.pymc-"
+"marketing.io/en/latest/notebooks/mmm/mmm_budget_allocation_example.html)."
+msgstr "Modelos de Mezcla de Marketing y Asignación de Presupuesto."
+
+#: ../source/notebooks/mmm/mmm_fivetran_connectors.ipynb:250006
+#: 7b7c864bb8b842b39b47a54a4859ab52
+msgid ""
+"[Risk allocation with Marketing Mix Models](https://www.pymc-"
+"marketing.io/en/latest/notebooks/mmm/mmm_allocation_assessment.html)."
+msgstr ""
+"[Asignación de riesgos con Modelos de Mezcla de Marketing](https://www.pymc-"
+"marketing.io/en/latest/notebooks/mmm/mmm_allocation_assessment.html)."

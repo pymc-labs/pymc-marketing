@@ -1,0 +1,392 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:2
+#: 8b8ab1b1bd974943b6cee369a60647ba
+msgid "CLVModel"
+msgstr "CLVModel"
+
+#: 38ac103b89b4474b817ac34d087fe334 of
+#: pymc_marketing.clv.models.basic.CLVModel:2
+msgid "CLV Model base class."
+msgstr "Clase base del modelo CLV."
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:12
+#: 2027cb2c51cf49f0934eb295c846dc90
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
+#: 6b41b6df0aff4179ba5bf90aeb01ecb2
+msgid ""
+":py:obj:`CLVModel.__init__ "
+"<pymc_marketing.clv.models.basic.CLVModel.__init__>`\\ \\(data\\, \\*\\[\\, "
+"model\\_config\\, ...\\]\\)"
+msgstr ""
+":py:obj:`CLVModel.__init__ "
+"<pymc_marketing.clv.models.basic.CLVModel.__init__>`\\ \\(datos\\, \\*\\[\\,"
+" configuración\\_del\\_modelo\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
+#: 86a9f4b3e4454b089ff53d0ed24b22ad
+msgid ""
+"Initialize model configuration and sampler configuration for the model."
+msgstr ""
+"Inicializar la configuración del modelo y la configuración del muestreador "
+"para el modelo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
+#: 0f5b103ccc6c4d32bb4ba4d54c354360
+msgid ""
+":py:obj:`CLVModel.attrs_to_init_kwargs "
+"<pymc_marketing.clv.models.basic.CLVModel.attrs_to_init_kwargs>`\\ "
+"\\(attrs\\)"
+msgstr ""
+":py:obj:`CLVModel.attrs_to_init_kwargs "
+"<pymc_marketing.clv.models.basic.CLVModel.attrs_to_init_kwargs>`\\ "
+"\\(attrs\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
+#: 42e2ca533a14479f942874fd5f51990f
+msgid ""
+"Convert the model configuration and sampler configuration from the "
+"attributes to keyword arguments."
+msgstr ""
+"Convierte la configuración del modelo y la configuración del muestreador de "
+"los atributos a argumentos de palabra clave."
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
+#: c749b6d076404967b009a403a2458d45
+msgid ""
+":py:obj:`CLVModel.build_from_idata "
+"<pymc_marketing.clv.models.basic.CLVModel.build_from_idata>`\\ \\(idata\\)"
+msgstr ""
+":py:obj:`CLVModel.build_from_idata "
+"<pymc_marketing.clv.models.basic.CLVModel.build_from_idata>`\\ \\(idata\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
+#: 499bf16a0fb741ba8d12262d44313501
+msgid "Build the model from the InferenceData object."
+msgstr "Construya el modelo a partir del objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
+#: ffdec9c62fb447babc63e001d4324e75
+msgid ""
+":py:obj:`CLVModel.build_model "
+"<pymc_marketing.clv.models.basic.CLVModel.build_model>`\\ \\(\\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`CLVModel.build_model "
+"<pymc_marketing.clv.models.basic.CLVModel.build_model>`\\ \\(\\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
+#: f7a11e8ada9c4f269f1617db68c21707
+msgid ""
+"Create an instance of `pm.Model` based on provided data and model_config."
+msgstr ""
+"Cree una instancia de `pm.Model` basada en los datos proporcionados y en "
+"model_config."
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
+#: 1b9731516af8430ca3d5173137e33b28
+msgid ""
+":py:obj:`CLVModel.create_idata_attrs "
+"<pymc_marketing.clv.models.basic.CLVModel.create_idata_attrs>`\\ \\(\\)"
+msgstr ""
+":py:obj:`CLVModel.create_idata_attrs "
+"<pymc_marketing.clv.models.basic.CLVModel.create_idata_attrs>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
+#: d1f1340599794ba0b92eeeed5b940dd2
+msgid "Create attributes for the inference data."
+msgstr "Cree atributos para los datos de inferencia."
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
+#: 8e9bfbcf226647f1a7e052e18368c97f
+msgid ""
+":py:obj:`CLVModel.fit <pymc_marketing.clv.models.basic.CLVModel.fit>`\\ "
+"\\(\\[method\\, fit\\_method\\]\\)"
+msgstr ""
+":py:obj:`CLVModel.fit <pymc_marketing.clv.models.basic.CLVModel.fit>`\\ "
+"\\(\\[método\\, fit\\_method\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
+#: 0c1aaed249524f68a3ac4b381fa99b0c
+msgid "Infer model posterior."
+msgstr "Inferir la posterior del modelo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
+#: d9cc600d38b342f3a166857f2d57b17e
+msgid ""
+":py:obj:`CLVModel.fit_summary "
+"<pymc_marketing.clv.models.basic.CLVModel.fit_summary>`\\ \\(\\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`CLVModel.fit_summary "
+"<pymc_marketing.clv.models.basic.CLVModel.fit_summary>`\\ \\(\\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
+#: 4de0f13c3d45434dbfc4c8b331700f83
+msgid "Compute the summary of the fit result."
+msgstr "Calcule el resumen del resultado del ajuste."
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
+#: c2084435791241368259435827e2f078
+msgid ""
+":py:obj:`CLVModel.graphviz "
+"<pymc_marketing.clv.models.basic.CLVModel.graphviz>`\\ \\(\\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`CLVModel.graphviz "
+"<pymc_marketing.clv.models.basic.CLVModel.graphviz>`\\ \\(\\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
+#: 1e95db2299d24b39abfc8dcf104e414f
+msgid "Get the graphviz representation of the model."
+msgstr "Obtenga la representación graphviz del modelo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
+#: 57366220785c4e3fbea972c63f00ea09
+msgid ""
+":py:obj:`CLVModel.idata_to_init_kwargs "
+"<pymc_marketing.clv.models.basic.CLVModel.idata_to_init_kwargs>`\\ "
+"\\(idata\\)"
+msgstr ""
+":py:obj:`CLVModel.idata_to_init_kwargs "
+"<pymc_marketing.clv.models.basic.CLVModel.idata_to_init_kwargs>`\\ "
+"\\(idata\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
+#: ab36ea8e9d1f4015a6bebf5d7e0b9f5d
+msgid "Create the initialization kwargs from an InferenceData object."
+msgstr ""
+"Cree los kwargs de inicialización a partir de un objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
+#: 1bec425786fc470baf03c0d3b78eb2d0
+msgid ""
+":py:obj:`CLVModel.load <pymc_marketing.clv.models.basic.CLVModel.load>`\\ "
+"\\(fname\\[\\, check\\]\\)"
+msgstr ""
+":py:obj:`CLVModel.load <pymc_marketing.clv.models.basic.CLVModel.load>`\\ "
+"\\(fname\\[\\, check\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
+#: 975cf29cf8f84ceda8f137b7c6dfc5bd
+msgid "Create a ModelBuilder instance from a file."
+msgstr "Cree una instancia de ModelBuilder a partir de un archivo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
+#: 044e8665bc914f76856c977d1d85b483
+msgid ""
+":py:obj:`CLVModel.load_from_idata "
+"<pymc_marketing.clv.models.basic.CLVModel.load_from_idata>`\\ \\(idata\\[\\,"
+" check\\]\\)"
+msgstr ""
+":py:obj:`CLVModel.load_from_idata "
+"<pymc_marketing.clv.models.basic.CLVModel.load_from_idata>`\\ \\(idata\\[\\,"
+" verificar\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
+#: 03178d63cc114193a8dc718fc4cd1a83
+msgid "Create a ModelBuilder instance from an InferenceData object."
+msgstr ""
+"Cree una instancia de ModelBuilder a partir de un objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
+#: a56570dfa5574a89b8e9105147a00092
+msgid ""
+":py:obj:`CLVModel.save <pymc_marketing.clv.models.basic.CLVModel.save>`\\ "
+"\\(fname\\, \\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`CLVModel.save <pymc_marketing.clv.models.basic.CLVModel.save>`\\ "
+"\\(fname\\, \\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
+#: c1b334a372c84b4d87b65598e50458cb
+msgid "Save the model's inference data to a file."
+msgstr "Guarde los datos de inferencia del modelo en un archivo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
+#: 8d85bb24deca488c99c309954d120ed4
+msgid ""
+":py:obj:`CLVModel.set_idata_attrs "
+"<pymc_marketing.clv.models.basic.CLVModel.set_idata_attrs>`\\ "
+"\\(\\[idata\\]\\)"
+msgstr ""
+":py:obj:`CLVModel.set_idata_attrs "
+"<pymc_marketing.clv.models.basic.CLVModel.set_idata_attrs>`\\ "
+"\\(\\[idata\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
+#: 4922e83d58e54709a3b1fc7d77969998
+msgid "Set attributes on an InferenceData object."
+msgstr "Establecer atributos en un objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
+#: 867c4fe831d84801a75b77988e27045c
+msgid ""
+":py:obj:`CLVModel.table <pymc_marketing.clv.models.basic.CLVModel.table>`\\ "
+"\\(\\*\\*model\\_table\\_kwargs\\)"
+msgstr ""
+":py:obj:`CLVModel.table <pymc_marketing.clv.models.basic.CLVModel.table>`\\ "
+"\\(\\*\\*model\\_table\\_kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
+#: 0786d6a6068d4ef79315153690bf342c
+msgid "Get the summary table of the model."
+msgstr "Obtenga la tabla resumen del modelo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
+#: 8fa4ed685fed4fe09258574b7ba4b59f
+msgid ""
+":py:obj:`CLVModel.thin_fit_result "
+"<pymc_marketing.clv.models.basic.CLVModel.thin_fit_result>`\\ "
+"\\(keep\\_every\\)"
+msgstr ""
+":py:obj:`CLVModel.thin_fit_result "
+"<pymc_marketing.clv.models.basic.CLVModel.thin_fit_result>`\\ "
+"\\(mantener\\_cada\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:36:<autosummary>:1
+#: 2d371cdebd0c4c5b8fd08b577273dd6f
+msgid "Return a copy of the model with a thinned fit result."
+msgstr "Devuelva una copia del modelo con un resultado de ajuste reducido."
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:38
+#: d9e073066ac74dc0a4d2fee8ae4eac62
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:53:<autosummary>:1
+#: dfef62605bdb44ff9cd4bcc55dff01dd
+msgid ""
+":py:obj:`default_model_config "
+"<pymc_marketing.clv.models.basic.CLVModel.default_model_config>`\\"
+msgstr ""
+":py:obj:`default_model_config "
+"<pymc_marketing.clv.models.basic.CLVModel.default_model_config>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:53:<autosummary>:1
+#: 4eda5cd7fbb34aaabb86eaba72408e4f
+msgid "Return a class default configuration dictionary."
+msgstr "Devuelve un diccionario de configuración predeterminado de la clase."
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:53:<autosummary>:1
+#: 45f3df089c614d169af111b4f035f274
+msgid ""
+":py:obj:`default_sampler_config "
+"<pymc_marketing.clv.models.basic.CLVModel.default_sampler_config>`\\"
+msgstr ""
+":py:obj:`default_sampler_config "
+"<pymc_marketing.clv.models.basic.CLVModel.default_sampler_config>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:53:<autosummary>:1
+#: 9d5ddcd0ae36454d84092feaa83faaee
+msgid "Default sampler configuration."
+msgstr "Configuración de muestreador predeterminada."
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:53:<autosummary>:1
+#: ae263f3d982c4710a4a803e3fd454700
+msgid ""
+":py:obj:`fit_result <pymc_marketing.clv.models.basic.CLVModel.fit_result>`\\"
+msgstr ""
+":py:obj:`fit_result <pymc_marketing.clv.models.basic.CLVModel.fit_result>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:53:<autosummary>:1
+#: 829b3fc02e274d9eb62d1c0cfaa56053
+msgid "Get the posterior fit_result."
+msgstr "Obtenga el resultado de ajuste posterior fit_result."
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:53:<autosummary>:1
+#: cc87236d8a8b460781796c690c87160f
+msgid ":py:obj:`id <pymc_marketing.clv.models.basic.CLVModel.id>`\\"
+msgstr ":py:obj:`id <pymc_marketing.clv.models.basic.CLVModel.id>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:53:<autosummary>:1
+#: 966ec32fecad481aa1f4ef955ba6defe
+msgid "Generate a unique hash value for the model."
+msgstr "Generar un valor hash único para el modelo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:53:<autosummary>:1
+#: 1601440f1b1d45db91dce3d05d9323a0
+msgid ""
+":py:obj:`posterior <pymc_marketing.clv.models.basic.CLVModel.posterior>`\\"
+msgstr ""
+":py:obj:`posterior <pymc_marketing.clv.models.basic.CLVModel.posterior>`\\"
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:53:<autosummary>:1
+#: e6566063b5564c9ba2da66565c24b4a5
+msgid ""
+":py:obj:`posterior_predictive "
+"<pymc_marketing.clv.models.basic.CLVModel.posterior_predictive>`\\"
+msgstr ""
+":py:obj:`posterior_predictive "
+"<pymc_marketing.clv.models.basic.CLVModel.posterior_predictive>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:53:<autosummary>:1
+#: 231205284475455891d3db21d3b8f385
+msgid ""
+":py:obj:`predictions "
+"<pymc_marketing.clv.models.basic.CLVModel.predictions>`\\"
+msgstr ""
+":py:obj:`predicciones "
+"<pymc_marketing.clv.models.basic.CLVModel.predictions>`\\"
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:53:<autosummary>:1
+#: 0dbeeda2183e4c708c4f5b86032acda4
+msgid ":py:obj:`prior <pymc_marketing.clv.models.basic.CLVModel.prior>`\\"
+msgstr ":py:obj:`prior <pymc_marketing.clv.models.basic.CLVModel.prior>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:53:<autosummary>:1
+#: 836cf223971b4c60a68bf43458d5897c
+msgid ""
+":py:obj:`prior_predictive "
+"<pymc_marketing.clv.models.basic.CLVModel.prior_predictive>`\\"
+msgstr ""
+":py:obj:`prior_predictive "
+"<pymc_marketing.clv.models.basic.CLVModel.prior_predictive>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:53:<autosummary>:1
+#: 2d77fca8f03a406da0395e25a8761d52
+msgid ":py:obj:`version <pymc_marketing.clv.models.basic.CLVModel.version>`\\"
+msgstr ":py:obj:`versión <pymc_marketing.clv.models.basic.CLVModel.version>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:53:<autosummary>:1
+#: ff34ffbf8c84409f8faa8123e1835e2c
+msgid ":py:obj:`idata <pymc_marketing.clv.models.basic.CLVModel.idata>`\\"
+msgstr ":py:obj:`idata <pymc_marketing.clv.models.basic.CLVModel.idata>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:53:<autosummary>:1
+#: 8a0af042400f4e64bd4bccbfbb52bc7b
+msgid ""
+":py:obj:`sampler_config "
+"<pymc_marketing.clv.models.basic.CLVModel.sampler_config>`\\"
+msgstr ""
+":py:obj:`sampler_config "
+"<pymc_marketing.clv.models.basic.CLVModel.sampler_config>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.CLVModel.rst:53:<autosummary>:1
+#: 0a7915a1b4044ba89ec944d8bdeb1eb3
+msgid ""
+":py:obj:`model_config "
+"<pymc_marketing.clv.models.basic.CLVModel.model_config>`\\"
+msgstr ""
+":py:obj:`model_config "
+"<pymc_marketing.clv.models.basic.CLVModel.model_config>`"

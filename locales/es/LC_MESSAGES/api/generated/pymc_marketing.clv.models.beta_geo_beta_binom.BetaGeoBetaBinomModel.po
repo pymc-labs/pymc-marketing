@@ -1,0 +1,749 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:2
+#: 9a46ba3f0255471b9c9ff7d6ed1c2256
+msgid "BetaGeoBetaBinomModel"
+msgstr "BetaGeoBetaBinomModel"
+
+#: b9e11c44fc604e068de7fcae284aeb58 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel:2
+msgid "Beta-Geometric/Beta-Binomial Model (BG/BB)."
+msgstr "Modelo Beta-Geométrico/Beta-Binomial (BG/BB)."
+
+#: ac03f6a4eb834a45bc403098d77f3186 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel:4
+msgid ""
+"CLV model for non-contractual, discrete purchase opportunities, introduced "
+"by Fadel et al. [R90245eafb218-1]_."
+msgstr ""
+"Modelo CLV para oportunidades de compra discretas no contractuales, "
+"introducido por Fadel et al. [R90245eafb218-1]_."
+
+#: e8c8eb33fd0c405eac673ff583cae62c of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel:6
+msgid ""
+"The BG/BB model assumes the probability a customer will become inactive "
+"follows a Beta distribution, and the probability of making a purchase is "
+"also Beta-distributed while customers are still active."
+msgstr ""
+"El modelo BG/BB asume que la probabilidad de que un cliente se vuelva "
+"inactivo sigue una distribución Beta, y la probabilidad de realizar una "
+"compra también está distribuida según una Beta mientras los clientes aún "
+"están activos."
+
+#: 902a6819af9f49ab8d890d63e4be056b of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel:9
+msgid ""
+"This model requires data to be summarized by *recency*, *frequency*, and *T*"
+" for each customer. *T* should be the same value across all customers."
+msgstr ""
+"Este modelo requiere que los datos sean resumidos por *recencia*, "
+"*frecuencia* y *T* para cada cliente. *T* debe ser el mismo valor para todos"
+" los clientes."
+
+#: 9d6d83ccb24a4db3a4646dec21cebc65 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 827381ab57cf462abcf399bf72b839f0 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel:14
+msgid "**data** : :obj:`~pandas.DataFrame`"
+msgstr "**datos** : :obj:`~pandas.DataFrame`"
+
+#: e43010455b3d45c1b2edfdd51324e596 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel:13
+msgid "DataFrame"
+msgstr "DataFrame"
+
+#: 1cb6803c6fe6448fb9c91c8b151cc7a7 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel:15
+msgid "DataFrame containing the following columns:"
+msgstr "DataFrame que contiene las siguientes columnas:"
+
+#: fe4f9654b4ef459191a719130daaa697 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel:17
+msgid "`customer_id`: Unique customer identifier"
+msgstr "`customer_id`: Identificador único del cliente"
+
+#: e403971884e4434f904afbf706c0c17f of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel:18
+msgid "`frequency`: Number of repeat purchases"
+msgstr "`frequency`: Número de compras repetidas"
+
+#: dccd1abd43fe4ce0a5f005ecb6745c4f of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel:19
+msgid ""
+"`recency`: Purchase opportunities between the first and the last purchase"
+msgstr ""
+"`recency`: Oportunidades de compra entre la primera y la última compra"
+
+#: 179a57579c5d4466a72d593726cdf081 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel:20
+msgid ""
+"`T`: Total purchase opportunities. Model assumptions require *T >= recency* "
+"and all customers share the same value for *T."
+msgstr ""
+"T: Oportunidades de compra totales. Las suposiciones del modelo requieren *T"
+" >= recencia* y todos los clientes comparten el mismo valor para *T."
+
+#: 3a3e3f74e26245468d6ac1bc32177d89 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel:23
+msgid "**model_config** : :class:`python:dict`, optional"
+msgstr "**model_config** : :class:`python:dict`, opcional"
+
+#: 117719d4976e4a6e91c51e5d4bd16681 159bf145b1b347749d323f1ebe866db1 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel:22
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel:36
+msgid "python:dict, optional"
+msgstr "python:dict, opcional"
+
+#: a23588f307a74934956ed9ea8633e0f9 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel:24
+msgid "Dictionary containing model parameters:"
+msgstr "Diccionario que contiene los parámetros del modelo:"
+
+#: 5397ef8abd984eb3b41c591b579d42bf of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel:26
+msgid ""
+"`alpha`: Shape parameter of purchase process; defaults to `phi_purchase` * "
+"`kappa_purchase`"
+msgstr ""
+"`alpha`: Parámetro de forma del proceso de compra; por defecto es "
+"`phi_purchase` * `kappa_purchase`"
+
+#: a2fe5979ac4b4be292ebd22487863f91 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel:27
+msgid ""
+"`beta`: Shape parameter of purchase process; defaults to `1-phi_purchase` * "
+"`kappa_purchase`"
+msgstr ""
+"`beta`: Parámetro de forma del proceso de compra; por defecto es "
+"`1-phi_purchase` * `kappa_purchase`"
+
+#: 1fd0434f05434551af230a6bd9546997 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel:28
+msgid ""
+"`gamma`: Shape parameter of dropout process; defaults to `phi_purchase` * "
+"`kappa_purchase`"
+msgstr ""
+"`gamma`: Parámetro de forma del proceso de abandono; por defecto es "
+"`phi_purchase` * `kappa_purchase`"
+
+#: 70fff32e3ede4e77b8bd6bf5d88ee61a of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel:29
+msgid ""
+"`delta`: Shape parameter of dropout process; defaults to `1-phi_dropout` * "
+"`kappa_dropout`"
+msgstr ""
+"`delta`: Parámetro de forma del proceso de abandono; por defecto es "
+"`1-phi_dropout` * `kappa_dropout`"
+
+#: 348f1590c14c46f595357fd1a434bad5 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel:30
+msgid ""
+"`phi_purchase`: Nested prior for alpha and beta priors; defaults to "
+"`Prior(\"Uniform\", lower=0, upper=1)`"
+msgstr ""
+"`phi_purchase`: Prior anidado para los priors de alfa y beta; por defecto es"
+" `Prior(\"Uniform\", lower=0, upper=1)`"
+
+#: d0f9b724708745d8b0dfec46b0de5159 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel:31
+msgid ""
+"`kappa_purchase`: Nested prior for alpha and beta priors; defaults to "
+"`Prior(\"Pareto\", alpha=1, m=1)`"
+msgstr ""
+"`kappa_purchase`: Prior anidado para los priors de alfa y beta; por defecto "
+"es `Prior(\"Pareto\", alpha=1, m=1)`"
+
+#: cb211a4515af4882903e673b1f700229 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel:32
+msgid ""
+"`phi_dropout`: Nested prior for gamma and delta priors; defaults to "
+"`Prior(\"Uniform\", lower=0, upper=1)`"
+msgstr ""
+"`phi_dropout`: Prior anidado para los priors gamma y delta; por defecto es "
+"`Prior(\"Uniform\", lower=0, upper=1)`"
+
+#: f7cc50c7a0a740c9a108934c3a15e049 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel:33
+msgid ""
+"`kappa_dropout`: Nested prior for gamma and delta priors; defaults to "
+"`Prior(\"Pareto\", alpha=1, m=1)`"
+msgstr ""
+"`kappa_dropout`: Prior anidado para los priors gamma y delta; por defecto es"
+" `Prior(\"Pareto\", alpha=1, m=1)`"
+
+#: 3d0939ad832f426eb4242c5e08f5d901 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel:35
+msgid ""
+"If not provided, the model will use default priors specified in the "
+"`default_model_config` class attribute."
+msgstr ""
+"Si no se proporciona, el modelo utilizará los priors predeterminados "
+"especificados en el atributo de clase `default_model_config`."
+
+#: 50046cbf118941e8be1129083d38c09d of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel:37
+msgid "**sampler_config** : :class:`python:dict`, optional"
+msgstr "**sampler_config** : :class:`python:dict`, opcional"
+
+#: 79102465fdd94cc7a891950e7aba34d2 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel:38
+msgid "Dictionary of sampler parameters. Defaults to None."
+msgstr "Diccionario de parámetros del muestreador. Por defecto es None."
+
+#: 8a8dbf56327a4b24a3bc50a2630ba945 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel:52
+msgid "References"
+msgstr "Referencias"
+
+#: dee161f40a2d4f3c9b18f19037801380 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel:53
+msgid ""
+"Peter Fader, Bruce Hardie, and Jen Shang. \"Customer-Base Analysis in a "
+"Discrete-Time Noncontractual Setting\". Marketing Science, Vol. 29, No. 6 "
+"(Nov-Dec, 2010), pp. 1086-1108. "
+"https://www.brucehardie.com/papers/020/fader_et_al_mksc_10.pdf"
+msgstr ""
+"Peter Fader, Bruce Hardie y Jen Shang. \"Análisis de la Base de Clientes en "
+"un Entorno No Contractual de Tiempo Discreto\". Marketing Science, Vol. 29, "
+"No. 6 (Nov-Dic, 2010), pp. 1086-1108. "
+"https://www.brucehardie.com/papers/020/fader_et_al_mksc_10.pdf"
+
+#: 5c3362c2dec140c6adf3de12f4c24b2f of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel:60
+msgid "[R90245eafb218-1]_"
+msgstr "[R90245eafb218-1]_"
+
+#: 896fcb30ee01496f800e4735c97b8b4a of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel:63
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:12
+#: 9c345f18b3554fb7be807ac722f75514
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: a8eb1a493ef04f75a22674e7fdf2fcff
+msgid ""
+":py:obj:`BetaGeoBetaBinomModel.__init__ "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.__init__>`\\"
+" \\(data\\, \\*\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`BetaGeoBetaBinomModel.__init__ "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.__init__>`\\"
+" \\(datos\\, \\*\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: 581e2e38f89d4c99bc77327a6c93539a
+msgid ""
+"Initialize model configuration and sampler configuration for the model."
+msgstr ""
+"Inicializar la configuración del modelo y la configuración del muestreador "
+"para el modelo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: a2a73746be084765b369f2f154374a02
+msgid ""
+":py:obj:`BetaGeoBetaBinomModel.attrs_to_init_kwargs "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.attrs_to_init_kwargs>`\\"
+" \\(attrs\\)"
+msgstr ""
+":py:obj:`BetaGeoBetaBinomModel.attrs_to_init_kwargs "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.attrs_to_init_kwargs>`\\"
+" \\(attrs\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: c8b27f329daf4cdca39b07e3ccfbd2d3
+msgid ""
+"Convert the model configuration and sampler configuration from the "
+"attributes to keyword arguments."
+msgstr ""
+"Convierte la configuración del modelo y la configuración del muestreador de "
+"los atributos a argumentos de palabra clave."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: ffa3fbcb7ea74734960a74bd4e6585ab
+msgid ""
+":py:obj:`BetaGeoBetaBinomModel.build_from_idata "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.build_from_idata>`\\"
+" \\(idata\\)"
+msgstr ""
+":py:obj:`BetaGeoBetaBinomModel.build_from_idata "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.build_from_idata>`\\"
+" \\(idata\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: 376f2a4de6d04dd1a64f56166abdd54e
+msgid "Build the model from the InferenceData object."
+msgstr "Construya el modelo a partir del objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: 80098bb32b26400b8909e8624cd19e78
+msgid ""
+":py:obj:`BetaGeoBetaBinomModel.build_model "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.build_model>`\\"
+" \\(\\)"
+msgstr ""
+":py:obj:`BetaGeoBetaBinomModel.build_model "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.build_model>`\\"
+" \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: e16a9eb60d88468099f1b9fceba02376
+msgid "Build the model."
+msgstr "Construya el modelo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: b8922b3f45554736b59a9a5cef2cfd74
+msgid ""
+":py:obj:`BetaGeoBetaBinomModel.create_idata_attrs "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.create_idata_attrs>`\\"
+" \\(\\)"
+msgstr ""
+":py:obj:`BetaGeoBetaBinomModel.create_idata_attrs "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.create_idata_attrs>`\\"
+" \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: 6bd9b13043414d258cf2c84f8fc81cf4
+msgid "Create attributes for the inference data."
+msgstr "Cree atributos para los datos de inferencia."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: 59852639628a4d1c86036685d2b5bcea
+msgid ""
+":py:obj:`BetaGeoBetaBinomModel.distribution_new_customer_dropout "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_dropout>`\\"
+" \\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`BetaGeoBetaBinomModel.distribution_new_customer_dropout "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_dropout>`\\"
+" \\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: 074f324790834ea2b2d630e5f65cdd33
+msgid ""
+"Sample from the Beta distribution representing dropout probabilities for new"
+" customers."
+msgstr ""
+"Muestra de la distribución Beta que representa las probabilidades de "
+"abandono para nuevos clientes."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: 61fb61d646204295a8e9e0446ad0e032
+msgid ""
+":py:obj:`BetaGeoBetaBinomModel.distribution_new_customer_purchase_rate "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_purchase_rate>`\\"
+" \\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`BetaGeoBetaBinomModel.distribution_new_customer_purchase_rate "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_purchase_rate>`\\"
+" \\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: 28cac75b42e840938e659f2f29aa3d8e
+msgid ""
+"Sample from the Beta distribution representing purchase probabilities for "
+"new customers."
+msgstr ""
+"Muestra de la distribución Beta que representa las probabilidades de compra "
+"para nuevos clientes."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: 8ee905b253194b1497ca61b47b5fd4ab
+msgid ""
+":py:obj:`BetaGeoBetaBinomModel.distribution_new_customer_recency_frequency "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_recency_frequency>`\\"
+" \\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`BetaGeoBetaBinomModel.distribution_new_customer_recency_frequency "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_recency_frequency>`\\"
+" \\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: 5d7bc5d4ce5a4b9dbde96615b15d9a6e
+msgid "BG/BB process representing purchases across the customer population."
+msgstr ""
+"Proceso BG/BB que representa las compras a través de la población de "
+"clientes."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: 0298baa52c2d446589c5ae40ade4b347
+msgid ""
+":py:obj:`BetaGeoBetaBinomModel.expected_probability_alive "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_probability_alive>`\\"
+" \\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`BetaGeoBetaBinomModel.expected_probability_alive "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_probability_alive>`\\"
+" \\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: d21a265052164ac591ec88352b6c832f
+msgid "Predict expected probability of being alive."
+msgstr "Predecir la probabilidad esperada de estar vivo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: fd71ed766fec4d20ad54cccc35d0c93a
+msgid ""
+":py:obj:`BetaGeoBetaBinomModel.expected_purchases "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases>`\\"
+" \\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`BetaGeoBetaBinomModel.expected_purchases "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases>`\\"
+" \\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: 1a2c9917a259411c9a1c750c058de53d
+msgid "Predict expected number of future purchases."
+msgstr "Predecir el número esperado de compras futuras."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: 9ff540b648534d699a1f1f183dad90b0
+msgid ""
+":py:obj:`BetaGeoBetaBinomModel.expected_purchases_new_customer "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases_new_customer>`\\"
+" \\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`BetaGeoBetaBinomModel.expected_purchases_new_customer "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases_new_customer>`\\"
+" \\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: 91562fd218c44fd7964b971250cb4e27
+msgid ""
+"Predict the expected number of purchases for a new customer across *t* time "
+"periods."
+msgstr ""
+"Prediga el número esperado de compras para un nuevo cliente a lo largo de "
+"*t* períodos de tiempo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: 597940a0d3c44dab882dc5cf48880451
+msgid ""
+":py:obj:`BetaGeoBetaBinomModel.fit "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.fit>`\\"
+" \\(\\[method\\, fit\\_method\\]\\)"
+msgstr ""
+":py:obj:`BetaGeoBetaBinomModel.fit "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.fit>`\\"
+" \\(\\[método\\, fit\\_method\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: 1c452ecfa18e4dc4a62f30361fa350d8
+msgid "Infer model posterior."
+msgstr "Inferir la posterior del modelo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: f18c5284b74542c0896ccaef3c8d1ab1
+msgid ""
+":py:obj:`BetaGeoBetaBinomModel.fit_summary "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.fit_summary>`\\"
+" \\(\\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`BetaGeoBetaBinomModel.fit_summary "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.fit_summary>`\\"
+" \\(\\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: 677fa4adba564bf08108eb62e11bbc1d
+msgid "Compute the summary of the fit result."
+msgstr "Calcule el resumen del resultado del ajuste."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: 4f586db6a1584f3a9335e65ca3adef59
+msgid ""
+":py:obj:`BetaGeoBetaBinomModel.graphviz "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.graphviz>`\\"
+" \\(\\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`BetaGeoBetaBinomModel.graphviz "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.graphviz>`\\"
+" \\(\\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: f44f4e7111e74727811121964d896aca
+msgid "Get the graphviz representation of the model."
+msgstr "Obtenga la representación graphviz del modelo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: 1cf7306342b94929bddecda73d9f0ffc
+msgid ""
+":py:obj:`BetaGeoBetaBinomModel.idata_to_init_kwargs "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.idata_to_init_kwargs>`\\"
+" \\(idata\\)"
+msgstr ""
+":py:obj:`BetaGeoBetaBinomModel.idata_to_init_kwargs "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.idata_to_init_kwargs>`\\"
+" \\(idata\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: 36a696463143453a9ce103d9fc1bbc4c
+msgid "Create the initialization kwargs from an InferenceData object."
+msgstr ""
+"Cree los kwargs de inicialización a partir de un objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: f5b511ce825b4f75b6fc3c27966d15fb
+msgid ""
+":py:obj:`BetaGeoBetaBinomModel.load "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.load>`\\"
+" \\(fname\\[\\, check\\]\\)"
+msgstr ""
+":py:obj:`BetaGeoBetaBinomModel.load "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.load>`\\"
+" \\(fname\\[\\, check\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: 0207b477b24f46b3b8f328d9ca35467b
+msgid "Create a ModelBuilder instance from a file."
+msgstr "Cree una instancia de ModelBuilder a partir de un archivo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: f9424ddfc1c14cffa1b3c52d6b276232
+msgid ""
+":py:obj:`BetaGeoBetaBinomModel.load_from_idata "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.load_from_idata>`\\"
+" \\(idata\\)"
+msgstr ""
+":py:obj:`BetaGeoBetaBinomModel.load_from_idata "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.load_from_idata>`\\"
+" \\(idata\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: 0881ffbf41f04dd38416996f59a588b5
+msgid "Create a ModelBuilder instance from an InferenceData object."
+msgstr ""
+"Cree una instancia de ModelBuilder a partir de un objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: b0e177ce98074899b3a42fbe1c2f7430
+msgid ""
+":py:obj:`BetaGeoBetaBinomModel.save "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.save>`\\"
+" \\(fname\\, \\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`BetaGeoBetaBinomModel.save "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.save>`\\"
+" \\(fname\\, \\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: 66787748ff8c490a984db9e168d6130b
+msgid "Save the model's inference data to a file."
+msgstr "Guarde los datos de inferencia del modelo en un archivo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: 0a598219ab0d4e2a84c97d27b72e9995
+msgid ""
+":py:obj:`BetaGeoBetaBinomModel.set_idata_attrs "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.set_idata_attrs>`\\"
+" \\(\\[idata\\]\\)"
+msgstr ""
+":py:obj:`BetaGeoBetaBinomModel.set_idata_attrs "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.set_idata_attrs>`\\"
+" \\(\\[idata\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: e6edec397ed649da970381039b0089b0
+msgid "Set attributes on an InferenceData object."
+msgstr "Establecer atributos en un objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: 9315b9ca55054ad6ab71be22888b3d32
+msgid ""
+":py:obj:`BetaGeoBetaBinomModel.table "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.table>`\\"
+" \\(\\*\\*model\\_table\\_kwargs\\)"
+msgstr ""
+":py:obj:`BetaGeoBetaBinomModel.table "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.table>`\\"
+" \\(\\*\\*model\\_table\\_kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: aeefb97e540d4b7fb239da7674471d61
+msgid "Get the summary table of the model."
+msgstr "Obtenga la tabla resumen del modelo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: 5ac581b2cf404d96bdbdfe92690ae819
+msgid ""
+":py:obj:`BetaGeoBetaBinomModel.thin_fit_result "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.thin_fit_result>`\\"
+" \\(keep\\_every\\)"
+msgstr ""
+":py:obj:`BetaGeoBetaBinomModel.thin_fit_result "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.thin_fit_result>`\\"
+" \\(keep\\_every\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:42:<autosummary>:1
+#: 9333b20d8b10471483cb30547098f552
+msgid "Return a copy of the model with a thinned fit result."
+msgstr "Devuelva una copia del modelo con un resultado de ajuste reducido."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:44
+#: 3e0111d94bdf4152b06d42e1b5425ddd
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:59:<autosummary>:1
+#: fc5d64982b794c84829ecb6a27ccedb2
+msgid ""
+":py:obj:`default_model_config "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.default_model_config>`\\"
+msgstr ""
+":py:obj:`default_model_config "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.default_model_config>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:59:<autosummary>:1
+#: 0b5a735d4acf434d9d7edfb3d4efe9c3
+msgid "Default model configuration."
+msgstr "Configuración de modelo predeterminada."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:59:<autosummary>:1
+#: 0ebda16f7412474ba6730c649f8c957d
+msgid ""
+":py:obj:`default_sampler_config "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.default_sampler_config>`\\"
+msgstr ""
+":py:obj:`default_sampler_config "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.default_sampler_config>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:59:<autosummary>:1
+#: cedae08393174ccfbf696f450e315426
+msgid "Default sampler configuration."
+msgstr "Configuración de muestreador predeterminada."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:59:<autosummary>:1
+#: 30e94bcdaadd4c33ab99973f139a34de
+msgid ""
+":py:obj:`fit_result "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.fit_result>`\\"
+msgstr ""
+":py:obj:`fit_result "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.fit_result>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:59:<autosummary>:1
+#: f6a1b3599428483b9a9b843127054885
+msgid "Get the posterior fit_result."
+msgstr "Obtenga el resultado de ajuste posterior fit_result."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:59:<autosummary>:1
+#: 77d941e056f34bee9c3da4b5ed7a4057
+msgid ""
+":py:obj:`id "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.id>`\\"
+msgstr ""
+":py:obj:`id "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.id>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:59:<autosummary>:1
+#: 9edb0bba483b459286165ac9fe15b935
+msgid "Generate a unique hash value for the model."
+msgstr "Generar un valor hash único para el modelo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:59:<autosummary>:1
+#: 81a7a4f1389740198ff18457008bc968
+msgid ""
+":py:obj:`posterior "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.posterior>`\\"
+msgstr ""
+":py:obj:`posterior "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.posterior>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:59:<autosummary>:1
+#: a1d507a679ae4ec58ef89e14127a1903
+msgid ""
+":py:obj:`posterior_predictive "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.posterior_predictive>`\\"
+msgstr ""
+":py:obj:`posterior_predictive "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.posterior_predictive>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:59:<autosummary>:1
+#: 4b9c5320333a4678901e308a97ce4eaa
+msgid ""
+":py:obj:`predictions "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.predictions>`\\"
+msgstr ""
+":py:obj:`predicciones "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.predictions>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:59:<autosummary>:1
+#: 0cd57fa09c4949799cc507dde2b51aa8
+msgid ""
+":py:obj:`prior "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.prior>`\\"
+msgstr ""
+":py:obj:`prior "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.prior>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:59:<autosummary>:1
+#: a102ea19f8d1475cb147fe1afadc3789
+msgid ""
+":py:obj:`prior_predictive "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.prior_predictive>`\\"
+msgstr ""
+":py:obj:`prior_predictive "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.prior_predictive>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:59:<autosummary>:1
+#: aa9012ab820643a188c1ab0bfca74c69
+msgid ""
+":py:obj:`version "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.version>`\\"
+msgstr ""
+":py:obj:`versión "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.versión>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:59:<autosummary>:1
+#: 69c8c83959da4c49a67a42cdbb559a71
+msgid ""
+":py:obj:`idata "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.idata>`\\"
+msgstr ""
+":py:obj:`idata "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.idata>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:59:<autosummary>:1
+#: 365c3c78ce714855aa5a68f6bbd1304b
+msgid ""
+":py:obj:`sampler_config "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.sampler_config>`\\"
+msgstr ""
+":py:obj:`sampler_config "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.sampler_config>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.rst:59:<autosummary>:1
+#: 13027f6cd313495e9b5bbbd1d294b912
+msgid ""
+":py:obj:`model_config "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.model_config>`\\"
+msgstr ""
+":py:obj:`model_config "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.model_config>`"

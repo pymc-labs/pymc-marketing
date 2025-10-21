@@ -1,0 +1,54 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.sensitivity_analysis.rst:2
+#: 8e79ec3153f94a1b8c3b036c3ab9d68c
+msgid "sensitivity\\_analysis"
+msgstr "análisis_de_sensibilidad"
+
+#: 1a4a7a2142a64345ab1c79996b7c9cc8 of
+#: pymc_marketing.mmm.sensitivity_analysis:1
+msgid "Counterfactual sweeps for Marketing Mix Models (MMM)."
+msgstr "Barridos contrafactuales para Modelos de Mezcla de Marketing (MMM)."
+
+#: ../source/api/generated/pymc_marketing.mmm.sensitivity_analysis.rst:17
+#: 3783a2ccb8a8468180043f3f6bf7f322
+msgid "Classes"
+msgstr "Clases"
+
+#: ../source/api/generated/pymc_marketing.mmm.sensitivity_analysis.rst:23:<autosummary>:1
+#: 81d54dee87af4242a40dc10755a92d2d
+msgid ""
+":py:obj:`SensitivityAnalysis "
+"<pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis>`\\ \\(mmm\\)"
+msgstr ""
+":py:obj:`SensitivityAnalysis "
+"<pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis>`\\ \\(mmm\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.sensitivity_analysis.rst:23:<autosummary>:1
+#: 0bc2edbb8a394586b6f0fcec27fe46a2
+msgid ""
+"SensitivityAnalysis class is used to perform counterfactual analysis on "
+"MMM's."
+msgstr ""
+"La clase SensitivityAnalysis se utiliza para realizar análisis "
+"contrafactuales en los MMM."

@@ -1,0 +1,252 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve.rst:2
+#: a064f809eb7040439d3171cf82902414
+msgid "LinearTrend.plot\\_curve"
+msgstr "LinearTrend.plot\\_curve"
+
+#: 3c925d10de8248b8aceda39c50a980e3 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:2
+msgid "Plot the curve samples from the trend."
+msgstr "Trace las muestras de la curva de la tendencia."
+
+#: f19df5810d7143c4beb781bf3cc90781 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 1c96436a392242f58e6fdaa95701dd4e of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:7
+msgid "**curve** : :obj:`xr.DataArray`"
+msgstr "**curva** : :obj:`xr.DataArray`"
+
+#: 9c247d79e1814c90a85b4c4eb783f9f6 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:6
+msgid "xr.DataArray"
+msgstr "xr.DataArray"
+
+#: fba76c24fefa4ce690a0311dbcfd33fb of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:8
+msgid "DataArray with the curve samples."
+msgstr "DataArray con las muestras de la curva."
+
+#: bb567f48beb547eab4053b3db427ae16 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:10
+msgid "**n_samples** : :class:`python:int`, optional"
+msgstr "**n_samples** : :class:`python:int`, opcional"
+
+#: b97333b5dab94baca460256aac9bf33b of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:9
+msgid "python:int, optional"
+msgstr "python:int, opcional"
+
+#: 32bce8fddd664ad29c34ab63d1fecf9a of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:11
+msgid "Number of samples"
+msgstr "Número de muestras"
+
+#: 70ddbb5236fb4fbc82d90957401c5ceb of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:13
+msgid ""
+"**hdi_probs** : :class:`python:float` | "
+":class:`python:list`\\[:class:`python:float`], optional"
+msgstr ""
+"**hdi_probs** : :class:`python:float` | "
+":class:`python:list`\\[:class:`python:float`], opcional"
+
+#: a08227ab04a04c5989d455ec9304b514 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:12
+msgid "python:float | python:list[python:float], optional"
+msgstr "python:float | python:list[python:float], opcional"
+
+#: 490733b398d94eb4b8c46db30442f42d of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:14
+msgid ""
+"HDI probabilities. Defaults to None which uses arviz default for "
+"stats.ci_prob which is 94%"
+msgstr ""
+"Probabilidades de HDI. Por defecto es None, lo que utiliza el valor "
+"predeterminado de arviz para stats.ci_prob, que es del 94%."
+
+#: d2142bb327b7419fb8c31e1d58685bd5 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:17
+msgid ""
+"**random_seed** : :class:`python:int` | :obj:`random` :obj:`number` "
+":term:`python:generator`, optional"
+msgstr ""
+"**random_seed** : :class:`python:int` | :obj:`random` :obj:`número` "
+":term:`python:generador`, opcional"
+
+#: 1dfa94001ff2458183b84d9f9bebf4b2 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:16
+msgid "python:int | random number python:generator, optional"
+msgstr "python:int | número aleatorio python:generador, opcional"
+
+#: ff3f1daf7ea044968c6860a6597bbbca of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:18
+msgid "Random number generator. Defaults to None"
+msgstr "Generador de números aleatorios. Por defecto es None."
+
+#: 6d6a50ad169e4ab9b2ea0794529c5b94 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:20
+msgid "**subplot_kwargs** : :class:`python:dict`, optional"
+msgstr "**subplot_kwargs** : :class:`python:dict`, opcional"
+
+#: 443c73d70bae4b828039cb53557e01a7 574a75206dbd4f4781a2f592a3052d58
+#: 6b5bfedea73440f7ad00dc9aaf5228c0 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:19
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:22
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:25
+msgid "python:dict, optional"
+msgstr "python:dict, opcional"
+
+#: 92e531a6ea8146a18d45062426e6e0fb of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:21
+msgid "Keyword arguments for the subplots, by default None."
+msgstr "Argumentos de palabras clave para los subgráficos, por defecto None."
+
+#: f46ca735326c4e9ba02a4c43b422585f of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:23
+msgid "**sample_kwargs** : :class:`python:dict`, optional"
+msgstr "**sample_kwargs** : :class:`python:dict`, opcional"
+
+#: 93c62ff494e947ab878b1ba1610538bf of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:24
+msgid "Keyword arguments for the samples, by default None."
+msgstr "Argumentos de palabras clave para las muestras, por defecto None."
+
+#: de639df1ed7d4941942311ebbbd54eda of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:26
+msgid "**hdi_kwargs** : :class:`python:dict`, optional"
+msgstr "**hdi_kwargs** : :class:`python:dict`, opcional"
+
+#: 815f5ec5994944ea9ac3e63ad7afaa7c of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:27
+msgid "Keyword arguments for the HDI, by default None."
+msgstr "Argumentos de palabras clave para el HDI, por defecto None."
+
+#: 8997aedb053b440192c26ab1d95b9151 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:29
+msgid ""
+"**include_changepoints** : :ref:`bool <python:bltin-boolean-values>`, "
+"optional"
+msgstr ""
+"**include_changepoints** : :ref:`bool <python:bltin-boolean-values>`, "
+"opcional"
+
+#: 35f1275a475048feb8a5a3d32607b8d7 baaf630bb99341d883a2610f0d283937
+#: f47b0ab878d049ac8f0e81789c05f31d of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:28
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:34
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:40
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: 509cca5691b74109b779c426b804b80a of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:30
+msgid "Include the change points in the plot, by default True."
+msgstr "Incluya los puntos de cambio en el gráfico, por defecto Verdadero."
+
+#: b1874dea49ec43b8ac034dc8b5fcd73a of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:32
+msgid "**axes** : :obj:`npt.NDArray`\\[:obj:`plt.Axes`], optional"
+msgstr "**ejes** : :obj:`npt.NDArray`\\[:obj:`plt.Axes`], opcional"
+
+#: 77d5f7a3edfe4b78970d5fdb1cb39cc4 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:31
+msgid "npt.NDArray[plt.Axes], optional"
+msgstr "npt.NDArray[plt.Axes], opcional"
+
+#: d26db613ebd54ec3a9ef7a4c3d8f7179 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:33
+msgid "Axes to plot the curve, by default None."
+msgstr "Ejes para trazar la curva, por defecto None."
+
+#: 39a173a3f10e4b438347d3a47ea92db6 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:35
+msgid "**same_axes** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr "**same_axes** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 20abbddd36b347d7acccd2c5313b4de5 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:36
+msgid "Use the same axes for the samples, by default False."
+msgstr "Utilice los mismos ejes para las muestras, por defecto Falso."
+
+#: b683246a4fa34a83b44a328d6773f02e of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:38
+msgid "**colors** : :obj:`Iterable`\\[:class:`python:str`], optional"
+msgstr "**colores** : :obj:`Iterable`\\[:class:`python:str`], opcional"
+
+#: e752e8d9851f492dbc3f9ded062bfa41 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:37
+msgid "Iterable[python:str], optional"
+msgstr "Iterable[python:str], opcional"
+
+#: 8e4172fd5dd945f3b272b15ab61967c4 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:39
+msgid "Colors for the samples, by default None."
+msgstr "Colores para las muestras, por defecto Ninguno."
+
+#: 8d7717539eef4486b5ebdc85d7ad0724 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:41
+msgid "**legend** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr "**leyenda** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 9552aac396774197acf23ee7a1c7d862 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:42
+msgid "Include a legend in the plot, by default None."
+msgstr "Incluya una leyenda en el gráfico, por defecto None."
+
+#: dc472c47ebb94c45bcb7a22b84358aad of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:44
+msgid "**sel_to_string** : :obj:`SelToString`, optional"
+msgstr "**sel_to_string** : :obj:`SelToString`, opcional"
+
+#: 571bc4ec2cf141139cf54b1e64640584 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:43
+msgid "SelToString, optional"
+msgstr "SelToString, opcional"
+
+#: a82dd84cffd44261817dd10f8b9930a2 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:45
+msgid "Function to convert the selection to a string, by default None."
+msgstr "Función para convertir la selección en una cadena, por defecto None."
+
+#: cb54640e1dad4da08a648781ebc4b0ec of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 6a8b85636237470b9360e55fb481131a of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:51
+msgid ""
+":class:`python:tuple`\\[:obj:`plt.Figure`, "
+":obj:`npt.NDArray`\\[:obj:`plt.Axes`]]"
+msgstr ""
+":class:`python:tuple`\\[:obj:`plt.Figure`, "
+":obj:`npt.NDArray`\\[:obj:`plt.Axes`]]"
+
+#: d3e3cabced9f48009ad209a2a1c161b3 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve:52
+msgid "Tuple with the figure and the axes."
+msgstr "Tupla con la figura y los ejes."

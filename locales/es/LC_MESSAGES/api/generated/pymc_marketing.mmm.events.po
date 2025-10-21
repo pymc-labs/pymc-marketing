@@ -1,0 +1,167 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.rst:2
+#: 3ad063d3fd11421da5d30676ffa3d33d
+msgid "events"
+msgstr "eventos"
+
+#: c55e3a27e76b40daba7aa2157a89db8f of pymc_marketing.mmm.events:1
+msgid "Event transformations."
+msgstr "Transformaciones de eventos."
+
+#: fa5495544bfe41769a9bc7caff8c1884 of pymc_marketing.mmm.events:3
+msgid ""
+"This module provides event transformations for use in Marketing Mix Models."
+msgstr ""
+"Este módulo proporciona transformaciones de eventos para su uso en Modelos "
+"de Mezcla de Marketing."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.rst:7
+#: 8bb62022603f4acf808f6043d8a7183b
+msgid ""
+"(:download:`Source code "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"events-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"events-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"events-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"events-1.pdf>`)"
+msgstr ""
+"(:descargar:`Código fuente "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"events-1.py>`, :descargar:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"events-1.png>`, :descargar:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"events-1.hires.png>`, :descargar:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"events-1.pdf>`)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.rst:13
+#: 3c6676a5d5204405815bbdc2d76a5a61
+msgid "Functions"
+msgstr "Funciones"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.rst:24:<autosummary>:1
+#: 6af43724883a44699a004c3460eb0a20
+msgid ""
+":py:obj:`basis_from_dict <pymc_marketing.mmm.events.basis_from_dict>`\\ "
+"\\(data\\)"
+msgstr ""
+":py:obj:`basis_from_dict <pymc_marketing.mmm.events.basis_from_dict>`\\ "
+"\\(datos\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.rst:24:<autosummary>:1
+#: 14b9db93711b496785d68e30bfd46041
+msgid "Create a basis transformation from a dictionary."
+msgstr "Cree una transformación de base a partir de un diccionario."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.rst:24:<autosummary>:1
+#: e860607760e543958e1630dfdf696a5b
+msgid ""
+":py:obj:`days_from_reference "
+"<pymc_marketing.mmm.events.days_from_reference>`\\ \\(dates\\, "
+"reference\\_date\\)"
+msgstr ""
+":py:obj:`days_from_reference "
+"<pymc_marketing.mmm.events.days_from_reference>`\\ \\(fechas\\, "
+"fecha\\_de\\_referencia\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.rst:24:<autosummary>:1
+#: c425a09991ae431da9979bbdf8229415
+msgid "Calculate the difference in days between dates and a reference date."
+msgstr ""
+"Calcule la diferencia en días entre las fechas y una fecha de referencia."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.rst:26
+#: a789b0f4cff3494393abd393ab0f7a91
+msgid "Classes"
+msgstr "Clases"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.rst:44:<autosummary>:1
+#: 65668f2371084f2884e9de91cd5f4b34
+msgid ""
+":py:obj:`AsymmetricGaussianBasis "
+"<pymc_marketing.mmm.events.AsymmetricGaussianBasis>`\\ "
+"\\(\\[event\\_in\\]\\)"
+msgstr ""
+":py:obj:`AsymmetricGaussianBasis "
+"<pymc_marketing.mmm.events.AsymmetricGaussianBasis>`\\ "
+"\\(\\[event\\_in\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.rst:44:<autosummary>:1
+#: e64575d30e134f54835bb155bc0458d8
+msgid "Asymmetric Gaussian bump basis transformation."
+msgstr "Transformación de base de bache gaussiano asimétrico."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.rst:44:<autosummary>:1
+#: 9f1aeb1dd6f84dcca0d42482ba9f3b3c
+msgid ":py:obj:`Basis <pymc_marketing.mmm.events.Basis>`\\ \\(\\[priors\\, prefix\\]\\)"
+msgstr ":py:obj:`Basis <pymc_marketing.mmm.events.Basis>`\\ \\(\\[priors\\, prefix\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.rst:44:<autosummary>:1
+#: b8214969c47d496fa9b6a14d819b95ea
+msgid "Basis transformation associated with an event model."
+msgstr "Transformación de base asociada con un modelo de evento."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.rst:44:<autosummary>:1
+#: b7f2131cd5464a5d902b10c2d2fab3b9
+msgid ":py:obj:`EventEffect <pymc_marketing.mmm.events.EventEffect>`\\ \\(\\*\\*data\\)"
+msgstr ""
+":py:obj:`EventEffect <pymc_marketing.mmm.events.EventEffect>`\\ "
+"\\(\\*\\*data\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.rst:44:<autosummary>:1
+#: 6b94095655b54cc0a467f058924793de
+msgid "Event effect associated with an event model."
+msgstr "Efecto del evento asociado con un modelo de evento."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.rst:44:<autosummary>:1
+#: 821e0c0007884423a75df23e45874aab
+msgid ""
+":py:obj:`GaussianBasis <pymc_marketing.mmm.events.GaussianBasis>`\\ "
+"\\(\\[priors\\, prefix\\]\\)"
+msgstr ""
+":py:obj:`GaussianBasis <pymc_marketing.mmm.events.GaussianBasis>`\\ "
+"\\(\\[priors\\, prefix\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.rst:44:<autosummary>:1
+#: 3e7bd252ee594932b8390f31ca4e9078
+msgid "Gaussian basis transformation."
+msgstr "Transformación de la base gaussiana."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.rst:44:<autosummary>:1
+#: 0f66d5c1af8042fea47620bcd7a9e57e
+msgid ""
+":py:obj:`HalfGaussianBasis <pymc_marketing.mmm.events.HalfGaussianBasis>`\\ "
+"\\(\\[mode\\, include\\_event\\]\\)"
+msgstr ""
+":py:obj:`HalfGaussianBasis <pymc_marketing.mmm.events.HalfGaussianBasis>`\\ "
+"\\(\\[modo\\, incluir\\_evento\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.rst:44:<autosummary>:1
+#: 31d72a7427c649b59e48efd9fd885f0b
+msgid "One-sided Gaussian basis transformation."
+msgstr "Transformación de base gaussiana unidimensional."

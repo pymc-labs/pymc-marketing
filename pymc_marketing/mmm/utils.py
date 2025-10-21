@@ -441,7 +441,7 @@ def add_noise_to_channel_allocation(
     rng = np.random.default_rng(seed)
 
     # Per-channel scale (1-D ndarray), shape (n_channels,)
-    scale = (rel_std * df[channels].mean()).to_numpy()
+    scale: np.ndarray = (rel_std * df[channels].mean()).to_numpy()
 
     # Draw all required noise in one call, shape (n_rows, n_channels)
     noise = rng.normal(loc=0.0, scale=scale, size=(len(df), len(channels)))

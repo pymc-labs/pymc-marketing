@@ -1,0 +1,81 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.hsgp.CovFunc.split.rst:2
+#: e72ded2d37ee43fe9dd9c0449d759204
+msgid "CovFunc.split"
+msgstr "CovFunc.dividir"
+
+#: 01e0ad6f25f14123bc4a4638685fb4dc of pymc_marketing.mmm.hsgp.CovFunc.split:2
+msgid ""
+"Return a list of the substrings in the string, using sep as the separator "
+"string."
+msgstr ""
+"Devuelve una lista de las subcadenas en la cadena, utilizando sep como la "
+"cadena separadora."
+
+#: 88acaa6977d94ca5a41075ecc8796047 of pymc_marketing.mmm.hsgp.CovFunc.split:4
+msgid "sep"
+msgstr "sep"
+
+#: f0f72850762c4d21b1f6dd27be5aafa0 of pymc_marketing.mmm.hsgp.CovFunc.split:5
+msgid "The separator used to split the string."
+msgstr "El separador utilizado para dividir la cadena."
+
+#: 14f3bc9e9391484c8c44421123c7caf5 of pymc_marketing.mmm.hsgp.CovFunc.split:7
+msgid ""
+"When set to None (the default value), will split on any whitespace character"
+" (including \\n \\r \\t \\f and spaces) and will discard empty strings from "
+"the result."
+msgstr ""
+"Cuando se establece en Ninguno (el valor predeterminado), se dividirá en "
+"cualquier carácter de espacio en blanco (incluyendo \\n \\r \\t \\f y "
+"espacios) y se descartarán las cadenas vacías del resultado."
+
+#: 0cbc5e5ac9304258b05471ff2f6c3e53 of
+#: pymc_marketing.mmm.hsgp.CovFunc.split:10
+msgid "maxsplit"
+msgstr "maxsplit"
+
+#: e66766cf913f4fe8a8c3310849dc7a99 of
+#: pymc_marketing.mmm.hsgp.CovFunc.split:11
+msgid "Maximum number of splits. -1 (the default value) means no limit."
+msgstr ""
+"Número máximo de divisiones. -1 (el valor predeterminado) significa sin "
+"límite."
+
+#: a1f793a7300941a89eba8f9984857af4 of
+#: pymc_marketing.mmm.hsgp.CovFunc.split:14
+msgid "Splitting starts at the front of the string and works to the end."
+msgstr ""
+"La división comienza al principio de la cadena y avanza hasta el final."
+
+#: ad29373dec1e4288ab7e0eb2aef81bc7 of
+#: pymc_marketing.mmm.hsgp.CovFunc.split:16
+msgid ""
+"Note, str.split() is mainly useful for data that has been intentionally "
+"delimited.  With natural text that includes punctuation, consider using the "
+"regular expression module."
+msgstr ""
+"Nota, str.split() es principalmente útil para datos que han sido delimitados"
+" intencionadamente. Con texto natural que incluye puntuación, considere "
+"utilizar el módulo de expresiones regulares."

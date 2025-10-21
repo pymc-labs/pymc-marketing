@@ -1,0 +1,115 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/general/other_nuts_samplers.ipynb:10003
+#: 672d151210a34f8e90b495c396dc3b34
+msgid "Other NUTS Samplers"
+msgstr "Otros muestreadores NUTS"
+
+#: ../source/notebooks/general/other_nuts_samplers.ipynb:10005
+#: f3f6afcb629e4005ac84352d5de75132
+msgid ""
+"In this notebook we show how to fit a CLV model with other NUTS samplers. "
+"These alternative samplers can be significantly faster and also sample on "
+"the GPU."
+msgstr ""
+"En este cuaderno mostramos cómo ajustar un modelo de CLV con otros "
+"muestreadores NUTS. Estos muestreadores alternativos pueden ser "
+"significativamente más rápidos y también muestrear en la GPU."
+
+#: ../source/notebooks/general/other_nuts_samplers.ipynb:10008
+#: 8da66b907bef4b3d855b810f18075c53
+msgid "You need to install these packages in your Python environment."
+msgstr "Necesita instalar estos paquetes en su entorno de Python."
+
+#: ../source/notebooks/general/other_nuts_samplers.ipynb:10012
+#: 422b5d4cfd754887b7a14b0827ac93e4
+msgid "You can pass the exact same `nuts_sampler` argument to the MMM models."
+msgstr ""
+"Puede pasar el mismo argumento `nuts_sampler` exactamente a los modelos MMM."
+
+#: ../source/notebooks/general/other_nuts_samplers.ipynb:10016
+#: 519cc3616f8240688372cb4c17e4d862
+msgid ""
+"GPU support only works with select samplers in PyMC that use the "
+"[JAX](https://github.com/jax-ml/jax) backend. These samplers include "
+"`numpyro`, `blackjax`, and `nutpie`."
+msgstr ""
+"El soporte de GPU solo funciona con selectos muestreadores en PyMC que "
+"utilizan el backend de [JAX](https://github.com/jax-ml/jax). Estos "
+"muestreadores incluyen `numpyro`, `blackjax` y `nutpie`."
+
+#: ../source/notebooks/general/other_nuts_samplers.ipynb:10018
+#: f272e25c49f142e398ed36da49ddce78
+msgid ""
+"Make sure the GPU is registered, follow the instructions "
+"[here](https://github.com/jax-ml/jax?tab=readme-ov-file#installation)."
+msgstr ""
+"Asegúrese de que la GPU esté registrada, siga las instrucciones "
+"[aquí](https://github.com/jax-ml/jax?tab=readme-ov-file#installation)."
+
+#: ../source/notebooks/general/other_nuts_samplers.ipynb:20002
+#: 8fea9ae1be5545c99609751f2dd2b32a
+msgid ""
+"For the purpose of illustration, we will use the same data and model as in "
+"the other CLV notebooks."
+msgstr ""
+"A efectos de ilustración, utilizaremos los mismos datos y modelo que en los "
+"otros cuadernos de CLV."
+
+#: ../source/notebooks/general/other_nuts_samplers.ipynb:50002
+#: 3c8266e5ac3b4066b106676f44b476dc
+msgid ""
+"We can pass the keyword argument `nuts_sampler` to the `fit` method of the "
+"`CLV` model to specify the NUTS sampler to use. In addition, we can pass "
+"additional keyword arguments which will be passed to the "
+"[`pymc.sample`](https://www.pymc.io/projects/docs/en/stable/api/generated/pymc.sampling.mcmc.sample.html#pymc.sampling.mcmc.sample)"
+" method via the model builder layer.  For example, we can use the `numpyro` "
+"sampler as:"
+msgstr ""
+"Podemos pasar el argumento de palabra clave `nuts_sampler` al método `fit` "
+"del modelo `CLV` para especificar el muestreador NUTS a utilizar. Además, "
+"podemos pasar argumentos de palabra clave adicionales que se transmitirán al"
+" método "
+"[`pymc.sample`](https://www.pymc.io/projects/docs/en/stable/api/generated/pymc.sampling.mcmc.sample.html#pymc.sampling.mcmc.sample)"
+" a través de la capa del constructor del modelo. Por ejemplo, podemos "
+"utilizar el muestreador `numpyro` de la siguiente manera:"
+
+#: ../source/notebooks/general/other_nuts_samplers.ipynb:70002
+#: 79880467d311435a80cbc9aca14388b7
+msgid "Similarly, we can use the `blackjax` sampler as:"
+msgstr ""
+"De manera similar, podemos utilizar el muestreador `blackjax` de la "
+"siguiente manera:"
+
+#: ../source/notebooks/general/other_nuts_samplers.ipynb:90002
+#: ad8ab0558f7d4da090defb7bafd7d9f3
+msgid ""
+"Finally, we can use the `nutpie` which is a Rust implementation of NUTS."
+msgstr ""
+"Finalmente, podemos utilizar `nutpie`, que es una implementación en Rust de "
+"NUTS."
+
+#: ../source/notebooks/general/other_nuts_samplers.ipynb:110002
+#: 36bc0928234b429db72840a335f2f206
+msgid "The results from the samplers are almost identical:"
+msgstr "Los resultados de los muestreadores son casi idénticos:"

@@ -1,0 +1,200 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.CausalGraphModel.rst:2
+#: 9b1165f74654400aa8a044dee92ece09
+msgid "CausalGraphModel"
+msgstr "CausalGraphModel"
+
+#: 2850794a57974bc1af3524b9778c7ba8 of
+#: pymc_marketing.mmm.causal.CausalGraphModel:2
+msgid "Represent a causal model based on a Directed Acyclic Graph (DAG)."
+msgstr ""
+"Representar un modelo causal basado en un Grafo Acíclico Dirigido (DAG)."
+
+#: ded694aecf564f2692c7fd98db23394c of
+#: pymc_marketing.mmm.causal.CausalGraphModel:4
+msgid ""
+"Provides methods to analyze causal relationships and determine the minimal "
+"adjustment set for backdoor adjustment between treatment and outcome "
+"variables."
+msgstr ""
+"Proporciona métodos para analizar relaciones causales y determinar el "
+"conjunto mínimo de ajustes para el ajuste de puerta trasera entre las "
+"variables de tratamiento y resultado."
+
+#: 16471bcbbe954fa39efdb4c4ba2ff229 of
+#: pymc_marketing.mmm.causal.CausalGraphModel
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: f75444d10ff94c2f85850b2ac327bd28 of
+#: pymc_marketing.mmm.causal.CausalGraphModel:9
+msgid "**causal_model** : :obj:`CausalModel`"
+msgstr "**modelo_causal** : :obj:`ModeloCausal`"
+
+#: e082f08d465e47a0bb17955b266a0bb2 of
+#: pymc_marketing.mmm.causal.CausalGraphModel:8
+msgid "CausalModel"
+msgstr "CausalModel"
+
+#: d60541f8b09e4741a0b17be5d28d52f6 of
+#: pymc_marketing.mmm.causal.CausalGraphModel:10
+msgid ""
+"An instance of dowhy's CausalModel, representing the causal graph and its "
+"relationships."
+msgstr ""
+"Una instancia del CausalModel de dowhy, que representa el grafo causal y sus"
+" relaciones."
+
+#: bf769c83f58b4edaa355d1cb66cfee19 of
+#: pymc_marketing.mmm.causal.CausalGraphModel:12
+msgid "**treatment** : :class:`python:list`\\[:class:`python:str`]"
+msgstr "**tratamiento** : :class:`python:list`\\[:class:`python:str`]"
+
+#: 068213e4647c4fef9faec4ccfa11e52b of
+#: pymc_marketing.mmm.causal.CausalGraphModel:11
+msgid "python:list[python:str]"
+msgstr "python:list[python:str]"
+
+#: cbe55025c8314566b9445895a6240e83 of
+#: pymc_marketing.mmm.causal.CausalGraphModel:13
+msgid "A list of treatment variable names."
+msgstr "Una lista de nombres de variables de tratamiento."
+
+#: bc0f358614264759a7b74a4757cf1023 of
+#: pymc_marketing.mmm.causal.CausalGraphModel:15
+msgid "**outcome** : :class:`python:str`"
+msgstr "**resultado** : :class:`python:str`"
+
+#: 6054e6689abd4f899e5e2d7688acc614 of
+#: pymc_marketing.mmm.causal.CausalGraphModel:14
+msgid "python:str"
+msgstr "python:str"
+
+#: 593afb3a2f834055acadb672560f378a of
+#: pymc_marketing.mmm.causal.CausalGraphModel:16
+msgid "The outcome variable name."
+msgstr "El nombre de la variable de resultado."
+
+#: d11b42ad61ab4b27b3a1ff8d93980b9f of
+#: pymc_marketing.mmm.causal.CausalGraphModel:30
+msgid "References"
+msgstr "Referencias"
+
+#: 5de8dd2c67d04581860a558b2d68679d of
+#: pymc_marketing.mmm.causal.CausalGraphModel:31
+msgid "https://github.com/microsoft/dowhy"
+msgstr "https://github.com/microsoft/dowhy"
+
+#: e86d4e1e82404f96b851ae78d6ed5be2 of
+#: pymc_marketing.mmm.causal.CausalGraphModel:35
+msgid "[Re4987e390ecc-1]_"
+msgstr "[Re4987e390ecc-1]_"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.CausalGraphModel.rst:12
+#: 4d82472b9f71462b96d22f96550e3376
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.CausalGraphModel.rst:21:<autosummary>:1
+#: 42389abd15b34f7c9d5e3358d8c6d1c2
+msgid ""
+":py:obj:`CausalGraphModel.__init__ "
+"<pymc_marketing.mmm.causal.CausalGraphModel.__init__>`\\ "
+"\\(causal\\_model\\, ...\\)"
+msgstr ""
+":py:obj:`CausalGraphModel.__init__ "
+"<pymc_marketing.mmm.causal.CausalGraphModel.__init__>`\\ "
+"\\(modelo\\_causal\\, ...\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.CausalGraphModel.rst:21:<autosummary>:1
+#: 6aeb5be00b1947f8a3086f13019a8858
+msgid ""
+":py:obj:`CausalGraphModel.build_graphical_model "
+"<pymc_marketing.mmm.causal.CausalGraphModel.build_graphical_model>`\\ "
+"\\(...\\)"
+msgstr ""
+":py:obj:`CausalGraphModel.build_graphical_model "
+"<pymc_marketing.mmm.causal.CausalGraphModel.build_graphical_model>`\\ "
+"\\(...\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.CausalGraphModel.rst:21:<autosummary>:1
+#: e349d4ce46d14db5bfa541f471c7de53
+msgid "Create a CausalGraphModel from a string representation of a graph."
+msgstr ""
+"Cree un CausalGraphModel a partir de una representación en cadena de un "
+"grafo."
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.CausalGraphModel.rst:21:<autosummary>:1
+#: 409c77c982eb4154aaba8acc8549ea43
+msgid ""
+":py:obj:`CausalGraphModel.compute_adjustment_sets "
+"<pymc_marketing.mmm.causal.CausalGraphModel.compute_adjustment_sets>`\\ "
+"\\(...\\)"
+msgstr ""
+":py:obj:`CausalGraphModel.compute_adjustment_sets "
+"<pymc_marketing.mmm.causal.CausalGraphModel.compute_adjustment_sets>`\\ "
+"\\(...\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.CausalGraphModel.rst:21:<autosummary>:1
+#: 4e8d594577e946caa4b55bd270d6457b
+msgid "Compute minimal adjustment sets and handle warnings."
+msgstr "Calcule conjuntos de ajuste mínimos y maneje las advertencias."
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.CausalGraphModel.rst:21:<autosummary>:1
+#: 5abd1d81214f4f7b938695e484c2391d
+msgid ""
+":py:obj:`CausalGraphModel.get_backdoor_paths "
+"<pymc_marketing.mmm.causal.CausalGraphModel.get_backdoor_paths>`\\ \\(\\)"
+msgstr ""
+":py:obj:`CausalGraphModel.get_backdoor_paths "
+"<pymc_marketing.mmm.causal.CausalGraphModel.get_backdoor_paths>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.CausalGraphModel.rst:21:<autosummary>:1
+#: e436731cc65c4788b62adf36b383e625
+msgid ""
+"Find all backdoor paths between the combined treatment and outcome "
+"variables."
+msgstr ""
+"Encuentra todos los caminos de puerta trasera entre las variables de "
+"tratamiento combinadas y las variables de resultado."
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.CausalGraphModel.rst:21:<autosummary>:1
+#: de5b427a08284777b029dcb5acfb1763
+msgid ""
+":py:obj:`CausalGraphModel.get_unique_adjustment_nodes "
+"<pymc_marketing.mmm.causal.CausalGraphModel.get_unique_adjustment_nodes>`\\ "
+"\\(\\)"
+msgstr ""
+":py:obj:`CausalGraphModel.get_unique_adjustment_nodes "
+"<pymc_marketing.mmm.causal.CausalGraphModel.get_unique_adjustment_nodes>`\\ "
+"\\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.CausalGraphModel.rst:21:<autosummary>:1
+#: 969427db87344167a005fbbaa43a1a1c
+msgid ""
+"Compute the minimal adjustment set required for backdoor adjustment across "
+"all treatments."
+msgstr ""
+"Calcule el conjunto de ajuste mínimo requerido para el ajuste de puerta "
+"trasera en todos los tratamientos."

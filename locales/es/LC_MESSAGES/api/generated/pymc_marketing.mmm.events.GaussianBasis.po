@@ -1,0 +1,283 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.GaussianBasis.rst:2
+#: c057046c93b844df892489e81a1c55af
+msgid "GaussianBasis"
+msgstr "GaussianBasis"
+
+#: fe3c1c26ee454bda989ba551fbc7c791 of
+#: pymc_marketing.mmm.events.GaussianBasis:2
+msgid "Gaussian basis transformation."
+msgstr "Transformación de la base gaussiana."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.GaussianBasis.rst:12
+#: d18765a098fb432587fa2e4e94ac4ab9
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.GaussianBasis.rst:32:<autosummary>:1
+#: 09b3221a72174927acad63df7ec9c097
+msgid ""
+":py:obj:`GaussianBasis.__init__ "
+"<pymc_marketing.mmm.events.GaussianBasis.__init__>`\\ \\(\\[priors\\, "
+"prefix\\]\\)"
+msgstr ""
+":py:obj:`GaussianBasis.__init__ "
+"<pymc_marketing.mmm.events.GaussianBasis.__init__>`\\ \\(\\[priors\\, "
+"prefix\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.GaussianBasis.rst:32:<autosummary>:1
+#: a623bc259fad459f966f64abb75396b4
+msgid ""
+":py:obj:`GaussianBasis.apply "
+"<pymc_marketing.mmm.events.GaussianBasis.apply>`\\ \\(x\\[\\, dims\\, "
+"idx\\]\\)"
+msgstr ""
+":py:obj:`GaussianBasis.apply "
+"<pymc_marketing.mmm.events.GaussianBasis.apply>`\\ \\(x\\[\\, dims\\, "
+"idx\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.GaussianBasis.rst:32:<autosummary>:1
+#: 4b08ac0c993e477f947f787d4934fa38
+msgid "Call within a model context."
+msgstr "Llamar dentro de un contexto de modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.GaussianBasis.rst:32:<autosummary>:1
+#: fdc6d5cd086d42bf86142587ee1364be
+msgid ""
+":py:obj:`GaussianBasis.function "
+"<pymc_marketing.mmm.events.GaussianBasis.function>`\\ \\(x\\, sigma\\)"
+msgstr ""
+":py:obj:`GaussianBasis.function "
+"<pymc_marketing.mmm.events.GaussianBasis.function>`\\ \\(x\\, sigma\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.GaussianBasis.rst:32:<autosummary>:1
+#: 5f5ff17902f7473caba8edf13bddd7d5
+msgid "Gaussian bump function."
+msgstr "Función de bache gaussiana."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.GaussianBasis.rst:32:<autosummary>:1
+#: bc594104420c441286dac1140efb4871
+msgid ""
+":py:obj:`GaussianBasis.plot_curve "
+"<pymc_marketing.mmm.events.GaussianBasis.plot_curve>`\\ \\(curve\\[\\, "
+"n\\_samples\\, ...\\]\\)"
+msgstr ""
+":py:obj:`GaussianBasis.plot_curve "
+"<pymc_marketing.mmm.events.GaussianBasis.plot_curve>`\\ \\(curve\\[\\, "
+"n\\_samples\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.GaussianBasis.rst:32:<autosummary>:1
+#: 13a551cecf7241ddb2d6d2152820354c
+msgid "Plot curve HDI and samples."
+msgstr "Trazar curva HDI y muestras."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.GaussianBasis.rst:32:<autosummary>:1
+#: 195999919e624552b36433b690b77861
+msgid ""
+":py:obj:`GaussianBasis.plot_curve_hdi "
+"<pymc_marketing.mmm.events.GaussianBasis.plot_curve_hdi>`\\ \\(curve\\[\\, "
+"...\\]\\)"
+msgstr ""
+":py:obj:`GaussianBasis.plot_curve_hdi "
+"<pymc_marketing.mmm.events.GaussianBasis.plot_curve_hdi>`\\ \\(curva\\[\\, "
+"...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.GaussianBasis.rst:32:<autosummary>:1
+#: 301c2f8e32b145798f0732c6e982b36e
+msgid "Plot the HDI of the curve."
+msgstr "Trace el IDH de la curva."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.GaussianBasis.rst:32:<autosummary>:1
+#: 0a5b7703346049a79e4f053a693c7565
+msgid ""
+":py:obj:`GaussianBasis.plot_curve_samples "
+"<pymc_marketing.mmm.events.GaussianBasis.plot_curve_samples>`\\ "
+"\\(curve\\[\\, n\\, ...\\]\\)"
+msgstr ""
+":py:obj:`GaussianBasis.plot_curve_samples "
+"<pymc_marketing.mmm.events.GaussianBasis.plot_curve_samples>`\\ "
+"\\(curva\\[\\, n\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.GaussianBasis.rst:32:<autosummary>:1
+#: 65a53504c1b44692b3ea523bc0d9da7c
+msgid "Plot samples from the curve."
+msgstr "Trazar muestras de la curva."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.GaussianBasis.rst:32:<autosummary>:1
+#: 8cdf50553bfc459aa85c9e40cea43d72
+msgid ""
+":py:obj:`GaussianBasis.sample_curve "
+"<pymc_marketing.mmm.events.GaussianBasis.sample_curve>`\\ "
+"\\(\\[parameters\\, days\\]\\)"
+msgstr ""
+":py:obj:`GaussianBasis.sample_curve "
+"<pymc_marketing.mmm.events.GaussianBasis.sample_curve>`\\ "
+"\\(\\[parámetros\\, días\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.GaussianBasis.rst:32:<autosummary>:1
+#: 22d79ce88be94353931e954488862da6
+msgid "Sample the curve of the saturation transformation given parameters."
+msgstr ""
+"Muestre la curva de la transformación de saturación dadas las parámetros."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.GaussianBasis.rst:32:<autosummary>:1
+#: 4714d52281c64c74a00b4c930b4cea3a
+msgid ""
+":py:obj:`GaussianBasis.sample_prior "
+"<pymc_marketing.mmm.events.GaussianBasis.sample_prior>`\\ \\(\\[coords\\]\\)"
+msgstr ""
+":py:obj:`GaussianBasis.sample_prior "
+"<pymc_marketing.mmm.events.GaussianBasis.sample_prior>`\\ \\(\\[coords\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.GaussianBasis.rst:32:<autosummary>:1
+#: b957c64c5d4c4e13a720574bf9429d78
+msgid "Sample the priors for the transformation."
+msgstr "Muestre las distribuciones a priori para la transformación."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.GaussianBasis.rst:32:<autosummary>:1
+#: fc4917923bfb4066a2f7eeae776a088d
+msgid ""
+":py:obj:`GaussianBasis.set_dims_for_all_priors "
+"<pymc_marketing.mmm.events.GaussianBasis.set_dims_for_all_priors>`\\ "
+"\\(dims\\)"
+msgstr ""
+":py:obj:`GaussianBasis.set_dims_for_all_priors "
+"<pymc_marketing.mmm.events.GaussianBasis.set_dims_for_all_priors>`\\ "
+"\\(dims\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.GaussianBasis.rst:32:<autosummary>:1
+#: 329cd73bed5742d6bb9e18aa5e656f7d
+msgid "Set the dims for all priors."
+msgstr "Establezca las dimensiones para todos los antecedentes."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.GaussianBasis.rst:32:<autosummary>:1
+#: 81b6d7ab7b56430dabfbfc7ac2aa0aa5
+msgid ""
+":py:obj:`GaussianBasis.to_dict "
+"<pymc_marketing.mmm.events.GaussianBasis.to_dict>`\\ \\(\\)"
+msgstr ""
+":py:obj:`GaussianBasis.to_dict "
+"<pymc_marketing.mmm.events.GaussianBasis.to_dict>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.GaussianBasis.rst:32:<autosummary>:1
+#: 4e11663c3a23431ca651732becbe825b
+msgid "Convert the transformation to a dictionary."
+msgstr "Convierte la transformación en un diccionario."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.GaussianBasis.rst:32:<autosummary>:1
+#: aedf4e26f63944bcbc20b66ed91ba062
+msgid ""
+":py:obj:`GaussianBasis.update_priors "
+"<pymc_marketing.mmm.events.GaussianBasis.update_priors>`\\ \\(priors\\)"
+msgstr ""
+":py:obj:`GaussianBasis.update_priors "
+"<pymc_marketing.mmm.events.GaussianBasis.update_priors>`\\ \\(priors\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.GaussianBasis.rst:32:<autosummary>:1
+#: e0383064e18b414c94085856b0e0ea9c
+msgid "Update the priors for a function after initialization."
+msgstr "Actualiza los priors para una función después de la inicialización."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.GaussianBasis.rst:34
+#: 59b7c3b2b58d4d36895e68930468112e
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.GaussianBasis.rst:43:<autosummary>:1
+#: 24ceb5429cee4a29956f7f731e34b8d2
+msgid ""
+":py:obj:`combined_dims "
+"<pymc_marketing.mmm.events.GaussianBasis.combined_dims>`\\"
+msgstr ""
+":py:obj:`combined_dims "
+"<pymc_marketing.mmm.events.GaussianBasis.combined_dims>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.GaussianBasis.rst:43:<autosummary>:1
+#: ba1433ed23c5448d86a80536a874ac94
+msgid "Get the combined dims for all the parameters."
+msgstr "Obtenga las dimensiones combinadas para todos los parámetros."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.GaussianBasis.rst:43:<autosummary>:1
+#: 6d9b9adb7bb1443e81c2357a96973bb1
+msgid ""
+":py:obj:`default_priors "
+"<pymc_marketing.mmm.events.GaussianBasis.default_priors>`\\"
+msgstr ""
+":py:obj:`default_priors "
+"<pymc_marketing.mmm.events.GaussianBasis.default_priors>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.GaussianBasis.rst:43:<autosummary>:1
+#: 98f08cf8882d4849a40d531679a71d65
+msgid ""
+":py:obj:`function_priors "
+"<pymc_marketing.mmm.events.GaussianBasis.function_priors>`\\"
+msgstr ""
+":py:obj:`function_priors "
+"<pymc_marketing.mmm.events.GaussianBasis.function_priors>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.GaussianBasis.rst:43:<autosummary>:1
+#: d21fcbd3b4f04846b9cf07dd0417a073
+msgid "Get the priors for the function."
+msgstr "Obtenga los antecedentes para la función."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.GaussianBasis.rst:43:<autosummary>:1
+#: ca5c89ca405b46bcada5ff0589a4b23d
+msgid ""
+":py:obj:`lookup_name "
+"<pymc_marketing.mmm.events.GaussianBasis.lookup_name>`\\"
+msgstr ""
+":py:obj:`lookup_name <pymc_marketing.mmm.events.GaussianBasis.lookup_name>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.GaussianBasis.rst:43:<autosummary>:1
+#: 3e946b8bc29c421482f4f1ffe68c39c9
+msgid ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.events.GaussianBasis.model_config>`\\"
+msgstr ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.events.GaussianBasis.model_config>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.GaussianBasis.rst:43:<autosummary>:1
+#: 80ded6e66d1a40b494ae026660b6f374
+msgid "Mapping from variable name to prior for the model."
+msgstr "Mapeo del nombre de la variable a la prior para el modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.GaussianBasis.rst:43:<autosummary>:1
+#: 80a85de1b87940ca8339214b5ffee5ec
+msgid ":py:obj:`prefix <pymc_marketing.mmm.events.GaussianBasis.prefix>`\\"
+msgstr ":py:obj:`prefix <pymc_marketing.mmm.events.GaussianBasis.prefix>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.GaussianBasis.rst:43:<autosummary>:1
+#: ee98ca5297ed4e7e9c1007302e433310
+msgid ""
+":py:obj:`variable_mapping "
+"<pymc_marketing.mmm.events.GaussianBasis.variable_mapping>`\\"
+msgstr ""
+":py:obj:`variable_mapping "
+"<pymc_marketing.mmm.events.GaussianBasis.variable_mapping>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.GaussianBasis.rst:43:<autosummary>:1
+#: fbcb2c4f4e5042409179a1dd13dfbad1
+msgid "Mapping from parameter name to variable name in the model."
+msgstr "Mapeo del nombre del parámetro al nombre de la variable en el modelo."

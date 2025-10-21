@@ -1,0 +1,474 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-20 21:01+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/guide/mmm/comparison.md:1 43ce96eb1ebb4252bf6289b97be1caf1
+msgid "How We Compare"
+msgstr "Cómo Nos Comparamos"
+
+#: ../source/guide/mmm/comparison.md:3 69fd6cebfa4c4ec79141385a3e55aa95
+#, fuzzy
+msgid ""
+"Given the popularity of the Media Mix Modelling (MMM) approach, numerous "
+"packages are available. Below is a concise comparison highlighting how the "
+"features of PyMC-Marketing stand against other popular options:"
+msgstr ""
+"Dada la popularidad del enfoque de Modelado de Mezcla de Medios (MMM), hay "
+"numerosos paquetes disponibles. A continuación se presenta una comparación "
+"concisa que destaca cómo PyMC-Marketing se compara con otras opciones "
+"populares:"
+
+#: ../source/guide/mmm/comparison.md 863939bb584d48d091ca70dbfe864d97
+msgid "Feature"
+msgstr "Característica"
+
+#: ../source/guide/mmm/comparison.md 9f2b949f304b4380ab79eefdd2114f83
+msgid "PyMC-Marketing"
+msgstr "PyMC-Marketing"
+
+#: ../source/guide/mmm/comparison.md 05d660881b09415ca6297eaca31f377c
+msgid "Robyn"
+msgstr "Robyn"
+
+#: ../source/guide/mmm/comparison.md c9d50e79cbf840cd9f4f4717be225146
+msgid "Orbit KTR"
+msgstr "Orbit KTR"
+
+#: ../source/guide/mmm/comparison.md cb8b91397e8c455b8e71968ee004a1cc
+msgid "Meridian*"
+msgstr "Meridiano*"
+
+#: ../source/guide/mmm/comparison.md ec81766ce7c54f1c965df42230182dda
+msgid "**Language**"
+msgstr "**Idioma**"
+
+#: ../source/guide/mmm/comparison.md 0b21aac59a2a412bba4badd184886453
+#: 76d23428a8934a3f81583738f940ad97 9b3eaaee0f96443c99f7463533482105
+msgid "Python"
+msgstr "Python"
+
+#: ../source/guide/mmm/comparison.md 9c1b8535a4344317ad298f183b27cf82
+msgid "R"
+msgstr "R"
+
+#: ../source/guide/mmm/comparison.md 92ee538a0c7547cc873a358ae320f42f
+msgid "**Approach**"
+msgstr "**Enfoque**"
+
+#: ../source/guide/mmm/comparison.md 38da4841a71d4d6ca8288be0186c8141
+#: aec229ce1ee0473e817952d18ed04d2e c345e79d33d54774a6b393658bc80c35
+msgid "Bayesian"
+msgstr "Bayesiano"
+
+#: ../source/guide/mmm/comparison.md bd38109d099f4542a01afa4ce0067b58
+msgid "Traditional ML"
+msgstr "ML tradicional"
+
+#: ../source/guide/mmm/comparison.md 9bd05ec8bbfb487dbcd9eecefe236d0e
+msgid "**Foundation**"
+msgstr "**Fundación**"
+
+#: ../source/guide/mmm/comparison.md a0bab4bad5e74ce0ba634e18ea04d9f6
+msgid "PyMC"
+msgstr "PyMC"
+
+#: ../source/guide/mmm/comparison.md 3afa5755e7d342ecbf2844d0b87ab352
+msgid "-"
+msgstr ""
+"It seems that there is no text provided for translation. Please provide the "
+"text you would like to have translated into Spanish, and I'll be happy to "
+"assist you!"
+
+#: ../source/guide/mmm/comparison.md b82060222af5406891b2f41d81faf3f2
+msgid "STAN/Pyro"
+msgstr "STAN/Pyro"
+
+#: ../source/guide/mmm/comparison.md 198d050946c44f6cbd6326741ebfb61e
+msgid "TensorFlow Probability"
+msgstr "TensorFlow Probability"
+
+#: ../source/guide/mmm/comparison.md 45d62870297648da9d341f6af3a2bac0
+msgid "**Company**"
+msgstr "**Empresa**"
+
+#: ../source/guide/mmm/comparison.md 5ff83a558c0e4689ac1219c719c9d031
+msgid "PyMC Labs"
+msgstr "PyMC Labs"
+
+#: ../source/guide/mmm/comparison.md 6f45214f97514101a7eea2620d6d5d87
+msgid "Meta"
+msgstr "Meta"
+
+#: ../source/guide/mmm/comparison.md 1f496b2b687947dbb325442741f66f6c
+msgid "Uber"
+msgstr "Uber"
+
+#: ../source/guide/mmm/comparison.md 5b12d55783db429aa34de19b9b80f0ef
+msgid "Google"
+msgstr "Google"
+
+#: ../source/guide/mmm/comparison.md 33f2b96583e44e77bb0b13b36b8d8254
+msgid "**Open source**"
+msgstr "Código abierto"
+
+#: ../source/guide/mmm/comparison.md 095a143149c04d6283169b79f1ff2873
+#: 0f81ac0fb5d1428c87e7803b35099e2d 1fed88d492f346289be9a76680fd14f8
+#: 2890c70c37ab4bd39a7e89da61c2d0bb 3a57c203a98548a39f89af92c149389d
+#: 531d0ae83ca14302824cafee48fb63c3 5c0abaea9f204a0ab6f5f5d68aa1e17c
+#: 6b33f02d14a64591806add837032671d 7301b603588e4dff8afbe64f66b09beb
+#: 8d2a38beff2040f6a5bc8a933dc21d00 8f5b4c263e1d41a8bc96f8f2f57d7e06
+#: 980429c1aacc4458b39bfc8ace77a28c 980e9c94dca54d53998159b12d2934e8
+#: 9fb63ca0656f401c88879389e504fd0b cb2012c6d3c44f8bb671ee4527a9d61e
+#: d62f1834464f429b95f01b8529cd67b4 dc5129ee6f2745d0b6b50edc6534923d
+#: e5362adf18064c15959fc47ab66ad67c ef9226fd5bca4245b5941be36b6595f4
+#: fbdeb7cf1b2646769b42b9ffb4ae4b16 fddc76b0639d45558714b38e28820753
+#: ff0be38f2a474fe29de521bc8eb27a66
+msgid "✅"
+msgstr "✅"
+
+#: ../source/guide/mmm/comparison.md 649ba45b4ae34fc9a4e5c62157cee0dd
+msgid "**Out-of-Sample Forecasting**"
+msgstr "**Pronóstico Fuera de Muestra**"
+
+#: ../source/guide/mmm/comparison.md 337f2f086d924597956c37563e08fe18
+#: 62477dba533e4c95ab1ebfccc9bd9150 730706f26ae14f8189e24c48fa2d16a3
+#: 7de8a9ddfc7b4f10a762c67a0848a844 96e06243276148788adb10662640b23d
+#: a011d3eb5eb8450e928c23cba06e6744 ab1394f938d34236a1db9e6acbf93bf0
+#: bb78259698d34869bff5c469e9cc8964 bf02cf7eaada42e6afc5b22f9e414b64
+#: c5de941092084d3a94a30ad12e68cfb8 eefc366e8a854b56b1445f2c1d81819e
+msgid "❌"
+msgstr "❌"
+
+#: ../source/guide/mmm/comparison.md 23ff03b2d3614c1580e816a16c96c967
+msgid "**Budget Optimizer**"
+msgstr "**Optimizador de Presupuesto**"
+
+#: ../source/guide/mmm/comparison.md 4d7fe18c9c1c45c7bd2b6ca2efd9da39
+msgid "**Time-Varying Intercept**"
+msgstr "**Intercepto Variable en el Tiempo**"
+
+#: ../source/guide/mmm/comparison.md 9f1b85e8d3a441ee80946c7e58840745
+msgid "**Time-Varying Coefficients**"
+msgstr "**Coeficientes Variables en el Tiempo**"
+
+#: ../source/guide/mmm/comparison.md 88cfbc077efa4b49bb34d8aceb5cb4eb
+msgid "**Custom Priors**"
+msgstr "**Priorizaciones Personalizadas**"
+
+#: ../source/guide/mmm/comparison.md 708b845129d24ebcae99c17759126ed5
+#: ca359f41287b4c58be9744540f21a180 f77e9b7d03184cdb854efaaa4e0bd035
+msgid "NA"
+msgstr ""
+"{\n"
+"  \"singular\": {\n"
+"    \"msgid\": \"NA\",\n"
+"    \"msgstr\": \"NA\"\n"
+"  },\n"
+"  \"plural\": {\n"
+"    \"msgid\": \"NA\",\n"
+"    \"msgstr\": \"NA\"\n"
+"  }\n"
+"}"
+
+#: ../source/guide/mmm/comparison.md 73af6534a3164c139557d269e420c3ad
+msgid "**Custom Model Terms**"
+msgstr "**Términos del Modelo Personalizado**"
+
+#: ../source/guide/mmm/comparison.md 6b319e7455fa4d34af6747b608ef6e76
+msgid "**Lift-Test Calibration**"
+msgstr "**Calibración de Prueba de Elevación**"
+
+#: ../source/guide/mmm/comparison.md ce24352d07e54290bbbc8165a6ecb557
+#, fuzzy
+msgid "**Hierachical Geographic Modeling**"
+msgstr "**Modelado Geográfico**"
+
+#: ../source/guide/mmm/comparison.md 7d7956a5f4d74dbcba04c19f3b1bff53
+msgid "**Standardized Database Connectors**"
+msgstr ""
+"{\n"
+"  \"singular\": \"**Conectores de Base de Datos Estandarizados**\",\n"
+"  \"plural\": \"**Conectores de Base de Datos Estandarizados**\"\n"
+"}"
+
+#: ../source/guide/mmm/comparison.md 5db6eafb100d44d4a2b1a42cb0eff856
+msgid "✅ (with Fivetran)"
+msgstr ""
+"{\n"
+"  \"singular\": \"✅ (con Fivetran)\",\n"
+"  \"plural\": \"✅ (con Fivetran)\"\n"
+"}"
+
+#: ../source/guide/mmm/comparison.md 7c0b5b56145e4a84897b9f6ff5cccb75
+msgid "✅ (limited to Google ecosystem)"
+msgstr ""
+"{\n"
+"  \"singular\": \"✅ (limitado al ecosistema de Google)\",\n"
+"  \"plural\": \"✅ (limitado al ecosistema de Google)\"\n"
+"}"
+
+#: ../source/guide/mmm/comparison.md de7751968a8142d4a51e7518e95e9e7b
+msgid "**Unit-Tested**"
+msgstr "**Pruebas Unitarias**"
+
+#: ../source/guide/mmm/comparison.md f66aa577bfa54dc79fdb949002afaa92
+msgid "**MLFlow Integration**"
+msgstr "**Integración de MLFlow**"
+
+#: ../source/guide/mmm/comparison.md fc189568d9f3470294dcaa08cd2dc547
+#, fuzzy
+msgid "**Multiple Sampling Backends**"
+msgstr "**Aceleración de muestreo de GPU**"
+
+#: ../source/guide/mmm/comparison.md fc189568d9f3470294dcaa08cd2dc547
+#, fuzzy
+msgid "**GPU Sampling Acceleration**"
+msgstr "**Aceleración de muestreo de GPU**"
+
+#: ../source/guide/mmm/comparison.md dc6ec21ce8b84fda96c35a48f3bdb747
+msgid "**Consulting Support**"
+msgstr "**Soporte de Consultoría**"
+
+#: ../source/guide/mmm/comparison.md 16ebe42e7ec547b8a5d1459f246442d9
+msgid "Provided by Authors"
+msgstr "Proporcionado por los autores"
+
+#: ../source/guide/mmm/comparison.md e59cf7fcb34a453ba28dc07e5a945f81
+msgid "Third-party agency"
+msgstr "Agencia de terceros"
+
+#: ../source/guide/mmm/comparison.md:27 22bcaef7e6884f4ea746d659dd710ac1
+msgid ""
+"*\\*Meridian has been released as successor of Lightweight-MMM, which has "
+"been deprecated by Google*"
+msgstr ""
+"*\\*Meridian ha sido lanzado como sucesor de Lightweight-MMM, que ha sido "
+"desaprobado por Google*"
+
+#: ../source/guide/mmm/comparison.md:29 e7f205bfd2cc439282ddeb85211c4519
+#, fuzzy
+msgid "Last updated: 2025-10-17"
+msgstr "Última actualización: 2025-08-07"
+
+#: ../source/guide/mmm/comparison.md:32 e5f5a5121a024230829806bbf075c716
+msgid "Key Takeaway"
+msgstr "Conclusión clave"
+
+#: ../source/guide/mmm/comparison.md:33 1029ae15e687400799d6da38c5704c73
+#, fuzzy
+msgid ""
+"Four of the five major libraries for MMMs implement different flavors of "
+"Bayesian models. While they share a broadly similar statistical foundation, "
+"they differ in API flexibility, underlying technology stack, and "
+"implementation approach."
+msgstr ""
+"Cuatro de las cinco principales bibliotecas para modelos MMM implementan "
+"diferentes variantes de modelos bayesianos. Aunque comparten una base "
+"estadística ampliamente similar, difieren en la flexibilidad de la API, la "
+"pila de tecnología subyacente y el enfoque de implementación."
+
+#: ../source/guide/mmm/comparison.md:35 082bcf8fe093421d9852c4cf79caea77
+#, fuzzy
+msgid ""
+"PyMC-Marketing stands out as the most widely used library by PyPI downloads "
+"(see plot below), offering unmatched flexibility and a comprehensive set of "
+"advanced features. This makes it ideal for teams looking for a highly "
+"customizable, state-of-the-art solution. Its breadth and depth open the door"
+" to deeper understanding and mastery for those willing to explore its full "
+"capabilities."
+msgstr ""
+"PyMC-Marketing se destaca como la biblioteca más utilizada por descargas de "
+"PyPI (ver gráfico a continuación), ofreciendo una flexibilidad inigualable y"
+" un conjunto completo de características avanzadas. Esto la hace ideal para "
+"equipos que buscan una solución altamente personalizable y de última "
+"generación. Sin embargo, su amplitud y profundidad también la convierten en "
+"la opción más sofisticada, lo que puede requerir una curva de aprendizaje "
+"más pronunciada. Otras bibliotecas tienen sus propias fortalezas; por "
+"ejemplo, Google Meridian presenta una API más opinada y una integración "
+"fluida con el ecosistema de Google, lo que puede ser ventajoso para "
+"organizaciones ya integradas en la pila de Google."
+
+#: ../source/guide/mmm/comparison.md:37 a0d4f53c417b4a43b6fb2e8babc3f70b
+msgid ""
+"However, other libraries have their own strengths — for example, Robyn is "
+"popular in the R community and provides extensive tutorials and "
+"documentation."
+msgstr ""
+"{\n"
+"  \"singular\": \"Sin embargo, otras bibliotecas tienen sus propias fortalezas; por ejemplo, Robyn es popular en la comunidad de R y proporciona tutoriales y documentación extensos.\",\n"
+"  \"plural\": \"Sin embargo, otras bibliotecas tienen sus propias fortalezas; por ejemplo, Robyn es popular en la comunidad de R y proporciona tutoriales y documentación extensos.\"\n"
+"}"
+
+#: ../source/guide/mmm/comparison.md:39 daae905a5e394f6d8d0338529b0ccaa7
+msgid "Your optimal choice should depend primarily on:"
+msgstr "Tu elección óptima debería depender principalmente de:"
+
+#: ../source/guide/mmm/comparison.md:41 388149d293d847debc743a2723af32e7
+msgid "Your team's technical expertise"
+msgstr "La experiencia técnica de tu equipo"
+
+#: ../source/guide/mmm/comparison.md:42 88ee4aadea554f02a1be5212cd85026a
+msgid "Your primary advertising channels"
+msgstr "Tus canales de publicidad principales"
+
+#: ../source/guide/mmm/comparison.md:43 5f7b823bbca04e75b51af7c1361e55d5
+msgid ""
+"Preference for an independent open-source solution vs. one sponsored by Ad "
+"Networks"
+msgstr ""
+"Preferencia por una solución independiente de código abierto frente a una "
+"patrocinada por redes publicitarias."
+
+#: ../source/guide/mmm/comparison.md:45 6c0586b3a1114522b870d0d603f7467d
+msgid "![MMM Downloads Analysis](./mmm_downloads_analysis.png)"
+msgstr "![Análisis de Descargas de MMM](./mmm_downloads_analysis.png)"
+
+#: ../source/guide/mmm/comparison.md:45 f095ebb8e839492abbe178ba443d0eaa
+msgid "MMM Downloads Analysis"
+msgstr "Análisis de Descargas MMM"
+
+#: ../source/guide/mmm/comparison.md:47 b3f51875ed024a58b47f635620836b22
+msgid "Detailed Performance Benchmark"
+msgstr ""
+"{\n"
+"  \"singular\": \"Referencia de Rendimiento Detallada\",\n"
+"  \"plural\": \"Referencias de Rendimiento Detalladas\"\n"
+"}"
+
+#: ../source/guide/mmm/comparison.md:49 1194b2c789624f08b1604fb3e676b163
+#, python-format
+msgid ""
+"When it comes to Bayesian Media Mix Modeling the two most used options are "
+"PyMC-Marketing and Google Meridian. Our comprehensive technical benchmark "
+"comparing PyMC-Marketing against Google Meridian across realistic datasets "
+"(from startup to enterprise scale) reveals PyMC-Marketing's superior "
+"performance: **2-20x faster sampling**, **40% lower error** in channel "
+"contribution estimates, and **successful scaling** to large enterprise "
+"datasets where Meridian fails to converge. PyMC-Marketing's flexible "
+"sampling backends (NumPyro, BlackJAX, Nutpie) provide significant advantages"
+" over Meridian's fixed TensorFlow Probability implementation. See our "
+"[detailed benchmark analysis](https://www.pymc-labs.com/blog-posts/pymc-"
+"marketing-vs-google-meridian) for complete results and open-source "
+"methodology."
+msgstr ""
+"{\n"
+"  \"singular\": \"Cuando se trata de Modelado de Mezcla de Medios Bayesiano, las dos opciones más utilizadas son PyMC-Marketing y Google Meridian. Nuestro exhaustivo análisis técnico que compara PyMC-Marketing con Google Meridian a través de conjuntos de datos realistas (desde startups hasta empresas grandes) revela el rendimiento superior de PyMC-Marketing: **2-20x más rápido en muestreo**, **40% menos error** en las estimaciones de contribución de canales, y **escalado exitoso** a grandes conjuntos de datos empresariales donde Meridian no logra converger. Los backends de muestreo flexibles de PyMC-Marketing (NumPyro, BlackJAX, Nutpie) ofrecen ventajas significativas sobre la implementación fija de TensorFlow Probability de Meridian. Consulte nuestro [análisis de benchmark detallado](https://www.pymc-labs.com/blog-posts/pymc-marketing-vs-google-meridian) para obtener resultados completos y metodología de código abierto.\",\n"
+"  \"plural\": \"Cuando se trata de Modelado de Mezcla de Medios Bayesiano, las dos opciones más utilizadas son PyMC-Marketing y Google Meridian. Nuestro exhaustivo análisis técnico que compara PyMC-Marketing con Google Meridian a través de conjuntos de datos realistas (desde startups hasta empresas grandes) revela el rendimiento superior de PyMC-Marketing: **2-20x más rápido en muestreo**, **40% menos error** en las estimaciones de contribución de canales, y **escalado exitoso** a grandes conjuntos de datos empresariales donde Meridian no logra converger. Los backends de muestreo flexibles de PyMC-Marketing (NumPyro, BlackJAX, Nutpie) ofrecen ventajas significativas sobre la implementación fija de TensorFlow Probability de Meridian. Consulte nuestro [análisis de benchmark detallado](https://www.pymc-labs.com/blog-posts/pymc-marketing-vs-google-meridian) para obtener resultados completos y metodología de código abierto.\"\n"
+"}"
+
+#: ../source/guide/mmm/comparison.md:51 3ad7109bd7e24088be8f1fa403630ea6
+msgid "Our Recommendation"
+msgstr "Nuestra recomendación"
+
+#: ../source/guide/mmm/comparison.md:53 8763cbdb5a9e48b0a0579d6ebad75151
+msgid "Choose Meta Robyn if:"
+msgstr "Elige Meta Robyn si:"
+
+#: ../source/guide/mmm/comparison.md:55 a2640a7690a941ceaae439a9eaf0e8e4
+msgid "Your team primarily uses R instead of Python"
+msgstr "Tu equipo utiliza principalmente R en lugar de Python."
+
+#: ../source/guide/mmm/comparison.md:56 47cbb98531c94d94aac1c2b7b0e24012
+msgid ""
+"You prefer a simpler but less rigorous approach  than Bayesian Models (Ridge"
+" regression)"
+msgstr ""
+"Prefieres un enfoque más simple pero menos riguroso que los Modelos "
+"Bayesianos (regresión Ridge)"
+
+#: ../source/guide/mmm/comparison.md:57 dd92c9351896482ebfcbb764a38ce66c
+msgid "You want direct integration with Meta/Facebook advertising data"
+msgstr ""
+"Quieres integración directa con los datos de publicidad de Meta/Facebook"
+
+#: ../source/guide/mmm/comparison.md:59 b7a72942965a4ef89dc6c4bfb30bce7c
+msgid "Choose Google Meridian if:"
+msgstr "Elige Google Meridian si:"
+
+#: ../source/guide/mmm/comparison.md:61 0ed730a9b1174e268c37826af7ccd646
+msgid ""
+"You want a simplified (albeit less flexible) API to build models across "
+"geographies"
+msgstr ""
+"Quieres una API simplificada (aunque menos flexible) para construir modelos "
+"a través de geografías."
+
+#: ../source/guide/mmm/comparison.md:62 0c3c947181cb4857a6f7eb2f195266e2
+msgid "Direct integration with the Google advertising ecosystem is important"
+msgstr ""
+"La integración directa con el ecosistema publicitario de Google es "
+"importante"
+
+#: ../source/guide/mmm/comparison.md:63 9ec0c198f509421c98b296af0de12be1
+msgid "You can allow for reduced predictive accuracy and explainability"
+msgstr ""
+"{\n"
+"  \"singular\": \"Puede permitir una precisión predictiva y una explicabilidad reducidas\",\n"
+"  \"plural\": \"Puede permitir precisiones predictivas y explicabilidades reducidas\"\n"
+"}"
+
+#: ../source/guide/mmm/comparison.md:65 c73e150252284706adb1af0219925443
+msgid "Choose PyMC-Marketing if:"
+msgstr "Elige PyMC-Marketing si:"
+
+#: ../source/guide/mmm/comparison.md:67 a717168a88f94e45bb3bf34887dcfbf2
+msgid ""
+"Maximum flexibility for complex, unique business requirements is necessary"
+msgstr ""
+"La máxima flexibilidad para requisitos comerciales complejos y únicos es "
+"necesaria."
+
+#: ../source/guide/mmm/comparison.md:68 5a71d81f4ebe459ca9b03b193c032d03
+msgid ""
+"You need advanced statistical modeling capabilities (e.g., Gaussian "
+"Processes)"
+msgstr ""
+"Necesitas capacidades avanzadas de modelado estadístico (por ejemplo, "
+"Procesos Gaussianos)"
+
+#: ../source/guide/mmm/comparison.md:69 6d525d2e821c4398a0bead64e2c24140
+msgid ""
+"Production ready setup and integration into broader data science workflows "
+"is important (MLflow)"
+msgstr ""
+"La configuración lista para producción y la integración en flujos de trabajo"
+" de ciencia de datos más amplios es importante (MLflow)"
+
+#: ../source/guide/mmm/comparison.md:70 d257d4eaa83e485db032a5fd65dc2a53
+msgid "You prefer independence from major ad publishers and networks"
+msgstr ""
+"Prefieres la independencia de los principales editores de anuncios y redes."
+
+#: ../source/guide/mmm/comparison.md:71 55b5f1a6fd2140d3b5eaad5cf056eef7
+#, fuzzy
+msgid ""
+"Professional independent consulting support is desirable info@pymc-labs.com"
+msgstr "El soporte de consultoría profesional es deseable"
+
+#~ msgid "**Model Building**"
+#~ msgstr "**Construcción de Modelos**"
+
+#~ msgid "🏗️ Build"
+#~ msgstr "🏗️ Construir"
+
+#~ msgid "You want strong integration with other Google products such as Collab"
+#~ msgstr ""
+#~ "Quieres una integración sólida con otros productos de Google como Collab."

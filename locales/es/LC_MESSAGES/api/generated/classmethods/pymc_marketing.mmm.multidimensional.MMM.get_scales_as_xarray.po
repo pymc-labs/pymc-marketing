@@ -1,0 +1,54 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.multidimensional.MMM.get_scales_as_xarray.rst:2
+#: 314d1b103b6740f2ab6aa7e7aa5657bc
+msgid "MMM.get\\_scales\\_as\\_xarray"
+msgstr "MMM.obtener\\_escalas\\_como\\_xarray"
+
+#: 839579e9595d4bdd816c945e9d16c786 of
+#: pymc_marketing.mmm.multidimensional.MMM.get_scales_as_xarray:2
+msgid "Return the saved scaling factors as xarray DataArrays."
+msgstr ""
+"Devuelva los factores de escalado guardados como DataArrays de xarray."
+
+#: 3eccfbc26729445ab73d31cf7b0b3fb8 of
+#: pymc_marketing.mmm.multidimensional.MMM.get_scales_as_xarray
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 8224f535b24b4b8e8862d02595f4facf of
+#: pymc_marketing.mmm.multidimensional.MMM.get_scales_as_xarray:10
+msgid ":class:`python:dict`\\[:class:`python:str`, :obj:`xr.DataArray`]"
+msgstr ":class:`python:dict`\\[:class:`python:str`, :obj:`xr.DataArray`]"
+
+#: f47736ffbda346e18bc1317e60fcae4b of
+#: pymc_marketing.mmm.multidimensional.MMM.get_scales_as_xarray:11
+msgid "A dictionary containing the scaling factors for channels and target."
+msgstr ""
+"Un diccionario que contiene los factores de escala para los canales y el "
+"objetivo."
+
+#: 58a0954e3d97436a8224b6a49644e64a of
+#: pymc_marketing.mmm.multidimensional.MMM.get_scales_as_xarray:23
+msgid "Examples"
+msgstr "Ejemplos"

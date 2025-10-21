@@ -1,0 +1,132 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-13 11:28+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.TBF_FCI.fit.rst:2
+#: 955b8bfe885e451da0a3a455939913cd
+msgid "TBF\\_FCI.fit"
+msgstr ""
+"{\n"
+"  \"singular\": \"TBF_FCI.fit\",\n"
+"  \"plural\": \"TBF_FCI.fit\"\n"
+"}"
+
+#: cf67249ca5f2467195681eab6088af7c of pymc_marketing.mmm.causal.TBF_FCI.fit:2
+msgid "Fit the temporal causal discovery algorithm to ``df``."
+msgstr ""
+"{\n"
+"  \"singular\": \"Ajuste el algoritmo de descubrimiento causal temporal a ``df``.\",\n"
+"  \"plural\": \"Ajusten el algoritmo de descubrimiento causal temporal a ``df``.\"\n"
+"}"
+
+#: 59d0d78995464dd1a2f87d3c6272006a of pymc_marketing.mmm.causal.TBF_FCI.fit
+msgid "Parameters"
+msgstr ""
+"{\n"
+"  \"singular\": \"Parámetro\",\n"
+"  \"plural\": \"Parámetros\"\n"
+"}"
+
+#: 65be10a2197a4e5b9f2f87d615a4722e of pymc_marketing.mmm.causal.TBF_FCI.fit:7
+msgid "**df** : :obj:`pandas.DataFrame`"
+msgstr ""
+"{\n"
+"  \"singular\": \"**df** : :obj:`pandas.DataFrame`\",\n"
+"  \"plural\": \"**df** : :obj:`pandas.DataFrame`\"\n"
+"}"
+
+#: 4ccb3d5a19c9418bab4031d68fe6c60d of pymc_marketing.mmm.causal.TBF_FCI.fit:6
+msgid "pandas.DataFrame"
+msgstr ""
+"{\n"
+"  \"singular\": \"pandas.DataFrame\",\n"
+"  \"plural\": \"pandas.DataFrame\"\n"
+"}"
+
+#: b6fa009f729f412da3d8448243ca1c2c of pymc_marketing.mmm.causal.TBF_FCI.fit:8
+msgid "Input dataframe containing the target column and every driver column."
+msgstr ""
+"{\n"
+"  \"singular\": \"Marco de datos de entrada que contiene la columna objetivo y cada columna de controlador.\",\n"
+"  \"plural\": \"Marcos de datos de entrada que contienen la columna objetivo y cada columna de controlador.\"\n"
+"}"
+
+#: 64ebb2ab87d641809eece4679f6f2197 of
+#: pymc_marketing.mmm.causal.TBF_FCI.fit:11
+msgid "**drivers** : :obj:`Sequence`\\[:class:`python:str`]"
+msgstr ""
+"{\n"
+"  \"singular\": \"**controlador** : :obj:`Secuencia`\\[:class:`python:str`]\",\n"
+"  \"plural\": \"**controladores** : :obj:`Secuencia`\\[:class:`python:str`]\"\n"
+"}"
+
+#: beff1508e9794dceabcb1259ea1b6cc4 of
+#: pymc_marketing.mmm.causal.TBF_FCI.fit:10
+msgid "Sequence[python:str]"
+msgstr ""
+"{\n"
+"  \"singular\": \"Secuencia[python:str]\",\n"
+"  \"plural\": \"Secuencias[python:str]\"\n"
+"}"
+
+#: 11526d19c5c94377bfdaaf22dea23f17 of
+#: pymc_marketing.mmm.causal.TBF_FCI.fit:12
+msgid "Iterable of column names to be treated as drivers of the target."
+msgstr ""
+"{\n"
+"  \"singular\": \"Iterable de nombres de columna a ser tratados como impulsores del objetivo.\",\n"
+"  \"plural\": \"Iterables de nombres de columna a ser tratados como impulsores del objetivo.\"\n"
+"}"
+
+#: 320ac22d50b04b2b95efc00eda77e7cf of pymc_marketing.mmm.causal.TBF_FCI.fit
+msgid "Returns"
+msgstr ""
+"{\n"
+"  \"singular\": \"Devoluciones\",\n"
+"  \"plural\": \"Devoluciones\"\n"
+"}"
+
+#: 8161d9675f75467bb21a352e75f8617d of
+#: pymc_marketing.mmm.causal.TBF_FCI.fit:18
+msgid ":obj:`TBF_FCI`"
+msgstr ""
+"{\n"
+"  \"singular\": \":obj:`TBF_FCI`\",\n"
+"  \"plural\": \":obj:`TBF_FCI`\"\n"
+"}"
+
+#: ef8386ce3986475f8417c0fd1fbdb5ee of
+#: pymc_marketing.mmm.causal.TBF_FCI.fit:19
+msgid "The fitted instance with internal adjacency structures populated."
+msgstr ""
+"{\n"
+"  \"singular\": \"La instancia ajustada con estructuras de adyacencia internas pobladas.\",\n"
+"  \"plural\": \"Las instancias ajustadas con estructuras de adyacencia internas pobladas.\"\n"
+"}"
+
+#: b8be3c4a4636429cbd673142eeb3978c of
+#: pymc_marketing.mmm.causal.TBF_FCI.fit:31
+msgid "Examples"
+msgstr ""
+"{\n"
+"  \"singular\": \"Ejemplo\",\n"
+"  \"plural\": \"Ejemplos\"\n"
+"}"

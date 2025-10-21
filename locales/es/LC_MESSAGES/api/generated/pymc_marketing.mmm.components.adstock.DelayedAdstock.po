@@ -1,0 +1,325 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:2
+#: 66282fcab03e41a1b4c75ebaa4d29cff
+msgid "DelayedAdstock"
+msgstr "AdstockRetrasado"
+
+#: b2bc6ade331f43a6b0f4e331b0b2ccb6 of
+#: pymc_marketing.mmm.components.adstock.DelayedAdstock:2
+msgid "Wrapper around delayed adstock function."
+msgstr "Envoltura alrededor de la función de adstock retrasado."
+
+#: 35adc2f7c10e49aaae1776c27cf9f8bd of
+#: pymc_marketing.mmm.components.adstock.DelayedAdstock:4
+msgid ""
+"For more information, see "
+":func:`pymc_marketing.mmm.transformers.delayed_adstock`."
+msgstr ""
+"Para más información, consulte "
+":func:`pymc_marketing.mmm.transformers.delayed_adstock`."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:7
+#: 3176e0f92c8e48c8bcc4a6c594f0879e
+msgid ""
+"(:download:`Source code "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-adstock-DelayedAdstock-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-adstock-DelayedAdstock-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-adstock-DelayedAdstock-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-adstock-DelayedAdstock-1.pdf>`)"
+msgstr ""
+"(:download:`Código fuente "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-adstock-DelayedAdstock-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-adstock-DelayedAdstock-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-adstock-DelayedAdstock-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-adstock-DelayedAdstock-1.pdf>`)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:12
+#: 1fdd9a0dc5dc41689113b295d3f22d40
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:32:<autosummary>:1
+#: dadcdd9eb5cd46a5a93705755e175473
+msgid ""
+":py:obj:`DelayedAdstock.__init__ "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock.__init__>`\\ "
+"\\(\\[l\\_max\\, normalize\\, ...\\]\\)"
+msgstr ""
+":py:obj:`DelayedAdstock.__init__ "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock.__init__>`\\ "
+"\\(\\[l\\_max\\, normalizar\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:32:<autosummary>:1
+#: 01fde4de5b91412dbc5cf9705c013efc
+msgid ""
+":py:obj:`DelayedAdstock.apply "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock.apply>`\\ \\(x\\[\\, "
+"dims\\, idx\\]\\)"
+msgstr ""
+":py:obj:`DelayedAdstock.apply "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock.apply>`\\ \\(x\\[\\, "
+"dims\\, idx\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:32:<autosummary>:1
+#: 24a00463b2494c4192aa490122743542
+msgid "Call within a model context."
+msgstr "Llamar dentro de un contexto de modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:32:<autosummary>:1
+#: ce9097a6b74a410fa4211128c65d975f
+msgid ""
+":py:obj:`DelayedAdstock.function "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock.function>`\\ \\(x\\, "
+"alpha\\, theta\\)"
+msgstr ""
+":py:obj:`DelayedAdstock.function "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock.function>`\\ \\(x\\, "
+"alpha\\, theta\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:32:<autosummary>:1
+#: ee3ecea19b64459da01879f777f55153
+msgid "Delayed adstock function."
+msgstr "Función de adstock retrasada."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:32:<autosummary>:1
+#: 873831ab19b748bcbe149fe0ae832e67
+msgid ""
+":py:obj:`DelayedAdstock.plot_curve "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock.plot_curve>`\\ "
+"\\(curve\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`DelayedAdstock.plot_curve "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock.plot_curve>`\\ "
+"\\(curve\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:32:<autosummary>:1
+#: 9e3badfa4857412993e73d2280919e91
+msgid "Plot curve HDI and samples."
+msgstr "Trazar curva HDI y muestras."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:32:<autosummary>:1
+#: 974335f4d2cf42549d00b590eb46be53
+msgid ""
+":py:obj:`DelayedAdstock.plot_curve_hdi "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock.plot_curve_hdi>`\\ "
+"\\(curve\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`DelayedAdstock.plot_curve_hdi "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock.plot_curve_hdi>`\\ "
+"\\(curva\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:32:<autosummary>:1
+#: 8817940595e64fd6a66561c80f271769
+msgid "Plot the HDI of the curve."
+msgstr "Trace el IDH de la curva."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:32:<autosummary>:1
+#: e410dce47aa4405bb88538edd38cf4ff
+msgid ""
+":py:obj:`DelayedAdstock.plot_curve_samples "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock.plot_curve_samples>`\\"
+" \\(curve\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`DelayedAdstock.plot_curve_samples "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock.plot_curve_samples>`\\"
+" \\(curva\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:32:<autosummary>:1
+#: a9dd1e6650744c27962776b05d560dc2
+msgid "Plot samples from the curve."
+msgstr "Trazar muestras de la curva."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:32:<autosummary>:1
+#: 448092cf0e304bb18b8ce68f996a1113
+msgid ""
+":py:obj:`DelayedAdstock.sample_curve "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock.sample_curve>`\\ "
+"\\(parameters\\[\\, amount\\]\\)"
+msgstr ""
+":py:obj:`DelayedAdstock.sample_curve "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock.sample_curve>`\\ "
+"\\(parámetros\\[\\, cantidad\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:32:<autosummary>:1
+#: dc59e5ea6d944b25bd87798eb81d023c
+msgid "Sample the adstock transformation given parameters."
+msgstr "Muestre la transformación de adstock dados los parámetros."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:32:<autosummary>:1
+#: 9b06213d84ca4b1d9520214085f98aec
+msgid ""
+":py:obj:`DelayedAdstock.sample_prior "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock.sample_prior>`\\ "
+"\\(\\[coords\\]\\)"
+msgstr ""
+":py:obj:`DelayedAdstock.sample_prior "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock.sample_prior>`\\ "
+"\\(\\[coords\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:32:<autosummary>:1
+#: f1a94d8e8c6b4786a771027e68435f9d
+msgid "Sample the priors for the transformation."
+msgstr "Muestree las distribuciones a priori para la transformación."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:32:<autosummary>:1
+#: 5a84370edc0549709053831fbfb595b7
+msgid ""
+":py:obj:`DelayedAdstock.set_dims_for_all_priors "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock.set_dims_for_all_priors>`\\"
+" \\(dims\\)"
+msgstr ""
+":py:obj:`DelayedAdstock.set_dims_for_all_priors "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock.set_dims_for_all_priors>`\\"
+" \\(dims\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:32:<autosummary>:1
+#: d3daa69b42f34d308b044fd618b7f9e0
+msgid "Set the dims for all priors."
+msgstr "Establezca las dimensiones para todos los antecedentes."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:32:<autosummary>:1
+#: a32f644e7ceb473391024c313a101f50
+msgid ""
+":py:obj:`DelayedAdstock.to_dict "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock.to_dict>`\\ \\(\\)"
+msgstr ""
+":py:obj:`DelayedAdstock.to_dict "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock.to_dict>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:32:<autosummary>:1
+#: 8cccd99c1ccc4bd387515877c06a46d3
+msgid "Convert the adstock transformation to a dictionary."
+msgstr "Convierte la transformación de adstock a un diccionario."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:32:<autosummary>:1
+#: 36c32c2cdf9640c4a8f8c6f4e5b6514c
+msgid ""
+":py:obj:`DelayedAdstock.update_priors "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock.update_priors>`\\ "
+"\\(priors\\)"
+msgstr ""
+":py:obj:`DelayedAdstock.update_priors "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock.update_priors>`\\ "
+"\\(priors\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:32:<autosummary>:1
+#: 60b5ae0bd64042928e868867713035a1
+msgid "Update the priors for a function after initialization."
+msgstr "Actualice los priors para una función después de la inicialización."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:34
+#: 70b0f66982ac4a69a315f5b3591c5bbe
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:43:<autosummary>:1
+#: 43d7913e05be4e5b9e76f8756b68ae3e
+msgid ""
+":py:obj:`combined_dims "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock.combined_dims>`\\"
+msgstr ""
+":py:obj:`combined_dims "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock.combined_dims>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:43:<autosummary>:1
+#: 1a91fba284a2442db9546d2c6c3a34cd
+msgid "Get the combined dims for all the parameters."
+msgstr "Obtenga las dimensiones combinadas para todos los parámetros."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:43:<autosummary>:1
+#: 00591d6043204fed9d529a50b179c926
+msgid ""
+":py:obj:`default_priors "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock.default_priors>`\\"
+msgstr ""
+":py:obj:`default_priors "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock.default_priors>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:43:<autosummary>:1
+#: c8537c1c0fe143eba2ee3611e471fb37
+msgid ""
+":py:obj:`function_priors "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock.function_priors>`\\"
+msgstr ""
+":py:obj:`function_priors "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock.function_priors>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:43:<autosummary>:1
+#: a6227fb929404424b210d727eea124c1
+msgid "Get the priors for the function."
+msgstr "Obtenga los priors para la función."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:43:<autosummary>:1
+#: 6aa4e998359a49c0945ba262f3f511ae
+msgid ""
+":py:obj:`lookup_name "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock.lookup_name>`\\"
+msgstr ""
+":py:obj:`lookup_name "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock.lookup_name>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:43:<autosummary>:1
+#: f3feb747cb98444b88a55fe57e32195b
+msgid ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock.model_config>`\\"
+msgstr ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock.model_config>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:43:<autosummary>:1
+#: 5e4452eb1f9c460bbccf31658c870fc2
+msgid "Mapping from variable name to prior for the model."
+msgstr "Mapeo del nombre de la variable a la prior para el modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:43:<autosummary>:1
+#: a6848bdd867f485185c557f06ef1e03b
+msgid ""
+":py:obj:`prefix "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock.prefix>`\\"
+msgstr ""
+":py:obj:`prefix "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock.prefix>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:43:<autosummary>:1
+#: 140a69d2c7594d4ba18675b3d8e13457
+msgid ""
+":py:obj:`variable_mapping "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock.variable_mapping>`\\"
+msgstr ""
+":py:obj:`variable_mapping "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock.variable_mapping>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:43:<autosummary>:1
+#: dcd4511e6e4f45e3b94a628b619914fc
+msgid "Mapping from parameter name to variable name in the model."
+msgstr "Mapeo del nombre del parámetro al nombre de la variable en el modelo."

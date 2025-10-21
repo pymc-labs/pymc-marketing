@@ -1,0 +1,78 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.BuildModelFromDAG.build.rst:2
+#: 19e00e5e995a456396d608c13d8def3e
+msgid "BuildModelFromDAG.build"
+msgstr "BuildModelFromDAG.build"
+
+#: fa9cf9ffc3e64c2eb9a752bc691e322c of
+#: pymc_marketing.mmm.causal.BuildModelFromDAG.build:2
+msgid "Construct and return the PyMC model implied by the DAG and data."
+msgstr "Construya y devuelva el modelo PyMC implícito en el DAG y los datos."
+
+#: 5249eab6509643c19eb39cf3f759ea18 of
+#: pymc_marketing.mmm.causal.BuildModelFromDAG.build:4
+msgid ""
+"The method creates a ``pm.Data`` container for every node to align the "
+"observed data with the declared ``dims``. For each edge ``A -> B``, a slope "
+"prior is instantiated from ``model_config['slope']`` and used in the mean of"
+" node ``B``'s likelihood, which is instantiated from "
+"``model_config['likelihood']``."
+msgstr ""
+"El método crea un contenedor ``pm.Data`` para cada nodo con el fin de "
+"alinear los datos observados con los ``dims`` declarados. Para cada arista "
+"``A -> B``, se instancia un prior de pendiente a partir de "
+"``model_config['slope']`` y se utiliza en la media de la verosimilitud del "
+"nodo ``B``, que se instancia a partir de ``model_config['likelihood']``."
+
+#: 49efd038f90049ebaf3d24a131c84fda of
+#: pymc_marketing.mmm.causal.BuildModelFromDAG.build
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 807743c6082846e4972f46241432a1a7 of
+#: pymc_marketing.mmm.causal.BuildModelFromDAG.build:15
+msgid ":obj:`pymc.Model`"
+msgstr ":obj:`pymc.Model`"
+
+#: 6046fa2e9af24662aaa3e2a46d227c96 of
+#: pymc_marketing.mmm.causal.BuildModelFromDAG.build:16
+msgid "A fully specified model with slopes and likelihoods for all nodes."
+msgstr ""
+"Un modelo completamente especificado con pendientes y probabilidades para "
+"todos los nodos."
+
+#: 89f7aa688d6444519f5aca96a963a3e7 of
+#: pymc_marketing.mmm.causal.BuildModelFromDAG.build:28
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: 13de407b76934467a5dda0c60432ffe8 of
+#: pymc_marketing.mmm.causal.BuildModelFromDAG.build:29
+msgid "Build a model and sample from it:"
+msgstr "Construya un modelo y muestree de él:"
+
+#: 6e8a397f796846ccb19fc5805379d9dc of
+#: pymc_marketing.mmm.causal.BuildModelFromDAG.build:40
+msgid "Multi-dimensional dims (e.g. date and country):"
+msgstr "Dimensiones multidimensionales (por ejemplo, fecha y país):"

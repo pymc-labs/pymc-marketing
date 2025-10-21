@@ -56,8 +56,11 @@ def setup_module():
 
     yield
 
-    pm.sample = pm.sample.__wrapped__
-    MMM.fit = MMM.fit.__wrapped__
+    # Restore to original (unwrap any wrappers applied during this test)
+    while hasattr(pm.sample, "__wrapped__"):
+        pm.sample = pm.sample.__wrapped__
+    while hasattr(MMM.fit, "__wrapped__"):
+        MMM.fit = MMM.fit.__wrapped__
 
 
 @pytest.fixture(scope="module")
@@ -571,7 +574,7 @@ def mock_idata() -> az.InferenceData:
 def test_log_sample_diagnostics_missing_group(mock_idata, selected_group: str) -> None:
     idata = az.InferenceData(**{selected_group: mock_idata[selected_group]})
     missing_group = "sample_stats" if selected_group == "posterior" else "posterior"
-    match = f"InferenceData object does not contain the group {missing_group}."
+    match = rf"InferenceData object does not contain the group {missing_group}."
     with pytest.raises(KeyError, match=match):
         log_sample_diagnostics(idata)
 
@@ -743,7 +746,7 @@ def test_log_mmm_evaluation_metrics() -> None:
 
 
 def test_callback_raises() -> None:
-    match = "At least one of"
+    match = r"At least one of"
     with pytest.raises(ValueError, match=match):
         create_log_callback()
 
@@ -795,7 +798,7 @@ def test_log_error() -> None:
     main = log_error(baz, file_name=file_name)
 
     with mlflow.start_run() as run:
-        with pytest.raises(MyException, match="This is an error"):
+        with pytest.raises(MyException, match=r"This is an error"):
             main()
 
     assert mlflow.active_run() is None

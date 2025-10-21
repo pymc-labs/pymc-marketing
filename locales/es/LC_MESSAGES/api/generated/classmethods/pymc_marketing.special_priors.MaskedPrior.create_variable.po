@@ -1,0 +1,82 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.special_priors.MaskedPrior.create_variable.rst:2
+#: 95e01d160f8849dc8a74844810817fd8
+msgid "MaskedPrior.create\\_variable"
+msgstr "MaskedPrior.crear\\_variable"
+
+#: 01295f08b82144d09e405aec16d07b8b of
+#: pymc_marketing.special_priors.MaskedPrior.create_variable:2
+msgid ""
+"Create a deterministic variable with full dims using the active subset."
+msgstr ""
+"Cree una variable determinista con dimensiones completas utilizando el "
+"subconjunto activo."
+
+#: 114b60f4ffbc43f7aea9a90462a3344c of
+#: pymc_marketing.special_priors.MaskedPrior.create_variable:4
+msgid ""
+"Creates an underlying variable over the active entries only and expands it "
+"back to the full masked shape, filling inactive entries with zeros."
+msgstr ""
+"Crea una variable subyacente solo sobre las entradas activas y la expande de"
+" nuevo a la forma enmascarada completa, llenando las entradas inactivas con "
+"ceros."
+
+#: dcc3329584934cb28b3603ef9dad1ba0 of
+#: pymc_marketing.special_priors.MaskedPrior.create_variable
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 0fdb5bc889ae434f9d2446862448fb31 of
+#: pymc_marketing.special_priors.MaskedPrior.create_variable:9
+msgid "**name** : :class:`python:str`"
+msgstr "**nombre** : :class:`python:str`"
+
+#: ae22313a18014817ad5095832b4828ed of
+#: pymc_marketing.special_priors.MaskedPrior.create_variable:8
+msgid "python:str"
+msgstr "python:str"
+
+#: 77c7840c3fa849a0bbe170a1800d1ae4 of
+#: pymc_marketing.special_priors.MaskedPrior.create_variable:10
+msgid "Base name for the created variables."
+msgstr "Nombre base para las variables creadas."
+
+#: b20a2c78d2e14d629ce1d01006734b2b of
+#: pymc_marketing.special_priors.MaskedPrior.create_variable
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: f4b5189188df4cf09f7bdadd83e155eb of
+#: pymc_marketing.special_priors.MaskedPrior.create_variable:16
+msgid ":obj:`pt.TensorVariable`"
+msgstr ":obj:`pt.TensorVariable`"
+
+#: 429bb10dd41c4809bf0965fbd957d58d of
+#: pymc_marketing.special_priors.MaskedPrior.create_variable:17
+msgid ""
+"Deterministic variable with the original dims, zeros on inactive entries."
+msgstr ""
+"Variable determinista con las dimensiones originales, ceros en las entradas "
+"inactivas."

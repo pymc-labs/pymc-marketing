@@ -1,0 +1,325 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:2
+#: 4342695f47994b15a12d970221831962
+msgid "WeibullPDFAdstock"
+msgstr "WeibullPDFAdstock"
+
+#: c91765a973e747929fb10902c02feeeb of
+#: pymc_marketing.mmm.components.adstock.WeibullPDFAdstock:2
+msgid "Wrapper around weibull adstock with PDF function."
+msgstr "Envoltura alrededor del adstock de Weibull con función PDF."
+
+#: ce03ad04756f44ad8456f102270fd40f of
+#: pymc_marketing.mmm.components.adstock.WeibullPDFAdstock:4
+msgid ""
+"For more information, see "
+":func:`pymc_marketing.mmm.transformers.weibull_adstock`."
+msgstr ""
+"Para más información, consulte "
+":func:`pymc_marketing.mmm.transformers.weibull_adstock`."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:7
+#: 2c8fbab649ed43c98691f50ef5ee8bdb
+msgid ""
+"(:download:`Source code "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-adstock-WeibullPDFAdstock-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-adstock-WeibullPDFAdstock-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-adstock-WeibullPDFAdstock-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-adstock-WeibullPDFAdstock-1.pdf>`)"
+msgstr ""
+"(:download:`Código fuente "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-adstock-WeibullPDFAdstock-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-adstock-WeibullPDFAdstock-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-adstock-WeibullPDFAdstock-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-adstock-WeibullPDFAdstock-1.pdf>`)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:12
+#: 7dd5824bff7e4feaaaa5a5e263b0fb9c
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:32:<autosummary>:1
+#: db246704b1e9442aa0d66e229ad6e796
+msgid ""
+":py:obj:`WeibullPDFAdstock.__init__ "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.__init__>`\\ "
+"\\(\\[l\\_max\\, ...\\]\\)"
+msgstr ""
+":py:obj:`WeibullPDFAdstock.__init__ "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.__init__>`\\ "
+"\\(\\[l\\_max\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:32:<autosummary>:1
+#: 2de454f8545b4b809a57f32933303d8d
+msgid ""
+":py:obj:`WeibullPDFAdstock.apply "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.apply>`\\ "
+"\\(x\\[\\, dims\\, idx\\]\\)"
+msgstr ""
+":py:obj:`WeibullPDFAdstock.apply "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.apply>`\\ "
+"\\(x\\[\\, dims\\, idx\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:32:<autosummary>:1
+#: ee1e7d27a4e8423f9ff736c40280b37a
+msgid "Call within a model context."
+msgstr "Llamar dentro de un contexto de modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:32:<autosummary>:1
+#: 33e917308a46420faa5f3568a7dee8d7
+msgid ""
+":py:obj:`WeibullPDFAdstock.function "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.function>`\\ "
+"\\(x\\, lam\\, k\\)"
+msgstr ""
+":py:obj:`WeibullPDFAdstock.function "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.function>`\\ "
+"\\(x\\, lam\\, k\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:32:<autosummary>:1
+#: 3380f6de070a4852b3cfa682baabf4d4
+msgid "Weibull adstock function."
+msgstr "Función de adstock Weibull."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:32:<autosummary>:1
+#: 8ae71a5a2b3a41d88189eb13068ac555
+msgid ""
+":py:obj:`WeibullPDFAdstock.plot_curve "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.plot_curve>`\\ "
+"\\(curve\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`WeibullPDFAdstock.plot_curve "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.plot_curve>`\\ "
+"\\(curva\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:32:<autosummary>:1
+#: 74c2c12e143540b0ba00380ac71c4741
+msgid "Plot curve HDI and samples."
+msgstr "Trazar curva HDI y muestras."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:32:<autosummary>:1
+#: 9486eb03911f437799af9612e58c5f26
+msgid ""
+":py:obj:`WeibullPDFAdstock.plot_curve_hdi "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.plot_curve_hdi>`\\ "
+"\\(curve\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`WeibullPDFAdstock.plot_curve_hdi "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.plot_curve_hdi>`\\ "
+"\\(curva\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:32:<autosummary>:1
+#: 3b8e39dc042544efb78a3917124b6961
+msgid "Plot the HDI of the curve."
+msgstr "Trace el IDH de la curva."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:32:<autosummary>:1
+#: 1d4e0b74b983423cb1310f44d692e6ab
+msgid ""
+":py:obj:`WeibullPDFAdstock.plot_curve_samples "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.plot_curve_samples>`\\"
+" \\(curve\\)"
+msgstr ""
+":py:obj:`WeibullPDFAdstock.plot_curve_samples "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.plot_curve_samples>`\\"
+" \\(curva\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:32:<autosummary>:1
+#: 2777dcc34bf64cf386db96f8fc7b7d85
+msgid "Plot samples from the curve."
+msgstr "Trazar muestras de la curva."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:32:<autosummary>:1
+#: 75e1fdd26623404899657bba22e49e56
+msgid ""
+":py:obj:`WeibullPDFAdstock.sample_curve "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.sample_curve>`\\ "
+"\\(parameters\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`WeibullPDFAdstock.sample_curve "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.sample_curve>`\\ "
+"\\(parámetros\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:32:<autosummary>:1
+#: 848b2edb09994918a29f50dfda1483b2
+msgid "Sample the adstock transformation given parameters."
+msgstr "Muestre la transformación de adstock dados los parámetros."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:32:<autosummary>:1
+#: d5f5f42a189840dcb373457716dd7b48
+msgid ""
+":py:obj:`WeibullPDFAdstock.sample_prior "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.sample_prior>`\\ "
+"\\(\\[coords\\]\\)"
+msgstr ""
+":py:obj:`WeibullPDFAdstock.sample_prior "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.sample_prior>`\\ "
+"\\(\\[coords\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:32:<autosummary>:1
+#: b37eb965d7784c4b8f5bde219141ab28
+msgid "Sample the priors for the transformation."
+msgstr "Muestre las distribuciones previas para la transformación."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:32:<autosummary>:1
+#: 2366bf7fcb1c4d1180423ccb5ce245e8
+msgid ""
+":py:obj:`WeibullPDFAdstock.set_dims_for_all_priors "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.set_dims_for_all_priors>`\\"
+" \\(dims\\)"
+msgstr ""
+":py:obj:`WeibullPDFAdstock.set_dims_for_all_priors "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.set_dims_for_all_priors>`\\"
+" \\(dims\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:32:<autosummary>:1
+#: 85db5788c49d4bd4b12aafc9692ec001
+msgid "Set the dims for all priors."
+msgstr "Establezca las dimensiones para todos los antecedentes."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:32:<autosummary>:1
+#: 4da4b487cb2946fab479fde292cffa0e
+msgid ""
+":py:obj:`WeibullPDFAdstock.to_dict "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.to_dict>`\\ \\(\\)"
+msgstr ""
+":py:obj:`WeibullPDFAdstock.to_dict "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.to_dict>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:32:<autosummary>:1
+#: 1b24ca4165854aeca7a51376035f0c50
+msgid "Convert the adstock transformation to a dictionary."
+msgstr "Convierte la transformación de adstock a un diccionario."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:32:<autosummary>:1
+#: 7498b7b434014c108cb4fca13049b92d
+msgid ""
+":py:obj:`WeibullPDFAdstock.update_priors "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.update_priors>`\\ "
+"\\(priors\\)"
+msgstr ""
+":py:obj:`WeibullPDFAdstock.update_priors "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.update_priors>`\\ "
+"\\(priors\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:32:<autosummary>:1
+#: 83bcc86164d54687910b02fb115bb69e
+msgid "Update the priors for a function after initialization."
+msgstr "Actualice los priors para una función después de la inicialización."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:34
+#: b2f5ab6c552e48aaa3d7e4faa8a04fcc
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:43:<autosummary>:1
+#: b580b26f32f74c82917f7c3c9dfc0c07
+msgid ""
+":py:obj:`combined_dims "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.combined_dims>`\\"
+msgstr ""
+":py:obj:`combined_dims "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.combined_dims>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:43:<autosummary>:1
+#: 39de1aa3a54c42aca25af8dcd3ac771f
+msgid "Get the combined dims for all the parameters."
+msgstr "Obtenga las dimensiones combinadas para todos los parámetros."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:43:<autosummary>:1
+#: 12852ac3b7c7454aa7612dfaba4c580c
+msgid ""
+":py:obj:`default_priors "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.default_priors>`\\"
+msgstr ""
+":py:obj:`default_priors "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.default_priors>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:43:<autosummary>:1
+#: c251044f15d24fb5ad995d11cf3e24cd
+msgid ""
+":py:obj:`function_priors "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.function_priors>`\\"
+msgstr ""
+":py:obj:`function_priors "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.function_priors>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:43:<autosummary>:1
+#: 6ccca6496274418f9f07135350fe8d0f
+msgid "Get the priors for the function."
+msgstr "Obtenga los antecedentes para la función."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:43:<autosummary>:1
+#: 1ab3138335d3422b9ef58efd119a7bef
+msgid ""
+":py:obj:`lookup_name "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.lookup_name>`\\"
+msgstr ""
+":py:obj:`lookup_name "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.lookup_name>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:43:<autosummary>:1
+#: 308ffc5b05594011bfc47bb9677e3025
+msgid ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.model_config>`\\"
+msgstr ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.model_config>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:43:<autosummary>:1
+#: 5115f4c618934cef93833f87d7b2e8c4
+msgid "Mapping from variable name to prior for the model."
+msgstr "Mapeo del nombre de la variable a la prior para el modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:43:<autosummary>:1
+#: eb2095ae56f844c09629fb2940ed9e54
+msgid ""
+":py:obj:`prefix "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.prefix>`\\"
+msgstr ""
+":py:obj:`prefix "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.prefix>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:43:<autosummary>:1
+#: b1f5c18e0e974d97bbc7b5f32d3a7c60
+msgid ""
+":py:obj:`variable_mapping "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.variable_mapping>`\\"
+msgstr ""
+":py:obj:`variable_mapping "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.variable_mapping>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:43:<autosummary>:1
+#: b86eb831190a48b992159ea3f07839bc
+msgid "Mapping from parameter name to variable name in the model."
+msgstr "Mapeo del nombre del parámetro al nombre de la variable en el modelo."

@@ -1,0 +1,197 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchase_probability.rst:2
+#: d2d04a7e761845918136926e2b7f19fb
+msgid "ParetoNBDModel.expected\\_purchase\\_probability"
+msgstr "ParetoNBDModel.probabilidad\\_de\\_compra\\_esperada"
+
+#: 6f3997aeb0ca405fa04999eba76f3911 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchase_probability:2
+msgid ""
+"Compute expected probability of *n_purchases* over *future_t* time periods."
+msgstr ""
+"Calcule la probabilidad esperada de *n_purchases* durante *future_t* "
+"períodos de tiempo."
+
+#: ef272f70c53f4f7eb0dcf981b0f13e1b of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchase_probability:4
+msgid ""
+"Estimate probability of *n_purchases* over *future_t* time periods, given an"
+" individual customer's current *frequency*, *recency*, and *T*."
+msgstr ""
+"Estime la probabilidad de *n_purchases* durante *future_t* períodos de "
+"tiempo, dado el *frequency* actual, *recency* y *T* de un cliente "
+"individual."
+
+#: 2a8ee903768b4dbdbed937dd4ea9acbf of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchase_probability:7
+msgid ""
+"Adapted from equation (16) in Bruce Hardie's notes [R46e008abf410-1]_, and "
+"`lifetimes` package: "
+"https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/pareto_nbd_fitter.py#L388"
+msgstr ""
+"Adaptado de la ecuación (16) en las notas de Bruce Hardie "
+"[R46e008abf410-1]_, y el paquete `lifetimes`: "
+"https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/pareto_nbd_fitter.py#L388"
+
+#: 653bbc5d695b4f9c8b2bf1e38ec5c7f5 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchase_probability
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 63e9a302412d435ca37d68c2af179658 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchase_probability:12
+msgid "**data** : :obj:`~pandas.DataFrame`"
+msgstr "**datos** : :obj:`~pandas.DataFrame`"
+
+#: 8530524b2aa8438c9ac39344f06101e1 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchase_probability:11
+msgid "DataFrame"
+msgstr "DataFrame"
+
+#: 5f0928b3725e4ce9ac7f7fc01715f168 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchase_probability:13
+msgid "Optional dataframe containing the following columns:"
+msgstr "Dataframe opcional que contiene las siguientes columnas:"
+
+#: 4840d54654824b578310c4cde7535235 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchase_probability:15
+msgid "`customer_id`: Unique customer identifier"
+msgstr "`customer_id`: Identificador único del cliente"
+
+#: 4ebaf15bac604d3fb80c52e5338378ab of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchase_probability:16
+msgid "`frequency`: Number of repeat purchases"
+msgstr "`frequency`: Número de compras repetidas"
+
+#: 2e7c74976f484e31881b56aa393edfd0 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchase_probability:17
+msgid "`recency`: Time between the first and the last purchase"
+msgstr "`recency`: Tiempo entre la primera y la última compra"
+
+#: b567f969846d43ae9df4e68940c50737 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchase_probability:18
+msgid ""
+"`T`: Time between the first purchase and the end of the observation period. "
+"Model assumptions require *T >= recency*"
+msgstr ""
+"T: Tiempo entre la primera compra y el final del período de observación. Las"
+" suposiciones del modelo requieren *T >= recency*"
+
+#: b520eaf89914412c85bd6be9288b8019 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchase_probability:20
+msgid "`future_t`: Optional column for *future_t* parametrization."
+msgstr "Columna opcional para la parametrización de *future_t*."
+
+#: a7aaff2253d24bd5bf0d20c328fd1c0e of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchase_probability:21
+msgid ""
+"`n_purchases`: Optional column for *n_purchases* parametrization. Currently "
+"restricted to the same number for all customers."
+msgstr ""
+"`n_purchases`: Columna opcional para la parametrización de *n_purchases*. "
+"Actualmente restringida al mismo número para todos los clientes."
+
+#: c84e2416fc30400182c9d4a94f495c19 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchase_probability:23
+msgid "All covariate columns specified when model was initialized."
+msgstr ""
+"Todas las columnas de covariables especificadas cuando se inicializó el "
+"modelo."
+
+#: 51467236c33247a0a6d92b17c870192b of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchase_probability:25
+msgid "If not provided, predictions will be ran with data used to fit model."
+msgstr ""
+"Si no se proporciona, las predicciones se realizarán con los datos "
+"utilizados para ajustar el modelo."
+
+#: 0ce845cd3cea4734a9cb8f2a069e055c 60f02e1294a24b01bb92218ebdb7a892 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchase_probability:27
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchase_probability:35
+msgid "**future_t** : :term:`numpy:array_like`"
+msgstr "**future_t** : :term:`numpy:array_like`"
+
+#: 4bb22150ffb64c35b401b0e7ef204618 efce35dc73554345ac9658c562335758 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchase_probability:26
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchase_probability:34
+msgid "numpy:array_like"
+msgstr "numpy:similar_a_array"
+
+#: e0228b7c1b3342c2baa3d5f214168ab8 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchase_probability:28
+msgid ""
+"Number of time periods to predict expected purchases. Not required if `data`"
+" Dataframe contains a *future_t* column."
+msgstr ""
+"Número de períodos de tiempo para predecir las compras esperadas. No es "
+"necesario si el DataFrame `data` contiene una columna *future_t*."
+
+#: 7a1931f6fd5c45e3b23e26b31ca1b3a0 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchase_probability:31
+msgid "**n_purchases** : :class:`python:int`"
+msgstr "**n_purchases** : :class:`python:int`"
+
+#: 2bc575e9f8f240378e631c8ab10a80d4 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchase_probability:30
+msgid "python:int"
+msgstr "python:int"
+
+#: bc6f8caf051d46619f6406619a597a81 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchase_probability:32
+msgid ""
+"Number of purchases predicted. Not required if `data` Dataframe contains an "
+"*n_purchases* column."
+msgstr ""
+"Número de compras predicho. No es necesario si el DataFrame `data` contiene "
+"una columna *n_purchases*."
+
+#: a8369851e8ab4c4db805b985eaeb2215 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchase_probability:36
+msgid ""
+"Time periods over which the probability should be estimated. Not required if"
+" `data` Dataframe contains an *n_purchases* column."
+msgstr ""
+"Períodos de tiempo sobre los cuales se debe estimar la probabilidad. No es "
+"necesario si el DataFrame `data` contiene una columna *n_purchases*."
+
+#: cf2f7629779d4f88af5f445ad681b6f2 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchase_probability:51
+msgid "References"
+msgstr "Referencias"
+
+#: 1cb927e12de641ebb4d15d374cd82d50 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchase_probability:52
+msgid ""
+"Fader, Peter & G. S. Hardie, Bruce (2014). \"Deriving the Conditional PMF of"
+" the Pareto/NBD Model.\" "
+"https://www.brucehardie.com/notes/028/pareto_nbd_conditional_pmf.pdf"
+msgstr ""
+"Fader, Peter y G. S. Hardie, Bruce (2014). \"Derivando la PMF Condicional "
+"del Modelo Pareto/NBD.\" "
+"https://www.brucehardie.com/notes/028/pareto_nbd_conditional_pmf.pdf"
+
+#: d8ae9b7fa74b4725a2d8013a2900c2b3 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchase_probability:58
+msgid "[R46e008abf410-1]_"
+msgstr "[R46e008abf410-1]_"

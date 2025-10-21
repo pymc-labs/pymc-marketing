@@ -1,0 +1,332 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.rst:2
+#: 9cd22c33410d41e68fa8044725559678
+msgid "MichaelisMentenSaturation"
+msgstr "Saturación de Michaelis-Menten"
+
+#: c5766852275c4f4cafac23c74464d273 of
+#: pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation:2
+msgid "Wrapper around Michaelis-Menten saturation function."
+msgstr "Envoltorio alrededor de la función de saturación de Michaelis-Menten."
+
+#: c7c95d69de4f41539a746c7348e17a98 of
+#: pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation:4
+msgid ""
+"For more information, see "
+":func:`pymc_marketing.mmm.transformers.michaelis_menten`."
+msgstr ""
+"Para más información, consulte "
+":func:`pymc_marketing.mmm.transformers.michaelis_menten`."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.rst:7
+#: 1dd1f041bd944c7e83f6f13872617b9a
+msgid ""
+"(:download:`Source code "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-MichaelisMentenSaturation-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-MichaelisMentenSaturation-1.png>`, "
+":download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-MichaelisMentenSaturation-1.hires.png>`, "
+":download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-MichaelisMentenSaturation-1.pdf>`)"
+msgstr ""
+"(:download:`Código fuente "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-MichaelisMentenSaturation-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-MichaelisMentenSaturation-1.png>`, "
+":download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-MichaelisMentenSaturation-1.hires.png>`, "
+":download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-MichaelisMentenSaturation-1.pdf>`)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.rst:12
+#: 957775245b014751af67177b0a4fa893
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.rst:32:<autosummary>:1
+#: 834ef4b37bca403a9132e9f0d0466415
+msgid ""
+":py:obj:`MichaelisMentenSaturation.__init__ "
+"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.__init__>`\\"
+" \\(\\[priors\\, ...\\]\\)"
+msgstr ""
+":py:obj:`MichaelisMentenSaturation.__init__ "
+"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.__init__>`\\"
+" \\(\\[priors\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.rst:32:<autosummary>:1
+#: 4279f8b2f18a47329dc142f2abb5b6f7
+msgid ""
+":py:obj:`MichaelisMentenSaturation.apply "
+"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.apply>`\\"
+" \\(x\\[\\, dims\\, idx\\]\\)"
+msgstr ""
+":py:obj:`MichaelisMentenSaturation.apply "
+"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.apply>`\\"
+" \\(x\\[\\, dims\\, idx\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.rst:32:<autosummary>:1
+#: 702429dca7a64338acdc353455e1e55b
+msgid "Call within a model context."
+msgstr "Llamar dentro de un contexto de modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.rst:32:<autosummary>:1
+#: 9d898f199be2439a947a8ab0a364aa95
+msgid ""
+":py:obj:`MichaelisMentenSaturation.function "
+"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.function>`\\"
+" \\(x\\, alpha\\, lam\\)"
+msgstr ""
+":py:obj:`MichaelisMentenSaturation.function "
+"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.function>`\\"
+" \\(x\\, alpha\\, lam\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.rst:32:<autosummary>:1
+#: 71b22ce27dff49ca8b6a8223296ab1b8
+msgid "Michaelis-Menten saturation function."
+msgstr "Función de saturación de Michaelis-Menten."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.rst:32:<autosummary>:1
+#: 70e76ddea070431e898e052f9da3bf6f
+msgid ""
+":py:obj:`MichaelisMentenSaturation.plot_curve "
+"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.plot_curve>`\\"
+" \\(curve\\)"
+msgstr ""
+":py:obj:`MichaelisMentenSaturation.plot_curve "
+"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.plot_curve>`\\"
+" \\(curva\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.rst:32:<autosummary>:1
+#: de4445a471054a1abc57f67bff496471
+msgid "Plot curve HDI and samples."
+msgstr "Trazar la curva del IDH y las muestras."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.rst:32:<autosummary>:1
+#: 9301ee41a15c4088b1f29ee4a393f249
+msgid ""
+":py:obj:`MichaelisMentenSaturation.plot_curve_hdi "
+"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.plot_curve_hdi>`\\"
+" \\(curve\\)"
+msgstr ""
+":py:obj:`MichaelisMentenSaturation.plot_curve_hdi "
+"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.plot_curve_hdi>`\\"
+" \\(curva\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.rst:32:<autosummary>:1
+#: fd98e0ab9f1243baa48bef48fbe127ad
+msgid "Plot the HDI of the curve."
+msgstr "Trace el IDH de la curva."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.rst:32:<autosummary>:1
+#: 3ad88666f4d5450f958181f27594c679
+msgid ""
+":py:obj:`MichaelisMentenSaturation.plot_curve_samples "
+"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.plot_curve_samples>`\\"
+" \\(curve\\)"
+msgstr ""
+":py:obj:`MichaelisMentenSaturation.plot_curve_samples "
+"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.plot_curve_samples>`\\"
+" \\(curva\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.rst:32:<autosummary>:1
+#: c93a84e61f584afc916ae2dbd1153982
+msgid "Plot samples from the curve."
+msgstr "Trazar muestras de la curva."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.rst:32:<autosummary>:1
+#: 946d3ccd384246cc9fd9734b4d6f940d
+msgid ""
+":py:obj:`MichaelisMentenSaturation.sample_curve "
+"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.sample_curve>`\\"
+" \\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`MichaelisMentenSaturation.sample_curve "
+"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.sample_curve>`\\"
+" \\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.rst:32:<autosummary>:1
+#: 3e33b342f1df4f588a1b5197de1bb8d2
+msgid "Sample the curve of the saturation transformation given parameters."
+msgstr ""
+"Muestre la curva de la transformación de saturación dadas las parámetros."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.rst:32:<autosummary>:1
+#: 89a645f44a3748b6af3e52e22c80cfa9
+msgid ""
+":py:obj:`MichaelisMentenSaturation.sample_prior "
+"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.sample_prior>`\\"
+" \\(\\[coords\\]\\)"
+msgstr ""
+":py:obj:`MichaelisMentenSaturation.sample_prior "
+"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.sample_prior>`\\"
+" \\(\\[coords\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.rst:32:<autosummary>:1
+#: 49c89465ddc44cd48c1fbb137af5dadd
+msgid "Sample the priors for the transformation."
+msgstr "Muestre las distribuciones a priori para la transformación."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.rst:32:<autosummary>:1
+#: b643340c4a2e4913b967df43d1a4b202
+msgid ""
+":py:obj:`MichaelisMentenSaturation.set_dims_for_all_priors "
+"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.set_dims_for_all_priors>`\\"
+" \\(dims\\)"
+msgstr ""
+":py:obj:`MichaelisMentenSaturation.set_dims_for_all_priors "
+"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.set_dims_for_all_priors>`\\"
+" \\(dims\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.rst:32:<autosummary>:1
+#: f3cf5f0960dd43dcaa2323c20bff9d5d
+msgid "Set the dims for all priors."
+msgstr "Establezca las dimensiones para todos los antecedentes."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.rst:32:<autosummary>:1
+#: 674027ab02f64975992b9d4a7cfc7b90
+msgid ""
+":py:obj:`MichaelisMentenSaturation.to_dict "
+"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.to_dict>`\\"
+" \\(\\)"
+msgstr ""
+":py:obj:`MichaelisMentenSaturation.to_dict "
+"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.to_dict>`\\"
+" \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.rst:32:<autosummary>:1
+#: c5e2d2d6636043c6ba6aeb62efb0f1f4
+msgid "Convert the transformation to a dictionary."
+msgstr "Convierte la transformación a un diccionario."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.rst:32:<autosummary>:1
+#: aa2965d7067b4cb0a52704724cd0d109
+msgid ""
+":py:obj:`MichaelisMentenSaturation.update_priors "
+"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.update_priors>`\\"
+" \\(priors\\)"
+msgstr ""
+":py:obj:`MichaelisMentenSaturation.update_priors "
+"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.update_priors>`\\"
+" \\(priors\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.rst:32:<autosummary>:1
+#: 04a42ccac7a8441c8674d5ca3d890e56
+msgid "Update the priors for a function after initialization."
+msgstr "Actualice los priors para una función después de la inicialización."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.rst:34
+#: d140248771ee4d40a489aac8b1306c12
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.rst:43:<autosummary>:1
+#: 761c5cfa84d1447e87fe9b30accc1244
+msgid ""
+":py:obj:`combined_dims "
+"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.combined_dims>`\\"
+msgstr ""
+":py:obj:`combined_dims "
+"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.combined_dims>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.rst:43:<autosummary>:1
+#: f19888e3990e427bbfcf87a87d207d3f
+msgid "Get the combined dims for all the parameters."
+msgstr "Obtenga las dimensiones combinadas para todos los parámetros."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.rst:43:<autosummary>:1
+#: 6e6c9c1e606047aaba51be748e8df9eb
+msgid ""
+":py:obj:`default_priors "
+"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.default_priors>`\\"
+msgstr ""
+":py:obj:`default_priors "
+"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.default_priors>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.rst:43:<autosummary>:1
+#: 1b864a66b8be46339f74d37260d510e5
+msgid ""
+":py:obj:`function_priors "
+"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.function_priors>`\\"
+msgstr ""
+":py:obj:`function_priors "
+"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.function_priors>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.rst:43:<autosummary>:1
+#: 929c537a34534c8cb950a7cee26fb37c
+msgid "Get the priors for the function."
+msgstr "Obtenga los priors para la función."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.rst:43:<autosummary>:1
+#: 8773452747e044c3907a3a90ce67a9ef
+msgid ""
+":py:obj:`lookup_name "
+"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.lookup_name>`\\"
+msgstr ""
+":py:obj:`lookup_name "
+"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.lookup_name>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.rst:43:<autosummary>:1
+#: 3f41e62281db4e0ab3ce2e512912069a
+msgid ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.model_config>`\\"
+msgstr ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.model_config>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.rst:43:<autosummary>:1
+#: e9596d12ecec4511b6fa30d2a4255426
+msgid "Mapping from variable name to prior for the model."
+msgstr "Mapeo del nombre de la variable a la prior para el modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.rst:43:<autosummary>:1
+#: f788d72078fd4ba082d09f9de8a9867a
+msgid ""
+":py:obj:`prefix "
+"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.prefix>`\\"
+msgstr ""
+":py:obj:`prefix "
+"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.prefix>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.rst:43:<autosummary>:1
+#: ee27dbcba2ae471abf52ac8536967a23
+msgid ""
+":py:obj:`variable_mapping "
+"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.variable_mapping>`\\"
+msgstr ""
+":py:obj:`variable_mapping "
+"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.variable_mapping>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.rst:43:<autosummary>:1
+#: 09316fad165b492a932dfd744c26153c
+msgid "Mapping from parameter name to variable name in the model."
+msgstr "Mapeo del nombre del parámetro al nombre de la variable en el modelo."

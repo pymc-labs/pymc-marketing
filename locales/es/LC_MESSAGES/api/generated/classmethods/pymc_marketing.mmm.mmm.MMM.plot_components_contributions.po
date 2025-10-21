@@ -1,0 +1,85 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.mmm.MMM.plot_components_contributions.rst:2
+#: 631c5c642ddf40f686fb60a57d080cdb
+msgid "MMM.plot\\_components\\_contributions"
+msgstr "MMM.plot\\_components\\_contributions"
+
+#: f079ddb77a5e4ffd9884826c41852609 of
+#: pymc_marketing.mmm.mmm.MMM.plot_components_contributions:2
+msgid ""
+"Plot the target variable and the posterior predictive model components."
+msgstr ""
+"Trace la variable objetivo y los componentes del modelo predictivo "
+"posterior."
+
+#: 02ec5ad19c3f4675b3cdecb388e78073 of
+#: pymc_marketing.mmm.mmm.MMM.plot_components_contributions:4
+msgid ""
+"We can plot the target variable and the posterior predictive model "
+"components in the scaled space or in the original space."
+msgstr ""
+"Podemos representar la variable objetivo y los componentes del modelo "
+"predictivo posterior en el espacio escalado o en el espacio original."
+
+#: fbc41fb1c7924289bea8eb1caa7b3164 of
+#: pymc_marketing.mmm.mmm.MMM.plot_components_contributions
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 128fddbd7c9541998252d36b3254c2fe of
+#: pymc_marketing.mmm.mmm.MMM.plot_components_contributions:9
+msgid ""
+"**original_scale** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+"**original_scale** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: d5812633962a43e1a625343d4e0224ca of
+#: pymc_marketing.mmm.mmm.MMM.plot_components_contributions:8
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: 2c450e57d54045859add42a5018c1ec6 of
+#: pymc_marketing.mmm.mmm.MMM.plot_components_contributions:10
+msgid "Whether to plot in the original scale."
+msgstr "Si se debe trazar en la escala original."
+
+#: 937ee15c4fdc41389d9375b5e2bb0336 of
+#: pymc_marketing.mmm.mmm.MMM.plot_components_contributions:12
+msgid "**\\*\\*plt_kwargs**"
+msgstr "**\\*\\*plt_kwargs**"
+
+#: 7b00a510018d49ea8d2b82409045a3d1 of
+#: pymc_marketing.mmm.mmm.MMM.plot_components_contributions:13
+msgid "Additional keyword arguments to pass to `plt.subplots`."
+msgstr "Argumentos adicionales de palabras clave para pasar a `plt.subplots`."
+
+#: 5def883240f848f6bc2170654b395dd6 of
+#: pymc_marketing.mmm.mmm.MMM.plot_components_contributions
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: ed21d4d0fd7a4d1db35e600b11285065 of
+#: pymc_marketing.mmm.mmm.MMM.plot_components_contributions:19
+msgid ":obj:`plt.Figure`"
+msgstr ":obj:`plt.Figure`"

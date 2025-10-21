@@ -1,0 +1,70 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.linear_trend.LinearTrend.sample_curve.rst:2
+#: ff222112b33a44779a399e93356c8042
+msgid "LinearTrend.sample\\_curve"
+msgstr "LinearTrend.muestra\\_curva"
+
+#: a51ddd35c79c4e6cb59817f66dfc9948 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.sample_curve:2
+msgid "Sample the curve given parameters."
+msgstr "Muestree la curva según los parámetros dados."
+
+#: 039946942be3461ba23c2c473762f878 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.sample_curve
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: da4f84f3403c413ba0ff18c0134bd5ef of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.sample_curve:7
+msgid "**parameters** : :obj:`xr.Dataset`"
+msgstr "**parámetros** : :obj:`xr.Dataset`"
+
+#: 10976cc6eb144d7da42f3048dd789de7 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.sample_curve:6
+msgid "xr.Dataset"
+msgstr "xr.ConjuntoDeDatos"
+
+#: 9c94cb9a7f7d46c4a5c9f3db8173659c of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.sample_curve:8
+msgid ""
+"Dataset with the parameters to condition on. Would be either the prior or "
+"the posterior."
+msgstr ""
+"Conjunto de datos con los parámetros a los que condicionar. Sería ya sea el "
+"previo o el posterior."
+
+#: f2d3cfb2fa41457888c61301887b0a47 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.sample_curve
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 4feedc24ee6048a4857fdd9b1315a00d of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.sample_curve:15
+msgid ":obj:`xr.DataArray`"
+msgstr ":obj:`xr.DataArray`"
+
+#: 2981c42d7bb24168821fea99b203f5cd of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.sample_curve:16
+msgid "DataArray with the curve samples."
+msgstr "DataArray con las muestras de la curva."

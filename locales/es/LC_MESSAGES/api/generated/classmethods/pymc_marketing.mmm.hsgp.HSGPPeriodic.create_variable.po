@@ -1,0 +1,66 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.hsgp.HSGPPeriodic.create_variable.rst:2
+#: 79f9cffa0df24fa6a88108676c6ca3b2
+msgid "HSGPPeriodic.create\\_variable"
+msgstr "HSGPPeriodic.crear_variable"
+
+#: 69fd55d50fcf4039a828a7932b529f95 of
+#: pymc_marketing.mmm.hsgp.HSGPPeriodic.create_variable:2
+msgid "Create HSGP variable."
+msgstr "Crear variable HSGP."
+
+#: 9898040f868d46eb98e1de4f143280a9 of
+#: pymc_marketing.mmm.hsgp.HSGPPeriodic.create_variable
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 8031b27680fb4268a2f35525f69816c3 of
+#: pymc_marketing.mmm.hsgp.HSGPPeriodic.create_variable:7
+msgid "**name** : :class:`python:str`"
+msgstr "**nombre** : :class:`python:str`"
+
+#: 07c70e5af7bf41f7929b63fe52247b14 of
+#: pymc_marketing.mmm.hsgp.HSGPPeriodic.create_variable:6
+msgid "python:str"
+msgstr "python:str"
+
+#: a638402611934a81a7c0dcb2c5fb1182 of
+#: pymc_marketing.mmm.hsgp.HSGPPeriodic.create_variable:8
+msgid "The name of the variable."
+msgstr "El nombre de la variable."
+
+#: 0a5f884e946c4dffa67374616653e58d of
+#: pymc_marketing.mmm.hsgp.HSGPPeriodic.create_variable
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 0b72bff579724b7a84924cbe37d6ba11 of
+#: pymc_marketing.mmm.hsgp.HSGPPeriodic.create_variable:14
+msgid ":obj:`pt.TensorVariable`"
+msgstr ":obj:`pt.TensorVariable`"
+
+#: a317065e5a6e4202a05887361aefb347 of
+#: pymc_marketing.mmm.hsgp.HSGPPeriodic.create_variable:15
+msgid "The variable created from the HSGP configuration."
+msgstr "La variable creada a partir de la configuración de HSGP."

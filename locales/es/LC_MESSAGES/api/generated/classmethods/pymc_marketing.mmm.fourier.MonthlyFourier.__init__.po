@@ -1,0 +1,48 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.fourier.MonthlyFourier.__init__.rst:2
+#: a1a92e4895444aa3ba2c7f6a6fc8c882
+msgid "MonthlyFourier.\\_\\_init\\_\\_"
+msgstr "MonthlyFourier.\\_\\_init\\_\\_"
+
+#: 3e5c1b81b3f843fb877ec2f4f5df8099 of pydantic.main.BaseModel.__init__:2
+msgid ""
+"Create a new model by parsing and validating input data from keyword "
+"arguments."
+msgstr ""
+"Cree un nuevo modelo analizando y validando los datos de entrada de los "
+"argumentos de palabras clave."
+
+#: bd3c80b643e544298f0c5c0767ffa963 of pydantic.main.BaseModel.__init__:4
+msgid ""
+"Raises [`ValidationError`][pydantic_core.ValidationError] if the input data "
+"cannot be validated to form a valid model."
+msgstr ""
+"Genera [`ValidationError`][pydantic_core.ValidationError] si los datos de "
+"entrada no pueden ser validados para formar un modelo válido."
+
+#: 570acc0a9fea47628a9bf4ac56945f75 of pydantic.main.BaseModel.__init__:7
+msgid "`self` is explicitly positional-only to allow `self` as a field name."
+msgstr ""
+"`self` es explícitamente solo posicional para permitir que `self` sea un "
+"nombre de campo."

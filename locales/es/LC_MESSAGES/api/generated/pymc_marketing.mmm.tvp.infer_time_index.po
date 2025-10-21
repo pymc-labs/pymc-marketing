@@ -1,0 +1,99 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.tvp.infer_time_index.rst:2
+#: c935538665a64c03a61fc3e017507be4
+msgid "infer\\_time\\_index"
+msgstr "infer\\_time\\_index"
+
+#: 63bb6709e3f54737b52dbfd2d7a6a2c3 of
+#: pymc_marketing.mmm.tvp.infer_time_index:2
+msgid "Infer the time-index given a new dataset."
+msgstr "Infiera el índice de tiempo dado un nuevo conjunto de datos."
+
+#: a25ef9fe4df84b7394325fb7538517f2 of
+#: pymc_marketing.mmm.tvp.infer_time_index:4
+msgid ""
+"Infers the time-indices by calculating the number of days since the first "
+"date in the dataset."
+msgstr ""
+"Infiere los índices de tiempo calculando el número de días desde la primera "
+"fecha en el conjunto de datos."
+
+#: e0bb3c7a43e64473b711cc49f3db3de0 of pymc_marketing.mmm.tvp.infer_time_index
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: c9d8a2c2281a4399a388e6db491cbfad of
+#: pymc_marketing.mmm.tvp.infer_time_index:8
+msgid "**date_series_new** : :obj:`pd.Series`"
+msgstr "**date_series_new** : :obj:`pd.Series`"
+
+#: 4afe79584f6f4f8d8c87bf1a48b8fcec 6f5960fb1deb446fa98650587a44d5e4 of
+#: pymc_marketing.mmm.tvp.infer_time_index:7
+#: pymc_marketing.mmm.tvp.infer_time_index:10
+msgid "pd.Series"
+msgstr "pd.Series"
+
+#: f300af8c14ae4860ac0948a9c8ef21fe of
+#: pymc_marketing.mmm.tvp.infer_time_index:9
+msgid "New date series."
+msgstr "Nueva serie de fechas."
+
+#: 5e5f460cee1b4d6b9e1b2bd73f43a05b of
+#: pymc_marketing.mmm.tvp.infer_time_index:11
+msgid "**date_series** : :obj:`pd.Series`"
+msgstr "**date_series** : :obj:`pd.Series`"
+
+#: a4ef3dddf46a4a0ba7506f21a56f7b4b of
+#: pymc_marketing.mmm.tvp.infer_time_index:12
+msgid "Original date series."
+msgstr "Serie de fechas original."
+
+#: b6cb4f1a706d4ffaa3e985e61d4f9c66 of
+#: pymc_marketing.mmm.tvp.infer_time_index:14
+msgid "**time_resolution** : :class:`python:int`"
+msgstr "**time_resolution** : :class:`python:int`"
+
+#: 5c38a7d0a03347e1b3b8e2392ec7c42c of
+#: pymc_marketing.mmm.tvp.infer_time_index:13
+msgid "python:int"
+msgstr "python:int"
+
+#: 2f94c22f9b3d454ea44f842b96112979 of
+#: pymc_marketing.mmm.tvp.infer_time_index:15
+msgid "Resolution of time points in days."
+msgstr "Resolución de puntos de tiempo en días."
+
+#: 8f21db8ff28a44cdbc2f0e79fad9420b of pymc_marketing.mmm.tvp.infer_time_index
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 894287a3b0ac4e0988e1dea23645065f of
+#: pymc_marketing.mmm.tvp.infer_time_index:21
+msgid ":obj:`np.ndarray <numpy.ndarray>`"
+msgstr ":obj:`np.ndarray <numpy.ndarray>`"
+
+#: 84dd3e65d67a4ac8863c7c7728408730 of
+#: pymc_marketing.mmm.tvp.infer_time_index:22
+msgid "Time index."
+msgstr "Índice de tiempo."

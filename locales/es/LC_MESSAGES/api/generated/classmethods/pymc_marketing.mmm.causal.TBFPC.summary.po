@@ -1,0 +1,55 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.TBFPC.summary.rst:2
+#: 58169757640d431fac1d0f58ef002eaf
+msgid "TBFPC.summary"
+msgstr "TBFPC.resumen"
+
+#: 153e8e6f79144c64a1abf5b8c8f00f4b of
+#: pymc_marketing.mmm.causal.TBFPC.summary:2
+msgid "Render a text summary of the learned graph and test count."
+msgstr ""
+"Generar un resumen de texto del gráfico aprendido y el conteo de pruebas."
+
+#: 4ca42fc6ceba46a89156e39f67723903 of pymc_marketing.mmm.causal.TBFPC.summary
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 5d4baad789cf454da75cdb5e20e50264 of
+#: pymc_marketing.mmm.causal.TBFPC.summary:10
+msgid ":class:`python:str`"
+msgstr ":class:`python:str`"
+
+#: eab9ac8609df4b68b75f2775ccc0e2b6 of
+#: pymc_marketing.mmm.causal.TBFPC.summary:11
+msgid ""
+"Multiline string describing directed edges, undirected edges, and the number"
+" of conditional independence tests executed."
+msgstr ""
+"Cadena multilineal que describe los bordes dirigidos, los bordes no "
+"dirigidos y el número de pruebas de independencia condicional ejecutadas."
+
+#: 1b563f79fba24872af8bc7f1686b3918 of
+#: pymc_marketing.mmm.causal.TBFPC.summary:24
+msgid "Examples"
+msgstr "Ejemplos"

@@ -1,0 +1,75 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.metrics.nmae.rst:2
+#: 41ef9334d9374b0387bd13ccd6b8c19b
+msgid "nmae"
+msgstr "nmae"
+
+#: 3a6c3691cebb4547be6cbeb74c3b109e of pymc_marketing.metrics.nmae:2
+msgid "Calculate the Normalized Mean Absolute Error (NMAE)."
+msgstr "Calcule el Error Absoluto Medio Normalizado (NMAE)."
+
+#: 45f1c87c6c694cfdb9d467cd48be4cc1 of pymc_marketing.metrics.nmae:4
+msgid ""
+"Normalization allows for comparison across different data sets and "
+"methodologies."
+msgstr ""
+"La normalización permite la comparación entre diferentes conjuntos de datos "
+"y metodologías."
+
+#: a51113e7a9c647e5a9443c8ee4affdc8 of pymc_marketing.metrics.nmae
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: f78fc78e349a499d9c97a3e83cb66581 of pymc_marketing.metrics.nmae:8
+msgid "**y_true** : :obj:`np.ndarray <numpy.ndarray>`"
+msgstr "**y_true** : :obj:`np.ndarray <numpy.ndarray>`"
+
+#: af5592d2621f439faa423ad1f37d0690 edfc6cf43da5499da966ce148a61ddb7 of
+#: pymc_marketing.metrics.nmae:7 pymc_marketing.metrics.nmae:10
+msgid "np.ndarray"
+msgstr "np.ndarray"
+
+#: 394766043276475ab2d397be36b8bd01 of pymc_marketing.metrics.nmae:9
+msgid "True values for target metric"
+msgstr "Valores verdaderos para la métrica objetivo"
+
+#: 33561a12206d4dc58d32c1cc0b6823e2 of pymc_marketing.metrics.nmae:11
+msgid "**y_pred** : :obj:`np.ndarray <numpy.ndarray>`"
+msgstr "**y_pred** : :obj:`np.ndarray <numpy.ndarray>`"
+
+#: f02e0f8abf0347a8b56e15168c7ff0be of pymc_marketing.metrics.nmae:12
+msgid "Predicted values for target metric"
+msgstr "Valores predichos para la métrica objetivo"
+
+#: 43c20cbbd65e4aba832339d65118a98c of pymc_marketing.metrics.nmae
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 2c96954e68794eb292839632c6215226 of pymc_marketing.metrics.nmae:18
+msgid ":class:`python:float`"
+msgstr ":class:`python:float`"
+
+#: 3fa49a6c5dd94e3cb74e370a703a3f41 of pymc_marketing.metrics.nmae:19
+msgid "Normalized mean absolute error."
+msgstr "Error absoluto medio normalizado."

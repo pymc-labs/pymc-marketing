@@ -1,0 +1,65 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.mmm.BaseMMM.validate_target.rst:2
+#: 03770140bb4b4952a6c94329f333c26e
+msgid "BaseMMM.validate\\_target"
+msgstr "BaseMMM.validar_objetivo"
+
+#: 930774e4953f40b38c8f420e151fe413 of
+#: pymc_marketing.mmm.validating.ValidateTargetColumn.validate_target:2
+msgid "Validate the target column."
+msgstr "Valide la columna objetivo."
+
+#: db93acb1d2b8443397dd2ac389b20273 of
+#: pymc_marketing.mmm.validating.ValidateTargetColumn.validate_target
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 7abc5aaeabaf449b89d56a2935e89671 of
+#: pymc_marketing.mmm.validating.ValidateTargetColumn.validate_target:7
+msgid "**data** : :obj:`pd.Series`"
+msgstr "**datos** : :obj:`pd.Series`"
+
+#: 920dbf90b9bb4f02b35df921fd403df1 of
+#: pymc_marketing.mmm.validating.ValidateTargetColumn.validate_target:6
+msgid "pd.Series"
+msgstr "pd.Series"
+
+#: 13e7183f41d54d1a958aec759b03c7df of
+#: pymc_marketing.mmm.validating.ValidateTargetColumn.validate_target:8
+msgid "The data to validate."
+msgstr "Los datos a validar."
+
+#: 27aac1e8a94340b5a37fb558dc0772be of
+#: pymc_marketing.mmm.validating.ValidateTargetColumn.validate_target
+msgid "Raises"
+msgstr "Aumentos"
+
+#: 962bbfcd13754ae79d34583adeb3d807 of
+#: pymc_marketing.mmm.validating.ValidateTargetColumn.validate_target:18
+msgid ""
+"ValueError: :obj:`If` :obj:`the` :obj:`target` :obj:`column` :obj:`is` "
+":obj:`not` valid."
+msgstr ""
+"ValueError: :obj:`Si` :obj:`la` :obj:`columna` :obj:`objetivo` :obj:`no` "
+":obj:`es` :obj:`válida`."

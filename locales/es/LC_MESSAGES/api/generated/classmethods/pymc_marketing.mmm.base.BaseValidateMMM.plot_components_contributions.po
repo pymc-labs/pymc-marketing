@@ -1,0 +1,63 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.base.BaseValidateMMM.plot_components_contributions.rst:2
+#: 2cf5ef0c6fd9406faef5abadaee78a5d
+msgid "BaseValidateMMM.plot\\_components\\_contributions"
+msgstr "BaseValidateMMM.plot_componentes_contribuciones"
+
+#: e0ffaa735bb5436cbea8e72b84635787 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_components_contributions:2
+msgid ""
+"Plot the target variable and the posterior predictive model components."
+msgstr ""
+"Trace la variable objetivo y los componentes del modelo predictivo "
+"posterior."
+
+#: eb2c0f7e90634dc4911d46dff0e148e4 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_components_contributions:4
+msgid ""
+"We can plot the target variable and the posterior predictive model "
+"components in the scaled space or the original space."
+msgstr ""
+"Podemos trazar la variable objetivo y los componentes del modelo predictivo "
+"posterior en el espacio escalado o en el espacio original."
+
+#: d488ff7bc5ed42a183bb40a550ed3bdc of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_components_contributions:7
+msgid "**plt_kwargs"
+msgstr "**plt_kwargs"
+
+#: 9891a26a88784e4686969c5c98d48fa1 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_components_contributions:8
+msgid "Additional keyword arguments to pass to `plt.subplots`."
+msgstr "Argumentos adicionales de palabras clave para pasar a `plt.subplots`."
+
+#: abea456d582b404a889748e15ce6f287 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_components_contributions
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 9bdd4910bcef45d796b7bc9eea550751 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_components_contributions:15
+msgid ":obj:`plt.Figure`"
+msgstr ":obj:`plt.Figure`"

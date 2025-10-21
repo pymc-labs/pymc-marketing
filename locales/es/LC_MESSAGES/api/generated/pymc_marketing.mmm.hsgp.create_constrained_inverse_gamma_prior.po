@@ -1,0 +1,91 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.create_constrained_inverse_gamma_prior.rst:2
+#: 85795939363a464aaceee4de5a733ca8
+msgid "create\\_constrained\\_inverse\\_gamma\\_prior"
+msgstr "crear\\_prior\\_gamma\\_inversa\\_constrainada"
+
+#: 0860a13c87474b37b0ee3d55e1f4afc0 of
+#: pymc_marketing.mmm.hsgp.create_constrained_inverse_gamma_prior:2
+msgid "Create a lengthscale prior for the HSGP model."
+msgstr "Cree un prior de escala de longitud para el modelo HSGP."
+
+#: e1f04da7df384624a066020dc13fe6ae of
+#: pymc_marketing.mmm.hsgp.create_constrained_inverse_gamma_prior
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: f0e5d192e70540e5bd56fe45368c673d of
+#: pymc_marketing.mmm.hsgp.create_constrained_inverse_gamma_prior:7
+msgid "**upper** : :class:`python:float`"
+msgstr "**superior** : :class:`python:float`"
+
+#: 57077df40491406b9fc5c20ea6662626 c76b0616c7894479969fcd2e04a0f7f1
+#: df75e5a0c4ba4e398c20236eb52dcb2d of
+#: pymc_marketing.mmm.hsgp.create_constrained_inverse_gamma_prior:6
+#: pymc_marketing.mmm.hsgp.create_constrained_inverse_gamma_prior:9
+#: pymc_marketing.mmm.hsgp.create_constrained_inverse_gamma_prior:12
+msgid "python:float"
+msgstr "python:float"
+
+#: 70071ff8b6dc4221b58f427aeea77ce9 of
+#: pymc_marketing.mmm.hsgp.create_constrained_inverse_gamma_prior:8
+msgid "Upper bound for the lengthscale."
+msgstr "Límite superior para la escala de longitud."
+
+#: 923d4b381fb34df2b02caf64a01669c8 of
+#: pymc_marketing.mmm.hsgp.create_constrained_inverse_gamma_prior:10
+msgid "**lower** : :class:`python:float`"
+msgstr "**inferior** : :class:`python:float`"
+
+#: b1a98b1ec4e34132bdfd90c22a9e0495 of
+#: pymc_marketing.mmm.hsgp.create_constrained_inverse_gamma_prior:11
+msgid "Lower bound for the lengthscale. Default is 1.0."
+msgstr ""
+"Límite inferior para la escala de longitud. El valor predeterminado es 1.0."
+
+#: 505ddc3102294332b2e3b6d3b0d9968b of
+#: pymc_marketing.mmm.hsgp.create_constrained_inverse_gamma_prior:13
+msgid "**mass** : :class:`python:float`"
+msgstr "**masa** : :class:`python:float`"
+
+#: 7d698687426248f8bf60053fa4fa2a2a of
+#: pymc_marketing.mmm.hsgp.create_constrained_inverse_gamma_prior:14
+msgid "Mass of the lengthscales. Default is 0.9 or 90%."
+msgstr ""
+"Masa de las escalas de longitud. El valor predeterminado es 0.9 o 90%."
+
+#: 94285f6367d04506ad4050df682dfc54 of
+#: pymc_marketing.mmm.hsgp.create_constrained_inverse_gamma_prior
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 4b758fc78f1f414ebcdf049e57d95d11 of
+#: pymc_marketing.mmm.hsgp.create_constrained_inverse_gamma_prior:20
+msgid ":obj:`Prior`"
+msgstr ":obj:`Prior`"
+
+#: 6c9d09bdeca042889a9247fc35918b7b of
+#: pymc_marketing.mmm.hsgp.create_constrained_inverse_gamma_prior:21
+msgid "The prior for the lengthscale."
+msgstr "El prior para la longitud de escala."

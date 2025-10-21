@@ -1,0 +1,59 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.ValidateTargetColumn.rst:2
+#: 4d4923635aee491c8ef0ec347031d756
+msgid "ValidateTargetColumn"
+msgstr "ValidarColumnaObjetivo"
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.ValidateTargetColumn.rst:18:<autosummary>:1
+#: 036757c256f14842bf649c32e074b6ba 3dffc8c1acb54c29bc4633df19976880 of
+#: pymc_marketing.mmm.validating.ValidateTargetColumn:2
+msgid "Validate the target column."
+msgstr "Valide la columna objetivo."
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.ValidateTargetColumn.rst:12
+#: 15f0c2f056694530a5cf0443416a7333
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.ValidateTargetColumn.rst:18:<autosummary>:1
+#: 45c50290d84c4072a5d46d66ed010199
+msgid ""
+":py:obj:`ValidateTargetColumn.__init__ "
+"<pymc_marketing.mmm.validating.ValidateTargetColumn.__init__>`\\ "
+"\\(\\*args\\, \\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`ValidateTargetColumn.__init__ "
+"<pymc_marketing.mmm.validating.ValidateTargetColumn.__init__>`\\ "
+"\\(\\*args\\, \\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.ValidateTargetColumn.rst:18:<autosummary>:1
+#: a4f2827a37814ad5a386f509b133123b
+msgid ""
+":py:obj:`ValidateTargetColumn.validate_target "
+"<pymc_marketing.mmm.validating.ValidateTargetColumn.validate_target>`\\ "
+"\\(data\\)"
+msgstr ""
+":py:obj:`ValidateTargetColumn.validate_target "
+"<pymc_marketing.mmm.validating.ValidateTargetColumn.validate_target>`\\ "
+"\\(datos\\)"

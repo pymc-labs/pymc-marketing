@@ -1,0 +1,110 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.tvp.rst:2
+#: 331c70db8c4c464293f16b4ef4d0316d
+msgid "tvp"
+msgstr "tvp"
+
+#: c182b4a74cc94b8d868636cee575605d of pymc_marketing.mmm.tvp:1
+msgid ""
+"Time Varying Gaussian Process Multiplier for Marketing Mix Modeling (MMM)."
+msgstr ""
+"Multiplicador de Proceso Gaussiano Variable en el Tiempo para Modelado de "
+"Mezcla de Marketing (MMM)."
+
+#: fef31882e14944b8994a1dae7be51273 of pymc_marketing.mmm.tvp:3
+msgid "Designed to model time-varying effects in marketing mix models (MMM)."
+msgstr ""
+"Diseñado para modelar efectos variables en el tiempo en modelos de mezcla de"
+" marketing (MMM)."
+
+#: 36df9c8732fe4c9bbf17a92ab646c721 of pymc_marketing.mmm.tvp:5
+msgid ""
+"This module provides a time-varying Gaussian Process (GP) multiplier, using "
+"the Hilbert Space Gaussian Process (HSGP) approximation."
+msgstr ""
+"Este módulo proporciona un multiplicador de Proceso Gaussiano (GP) que varía"
+" en el tiempo, utilizando la aproximación del Proceso Gaussiano en Espacio "
+"de Hilbert (HSGP)."
+
+#: fef48c7d75214413a69eaee76e7dae79 of pymc_marketing.mmm.tvp:9
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: 6f250578f3174ebca52b14b96598e91f of pymc_marketing.mmm.tvp:10
+msgid "Create a basic PyMC model using the time-varying GP multiplier:"
+msgstr ""
+"Cree un modelo básico de PyMC utilizando el multiplicador GP variable en el "
+"tiempo:"
+
+#: ../source/api/generated/pymc_marketing.mmm.tvp.rst:13
+#: 5be54b2cdd3d41f492c019122a46e9ca
+msgid "Functions"
+msgstr "Funciones"
+
+#: ../source/api/generated/pymc_marketing.mmm.tvp.rst:20:<autosummary>:1
+#: 7f93e654ffff45ddbe68e68888f48c70
+msgid ""
+":py:obj:`create_time_varying_gp_multiplier "
+"<pymc_marketing.mmm.tvp.create_time_varying_gp_multiplier>`\\ \\(name\\, "
+"...\\)"
+msgstr ""
+":py:obj:`create_time_varying_gp_multiplier "
+"<pymc_marketing.mmm.tvp.create_time_varying_gp_multiplier>`\\ \\(nombre\\, "
+"...\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.tvp.rst:20:<autosummary>:1
+#: 6e101b80d810441fbb846f12f0913d43
+msgid "Create a time-varying Gaussian Process multiplier."
+msgstr "Cree un multiplicador de Proceso Gaussiano que varíe en el tiempo."
+
+#: ../source/api/generated/pymc_marketing.mmm.tvp.rst:20:<autosummary>:1
+#: a342f625fdba448a8eb896208a46eac2
+msgid ""
+":py:obj:`infer_time_index <pymc_marketing.mmm.tvp.infer_time_index>`\\ "
+"\\(date\\_series\\_new\\, ...\\)"
+msgstr ""
+":py:obj:`infer_time_index <pymc_marketing.mmm.tvp.infer_time_index>`\\ "
+"\\(date\\_series\\_new\\, ...\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.tvp.rst:20:<autosummary>:1
+#: 1d22faf245b748bca08512ab0e613a5b
+msgid "Infer the time-index given a new dataset."
+msgstr "Infiera el índice de tiempo dado un nuevo conjunto de datos."
+
+#: ../source/api/generated/pymc_marketing.mmm.tvp.rst:20:<autosummary>:1
+#: 41418345a5a1493eb46eae5dfbad3575
+msgid ""
+":py:obj:`time_varying_prior <pymc_marketing.mmm.tvp.time_varying_prior>`\\ "
+"\\(name\\, X\\, dims\\[\\, X\\_mid\\, ...\\]\\)"
+msgstr ""
+":py:obj:`time_varying_prior <pymc_marketing.mmm.tvp.time_varying_prior>`\\ "
+"\\(nombre\\, X\\, dimensiones\\[\\, X\\_mid\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.tvp.rst:20:<autosummary>:1
+#: 11de6bf5bf454cf4a0997058f3b8edd9
+msgid ""
+"Time varying prior, based on the Hilbert Space Gaussian Process (HSGP)."
+msgstr ""
+"Prior variable en el tiempo, basado en el Proceso Gaussiano del Espacio de "
+"Hilbert (HSGP)."

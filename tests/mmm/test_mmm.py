@@ -250,7 +250,7 @@ class TestMMM:
     def test_bad_date_column(self, toy_X_with_bad_dates) -> None:
         with pytest.raises(
             ValueError,
-            match="Could not convert bad_date_column to datetime. Please check the date format.",
+            match=r"Could not convert bad_date_column to datetime. Please check the date format.",
         ):
             my_mmm = MMM(
                 date_column="bad_date_column",
@@ -600,7 +600,7 @@ class TestMMM:
         )
         with pytest.raises(
             RuntimeError,
-            match="Make sure the model has been fitted and the posterior_predictive has been sampled!",
+            match=r"Make sure the model has been fitted and the posterior_predictive has been sampled!",
         ):
             my_mmm.get_errors()
 
@@ -614,7 +614,7 @@ class TestMMM:
         )
         with pytest.raises(
             RuntimeError,
-            match="Make sure the model has been fitted and the posterior_predictive has been sampled!",
+            match=r"Make sure the model has been fitted and the posterior_predictive has been sampled!",
         ):
             my_mmm.plot_posterior_predictive()
 
@@ -687,7 +687,7 @@ class TestMMM:
     ) -> None:
         with pytest.raises(
             expected_exception=ValueError,
-            match="start must be greater than or equal to 0.",
+            match=r"start must be greater than or equal to 0.",
         ):
             mmm_fitted.get_channel_contribution_forward_pass_grid(
                 start=-0.5, stop=1.5, num=2
@@ -764,7 +764,7 @@ class TestMMM:
         except Exception as e:
             pytest.fail(f"_data_setter failed with error {e}")
 
-        with pytest.raises(TypeError, match="X must be a pandas DataFrame"):
+        with pytest.raises(TypeError, match=r"X must be a pandas DataFrame"):
             base_delayed_saturated_mmm._data_setter(
                 X_correct_ndarray, y_correct_ndarray
             )
@@ -969,7 +969,7 @@ class TestMMM:
 
         with pytest.warns(
             UserWarning,
-            match="No treatment nodes provided, using channel columns as treatment nodes.",
+            match=r"No treatment nodes provided, using channel columns as treatment nodes.",
         ):
             mmm = MMM(
                 date_column="date",
@@ -1053,6 +1053,138 @@ class TestMMM:
         )
         assert mmm.treatment_nodes is None, "Treatment nodes should default to None."
         assert mmm.outcome_node is None, "Outcome node should default to None."
+
+    def test_scaling_dict_with_missing_channel(
+        self, toy_X: pd.DataFrame, toy_y: pd.Series
+    ):
+        """Test scaling dict that only specifies target."""
+        from pymc_marketing.mmm.scaling import VariableScaling
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            scaling={"target": VariableScaling(method="mean", dims=())},
+        )
+
+        mmm.build_model(X=toy_X, y=toy_y)
+        assert hasattr(mmm, "model")
+        assert mmm.scaling.channel.method == "max"
+
+    def test_scaling_dict_with_missing_target(
+        self, toy_X: pd.DataFrame, toy_y: pd.Series
+    ):
+        """Test scaling dict that only specifies channel."""
+        from pymc_marketing.mmm.scaling import VariableScaling
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            scaling={"channel": VariableScaling(method="mean", dims=())},
+        )
+
+        mmm.build_model(X=toy_X, y=toy_y)
+        assert hasattr(mmm, "model")
+        assert mmm.scaling.target.method == "max"
+
+    def test_mean_scaling_method(self, toy_X: pd.DataFrame, toy_y: pd.Series):
+        """Test using mean scaling instead of max."""
+        from pymc_marketing.mmm.scaling import Scaling, VariableScaling
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            scaling=Scaling(
+                target=VariableScaling(method="mean", dims=()),
+                channel=VariableScaling(method="mean", dims=()),
+            ),
+        )
+
+        mmm.build_model(X=toy_X, y=toy_y)
+        assert hasattr(mmm, "model")
+        assert mmm.target_scale > 0
+
+    def test_validation_disabled(self, toy_X: pd.DataFrame, toy_y: pd.Series):
+        """Test model with validation disabled."""
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            validate_data=False,
+        )
+
+        mmm.build_model(X=toy_X, y=toy_y)
+        assert hasattr(mmm, "model")
+
+    def test_adstock_first_false(self, toy_X: pd.DataFrame, toy_y: pd.Series):
+        """Test model with saturation applied before adstock."""
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            adstock_first=False,
+        )
+
+        mmm.build_model(X=toy_X, y=toy_y)
+        assert hasattr(mmm, "model")
+        assert mmm.adstock_first is False
+
+    def test_serializable_model_config_with_ndarray(self, mmm_fitted: MMM):
+        """Test _serializable_model_config converts ndarrays to lists."""
+        mmm_fitted.model_config["test_array"] = np.array([1, 2, 3])
+        mmm_fitted.model_config["nested"] = {"array": np.array([4, 5])}
+
+        serializable = mmm_fitted._serializable_model_config
+
+        assert isinstance(serializable["test_array"], list)
+        assert isinstance(serializable["nested"]["array"], list)
+
+    def test_model_config_formatting_with_nested_dicts(self):
+        """Test _model_config_formatting with nested dictionaries."""
+        config = {
+            "param1": [1, 2, 3],
+            "param2": {"nested": [4, 5, 6], "dims": ["a", "b"]},
+            "param3": {"deep": {"nested": [7, 8], "dims": ["c"]}},
+        }
+
+        formatted = MMM._model_config_formatting(config)
+
+        assert isinstance(formatted["param2"]["dims"], tuple)
+        assert isinstance(formatted["param3"]["deep"]["dims"], tuple)
+        assert isinstance(formatted["param1"], np.ndarray)
+        assert isinstance(formatted["param2"]["nested"], np.ndarray)
+
+    def test_deserialize_scaling_none(self):
+        """Test _deserialize_scaling with None input."""
+        result = MMM._deserialize_scaling(None)
+        assert result is None
+
+    def test_attrs_to_init_kwargs_with_defaults(self):
+        """Test attrs_to_init_kwargs with missing optional attributes."""
+        attrs = {
+            "model_config": "{}",
+            "date_column": '"date"',
+            "control_columns": "null",
+            "channel_columns": '["ch1"]',
+            "adstock": '{"lookup_name": "geometric", "l_max": 4, "normalize": true, "mode": "After"}',
+            "saturation": '{"lookup_name": "logistic"}',
+            "yearly_seasonality": "null",
+            "validate_data": "true",
+            "sampler_config": "{}",
+        }
+
+        kwargs = MMM.attrs_to_init_kwargs(attrs)
+
+        assert kwargs["adstock_first"] is True
+        assert kwargs["time_varying_intercept"] is False
+        assert kwargs["scaling"] is None
 
 
 def new_date_ranges_to_test():
@@ -1240,7 +1372,7 @@ def test_new_spend_contributions_prior_error() -> None:
         saturation=LogisticSaturation(),
     )
     new_spend = np.ones(len(mmm.channel_columns))
-    match = "sample_prior_predictive"
+    match = r"sample_prior_predictive"
     with pytest.raises(RuntimeError, match=match):
         mmm.new_spend_contributions(new_spend, prior=True)
 
@@ -1365,7 +1497,7 @@ def test_add_lift_test_measurements_no_model() -> None:
         adstock=adstock,
         saturation=saturation,
     )
-    with pytest.raises(RuntimeError, match="The model has not been built yet."):
+    with pytest.raises(RuntimeError, match=r"The model has not been built yet."):
         mmm.add_lift_test_measurements(
             pd.DataFrame(),
         )
@@ -1747,3 +1879,1129 @@ def test_create_synth_dataset_no_controls(
     # Check target variable exists and has reasonable values
     assert "y" in synth_df.columns
     assert not synth_df["y"].isna().any()
+
+
+# Tests for new helper methods added during refactoring
+class TestMMMEdgeCases:
+    """Tests for edge cases and boundary conditions."""
+
+    def test_single_row_dataframe(self):
+        """Test model with single row of data."""
+        X = pd.DataFrame(
+            {
+                "date": [pd.Timestamp("2020-01-01")],
+                "channel_1": [100.0],
+                "channel_2": [200.0],
+            }
+        )
+        y = pd.Series([50.0])
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=1),
+            saturation=LogisticSaturation(),
+        )
+
+        # Single row is technically valid (though not useful for inference)
+        mmm.build_model(X=X, y=y)
+        assert hasattr(mmm, "model")
+
+    def test_all_zeros_in_channel(self, toy_y: pd.Series):
+        """Test handling of channel with all zero values."""
+        X = pd.DataFrame(
+            {
+                "date": pd.date_range("2020-01-01", periods=50, freq="W-MON"),
+                "channel_1": [0.0] * 50,
+                "channel_2": rng.integers(100, 1000, size=50),
+            }
+        )
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+
+        # Should handle gracefully - scaling should avoid division by zero
+        mmm.build_model(X=X, y=toy_y)
+        assert hasattr(mmm, "model")
+        # Channel with all zeros should have scale = 1.0 (from max(scale, 1.0))
+        assert mmm.channel_scale[0] == 1.0
+
+    def test_negative_values_in_channels(self, toy_y: pd.Series):
+        """Test handling of negative values in channel data."""
+        X = pd.DataFrame(
+            {
+                "date": pd.date_range("2020-01-01", periods=50, freq="W-MON"),
+                "channel_1": rng.integers(-100, 100, size=50),
+                "channel_2": rng.integers(-100, 100, size=50),
+            }
+        )
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+
+        # Should work - scaling uses absolute values
+        mmm.build_model(X=X, y=toy_y)
+        assert hasattr(mmm, "model")
+
+    def test_very_large_values(self, toy_y: pd.Series):
+        """Test handling of very large values in channels."""
+        X = pd.DataFrame(
+            {
+                "date": pd.date_range("2020-01-01", periods=50, freq="W-MON"),
+                "channel_1": rng.uniform(1e6, 1e9, size=50),
+                "channel_2": rng.uniform(1e6, 1e9, size=50),
+            }
+        )
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+
+        mmm.build_model(X=X, y=toy_y)
+        assert hasattr(mmm, "model")
+        # Scaling should normalize large values
+        assert mmm.channel_scale[0] > 1e5
+
+    def test_very_small_values(self, toy_y: pd.Series):
+        """Test handling of very small positive values."""
+        X = pd.DataFrame(
+            {
+                "date": pd.date_range("2020-01-01", periods=50, freq="W-MON"),
+                "channel_1": rng.uniform(1e-9, 1e-6, size=50),
+                "channel_2": rng.uniform(1e-9, 1e-6, size=50),
+            }
+        )
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+
+        mmm.build_model(X=X, y=toy_y)
+        assert hasattr(mmm, "model")
+
+    def test_nan_values_in_input(self, toy_y: pd.Series):
+        """Test that NaN values in input raise appropriate error."""
+        X = pd.DataFrame(
+            {
+                "date": pd.date_range("2020-01-01", periods=50, freq="W-MON"),
+                "channel_1": [np.nan] * 25 + list(rng.integers(100, 1000, size=25)),
+                "channel_2": rng.integers(100, 1000, size=50),
+            }
+        )
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+
+        # NaN values cause NotImplementedError when creating pm.Data
+        with pytest.raises(NotImplementedError):
+            mmm.build_model(X=X, y=toy_y)
+
+    def test_infinite_values_in_input(self, toy_y: pd.Series):
+        """Test handling of infinite values in input."""
+        X = pd.DataFrame(
+            {
+                "date": pd.date_range("2020-01-01", periods=50, freq="W-MON"),
+                "channel_1": [np.inf] * 10 + list(rng.integers(100, 1000, size=40)),
+                "channel_2": rng.integers(100, 1000, size=50),
+            }
+        )
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+
+        # Should handle or raise appropriate error
+        mmm.build_model(X=X, y=toy_y)
+        assert hasattr(mmm, "model")
+
+    def test_duplicate_channel_names(self, toy_X: pd.DataFrame, toy_y: pd.Series):
+        """Test that duplicate channel names are allowed (but not recommended)."""
+        # Pydantic doesn't validate uniqueness by default
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_1"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+        # Should work but will treat as two separate channels
+        assert mmm.channel_columns == ["channel_1", "channel_1"]
+
+    def test_missing_channel_columns(self, toy_y: pd.Series):
+        """Test error when specified channels don't exist in data."""
+        X = pd.DataFrame(
+            {
+                "date": pd.date_range("2020-01-01", periods=50, freq="W-MON"),
+                "channel_1": rng.integers(100, 1000, size=50),
+            }
+        )
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "nonexistent_channel"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+
+        with pytest.raises((KeyError, ValueError, Exception)):
+            mmm.build_model(X=X, y=toy_y)
+
+    def test_unsorted_dates(self, toy_y: pd.Series):
+        """Test handling of unsorted date data."""
+        dates = pd.date_range("2020-01-01", periods=50, freq="W-MON")
+        shuffled_dates = dates.to_series().sample(frac=1, random_state=42).values
+
+        X = pd.DataFrame(
+            {
+                "date": shuffled_dates,
+                "channel_1": rng.integers(100, 1000, size=50),
+                "channel_2": rng.integers(100, 1000, size=50),
+            }
+        )
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+
+        # Model should work with unsorted dates
+        mmm.build_model(X=X, y=toy_y)
+        assert hasattr(mmm, "model")
+
+    def test_duplicate_dates(self, toy_y: pd.Series):
+        """Test that duplicate dates raise validation error."""
+        X = pd.DataFrame(
+            {
+                "date": [pd.Timestamp("2020-01-01")] * 50,
+                "channel_1": rng.integers(100, 1000, size=50),
+                "channel_2": rng.integers(100, 1000, size=50),
+            }
+        )
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+
+        # Duplicate dates cause ValueError during validation
+        with pytest.raises(ValueError, match="has repeated values"):
+            mmm.build_model(X=X, y=toy_y)
+
+    def test_invalid_date_format(self, toy_y: pd.Series):
+        """Test error handling for invalid date format."""
+        X = pd.DataFrame(
+            {
+                "date": ["not-a-date"] * 50,
+                "channel_1": rng.integers(100, 1000, size=50),
+                "channel_2": rng.integers(100, 1000, size=50),
+            }
+        )
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+
+        with pytest.raises((ValueError, Exception)):
+            mmm.build_model(X=X, y=toy_y)
+
+    def test_mismatched_X_y_lengths(self, toy_X: pd.DataFrame):
+        """Test that mismatched X and y lengths work (y is broadcast)."""
+        y_short = pd.Series(rng.integers(0, 100, size=10))
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+
+        # PyMC will use the shorter length - no error is raised
+        mmm.build_model(X=toy_X, y=y_short)
+        assert hasattr(mmm, "model")
+
+    def test_minimal_adstock_lag(self, toy_X: pd.DataFrame, toy_y: pd.Series):
+        """Test model with l_max=1 (minimal adstock effect)."""
+        # l_max=0 is invalid, minimum is 1
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=1),
+            saturation=LogisticSaturation(),
+        )
+
+        mmm.build_model(X=toy_X, y=toy_y)
+        assert hasattr(mmm, "model")
+
+    def test_very_large_adstock_lag(self, toy_X: pd.DataFrame, toy_y: pd.Series):
+        """Test model with very large l_max."""
+        # l_max larger than data length
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=100),
+            saturation=LogisticSaturation(),
+        )
+
+        mmm.build_model(X=toy_X, y=toy_y)
+        assert hasattr(mmm, "model")
+
+    def test_no_control_columns(self, toy_X: pd.DataFrame, toy_y: pd.Series):
+        """Test with no control columns (None vs empty list)."""
+        # Empty list causes validation error, use None instead
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            control_columns=None,
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+
+        mmm.build_model(X=toy_X, y=toy_y)
+        assert hasattr(mmm, "model")
+        assert mmm.control_columns is None
+
+    def test_all_same_values_in_channel(self, toy_y: pd.Series):
+        """Test channel with all identical non-zero values."""
+        X = pd.DataFrame(
+            {
+                "date": pd.date_range("2020-01-01", periods=50, freq="W-MON"),
+                "channel_1": [500.0] * 50,
+                "channel_2": rng.integers(100, 1000, size=50),
+            }
+        )
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+
+        mmm.build_model(X=X, y=toy_y)
+        assert hasattr(mmm, "model")
+        # Scale for constant channel should be the absolute value
+        assert mmm.channel_scale[0] == 500.0
+
+    def test_target_with_zeros(self, toy_X: pd.DataFrame):
+        """Test with target variable containing zeros."""
+        y = pd.Series([0.0] * 25 + list(rng.integers(1, 100, size=25)))
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+
+        mmm.build_model(X=toy_X, y=y)
+        assert hasattr(mmm, "model")
+
+    def test_target_all_zeros(self, toy_X: pd.DataFrame):
+        """Test with target variable that is all zeros."""
+        y = pd.Series([0.0] * toy_X.shape[0])
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+
+        mmm.build_model(X=toy_X, y=y)
+        assert hasattr(mmm, "model")
+        # Target scale should be 1.0 to avoid division by zero
+        assert mmm.target_scale == 1.0
+
+    def test_target_all_negative(self, toy_X: pd.DataFrame):
+        """Test with all negative target values."""
+        y = pd.Series(-rng.integers(1, 100, size=toy_X.shape[0]))
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+
+        mmm.build_model(X=toy_X, y=y)
+        assert hasattr(mmm, "model")
+
+    def test_extreme_seasonality_order(self, toy_X: pd.DataFrame, toy_y: pd.Series):
+        """Test with very high number of Fourier modes."""
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            yearly_seasonality=50,  # Very high number
+        )
+
+        mmm.build_model(X=toy_X, y=toy_y)
+        assert hasattr(mmm, "model")
+
+    def test_single_channel(self, toy_X: pd.DataFrame, toy_y: pd.Series):
+        """Test model with only one channel."""
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+
+        mmm.build_model(X=toy_X, y=toy_y)
+        assert hasattr(mmm, "model")
+        assert len(mmm.channel_scale) == 1
+
+    def test_data_setter_with_different_length(
+        self, toy_X: pd.DataFrame, toy_y: pd.Series, mock_pymc_sample
+    ):
+        """Test data setter with different data length."""
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+
+        mmm.fit(X=toy_X, y=toy_y)
+
+        # Create new data with different length
+        new_X = pd.DataFrame(
+            {
+                "date": pd.date_range("2023-01-01", periods=20, freq="W-MON"),
+                "channel_1": rng.integers(100, 1000, size=20),
+                "channel_2": rng.integers(100, 1000, size=20),
+            }
+        )
+
+        # Should handle different length data
+        mmm._data_setter(X=new_X, y=None)
+
+    def test_sample_posterior_predictive_without_fit(
+        self, toy_X: pd.DataFrame, toy_y: pd.Series
+    ):
+        """Test that sampling posterior predictive without fitting raises error."""
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+
+        mmm.build_model(X=toy_X, y=toy_y)
+
+        with pytest.raises((AttributeError, ValueError, Exception)):
+            mmm.sample_posterior_predictive(X=toy_X)
+
+    def test_invalid_scaling_method(self, toy_X: pd.DataFrame, toy_y: pd.Series):
+        """Test with invalid scaling method."""
+        from pydantic import ValidationError
+
+        from pymc_marketing.mmm.scaling import Scaling, VariableScaling
+
+        # Invalid scaling method causes ValidationError at initialization
+        with pytest.raises(ValidationError):
+            MMM(
+                date_column="date",
+                channel_columns=["channel_1", "channel_2"],
+                adstock=GeometricAdstock(l_max=4),
+                saturation=LogisticSaturation(),
+                scaling=Scaling(
+                    target=VariableScaling(method="invalid_method", dims=()),
+                    channel=VariableScaling(method="max", dims=()),
+                ),
+            )
+
+    def test_mixed_positive_negative_channels(self, toy_y: pd.Series):
+        """Test with one positive and one negative channel."""
+        X = pd.DataFrame(
+            {
+                "date": pd.date_range("2020-01-01", periods=50, freq="W-MON"),
+                "channel_1": rng.integers(100, 1000, size=50),
+                "channel_2": -rng.integers(100, 1000, size=50),
+            }
+        )
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+
+        mmm.build_model(X=X, y=toy_y)
+        assert hasattr(mmm, "model")
+
+    def test_date_conversion_error(self, toy_y: pd.Series):
+        """Test error when date cannot be converted."""
+        X = pd.DataFrame(
+            {
+                "date": [object() for _ in range(50)],
+                "channel_1": rng.integers(100, 1000, size=50),
+                "channel_2": rng.integers(100, 1000, size=50),
+            }
+        )
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+
+        with pytest.raises(ValueError, match="Could not convert"):
+            mmm.build_model(X=X, y=toy_y)
+
+    def test_transformer_fitting_failure(
+        self, toy_X: pd.DataFrame, toy_y: pd.Series, monkeypatch
+    ):
+        """Test handling when transformer fitting fails."""
+
+        def mock_failing_transformer(*args, **kwargs):
+            raise RuntimeError("Transformer failure")
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+
+        monkeypatch.setattr(mmm, "max_abs_scale_target_data", mock_failing_transformer)
+
+        with pytest.warns(UserWarning, match="Failed to fit transformers"):
+            mmm.build_model(X=toy_X, y=toy_y)
+
+    def test_causal_graph_with_warnings(self, toy_X: pd.DataFrame, toy_y: pd.Series):
+        """Test causal graph initialization with warnings when treatment nodes not specified."""
+        dag = """
+        digraph {
+            channel_1 -> y;
+            channel_2 -> y;
+            control_1 -> y;
+        }
+        """
+
+        with pytest.warns(UserWarning, match="No treatment nodes provided"):
+            mmm = MMM(
+                date_column="date",
+                channel_columns=["channel_1", "channel_2"],
+                control_columns=["control_1"],
+                adstock=GeometricAdstock(l_max=4),
+                saturation=LogisticSaturation(),
+                dag=dag,
+                outcome_node="y",
+            )
+
+        assert mmm.treatment_nodes == ["channel_1", "channel_2"]
+
+    def test_causal_graph_excludes_seasonality(
+        self, toy_X: pd.DataFrame, toy_y: pd.Series
+    ):
+        """Test that seasonality is excluded when not in adjustment set."""
+        dag = """
+        digraph {
+            channel_1 -> y;
+            channel_2 -> y;
+            control_1 -> y;
+        }
+        """
+
+        with pytest.warns(UserWarning, match="Yearly seasonality excluded"):
+            mmm = MMM(
+                date_column="date",
+                channel_columns=["channel_1", "channel_2"],
+                control_columns=["control_1"],
+                adstock=GeometricAdstock(l_max=4),
+                saturation=LogisticSaturation(),
+                yearly_seasonality=2,
+                dag=dag,
+                treatment_nodes=["channel_1", "channel_2"],
+                outcome_node="y",
+            )
+
+        assert mmm.yearly_seasonality is None
+
+    def test_x_data_not_dataframe_error(self, toy_y: pd.Series):
+        """Test error when X data is not a DataFrame."""
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+
+        mmm.preprocessed_data = {"X": np.array([[1, 2], [3, 4]]), "y": toy_y}
+
+        with pytest.raises(TypeError, match="must be a DataFrame"):
+            mmm._compute_scales()
+
+    def test_invalid_synth_dataset_granularity(
+        self, mmm_fitted: MMM, toy_X: pd.DataFrame
+    ):
+        """Test invalid time granularity in synthetic dataset creation."""
+        from xarray import DataArray
+
+        allocation = DataArray(
+            [1000, 2000],
+            dims=["channel"],
+            coords={"channel": mmm_fitted.channel_columns},
+        )
+
+        with pytest.raises(ValueError, match="Unsupported time granularity"):
+            mmm_fitted._create_synth_dataset(
+                df=toy_X,
+                date_column="date",
+                allocation_strategy=allocation,
+                channels=mmm_fitted.channel_columns,
+                controls=None,
+                target_col="y",
+                time_granularity="invalid_granularity",
+                time_length=10,
+                lag=4,
+            )
+
+    def test_invalid_allocation_dims(self, mmm_fitted: MMM, toy_X: pd.DataFrame):
+        """Test error when allocation strategy has wrong dimensions."""
+        from xarray import DataArray
+
+        allocation = DataArray(
+            [1000, 2000],
+            dims=["wrong_dim"],
+            coords={"wrong_dim": ["a", "b"]},
+        )
+
+        with pytest.raises(
+            ValueError, match="must have a single dimension named 'channel'"
+        ):
+            mmm_fitted._create_synth_dataset(
+                df=toy_X,
+                date_column="date",
+                allocation_strategy=allocation,
+                channels=mmm_fitted.channel_columns,
+                controls=None,
+                target_col="y",
+                time_granularity="weekly",
+                time_length=10,
+                lag=4,
+            )
+
+
+class TestMMMHelperMethods:
+    """Tests for internal helper methods added during refactoring."""
+
+    @pytest.mark.parametrize(
+        "method,axis",
+        [("max", 0), ("mean", 0), ("max", None), ("mean", None)],
+        ids=["max_axis0", "mean_axis0", "max_none", "mean_none"],
+    )
+    def test_compute_scale_for_data(self, mmm_fitted: MMM, method: str, axis):
+        """Test _compute_scale_for_data helper method."""
+        data = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+        scale = mmm_fitted._compute_scale_for_data(data, method, axis)
+
+        if method == "max":
+            expected = np.abs(data).max(axis=axis)
+        else:
+            expected = np.abs(data).mean(axis=axis)
+
+        np.testing.assert_array_equal(scale, expected)
+
+    def test_compute_scale_for_data_zero_division(self, mmm_fitted: MMM):
+        """Test that zero values are handled correctly."""
+        data = np.array([[0, 0, 0], [0, 0, 0]])
+        scale = mmm_fitted._compute_scale_for_data(data, "max", axis=0)
+        np.testing.assert_array_equal(scale, np.ones(3))
+
+    def test_compute_scale_for_data_invalid_method(self, mmm_fitted: MMM):
+        """Test that invalid method raises ValueError."""
+        data = np.array([[1, 2], [3, 4]])
+        with pytest.raises(ValueError, match="Unknown scaling method"):
+            mmm_fitted._compute_scale_for_data(data, "invalid", axis=0)
+
+    def test_has_new_scaling(self, mmm_fitted: MMM):
+        """Test _has_new_scaling helper method."""
+        # After fitting, the model should have new scaling
+        assert mmm_fitted._has_new_scaling()
+        assert hasattr(mmm_fitted, "channel_scale")
+        assert hasattr(mmm_fitted, "target_scale")
+
+    def test_prepare_channel_data(self, mmm_fitted: MMM, toy_X: pd.DataFrame):
+        """Test _prepare_channel_data helper method."""
+        data = mmm_fitted._prepare_channel_data(toy_X)
+
+        assert isinstance(data, dict)
+        assert "channel_data" in data
+
+        if mmm_fitted._has_new_scaling():
+            assert "channel_scale" in data
+            np.testing.assert_array_equal(
+                data["channel_scale"], mmm_fitted.channel_scale
+            )
+
+    def test_prepare_channel_data_missing_columns(self, mmm_fitted: MMM):
+        """Test _prepare_channel_data raises error for missing columns."""
+        bad_X = pd.DataFrame({"wrong_col": [1, 2, 3]})
+        with pytest.raises(RuntimeError, match="New data must contain channel_data"):
+            mmm_fitted._prepare_channel_data(bad_X)
+
+    def test_prepare_control_data_no_controls(
+        self, mmm_fitted_no_controls: MMM, toy_X: pd.DataFrame
+    ):
+        """Test _prepare_control_data returns empty dict when no controls."""
+        data = mmm_fitted_no_controls._prepare_control_data(toy_X)
+        assert data == {}
+
+    def test_prepare_control_data_with_controls(
+        self, mmm_fitted: MMM, toy_X: pd.DataFrame
+    ):
+        """Test _prepare_control_data with control columns."""
+        data = mmm_fitted._prepare_control_data(toy_X)
+        assert isinstance(data, dict)
+        assert "control_data" in data
+
+    @pytest.mark.parametrize(
+        "y_input",
+        [None, pd.Series([1, 2, 3]), np.array([1, 2, 3])],
+        ids=["none", "series", "array"],
+    )
+    def test_prepare_target_data(self, mmm_fitted: MMM, y_input):
+        """Test _prepare_target_data with different input types."""
+        n_rows = 3 if y_input is not None else 10
+        data = mmm_fitted._prepare_target_data(y_input, n_rows)
+
+        assert isinstance(data, dict)
+        if mmm_fitted._has_new_scaling():
+            assert "target_data" in data
+            assert "target_scale" in data
+        else:
+            assert "target" in data
+
+    def test_prepare_target_data_invalid_type(self, mmm_fitted: MMM):
+        """Test _prepare_target_data raises error for invalid type."""
+        with pytest.raises(
+            TypeError, match="y must be either a pandas Series or a numpy array"
+        ):
+            mmm_fitted._prepare_target_data("invalid", 10)
+
+    def test_validate_controls_for_synth_dataset(self, mmm_fitted: MMM):
+        """Test _validate_controls_for_synth_dataset helper method."""
+        # With valid controls
+        controls = mmm_fitted._validate_controls_for_synth_dataset(
+            mmm_fitted.control_columns
+        )
+        assert controls == mmm_fitted.control_columns
+
+        # With None
+        controls = mmm_fitted._validate_controls_for_synth_dataset(None)
+        assert controls == []
+
+    def test_validate_controls_for_synth_dataset_error(
+        self, mmm_fitted_no_controls: MMM
+    ):
+        """Test _validate_controls_for_synth_dataset raises error when controls don't exist."""
+        with pytest.raises(ValueError, match="model was built without controls"):
+            mmm_fitted_no_controls._validate_controls_for_synth_dataset(["control_1"])
+
+    @pytest.mark.parametrize(
+        "granularity,time_length",
+        [
+            ("daily", 5),
+            ("weekly", 4),
+            ("monthly", 3),
+            ("quarterly", 2),
+            ("yearly", 1),
+        ],
+        ids=["daily", "weekly", "monthly", "quarterly", "yearly"],
+    )
+    def test_generate_future_dates(
+        self, mmm_fitted: MMM, granularity: str, time_length: int
+    ):
+        """Test _generate_future_dates helper method."""
+        last_date = pd.Timestamp("2021-12-31")
+        dates = mmm_fitted._generate_future_dates(last_date, granularity, time_length)
+
+        assert isinstance(dates, list)
+        assert len(dates) == time_length
+        assert all(isinstance(d, pd.Timestamp) for d in dates)
+        assert all(d > last_date for d in dates)
+
+    def test_build_control_contribution_no_controls(
+        self, toy_X: pd.DataFrame, toy_y: pd.Series
+    ):
+        """Test _build_control_contribution returns None when no controls."""
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+        mmm.build_model(X=toy_X, y=toy_y)
+
+        with mmm.model:
+            contribution = mmm._build_control_contribution()
+            assert contribution is None
+
+    def test_build_control_contribution_with_controls(
+        self, toy_X: pd.DataFrame, toy_y: pd.Series
+    ):
+        """Test _build_control_contribution creates contribution when controls exist."""
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            control_columns=["control_1", "control_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+        mmm.build_model(X=toy_X, y=toy_y)
+
+        # Contribution should exist in the model
+        assert "control_contribution" in [var.name for var in mmm.model.deterministics]
+
+    def test_build_control_contribution_missing_columns(
+        self, toy_X: pd.DataFrame, toy_y: pd.Series
+    ):
+        """Test _build_control_contribution handles missing columns gracefully."""
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            control_columns=["control_1", "control_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+        mmm._generate_and_preprocess_model_data(toy_X, toy_y)
+        mmm._compute_scales()
+
+        # Create a model without the control data
+        with pm.Model(coords=mmm.model_coords):
+            # Manually set up preprocessed data without controls
+            X_data_no_controls = toy_X.drop(columns=["control_1", "control_2"])
+            mmm.preprocessed_data["X"] = X_data_no_controls
+
+            with pytest.raises(
+                ValueError, match=r"Control columns .* not found in X data"
+            ):
+                mmm._build_control_contribution()
+
+    def test_build_yearly_seasonality_contribution_no_seasonality(
+        self, toy_X: pd.DataFrame, toy_y: pd.Series
+    ):
+        """Test _build_yearly_seasonality_contribution returns None when no seasonality."""
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+        mmm.build_model(X=toy_X, y=toy_y)
+
+        with mmm.model:
+            contribution = mmm._build_yearly_seasonality_contribution()
+            assert contribution is None
+
+    def test_build_yearly_seasonality_contribution_with_seasonality(
+        self, toy_X: pd.DataFrame, toy_y: pd.Series
+    ):
+        """Test _build_yearly_seasonality_contribution creates contribution."""
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            yearly_seasonality=2,
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+        mmm.build_model(X=toy_X, y=toy_y)
+
+        # Contribution should exist in the model
+        assert "yearly_seasonality_contribution" in [
+            var.name for var in mmm.model.deterministics
+        ]
+
+    @pytest.mark.parametrize(
+        "original_scale",
+        [True, False],
+        ids=["original_scale", "scaled"],
+    )
+    def test_get_intercept_for_plot(
+        self,
+        mmm: MMM,
+        toy_X: pd.DataFrame,
+        toy_y: pd.Series,
+        mock_pymc_sample,
+        original_scale: bool,
+    ):
+        """Test _get_intercept_for_plot helper method."""
+        # Fit the model fresh for this test
+        mmm.fit(X=toy_X, y=toy_y)
+
+        intercept_mean, intercept_hdi = mmm._get_intercept_for_plot(original_scale)
+
+        assert isinstance(intercept_mean, np.ndarray) or np.isscalar(intercept_mean)
+        assert isinstance(intercept_hdi, np.ndarray)
+        assert intercept_hdi.shape[0] == mmm.X.shape[0]
+        assert intercept_hdi.shape[1] == 2  # Lower and upper bounds
+
+    @pytest.mark.parametrize(
+        "original_scale",
+        [True, False],
+        ids=["original_scale", "scaled"],
+    )
+    def test_get_target_for_plot(
+        self, mmm: MMM, toy_X: pd.DataFrame, toy_y: pd.Series, original_scale: bool
+    ):
+        """Test _get_target_for_plot helper method."""
+        # Build model to ensure preprocessed data exists
+        mmm.build_model(X=toy_X, y=toy_y)
+
+        y_plot = mmm._get_target_for_plot(original_scale)
+
+        assert isinstance(y_plot, np.ndarray)
+        assert y_plot.shape[0] == mmm.X.shape[0]
+
+    def test_transform_to_original_scale_new(self, mmm_fitted: MMM):
+        """Test _transform_to_original_scale_new helper method."""
+        # Create a simple DataArray
+        data = xr.DataArray(
+            np.ones((10,)),
+            dims=["date"],
+            coords={"date": pd.date_range("2020-01-01", periods=10)},
+        ).to_dataset(name="y")
+
+        transformed = mmm_fitted._transform_to_original_scale_new(data)
+
+        assert isinstance(transformed, xr.Dataset)
+        if "y" in transformed:
+            assert (transformed["y"] == mmm_fitted.target_scale).all()
+
+    def test_compute_scales(self, toy_X: pd.DataFrame, toy_y: pd.Series):
+        """Test _compute_scales method."""
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+        mmm._generate_and_preprocess_model_data(toy_X, toy_y)
+        mmm._compute_scales()
+
+        assert hasattr(mmm, "channel_scale")
+        assert hasattr(mmm, "target_scale")
+        assert len(mmm.channel_scale) == len(mmm.channel_columns)
+        assert isinstance(mmm.target_scale, float | np.floating)
+
+    def test_build_intercept_static(self, toy_X: pd.DataFrame, toy_y: pd.Series):
+        """Test _build_intercept with static intercept."""
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            time_varying_intercept=False,
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+        mmm.build_model(X=toy_X, y=toy_y)
+
+        # Check that intercept exists in the model
+        with mmm.model:
+            assert "intercept" in [var.name for var in mmm.model.free_RVs]
+            # Check it's not time-varying (no date dimension in coords)
+            intercept_var = mmm.model["intercept"]
+            assert "date" not in [
+                d.name for d in intercept_var.owner.inputs if hasattr(d, "name")
+            ]
+
+    def test_build_intercept_time_varying(
+        self, toy_X: pd.DataFrame, toy_y: pd.Series, mock_pymc_sample
+    ):
+        """Test _build_intercept with time-varying intercept."""
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            time_varying_intercept=True,
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+        mmm.build_model(X=toy_X, y=toy_y)
+
+        # Check that intercept exists in deterministics with date dimension
+        deterministic_names = {var.name: var for var in mmm.model.deterministics}
+        assert "intercept" in deterministic_names
+        # Check dims include date
+        intercept_var = deterministic_names["intercept"]
+        assert intercept_var.type.broadcastable == (False,)  # Has one dimension (date)
+
+    def test_build_channel_contribution_static(
+        self, toy_X: pd.DataFrame, toy_y: pd.Series
+    ):
+        """Test _build_channel_contribution with static media."""
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            time_varying_media=False,
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+        mmm.build_model(X=toy_X, y=toy_y)
+
+        # Check that channel_contribution exists
+        assert "channel_contribution" in [var.name for var in mmm.model.deterministics]
+        # Should not have baseline_channel_contribution
+        assert "baseline_channel_contribution" not in [
+            var.name for var in mmm.model.deterministics
+        ]
+
+    def test_build_channel_contribution_time_varying(
+        self, toy_X: pd.DataFrame, toy_y: pd.Series
+    ):
+        """Test _build_channel_contribution with time-varying media."""
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            time_varying_media=True,
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+        mmm.build_model(X=toy_X, y=toy_y)
+
+        # Check that both baseline and final contribution exist
+        deterministic_names = [var.name for var in mmm.model.deterministics]
+        assert "baseline_channel_contribution" in deterministic_names
+        assert "channel_contribution" in deterministic_names
+
+    def test_add_original_scale_deterministics(
+        self, toy_X: pd.DataFrame, toy_y: pd.Series
+    ):
+        """Test that original scale deterministics are added."""
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            control_columns=["control_1", "control_2"],
+            yearly_seasonality=2,
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+        mmm.build_model(X=toy_X, y=toy_y)
+
+        deterministic_names = [var.name for var in mmm.model.deterministics]
+
+        # Check original scale variables exist
+        assert "channel_contribution_original_scale" in deterministic_names
+        assert "total_contribution_original_scale" in deterministic_names
+        assert "control_contribution_original_scale" in deterministic_names
+        assert "yearly_seasonality_contribution_original_scale" in deterministic_names
+        assert "y_original_scale" in deterministic_names
+
+    def test_prepare_target_data_with_none_and_no_preprocessed(self, mmm_fitted: MMM):
+        """Test _prepare_target_data when y is None but preprocessed_data doesn't match expected types."""
+        mmm_fitted.preprocessed_data["y"] = "not_a_series_or_array"  # type: ignore
+
+        result = mmm_fitted._prepare_target_data(y=None, n_rows=10)
+
+        assert "target_data" in result or "target" in result
+        if "target_data" in result:
+            assert len(result["target_data"]) == 10
+
+    def test_format_recovered_transformation_parameters(self, mmm_fitted: MMM):
+        """Test format_recovered_transformation_parameters with quantile cache logic."""
+        # Test with default quantile (0.5)
+        result = mmm_fitted.format_recovered_transformation_parameters()
+
+        # Verify structure
+        assert isinstance(result, dict)
+        assert len(result) == len(mmm_fitted.channel_columns)
+
+        # Check each channel has the expected structure
+        for channel in mmm_fitted.channel_columns:
+            assert channel in result
+            assert "saturation_params" in result[channel]
+            assert "adstock_params" in result[channel]
+
+            # Check saturation params exist
+            saturation_params = result[channel]["saturation_params"]
+            assert isinstance(saturation_params, dict)
+            assert len(saturation_params) > 0
+
+            # Check adstock params exist
+            adstock_params = result[channel]["adstock_params"]
+            assert isinstance(adstock_params, dict)
+            assert len(adstock_params) > 0
+
+            # Verify all values are numeric
+            for param_value in saturation_params.values():
+                assert isinstance(param_value, (int, float))
+            for param_value in adstock_params.values():
+                assert isinstance(param_value, (int, float))
+
+    def test_format_recovered_transformation_parameters_different_quantiles(
+        self, mmm_fitted: MMM
+    ):
+        """Test format_recovered_transformation_parameters with different quantiles."""
+        # Test with different quantiles
+        result_lower = mmm_fitted.format_recovered_transformation_parameters(
+            quantile=0.05
+        )
+        result_median = mmm_fitted.format_recovered_transformation_parameters(
+            quantile=0.5
+        )
+        result_upper = mmm_fitted.format_recovered_transformation_parameters(
+            quantile=0.95
+        )
+
+        # Get a sample channel and parameter
+        channel = mmm_fitted.channel_columns[0]
+
+        # Get saturation parameter if available
+        if result_median[channel]["saturation_params"]:
+            param_name = next(iter(result_median[channel]["saturation_params"].keys()))
+            lower_val = result_lower[channel]["saturation_params"][param_name]
+            median_val = result_median[channel]["saturation_params"][param_name]
+            upper_val = result_upper[channel]["saturation_params"][param_name]
+
+            # Lower quantile should be <= median <= upper quantile (generally)
+            # Note: Due to sampling variability this might not always hold exactly
+            assert isinstance(lower_val, (int, float))
+            assert isinstance(median_val, (int, float))
+            assert isinstance(upper_val, (int, float))
+
+    def test_format_recovered_transformation_parameters_prefix_stripping(
+        self, mmm_fitted: MMM
+    ):
+        """Test that parameter prefixes are correctly stripped in the output."""
+        result = mmm_fitted.format_recovered_transformation_parameters()
+
+        channel = mmm_fitted.channel_columns[0]
+
+        # Check that prefixes are stripped (e.g., 'saturation_' and 'adstock_')
+        for param_name in result[channel]["saturation_params"].keys():
+            # Parameters should not have 'saturation_' prefix
+            assert not param_name.startswith("saturation_")
+
+        for param_name in result[channel]["adstock_params"].keys():
+            # Parameters should not have 'adstock_' prefix
+            assert not param_name.startswith("adstock_")

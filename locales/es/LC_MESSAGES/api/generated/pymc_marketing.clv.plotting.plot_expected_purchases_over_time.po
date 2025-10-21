@@ -1,0 +1,361 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.clv.plotting.plot_expected_purchases_over_time.rst:2
+#: 15507e0aeeca4bbf9fa4b0d269861c70
+msgid "plot\\_expected\\_purchases\\_over\\_time"
+msgstr "trazar\\_compras\\_esperadas\\_a\\_lo\\_largo\\_del\\_tiempo"
+
+#: 209b6a8329704ef2b1c8e6062ce73e9e of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:2
+msgid ""
+"Plot actual and expected purchases over time for a fitted ``BetaGeoModel`` "
+"or ``ParetoNBDModel``."
+msgstr ""
+"Representar las compras reales y esperadas a lo largo del tiempo para un "
+"``BetaGeoModel`` o ``ParetoNBDModel`` ajustado."
+
+#: 4aeec8385c294b42be25046730517dfc of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:4
+msgid ""
+"This function is based on the formulation on page 8 of [R791c56446d1e-1]_. "
+"Specifically, we take only customers who have made their first purchase "
+"before the specified number of ``t`` time periods, and run "
+"``expected_purchases_new_customer()`` for all remaining time periods. "
+"Results can be either cumulative or incremental."
+msgstr ""
+"Esta función se basa en la formulación en la página 8 de [R791c56446d1e-1]_."
+" Específicamente, tomamos solo a los clientes que han realizado su primera "
+"compra antes del número especificado de ``t`` períodos de tiempo, y "
+"ejecutamos ``expected_purchases_new_customer()`` para todos los períodos de "
+"tiempo restantes. Los resultados pueden ser acumulativos o incrementales."
+
+#: 4d84a3ee514f4246a13a5d1e2c15c3ef of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:9
+msgid ""
+"Adapted from the legacy ``lifetimes`` library: "
+"https://github.com/CamDavidsonPilon/lifetimes/blob/master/lifetimes/plotting.py#L392"
+msgstr ""
+"Adaptado de la biblioteca heredada ``lifetimes``: "
+"https://github.com/CamDavidsonPilon/lifetimes/blob/master/lifetimes/plotting.py#L392"
+
+#: b3abef28c27745be8d3bd62ada1c725b of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 0b860dca337b4ceda51b616aa7fc79ae of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:14
+msgid "**model**"
+msgstr "**modelo**"
+
+#: 24f7ec5c950a452eb0cd4979a8dba15b of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:15
+msgid "A fitted ``BetaGeoModel`` or ``ParetoNBDModel``."
+msgstr "Un modelo ``BetaGeoModel`` o ``ParetoNBDModel`` ajustado."
+
+#: 2976b544023a42dead17a0493f41aabe of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:17
+msgid "**purchase_history** : :obj:`~pandas.DataFrame`"
+msgstr "**historial_de_compras** : :obj:`~pandas.DataFrame`"
+
+#: 21bf597506e94982b6a6a33297f2690e of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:16
+msgid "DataFrame"
+msgstr "DataFrame"
+
+#: 9e64e0de6f4d4e3ca0e3557e0bd7533b of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:18
+msgid "A Pandas DataFrame containing *customer_id_col* and *datetime_col*."
+msgstr ""
+"Un DataFrame de Pandas que contiene *customer_id_col* y *datetime_col*."
+
+#: a6ef035a52374055ab443e9fe214a7e3 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:20
+msgid "**customer_id_col** : :class:`python:str`"
+msgstr "**customer_id_col** : :class:`python:str`"
+
+#: 9d927e36a2f64bbabc94ff1c6de2d56e c485185a87644bd3a2c8cae23df461ca of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:19
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:22
+msgid "python:str"
+msgstr "python:str"
+
+#: 37a10fa58579455fb0626af184f034d5 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:21
+msgid "Column in the *purchases* DataFrame denoting the *customer_id*."
+msgstr "Columna en el DataFrame de *compras* que denota el *customer_id*."
+
+#: 101a4dea094944ef8f673e19ba4ddb3c of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:23
+msgid "**datetime_col** :  :class:`python:str`"
+msgstr "**datetime_col** :  :class:`python:str`"
+
+#: 94582ff4c29c49fa86b2b9ff01f6210c of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:24
+msgid ""
+"Column in the *purchases* DataFrame denoting datetimes purchase were made."
+msgstr ""
+"Columna en el DataFrame *purchases* que denota las fechas y horas en las que"
+" se realizaron las compras."
+
+#: b40289acf18c4bd590868ba7276e1dda of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:26
+msgid "**t** : :class:`python:int`"
+msgstr "**t** : :class:`python:int`"
+
+#: d4e1a5ac6c544d4dbd91d7d43c852175 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:25
+msgid "python:int"
+msgstr "python:int"
+
+#: 9336dc4ab4ce41468ce8ba0e56cb6487 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:27
+msgid "Number of time units since earliest purchase to include in plot."
+msgstr ""
+"Número de unidades de tiempo desde la compra más temprana para incluir en el"
+" gráfico."
+
+#: 3854fdb170f043ff86ffc4641e91e6c1 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:29
+msgid "**plot_cumulative** : :ref:`bool <python:bltin-boolean-values>`"
+msgstr "**plot_cumulative** : :ref:`bool <python:bltin-boolean-values>`"
+
+#: 1e1c950dd05f459ab1366b9e10fd53b6 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:28
+msgid "bool"
+msgstr "bool"
+
+#: 1d0f1540f97c4faf8e76f5afc72bbaa9 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:30
+msgid ""
+"Default: *True* Plot cumulative purchases over time. Set to *False* to plot "
+"incremental purchases."
+msgstr ""
+"Predeterminado: *Verdadero* Grafique las compras acumulativas a lo largo del"
+" tiempo. Establezca en *Falso* para graficar las compras incrementales."
+
+#: dc8f1e5363d043a9ab687801a1688424 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:33
+msgid "**t_start_eval** : :class:`python:int`, optional"
+msgstr "**t_start_eval** : :class:`python:int`, opcional"
+
+#: 08a9f4d0fd7e4dc781ce538c32c14345 35fa9f2da5474aae8e98b7a851f3cf3e of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:32
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:44
+msgid "python:int, optional"
+msgstr "python:int, opcional"
+
+#: b094d96953f44749bd90c3e72a237062 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:34
+msgid ""
+"If testing model on unobserved data, specify number of time units in "
+"training data to add an indicator for the start of the testing period."
+msgstr ""
+"Si se está probando el modelo con datos no observados, especifique el número"
+" de unidades de tiempo en los datos de entrenamiento para agregar un "
+"indicador para el inicio del período de prueba."
+
+#: cb4237f1b6ac49de8fb05ea1ae95a1fe of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:37
+msgid "**datetime_format** : :class:`python:str`, optional"
+msgstr "**datetime_format** : :class:`python:str`, opcional"
+
+#: 000f4984556142e4b23c872b203f2304 ad5fd49938de47e29b2ad2e6d4c8b193
+#: dc45090328bc45ef9bcb9d04323fa8f8 f3c86751d71d44f987704bf3f1c3a4af
+#: ff234a18aad84fc6a78b1597ac243800 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:36
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:39
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:56
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:59
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:62
+msgid "python:str, optional"
+msgstr "python:str, opcional"
+
+#: b85058f9256e41679fd8e0180b3d33b4 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:38
+msgid ""
+"A string that represents the timestamp format. Useful if Pandas doesn't "
+"recognize the provided format."
+msgstr ""
+"Una cadena que representa el formato de la marca de tiempo. Útil si Pandas "
+"no reconoce el formato proporcionado."
+
+#: 836843b1b84a467d83ac83c20bcaf85a of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:40
+msgid "**time_unit** : :class:`python:str`, optional"
+msgstr "**unidad_tiempo** : :class:`python:str`, opcional"
+
+#: 7bb743f62e5545d590c0c490342b965b of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:41
+msgid ""
+"Time granularity for study. Default: 'D' for days. Possible values listed "
+"here: https://numpy.org/devdocs/reference/arrays.datetime.html#datetime-"
+"units"
+msgstr ""
+"Granularidad de tiempo para el estudio. Predeterminado: 'D' para días. Los "
+"valores posibles se enumeran aquí: "
+"https://numpy.org/devdocs/reference/arrays.datetime.html#datetime-units"
+
+#: 645e147f67ef402d9d8e093082188bb9 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:45
+msgid "**time_scaler** : :class:`python:int`, optional"
+msgstr "**time_scaler** : :class:`python:int`, opcional"
+
+#: 87a1e46b94594af793a83f2090449067 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:46
+msgid ""
+"Default: 1. Scales *recency* & *T* to a different time granularity. This is "
+"useful for datasets spanning many years, and running predictions in "
+"different time scales."
+msgstr ""
+"Predeterminado: 1. Escala *recencia* y *T* a una granularidad temporal "
+"diferente. Esto es útil para conjuntos de datos que abarcan muchos años y "
+"para realizar predicciones en diferentes escalas de tiempo."
+
+#: b616827010d9419ca55bd360d700bf45 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:49
+msgid ""
+"**sort_purchases** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+"**sort_purchases** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 65f30d6d51fa40d28524cb789acc4376 7d77ba7dc25a42bbb0ec9bafe59312b5 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:48
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:53
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: 85af6cf9c3ed4a62b57c133be09b4535 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:50
+msgid ""
+"Default: *True* If *purchase_history* DataFrame is already sorted in "
+"chronological order, set to *False* to improve computational efficiency."
+msgstr ""
+"Predeterminado: *Verdadero* Si el DataFrame *purchase_history* ya está "
+"ordenado en orden cronológico, establezca en *Falso* para mejorar la "
+"eficiencia computacional."
+
+#: bb083b4277f74b24ad195322001a9f07 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:54
+msgid ""
+"**set_index_date** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+"**set_index_date** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 071c2280d3934ae0888d1b0b5783ecf6 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:55
+msgid "Set to True to return a dataframe with a datetime index."
+msgstr ""
+"Establezca en True para devolver un dataframe con un índice de tipo "
+"datetime."
+
+#: 83c84751d5ea41efa51fa21c0abd42a9 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:57
+msgid "**title** : :class:`python:str`, optional"
+msgstr "**título** : :class:`python:str`, opcional"
+
+#: a8f7391c7ac44b52859e34ede26f6692 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:58
+msgid "Figure title"
+msgstr "Título de la figura"
+
+#: 90695fd872224e29a0b9973450890697 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:60
+msgid "**xlabel** : :class:`python:str`, optional"
+msgstr "**xlabel** : :class:`python:str`, opcional"
+
+#: 82947d6a185f431e8240c181a033e029 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:61
+msgid "Figure xlabel"
+msgstr "Etiqueta del eje x"
+
+#: dee02352a73f4ee78a3b9736c6bce3cf of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:63
+msgid "**ylabel** : :class:`python:str`, optional"
+msgstr "**ylabel** : :class:`python:str`, opcional"
+
+#: 937aea79566e46b9bf32e322713cba01 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:64
+msgid "Figure ylabel"
+msgstr "Etiqueta del eje y"
+
+#: 1a8c31ce157e47a5aed2c9c84577c4d6 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:66
+msgid "**ax** : :obj:`matplotlib.Axes`, optional"
+msgstr "**ax** : :obj:`matplotlib.Axes`, opcional"
+
+#: be60e1f7ccf14449b792199fa76dd40c of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:65
+msgid "matplotlib.Axes, optional"
+msgstr "matplotlib.Axes, opcional"
+
+#: a0d780658cb346ff976255ed97ed045b of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:67
+msgid "A matplotlib Axes instance. Creates new axes instance by default."
+msgstr ""
+"Una instancia de Axes de matplotlib. Crea una nueva instancia de ejes por "
+"defecto."
+
+#: 8eedee6353a145949163185bda9e324d of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:69
+msgid "**kwargs**"
+msgstr "**kwargs**"
+
+#: 8988123eabe6493f99ef15180f163a7e of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:70
+msgid "Additional arguments to pass into the pandas.DataFrame.plot command."
+msgstr "Argumentos adicionales para pasar al comando pandas.DataFrame.plot."
+
+#: 6dd006e3ec264ad28c7334f253e6667b of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 3f988669ef204f0d94eb31c12c1ef7f7 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:76
+msgid "axes: :obj:`matplotlib.AxesSubplot`"
+msgstr "ejes: :obj:`matplotlib.AxesSubplot`"
+
+#: 5be7abc132a849a2a2c556e366d23ac0 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:88
+msgid "References"
+msgstr "Referencias"
+
+#: 4463f8ed6b3b4939b04246fa46bb6b35 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:89
+msgid "Fader, Peter S., Bruce G.S. Hardie, and Ka Lok Lee (2005),"
+msgstr "Fader, Peter S., Bruce G.S. Hardie y Ka Lok Lee (2005),"
+
+#: afd0687f04014803a2190af213496472 of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:90
+msgid ""
+"A Note on Implementing the Pareto/NBD Model in MATLAB. "
+"http://brucehardie.com/notes/008/"
+msgstr ""
+"Una nota sobre la implementación del modelo Pareto/NBD en MATLAB. "
+"http://brucehardie.com/notes/008/"
+
+#: 6e4d82e62f964517ae991755d996a73e of
+#: pymc_marketing.clv.plotting.plot_expected_purchases_over_time:95
+msgid "[R791c56446d1e-1]_"
+msgstr "[R791c56446d1e-1]_"

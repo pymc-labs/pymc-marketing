@@ -1,0 +1,120 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.expected_probability_alive.rst:2
+#: d44b21585e1e456ba55afd87b3235782
+msgid "ModifiedBetaGeoModel.expected\\_probability\\_alive"
+msgstr "ModifiedBetaGeoModel.probabilidad\\_esperada\\_viva"
+
+#: ba27923ee5c443f9b0e2c2fd3d54c249 of
+#: pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.expected_probability_alive:2
+msgid ""
+"Compute the probability a customer with history *frequency*, *recency*, and "
+"*T* is currently active."
+msgstr ""
+"Calcule la probabilidad de que un cliente con historial de *frecuencia*, "
+"*recencia* y *T* esté actualmente activo."
+
+#: 909d980dfa454863810d45a5b2da2a41 of
+#: pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.expected_probability_alive:4
+msgid "The *data* parameter is only required for out-of-sample customers."
+msgstr "El parámetro *data* solo es necesario para clientes fuera de muestra."
+
+#: 88c7b2b3b914498283e3bdc3d3c89739 of
+#: pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.expected_probability_alive:6
+msgid ""
+"Adapted from equation (5) in [R94c3b4fddd93-1]_, and `lifetimes` library: "
+"https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/modified_beta_geo_fitter.py#L188"
+msgstr ""
+"Adaptado de la ecuación (5) en [R94c3b4fddd93-1]_, y la biblioteca "
+"`lifetimes`: "
+"https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/modified_beta_geo_fitter.py#L188"
+
+#: 9e0e02723daf4ac69c5261f79cdf6ad0 of
+#: pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.expected_probability_alive
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 2f494100360b441ca4401624429cbdc9 of
+#: pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.expected_probability_alive:11
+msgid "**data**"
+msgstr "**datos**"
+
+#: caf548040f9c450983e61c5c75a10895 of
+#: pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.expected_probability_alive:10
+msgid "*pandas.DataFrame"
+msgstr "*pandas.DataFrame"
+
+#: 83eb1acc02384b179ccfaf129d71cfd8 of
+#: pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.expected_probability_alive:12
+msgid "Optional dataframe containing the following columns:"
+msgstr "Dataframe opcional que contiene las siguientes columnas:"
+
+#: eeb839c12a1c48458963324614b57a82 of
+#: pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.expected_probability_alive:14
+msgid "`customer_id`: Unique customer identifier"
+msgstr "`customer_id`: Identificador único del cliente"
+
+#: 344f259ce443430f84e39d8d458c45f9 of
+#: pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.expected_probability_alive:15
+msgid "`frequency`: Number of repeat purchases"
+msgstr "`frequency`: Número de compras repetidas"
+
+#: 11fd94ad25b744efa23984dc18dbb4e4 of
+#: pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.expected_probability_alive:16
+msgid "`recency`: Time between the first and the last purchase"
+msgstr "`recency`: Tiempo entre la primera y la última compra"
+
+#: f9ea9ae672dc46d7ac01732d2772e9bd of
+#: pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.expected_probability_alive:17
+msgid ""
+"`T`: Time between first purchase and end of observation period, model "
+"assumptions require T >= recency"
+msgstr ""
+"T: Tiempo entre la primera compra y el final del período de observación, las"
+" suposiciones del modelo requieren T >= recencia"
+
+#: 83e71db98dc3424b8c2a2c38fa833925 of
+#: pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.expected_probability_alive:31
+msgid "References"
+msgstr "Referencias"
+
+#: 7c8e01d7335444158da1b4cf2de32769 of
+#: pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.expected_probability_alive:32
+msgid "Batislam, E.P., M. Denizel, A. Filiztekin (2007),"
+msgstr "Batislam, E.P., M. Denizel, A. Filiztekin (2007),"
+
+#: 75e0afe566c34de3b867d13f8360a5c1 of
+#: pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.expected_probability_alive:33
+msgid ""
+"\"Empirical validation and comparison of models for customer base "
+"analysis.\" International Journal of Research in Marketing, 24 (3), 201-209."
+" https://works.bepress.com/meltem-denizel/2/download/"
+msgstr ""
+"Validación empírica y comparación de modelos para el análisis de la base de "
+"clientes. International Journal of Research in Marketing, 24 (3), 201-209. "
+"https://works.bepress.com/meltem-denizel/2/download/"
+
+#: 677748b7559a4855a44a39fafad572f8 of
+#: pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.expected_probability_alive:39
+msgid "[R94c3b4fddd93-1]_"
+msgstr "[R94c3b4fddd93-1]_"

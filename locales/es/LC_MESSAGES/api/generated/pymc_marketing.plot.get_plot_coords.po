@@ -1,0 +1,70 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.plot.get_plot_coords.rst:2
+#: e5396198ab80401c914737316ef56600
+msgid "get\\_plot\\_coords"
+msgstr "get\\_plot\\_coords"
+
+#: 30e23e265b0e4d8da9e82857fe263fe0 of pymc_marketing.plot.get_plot_coords:2
+msgid "Get the plot coordinates."
+msgstr "Obtenga las coordenadas del gráfico."
+
+#: de3b5bc777594b979c6b55ed198b6f82 of pymc_marketing.plot.get_plot_coords
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: ada641f2cdba4c6c900c0f794dd427fe of pymc_marketing.plot.get_plot_coords:7
+msgid "**coords** : :obj:`Coords`"
+msgstr "**coords** : :obj:`Coords`"
+
+#: 34e5cc33a2444bc6b0a30d954489438c of pymc_marketing.plot.get_plot_coords:6
+msgid "Coords"
+msgstr "Coords"
+
+#: a03b29f38bb84984a3653d3b6d6e9128 of pymc_marketing.plot.get_plot_coords:8
+msgid "The coordinates to get the plot coordinates from."
+msgstr "Las coordenadas para obtener las coordenadas del gráfico."
+
+#: d31cecd403124a56aed72f5dbd8b5744 of pymc_marketing.plot.get_plot_coords:10
+msgid "**non_grid_names** : :obj:`set`\\[:class:`python:str`]"
+msgstr "**non_grid_names** : :obj:`set`\\[:class:`python:str`]"
+
+#: 4dee2307d1e24b33a76755a6c5bfea49 of pymc_marketing.plot.get_plot_coords:9
+msgid "set[python:str]"
+msgstr "set[python:str]"
+
+#: 5ecf1ddc1c494c67aa1dc7a1a16e12fe of pymc_marketing.plot.get_plot_coords:11
+msgid "The names to exclude from the grid."
+msgstr "Los nombres a excluir de la cuadrícula."
+
+#: cd1931ece1114f52b5beb113b24ef04a of pymc_marketing.plot.get_plot_coords
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: d2c90f92fd33464cb0c1ab0341fd4d00 of pymc_marketing.plot.get_plot_coords:17
+msgid ":obj:`Coords`"
+msgstr ":obj:`Coords`"
+
+#: 7046d5990ef0453fa8ce7c66da1313fb of pymc_marketing.plot.get_plot_coords:18
+msgid "The plot coordinates."
+msgstr "Las coordenadas del gráfico."
