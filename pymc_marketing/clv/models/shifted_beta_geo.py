@@ -476,6 +476,58 @@ class ShiftedBetaGeoModel(CLVModel):
             "chain", "draw", "customer_id", "cohort", missing_dims="ignore"
         )
 
+    def expected_retention_elasticity(
+        self,
+        data: pd.DataFrame | None = None,
+        *,
+        discount_rate: float | np.ndarray | pd.Series | None = 0.0,
+    ) -> xarray.DataArray:
+        """Compute expected retention elasticity for each customer.
+
+        This is the percent increase in expected residual lifetime given a 1% increase in the retention rate,
+        subject to a discount rate for net present value (NPV) calculations.
+        It is recommended to set a discount rate > 0 to avoid infinite retention elasticity estimates.
+
+        Adapted from equation (8) in [1]_.
+
+        Parameters
+        ----------
+        discount_rate : float
+            Discount rate to apply for net present value estimations.
+        data : ~pandas.DataFrame
+            Optional dataframe containing the following columns:
+            * `customer_id`: Unique customer identifier
+            * `T`: Number of time periods customer has been active
+            * `cohort`: Customer cohort label
+
+        References
+        ----------
+        .. [1] Fader, P. S., & Hardie, B. G. (2010). "Customer-Base Valuation in a Contractual Setting:
+            The Perils of Ignoring Heterogeneity". Marketing Science, 29(1), 85-93.
+            https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_contractual_mksc_10.pdf
+        """
+        if data is None:
+            data = self.data
+
+        if discount_rate is not None:
+            data = data.assign(discount_rate=discount_rate)
+
+        dataset = self._extract_predictive_variables(
+            data, customer_varnames=["T", "discount_rate"]
+        )
+
+        alpha = dataset["alpha"]
+        beta = dataset["beta"]
+        T = dataset["T"]
+        d = dataset["discount_rate"]
+
+        retention_elasticity = hyp2f1(
+            1, beta + T - 1, alpha + beta + T - 1, 1 / (1 + d)
+        )
+        return retention_elasticity.transpose(
+            "chain", "draw", "customer_id", "cohort", missing_dims="ignore"
+        )
+
 
 class ShiftedBetaGeoModelIndividual(CLVModel):
     """Shifted Beta Geometric model for individual customers.
