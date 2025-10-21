@@ -186,9 +186,8 @@ msgid ""
 "<pymc_marketing.mmm.hsgp.SoftPlusHSGP.deterministics_to_replace>`\\ "
 "\\(name\\)"
 msgstr ""
-":py:obj:`SoftPlusHSGP.deterministics_to_replace "
-"<pymc_marketing.mmm.hsgp.SoftPlusHSGP.deterministics_to_replace>`\\ "
-"\\(nombre\\)"
+"msgid: :py:obj:`SoftPlusHSGP.deterministics_to_replace <pymc_marketing.mmm.hsgp.SoftPlusHSGP.deterministics_to_replace>`\\ \\(name\\)  \n"
+"msgstr: :py:obj:`SoftPlusHSGP.deterministics_to_replace <pymc_marketing.mmm.hsgp.SoftPlusHSGP.deterministics_to_replace>`\\ \\(name\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.hsgp.SoftPlusHSGP.rst:53:<autosummary>:1
 #: 856850f0678f4fc4aedd19e54b06bdae
@@ -530,8 +529,8 @@ msgid ""
 ":py:obj:`SoftPlusHSGP.to_dict "
 "<pymc_marketing.mmm.hsgp.SoftPlusHSGP.to_dict>`\\ \\(\\)"
 msgstr ""
-":py:obj:`SoftPlusHSGP.to_dict "
-"<pymc_marketing.mmm.hsgp.SoftPlusHSGP.to_dict>`\\ \\(\\)"
+"msgid: :py:obj:`SoftPlusHSGP.to_dict <pymc_marketing.mmm.hsgp.SoftPlusHSGP.to_dict>`\\ \\(\\)  \n"
+"msgstr: :py:obj:`SoftPlusHSGP.to_dict <pymc_marketing.mmm.hsgp.SoftPlusHSGP.to_dict>`\\ \\(\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.hsgp.SoftPlusHSGP.rst:53:<autosummary>:1
 #: ecb2cb978f3d457aa6192971ee773515
