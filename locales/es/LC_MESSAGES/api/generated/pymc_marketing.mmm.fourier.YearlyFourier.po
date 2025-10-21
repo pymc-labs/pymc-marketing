@@ -568,8 +568,8 @@ msgid ""
 ":py:obj:`YearlyFourier.to_dict "
 "<pymc_marketing.mmm.fourier.YearlyFourier.to_dict>`\\ \\(\\)"
 msgstr ""
-":py:obj:`YearlyFourier.to_dict "
-"<pymc_marketing.mmm.fourier.YearlyFourier.to_dict>`\\ \\(\\)"
+"msgid: :py:obj:`YearlyFourier.to_dict <pymc_marketing.mmm.fourier.YearlyFourier.to_dict>`\\ \\(\\)  \n"
+"msgstr: :py:obj:`YearlyFourier.to_dict <pymc_marketing.mmm.fourier.YearlyFourier.to_dict>`\\ \\(\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:55:<autosummary>:1
 #: 1dbdb06cd4df4838af9310f5085af973
@@ -684,8 +684,8 @@ msgid ""
 ":py:obj:`days_in_period "
 "<pymc_marketing.mmm.fourier.YearlyFourier.days_in_period>`\\"
 msgstr ""
-":py:obj:`days_in_period "
-"<pymc_marketing.mmm.fourier.YearlyFourier.days_in_period>`"
+"msgid: :py:obj:`days_in_period <pymc_marketing.mmm.fourier.YearlyFourier.days_in_period>`  \n"
+"msgstr: :py:obj:`days_in_period <pymc_marketing.mmm.fourier.YearlyFourier.days_in_period>`"
 
 #: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:70:<autosummary>:1
 #: a6d0f04291f14b418f23be9b69401cdc
