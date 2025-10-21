@@ -23,7 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.components.saturation.LogisticSaturation.to_dict.rst:2
 #: b8d66f8529ba4cf9b50588b71cbccb01
 msgid "LogisticSaturation.to\\_dict"
-msgstr "LogisticSaturation.to\\_dict"
+msgstr ""
+"msgid: LogisticSaturation.to\\_dict  \n"
+"msgstr: LogisticSaturation.to\\_dict"
 
 #: 0a21496c556c4601999bfb4da5ddecb4 of
 #: pymc_marketing.mmm.components.base.Transformation.to_dict:2
