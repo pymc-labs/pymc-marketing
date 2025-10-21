@@ -198,9 +198,8 @@ msgid ""
 "<pymc_marketing.mmm.components.saturation.LogisticSaturation.set_dims_for_all_priors>`\\"
 " \\(dims\\)"
 msgstr ""
-":py:obj:`LogisticSaturation.set_dims_for_all_priors "
-"<pymc_marketing.mmm.components.saturation.LogisticSaturation.set_dims_for_all_priors>`\\"
-" \\(dims\\)"
+"msgid: :py:obj:`LogisticSaturation.set_dims_for_all_priors <pymc_marketing.mmm.components.saturation.LogisticSaturation.set_dims_for_all_priors>`\\ \\(dims\\)  \n"
+"msgstr: :py:obj:`LogisticSaturation.set_dims_for_all_priors <pymc_marketing.mmm.components.saturation.LogisticSaturation.set_dims_for_all_priors>`\\ \\(dims\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:32:<autosummary>:1
 #: d21865134ae544ed90213f5f2aae7c5d
@@ -214,9 +213,8 @@ msgid ""
 "<pymc_marketing.mmm.components.saturation.LogisticSaturation.to_dict>`\\ "
 "\\(\\)"
 msgstr ""
-":py:obj:`LogisticSaturation.to_dict "
-"<pymc_marketing.mmm.components.saturation.LogisticSaturation.to_dict>`\\ "
-"\\(\\)"
+"msgid: :py:obj:`LogisticSaturation.to_dict <pymc_marketing.mmm.components.saturation.LogisticSaturation.to_dict>`\\ \\(\\)  \n"
+"msgstr: :py:obj:`LogisticSaturation.to_dict <pymc_marketing.mmm.components.saturation.LogisticSaturation.to_dict>`\\ \\(\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:32:<autosummary>:1
 #: c8ab9539551749539165bd4bed490683
