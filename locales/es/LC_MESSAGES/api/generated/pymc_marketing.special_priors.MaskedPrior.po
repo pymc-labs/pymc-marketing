@@ -219,8 +219,8 @@ msgid ""
 ":py:obj:`MaskedPrior.to_dict "
 "<pymc_marketing.special_priors.MaskedPrior.to_dict>`\\ \\(\\)"
 msgstr ""
-":py:obj:`MaskedPrior.to_dict "
-"<pymc_marketing.special_priors.MaskedPrior.to_dict>`\\ \\(\\)"
+"msgid: :py:obj:`MaskedPrior.to_dict <pymc_marketing.special_priors.MaskedPrior.to_dict>`\\ \\(\\)  \n"
+"msgstr: :py:obj:`MaskedPrior.to_dict <pymc_marketing.special_priors.MaskedPrior.to_dict>`\\ \\(\\)"
 
 #: ../source/api/generated/pymc_marketing.special_priors.MaskedPrior.rst:21:<autosummary>:1
 #: 46c8bfdd05a447778adc3af6def2a6d7
