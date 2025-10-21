@@ -87,7 +87,7 @@ msgstr "**T** : :term:`numpy:array_like`, opcional"
 msgid "numpy:array_like, optional"
 msgstr ""
 "msgid: numpy:array_like, optional  \n"
-"msgstr: numpy:similar_a_array, opcional"
+"msgstr: numpy:array_like, opcional"
 
 #: 1a52d8db5feb4230b6128a41cdc75470 of
 #: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_recency_frequency:17
