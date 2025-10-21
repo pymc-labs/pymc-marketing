@@ -202,9 +202,8 @@ msgid ""
 "<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.set_dims_for_all_priors>`\\"
 " \\(dims\\)"
 msgstr ""
-":py:obj:`MichaelisMentenSaturation.set_dims_for_all_priors "
-"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.set_dims_for_all_priors>`\\"
-" \\(dims\\)"
+"msgid: :py:obj:`MichaelisMentenSaturation.set_dims_for_all_priors <pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.set_dims_for_all_priors>`\\ \\(dims\\)  \n"
+"msgstr: :py:obj:`MichaelisMentenSaturation.set_dims_for_all_priors <pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.set_dims_for_all_priors>`\\ \\(dims\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.rst:32:<autosummary>:1
 #: f3cf5f0960dd43dcaa2323c20bff9d5d
@@ -218,9 +217,8 @@ msgid ""
 "<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.to_dict>`\\"
 " \\(\\)"
 msgstr ""
-":py:obj:`MichaelisMentenSaturation.to_dict "
-"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.to_dict>`\\"
-" \\(\\)"
+"msgid: :py:obj:`MichaelisMentenSaturation.to_dict <pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.to_dict>`\\ \\(\\)  \n"
+"msgstr: :py:obj:`MichaelisMentenSaturation.to_dict <pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.to_dict>`\\ \\(\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.rst:32:<autosummary>:1
 #: c5e2d2d6636043c6ba6aeb62efb0f1f4
