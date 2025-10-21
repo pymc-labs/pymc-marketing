@@ -91,8 +91,8 @@ msgid ""
 ":py:obj:`BaseMMM.attrs_to_init_kwargs "
 "<pymc_marketing.mmm.mmm.BaseMMM.attrs_to_init_kwargs>`\\ \\(attrs\\)"
 msgstr ""
-"msgid: :py:obj:`BaseMMM.attrs_to_init_kwargs <pymc_marketing.mmm.mmm.BaseMMM.attrs_to_init_kwargs>`\\ \\(attrs\\)  \n"
-"msgstr: :py:obj:`BaseMMM.attrs_to_init_kwargs <pymc_marketing.mmm.mmm.BaseMMM.attrs_to_init_kwargs>`\\ \\(attrs\\)"
+":py:obj:`BaseMMM.attrs_to_init_kwargs "
+"<pymc_marketing.mmm.mmm.BaseMMM.attrs_to_init_kwargs>`\\ \\(attrs\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
 #: 92391cdcc4a449f1b6685fbe277ae012
@@ -315,8 +315,8 @@ msgid ""
 ":py:obj:`BaseMMM.idata_to_init_kwargs "
 "<pymc_marketing.mmm.mmm.BaseMMM.idata_to_init_kwargs>`\\ \\(idata\\)"
 msgstr ""
-"msgid: :py:obj:`BaseMMM.idata_to_init_kwargs <pymc_marketing.mmm.mmm.BaseMMM.idata_to_init_kwargs>`\\ \\(idata\\)  \n"
-"msgstr: :py:obj:`BaseMMM.idata_to_init_kwargs <pymc_marketing.mmm.mmm.BaseMMM.idata_to_init_kwargs>`\\ \\(idata\\)"
+":py:obj:`BaseMMM.idata_to_init_kwargs "
+"<pymc_marketing.mmm.mmm.BaseMMM.idata_to_init_kwargs>`\\ \\(idata\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.mmm.BaseMMM.rst:62:<autosummary>:1
 #: 3f4dca632669490893b6afe9040a1106

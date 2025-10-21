@@ -23,9 +23,7 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.TBF_FCI.to_digraph.rst:2
 #: a0aa6bf4414c4785b5f3ba27c4ddc514
 msgid "TBF\\_FCI.to\\_digraph"
-msgstr ""
-"msgid: TBF\\_FCI.to\\_digraph  \n"
-"msgstr: TBF\\_FCI.to\\_digraph"
+msgstr "TBF\\_FCI.a\\_digrafo"
 
 #: b436361827104ff8bc9a15bff45b9ca7 of
 #: pymc_marketing.mmm.causal.TBF_FCI.to_digraph:2

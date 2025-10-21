@@ -192,8 +192,9 @@ msgid ""
 "<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.attrs_to_init_kwargs>`\\"
 " \\(attrs\\)"
 msgstr ""
-"msgid: :py:obj:`GammaGammaModelIndividual.attrs_to_init_kwargs <pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.attrs_to_init_kwargs>`\\ \\(attrs\\)  \n"
-"msgstr: :py:obj:`GammaGammaModelIndividual.attrs_to_init_kwargs <pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.attrs_to_init_kwargs>`\\ \\(attrs\\)"
+":py:obj:`GammaGammaModelIndividual.attrs_to_init_kwargs "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.attrs_to_init_kwargs>`\\"
+" \\(attrs\\)"
 
 #: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
 #: 7fbadaabd5114a849899346bed8bf58f
@@ -391,8 +392,9 @@ msgid ""
 "<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.idata_to_init_kwargs>`\\"
 " \\(idata\\)"
 msgstr ""
-"msgid: :py:obj:`GammaGammaModelIndividual.idata_to_init_kwargs <pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.idata_to_init_kwargs>`\\ \\(idata\\)  \n"
-"msgstr: :py:obj:`GammaGammaModelIndividual.idata_to_init_kwargs <pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.idata_to_init_kwargs>`\\ \\(idata\\)"
+":py:obj:`GammaGammaModelIndividual.idata_to_init_kwargs "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.idata_to_init_kwargs>`\\"
+" \\(idata\\)"
 
 #: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
 #: 0af1546215964ec48e6765a238a6c768

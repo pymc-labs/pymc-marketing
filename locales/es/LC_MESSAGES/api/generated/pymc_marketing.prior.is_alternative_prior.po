@@ -23,9 +23,7 @@ msgstr ""
 #: ../source/api/generated/pymc_marketing.prior.is_alternative_prior.rst:2
 #: 192c0c90cea14cb6b82d9a4e69873485
 msgid "is\\_alternative\\_prior"
-msgstr ""
-"msgid: is\\_alternative\\_prior  \n"
-"msgstr: is\\_alternative\\_prior"
+msgstr "is\\_alternative\\_prior"
 
 #: 9771a2db7d84472c883fd1fb7ad9b807 of
 #: pymc_marketing.prior.is_alternative_prior:2

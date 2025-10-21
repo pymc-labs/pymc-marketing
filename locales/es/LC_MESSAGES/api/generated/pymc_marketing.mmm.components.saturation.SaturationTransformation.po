@@ -197,8 +197,9 @@ msgid ""
 "<pymc_marketing.mmm.components.saturation.SaturationTransformation.set_dims_for_all_priors>`\\"
 " \\(dims\\)"
 msgstr ""
-"msgid: :py:obj:`SaturationTransformation.set_dims_for_all_priors <pymc_marketing.mmm.components.saturation.SaturationTransformation.set_dims_for_all_priors>`\\ \\(dims\\)  \n"
-"msgstr: :py:obj:`SaturationTransformation.set_dims_for_all_priors <pymc_marketing.mmm.components.saturation.SaturationTransformation.set_dims_for_all_priors>`\\ \\(dims\\)"
+":py:obj:`SaturationTransformation.set_dims_for_all_priors "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation.set_dims_for_all_priors>`\\"
+" \\(dims\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.components.saturation.SaturationTransformation.rst:31:<autosummary>:1
 #: ffc260e327d648e081d7ffd84da7f7a0
@@ -212,8 +213,9 @@ msgid ""
 "<pymc_marketing.mmm.components.saturation.SaturationTransformation.to_dict>`\\"
 " \\(\\)"
 msgstr ""
-"msgid: :py:obj:`SaturationTransformation.to_dict <pymc_marketing.mmm.components.saturation.SaturationTransformation.to_dict>`\\ \\(\\)  \n"
-"msgstr: :py:obj:`SaturationTransformation.to_dict <pymc_marketing.mmm.components.saturation.SaturationTransformation.to_dict>`\\ \\(\\)"
+":py:obj:`SaturationTransformation.to_dict "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation.to_dict>`\\"
+" \\(\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.components.saturation.SaturationTransformation.rst:31:<autosummary>:1
 #: cbe825785f964cc6917662e2bd137ae1

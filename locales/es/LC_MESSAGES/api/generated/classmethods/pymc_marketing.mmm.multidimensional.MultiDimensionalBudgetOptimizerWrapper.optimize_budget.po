@@ -48,9 +48,7 @@ msgstr "python:float | python:int"
 #: 47dc36a8889e47ccaba2bbe43c941556 of
 #: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget:8
 msgid "Total budget to allocate."
-msgstr ""
-"msgid: Total budget to allocate.  \n"
-"msgstr: Presupuesto total a asignar."
+msgstr "Presupuesto total a asignar."
 
 #: 4bd417dc32ba45b0bc62228df32230b9 of
 #: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget:10

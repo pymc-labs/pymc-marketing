@@ -197,8 +197,9 @@ msgid ""
 "<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.set_dims_for_all_priors>`\\"
 " \\(dims\\)"
 msgstr ""
-"msgid: :py:obj:`WeibullPDFAdstock.set_dims_for_all_priors <pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.set_dims_for_all_priors>`\\ \\(dims\\)  \n"
-"msgstr: :py:obj:`WeibullPDFAdstock.set_dims_for_all_priors <pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.set_dims_for_all_priors>`\\ \\(dims\\)"
+":py:obj:`WeibullPDFAdstock.set_dims_for_all_priors "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.set_dims_for_all_priors>`\\"
+" \\(dims\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:32:<autosummary>:1
 #: 85db5788c49d4bd4b12aafc9692ec001
@@ -211,8 +212,8 @@ msgid ""
 ":py:obj:`WeibullPDFAdstock.to_dict "
 "<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.to_dict>`\\ \\(\\)"
 msgstr ""
-"msgid: :py:obj:`WeibullPDFAdstock.to_dict <pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.to_dict>`\\ \\(\\)  \n"
-"msgstr: :py:obj:`WeibullPDFAdstock.to_dict <pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.to_dict>`\\ \\(\\)"
+":py:obj:`WeibullPDFAdstock.to_dict "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.to_dict>`\\ \\(\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:32:<autosummary>:1
 #: 1b24ca4165854aeca7a51376035f0c50

@@ -163,8 +163,9 @@ msgid ""
 "<pymc_marketing.mmm.components.adstock.NoAdstock.set_dims_for_all_priors>`\\"
 " \\(dims\\)"
 msgstr ""
-"msgid: :py:obj:`NoAdstock.set_dims_for_all_priors <pymc_marketing.mmm.components.adstock.NoAdstock.set_dims_for_all_priors>`\\ \\(dims\\)  \n"
-"msgstr: :py:obj:`NoAdstock.set_dims_for_all_priors <pymc_marketing.mmm.components.adstock.NoAdstock.set_dims_for_all_priors>`\\ \\(dims\\)"
+":py:obj:`NoAdstock.set_dims_for_all_priors "
+"<pymc_marketing.mmm.components.adstock.NoAdstock.set_dims_for_all_priors>`\\"
+" \\(dims\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.components.adstock.NoAdstock.rst:32:<autosummary>:1
 #: e775485a25e94dd08d014d735a72e081
@@ -177,8 +178,8 @@ msgid ""
 ":py:obj:`NoAdstock.to_dict "
 "<pymc_marketing.mmm.components.adstock.NoAdstock.to_dict>`\\ \\(\\)"
 msgstr ""
-"msgid: :py:obj:`NoAdstock.to_dict <pymc_marketing.mmm.components.adstock.NoAdstock.to_dict>`\\ \\(\\)  \n"
-"msgstr: :py:obj:`NoAdstock.to_dict <pymc_marketing.mmm.components.adstock.NoAdstock.to_dict>`\\ \\(\\)"
+":py:obj:`NoAdstock.to_dict "
+"<pymc_marketing.mmm.components.adstock.NoAdstock.to_dict>`\\ \\(\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.components.adstock.NoAdstock.rst:32:<autosummary>:1
 #: e4d107a3e99e40a2b4420974d39410a1

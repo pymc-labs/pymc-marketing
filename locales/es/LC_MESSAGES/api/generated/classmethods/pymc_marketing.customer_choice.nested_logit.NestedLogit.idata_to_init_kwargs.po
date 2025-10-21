@@ -23,9 +23,7 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.customer_choice.nested_logit.NestedLogit.idata_to_init_kwargs.rst:2
 #: 2d3b9382a6a4436889e115deff9472e1
 msgid "NestedLogit.idata\\_to\\_init\\_kwargs"
-msgstr ""
-"msgid: NestedLogit.idata\\_to\\_init\\_kwargs  \n"
-"msgstr: NestedLogit.idata\\_to\\_init\\_kwargs"
+msgstr "NestedLogit.idata\\_to\\_init\\_kwargs"
 
 #: 48a7e7210c88406eb603bd3d88bd8a5b of
 #: pymc_marketing.model_builder.ModelIO.idata_to_init_kwargs:2

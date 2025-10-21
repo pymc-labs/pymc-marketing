@@ -122,8 +122,8 @@ msgid ""
 ":py:obj:`MediaConfig.to_dict "
 "<pymc_marketing.mmm.media_transformation.MediaConfig.to_dict>`\\ \\(\\)"
 msgstr ""
-"msgid: :py:obj:`MediaConfig.to_dict <pymc_marketing.mmm.media_transformation.MediaConfig.to_dict>`\\ \\(\\)  \n"
-"msgstr: :py:obj:`MediaConfig.to_dict <pymc_marketing.mmm.media_transformation.MediaConfig.to_dict>`\\ \\(\\)"
+":py:obj:`MediaConfig.to_dict "
+"<pymc_marketing.mmm.media_transformation.MediaConfig.to_dict>`\\ \\(\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.media_transformation.MediaConfig.rst:24:<autosummary>:1
 #: d6c1907c7311475681c874a08d5df325

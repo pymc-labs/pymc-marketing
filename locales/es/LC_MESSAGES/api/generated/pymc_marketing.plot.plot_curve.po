@@ -43,9 +43,7 @@ msgstr "xr.DataArray"
 
 #: 1de145141df944579999980a9d4d063d of pymc_marketing.plot.plot_curve:8
 msgid "Curve to plot"
-msgstr ""
-"msgid: Curve to plot  \n"
-"msgstr: Curva a graficar"
+msgstr "Curva a graficar"
 
 #: a4ab1eca992143a396f2233b7791a3bd of pymc_marketing.plot.plot_curve:10
 msgid ""
@@ -183,8 +181,8 @@ msgid ""
 "**sel_to_string** : :obj:`Callable`\\[[:obj:`Selection`], "
 ":class:`python:str`], optional"
 msgstr ""
-"msgid: **sel_to_string** : :obj:`Callable`\\[[:obj:`Selection`], :class:`python:str`], optional  \n"
-"msgstr: **sel_to_string** : :obj:`Callable`\\[[:obj:`Selection`], :class:`python:str`], opcional"
+"**sel_to_string** : :obj:`Callable`\\[[:obj:`Selection`], "
+":class:`python:str`], opcional"
 
 #: d7413b4a787741658c2df63db045931c of pymc_marketing.plot.plot_curve:42
 msgid "Callable[[Selection], python:str], optional"

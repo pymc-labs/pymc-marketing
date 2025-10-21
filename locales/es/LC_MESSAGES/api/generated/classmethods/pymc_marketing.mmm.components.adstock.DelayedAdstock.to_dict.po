@@ -23,9 +23,7 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.components.adstock.DelayedAdstock.to_dict.rst:2
 #: 42f0fd2941de4721ac84eead0d470deb
 msgid "DelayedAdstock.to\\_dict"
-msgstr ""
-"msgid: DelayedAdstock.to\\_dict  \n"
-"msgstr: DelayedAdstock.to\\_dict"
+msgstr "DelayedAdstock.to\\_dict"
 
 #: 1d123eca486e48659308fa3ad03110a3 of
 #: pymc_marketing.mmm.components.adstock.AdstockTransformation.to_dict:2

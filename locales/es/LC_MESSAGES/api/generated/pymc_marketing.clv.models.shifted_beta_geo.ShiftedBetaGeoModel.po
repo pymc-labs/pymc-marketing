@@ -282,8 +282,9 @@ msgid ""
 "<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.attrs_to_init_kwargs>`\\"
 " \\(attrs\\)"
 msgstr ""
-"msgid: :py:obj:`ShiftedBetaGeoModel.attrs_to_init_kwargs <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.attrs_to_init_kwargs>`\\ \\(attrs\\)  \n"
-"msgstr: :py:obj:`ShiftedBetaGeoModel.attrs_to_init_kwargs <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.attrs_to_init_kwargs>`\\ \\(attrs\\)"
+":py:obj:`ShiftedBetaGeoModel.attrs_to_init_kwargs "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.attrs_to_init_kwargs>`\\"
+" \\(attrs\\)"
 
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:40:<autosummary>:1
 #: 0495fe29737643efa3d34cf60252b7d6
@@ -447,9 +448,7 @@ msgstr ""
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:40:<autosummary>:1
 #: 0412d648127141c394acefe0111a0f71
 msgid "Compute the summary of the fit result."
-msgstr ""
-"msgid: Compute the summary of the fit result.  \n"
-"msgstr: Calcule el resumen del resultado del ajuste."
+msgstr "Calcule el resumen del resultado del ajuste."
 
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:40:<autosummary>:1
 #: 115ab31695934e68a1ce639fbf7b4cbf
@@ -476,8 +475,9 @@ msgid ""
 "<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.idata_to_init_kwargs>`\\"
 " \\(idata\\)"
 msgstr ""
-"msgid: :py:obj:`ShiftedBetaGeoModel.idata_to_init_kwargs <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.idata_to_init_kwargs>`\\ \\(idata\\)  \n"
-"msgstr: :py:obj:`ShiftedBetaGeoModel.idata_to_init_kwargs <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.idata_to_init_kwargs>`\\ \\(idata\\)"
+":py:obj:`ShiftedBetaGeoModel.idata_to_init_kwargs "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.idata_to_init_kwargs>`\\"
+" \\(idata\\)"
 
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:40:<autosummary>:1
 #: 366bda9a8d3e48869a0b0a8a79739e5b
@@ -571,9 +571,7 @@ msgstr ""
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:40:<autosummary>:1
 #: 24bb659afcf044cf8978e6e719d25671
 msgid "Get the summary table of the model."
-msgstr ""
-"msgid: Get the summary table of the model.  \n"
-"msgstr: Obtenga la tabla resumen del modelo."
+msgstr "Obtenga la tabla resumen del modelo."
 
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:40:<autosummary>:1
 #: 39920173a89e4b8e9325a873fdeecea3
@@ -589,9 +587,7 @@ msgstr ""
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:40:<autosummary>:1
 #: 1964a034c73c4a9db9db5f43e2fab5bb
 msgid "Return a copy of the model with a thinned fit result."
-msgstr ""
-"msgid: Return a copy of the model with a thinned fit result.  \n"
-"msgstr: Devuelva una copia del modelo con un resultado de ajuste reducido."
+msgstr "Devuelva una copia del modelo con un resultado de ajuste reducido."
 
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:42
 #: 4a87924d92124f13bae215e5ab3440c6

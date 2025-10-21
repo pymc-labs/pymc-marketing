@@ -720,8 +720,8 @@ msgid ""
 ":py:obj:`budgets_to_optimize "
 "<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.budgets_to_optimize>`\\"
 msgstr ""
-"msgid: :py:obj:`budgets_to_optimize <pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.budgets_to_optimize>`  \n"
-"msgstr: :py:obj:`budgets_to_optimize <pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.budgets_to_optimize>`"
+":py:obj:`presupuestos_a_optimizar "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.presupuestos_a_optimizar>`"
 
 #: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:67:<autosummary>:1
 #: 111594465c8245fcb8d9a5f8679246c0

@@ -52,9 +52,7 @@ msgstr "Número de modos de Fourier a utilizar."
 #: bc5c25e7f1e94e808cd897d768385d86 of
 #: pymc_marketing.mmm.fourier.FourierBase:10
 msgid "**days_in_period** : :class:`python:float`"
-msgstr ""
-"msgid: **days_in_period** : :class:`python:float`  \n"
-"msgstr: **days_in_period** : :class:`python:float`"
+msgstr "**días_en_periodo** : :class:`python:float`"
 
 #: b50be187b230455aa9b9595333fe99c3 of
 #: pymc_marketing.mmm.fourier.FourierBase:9
@@ -552,8 +550,8 @@ msgid ""
 ":py:obj:`FourierBase.to_dict "
 "<pymc_marketing.mmm.fourier.FourierBase.to_dict>`\\ \\(\\)"
 msgstr ""
-"msgid: :py:obj:`FourierBase.to_dict <pymc_marketing.mmm.fourier.FourierBase.to_dict>`\\ \\(\\)  \n"
-"msgstr: :py:obj:`FourierBase.to_dict <pymc_marketing.mmm.fourier.FourierBase.to_dict>`\\ \\(\\)"
+":py:obj:`FourierBase.to_dict "
+"<pymc_marketing.mmm.fourier.FourierBase.to_dict>`\\ \\(\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.fourier.FourierBase.rst:55:<autosummary>:1
 #: 882a5ec16c6d45239764a9fda9c92576

@@ -329,8 +329,9 @@ msgid ""
 "<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.attrs_to_init_kwargs>`\\"
 " \\(attrs\\)"
 msgstr ""
-"msgid: :py:obj:`ParetoNBDModel.attrs_to_init_kwargs <pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.attrs_to_init_kwargs>`\\ \\(attrs\\)  \n"
-"msgstr: :py:obj:`ParetoNBDModel.attrs_to_init_kwargs <pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.attrs_to_init_kwargs>`\\ \\(attrs\\)"
+":py:obj:`ParetoNBDModel.attrs_to_init_kwargs "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.attrs_to_init_kwargs>`\\"
+" \\(attrs\\)"
 
 #: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
 #: c5d52b4e3e86471680c5a4368b84c64d
@@ -594,8 +595,9 @@ msgid ""
 "<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.idata_to_init_kwargs>`\\"
 " \\(idata\\)"
 msgstr ""
-"msgid: :py:obj:`ParetoNBDModel.idata_to_init_kwargs <pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.idata_to_init_kwargs>`\\ \\(idata\\)  \n"
-"msgstr: :py:obj:`ParetoNBDModel.idata_to_init_kwargs <pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.idata_to_init_kwargs>`\\ \\(idata\\)"
+":py:obj:`ParetoNBDModel.idata_to_init_kwargs "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.idata_to_init_kwargs>`\\"
+" \\(idata\\)"
 
 #: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
 #: 357d0f147d074e5fa28718c61bde2cd3

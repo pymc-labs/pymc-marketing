@@ -197,8 +197,9 @@ msgid ""
 "<pymc_marketing.mmm.components.adstock.WeibullCDFAdstock.set_dims_for_all_priors>`\\"
 " \\(dims\\)"
 msgstr ""
-"msgid: :py:obj:`WeibullCDFAdstock.set_dims_for_all_priors <pymc_marketing.mmm.components.adstock.WeibullCDFAdstock.set_dims_for_all_priors>`\\ \\(dims\\)  \n"
-"msgstr: :py:obj:`WeibullCDFAdstock.set_dims_for_all_priors <pymc_marketing.mmm.components.adstock.WeibullCDFAdstock.set_dims_for_all_priors>`\\ \\(dims\\)"
+":py:obj:`WeibullCDFAdstock.set_dims_for_all_priors "
+"<pymc_marketing.mmm.components.adstock.WeibullCDFAdstock.set_dims_for_all_priors>`\\"
+" \\(dims\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullCDFAdstock.rst:32:<autosummary>:1
 #: 8491a89390a543d1b7bc1a62fc0f062a
@@ -211,8 +212,8 @@ msgid ""
 ":py:obj:`WeibullCDFAdstock.to_dict "
 "<pymc_marketing.mmm.components.adstock.WeibullCDFAdstock.to_dict>`\\ \\(\\)"
 msgstr ""
-"msgid: :py:obj:`WeibullCDFAdstock.to_dict <pymc_marketing.mmm.components.adstock.WeibullCDFAdstock.to_dict>`\\ \\(\\)  \n"
-"msgstr: :py:obj:`WeibullCDFAdstock.to_dict <pymc_marketing.mmm.components.adstock.WeibullCDFAdstock.to_dict>`\\ \\(\\)"
+":py:obj:`WeibullCDFAdstock.to_dict "
+"<pymc_marketing.mmm.components.adstock.WeibullCDFAdstock.to_dict>`\\ \\(\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullCDFAdstock.rst:32:<autosummary>:1
 #: 7e96650eef844772a985f09f36db7a0f

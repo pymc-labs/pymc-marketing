@@ -23,9 +23,7 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.components.saturation.NoSaturation.to_dict.rst:2
 #: cf5c9f158312409caca30b8536c38b32
 msgid "NoSaturation.to\\_dict"
-msgstr ""
-"msgid: NoSaturation.to\\_dict  \n"
-"msgstr: NoSaturation.to\\_dict"
+msgstr "NoSaturation.to\\_dict"
 
 #: a1e303a132df466f8ffe5da7dfcc03c0 of
 #: pymc_marketing.mmm.components.base.Transformation.to_dict:2

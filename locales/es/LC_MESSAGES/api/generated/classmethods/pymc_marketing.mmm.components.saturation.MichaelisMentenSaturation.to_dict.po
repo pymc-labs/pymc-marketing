@@ -23,9 +23,7 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation.to_dict.rst:2
 #: 000ce0d0d3ad4a7a9c4159f9f244a4d0
 msgid "MichaelisMentenSaturation.to\\_dict"
-msgstr ""
-"msgid: MichaelisMentenSaturation.to\\_dict  \n"
-"msgstr: MichaelisMentenSaturation.to\\_dict"
+msgstr "MichaelisMentenSaturation.to\\_dict"
 
 #: 7f30222196d543eb86a417ad630cc4f0 of
 #: pymc_marketing.mmm.components.base.Transformation.to_dict:2

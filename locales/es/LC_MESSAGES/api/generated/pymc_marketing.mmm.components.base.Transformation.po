@@ -239,8 +239,9 @@ msgid ""
 "<pymc_marketing.mmm.components.base.Transformation.set_dims_for_all_priors>`\\"
 " \\(dims\\)"
 msgstr ""
-"msgid: :py:obj:`Transformation.set_dims_for_all_priors <pymc_marketing.mmm.components.base.Transformation.set_dims_for_all_priors>`\\ \\(dims\\)  \n"
-"msgstr: :py:obj:`Transformation.set_dims_for_all_priors <pymc_marketing.mmm.components.base.Transformation.set_dims_for_all_priors>`\\ \\(dims\\)"
+":py:obj:`Transformation.set_dims_for_all_priors "
+"<pymc_marketing.mmm.components.base.Transformation.set_dims_for_all_priors>`\\"
+" \\(dims\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.components.base.Transformation.rst:30:<autosummary>:1
 #: d1e0d87656c44537a695db6807b8991d
@@ -253,8 +254,8 @@ msgid ""
 ":py:obj:`Transformation.to_dict "
 "<pymc_marketing.mmm.components.base.Transformation.to_dict>`\\ \\(\\)"
 msgstr ""
-"msgid: :py:obj:`Transformation.to_dict <pymc_marketing.mmm.components.base.Transformation.to_dict>`\\ \\(\\)  \n"
-"msgstr: :py:obj:`Transformation.to_dict <pymc_marketing.mmm.components.base.Transformation.to_dict>`\\ \\(\\)"
+":py:obj:`Transformation.to_dict "
+"<pymc_marketing.mmm.components.base.Transformation.to_dict>`\\ \\(\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.components.base.Transformation.rst:30:<autosummary>:1
 #: dfa410e44f7743c49c4d180fb7cd78ab

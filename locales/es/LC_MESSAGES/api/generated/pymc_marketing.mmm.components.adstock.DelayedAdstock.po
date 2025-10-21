@@ -197,8 +197,9 @@ msgid ""
 "<pymc_marketing.mmm.components.adstock.DelayedAdstock.set_dims_for_all_priors>`\\"
 " \\(dims\\)"
 msgstr ""
-"msgid: :py:obj:`DelayedAdstock.set_dims_for_all_priors <pymc_marketing.mmm.components.adstock.DelayedAdstock.set_dims_for_all_priors>`\\ \\(dims\\)  \n"
-"msgstr: :py:obj:`DelayedAdstock.set_dims_for_all_priors <pymc_marketing.mmm.components.adstock.DelayedAdstock.set_dims_for_all_priors>`\\ \\(dims\\)"
+":py:obj:`DelayedAdstock.set_dims_for_all_priors "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock.set_dims_for_all_priors>`\\"
+" \\(dims\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:32:<autosummary>:1
 #: d3daa69b42f34d308b044fd618b7f9e0
@@ -211,8 +212,8 @@ msgid ""
 ":py:obj:`DelayedAdstock.to_dict "
 "<pymc_marketing.mmm.components.adstock.DelayedAdstock.to_dict>`\\ \\(\\)"
 msgstr ""
-"msgid: :py:obj:`DelayedAdstock.to_dict <pymc_marketing.mmm.components.adstock.DelayedAdstock.to_dict>`\\ \\(\\)  \n"
-"msgstr: :py:obj:`DelayedAdstock.to_dict <pymc_marketing.mmm.components.adstock.DelayedAdstock.to_dict>`\\ \\(\\)"
+":py:obj:`DelayedAdstock.to_dict "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock.to_dict>`\\ \\(\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:32:<autosummary>:1
 #: 8cccd99c1ccc4bd387515877c06a46d3

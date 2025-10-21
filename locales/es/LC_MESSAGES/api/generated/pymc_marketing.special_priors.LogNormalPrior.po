@@ -270,8 +270,8 @@ msgid ""
 ":py:obj:`LogNormalPrior.to_dict "
 "<pymc_marketing.special_priors.LogNormalPrior.to_dict>`\\ \\(\\)"
 msgstr ""
-"msgid: :py:obj:`LogNormalPrior.to_dict <pymc_marketing.special_priors.LogNormalPrior.to_dict>`\\ \\(\\)  \n"
-"msgstr: :py:obj:`LogNormalPrior.to_dict <pymc_marketing.special_priors.LogNormalPrior.to_dict>`\\ \\(\\)"
+":py:obj:`LogNormalPrior.to_dict "
+"<pymc_marketing.special_priors.LogNormalPrior.to_dict>`\\ \\(\\)"
 
 #: ../source/api/generated/pymc_marketing.special_priors.LogNormalPrior.rst:21:<autosummary>:1
 #: c6ef515a1b604a38bc2225f0b755eaf7

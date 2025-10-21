@@ -88,8 +88,8 @@ msgid ""
 "$$ I_{\\text{nest}}(i) = \\lambda \\cdot \\log \\left( \\sum_{j \\in "
 "\\text{nest}} \\exp \\left( \\frac{U_{ij}}{\\lambda} \\right) \\right) $$"
 msgstr ""
-"msgid: $$ I_{\\text{nest}}(i) = \\lambda \\cdot \\log \\left( \\sum_{j \\in \\text{nest}} \\exp \\left( \\frac{U_{ij}}{\\lambda} \\right) \\right) $$\n"
-"msgstr: $$ I_{\\text{nest}}(i) = \\lambda \\cdot \\log \\left( \\sum_{j \\in \\text{nest}} \\exp \\left( \\frac{U_{ij}}{\\lambda} \\right) \\right) $$"
+"$$ I_{\\text{nest}}(i) = \\lambda \\cdot \\log \\left( \\sum_{j \\in "
+"\\text{nest}} \\exp \\left( \\frac{U_{ij}}{\\lambda} \\right) \\right) $$"
 
 #: 226dec8c34a84340a02fe22a8f78bd7d of
 #: pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest:25

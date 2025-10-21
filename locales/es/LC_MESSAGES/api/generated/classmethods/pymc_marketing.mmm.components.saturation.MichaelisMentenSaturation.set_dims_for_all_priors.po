@@ -24,8 +24,7 @@ msgstr ""
 #: 47e44184af9c4455b44319ebd07f72ca
 msgid "MichaelisMentenSaturation.set\\_dims\\_for\\_all\\_priors"
 msgstr ""
-"msgid: MichaelisMentenSaturation.set\\_dims\\_for\\_all\\_priors  \n"
-"msgstr: MichaelisMentenSaturation.set\\_dims\\_for\\_all\\_priors"
+"MichaelisMentenSaturation.establecer\\_dimensiones\\_para\\_todos\\_los\\_previos"
 
 #: 36c3749faeb24356abc2cc11f675eac0 of
 #: pymc_marketing.mmm.components.base.Transformation.set_dims_for_all_priors:2

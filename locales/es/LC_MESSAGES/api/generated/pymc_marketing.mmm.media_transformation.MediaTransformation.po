@@ -173,8 +173,9 @@ msgid ""
 "<pymc_marketing.mmm.media_transformation.MediaTransformation.to_dict>`\\ "
 "\\(\\)"
 msgstr ""
-"msgid: :py:obj:`MediaTransformation.to_dict <pymc_marketing.mmm.media_transformation.MediaTransformation.to_dict>`\\ \\(\\)  \n"
-"msgstr: :py:obj:`MediaTransformation.to_dict <pymc_marketing.mmm.media_transformation.MediaTransformation.to_dict>`\\ \\(\\)"
+":py:obj:`MediaTransformation.to_dict "
+"<pymc_marketing.mmm.media_transformation.MediaTransformation.to_dict>`\\ "
+"\\(\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.media_transformation.MediaTransformation.rst:24:<autosummary>:1
 #: 597a7997a25b4ce891546fc6a670b764

@@ -23,9 +23,7 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.media_transformation.MediaConfigList.to_dict.rst:2
 #: 158750307aaa4878a2c0ff76efad34d2
 msgid "MediaConfigList.to\\_dict"
-msgstr ""
-"msgid: MediaConfigList.to\\_dict  \n"
-"msgstr: MediaConfigList.to\\_dict"
+msgstr "MediaConfigList.to\\_dict"
 
 #: 15a1402c80ae47ea849552602f6e4dbd of
 #: pymc_marketing.mmm.media_transformation.MediaConfigList.to_dict:2

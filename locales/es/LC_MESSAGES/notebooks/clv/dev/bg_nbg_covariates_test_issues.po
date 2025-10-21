@@ -104,9 +104,7 @@ msgstr "La distribución Beta y la covariable de abandono"
 #: ../source/notebooks/clv/dev/bg_nbg_covariates_test_issues.ipynb:360002
 #: 48f87c8d35c14a378a6e4fb6670bdf98
 msgid "alpha (a) = beta (b)"
-msgstr ""
-"msgid: alpha (a) = beta (b)  \n"
-"msgstr: alpha (a) = beta (b)"
+msgstr "alpha (a) = beta (b)"
 
 #: ../source/notebooks/clv/dev/bg_nbg_covariates_test_issues.ipynb:380002
 #: bda7a611594d4b7aa6c82bdecc185da2
@@ -125,9 +123,7 @@ msgstr ""
 #: ../source/notebooks/clv/dev/bg_nbg_covariates_test_issues.ipynb:390002
 #: 1390bee58c4b417dafa1755c74c500a8
 msgid "alpha (a) > beta (b)"
-msgstr ""
-"msgid: alpha (a) > beta (b)  \n"
-"msgstr: alpha (a) > beta (b)"
+msgstr "alpha (a) > beta (b)"
 
 #: ../source/notebooks/clv/dev/bg_nbg_covariates_test_issues.ipynb:410002
 #: e934012fdd2941b2855a81228f69e143
