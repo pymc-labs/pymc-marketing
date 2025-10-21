@@ -42,8 +42,8 @@ msgstr ""
 #: pymc_marketing.model_builder.ModelIO.load_from_idata:6
 msgid "Construct a new instance of the model using the InferenceData attrs"
 msgstr ""
-"msgid: Construct a new instance of the model using the InferenceData attrs  \n"
-"msgstr: Construya una nueva instancia del modelo utilizando los atributos de InferenceData"
+"Construya una nueva instancia del modelo utilizando los atributos de "
+"InferenceData."
 
 #: 812cce050604447f867ef0505201f185 of
 #: pymc_marketing.model_builder.ModelIO.load_from_idata:7
@@ -77,9 +77,7 @@ msgstr "az.InferenceData"
 #: cf2228f837664267bf57e2d74a5ade18 of
 #: pymc_marketing.model_builder.ModelIO.load_from_idata:13
 msgid "The InferenceData object to load the model from."
-msgstr ""
-"msgid: The InferenceData object to load the model from.  \n"
-"msgstr: El objeto InferenceData del cual cargar el modelo."
+msgstr "El objeto InferenceData del cual cargar el modelo."
 
 #: 874fd79e17ba4f48a43636b59d7660e9 of
 #: pymc_marketing.model_builder.ModelIO.load_from_idata:15

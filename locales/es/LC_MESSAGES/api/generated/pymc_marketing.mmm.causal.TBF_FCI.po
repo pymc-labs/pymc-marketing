@@ -163,9 +163,7 @@ msgstr ""
 
 #: afc76e446d1743e7b6b856c43d96222e of pymc_marketing.mmm.causal.TBF_FCI:43
 msgid "Prior knowledge: edges to exclude."
-msgstr ""
-"msgid: Prior knowledge: edges to exclude.  \n"
-"msgstr: Conocimiento previo: bordes a excluir."
+msgstr "Conocimiento previo: bordes a excluir."
 
 #: 5acdb00ea149470a9b1306a48d83762b of pymc_marketing.mmm.causal.TBF_FCI:45
 msgid "**max_lag** : :class:`python:int`, default=2"
@@ -250,9 +248,7 @@ msgstr ""
 #: ../source/api/generated/pymc_marketing.mmm.causal.TBF_FCI.rst:23:<autosummary>:1
 #: a20247bb6fc141ebb757a9d77e4d330b
 msgid "Fit the temporal causal discovery algorithm to ``df``."
-msgstr ""
-"msgid: Fit the temporal causal discovery algorithm to ``df``.  \n"
-"msgstr: Ajuste el algoritmo de descubrimiento causal temporal a ``df``."
+msgstr "Ajuste el algoritmo de descubrimiento causal temporal a ``df``."
 
 #: ../source/api/generated/pymc_marketing.mmm.causal.TBF_FCI.rst:23:<autosummary>:1
 #: fe4b41e702ad4bc1a8c35ecc11271aa3
@@ -308,8 +304,8 @@ msgid ""
 ":py:obj:`TBF_FCI.to_digraph "
 "<pymc_marketing.mmm.causal.TBF_FCI.to_digraph>`\\ \\(\\[collapsed\\]\\)"
 msgstr ""
-"msgid: :py:obj:`TBF_FCI.to_digraph <pymc_marketing.mmm.causal.TBF_FCI.to_digraph>`\\ \\(\\[collapsed\\]\\)  \n"
-"msgstr: :py:obj:`TBF_FCI.to_digraph <pymc_marketing.mmm.causal.TBF_FCI.to_digraph>`\\ \\(\\[collapsed\\]\\)"
+":py:obj:`TBF_FCI.to_digraph "
+"<pymc_marketing.mmm.causal.TBF_FCI.to_digraph>`\\ \\(\\[colapsado\\]\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.causal.TBF_FCI.rst:23:<autosummary>:1
 #: b2eb4e09646842f6a226bdefc9913ad9

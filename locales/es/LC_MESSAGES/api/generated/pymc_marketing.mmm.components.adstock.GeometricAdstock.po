@@ -197,8 +197,9 @@ msgid ""
 "<pymc_marketing.mmm.components.adstock.GeometricAdstock.set_dims_for_all_priors>`\\"
 " \\(dims\\)"
 msgstr ""
-"msgid: :py:obj:`GeometricAdstock.set_dims_for_all_priors <pymc_marketing.mmm.components.adstock.GeometricAdstock.set_dims_for_all_priors>`\\ \\(dims\\)  \n"
-"msgstr: :py:obj:`GeometricAdstock.set_dims_for_all_priors <pymc_marketing.mmm.components.adstock.GeometricAdstock.set_dims_for_all_priors>`\\ \\(dims\\)"
+":py:obj:`GeometricAdstock.set_dims_for_all_priors "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock.set_dims_for_all_priors>`\\"
+" \\(dims\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.components.adstock.GeometricAdstock.rst:32:<autosummary>:1
 #: c845364e50cc42b5a51c95b1afa2f09d
@@ -211,8 +212,8 @@ msgid ""
 ":py:obj:`GeometricAdstock.to_dict "
 "<pymc_marketing.mmm.components.adstock.GeometricAdstock.to_dict>`\\ \\(\\)"
 msgstr ""
-"msgid: :py:obj:`GeometricAdstock.to_dict <pymc_marketing.mmm.components.adstock.GeometricAdstock.to_dict>`\\ \\(\\)  \n"
-"msgstr: :py:obj:`GeometricAdstock.to_dict <pymc_marketing.mmm.components.adstock.GeometricAdstock.to_dict>`\\ \\(\\)"
+":py:obj:`GeometricAdstock.to_dict "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock.to_dict>`\\ \\(\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.components.adstock.GeometricAdstock.rst:32:<autosummary>:1
 #: ae7fd05d88e24e4fb7f1e3e5a8f515f8

@@ -373,8 +373,8 @@ msgid ""
 ":py:obj:`log_types_of_parameters "
 "<pymc_marketing.mlflow.log_types_of_parameters>`\\ \\(model\\)"
 msgstr ""
-"msgid: :py:obj:`log_types_of_parameters <pymc_marketing.mlflow.log_types_of_parameters>`\\ \\(model\\)  \n"
-"msgstr: :py:obj:`log_types_of_parameters <pymc_marketing.mlflow.log_types_of_parameters>`\\ \\(modelo\\)"
+":py:obj:`log_types_of_parameters "
+"<pymc_marketing.mlflow.log_types_of_parameters>`\\ \\(modelo\\)"
 
 #: ../source/api/generated/pymc_marketing.mlflow.rst:38:<autosummary>:1
 #: ede733ab1bb7407abaf747ed2376b0eb

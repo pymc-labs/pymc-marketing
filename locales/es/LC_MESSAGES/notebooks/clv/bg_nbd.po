@@ -177,8 +177,8 @@ msgid ""
 "f(p|a, b) = \\frac{\\Gamma(a + b)}{\\Gamma(a) \\Gamma(b)} p^{a - 1}(1 - "
 "p)^{b - 1}, \\quad 0 \\leq p \\leq 1"
 msgstr ""
-"msgid: f(p|a, b) = \\frac{\\Gamma(a + b)}{\\Gamma(a) \\Gamma(b)} p^{a - 1}(1 - p)^{b - 1}, \\quad 0 \\leq p \\leq 1  \n"
-"msgstr: f(p|a, b) = \\frac{\\Gamma(a + b)}{\\Gamma(a) \\Gamma(b)} p^{a - 1}(1 - p)^{b - 1}, \\quad 0 \\leq p \\leq 1"
+"f(p|a, b) = \\frac{\\Gamma(a + b)}{\\Gamma(a) \\Gamma(b)} p^{a - 1}(1 - "
+"p)^{b - 1}, \\quad 0 \\leq p \\leq 1"
 
 #: ../source/notebooks/clv/bg_nbd.ipynb:90024 20cf2b45c61d4f3586a4b3287233d8b4
 msgid ""

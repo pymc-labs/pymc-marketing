@@ -23,9 +23,7 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.multidimensional.MMM.idata_to_init_kwargs.rst:2
 #: a78345cd7d7942829dffc60bd53a7c37
 msgid "MMM.idata\\_to\\_init\\_kwargs"
-msgstr ""
-"msgid: MMM.idata\\_to\\_init\\_kwargs  \n"
-"msgstr: MMM.idata\\_to\\_init\\_kwargs"
+msgstr "MMM.idata\\_to\\_init\\_kwargs"
 
 #: 75c55f6d3d6e40a0b645819993e9fd8d of
 #: pymc_marketing.model_builder.ModelIO.idata_to_init_kwargs:2

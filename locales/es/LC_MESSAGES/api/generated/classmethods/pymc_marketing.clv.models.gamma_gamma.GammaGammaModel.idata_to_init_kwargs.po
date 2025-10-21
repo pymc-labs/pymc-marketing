@@ -23,9 +23,7 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.gamma_gamma.GammaGammaModel.idata_to_init_kwargs.rst:2
 #: a7bd52b942d3404299605e2824038e41
 msgid "GammaGammaModel.idata\\_to\\_init\\_kwargs"
-msgstr ""
-"msgid: GammaGammaModel.idata\\_to\\_init\\_kwargs  \n"
-"msgstr: GammaGammaModel.idata\\_to\\_init\\_kwargs"
+msgstr "GammaGammaModel.idata\\_to\\_init\\_kwargs"
 
 #: c76d78fd9c4b4aca889257f0585f68a4 of
 #: pymc_marketing.clv.models.basic.CLVModel.idata_to_init_kwargs:2

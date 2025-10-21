@@ -23,9 +23,7 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.components.adstock.WeibullCDFAdstock.to_dict.rst:2
 #: 82b23e9213a743cc9ba50abbd18da073
 msgid "WeibullCDFAdstock.to\\_dict"
-msgstr ""
-"msgid: WeibullCDFAdstock.to\\_dict  \n"
-"msgstr: WeibullCDFAdstock.to\\_dict"
+msgstr "WeibullCDFAdstock.to\\_dict"
 
 #: 57a5a55337d04f53866d340eaa1a7863 of
 #: pymc_marketing.mmm.components.adstock.AdstockTransformation.to_dict:2

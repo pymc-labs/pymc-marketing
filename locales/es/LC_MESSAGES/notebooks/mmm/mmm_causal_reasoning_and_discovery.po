@@ -154,8 +154,9 @@ msgid ""
 "Causal discovery – Algorithms that infer directional relationships between "
 "variables by testing conditional independences in observational data."
 msgstr ""
-"msgid: Causal discovery – Algorithms that infer directional relationships between variables by testing conditional independences in observational data.  \n"
-"msgstr: Descubrimiento causal – Algoritmos que inferen relaciones direccionales entre variables al probar independencias condicionales en datos observacionales."
+"Descubrimiento causal – Algoritmos que inferen relaciones direccionales "
+"entre variables al probar independencias condicionales en datos "
+"observacionales."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:10019
 #: 84ed02c4e24f41999af5fba6a68a185f
@@ -480,8 +481,8 @@ msgstr ""
 #: 2ebf33d000f24d4aa96616e5e163170b
 msgid "`dir=none` tells Graphviz to draw the edge **without an arrowhead**."
 msgstr ""
-"msgid: `dir=none` tells Graphviz to draw the edge **without an arrowhead**.  \n"
-"msgstr: `dir=none` indica a Graphviz que dibuje el borde **sin una punta de flecha**."
+"`dir=none` indica a Graphviz que dibuje el borde **sin una punta de "
+"flecha**."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:130010
 #: 14d29315792844de925ae33faa1bd153
@@ -781,9 +782,7 @@ msgstr ""
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:240008
 #: e38851dda86e482d8ea716e7e393789e
 msgid "As before, we need to generate data with this generative structure."
-msgstr ""
-"msgid: As before, we need to generate data with this generative structure.  \n"
-"msgstr: Como antes, necesitamos generar datos con esta estructura generativa."
+msgstr "Como antes, necesitamos generar datos con esta estructura generativa."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:260002
 #: 9c20f9baad3240728538cdbe4068862d
@@ -903,9 +902,7 @@ msgstr "Ahora observe la siguiente estructura, que es más complicada:"
 #: ef1a1692805741bbbfbcd4e8ad431c13
 #, python-brace-format
 msgid "`D → A`, `A → {B, C}`, `B → C`, and `D → C`, with `{B, C} → P`."
-msgstr ""
-"msgid: D → A, A → {B, C}, B → C, and D → C, with {B, C} → P.\n"
-"msgstr: D → A, A → {B, C}, B → C, y D → C, con {B, C} → P."
+msgstr "`D → A`, `A → {B, C}`, `B → C`, y `D → C`, con `{B, C} → P`."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:320009
 #: e0267f01f3af4cb8a82eb3d474fb800c
@@ -929,8 +926,8 @@ msgid ""
 "Paths like `D → A → B → C` coexist with the direct `D → C`, creating "
 "**redundant routes** and tight correlations among predictors."
 msgstr ""
-"msgid: Paths like `D → A → B → C` coexist with the direct `D → C`, creating **redundant routes** and tight correlations among predictors.\n"
-"msgstr: Rutas como `D → A → B → C` coexisten con la directa `D → C`, creando **rutas redundantes** y correlaciones estrechas entre los predictores."
+"Rutas como `D → A → B → C` coexisten con la directa `D → C`, creando **rutas"
+" redundantes** y correlaciones estrechas entre los predictores."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:320013
 #: 9530df2aa29a4146a6757108d0588be5
@@ -1287,9 +1284,7 @@ msgstr ""
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:370021
 #: ed7b8d78d4e64e2eafebaf954c8fc588
 msgid "External knowledge from the ecosystem:"
-msgstr ""
-"msgid: External knowledge from the ecosystem:  \n"
-"msgstr: Conocimiento externo del ecosistema:"
+msgstr "Conocimiento externo del ecosistema:"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:370023
 #: c2bb4bf2e2374e23899ab81a75d0e33b
@@ -2094,8 +2089,8 @@ msgid ""
 "[A fast PC algorithm for high dimensional causal discovery with multi-core "
 "PCs](https://arxiv.org/pdf/1502.02454)"
 msgstr ""
-"[A fast PC algorithm for high dimensional causal discovery with multi-core "
-"PCs]"
+"[Un algoritmo rápido de PC para el descubrimiento causal de alta dimensión "
+"con PCs de múltiples núcleos](https://arxiv.org/pdf/1502.02454)"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:740057
 #: 3c1f35578f5f4db89e9762233a1f99de

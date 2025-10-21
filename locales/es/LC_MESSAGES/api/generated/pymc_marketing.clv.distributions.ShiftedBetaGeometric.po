@@ -73,9 +73,7 @@ msgstr "Support"
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric:15
 #, python-brace-format
 msgid ":math:`t \\in \\mathbb{N}_{>0}`"
-msgstr ""
-"msgid: :math:`t \\in \\mathbb{N}_{>0}`  \n"
-"msgstr: :math:`t \\in \\mathbb{N}_{>0}`"
+msgstr ":math:`t \\in \\mathbb{N}_{>0}`"
 
 #: 4af4877f91e14c4abe20e57b11f42d31 of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric
@@ -133,9 +131,7 @@ msgstr ""
 #: 214f4228c61448c0b817ffec5d900a11 of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric:45
 msgid "[Rc5a17811fe1d-1]_"
-msgstr ""
-"msgid: [Rc5a17811fe1d-1]  \n"
-"msgstr: [Rc5a17811fe1d-1]"
+msgstr "[Rc5a17811fe1d-1]_"
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.ShiftedBetaGeometric.rst:12
 #: 83bc37c6f40c44e9b76a2999a8d4e869

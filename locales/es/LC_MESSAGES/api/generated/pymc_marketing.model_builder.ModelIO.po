@@ -49,8 +49,8 @@ msgid ""
 ":py:obj:`ModelIO.attrs_to_init_kwargs "
 "<pymc_marketing.model_builder.ModelIO.attrs_to_init_kwargs>`\\ \\(attrs\\)"
 msgstr ""
-"msgid: :py:obj:`ModelIO.attrs_to_init_kwargs <pymc_marketing.model_builder.ModelIO.attrs_to_init_kwargs>`\\ \\(attrs\\)  \n"
-"msgstr: :py:obj:`ModelIO.attrs_to_init_kwargs <pymc_marketing.model_builder.ModelIO.attrs_to_init_kwargs>`\\ \\(attrs\\)"
+":py:obj:`ModelIO.attrs_to_init_kwargs "
+"<pymc_marketing.model_builder.ModelIO.attrs_to_init_kwargs>`\\ \\(attrs\\)"
 
 #: ../source/api/generated/pymc_marketing.model_builder.ModelIO.rst:30:<autosummary>:1
 #: fd9e73dc0ea24f7d963b2acdb200942d
@@ -95,8 +95,8 @@ msgid ""
 ":py:obj:`ModelIO.idata_to_init_kwargs "
 "<pymc_marketing.model_builder.ModelIO.idata_to_init_kwargs>`\\ \\(idata\\)"
 msgstr ""
-"msgid: :py:obj:`ModelIO.idata_to_init_kwargs <pymc_marketing.model_builder.ModelIO.idata_to_init_kwargs>`\\ \\(idata\\)  \n"
-"msgstr: :py:obj:`ModelIO.idata_to_init_kwargs <pymc_marketing.model_builder.ModelIO.idata_to_init_kwargs>`\\ \\(idata\\)"
+":py:obj:`ModelIO.idata_to_init_kwargs "
+"<pymc_marketing.model_builder.ModelIO.idata_to_init_kwargs>`\\ \\(idata\\)"
 
 #: ../source/api/generated/pymc_marketing.model_builder.ModelIO.rst:30:<autosummary>:1
 #: 41a45188b9904045bd85007219371544

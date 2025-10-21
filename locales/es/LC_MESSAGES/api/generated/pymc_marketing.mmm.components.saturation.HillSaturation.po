@@ -198,8 +198,9 @@ msgid ""
 "<pymc_marketing.mmm.components.saturation.HillSaturation.set_dims_for_all_priors>`\\"
 " \\(dims\\)"
 msgstr ""
-"msgid: :py:obj:`HillSaturation.set_dims_for_all_priors <pymc_marketing.mmm.components.saturation.HillSaturation.set_dims_for_all_priors>`\\ \\(dims\\)  \n"
-"msgstr: :py:obj:`HillSaturation.set_dims_for_all_priors <pymc_marketing.mmm.components.saturation.HillSaturation.set_dims_for_all_priors>`\\ \\(dims\\)"
+":py:obj:`HillSaturation.set_dims_for_all_priors "
+"<pymc_marketing.mmm.components.saturation.HillSaturation.set_dims_for_all_priors>`\\"
+" (dims)"
 
 #: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:32:<autosummary>:1
 #: 3d5041d529c74f18b3bbeb3298eabeb9
@@ -212,8 +213,8 @@ msgid ""
 ":py:obj:`HillSaturation.to_dict "
 "<pymc_marketing.mmm.components.saturation.HillSaturation.to_dict>`\\ \\(\\)"
 msgstr ""
-"msgid: :py:obj:`HillSaturation.to_dict <pymc_marketing.mmm.components.saturation.HillSaturation.to_dict>`\\ \\(\\)  \n"
-"msgstr: :py:obj:`HillSaturation.to_dict <pymc_marketing.mmm.components.saturation.HillSaturation.to_dict>`\\ \\(\\)"
+":py:obj:`HillSaturation.to_dict "
+"<pymc_marketing.mmm.components.saturation.HillSaturation.to_dict>`\\ \\(\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:32:<autosummary>:1
 #: ebc1ecb825f04919964c7778a0a896fd

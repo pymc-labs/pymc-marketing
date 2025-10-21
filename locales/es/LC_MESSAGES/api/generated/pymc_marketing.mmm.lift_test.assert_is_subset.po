@@ -23,9 +23,7 @@ msgstr ""
 #: ../source/api/generated/pymc_marketing.mmm.lift_test.assert_is_subset.rst:2
 #: 30f18d83292941f893d95c34780ea4db
 msgid "assert\\_is\\_subset"
-msgstr ""
-"msgid: assert_is_subset  \n"
-"msgstr: assert_is_subset"
+msgstr "assert\\_is\\_subset"
 
 #: b648879c54ee4a1988d99939d00aeca3 of
 #: pymc_marketing.mmm.lift_test.assert_is_subset:2

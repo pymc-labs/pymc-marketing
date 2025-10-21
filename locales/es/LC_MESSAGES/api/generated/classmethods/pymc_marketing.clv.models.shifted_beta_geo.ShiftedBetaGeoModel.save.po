@@ -67,8 +67,9 @@ msgid ""
 "Additional keyword arguments to pass to arviz.InferenceData.to_netcdf(). "
 "Common options include: - engine : str, optional (default \"netcdf4\")"
 msgstr ""
-"msgid: Additional keyword arguments to pass to arviz.InferenceData.to_netcdf(). Common options include: - engine : str, optional (default \"netcdf4\")  \n"
-"msgstr: Argumentos adicionales de palabras clave para pasar a arviz.InferenceData.to_netcdf(). Las opciones comunes incluyen: - engine : str, opcional (predeterminado \"netcdf4\")"
+"Argumentos adicionales de palabras clave para pasar a "
+"arviz.InferenceData.to_netcdf(). Las opciones comunes incluyen: - engine : "
+"str, opcional (predeterminado \"netcdf4\")"
 
 #: 83dbbbf5984b4898b6ec910b82134190 of
 #: pymc_marketing.model_builder.ModelIO.save:14

@@ -23,9 +23,7 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.customer_choice.mnl_logit.MNLogit.idata_to_init_kwargs.rst:2
 #: 6f898076935a429aad68ada159480f3d
 msgid "MNLogit.idata\\_to\\_init\\_kwargs"
-msgstr ""
-"msgid: MNLogit.idata\\_to\\_init\\_kwargs  \n"
-"msgstr: MNLogit.idata\\_to\\_init\\_kwargs"
+msgstr "MNLogit.idata\\_to\\_init\\_kwargs"
 
 #: 1baad9737d354f1fa14c7432aadb0aea of
 #: pymc_marketing.model_builder.ModelIO.idata_to_init_kwargs:2

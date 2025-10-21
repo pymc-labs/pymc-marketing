@@ -72,8 +72,9 @@ msgid ""
 "<pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation>`\\"
 " \\(...\\)"
 msgstr ""
-"msgid: :py:obj:`add_lift_measurements_to_likelihood_from_saturation <pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation>`\\ \\(...\\)  \n"
-"msgstr: :py:obj:`add_lift_measurements_to_likelihood_from_saturation <pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation>`\\ \\(...\\)"
+":py:obj:`add_lift_measurements_to_likelihood_from_saturation "
+"<pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation>`\\"
+" \\(...\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.lift_test.rst:37:<autosummary>:1
 #: 58ec2cfc4dd440b898e56215811c3d8c
@@ -105,8 +106,8 @@ msgid ""
 ":py:obj:`assert_is_subset <pymc_marketing.mmm.lift_test.assert_is_subset>`\\"
 " \\(required\\, available\\)"
 msgstr ""
-"msgid: :py:obj:`assert_is_subset <pymc_marketing.mmm.lift_test.assert_is_subset>`\\ \\(required\\, available\\)  \n"
-"msgstr: :py:obj:`assert_is_subset <pymc_marketing.mmm.lift_test.assert_is_subset>`\\ \\(requerido\\, disponible\\)"
+":py:obj:`assert_is_subset <pymc_marketing.mmm.lift_test.assert_is_subset>`\\"
+" (requerido, disponible)"
 
 #: ../source/api/generated/pymc_marketing.mmm.lift_test.rst:37:<autosummary>:1
 #: e9c1a5a03b4642ecbd28bd4d5f858838
@@ -220,8 +221,9 @@ msgid ""
 "<pymc_marketing.mmm.lift_test.scale_target_for_lift_measurements>`\\ "
 "\\(target\\, ...\\)"
 msgstr ""
-"msgid: :py:obj:`scale_target_for_lift_measurements <pymc_marketing.mmm.lift_test.scale_target_for_lift_measurements>`\\ \\(target\\, ...\\)  \n"
-"msgstr: :py:obj:`scale_target_for_lift_measurements <pymc_marketing.mmm.lift_test.scale_target_for_lift_measurements>`\\ \\(target\\, ...\\)"
+":py:obj:`scale_target_for_lift_measurements "
+"<pymc_marketing.mmm.lift_test.scale_target_for_lift_measurements>`\\ "
+"\\(objetivo\\, ...\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.lift_test.rst:37:<autosummary>:1
 #: b4f8575b40d1470798163e91c6582f21

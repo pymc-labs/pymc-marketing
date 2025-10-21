@@ -56,14 +56,13 @@ msgid ""
 "C_4 &= \\left(\\frac{a}{b+x-1} \\right) \\\\\n"
 "\\end{align}"
 msgstr ""
-"\\mathbb{LL}(r, \\alpha, a, b  | x, t_x, T) =\n"
-"D_1 + D_2 + \\ln(C_3 + \\delta_{x>0} C_4) \\text{, where:} \\\\\n"
-"\\begin{align}\n"
-"D_1 &= \\ln \\left[ \\Gamma(r+x) \\right] - \\ln \\left[ \\Gamma(r) \\right] + \\ln \\left[ \\Gamma(a+b) \\right] + \\ln \\left[ \\Gamma(b+x) \\right] \\\\\n"
-"D_2 &= r \\ln(\\alpha) - (r+x) \\ln(\\alpha + t_x) \\\\\n"
-"C_3 &= \\left(\\frac{\\alpha + t_x}{\\alpha + T} \\right)^{r+x} \\\\\n"
-"C_4 &= \\left(\\frac{a}{b+x-1} \\right) \\\\\n"
-"\\end{align}"
+"\\mathbb{LL}(r, \\alpha, a, b | x, t_x, T) = D_1 + D_2 + \\ln(C_3 + "
+"\\delta_{x>0} C_4) \\text{, where:} \\\\ \\begin{align} D_1 &= \\ln \\left[ "
+"\\Gamma(r+x) \\right] - \\ln \\left[ \\Gamma(r) \\right] + \\ln \\left[ "
+"\\Gamma(a+b) \\right] + \\ln \\left[ \\Gamma(b+x) \\right] \\\\ D_2 &= r "
+"\\ln(\\alpha) - (r+x) \\ln(\\alpha + t_x) \\\\ C_3 &= \\left(\\frac{\\alpha "
+"+ t_x}{\\alpha + T} \\right)^{r+x} \\\\ C_4 &= \\left(\\frac{a}{b+x-1} "
+"\\right) \\\\ \\end{align}"
 
 #: 8b4e92034501429797e6823d6c2b367f of
 #: pymc_marketing.clv.distributions.BetaGeoNBD:18
@@ -88,8 +87,9 @@ msgid ""
 " \\left(\\frac{\\alpha}{\\alpha + T}\\right)^r "
 "{_2}{F}{_1}(r,b;a+b-1;\\frac{t}{\\alpha + t}) \\right]`"
 msgstr ""
-"msgid: :math:`\\mathbb{E}[X(n) | r, \\alpha, a, b] = \\frac{a+b-1}{a-1} \\left[ 1 - \\left(\\frac{\\alpha}{\\alpha + T}\\right)^r {_2}{F}{_1}(r,b;a+b-1;\\frac{t}{\\alpha + t}) \\right]`\n"
-"msgstr: :math:`\\mathbb{E}[X(n) | r, \\alpha, a, b] = \\frac{a+b-1}{a-1} \\left[ 1 - \\left(\\frac{\\alpha}{\\alpha + T}\\right)^r {_2}{F}{_1}(r,b;a+b-1;\\frac{t}{\\alpha + t}) \\right]`"
+":math:`\\mathbb{E}[X(n) | r, \\alpha, a, b] = \\frac{a+b-1}{a-1} \\left[ 1 -"
+" \\left(\\frac{\\alpha}{\\alpha + T}\\right)^r "
+"{_2}{F}{_1}(r,b;a+b-1;\\frac{t}{\\alpha + t}) \\right]`"
 
 #: 8d488adbf0654c6781ebc122561afed8 of
 #: pymc_marketing.clv.distributions.BetaGeoNBD:35
@@ -153,8 +153,9 @@ msgid ""
 "<pymc_marketing.clv.distributions.BetaGeoNBD.dist>`\\ \\(a\\, b\\, r\\, "
 "alpha\\, T\\, \\*\\*kwargs\\)"
 msgstr ""
-"msgid: :py:obj:`BetaGeoNBD.dist <pymc_marketing.clv.distributions.BetaGeoNBD.dist>`\\ \\(a\\, b\\, r\\, alpha\\, T\\, \\*\\*kwargs\\)  \n"
-"msgstr: :py:obj:`BetaGeoNBD.dist <pymc_marketing.clv.distributions.BetaGeoNBD.dist>`\\ \\(a\\, b\\, r\\, alpha\\, T\\, \\*\\*kwargs\\)"
+":py:obj:`BetaGeoNBD.dist "
+"<pymc_marketing.clv.distributions.BetaGeoNBD.dist>`\\ \\(a\\, b\\, r\\, "
+"alpha\\, T\\, \\*\\*kwargs\\)"
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.BetaGeoNBD.rst:24:<autosummary>:1
 #: 5f1ff3795b8647d39728f800e539556e
@@ -168,8 +169,9 @@ msgid ""
 "<pymc_marketing.clv.distributions.BetaGeoNBD.logp>`\\ \\(a\\, b\\, r\\, "
 "alpha\\, T\\)"
 msgstr ""
-"msgid: :py:obj:`BetaGeoNBD.logp <pymc_marketing.clv.distributions.BetaGeoNBD.logp>`\\ \\(a\\, b\\, r\\, alpha\\, T\\)  \n"
-"msgstr: :py:obj:`BetaGeoNBD.logp <pymc_marketing.clv.distributions.BetaGeoNBD.logp>`\\ \\(a\\, b\\, r\\, alpha\\, T\\)"
+":py:obj:`BetaGeoNBD.logp "
+"<pymc_marketing.clv.distributions.BetaGeoNBD.logp>`\\ \\(a\\, b\\, r\\, "
+"alpha\\, T\\)"
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.BetaGeoNBD.rst:24:<autosummary>:1
 #: b58ce2f4e20c4777b4e813a174fa1134

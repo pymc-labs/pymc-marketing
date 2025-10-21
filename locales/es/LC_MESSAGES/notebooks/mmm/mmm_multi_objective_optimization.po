@@ -193,9 +193,7 @@ msgstr ""
 #: f4f05cf6c82c4b3f8bb4ad4e1e2cdb6f
 msgid ""
 "$\\epsilon$ denotes the base sales, which are not dependent on marketing."
-msgstr ""
-"msgid: $\\epsilon$ denotes the base sales, which are not dependent on marketing.  \n"
-"msgstr: $\\epsilon$ denota las ventas base, que no dependen del marketing."
+msgstr "$\\epsilon$ denota las ventas base, que no dependen del marketing."
 
 #: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:120014
 #: e3118ed66e404ddb94f28d32c36ea3f1
@@ -238,9 +236,7 @@ msgstr ""
 #: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:160002
 #: 2569723a393646f1a7474361d60bf19f
 msgid "Let's take a look at our base model"
-msgstr ""
-"msgid: Let's take a look at our base model  \n"
-"msgstr: Echemos un vistazo a nuestro modelo base"
+msgstr "Echemos un vistazo a nuestro modelo base."
 
 #: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:180002
 #: fcfbf8a18f864f84a24da976e919a20e
@@ -337,8 +333,8 @@ msgid ""
 "You only need to provide your channel list (you can use the model "
 "coordinates for this), the `idata`, and the PyMC model object."
 msgstr ""
-"msgid: You only need to provide your channel list (you can use the model coordinates for this), the `idata`, and the PyMC model object.  \n"
-"msgstr: Solo necesita proporcionar su lista de canales (puede usar las coordenadas del modelo para esto), el `idata` y el objeto del modelo PyMC."
+"Solo necesita proporcionar su lista de canales (puede utilizar las "
+"coordenadas del modelo para esto), el `idata` y el objeto del modelo PyMC."
 
 #: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:310005
 #: 60b9fadec9b640be9992e552e23ad82b
@@ -587,9 +583,7 @@ msgstr ""
 #: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:520012
 #: cbb871f427ea4f6f9a5809de0e3a77c0
 msgid "We pass the new merged model to the budget optimizer."
-msgstr ""
-"msgid: We pass the new merged model to the budget optimizer.  \n"
-"msgstr: Pasamos el nuevo modelo combinado al optimizador de presupuesto."
+msgstr "Pasamos el nuevo modelo fusionado al optimizador de presupuesto."
 
 #: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:550002
 #: cc8d7f3a7d334c9594725ce54de0f1ef
@@ -621,9 +615,7 @@ msgstr ""
 #: b91b4e947774485f985c68446e798fd9
 msgid ""
 "We just need to access the model and create the deterministic variable."
-msgstr ""
-"msgid: We just need to access the model and create the deterministic variable.  \n"
-"msgstr: Solo necesitamos acceder al modelo y crear la variable determinista."
+msgstr "Solo necesitamos acceder al modelo y crear la variable determinista."
 
 #: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:610002
 #: 4b96ff12b20047ecbcb27daceaf6db6c
@@ -796,8 +788,8 @@ msgstr ""
 msgid ""
 "Doing the same, we can now estimate the time for our individual models."
 msgstr ""
-"msgid: Doing the same, we can now estimate the time for our individual models.  \n"
-"msgstr: Haciendo lo mismo, ahora podemos estimar el tiempo para nuestros modelos individuales."
+"Haciendo lo mismo, ahora podemos estimar el tiempo para nuestros modelos "
+"individuales."
 
 #: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:800002
 #: a73eb7bef6ee43c4b4dcfb619b4e9abb

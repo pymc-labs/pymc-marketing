@@ -48,9 +48,7 @@ msgstr "numpy:array_like"
 #: bca44da6f4354469ae97d5f1a75446eb of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric.dist:8
 msgid "The inputs to the `RandomVariable` `Op`."
-msgstr ""
-"msgid: The inputs to the `RandomVariable` `Op`.  \n"
-"msgstr: Las entradas al `RandomVariable` `Op`."
+msgstr "Las entradas a la operación `RandomVariable`."
 
 #: 13f3ba3a6c344cba83e186adbc076954 of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric.dist:10

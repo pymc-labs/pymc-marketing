@@ -23,9 +23,7 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.hsgp.HSGPBase.to_dict.rst:2
 #: cdca7d8df80d4beaa195610fc299a13b
 msgid "HSGPBase.to\\_dict"
-msgstr ""
-"msgid: HSGPBase.to\\_dict  \n"
-"msgstr: HSGPBase.to\\_dict"
+msgstr "HSGPBase.to\\_dict"
 
 #: 82e3726ba9a7421485591b1d45348a01 of
 #: pymc_marketing.mmm.hsgp.HSGPBase.to_dict:2

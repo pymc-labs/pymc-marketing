@@ -23,9 +23,7 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.mmm.MMM.compute_mean_contributions_over_time.rst:2
 #: 8e3797445eb448708c76a8cbc3c936a0
 msgid "MMM.compute\\_mean\\_contributions\\_over\\_time"
-msgstr ""
-"msgid: MMM.compute\\_mean\\_contributions\\_over\\_time  \n"
-"msgstr: MMM.calcular\\_contribuciones\\_medias\\_a\\_lo\\_largo\\_del\\_tiempo"
+msgstr "MMM.calcular\\_contribuciones\\_medias\\_a\\_lo\\_largo\\_del\\_tiempo"
 
 #: e5afa56c82b4468cb99c835a0ec79999 of
 #: pymc_marketing.mmm.base.MMMModelBuilder.compute_mean_contributions_over_time:2

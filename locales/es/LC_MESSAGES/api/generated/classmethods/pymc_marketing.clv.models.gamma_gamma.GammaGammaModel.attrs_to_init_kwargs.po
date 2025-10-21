@@ -23,9 +23,7 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.gamma_gamma.GammaGammaModel.attrs_to_init_kwargs.rst:2
 #: bdd1be747839450195e08e7b9e5a686d
 msgid "GammaGammaModel.attrs\\_to\\_init\\_kwargs"
-msgstr ""
-"msgid: GammaGammaModel.attrs\\_to\\_init\\_kwargs  \n"
-"msgstr: GammaGammaModel.attrs\\_to\\_init\\_kwargs"
+msgstr "GammaGammaModel.attrs\\_to\\_init\\_kwargs"
 
 #: f9c8b50049dd475fbd4bf1c364faddc9 of
 #: pymc_marketing.model_builder.ModelIO.attrs_to_init_kwargs:2

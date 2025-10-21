@@ -28,9 +28,7 @@ msgstr "ShiftedBetaGeoModel.thin\\_fit\\_result"
 #: 41e0ad2db01c450a933ef41467b682b8 of
 #: pymc_marketing.clv.models.basic.CLVModel.thin_fit_result:2
 msgid "Return a copy of the model with a thinned fit result."
-msgstr ""
-"msgid: Return a copy of the model with a thinned fit result.  \n"
-"msgstr: Devuelva una copia del modelo con un resultado de ajuste reducido."
+msgstr "Devuelva una copia del modelo con un resultado de ajuste reducido."
 
 #: 5d091ab0db944becb5d0a3d9ce021129 of
 #: pymc_marketing.clv.models.basic.CLVModel.thin_fit_result:4

@@ -27,9 +27,7 @@ msgstr "TBF\\_FCI.fit"
 
 #: cf67249ca5f2467195681eab6088af7c of pymc_marketing.mmm.causal.TBF_FCI.fit:2
 msgid "Fit the temporal causal discovery algorithm to ``df``."
-msgstr ""
-"msgid: Fit the temporal causal discovery algorithm to ``df``.  \n"
-"msgstr: Ajuste el algoritmo de descubrimiento causal temporal a ``df``."
+msgstr "Ajuste el algoritmo de descubrimiento causal temporal a ``df``."
 
 #: 59d0d78995464dd1a2f87d3c6272006a of pymc_marketing.mmm.causal.TBF_FCI.fit
 msgid "Parameters"

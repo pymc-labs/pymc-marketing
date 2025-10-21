@@ -23,9 +23,7 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.attrs_to_init_kwargs.rst:2
 #: 708e19c092f641278029093d55abcdb8
 msgid "BetaGeoBetaBinomModel.attrs\\_to\\_init\\_kwargs"
-msgstr ""
-"msgid: BetaGeoBetaBinomModel.attrs\\_to\\_init\\_kwargs  \n"
-"msgstr: BetaGeoBetaBinomModel.attrs\\_to\\_init\\_kwargs"
+msgstr "BetaGeoBetaBinomModel.attrs\\_to\\_init\\_kwargs"
 
 #: 44fed2e09b4e47f2ae3b972d9c4afafa of
 #: pymc_marketing.model_builder.ModelIO.attrs_to_init_kwargs:2

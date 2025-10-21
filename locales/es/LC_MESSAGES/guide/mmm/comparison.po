@@ -92,9 +92,7 @@ msgstr "PyMC"
 
 #: ../source/guide/mmm/comparison.md 3afa5755e7d342ecbf2844d0b87ab352
 msgid "-"
-msgstr ""
-"It seems that there is no text provided for translation. Please provide the "
-"text you would like to have translated into Spanish."
+msgstr "-"
 
 #: ../source/guide/mmm/comparison.md b82060222af5406891b2f41d81faf3f2
 msgid "STAN/Pyro"

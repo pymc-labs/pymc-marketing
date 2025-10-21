@@ -175,8 +175,9 @@ msgid ""
 "<pymc_marketing.mmm.components.adstock.AdstockTransformation.set_dims_for_all_priors>`\\"
 " \\(dims\\)"
 msgstr ""
-"msgid: :py:obj:`AdstockTransformation.set_dims_for_all_priors <pymc_marketing.mmm.components.adstock.AdstockTransformation.set_dims_for_all_priors>`\\ \\(dims\\)  \n"
-"msgstr: :py:obj:`AdstockTransformation.set_dims_for_all_priors <pymc_marketing.mmm.components.adstock.AdstockTransformation.set_dims_for_all_priors>`\\ \\(dims\\)"
+":py:obj:`AdstockTransformation.set_dims_for_all_priors "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation.set_dims_for_all_priors>`\\"
+" \\(dims\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.components.adstock.AdstockTransformation.rst:31:<autosummary>:1
 #: f6b6045e478f48afb0f112269c971e97
@@ -190,8 +191,9 @@ msgid ""
 "<pymc_marketing.mmm.components.adstock.AdstockTransformation.to_dict>`\\ "
 "\\(\\)"
 msgstr ""
-"msgid: :py:obj:`AdstockTransformation.to_dict <pymc_marketing.mmm.components.adstock.AdstockTransformation.to_dict>`\\ \\(\\)  \n"
-"msgstr: :py:obj:`AdstockTransformation.to_dict <pymc_marketing.mmm.components.adstock.AdstockTransformation.to_dict>`\\ \\(\\)"
+":py:obj:`AdstockTransformation.to_dict "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation.to_dict>`\\ "
+"\\(\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.components.adstock.AdstockTransformation.rst:31:<autosummary>:1
 #: 37171147022f44a3947541d1e21b3cee

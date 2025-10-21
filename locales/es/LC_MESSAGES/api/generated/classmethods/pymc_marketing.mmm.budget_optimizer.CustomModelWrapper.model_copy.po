@@ -35,9 +35,7 @@ msgstr "[`model_copy`](../concepts/models.md#model-copy)"
 
 #: f3541f272b4e4bd189702588d7b85325 of pydantic.main.BaseModel.model_copy:5
 msgid "Returns a copy of the model."
-msgstr ""
-"msgid: Returns a copy of the model.  \n"
-"msgstr: Devuelve una copia del modelo."
+msgstr "Devuelve una copia del modelo."
 
 #: 493f9222169d4799a91ce2c137d21efe of pydantic.main.BaseModel.model_copy:7
 msgid "!!! note"
@@ -73,9 +71,7 @@ msgstr ""
 
 #: bb854e77b1fc4d3b8ea4321c45866f17 of pydantic.main.BaseModel.model_copy:15
 msgid "deep: Set to `True` to make a deep copy of the model."
-msgstr ""
-"msgid: deep: Set to `True` to make a deep copy of the model.  \n"
-"msgstr: deep: Establezca en `True` para hacer una copia profunda del modelo."
+msgstr "deep: Establezca en `True` para hacer una copia profunda del modelo."
 
 #: 2f8a3d6f872a47f2bb3b5b329dfe0ac8 of pydantic.main.BaseModel.model_copy:17
 msgid "Returns:"

@@ -197,8 +197,9 @@ msgid ""
 "<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.attrs_to_init_kwargs>`\\"
 " \\(attrs\\)"
 msgstr ""
-"msgid: :py:obj:`ShiftedBetaGeoModelIndividual.attrs_to_init_kwargs <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.attrs_to_init_kwargs>`\\ \\(attrs\\)  \n"
-"msgstr: :py:obj:`ShiftedBetaGeoModelIndividual.attrs_to_init_kwargs <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.attrs_to_init_kwargs>`\\ \\(attrs\\)"
+":py:obj:`ShiftedBetaGeoModelIndividual.attrs_to_init_kwargs "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.attrs_to_init_kwargs>`\\"
+" (attrs)"
 
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
 #: d394c125c0e34c50a696617387bc4986
@@ -362,8 +363,9 @@ msgid ""
 "<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.idata_to_init_kwargs>`\\"
 " \\(idata\\)"
 msgstr ""
-"msgid: :py:obj:`ShiftedBetaGeoModelIndividual.idata_to_init_kwargs <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.idata_to_init_kwargs>`\\ \\(idata\\)  \n"
-"msgstr: :py:obj:`ShiftedBetaGeoModelIndividual.idata_to_init_kwargs <pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.idata_to_init_kwargs>`\\ \\(idata\\)"
+":py:obj:`ShiftedBetaGeoModelIndividual.idata_to_init_kwargs "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.idata_to_init_kwargs>`\\"
+" \\(idata\\)"
 
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
 #: 683fb23880794c8fb64883fc865c8317
