@@ -157,6 +157,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_upper_funnel_causal_approach.html
 ::::
 
+:::{grid-item-card} Causal Reasoning and Discovery
+:img-top: ../gallery/images/mmm_causal_reasoning_and_discovery.png
+:link: ../notebooks/mmm/mmm_causal_reasoning_and_discovery.html
+:::
+
 :::::
 
 ### Case Studies
