@@ -235,7 +235,7 @@ class TimeSliceCrossValidator:
                 )
             elif mmm is not None:
                 # use provided mmm instance (do not store it on self)
-                fold_mmm = mmm
+                fold_mmm = mmm.build_model(X_train, y_train)
             else:
                 raise ValueError(
                     "Either provide an `mmm` instance to run(...) or a `yaml_path` to build the model per-fold."
