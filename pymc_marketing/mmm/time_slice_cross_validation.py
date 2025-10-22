@@ -24,6 +24,7 @@ from typing import Any
 
 import arviz as az
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 from tqdm.notebook import tqdm
 
@@ -171,25 +172,37 @@ class TimeSliceCrossValidator:
         return max(0, max_splits)
 
     def split(self, X, y):
-        """Yield (train_idx, test_idx) pairs for each time-slice split."""
+        """Yield (train_idx, test_idx) pairs for each time-slice split.
+
+        This implementation selects rows by date masks so that all coordinate
+        levels (e.g. multiple geos) for the selected date ranges are included
+        in each fold. It returns integer positions suitable for use with
+        ``DataFrame.iloc``.
+        """
         n_splits = self.get_n_splits(X, y)
-        udates = X[self.date_column].unique()
-        udates = udates[udates.argsort()]
-        dates = X[self.date_column].tolist()
         if n_splits <= 0:
             raise ValueError(
                 "No splits possible with the given n_init, forecast_horizon and step_size"
             )
+
+        # unique sorted dates
+        udates = np.unique(pd.to_datetime(X[self.date_column].to_numpy()))
+
         for i in range(n_splits):
-            split_point = dates.index(udates[i * self.step_size + self.n_init])
-            train_idx = range(0, split_point)
-            test_idx = range(
-                split_point,
-                len(dates)
-                - dates[::-1].index(
-                    udates[i * self.step_size + self.n_init + self.forecast_horizon - 1]
-                ),
+            start_date = udates[i * self.step_size + self.n_init]
+            end_date = udates[
+                i * self.step_size + self.n_init + self.forecast_horizon - 1
+            ]
+
+            # boolean masks selecting rows for train and test ranges (preserve all geos)
+            train_mask = pd.to_datetime(X[self.date_column]) < start_date
+            test_mask = (pd.to_datetime(X[self.date_column]) >= start_date) & (
+                pd.to_datetime(X[self.date_column]) <= end_date
             )
+
+            train_idx = np.flatnonzero(train_mask.to_numpy())
+            test_idx = np.flatnonzero(test_mask.to_numpy())
+
             yield train_idx, test_idx
 
     # Run CV
