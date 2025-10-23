@@ -43,9 +43,7 @@ msgstr "**valor** : :term:`numpy:array_like`"
 #: 586139ca56b24a75a37bde6b06a927f6 of
 #: pymc_marketing.mmm.budget_optimizer.optimizer_xarray_builder:6
 msgid "numpy:array_like"
-msgstr ""
-"msgid: numpy:array_like  \n"
-"msgstr: numpy:array_like"
+msgstr "numpy:similar_a_array"
 
 #: b62afe409a4f4e2eb1d1bf83f16552e3 of
 #: pymc_marketing.mmm.budget_optimizer.optimizer_xarray_builder:8

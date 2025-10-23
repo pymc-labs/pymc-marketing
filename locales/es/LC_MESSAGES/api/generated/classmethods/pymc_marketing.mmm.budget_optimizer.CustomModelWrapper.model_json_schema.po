@@ -42,14 +42,9 @@ msgid ""
 "reference template. union_format: The format to use when combining schemas "
 "from unions together. Can be one of:"
 msgstr ""
-"msgid: by_alias: Whether to use attribute aliases or not. \n"
-"msgstr: by_alias: Si se deben usar alias de atributos o no. \n"
-"\n"
-"msgid: ref_template: The reference template. \n"
-"msgstr: ref_template: La plantilla de referencia. \n"
-"\n"
-"msgid: union_format: The format to use when combining schemas from unions together. Can be one of: \n"
-"msgstr: union_format: El formato a utilizar al combinar esquemas de uniones. Puede ser uno de:"
+"by_alias: Si se deben usar alias de atributos o no. ref_template: La "
+"plantilla de referencia. union_format: El formato a utilizar al combinar "
+"esquemas de uniones. Puede ser uno de:"
 
 #: ce1874084e10470cadbade78fbb69dc5 of
 #: pydantic.main.BaseModel.model_json_schema:9
@@ -70,8 +65,12 @@ msgid ""
 " `boolean`, `null`, `integer` or `number`) or contains constraints/metadata,"
 " falls back to `any_of`."
 msgstr ""
-"msgid: keyword to combine schemas (the default). - `'primitive_type_array'`: Use the [`type`](https://json-schema.org/understanding-json-schema/reference/type) keyword as an array of strings, containing each type of the combination. If any of the schemas is not a primitive type (`string`, `boolean`, `null`, `integer` or `number`) or contains constraints/metadata, falls back to `any_of`.  \n"
-"msgstr: palabra clave para combinar esquemas (el predeterminado). - `'primitive_type_array'`: Utilice la palabra clave [`type`](https://json-schema.org/understanding-json-schema/reference/type) como un array de cadenas, que contenga cada tipo de la combinación. Si alguno de los esquemas no es un tipo primitivo (`string`, `boolean`, `null`, `integer` o `number`) o contiene restricciones/metadatos, se revertirá a `any_of`."
+"palabra clave para combinar esquemas (el predeterminado). - "
+"`'primitive_type_array'`: Utilice la palabra clave [`type`](https://json-"
+"schema.org/understanding-json-schema/reference/type) como un array de "
+"cadenas, que contenga cada tipo de la combinación. Si alguno de los esquemas"
+" no es un tipo primitivo (`string`, `boolean`, `null`, `integer` o `number`)"
+" o contiene restricciones/metadatos, se revertirá a `any_of`."
 
 #: 91baef4e799e47ca9ffbb333d037afa8 of
 #: pydantic.main.BaseModel.model_json_schema:15
@@ -79,22 +78,18 @@ msgid ""
 "schema_generator: To override the logic used to generate the JSON schema, as"
 " a subclass of"
 msgstr ""
-"msgid: schema_generator: To override the logic used to generate the JSON schema, as a subclass of  \n"
-"msgstr: schema_generator: Para anular la lógica utilizada para generar el esquema JSON, como una subclase de"
+"schema_generator: Para anular la lógica utilizada para generar el esquema "
+"JSON, como una subclase de"
 
 #: 8a52a7b8dc474bb685973ae62129fb6f of
 #: pydantic.main.BaseModel.model_json_schema:16
 msgid "`GenerateJsonSchema` with your desired modifications"
-msgstr ""
-"msgid: `GenerateJsonSchema` with your desired modifications  \n"
-"msgstr: `GenerateJsonSchema` con las modificaciones deseadas"
+msgstr "`GenerateJsonSchema` con las modificaciones deseadas"
 
 #: 0e20a718ae9243e6abba08709b55f038 of
 #: pydantic.main.BaseModel.model_json_schema:17
 msgid "mode: The mode in which to generate the schema."
-msgstr ""
-"msgid: mode: The mode in which to generate the schema.  \n"
-"msgstr: modo: El modo en el que se generará el esquema."
+msgstr "modo: El modo en el que se generará el esquema."
 
 #: 215b2db9a4b140a9bd9c802179702c17 of
 #: pydantic.main.BaseModel.model_json_schema:19
@@ -104,6 +99,4 @@ msgstr "Returns:"
 #: 6e665c48e58a4d098686a656eb24d589 of
 #: pydantic.main.BaseModel.model_json_schema:20
 msgid "The JSON schema for the given model class."
-msgstr ""
-"msgid: The JSON schema for the given model class.\n"
-"msgstr: El esquema JSON para la clase de modelo dada."
+msgstr "El esquema JSON para la clase de modelo dada."

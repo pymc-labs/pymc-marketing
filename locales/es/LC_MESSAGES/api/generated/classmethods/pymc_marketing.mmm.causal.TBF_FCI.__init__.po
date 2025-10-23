@@ -28,9 +28,7 @@ msgstr "TBF\\_FCI.\\_\\_init\\_\\_"
 #: 7da60c1d455f4f4286515b08f40180ca of
 #: pymc_marketing.mmm.causal.TBF_FCI.__init__:2
 msgid "Create a new temporal TBF-PC causal discovery model."
-msgstr ""
-"msgid: Create a new temporal TBF-PC causal discovery model.  \n"
-"msgstr: Crear un nuevo modelo de descubrimiento causal TBF-PC temporal."
+msgstr "Crear un nuevo modelo de descubrimiento causal TBF-PC temporal."
 
 #: fa565448d77747b6bfc6f29fc236c8e5 of
 #: pymc_marketing.mmm.causal.TBF_FCI.__init__
@@ -46,8 +44,8 @@ msgstr "**target**"
 #: pymc_marketing.mmm.causal.TBF_FCI.__init__:8
 msgid "Target variable name at time ``t`` that the algorithm orients toward."
 msgstr ""
-"msgid: Target variable name at time ``t`` that the algorithm orients toward.  \n"
-"msgstr: Nombre de la variable objetivo en el tiempo ``t`` hacia la cual se orienta el algoritmo."
+"Nombre de la variable objetivo en el tiempo ``t`` hacia la cual se orienta "
+"el algoritmo."
 
 #: ca0a4c0dbe824875a1eba0379d93b7f2 of
 #: pymc_marketing.mmm.causal.TBF_FCI.__init__:11
@@ -87,8 +85,8 @@ msgstr "**forbidden_edges**"
 msgid ""
 "Optional sequence of node pairs that must be excluded from the final graph."
 msgstr ""
-"msgid: Optional sequence of node pairs that must be excluded from the final graph.  \n"
-"msgstr: Secuencia opcional de pares de nodos que deben ser excluidos del gráfico final."
+"Secuencia opcional de pares de nodos que deben ser excluidos del gráfico "
+"final."
 
 #: 32153f8a947f4c909f23a1392bd03f94 of
 #: pymc_marketing.mmm.causal.TBF_FCI.__init__:23
@@ -100,8 +98,8 @@ msgstr "**max_lag**"
 msgid ""
 "Maximum lag (inclusive) to consider when constructing temporal drivers."
 msgstr ""
-"msgid: Maximum lag (inclusive) to consider when constructing temporal drivers.  \n"
-"msgstr: Retraso máximo (inclusive) a considerar al construir controladores temporales."
+"Retraso máximo (inclusive) a considerar al construir controladores "
+"temporales."
 
 #: b0b1c3b18f2143cf99502bfff977f34a of
 #: pymc_marketing.mmm.causal.TBF_FCI.__init__:27
@@ -111,6 +109,4 @@ msgstr "**allow_contemporaneous**"
 #: 7a2d39c5aba1437d8e6358555484f975 of
 #: pymc_marketing.mmm.causal.TBF_FCI.__init__:28
 msgid "Whether contemporaneous edges at time ``t`` are permitted."
-msgstr ""
-"msgid: Whether contemporaneous edges at time ``t`` are permitted.  \n"
-"msgstr: Si se permiten bordes contemporáneos en el tiempo ``t``."
+msgstr "Si se permiten bordes contemporáneos en el tiempo ``t``."

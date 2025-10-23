@@ -44,8 +44,8 @@ msgstr "pandas.DataFrame"
 #: b6fa009f729f412da3d8448243ca1c2c of pymc_marketing.mmm.causal.TBF_FCI.fit:8
 msgid "Input dataframe containing the target column and every driver column."
 msgstr ""
-"msgid: Input dataframe containing the target column and every driver column.  \n"
-"msgstr: Marco de datos de entrada que contiene la columna objetivo y cada columna de variable independiente."
+"Marco de datos de entrada que contiene la columna objetivo y cada columna de"
+" variable independiente."
 
 #: 64ebb2ab87d641809eece4679f6f2197 of
 #: pymc_marketing.mmm.causal.TBF_FCI.fit:11
@@ -76,8 +76,7 @@ msgstr ":obj:`TBF_FCI`"
 #: pymc_marketing.mmm.causal.TBF_FCI.fit:19
 msgid "The fitted instance with internal adjacency structures populated."
 msgstr ""
-"msgid: The fitted instance with internal adjacency structures populated.  \n"
-"msgstr: La instancia ajustada con estructuras de adyacencia internas pobladas."
+"La instancia ajustada con estructuras de adyacencia internas pobladas."
 
 #: b8be3c4a4636429cbd673142eeb3978c of
 #: pymc_marketing.mmm.causal.TBF_FCI.fit:31

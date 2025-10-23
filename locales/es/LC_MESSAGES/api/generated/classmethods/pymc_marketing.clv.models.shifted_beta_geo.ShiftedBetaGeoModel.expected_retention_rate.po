@@ -38,15 +38,15 @@ msgid ""
 "period and are still active in the current period. Retention rates are "
 "expected to increase over time."
 msgstr ""
-"msgid: This is the percentage of customers who were active in the previous time period and are still active in the current period. Retention rates are expected to increase over time.\n"
-"msgstr: Este es el porcentaje de clientes que estaban activos en el período anterior y que aún están activos en el período actual. Se espera que las tasas de retención aumenten con el tiempo."
+"Este es el porcentaje de clientes que estaban activos en el período anterior"
+" y que aún están activos en el período actual. Se espera que las tasas de "
+"retención aumenten con el tiempo."
 
 #: 526f8ad46597472cbac533a475029798 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_retention_rate:7
 msgid "The *data* parameter is only required for out-of-sample customers."
 msgstr ""
-"msgid: The *data* parameter is only required for out-of-sample customers.  \n"
-"msgstr: El parámetro *data* solo es necesario para clientes fuera de la muestra."
+"El parámetro *data* solo es necesario para clientes fuera de la muestra."
 
 #: abde1f93924b4695bd27c0235d5545a0 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_retention_rate:9
@@ -72,8 +72,8 @@ msgstr "python:int, numpy:array_like"
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_retention_rate:14
 msgid "Number of time periods in the future to predict retention rate."
 msgstr ""
-"msgid: Number of time periods in the future to predict retention rate.  \n"
-"msgstr: Número de períodos de tiempo en el futuro para predecir la tasa de retención."
+"Número de períodos de tiempo en el futuro para predecir la tasa de "
+"retención."
 
 #: ef3e9d56819a4c7b9769ddb376d93c23 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_retention_rate:16
@@ -92,8 +92,9 @@ msgid ""
 " customer identifier * `T`: Number of time periods customer has been active "
 "* `cohort`: Customer cohort label"
 msgstr ""
-"msgid: Optional dataframe containing the following columns: * `customer_id`: Unique customer identifier * `T`: Number of time periods customer has been active * `cohort`: Customer cohort label  \n"
-"msgstr: Dataframe opcional que contiene las siguientes columnas: * `customer_id`: Identificador único del cliente * `T`: Número de períodos de tiempo en los que el cliente ha estado activo * `cohort`: Etiqueta de cohorte del cliente"
+"Dataframe opcional que contiene las siguientes columnas: * `customer_id`: "
+"Identificador único del cliente * `T`: Número de períodos de tiempo en los "
+"que el cliente ha estado activo * `cohort`: Etiqueta de cohorte del cliente"
 
 #: 74812b80d3bc48e796799c74f067b518 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_retention_rate:34

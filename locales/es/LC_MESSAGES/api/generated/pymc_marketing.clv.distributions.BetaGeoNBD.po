@@ -154,8 +154,8 @@ msgid ""
 "alpha\\, T\\, \\*\\*kwargs\\)"
 msgstr ""
 ":py:obj:`BetaGeoNBD.dist "
-"<pymc_marketing.clv.distributions.BetaGeoNBD.dist>`\\ \\(a\\, b\\, r\\, "
-"alpha\\, T\\, \\*\\*kwargs\\)"
+"<pymc_marketing.clv.distributions.BetaGeoNBD.dist>`\\ (a\\, b\\, r\\, "
+"alpha\\, T\\, \\*\\*kwargs)"
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.BetaGeoNBD.rst:24:<autosummary>:1
 #: 5f1ff3795b8647d39728f800e539556e

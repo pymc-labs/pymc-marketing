@@ -23,9 +23,7 @@ msgstr ""
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:10002
 #: ae1d6ec93c7e41de988c50973c90576c
 msgid "Introducing causal discovery to PyMC-Marketing"
-msgstr ""
-"msgid: Introducing causal discovery to PyMC-Marketing  \n"
-"msgstr: Introduciendo el descubrimiento causal en PyMC-Marketing"
+msgstr "Introduciendo el descubrimiento causal en PyMC-Marketing"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:10004
 #: e946394e39de4d0080c92a619e903445
@@ -103,9 +101,7 @@ msgstr ""
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:10010
 #: 3ddb8cf40ff24060b499ca00653fdc12
 msgid "TBFPC algorithm overview"
-msgstr ""
-"msgid: TBFPC algorithm overview  \n"
-"msgstr: Visión general del algoritmo TBFPC"
+msgstr "Visión general del algoritmo TBFPC"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:10012
 #: 4d4e8866735545a38bd4d029223c3c62
@@ -138,15 +134,17 @@ msgid ""
 "respecting the structure, constraints, and realities of marketing data — to "
 "yield graphs that make sense both statistically and strategically."
 msgstr ""
-"msgid: `TBFPC` is **experimental**, but it bridges an important gap between **Bayesian modeling** and **causal reasoning** for marketing science. It aims not to replace classical discovery frameworks, but to adapt them — respecting the structure, constraints, and realities of marketing data — to yield graphs that make sense both statistically and strategically.\n"
-"msgstr: `TBFPC` es **experimental**, pero cierra una brecha importante entre el **modelado bayesiano** y el **razonamiento causal** para la ciencia del marketing. Su objetivo no es reemplazar los marcos de descubrimiento clásicos, sino adaptarlos —respetando la estructura, las restricciones y las realidades de los datos de marketing— para generar gráficos que tengan sentido tanto estadísticamente como estratégicamente."
+"`TBFPC` es **experimental**, pero cierra una brecha importante entre el "
+"**modelado bayesiano** y el **razonamiento causal** para la ciencia del "
+"marketing. Su objetivo no es reemplazar los marcos de descubrimiento "
+"clásicos, sino adaptarlos —respetando la estructura, las restricciones y las"
+" realidades de los datos de marketing— para generar gráficos que tengan "
+"sentido tanto estadísticamente como estratégicamente."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:10016
 #: 93bce6adba144eaa9c8c330b73cc4689
 msgid "Glossary"
-msgstr ""
-"msgid: Glossary  \n"
-"msgstr: Glosario"
+msgstr "Glosario"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:10017
 #: 5f43010c0b104f078d91288866c2c6e3
@@ -164,8 +162,8 @@ msgid ""
 "Directed Acyclic Graph (DAG) – A fully oriented, cycle-free graph that "
 "encodes one specific causal data-generating process."
 msgstr ""
-"msgid: Directed Acyclic Graph (DAG) – A fully oriented, cycle-free graph that encodes one specific causal data-generating process.  \n"
-"msgstr: Grafo Acíclico Dirigido (DAG) – Un grafo completamente orientado y sin ciclos que codifica un proceso específico de generación de datos causal."
+"Grafo Acíclico Dirigido (DAG) – Un grafo completamente orientado y sin "
+"ciclos que codifica un proceso específico de generación de datos causal."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:10021
 #: 3a5d8863ff984ee09ff32bf9ec166abe
@@ -174,8 +172,9 @@ msgid ""
 "directed and undirected edges summarizing every DAG in the same Markov "
 "equivalence class."
 msgstr ""
-"msgid: Completed Partially Directed Acyclic Graph (CPDAG) – A graph with both directed and undirected edges summarizing every DAG in the same Markov equivalence class.  \n"
-"msgstr: Grafo Acíclico Dirigido Parcialmente Completo (CPDAG) – Un grafo con bordes tanto dirigidos como no dirigidos que resume cada DAG en la misma clase de equivalencia de Markov."
+"Grafo Acíclico Dirigido Parcialmente Completo (CPDAG) – Un grafo con bordes "
+"tanto dirigidos como no dirigidos que resume cada DAG en la misma clase de "
+"equivalencia de Markov."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:10023
 #: d730c494f1f9451684f29b5cea80d9b4
@@ -184,8 +183,9 @@ msgid ""
 " d-separation statements and therefore cannot be distinguished via "
 "conditional independence tests alone."
 msgstr ""
-"msgid: Markov equivalence class (MEC) – The collection of DAGs that imply identical d-separation statements and therefore cannot be distinguished via conditional independence tests alone.  \n"
-"msgstr: Clase de equivalencia de Markov (MEC) – La colección de DAGs que implican declaraciones de d-separación idénticas y, por lo tanto, no pueden ser distinguidos únicamente a través de pruebas de independencia condicional."
+"Clase de equivalencia de Markov (MEC) – La colección de DAGs que implican "
+"declaraciones de d-separación idénticas y, por lo tanto, no pueden ser "
+"distinguidos únicamente a través de pruebas de independencia condicional."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:10025
 #: 53f318c9bb6b4560ac926325d863aac4
@@ -194,8 +194,10 @@ msgid ""
 "discovery algorithm that applies Bayes factor (ΔBIC) tests plus marketing-"
 "specific constraints to learn causal skeletons."
 msgstr ""
-"msgid: Target-first Bayes Factor PC (TBFPC) – Target-oriented adaptation of the PC discovery algorithm that applies Bayes factor (ΔBIC) tests plus marketing-specific constraints to learn causal skeletons.  \n"
-"msgstr: Factor Bayes PC orientado al objetivo (TBFPC) – Adaptación orientada al objetivo del algoritmo de descubrimiento PC que aplica pruebas de factor Bayes (ΔBIC) más restricciones específicas de marketing para aprender esqueletos causales."
+"Factor Bayes PC orientado al objetivo (TBFPC) – Adaptación orientada al "
+"objetivo del algoritmo de descubrimiento PC que aplica pruebas de factor "
+"Bayes (ΔBIC) más restricciones específicas de marketing para aprender "
+"esqueletos causales."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:10027
 #: 185b5e484b0b4d5093b441ace9f9c349
@@ -204,22 +206,20 @@ msgid ""
 "Bayesian Information Criterion, used to decide whether variables remain "
 "dependent after conditioning on controls."
 msgstr ""
-"msgid: Bayes factor ΔBIC test – The log Bayes factor computed from the change in Bayesian Information Criterion, used to decide whether variables remain dependent after conditioning on controls.  \n"
-"msgstr: Prueba del factor de Bayes ΔBIC – El logaritmo del factor de Bayes calculado a partir del cambio en el Criterio de Información Bayesiano, utilizado para decidir si las variables permanecen dependientes después de condicionar sobre los controles."
+"Prueba del factor de Bayes ΔBIC – El logaritmo del factor de Bayes calculado"
+" a partir del cambio en el Criterio de Información Bayesiano, utilizado para"
+" decidir si las variables permanecen dependientes después de condicionar "
+"sobre los controles."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:20002
 #: 372c06384182425ba1e654a1ed53c0e7
 msgid "Import dependencies"
-msgstr ""
-"msgid: Import dependencies  \n"
-"msgstr: Importar dependencias"
+msgstr "Importar dependencias"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:50002
 #: a4fb4d69e0064fafba10a9b36a938d16
 msgid "Setting notebook"
-msgstr ""
-"msgid: Setting notebook  \n"
-"msgstr: Configuración del cuaderno"
+msgstr "Configuración del cuaderno"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:70002
 #: e9fda1e7620c4444a0852ac49135faae
@@ -233,15 +233,20 @@ msgid ""
 "tightly interwoven. We’ll recreate a similar structure here, representing "
 "the true (but usually hidden) causal data-generating process."
 msgstr ""
-"msgid: Let’s begin with a simple but powerful causal story, adapted from an article by **Ben Vincent** — [*“Causal Inference: have you been doing science wrong all this time?”*](https://drbenvincent.github.io/posts/causal_fear.html#fig-causal-dag). In it, Ben illustrates (probably without know it) a common situation in marketing analytics where **search**, **media**, and **sales** are tightly interwoven. We’ll recreate a similar structure here, representing the true (but usually hidden) causal data-generating process.  \n"
-"msgstr: Comencemos con una historia causal simple pero poderosa, adaptada de un artículo de **Ben Vincent** — [*“Inferencia Causal: ¿has estado haciendo ciencia mal todo este tiempo?”*](https://drbenvincent.github.io/posts/causal_fear.html#fig-causal-dag). En él, Ben ilustra (probablemente sin saberlo) una situación común en la analítica de marketing donde **búsqueda**, **medios** y **ventas** están estrechamente entrelazados. Recrearemos una estructura similar aquí, representando el verdadero (pero generalmente oculto) proceso de generación de datos causal."
+"Comencemos con una historia causal simple pero poderosa, adaptada de un "
+"artículo de **Ben Vincent** — [*“Inferencia Causal: ¿has estado haciendo "
+"ciencia mal todo este "
+"tiempo?”*](https://drbenvincent.github.io/posts/causal_fear.html#fig-causal-"
+"dag). En él, Ben ilustra (probablemente sin saberlo) una situación común en "
+"la analítica de marketing donde **búsqueda**, **medios** y **ventas** están "
+"estrechamente entrelazados. Recrearemos una estructura similar aquí, "
+"representando el verdadero (pero generalmente oculto) proceso de generación "
+"de datos causal."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:70004
 #: a53f2748e4994216b96b9af5c82b5612
 msgid "Imagine the following system:"
-msgstr ""
-"msgid: Imagine the following system:\n"
-"msgstr: Imagine el siguiente sistema:"
+msgstr "Imagine el siguiente sistema:"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:70006
 #: ec309a6bf3744104b85d6c662c32e79e
@@ -249,8 +254,8 @@ msgid ""
 "People first engage with **generic search** activity (`Q`), such as looking "
 "for products or comparing options."
 msgstr ""
-"msgid: People first engage with **generic search** activity (`Q`), such as looking for products or comparing options.  \n"
-"msgstr: Las personas primero participan en la actividad de **búsqueda genérica** (`Q`), como buscar productos o comparar opciones."
+"Las personas primero participan en la actividad de **búsqueda genérica** "
+"(`Q`), como buscar productos o comparar opciones."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:70007
 #: d4d8c4c7106142799bcb23bef10a6817
@@ -258,8 +263,9 @@ msgid ""
 "This general intent influences **media exposure** (`X`) — those who are "
 "searching more are also more likely to see or click ads."
 msgstr ""
-"msgid: This general intent influences **media exposure** (`X`) — those who are searching more are also more likely to see or click ads.  \n"
-"msgstr: Esta intención general influye en **la exposición a los medios** (`X`) — aquellos que buscan más también son más propensos a ver o hacer clic en anuncios."
+"Esta intención general influye en **la exposición a los medios** (`X`) — "
+"aquellos que buscan más también son más propensos a ver o hacer clic en "
+"anuncios."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:70008
 #: d2f4d89ce4a2423780fe7a48d64d4b48
@@ -267,8 +273,8 @@ msgid ""
 "Both `Q` and `X` shape **brand search** (`Y`), which captures the strength "
 "of the brand in the customer’s mind."
 msgstr ""
-"msgid: Both `Q` and `X` shape **brand search** (`Y`), which captures the strength of the brand in the customer’s mind.  \n"
-"msgstr: Tanto `Q` como `X` moldean **la búsqueda de marca** (`Y`), que captura la fuerza de la marca en la mente del cliente."
+"Tanto `Q` como `X` moldean **la búsqueda de marca** (`Y`), que captura la "
+"fuerza de la marca en la mente del cliente."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:70009
 #: 96687ef2cdf7467eaebd25ae2fc3cabb
@@ -315,9 +321,7 @@ msgstr ""
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:90002
 #: bef14879cf7748b483078595b3fa9550
 msgid "We'll now generate data which follow the same causal structure!"
-msgstr ""
-"msgid: We'll now generate data which follow the same causal structure!  \n"
-"msgstr: Ahora generaremos datos que siguen la misma estructura causal."
+msgstr "Ahora generaremos datos que siguen la misma estructura causal."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:110002
 #: ede6bcf0b8204681a919fef38b7a7d18
@@ -386,9 +390,7 @@ msgstr ""
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:110008
 #: 29e3adb0ac344bc2b425d79d43c8e059
 msgid "What's the difference between a CPDAG and CDAG?"
-msgstr ""
-"msgid: What's the difference between a CPDAG and CDAG?  \n"
-"msgstr: ¿Cuál es la diferencia entre un CPDAG y un CDAG?"
+msgstr "¿Cuál es la diferencia entre un CPDAG y un CDAG?"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:110010
 #: 7af4c8d3058743ad8dbd15a5aec1b3c6
@@ -397,8 +399,10 @@ msgid ""
 "structure where every edge has a direction (e.g., `media_activities → "
 "brand_search → purchase`). It encodes a complete causal story."
 msgstr ""
-"msgid: A **Causal DAG** represents a single, fully oriented data-generating structure where every edge has a direction (e.g., `media_activities → brand_search → purchase`). It encodes a complete causal story.  \n"
-"msgstr: Un **DAG Causal** representa una única estructura generadora de datos completamente orientada donde cada arista tiene una dirección (por ejemplo, `media_activities → brand_search → purchase`). Codifica una historia causal completa."
+"Un **DAG Causal** representa una única estructura generadora de datos "
+"completamente orientada donde cada arista tiene una dirección (por ejemplo, "
+"`media_activities → brand_search → purchase`). Codifica una historia causal "
+"completa."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:110012
 #: 199d2732571c46389af3bdc67fa088cc
@@ -426,15 +430,16 @@ msgid ""
 "Graphviz) and you can visualize it or inspect the directed and undirected "
 "edges directly. Below we fit the model and print its discovered structure."
 msgstr ""
-"msgid: With `TBFPC`, obtaining this structure takes only a few lines of code. The algorithm will return the learned graph in **DOT format** (compatible with Graphviz) and you can visualize it or inspect the directed and undirected edges directly. Below we fit the model and print its discovered structure.  \n"
-"msgstr: Con `TBFPC`, obtener esta estructura requiere solo unas pocas líneas de código. El algoritmo devolverá el grafo aprendido en **formato DOT** (compatible con Graphviz) y puedes visualizarlo o inspeccionar las aristas dirigidas y no dirigidas directamente. A continuación, ajustamos el modelo e imprimimos su estructura descubierta."
+"Con `TBFPC`, obtener esta estructura requiere solo unas pocas líneas de "
+"código. El algoritmo devolverá el grafo aprendido en **formato DOT** "
+"(compatible con Graphviz) y puedes visualizarlo o inspeccionar las aristas "
+"dirigidas y no dirigidas directamente. A continuación, ajustamos el modelo e"
+" imprimimos su estructura descubierta."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:110016
 #: e92deaf7bb7645d1b4d444b33978b098
 msgid "See how it works!"
-msgstr ""
-"msgid: See how it works!  \n"
-"msgstr: ¡Vea cómo funciona!"
+msgstr "¡Vea cómo funciona!"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:130002
 #: 130d33d95a814b65bd45883d724bcccb
@@ -443,8 +448,9 @@ msgid ""
 "Each line represents a node or an edge, and the syntax captures both "
 "**directed** and **undirected** relationships."
 msgstr ""
-"msgid: The output above shows the **learned causal graph** in Graphviz DOT format. Each line represents a node or an edge, and the syntax captures both **directed** and **undirected** relationships.  \n"
-"msgstr: La salida anterior muestra el **grafo causal aprendido** en formato Graphviz DOT. Cada línea representa un nodo o un borde, y la sintaxis captura tanto relaciones **dirigidas** como **no dirigidas**."
+"La salida anterior muestra el **grafo causal aprendido** en formato Graphviz"
+" DOT. Cada línea representa un nodo o un borde, y la sintaxis captura tanto "
+"relaciones **dirigidas** como **no dirigidas**."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:130004
 #: b5594a95c95f418bb64b3763f5bc9ce9
@@ -456,8 +462,13 @@ msgid ""
 "and `media_activities` are estimated as **direct causes** of `purchase`, "
 "which aligns with the true underlying DAG we simulated earlier."
 msgstr ""
-"msgid: Directed arrows such as `\"brand_search\" -> \"purchase\";` or `\"media_activities\" -> \"purchase\";` represent **oriented edges** — causal directions that the algorithm can infer with sufficient confidence based on conditional independence tests. In this case, both `brand_search` and `media_activities` are estimated as **direct causes** of `purchase`, which aligns with the true underlying DAG we simulated earlier.  \n"
-"msgstr: Las flechas dirigidas como `\"brand_search\" -> \"purchase\";` o `\"media_activities\" -> \"purchase\";` representan **bordes orientados** — direcciones causales que el algoritmo puede inferir con suficiente confianza basándose en pruebas de independencia condicional. En este caso, tanto `brand_search` como `media_activities` se estiman como **causas directas** de `purchase`, lo que se alinea con el verdadero DAG subyacente que simulamos anteriormente."
+"Las flechas dirigidas como `\"brand_search\" -> \"purchase\";` o "
+"`\"media_activities\" -> \"purchase\";` representan **bordes orientados** — "
+"direcciones causales que el algoritmo puede inferir con suficiente confianza"
+" basándose en pruebas de independencia condicional. En este caso, tanto "
+"`brand_search` como `media_activities` se estiman como **causas directas** "
+"de `purchase`, lo que se alinea con el verdadero DAG subyacente que "
+"simulamos anteriormente."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:130006
 #: b0b8868b87e9472495424422e0ea332c
@@ -467,15 +478,15 @@ msgid ""
 "connections that remain *undirected* in the **CPDAG**. The tag "
 "`[style=dashed, dir=none]` encodes this explicitly:"
 msgstr ""
-"msgid: The dashed, undirected edges such as `\"brand_search\" -> \"generic_search\" [style=dashed, dir=none]` represent **ambiguous relationships** — connections that remain *undirected* in the **CPDAG**. The tag `[style=dashed, dir=none]` encodes this explicitly:  \n"
-"msgstr: Los bordes discontinuos y no dirigidos, como `\"brand_search\" -> \"generic_search\" [style=dashed, dir=none]`, representan **relaciones ambiguas** — conexiones que permanecen *no dirigidas* en el **CPDAG**. La etiqueta `[style=dashed, dir=none]` codifica esto de manera explícita:"
+"Los bordes discontinuos y no dirigidos, como `\"brand_search\" -> "
+"\"generic_search\" [style=dashed, dir=none]`, representan **relaciones "
+"ambiguas** — conexiones que permanecen *no dirigidas* en el **CPDAG**. La "
+"etiqueta `[style=dashed, dir=none]` codifica esto de manera explícita:"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:130007
 #: 32e826b6d45b49618d44073f30dcc8c3
 msgid "`style=dashed` visually marks the edge as *non-oriented*."
-msgstr ""
-"msgid: `style=dashed` visually marks the edge as *non-oriented*.\n"
-"msgstr: `style=dashed` marca visualmente el borde como *no orientado*."
+msgstr "`style=dashed` marca visualmente el borde como *no orientado*."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:130008
 #: 2ebf33d000f24d4aa96616e5e163170b
@@ -494,8 +505,13 @@ msgid ""
 "Markov equivalent if they encode the same **d-separation** relations; that "
 "is, for every triplet of variables $(X, Y, Z)$,"
 msgstr ""
-"msgid: Mathematically, this ambiguity means that both possible directions (e.g., `brand_search → generic_search` and `generic_search → brand_search`) are **Markov equivalent** — they induce the same set of conditional independences in the data. In the language of causal graphs, two DAGs are Markov equivalent if they encode the same **d-separation** relations; that is, for every triplet of variables $(X, Y, Z)$,  \n"
-"msgstr: Matemáticamente, esta ambigüedad significa que ambas direcciones posibles (por ejemplo, `brand_search → generic_search` y `generic_search → brand_search`) son **equivalentes de Markov** — inducen el mismo conjunto de independencias condicionales en los datos. En el lenguaje de los gráficos causales, dos DAGs son equivalentes de Markov si codifican las mismas relaciones de **d-separación**; es decir, para cada tripleta de variables $(X, Y, Z)$,"
+"Matemáticamente, esta ambigüedad significa que ambas direcciones posibles "
+"(por ejemplo, `brand_search → generic_search` y `generic_search → "
+"brand_search`) son **equivalentes de Markov** — inducen el mismo conjunto de"
+" independencias condicionales en los datos. En el lenguaje de los gráficos "
+"causales, dos DAGs son equivalentes de Markov si codifican las mismas "
+"relaciones de **d-separación**; es decir, para cada tripleta de variables "
+"$(X, Y, Z)$,"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:130012
 #: 6c56313652f9470c8e719c00ee7635d8
@@ -504,8 +520,8 @@ msgid ""
 "\n"
 "X \\perp Y \\mid Z \\quad \\text{in DAG}_1 \\iff X \\perp Y \\mid Z \\quad \\text{in DAG}_2.\n"
 msgstr ""
-"msgid: X \\perp Y \\mid Z \\quad \\text{in DAG}_1 \\iff X \\perp Y \\mid Z \\quad \\text{in DAG}_2.  \n"
-"msgstr: X \\perp Y \\mid Z \\quad \\text{in DAG}_1 \\iff X \\perp Y \\mid Z \\quad \\text{in DAG}_2."
+"X \\perp Y \\mid Z \\quad \\text{in DAG}_1 \\iff X \\perp Y \\mid Z \\quad "
+"\\text{in DAG}_2."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:130016
 #: bdb7376afa484204a9628b3ca2198e39
@@ -526,8 +542,11 @@ msgid ""
 "(controlled by `max_k` inside the algorithm). The Bayes factor test behind "
 "`TBFPC` compares two competing models for each independence query:"
 msgstr ""
-"msgid: These dashed connections therefore represent the **remaining uncertainty** after conditioning on all other variables up to a given subset size (controlled by `max_k` inside the algorithm). The Bayes factor test behind `TBFPC` compares two competing models for each independence query:  \n"
-"msgstr: Por lo tanto, estas conexiones discontinuas representan la **incertidumbre restante** después de condicionar sobre todas las demás variables hasta un tamaño de subconjunto dado (controlado por `max_k` dentro del algoritmo). La prueba del factor de Bayes detrás de `TBFPC` compara dos modelos en competencia para cada consulta de independencia:"
+"Por lo tanto, estas conexiones discontinuas representan la **incertidumbre "
+"restante** después de condicionar sobre todas las demás variables hasta un "
+"tamaño de subconjunto dado (controlado por `max_k` dentro del algoritmo). La"
+" prueba del factor de Bayes detrás de `TBFPC` compara dos modelos en "
+"competencia para cada consulta de independencia:"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:130020
 #: 5ba4b21dad64478fa7fa6ee86add3bde
@@ -535,9 +554,7 @@ msgid ""
 "\n"
 "M_0 : Y \\sim S, \\qquad M_1 : Y \\sim S + X,\n"
 "\n"
-msgstr ""
-"msgid: M_0 : Y \\sim S, \\qquad M_1 : Y \\sim S + X,\n"
-"msgstr: M_0 : Y \\sim S, \\qquad M_1 : Y \\sim S + X,"
+msgstr "M_0 : Y \\sim S, \\qquad M_1 : Y \\sim S + X,"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:130025
 #: ac121c597da74985bc36ddc189d08b93
@@ -551,8 +568,8 @@ msgid ""
 "\n"
 "\\log \\mathrm{BF}_{10} = -\\tfrac{1}{2}\\,[\\mathrm{BIC}(M_1)-\\mathrm{BIC}(M_0)] < \\tau,\n"
 msgstr ""
-"msgid: \\log \\mathrm{BF}_{10} = -\\tfrac{1}{2}\\,[\\mathrm{BIC}(M_1)-\\mathrm{BIC}(M_0)] < \\tau,\n"
-"msgstr: \\log \\mathrm{BF}_{10} = -\\tfrac{1}{2}\\,[\\mathrm{BIC}(M_1)-\\mathrm{BIC}(M_0)] < \\tau,"
+"\\log \\mathrm{BF}_{10} = "
+"-\\tfrac{1}{2}\\,[\\mathrm{BIC}(M_1)-\\mathrm{BIC}(M_0)] < \\tau,"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:130031
 #: f16bd4bad93d464ba6b497b6ebf1a3c3
@@ -562,8 +579,11 @@ msgid ""
 "stronger evidence of dependence), the edge remains *ambiguous* — hence, "
 "dashed."
 msgstr ""
-"msgid: where $\\tau$ is the chosen Bayes factor threshold. If this inequality holds symmetrically across conditioning sets (i.e., neither direction provides stronger evidence of dependence), the edge remains *ambiguous* — hence, dashed.\n"
-"msgstr: donde $\\tau$ es el umbral del factor de Bayes elegido. Si esta desigualdad se mantiene de manera simétrica a través de los conjuntos de condicionamiento (es decir, ninguna dirección proporciona una evidencia más fuerte de dependencia), el borde permanece *ambiguo* — por lo tanto, discontinuo."
+"donde $\\tau$ es el umbral del factor de Bayes elegido. Si esta desigualdad "
+"se mantiene de manera simétrica a través de los conjuntos de "
+"condicionamiento (es decir, ninguna dirección proporciona una evidencia más "
+"fuerte de dependencia), el borde permanece *ambiguo* — por lo tanto, "
+"discontinuo."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:130033
 #: fc208da7ff624e5d92e2f28668982767
@@ -584,9 +604,7 @@ msgstr ""
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:130035
 #: daac4d7bc2474389b36ead26956806b6
 msgid "Let's put this in `Graphviz` to visualize better!"
-msgstr ""
-"msgid: Let's put this in `Graphviz` to visualize better!  \n"
-"msgstr: ¡Pongamos esto en `Graphviz` para visualizarlo mejor!"
+msgstr "¡Pongamos esto en `Graphviz` para visualizarlo mejor!"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:150002
 #: b0fa52e52d6c44329372744930eca072
@@ -624,8 +642,14 @@ msgid ""
 "or instrument would be most informative — all **without** committing to a "
 "single orientation."
 msgstr ""
-"msgid: Still, understanding the MEC is often **enough** for principled decisions. Every DAG in the MEC shares the same d-separation relations (the same testable independences), so they agree on which controls block backdoors and which variables are downstream effects. That means you can design valid adjustment sets, stress-test causal stories, and decide where an experiment or instrument would be most informative — all **without** committing to a single orientation.  \n"
-"msgstr: Aún así, entender el MEC es a menudo **suficiente** para tomar decisiones fundamentadas. Cada DAG en el MEC comparte las mismas relaciones de d-separación (las mismas independencias testables), por lo que coinciden en qué controles bloquean puertas traseras y qué variables son efectos descendentes. Eso significa que puedes diseñar conjuntos de ajuste válidos, poner a prueba historias causales y decidir dónde un experimento o instrumento sería más informativo — todo **sin** comprometerse a una única orientación."
+"Aún así, entender el MEC es a menudo **suficiente** para tomar decisiones "
+"fundamentadas. Cada DAG en el MEC comparte las mismas relaciones de "
+"d-separación (las mismas independencias testables), por lo que coinciden en "
+"qué controles bloquean puertas traseras y qué variables son efectos "
+"descendentes. Eso significa que puedes diseñar conjuntos de ajuste válidos, "
+"poner a prueba historias causales y decidir dónde un experimento o "
+"instrumento sería más informativo — todo **sin** comprometerse a una única "
+"orientación."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:150006
 #: ba826f874c7847e2ab3a9adb729309c5
@@ -776,8 +800,12 @@ msgid ""
 "varied structures, and what kinds of insights (or pitfalls) each "
 "configuration can reveal."
 msgstr ""
-"msgid: All the examples in this notebook are synthetic. They are intentionally designed to stress-test the algorithm and illustrate different causal motifs — some plausible in marketing, others less so. The goal isn't to claim these graphs are \"true,\" but to show how the `TBFPC` class behaves under varied structures, and what kinds of insights (or pitfalls) each configuration can reveal.  \n"
-"msgstr: Todos los ejemplos en este cuaderno son sintéticos. Están diseñados intencionadamente para poner a prueba el algoritmo y ilustrar diferentes motivos causales — algunos plausibles en marketing, otros menos. El objetivo no es afirmar que estos gráficos son \"verdaderos\", sino mostrar cómo se comporta la clase `TBFPC` bajo estructuras variadas, y qué tipo de conocimientos (o trampas) puede revelar cada configuración."
+"Todos los ejemplos en este cuaderno son sintéticos. Están diseñados "
+"intencionadamente para poner a prueba el algoritmo y ilustrar diferentes "
+"motivos causales — algunos plausibles en marketing, otros menos. El objetivo"
+" no es afirmar que estos gráficos son \"verdaderos\", sino mostrar cómo se "
+"comporta la clase `TBFPC` bajo estructuras variadas, y qué tipo de "
+"conocimientos (o trampas) puede revelar cada configuración."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:240008
 #: e38851dda86e482d8ea716e7e393789e
@@ -787,9 +815,7 @@ msgstr "Como antes, necesitamos generar datos con esta estructura generativa."
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:260002
 #: 9c20f9baad3240728538cdbe4068862d
 msgid "Could we find out the true DAG now?"
-msgstr ""
-"msgid: Could we find out the true DAG now?  \n"
-"msgstr: ¿Podríamos averiguar el verdadero DAG ahora?"
+msgstr "¿Podríamos averiguar el verdadero DAG ahora?"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:280002
 #: a562e539d6fb46a89ad2c0ea73cb3d79
@@ -801,8 +827,13 @@ msgid ""
 "sequential flow from **generic search → media → brand → purchase**, plus the"
 " independent influence of the **exogenous** factor on purchases."
 msgstr ""
-"msgid: Beautiful — the class successfully recovered the **true causal structure** from the data, meaning that the CPDAG it discovered lies in the same **Markov equivalence class** as our simulated DAG. In other words, the algorithm correctly identified the backbone of the causal system: the sequential flow from **generic search → media → brand → purchase**, plus the independent influence of the **exogenous** factor on purchases.\n"
-"msgstr: Hermoso — la clase recuperó con éxito la **verdadera estructura causal** de los datos, lo que significa que el CPDAG que descubrió se encuentra en la misma **clase de equivalencia de Markov** que nuestro DAG simulado. En otras palabras, el algoritmo identificó correctamente la columna vertebral del sistema causal: el flujo secuencial de **búsqueda genérica → medios → marca → compra**, además de la influencia independiente del factor **exógeno** en las compras."
+"Hermoso — la clase recuperó con éxito la **verdadera estructura causal** de "
+"los datos, lo que significa que el CPDAG que descubrió se encuentra en la "
+"misma **clase de equivalencia de Markov** que nuestro DAG simulado. En otras"
+" palabras, el algoritmo identificó correctamente la columna vertebral del "
+"sistema causal: el flujo secuencial de **búsqueda genérica → medios → marca "
+"→ compra**, además de la influencia independiente del factor **exógeno** en "
+"las compras."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:280004
 #: 1a2db5145ff54a7c9c9f246e85279c4b
@@ -814,8 +845,13 @@ msgid ""
 "combination of **Bayes factor–based independence testing** and **target-"
 "oriented edge rules** is working as intended."
 msgstr ""
-"msgid: This outcome highlights the **efficiency and reliability** of the `TBFPC` approach for small, well-structured problems. Even without access to the true underlying DAG, the algorithm can reconstruct a consistent causal skeleton from observational data alone — a strong indication that the combination of **Bayes factor–based independence testing** and **target-oriented edge rules** is working as intended.\n"
-"msgstr: Este resultado destaca la **eficiencia y fiabilidad** del enfoque `TBFPC` para problemas pequeños y bien estructurados. Incluso sin acceso al verdadero DAG subyacente, el algoritmo puede reconstruir un esqueleto causal consistente solo a partir de datos observacionales, lo que indica fuertemente que la combinación de **pruebas de independencia basadas en el factor de Bayes** y **reglas de borde orientadas a objetivos** está funcionando como se esperaba."
+"Este resultado destaca la **eficiencia y fiabilidad** del enfoque `TBFPC` "
+"para problemas pequeños y bien estructurados. Incluso sin acceso al "
+"verdadero DAG subyacente, el algoritmo puede reconstruir un esqueleto causal"
+" consistente solo a partir de datos observacionales, lo que indica "
+"fuertemente que la combinación de **pruebas de independencia basadas en el "
+"factor de Bayes** y **reglas de borde orientadas a objetivos** está "
+"funcionando como se esperaba."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:280006
 #: 74883df01fa7459f94ee4db172eeb932
@@ -827,8 +863,13 @@ msgid ""
 "raising the difficulty and see how the algorithm performs when the structure"
 " becomes less ideal and closer to what we face in practice."
 msgstr ""
-"msgid: Of course, these are still **simple synthetic systems** — clean, noise-controlled, and designed to behave nicely. Real-world marketing data are messier: time dependencies, measurement errors, latent effects, and correlated interventions all complicate causal inference. So let’s keep raising the difficulty and see how the algorithm performs when the structure becomes less ideal and closer to what we face in practice.\n"
-"msgstr: Por supuesto, estos siguen siendo **sistemas sintéticos simples** — limpios, controlados en ruido y diseñados para comportarse bien. Los datos de marketing del mundo real son más desordenados: las dependencias temporales, los errores de medición, los efectos latentes y las intervenciones correlacionadas complican la inferencia causal. Así que sigamos aumentando la dificultad y veamos cómo se desempeña el algoritmo cuando la estructura se vuelve menos ideal y más cercana a lo que enfrentamos en la práctica."
+"Por supuesto, estos siguen siendo **sistemas sintéticos simples** — limpios,"
+" controlados en ruido y diseñados para comportarse bien. Los datos de "
+"marketing del mundo real son más desordenados: las dependencias temporales, "
+"los errores de medición, los efectos latentes y las intervenciones "
+"correlacionadas complican la inferencia causal. Así que sigamos aumentando "
+"la dificultad y veamos cómo se desempeña el algoritmo cuando la estructura "
+"se vuelve menos ideal y más cercana a lo que enfrentamos en la práctica."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:280008
 #: 9f2ae719f94f440cbe9a3dcc9a8300c0
@@ -858,8 +899,14 @@ msgid ""
 "notoriously hard to disentangle with standard regression approaches — even "
 "if all the variables are observed."
 msgstr ""
-"msgid: This setup is much closer to the reality faced by marketing analysts: overlapping effects, multiple paths to the same KPI, and unobserved influences lurking in the background. Notice that now **both media and brand search** are children of generic intent (`A`) *and* parents of purchase (`P`). This creates a web of **mediated and confounded effects**, which are notoriously hard to disentangle with standard regression approaches — even if all the variables are observed.  \n"
-"msgstr: Esta configuración está mucho más cerca de la realidad que enfrentan los analistas de marketing: efectos superpuestos, múltiples caminos hacia el mismo KPI y influencias no observadas que acechan en el fondo. Observe que ahora **tanto los medios como la búsqueda de marca** son hijos de la intención genérica (`A`) *y* padres de la compra (`P`). Esto crea una red de **efectos mediáticos y confundidos**, que son notoriamente difíciles de desenredar con enfoques de regresión estándar, incluso si todas las variables son observadas."
+"Esta configuración está mucho más cerca de la realidad que enfrentan los "
+"analistas de marketing: efectos superpuestos, múltiples caminos hacia el "
+"mismo KPI y influencias no observadas que acechan en el fondo. Observe que "
+"ahora **tanto los medios como la búsqueda de marca** son hijos de la "
+"intención genérica (`A`) *y* padres de la compra (`P`). Esto crea una red de"
+" **efectos mediáticos y confundidos**, que son notoriamente difíciles de "
+"desenredar con enfoques de regresión estándar, incluso si todas las "
+"variables son observadas."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:320002
 #: f442aa5818d64c6fbcd0dda56418c754
@@ -917,8 +964,8 @@ msgstr ""
 #: 29c50d8c1f7a49a6a516bd40f5e71f8b
 msgid "`D` plays a **fork/confounder** role for both `A` and `C`."
 msgstr ""
-"msgid: `D` plays a **fork/confounder** role for both `A` and `C`.  \n"
-"msgstr: `D` desempeña un papel de **división/confusor** tanto para `A` como para `C`."
+"`D` desempeña un papel de **división/confusor** tanto para `A` como para "
+"`C`."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:320011
 #: 6a78f0a53b0f4426a23665e978d856a8
@@ -1043,9 +1090,7 @@ msgstr ""
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:350008
 #: f4d4a243d1334a9d93db563dde027cde
 msgid "`exogenous — generic_search` (true: `exogenous → generic_search`)"
-msgstr ""
-"msgid: exogenous — generic_search  \n"
-"msgstr: exógeno — búsqueda_genérica"
+msgstr "exógeno — búsqueda_genérica"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:350009
 #: 2edca4a96e2f4d3f9782e19abfc4a449
@@ -1053,8 +1098,8 @@ msgid ""
 "`generic_search — media_activities` (true: `generic_search → "
 "media_activities`)"
 msgstr ""
-"msgid: `generic_search — media_activities` (true: `generic_search → media_activities`)  \n"
-"msgstr: `generic_search — media_activities` (true: `generic_search → media_activities`)"
+"`búsqueda_genérica — actividades_media` (verdadero: `búsqueda_genérica → "
+"actividades_media`)"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:350010
 #: 1bb124e4fcf049a0b55cc2b9020570b0
@@ -1067,9 +1112,7 @@ msgstr ""
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:350011
 #: 84069bef8d34435fbb60df05c0c5813a
 msgid "`exogenous — brand_search` (true: `exogenous → brand_search`)"
-msgstr ""
-"msgid: exogenous — brand_search  \n"
-"msgstr: exógeno — búsqueda_de_marca"
+msgstr "exógeno — búsqueda_de_marca"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:350013
 #: fbe309982c9c45859fd51aec98b34cc5
@@ -1111,15 +1154,13 @@ msgid ""
 "Marketing gives us strong, defensible priors. Use them to *constrain the "
 "search space*:"
 msgstr ""
-"msgid: Marketing gives us strong, defensible priors. Use them to *constrain the search space*:\n"
-"msgstr: El marketing nos proporciona priors sólidos y defendibles. Úselos para *restringir el espacio de búsqueda*:"
+"El marketing nos proporciona priors sólidos y defendibles. Úselos para "
+"*restringir el espacio de búsqueda*:"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:350018
 #: f5845dcf44d548e6b0bf2b0674dbe1a5
 msgid "Choosing the target-edge rule:"
-msgstr ""
-"msgid: Choosing the target-edge rule:  \n"
-"msgstr: Elegir la regla de borde objetivo:"
+msgstr "Elegir la regla de borde objetivo:"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:350020
 #: 83b19223f7564803b6a34628c2699ae3
@@ -1215,36 +1256,32 @@ msgid ""
 "each driver still shows dependence with `purchase`. The **driver–driver** "
 "relations remain **dashed (undirected)**:"
 msgstr ""
-"msgid: In our new CPDAG, the **target edges remain oriented** — `brand_search → purchase` and `media_activities → purchase` — which is exactly what `\"conservative\"` encourages: there is at least one conditioning set where each driver still shows dependence with `purchase`. The **driver–driver** relations remain **dashed (undirected)**:  \n"
-"msgstr: En nuestro nuevo CPDAG, los **bordes objetivo permanecen orientados** — `brand_search → purchase` y `media_activities → purchase` — que es exactamente lo que `\"conservative\"` fomenta: hay al menos un conjunto de condicionamiento donde cada impulsor aún muestra dependencia con `purchase`. Las relaciones **impulsor–impulsor** permanecen **discontinuas (no dirigidas)**:"
+"En nuestro nuevo CPDAG, los **bordes objetivo permanecen orientados** — "
+"`brand_search → purchase` y `media_activities → purchase` — que es "
+"exactamente lo que `\"conservative\"` fomenta: hay al menos un conjunto de "
+"condicionamiento donde cada impulsor aún muestra dependencia con `purchase`."
+" Las relaciones **impulsor–impulsor** permanecen **discontinuas (no "
+"dirigidas)**:"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:370010
 #: 62e425859d9e451abb5a024cf46f4a92
 msgid "`brand_search — exogenous`"
-msgstr ""
-"msgid: brand_search — exogenous  \n"
-"msgstr: brand_search — exógeno"
+msgstr "brand_search — exógeno"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:370011
 #: c58dc5f3b95d4794ac718ad871ad7fe7
 msgid "`brand_search — generic_search`"
-msgstr ""
-"msgid: brand_search — generic_search  \n"
-"msgstr: brand_search — generic_search"
+msgstr "búsqueda_marca — búsqueda_genérica"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:370012
 #: a46934cfd9c34172a608ca66a78cd155
 msgid "`exogenous — generic_search`"
-msgstr ""
-"msgid: exogenous — generic_search  \n"
-"msgstr: exógeno — búsqueda_genérica"
+msgstr "exógeno — búsqueda_genérica"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:370013
 #: 1878df844d1a4dc3bedefba436c172eb
 msgid "`generic_search — media_activities`"
-msgstr ""
-"msgid: `generic_search — media_activities`  \n"
-"msgstr: `búsqueda_genérica — actividades_media`"
+msgstr "`búsqueda_genérica — actividades_media`"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:370015
 #: 3e64879c15da46cca20f3ceb4ebef681
@@ -1253,8 +1290,10 @@ msgid ""
 "among drivers**. Their directions are **Markov-equivalent** given the "
 "observed independences, so the algorithm leaves them unresolved."
 msgstr ""
-"msgid: These stay undirected because the target-edge rule **does not orient edges among drivers**. Their directions are **Markov-equivalent** given the observed independences, so the algorithm leaves them unresolved.  \n"
-"msgstr: Estos permanecen no dirigidos porque la regla de arista objetivo **no orienta aristas entre controladores**. Sus direcciones son **equivalentes de Markov** dadas las independencias observadas, por lo que el algoritmo las deja sin resolver."
+"Estos permanecen no dirigidos porque la regla de arista objetivo **no "
+"orienta aristas entre controladores**. Sus direcciones son **equivalentes de"
+" Markov** dadas las independencias observadas, por lo que el algoritmo las "
+"deja sin resolver."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:370017
 #: ac2c85000d1e41ab97d2219921d4194c
@@ -1277,9 +1316,7 @@ msgstr ""
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:370019
 #: 713382fc9b9849daa5fedf4f611efe9f
 msgid "It's time to bring general knowledge."
-msgstr ""
-"msgid: It's time to bring general knowledge.  \n"
-"msgstr: Es hora de aportar conocimiento general."
+msgstr "Es hora de aportar conocimiento general."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:370021
 #: ed7b8d78d4e64e2eafebaf954c8fc588
@@ -1293,8 +1330,10 @@ msgid ""
 "generic intent; your experience strongly favors the opposite. Encoding those"
 " as required directions above reflects the mechanism you actually believe."
 msgstr ""
-"msgid: It is rarely sensible that brand search causes exogenous conditions or generic intent; your experience strongly favors the opposite. Encoding those as required directions above reflects the mechanism you actually believe.\n"
-"msgstr: Rara vez es sensato que la búsqueda de marca cause condiciones exógenas o intención genérica; su experiencia favorece fuertemente lo contrario. Codificar eso como direcciones requeridas arriba refleja el mecanismo en el que realmente cree."
+"Rara vez es sensato que la búsqueda de marca cause condiciones exógenas o "
+"intención genérica; su experiencia favorece fuertemente lo contrario. "
+"Codificar eso como direcciones requeridas arriba refleja el mecanismo en el "
+"que realmente cree."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:370025
 #: d7c4bec848a641b3b274f01ceb422c5b
@@ -1303,15 +1342,14 @@ msgid ""
 "media to brand (creative/awareness effects), so compel `media_activities → "
 "brand_search` rather than letting it vanish."
 msgstr ""
-"msgid: You likely expect `generic_search → media_activities` and some path from media to brand (creative/awareness effects), so compel `media_activities → brand_search` rather than letting it vanish.  \n"
-"msgstr: Es probable que espere `generic_search → media_activities` y algún camino de medios a marca (efectos creativos/de concienciación), así que impulse `media_activities → brand_search` en lugar de dejar que desaparezca."
+"Es probable que espere `generic_search → media_activities` y algún camino de"
+" medios a marca (efectos creativos/de concienciación), así que impulse "
+"`media_activities → brand_search` en lugar de dejar que desaparezca."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:370027
 #: 53d81850738d4dc5ae60246e89dd17c1
 msgid "Let's use this information now!"
-msgstr ""
-"msgid: Let's use this information now!  \n"
-"msgstr: ¡Utilicemos esta información ahora!"
+msgstr "¡Utilicemos esta información ahora!"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:390002
 #: e7d697ae611346539301b0f453296cc6
@@ -1418,9 +1456,7 @@ msgstr ""
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:410006
 #: 28cb4dff362348f29cc7a10e7d7c51f1
 msgid "Capturing Time series CPDAGs"
-msgstr ""
-"msgid: Capturing Time series CPDAGs  \n"
-"msgstr: Capturando series temporales de CPDAGs"
+msgstr "Capturando series temporales de CPDAGs"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:410008
 #: 6a742865bc264fbd9a38d97fa045f257
@@ -1430,8 +1466,11 @@ msgid ""
 "jump around. For that, we’ll use a simple yet powerful utility: a **bounded "
 "random walk**."
 msgstr ""
-"msgid: Before diving into time-dependent causal graphs, we need a way to **simulate realistic marketing time series** — data that move gradually, not randomly jump around. For that, we’ll use a simple yet powerful utility: a **bounded random walk**.  \n"
-"msgstr: Antes de sumergirnos en gráficos causales dependientes del tiempo, necesitamos una forma de **simular series temporales de marketing realistas** — datos que se mueven gradualmente, no que saltan aleatoriamente. Para eso, utilizaremos una utilidad simple pero poderosa: un **paseo aleatorio acotado**."
+"Antes de sumergirnos en gráficos causales dependientes del tiempo, "
+"necesitamos una forma de **simular series temporales de marketing "
+"realistas** — datos que se mueven gradualmente, no que saltan "
+"aleatoriamente. Para eso, utilizaremos una utilidad simple pero poderosa: un"
+" **paseo aleatorio acotado**."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:410010
 #: 44775d43bb6e4d7bbc65e9a7ffeb66dc
@@ -1480,9 +1519,7 @@ msgstr ""
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:430002
 #: a11af898bb3948a689b6734aeef19d22
 msgid "Let's define a simple DAG structure!"
-msgstr ""
-"msgid: Let's define a simple DAG structure!\n"
-"msgstr: ¡Definamos una estructura DAG simple!"
+msgstr "¡Definamos una estructura DAG simple!"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:450002
 #: 21b8e48ba3f44e22bb88dacf520836a7
@@ -1490,15 +1527,15 @@ msgid ""
 "But now, lets populate with time series each of the factors for the target "
 "variable!"
 msgstr ""
-"msgid: But now, lets populate with time series each of the factors for the target variable!  \n"
-"msgstr: ¡Pero ahora, populamos con series temporales cada uno de los factores para la variable objetivo!"
+"¡Pero ahora, populamos con series temporales cada uno de los factores para "
+"la variable objetivo!"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:470002
 #: 7f7d50eba497487a8fa12ad917220fe4
 msgid "What our model has to say? it could find the right structure?"
 msgstr ""
-"msgid: What our model has to say? it could find the right structure?  \n"
-"msgstr: ¿Qué tiene que decir nuestro modelo? ¿Podría encontrar la estructura adecuada?"
+"¿Qué tiene que decir nuestro modelo? ¿Podría encontrar la estructura "
+"adecuada?"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:490002
 #: 61403b35ca18411683ef57cee04c5f97
@@ -1656,9 +1693,7 @@ msgstr ""
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:530002
 #: 159308c02ed04db38bd1112473ab4bf1
 msgid "How does this work for longer structures? Let's continue testing!"
-msgstr ""
-"msgid: How does this work for longer structures? Let's continue testing!  \n"
-"msgstr: ¿Cómo funciona esto para estructuras más largas? ¡Sigamos probando!"
+msgstr "¿Cómo funciona esto para estructuras más largas? ¡Sigamos probando!"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:550002
 #: a1bed689c4004f66bf0d709390133006
@@ -1666,8 +1701,8 @@ msgid ""
 "This structure is similar to the previous expose. Lets reply the same "
 "process!"
 msgstr ""
-"msgid: This structure is similar to the previous expose. Lets reply the same process!  \n"
-"msgstr: Esta estructura es similar a la exposición anterior. ¡Respondamos el mismo proceso!"
+"Esta estructura es similar a la exposición anterior. ¡Respondamos el mismo "
+"proceso!"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:570002
 #: 4b148d84eefe4a25a178ab2f476ff881
@@ -1676,8 +1711,9 @@ msgid ""
 "before we could not refine the dag with our domain knowledge to get "
 "something as expected."
 msgstr ""
-"msgid: Once, again we got something similar to the original but this time, as before we could not refine the dag with our domain knowledge to get something as expected.  \n"
-"msgstr: Una vez más, obtuvimos algo similar al original, pero esta vez, como antes, no pudimos refinar el dag con nuestro conocimiento del dominio para obtener algo como se esperaba."
+"Una vez más, obtuvimos algo similar al original, pero esta vez, como antes, "
+"no pudimos refinar el dag con nuestro conocimiento del dominio para obtener "
+"algo como se esperaba."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:590002
 #: e2c23c9a6f26419ba5b3dfd78a50f55f
@@ -1686,8 +1722,9 @@ msgid ""
 "we were aiming for. After cleaning the lags variables, the DAG should be in "
 "the same MEC."
 msgstr ""
-"msgid: Brilliant — once again, the new DAG captures exactly the dynamic structure we were aiming for. After cleaning the lags variables, the DAG should be in the same MEC.  \n"
-"msgstr: Brillante — una vez más, el nuevo DAG captura exactamente la estructura dinámica que estábamos buscando. Después de limpiar las variables de rezago, el DAG debería estar en el mismo MEC."
+"Brillante — una vez más, el nuevo DAG captura exactamente la estructura "
+"dinámica que estábamos buscando. Después de limpiar las variables de rezago,"
+" el DAG debería estar en el mismo MEC."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:610002
 #: 0cc5ee508ed9428baf0fe1d6d8d42f70
@@ -1695,8 +1732,9 @@ msgid ""
 "Amazing! Having reached a coherent and time-respecting causal structure, we "
 "are now ready to move from **discovery** to **estimation**."
 msgstr ""
-"msgid: Amazing! Having reached a coherent and time-respecting causal structure, we are now ready to move from **discovery** to **estimation**.  \n"
-"msgstr: ¡Increíble! Habiendo alcanzado una estructura causal coherente y respetuosa del tiempo, ahora estamos listos para pasar de **descubrimiento** a **estimación**."
+"¡Increíble! Habiendo alcanzado una estructura causal coherente y respetuosa "
+"del tiempo, ahora estamos listos para pasar de **descubrimiento** a "
+"**estimación**."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:610004
 #: 6c50520fd4004788963f5f455225a360
@@ -1705,15 +1743,17 @@ msgid ""
 "encoded in our DAG — meaning, to move from the *graph* to the *estimands* "
 "that describe how much each driver truly contributes to the target."
 msgstr ""
-"msgid: The next step is to quantify the strength of the causal relationships encoded in our DAG — meaning, to move from the *graph* to the *estimands* that describe how much each driver truly contributes to the target.\n"
-"msgstr: El siguiente paso es cuantificar la fuerza de las relaciones causales codificadas en nuestro DAG, lo que significa pasar del *grafo* a los *estimandos* que describen cuánto contribuye realmente cada factor al objetivo."
+"El siguiente paso es cuantificar la fuerza de las relaciones causales "
+"codificadas en nuestro DAG, lo que significa pasar del *grafo* a los "
+"*estimandos* que describen cuánto contribuye realmente cada factor al "
+"objetivo."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:610006
 #: 1eb4a093df1d4ecf993fbd4e2bba3441
 msgid "Building models from DAGs - Full luxury causal Bayesian approaches!"
 msgstr ""
-"msgid: Building models from DAGs - Full luxury causal Bayesian approaches!  \n"
-"msgstr: Construyendo modelos a partir de DAGs - ¡Enfoques bayesianos causales de lujo completos!"
+"Construyendo modelos a partir de DAGs - ¡Enfoques bayesianos causales de "
+"lujo completos!"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:610008
 #: 62f7bf7454704731817e427fa3145f15
@@ -1728,8 +1768,16 @@ msgid ""
 "propagation across the entire system rather than estimating each edge "
 "through separate regressions."
 msgstr ""
-"msgid: We introduce the class **`BuildModelFromDAG`**, a bridge between the causal graph and a fully specified Bayesian model. Once the structure is established (for example, through `TBFPC` or any other discovery algorithm), `BuildModelFromDAG` automatically translates that structure into a probabilistic program where each directed edge becomes a candidate causal path, and each node’s parents define its conditioning set. This approach allows us to fit all relationships **jointly**, preserving uncertainty propagation across the entire system rather than estimating each edge through separate regressions.  \n"
-"msgstr: Presentamos la clase **`BuildModelFromDAG`**, un puente entre el grafo causal y un modelo bayesiano completamente especificado. Una vez que se establece la estructura (por ejemplo, a través de `TBFPC` o cualquier otro algoritmo de descubrimiento), `BuildModelFromDAG` traduce automáticamente esa estructura en un programa probabilístico donde cada arista dirigida se convierte en un camino causal candidato, y los padres de cada nodo definen su conjunto de condicionamiento. Este enfoque nos permite ajustar todas las relaciones **conjuntamente**, preservando la propagación de la incertidumbre a través de todo el sistema en lugar de estimar cada arista a través de regresiones separadas."
+"Presentamos la clase **`BuildModelFromDAG`**, un puente entre el grafo "
+"causal y un modelo bayesiano completamente especificado. Una vez que se "
+"establece la estructura (por ejemplo, a través de `TBFPC` o cualquier otro "
+"algoritmo de descubrimiento), `BuildModelFromDAG` traduce automáticamente "
+"esa estructura en un programa probabilístico donde cada arista dirigida se "
+"convierte en un camino causal candidato, y los padres de cada nodo definen "
+"su conjunto de condicionamiento. Este enfoque nos permite ajustar todas las "
+"relaciones **conjuntamente**, preservando la propagación de la incertidumbre"
+" a través de todo el sistema en lugar de estimar cada arista a través de "
+"regresiones separadas."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:610010
 #: 7d073b957a614fe39f5979a3ac1bc5fb
@@ -1780,8 +1828,10 @@ msgid ""
 "get the different Causal DAGs which lie in the same MEC discovery by the "
 "algorithm, and now, use those to build a model."
 msgstr ""
-"msgid: The class works with causal dags, not with CPDAGs. We can use our function get the different Causal DAGs which lie in the same MEC discovery by the algorithm, and now, use those to build a model.  \n"
-"msgstr: La clase trabaja con DAGs causales, no con CPDAGs. Podemos utilizar nuestra función para obtener los diferentes DAGs causales que se encuentran en el mismo descubrimiento de MEC por el algoritmo, y ahora, usar esos para construir un modelo."
+"La clase trabaja con DAGs causales, no con CPDAGs. Podemos utilizar nuestra "
+"función para obtener los diferentes DAGs causales que se encuentran en el "
+"mismo descubrimiento de MEC por el algoritmo, y ahora, usar esos para "
+"construir un modelo."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:660002
 #: eb185d873d0b4c508a895685006f8bb2
@@ -1790,8 +1840,9 @@ msgid ""
 " causal structure. Let's see the computational graph derive from the causal "
 "graph."
 msgstr ""
-"msgid: Great, with this few lines we have a pymc model which replicates our precise causal structure. Let's see the computational graph derive from the causal graph.  \n"
-"msgstr: Genial, con estas pocas líneas tenemos un modelo pymc que replica nuestra precisa estructura causal. Veamos el gráfico computacional derivado del gráfico causal."
+"Genial, con estas pocas líneas tenemos un modelo pymc que replica nuestra "
+"precisa estructura causal. Veamos el gráfico computacional derivado del "
+"gráfico causal."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:680002
 #: 43020760b3e94a0794e8fee57acdcce6
@@ -1800,8 +1851,9 @@ msgid ""
 " sample and get easily the true coefficients of each variable over "
 "purchases."
 msgstr ""
-"msgid: Great, if your computational graph follows our causal structure, then we can sample and get easily the true coefficients of each variable over purchases.  \n"
-"msgstr: Genial, si tu grafo computacional sigue nuestra estructura causal, entonces podemos muestrear y obtener fácilmente los verdaderos coeficientes de cada variable sobre las compras."
+"Genial, si tu grafo computacional sigue nuestra estructura causal, entonces "
+"podemos muestrear y obtener fácilmente los verdaderos coeficientes de cada "
+"variable sobre las compras."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:700002
 #: 15f7bd96a507491fa913985f44a5dbbd
@@ -1809,8 +1861,8 @@ msgid ""
 "As you can see, once the model is built you can treat it as any other PyMC "
 "Model."
 msgstr ""
-"msgid: As you can see, once the model is built you can treat it as any other PyMC Model.  \n"
-"msgstr: Como puede ver, una vez que el modelo está construido, puede tratarlo como cualquier otro modelo de PyMC."
+"Como puede ver, una vez que el modelo está construido, puede tratarlo como "
+"cualquier otro modelo de PyMC."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:720002
 #: 07ba5768d20e4bfdb255dcddceec3e22
@@ -1818,8 +1870,8 @@ msgid ""
 "Could we recover the true effects? - Indeed, let's see the following "
 "picture!"
 msgstr ""
-"msgid: Could we recover the true effects? - Indeed, let's see the following picture!  \n"
-"msgstr: ¿Podríamos recuperar los verdaderos efectos? - ¡De hecho, veamos la siguiente imagen!"
+"¿Podríamos recuperar los verdaderos efectos? - ¡De hecho, veamos la "
+"siguiente imagen!"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:740002
 #: 0412b3aa200b4c669c2ce4399f651924
@@ -1828,8 +1880,10 @@ msgid ""
 "underlying coefficients, confirming that our Bayesian reconstruction "
 "faithfully captured the causal signal embedded in the data."
 msgstr ""
-"msgid: Excellent — the estimated posterior means align closely with the true underlying coefficients, confirming that our Bayesian reconstruction faithfully captured the causal signal embedded in the data.  \n"
-"msgstr: Excelente — las medias posteriores estimadas se alinean estrechamente con los verdaderos coeficientes subyacentes, confirmando que nuestra reconstrucción bayesiana capturó fielmente la señal causal incrustada en los datos."
+"Excelente — las medias posteriores estimadas se alinean estrechamente con "
+"los verdaderos coeficientes subyacentes, confirmando que nuestra "
+"reconstrucción bayesiana capturó fielmente la señal causal incrustada en los"
+" datos."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:740004
 #: e218104c9f4c4711b1e5c41b5adeafb3
@@ -1841,8 +1895,13 @@ msgid ""
 "interpretation directly from the DAG, and uncertainty is propagated through "
 "the full system rather than estimated piecemeal."
 msgstr ""
-"msgid: What is particularly powerful about this approach is its simplicity: rather than building and fitting multiple regression models — one per effect or per adjustment set — we recover all estimands **simultaneously** within a single coherent probabilistic model. Each parameter reflects its causal interpretation directly from the DAG, and uncertainty is propagated through the full system rather than estimated piecemeal.  \n"
-"msgstr: Lo que es particularmente poderoso acerca de este enfoque es su simplicidad: en lugar de construir y ajustar múltiples modelos de regresión — uno por efecto o por conjunto de ajustes — recuperamos todos los estimandos **simultáneamente** dentro de un único modelo probabilístico coherente. Cada parámetro refleja su interpretación causal directamente del DAG, y la incertidumbre se propaga a través de todo el sistema en lugar de estimarse de manera fragmentada."
+"Lo que es particularmente poderoso acerca de este enfoque es su simplicidad:"
+" en lugar de construir y ajustar múltiples modelos de regresión — uno por "
+"efecto o por conjunto de ajustes — recuperamos todos los estimandos "
+"**simultáneamente** dentro de un único modelo probabilístico coherente. Cada"
+" parámetro refleja su interpretación causal directamente del DAG, y la "
+"incertidumbre se propaga a través de todo el sistema en lugar de estimarse "
+"de manera fragmentada."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:740006
 #: face4c8c9d22482cb1dafbdcab9c0bff
@@ -1853,8 +1912,12 @@ msgid ""
 "modeling effort but also ensures internal consistency — all effects are "
 "inferred together under the same causal and probabilistic assumptions."
 msgstr ""
-"msgid: In this example, the graph served as the blueprint, the Bayesian model performed the joint estimation, and the result is a unified, transparent view of how each driver contributes to the outcome. This not only saves modeling effort but also ensures internal consistency — all effects are inferred together under the same causal and probabilistic assumptions.  \n"
-"msgstr: En este ejemplo, el gráfico sirvió como el plano, el modelo bayesiano realizó la estimación conjunta, y el resultado es una vista unificada y transparente de cómo cada factor contribuye al resultado. Esto no solo ahorra esfuerzo de modelado, sino que también garantiza la consistencia interna: todos los efectos se infieren juntos bajo las mismas suposiciones causales y probabilísticas."
+"En este ejemplo, el gráfico sirvió como el plano, el modelo bayesiano "
+"realizó la estimación conjunta, y el resultado es una vista unificada y "
+"transparente de cómo cada factor contribuye al resultado. Esto no solo "
+"ahorra esfuerzo de modelado, sino que también garantiza la consistencia "
+"interna: todos los efectos se infieren juntos bajo las mismas suposiciones "
+"causales y probabilísticas."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:740009
 #: 6b989c7e32704efab211fbb1466d4d53
@@ -1865,8 +1928,7 @@ msgstr "**Advertencias sobre el descubrimiento causal**"
 #: 0ee9b932e60742b69f03735723ae6528
 msgid "All causal discovery methods rely on strong assumptions:"
 msgstr ""
-"msgid: All causal discovery methods rely on strong assumptions:  \n"
-"msgstr: Todos los métodos de descubrimiento causal se basan en supuestos fuertes:"
+"Todos los métodos de descubrimiento causal se basan en supuestos fuertes:"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:740013
 #: d82489581f3a4236bb729c79c452575c
@@ -1918,9 +1980,7 @@ msgstr ""
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:740021
 #: ddc66e8a6213448f875ed21699decc45
 msgid "MMM modeling workflow"
-msgstr ""
-"msgid: MMM modeling workflow  \n"
-"msgstr: Flujo de trabajo de modelado MMM"
+msgstr "Flujo de trabajo de modelado MMM"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:740023
 #: b91ae9485c244aac8ed91fca2f59f034
@@ -1929,8 +1989,10 @@ msgid ""
 "can visualize this as start with causal discovery, identify a credible DAG "
 "in a MEC consistent with your data, then quantify by two optional ways."
 msgstr ""
-"msgid: If you are thinking how this goes into the workflow to develop a model, you can visualize this as start with causal discovery, identify a credible DAG in a MEC consistent with your data, then quantify by two optional ways.\n"
-"msgstr: Si está pensando en cómo esto se integra en el flujo de trabajo para desarrollar un modelo, puede visualizarlo como comenzar con el descubrimiento causal, identificar un DAG creíble en un MEC consistente con sus datos, y luego cuantificar de dos maneras opcionales."
+"Si está pensando en cómo esto se integra en el flujo de trabajo para "
+"desarrollar un modelo, puede visualizarlo como comenzar con el "
+"descubrimiento causal, identificar un DAG creíble en un MEC consistente con "
+"sus datos, y luego cuantificar de dos maneras opcionales."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:740025
 #: e144390b183c47d38a46ca5b3f012959
@@ -1942,8 +2004,13 @@ msgid ""
 "effect with targeted regressions or MMM variants. Great for stress-testing "
 "multiple DAGs and comparing estimands side by side."
 msgstr ""
-"msgid: Causal identification route: Once the CPDAG gives you a candidate driver set for the chosen target, drop that structure into the `pymc_marketing.mmm.causal` model. It conditions on exactly the back-door adjustment set implied by the DAG, so you estimate each driver’s causal effect with targeted regressions or MMM variants. Great for stress-testing multiple DAGs and comparing estimands side by side.\n"
-"msgstr: Ruta de identificación causal: Una vez que el CPDAG te proporciona un conjunto de conductores candidatos para el objetivo elegido, coloca esa estructura en el modelo `pymc_marketing.mmm.causal`. Condiciona exactamente sobre el conjunto de ajuste de puerta trasera implicado por el DAG, por lo que estimas el efecto causal de cada conductor con regresiones específicas o variantes de MMM. Ideal para realizar pruebas de estrés en múltiples DAGs y comparar estimandos lado a lado."
+"Ruta de identificación causal: Una vez que el CPDAG te proporciona un "
+"conjunto de conductores candidatos para el objetivo elegido, coloca esa "
+"estructura en el modelo `pymc_marketing.mmm.causal`. Condiciona exactamente "
+"sobre el conjunto de ajuste de puerta trasera implicado por el DAG, por lo "
+"que estimas el efecto causal de cada conductor con regresiones específicas o"
+" variantes de MMM. Ideal para realizar pruebas de estrés en múltiples DAGs y"
+" comparar estimandos lado a lado."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:740027
 #: c2923b9833e64ff0bfcc3bd191cb0661
@@ -1954,8 +2021,12 @@ msgid ""
 "joint posterior to read off linear causal effects directly. This is ideal "
 "when you want one coherent Bayesian model rather than separate conditionals."
 msgstr ""
-"msgid: Full DAG-to-model route: Feed a fully oriented DAG into `BuildModelFromDAG` to spin up a single PyMC model that respects the entire causal graph. Each edge gets a slope, the target retains its likelihood, and you sample the joint posterior to read off linear causal effects directly. This is ideal when you want one coherent Bayesian model rather than separate conditionals.\n"
-"msgstr: Ruta completa de DAG a modelo: Introduzca un DAG completamente orientado en `BuildModelFromDAG` para generar un único modelo PyMC que respete todo el gráfico causal. Cada arista recibe una pendiente, el objetivo mantiene su verosimilitud y usted muestrea la posterior conjunta para leer directamente los efectos causales lineales. Esto es ideal cuando desea un único modelo bayesiano coherente en lugar de condicionales separados."
+"Ruta completa de DAG a modelo: Introduzca un DAG completamente orientado en "
+"`BuildModelFromDAG` para generar un único modelo PyMC que respete todo el "
+"gráfico causal. Cada arista recibe una pendiente, el objetivo mantiene su "
+"verosimilitud y usted muestrea la posterior conjunta para leer directamente "
+"los efectos causales lineales. Esto es ideal cuando desea un único modelo "
+"bayesiano coherente en lugar de condicionales separados."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:740030
 #: a2084ff694ee499a9ba4c36b8f29802a
@@ -1993,8 +2064,12 @@ msgid ""
 "corrected and avoided spurious connections, allowing the graph structure to "
 "reflect true causal direction."
 msgstr ""
-"msgid: Starting from raw data, or autocorrelated time-series data, we first learned that discovering a purely DAG is unreliable for different reasons. By introducing domain knowledge and/or explicit time-order constraints, we corrected and avoided spurious connections, allowing the graph structure to reflect true causal direction.\n"
-"msgstr: Partiendo de datos en bruto, o datos de series temporales autocorrelacionados, primero aprendimos que descubrir un DAG puramente es poco fiable por diferentes razones. Al introducir conocimiento del dominio y/o restricciones explícitas de orden temporal, corregimos y evitamos conexiones espurias, permitiendo que la estructura del grafo refleje la verdadera dirección causal."
+"Partiendo de datos en bruto, o datos de series temporales "
+"autocorrelacionados, primero aprendimos que descubrir un DAG puramente es "
+"poco fiable por diferentes razones. Al introducir conocimiento del dominio "
+"y/o restricciones explícitas de orden temporal, corregimos y evitamos "
+"conexiones espurias, permitiendo que la estructura del grafo refleje la "
+"verdadera dirección causal."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:740039
 #: 1e4c62d00416485e905a396ac5697d5b
@@ -2007,8 +2082,14 @@ msgid ""
 "estimands closely matched the true underlying coefficients, validating both "
 "the causal design and the Bayesian inference process."
 msgstr ""
-"msgid: Once a stable DAG emerged, we transitioned from structure to substance: using `BuildModelFromDAG`, we converted the discovered causal relationships into a fully specified Bayesian model. This let us estimate all causal effects jointly — obtaining posterior distributions for every edge without needing to build a patchwork of separate regressions. The resulting estimands closely matched the true underlying coefficients, validating both the causal design and the Bayesian inference process.  \n"
-"msgstr: Una vez que emergió un DAG estable, pasamos de la estructura a la sustancia: utilizando `BuildModelFromDAG`, convertimos las relaciones causales descubiertas en un modelo bayesiano completamente especificado. Esto nos permitió estimar todos los efectos causales de manera conjunta, obteniendo distribuciones posteriores para cada arista sin necesidad de construir un mosaico de regresiones separadas. Los estimandos resultantes coincidieron estrechamente con los verdaderos coeficientes subyacentes, validando tanto el diseño causal como el proceso de inferencia bayesiana."
+"Una vez que emergió un DAG estable, pasamos de la estructura a la sustancia:"
+" utilizando `BuildModelFromDAG`, convertimos las relaciones causales "
+"descubiertas en un modelo bayesiano completamente especificado. Esto nos "
+"permitió estimar todos los efectos causales de manera conjunta, obteniendo "
+"distribuciones posteriores para cada arista sin necesidad de construir un "
+"mosaico de regresiones separadas. Los estimandos resultantes coincidieron "
+"estrechamente con los verdaderos coeficientes subyacentes, validando tanto "
+"el diseño causal como el proceso de inferencia bayesiana."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:740041
 #: ac33eb9b2c194c848041b42388bce785
@@ -2016,15 +2097,15 @@ msgid ""
 "Ultimately, this workflow illustrates the strength of an integrated "
 "causal–Bayesian approach:"
 msgstr ""
-"msgid: Ultimately, this workflow illustrates the strength of an integrated causal–Bayesian approach:  \n"
-"msgstr: En última instancia, este flujo de trabajo ilustra la fortaleza de un enfoque causal-bayesiano integrado:"
+"En última instancia, este flujo de trabajo ilustra la fortaleza de un "
+"enfoque causal-bayesiano integrado:"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:740043
 #: 2abaf49d64c040d4b3216fda835f742c
 msgid "**Causal discovery** provides the structure (who influences whom)."
 msgstr ""
-"msgid: **Causal discovery** provides the structure (who influences whom).  \n"
-"msgstr: **El descubrimiento causal** proporciona la estructura (quién influye en quién)."
+"**El descubrimiento causal** proporciona la estructura (quién influye en "
+"quién)."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:740044
 #: 4dc2e9f1eac248cdb54b9fa4158eb93b
@@ -2032,8 +2113,8 @@ msgid ""
 "**Bayesian estimation** provides the magnitude (how strongly, and with what "
 "uncertainty)."
 msgstr ""
-"msgid: **Bayesian estimation** provides the magnitude (how strongly, and with what uncertainty).  \n"
-"msgstr: **La estimación bayesiana** proporciona la magnitud (qué tan fuerte y con qué incertidumbre)."
+"**La estimación bayesiana** proporciona la magnitud (qué tan fuerte y con "
+"qué incertidumbre)."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:740046
 #: 43e87a7f6ee04ed4adf37e8ea1e89ff6
@@ -2041,8 +2122,8 @@ msgid ""
 "Together they form a complete loop — from learning the graph, to quantifying"
 " its effects, to validating against reality."
 msgstr ""
-"msgid: Together they form a complete loop — from learning the graph, to quantifying its effects, to validating against reality.  \n"
-"msgstr: Juntos forman un ciclo completo — desde aprender el gráfico, hasta cuantificar sus efectos, hasta validar contra la realidad."
+"Juntos forman un ciclo completo — desde aprender el gráfico, hasta "
+"cuantificar sus efectos, hasta validar contra la realidad."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:740048
 #: 1bc747c0f2f146f8b979e0ca4ac97f88
@@ -2054,8 +2135,13 @@ msgid ""
 "interpretable, and uncertainty-aware causal model — brings meaning to our "
 "model and the ecosystem they represent."
 msgstr ""
-"msgid: While no method is immune to confounding or model misspecification, this pipeline offers a principled and efficient way to reason about complex systems, such as marketing data, where many drivers interact between themself and over time. It replaces fragmented analyses with a unified, interpretable, and uncertainty-aware causal model — brings meaning to our model and the ecosystem they represent.  \n"
-"msgstr: Aunque ningún método es inmune a la confusión o a la especificación incorrecta del modelo, este pipeline ofrece una forma fundamentada y eficiente de razonar sobre sistemas complejos, como los datos de marketing, donde muchos factores interactúan entre sí y a lo largo del tiempo. Reemplaza análisis fragmentados con un modelo causal unificado, interpretable y consciente de la incertidumbre — aporta significado a nuestro modelo y al ecosistema que representan."
+"Aunque ningún método es inmune a la confusión o a la especificación "
+"incorrecta del modelo, este pipeline ofrece una forma fundamentada y "
+"eficiente de razonar sobre sistemas complejos, como los datos de marketing, "
+"donde muchos factores interactúan entre sí y a lo largo del tiempo. "
+"Reemplaza análisis fragmentados con un modelo causal unificado, "
+"interpretable y consciente de la incertidumbre — aporta significado a "
+"nuestro modelo y al ecosistema que representan."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:740050
 #: 02d4d0a0fa8b4c8fbd2faf295b947766
@@ -2064,15 +2150,15 @@ msgid ""
 "extensions, or dynamic components—to unlock even deeper causal insights and "
 "make more confident, data-driven decisions!"
 msgstr ""
-"msgid: We invite you to extend these tools—incorporate richer priors, hierarchical extensions, or dynamic components—to unlock even deeper causal insights and make more confident, data-driven decisions!  \n"
-"msgstr: Le invitamos a ampliar estas herramientas—incorporar priors más ricos, extensiones jerárquicas o componentes dinámicos—para desbloquear conocimientos causales aún más profundos y tomar decisiones más seguras y basadas en datos."
+"Le invitamos a ampliar estas herramientas—incorporar priors más ricos, "
+"extensiones jerárquicas o componentes dinámicos—para desbloquear "
+"conocimientos causales aún más profundos y tomar decisiones más seguras y "
+"basadas en datos."
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:740052
 #: 7fd5c4569b504654be6c28a8f7a53789
 msgid "References"
-msgstr ""
-"msgid: References  \n"
-"msgstr: Referencias"
+msgstr "Referencias"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:740053
 #: 3a9a3c9e38d2430b99b35a9f6eb5f3da
@@ -2080,8 +2166,8 @@ msgid ""
 "[PC Algorithm for Tabular Causal "
 "Discovery](https://opensource.salesforce.com/causalai/latest/tutorials/PC_Algorithm_Tabular.html)"
 msgstr ""
-"msgid: [PC Algorithm for Tabular Causal Discovery](https://opensource.salesforce.com/causalai/latest/tutorials/PC_Algorithm_Tabular.html)  \n"
-"msgstr: [Algoritmo PC para el Descubrimiento Causal Tabular](https://opensource.salesforce.com/causalai/latest/tutorials/PC_Algorithm_Tabular.html)"
+"[Algoritmo PC para el Descubrimiento Causal "
+"Tabular](https://opensource.salesforce.com/causalai/latest/tutorials/PC_Algorithm_Tabular.html)"
 
 #: ../source/notebooks/mmm/mmm_causal_reasoning_and_discovery.ipynb:740055
 #: 5ca577daae9f4d959e58c532e5bf8156
@@ -2109,5 +2195,6 @@ msgid ""
 "learn.readthedocs.io/en/latest/search_methods_index/Constraint-"
 "based%20causal%20discovery%20methods/FCI.html?utm_source=chatgpt.com)"
 msgstr ""
-"msgid: [FCI Algorithm Introduction](https://causal-learn.readthedocs.io/en/latest/search_methods_index/Constraint-based%20causal%20discovery%20methods/FCI.html?utm_source=chatgpt.com)  \n"
-"msgstr: [Introducción al Algoritmo FCI](https://causal-learn.readthedocs.io/en/latest/search_methods_index/Constraint-based%20causal%20discovery%20methods/FCI.html?utm_source=chatgpt.com)"
+"[Introducción al Algoritmo FCI](https://causal-"
+"learn.readthedocs.io/en/latest/search_methods_index/Constraint-"
+"based%20causal%20discovery%20methods/FCI.html?utm_source=chatgpt.com)"

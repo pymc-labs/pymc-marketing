@@ -199,7 +199,7 @@ msgid ""
 msgstr ""
 ":py:obj:`DelayedAdstock.set_dims_for_all_priors "
 "<pymc_marketing.mmm.components.adstock.DelayedAdstock.set_dims_for_all_priors>`\\"
-" \\(dims\\)"
+" (dims)"
 
 #: ../source/api/generated/pymc_marketing.mmm.components.adstock.DelayedAdstock.rst:32:<autosummary>:1
 #: d3daa69b42f34d308b044fd618b7f9e0

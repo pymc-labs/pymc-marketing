@@ -23,6 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.TestResult.__init__.rst:2
 #: 24e3fb38d72044ac8d7f57f942bbbff0
 msgid "TestResult.\\_\\_init\\_\\_"
-msgstr ""
-"msgid: TestResult.__init__  \n"
-"msgstr: TestResult.__init__"
+msgstr "TestResult.__init__"

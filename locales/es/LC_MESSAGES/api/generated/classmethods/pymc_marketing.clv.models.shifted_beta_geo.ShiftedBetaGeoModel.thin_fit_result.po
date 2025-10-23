@@ -36,8 +36,8 @@ msgid ""
 "This is useful when computing summary statistics that may require too much "
 "memory per posterior draw."
 msgstr ""
-"msgid: This is useful when computing summary statistics that may require too much memory per posterior draw.  \n"
-"msgstr: Esto es útil al calcular estadísticas resumidas que pueden requerir demasiada memoria por cada muestra posterior."
+"Esto es útil al calcular estadísticas resumidas que pueden requerir "
+"demasiada memoria por cada muestra posterior."
 
 #: ccf197630f634528b1ffdc4790d98fd9 of
 #: pymc_marketing.clv.models.basic.CLVModel.thin_fit_result:20

@@ -199,7 +199,7 @@ msgid ""
 msgstr ""
 ":py:obj:`ShiftedBetaGeoModelIndividual.attrs_to_init_kwargs "
 "<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.attrs_to_init_kwargs>`\\"
-" (attrs)"
+" \\(attrs\\)"
 
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
 #: d394c125c0e34c50a696617387bc4986

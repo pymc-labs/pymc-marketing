@@ -35,15 +35,11 @@ msgstr "!!! warning \"Deprecated\""
 
 #: 338662dbf5a043f9914f187308b23aa1 of pydantic.main.BaseModel.copy:5
 msgid "This method is now deprecated; use `model_copy` instead."
-msgstr ""
-"msgid: This method is now deprecated; use `model_copy` instead.  \n"
-"msgstr: Este método ahora está obsoleto; use `model_copy` en su lugar."
+msgstr "Este método ahora está obsoleto; use `model_copy` en su lugar."
 
 #: ee9a0bd4cd424788a8c4dfa4100aed55 of pydantic.main.BaseModel.copy:7
 msgid "If you need `include` or `exclude`, use:"
-msgstr ""
-"msgid: If you need `include` or `exclude`, use:  \n"
-"msgstr: Si necesita `include` o `exclude`, utilice:"
+msgstr "Si necesita `include` o `exclude`, utilice:"
 
 #: e9b661fa6d2f4dfe9bda531f7ce19e08 of pydantic.main.BaseModel.copy:9
 msgid ""
@@ -66,8 +62,12 @@ msgid ""
 "pairs to override field values in the copied model. deep: If True, the "
 "values of fields that are Pydantic models will be deep-copied."
 msgstr ""
-"msgid: include: Optional set or mapping specifying which fields to include in the copied model. exclude: Optional set or mapping specifying which fields to exclude in the copied model. update: Optional dictionary of field-value pairs to override field values in the copied model. deep: If True, the values of fields that are Pydantic models will be deep-copied.  \n"
-"msgstr: incluir: Conjunto o mapeo opcional que especifica qué campos incluir en el modelo copiado. excluir: Conjunto o mapeo opcional que especifica qué campos excluir en el modelo copiado. actualizar: Diccionario opcional de pares campo-valor para sobrescribir los valores de los campos en el modelo copiado. profundo: Si es True, los valores de los campos que son modelos Pydantic serán copiados en profundidad."
+"incluir: Conjunto o mapeo opcional que especifica qué campos incluir en el "
+"modelo copiado. excluir: Conjunto o mapeo opcional que especifica qué campos"
+" excluir en el modelo copiado. actualizar: Diccionario opcional de pares "
+"campo-valor para sobrescribir los valores de los campos en el modelo "
+"copiado. profundo: Si es True, los valores de los campos que son modelos "
+"Pydantic serán copiados en profundidad."
 
 #: 735559ff5af441f6971f1258e3a764e3 of pydantic.main.BaseModel.copy:21
 msgid "Returns:"
@@ -77,5 +77,5 @@ msgstr "Returns:"
 msgid ""
 "A copy of the model with included, excluded and updated fields as specified."
 msgstr ""
-"msgid: A copy of the model with included, excluded and updated fields as specified.  \n"
-"msgstr: Una copia del modelo con los campos incluidos, excluidos y actualizados según lo especificado."
+"Una copia del modelo con los campos incluidos, excluidos y actualizados "
+"según lo especificado."

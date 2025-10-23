@@ -321,8 +321,8 @@ msgid ""
 "We can additionally test counterfactuals about the removal of products from "
 "the market."
 msgstr ""
-"msgid: We can additionally test counterfactuals about the removal of products from the market.  \n"
-"msgstr: También podemos probar contrafactuales sobre la eliminación de productos del mercado."
+"También podemos probar contrafactuales sobre la eliminación de productos del"
+" mercado."
 
 #: ../source/notebooks/customer_choice/nested_logit.ipynb:340002
 #: da539e1adfa8494fa041018687cbaf72

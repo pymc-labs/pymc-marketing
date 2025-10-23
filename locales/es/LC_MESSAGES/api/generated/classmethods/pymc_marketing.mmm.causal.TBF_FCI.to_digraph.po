@@ -28,9 +28,7 @@ msgstr "TBF\\_FCI.a\\_digrafo"
 #: b436361827104ff8bc9a15bff45b9ca7 of
 #: pymc_marketing.mmm.causal.TBF_FCI.to_digraph:2
 msgid "Export the learned graph as DOT text."
-msgstr ""
-"msgid: Export the learned graph as DOT text.  \n"
-"msgstr: Exporte el gráfico aprendido como texto DOT."
+msgstr "Exporte el gráfico aprendido como texto DOT."
 
 #: d2d1d5d5386c486da1c03206bc7e8bdf of
 #: pymc_marketing.mmm.causal.TBF_FCI.to_digraph
@@ -57,8 +55,9 @@ msgid ""
 "``True`` collapses the time-unrolled graph into driver-level nodes with lag "
 "annotations; ``False`` returns the full lag-expanded structure."
 msgstr ""
-"msgid: True collapses the time-unrolled graph into driver-level nodes with lag annotations; False returns the full lag-expanded structure.  \n"
-"msgstr: True colapsa el gráfico desenrollado en el tiempo en nodos a nivel de controlador con anotaciones de retraso; False devuelve la estructura completa expandida por retraso."
+"True colapsa el gráfico desenrollado en el tiempo en nodos a nivel de "
+"controlador con anotaciones de retraso; False devuelve la estructura "
+"completa expandida por retraso."
 
 #: 16c1f2d3a8684d4fb1aab4348e2d1b6a of
 #: pymc_marketing.mmm.causal.TBF_FCI.to_digraph
@@ -73,9 +72,7 @@ msgstr ":class:`python:str`"
 #: 4c55912f7c2249019895f10b7526c779 of
 #: pymc_marketing.mmm.causal.TBF_FCI.to_digraph:17
 msgid "DOT format string suitable for Graphviz rendering."
-msgstr ""
-"msgid: DOT format string suitable for Graphviz rendering.  \n"
-"msgstr: Cadena de formato DOT adecuada para la representación en Graphviz."
+msgstr "Cadena de formato DOT adecuada para la representación en Graphviz."
 
 #: fcca82cd6a4744e3a2f68d99457b26b2 of
 #: pymc_marketing.mmm.causal.TBF_FCI.to_digraph:29
