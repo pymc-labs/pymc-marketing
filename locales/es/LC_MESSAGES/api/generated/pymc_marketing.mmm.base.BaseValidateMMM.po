@@ -79,8 +79,7 @@ msgid ""
 "\\(attrs\\)"
 msgstr ""
 ":py:obj:`BaseValidateMMM.attrs_to_init_kwargs "
-"<pymc_marketing.mmm.base.BaseValidateMMM.attrs_to_init_kwargs>`\\ "
-"\\(attrs\\)"
+"<pymc_marketing.mmm.base.BaseValidateMMM.attrs_to_init_kwargs>`\\ (attrs)"
 
 #: ../source/api/generated/pymc_marketing.mmm.base.BaseValidateMMM.rst:60:<autosummary>:1
 #: c1a4a77dbd784a1b96468ff1ca0c75b8
