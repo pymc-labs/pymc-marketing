@@ -49,8 +49,8 @@ msgid ""
 "Build a PyMC probabilistic model directly from a Causal DAG and a tabular "
 "dataset."
 msgstr ""
-"msgid: Build a PyMC probabilistic model directly from a Causal DAG and a tabular dataset.  \n"
-"msgstr: Construya un modelo probabilístico de PyMC directamente a partir de un DAG causal y un conjunto de datos tabular."
+"Construya un modelo probabilístico de PyMC directamente a partir de un DAG "
+"causal y un conjunto de datos tabular."
 
 #: ../source/api/generated/pymc_marketing.mmm.causal.rst:32:<autosummary>:1
 #: e8a6899661324ce4aae62f75b78d4151
