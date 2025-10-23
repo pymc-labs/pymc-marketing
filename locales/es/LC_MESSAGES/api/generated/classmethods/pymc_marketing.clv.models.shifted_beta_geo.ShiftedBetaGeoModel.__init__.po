@@ -30,8 +30,8 @@ msgstr "ShiftedBetaGeoModel.\\_\\_init\\_\\_"
 msgid ""
 "Initialize model configuration and sampler configuration for the model."
 msgstr ""
-"msgid: Initialize model configuration and sampler configuration for the model.  \n"
-"msgstr: Inicializar la configuración del modelo y la configuración del muestreador para el modelo."
+"Inicializar la configuración del modelo y la configuración del muestreador "
+"para el modelo."
 
 #: 36ef1acbc72042ee894c980af267a8c9 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.__init__
@@ -55,8 +55,9 @@ msgid ""
 "dictionary of parameters that initialise model configuration. Class-default "
 "defined by the user default_model_config method."
 msgstr ""
-"msgid: dictionary of parameters that initialise model configuration. Class-default defined by the user default_model_config method.  \n"
-"msgstr: diccionario de parámetros que inicializan la configuración del modelo. La clase predeterminada está definida por el método default_model_config del usuario."
+"diccionario de parámetros que inicializan la configuración del modelo. La "
+"clase predeterminada está definida por el método default_model_config del "
+"usuario."
 
 #: c29e8a52efc2492ca18e09f03ea45e3e of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.__init__:11
@@ -69,8 +70,9 @@ msgid ""
 "dictionary of parameters that initialise sampler configuration. Class-"
 "default defined by the user default_sampler_config method."
 msgstr ""
-"msgid: dictionary of parameters that initialise sampler configuration. Class-default defined by the user default_sampler_config method.  \n"
-"msgstr: diccionario de parámetros que inicializan la configuración del muestreador. La configuración predeterminada de la clase está definida por el método default_sampler_config del usuario."
+"diccionario de parámetros que inicializan la configuración del muestreador. "
+"La configuración predeterminada de la clase está definida por el método "
+"default_sampler_config del usuario."
 
 #: 8ecead3bc23f46d5a25dc59bffa4d55e of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.__init__:28
