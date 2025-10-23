@@ -36,8 +36,8 @@ msgid ""
 "This mixture distribution extends the Geometric distribution to support "
 "heterogeneity across observations."
 msgstr ""
-"msgid: This mixture distribution extends the Geometric distribution to support heterogeneity across observations.  \n"
-"msgstr: Esta distribución de mezcla extiende la distribución geométrica para soportar la heterogeneidad entre las observaciones."
+"Esta distribución de mezcla extiende la distribución geométrica para "
+"soportar la heterogeneidad entre las observaciones."
 
 #: ac6171502dcd4a3d9e2892265bff7852 of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric:6
@@ -83,17 +83,13 @@ msgstr "Parameters"
 #: 65213a95597c44e7a180562615409d1c of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric:20
 msgid "**alpha** : :term:`tensor_like` of :class:`python:float`"
-msgstr ""
-"msgid: **alpha** : :term:`tensor_like` of :class:`python:float`  \n"
-"msgstr: **alpha** : :term:`tensor_like` de :class:`python:float`"
+msgstr "**alpha** : :term:`tensor_like` de :class:`python:float`"
 
 #: 42d0b5d112174da0b2415aaaf6bc03cb d92677bea5b94bc8aa0af847c4acc3be of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric:19
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric:22
 msgid "tensor_like of python:float"
-msgstr ""
-"msgid: tensor_like of python:float  \n"
-"msgstr: tensor_like de python:float"
+msgstr "tensor_like de python:float"
 
 #: 62d9db59a5624b12961525cd17e3fe9d of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric:21
@@ -103,9 +99,7 @@ msgstr "Scale parameter (alpha > 0)."
 #: 5fdfe3ffac5c4ef595a0db82d6030b88 of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric:23
 msgid "**beta** : :term:`tensor_like` of :class:`python:float`"
-msgstr ""
-"msgid: **beta** : :term:`tensor_like` of :class:`python:float`  \n"
-"msgstr: **beta** : :term:`tensor_like` de :class:`python:float`"
+msgstr "**beta** : :term:`tensor_like` de :class:`python:float`"
 
 #: b4a91878832946d990589775abd388b3 of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric:24
@@ -125,8 +119,10 @@ msgid ""
 "https://faculty.wharton.upenn.edu/wp-"
 "content/uploads/2012/04/Fader_hardie_jim_07.pdf"
 msgstr ""
-"msgid: Fader, P. S., & Hardie, B. G. (2007). How to project customer retention. Journal of Interactive Marketing, 21(1), 76-90. https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf  \n"
-"msgstr: Fader, P. S., & Hardie, B. G. (2007). Cómo proyectar la retención de clientes. Journal of Interactive Marketing, 21(1), 76-90. https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf"
+"Fader, P. S., & Hardie, B. G. (2007). Cómo proyectar la retención de "
+"clientes. Journal of Interactive Marketing, 21(1), 76-90. "
+"https://faculty.wharton.upenn.edu/wp-"
+"content/uploads/2012/04/Fader_hardie_jim_07.pdf"
 
 #: 214f4228c61448c0b817ffec5d900a11 of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric:45
@@ -211,9 +207,7 @@ msgstr ""
 #: ../source/api/generated/pymc_marketing.clv.distributions.ShiftedBetaGeometric.rst:26:<autosummary>:1
 #: cecec77326ad462c9601a37d8277de35
 msgid "Calculate a reasonable starting point for sampling."
-msgstr ""
-"msgid: Calculate a reasonable starting point for sampling.  \n"
-"msgstr: Calcule un punto de partida razonable para el muestreo."
+msgstr "Calcule un punto de partida razonable para el muestreo."
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.ShiftedBetaGeometric.rst:28
 #: 9e7bf1a4027b499a901c8fbc7fd8f77c
