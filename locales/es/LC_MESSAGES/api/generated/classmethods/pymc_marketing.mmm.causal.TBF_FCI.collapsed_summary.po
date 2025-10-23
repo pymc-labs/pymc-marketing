@@ -28,9 +28,7 @@ msgstr "TBF\\_FCI.collapsed\\_summary"
 #: 486f32aedfc14f1289733ae23f95cc00 of
 #: pymc_marketing.mmm.causal.TBF_FCI.collapsed_summary:2
 msgid "Summarize lagged edges into a driver-level view."
-msgstr ""
-"msgid: Summarize lagged edges into a driver-level view.  \n"
-"msgstr: Resumir los bordes retrasados en una vista a nivel de controlador."
+msgstr "Resumir los bordes retrasados en una vista a nivel de controlador."
 
 #: b4d90e23e0524cb8a1167380218972fb of
 #: pymc_marketing.mmm.causal.TBF_FCI.collapsed_summary
@@ -56,8 +54,8 @@ msgid ""
 "A tuple with directed edges represented as ``(u, v, lag)`` and "
 "contemporaneous undirected edges represented as ``(u, v)`` pairs."
 msgstr ""
-"msgid: A tuple with directed edges represented as ``(u, v, lag)`` and contemporaneous undirected edges represented as ``(u, v)`` pairs.  \n"
-"msgstr: Una tupla con aristas dirigidas representadas como ``(u, v, lag)`` y aristas no dirigidas contemporáneas representadas como pares ``(u, v)``."
+"Una tupla con aristas dirigidas representadas como ``(u, v, lag)`` y aristas"
+" no dirigidas contemporáneas representadas como pares ``(u, v)``."
 
 #: 4d5156cc5a5c4495a0e5e48951a64f72 of
 #: pymc_marketing.mmm.causal.TBF_FCI.collapsed_summary:24
