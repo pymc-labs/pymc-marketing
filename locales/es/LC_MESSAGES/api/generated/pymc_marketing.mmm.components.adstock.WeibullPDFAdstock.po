@@ -199,7 +199,7 @@ msgid ""
 msgstr ""
 ":py:obj:`WeibullPDFAdstock.set_dims_for_all_priors "
 "<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.set_dims_for_all_priors>`\\"
-" \\(dims\\)"
+" (dims)"
 
 #: ../source/api/generated/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.rst:32:<autosummary>:1
 #: 85db5788c49d4bd4b12aafc9692ec001
