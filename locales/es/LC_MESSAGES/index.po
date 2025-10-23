@@ -104,8 +104,8 @@ msgid ""
 "**Implementation Support**: End-to-end integration into your existing data "
 "infrastructure and workflows."
 msgstr ""
-"msgid: **Implementation Support**: End-to-end integration into your existing data infrastructure and workflows.  \n"
-"msgstr: **Soporte de Implementación**: Integración de extremo a extremo en su infraestructura de datos y flujos de trabajo existentes."
+"**Soporte de Implementación**: Integración de extremo a extremo en su "
+"infraestructura de datos y flujos de trabajo existentes."
 
 #: ../source/index.md:53 4a815562a7364a6ba6eac4755cd46a56
 msgid ""
@@ -140,16 +140,14 @@ msgstr "{material-outlined}`photo_library;5em`"
 
 #: ../source/index.md:66 7e1b5795dcbf474c8c33cdafae89a009
 msgid "Getting Started"
-msgstr ""
-"msgid: Getting Started  \n"
-"msgstr: Comenzando"
+msgstr "Comenzando"
 
 #: ../source/index.md:74 9e81e4ad17ff45ef985f548d33e4d9d6
 msgid ""
 "Browse our getting started guide to quickly get started with PyMC-Marketing."
 msgstr ""
-"msgid: Browse our getting started guide to quickly get started with PyMC-Marketing.  \n"
-"msgstr: Consulte nuestra guía de inicio para comenzar rápidamente con PyMC-Marketing."
+"Consulte nuestra guía de inicio para comenzar rápidamente con PyMC-"
+"Marketing."
 
 #: ../source/index.md:79 f290eea4f9ca4336918b4bf748581fef
 #, fuzzy
