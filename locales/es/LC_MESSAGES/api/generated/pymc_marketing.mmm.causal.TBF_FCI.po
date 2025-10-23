@@ -132,7 +132,7 @@ msgstr "python:lista de python:tupla[python:str, python:str], opcional"
 
 #: afc76e446d1743e7b6b856c43d96222e of pymc_marketing.mmm.causal.TBF_FCI:43
 msgid "Prior knowledge: edges to exclude."
-msgstr "Conocimiento previo: bordes a excluir."
+msgstr "Conocimientos previos: bordes a excluir."
 
 #: 5acdb00ea149470a9b1306a48d83762b of pymc_marketing.mmm.causal.TBF_FCI:45
 msgid "**max_lag** : :class:`python:int`, default=2"
