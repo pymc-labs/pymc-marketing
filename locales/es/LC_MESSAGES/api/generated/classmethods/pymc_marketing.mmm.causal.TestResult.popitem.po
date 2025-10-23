@@ -29,8 +29,7 @@ msgstr "TestResult.popitem"
 #: pymc_marketing.mmm.causal.TestResult.popitem:2
 msgid "Remove and return a (key, value) pair as a 2-tuple."
 msgstr ""
-"msgid: Remove and return a (key, value) pair as a 2-tuple.  \n"
-"msgstr: Eliminar y devolver un par (clave, valor) como una tupla de 2 elementos."
+"Eliminar y devolver un par (clave, valor) como una tupla de 2 elementos."
 
 #: ee12a602463b456ebb219d610e4bcf89 of
 #: pymc_marketing.mmm.causal.TestResult.popitem:4
@@ -38,5 +37,5 @@ msgid ""
 "Pairs are returned in LIFO (last-in, first-out) order. Raises KeyError if "
 "the dict is empty."
 msgstr ""
-"msgid: Pairs are returned in LIFO (last-in, first-out) order. Raises KeyError if the dict is empty.  \n"
-"msgstr: Los pares se devuelven en orden LIFO (último en entrar, primero en salir). Se genera un KeyError si el diccionario está vacío."
+"Los pares se devuelven en orden LIFO (último en entrar, primero en salir). "
+"Se genera un KeyError si el diccionario está vacío."
