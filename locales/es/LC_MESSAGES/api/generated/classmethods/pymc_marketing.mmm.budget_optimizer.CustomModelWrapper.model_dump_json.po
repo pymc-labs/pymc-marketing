@@ -56,15 +56,16 @@ msgid ""
 " will be compact. ensure_ascii: If `True`, the output is guaranteed to have "
 "all incoming non-ASCII characters escaped."
 msgstr ""
-"msgid: indent: Indentation to use in the JSON output. If None is passed, the output will be compact. ensure_ascii: If `True`, the output is guaranteed to have all incoming non-ASCII characters escaped.  \n"
-"msgstr: indent: Sangría a utilizar en la salida JSON. Si se pasa None, la salida será compacta. ensure_ascii: Si es `True`, se garantiza que la salida tendrá todos los caracteres no ASCII entrantes escapados."
+"indent: Sangría a utilizar en la salida JSON. Si se pasa None, la salida "
+"será compacta. ensure_ascii: Si es `True`, se garantiza que la salida tendrá"
+" todos los caracteres no ASCII entrantes escapados."
 
 #: af06e613827f462a939f42cc80e113ee of
 #: pydantic.main.BaseModel.model_dump_json:10
 msgid "If `False` (the default), these characters will be output as-is."
 msgstr ""
-"msgid: If `False` (the default), these characters will be output as-is.  \n"
-"msgstr: Si `False` (el valor predeterminado), estos caracteres se mostrarán tal como están."
+"Si `False` (el valor predeterminado), estos caracteres se mostrarán tal como"
+" están."
 
 #: 86136e182db34183a46046a7bf69795a of
 #: pydantic.main.BaseModel.model_dump_json:11
@@ -77,8 +78,14 @@ msgid ""
 "value. exclude_none: Whether to exclude fields that have a value of `None`. "
 "exclude_computed_fields: Whether to exclude computed fields."
 msgstr ""
-"msgid: include: Field(s) to include in the JSON output. exclude: Field(s) to exclude from the JSON output. context: Additional context to pass to the serializer. by_alias: Whether to serialize using field aliases. exclude_unset: Whether to exclude fields that have not been explicitly set. exclude_defaults: Whether to exclude fields that are set to their default value. exclude_none: Whether to exclude fields that have a value of `None`. exclude_computed_fields: Whether to exclude computed fields.  \n"
-"msgstr: incluir: Campo(s) a incluir en la salida JSON. excluir: Campo(s) a excluir de la salida JSON. contexto: Contexto adicional para pasar al serializador. por_alias: Si se debe serializar utilizando alias de campo. excluir_no_establecidos: Si se deben excluir los campos que no han sido establecidos explícitamente. excluir_valores_por_defecto: Si se deben excluir los campos que están establecidos en su valor por defecto. excluir_nulo: Si se deben excluir los campos que tienen un valor de `None`. excluir_campos_computados: Si se deben excluir los campos computados."
+"incluir: Campo(s) a incluir en la salida JSON. excluir: Campo(s) a excluir "
+"de la salida JSON. contexto: Contexto adicional para pasar al serializador. "
+"por_alias: Si se debe serializar utilizando alias de campo. "
+"excluir_no_establecidos: Si se deben excluir los campos que no han sido "
+"establecidos explícitamente. excluir_valores_por_defecto: Si se deben "
+"excluir los campos que están establecidos en su valor por defecto. "
+"excluir_nulo: Si se deben excluir los campos que tienen un valor de `None`. "
+"excluir_campos_computados: Si se deben excluir los campos computados."
 
 #: 68a21700d93646c0a2dae2283cf8569c of
 #: pydantic.main.BaseModel.model_dump_json:19
@@ -86,8 +93,8 @@ msgid ""
 "While this can be useful for round-tripping, it is usually recommended to "
 "use the dedicated `round_trip` parameter instead."
 msgstr ""
-"msgid: While this can be useful for round-tripping, it is usually recommended to use the dedicated `round_trip` parameter instead.  \n"
-"msgstr: Si bien esto puede ser útil para el intercambio de datos, generalmente se recomienda utilizar el parámetro `round_trip` dedicado en su lugar."
+"Si bien esto puede ser útil para el intercambio de datos, generalmente se "
+"recomienda utilizar el parámetro `round_trip` dedicado en su lugar."
 
 #: ba45ffdb02074226a3244db540cae42f of
 #: pydantic.main.BaseModel.model_dump_json:21
@@ -96,8 +103,10 @@ msgid ""
 "idempotent types such as Json[T]. warnings: How to handle serialization "
 "errors. False/\"none\" ignores them, True/\"warn\" logs errors,"
 msgstr ""
-"msgid: round_trip: If True, dumped values should be valid as input for non-idempotent types such as Json[T]. warnings: How to handle serialization errors. False/\"none\" ignores them, True/\"warn\" logs errors,\n"
-"msgstr: round_trip: Si es True, los valores volcado deben ser válidos como entrada para tipos no idempotentes como Json[T]. advertencias: Cómo manejar los errores de serialización. False/\"none\" los ignora, True/\"warn\" registra errores,"
+"round_trip: Si es True, los valores volcado deben ser válidos como entrada "
+"para tipos no idempotentes como Json[T]. advertencias: Cómo manejar los "
+"errores de serialización. False/\"none\" los ignora, True/\"warn\" registra "
+"errores,"
 
 #: a134b737f9d94cb4835411fd01b6c2b2 of
 #: pydantic.main.BaseModel.model_dump_json:23
@@ -105,8 +114,8 @@ msgid ""
 "\"error\" raises a "
 "[`PydanticSerializationError`][pydantic_core.PydanticSerializationError]."
 msgstr ""
-"msgid: \"error\" raises a [`PydanticSerializationError`][pydantic_core.PydanticSerializationError].  \n"
-"msgstr: \"error\" genera un [`PydanticSerializationError`][pydantic_core.PydanticSerializationError]."
+"\"error\" genera un "
+"[`PydanticSerializationError`][pydantic_core.PydanticSerializationError]."
 
 #: 004576b1c3444f2182ea045731151f6e of
 #: pydantic.main.BaseModel.model_dump_json:24
@@ -114,8 +123,8 @@ msgid ""
 "fallback: A function to call when an unknown value is encountered. If not "
 "provided,"
 msgstr ""
-"msgid: fallback: A function to call when an unknown value is encountered. If not provided,  \n"
-"msgstr: fallback: Una función a llamar cuando se encuentra un valor desconocido. Si no se proporciona,"
+"fallback: Una función a llamar cuando se encuentra un valor desconocido. Si "
+"no se proporciona,"
 
 #: f01bd5fdf1124a3a9a52b6a1a5d1c1d5 of
 #: pydantic.main.BaseModel.model_dump_json:25
@@ -132,8 +141,8 @@ msgid ""
 "serialize_as_any: Whether to serialize fields with duck-typing serialization"
 " behavior."
 msgstr ""
-"msgid: serialize_as_any: Whether to serialize fields with duck-typing serialization behavior.  \n"
-"msgstr: serialize_as_any: Si se deben serializar los campos con un comportamiento de serialización de tipo pato."
+"serialize_as_any: Si se deben serializar los campos con un comportamiento de"
+" serialización de tipo pato."
 
 #: eb555276dfa9491a8c547321072d131f of
 #: pydantic.main.BaseModel.model_dump_json:28
@@ -143,6 +152,4 @@ msgstr "Returns:"
 #: 0ee7808bef0d4249a20d197df19d320d of
 #: pydantic.main.BaseModel.model_dump_json:29
 msgid "A JSON string representation of the model."
-msgstr ""
-"msgid: A JSON string representation of the model.  \n"
-"msgstr: Una representación en cadena JSON del modelo."
+msgstr "Una representación en cadena JSON del modelo."
