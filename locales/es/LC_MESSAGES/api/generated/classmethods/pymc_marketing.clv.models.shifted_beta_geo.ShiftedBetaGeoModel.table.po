@@ -43,9 +43,7 @@ msgstr "**\\*\\*model_table_kwargs**"
 #: 8b141ecb9f844e1fa1bbdc4152c62bc8 of
 #: pymc_marketing.model_builder.ModelBuilder.table:8
 msgid "Keyword arguments for the `model_table` function"
-msgstr ""
-"msgid: Keyword arguments for the `model_table` function  \n"
-"msgstr: Argumentos clave para la función `model_table`"
+msgstr "Argumentos clave para la función `model_table`"
 
 #: 79c2e71076a84c72b1de990330dc0239 of
 #: pymc_marketing.model_builder.ModelBuilder.table
