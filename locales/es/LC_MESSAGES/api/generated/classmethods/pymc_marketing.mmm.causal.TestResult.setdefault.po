@@ -29,12 +29,12 @@ msgstr "TestResult.setdefault"
 #: pymc_marketing.mmm.causal.TestResult.setdefault:2
 msgid "Insert key with a value of default if key is not in the dictionary."
 msgstr ""
-"msgid: Insert key with a value of default if key is not in the dictionary.  \n"
-"msgstr: Inserte la clave con un valor de predeterminado si la clave no está en el diccionario."
+"Inserte la clave con un valor de predeterminado si la clave no está en el "
+"diccionario."
 
 #: c039a218cab14305a560d2da4f6c2cb6 of
 #: pymc_marketing.mmm.causal.TestResult.setdefault:4
 msgid "Return the value for key if key is in the dictionary, else default."
 msgstr ""
-"msgid: Return the value for key if key is in the dictionary, else default.  \n"
-"msgstr: Devuelve el valor para la clave si la clave está en el diccionario, de lo contrario, devuelve el valor por defecto."
+"Devuelve el valor para la clave si la clave está en el diccionario, de lo "
+"contrario, devuelve el valor por defecto."

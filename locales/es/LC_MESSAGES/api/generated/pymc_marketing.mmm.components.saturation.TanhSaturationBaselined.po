@@ -200,7 +200,7 @@ msgid ""
 msgstr ""
 ":py:obj:`TanhSaturationBaselined.set_dims_for_all_priors "
 "<pymc_marketing.mmm.components.saturation.TanhSaturationBaselined.set_dims_for_all_priors>`\\"
-" \\(dims\\)"
+" (dims)"
 
 #: ../source/api/generated/pymc_marketing.mmm.components.saturation.TanhSaturationBaselined.rst:32:<autosummary>:1
 #: c0a56865e5da4b0bac34d1d419981ca7

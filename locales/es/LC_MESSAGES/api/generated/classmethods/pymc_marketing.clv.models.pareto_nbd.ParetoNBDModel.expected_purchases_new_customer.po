@@ -110,9 +110,7 @@ msgstr "**t** : :term:`numpy:array_like`, opcional"
 #: 70f0e7e930f246f4a3871037bf2ebfff of
 #: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchases_new_customer:21
 msgid "numpy:array_like, optional"
-msgstr ""
-"msgid: numpy:array_like, optional  \n"
-"msgstr: numpy:array_like, opcional"
+msgstr "numpy:similar_a_array, opcional"
 
 #: 1f90be1665444a569d856ae85de49fc7 of
 #: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchases_new_customer:23

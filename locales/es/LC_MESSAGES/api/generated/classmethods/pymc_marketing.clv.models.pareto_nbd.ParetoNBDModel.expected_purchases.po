@@ -123,9 +123,7 @@ msgstr "**future_t** : :term:`numpy:array_like`"
 #: 9abf82b663e2480795d9afb6319e8767 of
 #: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchases:24
 msgid "numpy:array_like"
-msgstr ""
-"msgid: numpy:array_like  \n"
-"msgstr: numpy:array_like"
+msgstr "numpy:similar_a_array"
 
 #: b4d6b9422dfb40628f6b483a21e2e895 of
 #: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchases:26

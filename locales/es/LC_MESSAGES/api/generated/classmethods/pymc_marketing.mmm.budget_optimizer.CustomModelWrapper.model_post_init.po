@@ -31,8 +31,8 @@ msgid ""
 "This function is meant to behave like a BaseModel method to initialise "
 "private attributes."
 msgstr ""
-"msgid: This function is meant to behave like a BaseModel method to initialise private attributes.  \n"
-"msgstr: Esta función está destinada a comportarse como un método de BaseModel para inicializar atributos privados."
+"Esta función está destinada a comportarse como un método de BaseModel para "
+"inicializar atributos privados."
 
 #: 590ffd39519a483694c63bb90e8cca87 of
 #: pydantic._internal._model_construction.init_private_attributes:4
@@ -40,8 +40,8 @@ msgid ""
 "It takes context as an argument since that's what pydantic-core passes when "
 "calling it."
 msgstr ""
-"msgid: It takes context as an argument since that's what pydantic-core passes when calling it.  \n"
-"msgstr: Toma el contexto como un argumento, ya que eso es lo que pydantic-core pasa al llamarlo."
+"Toma el contexto como un argumento, ya que eso es lo que pydantic-core pasa "
+"al llamarlo."
 
 #: 7609adef7b7740c4b4146d0b98f73810 of
 #: pydantic._internal._model_construction.init_private_attributes:6
@@ -51,6 +51,4 @@ msgstr "Args:"
 #: fad70483a6314e7d9f61a6cc98b484a5 of
 #: pydantic._internal._model_construction.init_private_attributes:7
 msgid "self: The BaseModel instance. context: The context."
-msgstr ""
-"msgid: self: The BaseModel instance. context: The context.  \n"
-"msgstr: self: La instancia de BaseModel. context: El contexto."
+msgstr "self: La instancia de BaseModel. context: El contexto."

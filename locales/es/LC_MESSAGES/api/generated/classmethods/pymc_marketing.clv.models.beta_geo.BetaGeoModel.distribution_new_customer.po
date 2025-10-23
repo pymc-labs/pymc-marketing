@@ -94,9 +94,7 @@ msgstr "**T** : :term:`numpy:array_like`, opcional"
 #: 4e37b8f3e201478c8f8155b4670beb98 of
 #: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer:17
 msgid "numpy:array_like, optional"
-msgstr ""
-"msgid: numpy:array_like, optional  \n"
-"msgstr: numpy:array_like, opcional"
+msgstr "numpy:similar a un arreglo, opcional"
 
 #: a1800291d52d4015adf7438a1d653f69 of
 #: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer:19

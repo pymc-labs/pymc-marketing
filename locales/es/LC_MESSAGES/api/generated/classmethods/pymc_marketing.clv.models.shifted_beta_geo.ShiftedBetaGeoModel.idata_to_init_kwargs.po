@@ -29,5 +29,4 @@ msgstr "ShiftedBetaGeoModel.idata\\_to\\_init\\_kwargs"
 #: pymc_marketing.clv.models.basic.CLVModel.idata_to_init_kwargs:2
 msgid "Create the initialization kwargs from an InferenceData object."
 msgstr ""
-"msgid: Create the initialization kwargs from an InferenceData object.  \n"
-"msgstr: Cree los kwargs de inicialización a partir de un objeto InferenceData."
+"Cree los kwargs de inicialización a partir de un objeto InferenceData."

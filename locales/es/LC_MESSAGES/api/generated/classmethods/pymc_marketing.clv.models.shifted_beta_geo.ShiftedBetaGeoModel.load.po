@@ -28,9 +28,7 @@ msgstr "ShiftedBetaGeoModel.load"
 #: 7ef5ab1eac5241089626fed14bc3c94a of
 #: pymc_marketing.model_builder.ModelIO.load:2
 msgid "Create a ModelBuilder instance from a file."
-msgstr ""
-"msgid: Create a ModelBuilder instance from a file.  \n"
-"msgstr: Crear una instancia de ModelBuilder a partir de un archivo."
+msgstr "Crear una instancia de ModelBuilder a partir de un archivo."
 
 #: 7f89216c0fbe40e8965e792ce5291793 of
 #: pymc_marketing.model_builder.ModelIO.load:4
@@ -40,9 +38,7 @@ msgstr "Carga datos de inferencia para el modelo."
 #: 3e62976f97bb45d7ba00f99a4ef4e9cf of
 #: pymc_marketing.model_builder.ModelIO.load:6
 msgid "This class method has a few steps:"
-msgstr ""
-"msgid: This class method has a few steps:  \n"
-"msgstr: Este método de clase tiene algunos pasos:"
+msgstr "Este método de clase tiene algunos pasos:"
 
 #: b0d82299acbf44328092c37c3b65edc1 of
 #: pymc_marketing.model_builder.ModelIO.load:8
@@ -59,16 +55,14 @@ msgstr ""
 #: b2579da28cb34d00923462e443ffaaf6 of
 #: pymc_marketing.model_builder.ModelIO.load:10
 msgid "Build the model from the InferenceData"
-msgstr ""
-"msgid: Build the model from the InferenceData  \n"
-"msgstr: Construya el modelo a partir de los InferenceData"
+msgstr "Construya el modelo a partir de los InferenceData"
 
 #: 97991dece39d458c8eb9eca09d03973d of
 #: pymc_marketing.model_builder.ModelIO.load:11
 msgid "Check if the model id matches the id in the InferenceData loaded."
 msgstr ""
-"msgid: Check if the model id matches the id in the InferenceData loaded.  \n"
-"msgstr: Verifique si el id del modelo coincide con el id en los InferenceData cargados."
+"Verifique si el id del modelo coincide con el id en los InferenceData "
+"cargados."
 
 #: 6fe231023a084d4aafadab565d80ec90 of
 #: pymc_marketing.model_builder.ModelIO.load
@@ -89,9 +83,7 @@ msgstr "python:str"
 #: pymc_marketing.model_builder.ModelIO.load:16
 msgid ""
 "This denotes the name with path from where idata should be loaded from."
-msgstr ""
-"msgid: This denotes the name with path from where idata should be loaded from.  \n"
-"msgstr: Esto denota el nombre con la ruta desde donde se debe cargar idata."
+msgstr "Esto denota el nombre con la ruta desde donde se debe cargar idata."
 
 #: e27aec3710c44d0db0e182e9cea001bd of
 #: pymc_marketing.model_builder.ModelIO.load:18
@@ -109,8 +101,8 @@ msgid ""
 "Whether to check if the model id matches the id in the InferenceData loaded."
 " Defaults to True."
 msgstr ""
-"msgid: Whether to check if the model id matches the id in the InferenceData loaded. Defaults to True.  \n"
-"msgstr: Si se debe verificar si el id del modelo coincide con el id en los InferenceData cargados. Por defecto es True."
+"Si se debe verificar si el id del modelo coincide con el id en los "
+"InferenceData cargados. Por defecto es True."
 
 #: 8ebc8d8b47ac4174a2201dc7a1b1e2c6 of
 #: pymc_marketing.model_builder.ModelIO.load
@@ -120,9 +112,7 @@ msgstr "Returns"
 #: 269082255f864f9dac5fc3d3d1e792d3 of
 #: pymc_marketing.model_builder.ModelIO.load:26
 msgid ":obj:`Returns` :obj:`an` instance of ModelBuilder."
-msgstr ""
-"msgid: :obj:`Returns` :obj:`an` instance of ModelBuilder.  \n"
-"msgstr: :obj:`Devuelve` :obj:`una` instancia de ModelBuilder."
+msgstr ":obj:`Devuelve` :obj:`una` instancia de ModelBuilder."
 
 #: 64f4d9982c094944a50ceb99ce168931 of
 #: pymc_marketing.model_builder.ModelIO.load

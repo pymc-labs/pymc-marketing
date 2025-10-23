@@ -28,9 +28,7 @@ msgstr "TBF\\_FCI.get\\_directed\\_edges"
 #: 77d7014944b24655b566e7143a9e3f43 of
 #: pymc_marketing.mmm.causal.TBF_FCI.get_directed_edges:2
 msgid "Return directed edges in the time-unrolled graph."
-msgstr ""
-"msgid: Return directed edges in the time-unrolled graph.\n"
-"msgstr: Devolver aristas dirigidas en el grafo desenrollado en el tiempo."
+msgstr "Devolver aristas dirigidas en el grafo desenrollado en el tiempo."
 
 #: c92103d9deb24f49954b32467582cd1e of
 #: pymc_marketing.mmm.causal.TBF_FCI.get_directed_edges

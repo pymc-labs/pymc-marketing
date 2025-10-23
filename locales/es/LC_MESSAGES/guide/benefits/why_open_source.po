@@ -84,7 +84,7 @@ msgstr ""
 #: ../source/guide/benefits/why_open_source.md:14
 #: 9ff3dd5b435841deab6d333393a8fc23
 msgid "In-housing"
-msgstr "In-housing"
+msgstr "In-house"
 
 #: ../source/guide/benefits/why_open_source.md:15
 #: bc4a4f429eb84eaa945428430ffe299f

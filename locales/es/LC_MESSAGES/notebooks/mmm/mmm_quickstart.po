@@ -553,8 +553,8 @@ msgid ""
 "{ref}`mmm_example`: A comprehensive walkthrough including data generation, "
 "ROAS calculation, and more advanced diagnostics"
 msgstr ""
-"msgid: {ref}`mmm_example`\n"
-"msgstr: Una guía completa que incluye generación de datos, cálculo de ROAS y diagnósticos más avanzados."
+"Una guía completa que incluye generación de datos, cálculo de ROAS y "
+"diagnósticos más avanzados."
 
 #: ../source/notebooks/mmm/mmm_quickstart.ipynb:430009
 #: 3b82a989009146109cee8777c84dc237
@@ -573,8 +573,7 @@ msgid ""
 "{ref}`mmm_lift_test`: Incorporate experimental results to improve model "
 "accuracy"
 msgstr ""
-"msgid: {ref}`mmm_lift_test`\n"
-"msgstr: Incorporar resultados experimentales para mejorar la precisión del modelo"
+"Incorporar resultados experimentales para mejorar la precisión del modelo"
 
 #: ../source/notebooks/mmm/mmm_quickstart.ipynb:430011
 #: 84a37af70885442ca8c38453d5651683
