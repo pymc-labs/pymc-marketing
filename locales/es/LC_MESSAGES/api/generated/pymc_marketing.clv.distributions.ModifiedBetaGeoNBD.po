@@ -149,8 +149,8 @@ msgid ""
 "r\\, alpha\\, T\\, ...\\)"
 msgstr ""
 ":py:obj:`ModifiedBetaGeoNBD.dist "
-"<pymc_marketing.clv.distributions.ModifiedBetaGeoNBD.dist>`\\ \\(a\\, b\\, "
-"r\\, alpha\\, T\\, ...\\)"
+"<pymc_marketing.clv.distributions.ModifiedBetaGeoNBD.dist>`\\ (a\\, b\\, "
+"r\\, alpha\\, T\\, ...)"
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.ModifiedBetaGeoNBD.rst:24:<autosummary>:1
 #: 0682abf3156040bc8f2c2afbf79a39d0
