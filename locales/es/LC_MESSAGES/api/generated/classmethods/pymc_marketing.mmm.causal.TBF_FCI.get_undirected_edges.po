@@ -29,8 +29,7 @@ msgstr "TBF\\_FCI.get\\_undirected\\_edges"
 #: pymc_marketing.mmm.causal.TBF_FCI.get_undirected_edges:2
 msgid "Return undirected edges in the time-unrolled graph."
 msgstr ""
-"msgid: Return undirected edges in the time-unrolled graph.  \n"
-"msgstr: Devuelve los bordes no dirigidos en el grafo desenrollado en el tiempo."
+"Devuelve los bordes no dirigidos en el grafo desenrollado en el tiempo."
 
 #: 18982d50bea541df9d4dec5a8f1c3cb2 of
 #: pymc_marketing.mmm.causal.TBF_FCI.get_undirected_edges
