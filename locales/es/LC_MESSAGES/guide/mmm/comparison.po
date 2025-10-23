@@ -194,15 +194,11 @@ msgstr "**Standardized Database Connectors**"
 
 #: ../source/guide/mmm/comparison.md 5db6eafb100d44d4a2b1a42cb0eff856
 msgid "✅ (with Fivetran)"
-msgstr ""
-"msgid: ✅ (with Fivetran)  \n"
-"msgstr: ✅ (con Fivetran)"
+msgstr "✅ (con Fivetran)"
 
 #: ../source/guide/mmm/comparison.md 7c0b5b56145e4a84897b9f6ff5cccb75
 msgid "✅ (limited to Google ecosystem)"
-msgstr ""
-"msgid: ✅ (limited to Google ecosystem)  \n"
-"msgstr: ✅ (limitado al ecosistema de Google)"
+msgstr "✅ (limitado al ecosistema de Google)"
 
 #: ../source/guide/mmm/comparison.md de7751968a8142d4a51e7518e95e9e7b
 msgid "**Unit-Tested**"
@@ -403,8 +399,7 @@ msgstr ""
 #: ../source/guide/mmm/comparison.md:63 9ec0c198f509421c98b296af0de12be1
 msgid "You can allow for reduced predictive accuracy and explainability"
 msgstr ""
-"msgid: You can allow for reduced predictive accuracy and explainability  \n"
-"msgstr: Puede permitir una precisión predictiva y una explicabilidad reducidas."
+"Puede permitir una precisión predictiva y una explicabilidad reducidas."
 
 #: ../source/guide/mmm/comparison.md:65 c73e150252284706adb1af0219925443
 msgid "Choose PyMC-Marketing if:"
