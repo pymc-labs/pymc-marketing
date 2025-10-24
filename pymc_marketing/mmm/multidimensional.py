@@ -2062,10 +2062,10 @@ class MMM(RegressionModelBuilder):
         with self.model:
             # Ensure original-scale contribution exists
             if "channel_contribution_original_scale" not in self.model.named_vars:
-                self.add_original_scale_contribution_variable(
-                    [
-                        "channel_contribution",
-                    ]
+                raise ValueError(
+                    "`channel_contribution_original_scale` is not in the model."
+                    "Please, add the original scale contribution variable using the method "
+                    "`add_original_scale_contribution_variable` before adding the cost-per-target calibration."
                 )
 
             denom = pt.clip(
