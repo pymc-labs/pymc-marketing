@@ -170,6 +170,7 @@ Notes
 """
 
 import itertools
+from collections import namedtuple
 from collections.abc import Iterable
 
 import arviz as az
@@ -242,6 +243,83 @@ class MMMPlotSuite:
             title_parts = [f"{d}={v}" for d, v in zip(dims, combo, strict=False)]
             return ", ".join(title_parts)
         return fallback_title
+
+    def _align_y_axes(self, ax_left, ax_right) -> None:
+        """Align y=0 of primary and secondary y-axis."""
+        # Store limits of both axes in named tuples.
+        YLimits = namedtuple("YLimits", ["bottom", "top"])
+        ylims_left = YLimits(*ax_left.axes.get_ylim())
+        ylims_right = YLimits(*ax_right.axes.get_ylim())
+
+        # Calculate the relative position of zero on both axes.
+        # 0 means all values are positive (zero is at the bottom)
+        # 1 means all values are negative (zero is at the top)
+        zero_rel_pos_left = -ylims_left.bottom / (ylims_left.top - ylims_left.bottom)
+        zero_rel_pos_right = -ylims_right.bottom / (
+            ylims_right.top - ylims_right.bottom
+        )
+
+        # If relative positions are equal, no action needed
+        if zero_rel_pos_left == zero_rel_pos_right:
+            return
+
+        # If both axes include mixed values, edit one to match the other by solving
+        # rel_pos_other = (0 - new_bottom) / (top - new_bottom) for new_bottom.
+        if zero_rel_pos_left not in [0, 1] and zero_rel_pos_right not in [0, 1]:
+            if zero_rel_pos_left < zero_rel_pos_right:
+                ax_left.set_ylim(
+                    bottom=-zero_rel_pos_right
+                    * ylims_left.top
+                    / (1 - zero_rel_pos_right)
+                )
+            else:
+                ax_right.set_ylim(
+                    bottom=-zero_rel_pos_left
+                    * ylims_right.top
+                    / (1 - zero_rel_pos_left)
+                )
+
+        # If one relative position is 1, edit the top by solving
+        # rel_pos_other = (0 - bottom) / (new_top - bottom) for new_top.
+        if zero_rel_pos_left == 1:
+            # Left axis is all negative, right axis has positive values
+            # if other axis is fully positive, place y=0 at the center of this axis.
+            ax_left.set_ylim(
+                top=ylims_left.bottom * (1 - 1 / zero_rel_pos_right)
+                if zero_rel_pos_right
+                else -ylims_left.bottom
+            )
+            # Update lims and zero_rel_pos in case we need to edit the other axis.
+            ylims_left = YLimits(*ax_left.axes.get_ylim())
+            zero_rel_pos_left = -ylims_left.bottom / (
+                ylims_left.top - ylims_left.bottom
+            )
+        elif zero_rel_pos_right == 1:
+            # Right axis is all negative, left axis has positive values
+            # if other axis is fully positive, place y=0 at the center of this axis.
+            ax_right.set_ylim(
+                top=ylims_right.bottom * (1 - 1 / zero_rel_pos_left)
+                if zero_rel_pos_left
+                else -ylims_right.bottom
+            )
+            # Update lims and zero_rel_pos in case we need to edit the other axis.
+            ylims_right = YLimits(*ax_right.axes.get_ylim())
+            zero_rel_pos_right = -ylims_right.bottom / (
+                ylims_right.top - ylims_right.bottom
+            )
+
+        # If one relative position is 0, edit bottom by solving
+        # rel_pos_other = (0 - new_bottom) / (top - new_bottom) for new_bottom.
+        if zero_rel_pos_left == 0:
+            # Left axis is all positive, right axis has negative values
+            ax_left.set_ylim(
+                bottom=-zero_rel_pos_right * ylims_left.top / (1 - zero_rel_pos_right)
+            )
+        elif zero_rel_pos_right == 0:
+            # Right axis is all positive, left axis has negative values
+            ax_right.set_ylim(
+                bottom=-zero_rel_pos_left * ylims_right.top / (1 - zero_rel_pos_left)
+            )
 
     def _get_additional_dim_combinations(
         self,
@@ -1266,6 +1344,9 @@ class MMMPlotSuite:
         ax.set_xticks([i + bar_width / 2 for i in index])
         ax.set_xticklabels(channels)
         ax.tick_params(axis="x", rotation=90)
+
+        # Ensure that y=0 are aligned between ax and ax2.
+        self._align_y_axes(ax, ax2)
 
         # Turn off grid and add legend
         ax.grid(False)
