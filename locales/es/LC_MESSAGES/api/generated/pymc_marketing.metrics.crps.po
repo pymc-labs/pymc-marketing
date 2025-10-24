@@ -44,9 +44,7 @@ msgstr "**y_true** : :term:`numpy:array_like`"
 #: 0616075738404f4595ba8e910836df3f 531bf14643134b86a8ae46ff69eb22e1 of
 #: pymc_marketing.metrics.crps:6 pymc_marketing.metrics.crps:9
 msgid "numpy:array_like"
-msgstr ""
-"msgid: numpy:array_like  \n"
-"msgstr: numpy:array_like"
+msgstr "numpy:similar_a_array"
 
 #: fa85745a3b174fa6ae88e7c029555eb7 of pymc_marketing.metrics.crps:8
 msgid "The ground truth values."
@@ -70,9 +68,7 @@ msgstr "**sample_weight** : :term:`numpy:array_like`, opcional"
 
 #: 3b64c6136edb45358e07e795e95ad816 of pymc_marketing.metrics.crps:13
 msgid "numpy:array_like, optional"
-msgstr ""
-"msgid: numpy:array_like, optional  \n"
-"msgstr: numpy:array_like, opcional"
+msgstr "numpy:similar a un array, opcional"
 
 #: 2d90516bf0704b7f821f280ce9cf865f of pymc_marketing.metrics.crps:15
 msgid "The sample weights."

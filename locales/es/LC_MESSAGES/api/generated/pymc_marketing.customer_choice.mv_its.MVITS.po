@@ -167,7 +167,7 @@ msgid ""
 msgstr ""
 ":py:obj:`MVITS.attrs_to_init_kwargs "
 "<pymc_marketing.customer_choice.mv_its.MVITS.attrs_to_init_kwargs>`\\ "
-"\\(attrs\\)"
+"(attrs)"
 
 #: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
 #: b365d6358d6d41e88848ac19a5ff990d

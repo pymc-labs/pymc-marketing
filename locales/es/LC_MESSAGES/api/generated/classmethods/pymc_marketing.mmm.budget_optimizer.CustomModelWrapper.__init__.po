@@ -31,8 +31,8 @@ msgid ""
 "Create a new model by parsing and validating input data from keyword "
 "arguments."
 msgstr ""
-"msgid: Create a new model by parsing and validating input data from keyword arguments.  \n"
-"msgstr: Cree un nuevo modelo analizando y validando los datos de entrada de los argumentos de palabra clave."
+"Cree un nuevo modelo analizando y validando los datos de entrada de los "
+"argumentos de palabra clave."
 
 #: ea7767507d1c4306b8ed78e0f7011d7f of
 #: pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.__init__:4
@@ -40,12 +40,12 @@ msgid ""
 "Raises [`ValidationError`][pydantic_core.ValidationError] if the input data "
 "cannot be validated to form a valid model."
 msgstr ""
-"msgid: Raises [`ValidationError`][pydantic_core.ValidationError] if the input data cannot be validated to form a valid model.  \n"
-"msgstr: Lanza [`ValidationError`][pydantic_core.ValidationError] si los datos de entrada no pueden ser validados para formar un modelo válido."
+"Lanza [`ValidationError`][pydantic_core.ValidationError] si los datos de "
+"entrada no pueden ser validados para formar un modelo válido."
 
 #: 2d59318d806549899a140e920b6afb9e of
 #: pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.__init__:7
 msgid "`self` is explicitly positional-only to allow `self` as a field name."
 msgstr ""
-"msgid: `self` is explicitly positional-only to allow `self` as a field name.  \n"
-"msgstr: `self` es explícitamente solo posicional para permitir que `self` sea un nombre de campo."
+"`self` es explícitamente solo posicional para permitir que `self` sea un "
+"nombre de campo."

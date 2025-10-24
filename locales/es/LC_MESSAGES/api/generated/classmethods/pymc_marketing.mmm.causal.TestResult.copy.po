@@ -23,6 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.TestResult.copy.rst:2
 #: 2b4a7d311b2049fbae173dbced92567e
 msgid "TestResult.copy"
-msgstr ""
-"msgid: TestResult.copy  \n"
-"msgstr: TestResult.copiar"
+msgstr "TestResult.copiar"

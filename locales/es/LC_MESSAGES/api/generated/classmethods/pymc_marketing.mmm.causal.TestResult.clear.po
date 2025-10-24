@@ -23,6 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.TestResult.clear.rst:2
 #: 4521aaf58a82496183d538c4cd72e7f8
 msgid "TestResult.clear"
-msgstr ""
-"msgid: TestResult.clear  \n"
-"msgstr: TestResult.clear"
+msgstr "TestResult.limpiar"

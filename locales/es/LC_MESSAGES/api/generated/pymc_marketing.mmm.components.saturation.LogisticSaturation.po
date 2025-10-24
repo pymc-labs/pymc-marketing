@@ -200,7 +200,7 @@ msgid ""
 msgstr ""
 ":py:obj:`LogisticSaturation.set_dims_for_all_priors "
 "<pymc_marketing.mmm.components.saturation.LogisticSaturation.set_dims_for_all_priors>`\\"
-" \\(dims\\)"
+" (dims)"
 
 #: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:32:<autosummary>:1
 #: d21865134ae544ed90213f5f2aae7c5d

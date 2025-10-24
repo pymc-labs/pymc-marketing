@@ -30,8 +30,8 @@ msgstr "TBFPC.get\\_all\\_cdags\\_from\\_cpdag"
 msgid ""
 "Enumerate all acyclic orientations (consistent extensions) of the CPDAG."
 msgstr ""
-"msgid: Enumerate all acyclic orientations (consistent extensions) of the CPDAG.  \n"
-"msgstr: Enumere todas las orientaciones acíclicas (extensiones consistentes) del CPDAG."
+"Enumere todas las orientaciones acíclicas (extensiones consistentes) del "
+"CPDAG."
 
 #: eeb52fe1ee2447bc8d83e93e2982f900 of
 #: pymc_marketing.mmm.causal.TBFPC.get_all_cdags_from_cpdag
@@ -55,8 +55,10 @@ msgid ""
 "encoded as `[style=dashed, dir=none]`). If None, use the model's current "
 "CPDAG from `self.get_directed_edges()` and `self.get_undirected_edges()`."
 msgstr ""
-"msgid: If provided, parse the CPDAG from this DOT string (expects undirected edges encoded as `[style=dashed, dir=none]`). If None, use the model's current CPDAG from `self.get_directed_edges()` and `self.get_undirected_edges()`.\n"
-"msgstr: Si se proporciona, analiza el CPDAG de esta cadena DOT (se esperan bordes no dirigidos codificados como `[style=dashed, dir=none]`). Si es None, utiliza el CPDAG actual del modelo de `self.get_directed_edges()` y `self.get_undirected_edges()`."
+"Si se proporciona, analiza el CPDAG de esta cadena DOT (se esperan bordes no"
+" dirigidos codificados como `[style=dashed, dir=none]`). Si es None, utiliza"
+" el CPDAG actual del modelo de `self.get_directed_edges()` y "
+"`self.get_undirected_edges()`."
 
 #: 9406897f8bd24edea558a0aff2b8b048 of
 #: pymc_marketing.mmm.causal.TBFPC.get_all_cdags_from_cpdag
@@ -74,5 +76,5 @@ msgid ""
 "A list of DOT strings, each representing a fully oriented DAG (no dashed "
 "edges)."
 msgstr ""
-"msgid: A list of DOT strings, each representing a fully oriented DAG (no dashed edges).  \n"
-"msgstr: Una lista de cadenas DOT, cada una representando un DAG completamente orientado (sin bordes discontinuos)."
+"Una lista de cadenas DOT, cada una representando un DAG completamente "
+"orientado (sin bordes discontinuos)."

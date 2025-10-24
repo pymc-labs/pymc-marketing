@@ -37,9 +37,7 @@ msgstr ""
 #: 69abb70ca42d4b649211053939b18004 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:4
 msgid "The sBG model has the following assumptions:"
-msgstr ""
-"msgid: The sBG model has the following assumptions:  \n"
-"msgstr: El modelo sBG tiene las siguientes suposiciones:"
+msgstr "El modelo sBG tiene las siguientes suposiciones:"
 
 #: 4d1e18e64cb9488f90265d73d7004339 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:5
@@ -47,23 +45,23 @@ msgid ""
 "Dropout probabilities for each cohortare Beta-distributed with "
 "hyperparameters `alpha` and `beta`."
 msgstr ""
-"msgid: Dropout probabilities for each cohort are Beta-distributed with hyperparameters `alpha` and `beta`.\n"
-"msgstr: Las probabilidades de abandono para cada cohorte están distribuidas según una Beta con hiperparámetros `alpha` y `beta`."
+"Las probabilidades de abandono para cada cohorte están distribuidas según "
+"una Beta con hiperparámetros `alpha` y `beta`."
 
 #: 613810ab4b8349d48ab760800808fe2a of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:6
 msgid "Cohort retention rates change over time due to customer heterogeneity."
 msgstr ""
-"msgid: Cohort retention rates change over time due to customer heterogeneity.  \n"
-"msgstr: Las tasas de retención de cohortes cambian con el tiempo debido a la heterogeneidad de los clientes."
+"Las tasas de retención de cohortes cambian con el tiempo debido a la "
+"heterogeneidad de los clientes."
 
 #: c9cfe5aeedee4e36992acf737a55ea77 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:7
 msgid ""
 "Customers in the same cohort began their contract in the same time period."
 msgstr ""
-"msgid: Customers in the same cohort began their contract in the same time period.  \n"
-"msgstr: Los clientes en la misma cohorte comenzaron su contrato en el mismo período de tiempo."
+"Los clientes en la misma cohorte comenzaron su contrato en el mismo período "
+"de tiempo."
 
 #: aec8e3065a79435db24c5e7b76d3ffe5 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:9
@@ -72,8 +70,9 @@ msgid ""
 "for each customer. Modeling assumptions require *1 <= recency <= T*, and *T "
 ">= 2*."
 msgstr ""
-"msgid: This model requires data to be summarized by *recency*, *T*, and *cohort* for each customer. Modeling assumptions require *1 <= recency <= T*, and *T >= 2*.\n"
-"msgstr: Este modelo requiere que los datos sean resumidos por *recencia*, *T* y *cohorte* para cada cliente. Las suposiciones del modelo requieren *1 <= recencia <= T* y *T >= 2*."
+"Este modelo requiere que los datos sean resumidos por *recencia*, *T* y "
+"*cohorte* para cada cliente. Las suposiciones del modelo requieren *1 <= "
+"recencia <= T* y *T >= 2*."
 
 #: 7815e6d943344281a01b6bdbb3ccaac3 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:12
@@ -103,9 +102,7 @@ msgstr "DataFrame"
 #: e30662c2c1a64af88da49cc19728a0a8 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:17
 msgid "DataFrame containing the following columns:"
-msgstr ""
-"msgid: DataFrame containing the following columns:  \n"
-"msgstr: DataFrame que contiene las siguientes columnas:"
+msgstr "DataFrame que contiene las siguientes columnas:"
 
 #: b9fd975590184ef29fbb845399b3ffde of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:18
@@ -118,8 +115,8 @@ msgid ""
 "`recency`: Time period of last contract renewal. It should equal *T* for "
 "active customers."
 msgstr ""
-"msgid: `recency`: Time period of last contract renewal. It should equal *T* for active customers.  \n"
-"msgstr: `recency`: Período de tiempo de la última renovación del contrato. Debe ser igual a *T* para clientes activos."
+"`recency`: Período de tiempo de la última renovación del contrato. Debe ser "
+"igual a *T* para clientes activos."
 
 #: c9b3557f5cad4a1386b122b7d5892d30 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:20
@@ -127,8 +124,8 @@ msgid ""
 "`T`: Max observed time period in the cohort. All customers in a given cohort"
 " share the same value for *T*."
 msgstr ""
-"msgid: `T`: Max observed time period in the cohort. All customers in a given cohort share the same value for *T*.\n"
-"msgstr: `T`: Período máximo de tiempo observado en la cohorte. Todos los clientes en una cohorte dada comparten el mismo valor para *T*."
+"`T`: Período máximo de tiempo observado en la cohorte. Todos los clientes en"
+" una cohorte dada comparten el mismo valor para *T*."
 
 #: 4746c60562b843459c041c51ed9aa8e3 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:21
@@ -149,9 +146,7 @@ msgstr "python:dict, optional"
 #: 789f51c372a1497fa39ca4afdf19d5bd of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:24
 msgid "Dictionary of model prior parameters:"
-msgstr ""
-"msgid: Dictionary of model prior parameters:  \n"
-"msgstr: Diccionario de parámetros previos del modelo:"
+msgstr "Diccionario de parámetros previos del modelo:"
 
 #: 468a00f42dea437badccf55b68466a48 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:25
@@ -159,8 +154,8 @@ msgid ""
 "`a`: Shape parameter of dropout process; defaults to `phi_purchase` * "
 "`kappa_purchase`"
 msgstr ""
-"msgid: a: Shape parameter of dropout process; defaults to `phi_purchase` * `kappa_purchase`  \n"
-"msgstr: a: Parámetro de forma del proceso de abandono; por defecto es `phi_purchase` * `kappa_purchase`"
+"a: Parámetro de forma del proceso de abandono; por defecto es `phi_purchase`"
+" * `kappa_purchase`"
 
 #: 134bcb4df4d74ef8aa357b11d5f6e7f7 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:26
@@ -168,8 +163,8 @@ msgid ""
 "`b`: Shape parameter of dropout process; defaults to `1-phi_dropout` * "
 "`kappa_dropout`"
 msgstr ""
-"msgid: `b`: Shape parameter of dropout process; defaults to `1-phi_dropout` * `kappa_dropout`  \n"
-"msgstr: `b`: Parámetro de forma del proceso de abandono; por defecto es `1-phi_dropout` * `kappa_dropout`"
+"`b`: Parámetro de forma del proceso de abandono; por defecto es "
+"`1-phi_dropout` * `kappa_dropout`"
 
 #: 21faafd496eb4ed685d59ac462d9f996 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:27
@@ -177,8 +172,8 @@ msgid ""
 "`phi_dropout`: Pooling prior; defaults to `Prior(\"Uniform\", lower=0, "
 "upper=1, dims=\"cohort\")`"
 msgstr ""
-"msgid: `phi_dropout`: Pooling prior; defaults to `Prior(\"Uniform\", lower=0, upper=1, dims=\"cohort\")`  \n"
-"msgstr: `phi_dropout`: Priorización de agrupamiento; por defecto es `Prior(\"Uniform\", lower=0, upper=1, dims=\"cohort\")`"
+"`phi_dropout`: Priorización de agrupamiento; por defecto es "
+"`Prior(\"Uniform\", lower=0, upper=1, dims=\"cohort\")`"
 
 #: 24b8cbde5754494bbc02184d18c6816e of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:28
@@ -186,8 +181,8 @@ msgid ""
 "`kappa_dropout`: Pooling prior; defaults to `Prior(\"Pareto\", alpha=1, m=1,"
 " dims=\"cohort\")`"
 msgstr ""
-"msgid: `kappa_dropout`: Pooling prior; defaults to `Prior(\"Pareto\", alpha=1, m=1, dims=\"cohort\")`  \n"
-"msgstr: `kappa_dropout`: Prior de agrupamiento; por defecto es `Prior(\"Pareto\", alpha=1, m=1, dims=\"cohort\")`"
+"`kappa_dropout`: Prior de agrupamiento; por defecto es `Prior(\"Pareto\", "
+"alpha=1, m=1, dims=\"cohort\")`"
 
 #: aa22ffb6fd9e41539e011ad632e08e7e of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:30
@@ -197,9 +192,7 @@ msgstr "**sampler_config** : :class:`python:dict`, optional"
 #: cdcbbce469504f89b83f9134c7318cf4 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:31
 msgid "Dictionary of sampler parameters. Defaults to *None*."
-msgstr ""
-"msgid: Dictionary of sampler parameters. Defaults to *None*.\n"
-"msgstr: Diccionario de parámetros del muestreador. Por defecto es *Ninguno*."
+msgstr "Diccionario de parámetros del muestreador. Por defecto es *Ninguno*."
 
 #: 3ec4d57014414839ac6480e433936380 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:45
@@ -227,8 +220,9 @@ msgid ""
 "Contractual Setting: The Perils of Ignoring Heterogeneity.\" Marketing "
 "Science, 29(1), 85-93."
 msgstr ""
-"msgid: Fader, P. S., & Hardie, B. G. (2010). \"Customer-Base Valuation in a Contractual Setting: The Perils of Ignoring Heterogeneity.\" Marketing Science, 29(1), 85-93.  \n"
-"msgstr: Fader, P. S., & Hardie, B. G. (2010). \"Valoración de la Base de Clientes en un Entorno Contractual: Los Peligros de Ignorar la Heterogeneidad.\" Marketing Science, 29(1), 85-93."
+"Fader, P. S., & Hardie, B. G. (2010). \"Valoración de la Base de Clientes en"
+" un Entorno Contractual: Los Peligros de Ignorar la Heterogeneidad.\" "
+"Marketing Science, 29(1), 85-93."
 
 #: 6ea42ef8997e4754bbded0baddc52eb0 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel:51
@@ -272,8 +266,8 @@ msgstr ""
 msgid ""
 "Initialize model configuration and sampler configuration for the model."
 msgstr ""
-"msgid: Initialize model configuration and sampler configuration for the model.  \n"
-"msgstr: Inicializar la configuración del modelo y la configuración del muestreador para el modelo."
+"Inicializar la configuración del modelo y la configuración del muestreador "
+"para el modelo."
 
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:40:<autosummary>:1
 #: 28468030ce8c430f90c3d551e12dd5ea
@@ -284,7 +278,7 @@ msgid ""
 msgstr ""
 ":py:obj:`ShiftedBetaGeoModel.attrs_to_init_kwargs "
 "<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.attrs_to_init_kwargs>`\\"
-" \\(attrs\\)"
+" (attrs)"
 
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:40:<autosummary>:1
 #: 0495fe29737643efa3d34cf60252b7d6
@@ -292,8 +286,8 @@ msgid ""
 "Convert the model configuration and sampler configuration from the "
 "attributes to keyword arguments."
 msgstr ""
-"msgid: Convert the model configuration and sampler configuration from the attributes to keyword arguments.  \n"
-"msgstr: Convierta la configuración del modelo y la configuración del muestreador de los atributos a argumentos de palabra clave."
+"Convierta la configuración del modelo y la configuración del muestreador de "
+"los atributos a argumentos de palabra clave."
 
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:40:<autosummary>:1
 #: 6354903cba814ea788506f525f25ebe1
@@ -341,9 +335,7 @@ msgstr ""
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:40:<autosummary>:1
 #: 14f2a202bcfa437b84d6cb05fdee836d
 msgid "Create attributes for the inference data."
-msgstr ""
-"msgid: Create attributes for the inference data.\n"
-"msgstr: Crear atributos para los datos de inferencia."
+msgstr "Crear atributos para los datos de inferencia."
 
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:40:<autosummary>:1
 #: baa315de12604d49bfe59749a1c95f69
@@ -464,9 +456,7 @@ msgstr ""
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:40:<autosummary>:1
 #: f340f3eb2b234da3a72cacbf002fbba8
 msgid "Get the graphviz representation of the model."
-msgstr ""
-"msgid: Get the graphviz representation of the model.  \n"
-"msgstr: Obtenga la representación graphviz del modelo."
+msgstr "Obtenga la representación graphviz del modelo."
 
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:40:<autosummary>:1
 #: 5d8d877b14104b6491f4c3e2e6ee3fe2
@@ -483,8 +473,7 @@ msgstr ""
 #: 366bda9a8d3e48869a0b0a8a79739e5b
 msgid "Create the initialization kwargs from an InferenceData object."
 msgstr ""
-"msgid: Create the initialization kwargs from an InferenceData object.\n"
-"msgstr: Cree los kwargs de inicialización a partir de un objeto InferenceData."
+"Cree los kwargs de inicialización a partir de un objeto InferenceData."
 
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:40:<autosummary>:1
 #: 484465a0957b44fb98b26c8537803f10
@@ -500,9 +489,7 @@ msgstr ""
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:40:<autosummary>:1
 #: db102ffcc5244491999359300d633a0c
 msgid "Create a ModelBuilder instance from a file."
-msgstr ""
-"msgid: Create a ModelBuilder instance from a file.  \n"
-"msgstr: Crear una instancia de ModelBuilder a partir de un archivo."
+msgstr "Crear una instancia de ModelBuilder a partir de un archivo."
 
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:40:<autosummary>:1
 #: db6e9a770c5b41518fa1491eeb4dd57d
@@ -535,9 +522,7 @@ msgstr ""
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:40:<autosummary>:1
 #: c4753b29c4634fbcbce44f948770a1f3
 msgid "Save the model's inference data to a file."
-msgstr ""
-"msgid: Save the model's inference data to a file.  \n"
-"msgstr: Guarde los datos de inferencia del modelo en un archivo."
+msgstr "Guarde los datos de inferencia del modelo en un archivo."
 
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:40:<autosummary>:1
 #: 1077010a10fd4adc8604ffa292366ca1
@@ -553,9 +538,7 @@ msgstr ""
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:40:<autosummary>:1
 #: 15aa4b06d59f4aa8a941c5cfa02f08bd
 msgid "Set attributes on an InferenceData object."
-msgstr ""
-"msgid: Set attributes on an InferenceData object.  \n"
-"msgstr: Establecer atributos en un objeto InferenceData."
+msgstr "Establecer atributos en un objeto InferenceData."
 
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:40:<autosummary>:1
 #: 0d9b5c1d26854cf2a4952e5748aad4d6
@@ -634,9 +617,7 @@ msgstr ""
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:57:<autosummary>:1
 #: af4f4a085bf040e89520de82a9deb00f
 msgid "Get the posterior fit_result."
-msgstr ""
-"msgid: Get the posterior fit_result.  \n"
-"msgstr: Obtenga el resultado de ajuste posterior."
+msgstr "Obtenga el resultado de ajuste posterior."
 
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:57:<autosummary>:1
 #: b4027ed5ebe640d4afcaae55fa835b1f
@@ -650,9 +631,7 @@ msgstr ""
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:57:<autosummary>:1
 #: 9f371d2a0bc545a79fad858cb2cdff77
 msgid "Generate a unique hash value for the model."
-msgstr ""
-"msgid: Generate a unique hash value for the model.\n"
-"msgstr: Generar un valor hash único para el modelo."
+msgstr "Generar un valor hash único para el modelo."
 
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.rst:57:<autosummary>:1
 #: 0f3c988dc139482d81a955a15b53af8b

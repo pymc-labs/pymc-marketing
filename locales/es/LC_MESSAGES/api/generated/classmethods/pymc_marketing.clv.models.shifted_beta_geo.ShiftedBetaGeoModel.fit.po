@@ -69,5 +69,4 @@ msgstr "**kwargs:**"
 #: pymc_marketing.clv.models.basic.CLVModel.fit:16
 msgid "Other keyword arguments passed to the underlying PyMC routines"
 msgstr ""
-"msgid: Other keyword arguments passed to the underlying PyMC routines  \n"
-"msgstr: Otros argumentos de palabra clave pasados a las rutinas subyacentes de PyMC"
+"Otros argumentos de palabra clave pasados a las rutinas subyacentes de PyMC"

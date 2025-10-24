@@ -221,8 +221,8 @@ msgstr ""
 msgid ""
 "Enumerate all acyclic orientations (consistent extensions) of the CPDAG."
 msgstr ""
-"msgid: Enumerate all acyclic orientations (consistent extensions) of the CPDAG.\n"
-"msgstr: Enumere todas las orientaciones acíclicas (extensiones consistentes) del CPDAG."
+"Enumere todas las orientaciones acíclicas (extensiones consistentes) del "
+"CPDAG."
 
 #: ../source/api/generated/pymc_marketing.mmm.causal.TBFPC.rst:24:<autosummary>:1
 #: e53debdf91324fc8850f9117e0cdab33

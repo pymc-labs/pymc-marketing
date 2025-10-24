@@ -29,8 +29,8 @@ msgstr "CustomModelWrapper.model\\_parametrized\\_name"
 #: pydantic.main.BaseModel.model_parametrized_name:2
 msgid "Compute the class name for parametrizations of generic classes."
 msgstr ""
-"msgid: Compute the class name for parametrizations of generic classes.  \n"
-"msgstr: Calcule el nombre de la clase para las parametrizaciones de clases genéricas."
+"Calcule el nombre de la clase para las parametrizaciones de clases "
+"genéricas."
 
 #: d7644280cf804a488045d5d19636c25f of
 #: pydantic.main.BaseModel.model_parametrized_name:4
@@ -38,8 +38,8 @@ msgid ""
 "This method can be overridden to achieve a custom naming scheme for generic "
 "BaseModels."
 msgstr ""
-"msgid: This method can be overridden to achieve a custom naming scheme for generic BaseModels.  \n"
-"msgstr: Este método puede ser anulado para lograr un esquema de nombres personalizado para BaseModels genéricos."
+"Este método puede ser anulado para lograr un esquema de nombres "
+"personalizado para BaseModels genéricos."
 
 #: a155519fa84b47ca8906798a76b5ebca of
 #: pydantic.main.BaseModel.model_parametrized_name:6
@@ -49,9 +49,7 @@ msgstr "Args:"
 #: 8c580ee4bdcb4043b5765d280faca2ae of
 #: pydantic.main.BaseModel.model_parametrized_name:7
 msgid "params: Tuple of types of the class. Given a generic class"
-msgstr ""
-"msgid: params: Tuple of types of the class. Given a generic class  \n"
-"msgstr: params: Tupla de tipos de la clase. Dada una clase genérica"
+msgstr "params: Tupla de tipos de la clase. Dada una clase genérica"
 
 #: 7293170d9c114bdcaec0b590a2f4ff64 of
 #: pydantic.main.BaseModel.model_parametrized_name:8
@@ -59,8 +57,8 @@ msgid ""
 "`Model` with 2 type variables and a concrete model `Model[str, int]`, the "
 "value `(str, int)` would be passed to `params`."
 msgstr ""
-"msgid: `Model` with 2 type variables and a concrete model `Model[str, int]`, the value `(str, int)` would be passed to `params`.  \n"
-"msgstr: `Model` con 2 variables de tipo y un modelo concreto `Model[str, int]`, el valor `(str, int)` se pasaría a `params`."
+"`Model` con 2 variables de tipo y un modelo concreto `Model[str, int]`, el "
+"valor `(str, int)` se pasaría a `params`."
 
 #: c52caad94f6c436c8f85dd402af171b4 of
 #: pydantic.main.BaseModel.model_parametrized_name:11
@@ -87,5 +85,5 @@ msgid ""
 "TypeError: Raised when trying to generate concrete names for non-generic "
 "models."
 msgstr ""
-"msgid: TypeError: Raised when trying to generate concrete names for non-generic models.  \n"
-"msgstr: TypeError: Se genera al intentar crear nombres concretos para modelos no genéricos."
+"TypeError: Se genera al intentar crear nombres concretos para modelos no "
+"genéricos."

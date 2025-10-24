@@ -57,9 +57,7 @@ msgstr "**y_true** : :term:`numpy:array_like`"
 #: pymc_marketing.metrics.per_observation_crps:8
 #: pymc_marketing.metrics.per_observation_crps:11
 msgid "numpy:array_like"
-msgstr ""
-"msgid: numpy:array_like  \n"
-"msgstr: numpy:array_like"
+msgstr "numpy:similar_a_array"
 
 #: 29e4a4a0cc494ec795a92e715440dc26 of
 #: pymc_marketing.metrics.per_observation_crps:10

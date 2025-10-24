@@ -67,9 +67,7 @@ msgstr "python:int, python:tuple, Variable, optional"
 #: 735a8430c4ee4bda99967570d5139310 of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric.dist:11
 msgid "A tuple of sizes for each dimension of the new RV."
-msgstr ""
-"msgid: A tuple of sizes for each dimension of the new RV.  \n"
-"msgstr: Una tupla de tamaños para cada dimensión del nuevo RV."
+msgstr "Una tupla de tamaños para cada dimensión del nuevo RV."
 
 #: c8fc3db993ed4413baecbbc2f5992aa2 of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric.dist:13
@@ -82,8 +80,8 @@ msgid ""
 "Keyword arguments that will be forwarded to the PyTensor RV Op. Most "
 "prominently: ``size`` or ``dtype``."
 msgstr ""
-"msgid: Keyword arguments that will be forwarded to the PyTensor RV Op. Most prominently: ``size`` or ``dtype``.  \n"
-"msgstr: Argumentos clave que se enviarán a la operación RV de PyTensor. Más notablemente: ``size`` o ``dtype``."
+"Argumentos clave que se enviarán a la operación RV de PyTensor. Más "
+"notablemente: ``size`` o ``dtype``."
 
 #: 684e75c6e3c54182b588d7d8e1e912c4 of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric.dist
@@ -103,6 +101,4 @@ msgstr "TensorVariable"
 #: 0e39e87547604531b3bc4158fb2d0f36 of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric.dist:22
 msgid "The created random variable tensor."
-msgstr ""
-"msgid: The created random variable tensor.  \n"
-"msgstr: El tensor de variable aleatoria creado."
+msgstr "El tensor de variable aleatoria creado."

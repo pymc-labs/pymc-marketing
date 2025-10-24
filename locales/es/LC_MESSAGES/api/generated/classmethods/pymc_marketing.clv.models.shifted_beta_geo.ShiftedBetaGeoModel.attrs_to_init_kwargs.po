@@ -31,8 +31,8 @@ msgid ""
 "Convert the model configuration and sampler configuration from the "
 "attributes to keyword arguments."
 msgstr ""
-"msgid: Convert the model configuration and sampler configuration from the attributes to keyword arguments.  \n"
-"msgstr: Convierta la configuración del modelo y la configuración del muestreador de los atributos a argumentos de palabra clave."
+"Convierta la configuración del modelo y la configuración del muestreador de "
+"los atributos a argumentos de palabra clave."
 
 #: a8466a951dbb4dd8973694fe82cf4058 of
 #: pymc_marketing.model_builder.ModelIO.attrs_to_init_kwargs:4
@@ -40,5 +40,5 @@ msgid ""
 "This method must be overridden in child classes if additional keyword "
 "arguments are needed."
 msgstr ""
-"msgid: This method must be overridden in child classes if additional keyword arguments are needed.  \n"
-"msgstr: Este método debe ser sobrescrito en las clases hijas si se necesitan argumentos de palabra clave adicionales."
+"Este método debe ser sobrescrito en las clases hijas si se necesitan "
+"argumentos de palabra clave adicionales."
