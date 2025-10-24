@@ -93,17 +93,21 @@ exclude_patterns = [
 
 # Fast build mode: Skip notebooks
 if SKIP_NOTEBOOKS:
-    exclude_patterns.extend([
-        "notebooks/**",
-        "guide/benefits/model_deployment.ipynb",
-    ])
+    exclude_patterns.extend(
+        [
+            "notebooks/**",
+            "guide/benefits/model_deployment.ipynb",
+        ]
+    )
     print("  ⚡ Excluding all notebooks from build")
 
 # Fast build mode: Skip API generation
 if SKIP_API_GENERATION:
-    exclude_patterns.extend([
-        "api/generated/**",
-    ])
+    exclude_patterns.extend(
+        [
+            "api/generated/**",
+        ]
+    )
     print("  ⚡ Excluding API documentation from build")
 
 # The reST default role (used for this markup: `text`) to use for all documents.
