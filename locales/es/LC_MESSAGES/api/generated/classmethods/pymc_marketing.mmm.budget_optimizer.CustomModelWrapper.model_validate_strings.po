@@ -28,9 +28,7 @@ msgstr "CustomModelWrapper.model\\_validate\\_strings"
 #: 951877b568ac4500aab99a2898adf5b5 of
 #: pydantic.main.BaseModel.model_validate_strings:2
 msgid "Validate the given object with string data against the Pydantic model."
-msgstr ""
-"msgid: Validate the given object with string data against the Pydantic model.\n"
-"msgstr: Valide el objeto dado con datos de cadena contra el modelo Pydantic."
+msgstr "Valide el objeto dado con datos de cadena contra el modelo Pydantic."
 
 #: da3895db7de74c2a8c486198e4e28d4d of
 #: pydantic.main.BaseModel.model_validate_strings:4
@@ -44,8 +42,9 @@ msgid ""
 "enforce types strictly. extra: Whether to ignore, allow, or forbid extra "
 "data during model validation."
 msgstr ""
-"msgid: obj: The object containing string data to validate. strict: Whether to enforce types strictly. extra: Whether to ignore, allow, or forbid extra data during model validation.  \n"
-"msgstr: obj: El objeto que contiene datos de cadena para validar. strict: Si se deben aplicar estrictamente los tipos. extra: Si se debe ignorar, permitir o prohibir datos adicionales durante la validación del modelo."
+"obj: El objeto que contiene datos de cadena para validar. strict: Si se "
+"deben aplicar estrictamente los tipos. extra: Si se debe ignorar, permitir o"
+" prohibir datos adicionales durante la validación del modelo."
 
 #: 634554127d1749fa9d3dc82a442d5b63 of
 #: pydantic.main.BaseModel.model_validate_strings:8
@@ -53,8 +52,8 @@ msgid ""
 "See the [`extra` configuration value][pydantic.ConfigDict.extra] for "
 "details."
 msgstr ""
-"msgid: See the [`extra` configuration value][pydantic.ConfigDict.extra] for details.  \n"
-"msgstr: Consulte el valor de configuración [`extra`][pydantic.ConfigDict.extra] para más detalles."
+"Consulte el valor de configuración [`extra`][pydantic.ConfigDict.extra] para"
+" más detalles."
 
 #: 105be37eb18446aa849f4105087da60e of
 #: pydantic.main.BaseModel.model_validate_strings:9

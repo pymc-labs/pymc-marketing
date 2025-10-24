@@ -23,6 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.TestResult.keys.rst:2
 #: 9a02221381704fca828fe911d94b799b
 msgid "TestResult.keys"
-msgstr ""
-"msgid: TestResult.keys  \n"
-"msgstr: TestResult.keys"
+msgstr "TestResult.claves"

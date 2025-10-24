@@ -35,8 +35,13 @@ msgid ""
 "behavior in a discrete contractual setting. It is ideal for business cases "
 "involving recurring subscriptions and has the following assumptions:"
 msgstr ""
-"msgid: In this notebook we replicate the main results and figures from [\"How to Project Customer Retention\"](https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf) by Hardie & Fader (2007), which introduces the Shifted Beta-Geometric (sBG) model for customer behavior in a discrete contractual setting. It is ideal for business cases involving recurring subscriptions and has the following assumptions:\n"
-"msgstr: En este cuaderno replicamos los principales resultados y figuras de [\"Cómo proyectar la retención de clientes\"](https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf) de Hardie y Fader (2007), que introduce el modelo Beta-Geométrico Desplazado (sBG) para el comportamiento del cliente en un entorno contractual discreto. Es ideal para casos de negocio que involucran suscripciones recurrentes y tiene las siguientes suposiciones:"
+"En este cuaderno replicamos los principales resultados y figuras de [\"Cómo "
+"proyectar la retención de clientes\"](https://faculty.wharton.upenn.edu/wp-"
+"content/uploads/2012/04/Fader_hardie_jim_07.pdf) de Hardie y Fader (2007), "
+"que introduce el modelo Beta-Geométrico Desplazado (sBG) para el "
+"comportamiento del cliente en un entorno contractual discreto. Es ideal para"
+" casos de negocio que involucran suscripciones recurrentes y tiene las "
+"siguientes suposiciones:"
 
 #: ../source/notebooks/clv/dev/sBG_cohort.ipynb:20003
 #: 2799aee3dc0240ee8414867df5c9cfbf
@@ -44,15 +49,15 @@ msgid ""
 "Customer cancellation probabilities are Beta-distributed with "
 "hyperparameters `alpha` and `beta`."
 msgstr ""
-"msgid: Customer cancellation probabilities are Beta-distributed with hyperparameters `alpha` and `beta`.  \n"
-"msgstr: Las probabilidades de cancelación de clientes están distribuidas según una Beta con hiperparámetros `alpha` y `beta`."
+"Las probabilidades de cancelación de clientes están distribuidas según una "
+"Beta con hiperparámetros `alpha` y `beta`."
 
 #: ../source/notebooks/clv/dev/sBG_cohort.ipynb:20004
 #: 02aa00097f9f45e1b23735f667f3a3c0
 msgid "Retention rates change over time due to customer heterogeneity."
 msgstr ""
-"msgid: Retention rates change over time due to customer heterogeneity.  \n"
-"msgstr: Las tasas de retención cambian con el tiempo debido a la heterogeneidad de los clientes."
+"Las tasas de retención cambian con el tiempo debido a la heterogeneidad de "
+"los clientes."
 
 #: ../source/notebooks/clv/dev/sBG_cohort.ipynb:20005
 #: 7354d9362b304aa59df1aaebbab7c57a
@@ -60,8 +65,8 @@ msgid ""
 "All customers in a given cohort began their contract in the same time "
 "period."
 msgstr ""
-"msgid: All customers in a given cohort began their contract in the same time period.  \n"
-"msgstr: Todos los clientes en una cohorte dada comenzaron su contrato en el mismo período de tiempo."
+"Todos los clientes en una cohorte dada comenzaron su contrato en el mismo "
+"período de tiempo."
 
 #: ../source/notebooks/clv/dev/sBG_cohort.ipynb:20007
 #: 546177d66cc649ee82794ca1b7db319b
@@ -69,8 +74,8 @@ msgid ""
 "The last assumption in particular is an ideal application for hierarchical "
 "Bayesian modeling."
 msgstr ""
-"msgid: The last assumption in particular is an ideal application for hierarchical Bayesian modeling.  \n"
-"msgstr: La última suposición en particular es una aplicación ideal para el modelado bayesiano jerárquico."
+"La última suposición en particular es una aplicación ideal para el modelado "
+"bayesiano jerárquico."
 
 #: ../source/notebooks/clv/dev/sBG_cohort.ipynb:30002
 #: dae6121f4f374b3fba91bca8dacac7b5
@@ -80,9 +85,7 @@ msgstr "Tutorial Notebook Outstanding Tasks"
 #: ../source/notebooks/clv/dev/sBG_cohort.ipynb:30003
 #: 0a6687f50ae349af9d1eaa5e2e42b6dd
 msgid "Merge PR for `expected_retention_elasticity`"
-msgstr ""
-"msgid: Merge PR for `expected_retention_elasticity`  \n"
-"msgstr: Fusionar PR para `expected_retention_elasticity`"
+msgstr "Fusionar PR para `expected_retention_elasticity`"
 
 #: ../source/notebooks/clv/dev/sBG_cohort.ipynb:30004
 #: 7d04fe4b29b74c39ad6ca8dff3691428
@@ -100,8 +103,8 @@ msgid ""
 "Fit regular/highend data to both a cohort and covariate model to replicate "
 "research results"
 msgstr ""
-"msgid: Fit regular/highend data to both a cohort and covariate model to replicate research results  \n"
-"msgstr: Ajustar datos regulares/de alta gama tanto a un modelo de cohorte como a un modelo de covariables para replicar los resultados de la investigación"
+"Ajustar datos regulares/de alta gama tanto a un modelo de cohorte como a un "
+"modelo de covariables para replicar los resultados de la investigación"
 
 #: ../source/notebooks/clv/dev/sBG_cohort.ipynb:30007
 #: 7cfa588648394e46b1850bd784807978
@@ -109,8 +112,9 @@ msgid ""
 "Synthesize time cohort model with covariates to showcase conventional cohort"
 " EDA, additional predictive methods, and mean/polar plotting"
 msgstr ""
-"msgid: Synthesize time cohort model with covariates to showcase conventional cohort EDA, additional predictive methods, and mean/polar plotting  \n"
-"msgstr: Sintetizar el modelo de cohorte temporal con covariables para mostrar el EDA de cohorte convencional, métodos predictivos adicionales y gráficos de media/polar."
+"Sintetizar el modelo de cohorte temporal con covariables para mostrar el EDA"
+" de cohorte convencional, métodos predictivos adicionales y gráficos de "
+"media/polar."
 
 #: ../source/notebooks/clv/dev/sBG_cohort.ipynb:60002
 #: 00142b71d55a4a48a2cdf69a00e9f0c3
@@ -130,8 +134,10 @@ msgid ""
 "(black line), even when extrapolating into the time periods that were held-"
 "out when fitting the model."
 msgstr ""
-"msgid: Figures 4 and 5 show the predicted average churn and retention trends for the two groups. We can see that predictions nicely match the observed data (black line), even when extrapolating into the time periods that were held-out when fitting the model.  \n"
-"msgstr: Las figuras 4 y 5 muestran las tendencias promedio de abandono y retención predichas para los dos grupos. Podemos ver que las predicciones coinciden perfectamente con los datos observados (línea negra), incluso al extrapolar en los períodos de tiempo que se excluyeron al ajustar el modelo."
+"Las figuras 4 y 5 muestran las tendencias promedio de abandono y retención "
+"predichas para los dos grupos. Podemos ver que las predicciones coinciden "
+"perfectamente con los datos observados (línea negra), incluso al extrapolar "
+"en los períodos de tiempo que se excluyeron al ajustar el modelo."
 
 #: ../source/notebooks/clv/dev/sBG_cohort.ipynb:100005
 #: 8cb8fd25f5634fcf9c4f8c969352c309
@@ -141,8 +147,11 @@ msgid ""
 "customers gradually drop out. This is a direct consequence of modelling "
 "individual churn rates as being fixed over time."
 msgstr ""
-"msgid: The plots also highlight an interesting implication from the model:  the retention rates are expected to increase over time, as the more precarious customers gradually drop out. This is a direct consequence of modelling individual churn rates as being fixed over time.\n"
-"msgstr: Las gráficas también destacan una implicación interesante del modelo: se espera que las tasas de retención aumenten con el tiempo, a medida que los clientes más precarios vayan abandonando gradualmente. Esta es una consecuencia directa de modelar las tasas de abandono individuales como fijas a lo largo del tiempo."
+"Las gráficas también destacan una implicación interesante del modelo: se "
+"espera que las tasas de retención aumenten con el tiempo, a medida que los "
+"clientes más precarios vayan abandonando gradualmente. Esta es una "
+"consecuencia directa de modelar las tasas de abandono individuales como "
+"fijas a lo largo del tiempo."
 
 #: ../source/notebooks/clv/dev/sBG_cohort.ipynb:110002
 #: 8f92dbbd01b44884808180415968cbd5
@@ -163,15 +172,18 @@ msgid ""
 "[`DEMetropolisZ`](https://www.pymc.io/projects/docs/en/v5.6.1/api/generated/pymc.DEMetropolisZ.html)"
 " may be more performant."
 msgstr ""
-"msgid: NUTS defaults to a compound sampler since this is a discrete sampling distribution. It still works great for a dataset of this size, but with large numbers of customers and cohorts, [`DEMetropolisZ`](https://www.pymc.io/projects/docs/en/v5.6.1/api/generated/pymc.DEMetropolisZ.html) may be more performant.  \n"
-"msgstr: NUTS utiliza por defecto un muestreador compuesto ya que esta es una distribución de muestreo discreta. Aún funciona muy bien para un conjunto de datos de este tamaño, pero con grandes cantidades de clientes y cohortes, [`DEMetropolisZ`](https://www.pymc.io/projects/docs/en/v5.6.1/api/generated/pymc.DEMetropolisZ.html) puede ser más eficiente."
+"NUTS utiliza por defecto un muestreador compuesto ya que esta es una "
+"distribución de muestreo discreta. Aún funciona muy bien para un conjunto de"
+" datos de este tamaño, pero con grandes cantidades de clientes y cohortes, "
+"[`DEMetropolisZ`](https://www.pymc.io/projects/docs/en/v5.6.1/api/generated/pymc.DEMetropolisZ.html)"
+" puede ser más eficiente."
 
 #: ../source/notebooks/clv/dev/sBG_cohort.ipynb:150002
 #: 23433add7e554037ae0ca855405a3d9a
 msgid "Contrasting posterior inferences with the repo MLE estimates"
 msgstr ""
-"msgid: Contrasting posterior inferences with the repo MLE estimates  \n"
-"msgstr: Contrastando inferencias posteriores con las estimaciones MLE del repositorio"
+"Contrastando inferencias posteriores con las estimaciones MLE del "
+"repositorio"
 
 #: ../source/notebooks/clv/dev/sBG_cohort.ipynb:160002
 #: 71524887a8e243e38f51fa5a98e582db
@@ -181,8 +193,11 @@ msgid ""
 " distribution `theta`.  The larger the values of `alpha` and `beta`, the "
 "more homogenous the churn rates across different customers."
 msgstr ""
-"msgid: The sBG model has 2 population parameters of interest: `alpha` and `beta`.  These parameters define the population distribution of the latent churn rate distribution `theta`.  The larger the values of `alpha` and `beta`, the more homogenous the churn rates across different customers.\n"
-"msgstr: El modelo sBG tiene 2 parámetros poblacionales de interés: `alpha` y `beta`. Estos parámetros definen la distribución poblacional de la distribución latente de la tasa de abandono `theta`. Cuanto mayores sean los valores de `alpha` y `beta`, más homogéneas serán las tasas de abandono entre diferentes clientes."
+"El modelo sBG tiene 2 parámetros poblacionales de interés: `alpha` y `beta`."
+" Estos parámetros definen la distribución poblacional de la distribución "
+"latente de la tasa de abandono `theta`. Cuanto mayores sean los valores de "
+"`alpha` y `beta`, más homogéneas serán las tasas de abandono entre "
+"diferentes clientes."
 
 #: ../source/notebooks/clv/dev/sBG_cohort.ipynb:160006
 #: 5594200a94434ed98f25428b07b5329d
@@ -191,8 +206,9 @@ msgid ""
 "`alpha/beta == 0.1`, we expect the average customer to have a `0.1` "
 "probability of churning between each time period."
 msgstr ""
-"msgid: The ratio of `alpha` to `beta` tells us the expected churn rates. If `alpha/beta == 0.1`, we expect the average customer to have a `0.1` probability of churning between each time period.  \n"
-"msgstr: La relación de `alpha` a `beta` nos indica las tasas de cancelación esperadas. Si `alpha/beta == 0.1`, esperamos que el cliente promedio tenga una probabilidad de `0.1` de cancelar entre cada período de tiempo."
+"La relación de `alpha` a `beta` nos indica las tasas de cancelación "
+"esperadas. Si `alpha/beta == 0.1`, esperamos que el cliente promedio tenga "
+"una probabilidad de `0.1` de cancelar entre cada período de tiempo."
 
 #: ../source/notebooks/clv/dev/sBG_cohort.ipynb:160008
 #: 2e5931eed6d94def9a6b1f0ef7103c38
@@ -201,8 +217,9 @@ msgid ""
 "the original paper. In addition, MCMC sampling, gives us useful information "
 "about the uncertainty of the fits."
 msgstr ""
-"msgid: The model fitting agrees with the Maximum Likelihood estimates described in the original paper. In addition, MCMC sampling, gives us useful information about the uncertainty of the fits.  \n"
-"msgstr: El ajuste del modelo coincide con las estimaciones de Máxima Verosimilitud descritas en el artículo original. Además, el muestreo MCMC nos proporciona información útil sobre la incertidumbre de los ajustes."
+"El ajuste del modelo coincide con las estimaciones de Máxima Verosimilitud "
+"descritas en el artículo original. Además, el muestreo MCMC nos proporciona "
+"información útil sobre la incertidumbre de los ajustes."
 
 #: ../source/notebooks/clv/dev/sBG_cohort.ipynb:180002
 #: de09fb312af842ce9c49b5158f9afd8f
@@ -229,8 +246,9 @@ msgid ""
 "Below methods are described in https://faculty.wharton.upenn.edu/wp-"
 "content/uploads/2012/04/Fader_hardie_contractual_mksc_10.pdf"
 msgstr ""
-"msgid: Below methods are described in https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_contractual_mksc_10.pdf  \n"
-"msgstr: A continuación, se describen los métodos en https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_contractual_mksc_10.pdf"
+"A continuación, se describen los métodos en "
+"https://faculty.wharton.upenn.edu/wp-"
+"content/uploads/2012/04/Fader_hardie_contractual_mksc_10.pdf"
 
 #: ../source/notebooks/clv/dev/sBG_cohort.ipynb:250002
 #: fa48cfe80ba541bda0932234bcf54402
@@ -243,8 +261,8 @@ msgid ""
 "Adapt below code to create time-period cohorts with highend & regular "
 "covariate customers mixed into each."
 msgstr ""
-"msgid: Adapt below code to create time-period cohorts with highend & regular covariate customers mixed into each.  \n"
-"msgstr: Adapte el código a continuación para crear cohortes de períodos de tiempo con clientes de covariables de alta gama y regulares mezclados en cada uno."
+"Adapte el código a continuación para crear cohortes de períodos de tiempo "
+"con clientes de covariables de alta gama y regulares mezclados en cada uno."
 
 #: ../source/notebooks/clv/dev/sBG_cohort.ipynb:280002
 #: 3a2f234a78014cc1b3aeec617be87efc
@@ -254,9 +272,7 @@ msgstr "Expected Retention Elasticity"
 #: ../source/notebooks/clv/dev/sBG_cohort.ipynb:280003
 #: 135b461dd429468da034528b29e3c8e4
 msgid "TO BE ADDED IN NEXT PR!"
-msgstr ""
-"msgid: TO BE ADDED IN NEXT PR!\n"
-"msgstr: ¡SE AGREGARÁ EN LA PRÓXIMA PR!"
+msgstr "¡SE AGREGARÁ EN LA PRÓXIMA PR!"
 
 #: ../source/notebooks/clv/dev/sBG_cohort.ipynb:300002
 #: 658a272a3cd849c9b1626eeeda0c62df
@@ -266,16 +282,12 @@ msgstr "Expected Lifetime Transactions"
 #: ../source/notebooks/clv/dev/sBG_cohort.ipynb:300003
 #: ba71240ddadc428d916c7b3d6adf982b
 msgid "Add unit testing fixtures here for visual inspection"
-msgstr ""
-"msgid: Add unit testing fixtures here for visual inspection  \n"
-"msgstr: Agregue aquí los elementos de prueba de unidad para inspección visual"
+msgstr "Agregue aquí los elementos de prueba de unidad para inspección visual"
 
 #: ../source/notebooks/clv/dev/sBG_cohort.ipynb:380002
 #: 38d4eb1b2355428d9378e9ebcc6c67c6
 msgid "Latent Dropout Distribution for Customer Population"
-msgstr ""
-"msgid: Latent Dropout Distribution for Customer Population  \n"
-"msgstr: Distribución de Dropout Latente para la Población de Clientes"
+msgstr "Distribución de Dropout Latente para la Población de Clientes"
 
 #: ../source/notebooks/clv/dev/sBG_cohort.ipynb:380003
 #: 79de9207e8a14b41bc386e0b9da859cd
@@ -285,5 +297,8 @@ msgid ""
 "for illustratrive examples in tutorial notebook, latent distribution "
 "plotting code is provided below:"
 msgstr ""
-"msgid: Distribution mean and polarization index plotting will be added in future PR rather than visualizations of the latent cohort dropout distributions, but for illustratrive examples in tutorial notebook, latent distribution plotting code is provided below:\n"
-"msgstr: La representación de la media de distribución y el índice de polarización se añadirán en futuras PR en lugar de las visualizaciones de las distribuciones de abandono de la cohorte latente, pero para ejemplos ilustrativos en el cuaderno tutorial, se proporciona a continuación el código para la representación de la distribución latente:"
+"La representación de la media de distribución y el índice de polarización se"
+" añadirán en futuras PR en lugar de las visualizaciones de las "
+"distribuciones de abandono de la cohorte latente, pero para ejemplos "
+"ilustrativos en el cuaderno tutorial, se proporciona a continuación el "
+"código para la representación de la distribución latente:"

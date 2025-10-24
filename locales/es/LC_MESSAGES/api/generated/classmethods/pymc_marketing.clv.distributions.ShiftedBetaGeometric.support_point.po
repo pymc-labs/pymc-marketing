@@ -28,9 +28,7 @@ msgstr "ShiftedBetaGeometric.support\\_point"
 #: 957f3fc508b54223ae12a804d5fac7fd of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric.support_point:2
 msgid "Calculate a reasonable starting point for sampling."
-msgstr ""
-"msgid: Calculate a reasonable starting point for sampling.  \n"
-"msgstr: Calcule un punto de partida razonable para el muestreo."
+msgstr "Calcule un punto de partida razonable para el muestreo."
 
 #: a2c6ca311c7540df8fbf0728e979e8da of
 #: pymc_marketing.clv.distributions.ShiftedBetaGeometric.support_point:4
@@ -38,5 +36,5 @@ msgid ""
 "For the Shifted Beta-Geometric distribution, we use a point estimate based "
 "on the expected value of the mixture components."
 msgstr ""
-"msgid: For the Shifted Beta-Geometric distribution, we use a point estimate based on the expected value of the mixture components.  \n"
-"msgstr: Para la distribución Beta-Geométrica Desplazada, utilizamos una estimación puntual basada en el valor esperado de los componentes de la mezcla."
+"Para la distribución Beta-Geométrica Desplazada, utilizamos una estimación "
+"puntual basada en el valor esperado de los componentes de la mezcla."

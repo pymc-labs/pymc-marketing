@@ -105,8 +105,8 @@ msgid ""
 "X\\_mid\\[\\, ...\\]\\)"
 msgstr ""
 ":py:obj:`create_m_and_L_recommendations "
-"<pymc_marketing.mmm.hsgp.create_m_and_L_recommendations>`\\ \\(X\\, "
-"X\\_mid\\[\\, ...\\]\\)"
+"<pymc_marketing.mmm.hsgp.create_m_and_L_recommendations>`\\ (X\\, "
+"X\\_mid\\[\\, ...\\] )"
 
 #: ../source/api/generated/pymc_marketing.mmm.hsgp.rst:27:<autosummary>:1
 #: 0fdbc25ce0714e7d9e1a87895e80e2a0

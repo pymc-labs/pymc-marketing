@@ -29,8 +29,8 @@ msgstr "TBF\\_FCI.summary"
 #: pymc_marketing.mmm.causal.TBF_FCI.summary:2
 msgid "Return a human-readable summary of edges and test count."
 msgstr ""
-"msgid: Return a human-readable summary of edges and test count.  \n"
-"msgstr: Devuelva un resumen legible por humanos de los bordes y el conteo de pruebas."
+"Devuelva un resumen legible por humanos de los bordes y el conteo de "
+"pruebas."
 
 #: 1fee124660d848d9bc33e43a27160b4b of
 #: pymc_marketing.mmm.causal.TBF_FCI.summary
@@ -48,8 +48,8 @@ msgid ""
 "Multiline description of directed edges, undirected edges, and the number of"
 " conditional independence tests executed."
 msgstr ""
-"msgid: Multiline description of directed edges, undirected edges, and the number of conditional independence tests executed.  \n"
-"msgstr: Descripción multilineal de los bordes dirigidos, bordes no dirigidos y el número de pruebas de independencia condicional ejecutadas."
+"Descripción multilineal de los bordes dirigidos, bordes no dirigidos y el "
+"número de pruebas de independencia condicional ejecutadas."
 
 #: cd66bfecab764315828323a2bdf2f6c2 of
 #: pymc_marketing.mmm.causal.TBF_FCI.summary:24

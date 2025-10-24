@@ -196,8 +196,9 @@ msgid ""
 "PyMC-Marketing never forces the use of non-linearity. You can build purely "
 "linear models when that's what your data and business context require."
 msgstr ""
-"msgid: PyMC-Marketing never forces the use of non-linearity. You can build purely linear models when that's what your data and business context require.  \n"
-"msgstr: PyMC-Marketing nunca obliga al uso de no linealidad. Puedes construir modelos puramente lineales cuando eso es lo que tus datos y el contexto empresarial requieren."
+"PyMC-Marketing nunca obliga al uso de no linealidad. Puedes construir "
+"modelos puramente lineales cuando eso es lo que tus datos y el contexto "
+"empresarial requieren."
 
 #: ../source/notebooks/mmm/mmm_gam_options.ipynb:160010
 #: d5f34943fbd64ed38675347b10cb40ff
@@ -268,8 +269,9 @@ msgid ""
 "This case represents our precise previous data generation process, but the "
 "important thing is how easy it is to write this equation using the MMM API."
 msgstr ""
-"msgid: This case represents our precise previous data generation process, but the important thing is how easy it is to write this equation using the MMM API.  \n"
-"msgstr: Este caso representa nuestro preciso proceso de generación de datos anterior, pero lo importante es lo fácil que es escribir esta ecuación utilizando la API de MMM."
+"Este caso representa nuestro preciso proceso de generación de datos "
+"anterior, pero lo importante es lo fácil que es escribir esta ecuación "
+"utilizando la API de MMM."
 
 #: ../source/notebooks/mmm/mmm_gam_options.ipynb:180002
 #: 8b307557933742dcb9d1dd2bf8f5c7ba
@@ -1186,8 +1188,10 @@ msgid ""
 " demonstrations for this notebook. They are not part of the official PyMC-"
 "Marketing suite and should be used for educational purposes only."
 msgstr ""
-"msgid: The following implementations are experimental and serve as proof-of-concept demonstrations for this notebook. They are not part of the official PyMC-Marketing suite and should be used for educational purposes only.  \n"
-"msgstr: Las siguientes implementaciones son experimentales y sirven como demostraciones de prueba de concepto para este cuaderno. No forman parte de la suite oficial de PyMC-Marketing y deben ser utilizadas únicamente con fines educativos."
+"Las siguientes implementaciones son experimentales y sirven como "
+"demostraciones de prueba de concepto para este cuaderno. No forman parte de "
+"la suite oficial de PyMC-Marketing y deben ser utilizadas únicamente con "
+"fines educativos."
 
 #: ../source/notebooks/mmm/mmm_gam_options.ipynb:600002
 #: ff29f3b6c8e942c7916e7aa11a8d1be4
@@ -1525,8 +1529,8 @@ msgid ""
 "The `MaskedPrior` functionality was merged recently and is still "
 "experimental. Use with caution in production environments."
 msgstr ""
-"msgid: The `MaskedPrior` functionality was merged recently and is still experimental. Use with caution in production environments.  \n"
-"msgstr: La funcionalidad `MaskedPrior` se fusionó recientemente y aún es experimental. Úsela con precaución en entornos de producción."
+"La funcionalidad `MaskedPrior` se fusionó recientemente y aún es "
+"experimental. Úsela con precaución en entornos de producción."
 
 #: ../source/notebooks/mmm/mmm_gam_options.ipynb:690002
 #: 086c7305bb5c469b90c143c463b72adc

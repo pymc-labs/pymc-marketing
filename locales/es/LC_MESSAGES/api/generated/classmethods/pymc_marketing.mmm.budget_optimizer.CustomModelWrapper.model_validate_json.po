@@ -38,9 +38,7 @@ msgstr "[JSON Parsing](../concepts/json.md#json-parsing)"
 #: 3d80e4aedba14936a4f634e57899a390 of
 #: pydantic.main.BaseModel.model_validate_json:5
 msgid "Validate the given JSON data against the Pydantic model."
-msgstr ""
-"msgid: Validate the given JSON data against the Pydantic model.  \n"
-"msgstr: Valide los datos JSON proporcionados contra el modelo Pydantic."
+msgstr "Valide los datos JSON proporcionados contra el modelo Pydantic."
 
 #: 5528a08de7fd4df391753ae0599ff098 of
 #: pydantic.main.BaseModel.model_validate_json:7
@@ -54,8 +52,9 @@ msgid ""
 "strictly. extra: Whether to ignore, allow, or forbid extra data during model"
 " validation."
 msgstr ""
-"msgid: json_data: The JSON data to validate. strict: Whether to enforce types strictly. extra: Whether to ignore, allow, or forbid extra data during model validation.\n"
-"msgstr: json_data: Los datos JSON a validar. strict: Si se deben imponer los tipos de manera estricta. extra: Si se debe ignorar, permitir o prohibir datos adicionales durante la validación del modelo."
+"json_data: Los datos JSON a validar. strict: Si se deben imponer los tipos "
+"de manera estricta. extra: Si se debe ignorar, permitir o prohibir datos "
+"adicionales durante la validación del modelo."
 
 #: fd0dac9fff154635b2ff274bca6f4481 of
 #: pydantic.main.BaseModel.model_validate_json:11
@@ -63,8 +62,8 @@ msgid ""
 "See the [`extra` configuration value][pydantic.ConfigDict.extra] for "
 "details."
 msgstr ""
-"msgid: See the [`extra` configuration value][pydantic.ConfigDict.extra] for details.  \n"
-"msgstr: Consulte el valor de configuración [`extra`][pydantic.ConfigDict.extra] para más detalles."
+"Consulte el valor de configuración [`extra`][pydantic.ConfigDict.extra] para"
+" más detalles."
 
 #: f6128717254a40a188d5b4de6eafcd7e of
 #: pydantic.main.BaseModel.model_validate_json:12
@@ -100,5 +99,5 @@ msgid ""
 "ValidationError: If `json_data` is not a JSON string or the object could not"
 " be validated."
 msgstr ""
-"msgid: ValidationError: If `json_data` is not a JSON string or the object could not be validated.  \n"
-"msgstr: ValidationError: Si `json_data` no es una cadena JSON o el objeto no pudo ser validado."
+"ValidationError: Si `json_data` no es una cadena JSON o el objeto no pudo "
+"ser validado."

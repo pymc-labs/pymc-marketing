@@ -127,9 +127,7 @@ msgstr "**future_t** : :term:`numpy:array_like`"
 #: 4bda4c5a36bf4d088afdbfd993475a83 of
 #: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases:35
 msgid "numpy:array_like"
-msgstr ""
-"msgid: numpy:array_like  \n"
-"msgstr: numpy:array_like"
+msgstr "numpy:similar_a_array"
 
 #: 6b04748efbf2475da1e95fbc3234efb8 of
 #: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases:37

@@ -383,8 +383,9 @@ msgid ""
 "[Orduz, Juan. \"Media Effect Estimation with PyMC: Adstock, Saturation & "
 "Diminishing Returns\"](https://juanitorduz.github.io/pymc_mmm/)"
 msgstr ""
-"msgid: [Orduz, Juan. \"Media Effect Estimation with PyMC: Adstock, Saturation & Diminishing Returns\"](https://juanitorduz.github.io/pymc_mmm/)\n"
-"msgstr: [Orduz, Juan. \"Estimación del Efecto de los Medios con PyMC: Adstock, Saturación y Rendimientos Decrecientes\"](https://juanitorduz.github.io/pymc_mmm/)"
+"[Orduz, Juan. \"Estimación del Efecto de los Medios con PyMC: Adstock, "
+"Saturación y Rendimientos "
+"Decrecientes\"](https://juanitorduz.github.io/pymc_mmm/)"
 
 #: ../source/notebooks/mmm/mmm_example.ipynb:50004
 #: e50764e75bf548429ac07663827c9e9c

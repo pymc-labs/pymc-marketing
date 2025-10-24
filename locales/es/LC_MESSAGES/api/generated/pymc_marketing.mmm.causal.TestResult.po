@@ -79,8 +79,8 @@ msgstr ""
 msgid ""
 "Create a new dictionary with keys from iterable and values set to value."
 msgstr ""
-"msgid: Create a new dictionary with keys from iterable and values set to value.  \n"
-"msgstr: Cree un nuevo diccionario con claves del iterable y valores establecidos en value."
+"Cree un nuevo diccionario con claves del iterable y valores establecidos en "
+"value."
 
 #: ../source/api/generated/pymc_marketing.mmm.causal.TestResult.rst:33:<autosummary>:1
 #: 80e3f9de651141cba486e765547fe5c9
@@ -95,8 +95,8 @@ msgstr ""
 #: 4b36096ca48648808224d840a91d1652
 msgid "Return the value for key if key is in the dictionary, else default."
 msgstr ""
-"msgid: Return the value for key if key is in the dictionary, else default.  \n"
-"msgstr: Devuelve el valor para la clave si la clave está en el diccionario, de lo contrario, devuelve el valor por defecto."
+"Devuelve el valor para la clave si la clave está en el diccionario, de lo "
+"contrario, devuelve el valor por defecto."
 
 #: ../source/api/generated/pymc_marketing.mmm.causal.TestResult.rst:33:<autosummary>:1
 #: eca5954505524f7b8dd45f45ae5d765a
@@ -131,8 +131,8 @@ msgid ""
 "If the key is not found, return the default if given; otherwise, raise a "
 "KeyError."
 msgstr ""
-"msgid: If the key is not found, return the default if given; otherwise, raise a KeyError.  \n"
-"msgstr: Si la clave no se encuentra, devuelve el valor predeterminado si se proporciona; de lo contrario, genera un KeyError."
+"Si la clave no se encuentra, devuelve el valor predeterminado si se "
+"proporciona; de lo contrario, genera un KeyError."
 
 #: ../source/api/generated/pymc_marketing.mmm.causal.TestResult.rst:33:<autosummary>:1
 #: 48b38ab99aea4a89bcd38fff87da2c0a
@@ -147,8 +147,7 @@ msgstr ""
 #: 26e26c35d27146dd9951d8749fd13172
 msgid "Remove and return a (key, value) pair as a 2-tuple."
 msgstr ""
-"msgid: Remove and return a (key, value) pair as a 2-tuple.  \n"
-"msgstr: Eliminar y devolver un par (clave, valor) como una tupla de 2 elementos."
+"Eliminar y devolver un par (clave, valor) como una tupla de 2 elementos."
 
 #: ../source/api/generated/pymc_marketing.mmm.causal.TestResult.rst:33:<autosummary>:1
 #: cb57bc524d40433f901768aa3fc1cfc7
@@ -165,8 +164,8 @@ msgstr ""
 #: 4fe22623adf440a7a97e0c60e7bae37d
 msgid "Insert key with a value of default if key is not in the dictionary."
 msgstr ""
-"msgid: Insert key with a value of default if key is not in the dictionary.  \n"
-"msgstr: Inserte la clave con un valor de predeterminado si la clave no está en el diccionario."
+"Inserte la clave con un valor de predeterminado si la clave no está en el "
+"diccionario."
 
 #: ../source/api/generated/pymc_marketing.mmm.causal.TestResult.rst:33:<autosummary>:1
 #: c0c4a76ee0444d1e9c92b9162479a871
@@ -185,8 +184,10 @@ msgid ""
 " in E: D[k] = v In either case, this is followed by: for k in F:  D[k] = "
 "F[k]"
 msgstr ""
-"msgid: If E is present and has a .keys() method, then does:  for k in E.keys(): D[k] = E[k] If E is present and lacks a .keys() method, then does:  for k, v in E: D[k] = v In either case, this is followed by: for k in F:  D[k] = F[k]  \n"
-"msgstr: Si E está presente y tiene un método .keys(), entonces hace:  for k in E.keys(): D[k] = E[k] Si E está presente y carece de un método .keys(), entonces hace:  for k, v in E: D[k] = v En cualquiera de los casos, esto es seguido por: for k in F:  D[k] = F[k]"
+"Si E está presente y tiene un método .keys(), entonces hace: for k in "
+"E.keys(): D[k] = E[k] Si E está presente y carece de un método .keys(), "
+"entonces hace: for k, v in E: D[k] = v En cualquiera de los casos, esto es "
+"seguido por: for k in F: D[k] = F[k]"
 
 #: ../source/api/generated/pymc_marketing.mmm.causal.TestResult.rst:33:<autosummary>:1
 #: 86f2e14c813c43249403c774117dd5b4

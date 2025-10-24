@@ -94,9 +94,7 @@ msgstr "**T** : :term:`numpy:array_like`, opcional"
 #: 9474e244999e46c1afc178bf6de8b786 of
 #: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer_recency_frequency:16
 msgid "numpy:array_like, optional"
-msgstr ""
-"msgid: numpy:array_like, optional  \n"
-"msgstr: numpy:array_like, opcional"
+msgstr "numpy:similar_a_array, opcional"
 
 #: 51e0424f56d84a93820e3d374e49d5f8 of
 #: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer_recency_frequency:18

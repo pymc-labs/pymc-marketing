@@ -29,5 +29,5 @@ msgstr "TestResult.get"
 #: pymc_marketing.mmm.causal.TestResult.get:2
 msgid "Return the value for key if key is in the dictionary, else default."
 msgstr ""
-"msgid: Return the value for key if key is in the dictionary, else default.  \n"
-"msgstr: Devuelve el valor para la clave si la clave está en el diccionario, de lo contrario, devuelve el valor por defecto."
+"Devuelve el valor para la clave si la clave está en el diccionario, de lo "
+"contrario, devuelve el valor por defecto."
