@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.distributions.ModifiedBetaGeoNBD.dist.rst:2
 #: 9e200292dd8444da938c99bb496462f8
 msgid "ModifiedBetaGeoNBD.dist"
-msgstr ""
+msgstr "ModifiedBetaGeoNBD.dist"
 
 #: d8c25c83555742f2bb4f2023a395988d of
 #: pymc_marketing.clv.distributions.ModifiedBetaGeoNBD.dist:2
 msgid "Get the distribution from the parameters."
-msgstr ""
+msgstr "Obtenga la distribución de los parámetros."

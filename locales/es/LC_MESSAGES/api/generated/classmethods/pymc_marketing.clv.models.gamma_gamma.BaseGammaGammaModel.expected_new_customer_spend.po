@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_new_customer_spend.rst:2
 #: cc6457e707224149b75d632f32f0e076
 msgid "BaseGammaGammaModel.expected\\_new\\_customer\\_spend"
-msgstr ""
+msgstr "BaseGammaGammaModel.gasto\\_esperado\\_de\\_nuevo\\_cliente"
 
 #: de3d8b163c894cafa71b5bb11d8f45c3 of
 #: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_new_customer_spend:2
 msgid "Compute the expected mean spend value for a new customer."
-msgstr ""
+msgstr "Calcule el valor medio de gasto esperado para un nuevo cliente."

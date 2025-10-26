@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.distributions.ContContract.dist.rst:2
 #: b790cba48fe748a582d3232eb0415842
 msgid "ContContract.dist"
-msgstr ""
+msgstr "ContContract.dist"
 
 #: 1c88749d7a39461c87637fc5ba44bf01 of
 #: pymc_marketing.clv.distributions.ContContract.dist:2
 msgid "Get the distribution from the parameters."
-msgstr ""
+msgstr "Obtenga la distribución de los parámetros."

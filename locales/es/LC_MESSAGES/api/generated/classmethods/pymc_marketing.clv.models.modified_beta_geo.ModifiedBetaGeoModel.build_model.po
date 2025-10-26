@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.build_model.rst:2
 #: e2c904df2e214c60838ef16040e37e5f
 msgid "ModifiedBetaGeoModel.build\\_model"
-msgstr ""
+msgstr "ModifiedBetaGeoModel.construir\\_modelo"
 
 #: 5f215d7038314d79af58943297ae5e9c of
 #: pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.build_model:2
 msgid "Build the model."
-msgstr ""
+msgstr "Construya el modelo."

@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.hsgp_kwargs.HSGPKwargs.construct.rst:2
 #: 92eef2bd0ccf4a5489527988867f9e9a
 msgid "HSGPKwargs.construct"
-msgstr ""
+msgstr "HSGPKwargs.construct"

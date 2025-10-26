@@ -12,7 +12,6 @@ msgstr ""
 "POT-Creation-Date: 2025-10-07 18:10+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language: es\n"
 "Language-Team: es <LL@li.org>\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "MIME-Version: 1.0\n"
@@ -22,12 +21,12 @@ msgstr ""
 
 #: ../source/getting_started/index.md:3
 msgid "Installation"
-msgstr ""
+msgstr "Instalación"
 
 #: ../source/getting_started/index.md:10
 msgid "Quickstart"
-msgstr ""
+msgstr "Inicio rápido"
 
 #: ../source/getting_started/index.md:1 11966d6cf5704a179bfef49a880c373b
 msgid "Getting Started"
-msgstr ""
+msgstr "Comenzando"

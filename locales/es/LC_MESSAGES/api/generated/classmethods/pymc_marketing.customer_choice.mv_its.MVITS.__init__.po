@@ -23,40 +23,45 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.customer_choice.mv_its.MVITS.__init__.rst:2
 #: 9c7e616b56474f96a51c527f5a9b1f62
 msgid "MVITS.\\_\\_init\\_\\_"
-msgstr ""
+msgstr "MVITS.__init__"
 
 #: eb248763196a4e49b74187d23996e9b9 of
 #: pymc_marketing.customer_choice.mv_its.MVITS.__init__:2
-msgid "Initialize model configuration and sampler configuration for the model."
+msgid ""
+"Initialize model configuration and sampler configuration for the model."
 msgstr ""
+"Inicializar la configuración del modelo y la configuración del muestreador "
+"para el modelo."
 
 #: 1f70911d262c4bbfb19c0642d56a718e of
 #: pymc_marketing.customer_choice.mv_its.MVITS.__init__
 msgid "Parameters"
-msgstr ""
+msgstr "Parámetros"
 
 #: 2ee608db416843daa90b9ce81208ac5f of
 #: pymc_marketing.customer_choice.mv_its.MVITS.__init__:7
 msgid "**model_config** : :obj:`Dictionary`, optional"
-msgstr ""
+msgstr "**model_config** : :obj:`Diccionario`, opcional"
 
 #: 0fd6f78d070c40bfa75093a6019d09ed b46781c11d6640dc835e8a5e4818e7fe of
 #: pymc_marketing.customer_choice.mv_its.MVITS.__init__:6
 #: pymc_marketing.customer_choice.mv_its.MVITS.__init__:10
 msgid "Dictionary, optional"
-msgstr ""
+msgstr "Diccionario, opcional"
 
 #: 9b58c291ee4c4b81b8c1bd418d58a3bb of
 #: pymc_marketing.customer_choice.mv_its.MVITS.__init__:8
 msgid ""
-"dictionary of parameters that initialise model configuration. Class-"
-"default defined by the user default_model_config method."
+"dictionary of parameters that initialise model configuration. Class-default "
+"defined by the user default_model_config method."
 msgstr ""
+"diccionario de parámetros que inicializan la configuración del modelo. Clase"
+" predeterminada definida por el método default_model_config del usuario."
 
 #: f891a41a5b7a4a09a67a014ba2cc2414 of
 #: pymc_marketing.customer_choice.mv_its.MVITS.__init__:11
 msgid "**sampler_config** : :obj:`Dictionary`, optional"
-msgstr ""
+msgstr "**sampler_config** : :obj:`Diccionario`, opcional"
 
 #: 9fe97b3b16864bbd8c5d434a7a5223d6 of
 #: pymc_marketing.customer_choice.mv_its.MVITS.__init__:12
@@ -64,8 +69,11 @@ msgid ""
 "dictionary of parameters that initialise sampler configuration. Class-"
 "default defined by the user default_sampler_config method."
 msgstr ""
+"diccionario de parámetros que inicializan la configuración del muestreador. "
+"Clase predeterminada definida por el método default_sampler_config del "
+"usuario."
 
 #: e52f05f1fa4a44d2b1cc9c78825413d8 of
 #: pymc_marketing.customer_choice.mv_its.MVITS.__init__:28
 msgid "Examples"
-msgstr ""
+msgstr "Ejemplos"

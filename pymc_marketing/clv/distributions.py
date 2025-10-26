@@ -20,6 +20,7 @@ import pytensor.tensor as pt
 from pymc.distributions.continuous import PositiveContinuous
 from pymc.distributions.dist_math import betaln, check_parameters
 from pymc.distributions.distribution import Discrete
+from pymc.distributions.shape_utils import rv_size_is_none
 from pytensor import scan
 from pytensor.graph import vectorize_graph
 from pytensor.tensor.random.op import RandomVariable
@@ -890,3 +891,120 @@ class ModifiedBetaGeoNBD(PositiveContinuous):
             r > 0,
             msg="a > 0, b > 0, alpha > 0, r > 0",
         )
+
+
+class ShiftedBetaGeometricRV(RandomVariable):
+    name = "sbg"
+    signature = "(),()->()"
+
+    dtype = "int64"
+    _print_name = ("ShiftedBetaGeometric", "\\operatorname{ShiftedBetaGeometric}")
+
+    @classmethod
+    def rng_fn(cls, rng, alpha, beta, size):
+        if size is None:
+            size = np.broadcast_shapes(alpha.shape, beta.shape)
+
+        alpha = np.broadcast_to(alpha, size)
+        beta = np.broadcast_to(beta, size)
+
+        p_samples = rng.beta(a=alpha, b=beta, size=size)
+
+        # prevent log(0) by clipping small p samples
+        p = np.clip(p_samples, 1e-100, 1)
+        # TODO: Consider returning np.float64 types instead of np.int64
+        #       See relevant PR comment: https://github.com/pymc-labs/pymc-marketing/pull/2010#discussion_r2444116986
+        return rng.geometric(p, size=size)
+
+
+sbg = ShiftedBetaGeometricRV()
+
+
+class ShiftedBetaGeometric(Discrete):
+    r"""Shifted Beta-Geometric distribution.
+
+    This mixture distribution extends the Geometric distribution to support heterogeneity across observations.
+
+    Hardie and Fader describe this distribution with the following PMF and survival functions in [1]_:
+
+    .. math::
+        \mathbb{P}(T=t|\alpha,\beta) = (\frac{B(\alpha+1,\beta+t-1)}{B(\alpha,\beta}),t=1,2,...  \\
+        \begin{align}
+        \mathbb{S}(t|\alpha,\beta) = (\frac{B(\alpha,\beta+t)}{B(\alpha,\beta}),t=1,2,... \\
+        \end{align}
+
+    ========  ===============================================
+    Support   :math:`t \in \mathbb{N}_{>0}`
+    ========  ===============================================
+
+    Parameters
+    ----------
+    alpha : tensor_like of float
+        Scale parameter (alpha > 0).
+    beta : tensor_like of float
+        Scale parameter (beta > 0).
+
+    References
+    ----------
+    .. [1] Fader, P. S., & Hardie, B. G. (2007). How to project customer retention.
+           Journal of Interactive Marketing, 21(1), 76-90.
+           https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf
+    """
+
+    rv_op = sbg
+
+    @classmethod
+    def dist(cls, alpha, beta, *args, **kwargs):
+        alpha = pt.as_tensor_variable(alpha)
+        beta = pt.as_tensor_variable(beta)
+
+        return super().dist([alpha, beta], *args, **kwargs)
+
+    def logp(value, alpha, beta):
+        """From Expression (5) on p.6 of Fader & Hardie (2007)."""
+        logp = betaln(alpha + 1, beta + value - 1) - betaln(alpha, beta)
+
+        logp = pt.switch(
+            pt.or_(
+                pt.lt(value, 1),
+                pt.or_(
+                    alpha <= 0,
+                    beta <= 0,
+                ),
+            ),
+            -np.inf,
+            logp,
+        )
+
+        return check_parameters(
+            logp,
+            alpha > 0,
+            beta > 0,
+            msg="alpha > 0, beta > 0",
+        )
+
+    def logcdf(value, alpha, beta):
+        """Adapted from Expression (6) on p.6 of Fader & Hardie (2007)."""
+        # survival function from paper
+        logS = (
+            pt.gammaln(beta + value)
+            - pt.gammaln(beta)
+            + pt.gammaln(alpha + beta)
+            - pt.gammaln(alpha + beta + value)
+        )
+        return pt.log1mexp(logS)
+
+    def support_point(rv, size, alpha, beta):
+        """Calculate a reasonable starting point for sampling.
+
+        For the Shifted Beta-Geometric distribution, we use a point estimate based on
+        the expected value of the mixture components.
+        """
+        geo_mean = pt.ceil(
+            pt.reciprocal(
+                alpha / (alpha + beta)  # expected value of the beta distribution
+            )  # expected value of the geometric distribution
+        )
+        if not rv_size_is_none(size):
+            geo_mean = pt.full(size, geo_mean)
+        return geo_mean

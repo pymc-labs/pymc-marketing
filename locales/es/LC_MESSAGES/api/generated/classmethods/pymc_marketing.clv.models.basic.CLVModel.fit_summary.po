@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.basic.CLVModel.fit_summary.rst:2
 #: 39a4936910d24fb984d187cb5534e32b
 msgid "CLVModel.fit\\_summary"
-msgstr ""
+msgstr "CLVModel.fit\\_summary"
 
 #: 0ee0ecb6b41244c38d9364bf31fb6321 of
 #: pymc_marketing.clv.models.basic.CLVModel.fit_summary:2
 msgid "Compute the summary of the fit result."
-msgstr ""
+msgstr "Calcule el resumen del resultado del ajuste."

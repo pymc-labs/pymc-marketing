@@ -23,12 +23,15 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.events.EventEffect.model_post_init.rst:2
 #: d5ab278980f84b3d86b515761e7184aa
 msgid "EventEffect.model\\_post\\_init"
-msgstr ""
+msgstr "EventEffect.model\\_post\\_init"
 
 #: f34f3f5829fd42788631487af9ceeed3 of
 #: pydantic.main.BaseModel.model_post_init:2
 msgid ""
-"Override this method to perform additional initialization after "
-"`__init__` and `model_construct`. This is useful if you want to do some "
-"validation that requires the entire model to be initialized."
+"Override this method to perform additional initialization after `__init__` "
+"and `model_construct`. This is useful if you want to do some validation that"
+" requires the entire model to be initialized."
 msgstr ""
+"Sobrescriba este método para realizar una inicialización adicional después "
+"de `__init__` y `model_construct`. Esto es útil si desea realizar alguna "
+"validación que requiera que todo el modelo esté inicializado."

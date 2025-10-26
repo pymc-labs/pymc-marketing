@@ -23,54 +23,54 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.fourier.FourierBase.sample_prior.rst:2
 #: 08a45d2eabc549cea5a5ad4884374895
 msgid "FourierBase.sample\\_prior"
-msgstr ""
+msgstr "FourierBase.muestra\\_prior"
 
 #: 850ecfff02a64d1382569113d6354735 of
 #: pymc_marketing.mmm.fourier.FourierBase.sample_prior:2
 msgid "Sample the prior distributions."
-msgstr ""
+msgstr "Muestree las distribuciones anteriores."
 
 #: 3df018a3dba24bd98e4e4b5f5d22a43c of
 #: pymc_marketing.mmm.fourier.FourierBase.sample_prior
 msgid "Parameters"
-msgstr ""
+msgstr "Parámetros"
 
 #: ad6651dcf356447188f259cc2a24b5f3 of
 #: pymc_marketing.mmm.fourier.FourierBase.sample_prior:7
 msgid "**coords** : :class:`python:dict`, optional"
-msgstr ""
+msgstr "**coords** : :class:`python:dict`, opcional"
 
 #: 6e8a2a30e12d46dcbbeacd3010b3c671 of
 #: pymc_marketing.mmm.fourier.FourierBase.sample_prior:6
 msgid "python:dict, optional"
-msgstr ""
+msgstr "python:dict, opcional"
 
 #: f06012a2776d4471a334aa83b2cee1dd of
 #: pymc_marketing.mmm.fourier.FourierBase.sample_prior:8
 msgid "Coordinates for the prior distribution, by default None"
-msgstr ""
+msgstr "Coordenadas para la distribución previa, por defecto None"
 
 #: c76a810f84bc4a3b98ec6d19385fe455 of
 #: pymc_marketing.mmm.fourier.FourierBase.sample_prior:10
 msgid "**kwargs**"
-msgstr ""
+msgstr "**kwargs**"
 
 #: a20bbc07f6f84560ada3dece0fc34947 of
 #: pymc_marketing.mmm.fourier.FourierBase.sample_prior:11
 msgid "Additional keywords for sample_prior_predictive"
-msgstr ""
+msgstr "Palabras clave adicionales para sample_prior_predictive"
 
 #: 468ff4bc0f34440daf60c54e56946450 of
 #: pymc_marketing.mmm.fourier.FourierBase.sample_prior
 msgid "Returns"
-msgstr ""
+msgstr "Devoluciones"
 
 #: b793a650b4114dadaf7b83fa7930830a of
 #: pymc_marketing.mmm.fourier.FourierBase.sample_prior:17
 msgid ":obj:`xr.Dataset`"
-msgstr ""
+msgstr ":obj:`xr.Dataset`"
 
 #: 961ad2a5660640359e23fe92168ecfdd of
 #: pymc_marketing.mmm.fourier.FourierBase.sample_prior:18
 msgid "Prior distribution."
-msgstr ""
+msgstr "Distribución previa."

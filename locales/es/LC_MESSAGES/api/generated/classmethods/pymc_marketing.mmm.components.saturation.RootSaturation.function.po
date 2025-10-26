@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.components.saturation.RootSaturation.function.rst:2
 #: a37740f93eac48fe8257fd6161e3af85
 msgid "RootSaturation.function"
-msgstr ""
+msgstr "RootSaturation.función"
 
 #: a2f8c9a2e47b42938e0f6c7d993f8f25 of
 #: pymc_marketing.mmm.components.saturation.RootSaturation.function:2
 msgid "Root saturation function."
-msgstr ""
+msgstr "Función de saturación de raíces."

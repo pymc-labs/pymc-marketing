@@ -12,48 +12,48 @@ msgstr ""
 "POT-Creation-Date: 2025-10-07 18:10+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language: es\n"
 "Language-Team: es <LL@li.org>\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Language: es\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "Generated-By: Babel 2.17.0\n"
 
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.mmm.BaseMMM.validate_date_col.rst:2
 #: 329d50c4134a43b0ac454171cec2d610
 msgid "BaseMMM.validate\\_date\\_col"
-msgstr ""
+msgstr "BaseMMM.validar\\_columna\\_fecha"
 
 #: 37f9d323ece64ed691ea8011f7e655d5 of
 #: pymc_marketing.mmm.validating.ValidateDateColumn.validate_date_col:2
 msgid "Validate the date column."
-msgstr ""
+msgstr "Valide la columna de fecha."
 
 #: d79ac19386e5447f940fabf83271436d of
 #: pymc_marketing.mmm.validating.ValidateDateColumn.validate_date_col
 msgid "Parameters"
-msgstr ""
+msgstr "Parámetros"
 
 #: 99059b76b1db48819a40eb780811531c of
 #: pymc_marketing.mmm.validating.ValidateDateColumn.validate_date_col:7
 msgid "**data** : :obj:`pd.DataFrame`"
-msgstr ""
+msgstr "**datos** : :obj:`pd.DataFrame`"
 
 #: b91cfb461ca748eb858cdae89845fe45 of
 #: pymc_marketing.mmm.validating.ValidateDateColumn.validate_date_col:6
 msgid "pd.DataFrame"
-msgstr ""
+msgstr "pd.DataFrame"
 
 #: 11700fc84cc340cca2bf33cebe246d55 of
 #: pymc_marketing.mmm.validating.ValidateDateColumn.validate_date_col:8
 msgid "The data to validate."
-msgstr ""
+msgstr "Los datos a validar."
 
 #: f0e45678fbe5492cbf971b800d18393e of
 #: pymc_marketing.mmm.validating.ValidateDateColumn.validate_date_col
 msgid "Raises"
-msgstr ""
+msgstr "Aumentos"
 
 #: 2ad35cc006cc4d608d3216a618216447 of
 #: pymc_marketing.mmm.validating.ValidateDateColumn.validate_date_col:18
@@ -61,3 +61,5 @@ msgid ""
 "ValueError: :obj:`If` :obj:`the` :obj:`date` :obj:`column` :obj:`is` "
 ":obj:`not` valid."
 msgstr ""
+"ValueError: :obj:`Si` :obj:`la` :obj:`columna` :obj:`de` :obj:`fecha` "
+":obj:`no` es válida."

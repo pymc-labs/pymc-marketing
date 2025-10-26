@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.events.AsymmetricGaussianBasis.function.rst:2
 #: 43e53836f7934c779104f5001f00f246
 msgid "AsymmetricGaussianBasis.function"
-msgstr ""
+msgstr "AsymmetricGaussianBasis.función"
 
 #: 3aec1ea36dbb4cab8846aad678ac8c2d of
 #: pymc_marketing.mmm.events.AsymmetricGaussianBasis.function:2
 msgid "Asymmetric Gaussian bump function."
-msgstr ""
+msgstr "Función de bache gaussiano asimétrico."

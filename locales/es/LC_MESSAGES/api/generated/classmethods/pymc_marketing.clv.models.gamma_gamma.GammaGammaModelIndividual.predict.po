@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.predict.rst:2
 #: 3abacd79ff6b4eccacaf8d66190001dd
 msgid "GammaGammaModelIndividual.predict"
-msgstr ""
+msgstr "GammaGammaModelIndividual.predecir"

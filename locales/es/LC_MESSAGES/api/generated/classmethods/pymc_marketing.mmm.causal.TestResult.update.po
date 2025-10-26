@@ -1,0 +1,39 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-20 21:01+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.TestResult.update.rst:2
+#: 6718ea315548462bb79af205d47f4738
+msgid "TestResult.update"
+msgstr "TestResult.update"
+
+#: 121b738ba7e6407092115f9393d0ac51 of
+#: pymc_marketing.mmm.causal.TestResult.update:2
+msgid ""
+"If E is present and has a .keys() method, then does:  for k in E.keys(): "
+"D[k] = E[k] If E is present and lacks a .keys() method, then does:  for k, v"
+" in E: D[k] = v In either case, this is followed by: for k in F:  D[k] = "
+"F[k]"
+msgstr ""
+"Si E está presente y tiene un método .keys(), entonces hace: for k in "
+"E.keys(): D[k] = E[k] Si E está presente y carece de un método .keys(), "
+"entonces hace: for k, v in E: D[k] = v En cualquier caso, esto es seguido "
+"por: for k in F: D[k] = F[k]"

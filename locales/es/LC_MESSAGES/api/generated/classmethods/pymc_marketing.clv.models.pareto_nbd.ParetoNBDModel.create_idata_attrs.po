@@ -23,24 +23,24 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.create_idata_attrs.rst:2
 #: 33e7ed667d2944e0ab27c073401dac83
 msgid "ParetoNBDModel.create\\_idata\\_attrs"
-msgstr ""
+msgstr "ParetoNBDModel.create_idata_attrs"
 
 #: c8fb369d8d924ca68b1c2b9804f5fd33 of
 #: pymc_marketing.model_builder.ModelIO.create_idata_attrs:2
 msgid "Create attributes for the inference data."
-msgstr ""
+msgstr "Cree atributos para los datos de inferencia."
 
 #: 52a6ce4565154c189fa30d4d47d961db of
 #: pymc_marketing.model_builder.ModelIO.create_idata_attrs
 msgid "Returns"
-msgstr ""
+msgstr "Devoluciones"
 
 #: 2535332f6c2f4e7bb5008b76bdd5390e of
 #: pymc_marketing.model_builder.ModelIO.create_idata_attrs:10
 msgid ":class:`python:dict`\\[:class:`python:str`, :class:`python:str`]"
-msgstr ""
+msgstr ":class:`python:dict`\\[:class:`python:str`, :class:`python:str`]"
 
 #: 780d28a643a04dc387bce3efca4dab25 of
 #: pymc_marketing.model_builder.ModelIO.create_idata_attrs:11
 msgid "A dictionary of attributes for the inference data."
-msgstr ""
+msgstr "Un diccionario de atributos para los datos de inferencia."

@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.additive_effect.EventAdditiveEffect.model_post_init.rst:2
 #: 16872c7d3290433b96308f56bc104e61
 msgid "EventAdditiveEffect.model\\_post\\_init"
-msgstr ""
+msgstr "EventAdditiveEffect.model\\_post\\_init"
 
 #: b222126c74fc478eaf0c69b9a7eab7b5 of
 #: pymc_marketing.mmm.additive_effect.EventAdditiveEffect.model_post_init:2
 msgid "Post initialization of the model."
-msgstr ""
+msgstr "Post inicialización del modelo."

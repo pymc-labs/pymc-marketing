@@ -9,45 +9,48 @@ msgid ""
 msgstr ""
 "Project-Id-Version: pymc-marketing local\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"POT-Creation-Date: 2025-10-13 11:28+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language: es\n"
 "Language-Team: es <LL@li.org>\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Language: es\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "Generated-By: Babel 2.17.0\n"
 
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.TBF_FCI.get_undirected_edges.rst:2
-#: 15850804c9994e0ebd5a008bcaee769b
+#: 15322c5a907b4bffb6efc0529d8ffd28
 msgid "TBF\\_FCI.get\\_undirected\\_edges"
-msgstr ""
+msgstr "TBF\\_FCI.get\\_undirected\\_edges"
 
-#: a3fb90038df74dc8b715bf6751868ab5 of
+#: 98495057ecc844ff80d19242b3df91c3 of
 #: pymc_marketing.mmm.causal.TBF_FCI.get_undirected_edges:2
 msgid "Return undirected edges in the time-unrolled graph."
 msgstr ""
+"Devuelve los bordes no dirigidos en el grafo desenrollado en el tiempo."
 
-#: ca7ba8695d274bdab26def0e01b5f10a of
+#: 18982d50bea541df9d4dec5a8f1c3cb2 of
 #: pymc_marketing.mmm.causal.TBF_FCI.get_undirected_edges
 msgid "Returns"
-msgstr ""
+msgstr "Returns"
 
-#: 3ce9f2fd9c5440fe97e23d07ea53049d of
+#: 9dc5fac82bde42289f90112fd1ad5bd2 of
 #: pymc_marketing.mmm.causal.TBF_FCI.get_undirected_edges:10
 msgid ""
 ":class:`python:list`\\[:class:`python:tuple`\\[:class:`python:str`, "
 ":class:`python:str`]]"
 msgstr ""
+":class:`python:list`\\[:class:`python:tuple`\\[:class:`python:str`, "
+":class:`python:str`]]"
 
-#: 20bfe02fa3c94102820a589c998aba5a of
+#: 83969d4f06bd4d019aabd96898bba170 of
 #: pymc_marketing.mmm.causal.TBF_FCI.get_undirected_edges:11
 msgid "Sorted list of undirected edges among lagged variables."
-msgstr ""
+msgstr "Lista ordenada de aristas no dirigidas entre variables rezagadas."
 
-#: 555452716287414eba0837f9a03a6c6a of
+#: bfd79c4d7f344a2fb7f4f5204b3096f2 of
 #: pymc_marketing.mmm.causal.TBF_FCI.get_undirected_edges:23
 msgid "Examples"
-msgstr ""
+msgstr "Examples"

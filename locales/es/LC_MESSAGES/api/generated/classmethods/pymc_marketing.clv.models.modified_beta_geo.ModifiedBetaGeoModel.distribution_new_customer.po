@@ -23,7 +23,7 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.distribution_new_customer.rst:2
 #: f2dfe023fa01411db85a370d97bc817a
 msgid "ModifiedBetaGeoModel.distribution\\_new\\_customer"
-msgstr ""
+msgstr "ModifiedBetaGeoModel.distribution\\_nuevo\\_cliente"
 
 #: 33c6f2b334214ff29e10be8686c47ad1 of
 #: pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.distribution_new_customer:2
@@ -31,3 +31,5 @@ msgid ""
 "Compute posterior predictive samples of dropout, purchase rate and "
 "frequency/recency of new customers."
 msgstr ""
+"Calcule muestras predictivas posteriores de abandono, tasa de compra y "
+"frecuencia/recencia de nuevos clientes."

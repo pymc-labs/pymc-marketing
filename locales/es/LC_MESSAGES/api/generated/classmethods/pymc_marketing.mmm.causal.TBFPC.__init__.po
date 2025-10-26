@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: pymc-marketing local\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"POT-Creation-Date: 2025-10-20 21:01+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: es\n"
@@ -21,63 +21,88 @@ msgstr ""
 "Generated-By: Babel 2.17.0\n"
 
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.TBFPC.__init__.rst:2
-#: 48e388f68bd64ce2a7d8d391cf8011ff
+#: 30c486faf72643d2abf1fa7818a1f870
 msgid "TBFPC.\\_\\_init\\_\\_"
-msgstr ""
+msgstr "TBFPC.\\_\\_init\\_\\_"
 
-#: 5e4e0cc345cb43049c9d51c925c21ddb of
+#: 0a3b8c1a75024a7ba367161e9a5a9bcc of
 #: pymc_marketing.mmm.causal.TBFPC.__init__:2
 msgid "Create a new TBFPC causal discovery model."
-msgstr ""
+msgstr "Cree un nuevo modelo de descubrimiento causal TBFPC."
 
-#: 74e320b700764e83ae46314dca60a2d7 of pymc_marketing.mmm.causal.TBFPC.__init__
+#: 73b4de59c61f4b0ab6596838a3dc8500 of pymc_marketing.mmm.causal.TBFPC.__init__
 msgid "Parameters"
-msgstr ""
+msgstr "Parámetros"
 
-#: 454b248416ab457ca22dc5611dadc736 of
+#: 6c2ad4809e554c1793a1e0b0febab6fa of
 #: pymc_marketing.mmm.causal.TBFPC.__init__:7
 msgid "**target**"
-msgstr ""
+msgstr "**objetivo**"
 
-#: a85942228acd4e6d86e9509fa0b187b4 of
+#: db685efbbc374edbad1ebaff3cfa59fa of
 #: pymc_marketing.mmm.causal.TBFPC.__init__:8
 msgid ""
 "Variable name for the model outcome; must be present in the data used "
 "during fitting."
 msgstr ""
+"Nombre de la variable para el resultado del modelo; debe estar presente "
+"en los datos utilizados durante el ajuste."
 
-#: 950d815c4f364240b4e9940b90bb3236 of
+#: 1fddc853dd5845d6bd6c0e920e25d2a6 of
 #: pymc_marketing.mmm.causal.TBFPC.__init__:11
 msgid "**target_edge_rule**"
-msgstr ""
+msgstr "**regla_de_borde_objetivo**"
 
-#: 95a994edb3cc41408e261b53f5d1fa86 of
+#: 6a2643a0ab054e7bbb6f10c264fcffae of
 #: pymc_marketing.mmm.causal.TBFPC.__init__:12
 msgid ""
 "Rule that controls which driver → target edges are retained. Options are "
 "``\"any\"``, ``\"conservative\"``, and ``\"fullS\"``."
 msgstr ""
+"Regla que controla qué bordes de controlador → objetivo se retienen. Las "
+"opciones son ``\"cualquiera\"``, ``\"conservadora\"`` y "
+"``\"completaS\"``."
 
-#: eff5488d1a0a4ef296984eea4b51af83 of
+#: a466a6ad882140f3b3e636a61622fc23 of
 #: pymc_marketing.mmm.causal.TBFPC.__init__:15
 msgid "**bf_thresh**"
-msgstr ""
+msgstr "**bf_thresh**"
 
-#: 9b1d71da413d4686afa4f1bfde5bc583 of
+#: a0ba342bc67e4f63bf86a9dade4ff12f of
 #: pymc_marketing.mmm.causal.TBFPC.__init__:16
 msgid ""
 "Positive Bayes factor threshold applied during conditional independence "
 "tests."
 msgstr ""
+"Umbral del factor de Bayes positivo aplicado durante las pruebas de "
+"independencia condicional."
 
-#: 0ccd41746d8844e3a188716c5b426122 of
+#: 4d7f9d7cf5fa4dfe86199f37e83e8d9f of
 #: pymc_marketing.mmm.causal.TBFPC.__init__:19
 msgid "**forbidden_edges**"
-msgstr ""
+msgstr "**bordes_prohibidos**"
 
-#: af647b1a213d4c70b304484a008c222f of
+#: a047670c7d614243b95667e696c3c31d of
 #: pymc_marketing.mmm.causal.TBFPC.__init__:20
 msgid ""
 "Optional sequence of node pairs that must not be connected in the learned"
 " graph."
 msgstr ""
+"Secuencia opcional de pares de nodos que no deben estar conectados en el "
+"grafo aprendido."
+
+#: 463acf78ef3b474db68a6785f423ac81 of
+#: pymc_marketing.mmm.causal.TBFPC.__init__:23
+#, fuzzy
+msgid "**required_edges**"
+msgstr "**bordes_prohibidos**"
+
+#: 4c1a4f5401ea44fa8757ccf7bd8c817d of
+#: pymc_marketing.mmm.causal.TBFPC.__init__:24
+#, fuzzy
+msgid ""
+"Optional sequence of directed ``(u, v)`` pairs that must be present in "
+"the learned graph as ``u -> v``."
+msgstr ""
+"Secuencia opcional de pares de nodos que no deben estar conectados en el "
+"grafo aprendido."

@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.fourier.FourierBase.construct.rst:2
 #: 46a73ece08d64940a7593a38adfa2aba
 msgid "FourierBase.construct"
-msgstr ""
+msgstr "FourierBase.construir"

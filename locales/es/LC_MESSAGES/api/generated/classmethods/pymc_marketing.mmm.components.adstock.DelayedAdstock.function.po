@@ -23,9 +23,9 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.components.adstock.DelayedAdstock.function.rst:2
 #: 3ec96d5ab4094b18ac71f003a32489c6
 msgid "DelayedAdstock.function"
-msgstr ""
+msgstr "DelayedAdstock.función"
 
 #: 34f1fd40df4e45bfac3d4125e350c038 of
 #: pymc_marketing.mmm.components.adstock.DelayedAdstock.function:2
 msgid "Delayed adstock function."
-msgstr ""
+msgstr "Función de adstock retrasada."

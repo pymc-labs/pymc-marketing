@@ -23,21 +23,23 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.thin_fit_result.rst:2
 #: 420e6c51ee5c4b1eb36c59b51523ac38
 msgid "ParetoNBDModel.thin\\_fit\\_result"
-msgstr ""
+msgstr "ParetoNBDModel.thin\\_fit\\_result"
 
 #: 5fd42034f8e84b7f9a198654d7ae28e3 of
 #: pymc_marketing.clv.models.basic.CLVModel.thin_fit_result:2
 msgid "Return a copy of the model with a thinned fit result."
-msgstr ""
+msgstr "Devuelva una copia del modelo con un resultado de ajuste reducido."
 
 #: 37524b6013724d518d601dfe182e3d7d of
 #: pymc_marketing.clv.models.basic.CLVModel.thin_fit_result:4
 msgid ""
-"This is useful when computing summary statistics that may require too "
-"much memory per posterior draw."
+"This is useful when computing summary statistics that may require too much "
+"memory per posterior draw."
 msgstr ""
+"Esto es útil al calcular estadísticas resumidas que pueden requerir "
+"demasiada memoria por cada extracción posterior."
 
 #: a06f57a5058a4ff4ac3f44b9b3904596 of
 #: pymc_marketing.clv.models.basic.CLVModel.thin_fit_result:20
 msgid "Examples"
-msgstr ""
+msgstr "Ejemplos"

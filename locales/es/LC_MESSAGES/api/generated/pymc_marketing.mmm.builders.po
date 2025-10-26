@@ -12,44 +12,44 @@ msgstr ""
 "POT-Creation-Date: 2025-10-07 18:10+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language: es\n"
 "Language-Team: es <LL@li.org>\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Language: es\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "Generated-By: Babel 2.17.0\n"
 
 #: ../source/api/generated/pymc_marketing.mmm.builders.rst:2
 #: 1d2f853ef6174234986f97571f956ecd
 msgid "builders"
-msgstr ""
+msgstr "constructores"
 
 #: f02db892d4944092a27e076704371ee3 of pymc_marketing.mmm.builders:1
 msgid "Configuration I/O for PyMC-Marketing."
-msgstr ""
+msgstr "Configuración de I/O para PyMC-Marketing."
 
 #: ../source/api/generated/pymc_marketing.mmm.builders.rst:25
 #: eea34d9ee0ca4866b762bba85fa8eabe
 msgid "Modules"
-msgstr ""
+msgstr "Módulos"
 
 #: ../source/api/generated/pymc_marketing.mmm.builders.rst:32:<autosummary>:1
 #: d9348beb88b94ec991b360b89fa87c68
 msgid ":py:obj:`factories <pymc_marketing.mmm.builders.factories>`\\"
-msgstr ""
+msgstr ":py:obj:`factories <pymc_marketing.mmm.builders.factories>`"
 
 #: ../source/api/generated/pymc_marketing.mmm.builders.rst:32:<autosummary>:1
 #: 662b891896c54f8aae2ee976d2ad5c86
 msgid "Generic recursive factory for the MMM YAML schema."
-msgstr ""
+msgstr "Fábrica recursiva genérica para el esquema YAML de MMM."
 
 #: ../source/api/generated/pymc_marketing.mmm.builders.rst:32:<autosummary>:1
 #: 50e10d5c938f498fb5a007b4b0086fd5
 msgid ":py:obj:`yaml <pymc_marketing.mmm.builders.yaml>`\\"
-msgstr ""
+msgstr ":py:obj:`yaml <pymc_marketing.mmm.builders.yaml>`\\"
 
 #: ../source/api/generated/pymc_marketing.mmm.builders.rst:32:<autosummary>:1
 #: c004f52f048247ffbc8af227db40db7d
 msgid "Builder for MMM projects."
-msgstr ""
+msgstr "Constructor para proyectos MMM."

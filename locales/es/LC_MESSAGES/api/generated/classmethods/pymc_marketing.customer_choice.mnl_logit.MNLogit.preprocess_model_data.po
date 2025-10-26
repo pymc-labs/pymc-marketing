@@ -23,11 +23,13 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.customer_choice.mnl_logit.MNLogit.preprocess_model_data.rst:2
 #: 1ea7040d7a17410799315bd3672d092d
 msgid "MNLogit.preprocess\\_model\\_data"
-msgstr ""
+msgstr "MNLogit.preprocess\\_model\\_data"
 
 #: 4e62fca1d41b42d2af3bfca19cb9c6d2 of
 #: pymc_marketing.customer_choice.mnl_logit.MNLogit.preprocess_model_data:2
 msgid ""
-"Pre-process the model initiation inputs into a format that can be used by"
-" the PyMC model."
+"Pre-process the model initiation inputs into a format that can be used by "
+"the PyMC model."
 msgstr ""
+"Preprocesar las entradas de iniciación del modelo en un formato que pueda "
+"ser utilizado por el modelo PyMC."

@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.sample_posterior_predictive.rst:2
 #: cbb4b9c41a9f4884a781da7175f5c98a
 msgid "ModifiedBetaGeoModel.sample\\_posterior\\_predictive"
-msgstr ""
+msgstr "ModifiedBetaGeoModel.muestra\\_predictiva\\_posterior"

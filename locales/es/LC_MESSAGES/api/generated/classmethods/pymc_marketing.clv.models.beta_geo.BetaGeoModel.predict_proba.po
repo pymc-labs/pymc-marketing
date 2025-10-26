@@ -23,4 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.clv.models.beta_geo.BetaGeoModel.predict_proba.rst:2
 #: 7a15378bf0674306baf59851151b45e5
 msgid "BetaGeoModel.predict\\_proba"
-msgstr ""
+msgstr "BetaGeoModel.predict\\_proba"

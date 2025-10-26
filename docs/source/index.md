@@ -41,15 +41,17 @@
 
 ## 📞 Schedule a Free Strategy Consultation
 
-Maximize your marketing ROI with a [free 30-minute strategy session](https://calendly.com/niall-oulton) with our PyMC-Marketing experts. Learn how Bayesian Marketing Mix Modeling and Customer Lifetime Value analytics can boost your organization by making smarter, data-driven decisions.
+Maximize your marketing ROI with a [free 30-minute strategy session](https://calendly.com/niall-oulton) with our PyMC-Marketing experts or [send us a message](https://www.pymc-labs.com/contact). Learn how Bayesian Marketing Mix Modeling and Customer Lifetime Value analytics can boost your organization by making smarter, data-driven decisions.
 
 For businesses looking to integrate PyMC-Marketing into their operational framework, [PyMC Labs](https://www.pymc-labs.com) offers expert consulting and training. Our team is proficient in state-of-the-art Bayesian modeling techniques, with a focus on Marketing Mix Models (MMMs) and Customer Lifetime Value (CLV).
 
 We provide the following professional services:
 
-- **Custom Models**: We develop models that fit your organization's unique needs.
-- **Coaching**: Regular, personalized coaching to ensure your team is well-equipped to confidently use PyMC-Marketing and related approaches.
-- **SaaS Solutions**: Harness the power of our state-of-the-art software solutions to streamline your data-driven marketing initiatives.
+- **Custom Models**: Bespoke Bayesian models tailored to your business requirements and data structure.
+- **Training & Coaching**: Comprehensive training programs to master PyMC-Marketing and Bayesian marketing analytics.
+- **Implementation Support**: End-to-end integration into your existing data infrastructure and workflows.
+- **Strategic Advisory**: Expert guidance on marketing measurement strategy and data-driven decision frameworks.
+- **SaaS Solutions**: State-of-the-art software solutions to streamline your data-driven marketing initiatives.
 
 ### PyMC Labs Client Testimonials
 
@@ -61,7 +63,7 @@ We provide the following professional services:
 :::::{grid} 1 1 2 3
 :gutter: 2
 
-::::{grid-item-card} Example Gallery
+::::{grid-item-card} Getting Started
 :class-header: sd-text-center no-border
 :class-title: sd-text-center
 :class-footer: no-border
@@ -69,19 +71,18 @@ We provide the following professional services:
 {material-outlined}`photo_library;5em`
 ^^^^^^^^^^^^^^^
 
-Browse our visual gallery of example notebooks to quickly
-find the techniques and models relevant to your
-marketing analytics needs.
+Browse our getting started guide to quickly
+get started with PyMC-Marketing.
 
 +++
 
-:::{button-ref} gallery/gallery
+:::{button-ref} getting_started/index
 :expand:
 :color: secondary
 :click-parent:
 :ref-type: doc
 
-To the example gallery
+To the getting started guide
 :::
 ::::
 
@@ -100,7 +101,7 @@ the library and showcase its features.
 
 +++
 
-:::{button-ref} notebooks/index
+:::{button-ref} gallery/gallery
 :expand:
 :color: secondary
 :click-parent:
@@ -162,7 +163,7 @@ Understand and optimize your customer's value with our **CLV models**. Our API s
 - [BG/NBD model](https://www.pymc-marketing.io/en/stable/notebooks/clv/bg_nbd.html)
 - [Pareto/NBD model](https://www.pymc-marketing.io/en/stable/notebooks/clv/pareto_nbd.html)
 - [Gamma-Gamma model](https://www.pymc-marketing.io/en/stable/notebooks/clv/gamma_gamma.html)
-- [Shifted Beta-Geo model](https://www.pymc-marketing.io/en/stable/notebooks/clv/sBG.html)
+- [Shifted Beta-Geo model](https://www.pymc-marketing.io/en/stable/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.html)
 - [Modified BG/NBD model](https://www.pymc-marketing.io/en/stable/notebooks/clv/mbg_nbd.html)
 
 Each of these models is tailored to different types of data and business scenarios:
@@ -233,7 +234,7 @@ For more blogposts and resources, check out the [PyMC Labs Blog](https://www.pym
 getting_started/index
 contributing/index
 guide/index
-api/index
 gallery/gallery
-notebooks/index
+api/index
+guide/mmm/comparison
 :::
