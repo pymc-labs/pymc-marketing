@@ -572,48 +572,67 @@ class TimeSliceCrossValidator:
 
     def plot_crps(self, results):
         """Plot CRPS for train and test sets across all CV splits."""
-        crps_results_train = [
-            crps(
-                y_true=result.y_train.to_numpy(),
-                y_pred=result.idata.posterior_predictive["y_original_scale"]
-                .squeeze()
-                .stack(sample=("chain", "draw"))
-                .transpose("sample", self.date_column)
-                .to_numpy()[
-                    :, : result.y_train.shape[0]
-                ],  # Ensure matching number of observations
+
+        def _pred_matrix_for_rows(idata, rows_df):
+            """Build (n_samples, n_rows) prediction matrix for given rows DataFrame.
+
+            For each row in rows_df we select the posterior predictive samples
+            corresponding to that row's date (and geo if present in the rows_df).
+            This is robust to the ordering of dimensions in the xarray DataArray.
+            """
+            da = idata.posterior_predictive["y_original_scale"]
+            # Stack sample dims (chain, draw) into single 'sample' dim
+            da_s = da.stack(sample=("chain", "draw"))
+
+            # Ensure 'sample' is the first axis for easier indexing
+            if da_s.dims[0] != "sample":
+                try:
+                    da_s = da_s.transpose("sample", ...)
+                except Exception:
+                    dims = list(da_s.dims)
+                    order = ["sample"] + [d for d in dims if d != "sample"]
+                    da_s = da_s.transpose(*order)
+
+            n_samples = int(da_s.sizes["sample"])
+            n_rows = len(rows_df)
+            mat = np.empty((n_samples, n_rows))
+
+            for j, (_idx, row) in enumerate(rows_df.iterrows()):
+                # select by date
+                sel = da_s.sel({self.date_column: row[self.date_column]})
+                # if geo is present in the data and in the row, select it
+                if "geo" in sel.dims and "geo" in rows_df.columns:
+                    sel = sel.sel(geo=str(row["geo"]))
+
+                arr = np.squeeze(getattr(sel, "values", sel))
+                if arr.ndim == 0:
+                    raise ValueError(
+                        "Posterior predictive selection returned a scalar for a row"
+                    )
+                # ensure shape (n_samples,)
+                if arr.ndim > 1:
+                    # try to collapse remaining dims, expecting (sample, ...)
+                    arr = arr.reshape(n_samples, -1)[:, 0]
+
+                mat[:, j] = arr
+
+            return mat
+
+        crps_results_train = []
+        for result in results:
+            X_train_rows = result.X_train.reset_index(drop=True)
+            y_pred_train = _pred_matrix_for_rows(result.idata, X_train_rows)
+            crps_results_train.append(
+                crps(y_true=result.y_train.to_numpy(), y_pred=y_pred_train)
             )
-            for result in results
-        ]
 
         crps_results_test = []
         for result in results:
-            y_pred_processed = (
-                result.idata.posterior_predictive["y_original_scale"]
-                .sel(
-                    {
-                        self.date_column: slice(
-                            result.X_test[self.date_column].min(), None
-                        )
-                    }
-                )
-                .squeeze()
-                .stack(sample=("chain", "draw"))
-                .transpose("sample", self.date_column)
-                .to_numpy()[:, : result.y_test.shape[0]]
-            )  # Ensure matching number of observations
-
-            # Ensure we have a 2D array
-            if y_pred_processed.ndim != 2:
-                raise ValueError(
-                    f"Expected 2D array, got {y_pred_processed.ndim}D with shape {y_pred_processed.shape}"
-                )
-
+            # Only consider test rows for this fold (preserves order)
+            X_test_rows = result.X_test.reset_index(drop=True)
+            y_pred_test = _pred_matrix_for_rows(result.idata, X_test_rows)
             crps_results_test.append(
-                crps(
-                    y_true=result.y_test.to_numpy(),
-                    y_pred=y_pred_processed,
-                )
+                crps(y_true=result.y_test.to_numpy(), y_pred=y_pred_test)
             )
 
         fig, ax = plt.subplots(
