@@ -266,198 +266,257 @@ class TimeSliceCrossValidator:
         return results
 
     # Visualization helpers
-    def plot_predictions(
-        self, results, y, X, dims: dict[str, list[str]] | None = None
-    ):  # TODO: add dims argument
-        """Plot posterior predictive intervals for all CV slices.
+    def plot_predictions(self, results, dims: dict[str, list[str]] | None = None):
+        """Plot posterior predictive predictions across CV folds.
 
         Args:
-            results: list of TimeSliceCrossValidationResult
-            y: full observed series (pd.Series) aligned with X
-            X: full feature DataFrame containing the date column
-            dims: optional dict specifying dimensions and coordinate values to slice over
-                e.g. {"geo": ["geo_a", "geo_b"]}
-                If a dim key is present but the list of coords is empty or None,
-                the function will attempt to read coordinate values from
-                ``self.mmm.model.coords[dim]`` (i.e. dims defined in the model).
+            results: List of TimeSliceCrossValidationResult objects returned by `run()`.
+            dims: Optional dict specifying dimensions to filter when plotting.
+                Currently only supports {"geo": [...]}.
+                If omitted, all geos present in the posterior predictive
+                `y_original_scale` are plotted.
+
+        The plot shows per-geo, per-fold posterior predictive HDI (3%-97%)
+        for train (blue) and test (orange) ranges as shaded bands, the
+        posterior mean as dashed lines, and observed values as black lines.
+        A vertical dashed green line marks the end of the training period for
+        each fold.
         """
-        n_iterations = len(results)
-
-        def _plot_for_results(
-            fig, axes, results, dim_name: str | None = None, coord: str | None = None
-        ):
-            import numpy as np
-
-            # Normalize axes to a list for consistent indexing
-            if isinstance(axes, (np.ndarray, list, tuple)):
-                axes_list = np.ravel(axes).tolist()
-            else:
-                axes_list = [axes]
-
-            for i, result in enumerate(results):
-                ax = axes_list[i]
-
-                # helper to select dim if present, with fallback and warning
-                def _maybe_select(pred, dim_name, coord):
-                    try:
-                        if dim_name is not None and dim_name in pred.coords:
-                            return pred.sel({dim_name: coord})
-                    except Exception:
-                        # If selection fails, fall back to pred unmodified
-                        msg = (
-                            "Warning: could not select "
-                            f"{dim_name}={coord} on posterior_predictive; "
-                            "using full predictions."
-                        )
-                        print(msg)
-                    return pred
-
-                # Plot in-sample predictions (blue)
-                for hdi_prob in [0.94, 0.5]:
-                    # Sum over any model dims (e.g. 'product') that are present in the posterior_predictive
-                    pred = _maybe_select(
-                        result.idata.posterior_predictive["y_original_scale"],
-                        dim_name,
-                        coord,
-                    )
-                    # identify dims that represent samples/time and should be preserved
-                    sample_time_dims = ("chain", "draw", self.date_column)
-                    dims_to_sum = [d for d in pred.dims if d not in sample_time_dims]
-                    if dims_to_sum:
-                        pred = pred.sum(dim=dims_to_sum)
-
-                    az.plot_hdi(
-                        x=result.X_train[self.date_column],
-                        y=pred.sel(
-                            {
-                                self.date_column: slice(
-                                    result.X_train[self.date_column].min(),
-                                    result.X_train[self.date_column].max(),
-                                )
-                            }
-                        ),
-                        color="C0",
-                        smooth=False,
-                        hdi_prob=hdi_prob,
-                        fill_kwargs={
-                            "alpha": 0.4,
-                            "label": f"{hdi_prob:.0%} HDI (train)",
-                        },
-                        ax=ax,
-                    )
-
-                # Plot out-of-sample predictions (orange)
-                for hdi_prob in [0.94, 0.5]:
-                    pred = _maybe_select(
-                        result.idata.posterior_predictive["y_original_scale"],
-                        dim_name,
-                        coord,
-                    )
-                    sample_time_dims = ("chain", "draw", self.date_column)
-                    dims_to_sum = [d for d in pred.dims if d not in sample_time_dims]
-                    if dims_to_sum:
-                        pred = pred.sum(dim=dims_to_sum)
-
-                    az.plot_hdi(
-                        x=result.X_test[self.date_column],
-                        y=pred.sel(
-                            {
-                                self.date_column: slice(
-                                    result.X_test[self.date_column].min(),
-                                    result.X_test[self.date_column].max(),
-                                )
-                            }
-                        ),
-                        color="C1",
-                        smooth=False,
-                        hdi_prob=hdi_prob,
-                        fill_kwargs={
-                            "alpha": 0.4,
-                            "label": f"{hdi_prob:.0%} HDI (test)",
-                        },
-                        ax=ax,
-                    )
-
-                # Plot observed values for combined train+test date range
-                n_combined = len(result.X_train) + len(result.X_test)
-                combined_dates = pd.concat(
-                    [result.X_train[self.date_column], result.X_test[self.date_column]]
-                ).sort_values()
-                ax.plot(
-                    combined_dates,
-                    y.iloc[:n_combined],
-                    marker="o",
-                    markersize=4,
-                    color="black",
-                    label="observed",
-                )
-                ax.axvline(
-                    result.X_test[self.date_column].iloc[0], color="C2", linestyle="--"
-                )
-
-                if i == 0:
-                    ax.legend(loc="upper right")
-
+        # Support optional dims filtering (currently only supports filtering by 'geo')
         if dims is None:
-            fig, axes = plt.subplots(
-                nrows=n_iterations,
-                ncols=1,
-                figsize=(9, 6),
-                sharex=True,
-                sharey=True,
-                layout="constrained",
+            geos = list(
+                results[0]
+                .idata.posterior_predictive["y_original_scale"]
+                .coords["geo"]
+                .values
             )
-            # normalize axes for single-iteration case
-            if n_iterations == 1:
-                axes = [axes]
-            else:
-                axes = axes.ravel()
-
-            _plot_for_results(fig, axes, results)
-            axes[-1].set(xlim=(X[self.date_column].iloc[self.n_init - 9], None))
-            fig.suptitle(
-                "Posterior Predictive Check", fontsize=18, fontweight="bold", y=1.02
-            )
-            plt.show()
-            return
-
-        # dims provided: iterate over dims defined in the model if no coords supplied
-        for dim_name, coord_values in dims.items():
-            # If no coords provided for this dim, try to pull from model coords
-            if not coord_values:
-                try:
-                    # derive coords from the idata stored in the CV results
-                    coord_values = list(
-                        results[0].idata.posterior.coords[dim_name].values
-                    )
-                except Exception:
-                    raise ValueError(
-                        f"Dim '{dim_name}' not found in posterior/model coords and no coord values were provided."
-                    )
-
-            for coord in coord_values:
-                fig, axes = plt.subplots(
-                    nrows=n_iterations,
-                    ncols=1,
-                    figsize=(9, 6),
-                    sharex=True,
-                    sharey=True,
-                    layout="constrained",
+        else:
+            # Only 'geo' filtering is supported for predictions plotting
+            unsupported = [d for d in dims.keys() if d != "geo"]
+            if unsupported:
+                raise ValueError(
+                    f"plot_predictions only supports dims with 'geo' key. Unsupported dims: {unsupported}"
                 )
-                if n_iterations == 1:
-                    axes = [axes]
+            geos = list(dims.get("geo", []))
+            if not geos:
+                # fallback to all geos if empty list provided
+                geos = list(
+                    results[0]
+                    .idata.posterior_predictive["y_original_scale"]
+                    .coords["geo"]
+                    .values
+                )
+
+        n_folds = len(results)
+        n_axes = len(geos) * n_folds
+
+        fig, axes = plt.subplots(n_axes, 1, figsize=(12, 4 * n_axes), sharex=True)
+        if n_axes == 1:
+            axes = [axes]
+
+        # Helper to align y Series to a DataFrame's rows without using reindex (avoids duplicate-index errors)
+        def _align_y_to_df(y_series, df):
+            y_df = y_series.reset_index()
+            y_df.columns = ["orig_index", "y_value"]
+            df_idx = pd.DataFrame({"orig_index": df.index, "date": df["date"].values})
+            merged = df_idx.merge(y_df, on="orig_index", how="left")
+            return merged["y_value"], merged["date"]
+
+        for geo_idx, geo in enumerate(geos):
+            for fold_idx, result in enumerate(results):
+                ax_i = geo_idx * n_folds + fold_idx
+                ax = axes[ax_i]
+
+                arr = result.idata.posterior_predictive["y_original_scale"]
+                # Stack chain/draw -> sample for quantile computation
+                arr_s = arr.stack(sample=("chain", "draw")).transpose(
+                    "sample", "date", "geo"
+                )
+
+                # Train / Test dates for this fold & geo
+                if "geo" in result.X_train.columns:
+                    train_df_geo = result.X_train[
+                        result.X_train["geo"].astype(str) == str(geo)
+                    ]
                 else:
-                    axes = axes.ravel()
+                    train_df_geo = result.X_train.copy()
+                if "geo" in result.X_test.columns:
+                    test_df_geo = result.X_test[
+                        result.X_test["geo"].astype(str) == str(geo)
+                    ]
+                else:
+                    test_df_geo = result.X_test.copy()
 
-                _plot_for_results(fig, axes, results, dim_name=dim_name, coord=coord)
-                axes[-1].set(xlim=(X[self.date_column].iloc[self.n_init - 9], None))
-                fig.suptitle(
-                    f"Posterior Predictive Check | {dim_name}={coord}",
-                    fontsize=18,
-                    fontweight="bold",
-                    y=1.02,
+                train_dates = (
+                    pd.to_datetime(train_df_geo["date"].values)
+                    if not train_df_geo.empty
+                    else pd.DatetimeIndex([])
                 )
-                plt.show()
+                test_dates = (
+                    pd.to_datetime(test_df_geo["date"].values)
+                    if not test_df_geo.empty
+                    else pd.DatetimeIndex([])
+                )
+                train_dates = train_dates.sort_values().unique()
+                test_dates = test_dates.sort_values().unique()
+
+                # Build selection dict for arr_s.sel; we always set geo and date
+                # Note: arr_s has coordinates named 'date' and 'geo' after transpose
+                # Additional dims are not supported here
+                # Compute and plot HDI for train (blue) if train_dates exist
+                # Compute and plot HDI with arviz.plot_hdi (fallback to manual if unavailable)
+
+                def _plot_hdi_from_sel(sel, ax, color, label):
+                    """
+                    Robust wrapper to call arviz.plot_hdi from an xarray DataArray `sel`.
+
+                    Ensures the data passed to az.plot_hdi has shape (n_samples, n_dates).
+                    If sel collapses to a scalar (0-d), the function will skip plotting.
+                    """
+                    # Squeeze out any length-1 dimensions (e.g. geo if it became a scalar coord)
+                    try:
+                        sel2 = sel.squeeze()
+                    except Exception:
+                        sel2 = sel
+
+                    # Extract numpy array
+                    arr = getattr(sel2, "values", sel2)
+
+                    # If scalar, nothing to plot
+                    if getattr(arr, "ndim", 0) == 0:
+                        return
+
+                    # If 1D, decide whether it's (samples,) or (dates,)
+                    if arr.ndim == 1:
+                        # prefer to treat as (samples, 1) if there is a sample coord
+                        if hasattr(sel2, "coords") and "sample" in sel2.coords:
+                            arr = arr.reshape((-1, 1))
+                            x = (
+                                sel2.coords["date"].values
+                                if "date" in sel2.coords
+                                else [sel2.coords.get("date")]
+                            )
+                        else:
+                            # otherwise assume it's (dates,) -> make (1, dates)
+                            arr = arr.reshape((1, -1))
+                            x = (
+                                sel2.coords["date"].values
+                                if "date" in sel2.coords
+                                else [sel2.coords.get("date")]
+                            )
+                    else:
+                        # arr.ndim >= 2. Ensure ordering is (sample, date)
+                        if hasattr(sel2, "dims"):
+                            dims = list(sel2.dims)
+                            if dims == ["date", "sample"]:
+                                arr = arr.T
+                            elif dims != ["sample", "date"]:
+                                # try to transpose into desired order if possible
+                                try:
+                                    sel2 = sel2.transpose("sample", "date")
+                                    arr = sel2.values
+                                except Exception as e:
+                                    # fallback: leave arr as-is
+                                    raise e
+                        x = (
+                            sel2.coords["date"].values
+                            if hasattr(sel2, "coords") and "date" in sel2.coords
+                            else None
+                        )
+
+                    # Finally call arviz. If x is None, let arviz handle it (will use integer indices)
+                    az.plot_hdi(
+                        y=arr,
+                        x=x,
+                        ax=ax,
+                        hdi_prob=0.94,
+                        color=color,
+                        smooth=False,
+                        fill_kwargs={"alpha": 0.25, "label": label},
+                        plot_kwargs={"color": color, "linestyle": "--", "linewidth": 1},
+                    )
+
+                if train_dates.size:
+                    sel = arr_s.sel(date=train_dates, geo=geo)
+                    _plot_hdi_from_sel(sel, ax, "C0", "HDI (train)")
+
+                if test_dates.size:
+                    sel = arr_s.sel(date=test_dates, geo=geo)
+                    _plot_hdi_from_sel(sel, ax, "C1", "HDI (test)")
+
+                # Plot observed actuals in black (train + test) as lines (no markers)
+                if not train_df_geo.empty:
+                    y_train_vals, train_plot_dates = _align_y_to_df(
+                        result.y_train, train_df_geo
+                    )
+                    y_train_vals = y_train_vals.dropna()
+                    if not y_train_vals.empty:
+                        dates_to_plot = pd.to_datetime(
+                            train_plot_dates.loc[y_train_vals.index].values
+                        )
+                        ax.plot(
+                            dates_to_plot,
+                            y_train_vals.values,
+                            color="black",
+                            linestyle="-",
+                            linewidth=1.5,
+                            label="observed",
+                        )
+
+                if not test_df_geo.empty:
+                    y_test_vals, test_plot_dates = _align_y_to_df(
+                        result.y_test, test_df_geo
+                    )
+                    y_test_vals = y_test_vals.dropna()
+                    if not y_test_vals.empty:
+                        dates_to_plot = pd.to_datetime(
+                            test_plot_dates.loc[y_test_vals.index].values
+                        )
+                        ax.plot(
+                            dates_to_plot,
+                            y_test_vals.values,
+                            color="black",
+                            linestyle="-",
+                            linewidth=1.5,
+                        )
+
+                # Vertical line marking end of training
+                if train_dates.size:
+                    end_train_date = pd.to_datetime(train_dates.max())
+                    ax.axvline(
+                        end_train_date,
+                        color="green",
+                        linestyle="--",
+                        linewidth=2,
+                        alpha=0.9,
+                        label="train end",
+                    )
+
+                ax.set_title(f"{geo} — Fold {fold_idx} — Posterior Predictive")
+                ax.set_ylabel("y_original_scale")
+
+        # Build a single unique legend placed at the bottom of the figure
+        handles, labels = [], []
+        for ax in axes:
+            h, _l = ax.get_legend_handles_labels()
+            handles.extend(h)
+            labels.extend(_l)
+        by_label = dict(zip(labels, handles, strict=False))
+        if by_label:
+            plt.tight_layout(rect=[0, 0.07, 1, 1])
+            ncol = min(4, len(by_label))
+            fig.legend(
+                by_label.values(),
+                by_label.keys(),
+                loc="lower center",
+                ncol=ncol,
+                bbox_to_anchor=(0.5, 0.01),
+            )
+        else:
+            plt.tight_layout()
+
+        axes[-1].set_xlabel("date")
+        plt.show()
 
     def plot_param_stability(
         self, results, parameter: list[str], dims: dict[str, list[str]] | None = None
