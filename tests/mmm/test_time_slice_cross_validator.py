@@ -124,7 +124,6 @@ class TestTimeSliceCrossValidator:
         cv = TimeSliceCrossValidator(
             n_init=1, forecast_horizon=1, date_column="date", step_size=4
         )
-        # TimeSliceCrossValidator no longer stores an MMM instance on init
         assert cv.n_init == 1
         assert cv.forecast_horizon == 1
         assert cv.date_column == "date"
