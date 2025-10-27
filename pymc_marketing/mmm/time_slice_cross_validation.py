@@ -139,7 +139,6 @@ class TimeSliceCrossValidator:
 
         # Combine train and test data for posterior predictions
         X_combined = pd.concat([X_train, X_test], ignore_index=True)
-        # y_combined is intentionally not used; drop to satisfy linters
 
         # Run posterior predictions on combined data with extend_idata=True
         _ = mmm.sample_posterior_predictive(
