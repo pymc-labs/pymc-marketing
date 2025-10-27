@@ -17,7 +17,7 @@ This modules provides Fourier seasonality transformations for use in
 Marketing Mix Models. The Fourier seasonality is a set of sine and cosine
 functions that can be used to model periodic patterns in the data.
 
-There are two types of Fourier seasonality transformations available:
+There are three types of Fourier seasonality transformations available:
 
 - Yearly Fourier: A yearly seasonality with a period of 365.25 days
 - Monthly Fourier: A monthly seasonality with a period of 365.25 / 12 days
