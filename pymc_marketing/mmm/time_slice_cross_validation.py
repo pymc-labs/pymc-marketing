@@ -212,7 +212,7 @@ class TimeSliceCrossValidator:
         sampler_config: dict | None = None,
         yaml_path: str | None = None,
         mmm: Any | None = None,
-    ):
+    ) -> list[TimeSliceCrossValidationResult]:
         """Run the complete time-slice CV loop.
 
         If `yaml_path` is provided, the validator will rebuild the MMM from the
