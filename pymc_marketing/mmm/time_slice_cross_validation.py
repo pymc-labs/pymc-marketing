@@ -23,13 +23,12 @@ from dataclasses import dataclass
 from typing import Any
 
 import arviz as az
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from tqdm.notebook import tqdm
 
-from pymc_marketing.metrics import crps
 from pymc_marketing.mmm.builders.yaml import build_mmm_from_yaml
+from pymc_marketing.mmm.plot import MMMPlotSuite
 
 
 @dataclass
@@ -102,6 +101,36 @@ class TimeSliceCrossValidator:
         # Optional sampler configuration that will be applied to the MMM prior to fitting
         # Can be provided here at construction or passed to run() to override per-run.
         self.sampler_config = sampler_config
+
+    @property
+    def plot(self) -> MMMPlotSuite:
+        """Use the MMMPlotSuite to plot the results."""
+        self._validate_model_was_built()
+        self._validate_idata_exists()
+        return MMMPlotSuite(idata=self.idata)
+
+    def _validate_model_was_built(self) -> None:
+        """Validate that at least one CV run has produced results.
+
+        Ensures `self._cv_results` exists and is non-empty. If an
+        InferenceData is present on the last result, expose it as
+        `self.idata` for compatibility with the MMMPlotSuite API.
+        """
+        if not hasattr(self, "_cv_results") or not self._cv_results:
+            raise ValueError(
+                "No CV results available. Run `TimeSliceCrossValidator.run(...)` first."
+            )
+        last_result = self._cv_results[-1]
+        if hasattr(last_result, "idata") and last_result.idata is not None:
+            # make idata accessible for plotting helpers
+            self.idata = last_result.idata
+
+    def _validate_idata_exists(self) -> None:
+        """Validate that `self.idata` is present and not None."""
+        if not hasattr(self, "idata") or self.idata is None:
+            raise ValueError(
+                "No InferenceData available on the validator. Run `TimeSliceCrossValidator.run(...)` first."
+            )
 
     # Model helpers
     def _fit_mmm(self, mmm, X, y, sampler_config: dict | None = None):
@@ -262,390 +291,11 @@ class TimeSliceCrossValidator:
                 sampler_config=sampler_config,
             )
             results.append(result)
+        # Persist results on the instance so plotting helpers can access them
+        self._cv_results = results
+        # Also expose the last fold's idata (if any) for compatibility with MMMPlotSuite
+        if results:
+            last = results[-1]
+            if hasattr(last, "idata") and last.idata is not None:
+                self.idata = last.idata
         return results
-
-    # Visualization helpers
-    def plot_predictions(self, results, dims: dict[str, list[str]] | None = None):
-        """Plot posterior predictive predictions across CV folds.
-
-        Args:
-            results: List of TimeSliceCrossValidationResult objects returned by `run()`.
-            dims: Optional dict specifying dimensions to filter when plotting.
-                Currently only supports {"geo": [...]}.
-                If omitted, all geos present in the posterior predictive
-                `y_original_scale` are plotted.
-
-        The plot shows per-geo, per-fold posterior predictive HDI (3%-97%)
-        for train (blue) and test (orange) ranges as shaded bands, the
-        posterior mean as dashed lines, and observed values as black lines.
-        A vertical dashed green line marks the end of the training period for
-        each fold.
-        """
-        # Support optional dims filtering (currently only supports filtering by 'geo')
-        if dims is None:
-            geos = list(
-                results[0]
-                .idata.posterior_predictive["y_original_scale"]
-                .coords["geo"]
-                .values
-            )
-        else:
-            # Only 'geo' filtering is supported for predictions plotting
-            unsupported = [d for d in dims.keys() if d != "geo"]
-            if unsupported:
-                raise ValueError(
-                    f"plot_predictions only supports dims with 'geo' key. Unsupported dims: {unsupported}"
-                )
-            geos = list(dims.get("geo", []))
-            if not geos:
-                # fallback to all geos if empty list provided
-                geos = list(
-                    results[0]
-                    .idata.posterior_predictive["y_original_scale"]
-                    .coords["geo"]
-                    .values
-                )
-
-        n_folds = len(results)
-        n_axes = len(geos) * n_folds
-
-        fig, axes = plt.subplots(n_axes, 1, figsize=(12, 4 * n_axes), sharex=True)
-        if n_axes == 1:
-            axes = [axes]
-
-        # Helper to align y Series to a DataFrame's rows without using reindex (avoids duplicate-index errors)
-        def _align_y_to_df(y_series, df):
-            y_df = y_series.reset_index()
-            y_df.columns = ["orig_index", "y_value"]
-            df_idx = pd.DataFrame({"orig_index": df.index, "date": df["date"].values})
-            merged = df_idx.merge(y_df, on="orig_index", how="left")
-            return merged["y_value"], merged["date"]
-
-        for geo_idx, geo in enumerate(geos):
-            for fold_idx, result in enumerate(results):
-                ax_i = geo_idx * n_folds + fold_idx
-                ax = axes[ax_i]
-
-                arr = result.idata.posterior_predictive["y_original_scale"]
-                # Stack chain/draw -> sample for quantile computation
-                arr_s = arr.stack(sample=("chain", "draw")).transpose(
-                    "sample", "date", "geo"
-                )
-
-                # Train / Test dates for this fold & geo
-                if "geo" in result.X_train.columns:
-                    train_df_geo = result.X_train[
-                        result.X_train["geo"].astype(str) == str(geo)
-                    ]
-                else:
-                    train_df_geo = result.X_train.copy()
-                if "geo" in result.X_test.columns:
-                    test_df_geo = result.X_test[
-                        result.X_test["geo"].astype(str) == str(geo)
-                    ]
-                else:
-                    test_df_geo = result.X_test.copy()
-
-                train_dates = (
-                    pd.to_datetime(train_df_geo["date"].values)
-                    if not train_df_geo.empty
-                    else pd.DatetimeIndex([])
-                )
-                test_dates = (
-                    pd.to_datetime(test_df_geo["date"].values)
-                    if not test_df_geo.empty
-                    else pd.DatetimeIndex([])
-                )
-                train_dates = train_dates.sort_values().unique()
-                test_dates = test_dates.sort_values().unique()
-
-                # Build selection dict for arr_s.sel; we always set geo and date
-                # Note: arr_s has coordinates named 'date' and 'geo' after transpose
-                # Additional dims are not supported here
-                # Compute and plot HDI for train (blue) if train_dates exist
-                # Compute and plot HDI with arviz.plot_hdi (fallback to manual if unavailable)
-
-                def _plot_hdi_from_sel(sel, ax, color, label):
-                    """
-                    Robust wrapper to call arviz.plot_hdi from an xarray DataArray `sel`.
-
-                    Ensures the data passed to az.plot_hdi has shape (n_samples, n_dates).
-                    If sel collapses to a scalar (0-d), the function will skip plotting.
-                    """
-                    # Squeeze out any length-1 dimensions (e.g. geo if it became a scalar coord)
-                    try:
-                        sel2 = sel.squeeze()
-                    except Exception:
-                        sel2 = sel
-
-                    # Extract numpy array
-                    arr = getattr(sel2, "values", sel2)
-
-                    # If scalar, nothing to plot
-                    if getattr(arr, "ndim", 0) == 0:
-                        return
-
-                    # If 1D, decide whether it's (samples,) or (dates,)
-                    if arr.ndim == 1:
-                        # prefer to treat as (samples, 1) if there is a sample coord
-                        if hasattr(sel2, "coords") and "sample" in sel2.coords:
-                            arr = arr.reshape((-1, 1))
-                            x = (
-                                sel2.coords["date"].values
-                                if "date" in sel2.coords
-                                else [sel2.coords.get("date")]
-                            )
-                        else:
-                            # otherwise assume it's (dates,) -> make (1, dates)
-                            arr = arr.reshape((1, -1))
-                            x = (
-                                sel2.coords["date"].values
-                                if "date" in sel2.coords
-                                else [sel2.coords.get("date")]
-                            )
-                    else:
-                        # arr.ndim >= 2. Ensure ordering is (sample, date)
-                        if hasattr(sel2, "dims"):
-                            dims = list(sel2.dims)
-                            if dims == ["date", "sample"]:
-                                arr = arr.T
-                            elif dims != ["sample", "date"]:
-                                # try to transpose into desired order if possible
-                                try:
-                                    sel2 = sel2.transpose("sample", "date")
-                                    arr = sel2.values
-                                except Exception as e:
-                                    # fallback: leave arr as-is
-                                    raise e
-                        x = (
-                            sel2.coords["date"].values
-                            if hasattr(sel2, "coords") and "date" in sel2.coords
-                            else None
-                        )
-
-                    # Finally call arviz. If x is None, let arviz handle it (will use integer indices)
-                    az.plot_hdi(
-                        y=arr,
-                        x=x,
-                        ax=ax,
-                        hdi_prob=0.94,
-                        color=color,
-                        smooth=False,
-                        fill_kwargs={"alpha": 0.25, "label": label},
-                        plot_kwargs={"color": color, "linestyle": "--", "linewidth": 1},
-                    )
-
-                if train_dates.size:
-                    sel = arr_s.sel(date=train_dates, geo=geo)
-                    _plot_hdi_from_sel(sel, ax, "C0", "HDI (train)")
-
-                if test_dates.size:
-                    sel = arr_s.sel(date=test_dates, geo=geo)
-                    _plot_hdi_from_sel(sel, ax, "C1", "HDI (test)")
-
-                # Plot observed actuals in black (train + test) as lines (no markers)
-                if not train_df_geo.empty:
-                    y_train_vals, train_plot_dates = _align_y_to_df(
-                        result.y_train, train_df_geo
-                    )
-                    y_train_vals = y_train_vals.dropna()
-                    if not y_train_vals.empty:
-                        dates_to_plot = pd.to_datetime(
-                            train_plot_dates.loc[y_train_vals.index].values
-                        )
-                        ax.plot(
-                            dates_to_plot,
-                            y_train_vals.values,
-                            color="black",
-                            linestyle="-",
-                            linewidth=1.5,
-                            label="observed",
-                        )
-
-                if not test_df_geo.empty:
-                    y_test_vals, test_plot_dates = _align_y_to_df(
-                        result.y_test, test_df_geo
-                    )
-                    y_test_vals = y_test_vals.dropna()
-                    if not y_test_vals.empty:
-                        dates_to_plot = pd.to_datetime(
-                            test_plot_dates.loc[y_test_vals.index].values
-                        )
-                        ax.plot(
-                            dates_to_plot,
-                            y_test_vals.values,
-                            color="black",
-                            linestyle="-",
-                            linewidth=1.5,
-                        )
-
-                # Vertical line marking end of training
-                if train_dates.size:
-                    end_train_date = pd.to_datetime(train_dates.max())
-                    ax.axvline(
-                        end_train_date,
-                        color="green",
-                        linestyle="--",
-                        linewidth=2,
-                        alpha=0.9,
-                        label="train end",
-                    )
-
-                ax.set_title(f"{geo} — Fold {fold_idx} — Posterior Predictive")
-                ax.set_ylabel("y_original_scale")
-
-        # Build a single unique legend placed at the bottom of the figure
-        handles, labels = [], []
-        for ax in axes:
-            h, _l = ax.get_legend_handles_labels()
-            handles.extend(h)
-            labels.extend(_l)
-        by_label = dict(zip(labels, handles, strict=False))
-        if by_label:
-            plt.tight_layout(rect=[0, 0.07, 1, 1])
-            ncol = min(4, len(by_label))
-            fig.legend(
-                by_label.values(),
-                by_label.keys(),
-                loc="lower center",
-                ncol=ncol,
-                bbox_to_anchor=(0.5, 0.01),
-            )
-        else:
-            plt.tight_layout()
-
-        axes[-1].set_xlabel("date")
-        plt.show()
-
-    def plot_param_stability(
-        self, results, parameter: list[str], dims: dict[str, list[str]] | None = None
-    ):
-        """
-        Plot parameter stability across CV iterations.
-
-        Args:
-            results: list of TimeSliceCrossValidationResult or similar objects containing idata
-            parameter: list of parameter names (e.g. ["beta_channel"])
-            dims: optional dict specifying dimensions and coordinate values to slice over
-                e.g. {"geo": ["geo_a", "geo_b"]}
-        """
-        if dims is None:
-            # --- No dims: standard forest plot ---
-            fig, ax = plt.subplots(figsize=(9, 6))
-            az.plot_forest(
-                data=[r.idata["posterior"] for r in results],
-                model_names=[f"Iteration {i}" for i in range(len(results))],
-                var_names=parameter,
-                combined=True,
-                ax=ax,
-            )
-            fig.suptitle(
-                f"Parameter Stability: {parameter}",
-                fontsize=18,
-                fontweight="bold",
-                y=1.06,
-            )
-            plt.show()
-
-        else:
-            # --- Plot one forest plot per dim value ---
-            for dim_name, coord_values in dims.items():
-                for coord in coord_values:
-                    fig, ax = plt.subplots(figsize=(9, 6))
-                    az.plot_forest(
-                        data=[
-                            r.idata["posterior"].sel({dim_name: coord}) for r in results
-                        ],
-                        model_names=[f"Iteration {i}" for i in range(len(results))],
-                        var_names=parameter,
-                        combined=True,
-                        ax=ax,
-                    )
-                    fig.suptitle(
-                        f"Parameter Stability: {parameter} | {dim_name}={coord}",
-                        fontsize=18,
-                        fontweight="bold",
-                        y=1.06,
-                    )
-                    plt.show()
-
-    def plot_crps(self, results):
-        """Plot CRPS for train and test sets across all CV splits."""
-
-        def _pred_matrix_for_rows(idata, rows_df):
-            """Build (n_samples, n_rows) prediction matrix for given rows DataFrame.
-
-            For each row in rows_df we select the posterior predictive samples
-            corresponding to that row's date (and geo if present in the rows_df).
-            This is robust to the ordering of dimensions in the xarray DataArray.
-            """
-            da = idata.posterior_predictive["y_original_scale"]
-            # Stack sample dims (chain, draw) into single 'sample' dim
-            da_s = da.stack(sample=("chain", "draw"))
-
-            # Ensure 'sample' is the first axis for easier indexing
-            if da_s.dims[0] != "sample":
-                try:
-                    da_s = da_s.transpose("sample", ...)
-                except Exception:
-                    dims = list(da_s.dims)
-                    order = ["sample"] + [d for d in dims if d != "sample"]
-                    da_s = da_s.transpose(*order)
-
-            n_samples = int(da_s.sizes["sample"])
-            n_rows = len(rows_df)
-            mat = np.empty((n_samples, n_rows))
-
-            for j, (_idx, row) in enumerate(rows_df.iterrows()):
-                # select by date
-                sel = da_s.sel({self.date_column: row[self.date_column]})
-                # if geo is present in the data and in the row, select it
-                if "geo" in sel.dims and "geo" in rows_df.columns:
-                    sel = sel.sel(geo=str(row["geo"]))
-
-                arr = np.squeeze(getattr(sel, "values", sel))
-                if arr.ndim == 0:
-                    raise ValueError(
-                        "Posterior predictive selection returned a scalar for a row"
-                    )
-                # ensure shape (n_samples,)
-                if arr.ndim > 1:
-                    # try to collapse remaining dims, expecting (sample, ...)
-                    arr = arr.reshape(n_samples, -1)[:, 0]
-
-                mat[:, j] = arr
-
-            return mat
-
-        crps_results_train = []
-        for result in results:
-            X_train_rows = result.X_train.reset_index(drop=True)
-            y_pred_train = _pred_matrix_for_rows(result.idata, X_train_rows)
-            crps_results_train.append(
-                crps(y_true=result.y_train.to_numpy(), y_pred=y_pred_train)
-            )
-
-        crps_results_test = []
-        for result in results:
-            # Only consider test rows for this fold (preserves order)
-            X_test_rows = result.X_test.reset_index(drop=True)
-            y_pred_test = _pred_matrix_for_rows(result.idata, X_test_rows)
-            crps_results_test.append(
-                crps(y_true=result.y_test.to_numpy(), y_pred=y_pred_test)
-            )
-
-        fig, ax = plt.subplots(
-            nrows=2,
-            ncols=1,
-            figsize=(12, 7),
-            sharex=True,
-            sharey=False,
-            layout="constrained",
-        )
-
-        ax[0].plot(crps_results_train, marker="o", color="C0", label="train")
-        ax[0].set(ylabel="CRPS", title="Train CRPS")
-        ax[1].plot(crps_results_test, marker="o", color="C1", label="test")
-        ax[1].set(xlabel="Iteration", ylabel="CRPS", title="Test CRPS")
-        fig.suptitle("CRPS for each iteration", fontsize=18, fontweight="bold", y=1.05)
-        plt.show()
