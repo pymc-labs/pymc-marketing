@@ -26,6 +26,7 @@ from pymc_marketing.mmm.transformers import (
     TanhSaturationParameters,
     WeibullType,
     batched_convolution,
+    binomial_adstock,
     delayed_adstock,
     geometric_adstock,
     hill_function,
@@ -142,6 +143,15 @@ class TestsAdstockTransformers:
             (np.linspace(start=0.0, stop=1.0, num=50), 0.8, 50),
         ],
     )
+    def test_binomial_adstock(self, x, alpha, l_max):
+        y = binomial_adstock(x=x, alpha=alpha, l_max=l_max)
+        y_np = y.eval()
+        w1 = (1 - 1 / (l_max + 1)) ** (1 / alpha - 1)
+        w2 = (1 - 2 / (l_max + 1)) ** (1 / alpha - 1)
+        assert y_np[0] == x[0]
+        assert y_np[1] == x[1] + w1 * x[0]
+        assert y_np[2] == x[2] + w1 * x[1] + w2 * x[0]
+
     def test_geometric_adstock_good_alpha(self, x, alpha, l_max):
         y = geometric_adstock(x=x, alpha=alpha, l_max=l_max)
         y_np = y.eval()
