@@ -139,7 +139,7 @@ def binomial_adstock(
     R"""Binomial adstock transformation.
 
     Binomial adstock assumes that the effect of one unit of spend
-    at time math::`math::0 \le t \le l_max` is given by
+    at time math::`0 \le t \le l_max` is given by
 
     .. math::
 
