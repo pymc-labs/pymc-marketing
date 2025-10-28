@@ -1023,3 +1023,55 @@ def test__dim_list_handler_mixed():
     keys, combos = suite._dim_list_handler({"country": ["A", "B"], "region": "X"})
     assert keys == ["country"]
     assert set(combos) == {("A",), ("B",)}
+
+
+def test_time_slice_cv_run_sets_results_and_plot_property():
+    """Ensure TimeSliceCrossValidator.run persists results and exposes MMMPlotSuite via .plot."""
+    from pymc_marketing.mmm.time_slice_cross_validation import (
+        TimeSliceCrossValidator,
+    )
+
+    class FakeModel:
+        def __init__(self):
+            self.idata = None
+            self.sampler_config = None
+
+        def fit(self, X, y, progressbar=True):
+            # no-op fit
+            return None
+
+        def sample_posterior_predictive(
+            self, X, extend_idata=True, combined=True, progressbar=False, **kwargs
+        ):
+            # Build minimal posterior_predictive with a date coord
+            dates = pd.to_datetime(X["date"].unique())
+            # Create a small chain/draw set
+            arr = np.random.RandomState(1).normal(size=(2, 3, len(dates)))
+            da = xr.DataArray(
+                arr, dims=("chain", "draw", "date"), coords={"date": dates}, name="y"
+            )
+            ds = xr.Dataset({"y": da})
+            self.idata = az.InferenceData(posterior_predictive=ds)
+            return self.idata
+
+    class FakeMMMFactory:
+        def build_model(self, X, y):
+            return FakeModel()
+
+    # Prepare tiny dataset
+    dates = pd.date_range("2025-01-01", periods=6, freq="D")
+    X = pd.DataFrame({"date": dates, "geo": ["g1"] * len(dates)})
+    y = pd.Series(np.arange(len(dates)))
+
+    cv = TimeSliceCrossValidator(
+        n_init=2, forecast_horizon=1, date_column="date", step_size=1
+    )
+    results = cv.run(X, y, mmm=FakeMMMFactory())
+
+    assert isinstance(results, list)
+    assert hasattr(cv, "_cv_results")
+    assert cv._cv_results is results
+    # Plot property should return MMMPlotSuite that wraps the latest idata
+    plot_suite = cv.plot
+    assert hasattr(plot_suite, "idata")
+    assert plot_suite.idata is cv._cv_results[-1].idata
