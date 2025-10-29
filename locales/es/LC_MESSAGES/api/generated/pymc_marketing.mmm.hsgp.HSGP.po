@@ -275,7 +275,7 @@ msgid ""
 "<pymc_marketing.mmm.hsgp.HSGP.deterministics_to_replace>`\\ \\(name\\)"
 msgstr ""
 ":py:obj:`HSGP.deterministics_to_replace "
-"<pymc_marketing.mmm.hsgp.HSGP.deterministics_to_replace>`\\ \\(nombre\\)"
+"<pymc_marketing.mmm.hsgp.HSGP.deterministics_to_replace>`\\ %(name)s"
 
 #: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGP.rst:53:<autosummary>:1
 #: 81db8750a3a44788bbbfb74349e206da

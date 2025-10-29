@@ -21,7 +21,7 @@ import pymc as pm
 import xarray
 from pymc.util import RandomState
 from pymc_extras.prior import Prior
-from scipy.special import gammaln
+from scipy.special import gammaln, hyp2f1
 
 from pymc_marketing.clv.distributions import ShiftedBetaGeometric
 from pymc_marketing.clv.models import CLVModel
@@ -42,7 +42,7 @@ class ShiftedBetaGeoModel(CLVModel):
     This model requires data to be summarized by *recency*, *T*, and *cohort* for each customer.
     Modeling assumptions require *1 <= recency <= T*, and *T >= 2*.
 
-    First introduced by Fader & Hardie in [1]_.
+    First introduced by Fader & Hardie in [1]_, with additional expressions described in [2]_.
 
     Parameters
     ----------
@@ -98,23 +98,39 @@ class ShiftedBetaGeoModel(CLVModel):
             model.fit(method="mcmc")
             model.fit_summary()
 
+
             # Predict probability customers are still active
             expected_alive_probability = model.expected_probability_alive(
                 active_customers,
                 future_t=0,
             )
 
-            # Predict retention rate of a given cohort in the current time period
+            # Predict retention rate for a specific cohort
+            cohort_name = "2025-02-01"
+
             expected_alive_probability = model.expected_retention_rate(
                 future_t=0,
-            ).sel(cohort=cohort)
+            ).sel(cohort=cohort_name)
+
+            # Predict expected remaining lifetime for all customers with a 5% discount rate
+            expected_alive_probability = model.expected_residual_lifetime(
+                discount_rate=0.05,
+            )
+
+            # Predict expected retention elasticity for all customers in a specific cohort
+            expected_alive_probability = model.expected_retention_elasticity(
+                discount_rate=0.05,
+            ).sel(cohort=cohort_name)
 
 
     References
     ----------
-    .. [1] Fader, P. S., & Hardie, B. G. (2007). How to project customer retention.
-           Journal of Interactive Marketing, 21(1), 76-90.
-           https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf
+    .. [1] Fader, P. S., & Hardie, B. G. (2007). "How to project customer retention."
+        Journal of Interactive Marketing, 21(1), 76-90.
+        https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf
+    .. [2] Fader, P. S., & Hardie, B. G. (2010). "Customer-Base Valuation in a Contractual Setting:
+        The Perils of Ignoring Heterogeneity." Marketing Science, 29(1), 85-93.
+    https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_contractual_mksc_10.pdf
     """
 
     _model_type = "Shifted Beta-Geometric"
@@ -261,7 +277,7 @@ class ShiftedBetaGeoModel(CLVModel):
         # Validate T requirements for predictions (T>=2 only required for fit data)
         if np.any(pred_data["T"] <= 0):
             raise ValueError(
-                "T must be a non-zero, positive integer.",
+                "T must be a non-zero, positive whole number.",
             )
 
         cohorts_present = self._validate_cohorts(pred_data, check_pred_data=True)
@@ -328,7 +344,10 @@ class ShiftedBetaGeoModel(CLVModel):
         *,
         future_t: int | np.ndarray | pd.Series | None = None,
     ) -> xarray.DataArray:
-        """Compute expected retention rate by cohort.
+        """Compute expected retention rate for each customer.
+
+        This is the percentage of customers who were active in the previous time period
+        and are still active in the current period. Retention rates are expected to increase over time.
 
         The *data* parameter is only required for out-of-sample customers.
 
@@ -346,7 +365,7 @@ class ShiftedBetaGeoModel(CLVModel):
 
         References
         ----------
-        .. [1] Fader, P. S., & Hardie, B. G. (2007). How to project customer retention.
+        .. [1] Fader, P. S., & Hardie, B. G. (2007). "How to project customer retention."
             Journal of Interactive Marketing, 21(1), 76-90.
             https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf
         """
@@ -367,7 +386,7 @@ class ShiftedBetaGeoModel(CLVModel):
 
         retention_rate = (beta + T + t - 1) / (alpha + beta + T + t - 1)
         return retention_rate.transpose(
-            "chains", "draws", "customer_id", "cohort", missing_dims="ignore"
+            "chain", "draw", "customer_id", "cohort", missing_dims="ignore"
         )
 
     def expected_probability_alive(
@@ -376,7 +395,7 @@ class ShiftedBetaGeoModel(CLVModel):
         *,
         future_t: int | np.ndarray | pd.Series | None = None,
     ) -> xarray.DataArray:
-        """Compute expected probability of contract renewal by cohort.
+        """Compute expected probability of contract renewal for each customer.
 
         The *data* parameter is only required for out-of-sample customers.
 
@@ -394,7 +413,7 @@ class ShiftedBetaGeoModel(CLVModel):
 
         References
         ----------
-        .. [1] Fader, P. S., & Hardie, B. G. (2007). How to project customer retention.
+        .. [1] Fader, P. S., & Hardie, B. G. (2007). "How to project customer retention."
             Journal of Interactive Marketing, 21(1), 76-90.
             https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf
         """
@@ -422,7 +441,111 @@ class ShiftedBetaGeoModel(CLVModel):
         survival = np.exp(logS)
 
         return survival.transpose(
-            "chains", "draws", "customer_id", "cohort", missing_dims="ignore"
+            "chain", "draw", "customer_id", "cohort", missing_dims="ignore"
+        )
+
+    def expected_residual_lifetime(
+        self,
+        data: pd.DataFrame | None = None,
+        *,
+        discount_rate: float | np.ndarray | pd.Series | None = 0.0,
+    ) -> xarray.DataArray:
+        """Compute expected residual lifetime of each customer.
+
+        This is the expected number of periods a customer will remain active after the current time period,
+        subject to a discount rate for net present value (NPV) calculations.
+        It is recommended to set a discount rate > 0 to avoid infinite lifetime estimates.
+
+        Adapted from equation (6) in [1]_.
+
+        Parameters
+        ----------
+        discount_rate : float
+            Discount rate to apply for net present value estimations.
+        data : ~pandas.DataFrame
+            Optional dataframe containing the following columns:
+            * `customer_id`: Unique customer identifier
+            * `T`: Number of time periods customer has been active
+            * `cohort`: Customer cohort label
+
+        References
+        ----------
+        .. [1] Fader, P. S., & Hardie, B. G. (2010). "Customer-Base Valuation in a Contractual Setting:
+            The Perils of Ignoring Heterogeneity". Marketing Science, 29(1), 85-93.
+            https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_contractual_mksc_10.pdf
+        """
+        if data is None:
+            data = self.data
+
+        if discount_rate is not None:
+            data = data.assign(discount_rate=discount_rate)
+
+        dataset = self._extract_predictive_variables(
+            data, customer_varnames=["T", "discount_rate"]
+        )
+        alpha = dataset["alpha"]
+        beta = dataset["beta"]
+        T = dataset["T"]
+        d = dataset["discount_rate"]
+
+        retention_rate = (beta + T - 1) / (alpha + beta + T - 1)
+        retention_elasticity = hyp2f1(1, beta + T, alpha + beta + T, 1 / (1 + d))
+        expected_lifetime_purchases = retention_rate * retention_elasticity
+
+        return expected_lifetime_purchases.transpose(
+            "chain", "draw", "customer_id", "cohort", missing_dims="ignore"
+        )
+
+    def expected_retention_elasticity(
+        self,
+        data: pd.DataFrame | None = None,
+        *,
+        discount_rate: float | np.ndarray | pd.Series | None = 0.0,
+    ) -> xarray.DataArray:
+        """Compute expected retention elasticity for each customer.
+
+        This is the percent increase in expected residual lifetime given a 1% increase in the retention rate,
+        subject to a discount rate for net present value (NPV) calculations.
+        It is recommended to set a discount rate > 0 to avoid infinite retention elasticity estimates.
+
+        Adapted from equation (8) in [1]_.
+
+        Parameters
+        ----------
+        discount_rate : float
+            Discount rate to apply for net present value estimations.
+        data : ~pandas.DataFrame
+            Optional dataframe containing the following columns:
+            * `customer_id`: Unique customer identifier
+            * `T`: Number of time periods customer has been active
+            * `cohort`: Customer cohort label
+
+        References
+        ----------
+        .. [1] Fader, P. S., & Hardie, B. G. (2010). "Customer-Base Valuation in a Contractual Setting:
+            The Perils of Ignoring Heterogeneity". Marketing Science, 29(1), 85-93.
+            https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_contractual_mksc_10.pdf
+        """
+        if data is None:
+            data = self.data
+
+        if discount_rate is not None:
+            data = data.assign(discount_rate=discount_rate)
+
+        dataset = self._extract_predictive_variables(
+            data, customer_varnames=["T", "discount_rate"]
+        )
+
+        alpha = dataset["alpha"]
+        beta = dataset["beta"]
+        T = dataset["T"]
+        d = dataset["discount_rate"]
+
+        retention_elasticity = hyp2f1(
+            1, beta + T - 1, alpha + beta + T - 1, 1 / (1 + d)
+        )
+        return retention_elasticity.transpose(
+            "chain", "draw", "customer_id", "cohort", missing_dims="ignore"
         )
 
 

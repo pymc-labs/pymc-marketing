@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: pymc-marketing local\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-10-15 10:52+0300\n"
+"POT-Creation-Date: 2025-10-20 21:01+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: es <LL@li.org>\n"
@@ -190,6 +190,16 @@ msgstr ""
 "`MMM`. Este ejemplo demuestra cómo PyMC-Marketing puede representar "
 "fácilmente una regresión lineal estándar."
 
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:160007
+#: ea388cd88e1e40e0b8b9f2eb23ac02a3
+msgid ""
+"PyMC-Marketing never forces the use of non-linearity. You can build purely "
+"linear models when that's what your data and business context require."
+msgstr ""
+"PyMC-Marketing nunca obliga al uso de no linealidad. Puedes construir "
+"modelos puramente lineales cuando eso es lo que tus datos y el contexto "
+"empresarial requieren."
+
 #: ../source/notebooks/mmm/mmm_gam_options.ipynb:160010
 #: d5f34943fbd64ed38675347b10cb40ff
 #, python-brace-format
@@ -213,7 +223,7 @@ msgstr "Y_t = \\sum_{i=1}^{I} b_i X_{i,t} + \\varepsilon_t"
 
 #: ../source/notebooks/mmm/mmm_gam_options.ipynb:160016
 #: ../source/notebooks/mmm/mmm_gam_options.ipynb:450018
-#: 1c8544564eb945378e80df018344b7e2 7718ca71f6d444f8b8030644c1afdbd3
+#: 7718ca71f6d444f8b8030644c1afdbd3
 msgid "Here:"
 msgstr "Aquí:"
 
@@ -252,6 +262,16 @@ msgid ""
 msgstr ""
 "$\\varepsilon_t$ es el término residual que contabiliza la variación no "
 "observada."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:160023
+#: 2c30899a9bdc4ca4813bf56d0dd15019
+msgid ""
+"This case represents our precise previous data generation process, but the "
+"important thing is how easy it is to write this equation using the MMM API."
+msgstr ""
+"Este caso representa nuestro preciso proceso de generación de datos "
+"anterior, pero lo importante es lo fácil que es escribir esta ecuación "
+"utilizando la API de MMM."
 
 #: ../source/notebooks/mmm/mmm_gam_options.ipynb:180002
 #: 8b307557933742dcb9d1dd2bf8f5c7ba
@@ -507,7 +527,7 @@ msgstr "\\text{Trend}(t) = k \\, t + \\sum_{j=1}^{J} \\delta_j \\, s_j(t)"
 
 #: ../source/notebooks/mmm/mmm_gam_options.ipynb:340016
 #: ../source/notebooks/mmm/mmm_gam_options.ipynb:550017
-#: 31d5f2a6567d4a3eaa567e941d062bf9 fcf9c9c9a01e4a5681bf2375372596cd
+#: fcf9c9c9a01e4a5681bf2375372596cd
 msgid "where:"
 msgstr "donde:"
 
@@ -1161,6 +1181,18 @@ msgstr ""
 "¡Verifique cómo se puede implementar esto siguiendo las mismas estructuras "
 "mostradas arriba!"
 
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:560003
+#: 348861a599fe43bdb390575e81302a8a
+msgid ""
+"The following implementations are experimental and serve as proof-of-concept"
+" demonstrations for this notebook. They are not part of the official PyMC-"
+"Marketing suite and should be used for educational purposes only."
+msgstr ""
+"Las siguientes implementaciones son experimentales y sirven como "
+"demostraciones de prueba de concepto para este cuaderno. No forman parte de "
+"la suite oficial de PyMC-Marketing y deben ser utilizadas únicamente con "
+"fines educativos."
+
 #: ../source/notebooks/mmm/mmm_gam_options.ipynb:600002
 #: ff29f3b6c8e942c7916e7aa11a8d1be4
 msgid ""
@@ -1491,6 +1523,15 @@ msgstr ""
 "tanto escalable como interpretable, especialmente al trabajar con conjuntos "
 "de datos de marketing de alta dimensión."
 
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:650007
+#: 033d82a9f8c94814a6e8fcfcf026c36e
+msgid ""
+"The `MaskedPrior` functionality was merged recently and is still "
+"experimental. Use with caution in production environments."
+msgstr ""
+"La funcionalidad `MaskedPrior` se fusionó recientemente y aún es "
+"experimental. Úsela con precaución en entornos de producción."
+
 #: ../source/notebooks/mmm/mmm_gam_options.ipynb:690002
 #: 086c7305bb5c469b90c143c463b72adc
 msgid "Variational inference for High Dimensional grids"
@@ -1547,6 +1588,11 @@ msgstr ""
 "\"inferencia variacional de PyMC\" y pm.fit)."
 
 #: ../source/notebooks/mmm/mmm_gam_options.ipynb:690009
+#: 6644f550c9b34b8ea731055b244d78d8
+msgid "**Approximations: Useful but Not Magic:**"
+msgstr "**Approximations: Useful but Not Magic:**"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:690010
 #: 44521c029d1647fca1071d351329b4fd
 msgid ""
 "Bias–variance trade-off: Variational families can underestimate posterior "
@@ -1555,7 +1601,7 @@ msgstr ""
 "Compensación entre sesgo y varianza: Las familias variacionales pueden "
 "subestimar la varianza posterior y perder correlaciones."
 
-#: ../source/notebooks/mmm/mmm_gam_options.ipynb:690010
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:690011
 #: 640714a560c246f9a7cff48e89f32c1e
 msgid ""
 "Pathologies in geometry: Multimodality, heavy tails, and strong curvature "
@@ -1565,7 +1611,7 @@ msgstr ""
 "curvatura pueden romper supuestos variacionales simples o llevar a óptimos "
 "locales deficientes."
 
-#: ../source/notebooks/mmm/mmm_gam_options.ipynb:690011
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:690012
 #: 53df45c6c6f348709cd26d5dfd4538f9
 msgid ""
 "Diagnostics matter: Monitor ELBO trajectories, check stability of solutions,"
@@ -1575,7 +1621,7 @@ msgstr ""
 "verifique la estabilidad de las soluciones y compárelas con ejecuciones "
 "cortas de NUTS en modelos reducidos cuando sea posible."
 
-#: ../source/notebooks/mmm/mmm_gam_options.ipynb:690012
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:690013
 #: 628f280bfd384eb9bb297eca11396dc3
 msgid ""
 "Calibration risk: Downstream decisions (e.g., budget allocation) may be "

@@ -19,7 +19,7 @@ import itertools as it
 import re
 import warnings
 from collections.abc import Sequence
-from typing import Annotated, Literal
+from typing import Annotated, Literal, NotRequired, TypedDict
 
 try:
     import networkx as nx
@@ -49,6 +49,22 @@ except ImportError:
             raise ImportError(msg)
 
     CausalModel = LazyCausalModel
+
+
+class TestResult(TypedDict):
+    """Conditional independence test statistics recorded during fitting."""
+
+    bic0: float
+    bic1: float
+    delta_bic: float
+    logBF10: float
+    BF10: float
+    independent: bool
+    conditioning_set: list[str]
+    forced: NotRequired[bool]
+
+
+EMPTY_CONDITION_SET: frozenset[str] = frozenset()
 
 
 class BuildModelFromDAG:
@@ -201,11 +217,11 @@ class BuildModelFromDAG:
         """
         slope_dims = tuple(dim for dim in (self.dims or ()) if dim != "date")
         return {
-            "intercept": Prior("Normal", mu=0, sigma=1, dims=slope_dims),
-            "slope": Prior("Normal", mu=0, sigma=1, dims=slope_dims),
+            "intercept": Prior("Normal", mu=0, sigma=2, dims=slope_dims),
+            "slope": Prior("Normal", mu=0, sigma=2, dims=slope_dims),
             "likelihood": Prior(
                 "Normal",
-                sigma=Prior("HalfNormal", sigma=1),
+                sigma=Prior("HalfNormal", sigma=2),
                 dims=self.dims,
             ),
         }
@@ -458,7 +474,7 @@ class BuildModelFromDAG:
                 # Slopes for each parent -> node
                 mu_expr = 0
                 for parent in parents:
-                    slope_name = f"{parent.lower()}{node.lower()}"
+                    slope_name = f"{parent.lower()}:{node.lower()}"
                     slope_rv = self.model_config["slope"].create_variable(slope_name)
                     slope_rvs[(parent, node)] = slope_rv
                     mu_expr += slope_rv * data_containers[parent]
@@ -652,6 +668,7 @@ class TBFPC:
         target_edge_rule: Literal["any", "conservative", "fullS"] = "any",
         bf_thresh: Annotated[float, Field(gt=0.0)] = 1.0,
         forbidden_edges: Sequence[tuple[str, str]] | None = None,
+        required_edges: Sequence[tuple[str, str]] | None = None,
     ):
         """Create a new TBFPC causal discovery model.
 
@@ -669,6 +686,9 @@ class TBFPC:
         forbidden_edges
             Optional sequence of node pairs that must not be connected in the
             learned graph.
+        required_edges
+            Optional sequence of directed ``(u, v)`` pairs that must be present
+            in the learned graph as ``u -> v``.
         """
         warnings.warn(
             "TBFPC is experimental and its API may change; use with caution.",
@@ -680,18 +700,151 @@ class TBFPC:
         self.target_edge_rule = target_edge_rule
         self.bf_thresh = float(bf_thresh)
         self.forbidden_edges: set[tuple[str, str]] = set(forbidden_edges or [])
+        self.required_edges: set[tuple[str, str]] = set(required_edges or [])
+
+        conflicts = [
+            (u, v)
+            for (u, v) in self.required_edges
+            if (u, v) in self.forbidden_edges or (v, u) in self.forbidden_edges
+        ]
+        if conflicts:
+            conflict_str = ", ".join(f"{u}->{v}" for u, v in conflicts)
+            raise ValueError(
+                f"Required edges conflict with forbidden edges: {conflict_str}"
+            )
+
+        conflicts = [
+            (u, v)
+            for (u, v) in self.required_edges
+            if (u, v) in self.forbidden_edges or (v, u) in self.forbidden_edges
+        ]
+        if conflicts:
+            conflict_str = ", ".join(f"{u}->{v}" for u, v in conflicts)
+            raise ValueError(
+                f"Required edges conflict with forbidden edges: {conflict_str}"
+            )
 
         # Internal state
         self.sep_sets: dict[tuple[str, str], set[str]] = {}
         self._adj_directed: set[tuple[str, str]] = set()
         self._adj_undirected: set[tuple[str, str]] = set()
         self.nodes_: list[str] = []
-        self.test_results: dict[tuple[str, str, frozenset], dict[str, float]] = {}
+        self.test_results: dict[tuple[str, str, frozenset[str]], TestResult] = {}
 
         # Shared response vector for symbolic BIC computation
         # Initialized with placeholder; will be updated with actual data during fitting
         self.y_sh = pytensor.shared(np.zeros(1, dtype="float64"), name="y_sh")
         self._bic_fn = self._build_symbolic_bic_fn()
+
+    @staticmethod
+    def _bitmasks(k: int):
+        """Yield tuples of 0/1 of length k (fast product without importing itertools)."""
+        # Equivalent to itertools.product([0,1], repeat=k) but minimal
+        if k == 0:
+            yield ()
+            return
+        stack = [0] * k
+        i = 0
+        while True:
+            if i < k:
+                stack[i] = 0
+                i += 1
+                continue
+            yield tuple(stack)
+            # increment like binary counter
+            i -= 1
+            while i >= 0 and stack[i] == 1:
+                i -= 1
+            if i < 0:
+                break
+            stack[i] = 1
+            i += 1
+
+    @staticmethod
+    def _parse_cpdag_dot(
+        dot: str,
+    ) -> tuple[set[str], set[tuple[str, str]], set[tuple[str, str]]]:
+        """Minimal DOT parser for a single CPDAG block."""
+        import re
+
+        digraph = re.search(r"digraph\b[^{}]*\{(.*?)\}", dot, flags=re.DOTALL)
+        if not digraph:
+            raise ValueError("No 'digraph { ... }' block found.")
+
+        body = digraph.group(1)
+        nodes: set[str] = set()
+        directed: set[tuple[str, str]] = set()
+        undirected: set[tuple[str, str]] = set()
+
+        node_re = re.compile(r'^\s*"([^"]+)"\s*(?:\[[^\]]*\])?\s*;\s*$')
+        edge_re = re.compile(r'^\s*"([^"]+)"\s*->\s*"([^"]+)"\s*(\[[^\]]*\])?\s*;\s*$')
+
+        def is_undirected(attrs: str | None) -> bool:
+            if not attrs:
+                return False
+            low = attrs.lower()
+            return "style=dashed" in low and "dir=none" in low
+
+        for raw in body.splitlines():
+            line = raw.strip()
+            if not line or line.startswith("//"):
+                continue
+            # node?
+            m = node_re.match(line)
+            if m:
+                nodes.add(m.group(1))
+                continue
+            # edge?
+            m = edge_re.match(line)
+            if m:
+                u, v, attrs = m.group(1), m.group(2), m.group(3)
+                nodes.update((u, v))
+                if is_undirected(attrs):
+                    undirected.add((u, v) if u <= v else (v, u))
+                else:
+                    directed.add((u, v))
+                continue
+            # ignore other lines (global styles etc.)
+
+        return nodes, directed, undirected
+
+    @staticmethod
+    def _is_acyclic(
+        nodes: set[str], edges: list[tuple[str, str]] | set[tuple[str, str]]
+    ) -> bool:
+        """DFS cycle check."""
+        adj: dict[str, list[str]] = {u: [] for u in nodes}
+        for u, v in edges:
+            adj.setdefault(u, []).append(v)
+            adj.setdefault(v, [])  # ensure key exists
+        state = {u: 0 for u in nodes}  # 0=unseen, 1=visiting, 2=done
+
+        def dfs(u: str) -> bool:
+            state[u] = 1
+            for w in adj[u]:
+                if state[w] == 1:
+                    return False
+                if state[w] == 0 and not dfs(w):
+                    return False
+            state[u] = 2
+            return True
+
+        return all(state[u] or dfs(u) for u in nodes)
+
+    def _dot_from_edges(
+        self, nodes: set[str], edges: list[tuple[str, str]] | set[tuple[str, str]]
+    ) -> str:
+        """Render a fully directed graph to DOT; highlights target if present."""
+        lines = ["digraph G {", "  node [shape=ellipse];"]
+        for n in sorted(nodes):
+            if hasattr(self, "target") and n == self.target:
+                lines.append(f'  "{n}" [style=filled, fillcolor="#eef5ff"];')
+            else:
+                lines.append(f'  "{n}";')
+        for u, v in sorted(edges):
+            lines.append(f'  "{u}" -> "{v}";')
+        lines.append("}")
+        return "\n".join(lines).replace("\\n'", "\\n").replace("'\\n", "\\n")  # hygiene
 
     def _key(self, u: str, v: str) -> tuple[str, str]:
         """Return a sorted 2-tuple key for an undirected edge between ``u`` and ``v``."""
@@ -705,6 +858,10 @@ class TBFPC:
         """Return True if edge ``u—v`` is forbidden in either direction."""
         return (u, v) in self.forbidden_edges or (v, u) in self.forbidden_edges
 
+    def _is_required(self, u: str, v: str) -> bool:
+        """Return True if the directed edge ``u -> v`` is required."""
+        return (u, v) in self.required_edges
+
     def _add_directed(self, u: str, v: str) -> None:
         """Add a directed edge ``u -> v`` if not forbidden; drop undirected if present."""
         if not self._has_forbidden(u, v):
@@ -717,14 +874,49 @@ class TBFPC:
             not self._has_forbidden(u, v)
             and (u, v) not in self._adj_directed
             and (v, u) not in self._adj_directed
+            and not self._is_required(u, v)
+            and not self._is_required(v, u)
         ):
             self._adj_undirected.add(self._key(u, v))
 
     def _remove_all(self, u: str, v: str) -> None:
         """Remove any edge (directed or undirected) between ``u`` and ``v``."""
+        if self._is_required(u, v) or self._is_required(v, u):
+            return
         self._adj_undirected.discard(self._key(u, v))
         self._adj_directed.discard((u, v))
         self._adj_directed.discard((v, u))
+
+    def _enforce_required_edges(self) -> None:
+        """Force required edges to appear as directed adjacencies."""
+        for u, v in self.required_edges:
+            self._adj_undirected.discard(self._key(u, v))
+            self._adj_directed.discard((v, u))
+            self._adj_directed.add((u, v))
+            self.test_results[(u, v, EMPTY_CONDITION_SET)] = {
+                "bic0": float("nan"),
+                "bic1": float("nan"),
+                "delta_bic": float("nan"),
+                "logBF10": float("nan"),
+                "BF10": float("nan"),
+                "independent": False,
+                "conditioning_set": [],
+                "forced": True,
+            }
+
+    def _validate_required_nodes(self, drivers: Sequence[str]) -> None:
+        """Ensure required edges reference known nodes."""
+        allowed = set(drivers) | {self.target}
+        missing: set[str] = set()
+        for u, v in self.required_edges:
+            if u not in allowed:
+                missing.add(u)
+            if v not in allowed:
+                missing.add(v)
+        if missing:
+            raise ValueError(
+                "Required edges reference unknown nodes: " + ", ".join(sorted(missing))
+            )
 
     def _build_symbolic_bic_fn(self):
         """Build a BIC callable using a fast solver with a pseudoinverse fallback."""
@@ -775,6 +967,18 @@ class TBFPC:
         """Return True if ΔBIC indicates independence of ``x`` and ``y`` given ``cond``."""
         if self._has_forbidden(x, y):
             return True
+        if self._is_required(x, y) or self._is_required(y, x):
+            self.test_results[(x, y, frozenset(cond))] = TestResult(
+                bic0=float("nan"),
+                bic1=float("nan"),
+                delta_bic=float("nan"),
+                logBF10=float("nan"),
+                BF10=float("nan"),
+                independent=False,
+                conditioning_set=list(cond),
+                forced=True,
+            )
+            return False
 
         n = len(df)
         self.y_sh.set_value(df[y].to_numpy().astype("float64"))
@@ -792,25 +996,30 @@ class TBFPC:
         logBF10 = -0.5 * delta_bic
         BF10 = np.exp(logBF10)
 
-        result = {
+        independence = BF10 < self.bf_thresh
+        result: TestResult = {
             "bic0": bic0,
             "bic1": bic1,
             "delta_bic": delta_bic,
             "logBF10": logBF10,
             "BF10": BF10,
-            "independent": BF10 < self.bf_thresh,
+            "independent": independence,
             "conditioning_set": list(cond),
         }
         self.test_results[(x, y, frozenset(cond))] = result
 
-        return result["independent"]
+        return independence
 
     def _test_target_edges(self, df: pd.DataFrame, drivers: Sequence[str]) -> None:
         """Phase 1: test driver→target edges according to ``target_edge_rule``."""
         for xi in drivers:
-            nbrs = [d for d in drivers if d != xi]
-            max_k = min(3, len(nbrs))
-            all_sets = [S for k in range(max_k + 1) for S in it.combinations(nbrs, k)]
+            neighbor_sets = [d for d in drivers if d != xi]
+            max_k = min(3, len(neighbor_sets))
+            all_sets = [
+                tuple(S)
+                for k in range(max_k + 1)
+                for S in it.combinations(neighbor_sets, k)
+            ]
 
             if self.target_edge_rule == "any":
                 keep = True
@@ -837,7 +1046,7 @@ class TBFPC:
                     self._add_directed(xi, self.target)
 
             elif self.target_edge_rule == "fullS":
-                S = tuple(nbrs)
+                S = tuple(neighbor_sets)
                 if self._ci_independent(df, xi, self.target, S):
                     self._set_sep(xi, self.target, S)
                     self._remove_all(xi, self.target)
@@ -889,13 +1098,17 @@ class TBFPC:
             model = TBFPC(target="Y", target_edge_rule="fullS")
             model.fit(df, drivers=["A", "B", "C"])
         """
+        self._validate_required_nodes(drivers)
+
         self.sep_sets.clear()
         self._adj_directed.clear()
         self._adj_undirected.clear()
         self.test_results.clear()
 
+        self._enforce_required_edges()
         self._test_target_edges(df, drivers)
         self._test_driver_skeleton(df, drivers)
+        self._enforce_required_edges()
 
         self.nodes_ = [*list(drivers), self.target]
         return self
@@ -932,7 +1145,7 @@ class TBFPC:
         """
         return sorted(self._adj_undirected)
 
-    def get_test_results(self, x: str, y: str) -> list[dict[str, float]]:
+    def get_test_results(self, x: str, y: str) -> list[TestResult]:
         """Return ΔBIC diagnostics for the unordered pair ``(x, y)``.
 
         Parameters
@@ -974,7 +1187,8 @@ class TBFPC:
         """
         lines = ["=== Directed edges ==="]
         for u, v in self.get_directed_edges():
-            lines.append(f"{u} -> {v}")
+            suffix = " [required]" if self._is_required(u, v) else ""
+            lines.append(f"{u} -> {v}{suffix}")
         lines.append("=== Undirected edges ===")
         for u, v in self.get_undirected_edges():
             lines.append(f"{u} -- {v}")
@@ -1003,556 +1217,58 @@ class TBFPC:
             else:
                 lines.append(f'  "{n}";')
         for u, v in self.get_directed_edges():
-            lines.append(f'  "{u}" -> "{v}";')
+            attrs = " [color=darkgreen, penwidth=2]" if self._is_required(u, v) else ""
+            lines.append(f'  "{u}" -> "{v}"{attrs};')
         for u, v in self.get_undirected_edges():
             lines.append(f'  "{u}" -> "{v}" [style=dashed, dir=none];')
         lines.append("}")
         return "\n".join(lines)
 
-
-class TBF_FCI:
-    r"""
-    Target-first Bayes Factor Temporal PC.
-
-    This is a time-series–adapted version of TBF-PC. It combines ideas from
-    temporal FCI/PCMCI with a Bayes-factor ΔBIC conditional independence test.
-
-    For each test :math:`X \perp Y \mid S`, compare:
-
-    .. math::
-
-        M_0 : Y \sim S
-        \\
-        M_1 : Y \sim S + X
-
-    with BIC scores
-
-    .. math::
-
-        \mathrm{BIC}(M) = n \log\!\left(\tfrac{\mathrm{RSS}}{n}\right)
-                          + k \log(n),
-
-    and Bayes factor approximation
-
-    .. math::
-
-        \log \mathrm{BF}_{10} \approx -\tfrac{1}{2}
-        \left[ \mathrm{BIC}(M_1) - \mathrm{BIC}(M_0) \right].
-
-    Declare independence if :math:`\mathrm{BF}_{10} < \tau`.
-
-    Parameters
-    ----------
-    target : str
-        Name of the target variable (at time t).
-    target_edge_rule : {"any", "conservative", "fullS"}
-        Rule for keeping lagged → target edges.
-    bf_thresh : float, default=1.0
-        Declare independence if BF10 < bf_thresh.
-    forbidden_edges : list of tuple[str, str], optional
-        Prior knowledge: edges to exclude.
-    max_lag : int, default=2
-        Maximum lag to include (t-1, t-2, …).
-    allow_contemporaneous : bool, default=True
-        Whether to allow contemporaneous edges at time t.
-    """
-
-    @validate_call(config=dict(arbitrary_types_allowed=True))
-    def __init__(
-        self,
-        target: Annotated[
-            str,
-            Field(
-                min_length=1,
-                description="Name of the outcome variable at time t.",
-            ),
-        ],
-        *,
-        target_edge_rule: Literal["any", "conservative", "fullS"] = "any",
-        bf_thresh: Annotated[float, Field(gt=0.0)] = 1.0,
-        forbidden_edges: Sequence[tuple[str, str]] | None = None,
-        max_lag: Annotated[int, Field(ge=0)] = 2,
-        allow_contemporaneous: bool = True,
-    ):
-        """Create a new temporal TBF-PC causal discovery model.
+    def get_all_cdags_from_cpdag(self, dot_cpdag: str | None = None) -> list[str]:
+        """
+        Enumerate all acyclic orientations (consistent extensions) of the CPDAG.
 
         Parameters
         ----------
-        target
-            Target variable name at time ``t`` that the algorithm orients
-            toward.
-        target_edge_rule
-            Rule used to retain lagged → target edges. Choose from
-            ``"any"``, ``"conservative"``, or ``"fullS"``.
-        bf_thresh
-            Positive Bayes factor threshold applied during conditional
-            independence testing.
-        forbidden_edges
-            Optional sequence of node pairs that must be excluded from the
-            final graph.
-        max_lag
-            Maximum lag (inclusive) to consider when constructing temporal
-            drivers.
-        allow_contemporaneous
-            Whether contemporaneous edges at time ``t`` are permitted.
+        dot_cpdag : str | None
+            If provided, parse the CPDAG from this DOT string (expects undirected
+            edges encoded as `[style=dashed, dir=none]`). If None, use the model's
+            current CPDAG from `self.get_directed_edges()` and `self.get_undirected_edges()`.
+
+        Returns
+        -------
+        list[str]
+            A list of DOT strings, each representing a fully oriented DAG (no dashed edges).
         """
-        warnings.warn(
-            "TBF_FCI is experimental and its API may change; use with caution.",
-            UserWarning,
-            stacklevel=2,
-        )
-
-        self.target = target
-        self.target_edge_rule = target_edge_rule
-        self.bf_thresh = float(bf_thresh)
-        self.max_lag = int(max_lag)
-        self.allow_contemporaneous = allow_contemporaneous
-        self.forbidden_edges: set[tuple[str, str]] = self._expand_edges(forbidden_edges)
-
-        self.sep_sets: dict[tuple[str, str], set[str]] = {}
-        self._adj_directed: set[tuple[str, str]] = set()
-        self._adj_undirected: set[tuple[str, str]] = set()
-        self.nodes_: list[str] = []
-        self.test_results: dict[tuple[str, str, frozenset], dict[str, float]] = {}
-
-        # Shared response vector for symbolic BIC computation
-        # Initialized with placeholder; will be updated with actual data during fitting
-        self.y_sh = pytensor.shared(np.zeros(1, dtype="float64"), name="y_sh")
-        self._bic_fn = self._build_symbolic_bic_fn()
-
-    def _lag_name(self, var: str, lag: int) -> str:
-        """Return canonical lagged variable name like ``X[t-2]`` or ``X[t]``."""
-        return f"{var}[t-{lag}]" if lag > 0 else f"{var}[t]"
-
-    def _parse_lag(self, name: str) -> tuple[str, int]:
-        """Parse a lagged variable name into its base and lag components."""
-        if "[t-" in name:
-            base, lagpart = name.split("[t-")
-            return base, int(lagpart[:-1])
-        if "[t]" in name:
-            return name.replace("[t]", ""), 0
-        return name, 0
-
-    def _expand_edges(
-        self, forbidden_edges: Sequence[tuple[str, str]] | None
-    ) -> set[tuple[str, str]]:
-        """Expand collapsed forbidden edge pairs into all lagged variants."""
-        expanded = set()
-        if forbidden_edges:
-            for u, v in forbidden_edges:
-                if "[t" in u or "[t" in v:
-                    expanded.add((u, v))
-                else:
-                    for lag_u in range(0, self.max_lag + 1):
-                        for lag_v in range(0, self.max_lag + 1):
-                            u_name = f"{u}[t-{lag_u}]" if lag_u > 0 else f"{u}[t]"
-                            v_name = f"{v}[t-{lag_v}]" if lag_v > 0 else f"{v}[t]"
-                            expanded.add((u_name, v_name))
-        return expanded
-
-    def _build_lagged_df(
-        self, df: pd.DataFrame, variables: Sequence[str]
-    ) -> pd.DataFrame:
-        """Construct a time-unrolled dataframe up to ``max_lag`` for variables."""
-        frames = {}
-        for lag in range(0, self.max_lag + 1):
-            shifted = df[variables].shift(lag)
-            shifted.columns = [self._lag_name(c, lag) for c in shifted.columns]
-            frames[lag] = shifted
-        out = pd.concat(frames.values(), axis=1).iloc[self.max_lag :]
-        return out.astype("float64")
-
-    def _admissible_cond_set(
-        self, all_vars: Sequence[str], x: str, y: str
-    ) -> list[str]:
-        """Return conditioning variables admissible for testing ``x`` and ``y``."""
-        _, lag_x = self._parse_lag(x)
-        _, lag_y = self._parse_lag(y)
-        max_time = min(lag_x, lag_y)
-        keep = []
-        for z in all_vars:
-            if z in (x, y):
-                continue
-            _, lag_z = self._parse_lag(z)
-            if lag_z >= max_time:
-                keep.append(z)
-        return keep
-
-    def _key(self, u: str, v: str) -> tuple[str, str]:
-        """Return sorted tuple key for undirected edges between ``u`` and ``v``."""
-        return (u, v) if u <= v else (v, u)
-
-    def _set_sep(self, u: str, v: str, S: Sequence[str]) -> None:
-        """Store separation set ``S`` associated with nodes ``u`` and ``v``."""
-        self.sep_sets[self._key(u, v)] = set(S)
-
-    def _has_forbidden(self, u: str, v: str) -> bool:
-        """Return True if the edge between ``u`` and ``v`` is forbidden."""
-        return (u, v) in self.forbidden_edges or (v, u) in self.forbidden_edges
-
-    def _add_directed(self, u: str, v: str) -> None:
-        """Insert directed edge ``u -> v`` unless forbidden."""
-        if not self._has_forbidden(u, v):
-            self._adj_undirected.discard(self._key(u, v))
-            self._adj_directed.add((u, v))
-
-    def _add_undirected(self, u: str, v: str) -> None:
-        """Insert undirected edge ``u -- v`` when no orientation is forced."""
-        if (
-            not self._has_forbidden(u, v)
-            and (u, v) not in self._adj_directed
-            and (v, u) not in self._adj_directed
-        ):
-            self._adj_undirected.add(self._key(u, v))
-
-    def _remove_all(self, u: str, v: str) -> None:
-        """Remove any edge (directed or undirected) between ``u`` and ``v``."""
-        self._adj_undirected.discard(self._key(u, v))
-        self._adj_directed.discard((u, v))
-        self._adj_directed.discard((v, u))
-
-    def _build_symbolic_bic_fn(self):
-        """Build a BIC callable using a fast solver with fallback pseudoinverse."""
-        X = pt.matrix("X")
-        n = pt.iscalar("n")
-
-        xtx = pt.dot(X.T, X)
-        xty = pt.dot(X.T, self.y_sh)
-
-        beta_solve = pt.linalg.solve(xtx, xty)
-        resid_solve = self.y_sh - pt.dot(X, beta_solve)
-        rss_solve = pt.sum(resid_solve**2)
-
-        beta_pinv = pt.nlinalg.pinv(X) @ self.y_sh
-        resid_pinv = self.y_sh - pt.dot(X, beta_pinv)
-        rss_pinv = pt.sum(resid_pinv**2)
-
-        k = X.shape[1]
-
-        bic_solve = n * pt.log(rss_solve / n) + k * pt.log(n)
-        bic_pinv = n * pt.log(rss_pinv / n) + k * pt.log(n)
-
-        bic_solve_fn = pytensor.function(
-            [X, n], bic_solve, on_unused_input="ignore", mode="FAST_RUN"
-        )
-        bic_pinv_fn = pytensor.function(
-            [X, n], bic_pinv, on_unused_input="ignore", mode="FAST_RUN"
-        )
-
-        def bic_fn(X_val: np.ndarray, n_val: int) -> float:
-            try:
-                value = float(bic_solve_fn(X_val, n_val))
-                if np.isfinite(value):
-                    return value
-            except (np.linalg.LinAlgError, RuntimeError, ValueError):
-                pass
-            return float(bic_pinv_fn(X_val, n_val))
-
-        return bic_fn
-
-    def _ci_independent(
-        self, df: pd.DataFrame, x: str, y: str, cond: Sequence[str]
-    ) -> bool:
-        """Return True if Bayes factor suggests independence of ``x`` and ``y``."""
-        if self._has_forbidden(x, y):
-            return True
-        n = len(df)
-        self.y_sh.set_value(df[y].to_numpy().astype("float64"))
-        if len(cond) == 0:
-            X0 = np.ones((n, 1))
-        else:
-            X0 = np.column_stack([np.ones(n), df[list(cond)].to_numpy()])
-        X1 = np.column_stack([X0, df[x].to_numpy()])
-        bic0 = float(self._bic_fn(X0, n))
-        bic1 = float(self._bic_fn(X1, n))
-        delta_bic = bic1 - bic0
-        logBF10 = -0.5 * delta_bic
-        BF10 = np.exp(logBF10)
-        result = {
-            "bic0": bic0,
-            "bic1": bic1,
-            "delta_bic": delta_bic,
-            "logBF10": logBF10,
-            "BF10": BF10,
-            "independent": BF10 < self.bf_thresh,
-            "conditioning_set": list(cond),
-        }
-        self.test_results[(x, y, frozenset(cond))] = result
-        return result["independent"]
-
-    def _stageA_target_lagged(self, L: pd.DataFrame, drivers: Sequence[str]) -> None:
-        """Evaluate lagged driver → target edges according to edge rule."""
-        y = self._lag_name(self.target, 0)
-        all_cols = list(L.columns)
-        for v in drivers:
-            for lag in range(1, self.max_lag + 1):
-                x = self._lag_name(v, lag)
-                cand = self._admissible_cond_set(all_cols, x, y)
-                max_k = min(3, len(cand))
-                all_sets = [
-                    S for k in range(max_k + 1) for S in it.combinations(cand, k)
-                ]
-                if self.target_edge_rule == "fullS":
-                    all_sets = [tuple(cand)]
-                if self.target_edge_rule == "any":
-                    keep = True
-                    for S in all_sets:
-                        if self._ci_independent(L, x, y, S):
-                            self._set_sep(x, y, S)
-                            keep = False
-                            break
-                    if keep:
-                        self._add_directed(x, y)
-                    else:
-                        self._remove_all(x, y)
-                elif self.target_edge_rule == "conservative":
-                    indep_all = True
-                    for S in all_sets:
-                        if not self._ci_independent(L, x, y, S):
-                            indep_all = False
-                        else:
-                            self._set_sep(x, y, S)
-                    if indep_all:
-                        self._remove_all(x, y)
-                    else:
-                        self._add_directed(x, y)
-                elif self.target_edge_rule == "fullS":
-                    S = all_sets[0]
-                    if self._ci_independent(L, x, y, S):
-                        self._set_sep(x, y, S)
-                        self._remove_all(x, y)
-                    else:
-                        self._add_directed(x, y)
-
-    def _stageA_driver_lagged(self, L: pd.DataFrame, drivers: Sequence[str]) -> None:
-        """Build lagged driver skeleton via conditional independence tests."""
-        cols = [c for c in L.columns if not c.startswith(self.target)]
-        for xi, xj in it.combinations(cols, 2):
-            _, li = self._parse_lag(xi)
-            _, lj = self._parse_lag(xj)
-            if li == 0 and lj == 0:
-                continue
-            cand = self._admissible_cond_set(
-                [*cols, self._lag_name(self.target, 0)], xi, xj
+        nodes, fixed_dir, undirected = (
+            self._parse_cpdag_dot(dot_cpdag)
+            if dot_cpdag is not None
+            else (
+                set(self.nodes_),
+                set(self.get_directed_edges()),
+                set(self.get_undirected_edges()),
             )
-            max_k = min(3, len(cand))
-            dependent, found_sep = True, False
-            for k in range(max_k + 1):
-                for S in it.combinations(cand, k):
-                    if self._ci_independent(L, xi, xj, S):
-                        self._set_sep(xi, xj, S)
-                        dependent = False
-                        found_sep = True
-                        break
-                if found_sep:
-                    break
-            if dependent:
-                self._add_undirected(xi, xj)
-            else:
-                self._remove_all(xi, xj)
+        )
 
-    def _parents_of(self, node: str) -> list[str]:
-        """Return list of parents for ``node`` using directed adjacencies."""
-        return [u for (u, v) in self._adj_directed if v == node]
+        if not undirected:
+            # Already a DAG: validate acyclicity and return it
+            edges = sorted(fixed_dir)
+            if self._is_acyclic(nodes, edges):
+                return [self._dot_from_edges(nodes, edges)]
+            return []
 
-    def _stageB_contemporaneous(self, L: pd.DataFrame, drivers: Sequence[str]) -> None:
-        """Test contemporaneous (time ``t``) relations among variables."""
-        y_nodes = [self._lag_name(v, 0) for v in [*drivers, self.target]]
-        for xi, xj in it.combinations(y_nodes, 2):
-            base_S = list(set(self._parents_of(xi) + self._parents_of(xj)))
-            cand_extra = [z for z in y_nodes if z not in (xi, xj)]
-            max_k = 2
-            dependent, found_sep = True, False
-            for k in range(max_k + 1):
-                for extra in it.combinations(cand_extra, k):
-                    S = tuple(sorted(set(base_S).union(extra)))
-                    if self._ci_independent(L, xi, xj, S):
-                        self._set_sep(xi, xj, S)
-                        dependent = False
-                        found_sep = True
-                        break
-                if found_sep:
-                    break
-            if dependent:
-                self._add_undirected(xi, xj)
-            else:
-                self._remove_all(xi, xj)
-
-    def fit(self, df: pd.DataFrame, drivers: Sequence[str]):
-        """Fit the temporal causal discovery algorithm to ``df``.
-
-        Parameters
-        ----------
-        df : pandas.DataFrame
-            Input dataframe containing the target column and every driver
-            column.
-        drivers : Sequence[str]
-            Iterable of column names to be treated as drivers of the target.
-
-        Returns
-        -------
-        TBF_FCI
-            The fitted instance with internal adjacency structures populated.
-
-        Examples
-        --------
-        .. code-block:: python
-
-            model = TBF_FCI(target="Y", max_lag=2)
-            model.fit(df, drivers=["A", "B"])
-        """
-        self.sep_sets.clear()
-        self._adj_directed.clear()
-        self._adj_undirected.clear()
-        self.test_results.clear()
-        all_vars = [*list(drivers), self.target]
-        L = self._build_lagged_df(df, all_vars)
-        self.nodes_ = list(L.columns)
-        self._stageA_target_lagged(L, drivers)
-        self._stageA_driver_lagged(L, drivers)
-        if self.allow_contemporaneous:
-            self._stageB_contemporaneous(L, drivers)
-        return self
-
-    def collapsed_summary(
-        self,
-    ) -> tuple[list[tuple[str, str, int]], list[tuple[str, str]]]:
-        """Summarize lagged edges into a driver-level view.
-
-        Returns
-        -------
-        tuple[list[tuple[str, str, int]], list[tuple[str, str]]]
-            A tuple with directed edges represented as ``(u, v, lag)`` and
-            contemporaneous undirected edges represented as ``(u, v)`` pairs.
-
-        Examples
-        --------
-        .. code-block:: python
-
-            directed, undirected = model.collapsed_summary()
-        """
-        collapsed_directed: list[tuple[str, str, int]] = []
-        for u, v in self._adj_directed:
-            base_u, lag_u = self._parse_lag(u)
-            base_v, lag_v = self._parse_lag(v)
-            if lag_v == 0:
-                collapsed_directed.append((base_u, base_v, lag_u))
-
-        collapsed_undirected: list[tuple[str, str]] = []
-        for u, v in self._adj_undirected:
-            base_u, lag_u = self._parse_lag(u)
-            base_v, lag_v = self._parse_lag(v)
-            if lag_u == lag_v == 0:
-                collapsed_undirected.append((base_u, base_v))
-
-        return collapsed_directed, collapsed_undirected
-
-    def get_directed_edges(self) -> list[tuple[str, str]]:
-        """Return directed edges in the time-unrolled graph.
-
-        Returns
-        -------
-        list[tuple[str, str]]
-            Sorted list of directed edges in the expanded (lagged) graph.
-
-        Examples
-        --------
-        .. code-block:: python
-
-            directed = model.get_directed_edges()
-        """
-        return sorted(self._adj_directed)
-
-    def get_undirected_edges(self) -> list[tuple[str, str]]:
-        """Return undirected edges in the time-unrolled graph.
-
-        Returns
-        -------
-        list[tuple[str, str]]
-            Sorted list of undirected edges among lagged variables.
-
-        Examples
-        --------
-        .. code-block:: python
-
-            undirected = model.get_undirected_edges()
-        """
-        return sorted(self._adj_undirected)
-
-    def summary(self) -> str:
-        """Return a human-readable summary of edges and test count.
-
-        Returns
-        -------
-        str
-            Multiline description of directed edges, undirected edges, and the
-            number of conditional independence tests executed.
-
-        Examples
-        --------
-        .. code-block:: python
-
-            print(model.summary())
-        """
-        lines = ["=== Directed edges ==="]
-        for u, v in self.get_directed_edges():
-            lines.append(f"{u} -> {v}")
-        lines.append("=== Undirected edges ===")
-        for u, v in self.get_undirected_edges():
-            lines.append(f"{u} -- {v}")
-        lines.append("=== Number of CI tests run ===")
-        lines.append(str(len(self.test_results)))
-        return "\n".join(lines)
-
-    def to_digraph(self, collapsed: bool = True) -> str:
-        """Export the learned graph as DOT text.
-
-        Parameters
-        ----------
-        collapsed : bool, default True
-            ``True`` collapses the time-unrolled graph into driver-level nodes
-            with lag annotations; ``False`` returns the full lag-expanded
-            structure.
-
-        Returns
-        -------
-        str
-            DOT format string suitable for Graphviz rendering.
-
-        Examples
-        --------
-        .. code-block:: python
-
-            dot_text = model.to_digraph(collapsed=True)
-        """
-        lines = ["digraph G {", "  node [shape=ellipse];"]
-
-        if not collapsed:
-            # --- original time-unrolled graph ---
-            for n in self.nodes_:
-                if n == self._lag_name(self.target, 0):
-                    lines.append(f'  "{n}" [style=filled, fillcolor="#eef5ff"];')
-                else:
-                    lines.append(f'  "{n}";')
-            for u, v in self.get_directed_edges():
-                lines.append(f'  "{u}" -> "{v}";')
-            for u, v in self.get_undirected_edges():
-                lines.append(f'  "{u}" -> "{v}" [style=dashed, dir=none];')
-        else:
-            directed, undirected = self.collapsed_summary()
-            base_nodes = {self._parse_lag(n)[0] for n in self.nodes_}
-            for n in base_nodes:
-                if n == self.target:
-                    lines.append(f'  "{n}" [style=filled, fillcolor="#eef5ff"];')
-                else:
-                    lines.append(f'  "{n}";')
-            for u, v, lag in directed:
-                lines.append(f'  "{u}" -> "{v}" [label="lag {lag}"];')
-            for u, v in undirected:
-                lines.append(f'  "{u}" -> "{v}" [style=dashed, dir=none, label="t"];')
-
-        lines.append("}")
-        return "\n".join(lines)
+        cdags: list[str] = []
+        und = sorted({self._key(u, v) for (u, v) in undirected})  # canonical ordering
+        for mask in self._bitmasks(len(und)):
+            oriented = list(fixed_dir)
+            # bit 0 -> u->v, bit 1 -> v->u
+            oriented.extend(
+                (u, v) if b == 0 else (v, u)
+                for b, (u, v) in zip(mask, und, strict=False)
+            )
+            if self._is_acyclic(nodes, oriented):
+                cdags.append(self._dot_from_edges(nodes, oriented))
+        return cdags
 
 
 class CausalGraphModel:

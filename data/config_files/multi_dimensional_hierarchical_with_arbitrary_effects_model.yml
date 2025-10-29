@@ -107,6 +107,10 @@ effects:
             b: 0.1
             dims: ["weekly_fourier", "market"]
 
+original_scale_vars:
+  - channel_contribution
+  - intercept_contribution
+
 # ----------------------------------------------------------------------
 # Calibration examples (lift tests + CPT constraints)
 calibration:

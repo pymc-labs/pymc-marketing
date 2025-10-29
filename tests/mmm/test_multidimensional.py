@@ -1502,6 +1502,9 @@ def test_add_calibration_test_measurements(multi_dim_data):
     # Build the model
     mmm.build_model(X, y)
 
+    # Add original scale contribution variable first (required before calibration)
+    mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+
     # Spend data: same structure as X (use X directly for simplicity)
     spend_df = X.copy()
 
@@ -1557,6 +1560,46 @@ def test_add_cost_per_target_calibration_requires_model(multi_dim_data) -> None:
 
     with pytest.raises(
         RuntimeError, match=r"Model must be built before adding calibration."
+    ):
+        mmm.add_cost_per_target_calibration(
+            data=spend_df,
+            calibration_data=calibration_df,
+            name_prefix="cpt_calibration",
+        )
+
+
+def test_add_cost_per_target_calibration_requires_original_scale(
+    multi_dim_data,
+) -> None:
+    """Test that add_cost_per_target_calibration raises error when original scale variable doesn't exist."""
+    X, y = multi_dim_data
+
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+
+    mmm.build_model(X, y)
+
+    # Don't add original scale variable - should cause error
+    spend_df = X.copy()
+    countries = mmm.model.coords["country"]
+    calibration_df = pd.DataFrame(
+        {
+            "country": [countries[0]],
+            "channel": ["channel_1"],
+            "cost_per_target": [30.0],
+            "sigma": [2.0],
+        }
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=r"`channel_contribution_original_scale` is not in the model.",
     ):
         mmm.add_cost_per_target_calibration(
             data=spend_df,
@@ -3108,6 +3151,9 @@ def test_calibration_spend_reindexing_in_posterior_predictive(
         }
     )
 
+    # Add original scale contribution variable first (required before calibration)
+    mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+
     # Add calibration
     mmm.add_cost_per_target_calibration(
         data=spend_df,
@@ -3200,6 +3246,9 @@ def test_calibration_spend_with_different_dtypes(multi_dim_data, mock_pymc_sampl
         }
     )
 
+    # Add original scale contribution variable first (required before calibration)
+    mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+
     # Add calibration
     mmm.add_cost_per_target_calibration(
         data=spend_df,
@@ -3261,6 +3310,9 @@ def test_calibration_duplicate_name_error(multi_dim_data, mock_pymc_sample):
         }
     )
 
+    # Add original scale contribution variable first (required before calibration)
+    mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+
     # Add calibration first time
     mmm.add_cost_per_target_calibration(
         data=spend_df,
@@ -3295,6 +3347,9 @@ def test_calibration_shape_mismatch_error(multi_dim_data, mock_pymc_sample):
 
     # Build the model
     mmm.build_model(X, y)
+
+    # Add original scale contribution variable first (required before calibration)
+    mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
 
     # Create spend data with different shape (remove some countries)
     spend_df = X.copy()
@@ -3347,6 +3402,9 @@ def test_calibration_coordinate_label_mismatch_error(multi_dim_data, mock_pymc_s
 
     # Build the model
     mmm.build_model(X, y)
+
+    # Add original scale contribution variable first (required before calibration)
+    mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
 
     # Create spend data with the same shape but mismatched coordinate labels
     spend_df = X.copy()

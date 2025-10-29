@@ -61,14 +61,12 @@ msgid ""
 "\\end{align}\n"
 "\n"
 msgstr ""
-"\\mathbb{LL}(a, b, \\alpha, r | x, t_x, T) = \\ln \\left[\n"
-"A_1 * A_2 * (A_3 + \\delta_{x>0} A_4) \\right] \\text{, where:} \\\\\n"
-"\\begin{align}\n"
-"A_1 &= \\frac{\\Gamma(r+x) \\alpha^r)}{\\Gamma(x)} \\\\\n"
-"A_2 &= \\frac{\\Gamma(a+b) \\Gamma(b+x+1)}{\\Gamma(b) \\Gamma(a+b+x+1)} \\\\\n"
-"A_3 &= \\left( \\frac{1}{\\alpha + T} \\right)^(r+x) \\\\\n"
-"A_4 &= \\left( \\frac{x>0}0{x>0}1 \\right) \\left( \\frac{x>0}2{x>0}3 \\right)^(r+x) \\\\\n"
-"\\end{x>0}4"
+"\\mathbb{LL}(a, b, \\alpha, r | x, t_x, T) = \\ln \\left[ A_1 * A_2 * (A_3 +"
+" \\delta_{x>0} A_4) \\right] \\text{, where:} \\\\ \\begin{align} A_1 &= "
+"\\frac{\\Gamma(r+x) \\alpha^r)}{\\Gamma(x)} \\\\ A_2 &= \\frac{\\Gamma(a+b) "
+"\\Gamma(b+x+1)}{\\Gamma(b) \\Gamma(a+b+x+1)} \\\\ A_3 &= \\left( "
+"\\frac{1}{\\alpha + T} \\right)^(r+x) \\\\ A_4 &= \\left( \\frac{x>0}0{x>0}1"
+" \\right) \\left( \\frac{x>0}2{x>0}3 \\right)^(r+x) \\\\ \\end{x>0}4"
 
 #: c8d8f5b4a9284e49a35e269e1e025bbc of
 #: pymc_marketing.clv.distributions.ModifiedBetaGeoNBD:18
@@ -151,8 +149,8 @@ msgid ""
 "r\\, alpha\\, T\\, ...\\)"
 msgstr ""
 ":py:obj:`ModifiedBetaGeoNBD.dist "
-"<pymc_marketing.clv.distributions.ModifiedBetaGeoNBD.dist>`\\ \\(a\\, b\\, "
-"r\\, alpha\\, T\\, ...\\)"
+"<pymc_marketing.clv.distributions.ModifiedBetaGeoNBD.dist>`\\ (a\\, b\\, "
+"r\\, alpha\\, T\\, ...)"
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.ModifiedBetaGeoNBD.rst:24:<autosummary>:1
 #: 0682abf3156040bc8f2c2afbf79a39d0

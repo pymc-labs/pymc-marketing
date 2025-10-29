@@ -1,0 +1,80 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-20 21:01+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.TBFPC.get_all_cdags_from_cpdag.rst:2
+#: 4602d19071774b1e9e0ddf7dc8aa9cf1
+msgid "TBFPC.get\\_all\\_cdags\\_from\\_cpdag"
+msgstr "TBFPC.get\\_all\\_cdags\\_from\\_cpdag"
+
+#: e04a1505b4414393b51829b5f192369d of
+#: pymc_marketing.mmm.causal.TBFPC.get_all_cdags_from_cpdag:2
+msgid ""
+"Enumerate all acyclic orientations (consistent extensions) of the CPDAG."
+msgstr ""
+"Enumere todas las orientaciones acíclicas (extensiones consistentes) del "
+"CPDAG."
+
+#: eeb52fe1ee2447bc8d83e93e2982f900 of
+#: pymc_marketing.mmm.causal.TBFPC.get_all_cdags_from_cpdag
+msgid "Parameters"
+msgstr "Parameters"
+
+#: bf478569779a4664916feb4cd6af956d of
+#: pymc_marketing.mmm.causal.TBFPC.get_all_cdags_from_cpdag:7
+msgid "**dot_cpdag** : :class:`python:str` | :data:`python:None`"
+msgstr "**dot_cpdag** : :class:`python:str` | :data:`python:None`"
+
+#: f1995999280d4531abde2615dc049470 of
+#: pymc_marketing.mmm.causal.TBFPC.get_all_cdags_from_cpdag:6
+msgid "python:str | python:None"
+msgstr "python:str | python:None"
+
+#: 248dbecd28554cf895a893483f8e99f3 of
+#: pymc_marketing.mmm.causal.TBFPC.get_all_cdags_from_cpdag:8
+msgid ""
+"If provided, parse the CPDAG from this DOT string (expects undirected edges "
+"encoded as `[style=dashed, dir=none]`). If None, use the model's current "
+"CPDAG from `self.get_directed_edges()` and `self.get_undirected_edges()`."
+msgstr ""
+"Si se proporciona, analiza el CPDAG de esta cadena DOT (se esperan bordes no"
+" dirigidos codificados como `[style=dashed, dir=none]`). Si es None, utiliza"
+" el CPDAG actual del modelo de `self.get_directed_edges()` y "
+"`self.get_undirected_edges()`."
+
+#: 9406897f8bd24edea558a0aff2b8b048 of
+#: pymc_marketing.mmm.causal.TBFPC.get_all_cdags_from_cpdag
+msgid "Returns"
+msgstr "Returns"
+
+#: 212449bf558b480db5780fc4c41a07cf of
+#: pymc_marketing.mmm.causal.TBFPC.get_all_cdags_from_cpdag:16
+msgid ":class:`python:list`\\[:class:`python:str`]"
+msgstr ":class:`python:list`\\[:class:`python:str`]"
+
+#: 45630efe89344351b859c546e52887f1 of
+#: pymc_marketing.mmm.causal.TBFPC.get_all_cdags_from_cpdag:17
+msgid ""
+"A list of DOT strings, each representing a fully oriented DAG (no dashed "
+"edges)."
+msgstr ""
+"Una lista de cadenas DOT, cada una representando un DAG completamente "
+"orientado (sin bordes discontinuos)."

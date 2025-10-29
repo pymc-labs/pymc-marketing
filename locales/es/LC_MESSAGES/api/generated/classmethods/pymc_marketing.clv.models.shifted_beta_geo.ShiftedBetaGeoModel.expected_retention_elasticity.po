@@ -1,0 +1,116 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-21 12:22+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_retention_elasticity.rst:2
+#: 0ba05d93202648aeae11a2662407c049
+msgid "ShiftedBetaGeoModel.expected\\_retention\\_elasticity"
+msgstr "ShiftedBetaGeoModel.expected\\_retention\\_elasticity"
+
+#: 905601ff1c464135abb63c08847ef707 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_retention_elasticity:2
+msgid "Compute expected retention elasticity for each customer."
+msgstr "Calcule la elasticidad de retención esperada para cada cliente."
+
+#: b346ece38b524022a759d2857e8eee0f of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_retention_elasticity:4
+#, python-format
+msgid ""
+"This is the percent increase in expected residual lifetime given a 1% "
+"increase in the retention rate, subject to a discount rate for net present "
+"value (NPV) calculations. It is recommended to set a discount rate > 0 to "
+"avoid infinite retention elasticity estimates."
+msgstr ""
+"Este es el aumento porcentual en la vida residual esperada dado un aumento "
+"del 1% en la tasa de retención, sujeto a una tasa de descuento para cálculos"
+" del valor presente neto (VPN). Se recomienda establecer una tasa de "
+"descuento > 0 para evitar estimaciones de elasticidad de retención "
+"infinitas."
+
+#: 9deae5deb4fe48a98fb5a04468af6de8 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_retention_elasticity:8
+msgid "Adapted from equation (8) in [R7c2bf73cac9b-1]_."
+msgstr "Adaptado de la ecuación (8) en [R7c2bf73cac9b-1]_."
+
+#: 0e0ab359ac234c6bb44527f9111903f4 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_retention_elasticity
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 3bade7e222bf41d08a2de00c5c1e606e of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_retention_elasticity:12
+msgid "**discount_rate** : :class:`python:float`"
+msgstr "**discount_rate** : :class:`python:float`"
+
+#: 91357b4409174f26829816ea9c471f9c of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_retention_elasticity:11
+msgid "python:float"
+msgstr "python:flotar"
+
+#: 1b07d6f9fdf641c7aab235fbb91a9cfd of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_retention_elasticity:13
+msgid "Discount rate to apply for net present value estimations."
+msgstr ""
+"Tasa de descuento a aplicar para estimaciones del valor presente neto."
+
+#: 82abffeaf5e34cfdb9954934342046c3 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_retention_elasticity:15
+msgid "**data** : :obj:`~pandas.DataFrame`"
+msgstr "**datos** : :obj:`~pandas.DataFrame`"
+
+#: 93951f5e21c54fb99fa81e2573d1dae0 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_retention_elasticity:14
+msgid "DataFrame"
+msgstr "DataFrame"
+
+#: b9bf9efc95e24e00b4080e6d669e689f of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_retention_elasticity:16
+msgid ""
+"Optional dataframe containing the following columns: * `customer_id`: Unique"
+" customer identifier * `T`: Number of time periods customer has been active "
+"* `cohort`: Customer cohort label"
+msgstr ""
+"Dataframe opcional que contiene las siguientes columnas: * `customer_id`: "
+"Identificador único del cliente * `T`: Número de períodos de tiempo en los "
+"que el cliente ha estado activo * `cohort`: Etiqueta de cohorte del cliente"
+
+#: c263fd24fb7d4d1c89188ffa6c1653ce of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_retention_elasticity:33
+msgid "References"
+msgstr "Referencias"
+
+#: f973a63867b842aba92ad8510e5f0f31 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_retention_elasticity:34
+msgid ""
+"Fader, P. S., & Hardie, B. G. (2010). \"Customer-Base Valuation in a "
+"Contractual Setting: The Perils of Ignoring Heterogeneity\". Marketing "
+"Science, 29(1), 85-93. https://faculty.wharton.upenn.edu/wp-"
+"content/uploads/2012/04/Fader_hardie_contractual_mksc_10.pdf"
+msgstr ""
+"Fader, P. S., & Hardie, B. G. (2010). \"Valoración de la Base de Clientes en"
+" un Entorno Contractual: Los Peligros de Ignorar la Heterogeneidad\". "
+"Marketing Science, 29(1), 85-93. https://faculty.wharton.upenn.edu/wp-"
+"content/uploads/2012/04/Fader_hardie_contractual_mksc_10.pdf"
+
+#: 2af2027f46664f58a133cbbba72bcb1e of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_retention_elasticity:40
+msgid "[R7c2bf73cac9b-1]_"
+msgstr "[R7c2bf73cac9b-1]_"

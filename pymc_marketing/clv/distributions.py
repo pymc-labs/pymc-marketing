@@ -908,11 +908,13 @@ class ShiftedBetaGeometricRV(RandomVariable):
         alpha = np.broadcast_to(alpha, size)
         beta = np.broadcast_to(beta, size)
 
-        p = rng.beta(a=alpha, b=beta, size=size)
+        p_samples = rng.beta(a=alpha, b=beta, size=size)
 
-        samples = rng.geometric(p, size=size)
-
-        return samples
+        # prevent log(0) by clipping small p samples
+        p = np.clip(p_samples, 1e-100, 1)
+        # TODO: Consider returning np.float64 types instead of np.int64
+        #       See relevant PR comment: https://github.com/pymc-labs/pymc-marketing/pull/2010#discussion_r2444116986
+        return rng.geometric(p, size=size)
 
 
 sbg = ShiftedBetaGeometricRV()

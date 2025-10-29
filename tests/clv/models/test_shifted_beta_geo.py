@@ -37,18 +37,13 @@ class TestShiftedBetaGeoModel:
 
         # Test parameters for dual cohort MCMC fit of expected_probability_alive, expected_retention_rate
         # Highend and regular parameters from pg(7) of paper: https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf
-        # TODO: might need to be 0.668 instead
         cls.alpha_hi_reg = [0.668, 0.704]
         cls.beta_hi_reg = [3.806, 1.182]
 
-        # TODO: These are needed to test predictive methods in an upcoming PR.
-        # Test parameters for single cohort MAP fit of expected_lifetime_purchases, expected_retention_elasticity
+        # Test parameters for expected_residual_lifetime, expected_retention_elasticity
         # Both parameter sets from from pg(4) of paper: https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_contractual_mksc_10.pdf
-        cls.alpha_case1 = 3.80
-        cls.beta_case1 = 15.20
-
-        cls.alpha_case2 = 0.067
-        cls.beta_case2 = 0.267
+        cls.alpha_case1_case2 = [3.80, 0.067]
+        cls.beta_case1_case2 = [15.20, 0.267]
 
         # Instantiate model with research paper data
         cls.data = pd.read_csv("data/sbg_reg_hi_cohorts.csv").query("T <= 8")
@@ -61,13 +56,49 @@ class TestShiftedBetaGeoModel:
         cls.draws = 50
         cls.cohorts = ["highend", "regular"]
 
-        # Mock a fitted model with multi-dim parameters
+        # Mock a fitted model with [highend, regular] cohort parameters
         cls.model = cls.mock_cohort_fit(
             cls.model,
             [cls.alpha_hi_reg, cls.beta_hi_reg],
             cls.chains,
             cls.draws,
             cls.cohorts,
+        )
+
+        # Create separate model for expected_residual_lifetime tests with case1/case2 cohorts
+        # Create mock data for case1/case2 cohorts (representing different renewal periods)
+        cls.erl_data = pd.DataFrame(
+            {
+                "customer_id": np.arange(1, 11),
+                "recency": np.array([1, 2, 3, 4, 5, 1, 2, 3, 4, 5]),
+                "T": np.array([5, 5, 5, 5, 5, 5, 5, 5, 5, 5]),
+                "cohort": np.array(
+                    [
+                        "case1",
+                        "case1",
+                        "case1",
+                        "case1",
+                        "case1",
+                        "case2",
+                        "case2",
+                        "case2",
+                        "case2",
+                        "case2",
+                    ]
+                ),
+            }
+        )
+        cls.erl_model = ShiftedBetaGeoModel(cls.erl_data)
+        cls.erl_model.build_model()
+        cls.erl_cohorts = ["case1", "case2"]
+        # Mock a fitted model with [case1, case2] cohort parameters
+        # for testing expected_residual_lifetime, expected_retention_elasticity
+        cls.erl_model = cls.mock_cohort_fit(
+            cls.erl_model,
+            [cls.alpha_case1_case2, cls.beta_case1_case2],
+            cls.chains,
+            cls.draws,
+            cls.erl_cohorts,
         )
 
     # TODO: Generalize and move into conftest? create_mock_fit doesn't support multi-dim parameters
@@ -87,10 +118,10 @@ class TestShiftedBetaGeoModel:
         param_arrays = [
             xr.DataArray(
                 param[0],
-                dims=("chains", "draws", "cohort"),
+                dims=("chain", "draw", "cohort"),
                 coords={
-                    "chains": np.arange(chains),
-                    "draws": np.arange(draws),
+                    "chain": np.arange(chains),
+                    "draw": np.arange(draws),
                     "cohort": cohorts,
                 },
                 name=param[1],
@@ -156,7 +187,7 @@ class TestShiftedBetaGeoModel:
 
     @pytest.fixture(scope="class")
     def prediction_targets(self):
-        """Validation data for testing expected_probability_alive and expected_retention_rate."""
+        """Validation data for testing predictive methods."""
         # Data found in Table 1 on pg(3) of paper: https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf
         df = pd.DataFrame(
             {
@@ -201,11 +232,20 @@ class TestShiftedBetaGeoModel:
             alive_prob_regular_obs[1:] / alive_prob_regular_obs[:-1]
         )
 
+        # DERL values from Table 3, pg(5) of paper: https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_contractual_mksc_10.pdf
+        # Case 1: alpha=3.80, beta=15.20 (high retention case)
+        # Case 2: alpha=0.067, beta=0.267 (low retention case)
+        # DERL for T=1,2,3,4,5 renewals with d=0.1 discount rate
+        residual_lifetime_case1_obs = np.array([3.31, 3.45, 3.59, 3.72, 3.84])
+        residual_lifetime_case2_obs = np.array([7.68, 9.46, 9.86, 10.06, 10.19])
+
         return (
             alive_prob_highend_obs,
             alive_prob_regular_obs,
             retention_rate_highend_obs,
             retention_rate_regular_obs,
+            residual_lifetime_case1_obs,
+            residual_lifetime_case2_obs,
         )
 
     @pytest.fixture(scope="class")
@@ -223,6 +263,22 @@ class TestShiftedBetaGeoModel:
                 "T": np.repeat(T_rng, len(cohort_names)),
                 "cohort": np.tile(cohort_names, max_T),
                 "covar_cohort": np.tile(cohorts_covar, max_T),
+            }
+        )
+
+    @pytest.fixture(scope="class")
+    def erl_test_data(self):
+        """Test data for expected_residual_lifetime with case1/case2 cohorts."""
+        # Create test data for (T=1,2,3,4,5) renewals for both case1 and case2 cohorts
+        n_periods = 5
+        cohort_names = np.array(["case1", "case2"])
+        T_rng = np.arange(1, n_periods + 1, 1)
+
+        return pd.DataFrame(
+            {
+                "customer_id": np.arange(1, 1 + n_periods * 2, 1),
+                "T": np.repeat(T_rng, len(cohort_names)),
+                "cohort": np.tile(cohort_names, n_periods),
             }
         )
 
@@ -386,62 +442,6 @@ class TestShiftedBetaGeoModel:
         assert len(idata.posterior.draw) == 10
         assert model.idata is idata
 
-    def test_expected_probability_alive(
-        self, prediction_targets, predicted_time_series_data
-    ):
-        # extract observed active probability arrays by cohort
-        alive_prob_highend_obs, alive_prob_regular_obs, _, _ = prediction_targets
-
-        # run full predictions and extract by cohort
-        expected_retention_rate_cohorts = self.model.expected_probability_alive(
-            predicted_time_series_data,
-            future_t=-1,  # prob_alive is always 1 when T==1
-        ).mean(("chains", "draws"))
-        expected_alive_prob_highend = expected_retention_rate_cohorts.sel(
-            cohort="highend"
-        ).values
-        expected_alive_prob_regular = expected_retention_rate_cohorts.sel(
-            cohort="regular"
-        ).values
-
-        np.testing.assert_allclose(
-            expected_alive_prob_highend, alive_prob_highend_obs, rtol=0.05
-        )
-        np.testing.assert_allclose(
-            expected_alive_prob_regular, alive_prob_regular_obs, rtol=0.05
-        )
-
-    def test_expected_retention_rate(
-        self, prediction_targets, predicted_time_series_data
-    ):
-        # extract observed retention rate data arrays by cohort
-        _, _, retention_rate_highend_obs, retention_rate_regular_obs = (
-            prediction_targets
-        )
-
-        # retention rate is estimated from T-1 time periods, reducing array length by 1
-        retention_data = predicted_time_series_data[
-            predicted_time_series_data["T"] <= 12
-        ]
-        # run full predictions and extract by cohort
-        expected_retention_rate_cohorts = self.model.expected_retention_rate(
-            retention_data,
-            future_t=0,
-        ).mean(("chains", "draws"))
-        expected_retention_rate_highend = expected_retention_rate_cohorts.sel(
-            cohort="highend"
-        ).values
-        expected_retention_rate_regular = expected_retention_rate_cohorts.sel(
-            cohort="regular"
-        ).values
-
-        np.testing.assert_allclose(
-            expected_retention_rate_highend, retention_rate_highend_obs, rtol=0.05
-        )
-        np.testing.assert_allclose(
-            expected_retention_rate_regular, retention_rate_regular_obs, rtol=0.05
-        )
-
     def test_save_load(self):
         model = ShiftedBetaGeoModel(data=self.data)
         model.build_model()
@@ -513,11 +513,210 @@ class TestShiftedBetaGeoModel:
             }
         )
         with pytest.raises(
-            ValueError, match=r"T must be a non-zero, positive integer."
+            ValueError, match=r"T must be a non-zero, positive whole number."
         ):
             self.model._extract_predictive_variables(
                 T_lt_2_data, customer_varnames=["customer_id", "recency", "T", "cohort"]
             )
+
+    def test_expected_probability_alive(
+        self, prediction_targets, predicted_time_series_data
+    ):
+        # extract observed active probability arrays by cohort
+        alive_prob_highend_obs, alive_prob_regular_obs, _, _, _, _ = prediction_targets
+
+        # run full predictions and extract by cohort
+        expected_retention_rate_cohorts = self.model.expected_probability_alive(
+            predicted_time_series_data,
+            future_t=-1,  # prob_alive is always 1 when T==1
+        ).mean(("chain", "draw"))
+        expected_alive_prob_highend = expected_retention_rate_cohorts.sel(
+            cohort="highend"
+        ).values
+        expected_alive_prob_regular = expected_retention_rate_cohorts.sel(
+            cohort="regular"
+        ).values
+
+        np.testing.assert_allclose(
+            expected_alive_prob_highend, alive_prob_highend_obs, rtol=0.05
+        )
+        np.testing.assert_allclose(
+            expected_alive_prob_regular, alive_prob_regular_obs, rtol=0.05
+        )
+
+    def test_expected_retention_rate(
+        self, prediction_targets, predicted_time_series_data
+    ):
+        # extract observed retention rate data arrays by cohort
+        _, _, retention_rate_highend_obs, retention_rate_regular_obs, _, _ = (
+            prediction_targets
+        )
+
+        # retention rate is estimated from T-1 time periods, reducing array length by 1
+        retention_data = predicted_time_series_data[
+            predicted_time_series_data["T"] <= 12
+        ]
+        # run full predictions and extract by cohort
+        expected_retention_rate_cohorts = self.model.expected_retention_rate(
+            retention_data,
+            future_t=0,
+        ).mean(("chain", "draw"))
+        expected_retention_rate_highend = expected_retention_rate_cohorts.sel(
+            cohort="highend"
+        ).values
+        expected_retention_rate_regular = expected_retention_rate_cohorts.sel(
+            cohort="regular"
+        ).values
+
+        np.testing.assert_allclose(
+            expected_retention_rate_highend, retention_rate_highend_obs, rtol=0.05
+        )
+        np.testing.assert_allclose(
+            expected_retention_rate_regular, retention_rate_regular_obs, rtol=0.05
+        )
+
+    def test_expected_residual_lifetime(self, prediction_targets, erl_test_data):
+        """Test expected_residual_lifetime against Table 3 values from the paper."""
+        # Extract observed residual lifetime data arrays by cohort
+        (
+            _,
+            _,
+            _,
+            _,
+            residual_lifetime_case1_obs,
+            residual_lifetime_case2_obs,
+        ) = prediction_targets
+
+        # Run full predictions with discount_rate=0.1 (as used in paper Table 3)
+        expected_residual_lifetime_cohorts = self.erl_model.expected_residual_lifetime(
+            erl_test_data,
+            discount_rate=0.1,
+        ).mean(("chain", "draw"))
+
+        # Extract predictions by cohort
+        expected_residual_lifetime_case1 = expected_residual_lifetime_cohorts.sel(
+            cohort="case1"
+        ).values
+        expected_residual_lifetime_case2 = expected_residual_lifetime_cohorts.sel(
+            cohort="case2"
+        ).values
+
+        # Compare against paper values (Table 3, pg 5)
+        np.testing.assert_allclose(
+            expected_residual_lifetime_case1, residual_lifetime_case1_obs, rtol=1e-2
+        )
+        np.testing.assert_allclose(
+            expected_residual_lifetime_case2, residual_lifetime_case2_obs, rtol=1e-2
+        )
+
+    def test_expected_retention_elasticity(self, erl_test_data):
+        """Test expected_retention_elasticity against Table 3 values from the paper.
+        Note no values for retention elasticity are provided in the paper,
+        but can be derived from the DERL and retention rate:
+        retention_elasticity(T) = DERL(T-1) / retention_rate(T)
+        """
+        # Compute expected retention elasticity from the model with discount_rate=0.1
+        expected_retention_elasticity_cohorts = (
+            self.erl_model.expected_retention_elasticity(
+                erl_test_data,
+                discount_rate=0.1,
+            ).mean(("chain", "draw"))
+        )
+
+        # Extract elasticity predictions by cohort
+        expected_retention_elasticity_case1 = expected_retention_elasticity_cohorts.sel(
+            cohort="case1"
+        ).values
+        expected_retention_elasticity_case2 = expected_retention_elasticity_cohorts.sel(
+            cohort="case2"
+        ).values
+
+        ### DERIVE VALUES FROM OTHER EXPRESSIONS FOR VALIDATION ###
+
+        # compute expected retention rates for T (current period)
+        expected_retention_rate_cohorts = self.erl_model.expected_retention_rate(
+            erl_test_data,
+            future_t=0,
+        ).mean(("chain", "draw"))
+
+        expected_retention_rate_case1 = expected_retention_rate_cohorts.sel(
+            cohort="case1"
+        ).values
+        expected_retention_rate_case2 = expected_retention_rate_cohorts.sel(
+            cohort="case2"
+        ).values
+
+        # Create test data for DERL T-1 (one period earlier) to compute DERL(T-1)
+        erl_test_data_T_minus_1 = erl_test_data.copy()
+        erl_test_data_T_minus_1["T"] = erl_test_data_T_minus_1["T"] - 1
+        # Filter out T=0 (can't have T < 1 in the model)
+        erl_test_data_T_minus_1 = erl_test_data_T_minus_1[
+            erl_test_data_T_minus_1["T"] >= 1
+        ]
+
+        # Compute DERL for T-1
+        expected_residual_lifetime_cohorts_T_minus_1 = (
+            self.erl_model.expected_residual_lifetime(
+                erl_test_data_T_minus_1,
+                discount_rate=0.1,
+            ).mean(("chain", "draw"))
+        )
+
+        expected_residual_lifetime_case1_T_minus_1 = (
+            expected_residual_lifetime_cohorts_T_minus_1.sel(cohort="case1").values
+        )
+        expected_residual_lifetime_case2_T_minus_1 = (
+            expected_residual_lifetime_cohorts_T_minus_1.sel(cohort="case2").values
+        )
+
+        # Compute expected elasticity using the formula: DERL(T-1) / retention_rate(T)
+        # Skip T=1 since we don't have T-1=0
+        expected_elasticity_case1_formula = (
+            expected_residual_lifetime_case1_T_minus_1
+            / expected_retention_rate_case1[1:]
+        )
+        expected_elasticity_case2_formula = (
+            expected_residual_lifetime_case2_T_minus_1
+            / expected_retention_rate_case2[1:]
+        )
+
+        ### ASSERTIONS ###
+        # Compare model's elasticity against the formula-based elasticity
+        # Skip first value (T=1) since formula needs T-1
+        np.testing.assert_allclose(
+            expected_retention_elasticity_case1[1:],
+            expected_elasticity_case1_formula,
+            rtol=1e-1,
+            err_msg="Case1: Model elasticity doesn't match DERL(T-1)/retention_rate(T)",
+        )
+        np.testing.assert_allclose(
+            expected_retention_elasticity_case2[1:],
+            expected_elasticity_case2_formula,
+            rtol=2.0,  # T=1 variance is very high, but var for T=5 is 1e-2
+            err_msg="Case2: Model elasticity doesn't match DERL(T-1)/retention_rate(T)",
+        )
+
+        # Additional validation: elasticity properties
+        # The elasticity should be positive
+        assert np.all(expected_retention_elasticity_case1 > 0)
+        assert np.all(expected_retention_elasticity_case2 > 0)
+
+        # Elasticity should generally be higher for the low retention case
+        # (customers with lower retention are more sensitive to retention changes)
+        assert np.mean(expected_retention_elasticity_case2) > np.mean(
+            expected_retention_elasticity_case1
+        )
+
+        # Verify retention rates are valid (between 0 and 1) and increasing with T
+        assert np.all(
+            (expected_retention_rate_case1 > 0) & (expected_retention_rate_case1 < 1)
+        )
+        assert np.all(
+            (expected_retention_rate_case2 > 0) & (expected_retention_rate_case2 < 1)
+        )
+        # Retention rates should increase over time (with more renewals)
+        assert np.all(np.diff(expected_retention_rate_case1) >= 0)
+        assert np.all(np.diff(expected_retention_rate_case2) >= 0)
 
 
 class TestShiftedBetaGeoModelIndividual:

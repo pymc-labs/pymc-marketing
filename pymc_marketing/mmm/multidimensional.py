@@ -1721,7 +1721,10 @@ class MMM(RegressionModelBuilder):
         ...     sweep_type="multiplicative",
         ... )
         """
-        return SensitivityAnalysis(mmm=self)
+        # Provide the underlying PyMC model, the model's inference data, and dims
+        return SensitivityAnalysis(
+            pymc_model=self.model, idata=self.idata, dims=self.dims
+        )
 
     def _make_channel_transform(
         self, df_lift_test: pd.DataFrame
@@ -2070,10 +2073,10 @@ class MMM(RegressionModelBuilder):
         with self.model:
             # Ensure original-scale contribution exists
             if "channel_contribution_original_scale" not in self.model.named_vars:
-                self.add_original_scale_contribution_variable(
-                    [
-                        "channel_contribution",
-                    ]
+                raise ValueError(
+                    "`channel_contribution_original_scale` is not in the model."
+                    "Please, add the original scale contribution variable using the method "
+                    "`add_original_scale_contribution_variable` before adding the cost-per-target calibration."
                 )
 
             denom = pt.clip(

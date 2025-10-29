@@ -56,14 +56,13 @@ msgid ""
 "C_4 &= \\left(\\frac{a}{b+x-1} \\right) \\\\\n"
 "\\end{align}"
 msgstr ""
-"\\mathbb{LL}(r, \\alpha, a, b  | x, t_x, T) =\n"
-"D_1 + D_2 + \\ln(C_3 + \\delta_{x>0} C_4) \\text{, where:} \\\\\n"
-"\\begin{align}\n"
-"D_1 &= \\ln \\left[ \\Gamma(r+x) \\right] - \\ln \\left[ \\Gamma(r) \\right] + \\ln \\left[ \\Gamma(a+b) \\right] + \\ln \\left[ \\Gamma(b+x) \\right] \\\\\n"
-"D_2 &= r \\ln(\\alpha) - (r+x) \\ln(\\alpha + t_x) \\\\\n"
-"C_3 &= \\left(\\frac{\\alpha + t_x}{\\alpha + T} \\right)^{r+x} \\\\\n"
-"C_4 &= \\left(\\frac{a}{b+x-1} \\right) \\\\\n"
-"\\end{align}"
+"\\mathbb{LL}(r, \\alpha, a, b | x, t_x, T) = D_1 + D_2 + \\ln(C_3 + "
+"\\delta_{x>0} C_4) \\text{, where:} \\\\ \\begin{align} D_1 &= \\ln \\left[ "
+"\\Gamma(r+x) \\right] - \\ln \\left[ \\Gamma(r) \\right] + \\ln \\left[ "
+"\\Gamma(a+b) \\right] + \\ln \\left[ \\Gamma(b+x) \\right] \\\\ D_2 &= r "
+"\\ln(\\alpha) - (r+x) \\ln(\\alpha + t_x) \\\\ C_3 &= \\left(\\frac{\\alpha "
+"+ t_x}{\\alpha + T} \\right)^{r+x} \\\\ C_4 &= \\left(\\frac{a}{b+x-1} "
+"\\right) \\\\ \\end{align}"
 
 #: 8b4e92034501429797e6823d6c2b367f of
 #: pymc_marketing.clv.distributions.BetaGeoNBD:18
@@ -155,8 +154,8 @@ msgid ""
 "alpha\\, T\\, \\*\\*kwargs\\)"
 msgstr ""
 ":py:obj:`BetaGeoNBD.dist "
-"<pymc_marketing.clv.distributions.BetaGeoNBD.dist>`\\ \\(a\\, b\\, r\\, "
-"alpha\\, T\\, \\*\\*kwargs\\)"
+"<pymc_marketing.clv.distributions.BetaGeoNBD.dist>`\\ (a\\, b\\, r\\, "
+"alpha\\, T\\, \\*\\*kwargs)"
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.BetaGeoNBD.rst:24:<autosummary>:1
 #: 5f1ff3795b8647d39728f800e539556e

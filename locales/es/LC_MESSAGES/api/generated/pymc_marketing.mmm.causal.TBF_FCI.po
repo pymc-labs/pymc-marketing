@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: pymc-marketing local\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"POT-Creation-Date: 2025-10-13 11:28+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: es <LL@li.org>\n"
@@ -21,135 +21,132 @@ msgstr ""
 "Generated-By: Babel 2.17.0\n"
 
 #: ../source/api/generated/pymc_marketing.mmm.causal.TBF_FCI.rst:2
-#: d00d3499b6e34e70bd96b13f880cd23f
+#: 803bc565863d42f6a9d4b2d93458690e
 msgid "TBF\\_FCI"
 msgstr "TBF\\_FCI"
 
-#: e1bea30221b24eaf8ad81a62b4f030b3 of pymc_marketing.mmm.causal.TBF_FCI:2
+#: 0b38a4ea1a87498982bcb7b4a90e368f of pymc_marketing.mmm.causal.TBF_FCI:2
 msgid "Target-first Bayes Factor Temporal PC."
 msgstr "Factor Bayesiano Temporal PC de objetivo primero."
 
-#: 342688daabdd4af1a24503f95fb6d036 of pymc_marketing.mmm.causal.TBF_FCI:4
+#: 78afe3455cfe403e88971307fb169d2e of pymc_marketing.mmm.causal.TBF_FCI:4
 msgid ""
 "This is a time-series–adapted version of TBF-PC. It combines ideas from "
 "temporal FCI/PCMCI with a Bayes-factor ΔBIC conditional independence test."
 msgstr ""
-"Esta es una versión adaptada de TBF-PC para series temporales. Combina ideas"
-" del FCI/PCMCI temporal con una prueba de independencia condicional ΔBIC "
-"basada en el factor de Bayes."
+"Esta es una versión adaptada a series temporales de TBF-PC. Combina ideas de"
+" FCI/PCMCI temporal con una prueba de independencia condicional de factor de"
+" Bayes ΔBIC."
 
-#: 59697d26abe9494bb8ae652973b08aab of pymc_marketing.mmm.causal.TBF_FCI:7
+#: 5e03fc82b5304426b3dd5aa085a66b5a of pymc_marketing.mmm.causal.TBF_FCI:7
 msgid "For each test :math:`X \\perp Y \\mid S`, compare:"
 msgstr "Para cada prueba :math:`X \\perp Y \\mid S`, compara:"
 
-#: 17ae7bab78674f998cb2c93b3fabc698 of pymc_marketing.mmm.causal.TBF_FCI:9
+#: 5f1bdd3de916417591e7b357b9cea653 of pymc_marketing.mmm.causal.TBF_FCI:9
 msgid ""
 "M_0 : Y \\sim S\n"
 "\\\\\n"
 "M_1 : Y \\sim S + X"
-msgstr ""
-"M_0 : Y \\sim S\n"
-"\\\\\n"
-"M_1 : Y \\sim S + X"
+msgstr "M_0 : Y \\sim S \\\\ M_1 : Y \\sim S + X"
 
-#: 7cd4c779b2c74dfb8c13f1ca373b72ac of pymc_marketing.mmm.causal.TBF_FCI:15
+#: 40d55407ce3b441abd75eb9ff6c54431 of pymc_marketing.mmm.causal.TBF_FCI:15
 msgid "with BIC scores"
 msgstr "con puntuaciones BIC"
 
-#: 955b1cbdf4154bf8a62db6dbdc62472a of pymc_marketing.mmm.causal.TBF_FCI:17
+#: 69eb83688ceb4c4a958f3ec5436d6d91 of pymc_marketing.mmm.causal.TBF_FCI:17
 msgid ""
 "\\mathrm{BIC}(M) = n \\log\\!\\left(\\tfrac{\\mathrm{RSS}}{n}\\right)\n"
 "                  + k \\log(n),"
 msgstr "\\mathrm{BIC}(M) = n \\log\\!\\left(\\tfrac{\\mathrm{RSS}}{n}\\right) + k \\log(n),"
 
-#: 695bcef1214d42f184495a957b830c1e of pymc_marketing.mmm.causal.TBF_FCI:22
+#: ce9902895fa549308acb1ce0d5222052 of pymc_marketing.mmm.causal.TBF_FCI:22
 msgid "and Bayes factor approximation"
 msgstr "y aproximación del factor de Bayes"
 
-#: 5120cb80c0c942268fddd921a55aa577 of pymc_marketing.mmm.causal.TBF_FCI:24
+#: b27aba07dfdc4f008e9fc60c6561933d of pymc_marketing.mmm.causal.TBF_FCI:24
 #, python-brace-format
 msgid ""
 "\\log \\mathrm{BF}_{10} \\approx -\\tfrac{1}{2}\n"
 "\\left[ \\mathrm{BIC}(M_1) - \\mathrm{BIC}(M_0) \\right]."
 msgstr ""
-"\\log \\mathrm{BF}_{10} \\approx -\\tfrac{1}{2}\n"
-"\\left[ \\mathrm{BIC}(M_1) - \\mathrm{BIC}(M_0) \\right]."
+"\\log \\mathrm{BF}_{10} \\approx -\\tfrac{1}{2} \\left[ \\mathrm{BIC}(M_1) -"
+" \\mathrm{BIC}(M_0) \\right]."
 
-#: 4409be4039054ac0ad96928827786f53 of pymc_marketing.mmm.causal.TBF_FCI:29
+#: 86fb8133d0144319acde32474c6c116d of pymc_marketing.mmm.causal.TBF_FCI:29
 #, python-brace-format
 msgid "Declare independence if :math:`\\mathrm{BF}_{10} < \\tau`."
 msgstr "Declare independencia si :math:`\\mathrm{BF}_{10} < \\tau`."
 
-#: 178afd7dcbd84ba68399a67db3b3b88a of pymc_marketing.mmm.causal.TBF_FCI
+#: 8c1ed623067f4e248ecfaba223639446 of pymc_marketing.mmm.causal.TBF_FCI
 msgid "Parameters"
 msgstr "Parámetros"
 
-#: 31f5f741d55d41a1b95e1adfe606655f of pymc_marketing.mmm.causal.TBF_FCI:33
+#: fed8e344a36a45cab4d614d0f45acbab of pymc_marketing.mmm.causal.TBF_FCI:33
 msgid "**target** : :class:`python:str`"
 msgstr "**objetivo** : :class:`python:str`"
 
-#: 839aa06daab14d4f90ab5b0c1bfbfdc7 of pymc_marketing.mmm.causal.TBF_FCI:32
+#: f23046598a2346aea585ab27372fafa8 of pymc_marketing.mmm.causal.TBF_FCI:32
 msgid "python:str"
 msgstr "python:str"
 
-#: ed1c5cea959142cc87b76501d35985ab of pymc_marketing.mmm.causal.TBF_FCI:34
+#: fc3e03ec26ae4254ac62cfde56ec10e5 of pymc_marketing.mmm.causal.TBF_FCI:34
 msgid "Name of the target variable (at time t)."
-msgstr "Nombre de la variable objetivo (en el momento t)."
+msgstr "Nombre de la variable objetivo (en el tiempo t)."
 
-#: 832ebc7ebd264c5aae9a56e2a34e4007 of pymc_marketing.mmm.causal.TBF_FCI:36
+#: 73b82adc01594d50ae54d09349dfcb2b of pymc_marketing.mmm.causal.TBF_FCI:36
 msgid "**target_edge_rule**"
 msgstr "**regla_de_borde_objetivo**"
 
-#: 5aa8f1413eae4917a7c97e6380251171 of pymc_marketing.mmm.causal.TBF_FCI:-1
+#: 295686aabd054a829d4b0301e3926fe1 of pymc_marketing.mmm.causal.TBF_FCI:-1
 #, python-brace-format
 msgid "{\"any\", \"conservative\", \"fullS\"}"
 msgstr "{\"any\", \"conservative\", \"fullS\"}"
 
-#: 1e438b8e5b184ccaa85dbbecbe3d4947 of pymc_marketing.mmm.causal.TBF_FCI:37
+#: 692d0838b9c3470a860c336b573f0215 of pymc_marketing.mmm.causal.TBF_FCI:37
 msgid "Rule for keeping lagged → target edges."
 msgstr "Regla para mantener los bordes retrasados → objetivo."
 
-#: 592a4148deb14994ae4fc4966c706253 of pymc_marketing.mmm.causal.TBF_FCI:39
+#: 5d53142e6f974d1cbfa3df28c18ec950 of pymc_marketing.mmm.causal.TBF_FCI:39
 msgid "**bf_thresh** : :class:`python:float`, default=1.0"
 msgstr "**bf_thresh** : :class:`python:float`, valor predeterminado=1.0"
 
-#: 6c6c9e68a64d4615b0043da0577be05d of pymc_marketing.mmm.causal.TBF_FCI:38
+#: 9a2e33d706af49edbd47cef3352f02c9 of pymc_marketing.mmm.causal.TBF_FCI:38
 msgid "python:float, default=1.0"
-msgstr "python:float, predeterminado=1.0"
+msgstr "python:flotante, predeterminado=1.0"
 
-#: 4d5e3c21ebea40a2a80b448a85a83113 of pymc_marketing.mmm.causal.TBF_FCI:40
+#: d23e3af4cafa4df9a5d1935c724ace69 of pymc_marketing.mmm.causal.TBF_FCI:40
 msgid "Declare independence if BF10 < bf_thresh."
 msgstr "Declare independencia si BF10 < bf_thresh."
 
-#: 61b41d740dcb4b52a36c2b05746534c0 of pymc_marketing.mmm.causal.TBF_FCI:42
+#: dd3c0abbd7e8428aa6556e29ea0743ec of pymc_marketing.mmm.causal.TBF_FCI:42
 msgid ""
 "**forbidden_edges** : :class:`python:list` of "
 ":class:`python:tuple`\\[:class:`python:str`, :class:`python:str`], optional"
 msgstr ""
-"**bordes_prohibidos** : :class:`python:list` de "
+"**forbidden_edges** : :class:`python:list` de "
 ":class:`python:tuple`\\[:class:`python:str`, :class:`python:str`], opcional"
 
-#: 0f1aad479ebb4121b14808df9d8833ed of pymc_marketing.mmm.causal.TBF_FCI:41
+#: 8e1f1a86caf84ae49455fa125d7a8880 of pymc_marketing.mmm.causal.TBF_FCI:41
 msgid "python:list of python:tuple[python:str, python:str], optional"
 msgstr "python:lista de python:tupla[python:str, python:str], opcional"
 
-#: 37470329a753451a9c5029e1346c937d of pymc_marketing.mmm.causal.TBF_FCI:43
+#: afc76e446d1743e7b6b856c43d96222e of pymc_marketing.mmm.causal.TBF_FCI:43
 msgid "Prior knowledge: edges to exclude."
-msgstr "Conocimiento previo: bordes a excluir."
+msgstr "Conocimientos previos: bordes a excluir."
 
-#: 2eece9aa1a5c43b5803e9558c95d1cef of pymc_marketing.mmm.causal.TBF_FCI:45
+#: 5acdb00ea149470a9b1306a48d83762b of pymc_marketing.mmm.causal.TBF_FCI:45
 msgid "**max_lag** : :class:`python:int`, default=2"
 msgstr "**max_lag** : :class:`python:int`, predeterminado=2"
 
-#: 12a24d322c894732ba446a54c207b944 of pymc_marketing.mmm.causal.TBF_FCI:44
+#: 687977c719144c4488975f77120c7640 of pymc_marketing.mmm.causal.TBF_FCI:44
 msgid "python:int, default=2"
-msgstr "python:int, predeterminado=2"
+msgstr "python:int, por defecto=2"
 
-#: 0efc81c0f3ce4f7c97399d5a1e69197b of pymc_marketing.mmm.causal.TBF_FCI:46
+#: 732e063e21eb4e9da53e70cec57e9626 of pymc_marketing.mmm.causal.TBF_FCI:46
 msgid "Maximum lag to include (t-1, t-2, …)."
 msgstr "Retraso máximo a incluir (t-1, t-2, …)."
 
-#: 3c974a33b49a4126866f635cec901e36 of pymc_marketing.mmm.causal.TBF_FCI:48
+#: 052d8904ea5147fabf667f4895d98687 of pymc_marketing.mmm.causal.TBF_FCI:48
 msgid ""
 "**allow_contemporaneous** : :ref:`bool <python:bltin-boolean-values>`, "
 "default=True"
@@ -157,35 +154,35 @@ msgstr ""
 "**allow_contemporaneous** : :ref:`bool <python:bltin-boolean-values>`, "
 "predeterminado=True"
 
-#: d6324b9940fa4619bf826275f862b5d3 of pymc_marketing.mmm.causal.TBF_FCI:47
+#: 6aa32aac4e094d498e4e4909c6a1aa36 of pymc_marketing.mmm.causal.TBF_FCI:47
 msgid "bool, default=True"
-msgstr "bool, predeterminado=True"
+msgstr "bool, por defecto=True"
 
-#: b99118f238f74e18a64e8c81784a651a of pymc_marketing.mmm.causal.TBF_FCI:49
+#: 3532e04c5ef547ec97731a0221956436 of pymc_marketing.mmm.causal.TBF_FCI:49
 msgid "Whether to allow contemporaneous edges at time t."
-msgstr "Si permitir bordes contemporáneos en el tiempo t."
+msgstr "Si se deben permitir bordes contemporáneos en el tiempo t."
 
 #: ../source/api/generated/pymc_marketing.mmm.causal.TBF_FCI.rst:12
-#: 62bf3b5b8e8940c4978beb8af7e75297
+#: cc9623612a2b41d4be4232449f5cc851
 msgid "Methods"
 msgstr "Métodos"
 
 #: ../source/api/generated/pymc_marketing.mmm.causal.TBF_FCI.rst:23:<autosummary>:1
-#: 30ea74acb73f4a7eb48723020ee2eb80
+#: cc3afd5cc354449aab4a2b01e2f89c1f
 msgid ""
 ":py:obj:`TBF_FCI.__init__ <pymc_marketing.mmm.causal.TBF_FCI.__init__>`\\ "
 "\\(target\\, \\*\\[\\, ...\\]\\)"
 msgstr ""
 ":py:obj:`TBF_FCI.__init__ <pymc_marketing.mmm.causal.TBF_FCI.__init__>`\\ "
-"\\(objetivo\\, \\*\\[\\, ...\\]\\)"
+"(objetivo\\, \\*\\[\\, ...\\]\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.causal.TBF_FCI.rst:23:<autosummary>:1
-#: 5398eb5885524cb6a854f63c660f5403
+#: 73245599c39e49fc8b6bbe2ec43a12d6
 msgid "Create a new temporal TBF-PC causal discovery model."
 msgstr "Cree un nuevo modelo de descubrimiento causal TBF-PC temporal."
 
 #: ../source/api/generated/pymc_marketing.mmm.causal.TBF_FCI.rst:23:<autosummary>:1
-#: 196711cac85942bfac60de30f4eb064c
+#: 1050101f5f7e467c95e5fa29d9038b63
 msgid ""
 ":py:obj:`TBF_FCI.collapsed_summary "
 "<pymc_marketing.mmm.causal.TBF_FCI.collapsed_summary>`\\ \\(\\)"
@@ -194,26 +191,26 @@ msgstr ""
 "<pymc_marketing.mmm.causal.TBF_FCI.collapsed_summary>`\\ \\(\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.causal.TBF_FCI.rst:23:<autosummary>:1
-#: 6df4202550c04ae5979a09aec6ecb1c2
+#: 98395a663ca74bd3bfe7c709b3a026f7
 msgid "Summarize lagged edges into a driver-level view."
 msgstr "Resumir los bordes retrasados en una vista a nivel de controlador."
 
 #: ../source/api/generated/pymc_marketing.mmm.causal.TBF_FCI.rst:23:<autosummary>:1
-#: 316a315184fa4930995a40b6c716d9ea
+#: ed22845cd0ba475ca912330b73b5ec8c
 msgid ""
 ":py:obj:`TBF_FCI.fit <pymc_marketing.mmm.causal.TBF_FCI.fit>`\\ \\(df\\, "
 "drivers\\)"
 msgstr ""
 ":py:obj:`TBF_FCI.fit <pymc_marketing.mmm.causal.TBF_FCI.fit>`\\ \\(df\\, "
-"controladores\\)"
+"conductores\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.causal.TBF_FCI.rst:23:<autosummary>:1
-#: 76b0612724b1455ab999c2aa3b75a2d7
+#: a20247bb6fc141ebb757a9d77e4d330b
 msgid "Fit the temporal causal discovery algorithm to ``df``."
 msgstr "Ajuste el algoritmo de descubrimiento causal temporal a ``df``."
 
 #: ../source/api/generated/pymc_marketing.mmm.causal.TBF_FCI.rst:23:<autosummary>:1
-#: 12866f2110ef4c1b8ccbfe61f2f59bed
+#: fe4b41e702ad4bc1a8c35ecc11271aa3
 msgid ""
 ":py:obj:`TBF_FCI.get_directed_edges "
 "<pymc_marketing.mmm.causal.TBF_FCI.get_directed_edges>`\\ \\(\\)"
@@ -222,12 +219,12 @@ msgstr ""
 "<pymc_marketing.mmm.causal.TBF_FCI.get_directed_edges>`\\ \\(\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.causal.TBF_FCI.rst:23:<autosummary>:1
-#: 10e4d33867034dd784c18f0bc2c1f479
+#: f73b36411f3644c081c253c8e27aba01
 msgid "Return directed edges in the time-unrolled graph."
-msgstr "Devolver bordes dirigidos en el grafo desenrollado en el tiempo."
+msgstr "Devolver aristas dirigidas en el gráfico desenrollado en el tiempo."
 
 #: ../source/api/generated/pymc_marketing.mmm.causal.TBF_FCI.rst:23:<autosummary>:1
-#: 3f517eb0c418439b8f89f319897def9d
+#: 486c743a3e65476f8f5d58417fce41bf
 msgid ""
 ":py:obj:`TBF_FCI.get_undirected_edges "
 "<pymc_marketing.mmm.causal.TBF_FCI.get_undirected_edges>`\\ \\(\\)"
@@ -236,28 +233,29 @@ msgstr ""
 "<pymc_marketing.mmm.causal.TBF_FCI.get_undirected_edges>`\\ \\(\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.causal.TBF_FCI.rst:23:<autosummary>:1
-#: 0e8c06812e0d467a87610ba69ee9178f
+#: ff1b829977c14a57843b4e5d2ccc9fa0
 msgid "Return undirected edges in the time-unrolled graph."
-msgstr "Devolver aristas no dirigidas en el grafo desenrollado en el tiempo."
+msgstr ""
+"Devuelve los bordes no dirigidos en el grafo desenrollado en el tiempo."
 
 #: ../source/api/generated/pymc_marketing.mmm.causal.TBF_FCI.rst:23:<autosummary>:1
-#: b6ddea2786ab4b748aa6edf99fb4c514
+#: 58cab3ed2c654b6fb6a2c88655a09457
 msgid ""
 ":py:obj:`TBF_FCI.summary <pymc_marketing.mmm.causal.TBF_FCI.summary>`\\ "
 "\\(\\)"
 msgstr ""
-":py:obj:`TBF_FCI.summary <pymc_marketing.mmm.causal.TBF_FCI.summary>`\\ "
+":py:obj:`TBF_FCI.resumen <pymc_marketing.mmm.causal.TBF_FCI.resumen>`\\ "
 "\\(\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.causal.TBF_FCI.rst:23:<autosummary>:1
-#: 0bda92d72ac743f3a24814c3b1d3738c
+#: 3f6a654d570448f7bdc3191c7a497e35
 msgid "Return a human-readable summary of edges and test count."
 msgstr ""
 "Devuelva un resumen legible por humanos de los bordes y el conteo de "
 "pruebas."
 
 #: ../source/api/generated/pymc_marketing.mmm.causal.TBF_FCI.rst:23:<autosummary>:1
-#: 57baab58c8c84b658273a3b513e6cc0c
+#: 5ee70be24a0a444aa834b46583601812
 msgid ""
 ":py:obj:`TBF_FCI.to_digraph "
 "<pymc_marketing.mmm.causal.TBF_FCI.to_digraph>`\\ \\(\\[collapsed\\]\\)"
@@ -266,6 +264,6 @@ msgstr ""
 "<pymc_marketing.mmm.causal.TBF_FCI.to_digraph>`\\ \\(\\[colapsado\\]\\)"
 
 #: ../source/api/generated/pymc_marketing.mmm.causal.TBF_FCI.rst:23:<autosummary>:1
-#: 01b86e39813f4476bbf77c3d986e6867
+#: b2eb4e09646842f6a226bdefc9913ad9
 msgid "Export the learned graph as DOT text."
-msgstr "Exportar el gráfico aprendido como texto DOT."
+msgstr "Exporte el gráfico aprendido como texto DOT."

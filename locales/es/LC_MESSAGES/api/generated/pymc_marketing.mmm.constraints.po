@@ -57,9 +57,9 @@ msgid ""
 "<pymc_marketing.mmm.constraints.compile_constraints_for_scipy>`\\ "
 "\\(constraints\\, ...\\)"
 msgstr ""
-":py:obj:`compile_constraints_for_scipy "
-"<pymc_marketing.mmm.constraints.compile_constraints_for_scipy>`\\ "
-"\\(restricciones\\, ...\\)"
+":py:obj:`compilar_restricciones_para_scipy "
+"<pymc_marketing.mmm.constraints.compilar_restricciones_para_scipy>`\\ "
+"(restricciones\\, ...)"
 
 #: ../source/api/generated/pymc_marketing.mmm.constraints.rst:24:<autosummary>:1
 #: 71d8e8f058eb4efb95e56d733600ae15

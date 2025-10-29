@@ -96,7 +96,7 @@ msgid ""
 "<pymc_marketing.mmm.hsgp.HSGPBase.deterministics_to_replace>`\\ \\(name\\)"
 msgstr ""
 ":py:obj:`HSGPBase.deterministics_to_replace "
-"<pymc_marketing.mmm.hsgp.HSGPBase.deterministics_to_replace>`\\ \\(nombre\\)"
+"<pymc_marketing.mmm.hsgp.HSGPBase.deterministics_to_replace>`\\ %(name)s"
 
 #: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPBase.rst:51:<autosummary>:1
 #: ee2d555c3d204646a39f3887eec601d5
