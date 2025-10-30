@@ -25,6 +25,7 @@ from typing import Any
 import arviz as az
 import numpy as np
 import pandas as pd
+import xarray as xr
 from tqdm.notebook import tqdm
 
 from pymc_marketing.mmm.builders.yaml import build_mmm_from_yaml
@@ -132,7 +133,78 @@ class TimeSliceCrossValidator:
                 "No InferenceData available on the validator. Run `TimeSliceCrossValidator.run(...)` first."
             )
 
-    # Model helpers
+    def _combine_idata(self, results, model_names: list[str]) -> az.InferenceData:
+        """Combine InferenceData objects from multiple CV results."""
+        cv_idata: az.InferenceData | None = None
+        if results:
+            # try to discover available groups from the first idata
+            first_idata = results[0].idata
+            try:
+                groups = list(first_idata._groups)
+            except Exception:
+                # fallback to common groups
+                groups = [
+                    "posterior",
+                    "posterior_predictive",
+                    "observed_data",
+                    "sample_stats",
+                    "prior",
+                ]
+
+            combined_kwargs: dict = {}
+            # Ensure we pass a concrete list[str] into pd.Index to satisfy type checkers
+            cv_coord = pd.Index([str(n) for n in model_names], name="cv")
+
+            for group in groups:
+                # collect available datasets for this group
+                ds_list = []
+                for r in results:
+                    if r.idata is None:
+                        continue
+                    try:
+                        ds = r.idata[group]
+                    except Exception:
+                        ds = None
+                    if ds is not None:
+                        ds_list.append(ds)
+
+                if not ds_list:
+                    continue
+
+                # concatenate along new cv coordinate, making sure each dataset
+                # gets the cv coordinate labels
+                try:
+                    combined_ds = xr.concat(ds_list, dim=cv_coord)
+                except Exception:
+                    # if concat fails, try to align then concat without coords
+                    combined_ds = xr.concat(
+                        [
+                            d.assign_coords({"cv": [n]})
+                            for d, n in zip(ds_list, model_names, strict=False)
+                        ],
+                        dim="cv",
+                    )
+
+                combined_kwargs[group] = combined_ds
+
+            if combined_kwargs:
+                cv_idata = az.InferenceData(**combined_kwargs)
+                # persist for plot helpers
+                self.cv_idata = cv_idata
+        # Also expose the last fold's idata (if any) for compatibility with MMMPlotSuite
+        if results:
+            last = results[-1]
+            if hasattr(last, "idata") and last.idata is not None:
+                self.idata = last.idata
+        # Always return the combined arviz.InferenceData. If none could be
+        # constructed (e.g. folds did not produce idata), raise an error so the
+        # caller knows something went wrong.
+        if cv_idata is None:
+            raise ValueError(
+                "No InferenceData objects were produced during CV; ensure models produce idata."
+            )
+        return cv_idata
+
     def _fit_mmm(self, mmm, X, y, sampler_config: dict | None = None):
         """Fit the MMM and sample posterior predictive.
 
@@ -241,7 +313,8 @@ class TimeSliceCrossValidator:
         sampler_config: dict | None = None,
         yaml_path: str | None = None,
         mmm: Any | None = None,
-    ) -> list[TimeSliceCrossValidationResult]:
+        model_names: list[str] | None = None,
+    ) -> az.InferenceData:
         """Run the complete time-slice CV loop.
 
         If `yaml_path` is provided, the validator will rebuild the MMM from the
@@ -251,20 +324,21 @@ class TimeSliceCrossValidator:
                         for all folds in this run. If provided here it takes precedence
                         over the configuration passed at construction time.
 
-        Example:
+        model_names: Optional list of names to assign to each CV fold's model in the
+                     combined InferenceData. If provided its length must match the
+                     number of splits. If not provided, default names will be generated
+                     from each fold's model's `_model_name` attribute (if available)
+                     or a generic `Iteration {i}` name.
 
-            # Use a lighter sampler for quick checks
-            cv.run(X, y, sampler_config={
-                'tune': 300,
-                'draws': 300,
-                'chains': 2,
-            })
-
-        Returns
-        -------
-            List[TimeSliceCrossValidationResult]
+        This function always returns a combined `arviz.InferenceData` where each
+        CV fold is concatenated along a new coordinate named `cv`. If no
+        InferenceData objects are present in the folds, a ValueError is raised.
         """
         results = []
+        # Preserve the user-provided `model_names` parameter separately so we
+        # don't shadow it with the accumulator used to collect generated names.
+        user_model_names = model_names
+        model_name_labels: list[str] = []
         for _i, (train_idx, test_idx) in enumerate(tqdm(self.split(X, y))):
             X_train, y_train = X.iloc[train_idx], y.iloc[train_idx]
             X_test, y_test = X.iloc[test_idx], y.iloc[test_idx]
@@ -282,6 +356,28 @@ class TimeSliceCrossValidator:
                     "Either provide an `mmm` instance to run(...) or a `yaml_path` to build the model per-fold."
                 )
 
+            # determine name for this fold
+            if user_model_names is not None:
+                # user supplied explicit model names: validate length implicitly
+                try:
+                    fold_name = user_model_names[_i]
+                except IndexError:
+                    raise ValueError(
+                        "`model_names` was provided but its length is shorter than the number of CV splits."
+                    )
+            else:
+                base_name = (
+                    getattr(fold_mmm, "_model_name", None)
+                    or getattr(mmm, "_model_name", None)
+                    or "Iteration"
+                )
+                # produce human-friendly default
+                if base_name == "Iteration":
+                    fold_name = f"Iteration {_i}"
+                else:
+                    fold_name = f"{base_name}_{_i}"
+            model_name_labels.append(fold_name)
+
             result = self._time_slice_step(
                 fold_mmm,
                 X_train,
@@ -293,9 +389,9 @@ class TimeSliceCrossValidator:
             results.append(result)
         # Persist results on the instance so plotting helpers can access them
         self._cv_results = results
-        # Also expose the last fold's idata (if any) for compatibility with MMMPlotSuite
-        if results:
-            last = results[-1]
-            if hasattr(last, "idata") and last.idata is not None:
-                self.idata = last.idata
-        return results
+        # Build a combined InferenceData. We combine each fold's
+        # datasets along a new coordinate named 'cv' where each label is the
+        # fold name determined above.
+        cv_idata = self._combine_idata(results, model_name_labels)
+
+        return cv_idata
