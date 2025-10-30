@@ -1700,11 +1700,14 @@ class MMMPlotSuite:
         """Plot posterior predictive predictions across CV folds.
 
         Args:
-            results: List of TimeSliceCrossValidationResult objects returned by `run()`.
+            results: a combined `arviz.InferenceData` produced by
+                `TimeSliceCrossValidator._combine_idata(...)`. The InferenceData must
+                contain a coordinate named `cv`, a `cv_metadata` group with per-fold
+                metadata (X_train, y_train, X_test, y_test) stored under
+                `cv_metadata.metadata`, and a posterior_predictive group containing
+                `y_original_scale`.
             dims: Optional dict specifying dimensions to filter when plotting.
                 Currently only supports {"geo": [...]}.
-                If omitted, all geos present in the posterior predictive
-                `y_original_scale` are plotted.
 
         The plot shows per-geo, per-fold posterior predictive HDI (3%-97%)
         for train (blue) and test (orange) ranges as shaded bands, the
@@ -1712,16 +1715,31 @@ class MMMPlotSuite:
         A vertical dashed green line marks the end of the training period for
         each fold.
         """
+        # Expect an arviz.InferenceData with cv coord and cv_metadata
+        if not isinstance(results, az.InferenceData):
+            raise TypeError(
+                "plot_cv_predictions expects an arviz.InferenceData object for 'results'."
+            )
+
+        # Validate presence of cv metadata and posterior predictive
+        if not hasattr(results, "cv_metadata") or "metadata" not in results.cv_metadata:
+            raise ValueError(
+                "Provided InferenceData must include a 'cv_metadata' group with a 'metadata' DataArray."
+            )
+        if (
+            not hasattr(results, "posterior_predictive")
+            or "y_original_scale" not in results.posterior_predictive
+        ):
+            raise ValueError(
+                "Provided InferenceData must include posterior_predictive['y_original_scale']."
+            )
+
         # Support optional dims filtering (currently only supports filtering by 'geo')
         if dims is None:
             geos = list(
-                results[0]
-                .idata.posterior_predictive["y_original_scale"]
-                .coords["geo"]
-                .values
+                results.posterior_predictive["y_original_scale"].coords["geo"].values
             )
         else:
-            # Only 'geo' filtering is supported for predictions plotting
             unsupported = [d for d in dims.keys() if d != "geo"]
             if unsupported:
                 raise ValueError(
@@ -1729,53 +1747,127 @@ class MMMPlotSuite:
                 )
             geos = list(dims.get("geo", []))
             if not geos:
-                # fallback to all geos if empty list provided
                 geos = list(
-                    results[0]
-                    .idata.posterior_predictive["y_original_scale"]
+                    results.posterior_predictive["y_original_scale"]
                     .coords["geo"]
                     .values
                 )
 
-        n_folds = len(results)
+        cv_labels = list(results.cv_metadata.coords["cv"].values)
+        n_folds = len(cv_labels)
         n_axes = len(geos) * n_folds
 
-        fig, axes = plt.subplots(n_axes, 1, figsize=(12, 4 * n_axes), sharex=True)
+        fig, axes = plt.subplots(
+            n_axes, 1, figsize=(12, 4 * max(1, n_axes)), sharex=True
+        )
         if n_axes == 1:
             axes = [axes]
 
         # Helper to align y Series to a DataFrame's rows without using reindex (avoids duplicate-index errors)
         def _align_y_to_df(y_series, df):
+            if y_series is None or df is None:
+                return pd.Series([], dtype=float), pd.DatetimeIndex([])
             y_df = y_series.reset_index()
             y_df.columns = ["orig_index", "y_value"]
             df_idx = pd.DataFrame({"orig_index": df.index, "date": df["date"].values})
             merged = df_idx.merge(y_df, on="orig_index", how="left")
             return merged["y_value"], merged["date"]
 
+        # Robust wrapper to call arviz.plot_hdi from an xarray DataArray `sel`.
+        def _plot_hdi_from_sel(sel, ax, color, label):
+            try:
+                sel2 = sel.squeeze()
+            except Exception:
+                sel2 = sel
+            arr = getattr(sel2, "values", sel2)
+            if getattr(arr, "ndim", 0) == 0:
+                return
+            if arr.ndim == 1:
+                if hasattr(sel2, "coords") and "sample" in sel2.coords:
+                    arr = arr.reshape((-1, 1))
+                    x = (
+                        sel2.coords["date"].values
+                        if "date" in sel2.coords
+                        else [sel2.coords.get("date")]
+                    )
+                else:
+                    arr = arr.reshape((1, -1))
+                    x = (
+                        sel2.coords["date"].values
+                        if "date" in sel2.coords
+                        else [sel2.coords.get("date")]
+                    )
+            else:
+                if hasattr(sel2, "dims"):
+                    dims = list(sel2.dims)
+                    if dims == ["date", "sample"]:
+                        arr = arr.T
+                    elif dims != ["sample", "date"]:
+                        try:
+                            sel2 = sel2.transpose("sample", "date")
+                            arr = sel2.values
+                        except Exception as exc:
+                            warnings.warn(
+                                f"Could not transpose sel2 to ('sample','date'): {exc}",
+                                stacklevel=2,
+                            )
+                            arr = getattr(sel2, "values", sel2)
+                x = (
+                    sel2.coords["date"].values
+                    if hasattr(sel2, "coords") and "date" in sel2.coords
+                    else None
+                )
+
+            az.plot_hdi(
+                y=arr,
+                x=x,
+                ax=ax,
+                hdi_prob=0.94,
+                color=color,
+                smooth=False,
+                fill_kwargs={"alpha": 0.25, "label": label},
+                plot_kwargs={"color": color, "linestyle": "--", "linewidth": 1},
+            )
+
         for geo_idx, geo in enumerate(geos):
-            for fold_idx, result in enumerate(results):
+            for fold_idx, cv_label in enumerate(cv_labels):
                 ax_i = geo_idx * n_folds + fold_idx
                 ax = axes[ax_i]
 
-                arr = result.idata.posterior_predictive["y_original_scale"]
-                # Stack chain/draw -> sample for quantile computation
+                # Select posterior predictive array for this CV
+                arr = results.posterior_predictive["y_original_scale"].sel(cv=cv_label)
+
+                # Stack chain/draw -> sample for quantile computation and ensure ordering
                 arr_s = arr.stack(sample=("chain", "draw")).transpose(
                     "sample", "date", "geo"
                 )
 
+                # Extract train/test metadata for this fold from cv_metadata
+                meta_da = results.cv_metadata["metadata"].sel(cv=cv_label)
+                try:
+                    meta = meta_da.values.item()
+                except Exception:
+                    # fallback: try python object access
+                    meta = getattr(meta_da, "item", lambda: None)()
+
+                X_train = meta.get("X_train") if isinstance(meta, dict) else None
+                y_train = meta.get("y_train") if isinstance(meta, dict) else None
+                X_test = meta.get("X_test") if isinstance(meta, dict) else None
+                y_test = meta.get("y_test") if isinstance(meta, dict) else None
+
                 # Train / Test dates for this fold & geo
-                if "geo" in result.X_train.columns:
-                    train_df_geo = result.X_train[
-                        result.X_train["geo"].astype(str) == str(geo)
-                    ]
+                if X_train is not None and "geo" in X_train.columns:
+                    train_df_geo = X_train[X_train["geo"].astype(str) == str(geo)]
                 else:
-                    train_df_geo = result.X_train.copy()
-                if "geo" in result.X_test.columns:
-                    test_df_geo = result.X_test[
-                        result.X_test["geo"].astype(str) == str(geo)
-                    ]
+                    train_df_geo = (
+                        X_train.copy() if X_train is not None else pd.DataFrame([])
+                    )
+                if X_test is not None and "geo" in X_test.columns:
+                    test_df_geo = X_test[X_test["geo"].astype(str) == str(geo)]
                 else:
-                    test_df_geo = result.X_test.copy()
+                    test_df_geo = (
+                        X_test.copy() if X_test is not None else pd.DataFrame([])
+                    )
 
                 train_dates = (
                     pd.to_datetime(train_df_geo["date"].values)
@@ -1790,98 +1882,35 @@ class MMMPlotSuite:
                 train_dates = train_dates.sort_values().unique()
                 test_dates = test_dates.sort_values().unique()
 
-                # Build selection dict for arr_s.sel; we always set geo and date
-                # Note: arr_s has coordinates named 'date' and 'geo' after transpose
-                # Additional dims are not supported here
-                # Compute and plot HDI for train (blue) if train_dates exist
-                # Compute and plot HDI with arviz.plot_hdi (fallback to manual if unavailable)
-
-                def _plot_hdi_from_sel(sel, ax, color, label):
-                    """
-                    Robust wrapper to call arviz.plot_hdi from an xarray DataArray `sel`.
-
-                    Ensures the data passed to az.plot_hdi has shape (n_samples, n_dates).
-                    If sel collapses to a scalar (0-d), the function will skip plotting.
-                    """
-                    # Squeeze out any length-1 dimensions (e.g. geo if it became a scalar coord)
+                # Plot HDI for train (blue) and test (orange)
+                if train_dates.size:
                     try:
-                        sel2 = sel.squeeze()
+                        sel = arr_s.sel(date=train_dates, geo=geo)
+                        _plot_hdi_from_sel(sel, ax, "C0", "HDI (train)")
                     except Exception:
-                        sel2 = sel
-
-                    # Extract numpy array
-                    arr = getattr(sel2, "values", sel2)
-
-                    # If scalar, nothing to plot
-                    if getattr(arr, "ndim", 0) == 0:
-                        return
-
-                    # If 1D, decide whether it's (samples,) or (dates,)
-                    if arr.ndim == 1:
-                        # prefer to treat as (samples, 1) if there is a sample coord
-                        if hasattr(sel2, "coords") and "sample" in sel2.coords:
-                            arr = arr.reshape((-1, 1))
-                            x = (
-                                sel2.coords["date"].values
-                                if "date" in sel2.coords
-                                else [sel2.coords.get("date")]
-                            )
-                        else:
-                            # otherwise assume it's (dates,) -> make (1, dates)
-                            arr = arr.reshape((1, -1))
-                            x = (
-                                sel2.coords["date"].values
-                                if "date" in sel2.coords
-                                else [sel2.coords.get("date")]
-                            )
-                    else:
-                        # arr.ndim >= 2. Ensure ordering is (sample, date)
-                        if hasattr(sel2, "dims"):
-                            dims = list(sel2.dims)
-                            if dims == ["date", "sample"]:
-                                arr = arr.T
-                            elif dims != ["sample", "date"]:
-                                # try to transpose into desired order if possible
-                                try:
-                                    sel2 = sel2.transpose("sample", "date")
-                                    arr = sel2.values
-                                except Exception as exc:
-                                    # fallback: warn and leave arr as-is
-                                    warnings.warn(
-                                        f"Could not transpose sel2 to ('sample','date'): {exc}",
-                                        stacklevel=2,
-                                    )
-                                    arr = getattr(sel2, "values", sel2)
-                        x = (
-                            sel2.coords["date"].values
-                            if hasattr(sel2, "coords") and "date" in sel2.coords
-                            else None
+                        warnings.warn(
+                            "Could not compute HDI for train range; skipping.",
+                            stacklevel=2,
                         )
 
-                    # Finally call arviz. If x is None, let arviz handle it (will use integer indices)
-                    az.plot_hdi(
-                        y=arr,
-                        x=x,
-                        ax=ax,
-                        hdi_prob=0.94,
-                        color=color,
-                        smooth=False,
-                        fill_kwargs={"alpha": 0.25, "label": label},
-                        plot_kwargs={"color": color, "linestyle": "--", "linewidth": 1},
-                    )
-
-                if train_dates.size:
-                    sel = arr_s.sel(date=train_dates, geo=geo)
-                    _plot_hdi_from_sel(sel, ax, "C0", "HDI (train)")
-
                 if test_dates.size:
-                    sel = arr_s.sel(date=test_dates, geo=geo)
-                    _plot_hdi_from_sel(sel, ax, "C1", "HDI (test)")
+                    try:
+                        sel = arr_s.sel(date=test_dates, geo=geo)
+                        _plot_hdi_from_sel(sel, ax, "C1", "HDI (test)")
+                    except Exception:
+                        warnings.warn(
+                            "Could not compute HDI for test range; skipping.",
+                            stacklevel=2,
+                        )
 
                 # Plot observed actuals in black (train + test) as lines (no markers)
-                if not train_df_geo.empty:
+                if (
+                    X_train is not None
+                    and y_train is not None
+                    and not train_df_geo.empty
+                ):
                     y_train_vals, train_plot_dates = _align_y_to_df(
-                        result.y_train, train_df_geo
+                        y_train, train_df_geo
                     )
                     y_train_vals = y_train_vals.dropna()
                     if not y_train_vals.empty:
@@ -1897,10 +1926,8 @@ class MMMPlotSuite:
                             label="observed",
                         )
 
-                if not test_df_geo.empty:
-                    y_test_vals, test_plot_dates = _align_y_to_df(
-                        result.y_test, test_df_geo
-                    )
+                if X_test is not None and y_test is not None and not test_df_geo.empty:
+                    y_test_vals, test_plot_dates = _align_y_to_df(y_test, test_df_geo)
                     y_test_vals = y_test_vals.dropna()
                     if not y_test_vals.empty:
                         dates_to_plot = pd.to_datetime(
