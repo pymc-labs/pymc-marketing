@@ -1960,17 +1960,68 @@ class MMMPlotSuite:
         Plot parameter stability across CV iterations.
 
         Args:
-            results: list of TimeSliceCrossValidationResult or similar objects containing idata
-            parameter: list of parameter names (e.g. ["beta_channel"])
+            results: a combined `arviz.InferenceData` produced by
+                `TimeSliceCrossValidator.run(...)`. The InferenceData must
+                contain a coordinate named `cv` which labels each CV fold.
+            parameter: list of parameter names (e.g. ["beta_channel"]).
             dims: optional dict specifying dimensions and coordinate values to slice over
                 e.g. {"geo": ["geo_a", "geo_b"]}
         """
+        # Ensure the provided input is an arviz.InferenceData with a 'cv' coord
+        if not isinstance(results, az.InferenceData):
+            raise TypeError(
+                "plot_param_stability expects an `arviz.InferenceData` returned by TimeSliceCrossValidator.run(...)"
+            )
+
+        idata = results
+        # discover cv labels from any group that exposes the coordinate
+        cv_labels = None
+        for grp in (
+            "posterior",
+            "posterior_predictive",
+            "sample_stats",
+            "observed_data",
+            "prior",
+        ):
+            try:
+                ds = getattr(idata, grp)
+            except Exception:
+                ds = None
+            if ds is None:
+                continue
+            if "cv" in ds.coords:
+                cv_labels = list(ds.coords["cv"].values)
+                break
+
+        if cv_labels is None:
+            raise ValueError(
+                "Provided InferenceData does not contain a 'cv' coordinate."
+                "Pass the combined InferenceData returned by TimeSliceCrossValidator.run(...)"
+            )
+
+        # Build posterior_list by selecting along cv for the posterior group
+        posterior_list = []
+        model_names: list[str] = []
+        for lbl in cv_labels:
+            try:
+                p = idata.posterior.sel(cv=lbl)
+            except Exception:
+                # fallback to selecting from posterior_predictive if posterior missing
+                try:
+                    p = idata.posterior_predictive.sel(cv=lbl)
+                except Exception:
+                    p = None
+            if p is None:
+                raise ValueError(f"No posterior data found for CV label {lbl}")
+            posterior_list.append(p)
+            model_names.append(str(lbl))
+
         if dims is None:
-            # --- No dims: standard forest plot ---
+            # No dims: standard forest plot
             fig, ax = plt.subplots(figsize=(9, 6))
             az.plot_forest(
-                data=[r.idata["posterior"] for r in results],
-                model_names=[f"Iteration {i}" for i in range(len(results))],
+                data=posterior_list,
+                model_names=model_names,
                 var_names=parameter,
                 combined=True,
                 ax=ax,
@@ -1985,16 +2036,24 @@ class MMMPlotSuite:
             return fig, ax
 
         else:
-            # --- Plot one forest plot per dim value ---
+            # Plot one forest plot per dim value
             last_fig_ax = None
             for dim_name, coord_values in dims.items():
                 for coord in coord_values:
                     fig, ax = plt.subplots(figsize=(9, 6))
+                    # Select the coordinate value from each posterior fold
+                    sel_data = []
+                    for p in posterior_list:
+                        try:
+                            sel_data.append(p.sel({dim_name: coord}))
+                        except Exception:
+                            raise ValueError(
+                                f"Unable to select {dim_name}={coord} from posterior for one or more folds"  # noqa: S608
+                            )
+
                     az.plot_forest(
-                        data=[
-                            r.idata["posterior"].sel({dim_name: coord}) for r in results
-                        ],
-                        model_names=[f"Iteration {i}" for i in range(len(results))],
+                        data=sel_data,
+                        model_names=model_names,
                         var_names=parameter,
                         combined=True,
                         ax=ax,
@@ -2012,8 +2071,8 @@ class MMMPlotSuite:
             if last_fig_ax is None:
                 fig, ax = plt.subplots(figsize=(9, 6))
                 az.plot_forest(
-                    data=[r.idata["posterior"] for r in results],
-                    model_names=[f"Iteration {i}" for i in range(len(results))],
+                    data=posterior_list,
+                    model_names=model_names,
                     var_names=parameter,
                     combined=True,
                     ax=ax,
