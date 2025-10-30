@@ -133,6 +133,43 @@ class TimeSliceCrossValidator:
                 "No InferenceData available on the validator. Run `TimeSliceCrossValidator.run(...)` first."
             )
 
+    def _create_metadata(self, cv_coord: pd.Index) -> xr.Dataset:
+        """
+        Build a cv_metadata Dataset that stores per-fold metadata.
+
+        The dataset stores per-fold metadata as Python objects (DataFrames/Series)
+        under a single DataArray named 'metadata' indexed by the same 'cv' labels.
+        Consumers can access fold metadata via `cv_idata.cv_metadata.metadata.sel(cv=...)`.
+
+        cv_coord: pd.Index
+            The coordinate index for the 'cv' dimension.
+
+        """
+        metadata_list = []
+        for r in self._cv_results:
+            meta = {
+                "X_train": getattr(r, "X_train", None),
+                "y_train": getattr(r, "y_train", None),
+                "X_test": getattr(r, "X_test", None),
+                "y_test": getattr(r, "y_test", None),
+            }
+            metadata_list.append(meta)
+
+        # Create an object-dtype array so xarray can hold arbitrary Python objects
+        meta_arr = np.empty((len(metadata_list),), dtype=object)
+        for i, m in enumerate(metadata_list):
+            meta_arr[i] = m
+
+        ds_meta = xr.Dataset(
+            {"metadata": ("cv", meta_arr)},
+            coords={"cv": cv_coord},
+        )
+
+        # persist on instance for convenience
+        self.cv_metadata = metadata_list
+
+        return ds_meta
+
     def _combine_idata(self, results, model_names: list[str]) -> az.InferenceData:
         """Combine InferenceData objects from multiple CV results."""
         cv_idata: az.InferenceData | None = None
@@ -186,6 +223,10 @@ class TimeSliceCrossValidator:
                     )
 
                 combined_kwargs[group] = combined_ds
+
+            # Build a cv_metadata Dataset that stores per-fold metadata
+            ds_meta = self._create_metadata(cv_coord)
+            combined_kwargs["cv_metadata"] = ds_meta
 
             if combined_kwargs:
                 cv_idata = az.InferenceData(**combined_kwargs)
