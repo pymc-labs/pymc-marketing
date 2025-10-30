@@ -2048,7 +2048,7 @@ class MMMPlotSuite:
                             sel_data.append(p.sel({dim_name: coord}))
                         except Exception:
                             raise ValueError(
-                                f"Unable to select {dim_name}={coord} from posterior for one or more folds"  # noqa: S608
+                                "Unable to select dims from posterior for one or more folds"
                             )
 
                     az.plot_forest(
