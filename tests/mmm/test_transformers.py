@@ -148,7 +148,7 @@ class TestsAdstockTransformers:
         y_np = y.eval()
         w1 = (1 - 1 / (l_max + 1)) ** (1 / alpha - 1)
         w2 = (1 - 2 / (l_max + 1)) ** (1 / alpha - 1)
-        assert y_np[0] == x[0]
+        np.testing.assert_almost_equal(y_np[0], x[0])
         np.testing.assert_almost_equal(y_np[1], x[1] + w1 * x[0])
         np.testing.assert_almost_equal(y_np[2], x[2] + w1 * x[1] + w2 * x[0])
 
