@@ -152,6 +152,17 @@ class TestsAdstockTransformers:
         np.testing.assert_almost_equal(y_np[1], x[1] + w1 * x[0])
         np.testing.assert_almost_equal(y_np[2], x[2] + w1 * x[1] + w2 * x[0])
 
+    @pytest.mark.parametrize(
+        "x, alpha, l_max",
+        [
+            (np.ones(shape=(100)), 0.3, 10),
+            (np.ones(shape=(100)), 0.7, 100),
+            (np.zeros(shape=(100)), 0.2, 5),
+            (np.ones(shape=(100)), 0.5, 7),
+            (np.linspace(start=0.0, stop=1.0, num=50), 0.8, 3),
+            (np.linspace(start=0.0, stop=1.0, num=50), 0.8, 50),
+        ],
+    )
     def test_geometric_adstock_good_alpha(self, x, alpha, l_max):
         y = geometric_adstock(x=x, alpha=alpha, l_max=l_max)
         y_np = y.eval()
