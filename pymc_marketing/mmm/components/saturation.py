@@ -158,7 +158,9 @@ class SaturationTransformation(Transformation, metaclass=SaturationRegistrationM
             ..., description="Parameters of the saturation transformation."
         ),
         max_value: float = Field(1.0, gt=0, description="Maximum range value."),
-        num_points: int = Field(100, gt=0, description="Number of points between 0 and max_value."),
+        num_points: int = Field(
+            100, gt=0, description="Number of points between 0 and max_value."
+        ),
     ) -> xr.DataArray:
         """Sample the curve of the saturation transformation given parameters.
 
