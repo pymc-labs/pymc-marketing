@@ -2120,25 +2120,42 @@ class MMMPlotSuite:
     ) -> tuple[Figure, NDArray[Axes]]:
         """Plot CRPS for train and test sets across all CV splits, optionally stratified by dims.
 
-        If `dims` is provided (similar to other plotting helpers in this class), the function
-        will compute CRPS separately for each combination of the requested dimension
-        values and for any remaining additional coordinates found on the posterior_predictive
-        (e.g. geo). One subplot is created per combination and both train/test CRPS are
-        plotted on the same axis for easy comparison.
+        Now accepts a combined `arviz.InferenceData` produced by
+        `TimeSliceCrossValidator._combine_idata(...)`. The InferenceData must
+        contain a coordinate named `cv` and a `cv_metadata` group with per-fold
+        metadata (X_train, y_train, X_test, y_test) stored under `cv_metadata.metadata`.
         """
+        # Validate input is combined InferenceData
+        if not isinstance(results, az.InferenceData):
+            raise TypeError(
+                "plot_crps expects an arviz.InferenceData returned by TimeSliceCrossValidator._combine_idata(...)"
+            )
+        if not hasattr(results, "cv_metadata") or "metadata" not in results.cv_metadata:
+            raise ValueError(
+                "Provided InferenceData must include a 'cv_metadata' group with a 'metadata' DataArray."
+            )
+        if (
+            not hasattr(results, "posterior_predictive")
+            or "y_original_scale" not in results.posterior_predictive
+        ):
+            raise ValueError(
+                "Provided InferenceData must include posterior_predictive['y_original_scale']."
+            )
 
-        def _pred_matrix_for_rows(idata, rows_df):
-            """Build (n_samples, n_rows) prediction matrix for given rows DataFrame.
+        # Helper: build prediction matrix for a given cv label and rows DataFrame
+        def _pred_matrix_for_rows(
+            idata: az.InferenceData, cv_label, rows_df: pd.DataFrame
+        ):
+            """Build (n_samples, n_rows) prediction matrix for given rows DataFrame and CV label.
 
-            For each row in rows_df we select the posterior predictive samples
-            corresponding to that row's date (and geo if present in the rows_df).
-            This is robust to the ordering of dimensions in the xarray DataArray.
+            Selects posterior_predictive['y_original_scale'] for the given cv and then
+            behaves like the legacy helper: find date coord, select by date (and geo),
+            and assemble a (n_samples, n_rows) matrix.
             """
-            da = idata.posterior_predictive["y_original_scale"]
-            # Stack sample dims (chain, draw) into single 'sample' dim
+            da = idata.posterior_predictive["y_original_scale"].sel(cv=cv_label)
             da_s = da.stack(sample=("chain", "draw"))
 
-            # Ensure 'sample' is the first axis for easier indexing
+            # Ensure 'sample' is first axis
             if da_s.dims[0] != "sample":
                 try:
                     da_s = da_s.transpose("sample", ...)
@@ -2152,9 +2169,7 @@ class MMMPlotSuite:
             mat = np.empty((n_samples, n_rows))
 
             for j, (_idx, row) in enumerate(rows_df.iterrows()):
-                # select by date
-                # Robustly determine which coordinate in `da_s` represents dates
-                # Prefer the explicit 'date' coord, otherwise look for a datetime dtype
+                # determine date coord
                 date_coord = None
                 if "date" in da_s.coords:
                     date_coord = "date"
@@ -2163,17 +2178,21 @@ class MMMPlotSuite:
                         if coord in ("sample", "chain", "draw", "geo"):
                             continue
                         try:
-                            if np.issubdtype(vals.dtype, np.datetime64):
+                            # vals.dtype may be an ExtensionDtype (e.g. pandas) which
+                            # np.issubdtype doesn't accept directly for typing. Use
+                            # pandas API for robust datetime detection instead.
+                            if pd.api.types.is_datetime64_any_dtype(
+                                getattr(vals, "dtype", vals)
+                            ):
                                 date_coord = coord
                                 break
                         except Exception as exc:
                             warnings.warn(
-                                f"Error while inspecting coord dtype: {exc}",
+                                f"Error while inspecting coord dtype for date detection: {exc}",
                                 stacklevel=2,
                             )
                             continue
                 if date_coord is None:
-                    # fallback: pick the first non-sample/chain/draw/geo coord
                     for coord in da_s.coords:
                         if coord not in ("sample", "chain", "draw", "geo"):
                             date_coord = coord
@@ -2183,8 +2202,7 @@ class MMMPlotSuite:
                         "Could not determine date coordinate in posterior_predictive idata"
                     )
 
-                # Find matching column in rows_df for the date value. Try exact match
-                # using the coord name, then common fallbacks (column containing 'date')
+                # find matching row date value
                 if date_coord in rows_df.columns:
                     date_value = row[date_coord]
                 else:
@@ -2194,15 +2212,17 @@ class MMMPlotSuite:
                             found_col = col
                             break
                     if found_col is None:
-                        # last resort: pick first datetime-typed column
                         for col in rows_df.columns:
                             try:
-                                if np.issubdtype(rows_df[col].dtype, np.datetime64):
+                                # Use pandas datetime detection for dataframe column dtypes
+                                if pd.api.types.is_datetime64_any_dtype(
+                                    rows_df[col].dtype
+                                ):
                                     found_col = col
                                     break
                             except Exception as exc:
                                 warnings.warn(
-                                    f"Error while inspecting dataframe column dtype: {exc}",
+                                    f"Error while inspecting dataframe column dtype for date detection: {exc}",
                                     stacklevel=2,
                                 )
                                 continue
@@ -2212,10 +2232,7 @@ class MMMPlotSuite:
                         )
                     date_value = row[found_col]
 
-                # select by date
                 sel = da_s.sel({date_coord: date_value})
-
-                # if geo is present in the data and in the row, select it
                 if "geo" in sel.dims and "geo" in rows_df.columns:
                     sel = sel.sel(geo=str(row["geo"]))
 
@@ -2224,9 +2241,7 @@ class MMMPlotSuite:
                     raise ValueError(
                         "Posterior predictive selection returned a scalar for a row"
                     )
-                # ensure shape (n_samples,)
                 if arr.ndim > 1:
-                    # try to collapse remaining dims, expecting (sample, ...)
                     arr = arr.reshape(n_samples, -1)[:, 0]
 
                 mat[:, j] = arr
@@ -2234,17 +2249,32 @@ class MMMPlotSuite:
             return mat
 
         # dims handling (validate + build combinations)
-        # derive dims from the posterior_predictive of the first result
-        main_da = results[0].idata.posterior_predictive["y_original_scale"]
+        # derive dims from the posterior_predictive (use first cv to inspect dims)
+        # discover cv labels from cv_metadata (preferred) or posterior_predictive coords
+        if hasattr(results, "cv_metadata") and "cv" in results.cv_metadata.coords:
+            cv_labels = list(results.cv_metadata.coords["cv"].values)
+        elif (
+            hasattr(results, "posterior_predictive")
+            and "cv" in results.posterior_predictive.coords
+        ):
+            cv_labels = list(results.posterior_predictive.coords["cv"].values)
+        else:
+            raise ValueError(
+                "No 'cv' coordinate found in provided InferenceData (checked cv_metadata and posterior_predictive)"
+            )
+        if not cv_labels:
+            raise ValueError("No CV labels found in provided InferenceData")
+        main_da = results.posterior_predictive["y_original_scale"].sel(cv=cv_labels[0])
         all_dims = list(main_da.dims)
-        # validate dims against available dims
+
+        # validate dims
         if dims:
             self._validate_dims(dims, all_dims)
         else:
             self._validate_dims({}, all_dims)
         dims_keys, dims_combos = self._dim_list_handler(dims)
 
-        # identify additional dims to iterate over (exclude sample/chain/draw/date and any dims filtered via `dims`)
+        # identify additional dims to iterate over
         ignored_dims = {"chain", "draw", "sample", "date"}
         additional_dims = [
             d for d in all_dims if d not in ignored_dims and d not in (dims or {})
@@ -2261,50 +2291,57 @@ class MMMPlotSuite:
         # create one panel per combination -> create two columns: train | test
         fig, axes = self._init_subplots(n_subplots=max(1, n_panels), ncols=2)
 
-        def _filter_rows_and_y(df: pd.DataFrame, y: pd.Series, indexers: dict):
-            """Return filtered (rows_df_reset, y_array_filtered) using indexers.
-
-            Indexers keys that are not present in df are ignored. Matching is robust to
-            type differences by string-conversion.
-            """
+        def _filter_rows_and_y(
+            df: pd.DataFrame | None, y: pd.Series | None, indexers: dict
+        ) -> tuple[pd.DataFrame, np.ndarray]:
+            # Accept optional df and y to satisfy callers; always return concrete types
             if df is None or df.empty:
-                return df.reset_index(drop=True), np.array([])
+                return pd.DataFrame([], columns=[]), np.array([])
             mask = np.ones(len(df), dtype=bool)
             for k, v in indexers.items():
                 if k in df.columns:
                     mask &= df[k].astype(str) == str(v)
             filtered_df = df[mask].reset_index(drop=True)
             try:
-                y_arr = y.to_numpy()[mask]
+                if y is None:
+                    y_arr = np.array([])
+                else:
+                    y_arr = y.to_numpy()[mask]
             except Exception:
-                # if y is not index-aligned or cannot be masked, attempt to select by position
-                y_arr = y.to_numpy()
+                # Fallback: try converting whole series
+                y_arr = y.to_numpy() if y is not None else np.array([])
             return filtered_df, y_arr
 
         # iterate and compute per-panel CRPS across folds
         for panel_idx, (dims_combo, addl_combo) in enumerate(total_combos):
-            # left column = train, right column = test
             ax_train = axes[panel_idx][0]
             ax_test = axes[panel_idx][1]
-            # build indexers like other methods in this class
             indexers: dict = {}
-            # dims_combo corresponds to dims_keys
             for i, k in enumerate(dims_keys):
                 indexers[k] = dims_combo[i]
-            # single-valued dims in `dims`
             for k, v in (dims or {}).items():
                 if k not in dims_keys:
                     indexers[k] = v
-            # additional dims values
             for i, d in enumerate(additional_dims):
                 indexers[d] = addl_combo[i] if addl_combo else addl_combo
 
             crps_train_list = []
             crps_test_list = []
-            for result in results:
+
+            # loop over cv folds using cv_metadata
+            for _cv_idx, cv_label in enumerate(cv_labels):
+                meta_da = results.cv_metadata["metadata"].sel(cv=cv_label)
+                try:
+                    meta = meta_da.values.item()
+                except Exception:
+                    meta = getattr(meta_da, "item", lambda: None)()
+
+                X_train_df = meta.get("X_train") if isinstance(meta, dict) else None
+                y_train = meta.get("y_train") if isinstance(meta, dict) else None
+                X_test_df = meta.get("X_test") if isinstance(meta, dict) else None
+                y_test = meta.get("y_test") if isinstance(meta, dict) else None
+
                 # Training data
-                X_train_df = result.X_train
-                y_train = result.y_train
                 filtered_train_rows, y_train_arr = _filter_rows_and_y(
                     X_train_df, y_train, indexers
                 )
@@ -2313,7 +2350,9 @@ class MMMPlotSuite:
                 else:
                     try:
                         y_pred_train = _pred_matrix_for_rows(
-                            result.idata, filtered_train_rows.reset_index(drop=True)
+                            results,
+                            cv_label,
+                            filtered_train_rows.reset_index(drop=True),
                         )
                         if y_pred_train.shape[1] != len(y_train_arr):
                             crps_train_list.append(np.nan)
@@ -2325,8 +2364,6 @@ class MMMPlotSuite:
                         crps_train_list.append(np.nan)
 
                 # Testing data
-                X_test_df = result.X_test
-                y_test = result.y_test
                 filtered_test_rows, y_test_arr = _filter_rows_and_y(
                     X_test_df, y_test, indexers
                 )
@@ -2335,7 +2372,7 @@ class MMMPlotSuite:
                 else:
                     try:
                         y_pred_test = _pred_matrix_for_rows(
-                            result.idata, filtered_test_rows.reset_index(drop=True)
+                            results, cv_label, filtered_test_rows.reset_index(drop=True)
                         )
                         if y_pred_test.shape[1] != len(y_test_arr):
                             crps_test_list.append(np.nan)
@@ -2351,7 +2388,7 @@ class MMMPlotSuite:
             crps_test_arr = np.array(crps_test_list, dtype=float)
 
             # plot train and test on separate axes (left = train, right = test)
-            x_axis = np.arange(len(results))
+            x_axis = np.arange(len(cv_labels))
             if not np.all(np.isnan(crps_train_arr)):
                 ax_train.plot(x_axis, crps_train_arr, marker="o", color="C0")
             if not np.all(np.isnan(crps_test_arr)):
@@ -2359,16 +2396,12 @@ class MMMPlotSuite:
 
             # Title for this pair of subplots
             title_dims = list(dims.keys() if dims else []) + additional_dims
-            # build combo values in same order
             title_values = []
-            # first dims_keys values
             for v in dims_combo:
                 title_values.append(v)
-            # then single-valued dims (those in dims but not dims_keys)
             for k in dims or {}:
                 if k not in dims_keys:
                     title_values.append((dims or {})[k])
-            # then additional dims
             if addl_combo:
                 title_values.extend(addl_combo)
             subplot_title = self._build_subplot_title(
