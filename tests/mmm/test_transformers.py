@@ -26,6 +26,7 @@ from pymc_marketing.mmm.transformers import (
     TanhSaturationParameters,
     WeibullType,
     batched_convolution,
+    binomial_adstock,
     delayed_adstock,
     geometric_adstock,
     hill_function,
@@ -130,6 +131,26 @@ class TestsAdstockTransformers:
         x = np.zeros(shape=(100))
         y = geometric_adstock(x=x, alpha=0.2, mode=mode)
         np.testing.assert_array_equal(actual=x, desired=y.eval())
+
+    @pytest.mark.parametrize(
+        "x, alpha, l_max",
+        [
+            (np.ones(shape=(100)), 0.3, 10),
+            (np.ones(shape=(100)), 0.7, 100),
+            (np.zeros(shape=(100)), 0.2, 5),
+            (np.ones(shape=(100)), 0.5, 7),
+            (np.linspace(start=0.0, stop=1.0, num=50), 0.8, 3),
+            (np.linspace(start=0.0, stop=1.0, num=50), 0.8, 50),
+        ],
+    )
+    def test_binomial_adstock(self, x, alpha, l_max):
+        y = binomial_adstock(x=x, alpha=alpha, l_max=l_max)
+        y_np = y.eval()
+        w1 = (1 - 1 / (l_max + 1)) ** (1 / alpha - 1)
+        w2 = (1 - 2 / (l_max + 1)) ** (1 / alpha - 1)
+        np.testing.assert_almost_equal(y_np[0], x[0])
+        np.testing.assert_almost_equal(y_np[1], x[1] + w1 * x[0])
+        np.testing.assert_almost_equal(y_np[2], x[2] + w1 * x[1] + w2 * x[0])
 
     @pytest.mark.parametrize(
         "x, alpha, l_max",
