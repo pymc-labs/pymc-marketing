@@ -11,6 +11,7 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import os
 from collections.abc import Callable
 
 import arviz as az
@@ -25,7 +26,12 @@ from pymc_extras.prior import Prior
 from pytensor.tensor.basic import TensorVariable
 from scipy.optimize import OptimizeResult
 
-from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation, SoftPlusHSGP
+from pymc_marketing.mmm import (
+    CovFunc,
+    GeometricAdstock,
+    LogisticSaturation,
+    SoftPlusHSGP,
+)
 from pymc_marketing.mmm.additive_effect import EventAdditiveEffect, LinearTrendEffect
 from pymc_marketing.mmm.events import EventEffect, GaussianBasis, HalfGaussianBasis
 from pymc_marketing.mmm.lift_test import _swap_columns_and_last_index_level
@@ -740,23 +746,42 @@ def test_time_varying_intercept_with_custom_hsgp_multi_dim(
 @pytest.mark.parametrize(
     "hsgp_dims",
     [
-        pytest.param(("date",), id="hsgp-dims=date"),
-        pytest.param(("date", "channel"), id="hsgp-dims=date,channel"),
+        pytest.param(
+            [
+                "date",
+            ],
+            id="hsgp-dims=date",
+        ),
+        pytest.param(["date", "channel"], id="hsgp-dims=date,channel"),
     ],
 )
-def test_time_varying_media_create_idata_attrs_with_custom_hsgp_single_dim(
+def test_time_varying_media_with_custom_hsgp_single_dim_save_load(
     single_dim_data, hsgp_dims
 ):
     """
-    Ensure passing an HSGP instance to time_varying_media serializes to dict and will load (single-dim).
+    Ensure saved MMM with HSGP instance passed to time_varying_media can .save() and .load() (single-dim).
     """
     X, y = single_dim_data
 
-    # Build HSGP using the new API
-    hsgp = SoftPlusHSGP.parameterize_from_data(
-        X=np.arange(X.shape[0]),
-        dims=hsgp_dims,
-    )
+    data = {
+        "m": 72,
+        "X_mid": 6.5,
+        "dims": hsgp_dims,
+        "transform": None,
+        "demeaned_basis": False,
+        "ls": {
+            "dist": "Weibull",
+            "kwargs": {"alpha": 0.5, "beta": 90.08328710020781},
+            "transform": "reciprocal",
+        },
+        "eta": {"dist": "Exponential", "kwargs": {"lam": 2.995732273553991}},
+        "L": 41.6,
+        "centered": False,
+        "drop_first": True,
+        "cov_func": CovFunc.ExpQuad,
+    }
+
+    hsgp = SoftPlusHSGP.from_dict(data.copy())  # .from_dict() modifies data
 
     mmm = MMM(
         date_column="date",
@@ -767,110 +792,13 @@ def test_time_varying_media_create_idata_attrs_with_custom_hsgp_single_dim(
         time_varying_media=hsgp,
     )
 
-    mmm.build_model(X, y)
-
-    attrs = mmm.create_idata_attrs()
-    hsgp_dict = {
-        # Turn CovFunc.ExpQuad into "expquad" and ("date", "channel") into ["date", "channel"]
-        # to match output of json.dumps(hsgp.to_dict())
-        k: v.lower() if k == "cov_func" else (list(v) if k == "dims" else v)
-        for k, v in hsgp.to_dict().items()
-    }
-    import json
-
-    # attrs_to_init_kwargs() method should return the dict representation of the HSGP
-    assert json.loads(attrs.get("time_varying_media", "false")) == hsgp_dict
-
-
-@pytest.mark.parametrize(
-    "hsgp_dims",
-    [
-        pytest.param(("date",), id="hsgp-dims=date"),
-    ],
-)
-def test_time_varying_intercept_create_idata_attrs_with_custom_hsgp_single_dim(
-    single_dim_data, hsgp_dims
-):
-    """
-    Ensure passing an HSGP instance to time_varying_intercept serializes to dict and will load (single-dim).
-    """
-    X, y = single_dim_data
-
-    # Build HSGP using the new API
-    hsgp = SoftPlusHSGP.parameterize_from_data(
-        X=np.arange(X.shape[0]),
-        dims=hsgp_dims,
-    )
-
-    mmm = MMM(
-        date_column="date",
-        target_column="target",
-        channel_columns=["channel_1", "channel_2", "channel_3"],
-        adstock=GeometricAdstock(l_max=2),
-        saturation=LogisticSaturation(),
-        time_varying_intercept=hsgp,
-    )
-
-    mmm.build_model(X, y)
-
-    attrs = mmm.create_idata_attrs()
-    hsgp_dict = {
-        # Turn CovFunc.ExpQuad into "expquad" and ("date", "channel") into ["date", "channel"]
-        # to match output of json.dumps(hsgp.to_dict())
-        k: v.lower() if k == "cov_func" else (list(v) if k == "dims" else v)
-        for k, v in hsgp.to_dict().items()
-    }
-    import json
-
-    # attrs_to_init_kwargs() method should return the dict representation of the HSGP
-    assert json.loads(attrs.get("time_varying_intercept", "false")) == hsgp_dict
-
-
-@pytest.mark.parametrize(
-    "hsgp_dims",
-    [
-        pytest.param(("date",), id="hsgp-dims=date"),
-        pytest.param(("date", "channel"), id="hsgp-dims=date,channel"),
-    ],
-)
-def test_time_varying_media_with_custom_hsgp_single_dim_load_raises_validation_error(
-    single_dim_data, hsgp_dims
-):
-    """
-    Ensure saved MMM with HSGP instance passed to time_varying_media fails to MMM.load() since it is
-    a dict and not StictBoolean or InstanceOf[HSGPBase] (single-dim).
-    """
-    X, y = single_dim_data
-
-    # Build HSGP using the new API
-    hsgp = SoftPlusHSGP.parameterize_from_data(
-        X=np.arange(X.shape[0]),
-        dims=hsgp_dims,
-    )
-
-    mmm = MMM(
-        date_column="date",
-        target_column="target",
-        channel_columns=["channel_1", "channel_2", "channel_3"],
-        adstock=GeometricAdstock(l_max=2),
-        saturation=LogisticSaturation(),
-        time_varying_media=hsgp,
-    )
-
-    mmm.build_model(X, y)
     mmm.fit(X, y)
 
-    file = "test_hsgp_media_raises_validation_error.nc"
+    file = "test_hsgp_media.nc"
     mmm.save(file)
+    loaded = MMM.load(file)
 
-    with pytest.raises(ValidationError) as exc_info:
-        MMM.load(file)
-
-    # Check that the error message mentions the constraint
-    error_msg = str(exc_info.value)
-    assert "boolean" in error_msg and "HSGPBase" in error_msg
-
-    import os
+    assert loaded.time_varying_media.to_dict() == data
 
     os.remove(file)
 
@@ -878,23 +806,41 @@ def test_time_varying_media_with_custom_hsgp_single_dim_load_raises_validation_e
 @pytest.mark.parametrize(
     "hsgp_dims",
     [
-        pytest.param(("date",), id="hsgp-dims=date"),
+        pytest.param(
+            [
+                "date",
+            ],
+            id="hsgp-dims=date",
+        ),
     ],
 )
-def test_time_varying_intercept_with_custom_hsgp_single_dim_load_raises_validation_error(
+def test_time_varying_intercept_with_custom_hsgp_single_dim_save_load(
     single_dim_data, hsgp_dims
 ):
     """
-    Ensure saved MMM with HSGP instance passed to time_varying_intercept fails to MMM.load() since it is
-    a dict and not StictBoolean or InstanceOf[HSGPBase] (single-dim).
+    Ensure MMM with an HSGP instance passed to time_varying_intercept can .save() and .load() (single-dim).
     """
     X, y = single_dim_data
 
-    # Build HSGP using the new API
-    hsgp = SoftPlusHSGP.parameterize_from_data(
-        X=np.arange(X.shape[0]),
-        dims=hsgp_dims,
-    )
+    data = {
+        "m": 72,
+        "X_mid": 6.5,
+        "dims": hsgp_dims,
+        "transform": None,
+        "demeaned_basis": False,
+        "ls": {
+            "dist": "Weibull",
+            "kwargs": {"alpha": 0.5, "beta": 90.08328710020781},
+            "transform": "reciprocal",
+        },
+        "eta": {"dist": "Exponential", "kwargs": {"lam": 2.995732273553991}},
+        "L": 41.6,
+        "centered": False,
+        "drop_first": True,
+        "cov_func": CovFunc.ExpQuad,
+    }
+
+    hsgp = SoftPlusHSGP.from_dict(data.copy())  # .from_dict() modifies data
 
     mmm = MMM(
         date_column="date",
@@ -905,20 +851,70 @@ def test_time_varying_intercept_with_custom_hsgp_single_dim_load_raises_validati
         time_varying_intercept=hsgp,
     )
 
-    mmm.build_model(X, y)
     mmm.fit(X, y)
 
-    file = "test_hsgp_intercept_raises_validation_error.nc"
+    file = "test_hsgp_intercept.nc"
     mmm.save(file)
+    loaded = MMM.load(file)
 
-    with pytest.raises(ValidationError) as exc_info:
-        MMM.load(file)
+    assert loaded.time_varying_intercept.to_dict() == data
 
-    # Check that the error message mentions the constraint
-    error_msg = str(exc_info.value)
-    assert "boolean" in error_msg and "HSGPBase" in error_msg
+    os.remove(file)
 
-    import os
+
+@pytest.mark.parametrize(
+    "hsgp_dims",
+    [
+        pytest.param(["date", "country"], id="hsgp-dims=date,country"),
+        pytest.param(
+            ["date", "country", "channel"], id="hsgp-dims=date,country,channel"
+        ),
+    ],
+)
+def test_time_varying_media_with_custom_hsgp_multi_dim_save_load(
+    df, target_column, hsgp_dims
+):
+    """
+    Ensure MMM with an HSGP instance passed to time_varying_media can .save() and .load() (multi-dim).
+    """
+    X = df.drop(columns=[target_column])
+    y = df[target_column]
+
+    data = {
+        "m": 28,
+        "X_mid": 2.5,
+        "dims": hsgp_dims,
+        "transform": None,
+        "demeaned_basis": False,
+        "ls": {
+            "dist": "Weibull",
+            "kwargs": {"alpha": 0.5, "beta": 90.08328710020781},
+            "transform": "reciprocal",
+        },
+        "eta": {"dist": "Exponential", "kwargs": {"lam": 2.995732273553991}},
+        "L": 16.0,
+        "centered": False,
+        "drop_first": True,
+        "cov_func": CovFunc.ExpQuad,
+    }
+    hsgp = SoftPlusHSGP.from_dict(data.copy())  # .from_dict() modifies data
+
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["C1", "C2"],
+        target_column=target_column,
+        dims=("country",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        time_varying_media=hsgp,
+    )
+    mmm.fit(X, y)
+
+    file = "test_hsgp_intercept_multi_dim.nc"
+    mmm.save(file)
+    loaded = MMM.load(file)
+
+    assert loaded.time_varying_media.to_dict() == data
 
     os.remove(file)
 
