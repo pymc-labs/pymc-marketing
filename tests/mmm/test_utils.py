@@ -12,6 +12,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
+import arviz as az
 import numpy as np
 import pandas as pd
 import pytest
@@ -688,33 +689,30 @@ class TestBuildContributions:
         dates = pd.date_range("2025-01-01", periods=10, freq="W-MON")
         channels = ["C1", "C2"]
 
-        idata = xr.Dataset(
+        posterior = xr.Dataset(
             {
-                "posterior": xr.Dataset(
-                    {
-                        "intercept_contribution": xr.DataArray(
-                            np.random.normal(size=(2, 50, 10)),
-                            dims=("chain", "draw", "date"),
-                            coords={
-                                "chain": [0, 1],
-                                "draw": np.arange(50),
-                                "date": dates,
-                            },
-                        ),
-                        "channel_contribution": xr.DataArray(
-                            np.random.normal(size=(2, 50, 10, 2)),
-                            dims=("chain", "draw", "date", "channel"),
-                            coords={
-                                "chain": [0, 1],
-                                "draw": np.arange(50),
-                                "date": dates,
-                                "channel": channels,
-                            },
-                        ),
-                    }
-                )
+                "intercept_contribution": xr.DataArray(
+                    np.random.normal(size=(2, 50, 10)),
+                    dims=("chain", "draw", "date"),
+                    coords={
+                        "chain": [0, 1],
+                        "draw": np.arange(50),
+                        "date": dates,
+                    },
+                ),
+                "channel_contribution": xr.DataArray(
+                    np.random.normal(size=(2, 50, 10, 2)),
+                    dims=("chain", "draw", "date", "channel"),
+                    coords={
+                        "chain": [0, 1],
+                        "draw": np.arange(50),
+                        "date": dates,
+                        "channel": channels,
+                    },
+                ),
             }
         )
+        idata = az.InferenceData(posterior=posterior)
         return idata
 
     @pytest.fixture
@@ -724,35 +722,32 @@ class TestBuildContributions:
         channels = ["C1", "C2"]
         geos = ["US", "UK"]
 
-        idata = xr.Dataset(
+        posterior = xr.Dataset(
             {
-                "posterior": xr.Dataset(
-                    {
-                        "intercept_contribution": xr.DataArray(
-                            np.random.normal(size=(2, 30, 5, 2)),
-                            dims=("chain", "draw", "date", "geo"),
-                            coords={
-                                "chain": [0, 1],
-                                "draw": np.arange(30),
-                                "date": dates,
-                                "geo": geos,
-                            },
-                        ),
-                        "channel_contribution": xr.DataArray(
-                            np.random.normal(size=(2, 30, 5, 2, 2)),
-                            dims=("chain", "draw", "date", "channel", "geo"),
-                            coords={
-                                "chain": [0, 1],
-                                "draw": np.arange(30),
-                                "date": dates,
-                                "channel": channels,
-                                "geo": geos,
-                            },
-                        ),
-                    }
-                )
+                "intercept_contribution": xr.DataArray(
+                    np.random.normal(size=(2, 30, 5, 2)),
+                    dims=("chain", "draw", "date", "geo"),
+                    coords={
+                        "chain": [0, 1],
+                        "draw": np.arange(30),
+                        "date": dates,
+                        "geo": geos,
+                    },
+                ),
+                "channel_contribution": xr.DataArray(
+                    np.random.normal(size=(2, 30, 5, 2, 2)),
+                    dims=("chain", "draw", "date", "channel", "geo"),
+                    coords={
+                        "chain": [0, 1],
+                        "draw": np.arange(30),
+                        "date": dates,
+                        "channel": channels,
+                        "geo": geos,
+                    },
+                ),
             }
         )
+        idata = az.InferenceData(posterior=posterior)
         return idata
 
     def test_build_contributions_basic(self, mock_idata_simple):
@@ -871,9 +866,9 @@ class TestBuildContributions:
     def test_build_contributions_custom_aggregation(self, mock_idata_simple):
         """Test build_contributions with a custom aggregation function."""
 
-        def custom_agg(data, dim):
+        def custom_agg(data, axis):
             # Custom aggregation: 75th percentile
-            return data.quantile(0.75, dim=dim)
+            return np.quantile(data, 0.75, axis=axis)
 
         df = build_contributions(
             idata=mock_idata_simple,
