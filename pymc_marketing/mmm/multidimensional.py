@@ -997,11 +997,14 @@ class MMM(RegressionModelBuilder):
 
         Examples
         --------
-        >>> mmm = MMM(
-            date_column="date_week",
-            channel_columns=["channel_1", "channel_2"],
-            target_column="target",
-        )
+        .. code-block:: python
+
+            mmm = MMM(
+                date_column="date_week",
+                channel_columns=["channel_1", "channel_2"],
+                target_column="target",
+            )
+
         """
         first, second = (
             (self.adstock, self.saturation)
@@ -1039,13 +1042,16 @@ class MMM(RegressionModelBuilder):
 
         Examples
         --------
-        >>> mmm = MMM(
-            date_column="date_week",
-            channel_columns=["channel_1", "channel_2"],
-            target_column="target",
-        )
-        >>> mmm.build_model(X, y)
-        >>> mmm.get_scales_as_xarray()
+        .. code-block:: python
+
+            mmm = MMM(
+                date_column="date_week",
+                channel_columns=["channel_1", "channel_2"],
+                target_column="target",
+            )
+            mmm.build_model(X, y)
+            mmm.get_scales_as_xarray()
+
         """
         if not hasattr(self, "scalers"):
             raise ValueError(
@@ -1084,9 +1090,12 @@ class MMM(RegressionModelBuilder):
 
         Examples
         --------
-        >>> model.add_original_scale_contribution_variable(
-        >>>     var=["channel_contribution", "total_media_contribution", "y"]
-        >>> )
+        .. code-block:: python
+
+            model.add_original_scale_contribution_variable(
+                var=["channel_contribution", "total_media_contribution", "y"]
+            )
+
         """
         self._validate_model_was_built()
         target_dims = self.scalers._target.dims
@@ -1679,8 +1688,10 @@ class MMM(RegressionModelBuilder):
                 self.idata, **sample_posterior_predictive_kwargs
             )
 
-            if extend_idata:
-                self.idata.extend(post_pred, join="right")  # type: ignore
+            if extend_idata and self.idata is not None:
+                self.idata.add_groups(
+                    posterior_predictive=post_pred.posterior_predictive
+                )  # type: ignore
 
         group = "posterior_predictive"
         posterior_predictive_samples = az.extract(post_pred, group, combined=combined)
@@ -1707,11 +1718,14 @@ class MMM(RegressionModelBuilder):
 
         Examples
         --------
-        >>> mmm.sensitivity.run_sweep(
-        ...     var_names=["channel_1", "channel_2"],
-        ...     sweep_values=np.linspace(0.5, 2.0, 10),
-        ...     sweep_type="multiplicative",
-        ... )
+        .. code-block:: python
+
+            mmm.sensitivity.run_sweep(
+                var_names=["channel_1", "channel_2"],
+                sweep_values=np.linspace(0.5, 2.0, 10),
+                sweep_type="multiplicative",
+            )
+
         """
         # Provide the underlying PyMC model, the model's inference data, and dims
         return SensitivityAnalysis(
@@ -2129,7 +2143,10 @@ class MMM(RegressionModelBuilder):
 
         Examples
         --------
-        >>> ds = mmm.create_fit_data(X, y)
+        .. code-block:: python
+
+            ds = mmm.create_fit_data(X, y)
+
         """
         # --- Coerce X to DataFrame ---
         if isinstance(X, xr.Dataset):
@@ -2218,7 +2235,10 @@ class MMM(RegressionModelBuilder):
 
         Examples
         --------
-        >>> mmm.build_from_idata(idata)
+        .. code-block:: python
+
+            mmm.build_from_idata(idata)
+
         """
         dataset = idata.fit_data.to_dataframe()
 
