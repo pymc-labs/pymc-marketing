@@ -17,6 +17,7 @@ from pymc_marketing.mmm import base, mmm, preprocessing, validating
 from pymc_marketing.mmm.base import BaseValidateMMM, MMMModelBuilder
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
+    BinomialAdstock,
     DelayedAdstock,
     GeometricAdstock,
     NoAdstock,
@@ -70,6 +71,7 @@ __all__ = [
     "MMM",
     "AdstockTransformation",
     "BaseValidateMMM",
+    "BinomialAdstock",
     "CovFunc",
     "DelayedAdstock",
     "FancyLinearRegression",
