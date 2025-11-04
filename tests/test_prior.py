@@ -16,7 +16,7 @@ import pytest
 from pymc_extras.deserialize import deserialize
 from pymc_extras.prior import Prior
 
-from pymc_marketing import prior  # noqa: F401
+from pymc_marketing import prior  # noqa: F401 - import needed to register custom deserializers
 
 
 @pytest.mark.parametrize(
