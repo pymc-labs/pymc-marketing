@@ -28,6 +28,7 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from pydantic import BaseModel, Field, InstanceOf, model_validator, validate_call
 from pymc.distributions.shape_utils import Dims
+from pymc_extras.deserialize import register_deserialization
 from pymc_extras.prior import Prior, _get_transform, create_dim_handler
 from pytensor.tensor import TensorLike
 from pytensor.tensor.variable import TensorVariable
@@ -1432,3 +1433,31 @@ class SoftPlusHSGP(HSGP):
         # Multiplicative centering to preserve positivity and enforce mean 1
         centered_f = f / f_mean
         return pm.Deterministic(name, centered_f, dims=self.dims)
+
+
+# TODO: Replace this with a more robust implementation
+def hsgp_from_dict(data: dict | bool):
+    """Get an HSGP instance from a dictionary if passed by user."""
+    if isinstance(data, bool):
+        return data
+
+    HSGP_CLASSES = {
+        "HSGP": HSGP,
+        "SoftPlusHSGP": SoftPlusHSGP,
+        "HSGPPeriodic": HSGPPeriodic,
+    }
+
+    data = data.copy()
+    cls = HSGP_CLASSES[data.pop("hsgp_class")]
+
+    return cls.from_dict(data)
+
+
+def _is_hsgp(data):
+    return (
+        "hsgp_class" in data
+        and data["hsgp_class"] in ["HSGP", "SoftPlusHSGP", "HSGPPeriodic"]
+    ) or isinstance(data, bool)
+
+
+register_deserialization(_is_hsgp, hsgp_from_dict)
