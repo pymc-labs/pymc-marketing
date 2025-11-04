@@ -14,9 +14,9 @@
 """Streamlit page for fourier modes."""
 
 import plotly.graph_objects as go
+from pymc_extras.prior import Prior
 
 import streamlit as st
-from pymc_extras.prior import Prior
 from pymc_marketing.mmm import MonthlyFourier, YearlyFourier
 
 # Constants
