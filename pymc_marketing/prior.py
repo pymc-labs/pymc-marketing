@@ -103,8 +103,6 @@ Create a prior with a custom transform function by registering it with
 from __future__ import annotations
 
 import copy
-import functools
-import warnings
 from typing import Any
 
 from pymc_extras import prior
@@ -162,70 +160,3 @@ def deserialize_alternative_prior(data: dict[str, Any]) -> prior.Prior:
 
 # Register the alternative prior deserializer for more complex nested cases
 register_deserialization(is_alternative_prior, deserialize_alternative_prior)
-
-
-def warn_class_deprecation(func):
-    """Warn about the deprecation of this module."""
-
-    @functools.wraps(func)
-    def wrapper(self, *args, **kwargs):
-        name = self.__class__.__name__
-        warnings.warn(
-            f"The {name} class has moved to pymc_extras.prior module and will be removed in a future release. "
-            f"Import it from `from pymc_extras.prior import {name}`. ",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return func(self, *args, **kwargs)
-
-    return wrapper
-
-
-def warn_function_deprecation(func):
-    """Warn about the deprecation of this function."""
-
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        name = func.__name__
-        warnings.warn(
-            f"The {name} function has moved to pymc_extras.prior module and will be removed in a future release. "
-            f"Import it from `from pymc_extras.prior import {name}`.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return func(*args, **kwargs)
-
-    return wrapper
-
-
-class Prior(prior.Prior):
-    """Backwards-compatible wrapper for the Prior class."""
-
-    @warn_class_deprecation
-    def __init__(self, *args, **kwargs):
-        """Initialize the Prior class with the given arguments."""
-        super().__init__(*args, **kwargs)
-
-
-class Censored(prior.Censored):
-    """Backwards-compatible wrapper for the CensoredPrior class."""
-
-    @warn_class_deprecation
-    def __init__(self, *args, **kwargs):
-        """Initialize the CensoredPrior class with the given arguments."""
-        super().__init__(*args, **kwargs)
-
-
-class Scaled(prior.Scaled):
-    """Backwards-compatible wrapper for the ScaledPrior class."""
-
-    @warn_class_deprecation
-    def __init__(self, *args, **kwargs):
-        """Initialize the ScaledPrior class with the given arguments."""
-        super().__init__(*args, **kwargs)
-
-
-sample_prior = warn_function_deprecation(prior.sample_prior)
-create_dim_handler = warn_function_deprecation(prior.create_dim_handler)
-handle_dims = warn_function_deprecation(prior.handle_dims)
-register_tensor_transform = warn_function_deprecation(prior.register_tensor_transform)
