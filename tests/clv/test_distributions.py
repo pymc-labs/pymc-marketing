@@ -828,7 +828,7 @@ class TestShiftedBetaGeometric:
             """Test that rng_fn returns float type, not integer type"""
             dist = self.pymc_dist.dist(alpha=1.0, beta=1.0, size=10)
             draws = dist.eval()
-            
+
             # Verify that the dtype is float, not int
             assert np.issubdtype(draws.dtype, np.floating), \
                 f"Expected float dtype, but got {draws.dtype}"
