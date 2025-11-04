@@ -1,0 +1,185 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.rst:2
+#: 2d8342ddb1d840088fb038e0fd7a7734
+msgid "hsgp"
+msgstr "hsgp"
+
+#: 2b0deb6ecfde469c97cdd90731e990df of pymc_marketing.mmm.hsgp:1
+msgid "HSGP components."
+msgstr "Componentes HSGP."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.rst:13
+#: f9aa67c55ae14c0b8ff5ab53ec45c07e
+msgid "Functions"
+msgstr "Funciones"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.rst:27:<autosummary>:1
+#: 7ea0632ac0754577af3e1402635695bf
+msgid ""
+":py:obj:`approx_hsgp_hyperparams "
+"<pymc_marketing.mmm.hsgp.approx_hsgp_hyperparams>`\\ \\(x\\, x\\_center\\, "
+"...\\)"
+msgstr ""
+":py:obj:`approx_hsgp_hyperparams "
+"<pymc_marketing.mmm.hsgp.approx_hsgp_hyperparams>`\\ \\(x\\, x\\_center\\, "
+"...\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.rst:27:<autosummary>:1
+#: 0724161f8f934442bf657f597918676d
+msgid "Use heuristics for minimum `m` and `c` values."
+msgstr "Utilice heurísticas para los valores mínimos de `m` y `c`."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.rst:27:<autosummary>:1
+#: 56cfcde1a1774a96a2d0ca6bf22dae92
+msgid ""
+":py:obj:`create_complexity_penalizing_prior "
+"<pymc_marketing.mmm.hsgp.create_complexity_penalizing_prior>`\\ \\(\\*\\[\\,"
+" ...\\]\\)"
+msgstr ""
+":py:obj:`create_complexity_penalizing_prior "
+"<pymc_marketing.mmm.hsgp.create_complexity_penalizing_prior>`\\ \\(\\*\\[\\,"
+" ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.rst:27:<autosummary>:1
+#: 567fd2a1f02f471ca59e9d410f3a2e7f
+msgid "Create prior that penalizes complexity for GP lengthscale."
+msgstr ""
+"Cree un prior que penalice la complejidad para la longitud de escala de GP."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.rst:27:<autosummary>:1
+#: 1f45fcb29284405999a05fd5f210cb68
+msgid ""
+":py:obj:`create_constrained_inverse_gamma_prior "
+"<pymc_marketing.mmm.hsgp.create_constrained_inverse_gamma_prior>`\\ "
+"\\(\\*\\, upper\\)"
+msgstr ""
+":py:obj:`create_constrained_inverse_gamma_prior "
+"<pymc_marketing.mmm.hsgp.create_constrained_inverse_gamma_prior>`\\ "
+"\\(\\*\\, superior\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.rst:27:<autosummary>:1
+#: 6e06c19dac834ccc9b43be54acc5d8c6
+msgid "Create a lengthscale prior for the HSGP model."
+msgstr "Cree un prior de escala de longitud para el modelo HSGP."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.rst:27:<autosummary>:1
+#: 6952dc3b6f214240ab709279eed2217a
+msgid ""
+":py:obj:`create_eta_prior <pymc_marketing.mmm.hsgp.create_eta_prior>`\\ "
+"\\(\\[mass\\, upper\\]\\)"
+msgstr ""
+":py:obj:`create_eta_prior <pymc_marketing.mmm.hsgp.create_eta_prior>`\\ "
+"\\(\\[masa\\, superior\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.rst:27:<autosummary>:1
+#: 1a0246e4094c412cbcf3458ae7280067
+msgid "Create prior for the variance."
+msgstr "Cree un previo para la varianza."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.rst:27:<autosummary>:1
+#: 8a00dfc488e549f983a30e65a3515962
+msgid ""
+":py:obj:`create_m_and_L_recommendations "
+"<pymc_marketing.mmm.hsgp.create_m_and_L_recommendations>`\\ \\(X\\, "
+"X\\_mid\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`create_m_and_L_recommendations "
+"<pymc_marketing.mmm.hsgp.create_m_and_L_recommendations>`\\ (X\\, "
+"X\\_mid\\[\\, ...\\] )"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.rst:27:<autosummary>:1
+#: 0fdbc25ce0714e7d9e1a87895e80e2a0
+msgid ""
+"Create recommendations for the number of basis functions based on the data."
+msgstr ""
+"Cree recomendaciones para el número de funciones base en función de los "
+"datos."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.rst:29
+#: ab2e6238388e4f33ae1fd3d719903e64
+msgid "Classes"
+msgstr "Clases"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.rst:50:<autosummary>:1
+#: fdb985480fb74989a97b72e78a04e1f5
+msgid ":py:obj:`CovFunc <pymc_marketing.mmm.hsgp.CovFunc>`\\ \\(\\*values\\)"
+msgstr ":py:obj:`CovFunc <pymc_marketing.mmm.hsgp.CovFunc>`\\ \\(\\*valores\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.rst:50:<autosummary>:1
+#: 2ab69425f79a4952abdf8d6031d80b7e 7e8da0a7acf342f9b0ec75c8ec5a1f28
+msgid "Supported covariance functions for the HSGP model."
+msgstr "Funciones de covarianza soportadas para el modelo HSGP."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.rst:50:<autosummary>:1
+#: 4fc2b9b804c644a5b1aef9065b97eaf2
+msgid ":py:obj:`HSGP <pymc_marketing.mmm.hsgp.HSGP>`\\ \\(\\*\\*data\\)"
+msgstr ":py:obj:`HSGP <pymc_marketing.mmm.hsgp.HSGP>`\\ \\(\\*\\*data\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.rst:50:<autosummary>:1
+#: de7caa9ef4eb4fdc8c8116d59199f99f
+msgid "HSGP component."
+msgstr "Componente HSGP."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.rst:50:<autosummary>:1
+#: 2371b37787e848cd8f78dbcea79dfea7
+msgid ":py:obj:`HSGPBase <pymc_marketing.mmm.hsgp.HSGPBase>`\\ \\(\\*\\*data\\)"
+msgstr ":py:obj:`HSGPBase <pymc_marketing.mmm.hsgp.HSGPBase>`\\ \\(\\*\\*data\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.rst:50:<autosummary>:1
+#: 3c2aec86765342788891adff36cc7ad8
+msgid "Shared logic between HSGP and HSGPPeriodic."
+msgstr "Lógica compartida entre HSGP y HSGPPeriodic."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.rst:50:<autosummary>:1
+#: d9c7e6fdddcc4507a3a6bfa64bad0375
+msgid ":py:obj:`HSGPPeriodic <pymc_marketing.mmm.hsgp.HSGPPeriodic>`\\ \\(\\*\\*data\\)"
+msgstr ""
+":py:obj:`HSGPPeriodic <pymc_marketing.mmm.hsgp.HSGPPeriodic>`\\ "
+"\\(\\*\\*data\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.rst:50:<autosummary>:1
+#: 84d7b0a1af0d4c01aa43f67e94dde5c4
+msgid "HSGP component for periodic data."
+msgstr "Componente HSGP para datos periódicos."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.rst:50:<autosummary>:1
+#: 83a730c7dae04f2b8ba361b4bfe652ce
+msgid ""
+":py:obj:`PeriodicCovFunc <pymc_marketing.mmm.hsgp.PeriodicCovFunc>`\\ "
+"\\(\\*values\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc <pymc_marketing.mmm.hsgp.PeriodicCovFunc>`\\ "
+"\\(\\*valores\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.rst:50:<autosummary>:1
+#: 5f4c937df72f4ea1821fc21e3701819a
+msgid ":py:obj:`SoftPlusHSGP <pymc_marketing.mmm.hsgp.SoftPlusHSGP>`\\ \\(\\*\\*data\\)"
+msgstr ""
+":py:obj:`SoftPlusHSGP <pymc_marketing.mmm.hsgp.SoftPlusHSGP>`\\ "
+"\\(\\*\\*data\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.rst:50:<autosummary>:1
+#: ae9b6c769edc47439e4ce9c45ef1caf9
+msgid "HSGP with softplus transformation."
+msgstr "HSGP con transformación softplus."

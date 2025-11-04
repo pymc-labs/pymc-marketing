@@ -1,0 +1,120 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.mmm.BaseMMM.predict.rst:2
+#: 195ff35a856e425e8f172236042c19ed
+msgid "BaseMMM.predict"
+msgstr "BaseMMM.predecir"
+
+#: 76599e8456424824b569d73daf201566 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.predict:2
+msgid ""
+"Use a model to predict on unseen data and return point prediction of all the"
+" samples."
+msgstr ""
+"Utilice un modelo para predecir sobre datos no vistos y devuelva la "
+"predicción puntual de todas las muestras."
+
+#: 52fe389540444de98546b6387a4f82ff of
+#: pymc_marketing.model_builder.RegressionModelBuilder.predict:4
+msgid ""
+"The point prediction for each input row is the expected output value, "
+"computed as the mean of MCMC samples."
+msgstr ""
+"La predicción puntual para cada fila de entrada es el valor de salida "
+"esperado, calculado como la media de las muestras de MCMC."
+
+#: 747228e77e3242039c04ae524f9c0a42 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.predict
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 763b08b98dd74eecbf49b378b1071b01 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.predict:8
+msgid ""
+"**X** : :term:`numpy:array_like` | :obj:`array <numpy.ndarray>`, "
+":obj:`shape` (:obj:`n_pred`, :obj:`n_features`)"
+msgstr ""
+"**X** : :term:`numpy:array_like` | :obj:`array <numpy.ndarray>`, "
+":obj:`shape` (:obj:`n_pred`, :obj:`n_features`)"
+
+#: bf6eeb3a7287499cb6255ab6f3107e75 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.predict:7
+msgid "numpy:array_like | array, shape (n_pred, n_features)"
+msgstr "numpy:array_like | array, forma (n_pred, n_features)"
+
+#: e2c0574b151948dabed0f24f6af156c8 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.predict:9
+msgid ""
+"The input data used for prediction. If scikit-learn is available, array-"
+"like, otherwise array."
+msgstr ""
+"Los datos de entrada utilizados para la predicción. Si scikit-learn está "
+"disponible, tipo array, de lo contrario, array."
+
+#: 90eae99add314113bfae1c027b012b3c of
+#: pymc_marketing.model_builder.RegressionModelBuilder.predict:11
+msgid "**extend_idata** : :obj:`Boolean`"
+msgstr "**extend_idata** : :obj:`Booleano`"
+
+#: b16ae056317f41f9a4c20bdaed65eb3b of
+#: pymc_marketing.model_builder.RegressionModelBuilder.predict:10
+msgid "Boolean"
+msgstr "Boolean"
+
+#: 739907ad89cf4b96b03f09a047fdd8e5 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.predict:12
+msgid ""
+"Determine whether the predictions should be added to inference data object. "
+"Defaults to True."
+msgstr ""
+"Determine si las predicciones deben ser añadidas al objeto de datos de "
+"inferencia. Por defecto es True."
+
+#: 8a8f6acc8a174345b54f33d643d14747 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.predict:15
+msgid ""
+"**\\*\\*kwargs: Additional arguments to pass to sample_posterior_predictive "
+"method**"
+msgstr ""
+"**\\*\\*kwargs: Argumentos adicionales para pasar al método "
+"sample_posterior_predictive**"
+
+#: 69114da5af604d2eaaf2053d57495c91 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.predict
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: b3047131de9f4e6a8f616e9f4a08732c of
+#: pymc_marketing.model_builder.RegressionModelBuilder.predict:22
+msgid ":class:`~numpy.ndarray`, :obj:`shape` (n_pred,)"
+msgstr ":class:`~numpy.ndarray`, :obj:`shape` (n_pred,)"
+
+#: 96a9e053e6de4383a7cb97a1ad9620a7 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.predict:23
+msgid "Predicted output corresponding to input X."
+msgstr "Salida predicha correspondiente a la entrada X."
+
+#: f499a87183c64fa1888214c07c8444f6 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.predict:35
+msgid "Examples"
+msgstr "Ejemplos"

@@ -1,0 +1,124 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/gallery/README.md:1 0b51206ba19f4193989d129631608a2e
+msgid "PyMC-Marketing Example Gallery"
+msgstr "Galería de Ejemplos de PyMC-Marketing"
+
+#: ../source/gallery/README.md:3 294e698763774970af40ef3cda825c3c
+msgid ""
+"This directory contains the gallery view for the PyMC-Marketing example "
+"notebooks."
+msgstr ""
+"Este directorio contiene la vista de galería para los cuadernos de ejemplo "
+"de PyMC-Marketing."
+
+#: ../source/gallery/README.md:5 db709332217d45ee83f12f89b13d735b
+msgid "Gallery Structure"
+msgstr "Estructura de la Galería"
+
+#: ../source/gallery/README.md:7 2b3b9c9f4dcd4df8a8acdbe614034460
+msgid ""
+"The gallery displays thumbnails and links to all example notebooks, "
+"organized by category."
+msgstr ""
+"La galería muestra miniaturas y enlaces a todos los cuadernos de ejemplo, "
+"organizados por categoría."
+
+#: ../source/gallery/README.md:9 c7aed1bab28b44948d3d7cdd729a5c48
+msgid "Adding New Examples to the Gallery"
+msgstr "Agregando Nuevos Ejemplos a la Galería"
+
+#: ../source/gallery/README.md:11 6393c522a5fd45eeae6eb30dddbf2b06
+msgid "When adding new example notebooks:"
+msgstr "Al agregar nuevos cuadernos de ejemplo:"
+
+#: ../source/gallery/README.md:13 88a29c8dbdc945daba22659f9df7fa43
+msgid ""
+"Add the notebook to the appropriate directory in `docs/source/notebooks/`"
+msgstr ""
+"Agrega el cuaderno al directorio apropiado en `docs/source/notebooks/`"
+
+#: ../source/gallery/README.md:14 89fa83d0bf004c2c8cb48f68eac47919
+msgid "Update the gallery entry in `gallery.md`"
+msgstr "Actualiza la entrada de la galería en `gallery.md`"
+
+#: ../source/gallery/README.md:15 e80329ac9fa8448bac751ab324c98874
+msgid ""
+"Create a thumbnail image for the notebook (ideally a screenshot of a key "
+"visualization from the notebook) and place it in the `images/` directory"
+msgstr ""
+"Crea una imagen en miniatura para el cuaderno (idealmente una captura de "
+"pantalla de una visualización clave del cuaderno) y colócala en el "
+"directorio `images/`"
+
+#: ../source/gallery/README.md:16 3eeac20a0ad4492fbdfd69a8f607c39a
+msgid ""
+"Run `python create_gallery_images.py` to generate a placeholder thumbnail if"
+" you don't have a specific image"
+msgstr ""
+"Ejecuta `python create_gallery_images.py` para generar una miniatura de "
+"marcador de posición si no tienes una imagen específica."
+
+#: ../source/gallery/README.md:18 d1cdcf7ec2ab4098ac31100570ef4485
+msgid "Gallery Images"
+msgstr "Imágenes de la galería"
+
+#: ../source/gallery/README.md:20 622d4ce703eb4f6e9c2d78932a10dc50
+msgid ""
+"The gallery uses thumbnail images to provide visual navigation. For best "
+"results:"
+msgstr ""
+"La galería utiliza imágenes en miniatura para proporcionar navegación "
+"visual. Para obtener los mejores resultados:"
+
+#: ../source/gallery/README.md:22 8fa0aac3d05345208c62a52febdfcd14
+msgid "Images should be in PNG format"
+msgstr "Las imágenes deben estar en formato PNG"
+
+#: ../source/gallery/README.md:23 1ed5db78cc614a539120840d47af5517
+msgid "Images should have a 4:3 aspect ratio"
+msgstr "Las imágenes deben tener una relación de aspecto de 4:3"
+
+#: ../source/gallery/README.md:24 3bfb96fc96fe4a0caf6452832aafc235
+msgid "Size should be approximately 600x450 pixels"
+msgstr "El tamaño debe ser aproximadamente 600x450 píxeles"
+
+#: ../source/gallery/README.md:25 3979fe2c023645fdbb334e393daaea47
+msgid "Names should match the notebook filename"
+msgstr "Los nombres deben coincidir con el nombre del archivo del cuaderno."
+
+#: ../source/gallery/README.md:27 39c14a4bf07d4213b050862cf855b3a0
+msgid "Updating the Gallery"
+msgstr "Actualizando la Galería"
+
+#: ../source/gallery/README.md:29 ec36c02aeb6b4d57a069e6220af9c056
+msgid ""
+"The gallery is structured using the Sphinx Design extension's grid layout. "
+"See the [Sphinx Design documentation](https://sphinx-"
+"design.readthedocs.io/en/latest/grids.html) for more information on "
+"customizing the grid layout."
+msgstr ""
+"La galería está estructurada utilizando el diseño de cuadrícula de la "
+"extensión Sphinx Design. Consulta la [documentación de Sphinx "
+"Design](https://sphinx-design.readthedocs.io/en/latest/grids.html) para "
+"obtener más información sobre cómo personalizar el diseño de cuadrícula."

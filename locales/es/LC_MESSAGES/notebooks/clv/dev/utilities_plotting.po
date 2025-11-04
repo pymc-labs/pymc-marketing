@@ -1,0 +1,141 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/clv/dev/utilities_plotting.ipynb:30002
+#: 9060a7808119416897ce80f4e9b83b97
+msgid "Create a simple dataset for testing:"
+msgstr "Cree un conjunto de datos simple para pruebas:"
+
+#: ../source/notebooks/clv/dev/utilities_plotting.ipynb:50002
+#: 97ffa8b72d0c409c86ed94e98b3a3b78
+msgid "Note customer 4 made two purchases on 2015-02-05."
+msgstr "Nota: el cliente 4 realizó dos compras el 2015-02-05."
+
+#: ../source/notebooks/clv/dev/utilities_plotting.ipynb:50004
+#: 8900c8bd21d4473db387eaba0721d2aa
+msgid ""
+"`_find_first_transactions` flags the first purchase each customer has made, "
+"which must be excluded for modeling. It is called internally by "
+"`rfm_summary`."
+msgstr ""
+"`_find_first_transactions` marca la primera compra que ha realizado cada "
+"cliente, la cual debe ser excluida para el modelado. Se llama internamente "
+"por `rfm_summary`."
+
+#: ../source/notebooks/clv/dev/utilities_plotting.ipynb:70002
+#: 5a2179f7cc62488093f723198347d196
+msgid ""
+"Notice how **9** is missing from the dataframe index. Multiple transactions "
+"in the same time period are treated as a single purchase, so the indices for"
+" those additional transactions are skipped."
+msgstr ""
+"Observe cómo el **9** falta en el índice del dataframe. Múltiples "
+"transacciones en el mismo período de tiempo se tratan como una única compra,"
+" por lo que los índices de esas transacciones adicionales se omiten."
+
+#: ../source/notebooks/clv/dev/utilities_plotting.ipynb:70004
+#: a9957966275f434e9abd4758b93fa662
+msgid ""
+"`rfm_summary` is the primary data preprocessing step for CLV modeling in the"
+" continuous, non-contractual domain:"
+msgstr ""
+"`rfm_summary` es el paso principal de preprocesamiento de datos para el "
+"modelado de CLV en el dominio continuo y no contractual:"
+
+#: ../source/notebooks/clv/dev/utilities_plotting.ipynb:90002
+#: 830d53708633493682f80d99de1a3c43
+msgid ""
+"For MAP fits and covariate models, `rfm_train_test_split` can be used to "
+"evaluate models on unseen data. It is also useful for identifying the impact"
+" of a time-based event like a marketing campaign."
+msgstr ""
+"Para los ajustes de MAP y modelos de covariables, `rfm_train_test_split` se "
+"puede utilizar para evaluar modelos en datos no vistos. También es útil para"
+" identificar el impacto de un evento basado en el tiempo, como una campaña "
+"de marketing."
+
+#: ../source/notebooks/clv/dev/utilities_plotting.ipynb:110002
+#: 9f926bf5aec64dcd93774949fbceee06
+msgid ""
+"`rfm_segments` will assign customer to segments based on their recency, "
+"frequency, and monetary value. It uses a quartile-based RFM score approach "
+"that is very computationally efficient, but defining custom segments is a "
+"rather subjective exercise. The returned dataframe also cannot be used for "
+"modeling because it does not zero out the initial transactions."
+msgstr ""
+"`rfm_segments` asignará a los clientes a segmentos basados en su recencia, "
+"frecuencia y valor monetario. Utiliza un enfoque de puntuación RFM basado en"
+" cuartiles que es muy eficiente en términos computacionales, pero definir "
+"segmentos personalizados es un ejercicio bastante subjetivo. El dataframe "
+"devuelto tampoco puede ser utilizado para modelar porque no anula las "
+"transacciones iniciales."
+
+#: ../source/notebooks/clv/dev/utilities_plotting.ipynb:130002
+#: f867da16a29043babdd491b198f8eefb
+msgid "Plotting"
+msgstr "Trazado"
+
+#: ../source/notebooks/clv/dev/utilities_plotting.ipynb:130003
+#: 6a9fdd69040249849ab059aca704e455
+msgid ""
+"`expected_cumulative_transactions` and all other plotting functions require "
+"a fitted model. Test with both MAP and full posteriors:"
+msgstr ""
+"`expected_cumulative_transactions` y todas las demás funciones de trazado "
+"requieren un modelo ajustado. Pruebe con tanto MAP como con los posteriores "
+"completos:"
+
+#: ../source/notebooks/clv/dev/utilities_plotting.ipynb:150002
+#: 084d001936254bc180340391b7d90025
+msgid "Expected Cumulative Purchases"
+msgstr "Compras Acumulativas Esperadas"
+
+#: ../source/notebooks/clv/dev/utilities_plotting.ipynb:170002
+#: d618a43b9abe41edbb4ad7cebdc1a243
+msgid ""
+"If doing a train/test split, or studying time interventions like marketing "
+"campaigns, `plot_expected_purchases_over_time` can be used for easy visual "
+"interpretation."
+msgstr ""
+"Si se realiza una división entre entrenamiento/prueba, o se estudian "
+"intervenciones temporales como campañas de marketing, "
+"`plot_expected_purchases_over_time` se puede utilizar para una "
+"interpretación visual fácil."
+
+#: ../source/notebooks/clv/dev/utilities_plotting.ipynb:210002
+#: d012556f55f64e6bbd357773031393c7
+msgid "Now fit a model by sampling from the posterior distributions:"
+msgstr "Ahora ajuste un modelo muestreando de las distribuciones posteriores:"
+
+#: ../source/notebooks/clv/dev/utilities_plotting.ipynb:280002
+#: a0d5b9369adb48cab076ccc9b9b28630
+msgid ""
+"Adding HDIs to `plot_purchase_pmf` requires value counts to be grouped "
+"coordinate-wise across a dimension like `draws`, which may not be supported "
+"in `xarray`. `arviz.hdi` can then be applied across all value counts for "
+"interval estimation."
+msgstr ""
+"Agregar HDIs a `plot_purchase_pmf` requiere que los recuentos de valores se "
+"agrupen coordenada por coordenada a lo largo de una dimensión como `draws`, "
+"lo cual puede no ser compatible con `xarray`. Luego, se puede aplicar "
+"`arviz.hdi` a todos los recuentos de valores para la estimación de "
+"intervalos."

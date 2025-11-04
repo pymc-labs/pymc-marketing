@@ -1,0 +1,40 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.expected_probability_no_purchase.rst:2
+#: 00d1ef473db045a99e0636280d4adce5
+msgid "ModifiedBetaGeoModel.expected\\_probability\\_no\\_purchase"
+msgstr "ModifiedBetaGeoModel.expected\\_probability\\_no\\_purchase"
+
+#: 352aa1016b9f440b850252b75647dfd7 of
+#: pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.expected_probability_no_purchase:2
+msgid ""
+"Probability a customer with frequency, recency, and T will have 0 purchases "
+"in the period (T, T+t]."
+msgstr ""
+"Probabilidad de que un cliente con frecuencia, recencia y T tenga 0 compras "
+"en el período (T, T+t]."
+
+#: e861f56820874d74b41af73008664dfc of
+#: pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.expected_probability_no_purchase:4
+msgid "The MBG/NBD model does not support this method."
+msgstr "El modelo MBG/NBD no admite este método."

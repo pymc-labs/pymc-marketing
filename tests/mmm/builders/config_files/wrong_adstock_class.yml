@@ -5,7 +5,7 @@ model:
     channel_columns:
       - channel_1
       - channel_2
-    target_column: "kpi_registrations"
+    target_column: "y"
 
     # Wrong adstock configuration - invalid class name
     adstock:

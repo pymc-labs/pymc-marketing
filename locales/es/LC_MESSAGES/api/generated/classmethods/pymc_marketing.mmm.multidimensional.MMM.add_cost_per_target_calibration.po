@@ -1,0 +1,148 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.multidimensional.MMM.add_cost_per_target_calibration.rst:2
+#: e0ec446429624f93a54a9aa7743dd020
+msgid "MMM.add\\_cost\\_per\\_target\\_calibration"
+msgstr "MMM.agregar\\_costo\\_por\\_calibración\\_de\\_objetivo"
+
+#: 3df43e8e509c4ccfbdeabe97651318f7 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_cost_per_target_calibration:2
+msgid "Calibrate cost-per-target using constraints via ``pm.Potential``."
+msgstr ""
+"Calibre el costo por objetivo utilizando restricciones a través de "
+"``pm.Potential``."
+
+#: e475dcda642d4bbabc56eaf1e72843eb of
+#: pymc_marketing.mmm.multidimensional.MMM.add_cost_per_target_calibration:4
+msgid ""
+"This adds a deterministic ``cpt_variable_name`` computed as "
+"``channel_data_spend / channel_contribution_original_scale`` and creates "
+"per-row penalty terms based on ``calibration_data`` using a quadratic "
+"penalty:"
+msgstr ""
+"Esto añade un ``cpt_variable_name`` determinista calculado como "
+"``channel_data_spend / channel_contribution_original_scale`` y crea términos"
+" de penalización por fila basados en ``calibration_data`` utilizando una "
+"penalización cuadrática:"
+
+#: d99200f208f44067bf48287009796641 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_cost_per_target_calibration:8
+msgid "``penalty = - |cpt_mean - target|^2 / (2 * sigma^2)``."
+msgstr "penalty = - |cpt_mean - target|^2 / (2 * sigma^2)"
+
+#: 4f7dc8d9667b4b0c98ecde47e52e8d81 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_cost_per_target_calibration
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 2cf084f2e05b4cf5b91f020e92728afe of
+#: pymc_marketing.mmm.multidimensional.MMM.add_cost_per_target_calibration:12
+msgid "**data** : :obj:`pd.DataFrame`"
+msgstr "**datos** : :obj:`pd.DataFrame`"
+
+#: 6c6268b2b7bf4980b86358d90494ea15 bf9eadb8cdcc4838a98dd39bed56e51d of
+#: pymc_marketing.mmm.multidimensional.MMM.add_cost_per_target_calibration:11
+#: pymc_marketing.mmm.multidimensional.MMM.add_cost_per_target_calibration:16
+msgid "pd.DataFrame"
+msgstr "pd.DataFrame"
+
+#: 44372a776531441cbd249f0193be1a4e of
+#: pymc_marketing.mmm.multidimensional.MMM.add_cost_per_target_calibration:13
+msgid ""
+"Feature-like DataFrame with columns matching training ``X`` but with channel"
+" values representing spend (original units). Must include the same ``date`` "
+"and any model ``dims`` columns."
+msgstr ""
+"DataFrame similar a una característica con columnas que coinciden con el "
+"entrenamiento ``X``, pero con valores de canal que representan el gasto "
+"(unidades originales). Debe incluir la misma ``fecha`` y cualquier columna "
+"de ``dims`` del modelo."
+
+#: 6beef23c1ef94a848d026b3e69a5d7de of
+#: pymc_marketing.mmm.multidimensional.MMM.add_cost_per_target_calibration:17
+msgid "**calibration_data** : :obj:`pd.DataFrame`"
+msgstr "**calibration_data** : :obj:`pd.DataFrame`"
+
+#: bcff85077cc547d9a35598e6871b7aa8 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_cost_per_target_calibration:18
+msgid "DataFrame with rows specifying calibration targets. Must include:"
+msgstr ""
+"DataFrame con filas que especifican los objetivos de calibración. Debe "
+"incluir:"
+
+#: d7478b79f3a94741872bfe8dbcb1e382 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_cost_per_target_calibration:19
+msgid "``channel``: channel name in ``self.channel_columns``"
+msgstr "``channel``: nombre del canal en ``self.channel_columns``"
+
+#: eb6e07b825f1484d99ee8e75ec6a2c20 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_cost_per_target_calibration:20
+msgid "``cost_per_target``: desired CPT value"
+msgstr "``cost_per_target``: valor CPT deseado"
+
+#: 34913adad3d94907b8c590e7350ee150 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_cost_per_target_calibration:21
+msgid "``sigma``: accepted deviation; larger => weaker penalty"
+msgstr "``sigma``: desviación aceptada; mayor => penalización más débil"
+
+#: 5ed712707ff046d08efba198d04eeba5 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_cost_per_target_calibration:22
+msgid "and one column per dimension in ``self.dims``."
+msgstr "y una columna por dimensión en ``self.dims``."
+
+#: e3a333afe0394a85af41dfec3d36e2e9 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_cost_per_target_calibration:24
+msgid "**cpt_variable_name** : :class:`python:str`"
+msgstr "**cpt_variable_name** : :class:`python:str`"
+
+#: 63f90efa4f0a47e48e2904eb438b536b c5c7b12eb0064b85bda420956751d35c of
+#: pymc_marketing.mmm.multidimensional.MMM.add_cost_per_target_calibration:23
+#: pymc_marketing.mmm.multidimensional.MMM.add_cost_per_target_calibration:26
+msgid "python:str"
+msgstr "python:str"
+
+#: d6d8b5079e804a83934d2b50cb0aebde of
+#: pymc_marketing.mmm.multidimensional.MMM.add_cost_per_target_calibration:25
+msgid "Name for the cost-per-target Deterministic in the model."
+msgstr "Nombre para el costo por objetivo Determinista en el modelo."
+
+#: 866413f329e348c8b96f09669f2a4689 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_cost_per_target_calibration:27
+msgid "**name_prefix** : :class:`python:str`"
+msgstr "**name_prefix** : :class:`python:str`"
+
+#: e85c40cf3a714a428c2dfa3241d37750 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_cost_per_target_calibration:28
+msgid "Prefix to use for generated potential names."
+msgstr "Prefijo a utilizar para los nombres potenciales generados."
+
+#: 53fe74aff0cd49e3917bbbfee9682976 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_cost_per_target_calibration:43
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: e6a6adec244a42d8a730fbecec967593 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_cost_per_target_calibration:44
+msgid "Build a model and calibrate CPT for selected (dims, channel):"
+msgstr ""
+"Construya un modelo y calibra CPT para los seleccionados (dims, canal):"

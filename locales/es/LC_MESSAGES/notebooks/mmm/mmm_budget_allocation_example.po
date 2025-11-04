@@ -1,0 +1,941 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:10003
+#: 43c33faf9e0b4d70baa5dddd39bdecec
+msgid "Budget Allocation with PyMC-Marketing"
+msgstr "Asignación de Presupuesto con PyMC-Marketing"
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:10005
+#: bdbfc864d8184d57a0d6fc05775c7df4
+msgid ""
+"The purpose of this notebook is to explore the recently included function in"
+" the PyMC-Marketing library that focuses on budget allocation. This "
+"function's underpinnings are based on the methodologies inspired by Bolt's "
+"work in the article, [\"Budgeting with Bayesian "
+"Models\"](https://bolt.eu/en/blog/budgeting-with-bayesian-models-pymc-"
+"marketing/)."
+msgstr ""
+"El propósito de este cuaderno es explorar la función recientemente incluida "
+"en la biblioteca PyMC-Marketing que se centra en la asignación de "
+"presupuestos. Los fundamentos de esta función se basan en las metodologías "
+"inspiradas en el trabajo de Bolt en el artículo, [\"Budgeting with Bayesian "
+"Models\"](https://bolt.eu/en/blog/budgeting-with-bayesian-models-pymc-"
+"marketing/)."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:10007
+#: 75acf8aaec6b4c2698939483b4cd6e73
+msgid "Prerequisite Knowledge"
+msgstr "Conocimientos Previos"
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:10008
+#: 9fa160c79c43404493ec4fd23830cf11
+msgid ""
+"The notebook assumes the reader has knowledge of the essential "
+"functionalities of PyMC-Marketing. If one is unfamiliar, the [\"MMM Example "
+"Notebook\"](https://www.pymc-"
+"marketing.io/en/stable/notebooks/mmm/mmm_example.html) serves as an "
+"excellent starting point, offering a comprehensive introduction to media mix"
+" models in this context."
+msgstr ""
+"El cuaderno asume que el lector tiene conocimiento de las funcionalidades "
+"esenciales de PyMC-Marketing. Si no está familiarizado, el [\"Cuaderno de "
+"Ejemplo de MMM\"](https://www.pymc-"
+"marketing.io/en/stable/notebooks/mmm/mmm_example.html) sirve como un "
+"excelente punto de partida, ofreciendo una introducción completa a los "
+"modelos de mezcla de medios en este contexto."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:10010
+#: 66f49acb749a494b82b7df5aaf4082f8
+msgid "Introducing the budget allocator"
+msgstr "Presentamos el asignador de presupuesto"
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:10011
+#: 90259f6bbd9645ee89c990b710608cdb
+msgid ""
+"This notebook instigates an examination of the function within the PyMC-"
+"Marketing library, which addresses these challenges using Bayesian models. "
+"The function intends to provide:"
+msgstr ""
+"Este cuaderno provoca un examen de la función dentro de la biblioteca PyMC-"
+"Marketing, que aborda estos desafíos utilizando modelos bayesianos. La "
+"función tiene la intención de proporcionar:"
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:10013
+#: 9e4e0f5bec744e458c844f206608b014
+msgid ""
+"Quantitative measures of the effectiveness of different media channels."
+msgstr ""
+"Medidas cuantitativas de la efectividad de diferentes canales de medios."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:10014
+#: 549583ef66844516be9c4396f8beaec4
+msgid "Probabilistic ROI estimates under a range of budget scenarios."
+msgstr ""
+"Estimaciones de ROI probabilísticas bajo una variedad de escenarios de "
+"presupuesto."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:20002
+#: e3063ef6f6c64b6ea09682903e5fcebb
+msgid "Basic Setup"
+msgstr "Configuración básica"
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:20003
+#: aaab1d5e54414fb89c2b9269ba15f44f
+msgid ""
+"Like previous notebooks revolving around PyMC-Marketing, this relies on a "
+"specific library set. Here are the requisite imports necessary for executing"
+" the provided code snippets subsequently."
+msgstr ""
+"Al igual que los cuadernos anteriores relacionados con PyMC-Marketing, este "
+"se basa en un conjunto específico de bibliotecas. A continuación se "
+"presentan las importaciones necesarias para ejecutar los fragmentos de "
+"código proporcionados."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:40002
+#: 2c5385685612421f8ce57fe4f773442d
+msgid ""
+"These imports and configurations form the fundamental setup necessary for "
+"the entire span of this notebook."
+msgstr ""
+"Estas importaciones y configuraciones forman la configuración fundamental "
+"necesaria para todo el alcance de este cuaderno."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:40004
+#: a423cadf73b9420d97eb81f9db55c434
+msgid ""
+"The expectation is that a model has already been trained using the "
+"functionalities provided in prior versions of the PyMC-Marketing library. "
+"Thus, the data generation and training processes will be replicated in a "
+"different notebook. Those unfamiliar with these procedures are advised to "
+"refer to the [\"MMM Example Notebook.\"](https://www.pymc-"
+"marketing.io/en/stable/notebooks/mmm/mmm_example.html)"
+msgstr ""
+"La expectativa es que un modelo ya ha sido entrenado utilizando las "
+"funcionalidades proporcionadas en versiones anteriores de la biblioteca "
+"PyMC-Marketing. Por lo tanto, los procesos de generación de datos y "
+"entrenamiento se replicarán en un cuaderno diferente. Se aconseja a aquellos"
+" que no estén familiarizados con estos procedimientos que consulten el "
+"[\"Cuaderno de Ejemplo de MMM.\"](https://www.pymc-"
+"marketing.io/en/stable/notebooks/mmm/mmm_example.html)"
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:40006
+#: b7ca41e68d5b4c688c741cb336c50edd
+msgid "Loading a Pre-Trained Model"
+msgstr "Cargando un modelo preentrenado"
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:40007
+#: f416a921e407432abb8f03eb6ad554fa
+msgid ""
+"To utilize a saved model, load it into a new instance of the MMM class using"
+" the `build_mmm_from_yaml` method below."
+msgstr ""
+"Para utilizar un modelo guardado, cárguelo en una nueva instancia de la "
+"clase MMM utilizando el método `build_mmm_from_yaml` a continuación."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:90002
+#: 40e7617a59a84aab8daf7472d54f3b95
+msgid ""
+"For more details on the `build_mmm_from_yaml`, consult the [pymc-marketing "
+"documentation](https://www.pymc-marketing.io/en/stable/guide/benefits) on "
+"Model Deployment."
+msgstr ""
+"Para más detalles sobre `build_mmm_from_yaml`, consulte la [documentación de"
+" pymc-marketing](https://www.pymc-marketing.io/en/stable/guide/benefits) "
+"sobre el Despliegue de Modelos."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:90004
+#: 28d277f5838743ddb46de6a4f7aa5dd5
+msgid ""
+"Alternatively, load a model that has been saved to MLflow via "
+"`pymc_marketing.mlflow.log_inference_data` or has been autologged to MLflow "
+"via `pymc_marketing.mlflow.autolog(log_mmm=True)`, from the [PyMC-Marketing "
+"MLflow module](https://github.com/pymc-labs/pymc-"
+"marketing/blob/main/pymc_marketing/mlflow.py)."
+msgstr ""
+"Alternativamente, cargue un modelo que ha sido guardado en MLflow a través "
+"de `pymc_marketing.mlflow.log_inference_data` o que ha sido registrado "
+"automáticamente en MLflow a través de "
+"`pymc_marketing.mlflow.autolog(log_mmm=True)`, desde el [módulo PyMC-"
+"Marketing MLflow](https://github.com/pymc-labs/pymc-"
+"marketing/blob/main/pymc_marketing/mlflow.py)."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:110002
+#: 751c581950844ed7b973ea363c0eec4b
+msgid "Problem Statement"
+msgstr "Declaración del problema"
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:110003
+#: 2f4201e46ab84b8391d8f9b86b0dbe3e
+msgid ""
+"Before jumping into the data, let’s first define the business problem we are"
+" trying to solve. In a progressively competitive scenario, marketers are "
+"tasked with distributing a predetermined marketing budget across various "
+"channels to maximize a certain response. Consider a forthcoming quarter "
+"wherein a marketing team must decide the division of its operations between "
+"two advertising channels, represented as x1 and x2. These could effectively "
+"symbolize any medium, such as TV, digital advertising, print, etc."
+msgstr ""
+"Antes de sumergirnos en los datos, primero definamos el problema empresarial"
+" que estamos tratando de resolver. En un escenario cada vez más competitivo,"
+" se encarga a los especialistas en marketing la distribución de un "
+"presupuesto de marketing predeterminado entre varios canales para maximizar "
+"una determinada respuesta. Consideremos un próximo trimestre en el que un "
+"equipo de marketing debe decidir la división de sus operaciones entre dos "
+"canales publicitarios, representados como x1 y x2. Estos podrían simbolizar "
+"efectivamente cualquier medio, como televisión, publicidad digital, "
+"impresión, etc."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:110005
+#: 793d694566d04d56936e4d1c2379ff7d
+msgid ""
+"The task lies in making decisions that invoke data, comply with factual "
+"evidence, and align with business logic. For instance, how can one "
+"incorporate prior information like budget restrictions, platform trends, "
+"constraints, or even distinctive features of each channel into the decision-"
+"making process?"
+msgstr ""
+"La tarea consiste en tomar decisiones que invoquen datos, cumplan con la "
+"evidencia fáctica y se alineen con la lógica empresarial. Por ejemplo, ¿cómo"
+" se puede incorporar información previa como restricciones presupuestarias, "
+"tendencias de la plataforma, limitaciones o incluso características "
+"distintivas de cada canal en el proceso de toma de decisiones?"
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:110007
+#: c96aa792852a4422a9e4b233b426f432
+msgid "Introducing Budget Allocation Function"
+msgstr "Introduciendo la Función de Asignación de Presupuesto"
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:110008
+#: 231b88bf46b6430db7b597e4c0b07719
+msgid ""
+"The budget allocation capabilities in PyMC-Marketing aims to tackle this "
+"issue by offering a Bayesian framework for optimal allocation. This enables "
+"marketers to:"
+msgstr ""
+"Las capacidades de asignación de presupuesto en PyMC-Marketing tienen como "
+"objetivo abordar este problema al ofrecer un marco bayesiano para la "
+"asignación óptima. Esto permite a los comercializadores:"
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:110010
+#: 2bd06b849ea04dcb8c52802cd61ee869
+msgid ""
+"Integrate the outcomes of Media Mix Modeling (MMM), quantifying each "
+"channel's effectiveness in metrics like ROI, incremental sales, etc."
+msgstr ""
+"Integre los resultados de la Modelización de Mezcla de Medios (MMM), "
+"cuantificando la efectividad de cada canal en métricas como el ROI, las "
+"ventas incrementales, etc."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:110011
+#: c2a6fd2bdbdd4c089275b293ff1da799
+msgid ""
+"Merge this empirical data with prior business knowledge and logic for making"
+" holistic and robust decisions."
+msgstr ""
+"Fusiona estos datos empíricos con el conocimiento y la lógica empresarial "
+"previos para tomar decisiones holísticas y sólidas."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:110013
+#: eb556a5692a842129dbacf1bac443009
+msgid ""
+"By utilizing this function, marketers can guarantee that the budget spread "
+"not only obeys the mathematical rigor furnished by the MMM outcomes but also"
+" incorporates business-specific factors, thereby achieving a balanced and "
+"optimized budget plan."
+msgstr ""
+"Al utilizar esta función, los especialistas en marketing pueden garantizar "
+"que la distribución del presupuesto no solo obedezca al rigor matemático "
+"proporcionado por los resultados del MMM, sino que también incorpore "
+"factores específicos del negocio, logrando así un plan de presupuesto "
+"equilibrado y optimizado."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:110015
+#: 746e2747c31a40b6842b0b69f8a14f46
+msgid "Getting started"
+msgstr "Comenzando"
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:110016
+#: 727e272aea92493f9c38d7861e0ce605
+msgid ""
+"Media Mix Modeling (MMM) acts as a dependable method to estimate the "
+"contribution of each channel (e.g., x1, x2) to a target variable like sales "
+"or any variable."
+msgstr ""
+"El Modelado de Mezcla de Medios (MMM) actúa como un método confiable para "
+"estimar la contribución de cada canal (por ejemplo, x1, x2) a una variable "
+"objetivo como las ventas o cualquier variable."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:110018
+#: 297a7a03109342c4b0e1141bd2bb58e3
+msgid ""
+"The function `saturation_scatterplot()` allows for visualization of this "
+"direct channel impact. However, it is crucial to remember that this only "
+"unveils the \"observable space\" for values of X (spend) and Y "
+"(contribution)."
+msgstr ""
+"La función `saturation_scatterplot()` permite visualizar este impacto "
+"directo del canal. Sin embargo, es crucial recordar que esto solo revela el "
+"\"espacio observable\" para los valores de X (gasto) e Y (contribución)."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:130002
+#: 4f10107954884f79ab8cdba2ed7c078e
+msgid ""
+"The observable space only encompasses our data points and does not "
+"illustrate what transpires beyond those points. As a result, it is not "
+"assured that the maximum contribution point for each channel lies within "
+"this observable range."
+msgstr ""
+"El espacio observable solo abarca nuestros puntos de datos y no ilustra lo "
+"que ocurre más allá de esos puntos. Como resultado, no se asegura que el "
+"punto de máxima contribución para cada canal se encuentre dentro de este "
+"rango observable."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:130004
+#: d170f66538fb42e29b2bd279eff88a04
+msgid ""
+"If we want to visualize certain level of response, we can use `sample_curve`"
+" to get an estimate of our response in scaled space given a max value of X "
+"in scaled space as well. In the example below, we are using the value `3` "
+"which represent 3X the max historical value on each channel. Depending on "
+"your scaling method, `max_value` could represent a different thing."
+msgstr ""
+"Si queremos visualizar cierto nivel de respuesta, podemos utilizar "
+"`sample_curve` para obtener una estimación de nuestra respuesta en un "
+"espacio escalado dado un valor máximo de X en el espacio escalado también. "
+"En el ejemplo a continuación, estamos utilizando el valor `3`, que "
+"representa 3X el valor histórico máximo en cada canal. Dependiendo de su "
+"método de escalado, `max_value` podría representar algo diferente."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:130007
+#: f2ba832f8f684f98a0c929f5e95f7319
+msgid ""
+"After it, using the function `saturation_curves`, we can predict the shape "
+"of the model fitting curve for the amount spent that was not previously "
+"observed."
+msgstr ""
+"Después de eso, utilizando la función `saturation_curves`, podemos predecir "
+"la forma de la curva de ajuste del modelo para la cantidad gastada que no se"
+" había observado previamente."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:150002
+#: 1f3066e92e464552acf422b859e35717
+msgid ""
+"We can identify which saturation function was used in the pre-trained model:"
+msgstr ""
+"Podemos identificar qué función de saturación se utilizó en el modelo "
+"preentrenado:"
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:170002
+#: 1c4aec7e72044ea7b8b49ee4031f299f
+msgid ""
+"Within PyMC-Marketing we have different saturation functions, you can "
+"observe all in the [transformer module](https://www.pymc-"
+"marketing.io/en/stable/api/generated/pymc_marketing.mmm.transformers.html)."
+msgstr ""
+"Dentro de PyMC-Marketing tenemos diferentes funciones de saturación, puedes "
+"observar todas en el [módulo transformer](https://www.pymc-"
+"marketing.io/en/stable/api/generated/pymc_marketing.mmm.transformers.html)."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:170004
+#: c8a0bd6f27054a1fb7a107f2b960e08d
+msgid ""
+"Once these parameters are obtained, you can visualize it using the "
+"`arviz.summary` function (each parameter has the prefix `saturation` or "
+"`adstock` respectively) and, if desired, you can recreate the curves for "
+"each channel independently based on them. More crucially, these parameter "
+"values are indispensable when using the `budget_allocator` function, which "
+"leverages this information to optimize your marketing budget across distinct"
+" channels. This section is fundamental to budget optimization."
+msgstr ""
+"Una vez que se obtienen estos parámetros, puede visualizarlos utilizando la "
+"función `arviz.summary` (cada parámetro tiene el prefijo `saturation` o "
+"`adstock` respectivamente) y, si lo desea, puede recrear las curvas para "
+"cada canal de manera independiente basándose en ellos. Más crucialmente, "
+"estos valores de parámetros son indispensables al utilizar la función "
+"`budget_allocator`, que aprovecha esta información para optimizar su "
+"presupuesto de marketing a través de distintos canales. Esta sección es "
+"fundamental para la optimización del presupuesto."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:190002
+#: 195b208e1b8b491ea661de5e409105c1
+msgid "Example Use-Cases"
+msgstr "Ejemplos de Casos de Uso"
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:190003
+#: 0266d7d2ee7a49e792b5cb381cdebe5f
+msgid ""
+"The `optimize_budget` function within PyMC-Marketing boasts a myriad of "
+"applications that can solve various business predicaments. Here, we present "
+"five critical use cases that exemplify its utility in real-world marketing "
+"scenarios."
+msgstr ""
+"La función `optimize_budget` dentro de PyMC-Marketing cuenta con una "
+"multitud de aplicaciones que pueden resolver diversas problemáticas "
+"empresariales. Aquí, presentamos cinco casos de uso críticos que "
+"ejemplifican su utilidad en escenarios de marketing del mundo real."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:190005
+#: b93dc0b1323947b1808d4ef1e46bdf73
+msgid "What are we optimizing?"
+msgstr "¿Qué estamos optimizando?"
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:190006
+#: 163fcb36ddc249349a5b571dbc701045
+msgid ""
+"Before jumping into the examples, we need to understand the basis of our "
+"optimizer."
+msgstr ""
+"Antes de entrar en los ejemplos, necesitamos entender la base de nuestro "
+"optimizador."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:190008
+#: a858c96daec0449aaad4e55d0541bbc2
+msgid ""
+"We aim to optimize the allocation of budgets across multiple channels to "
+"maximize the overall contribution to key performance indicators (KPIs), such"
+" as sales or conversions. Each channel has its own forward pass function, "
+"which can internal consider a sigmoid or michaelis-menten curve, "
+"representing the relationship between the amount spent and the resultant "
+"performance."
+msgstr ""
+"Nuestro objetivo es optimizar la asignación de presupuestos a través de "
+"múltiples canales para maximizar la contribución general a los indicadores "
+"clave de rendimiento (KPI), como las ventas o las conversiones. Cada canal "
+"tiene su propia función de avance, que puede considerar internamente una "
+"curva sigmoide o de Michaelis-Menten, representando la relación entre la "
+"cantidad gastada y el rendimiento resultante."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:190010
+#: 5a34a86922b7465ead9d61d6d65bdbf1
+msgid ""
+"These curves vary in characteristics: some channels saturate quickly, "
+"meaning that additional spending yields diminishing returns, while others "
+"may offer more linear growth in contribution with increased spending."
+msgstr ""
+"Estas curvas varían en características: algunos canales se saturan "
+"rápidamente, lo que significa que el gasto adicional produce rendimientos "
+"decrecientes, mientras que otros pueden ofrecer un crecimiento más lineal en"
+" la contribución con un aumento del gasto."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:190012
+#: f5f0c68c285d4dd386d1cb9918d9edae
+msgid ""
+"To solve this optimization problem, we employ the Sequential Least Squares "
+"Quadratic Programming "
+"([SLSQP](https://docs.scipy.org/doc/scipy/reference/optimize.minimize-"
+"slsqp.html#optimize-minimize-slsqp)) algorithm, a gradient-based "
+"optimization technique. SLSQP is well-suited for this application as it "
+"allows for the imposition of both equality and inequality constraints, "
+"ensuring that the budget allocation adheres to business rules or "
+"limitations."
+msgstr ""
+"Para resolver este problema de optimización, empleamos el algoritmo de "
+"Programación Cuadrática de Mínimos Cuadrados Secuenciales "
+"([SLSQP](https://docs.scipy.org/doc/scipy/reference/optimize.minimize-"
+"slsqp.html#optimize-minimize-slsqp)), una técnica de optimización basada en "
+"gradientes. SLSQP es especialmente adecuado para esta aplicación, ya que "
+"permite la imposición de restricciones tanto de igualdad como de "
+"desigualdad, asegurando que la asignación del presupuesto se adhiera a las "
+"reglas o limitaciones del negocio."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:190014
+#: a3506a9d234c4f178891afd023b9213c
+msgid ""
+"The algorithm works by iteratively approximating the objective function and "
+"constraints using quadratic functions and solving the resulting sub-problems"
+" to find a local minimum. This enables us to effectively navigate the "
+"multidimensional space of budget allocations to find the most efficient "
+"distribution of resources."
+msgstr ""
+"El algoritmo funciona aproximando iterativamente la función objetivo y las "
+"restricciones utilizando funciones cuadráticas y resolviendo los "
+"subproblemas resultantes para encontrar un mínimo local. Esto nos permite "
+"navegar de manera efectiva por el espacio multidimensional de asignaciones "
+"presupuestarias para encontrar la distribución de recursos más eficiente."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:190016
+#: bd0410a8ad674027bc43fb17b856d282
+msgid ""
+"The optimizer aims to maximize the total contribution from all channels "
+"while adhering to the following constraints:"
+msgstr ""
+"El optimizador tiene como objetivo maximizar la contribución total de todos "
+"los canales, cumpliendo con las siguientes restricciones:"
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:190018
+#: 7b8fdd9eba1349d3b389e0613cf2d297
+msgid ""
+"Budget Limitations: The total spending across all channels should not exceed"
+" the overall marketing budget."
+msgstr ""
+"Limitaciones del presupuesto: El gasto total en todos los canales no debe "
+"exceder el presupuesto de marketing general."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:190019
+#: f51d95c5627b49c881138d14dd0078ae
+msgid ""
+"Channel-specific Constraints: Some channels may have minimum or maximum "
+"spending limits."
+msgstr ""
+"Restricciones específicas del canal: Algunos canales pueden tener límites de"
+" gasto mínimos o máximos."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:190021
+#: 6ecc57b1d5cf41e1bbd48da66ffc6b4a
+msgid ""
+"By leveraging the SLSQP algorithm, we can optimize the multi-channel budget "
+"allocation in a rigorous, mathematically sound manner, ensuring that we get "
+"the highest possible return on investment."
+msgstr ""
+"Al aprovechar el algoritmo SLSQP, podemos optimizar la asignación del "
+"presupuesto multicanal de manera rigurosa y matemáticamente sólida, "
+"asegurando que obtengamos el mayor retorno de inversión posible."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:190023
+#: 9c1b0d6e9e4d4611b2a4c6fe6bd98076
+msgid "Maximizing Contribution"
+msgstr "Maximizando la Contribución"
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:190024
+#: 4d3cdb12611b4284a02132eb7b1bd932
+msgid ""
+"Assume you're managing the marketing for a retail company with a substantial"
+" budget to allocate for advertising across multiple channels. Given that, "
+"you're contemplating ways to optimize the forthcoming quarter's outlay to "
+"maximize the overall contribution."
+msgstr ""
+"Asuma que está gestionando el marketing de una empresa minorista con un "
+"presupuesto sustancial para asignar a la publicidad en múltiples canales. "
+"Dado esto, está contemplando formas de optimizar el gasto del próximo "
+"trimestre para maximizar la contribución general."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:190026
+#: 5248ed4fc6564f3fb13b0ba804e1a8ca
+msgid ""
+"You might have considered scattering your money in the same way than you did"
+" historically without an MMM model - let's repeat the know formula. However,"
+" you wish to explore better alternatives now that you possess an MMM model. "
+"Given that you lack prior knowledge, you impose the same restrictions on "
+"both channels. They must each expend a minimum of 500 euros and no more than"
+" 2,000 euros, equating to your total budget."
+msgstr ""
+"Es posible que haya considerado dispersar su dinero de la misma manera que "
+"lo hizo históricamente sin un modelo MMM; repitamos la fórmula conocida. Sin"
+" embargo, desea explorar mejores alternativas ahora que posee un modelo MMM."
+" Dado que carece de conocimientos previos, impone las mismas restricciones a"
+" ambos canales. Cada uno debe gastar un mínimo de 500 euros y no más de "
+"2,000 euros, lo que equivale a su presupuesto total."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:210002
+#: 23864722fa2b4b5ca8f50414bef233f4
+msgid ""
+"Our current model was trained with weekly data, meaning each period (time "
+"unit) represents a week. If we plan to create a budget allocation for a "
+"specific quarter, we need to add 12 weeks to our initial date. By doing so, "
+"we can initialize our class that wraps our **MMM**."
+msgstr ""
+"Nuestro modelo actual fue entrenado con datos semanales, lo que significa "
+"que cada período (unidad de tiempo) representa una semana. Si planeamos "
+"crear una asignación de presupuesto para un trimestre específico, "
+"necesitamos añadir 12 semanas a nuestra fecha inicial. Al hacerlo, podemos "
+"inicializar nuestra clase que envuelve nuestro **MMM**."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:240002
+#: 0f3e2ced7d944678a0479d7bc397a002
+msgid "\\displaystyle \\left( 8, \\  13\\right)"
+msgstr "\\displaystyle \\left( 8, \\  13\\right)"
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:250002
+#: 537838452a684587834d26de28f9ebf5
+msgid ""
+"Before we proceed to evaluate the effectiveness of our optimization, we can "
+"estimate the response by following our initial plan, which involves "
+"distributing our budget based on historical spending patterns."
+msgstr ""
+"Antes de proceder a evaluar la efectividad de nuestra optimización, podemos "
+"estimar la respuesta siguiendo nuestro plan inicial, que implica distribuir "
+"nuestro presupuesto en función de los patrones de gasto históricos."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:270002
+#: a91a21315f894b27b0b27c91ac437f7e
+msgid ""
+"The response will be expose as a data array with different variables, such "
+"as:"
+msgstr ""
+"La respuesta se expondrá como un array de datos con diferentes variables, "
+"tales como:"
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:270003
+#: 1e6eef2f65194ca087428a523aa2abf2
+msgid "y (Target variables)"
+msgstr "y (Variables objetivo)"
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:270004
+#: ce9d2780991b459c9589294bf1b21452
+msgid "allocation (The allocation strategy shared)"
+msgstr "asignación (La estrategia de asignación compartida)"
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:270005
+#: e37632aa37d5497aac84ec335cbec4f6
+msgid ""
+"channel variables (Every channel column with the corresponding units used to"
+" get the prediction)."
+msgstr ""
+"variables de canal (Cada columna de canal con las unidades correspondientes "
+"utilizadas para obtener la predicción)."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:270006
+#: b3da2e8908cb4ef3be9d508f89a0cb48
+msgid ""
+"Total Media Channel Contribution in Original Scale (The posterior "
+"distribution of the sum of media channel by date)"
+msgstr ""
+"Contribución Total del Canal de Medios en Escala Original (La distribución "
+"posterior de la suma del canal de medios por fecha)"
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:320002
+#: ea2dbc6569b94b48b0dcbf74f0dd1d38
+msgid ""
+"Great, we can see that our initial estimation it's giving us around 146K new"
+" units (sales in this case) given marketing. But given the same budget, "
+"could we do better?"
+msgstr ""
+"Excelente, podemos ver que nuestra estimación inicial nos está dando "
+"alrededor de 146K nuevas unidades (ventas en este caso) dado el marketing. "
+"Pero, dado el mismo presupuesto, ¿podríamos hacerlo mejor?"
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:360002
+#: baad6b9640bf44eab7346b7f1838b53a
+msgid ""
+"Great, we can see that given the allocation the optimizer maximize the total"
+" response from both channel, and give us back 5,000 extra units, given the "
+"same spend. We can visualize the mean response per channel, given the spend "
+"using the function `plot.budget_allocation`"
+msgstr ""
+"Excelente, podemos ver que dada la asignación, el optimizador maximiza la "
+"respuesta total de ambos canales y nos devuelve 5,000 unidades adicionales, "
+"dado el mismo gasto. Podemos visualizar la respuesta media por canal, dado "
+"el gasto, utilizando la función `plot.budget_allocation`."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:380002
+#: 137f0b34e73d45a687314087753314e8
+msgid "We could visualize the response over time if we want."
+msgstr ""
+"Podríamos visualizar la respuesta a lo largo del tiempo si lo deseamos."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:400002
+#: 3851a7d5163c48fa9a2e05a5a1299a0b
+msgid ""
+"As you probably observe, the response it's quite flat and saturated. As "
+"shown before in the joint distribution of the sum of effects, the mean only "
+"increase because the uncertanty was bigger, but majority of the density it's"
+" not to far from the biggest density in the initial allocation."
+msgstr ""
+"Como probablemente observe, la respuesta es bastante plana y saturada. Como "
+"se mostró anteriormente en la distribución conjunta de la suma de efectos, "
+"la media solo aumenta porque la incertidumbre fue mayor, pero la mayoría de "
+"la densidad no está muy lejos de la mayor densidad en la asignación inicial."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:400004
+#: f2e39697acf841638150a05deefc9c3e
+msgid "Why this happens? let's take a look to the response curves!"
+msgstr "¿Por qué sucede esto? ¡Echemos un vistazo a las curvas de respuesta!"
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:420002
+#: 1323dfc42f8643168c5056519c9980bd
+msgid ""
+"As expected, the allocated budget (red line) lies into the saturation zone, "
+"meaning, we have very little movement given the current spend. At least for "
+"some channels."
+msgstr ""
+"Como era de esperar, el presupuesto asignado (línea roja) se encuentra en la"
+" zona de saturación, lo que significa que tenemos muy poco movimiento dado "
+"el gasto actual. Al menos para algunos canales."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:420004
+#: 974e56453d374d9781dc2f76f725b7f7
+msgid ""
+"We can iterate over different budgets, adding a bit less or more and "
+"validate how much our response move forward given the additional budget."
+msgstr ""
+"Podemos iterar sobre diferentes presupuestos, añadiendo un poco menos o más "
+"y validar cuánto avanza nuestra respuesta dado el presupuesto adicional."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:440002
+#: 2916a3e0481743e184af8841caffa884
+msgid ""
+"This makes everything clear, even adding the double of budget we can't move "
+"our total response significantly. **Of course, we are maximizing the "
+"response, but at what cost?** Let's take a look to the number of units back "
+"per unit spend, similar to ROAS."
+msgstr ""
+"Esto deja todo claro, incluso añadiendo el doble del presupuesto no podemos "
+"mover nuestra respuesta total de manera significativa. **Por supuesto, "
+"estamos maximizando la respuesta, pero ¿a qué costo?** Echemos un vistazo al"
+" número de unidades devueltas por unidad gastada, similar al ROAS."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:460002
+#: 06d5c06bccec447db31e2ec2cc547a72
+msgid ""
+"As expected, bigger the budget lower the returns. This happens because the "
+"response stays similar but the budget increases faster (Yes, the diminishing"
+" return effect). We can ask a different question, if we want to get 145,000,"
+" then what is the cheaper way to make it?"
+msgstr ""
+"Como era de esperar, cuanto mayor es el presupuesto, menores son los "
+"retornos. Esto sucede porque la respuesta se mantiene similar, pero el "
+"presupuesto aumenta más rápido (Sí, el efecto de rendimientos decrecientes)."
+" Podemos plantear una pregunta diferente: si queremos obtener 145,000, ¿cuál"
+" es la forma más económica de lograrlo?"
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:460004
+#: 40f36416484f450695f8572246d5ec95
+msgid "Optimizing towards a target"
+msgstr "Optimizando hacia un objetivo"
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:460005
+#: 1038b47f2cfb43c5b8026d87162c1dab
+msgid ""
+"Another way to approach optimization is to adjust towards a target response."
+" This can be useful if you want to ensure that the response is above a "
+"certain level. Instead of optimizing a given budget, we can optimize to find"
+" the right budget to reach a target response."
+msgstr ""
+"Otra forma de abordar la optimización es ajustar hacia una respuesta "
+"objetivo. Esto puede ser útil si desea asegurarse de que la respuesta esté "
+"por encima de un cierto nivel. En lugar de optimizar un presupuesto dado, "
+"podemos optimizar para encontrar el presupuesto adecuado para alcanzar una "
+"respuesta objetivo."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:460007
+#: 1a5838148df842f3b834fc6d817f36c5
+msgid ""
+"The following example shows how to create a custom constraint to minimize "
+"the budget to reach a target response. In short words, we are asking the "
+"optimizer, what is the minimum budget to reach a certain response?"
+msgstr ""
+"El siguiente ejemplo muestra cómo crear una restricción personalizada para "
+"minimizar el presupuesto necesario para alcanzar una respuesta objetivo. En "
+"pocas palabras, le estamos preguntando al optimizador, ¿cuál es el "
+"presupuesto mínimo para alcanzar una cierta respuesta?"
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:510002
+#: dc6f7dbfcd18477796f0506be0b9e7e6
+msgid ""
+"Great! Looks like using 5K euros, we could get a response even bigger than "
+"the initial optimization. Considering that the spend it's slightly more in "
+"order to get this amount of response, ROAS should be good. Let's take a "
+"look!"
+msgstr ""
+"¡Genial! Parece que utilizando 5K euros, podríamos obtener una respuesta "
+"incluso mayor que la optimización inicial. Considerando que el gasto es "
+"ligeramente mayor para obtener esta cantidad de respuesta, el ROAS debería "
+"ser bueno. ¡Echemos un vistazo!"
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:530002
+#: 44e5c6e5520d49bc997f6a081b0b352b
+msgid ""
+"The new result is much clearer. By using a bit more budget, we could achieve"
+" the more outcomes as our initial setup, in a more profitable way. On the "
+"other hand, the optimal allocation distributes the budget in levels similar "
+"by the model, not increasing the uncertainty around the estimated impact, at"
+" least not as much as going up a 2X more on budget."
+msgstr ""
+"El nuevo resultado es mucho más claro. Al utilizar un poco más de "
+"presupuesto, podríamos lograr más resultados que en nuestra configuración "
+"inicial, de una manera más rentable. Por otro lado, la asignación óptima "
+"distribuye el presupuesto en niveles similares al modelo, sin aumentar la "
+"incertidumbre en torno al impacto estimado, al menos no tanto como al "
+"aumentar el presupuesto en un 2X."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:530004
+#: 62cf146cb5754ddfb6cc19580a2cf9c9
+msgid ""
+"Please note that the estimate provided assumes consistent spending each "
+"week. However, in the field of marketing, even with a fixed spending level, "
+"the actual spending can fluctuate based on factors such as the number of "
+"people bidding on your ad or viewing ads on a given day."
+msgstr ""
+"Tenga en cuenta que la estimación proporcionada asume un gasto constante "
+"cada semana. Sin embargo, en el ámbito del marketing, incluso con un nivel "
+"de gasto fijo, el gasto real puede fluctuar en función de factores como el "
+"número de personas que pujan por su anuncio o que ven anuncios en un día "
+"determinado."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:530006
+#: 72a359b4ce414fc0b7f5bd9fb80c688d
+msgid ""
+"To account for this unpredictable variation, we have included a parameter "
+"called `noise_level` that allows you to introduce white noise into the "
+"projection. This can provide a sense of what the outcome might look like if "
+"the recommended budget could potentially fluctuate by a certain extent. The "
+"default value for `noise_level` is 1%, but you can adjust it as needed. In "
+"the example below, we have used a value of 10%."
+msgstr ""
+"Para tener en cuenta esta variación impredecible, hemos incluido un "
+"parámetro llamado `noise_level` que le permite introducir ruido blanco en la"
+" proyección. Esto puede proporcionar una idea de cómo podría ser el "
+"resultado si el presupuesto recomendado pudiera fluctuar en cierta medida. "
+"El valor predeterminado para `noise_level` es 1%, pero puede ajustarlo según"
+" sea necesario. En el ejemplo a continuación, hemos utilizado un valor del "
+"10%."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:530008
+#: 43ac4fd4ae7b4abd88b23372b450fc0c
+msgid "Take a look to signature below!"
+msgstr "¡Eche un vistazo a la firma a continuación!"
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:550002
+#: d186ffed15554d9a80a2d22a9bf7fd0c
+msgid ""
+"If you don't want to assume a evenly distributed allocation given, you can "
+"use a custom pattern. Providing the optimizer a way around how to spend the "
+"money over time. The parameter it's call `budget_distribution_over_period` "
+"and you can read about it in the following signature."
+msgstr ""
+"Si no desea asumir una asignación distribuida de manera uniforme, puede "
+"utilizar un patrón personalizado. Proporcionando al optimizador una forma de"
+" cómo gastar el dinero a lo largo del tiempo. El parámetro se llama "
+"`budget_distribution_over_period` y puede leer sobre él en la siguiente "
+"firma."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:580002
+#: 09c18ba7301e4cf89075dcb7366a2273
+msgid ""
+"Note: When using a custom budget distribution over time, ensure that the "
+"values for each channel and geo sum to 1 across the time dimension. This is "
+"demonstrated in the example above where we create decreasing values that are"
+" normalized to sum to 1."
+msgstr ""
+"Nota: Al utilizar una distribución de presupuesto personalizada a lo largo "
+"del tiempo, asegúrese de que los valores para cada canal y geo sumen 1 en la"
+" dimensión temporal. Esto se demuestra en el ejemplo anterior donde creamos "
+"valores decrecientes que se normalizan para sumar 1."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:600002
+#: 5313fffd87b9441ca3e9d19cf898e52a
+msgid "We can pass this new parameter in the optimizable model."
+msgstr "Podemos pasar este nuevo parámetro en el modelo optimizable."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:620002
+#: 10b395926dc74df68ee6c81f958011c8
+msgid ""
+"You can visualize the pattern for your variables access to the response "
+"sample!"
+msgstr ""
+"¡Puede visualizar el patrón para el acceso a sus variables en la muestra de "
+"respuesta!"
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:640002
+#: 3b29684ef7844fe0a8a49efa4ad39717
+msgid "And giving that pattern, you'll see some response!"
+msgstr "Y al dar ese patrón, ¡verás alguna respuesta!"
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:660002
+#: 77c2d3e9761f4ad89b50dbb90724595b
+msgid ""
+"As expected, now the spend follows a specific pattern of spend, and the "
+"optimization process considers this as well. This change, can affect quite "
+"radically the total response, adding more or less complexity to your "
+"optimization challenges."
+msgstr ""
+"Como era de esperar, ahora el gasto sigue un patrón específico de gasto, y "
+"el proceso de optimización también lo considera. Este cambio puede afectar "
+"de manera bastante radical la respuesta total, añadiendo más o menos "
+"complejidad a sus desafíos de optimización."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:680002
+#: 3b91bb17fcf6405f90fef1495ed5b7e6
+msgid "Other methods to explore"
+msgstr "Otros métodos para explorar"
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:680003
+#: f14e9c3fb3804750b91b5ebeaf0bc68f
+msgid ""
+"The current optimization use the full posterior, and it can be use for more "
+"than minimize or maximize, can consider all information to perfom risk "
+"assesments, you can take a read to [Risk Allocation for Media Mix "
+"Models](https://www.pymc-"
+"marketing.io/en/stable/notebooks/mmm/mmm_allocation_assessment.html). At the"
+" same time, it could be a powerful and interesting solution as it's "
+"described on the following blog [\"Using bayesian decision making to "
+"optimize supply chains\"](https://twiecki.io/blog/2019/01/14/supply_chain/)"
+msgstr ""
+"La optimización actual utiliza el posterior completo, y se puede usar para "
+"más que solo minimizar o maximizar; puede considerar toda la información "
+"para realizar evaluaciones de riesgo. Puede consultar [Asignación de Riesgo "
+"para Modelos de Mezcla de Medios](https://www.pymc-"
+"marketing.io/en/stable/notebooks/mmm/mmm_allocation_assessment.html). Al "
+"mismo tiempo, podría ser una solución poderosa e interesante, como se "
+"describe en el siguiente blog [\"Uso de la toma de decisiones bayesianas "
+"para optimizar cadenas de "
+"suministro\"](https://twiecki.io/blog/2019/01/14/supply_chain/)."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:680005
+#: e951169fd56a43678671532239273e71
+msgid ""
+"The current methodology is similar to the ones used on other libraries as "
+"[Robyn from "
+"Meta](https://facebookexperimental.github.io/Robyn/docs/features/#budget-"
+"allocation) and Google [Lightweight from "
+"Google](https://github.com/google/lightweight_mmm). You can explore the "
+"solutions and compare if needed."
+msgstr ""
+"La metodología actual es similar a las utilizadas en otras bibliotecas como "
+"[Robyn de "
+"Meta](https://facebookexperimental.github.io/Robyn/docs/features/#budget-"
+"allocation) y [Lightweight de "
+"Google](https://github.com/google/lightweight_mmm). Puede explorar las "
+"soluciones y comparar si es necesario."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:680007
+#: e805545d60ef46948cf3c2712b01d662
+msgid "Conclusion"
+msgstr "Conclusión"
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:680008
+#: a0f1c1f9ff304177a465d1111d69fd4e
+msgid ""
+"MMM models and methodologies used here are designed to bridge the gap "
+"between theoretical rigor and actionable marketing insights. They represent "
+"a significant stride towards a more data-driven, analytical approach to "
+"marketing budget allocation, which could change how organizations invest in "
+"customer acquisition and retention."
+msgstr ""
+"Los modelos y metodologías MMM utilizados aquí están diseñados para cerrar "
+"la brecha entre el rigor teórico y los conocimientos de marketing "
+"aplicables. Representan un avance significativo hacia un enfoque más basado "
+"en datos y analítico para la asignación del presupuesto de marketing, lo que"
+" podría cambiar la forma en que las organizaciones invierten en la "
+"adquisición y retención de clientes."
+
+#: ../source/notebooks/mmm/mmm_budget_allocation_example.ipynb:680010
+#: 62c69b29f5c44ffab403b25f29c1e50f
+msgid ""
+"Consequently, your engagements, feedback, and thoughts are not merely "
+"welcomed but actively solicited to make this tool as practical and "
+"universally applicable as possible."
+msgstr ""
+"En consecuencia, sus compromisos, comentarios y pensamientos no solo son "
+"bienvenidos, sino que se solicitan activamente para hacer que esta "
+"herramienta sea lo más práctica y universalmente aplicable posible."

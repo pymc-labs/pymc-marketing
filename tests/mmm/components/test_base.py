@@ -37,7 +37,7 @@ def test_new_transformation_missing_prefix() -> None:
     class NewTransformation(Transformation):
         pass
 
-    with pytest.raises(NotImplementedError, match="prefix must be implemented"):
+    with pytest.raises(NotImplementedError, match=r"prefix must be implemented"):
         NewTransformation()
 
 
@@ -45,7 +45,9 @@ def test_new_transformation_missing_default_priors() -> None:
     class NewTransformation(Transformation):
         prefix = "new"
 
-    with pytest.raises(NotImplementedError, match="default_priors must be implemented"):
+    with pytest.raises(
+        NotImplementedError, match=r"default_priors must be implemented"
+    ):
         NewTransformation()
 
 
@@ -54,7 +56,7 @@ def test_new_transformation_missing_function() -> None:
         prefix = "new"
         default_priors = {}
 
-    with pytest.raises(NotImplementedError, match="function must be implemented"):
+    with pytest.raises(NotImplementedError, match=r"function must be implemented"):
         NewTransformation()
 
 
@@ -64,7 +66,7 @@ def test_new_transformation_missing_lookup_name() -> None:
         default_priors = {}
         function = lambda x: x  # noqa: E731
 
-    with pytest.raises(NotImplementedError, match="lookup_name must be implemented"):
+    with pytest.raises(NotImplementedError, match=r"lookup_name must be implemented"):
         NewTransformation()
 
 
@@ -129,7 +131,7 @@ def test_new_transformation_missing_priors() -> None:
         function = method_like_function
         default_priors = {"a": "dummy"}
 
-    with pytest.raises(ParameterPriorException, match="Missing default prior: {'b'}"):
+    with pytest.raises(ParameterPriorException, match=r"Missing default prior: {'b'}"):
         NewTransformation()
 
 
@@ -141,7 +143,7 @@ def test_new_transformation_missing_parameter() -> None:
         default_priors = {"b": "dummy"}
 
     with pytest.raises(
-        ParameterPriorException, match="Missing function parameter: {'b'}"
+        ParameterPriorException, match=r"Missing function parameter: {'b'}"
     ):
         NewTransformation()
 
@@ -177,7 +179,7 @@ def test_new_transformation_function_priors(new_transformation) -> None:
 
 def test_new_transformation_priors_at_init(new_transformation_class) -> None:
     new_prior = {"a": {"dist": "HalfNormal", "kwargs": {"sigma": 2}}}
-    with pytest.warns(DeprecationWarning, match="a is automatically converted"):
+    with pytest.warns(DeprecationWarning, match=r"a is automatically converted"):
         new_transformation = new_transformation_class(priors=new_prior)
     assert new_transformation.function_priors == {
         "a": Prior("HalfNormal", sigma=2),
@@ -206,7 +208,7 @@ def test_new_transformation_access_function(new_transformation) -> None:
 
 
 def test_new_transformation_apply_outside_model(new_transformation) -> None:
-    with pytest.raises(TypeError, match="on context stack"):
+    with pytest.raises(TypeError, match=r"on context stack"):
         new_transformation.apply(1)
 
 
@@ -229,7 +231,7 @@ def test_new_transform_update_priors(new_transformation) -> None:
 
 
 def test_new_transformation_warning_no_priors_updated(new_transformation) -> None:
-    with pytest.warns(UserWarning, match="No priors were updated"):
+    with pytest.warns(UserWarning, match=r"No priors were updated"):
         new_transformation.update_priors({"new_c": Prior("HalfNormal")})
 
 

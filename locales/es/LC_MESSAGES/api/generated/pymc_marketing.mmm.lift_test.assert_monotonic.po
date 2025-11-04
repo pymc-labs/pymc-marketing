@@ -1,0 +1,90 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.assert_monotonic.rst:2
+#: 825b1c163f5847e98440511baed3d963
+msgid "assert\\_monotonic"
+msgstr "assert\\_monotónico"
+
+#: c189f9ba8f594ed1aad2844adeb19325 of
+#: pymc_marketing.mmm.lift_test.assert_monotonic:2
+msgid "Check if the lift test results satisfy the increasing assumption."
+msgstr ""
+"Verifique si los resultados de la prueba del ascensor satisfacen la "
+"suposición de aumento."
+
+#: 2eabffcf45ba4b07865a46021f92cbda of
+#: pymc_marketing.mmm.lift_test.assert_monotonic:4
+msgid ""
+"The increasing assumption states that if delta_x is positive, delta_y must "
+"be positive, and vice versa."
+msgstr ""
+"La suposición creciente establece que si delta_x es positivo, delta_y debe "
+"ser positivo, y viceversa."
+
+#: b4dab7fd434b463e8e54004e846ade35 of
+#: pymc_marketing.mmm.lift_test.assert_monotonic
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: d26e726ac3124232970ff5f3a0db3330 of
+#: pymc_marketing.mmm.lift_test.assert_monotonic:8
+msgid "**delta_x** : :obj:`pd.Series`"
+msgstr "**delta_x** : :obj:`pd.Series`"
+
+#: 2a6f430b7d5743e3aef371aa4466ae5d 82586c4efdcb4e09b8c36cacd8c68b4b of
+#: pymc_marketing.mmm.lift_test.assert_monotonic:7
+#: pymc_marketing.mmm.lift_test.assert_monotonic:10
+msgid "pd.Series"
+msgstr "pd.Series"
+
+#: 213a5b90b7554f6a9fc3c25fa63ee824 of
+#: pymc_marketing.mmm.lift_test.assert_monotonic:9
+msgid "Series with the change in x axis value of the lift test."
+msgstr "Series con el cambio en el valor del eje x de la prueba de elevación."
+
+#: 27d4886026424265ae9b8386f8a6b92b of
+#: pymc_marketing.mmm.lift_test.assert_monotonic:11
+msgid "**delta_y** : :obj:`pd.Series`"
+msgstr "**delta_y** : :obj:`pd.Series`"
+
+#: ef04d2bb4a5e4fc081194c9fee1af485 of
+#: pymc_marketing.mmm.lift_test.assert_monotonic:12
+msgid "Series with the change in y axis value of the lift test."
+msgstr "Series con el cambio en el valor del eje y de la prueba de elevación."
+
+#: 88ef93f36ae14005b1e2585b2bfcbe3b of
+#: pymc_marketing.mmm.lift_test.assert_monotonic
+msgid "Raises"
+msgstr "Aumentos"
+
+#: a0a8d216f09a48648486ddd4c8ec0288 of
+#: pymc_marketing.mmm.lift_test.assert_monotonic:22
+msgid ":obj:`NonMonotonicError`"
+msgstr ":obj:`NonMonotonicError`"
+
+#: c734245ef7784e378a25ba33f3ffa327 of
+#: pymc_marketing.mmm.lift_test.assert_monotonic:23
+msgid "If the lift test results do not satisfy the increasing assumption."
+msgstr ""
+"Si los resultados de la prueba de elevación no satisfacen la suposición de "
+"aumento."

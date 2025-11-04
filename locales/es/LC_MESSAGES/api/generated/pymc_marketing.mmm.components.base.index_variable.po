@@ -1,0 +1,98 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.base.index_variable.rst:2
+#: d2ab449ecf554560bb152ef8c42def33
+msgid "index\\_variable"
+msgstr "índice_variable"
+
+#: 9c5b84b4b68c408780ad50f37a7c83dc of
+#: pymc_marketing.mmm.components.base.index_variable:2
+msgid "Index a variable based on the provided dimensions and index."
+msgstr "Indexar una variable según las dimensiones e índice proporcionados."
+
+#: fda488610f1b4ae097a34dc6cc4d2b09 of
+#: pymc_marketing.mmm.components.base.index_variable
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 2380961f038746b68a8be3edaaa28e97 of
+#: pymc_marketing.mmm.components.base.index_variable:7
+msgid "**var** : :class:`~pytensor.tensor.TensorVariable`"
+msgstr "**var** : :class:`~pytensor.tensor.TensorVariable`"
+
+#: 30a7b15f699b4126b4c6c4c4a40973b0 of
+#: pymc_marketing.mmm.components.base.index_variable:6
+msgid "TensorVariable"
+msgstr "TensorVariable"
+
+#: 69cfd16867dd4263aa127810b2c6e17a of
+#: pymc_marketing.mmm.components.base.index_variable:8
+msgid "The variable to index."
+msgstr "La variable a indexar."
+
+#: dbed7cc3ad1b4ff899fb224a0366b241 of
+#: pymc_marketing.mmm.components.base.index_variable:10
+msgid "**dims** : :class:`python:tuple`\\[:class:`python:str`, ...]"
+msgstr "**dims** : :class:`python:tuple`\\[:class:`python:str`, ...]"
+
+#: 401075a38a6c4677b5a0af4621ea0b2c of
+#: pymc_marketing.mmm.components.base.index_variable:9
+msgid "python:tuple[python:str, ...]"
+msgstr "python:tuple[python:str, ...]"
+
+#: 3f1c001251384ba4836234d79fe6aa9f of
+#: pymc_marketing.mmm.components.base.index_variable:11
+msgid "The dims of the variable."
+msgstr "Las dimensiones de la variable."
+
+#: 0160b6cb26b540debc7b506ddb88bc04 of
+#: pymc_marketing.mmm.components.base.index_variable:13
+msgid ""
+"**idx** : :class:`python:dict`\\[:class:`python:str`, :obj:`pt.TensorLike`]"
+msgstr ""
+"**idx** : :class:`python:dict`\\[:class:`python:str`, :obj:`pt.TensorLike`]"
+
+#: 547d9d607357411685edbdb71b4b7444 of
+#: pymc_marketing.mmm.components.base.index_variable:12
+msgid "python:dict[python:str, pt.TensorLike]"
+msgstr "python:dict[python:str, pt.TensorLike]"
+
+#: af903ca7eee04ae8ace135e9a1c36f67 of
+#: pymc_marketing.mmm.components.base.index_variable:14
+msgid "The index to use for the variable."
+msgstr "El índice a utilizar para la variable."
+
+#: 2584ba076caa44b9b12d2512acb09859 of
+#: pymc_marketing.mmm.components.base.index_variable
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 3f34818a84344cd2acbd015aa991d629 of
+#: pymc_marketing.mmm.components.base.index_variable:20
+msgid ":class:`~pytensor.tensor.TensorVariable`"
+msgstr ":class:`~pytensor.tensor.TensorVariable`"
+
+#: 7b48cca5912a4e0688bf0349d6669516 of
+#: pymc_marketing.mmm.components.base.index_variable:21
+msgid "The indexed variable."
+msgstr "La variable indexada."

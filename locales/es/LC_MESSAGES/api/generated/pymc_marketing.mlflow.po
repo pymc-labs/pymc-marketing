@@ -1,0 +1,415 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mlflow.rst:2
+#: a4bf7db640b14c049e70e552da397bb2
+msgid "mlflow"
+msgstr "mlflow"
+
+#: 1cc122086ff74c7184a2d3c27ff6b9dc of pymc_marketing.mlflow:1
+msgid "MLflow logging utilities for PyMC models."
+msgstr "Utilidades de registro de MLflow para modelos de PyMC."
+
+#: aa33aed5672d48718e52337b0269d632 of pymc_marketing.mlflow:3
+msgid ""
+"This module provides utilities to log various aspects of PyMC models to "
+"MLflow which is then extended to PyMC-Marketing models."
+msgstr ""
+"Este módulo proporciona utilidades para registrar varios aspectos de los "
+"modelos de PyMC en MLflow, que luego se extiende a los modelos de PyMC-"
+"Marketing."
+
+#: afeda6b0e89140ec8cda1d10539f18c1 of pymc_marketing.mlflow:6
+msgid ""
+"Autologging is supported for PyMC models and PyMC-Marketing models. This "
+"including logging of sampler diagnostics, model information, data used in "
+"the model, and InferenceData objects."
+msgstr ""
+"El autologging es compatible con modelos de PyMC y modelos de PyMC-"
+"Marketing. Esto incluye el registro de diagnósticos del muestreador, "
+"información del modelo, datos utilizados en el modelo y objetos de "
+"InferenceData."
+
+#: f79297458188486ab43e33b29588d0d5 of pymc_marketing.mlflow:10
+msgid ""
+"The autologging can be enabled by calling the `autolog` function. The "
+"following functions are patched:"
+msgstr ""
+"La autologging se puede habilitar llamando a la función `autolog`. Las "
+"siguientes funciones están parcheadas:"
+
+#: a1ba8e818f0e44d7a9818e3a396b3bcd of pymc_marketing.mlflow:13
+msgid "`pymc.sample`:"
+msgstr "`pymc.sample`:"
+
+#: 868c223fabad461fbe341cf4690cae4f of pymc_marketing.mlflow:14
+msgid ""
+":func:`log_versions`: Log the versions of PyMC-Marketing, PyMC, and ArviZ to"
+" MLflow."
+msgstr ""
+":func:`log_versions`: Registra las versiones de PyMC-Marketing, PyMC y ArviZ"
+" en MLflow."
+
+#: 2041f8b053a14022bcf48809ecaa4f35 3ff72848f4524f2d9b313a07ee2a3877 of
+#: pymc_marketing.mlflow:15 pymc_marketing.mlflow:21
+msgid ""
+":func:`log_model_derived_info`: Log types of parameters, coords, model "
+"graph, etc."
+msgstr ""
+":func:`log_model_derived_info`: Registrar tipos de parámetros, coordenadas, "
+"gráfico del modelo, etc."
+
+#: 44683d5d46a94945b379befb0416f322 of pymc_marketing.mlflow:16
+msgid ""
+":func:`log_sample_diagnostics`: Log information derived from the "
+"InferenceData object."
+msgstr ""
+":func:`log_sample_diagnostics`: Registrar información derivada del objeto "
+"InferenceData."
+
+#: 1f074f2d2bb9413898ae560a1a0ac187 of pymc_marketing.mlflow:17
+msgid ""
+":func:`log_arviz_summary`: Log table of summary statistics about estimated "
+"parameters"
+msgstr ""
+":func:`log_arviz_summary`: Tabla de registro de estadísticas resumidas sobre"
+" los parámetros estimados"
+
+#: 89669e631f7947378726e6c6103b17ef of pymc_marketing.mlflow:18
+msgid ":func:`log_metadata`: Log the metadata of the data used in the model."
+msgstr ""
+":func:`log_metadata`: Registra los metadatos de los datos utilizados en el "
+"modelo."
+
+#: 127f63b3b5b3430380789640a2fed48f of pymc_marketing.mlflow:19
+msgid ""
+":func:`log_error`: Log the traceback and exception if an error occurs during"
+" sampling."
+msgstr ""
+":func:`log_error`: Registra el seguimiento y la excepción si ocurre un error"
+" durante el muestreo."
+
+#: 6b97124e1517484f80395cc146336fed of pymc_marketing.mlflow:20
+msgid "`pymc.find_MAP`:"
+msgstr "`pymc.find_MAP`:"
+
+#: ac19f9d26e81438da8343e7557062465 of pymc_marketing.mlflow:22
+msgid "`MMM.fit`:"
+msgstr "MMM.fit"
+
+#: f94838d7cc56440892592866409efdcf of pymc_marketing.mlflow:23
+msgid "All parameters, metrics, and artifacts from `pymc.sample`"
+msgstr "Todos los parámetros, métricas y artefactos de `pymc.sample`"
+
+#: b0c76826a2f142219d29e62e816aa979 of pymc_marketing.mlflow:24
+msgid ":func:`log_mmm_configuration`: Log the configuration of the MMM model."
+msgstr ""
+":func:`log_mmm_configuration`: Registra la configuración del modelo MMM."
+
+#: 98ef62eb135d48b8928c72a03ea07e3f of pymc_marketing.mlflow:25
+msgid "`CLVModel.fit`:"
+msgstr "`CLVModel.fit`:"
+
+#: be0a034d12cf41999c765002b458b10b of pymc_marketing.mlflow:26
+msgid "Information dependent on fit method used (MCMC or MAP)"
+msgstr "Información dependiente del método de ajuste utilizado (MCMC o MAP)"
+
+#: 4c8f32b665ab46588dd8920cb67f4a1e of pymc_marketing.mlflow:27
+msgid "Model type and fit method"
+msgstr "Tipo de modelo y método de ajuste"
+
+#: d75a4c11ec084c6b9865730d28dbf228 of pymc_marketing.mlflow:30
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: 13665de524cf478e94f6baf9a314b57f of pymc_marketing.mlflow:31
+msgid "Autologging for a PyMC model:"
+msgstr "Autologging para un modelo de PyMC:"
+
+#: 5795073826044e6ab1a669c3c2521121 of pymc_marketing.mlflow:54
+msgid "Autologging for a PyMC-Marketing MMM:"
+msgstr "Autologging para un MMM de PyMC-Marketing:"
+
+#: 57f5f1b4d1634025b2ab4f5c8e8fd7ab of pymc_marketing.mlflow:104
+msgid "Autologging for a PyMC-Marketing CLV model:"
+msgstr "Autologging para un modelo CLV de PyMC-Marketing:"
+
+#: ../source/api/generated/pymc_marketing.mlflow.rst:13
+#: 8f1dfe5aeb88460dbbc59cfa8520fa50
+msgid "Functions"
+msgstr "Funciones"
+
+#: ../source/api/generated/pymc_marketing.mlflow.rst:38:<autosummary>:1
+#: 6f723c679d5b4acaa38ecdac455ee39a
+msgid ""
+":py:obj:`autolog <pymc_marketing.mlflow.autolog>`\\ "
+"\\(\\[log\\_sampler\\_info\\, ...\\]\\)"
+msgstr ""
+":py:obj:`autolog <pymc_marketing.mlflow.autolog>`\\ "
+"\\(\\[log\\_sampler\\_info\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mlflow.rst:38:<autosummary>:1
+#: 01d10e08ec8d47869bdef18125fb581f
+msgid "Autologging support for PyMC models and PyMC-Marketing models."
+msgstr "Soporte de autolog para modelos PyMC y modelos PyMC-Marketing."
+
+#: ../source/api/generated/pymc_marketing.mlflow.rst:38:<autosummary>:1
+#: b2f7c5d99767400ab197366b1d948ed7
+msgid ""
+":py:obj:`create_log_callback <pymc_marketing.mlflow.create_log_callback>`\\ "
+"\\(\\[stats\\, parameters\\, ...\\]\\)"
+msgstr ""
+":py:obj:`create_log_callback <pymc_marketing.mlflow.create_log_callback>`\\ "
+"\\(\\[estadísticas\\, parámetros\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mlflow.rst:38:<autosummary>:1
+#: 016a0c5a17694aa686d8e7df30d2e61f
+msgid ""
+"Create callback function to log sample stats and parameter values to MLflow "
+"during sampling."
+msgstr ""
+"Cree una función de callback para registrar estadísticas de muestra y "
+"valores de parámetros en MLflow durante el muestreo."
+
+#: ../source/api/generated/pymc_marketing.mlflow.rst:38:<autosummary>:1
+#: cdfea5b5273441be878935cf9fbec555
+msgid ""
+":py:obj:`load_mmm <pymc_marketing.mlflow.load_mmm>`\\ \\(run\\_id\\[\\, "
+"full\\_model\\, keep\\_idata\\, ...\\]\\)"
+msgstr ""
+":py:obj:`load_mmm <pymc_marketing.mlflow.load_mmm>`\\ \\(run\\_id\\[\\, "
+"full\\_model\\, keep\\_idata\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mlflow.rst:38:<autosummary>:1
+#: 84c6df9d479f49848a14bfa44309d95a
+msgid "Load a PyMC-Marketing MMM model from MLflow."
+msgstr "Cargar un modelo MMM de PyMC-Marketing desde MLflow."
+
+#: ../source/api/generated/pymc_marketing.mlflow.rst:38:<autosummary>:1
+#: ac0871dfa77f4f858b770d774da961eb
+msgid ""
+":py:obj:`log_arviz_summary <pymc_marketing.mlflow.log_arviz_summary>`\\ "
+"\\(idata\\, path\\[\\, var\\_names\\]\\)"
+msgstr ""
+":py:obj:`log_arviz_summary <pymc_marketing.mlflow.log_arviz_summary>`\\ "
+"\\(idata\\, path\\[\\, var\\_names\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mlflow.rst:38:<autosummary>:1
+#: cb326d23243240958700cbfaaedf2a7a
+msgid "Log the ArviZ summary as an artifact on MLflow."
+msgstr "Registra el resumen de ArviZ como un artefacto en MLflow."
+
+#: ../source/api/generated/pymc_marketing.mlflow.rst:38:<autosummary>:1
+#: 6d21a8f175634e6da52a102d1bf58c6e
+msgid ""
+":py:obj:`log_error <pymc_marketing.mlflow.log_error>`\\ \\(func\\, "
+"file\\_name\\)"
+msgstr ""
+":py:obj:`log_error <pymc_marketing.mlflow.log_error>`\\ \\(función\\, "
+"nombre\\_de\\_archivo\\)"
+
+#: ../source/api/generated/pymc_marketing.mlflow.rst:38:<autosummary>:1
+#: c386117b9d1e4d9eb638489ad968f581
+msgid "Log arbitrary caught error and traceback to MLflow."
+msgstr "Registrar error arbitrario capturado y seguimiento a MLflow."
+
+#: ../source/api/generated/pymc_marketing.mlflow.rst:38:<autosummary>:1
+#: 2213ff57024442998db18b912fc0446d
+msgid ""
+":py:obj:`log_inference_data <pymc_marketing.mlflow.log_inference_data>`\\ "
+"\\(idata\\[\\, save\\_file\\]\\)"
+msgstr ""
+":py:obj:`log_inference_data <pymc_marketing.mlflow.log_inference_data>`\\ "
+"\\(idata\\[\\, save\\_file\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mlflow.rst:38:<autosummary>:1
+#: fc9223a16e7b4bc3afc381e1321a3041
+msgid "Log the InferenceData to MLflow."
+msgstr "Registre el InferenceData en MLflow."
+
+#: ../source/api/generated/pymc_marketing.mlflow.rst:38:<autosummary>:1
+#: 16ab9928533740ff8eb63930ee74ebe6
+msgid ""
+":py:obj:`log_likelihood_type <pymc_marketing.mlflow.log_likelihood_type>`\\ "
+"\\(model\\)"
+msgstr ""
+":py:obj:`log_likelihood_type <pymc_marketing.mlflow.log_likelihood_type>`\\ "
+"\\(modelo\\)"
+
+#: ../source/api/generated/pymc_marketing.mlflow.rst:38:<autosummary>:1
+#: b7b7f00f73514b85a64908fb333442ab
+msgid "Save the likelihood type of the model to MLflow."
+msgstr "Guarde el tipo de probabilidad del modelo en MLflow."
+
+#: ../source/api/generated/pymc_marketing.mlflow.rst:38:<autosummary>:1
+#: 712b9c929fa649e3aa5e75dc59ca3c61
+msgid ""
+":py:obj:`log_metadata <pymc_marketing.mlflow.log_metadata>`\\ \\(model\\, "
+"idata\\)"
+msgstr ""
+":py:obj:`log_metadata <pymc_marketing.mlflow.log_metadata>`\\ \\(modelo\\, "
+"idata\\)"
+
+#: ../source/api/generated/pymc_marketing.mlflow.rst:38:<autosummary>:1
+#: e5db6d9b93704e76ad0553418615c62a
+msgid "Log the metadata of the data used in the model to MLflow."
+msgstr ""
+"Registre los metadatos de los datos utilizados en el modelo en MLflow."
+
+#: ../source/api/generated/pymc_marketing.mlflow.rst:38:<autosummary>:1
+#: daab21b3c9034d2dbb2733ec4bf57e41
+msgid ""
+":py:obj:`log_mmm <pymc_marketing.mlflow.log_mmm>`\\ \\(mmm\\[\\, "
+"artifact\\_path\\, ...\\]\\)"
+msgstr ""
+":py:obj:`log_mmm <pymc_marketing.mlflow.log_mmm>`\\ \\(mmm\\[\\, "
+"ruta\\_del\\_artefacto\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mlflow.rst:38:<autosummary>:1
+#: 260a8df639724787bbce8b099f0af5f3
+msgid "Log a PyMC-Marketing MMM as a native MLflow model for the current run."
+msgstr ""
+"Registrar un MMM de PyMC-Marketing como un modelo nativo de MLflow para la "
+"ejecución actual."
+
+#: ../source/api/generated/pymc_marketing.mlflow.rst:38:<autosummary>:1
+#: c1920b6ae6a44734bbde9d116fbe7fd9
+msgid ""
+":py:obj:`log_mmm_configuration "
+"<pymc_marketing.mlflow.log_mmm_configuration>`\\ \\(mmm\\)"
+msgstr ""
+":py:obj:`log_mmm_configuration "
+"<pymc_marketing.mlflow.log_mmm_configuration>`\\ \\(mmm\\)"
+
+#: ../source/api/generated/pymc_marketing.mlflow.rst:38:<autosummary>:1
+#: 9afa2696e33e47689666e32f488d1037
+msgid "Log the configuration of the MMM model to MLflow."
+msgstr "Registre la configuración del modelo MMM en MLflow."
+
+#: ../source/api/generated/pymc_marketing.mlflow.rst:38:<autosummary>:1
+#: 50c4b546c23845d6932f458fdf26741c
+msgid ""
+":py:obj:`log_mmm_evaluation_metrics "
+"<pymc_marketing.mlflow.log_mmm_evaluation_metrics>`\\ \\(y\\_true\\, "
+"y\\_pred\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`log_mmm_evaluation_metrics "
+"<pymc_marketing.mlflow.log_mmm_evaluation_metrics>`\\ \\(y\\_true\\, "
+"y\\_pred\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mlflow.rst:38:<autosummary>:1
+#: c7c4ed9041d44ef48085a3aed662e5c1
+msgid ""
+"Log evaluation metrics produced by "
+"`pymc_marketing.mmm.evaluation.compute_summary_metrics()` to MLflow."
+msgstr ""
+"Registrar métricas de evaluación producidas por "
+"`pymc_marketing.mmm.evaluation.compute_summary_metrics()` en MLflow."
+
+#: ../source/api/generated/pymc_marketing.mlflow.rst:38:<autosummary>:1
+#: edd2d53be6b4472e81ef33601769ccfe
+msgid ""
+":py:obj:`log_model_derived_info "
+"<pymc_marketing.mlflow.log_model_derived_info>`\\ \\(model\\)"
+msgstr ""
+":py:obj:`log_model_derived_info "
+"<pymc_marketing.mlflow.log_model_derived_info>`\\ \\(modelo\\)"
+
+#: ../source/api/generated/pymc_marketing.mlflow.rst:38:<autosummary>:1
+#: b67f05b8257f44e5b3744b3f7cb56b56
+msgid "Log various model derived information to MLflow."
+msgstr "Registrar varios datos derivados del modelo en MLflow."
+
+#: ../source/api/generated/pymc_marketing.mlflow.rst:38:<autosummary>:1
+#: 94fead8e59724fb8a35cdb4102a18a82
+msgid ""
+":py:obj:`log_model_graph <pymc_marketing.mlflow.log_model_graph>`\\ "
+"\\(model\\, path\\)"
+msgstr ""
+":py:obj:`log_model_graph <pymc_marketing.mlflow.log_model_graph>`\\ "
+"\\(modelo\\, ruta\\)"
+
+#: ../source/api/generated/pymc_marketing.mlflow.rst:38:<autosummary>:1
+#: 4b70bd4a877c4e6da3f00b99c5d30876
+msgid "Log the model graph PDF as artifact on MLflow."
+msgstr "Registra el gráfico del modelo en PDF como artefacto en MLflow."
+
+#: ../source/api/generated/pymc_marketing.mlflow.rst:38:<autosummary>:1
+#: e8181add233249d4aee01a97b1ebca2f
+msgid ""
+":py:obj:`log_sample_diagnostics "
+"<pymc_marketing.mlflow.log_sample_diagnostics>`\\ \\(idata\\[\\, tune\\]\\)"
+msgstr ""
+":py:obj:`log_sample_diagnostics "
+"<pymc_marketing.mlflow.log_sample_diagnostics>`\\ \\(idata\\[\\, tune\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mlflow.rst:38:<autosummary>:1
+#: d700ddd59eac440b80f1eec5f90ab8f3
+msgid "Log sample diagnostics to MLflow."
+msgstr "Registrar muestras de diagnóstico en MLflow."
+
+#: ../source/api/generated/pymc_marketing.mlflow.rst:38:<autosummary>:1
+#: db3e0ae2d7884d908a14d933c12033ef
+msgid ""
+":py:obj:`log_types_of_parameters "
+"<pymc_marketing.mlflow.log_types_of_parameters>`\\ \\(model\\)"
+msgstr ""
+":py:obj:`log_types_of_parameters "
+"<pymc_marketing.mlflow.log_types_of_parameters>`\\ \\(modelo\\)"
+
+#: ../source/api/generated/pymc_marketing.mlflow.rst:38:<autosummary>:1
+#: ede733ab1bb7407abaf747ed2376b0eb
+msgid "Log the types of parameters in a PyMC model to MLflow."
+msgstr "Registra los tipos de parámetros en un modelo PyMC en MLflow."
+
+#: ../source/api/generated/pymc_marketing.mlflow.rst:38:<autosummary>:1
+#: 784eb52952c6412c84e12d50dee02c12
+msgid ":py:obj:`log_versions <pymc_marketing.mlflow.log_versions>`\\ \\(\\)"
+msgstr ":py:obj:`log_versions <pymc_marketing.mlflow.log_versions>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mlflow.rst:38:<autosummary>:1
+#: 406c7930b08040ea8edc2056cffa2d57
+msgid "Log the versions of PyMC-Marketing, PyMC, and ArviZ to MLflow."
+msgstr "Registre las versiones de PyMC-Marketing, PyMC y ArviZ en MLflow."
+
+#: ../source/api/generated/pymc_marketing.mlflow.rst:40
+#: 8ff425a807f64a1da56d4904df452cce
+msgid "Classes"
+msgstr "Clases"
+
+#: ../source/api/generated/pymc_marketing.mlflow.rst:46:<autosummary>:1
+#: ae3919b7a596412291a2269511aaa04f
+msgid ""
+":py:obj:`MMMWrapper <pymc_marketing.mlflow.MMMWrapper>`\\ \\(model\\[\\, "
+"predict\\_method\\, ...\\]\\)"
+msgstr ""
+":py:obj:`MMMWrapper <pymc_marketing.mlflow.MMMWrapper>`\\ \\(modelo\\[\\, "
+"método\\_de\\_predicción\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mlflow.rst:46:<autosummary>:1
+#: 203152e671df46e6aa83cedca04aa87b
+msgid ""
+"A class to prepare a PyMC-Marketing Mix Model (MMM) for logging and "
+"registering in MLflow."
+msgstr ""
+"Una clase para preparar un Modelo de Mezcla de Marketing (MMM) de PyMC para "
+"registrar y registrar en MLflow."

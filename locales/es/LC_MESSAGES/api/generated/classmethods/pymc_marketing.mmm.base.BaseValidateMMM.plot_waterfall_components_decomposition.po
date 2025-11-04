@@ -1,0 +1,113 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.base.BaseValidateMMM.plot_waterfall_components_decomposition.rst:2
+#: c223faf415e64d798d06d06fb4afe6f7
+msgid "BaseValidateMMM.plot\\_waterfall\\_components\\_decomposition"
+msgstr "BaseValidateMMM.plot\\_waterfall\\_components\\_decomposition"
+
+#: d004b49f228349adac67e1084c7450c4 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_waterfall_components_decomposition:2
+msgid "Create a waterfall plot."
+msgstr "Cree un gráfico de cascada."
+
+#: d62692df44784f769784ca4e887ee2e2 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_waterfall_components_decomposition:4
+msgid "The plot shows the decomposition of the target into its components."
+msgstr "El gráfico muestra la descomposición del objetivo en sus componentes."
+
+#: c757b12444174baea3c0e500cf02b8a2 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_waterfall_components_decomposition
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: e7500e997b89452bab9ac9528b15acd4 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_waterfall_components_decomposition:8
+msgid ""
+"**original_scale** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+"**original_scale** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: c97061e23d5649639183ed549313a7ca of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_waterfall_components_decomposition:7
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: 879cde59bf1847a78433a929a913e2f6 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_waterfall_components_decomposition:9
+msgid ""
+"If True, the contributions are plotted in the original scale of the target."
+msgstr ""
+"Si es verdadero, las contribuciones se representan en la escala original del"
+" objetivo."
+
+#: 8265c2a435b64019a096971054ab10fc of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_waterfall_components_decomposition:11
+msgid ""
+"**figsize** : :class:`python:tuple`\\[:class:`python:int`, "
+":class:`python:int`], optional"
+msgstr ""
+"**figsize** : :class:`python:tuple`\\[:class:`python:int`, "
+":class:`python:int`], opcional"
+
+#: fe950276afdd488a85a2af4fd893d611 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_waterfall_components_decomposition:10
+msgid "python:tuple[python:int, python:int], optional"
+msgstr "python:tuple[python:int, python:int], opcional"
+
+#: 92248f7c87874dc6b26ba88268ec4c58 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_waterfall_components_decomposition:12
+msgid "The size of the figure. The default is (14, 7)."
+msgstr "El tamaño de la figura. El valor predeterminado es (14, 7)."
+
+#: 4d64c806080640a088af2374e667e8ec of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_waterfall_components_decomposition:14
+msgid "**\\*\\*kwargs**"
+msgstr "**\\*\\*kwargs**"
+
+#: b524fc51bd1540199e7257ff48d460db of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_waterfall_components_decomposition:15
+msgid ""
+"Additional keyword arguments to pass to the matplotlib `subplots` function."
+msgstr ""
+"Argumentos adicionales de palabras clave para pasar a la función `subplots` "
+"de matplotlib."
+
+#: 6a040d2cd6e2482c85ec979427984cd5 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_waterfall_components_decomposition
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 3719caf9735d4338a43bb0230d6f6dda of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_waterfall_components_decomposition:21
+msgid "**fig** : :obj:`matplotlib.figure.Figure`"
+msgstr "**fig** : :obj:`matplotlib.figure.Figure`"
+
+#: f8422371c13246c2920839f90e3045f0 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_waterfall_components_decomposition:20
+msgid "matplotlib.figure.Figure"
+msgstr "matplotlib.figure.Figure"
+
+#: c216f321730947e28a5efa315a6f5613 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_waterfall_components_decomposition:22
+msgid "The matplotlib figure object."
+msgstr "El objeto figura de matplotlib."

@@ -1,0 +1,275 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.data.fivetran.FivetranAccessor.process_ad_reporting.rst:2
+#: 9649dba99b0c4bc792825b5a1c4ca88c
+msgid "FivetranAccessor.process\\_ad\\_reporting"
+msgstr "FivetranAccessor.procesar\\_informe\\_publicitario"
+
+#: b14388347f014044b9704a3a20c0d2aa of
+#: pymc_marketing.data.fivetran.process_fivetran_ad_reporting:2
+msgid "Process Fivetran Ad Reporting tables into wide, model-ready features."
+msgstr ""
+"Procesar las tablas de informes de Fivetran en características amplias y "
+"listas para el modelo."
+
+#: e1c68e86c4ac4591964c00e50abae8f3 of
+#: pymc_marketing.data.fivetran.process_fivetran_ad_reporting:4
+msgid "Compatible with Fivetran's Ad Reporting schema tables:"
+msgstr ""
+"Compatible con las tablas del esquema de informes de anuncios de Fivetran:"
+
+#: d6547344187e46339f38eff0025516f8 of
+#: pymc_marketing.data.fivetran.process_fivetran_ad_reporting:6
+msgid "ad_reporting__account_report: daily metrics by account"
+msgstr "ad_reporting__account_report: métricas diarias por cuenta"
+
+#: bc608f4fb5c844b1b90fce61e905f05d of
+#: pymc_marketing.data.fivetran.process_fivetran_ad_reporting:7
+msgid "ad_reporting__campaign_report: daily metrics by campaign and account"
+msgstr "ad_reporting__campaign_report: métricas diarias por campaña y cuenta"
+
+#: d52b1385a58140179d9c6d01505da744 of
+#: pymc_marketing.data.fivetran.process_fivetran_ad_reporting:8
+msgid ""
+"ad_reporting__ad_group_report: daily metrics by ad group, campaign and "
+"account"
+msgstr ""
+"ad_reporting__ad_group_report: métricas diarias por grupo de anuncios, "
+"campaña y cuenta"
+
+#: 4799479562cc41499f1aff6f4b6a60a9 of
+#: pymc_marketing.data.fivetran.process_fivetran_ad_reporting:9
+msgid ""
+"ad_reporting__ad_report: daily metrics by ad, ad group, campaign and account"
+msgstr ""
+"ad_reporting__ad_report: métricas diarias por anuncio, grupo de anuncios, "
+"campaña y cuenta"
+
+#: a26edd15387a4f72a7e0643307dec01a of
+#: pymc_marketing.data.fivetran.process_fivetran_ad_reporting:11
+#, python-brace-format
+msgid ""
+"The input data must include a date column, a platform column (e.g., vendor "
+"name), and one or more metric columns such as ``spend`` or ``impressions``. "
+"The output is a wide dataframe with one row per date and columns named "
+"``{platform}_{metric}``."
+msgstr ""
+"Los datos de entrada deben incluir una columna de fecha, una columna de "
+"plataforma (por ejemplo, nombre del proveedor) y una o más columnas de "
+"métricas como ``gasto`` o ``impresiones``. La salida es un dataframe amplio "
+"con una fila por fecha y columnas nombradas ``{platform}_{metric}``."
+
+#: fa5e3ba603554b05822ef7584583bb12 of
+#: pymc_marketing.data.fivetran.process_fivetran_ad_reporting
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 5f8b5207e81e4269afa5dac7e3d5b6da of
+#: pymc_marketing.data.fivetran.process_fivetran_ad_reporting:17
+msgid "**df** : :obj:`pandas.DataFrame`"
+msgstr "**df** : :obj:`pandas.DataFrame`"
+
+#: 444d112cd257401496a4022e2879b8e2 of
+#: pymc_marketing.data.fivetran.process_fivetran_ad_reporting:16
+msgid "pandas.DataFrame"
+msgstr "pandas.DataFrame"
+
+#: 2411018c8c7b470fbd9d85afea1cdb06 of
+#: pymc_marketing.data.fivetran.process_fivetran_ad_reporting:18
+msgid ""
+"Input dataframe in long format with at least the date, platform, and metric "
+"columns."
+msgstr ""
+"Entrada de dataframe en formato largo con al menos las columnas de fecha, "
+"plataforma y métrica."
+
+#: 2b578135596d4a3ea1151dd36bcb1cc4 of
+#: pymc_marketing.data.fivetran.process_fivetran_ad_reporting:20
+msgid ""
+"**value_columns** : :class:`python:str` or "
+":obj:`Sequence`\\[:class:`python:str`], default \"impressions\""
+msgstr ""
+"**value_columns** : :class:`python:str` o "
+":obj:`Sequence`\\[:class:`python:str`], predeterminado \"impressions\""
+
+#: 63c96fcc7bf54bcb9949643b5f434890 of
+#: pymc_marketing.data.fivetran.process_fivetran_ad_reporting:19
+msgid "python:str or Sequence[python:str], default \"impressions\""
+msgstr "python:str o Secuencia[python:str], predeterminado \"impressions\""
+
+#: 87b3f1f55bfc438589e4851b28676f9d of
+#: pymc_marketing.data.fivetran.process_fivetran_ad_reporting:21
+msgid ""
+"Column name(s) to aggregate and pivot. Example: \"spend\" or [\"spend\", "
+"\"impressions\"]."
+msgstr ""
+"Nombre(s) de columna para agregar y pivotar. Ejemplo: \"spend\" o "
+"[\"spend\", \"impressions\"]."
+
+#: 84b23afa0acc464cb6cb25d14c817014 of
+#: pymc_marketing.data.fivetran.process_fivetran_ad_reporting:23
+msgid "**date_col** : :class:`python:str`, default \"date_day\""
+msgstr "**date_col** : :class:`python:str`, predeterminado \"date_day\""
+
+#: 9b7d84225113465cb1f62ab1d4b1bbd6 of
+#: pymc_marketing.data.fivetran.process_fivetran_ad_reporting:22
+msgid "python:str, default \"date_day\""
+msgstr "python:str, predeterminado \"date_day\""
+
+#: bec0820bf4dc46569b9d999e97cf6bfd of
+#: pymc_marketing.data.fivetran.process_fivetran_ad_reporting:24
+msgid "Name of the date column."
+msgstr "Nombre de la columna de fecha."
+
+#: a42859576027496ca2478ec121a329a2 of
+#: pymc_marketing.data.fivetran.process_fivetran_ad_reporting:26
+msgid "**platform_col** : :class:`python:str`, default \"platform\""
+msgstr "**platform_col** : :class:`python:str`, predeterminado \"platform\""
+
+#: dddab8e2ea344755abda4ee1a4cbd4b8 of
+#: pymc_marketing.data.fivetran.process_fivetran_ad_reporting:25
+msgid "python:str, default \"platform\""
+msgstr "python:str, predeterminado \"plataforma\""
+
+#: 8281ea6a31ff4f75a6782b7b347a95b8 of
+#: pymc_marketing.data.fivetran.process_fivetran_ad_reporting:27
+msgid "Name of the platform (vendor) column."
+msgstr "Nombre de la columna de la plataforma (proveedor)."
+
+#: d4139563319047f6bff3c0b7a92d65d5 of
+#: pymc_marketing.data.fivetran.process_fivetran_ad_reporting:29
+msgid "**agg** : :class:`python:str`, default \"sum\""
+msgstr "**agg** : :class:`python:str`, predeterminado \"sum\""
+
+#: dfa98cdbc5864d0983d514fc0546546a of
+#: pymc_marketing.data.fivetran.process_fivetran_ad_reporting:28
+msgid "python:str, default \"sum\""
+msgstr "python:str, predeterminado \"sum\""
+
+#: 0de288ae3a0a49239a6e8fcd41c5ed9d of
+#: pymc_marketing.data.fivetran.process_fivetran_ad_reporting:30
+msgid "Aggregation method applied during groupby."
+msgstr "Método de agregación aplicado durante el agrupamiento."
+
+#: 2f4ce692580c40c0a6a788c2963c814d of
+#: pymc_marketing.data.fivetran.process_fivetran_ad_reporting:32
+msgid ""
+"**fill_value** : :class:`python:float` or :data:`python:None`, default 0.0"
+msgstr ""
+"**fill_value** : :class:`python:float` o :data:`python:None`, valor por "
+"defecto 0.0"
+
+#: 3b2f22c93ce3454b8e2ef8799a9af65b of
+#: pymc_marketing.data.fivetran.process_fivetran_ad_reporting:31
+msgid "python:float or python:None, default 0.0"
+msgstr "python:float o python:None, predeterminado 0.0"
+
+#: bad32d242fb6461a9d06a7bcaf31df79 of
+#: pymc_marketing.data.fivetran.process_fivetran_ad_reporting:33
+msgid ""
+"Value used to fill missing values in the wide output. If ``None``, missing "
+"values are left as NaN."
+msgstr ""
+"Valor utilizado para rellenar los valores faltantes en la salida amplia. Si "
+"``None``, los valores faltantes se dejan como NaN."
+
+#: a9fee9d2ce2c48989797c19e2fb0d665 of
+#: pymc_marketing.data.fivetran.process_fivetran_ad_reporting:35
+msgid ""
+"**include_missing_dates** : :ref:`bool <python:bltin-boolean-values>`, "
+"default :data:`python:False`"
+msgstr ""
+"**include_missing_dates** : :ref:`bool <python:bltin-boolean-values>`, "
+"predeterminado :data:`python:False`"
+
+#: ac420b36ec6a4c75886b8ad67aba0b9a of
+#: pymc_marketing.data.fivetran.process_fivetran_ad_reporting:34
+msgid "bool, default python:False"
+msgstr "bool, valor predeterminado python:False"
+
+#: a7016777991f432ba8373168ca6a811a of
+#: pymc_marketing.data.fivetran.process_fivetran_ad_reporting:36
+msgid ""
+"If ``True``, include a continuous date range and fill missing dates using "
+"``fill_value``."
+msgstr ""
+"Si ``True``, incluya un rango de fechas continuo y complete las fechas "
+"faltantes utilizando ``fill_value``."
+
+#: 3f048efc85ee46af816926811118e5a0 of
+#: pymc_marketing.data.fivetran.process_fivetran_ad_reporting:38
+msgid "**freq** : :class:`python:str`, default \"D\""
+msgstr "**freq** : :class:`python:str`, predeterminado \"D\""
+
+#: 8cb9f1aff74049ddb4bd172d3ba3a6bc of
+#: pymc_marketing.data.fivetran.process_fivetran_ad_reporting:37
+msgid "python:str, default \"D\""
+msgstr "python:str, predeterminado \"D\""
+
+#: e1a2255a6a9648c88e283b7cdbe3c298 of
+#: pymc_marketing.data.fivetran.process_fivetran_ad_reporting:39
+msgid "Frequency used when ``include_missing_dates`` is ``True``."
+msgstr "Frecuencia utilizada cuando ``include_missing_dates`` es ``True``."
+
+#: 3c23302447d34382b8f63759c9630011 of
+#: pymc_marketing.data.fivetran.process_fivetran_ad_reporting:41
+msgid ""
+"**rename_date_to** : :class:`python:str` or :data:`python:None`, default "
+"\"date\""
+msgstr ""
+"**rename_date_to** : :class:`python:str` o :data:`python:None`, por defecto "
+"\"date\""
+
+#: 91b9a8ca80c94b7f8dc299ef63627f32 of
+#: pymc_marketing.data.fivetran.process_fivetran_ad_reporting:40
+msgid "python:str or python:None, default \"date\""
+msgstr "python:str o python:None, predeterminado \"date\""
+
+#: 2106e15aa37244da87257b57e39f559d of
+#: pymc_marketing.data.fivetran.process_fivetran_ad_reporting:42
+msgid ""
+"If provided, rename the date column in the result to this value. If "
+"``None``, keep ``date_col``."
+msgstr ""
+"Si se proporciona, renombre la columna de fecha en el resultado a este "
+"valor. Si es ``None``, mantenga ``date_col``."
+
+#: c50747225630426aab18e4e7bc371dfc of
+#: pymc_marketing.data.fivetran.process_fivetran_ad_reporting
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 3acb03bba02f4d55843fe72c97cc65ac of
+#: pymc_marketing.data.fivetran.process_fivetran_ad_reporting:48
+msgid ":obj:`pandas.DataFrame`"
+msgstr ":obj:`pandas.DataFrame`"
+
+#: c2e31e9d25054405b217574a8b81c28c of
+#: pymc_marketing.data.fivetran.process_fivetran_ad_reporting:49
+#, python-brace-format
+msgid ""
+"A wide-format dataframe with one row per date and columns for each "
+"``{platform}_{metric}`` combination."
+msgstr ""
+"Un dataframe de formato amplio con una fila por fecha y columnas para cada "
+"combinación de ``{platform}_{metric}``."

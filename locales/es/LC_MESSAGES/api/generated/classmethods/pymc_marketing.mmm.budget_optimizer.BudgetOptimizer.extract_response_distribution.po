@@ -1,0 +1,35 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.extract_response_distribution.rst:2
+#: cf9740e1bdfb4cf6b6d70f5d89528a61
+msgid "BudgetOptimizer.extract\\_response\\_distribution"
+msgstr "BudgetOptimizer.extraer\\_distribución\\_de\\_respuesta"
+
+#: d664155a9a5b4060bbf827d8b732c540 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.extract_response_distribution:2
+msgid ""
+"Extract the response distribution graph, conditioned on posterior "
+"parameters."
+msgstr ""
+"Extraiga el gráfico de distribución de respuestas, condicionado a los "
+"parámetros posteriores."

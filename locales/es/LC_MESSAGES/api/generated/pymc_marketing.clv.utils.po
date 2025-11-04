@@ -1,0 +1,123 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.clv.utils.rst:2
+#: ec36591498e44d0181dbb3c124dd47a5
+msgid "utils"
+msgstr "utilidades"
+
+#: fd0ae957305349fe95766e5e729f2750 of pymc_marketing.clv.utils:1
+msgid "Utilities for the CLV module."
+msgstr "Utilidades para el módulo CLV."
+
+#: ../source/api/generated/pymc_marketing.clv.utils.rst:13
+#: 22d51c632ee44dfb91ee27fcd8f24132
+msgid "Functions"
+msgstr "Funciones"
+
+#: ../source/api/generated/pymc_marketing.clv.utils.rst:22:<autosummary>:1
+#: b58ffa11928640e29e22737c7e26bec0
+msgid ""
+":py:obj:`customer_lifetime_value "
+"<pymc_marketing.clv.utils.customer_lifetime_value>`\\ "
+"\\(transaction\\_model\\, data\\)"
+msgstr ""
+":py:obj:`customer_lifetime_value "
+"<pymc_marketing.clv.utils.customer_lifetime_value>`\\ "
+"\\(modelo\\_de\\_transacción\\, datos\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.utils.rst:22:<autosummary>:1
+#: d06238dd0a064be6847a927944fadebd
+msgid "Compute customer lifetime value."
+msgstr "Calcular el valor de vida del cliente."
+
+#: ../source/api/generated/pymc_marketing.clv.utils.rst:22:<autosummary>:1
+#: dbcf8dbf426742dfbe35f1404dabe4ec
+msgid ""
+":py:obj:`rfm_segments <pymc_marketing.clv.utils.rfm_segments>`\\ "
+"\\(transactions\\, customer\\_id\\_col\\, ...\\)"
+msgstr ""
+":py:obj:`rfm_segments <pymc_marketing.clv.utils.rfm_segments>`\\ "
+"\\(transacciones\\, customer\\_id\\_col\\, ...\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.utils.rst:22:<autosummary>:1
+#: 00b8e5c3345d44acb43b155713177da6
+msgid ""
+"Assign customers to segments based on spending behavior derived from RFM "
+"scores."
+msgstr ""
+"Asigne clientes a segmentos basados en el comportamiento de gasto derivado "
+"de las puntuaciones RFM."
+
+#: ../source/api/generated/pymc_marketing.clv.utils.rst:22:<autosummary>:1
+#: d6fcc375b0514098b5f13df20e8f0ab7
+msgid ""
+":py:obj:`rfm_summary <pymc_marketing.clv.utils.rfm_summary>`\\ "
+"\\(transactions\\, customer\\_id\\_col\\, ...\\)"
+msgstr ""
+":py:obj:`rfm_summary <pymc_marketing.clv.utils.rfm_summary>`\\ "
+"\\(transacciones\\, customer\\_id\\_col\\, ...\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.utils.rst:22:<autosummary>:1
+#: 339d3746a7124f88a5bc6facac34f705
+msgid ""
+"Summarize transaction data for use in CLV modeling or RFM segmentation."
+msgstr ""
+"Resuma los datos de transacciones para su uso en la modelización de CLV o en"
+" la segmentación RFM."
+
+#: ../source/api/generated/pymc_marketing.clv.utils.rst:22:<autosummary>:1
+#: 406d3fd2c46b4de185efe43ecd5dc47c
+msgid ""
+":py:obj:`rfm_train_test_split "
+"<pymc_marketing.clv.utils.rfm_train_test_split>`\\ \\(transactions\\, "
+"...\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`rfm_train_test_split "
+"<pymc_marketing.clv.utils.rfm_train_test_split>`\\ \\(transacciones\\, "
+"...\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.utils.rst:22:<autosummary>:1
+#: 52c528dd78a54db6a1814380950d6c4b
+msgid ""
+"Summarize transaction data and split into training and tests datasets for "
+"CLV modeling."
+msgstr ""
+"Resume los datos de transacciones y divídelos en conjuntos de datos de "
+"entrenamiento y prueba para el modelado de CLV."
+
+#: ../source/api/generated/pymc_marketing.clv.utils.rst:22:<autosummary>:1
+#: 49541f9aa90e47808b494f29ef80014c
+msgid ""
+":py:obj:`to_xarray <pymc_marketing.clv.utils.to_xarray>`\\ "
+"\\(customer\\_id\\, \\*arrays\\[\\, dim\\]\\)"
+msgstr ""
+":py:obj:`to_xarray <pymc_marketing.clv.utils.to_xarray>`\\ "
+"\\(customer\\_id\\, \\*arrays\\[\\, dim\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.utils.rst:22:<autosummary>:1
+#: 54717de493394ef9a9dbd4250671da74
+msgid ""
+"Convert vector arrays to xarray with a common dim (default \"customer_id\")."
+msgstr ""
+"Convierte arreglos vectoriales a xarray con una dimensión común (por defecto"
+" \"customer_id\")."

@@ -1,0 +1,31 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.customer_choice.nested_logit.NestedLogit.sample_posterior_predictive.rst:2
+#: 7025ca92d1f8474eb2d39c2721aff97c
+msgid "NestedLogit.sample\\_posterior\\_predictive"
+msgstr "NestedLogit.muestra\\_predictiva\\_posterior"
+
+#: 47c1c735fc7e4225b0a439cafb8e8ee2 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.sample_posterior_predictive:2
+msgid "Sample Posterior Predictive Distribution."
+msgstr "Distribución Predictiva Posterior de Muestra."

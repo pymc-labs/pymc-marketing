@@ -1,0 +1,66 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.preprocessing.StandardizeControls.standardize_control_data.rst:2
+#: f7a0f4e676b94c1e8182ccf78ab0939e
+msgid "StandardizeControls.standardize\\_control\\_data"
+msgstr "StandardizeControls.estandarizar\\_datos\\_de\\_control"
+
+#: a0e06496e9f84da1946eb96b2db6f3aa of
+#: pymc_marketing.mmm.preprocessing.StandardizeControls.standardize_control_data:2
+msgid "StandardScaler for the control data."
+msgstr "StandardScaler para los datos de control."
+
+#: 8bb2267fba414544b53394f183e498e0 of
+#: pymc_marketing.mmm.preprocessing.StandardizeControls.standardize_control_data
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 85144109a1a243ccb7eaad449ebd6622 of
+#: pymc_marketing.mmm.preprocessing.StandardizeControls.standardize_control_data:7
+msgid "**data** : :obj:`pd.DataFrame`"
+msgstr "**datos** : :obj:`pd.DataFrame`"
+
+#: 701e7c70a118466585ad089cf8698f67 of
+#: pymc_marketing.mmm.preprocessing.StandardizeControls.standardize_control_data:6
+msgid "pd.DataFrame"
+msgstr "pd.DataFrame"
+
+#: 2fcf000e2bbf497f955dd4dd2a79377c of
+#: pymc_marketing.mmm.preprocessing.StandardizeControls.standardize_control_data:8
+msgid "The control data to scale."
+msgstr "Los datos de control para escalar."
+
+#: 7e21d7471c0f4bd2ac8c41a43f083f48 of
+#: pymc_marketing.mmm.preprocessing.StandardizeControls.standardize_control_data
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: faf51affc75846269155d58e582d53bd of
+#: pymc_marketing.mmm.preprocessing.StandardizeControls.standardize_control_data:14
+msgid ":obj:`pd.DataFrame`"
+msgstr ":obj:`pd.DataFrame`"
+
+#: 31945a133eec4174ba46550d6ba1ded4 of
+#: pymc_marketing.mmm.preprocessing.StandardizeControls.standardize_control_data:15
+msgid "The scaled control data."
+msgstr "Los datos de control escalados."

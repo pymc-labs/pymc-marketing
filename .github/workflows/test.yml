@@ -43,9 +43,9 @@ jobs:
           - "tests/clv/test_distributions.py"
           - "tests/clv/ --ignore=tests/clv/models/test_pareto_nbd.py --ignore=tests/clv/models/test_beta_geo_beta_binom.py --ignore=tests/clv/models/test_beta_geo.py --ignore=tests/clv/models/test_shifted_beta_geo.py --ignore=tests/clv/models/test_basic.py --ignore=tests/clv/test_distributions.py"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.config.python-version }}
           cache: "pip"
@@ -78,9 +78,9 @@ jobs:
           - "tests/clv/models/test_pareto_nbd.py"
           - "--ignore tests/clv/models/test_beta_geo_beta_binom.py --ignore tests/clv/models/test_pareto_nbd.py"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: "pip"

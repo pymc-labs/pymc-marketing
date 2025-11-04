@@ -1,0 +1,90 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.metrics.rst:2
+#: c83248f7d4dd4f1289c95ce7a6cc901f
+msgid "metrics"
+msgstr "métricas"
+
+#: 298893eb4de34f33a1abb9d2be6b0c56 of pymc_marketing.metrics:1
+msgid "Evaluation Metrics."
+msgstr "Métricas de Evaluación."
+
+#: ../source/api/generated/pymc_marketing.metrics.rst:13
+#: 47f9d504f23c4570a109cd04508ca2f9
+msgid "Functions"
+msgstr "Funciones"
+
+#: ../source/api/generated/pymc_marketing.metrics.rst:21:<autosummary>:1
+#: 82ad7d218d8845368b9973517e3bb04f
+msgid ""
+":py:obj:`crps <pymc_marketing.metrics.crps>`\\ \\(y\\_true\\, y\\_pred\\[\\,"
+" sample\\_weight\\]\\)"
+msgstr ""
+":py:obj:`crps <pymc_marketing.metrics.crps>`\\ \\(y\\_true\\, y\\_pred\\[\\,"
+" sample\\_weight\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.metrics.rst:21:<autosummary>:1
+#: 5c8450f45a41473e9e2ac56790569f24
+msgid ""
+"Compute the (possibly weighted) average of the continuous ranked probability"
+" score."
+msgstr ""
+"Calcule el promedio (posiblemente ponderado) de la puntuación de "
+"probabilidad continua clasificada."
+
+#: ../source/api/generated/pymc_marketing.metrics.rst:21:<autosummary>:1
+#: e5b955ddf97f427994cbc170b605d5ff
+msgid ":py:obj:`nmae <pymc_marketing.metrics.nmae>`\\ \\(y\\_true\\, y\\_pred\\)"
+msgstr ":py:obj:`nmae <pymc_marketing.metrics.nmae>`\\ \\(y\\_true\\, y\\_pred\\)"
+
+#: ../source/api/generated/pymc_marketing.metrics.rst:21:<autosummary>:1
+#: 274f4177cdd64bf4b42c152cd3c9053e
+msgid "Calculate the Normalized Mean Absolute Error (NMAE)."
+msgstr "Calcule el Error Absoluto Medio Normalizado (EAMN)."
+
+#: ../source/api/generated/pymc_marketing.metrics.rst:21:<autosummary>:1
+#: 60633c9592f242b8bb399834c3e1d4e7
+msgid ":py:obj:`nrmse <pymc_marketing.metrics.nrmse>`\\ \\(y\\_true\\, y\\_pred\\)"
+msgstr ":py:obj:`nrmse <pymc_marketing.metrics.nrmse>`\\ \\(y\\_true\\, y\\_pred\\)"
+
+#: ../source/api/generated/pymc_marketing.metrics.rst:21:<autosummary>:1
+#: 24f94d39e52947f8add10537d4922ee5
+msgid "Calculate the Normalized Root Mean Square Error (NRMSE)."
+msgstr "Calcule el Error Cuadrático Medio Normalizado (NRMSE)."
+
+#: ../source/api/generated/pymc_marketing.metrics.rst:21:<autosummary>:1
+#: 771fdcc6f3ae4b91b57112eca188471d
+msgid ""
+":py:obj:`per_observation_crps "
+"<pymc_marketing.metrics.per_observation_crps>`\\ \\(y\\_true\\, y\\_pred\\)"
+msgstr ""
+":py:obj:`per_observation_crps "
+"<pymc_marketing.metrics.per_observation_crps>`\\ \\(y\\_true\\, y\\_pred\\)"
+
+#: ../source/api/generated/pymc_marketing.metrics.rst:21:<autosummary>:1
+#: 36dddafaeaad4b1a8606964b58e8d88f
+msgid ""
+"Compute the continuous ranked probability score (CRPS) for each observation."
+msgstr ""
+"Calcule el puntaje de probabilidad clasificado continuo (CRPS) para cada "
+"observación."

@@ -20,8 +20,8 @@ import numpy as np
 import numpy.typing as npt
 import pymc as pm
 import pytensor.tensor as pt
+from numpy.core.multiarray import normalize_axis_index
 from pymc.distributions.dist_math import check_parameters
-from pytensor.npy_2_compat import normalize_axis_index
 
 
 class ConvMode(str, Enum):
@@ -126,6 +126,88 @@ def batched_convolution(
 
     conv = pt.signal.convolve1d(padded_x, w, mode="valid")
     return pt.moveaxis(conv, -1, axis + conv.ndim - x.ndim)
+
+
+def binomial_adstock(
+    x,
+    alpha: float = 0.5,
+    l_max: int = 12,
+    normalize: bool = False,
+    axis: int = 0,
+    mode: ConvMode = ConvMode.After,
+):
+    R"""Binomial adstock transformation.
+
+    Binomial adstock assumes that the effect of one unit of spend
+    at time :math:`0 \le t \le l_{max} + 1` is given by
+
+    .. math::
+
+        f(t) = \left(1 - \frac{t}{L+ 1} \right)^{\left(\frac{1}{\alpha} - 1\right)}.
+
+    Notice that :math:`f(l_{max} + 1)=0`.
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        import arviz as az
+        from pymc_marketing.mmm.transformers import binomial_adstock
+        plt.style.use('arviz-darkgrid')
+        l_max = 12
+        params = [ 0.1, 0.3, 0.5, 0.7, 0.9]
+        spend = np.zeros(15)
+        spend[0] = 1
+        ax = plt.subplot(111)
+        x = np.arange(len(spend))
+        for a in params:
+            y = binomial_adstock(spend, alpha=a, l_max=l_max).eval()
+            plt.plot(x, y, label=f'alpha = {a}')
+        plt.xlabel('time since spend', fontsize=12)
+        plt.title(f'Binomial Adstock with l_max = {l_max}', fontsize=14)
+        plt.ylabel('f(time since spend)', fontsize=12)
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width * 0.65, box.height])
+        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        plt.show()
+
+    Parameters
+    ----------
+    x : tensor
+        Input tensor.
+    alpha : float, by default 0.5
+        Retention rate of ad effect. Must be between 0 and 1.
+    l_max : int, by default 12
+        Maximum duration of carryover effect.
+    normalize : bool, by default False
+        Whether to normalize the weights.
+    axis : int
+        The axis of ``x`` along witch to apply the convolution
+    mode : ConvMode, optional
+        The convolution mode determines how the convolution is applied at the boundaries
+        of the input signal, denoted as "x." The default mode is ConvMode.After.
+
+        - ConvMode.After: Applies the convolution with the "Adstock" effect, resulting in a trailing decay effect.
+        - ConvMode.Before: Applies the convolution with the "Excitement" effect, creating a leading effect
+            similar to the wow factor.
+        - ConvMode.Overlap: Applies the convolution with both "Pull-Forward" and "Pull-Backward" effects,
+            where the effect overlaps with both preceding and succeeding elements.
+
+    Returns
+    -------
+    tensor
+        Transformed tensor.
+
+    """
+    alpha = check_parameters(
+        alpha, [pt.gt(alpha, 0), pt.le(alpha, 1)], msg="0 < alpha <= 1"
+    )
+    rescaled_alpha = pt.as_tensor(1 / alpha - 1)[..., None]
+    lag_tensor = pt.as_tensor(l_max + 1)[..., None]
+    w = pt.power(1 - pt.arange(l_max, dtype=x.dtype) / lag_tensor, rescaled_alpha)
+    w = w / pt.sum(w, axis=-1, keepdims=True) if normalize else w
+    return batched_convolution(x, w, axis=axis, mode=mode)
 
 
 def geometric_adstock(
@@ -425,6 +507,12 @@ def logistic_saturation(x, lam: npt.NDArray | float = 0.5):
     .. math::
         f(x) = \frac{1 - e^{-\lambda x}}{1 + e^{-\lambda x}}
 
+    The logistic saturation function reaches the half-saturation point at
+    :math:`x = \frac{ln(3)}{\lambda}`. This means the half-saturation point
+    is approximately :math:`1/\lambda`. If you want to set a prior on the
+    exact half-saturation point, you can use the inverse_scaled_logistic_saturation
+    function, available in this package.
+
     .. plot::
         :context: close-figs
 
@@ -451,7 +539,8 @@ def logistic_saturation(x, lam: npt.NDArray | float = 0.5):
     x : tensor
         Input tensor.
     lam : float or array-like, optional, by default 0.5
-        Saturation parameter.
+        Represents the efficiency of the channel.
+        Larger values represent a more efficient channel.
 
     Returns
     -------
@@ -500,7 +589,7 @@ def inverse_scaled_logistic_saturation(
     x : tensor
         Input tensor.
     lam : float or array-like, optional, by default 0.5
-        Saturation parameter.
+        The half-saturation point. Larger values represent less efficient channels.
     eps : float or array-like, optional, by default ln(3)
         Scaling parameter. ln(3) results in halfway saturation at lam
 
@@ -595,6 +684,13 @@ def tanh_saturation(
     .. math::
         f(x) = b \tanh \left( \frac{x}{bc} \right)
 
+    The tanh saturation function has a nice property that is useful when
+    setting priors. The slope of the function when x is zero is
+    :math:`\frac{1}{c}`. This means that you can set a prior by considering
+    how many units of media are required to acquire the first customer. Unlike most
+    other saturation functions, the slope at 0 is independent of the saturation
+    point.
+
     .. plot::
         :context: close-figs
 
@@ -628,9 +724,12 @@ def tanh_saturation(
     x : tensor
         Input tensor.
     b : float, by default 0.5
-        Number of users at saturation. Must be non-negative.
+        The saturation point. It represents the maximium number of
+        customers that could be acquired through this channel at any
+        point time. Must be non-negative.
     c : float, by default 0.5
-        Initial cost per user. Must be non-zero.
+        Initial cost per user. Larger values represent less efficient channels.
+        Must be non-zero.
 
     Returns
     -------
@@ -804,17 +903,13 @@ def michaelis_menten(
 ) -> float | Any:
     r"""Evaluate the Michaelis-Menten function for given values of x, alpha, and lambda.
 
-    The Michaelis-Menten function models enzyme kinetics and describes how the rate of
-    a chemical reaction increases with substrate concentration until it reaches its
-    maximum value.
-
     .. math::
         \alpha \cdot \frac{x}{\lambda + x}
 
     where:
-     - :math:`x`: Channel spend or substrate concentration.
-     - :math:`\alpha`: Maximum contribution or efficiency factor.
-     - :math:`\lambda` (k): Michaelis constant, representing the threshold substrate concentration.
+     - :math:`x`: Channel spend.
+     - :math:`\alpha`: Maximum contribution.
+     - :math:`\lambda` (k): The half-saturation point.
 
     .. plot::
         :context: close-figs
@@ -872,9 +967,11 @@ def michaelis_menten(
     x : float
         The spent on a channel.
     alpha : float
-        The maximum contribution a channel can make.
+        The saturation point. It represents the maximium number of
+        customers that could be acquired through this channel at any
+        point time. Must be non-negative.
     lam : float
-        The Michaelis constant for the given enzyme-substrate system.
+        The half-saturation point. Larger values represent less efficient channels.
 
     Returns
     -------
@@ -940,7 +1037,7 @@ def hill_function(
         The independent variable, typically representing the concentration of a
         substrate or the intensity of a stimulus.
     slope : float
-        The slope of the hill. Must pe non-positive.
+        The slope of the hill. Must be non-positive.
     kappa : float
         The half-saturation point as :math:`f(\kappa) = 0.5` for any value of :math:`s` and :math:`\kappa`.
 

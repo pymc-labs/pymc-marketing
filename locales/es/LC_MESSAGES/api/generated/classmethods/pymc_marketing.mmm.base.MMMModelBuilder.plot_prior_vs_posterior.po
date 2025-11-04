@@ -1,0 +1,140 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_vs_posterior.rst:2
+#: 98d3ad3013d94ea1acde6d2e985a5c2b
+msgid "MMMModelBuilder.plot\\_prior\\_vs\\_posterior"
+msgstr "MMMModelBuilder.plot\\_prior\\_vs\\_posterior"
+
+#: b17bcfd1ccc547df959ff24093b8102a of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_vs_posterior:2
+msgid ""
+"Plot the prior vs posterior distribution for a specified variable in a 3 "
+"columngrid layout."
+msgstr ""
+"Trace la distribución previa frente a la distribución posterior para una "
+"variable especificada en un diseño de cuadrícula de 3 columnas."
+
+#: 85af4c34872940ee914d163713cda838 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_vs_posterior:4
+msgid ""
+"This function generates KDE plots for each MMM channel, showing the prior "
+"predictive and posterior distributions with their respective means "
+"highlighted. It sorts the plots either alphabetically or based on the "
+"difference between the posterior and prior means, with the largest "
+"difference (posterior - prior) at the top."
+msgstr ""
+"Esta función genera gráficos KDE para cada canal MMM, mostrando las "
+"distribuciones predictivas anteriores y posteriores con sus respectivas "
+"medias resaltadas. Ordena los gráficos ya sea alfabéticamente o en función "
+"de la diferencia entre las medias posteriores y anteriores, con la mayor "
+"diferencia (posterior - anterior) en la parte superior."
+
+#: ded7de413a184ff3ad6fcfb04e32f366 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_vs_posterior
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: aaa6e282142442c1bbc0f3fe54211d7f of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_vs_posterior:11
+msgid "**var_name: str**"
+msgstr "**var_name: str**"
+
+#: d02b1b3eacf246f4bb686b365b9d9a11 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_vs_posterior:12
+msgid "The variable to analyze (e.g., 'adstock_alpha')."
+msgstr "La variable a analizar (por ejemplo, 'adstock_alpha')."
+
+#: 48670032e95b4277bb72055cd5be2906 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_vs_posterior:14
+msgid "**alphabetical_sort: bool, optional**"
+msgstr "**orden_alfabético: bool, opcional**"
+
+#: 9d973433c6e54c6c84dd2f8d59086ee2 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_vs_posterior:15
+msgid ""
+"Whether to sort the channels alphabetically (True) or by the difference "
+"between the posterior and prior means (False). Default is True."
+msgstr ""
+"Si se deben ordenar los canales alfabéticamente (Verdadero) o por la "
+"diferencia entre las medias posterior y previa (Falso). El valor "
+"predeterminado es Verdadero."
+
+#: 8fd94c733a35463c84ae1dff6d7ca424 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_vs_posterior:18
+msgid "**figsize** : :class:`python:tuple` of :class:`python:int`, optional"
+msgstr "**figsize** : :class:`python:tuple` de :class:`python:int`, opcional"
+
+#: 73fbc20788654cc1bdf29628d77c177f of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_vs_posterior:17
+msgid "python:tuple of python:int, optional"
+msgstr "python:tupla de python:int, opcional"
+
+#: 595070244507461d8dbb914812204fc1 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_vs_posterior:19
+msgid ""
+"Figure size in inches. If None, it will be calculated based on the number of"
+" channels."
+msgstr ""
+"Tamaño de la figura en pulgadas. Si es None, se calculará en función del "
+"número de canales."
+
+#: 8ca42f036f1240d3903182cbe2693b7b of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_vs_posterior
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 80e900316ef54ea08b74c4fa52a1d327 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_vs_posterior:25
+msgid "**fig** : :obj:`plt.Figure`"
+msgstr "**fig** : :obj:`plt.Figure`"
+
+#: e5fcb9ba5ccc4048ac1710759ba217eb of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_vs_posterior:24
+msgid "plt.Figure"
+msgstr "plt.Figure"
+
+#: 256cd7e472264c0e8f44b0fb5c3f1e50 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_vs_posterior:26
+msgid "The matplotlib figure object"
+msgstr "El objeto figura de matplotlib"
+
+#: 09f73ad0a5a44257a3e57ef73c37d836 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_vs_posterior
+msgid "Raises"
+msgstr "Aumentos"
+
+#: c67310d2ea5248e2bf06409c22db7284 f7ec24727e1e4c159455408b35c4c1d1 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_vs_posterior:33
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_vs_posterior:36
+msgid ":obj:`ValueError`"
+msgstr ":obj:`ValueError`"
+
+#: 2d7d3c68decd46fe994f5076c80f0a65 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_vs_posterior:34
+msgid "If the required attributes (prior, posterior) were not found."
+msgstr "Si no se encontraron los atributos requeridos (anterior, posterior)."
+
+#: a723071a908248beb4f20bb321b598b7 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_vs_posterior:37
+msgid "If var_name is not a string."
+msgstr "Si {var_name} no es una cadena."

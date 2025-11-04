@@ -1,0 +1,1321 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:10003
+#: 67dad46917554efbae0b28a738d7f28d
+msgid "MMM End-to-End Case Study"
+msgstr "Caso de Estudio Completo de MMM"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:10005
+#: 427f8af3682e44d3926c1fac206fc1dd
+msgid ""
+"In today's competitive business landscape, optimizing marketing spend across"
+" channels is crucial for maximizing return on investment and driving "
+"business growth. This notebook demonstrates how to leverage PyMC-Marketing's"
+" Media Mix Modeling (MMM) to gain actionable insights into marketing "
+"effectiveness and optimize budget allocation."
+msgstr ""
+"En el competitivo entorno empresarial actual, optimizar el gasto de "
+"marketing en todos los canales es crucial para maximizar el retorno de "
+"inversión y fomentar el crecimiento empresarial. Este cuaderno muestra cómo "
+"aprovechar el Modelado de Mezcla de Medios (MMM) de PyMC-Marketing para "
+"obtener ideas útiles sobre la efectividad del marketing y optimizar la "
+"asignación del presupuesto."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:10007
+#: 424388f255ea4bd2bcb183372a8cf7c0
+msgid ""
+"We'll walk through a real-world case study using data from a [PyData Global "
+"2022](https://pydata.org/global2022/) presentation ([Hajime Takeda - Media "
+"Mix Modeling:How to Measure the Effectiveness of "
+"Advertising](https://www.youtube.com/watch?v=u4U_PUTasPQ)). Our goal is to "
+"show how MMM can help marketing teams:"
+msgstr ""
+"Recorreremos un caso de estudio del mundo real utilizando datos de una "
+"presentación de [PyData Global 2022](https://pydata.org/global2022/) "
+"([Hajime Takeda - Media Mix Modeling: How to Measure the Effectiveness of "
+"Advertising](https://www.youtube.com/watch?v=u4U_PUTasPQ)). Nuestro objetivo"
+" es mostrar cómo el MMM puede ayudar a los equipos de marketing:"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:10009
+#: 5dc5da2d73da429ebf32c553c3eb7da9
+msgid "Quantify the impact of different marketing channels on sales"
+msgstr ""
+"Cuantificar el impacto de diferentes canales de marketing en las ventas"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:10010
+#: 8ed9aa05d6394e6f8d3b11b873cfb789
+msgid "Understand saturation effects and diminishing returns"
+msgstr ""
+"Entender los efectos de saturación y la ley de los rendimientos decrecientes"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:10011
+#: 77ec3c03e2c846238d56be9cf604de08
+msgid "Identify opportunities to reallocate budget for improved performance"
+msgstr ""
+"Identificar oportunidades para reubicar el presupuesto y mejorar el "
+"rendimiento"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:10012
+#: 55d886d65a144498b8e7724702e80c1b
+msgid "Make data-driven decisions about future marketing investments"
+msgstr ""
+"Tomar decisiones basadas en datos sobre inversiones futuras en marketing"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:10014
+#: a1ef58fe70174811ac35b92c554951a6
+msgid "**Outline**"
+msgstr "**Esquema**"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:10016
+#: a340c0f4c66e415ab06900998049e5d9
+msgid "Data Preparation and Exploratory Analysis"
+msgstr "Preparación de Datos y Análisis Exploratorio"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:10017
+#: 76e5ad118e0b4a218dfb4fe1206330bb
+msgid "Model Specification and Fitting"
+msgstr "Especificación y Ajuste del Modelo"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:10018
+#: 68cca5e256b3400e92b9a0ab7006d058
+msgid "Model Diagnostics and Validation"
+msgstr "Diagnósticos y Validación del Modelo"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:10019
+#: 826335984cec49b6bc5257b4b7e41e2f
+msgid "Marketing Channel Deep Dive"
+msgstr "Análisis Detallado de Canales de Marketing"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:10020
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:500006
+#: 5d754109d39c4ab8a6fe24d70a492741 db3b9fd766f3417884c60189c89d5d5b
+msgid "Channel Contributions"
+msgstr "Contribuciones del Canal"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:10021
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:550002
+#: 4f4f331696dd4d96a4da375ea04194d2 5c83ae636dd14e1484606e3bd7afb0e8
+msgid "Saturation Curves"
+msgstr "Curvas de Saturación"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:10022
+#: 543c79dee6654937a65af87a7530ddc8
+msgid "Return on Ad Spend (ROAS)"
+msgstr "Retorno sobre Gasto Publicitario (ROAS)"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:10023
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:690002
+#: 108112c5a1374d03be47614fafd861ab c633690154ba456eaf88cf41dd81cca4
+msgid "Out-of-Sample Predictions"
+msgstr "Predicciones Fuera de Muestra"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:10024
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:820002
+#: 0fb231c3b9a64f1fa0a94ee65dc6d884 f29ccb905995481b92fee20a1588cc63
+msgid "Budget Optimization"
+msgstr "Optimización del Presupuesto"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:10025
+#: 6c0a94118f4d4e198a3dfff341efc69b
+msgid "Key Takeaways and Next Steps"
+msgstr "Conclusiones Clave y Próximos Pasos"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:10028
+#: 9d1a5e8937b74bb1a2a77ca4294a5369
+#, python-brace-format
+msgid ""
+"In this notebook we guide you through what a typical MMM first iteration "
+"looks like (note that what a first iteration means depends on the business "
+"context). We focus on the application of the model for a concrete business "
+"case. If you want to know more about the model specification please refer to"
+" the {ref}`mmm_example` notebook."
+msgstr ""
+"En este cuaderno te guiamos a través de cómo se ve una primera iteración "
+"típica de MMM (ten en cuenta que lo que significa una primera iteración "
+"depende del contexto empresarial). Nos centramos en la aplicación del modelo"
+" para un caso de negocio concreto. Si deseas saber más sobre la "
+"especificación del modelo, por favor consulta el cuaderno "
+"{ref}`mmm_example`."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:20002
+#: 104b3568ae2648ba96d90219588ec0a5
+msgid "Prepare Notebook"
+msgstr "Preparar Cuaderno"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:20004
+#: abe9d9402542445f8eeed4ed3be3861e
+msgid "We load the necessary libraries and set the notebook's configuration."
+msgstr "Cargamos las bibliotecas necesarias y configuramos el cuaderno."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:50002
+#: 4059fcad98dc481ca438c1ac0574ded0
+msgid "Load Data"
+msgstr "Cargar Datos"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:50004
+#: 152eadddf2a940e2bd1d5bcdfbd9ee0d
+msgid ""
+"We load the data from a CSV file as a pandas DataFrame. We also do some "
+"light data cleaning following the filtering of the original case study. In "
+"essence, we are filtering and renaming certain marketing channels."
+msgstr ""
+"Cargamos los datos de un archivo CSV como un DataFrame de pandas. También "
+"realizamos una limpieza ligera de datos siguiendo el filtrado del caso de "
+"estudio original. En esencia, estamos filtrando y renombrando ciertos "
+"canales de marketing."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:70002
+#: a077a6058d7b49ffab34e59ec1ca9141
+msgid "Exploratory Data Analysis"
+msgstr "Análisis Exploratorio de Datos"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:70004
+#: 299309e1b93241bfb3a59900256fc870
+msgid ""
+"We should always start looking at the data! We can start by plotting the "
+"target variable, i.e. the sales."
+msgstr ""
+"¡Siempre deberíamos comenzar observando los datos! Podemos comenzar "
+"graficando la variable objetivo, es decir, las ventas."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:90002
+#: 04974886ab614bc8a5d984a3af64465f
+msgid ""
+"This time series, which comes in weekly granularity, has a clear yearly "
+"seasonality pattern and apparently a mild downward trend."
+msgstr ""
+"Esta serie temporal, que viene en granularidad semanal, tiene un claro "
+"patrón de estacionalidad anual y aparentemente una ligera tendencia "
+"descendente."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:100002
+#: 88f0e177c13e4ce4b83811a57f826ce0
+msgid ""
+"Next, let's look into the marketing channels spend data. We first look into "
+"the share to get a feeling on the relative spend across channels."
+msgstr ""
+"A continuación, analicemos los datos de gasto de los canales de marketing. "
+"Primero miramos la participación para tener una idea del gasto relativo "
+"entre canales."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:120002
+#: 55e815385e7f45479d156af738f82f6b
+msgid ""
+"In this specific example we see that `Direct Mail` is the channel with the "
+"highest spend, followed by `Newspaper` and `Online Display`."
+msgstr ""
+"En este ejemplo específico vemos que `Direct Mail` es el canal con el gasto "
+"más alto, seguido de `Newspaper` y `Online Display`."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:130002
+#: b933ef3120dc415fb8a952e418d7b2ee
+msgid "Next, we look into the time series of each of the marketing channels."
+msgstr ""
+"A continuación, examinamos las series temporales de cada uno de los canales "
+"de marketing."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:150002
+#: 982fd80df08e4ada82b3e0d198f86409
+msgid ""
+"We see an overall decerease spend over time. This might explain the downward"
+" trend in the sales time series."
+msgstr ""
+"Observamos una disminución general del gasto a lo largo del tiempo. Esto "
+"podría explicar la tendencia descendente en la serie temporal de ventas."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:160002
+#: 25bf690dbb4d4f589a26d20930a4304d
+msgid ""
+"Next, we can compute the correlation between the marketing channels and the "
+"sales."
+msgstr ""
+"Luego, podemos calcular la correlación entre los canales de marketing y las "
+"ventas."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:160005
+#: 79055b0a16e543bc99531e4644e40454
+msgid ""
+"We all know that correlation does not imply causation. However, it is a good"
+" idea to look into the correlation between the marketing channels and the "
+"target variable. This can hel us spot issues in the data (very commom in "
+"real cases) and inspire some feature engineering."
+msgstr ""
+"Todos sabemos que la correlación no implica causalidad. Sin embargo, es una "
+"buena idea observar la correlación entre los canales de marketing y la "
+"variable objetivo. Esto puede ayudarnos a detectar problemas en los datos "
+"(muy comunes en casos reales) e inspirar algo de ingeniería de "
+"características."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:180002
+#: 123994fff87b474b8ab3a6eccab38ba5
+msgid ""
+"The channels with the highest correlation with the sales are `TV`, `Insert`,"
+" and `Online Display`. Observe that the biggest channel in spend, `Direct "
+"Mail`, has the lowest correlation."
+msgstr ""
+"Los canales con la correlación más alta con las ventas son `TV`, `Insert`, y"
+" `Online Display`. Observa que el canal más grande en gasto, `Direct Mail`, "
+"tiene la correlación más baja."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:190002
+#: 78db19e0d23c4ca4b38699240b9711d1
+msgid "Train Test Split"
+msgstr "División Entrenamiento-Prueba"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:190004
+#: 76a3e41043744dd4bbd673cbac755884
+msgid ""
+"We are now ready to fit the model. We start by splitting the data into "
+"training and testing."
+msgstr ""
+"Ahora estamos listos para ajustar el modelo. Comenzamos dividiendo los datos"
+" en entrenamiento y prueba."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:190007
+#: d07cac76627c489c9350d69fe551ece7
+#, python-brace-format
+msgid ""
+"In a real case scenario you should use more data for training than for "
+"testing (see {ref}`mmm_time_slice_cross_validation`). In this case we are "
+"using a small dataset for demonstrative purposes."
+msgstr ""
+"En un escenario de caso real, deberías usar más datos para entrenamiento que"
+" para prueba (vea {ref}`mmm_time_slice_cross_validation`). En este caso "
+"estamos usando un conjunto de datos pequeño para fines demostrativos."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:220002
+#: 45c6bd03bf8848ba8819c01caf58c45d
+msgid "Model Specification"
+msgstr "Especificación del Modelo"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:220004
+#: 0519a403875b46689ddf328665a53c98
+msgid ""
+"Assuming we are working on the first iteration, we typically would not have "
+"lift tests data to calibrate the model. This is fine, we can start with a "
+"spends priors to get started."
+msgstr ""
+"Suponiendo que estamos trabajando en la primera iteración, generalmente no "
+"tendríamos datos de pruebas de elevación para calibrar el modelo. Esto está "
+"bien, podemos comenzar con prior de gastos para empezar."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:220008
+#: a471a4c2e7f147cd84ab1ce177dbd31e
+#, python-brace-format
+msgid ""
+"Ideally, in the next iteration we should have some of these lift tests to "
+"calibrate the model. For more details see {ref}`mmm_lift_test` and the "
+"{ref}`mmm_roas` case study notebook."
+msgstr ""
+"Idealmente, en la próxima iteración deberíamos tener algunas de estas "
+"pruebas de elevación para calibrar el modelo. Para más detalles, consulte el"
+" cuaderno de caso de estudio {ref}`mmm_lift_test` y {ref}`mmm_roas`."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:220011
+#: 8f34190b0fa14316aa483b602bdd2a3a
+msgid ""
+"The idea behind the spends priors is that we use the spend shares as a proxy"
+" for the effect of the media channels on the sales. This is not perfect but "
+"can be a good starting point. In essence, we are giving the higher spend "
+"channels more flexibility to fit the data with a wider prior. Let's see how "
+"this looks like. First, we compute the spend shares (on the training data!)."
+msgstr ""
+"La idea detrás de los priors de gasto es que usamos las proporciones de "
+"gasto como un proxy para el efecto de los canales de medios en las ventas. "
+"Esto no es perfecto, pero puede ser un buen punto de partida. En esencia, "
+"estamos dando a los canales de mayor gasto más flexibilidad para ajustar los"
+" datos con un prior más amplio. Veamos cómo se ve esto. Primero, calculamos "
+"las proporciones de gasto (¡en los datos de entrenamiento!)."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:240002
+#: 0f96de7a84944cb1b4de90306a5ac031
+msgid ""
+"Next, we use these spend shares to set the prior of the model using the "
+"model configuration."
+msgstr ""
+"A continuación, utilizamos estas proporciones de gasto para establecer el "
+"prior del modelo utilizando la configuración del modelo."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:260002
+#: 72037c76304149a5b8e704b807d51c67
+#, python-brace-format
+msgid ""
+"We are now ready to specify the model (see {ref}`mmm_example` for more "
+"details). As the yearly seasonal component is not that strong, we use few "
+"Fourier terms."
+msgstr ""
+"Ahora estamos listos para especificar el modelo (consulte {ref}`mmm_example`"
+" para obtener más detalles). Dado que el componente estacional anual no es "
+"tan fuerte, usamos pocos términos de Fourier."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:280002
+#: acff33a2168044e2ad829172d46bceb0
+msgid "Prior Predictive Checks"
+msgstr "Verificaciones Predictivas Previas"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:280004
+#: 08337874e6cc49eda377a5c7b8ec6588
+msgid ""
+"We can now generate prior predictive samples to see how the model behaves "
+"under the prior specification."
+msgstr ""
+"Ahora podemos generar muestras predictivas previas para ver cómo se comporta"
+" el modelo bajo la especificación previa."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:300002
+#: 0b6d3bb1be434d26a81443a0230bccc2
+msgid ""
+"Overall, the priors are not very informative and the ranges is approximately"
+" one order of magnitude of the observed data. Note that the choice of "
+"likelihood as a truncated normal is to avoid negative values for the target "
+"variable."
+msgstr ""
+"En general, los priors no son muy informativos y los rangos están "
+"aproximadamente a un orden de magnitud de los datos observados. Tenga en "
+"cuenta que la elección de la verosimilitud como una normal truncada es para "
+"evitar valores negativos para la variable objetivo."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:310002
+#: 943a0a9439d643a1b38d058bb68d4c6e
+msgid ""
+"Let's look into the channel contribution share **before** fitting the model."
+msgstr ""
+"Veamos la proporción de contribución del canal **antes** de ajustar el "
+"modelo."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:330002
+#: a8cab6c726604a508afb9f6f4693e0d7
+msgid ""
+"We confirm these represent the spend shares as expected from the prior "
+"specification."
+msgstr ""
+"Confirmamos que estos representan las proporciones de gasto como se esperaba"
+" de la especificación previa."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:340002
+#: b0b3ce017c334e448f9ed321c061a773
+msgid "Model Fitting"
+msgstr "Ajuste del Modelo"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:340004
+#: 009a20a1963646b5ab285b1fd2e2b1bf
+msgid "We now fit the model to the training data."
+msgstr "Ahora ajustamos el modelo a los datos de entrenamiento."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:360002
+#: 01a87faafa80452bb2f0deeb01da6cbc
+msgid "Model Diagnostics"
+msgstr "Diagnósticos del Modelo"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:360004
+#: dcf224cb384c4a2a9cc9303d76a4048d
+msgid "Before looking into the results let's check some diagnostics."
+msgstr ""
+"Antes de examinar los resultados, vamos a verificar algunos diagnósticos."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:370002
+#: 8a69cc92bcda4495bae3b67461055054
+msgid "\\displaystyle 0"
+msgstr "\\displaystyle 0"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:380002
+#: 6a66c51b1f78460e805cf4df1b480746
+msgid "We do not have divergent transitions, which is good!"
+msgstr "No tenemos transiciones divergentes, lo cual es bueno!"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:400002
+#: 352dc8db2e724dc88457cdd401c50d83
+msgid ""
+"On the other hand, the R-hat statistics are all close to 1, which is also "
+"good!"
+msgstr ""
+"Por otro lado, todas las estadísticas R-hat están cerca de 1, ¡lo cual "
+"también es bueno!"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:410002
+#: 234160dbb856456fbac87f434200a2ce
+msgid "Next let's look into the model trace."
+msgstr "Ahora vamos a examinar el rastro del modelo."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:430002
+#: a2fc7aac33cc444fbfd34a570cc1fdac
+msgid ""
+"We see a good mixing in the trace, which is consistent with the good R-hat "
+"statistics."
+msgstr ""
+"Observamos una buena mezcla en el rastro, lo cual es consistente con los "
+"buenos estadísticos R-hat."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:440002
+#: 2b5e9df4e09546f0a69aa9031f4df6d6
+msgid "Posterior Predictive Checks"
+msgstr "Verificaciones Predictivas Posteriores"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:440004
+#: 263ccb11e231475ea55b31cb4bf2cb8f
+msgid ""
+"As our model and posterior samples are looking good, we can now look into "
+"the posterior predictive checks."
+msgstr ""
+"Como nuestro modelo y muestras posteriores parecen buenas, ahora podemos "
+"examinar las verificaciones predictivas posteriores."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:460002
+#: 06023218b0284a17be0cfcb19924d8b9
+msgid ""
+"The posterior predictive sales look quite reasonable. We are explaining a "
+"good amount of the variance in the data and the trends are well captured."
+msgstr ""
+"Las ventas predictivas posteriores parecen bastante razonables. Estamos "
+"explicando una buena cantidad de la varianza en los datos y las tendencias "
+"están bien capturadas."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:470002
+#: 86b67520262c479bb3697468bedf7b14
+msgid "We can look into the errors of the model:"
+msgstr "Podemos examinar los errores del modelo:"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:490002
+#: 1e5fd9b06e394052a04fd723df1d4524
+msgid "We do not detect any obvious patterns in the errors."
+msgstr "No detectamos patrones obvios en los errores."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:500002
+#: 7a6c5e120cbd4aa0bc87c00d44758341
+msgid "Media Deep Dive"
+msgstr "Análisis a Fondo de Medios"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:500004
+#: 99be27be8c654298b6b34556780804a4
+msgid ""
+"In this section we perform a deep dive into the media channels insights."
+msgstr ""
+"En esta sección realizamos un análisis a fondo de las ideas sobre los "
+"canales de medios."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:500009
+#: cf9290d531bd44bea001b0e5cc3f7c01
+msgid ""
+"Now that we are happy with the global model fit, we can look into the media "
+"and individual channels contributions."
+msgstr ""
+"Ahora que estamos satisfechos con el ajuste global del modelo, podemos "
+"examinar las contribuciones de los medios y de los canales individuales."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:500011
+#: cc838c95db524563834eee7c92f5aa8f
+msgid "We start by looking into the aggregated contributions."
+msgstr "Empezamos examinando las contribuciones agregadas."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:520002
+#: 1518544323c04343a132bc302cf9914c
+msgid "Next, we look into deeper into the components:"
+msgstr "A continuación, analizamos más a fondo los componentes:"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:540002
+#: b391a993de5f4111a65c5481d7047c4e
+msgid "Here are some interesting observations about the model:"
+msgstr "Aquí hay algunas observaciones interesantes sobre el modelo:"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:540004
+#: f83170164a844057b4623c002fb442de
+msgid ""
+"The `intercept` accounts for approximately $60\\%$ of the contribution. This"
+" is what people usually call the \"baseline\"."
+msgstr ""
+"El `intercepto` representa aproximadamente el $60\\%$ de la contribución. "
+"Esto es lo que la gente suele llamar \"línea base\"."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:540005
+#: c3efbfd84cb54ed3ad86c5a44f31f7e5
+msgid ""
+"The top media contribution channels are `Online Display`, `Direct Mail` and "
+"`TV`. In some sense we see how the model is averaging the spend share "
+"(prior) and the predictive power of the media channels (posterior) ."
+msgstr ""
+"Los principales canales de contribución de medios son `Online Display`, "
+"`Direct Mail` y `TV`. En cierto sentido, vemos cómo el modelo está "
+"promediando la proporción de gasto (prior) y el poder predictivo de los "
+"canales de medios (posterior)."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:550004
+#: 27159bb87d97409382ea0617ff3c67ec
+msgid ""
+"We continue our analysis by looking into the direct response curves. These "
+"will be the main input for the budget optimization step below."
+msgstr ""
+"Continuamos nuestro análisis examinando las curvas de respuesta directa. "
+"Estas serán la entrada principal para la optimización del presupuesto a "
+"continuación."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:570003
+#: c24b9fb0cb124c5da17491a49a86cbe7
+msgid ""
+"These curves by themselves can be a great input for marketing planning! One "
+"could use them to set the budget for the next periods and manually optimize "
+"the spend for these channels depending on the saturation points. This "
+"process can be a good starting point with engage with the team. That being "
+"said, we can do better with custom optimization rutines as described in the "
+"following sections."
+msgstr ""
+"Estas curvas por sí solas pueden ser una excelente entrada para la "
+"planificación de marketing. Uno podría usarlas para establecer el "
+"presupuesto para los próximos períodos y optimizar manualmente el gasto para"
+" estos canales en función de los puntos de saturación. Este proceso puede "
+"ser un buen punto de partida para involucrar al equipo. Sin embargo, podemos"
+" hacerlo mejor con rutinas de optimización personalizadas descritas en las "
+"siguientes secciones."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:570006
+#: 095d476f55dc470b8e7448f5076283d7
+msgid ""
+"Beside the direct response curves, we can look intro global contribution "
+"plots simulations. The idea is to vary the spend by globally multiplying the"
+" time series spend by a value $\\delta > 0$ and seeing the expected "
+"contribution. PyMC-Marketing also shows the $94\\%$ Highest Density Interval"
+" (HDI) of the simulations results."
+msgstr ""
+"Además de las curvas de respuesta directa, podemos examinar gráficos de "
+"simulaciones de contribuciones agregadas. La idea es variar el gasto "
+"multiplicando globalmente la serie temporal de gasto por un valor $\\delta >"
+" 0$ y viendo la contribución esperada. PyMC-Marketing también muestra el "
+"$94\\%$ Intervalo de Densidad de Probabilidad Más Alto (HDI) de los "
+"resultados de las simulaciones."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:590002
+#: 5f4d7bb04187414dbdfefef18f2dcffb
+msgid "We can clearly see the saturation effects for the different channels."
+msgstr ""
+"Podemos ver claramente los efectos de saturación para los diferentes "
+"canales."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:590004
+#: e0f29418d5114363bf0229f9835ded9a
+msgid ""
+"A complementary plot is to plot these same simulations against the actual "
+"spend:"
+msgstr ""
+"Un gráfico complementario es graficar estas mismas simulaciones contra el "
+"gasto real:"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:610002
+#: c18fbca9c95c433ea3c9b670b1fd1840
+msgid ""
+"The vertical lines show the spend from the observed data (i.e. $\\delta = 1 "
+"$ above). This plot clearly shows that, for example, `Direct Mail` is won't "
+"have much incremental contribution if we keep increasing the spend. On the "
+"other hand, channels like `Online Display` and `Insert` seem to be good "
+"candidates to increase the spend. These are the concrete actionable insights"
+" you can extract from these typo of models to optimize your media spend mix "
+"🚀!"
+msgstr ""
+"Las líneas verticales muestran el gasto de los datos observados (es decir, ="
+" 1 arriba). Este gráfico muestra claramente que, por ejemplo, `Direct Mail` "
+"no tendrá mucha contribución incremental si seguimos aumentando el gasto. "
+"Por otro lado, canales como `Online Display` e `Insert` parecen ser buenos "
+"candidatos para incrementar el gasto. Estas son las ideas accionables "
+"concretas que puedes extraer de este tipo de modelos para optimizar tu "
+"mezcla de gasto en medios 🚀!"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:620002
+#: 2aaede3a031f418a957a6c8cd4e9051e
+msgid "Return on Ads Spend (ROAS)"
+msgstr "Retorno sobre Gasto Publicitario (ROAS)"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:620004
+#: a1b659e7c31341adb1e172e7215292b7
+msgid ""
+"To have a more quantitative metric of efficiency we compute the Return on "
+"Ads Spend (ROAS) over the whole training period."
+msgstr ""
+"Para tener una métrica más cuantitativa de eficiencia, calculamos el Retorno"
+" sobre Gasto de Anuncios (ROAS) durante todo el período de entrenamiento."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:620006
+#: afe5c3927a0240dd9006dbc8e588a9ed
+msgid "To begin lets plot the contribution share for each channel."
+msgstr "Para comenzar, vamos a graficar la contribución por canal."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:640002
+#: 1ee1565ab96c4c02ab5cbc3ff9f663e5
+msgid ""
+"These contributions are of course influences by the spend levels. If we want"
+" to get a better picture of the efficiency of each channel we need to look "
+"into the Return on Ads Spend (ROAS). This is done by computing the ratio of "
+"the mean contribution and the spend for each channel."
+msgstr ""
+"Estas contribuciones están, por supuesto, influidas por los niveles de "
+"gasto. Si queremos obtener una mejor imagen de la eficiencia de cada canal, "
+"debemos observar el Retorno sobre Gasto de Anuncios (ROAS). Esto se hace "
+"calculando la proporción de la contribución media y el gasto para cada "
+"canal."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:660002
+#: 2b0b9909f4b14ed88928006c7ed91f28
+msgid ""
+"Here we see that the channels with the highest ROAS **on average** are "
+"`Online Display` and `Insert` whereas `Direct Mail` has the lowest ROAS. "
+"This is consistent with the previous findings analyzing the direct and "
+"global response curves."
+msgstr ""
+"Aquí vemos que los canales con el ROAS más alto **en promedio** son `Online "
+"Display` e `Insert`, mientras que `Direct Mail` tiene el ROAS más bajo. Esto"
+" es consistente con los hallazgos previos al analizar las curvas de "
+"respuesta directa y global."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:660005
+#: 5de3bb2bce434c71b1626f1cd36c46f3
+msgid ""
+"The large HDI intervals for the ROAS for the top channels come from the fact"
+" that the spend share of them during the training period is relatively "
+"small. Event though we use the spend share as priors, the overall spend "
+"levels are also reflected in the estimate (see for example how small the HDI"
+" is for `Direct Mail`)."
+msgstr ""
+"Los amplios intervalos del HDI para el ROAS de los canales principales "
+"provienen del hecho de que la proporción de gasto de ellos durante el "
+"período de entrenamiento es relativamente pequeña. Aunque usamos las "
+"proporciones de gasto como priors, los niveles generales de gasto también se"
+" reflejan en la estimación (ver, por ejemplo, cuán pequeño es el HDI para "
+"`Direct Mail`)."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:660007
+#: 116ab32e410c45b193b1fe37bb2a7a78
+msgid ""
+"We can see this as an opportunity! Based on this analysis we see that "
+"`Online Display` and `Insert` are the best channels to invest in. Hence, if "
+"we optimize our budget accordingly (more on the budget optimization below) "
+"we can improve our marketing mix and at the same time create more variance "
+"in the training data so that we get refined ROAS estimates for future "
+"iterations 😎."
+msgstr ""
+"¡Podemos ver esto como una oportunidad! Basándonos en este análisis, vemos "
+"que `Online Display` e `Insert` son los mejores canales en los que invertir."
+" Por lo tanto, si optimizamos nuestro presupuesto en consecuencia (más sobre"
+" la optimización del presupuesto a continuación), podemos mejorar nuestra "
+"mezcla de marketing y al mismo tiempo crear más variación en los datos de "
+"entrenamiento para obtener estimaciones de ROAS más refinadas para futuras "
+"iteraciones 😎."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:670002
+#: 14b459e7ea5c45b89bbb560c7845da3f
+msgid "It is also useful to compare the ROAS and the contribution share."
+msgstr "También es útil comparar el ROAS y la contribución por canal."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:690004
+#: c2e29710e8254ed586ca4bb21935236d
+msgid ""
+"Until now we have analyzed the model fit from the in-sample perspective. If "
+"we want to follow the model recommendations, we need to have evidence that "
+"the model is not only good in explaining the past but also good at making "
+"predictions. This is a key component to getting the buy in from the business"
+" stakeholders."
+msgstr ""
+"Hasta ahora hemos analizado el ajuste del modelo desde la perspectiva dentro"
+" de la muestra. Si queremos seguir las recomendaciones del modelo, "
+"necesitamos tener evidencia de que el modelo no solo es bueno explicando el "
+"pasado, sino también en hacer predicciones. Este es un componente clave para"
+" obtener el apoyo de los interesados comerciales."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:690006
+#: e53a177896854f7b9d9521a3cc2d252a
+msgid ""
+"The PyMC-Marketing MMM API allows to easily generate out-of-sample "
+"predictions from a fitted model as follows:"
+msgstr ""
+"La API de PyMC-Marketing MMM permite generar fácilmente predicciones fuera "
+"de muestra a partir de un modelo ajustado de la siguiente manera:"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:710002
+#: 36fd293432694b349c7b3165c268065b
+msgid ""
+"We can visualize and compare the in sample and out of sample predictions."
+msgstr ""
+"Podemos visualizar y comparar las predicciones de muestra y fuera de "
+"muestra."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:730002
+#: fec00a81c1124a12a1adf05aaec9d468
+msgid ""
+"Overall, both the in-sample and out-of-sample predictions look very "
+"reasonable."
+msgstr ""
+"En general, tanto las predicciones de muestra como las predicciones fuera de"
+" muestra parecen bastante razonables."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:730004
+#: f6faf4beeba14d50b5ae0f5657a5be2d
+msgid "Let's zoom in the out-of-sample predictions:"
+msgstr "Vamos a acercarnos a las predicciones fuera de muestra:"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:750002
+#: a61eb9f928f547a5aa2a17623e0f2c33
+msgid "These look actually very good!"
+msgstr "Estas predicciones parecen realmente muy buenas!"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:760004
+#: f428828e995b4e5ab9a1f88dd2c11341
+#, python-brace-format
+msgid ""
+"To have a concrete score metric we can use the Continuous Ranked Probability"
+" Score ([CRPS](https://towardsdatascience.com/crps-a-scoring-function-for-"
+"bayesian-machine-learning-models-dd55a7a337a8)). This is a generalization of"
+" the mean absolute error to the case of probabilistic predictions. For more "
+"detail see the {ref}`mmm_time_slice_cross_validation` notebook."
+msgstr ""
+"Para tener una métrica de puntuación concreta, podemos usar el Puntaje de "
+"Probabilidad Clasificada Continua "
+"([CRPS](https://towardsdatascience.com/crps-a-scoring-function-for-bayesian-"
+"machine-learning-models-dd55a7a337a8)). Esta es una generalización del error"
+" absoluto medio al caso de predicciones probabilísticas. Para más detalles, "
+"consulte el cuaderno {ref}`mmm_time_slice_cross_validation`."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:780002
+#: 932f724d5eb14aba97ef5934c8360560
+msgid ""
+"Interestingly enough, the model performance is better in the test set. There"
+" could me many reasons for it:"
+msgstr ""
+"Curiosamente, el rendimiento del modelo es mejor en el conjunto de prueba. "
+"Podría haber muchas razones para ello:"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:780004
+#: d919d3924b9443868c89ca782aa5b7d7
+msgid ""
+"The model is not capturing the end of the seasonality very well in the "
+"training set."
+msgstr ""
+"El modelo no está capturando bien el final de la estacionalidad en el "
+"conjunto de entrenamiento."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:780005
+#: 654bb37646cf470f9a7685c3ff1c4561
+msgid "There is less variability or complexity in the test set data."
+msgstr ""
+"Hay menos variabilidad o complejidad en los datos del conjunto de prueba."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:780006
+#: 01c8ebfc6913423a91e98ef75411da54
+msgid ""
+"The test set has fewer points, which could affect the CRPS calculation "
+"comparison."
+msgstr ""
+"El conjunto de prueba tiene menos puntos, lo que podría afectar la "
+"comparación del cálculo de CRPS."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:780008
+#: f0726924f2d0465d8e8130fef847034c
+#, python-brace-format
+msgid ""
+"In order to have a better comparison we should look into the time slice "
+"cross validation results as in the {ref}`mmm_time_slice_cross_validation` "
+"notebook."
+msgstr ""
+"Para tener una mejor comparación, deberíamos consultar los resultados de "
+"validación cruzada por intervalo de tiempo como en el cuaderno "
+"{ref}`mmm_time_slice_cross_validation`."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:790002
+#: bebdadb5f27349db93f9e84800a75b0f
+msgid "Next, we look into the out-of-sample channel contributions."
+msgstr ""
+"A continuación, examinamos las contribuciones de canales fuera de muestra."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:810002
+#: 2d9ed96f2d1c49d29c7518357df6bbf6
+msgid ""
+"We do not have the *true* values contributions to compare against because "
+"this is what we are trying to estimate on the first place. Nevertheless, we "
+"can still do the time slice cross validation at the channel level to analyze"
+" the stability of the out-of-sample predictions and media parameters "
+"(adstock and saturation)."
+msgstr ""
+"No tenemos para comparar las contribuciones de los valores *verdaderos* "
+"porque esto es lo que estamos tratando de estimar en primer lugar. Sin "
+"embargo, todavía podemos hacer la validación cruzada por intervalo de tiempo"
+" a nivel de canal para analizar la estabilidad de las predicciones fuera de "
+"muestra y los parámetros de medios (adstock y saturación)."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:820004
+#: 621213d9f2c947fbb7410893be0d979d
+#, python-brace-format
+msgid ""
+"In this las section we explain how to use PyMC-Marketing to perform "
+"optimization of the media budget allocation. The main idea is to use the "
+"response curves to optimize the spend. For more details see "
+"{ref}`mmm_budget_allocation_example` notebook."
+msgstr ""
+"En esta última sección explicamos cómo usar PyMC-Marketing para realizar la "
+"optimización de la asignación del presupuesto de medios. La idea principal "
+"es usar las curvas de respuesta para optimizar el gasto. Para más detalles, "
+"consulte el cuaderno {ref}`mmm_budget_allocation_example`."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:830002
+#: defb26e4852c4344935bf60537929425
+msgid ""
+"For this example, let us assume we want to re-allocate the budget of the "
+"tests set. The PyMC-Marketing MMM optimizer would assume we will equally "
+"allocate the budget to all channels over the next `num_periods` periods. "
+"Hence, when we specify the `budget` variable we are actually specifying the "
+"weekly budget (in this case). Therefore, it is important to understand the "
+"past average weekly spend per channel:"
+msgstr ""
+"Para este ejemplo, supongamos que queremos reasignar el presupuesto del "
+"conjunto de pruebas. El optimizador MMM de PyMC-Marketing asumiría que "
+"asignaremos equitativamente el presupuesto a todos los canales durante los "
+"próximos `num_periods` períodos. Por lo tanto, cuando especificamos la "
+"variable `budget`, en realidad estamos especificando el presupuesto semanal "
+"(en este caso). Por lo tanto, es importante entender el gasto semanal "
+"promedio pasado por canal:"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:860002
+#: f713ca39e76e493c91b211aa47206f14
+msgid ""
+"Let's plot the average weekly spend per channel for the *actual* test set."
+msgstr ""
+"Vamos a graficar el gasto promedio semanal por canal para el conjunto de "
+"prueba *real*."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:880002
+#: 305d954475904bbba2b93f41376c111b
+msgid ""
+"Observe that the spend distribution on the test set is considerably "
+"different from the train set. When planning future spends, this is usually "
+"the case as the team might be exploring new investment opportunities. For "
+"example that in the test set we have on average more spend on `Online "
+"Display` while less spend on `Insert`, both with high ROAS from the training"
+" data."
+msgstr ""
+"Observe que la distribución del gasto en el conjunto de prueba es "
+"considerablemente diferente del conjunto de entrenamiento. Al planificar "
+"gastos futuros, este suele ser el caso, ya que el equipo podría estar "
+"explorando nuevas oportunidades de inversión. Por ejemplo, en el conjunto de"
+" prueba tenemos en promedio más gasto en `Online Display` y menos gasto en "
+"`Insert`, ambos con alto ROAS de los datos de entrenamiento."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:900002
+#: ba01659a04f141c6bc63a58d340dea8f
+msgid ""
+"Next, let's talk about the variability of the allocation. Even if the model "
+"finds `Insert` as the most efficient channel, strategically is very hard to "
+"simply put $100\\%$ of the budget into this channel. A better strategy, "
+"which generally plays well with the stakeholders, is to allow a custom "
+"degree of flexibility and some upper and lower bounds for each channel "
+"budget."
+msgstr ""
+"A continuación, hablemos sobre la variabilidad de la asignación. Incluso si "
+"el modelo encuentra que `Insert` es el canal más eficiente, estratégicamente"
+" es muy difícil simplemente poner $100\\%$ del presupuesto en este canal. "
+"Una mejor estrategia, que generalmente juega bien con las partes "
+"interesadas, es permitir un grado de flexibilidad personalizado y algunos "
+"límites superiores e inferiores para cada presupuesto de canal."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:900004
+#: 9de2bffe2f184065bc59a9ce65fe19a1
+msgid ""
+"For example, we will allow a $50\\%$ difference on the past average weekly "
+"spend for each channel."
+msgstr ""
+"Por ejemplo, permitiremos una diferencia del $50\\%$ sobre el gasto semanal "
+"promedio pasado para cada canal."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:920002
+#: 34ece1e7c5ba45219796e64edc92521d
+msgid ""
+"Now we are ready to pass all this business requirements to the optimizer."
+msgstr ""
+"Ahora estamos listos para pasar todos estos requisitos de negocio al "
+"optimizador."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:940002
+#: 78b90992bfcd484eab9c2d94f507b9c4
+msgid "Let's visualize the results."
+msgstr "Vamos a visualizar los resultados."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:960002
+#: 237338120e5244b58e548c60ceef0869
+msgid ""
+"We verify that the sum of the budget allocation is the same as the initial "
+"budget."
+msgstr ""
+"Verificamos que la suma de la asignación del presupuesto sea la misma que el"
+" presupuesto inicial."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:980002
+#: ee316b9256044f6a94af83f05592d3e5
+msgid ""
+"The first thing we notice is how the spend on `Direct Mail` has been "
+"reduced. This is consistent with the previous findings that this channel is "
+"not very efficient. The spends has been distributed more evenly across the "
+"other channels. Interestingly, we see how the spend on `Online Display` is "
+"slightly reduced. This might be explained by the fact that this channel "
+"already had an average spend increase from the training to the test set."
+msgstr ""
+"Lo primero que notamos es cómo se ha reducido el gasto en `Direct Mail`. "
+"Esto es consistente con los hallazgos previos de que este canal no es muy "
+"eficiente. El gasto se ha distribuido más uniformemente entre los otros "
+"canales. Curiosamente, vemos cómo se reduce ligeramente el gasto en `Online "
+"Display`. Esto podría explicarse por el hecho de que este canal ya había "
+"tenido un aumento promedio de gasto desde el entrenamiento hasta el conjunto"
+" de prueba."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:990002
+#: dee0c57df86d411d8f4c4a182ebd3e87
+msgid ""
+"Next, we can look into the expected channel contributions with this new "
+"budget allocation over time."
+msgstr ""
+"A continuación, podemos analizar las contribuciones esperadas del canal con "
+"esta nueva asignación de presupuesto a lo largo del tiempo."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1010003
+#: e2ab7f932a574f458a8e6f217ca5286b
+msgid ""
+"Observe that uncertainty increases given the new level of spending. For "
+"example, historically spending for `Online Display` was in between $200$K to"
+" $250$K and we are now recommending around $350$K. The fact that this spend "
+"level has not been reached before is refelected in the increased uncertainty"
+" (yellow band)."
+msgstr ""
+"Observe que la incertidumbre aumenta dado el nuevo nivel de gasto. Por "
+"ejemplo, el gasto histórico en `Online Display` fue entre $200$K y $250$K y "
+"ahora estamos recomendando alrededor de $350$K. El hecho de que este nivel "
+"de gasto no se haya alcanzado antes se refleja en la mayor incertidumbre "
+"(banda amarilla)."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1020002
+#: 5d94554d80e6472eacce5683c3d12e06
+msgid ""
+"We can also obtain the average expected contributions per channel with the "
+"new budget allocation."
+msgstr ""
+"También podemos obtener las contribuciones esperadas promedio por canal con "
+"la nueva asignación de presupuesto."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1040002
+#: 8dd2fcaa9fed495ea390b07aeaaff38b
+msgid ""
+"Lastly, we want to compare the optimized budget allocation with the initial "
+"(naive) allocation. We compare this at two levels:"
+msgstr ""
+"Por último, queremos comparar la asignación del presupuesto optimizada con "
+"la asignación inicial (ingenua). Comparamos esto en dos niveles:"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1040004
+#: 7460d2a6c91f4802b0e6ee618934a1e3
+msgid ""
+"Channel contributions: We compute the difference between the optimized and "
+"naive channel contributions from the posterior predictive samples."
+msgstr ""
+"Contribuciones del canal: Calculamos la diferencia entre las contribuciones "
+"del canal optimizadas e ingenuas a partir de las muestras predictivas "
+"posteriores."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1040005
+#: 4b539a5d63cf4e8b9f996ae46c28e0ae
+msgid ""
+"Total Sales: We compute the difference between the optimized and naive total"
+" sales from the posterior predictive samples. In this case we include the "
+"intercept and seasonality, but we se the control variables to zero as in "
+"many cases we do not have them for the future."
+msgstr ""
+"Ventas Totales: Calculamos la diferencia entre las ventas totales "
+"optimizadas e ingenuas a partir de las muestras predictivas posteriores. En "
+"este caso, incluimos el intercepto y la estacionalidad, pero dejamos las "
+"variables de control en cero, ya que en muchos casos no las tenemos para el "
+"futuro."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1050002
+#: 8644a45fb1f841b6bf8526a9e83580b7
+msgid "Channel Contribution Comparison"
+msgstr "Comparación de Contribuciones de Canal"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1050004
+#: 0452d480fbec4f40a9fc30d2739215a2
+msgid ""
+"The first thing we need to do is to compute the naive channel contributions "
+"for the test period. We do this by simply setting these values as uniform "
+"across the test period and then using the model (trained on the training "
+"period) to compute the expected channel contributions."
+msgstr ""
+"Lo primero que necesitamos hacer es calcular las contribuciones de canal "
+"ingenuas para el periodo de prueba. Hacemos esto simplemente estableciendo "
+"estos valores como uniformes a lo largo del periodo de prueba y luego usando"
+" el modelo (entrenado en el periodo de entrenamiento) para calcular las "
+"contribuciones de canal esperadas."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1070002
+#: 6f6d70620f6749e390eb538313b16c84
+msgid "Let's visualize the optimized and naive channel contributions."
+msgstr ""
+"Vamos a visualizar las contribuciones de canal optimizadas y no optimizadas."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1090002
+#: 168facae74ec432286d9f16f69af7cbd
+msgid ""
+"We see indeed that the optimized allocation strategy is more efficient "
+"regarding the aggregated channel contributions. This is exactly what we were"
+" looking for!"
+msgstr ""
+"Vemos que, de hecho, la estrategia de asignación optimizada es más eficiente"
+" en cuanto a las contribuciones agregadas de los canales. ¡Esto es "
+"exactamente lo que estábamos buscando!"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1090004
+#: 34789209fae64f878d327a9912a19cc5
+msgid ""
+"We can quantify the percentage improvement of the optimized allocation by "
+"comparing the two posterior distributions aggregated over time."
+msgstr ""
+"Podemos cuantificar el porcentaje de mejora de la asignación optimizada "
+"comparando las dos distribuciones posteriores agregadas a lo largo del "
+"tiempo."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1110002
+#: d857e068c6d64a4e8c8be53e51457f25
+msgid ""
+"Concretely, we see an approximately $10\\%$ increase in the aggregated "
+"channel contributions. This could result in a significant increase in "
+"monetary value!"
+msgstr ""
+"Concretamente, vemos un aumento de aproximadamente $10\\%$ en las "
+"contribuciones agregadas de los canales. ¡Esto podría resultar en un aumento"
+" significativo en valor monetario!"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1110005
+#: 002a2feb3c0547be9802bef5fbea8ca7
+msgid ""
+"The orange line and corresponding range compares these posterior samples to "
+"the reference value of zero. Hence, we have a probability of more than "
+"$80\\%$ that the optimized allocation will perform better than the initial "
+"allocation."
+msgstr ""
+"La línea naranja y el rango correspondiente comparan estas muestras "
+"posteriores con el valor de referencia de cero. Por lo tanto, tenemos una "
+"probabilidad de más del $80\\%$ de que la asignación optimizada funcione "
+"mejor que la asignación inicial."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1120002
+#: 9f0c8c185f494c3bb671fa2110fe004e
+msgid "Sales Comparison"
+msgstr "Comparación de Ventas"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1120004
+#: 7fb7dfa4f395418286652256e40c537c
+#, python-brace-format
+msgid ""
+"Next, we want to compare the optimized and naive total sales. The strategy "
+"is the same as in the case above. The only difference is that we add "
+"additional variables like seasonality and baseline (intercept). As mentioned"
+" above, we set the control variables to zero for the sake of comparison. "
+"This is what is done in the "
+"{meth}`~pymc_marketing.mmm.mmm.MMM.allocate_budget_to_maximize_response` "
+"method."
+msgstr ""
+"A continuación, queremos comparar las ventas totales optimizadas e ingenuas."
+" La estrategia es la misma que en el caso anterior. La única diferencia es "
+"que añadimos variables adicionales como estacionalidad y línea base "
+"(intercepto). Como se mencionó anteriormente, establecemos las variables de "
+"control en cero para efectos de comparación. Esto es lo que se hace en el "
+"método "
+"{meth}`~pymc_marketing.mmm.mmm.MMM.allocate_budget_to_maximize_response`."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1140002
+#: 85dc1e1bd7ee46b38d445da0a6c0e187
+msgid ""
+"At the level of total sales, in this case the difference is negligible as "
+"the baseline and seasonality (which are the same in both cases) explain most"
+" of the variance as the average weekly media spend in this last period is "
+"much smaller as in the training set."
+msgstr ""
+"A nivel de ventas totales, en este caso la diferencia es insignificante ya "
+"que la línea base y la estacionalidad (que son iguales en ambos casos) "
+"explican la mayor parte de la varianza, ya que el gasto medio semanal en "
+"medios en este último período es mucho menor que en el conjunto de "
+"entrenamiento."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1160002
+#: 85e1a148d4ac4a51af10680c753e983c
+msgid ""
+"In this case we see that when we compare the posterior samples of the uplift"
+" to the reference value of zero we do not find any difference. This should "
+"not be discouraging as we did see a $10\\%$ increase in the aggregated (over"
+" time) channel contributions. This can translate to a lot of money! There is"
+" no discrepancy on the results. What we are seeing is that the constrained "
+"optimization problem where we are just allowed, because of business "
+"requirements (which is very common for many marketing teams), to change the "
+"budget up to $60\\%$ we improved the channel contributions significantly but"
+" not at the same order of magnitude of the other model components."
+msgstr ""
+"En este caso vemos que cuando comparamos las muestras posteriores del "
+"crecimiento con el valor de referencia de cero no encontramos ninguna "
+"diferencia. Esto no debería ser desalentador ya que vimos un aumento del "
+"$10\\%$ en las contribuciones de canal agregadas (a lo largo del tiempo). "
+"¡Esto puede traducirse en mucho dinero! No hay discrepancia en los "
+"resultados. Lo que estamos viendo es que el problema de optimización "
+"restringida en el que solo se nos permite, debido a requisitos comerciales "
+"(que es muy común para muchos equipos de marketing), cambiar el presupuesto "
+"hasta un $60\\%$ mejoramos las contribuciones del canal significativamente, "
+"pero no en el mismo orden de magnitud que los otros componentes del modelo."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1170002
+#: c268acbf16fc456b926b2ec4ac7caec4
+msgid "Conclusion"
+msgstr "Conclusión"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1170004
+#: 917fd04522c14309bed4f00a2a3865fe
+msgid ""
+"This case study demonstrated how to leverage PyMC-Marketing's Media Mix "
+"Modeling capabilities to gain actionable insights into marketing "
+"effectiveness and optimize budget allocation. We walked through the entire "
+"process from data preparation and exploratory analysis to model fitting, "
+"diagnostics, and budget optimization. The model provided valuable insights "
+"into the effectiveness of different marketing channels, their saturation "
+"effects, and return on ad spend. We were able to use these insights to "
+"propose an optimized budget allocation that aims to maximize sales while "
+"respecting business constraints."
+msgstr ""
+"Este caso de estudio demostró cómo aprovechar las capacidades de Modelado de"
+" Mezcla de Medios de PyMC-Marketing para obtener ideas accionables sobre la "
+"efectividad del marketing y optimizar la asignación de presupuesto. "
+"Recorrimos todo el proceso desde la preparación de datos y el análisis "
+"exploratorio hasta el ajuste del modelo, diagnósticos y optimización del "
+"presupuesto. El modelo proporcionó valiosas ideas sobre la efectividad de "
+"diferentes canales de marketing, sus efectos de saturación y el retorno "
+"sobre el gasto publicitario. Pudimos usar estas ideas para proponer una "
+"asignación de presupuesto optimizada que busca maximizar las ventas "
+"respetando las restricciones comerciales."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1170007
+#: 4978dd272a5f4180928157fa5083f674
+msgid "Next Steps"
+msgstr "Próximos Pasos"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1170009
+#: 91089875af5e4e12b42513d4597140a1
+msgid ""
+"Stakeholder engagement: Present findings to key stakeholders, focusing on "
+"actionable insights and potential business impact. Understand their feedback"
+" and iterate."
+msgstr ""
+"Compromiso con las partes interesadas: presenta hallazgos a las partes "
+"interesadas clave, enfocándote en ideas accionables y el impacto potencial "
+"en el negocio. Entiende sus comentarios y repite."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1170011
+#: 3c093d7f96674bbf81ae31a7412817b5
+msgid ""
+"Scenario planning: Use the model to simulate various budget scenarios and "
+"market conditions to support strategic decision-making."
+msgstr ""
+"Planificación de escenarios: usa el modelo para simular varios escenarios "
+"presupuestarios y condiciones de mercado para apoyar la toma de decisiones "
+"estratégicas."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1170013
+#: a4df3f52a4bd46d282e26c60e8a3df0e
+msgid ""
+"Integration with other tools: Explore ways to integrate the MMM insights "
+"with other marketing analytics tools and processes for a more holistic view "
+"of marketing performance."
+msgstr ""
+"Integración con otras herramientas: explora formas de integrar las ideas de "
+"MMM con otras herramientas y procesos analíticos de marketing para una vista"
+" más holística del rendimiento del marketing."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1170015
+#: 47448b420ec44924b59b5efa7d461ac3
+#, python-brace-format
+msgid ""
+"Time-slice cross-validation: Implement a more robust validation strategy to "
+"ensure model stability and performance over time (see "
+"{ref}`mmm_time_slice_cross_validation`)."
+msgstr ""
+"Validación cruzada por intervalos de tiempo: implementa una estrategia de "
+"validación más robusta para asegurar la estabilidad y el rendimiento del "
+"modelo con el tiempo (ver {ref}`mmm_time_slice_cross_validation`)."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1170017
+#: 67705b07deae42e9be393ca23323da09
+msgid ""
+"Iterate and refine: This analysis represents a first iteration. Future "
+"iterations could incorporate:"
+msgstr ""
+"Iterar y refinar: Este análisis representa una primera iteración. Las "
+"iteraciones futuras podrían incorporar:"
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1170019
+#: 8c24a56becec4fa780fdc5afdcdddb85
+#, python-brace-format
+msgid ""
+"Lift test data to better calibrate the model (see {ref}`mmm_lift_test`)"
+msgstr ""
+"Datos de prueba de elevación para calibrar mejor el modelo (ver "
+"{ref}`mmm_lift_test`)."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1170020
+#: 524df5425119439ca1c3f40efdd4e9bc
+msgid "More granular data (e.g., daily instead of weekly)"
+msgstr "Datos más granulares (por ejemplo, diarios en lugar de semanales)."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1170021
+#: 961a10a1737d4e7389d878496c7905be
+msgid "Additional variables like competitor actions or macroeconomic factors"
+msgstr ""
+"Variables adicionales como acciones de la competencia o factores "
+"macroeconómicos."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1170023
+#: b20ccb74913743cf963f8b720674642f
+msgid ""
+"A/B (or Geo) testing: Design experiments to test the model's recommendations"
+" and validate its predictions in the real world."
+msgstr ""
+"Pruebas A/B (o Geo): diseña experimentos para probar las recomendaciones del"
+" modelo y validar sus predicciones en el mundo real."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1170025
+#: 25a738b4724b418980a8681b8082d32e
+msgid ""
+"Regular updates: Establish a process for regularly updating the model with "
+"new data to keep insights current."
+msgstr ""
+"Actualizaciones regulares: establece un proceso para actualizar regularmente"
+" el modelo con nuevos datos para mantener las ideas actualizadas."
+
+#: ../source/notebooks/mmm/mmm_case_study.ipynb:1170027
+#: 5045b5d148e24b29868614bb3698ab20
+#, python-brace-format
+msgid ""
+"Explore advanced features: Investigate other PyMC-Marketing capabilities, "
+"such as incorporating time varying parameters (see and "
+"{ref}`mmm_tv_intercept` {ref}`(mmm_time_varying_media_example`) and custom "
+"models like hierarchical levels or more complex seasonality patterns, to "
+"further refine the model (see {ref}`mmm_components`)."
+msgstr ""
+"Explora características avanzadas: investiga otras capacidades de PyMC-"
+"Marketing, como la incorporación de parámetros variables en el tiempo (ver y"
+" {ref}`mmm_tv_intercept` {ref}`(mmm_time_varying_media_example`) y modelos "
+"personalizados como niveles jerárquicos o patrones de estacionalidad más "
+"complejos, para refinar aún más el modelo (ver {ref}`mmm_components`)."

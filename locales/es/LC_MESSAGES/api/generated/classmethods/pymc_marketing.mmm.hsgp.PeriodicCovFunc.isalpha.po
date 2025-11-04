@@ -1,0 +1,42 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.hsgp.PeriodicCovFunc.isalpha.rst:2
+#: 9a9b3743e23947f08d85ea721346ceea
+msgid "PeriodicCovFunc.isalpha"
+msgstr "PeriodicCovFunc.isalpha"
+
+#: 9164c9dd6f9f42de8205b6773acb427a of
+#: pymc_marketing.mmm.hsgp.PeriodicCovFunc.isalpha:2
+msgid "Return True if the string is an alphabetic string, False otherwise."
+msgstr ""
+"Devuelve True si la cadena es una cadena alfabética, False en caso "
+"contrario."
+
+#: 6cf2f0a0ad8345ceb74a192f75b81e3f of
+#: pymc_marketing.mmm.hsgp.PeriodicCovFunc.isalpha:4
+msgid ""
+"A string is alphabetic if all characters in the string are alphabetic and "
+"there is at least one character in the string."
+msgstr ""
+"Una cadena es alfabética si todos los caracteres en la cadena son "
+"alfabéticos y hay al menos un carácter en la cadena."

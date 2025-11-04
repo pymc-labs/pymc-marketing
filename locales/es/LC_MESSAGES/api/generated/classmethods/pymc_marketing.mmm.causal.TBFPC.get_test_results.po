@@ -1,0 +1,90 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.TBFPC.get_test_results.rst:2
+#: 03497ccbc36d4d7580c346823c3253d5
+msgid "TBFPC.get\\_test\\_results"
+msgstr "TBFPC.obtener\\_resultados\\_de\\_prueba"
+
+#: 1319d14acf2a417887a0e6bde3171bd1 of
+#: pymc_marketing.mmm.causal.TBFPC.get_test_results:2
+msgid "Return ΔBIC diagnostics for the unordered pair ``(x, y)``."
+msgstr "Devuelva los diagnósticos ΔBIC para el par desordenado ``(x, y)``."
+
+#: 065f39baf27c4c12bf521aca45851590 of
+#: pymc_marketing.mmm.causal.TBFPC.get_test_results
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: ee6d324ab5634130ab9c1ec9927f0174 of
+#: pymc_marketing.mmm.causal.TBFPC.get_test_results:7
+msgid "**x** : :class:`python:str`"
+msgstr "**x** : :class:`python:str`"
+
+#: 2065da451b1446bda6a98ab77e6f3e0f ed990251315e4a53b097f9b809536c31 of
+#: pymc_marketing.mmm.causal.TBFPC.get_test_results:6
+#: pymc_marketing.mmm.causal.TBFPC.get_test_results:9
+msgid "python:str"
+msgstr "python:str"
+
+#: a5769db8cc2e4273b604af1b565d3cb3 of
+#: pymc_marketing.mmm.causal.TBFPC.get_test_results:8
+msgid "Name of the first variable in the pair."
+msgstr "Nombre de la primera variable en el par."
+
+#: 5a2ad020a99949b48a6ef31eb001243e of
+#: pymc_marketing.mmm.causal.TBFPC.get_test_results:10
+msgid "**y** : :class:`python:str`"
+msgstr "**y** : :class:`python:str`"
+
+#: c0ce0f7df7eb4c2c98c4c982f5b386f2 of
+#: pymc_marketing.mmm.causal.TBFPC.get_test_results:11
+msgid "Name of the second variable in the pair."
+msgstr "Nombre de la segunda variable en el par."
+
+#: d2d733931ae94cc1bc711e1d2eba8ad5 of
+#: pymc_marketing.mmm.causal.TBFPC.get_test_results
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 59ab36c2e06c4645a43184bdf349c489 of
+#: pymc_marketing.mmm.causal.TBFPC.get_test_results:17
+msgid ""
+":class:`python:list`\\[:class:`python:dict`\\[:class:`python:str`, "
+":class:`python:float`]]"
+msgstr ""
+":class:`python:list`\\[:class:`python:dict`\\[:class:`python:str`, "
+":class:`python:float`]]"
+
+#: ec88f7c1639c40daa5e289500eef2957 of
+#: pymc_marketing.mmm.causal.TBFPC.get_test_results:18
+msgid ""
+"Each dictionary contains ``bic0``, ``bic1``, ``delta_bic``, ``logBF10``, "
+"``BF10``, and the conditioning set used during the test."
+msgstr ""
+"Cada diccionario contiene ``bic0``, ``bic1``, ``delta_bic``, ``logBF10``, "
+"``BF10`` y el conjunto de condicionamiento utilizado durante la prueba."
+
+#: 91ba52724a294fda854efb0ee514bcbd of
+#: pymc_marketing.mmm.causal.TBFPC.get_test_results:32
+msgid "Examples"
+msgstr "Ejemplos"

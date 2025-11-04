@@ -1,0 +1,157 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.ContNonContract.rst:2
+#: 0cb94d06f4a04725b95e8a435cf28fda
+msgid "ContNonContract"
+msgstr "ContNonContract"
+
+#: f9e1bed122ed4db69ed517dbbb840199 of
+#: pymc_marketing.clv.distributions.ContNonContract:2
+msgid "Individual-level model for the customer lifetime value."
+msgstr ""
+"Modelo a nivel individual para el valor del tiempo de vida del cliente."
+
+#: d5f22d9ffb864540a00a949e0691d3e3 of
+#: pymc_marketing.clv.distributions.ContNonContract:4
+msgid "See equation (3) from Fader et al. (2005) [Rfb0d03a05431-1]_."
+msgstr "Vea la ecuación (3) de Fader et al. (2005) [Rfb0d03a05431-1]_."
+
+#: faaf267c935a4cd68f9cbed1c29fd8b2 of
+#: pymc_marketing.clv.distributions.ContNonContract:6
+#, python-brace-format
+msgid ""
+"f(\\lambda, p | x, t_1, \\dots, t_x, T)\n"
+"= f(\\lambda, p | t_x, T) = (1 - p)^x \\lambda^x \\exp(-\\lambda T)\n"
+"  + \\delta_{x > 0} p (1 - p)^{x-1} \\lambda^x \\exp(-\\lambda t_x)"
+msgstr ""
+"f(\\lambda, p | x, t_1, \\dots, t_x, T)\n"
+"= f(\\lambda, p | t_x, T) = (1 - p)^x \\lambda^x \\exp(-\\lambda T)\n"
+"  + \\delta_{x > 0} p (1 - p)^{x-1} \\lambda^x \\exp(-\\lambda t_x)"
+
+#: c8bbf3cf8ec7444ba198994bd182040f of
+#: pymc_marketing.clv.distributions.ContNonContract:13
+msgid "Support"
+msgstr "Soporte"
+
+#: 726d1dd755c94010affcf1b2f1d26415 of
+#: pymc_marketing.clv.distributions.ContNonContract:13
+msgid ":math:`t_j > 0` for :math:`j = 1, \\dots, x`"
+msgstr ":math:`t_j > 0` para :math:`j = 1, \\dots, x`"
+
+#: 2b69704368cf48cb8990420f0d0ed094 of
+#: pymc_marketing.clv.distributions.ContNonContract:14
+msgid "Mean"
+msgstr "Media"
+
+#: 186fe009b2f9451daaf6956fb3fdb568 of
+#: pymc_marketing.clv.distributions.ContNonContract:14
+#, python-brace-format
+msgid ""
+":math:`\\mathbb{E}[X(t) | \\lambda, p] = \\frac{1}{p} - "
+"\\frac{1}{p}\\exp\\left(-\\lambda p \\min(t, T)\\right)`"
+msgstr ""
+":math:`\\mathbb{E}[X(t) | \\lambda, p] = \\frac{1}{p} - "
+"\\frac{1}{p}\\exp\\left(-\\lambda p \\min(t, T)\\right`"
+
+#: 482a888f8fda4663a419c9f5313a6012 of
+#: pymc_marketing.clv.distributions.ContNonContract:30
+msgid "References"
+msgstr "Referencias"
+
+#: a122600fc3814fd68f783a5df32f75fa of
+#: pymc_marketing.clv.distributions.ContNonContract:31
+msgid ""
+"Fader, Peter S., Bruce GS Hardie, and Ka Lok Lee. \"“Counting your "
+"customers” the easy way: An alternative to the Pareto/NBD model.\" Marketing"
+" science 24.2 (2005): 275-284."
+msgstr ""
+"Fader, Peter S., Bruce GS Hardie y Ka Lok Lee. \"Contar a sus clientes de "
+"manera sencilla: Una alternativa al modelo Pareto/NBD.\" Marketing Science "
+"24.2 (2005): 275-284."
+
+#: f210da05512747cab156d4d1a8829e4b of
+#: pymc_marketing.clv.distributions.ContNonContract:37
+msgid "[Rfb0d03a05431-1]_"
+msgstr "[Rfb0d03a05431-1]_"
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.ContNonContract.rst:12
+#: f263925fee234fdc8d2df7e21da2e1c3
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.ContNonContract.rst:24:<autosummary>:1
+#: a874b00135c84de6a147650f5caadd0e
+msgid ""
+":py:obj:`ContNonContract.__init__ "
+"<pymc_marketing.clv.distributions.ContNonContract.__init__>`\\ \\(\\*args\\,"
+" \\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`ContNonContract.__init__ "
+"<pymc_marketing.clv.distributions.ContNonContract.__init__>`\\ \\(\\*args\\,"
+" \\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.ContNonContract.rst:24:<autosummary>:1
+#: 6a555426fd4d406f80e1adac0b5e4892
+msgid ""
+":py:obj:`ContNonContract.dist "
+"<pymc_marketing.clv.distributions.ContNonContract.dist>`\\ \\(lam\\, p\\, "
+"T\\, \\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`ContNonContract.dist "
+"<pymc_marketing.clv.distributions.ContNonContract.dist>`\\ \\(lam\\, p\\, "
+"T\\, \\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.ContNonContract.rst:24:<autosummary>:1
+#: 448fd4ef713b446a830c3b29cfdf9038
+msgid "Get the distribution from the parameters."
+msgstr "Obtenga la distribución de los parámetros."
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.ContNonContract.rst:24:<autosummary>:1
+#: 42fde4f3232f4d2095898b7f4d99bc86
+msgid ""
+":py:obj:`ContNonContract.logp "
+"<pymc_marketing.clv.distributions.ContNonContract.logp>`\\ \\(lam\\, p\\, "
+"T\\)"
+msgstr ""
+":py:obj:`ContNonContract.logp "
+"<pymc_marketing.clv.distributions.ContNonContract.logp>`\\ \\(lam\\, p\\, "
+"T\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.ContNonContract.rst:24:<autosummary>:1
+#: e3e80ef20ad14fb783433a4ea8b0618b
+msgid "Log-likelihood of the distribution."
+msgstr "Log-verosimilitud de la distribución."
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.ContNonContract.rst:26
+#: 2881c02100794e7daa077cd2233c00c8
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.ContNonContract.rst:29:<autosummary>:1
+#: 17fd9e0b3ccd4bbcb1bebacf1eef602d
+msgid ""
+":py:obj:`rv_op <pymc_marketing.clv.distributions.ContNonContract.rv_op>`\\ "
+"\\(lam\\, p\\, T\\[\\, size\\]\\)"
+msgstr ""
+":py:obj:`rv_op <pymc_marketing.clv.distributions.ContNonContract.rv_op>`\\ "
+"\\(lam\\, p\\, T\\[\\, tamaño\\]\\)"

@@ -52,7 +52,7 @@ docs = [
     "ipywidgets",
     "labs-sphinx-theme",
     "lifetimes",
-    "myst-nb<=1.0.0",
+    "myst-nb>=1.1.2",
     "myst-parser",
     "numba",
     "numpydoc",
@@ -176,7 +176,6 @@ testpaths = "tests"
 
 [tool.mypy]
 files = "pymc_marketing/*.py"
-plugins = "numpy.typing.mypy_plugin"
 exclude = "build|dist|docs|examples|tests|setup.py"
 
 [tool.mypy-matplotlib]

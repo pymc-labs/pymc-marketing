@@ -1,0 +1,317 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.NoSaturation.rst:2
+#: 2acdd465bcf04d4290ea8f12f13b76bc
+msgid "NoSaturation"
+msgstr "NoSaturación"
+
+#: 85b9cddb41ac41e698aca7cc3e9564a4 of
+#: pymc_marketing.mmm.components.saturation.NoSaturation:2
+msgid "Wrapper around linear saturation function."
+msgstr "Envoltura alrededor de la función de saturación lineal."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.NoSaturation.rst:7
+#: 9fca5984eb584d0d8392221a00576991
+msgid ""
+"(:download:`Source code "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-NoSaturation-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-NoSaturation-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-NoSaturation-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-NoSaturation-1.pdf>`)"
+msgstr ""
+"(:download:`Código fuente "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-NoSaturation-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-NoSaturation-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-NoSaturation-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-NoSaturation-1.pdf>`)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.NoSaturation.rst:12
+#: 62db39aa71d94dd8b2b1b7b696e58a54
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.NoSaturation.rst:32:<autosummary>:1
+#: bf7e0d662d9148f4af3df97328ff4a68
+msgid ""
+":py:obj:`NoSaturation.__init__ "
+"<pymc_marketing.mmm.components.saturation.NoSaturation.__init__>`\\ "
+"\\(\\[priors\\, prefix\\]\\)"
+msgstr ""
+":py:obj:`NoSaturation.__init__ "
+"<pymc_marketing.mmm.components.saturation.NoSaturation.__init__>`\\ "
+"\\(\\[priors\\, prefix\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.NoSaturation.rst:32:<autosummary>:1
+#: 44fbd7d663da4b13a8c2a5f72b8bd55c
+msgid ""
+":py:obj:`NoSaturation.apply "
+"<pymc_marketing.mmm.components.saturation.NoSaturation.apply>`\\ \\(x\\[\\, "
+"dims\\, idx\\]\\)"
+msgstr ""
+":py:obj:`NoSaturation.apply "
+"<pymc_marketing.mmm.components.saturation.NoSaturation.apply>`\\ \\(x\\[\\, "
+"dims\\, idx\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.NoSaturation.rst:32:<autosummary>:1
+#: 9475b2b46e6c49ec93180d861d685ac1
+msgid "Call within a model context."
+msgstr "Llamar dentro de un contexto de modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.NoSaturation.rst:32:<autosummary>:1
+#: e80ef79bd9ee4977b79b218ab3e5aae7
+msgid ""
+":py:obj:`NoSaturation.function "
+"<pymc_marketing.mmm.components.saturation.NoSaturation.function>`\\ \\(x\\, "
+"beta\\)"
+msgstr ""
+":py:obj:`NoSaturation.function "
+"<pymc_marketing.mmm.components.saturation.NoSaturation.function>`\\ \\(x\\, "
+"beta\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.NoSaturation.rst:32:<autosummary>:1
+#: d88e4bfb779b4bf095a719a82fd6407f
+msgid "Linear saturation function."
+msgstr "Función de saturación lineal."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.NoSaturation.rst:32:<autosummary>:1
+#: 577e7b6363c34e1282eeaaee61f0bb00
+msgid ""
+":py:obj:`NoSaturation.plot_curve "
+"<pymc_marketing.mmm.components.saturation.NoSaturation.plot_curve>`\\ "
+"\\(curve\\[\\, n\\_samples\\, ...\\]\\)"
+msgstr ""
+":py:obj:`NoSaturation.plot_curve "
+"<pymc_marketing.mmm.components.saturation.NoSaturation.plot_curve>`\\ "
+"\\(curve\\[\\, n\\_samples\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.NoSaturation.rst:32:<autosummary>:1
+#: 9d174dd321764b5287651a34887d33db
+msgid "Plot curve HDI and samples."
+msgstr "Trazar curva HDI y muestras."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.NoSaturation.rst:32:<autosummary>:1
+#: 1a11fa17244e449d92fd2a971e1f232f
+msgid ""
+":py:obj:`NoSaturation.plot_curve_hdi "
+"<pymc_marketing.mmm.components.saturation.NoSaturation.plot_curve_hdi>`\\ "
+"\\(curve\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`NoSaturation.plot_curve_hdi "
+"<pymc_marketing.mmm.components.saturation.NoSaturation.plot_curve_hdi>`\\ "
+"\\(curve\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.NoSaturation.rst:32:<autosummary>:1
+#: 07a254df330447258bd75560f3005266
+msgid "Plot the HDI of the curve."
+msgstr "Trace el IDH de la curva."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.NoSaturation.rst:32:<autosummary>:1
+#: 67b01c7375b945939e240fa17022a9c7
+msgid ""
+":py:obj:`NoSaturation.plot_curve_samples "
+"<pymc_marketing.mmm.components.saturation.NoSaturation.plot_curve_samples>`\\"
+" \\(curve\\[\\, n\\, ...\\]\\)"
+msgstr ""
+":py:obj:`NoSaturation.plot_curve_samples "
+"<pymc_marketing.mmm.components.saturation.NoSaturation.plot_curve_samples>`\\"
+" \\(curva\\[\\, n\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.NoSaturation.rst:32:<autosummary>:1
+#: 081055e20c3f417abf2908c32beb08fc
+msgid "Plot samples from the curve."
+msgstr "Trazar muestras de la curva."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.NoSaturation.rst:32:<autosummary>:1
+#: 0ce2397ac2aa4cc7a7fa75b59a75b999
+msgid ""
+":py:obj:`NoSaturation.sample_curve "
+"<pymc_marketing.mmm.components.saturation.NoSaturation.sample_curve>`\\ "
+"\\(\\[parameters\\, ...\\]\\)"
+msgstr ""
+":py:obj:`NoSaturation.sample_curve "
+"<pymc_marketing.mmm.components.saturation.NoSaturation.sample_curve>`\\ "
+"\\(\\[parámetros\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.NoSaturation.rst:32:<autosummary>:1
+#: 1767d238c160459eaa7b936df8865943
+msgid "Sample the curve of the saturation transformation given parameters."
+msgstr ""
+"Muestre la curva de la transformación de saturación dadas las parámetros."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.NoSaturation.rst:32:<autosummary>:1
+#: d2eb19e8cf94463ea49e62753473e6de
+msgid ""
+":py:obj:`NoSaturation.sample_prior "
+"<pymc_marketing.mmm.components.saturation.NoSaturation.sample_prior>`\\ "
+"\\(\\[coords\\]\\)"
+msgstr ""
+":py:obj:`NoSaturation.sample_prior "
+"<pymc_marketing.mmm.components.saturation.NoSaturation.sample_prior>`\\ "
+"\\(\\[coords\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.NoSaturation.rst:32:<autosummary>:1
+#: dc791fdfff6c43ac9492b44e4ec1fa80
+msgid "Sample the priors for the transformation."
+msgstr "Muestree las distribuciones a priori para la transformación."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.NoSaturation.rst:32:<autosummary>:1
+#: d650127fa6ff4606a6c691db0aa97c09
+msgid ""
+":py:obj:`NoSaturation.set_dims_for_all_priors "
+"<pymc_marketing.mmm.components.saturation.NoSaturation.set_dims_for_all_priors>`\\"
+" \\(dims\\)"
+msgstr ""
+":py:obj:`NoSaturation.set_dims_for_all_priors "
+"<pymc_marketing.mmm.components.saturation.NoSaturation.set_dims_for_all_priors>`\\"
+" \\(dims\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.NoSaturation.rst:32:<autosummary>:1
+#: f29f6588192d4056aba075e0773726b2
+msgid "Set the dims for all priors."
+msgstr "Establezca las dimensiones para todos los antecedentes."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.NoSaturation.rst:32:<autosummary>:1
+#: fc9b021466a9491097c9916f52f94d27
+msgid ""
+":py:obj:`NoSaturation.to_dict "
+"<pymc_marketing.mmm.components.saturation.NoSaturation.to_dict>`\\ \\(\\)"
+msgstr ""
+":py:obj:`NoSaturation.to_dict "
+"<pymc_marketing.mmm.components.saturation.NoSaturation.to_dict>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.NoSaturation.rst:32:<autosummary>:1
+#: 0159460c1bb14944b12dc033212c2a48
+msgid "Convert the transformation to a dictionary."
+msgstr "Convierte la transformación a un diccionario."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.NoSaturation.rst:32:<autosummary>:1
+#: 6c1b79e9d03140f29550c090db3dc632
+msgid ""
+":py:obj:`NoSaturation.update_priors "
+"<pymc_marketing.mmm.components.saturation.NoSaturation.update_priors>`\\ "
+"\\(priors\\)"
+msgstr ""
+":py:obj:`NoSaturation.update_priors "
+"<pymc_marketing.mmm.components.saturation.NoSaturation.update_priors>`\\ "
+"\\(priors\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.NoSaturation.rst:32:<autosummary>:1
+#: 6c4c76bac85f4e1e900ccc67eada0b62
+msgid "Update the priors for a function after initialization."
+msgstr "Actualice los priors para una función después de la inicialización."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.NoSaturation.rst:34
+#: eb41168b07df4613aa2bf3814192952f
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.NoSaturation.rst:43:<autosummary>:1
+#: 3644b0eee5c94ecaae9a6bf6417cb760
+msgid ""
+":py:obj:`combined_dims "
+"<pymc_marketing.mmm.components.saturation.NoSaturation.combined_dims>`\\"
+msgstr ""
+":py:obj:`combined_dims "
+"<pymc_marketing.mmm.components.saturation.NoSaturation.combined_dims>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.NoSaturation.rst:43:<autosummary>:1
+#: 157b3c58c75a4c7da0903b3e6d89ae28
+msgid "Get the combined dims for all the parameters."
+msgstr "Obtenga las dimensiones combinadas para todos los parámetros."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.NoSaturation.rst:43:<autosummary>:1
+#: 63f4f7e7b0054a8886ab640850294ca5
+msgid ""
+":py:obj:`default_priors "
+"<pymc_marketing.mmm.components.saturation.NoSaturation.default_priors>`\\"
+msgstr ""
+":py:obj:`default_priors "
+"<pymc_marketing.mmm.components.saturation.NoSaturation.default_priors>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.NoSaturation.rst:43:<autosummary>:1
+#: a977bac593b641899dd8e543613cd1a9
+msgid ""
+":py:obj:`function_priors "
+"<pymc_marketing.mmm.components.saturation.NoSaturation.function_priors>`\\"
+msgstr ""
+":py:obj:`function_priors "
+"<pymc_marketing.mmm.components.saturation.NoSaturation.function_priors>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.NoSaturation.rst:43:<autosummary>:1
+#: 0e30feee216d4f5c8c5b026f81527fde
+msgid "Get the priors for the function."
+msgstr "Obtenga los priors para la función."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.NoSaturation.rst:43:<autosummary>:1
+#: a70d961d65f94cd586320d49c712be66
+msgid ""
+":py:obj:`lookup_name "
+"<pymc_marketing.mmm.components.saturation.NoSaturation.lookup_name>`\\"
+msgstr ""
+":py:obj:`lookup_name "
+"<pymc_marketing.mmm.components.saturation.NoSaturation.lookup_name>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.NoSaturation.rst:43:<autosummary>:1
+#: d76a0bb205944a0699a31aeed0f3621d
+msgid ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.components.saturation.NoSaturation.model_config>`\\"
+msgstr ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.components.saturation.NoSaturation.model_config>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.NoSaturation.rst:43:<autosummary>:1
+#: 2d30c9c2c9244554978445b3ccaea10a
+msgid "Mapping from variable name to prior for the model."
+msgstr "Mapeo del nombre de la variable a la prior para el modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.NoSaturation.rst:43:<autosummary>:1
+#: ddd00ce55a0d41a481702a57d7b36953
+msgid ""
+":py:obj:`prefix "
+"<pymc_marketing.mmm.components.saturation.NoSaturation.prefix>`\\"
+msgstr ""
+":py:obj:`prefix "
+"<pymc_marketing.mmm.components.saturation.NoSaturation.prefix>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.NoSaturation.rst:43:<autosummary>:1
+#: e8fe33125a624ac288640ea838c971a3
+msgid ""
+":py:obj:`variable_mapping "
+"<pymc_marketing.mmm.components.saturation.NoSaturation.variable_mapping>`\\"
+msgstr ""
+":py:obj:`variable_mapping "
+"<pymc_marketing.mmm.components.saturation.NoSaturation.variable_mapping>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.NoSaturation.rst:43:<autosummary>:1
+#: 27a6e41e88d14e33893506eea86e40c2
+msgid "Mapping from parameter name to variable name in the model."
+msgstr "Mapeo del nombre del parámetro al nombre de la variable en el modelo."

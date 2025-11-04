@@ -1,0 +1,76 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.hsgp.HSGPBase.register_data.rst:2
+#: 73dc27fae7d9474a86e802d4e5e0e671
+msgid "HSGPBase.register\\_data"
+msgstr "HSGPBase.registrar\\_datos"
+
+#: ac6cce86e031490d84da0dad8c3bfe17 of
+#: pymc_marketing.mmm.hsgp.HSGPBase.register_data:2
+msgid "Register the data to be used in the model."
+msgstr "Registre los datos que se utilizarán en el modelo."
+
+#: 7faf992aeee84b238654ae84577769be of
+#: pymc_marketing.mmm.hsgp.HSGPBase.register_data:4
+msgid ""
+"To be used before creating a variable but not for out-of-sample prediction. "
+"For out-of-sample prediction, use `pm.Data` and `pm.set_data`."
+msgstr ""
+"Para ser utilizado antes de crear una variable, pero no para predicciones "
+"fuera de la muestra. Para predicciones fuera de la muestra, utilice "
+"`pm.Data` y `pm.set_data`."
+
+#: abc0be04d15643209b1d75bcca4e5368 of
+#: pymc_marketing.mmm.hsgp.HSGPBase.register_data
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: abd9678828b04299bb4c55c75f36d13f of
+#: pymc_marketing.mmm.hsgp.HSGPBase.register_data:9
+msgid "**X** : :term:`tensor_like`"
+msgstr "**X** : :term:`tensor_like`"
+
+#: f250aa008f594fddb2975436883c8225 of
+#: pymc_marketing.mmm.hsgp.HSGPBase.register_data:8
+msgid "tensor_like"
+msgstr "tensor_like"
+
+#: 051b0c14ab114cdab47dbcde4ecddf0b of
+#: pymc_marketing.mmm.hsgp.HSGPBase.register_data:10
+msgid "The data to be used in the model."
+msgstr "Los datos que se utilizarán en el modelo."
+
+#: 8951a2d22b0c4ae8a7b9f976fa38b98b of
+#: pymc_marketing.mmm.hsgp.HSGPBase.register_data
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 66cbcad7d0fe498a9a270784f072ec0a of
+#: pymc_marketing.mmm.hsgp.HSGPBase.register_data:16
+msgid ":obj:`Self`"
+msgstr ":obj:`Self`"
+
+#: 1ca5a94e8d1c4d94bb767ecc2da0e68a of
+#: pymc_marketing.mmm.hsgp.HSGPBase.register_data:17
+msgid "The object with the data registered."
+msgstr "El objeto con los datos registrados."

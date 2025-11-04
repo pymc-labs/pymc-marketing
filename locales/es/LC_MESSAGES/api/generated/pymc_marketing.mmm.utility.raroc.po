@@ -1,0 +1,120 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.utility.raroc.rst:2
+#: c0a2cb1207904199a522af3e9bc96466
+msgid "raroc"
+msgstr "raroc"
+
+#: 84f6f12472eb4fc695e8922105f2ce3d of pymc_marketing.mmm.utility.raroc:2
+msgid "Calculate the Risk-Adjusted Return on Capital (RAROC)."
+msgstr "Calcule el Retorno sobre el Capital Ajustado por Riesgo (RAROC)."
+
+#: fed99a2bd6734ad4a06f209104533010 of pymc_marketing.mmm.utility.raroc:4
+msgid ""
+"RAROC measures the efficiency of capital utilization by assessing the return"
+" generated above a risk-free benchmark, normalized by the capital at risk. "
+"This metric provides insight into the value created by taking on additional "
+"risk, relative to a safe investment."
+msgstr ""
+"RAROC mide la eficiencia de la utilización del capital al evaluar el retorno"
+" generado por encima de un punto de referencia libre de riesgo, normalizado "
+"por el capital en riesgo. Esta métrica proporciona información sobre el "
+"valor creado al asumir un riesgo adicional, en relación con una inversión "
+"segura."
+
+#: a3d15b12c8bb489198fe39b5b93b65b6 of pymc_marketing.mmm.utility.raroc:9
+msgid "The Risk-Adjusted Return on Capital (RAROC) is calculated as:"
+msgstr ""
+"El Retorno sobre el Capital Ajustado por Riesgo (RAROC) se calcula como:"
+
+#: 1c7901477ff54f85a0a15a906ae247e3 of pymc_marketing.mmm.utility.raroc:11
+msgid ""
+"RAROC = \\frac{\\mathbb{E}[R] - R_f}{C}\n"
+"\n"
+msgstr "RAROC = \\frac{\\mathbb{E}[R] - R_f}{C}"
+
+#: 72971a405dc04a128525d8aab0962253 of pymc_marketing.mmm.utility.raroc:14
+msgid "where:"
+msgstr "donde:"
+
+#: beff2e168ead488385d52dc5a3e43b78 of pymc_marketing.mmm.utility.raroc:15
+#, python-brace-format
+msgid ":math:`\\mathbb{E}[R]` is the expected return (mean of samples)."
+msgstr ":math:`\\mathbb{E}[R]` es el retorno esperado (media de las muestras)."
+
+#: 96dbd167d6b34e6085951e67c3405799 of pymc_marketing.mmm.utility.raroc:16
+msgid ":math:`R_f` is the risk-free rate."
+msgstr ":math:`R_f` es la tasa libre de riesgo."
+
+#: 2b111273c6184735b125bdab33c8aa17 of pymc_marketing.mmm.utility.raroc:17
+msgid ":math:`C` is the capital at risk."
+msgstr ":math:`C` es el capital en riesgo."
+
+#: abb64d9d95af458aa490c293056f6b7c of pymc_marketing.mmm.utility.raroc
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 1461b3eefa4d41289f189769056cfee6 of pymc_marketing.mmm.utility.raroc:21
+msgid "**risk_free_rate** : :class:`python:float`, optional"
+msgstr "**tasa_libre_de_riesgo** : :class:`python:float`, opcional"
+
+#: 425f9c1842274158aec7a713932742d4 of pymc_marketing.mmm.utility.raroc:20
+msgid "python:float, optional"
+msgstr "python:float, opcional"
+
+#: dcd3378ffbb9472499da929f0777bc21 of pymc_marketing.mmm.utility.raroc:22
+msgid ""
+"The rate of return on a risk-free investment, such as a government bond, "
+"used as a baseline for measuring excess returns (default is 0.0)."
+msgstr ""
+"La tasa de retorno de una inversión libre de riesgo, como un bono del "
+"gobierno, utilizada como referencia para medir los retornos en exceso (el "
+"valor predeterminado es 0.0)."
+
+#: 8962d72dd0fc4a7c8020ed253aeafe66 of pymc_marketing.mmm.utility.raroc
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 523aa381151b40da8a8ecc3b942cf706 of pymc_marketing.mmm.utility.raroc:29
+msgid ":obj:`UtilityFunctionType`"
+msgstr ":obj:`UtilityFunctionType`"
+
+#: 13a52c25104744faa81b8793c8f7d1f4 of pymc_marketing.mmm.utility.raroc:30
+msgid "A function that calculates the RAROC value given samples and budgets."
+msgstr "Una función que calcula el valor RAROC dado muestras y presupuestos."
+
+#: 10fe19f7e44644b7bd6cde5d2d88ef06 of pymc_marketing.mmm.utility.raroc:41
+msgid "References"
+msgstr "Referencias"
+
+#: fd3037a5429a4427b9a41d050e0b2aff of pymc_marketing.mmm.utility.raroc:42
+msgid ""
+"Matten, C. (2000). Managing Bank Capital: Capital Allocation and Performance"
+" Measurement."
+msgstr ""
+"Matten, C. (2000). Gestión del Capital Bancario: Asignación de Capital y "
+"Medición del Rendimiento."
+
+#: 68cc83511af84bf18faacdc444ed1ad3 of pymc_marketing.mmm.utility.raroc:46
+msgid "[Rc1d36d4db5db-1]_"
+msgstr "[Rc1d36d4db5db-1]_"

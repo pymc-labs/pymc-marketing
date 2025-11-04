@@ -1,0 +1,47 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/getting_started/quickstart/mmm/index.md:1
+#: 5604a056ce3f459daa8311d914b45b57
+msgid "MMM Quickstart"
+msgstr "MMM Guía Rápida"
+
+#: ../source/getting_started/quickstart/mmm/index.md:30
+#: 8bb6322d2c3b4578b96b8ee706c2842b
+msgid ""
+"Once the model is fitted, we can further optimize our budget allocation as "
+"we are including diminishing returns and carry-over effects in our model."
+msgstr ""
+"Una vez que el modelo está ajustado, podemos optimizar aún más nuestra "
+"asignación de presupuesto ya que estamos incluyendo rendimientos "
+"decrecientes y efectos de arrastre en nuestro modelo."
+
+#: ../source/getting_started/quickstart/mmm/index.md:32
+#: 3f7975c5a27547c6bf4a368227df0c24
+msgid ""
+"Explore a hands-on [simulated example](https://pymc-"
+"marketing.readthedocs.io/en/stable/notebooks/mmm/mmm_example.html) for more "
+"insights into MMM with PyMC-Marketing."
+msgstr ""
+"Explora un [ejemplo simulado](https://pymc-"
+"marketing.readthedocs.io/en/stable/notebooks/mmm/mmm_example.html) práctico "
+"para obtener más información sobre MMM con PyMC-Marketing."

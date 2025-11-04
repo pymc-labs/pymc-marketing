@@ -1,0 +1,69 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mlflow.log_error.rst:2
+#: 1d703f98c50444c2a8ba4532ea930065
+msgid "log\\_error"
+msgstr "registro\\_error"
+
+#: 554811965b2f466eb0b8bafacd74f79b of pymc_marketing.mlflow.log_error:2
+msgid "Log arbitrary caught error and traceback to MLflow."
+msgstr "Registrar error arbitrario capturado y seguimiento a MLflow."
+
+#: 47cdeed10c6a45b88d5fa2f4cd4a5e9e of pymc_marketing.mlflow.log_error:6
+msgid ""
+"The error will still be raised with the program. It is just logged to MLflow"
+msgstr ""
+"El error seguirá siendo generado con el programa. Simplemente se registra en"
+" MLflow."
+
+#: 608a117004af4b8198e8f790a49b9767 of pymc_marketing.mlflow.log_error
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: b42e19330ef044ee8952a8f63f5e673d of pymc_marketing.mlflow.log_error:11
+msgid "**func** : :obj:`Callable`"
+msgstr "**func** : :obj:`Callable`"
+
+#: 55aa45fae8bc4f5daff81e0694c18ec8 of pymc_marketing.mlflow.log_error:10
+msgid "Callable"
+msgstr "Llamable"
+
+#: 2e923f1673124f32956324a7fef17167 of pymc_marketing.mlflow.log_error:12
+msgid "Arbitrary function"
+msgstr "Función arbitraria"
+
+#: 24eae70a0e8b4399bea83eb1785a050c of pymc_marketing.mlflow.log_error:14
+msgid "**file_name** : :class:`python:str`"
+msgstr "**file_name** : :class:`python:str`"
+
+#: 8e9f4ca31fee4a3da40f4a85a2b14232 of pymc_marketing.mlflow.log_error:13
+msgid "python:str"
+msgstr "python:str"
+
+#: 2b023dd612044c2b8a4d44be1e5661a5 of pymc_marketing.mlflow.log_error:15
+msgid "The name of the MLflow artifact"
+msgstr "El nombre del artefacto de MLflow"
+
+#: 235a2c347a084670a818d5faea0ef56e of pymc_marketing.mlflow.log_error:30
+msgid "Examples"
+msgstr "Ejemplos"

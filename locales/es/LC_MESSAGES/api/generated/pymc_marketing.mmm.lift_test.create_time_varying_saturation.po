@@ -1,0 +1,87 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.create_time_varying_saturation.rst:2
+#: d152f0de03ef43e7b7e62a1ddf9a3591
+msgid "create\\_time\\_varying\\_saturation"
+msgstr "crear\\_saturación\\_variable\\_en\\_el\\_tiempo"
+
+#: 6ceefc4986504142a0cad6017c6f8a61 of
+#: pymc_marketing.mmm.lift_test.create_time_varying_saturation:2
+msgid "Return function and variable mapping that use a time-varying variable."
+msgstr ""
+"Devolver la función y el mapeo de variables que utilizan una variable que "
+"varía con el tiempo."
+
+#: 5797960d786a40a1ad76f5431803fe24 of
+#: pymc_marketing.mmm.lift_test.create_time_varying_saturation
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 0f078358edb640e7b471a84d33cf4972 of
+#: pymc_marketing.mmm.lift_test.create_time_varying_saturation:7
+msgid "**saturation** : :obj:`SaturationTransformation`"
+msgstr "**saturación** : :obj:`SaturationTransformation`"
+
+#: f6f43abb496443388b3b9aa3e3603e5c of
+#: pymc_marketing.mmm.lift_test.create_time_varying_saturation:6
+msgid "SaturationTransformation"
+msgstr "Transformación de Saturación"
+
+#: ea1fa977aba04487adbf82c159c49a5d of
+#: pymc_marketing.mmm.lift_test.create_time_varying_saturation:8
+msgid "Any SaturationTransformation instance."
+msgstr "Cualquier instancia de SaturationTransformation."
+
+#: 9f40f2b7d8f64141a0a3250ddbd0d417 of
+#: pymc_marketing.mmm.lift_test.create_time_varying_saturation:10
+msgid "**time_varying_var_name** : :class:`python:str`, optional"
+msgstr "**time_varying_var_name** : :class:`python:str`, opcional"
+
+#: c62357baa67e4e6cb237417022cd5cbd of
+#: pymc_marketing.mmm.lift_test.create_time_varying_saturation:9
+msgid "python:str, optional"
+msgstr "python:str, opcional"
+
+#: 07a70a17c4fe40cd946c9ce521e6c9dd of
+#: pymc_marketing.mmm.lift_test.create_time_varying_saturation:11
+msgid "Name of the time-varying variable in model."
+msgstr "Nombre de la variable que varía con el tiempo en el modelo."
+
+#: 70af8b4db83d4a4dafe01ce5a276a8ea of
+#: pymc_marketing.mmm.lift_test.create_time_varying_saturation
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: ccc462d8a43f43aea0cab9d224d2858d of
+#: pymc_marketing.mmm.lift_test.create_time_varying_saturation:17
+msgid ":class:`python:tuple`\\[:obj:`SaturationFunc`, :obj:`VariableMapping`]"
+msgstr ":class:`python:tuple`\\[:obj:`SaturationFunc`, :obj:`VariableMapping`]"
+
+#: c62c5a8e6b4f460ab33afc5345786575 of
+#: pymc_marketing.mmm.lift_test.create_time_varying_saturation:18
+msgid ""
+"Tuple of function and variable mapping to be used in "
+"add_saturation_observations function."
+msgstr ""
+"Tupla de función y mapeo de variables que se utilizará en la función "
+"add_saturation_observations."

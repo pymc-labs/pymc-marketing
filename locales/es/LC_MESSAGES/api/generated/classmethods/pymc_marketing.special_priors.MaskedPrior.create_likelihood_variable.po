@@ -1,0 +1,99 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.special_priors.MaskedPrior.create_likelihood_variable.rst:2
+#: 247825a2ade649018bcdbd372073da5e
+msgid "MaskedPrior.create\\_likelihood\\_variable"
+msgstr "MaskedPrior.crear\\_variable\\_de\\_verosimilitud"
+
+#: f75d364820a942be89b92cf3765acb82 of
+#: pymc_marketing.special_priors.MaskedPrior.create_likelihood_variable:2
+msgid ""
+"Create an observed variable over the active subset and expand to full dims."
+msgstr ""
+"Cree una variable observada sobre el subconjunto activo y expanda a "
+"dimensiones completas."
+
+#: 6b2e9f97cc0042e4bd698bbab2dad6c4 of
+#: pymc_marketing.special_priors.MaskedPrior.create_likelihood_variable
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 82a835e437724dc2b060f898e12c717e of
+#: pymc_marketing.special_priors.MaskedPrior.create_likelihood_variable:7
+msgid "**name** : :class:`python:str`"
+msgstr "**nombre** : :class:`python:str`"
+
+#: b1f480a37a124ba88938d605fde4c29f of
+#: pymc_marketing.special_priors.MaskedPrior.create_likelihood_variable:6
+msgid "python:str"
+msgstr "python:str"
+
+#: 68d48fe6fb424b1495288817586194d5 of
+#: pymc_marketing.special_priors.MaskedPrior.create_likelihood_variable:8
+msgid "Base name for the created variables."
+msgstr "Nombre base para las variables creadas."
+
+#: f5991a36a7914d218c26ed312273c701 of
+#: pymc_marketing.special_priors.MaskedPrior.create_likelihood_variable:10
+msgid "**mu** : :obj:`pt.TensorLike`"
+msgstr "**mu** : :obj:`pt.TensorLike`"
+
+#: 5544c98cdbaf4025ae1abaa97fc5e74c 6875497e396a4c6fb71c5e573741d9da of
+#: pymc_marketing.special_priors.MaskedPrior.create_likelihood_variable:9
+#: pymc_marketing.special_priors.MaskedPrior.create_likelihood_variable:12
+msgid "pt.TensorLike"
+msgstr "pt.TensorLike"
+
+#: 300fbf7717584fb5b170fd82e801a251 of
+#: pymc_marketing.special_priors.MaskedPrior.create_likelihood_variable:11
+msgid "Mean/location parameter broadcastable to the masked shape."
+msgstr "Parámetro de media/ubicación transmisible a la forma enmascarada."
+
+#: c17896fc8e184a33b9dda724a641d608 of
+#: pymc_marketing.special_priors.MaskedPrior.create_likelihood_variable:13
+msgid "**observed** : :obj:`pt.TensorLike`"
+msgstr "**observado** : :obj:`pt.TensorLike`"
+
+#: 86212399dcb647b28a38d29fc0a69f71 of
+#: pymc_marketing.special_priors.MaskedPrior.create_likelihood_variable:14
+msgid "Observations broadcastable to the masked shape."
+msgstr "Observaciones transmitibles a la forma enmascarada."
+
+#: c5a2d7cab6254ff39957d827b61693c5 of
+#: pymc_marketing.special_priors.MaskedPrior.create_likelihood_variable
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 442e8e8b1dc6485f9987440966d13ad2 of
+#: pymc_marketing.special_priors.MaskedPrior.create_likelihood_variable:20
+msgid ":obj:`pt.TensorVariable`"
+msgstr ":obj:`pt.TensorVariable`"
+
+#: be95f0926e1a46d8b2b7fb96347d0e6c of
+#: pymc_marketing.special_priors.MaskedPrior.create_likelihood_variable:21
+msgid ""
+"Deterministic variable over the full dims with observed RV on active "
+"entries."
+msgstr ""
+"Variable determinista sobre todas las dimensiones con RV observada en las "
+"entradas activas."

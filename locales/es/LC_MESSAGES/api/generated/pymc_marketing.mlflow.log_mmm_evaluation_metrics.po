@@ -1,0 +1,168 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mlflow.log_mmm_evaluation_metrics.rst:2
+#: 1b6294569826457798600dfd1aac5a87
+msgid "log\\_mmm\\_evaluation\\_metrics"
+msgstr "log\\_mmm\\_métricas\\_de\\_evaluación"
+
+#: 5bd0d6e884d8477aa4a36114fa3bafc8 of
+#: pymc_marketing.mlflow.log_mmm_evaluation_metrics:2
+msgid ""
+"Log evaluation metrics produced by "
+"`pymc_marketing.mmm.evaluation.compute_summary_metrics()` to MLflow."
+msgstr ""
+"Registrar métricas de evaluación producidas por "
+"`pymc_marketing.mmm.evaluation.compute_summary_metrics()` en MLflow."
+
+#: cea77e266aae4b9d9a411e3248dfbe37 of
+#: pymc_marketing.mlflow.log_mmm_evaluation_metrics
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 35f8e48a925d409cad6fd178b96cefe9 of
+#: pymc_marketing.mlflow.log_mmm_evaluation_metrics:7
+msgid "**y_true** : :obj:`npt.NDArray` | :obj:`pd.Series`"
+msgstr "**y_true** : :obj:`npt.NDArray` | :obj:`pd.Series`"
+
+#: 177ec0790b4a49b286f579b6f35215b5 of
+#: pymc_marketing.mlflow.log_mmm_evaluation_metrics:6
+msgid "npt.NDArray | pd.Series"
+msgstr "npt.NDArray | pd.Series"
+
+#: a2d75e57a6d34a9488e0acd2126e0ac2 of
+#: pymc_marketing.mlflow.log_mmm_evaluation_metrics:8
+msgid "The true values of the target variable."
+msgstr "Los verdaderos valores de la variable objetivo."
+
+#: 4698d016a7114eefa24bdb881186e091 of
+#: pymc_marketing.mlflow.log_mmm_evaluation_metrics:10
+msgid "**y_pred** : :obj:`npt.NDArray` | :obj:`xr.DataArray`"
+msgstr "**y_pred** : :obj:`npt.NDArray` | :obj:`xr.DataArray`"
+
+#: 45b5c5bc02734353822e97048c34903a of
+#: pymc_marketing.mlflow.log_mmm_evaluation_metrics:9
+msgid "npt.NDArray | xr.DataArray"
+msgstr "npt.NDArray | xr.DataArray"
+
+#: e86a8d63d3964470a397e5fcbb60d3c4 of
+#: pymc_marketing.mlflow.log_mmm_evaluation_metrics:11
+msgid "The predicted values of the target variable."
+msgstr "Los valores predichos de la variable objetivo."
+
+#: 458b485a647949dabcc816d1fe5f089b of
+#: pymc_marketing.mlflow.log_mmm_evaluation_metrics:13
+msgid ""
+"**metrics_to_calculate** : :class:`python:list` of :class:`python:str` or "
+":data:`python:None`, optional"
+msgstr ""
+"**métricas_a_calcular** : :class:`python:list` de :class:`python:str` o "
+":data:`python:None`, opcional"
+
+#: 1714598560d949779718355b1ebd1bdf of
+#: pymc_marketing.mlflow.log_mmm_evaluation_metrics:12
+msgid "python:list of python:str or python:None, optional"
+msgstr "python:lista de python:str o python:None, opcional"
+
+#: e60f8c24c9ec46df8abd431096956703 of
+#: pymc_marketing.mlflow.log_mmm_evaluation_metrics:14
+msgid ""
+"List of metrics to calculate. If None, all available metrics will be "
+"calculated. Options include:"
+msgstr ""
+"Lista de métricas a calcular. Si es None, se calcularán todas las métricas "
+"disponibles. Las opciones incluyen:"
+
+#: 1bd0af5e8cba4955b5d7b0a24367d962 of
+#: pymc_marketing.mlflow.log_mmm_evaluation_metrics:16
+msgid "`r_squared`: Bayesian R-squared."
+msgstr "`r_squared`: R-cuadrado bayesiano."
+
+#: c04452bfc3814641bfb200e8fe214964 of
+#: pymc_marketing.mlflow.log_mmm_evaluation_metrics:17
+msgid "`rmse`: Root Mean Squared Error."
+msgstr "`rmse`: Error Cuadrático Medio."
+
+#: 0c687e43a4a044f3bd7ab754d5d532d2 of
+#: pymc_marketing.mlflow.log_mmm_evaluation_metrics:18
+msgid "`nrmse`: Normalized Root Mean Squared Error."
+msgstr "`nrmse`: Error Cuadrático Medio Normalizado."
+
+#: 3e3b447d06da4327a1b3ba0aadaf6154 of
+#: pymc_marketing.mlflow.log_mmm_evaluation_metrics:19
+msgid "`mae`: Mean Absolute Error."
+msgstr "`mae`: Error Absoluto Medio."
+
+#: 80ca70c41afe4f4aa3ae1f88c6eb39c9 of
+#: pymc_marketing.mlflow.log_mmm_evaluation_metrics:20
+msgid "`nmae`: Normalized Mean Absolute Error."
+msgstr "`nmae`: Error Absoluto Medio Normalizado."
+
+#: 12109e3f1a714b08ba80c9f7081a5304 of
+#: pymc_marketing.mlflow.log_mmm_evaluation_metrics:21
+msgid "`mape`: Mean Absolute Percentage Error."
+msgstr "`mape`: Error Porcentual Absoluto Medio."
+
+#: 8fbeb1b935dd487882b0a258c1248a4a of
+#: pymc_marketing.mlflow.log_mmm_evaluation_metrics:23
+msgid "**hdi_prob** : :class:`python:float`, optional"
+msgstr "**hdi_prob** : :class:`python:float`, opcional"
+
+#: 1997b1929e5f4bf8b3581d0eca0f0fdf of
+#: pymc_marketing.mlflow.log_mmm_evaluation_metrics:22
+msgid "python:float, optional"
+msgstr "python:float, opcional"
+
+#: 423d89a521ce4b30b07636a96e061b6b of
+#: pymc_marketing.mlflow.log_mmm_evaluation_metrics:24
+msgid ""
+"The probability mass of the highest density interval. Defaults to 0.94."
+msgstr ""
+"La masa de probabilidad del intervalo de mayor densidad. Por defecto es "
+"0.94."
+
+#: 4efd2b3687b74df5a815ee77b57d5244 of
+#: pymc_marketing.mlflow.log_mmm_evaluation_metrics:26
+msgid "**prefix** : :class:`python:str`, optional"
+msgstr "**prefijo** : :class:`python:str`, opcional"
+
+#: 0cd1c2bec6784c4591306dcb494e5b23 of
+#: pymc_marketing.mlflow.log_mmm_evaluation_metrics:25
+msgid "python:str, optional"
+msgstr "python:str, opcional"
+
+#: 37db879965324a4ca3a294a1b3a0a3a0 of
+#: pymc_marketing.mlflow.log_mmm_evaluation_metrics:27
+msgid "Prefix to add to the metric names. Defaults to \"\"."
+msgstr "Prefijo a añadir a los nombres de las métricas. Por defecto es \"\"."
+
+#: b599d9f6f54e45a8b01f74c38fe135be of
+#: pymc_marketing.mlflow.log_mmm_evaluation_metrics:42
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: 6cdcc635193f4eefbce7f88af5ffa2af of
+#: pymc_marketing.mlflow.log_mmm_evaluation_metrics:43
+msgid "Log in-sample evaluation metrics for a PyMC-Marketing MMM model:"
+msgstr ""
+"Métricas de evaluación de muestra de inicio de sesión para un modelo MMM de "
+"PyMC-Marketing:"

@@ -1,0 +1,181 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/guide/benefits/why_open_source.md:1
+#: 0fcd723936044099ad4d84a8124a2a69
+msgid "Why embrace open source?"
+msgstr "¿Por qué adoptar el código abierto?"
+
+#: ../source/guide/benefits/why_open_source.md:3
+#: 2ac6ddf4553c4db491ad3c4683227c1d
+msgid ""
+"In recent years, there has been a significant shift across many data-"
+"intensive industries to build upon open source foundations. There are "
+"several advantages in building your marketing data science stack on an open "
+"source core:"
+msgstr ""
+"En los últimos años, ha habido un cambio significativo en muchas industrias "
+"intensivas en datos para basarse en fundamentos de código abierto. Hay "
+"varias ventajas en construir tu pila de ciencia de datos de marketing sobre "
+"un núcleo de código abierto:"
+
+#: ../source/guide/benefits/why_open_source.md:5
+#: a8be0e332c0c42c3990728e604f7d653
+msgid "Cost savings"
+msgstr "Ahorro de costos"
+
+#: ../source/guide/benefits/why_open_source.md:6
+#: f0138e9e721f493e82aba5054c6a268a
+msgid "Avoid paying for proprietary software licenses."
+msgstr "Evita pagar por licencias de software propietario."
+
+#: ../source/guide/benefits/why_open_source.md:8
+#: 5261defdf44640e98149382ab6bca7ba
+msgid "Avoid vendor lock-in"
+msgstr "Evitar el bloqueo del proveedor"
+
+#: ../source/guide/benefits/why_open_source.md:9
+#: d35a1f2ed02d454b8f70ccbe7a551655
+msgid ""
+"Keep flexibility and control, with the ability to switch to other options or"
+" to customise your data science models on top of an open source core."
+msgstr ""
+"Mantén la flexibilidad y el control, con la capacidad de cambiar a otras "
+"opciones o de personalizar tus modelos de ciencia de datos sobre un núcleo "
+"de código abierto."
+
+#: ../source/guide/benefits/why_open_source.md:11
+#: 9a73706d7a01473c87ecd5e1071fcc44
+msgid "Flexibility and customization"
+msgstr "Flexibilidad y personalización"
+
+#: ../source/guide/benefits/why_open_source.md:12
+#: a27fb6b5baa644afad5907ee2b54164b
+msgid ""
+"Open source software is customizable and can be tailored to meet the "
+"specific needs of your business. This allows you to create a data science "
+"stack that is uniquely suited to your business and can give you a "
+"competitive advantage."
+msgstr ""
+"El software de código abierto es personalizable y se puede adaptar para "
+"satisfacer las necesidades específicas de tu negocio. Esto te permite crear "
+"un stack de ciencia de datos que se ajuste de manera única a tu negocio y "
+"puede brindarte una ventaja competitiva."
+
+#: ../source/guide/benefits/why_open_source.md:14
+#: 9ff3dd5b435841deab6d333393a8fc23
+msgid "In-housing"
+msgstr "In-house"
+
+#: ../source/guide/benefits/why_open_source.md:15
+#: bc4a4f429eb84eaa945428430ffe299f
+msgid ""
+"There are pro’s and con’s of running your marketing analytics [in-"
+"house](https://www.campaignlive.co.uk/article/in-housing-everything-need-"
+"know/1492428) versus outsourcing through external marketing agencies bespoke"
+" consultancies. But if you were going to in-house, it makes sense to build "
+"your data science stack on an open core - it allows your data science team "
+"to focus on customisation for *your* business rather than building and "
+"maintaining the foundations that others have already built."
+msgstr ""
+"Hay ventajas y desventajas de ejecutar tus análisis de marketing "
+"[internamente](https://www.campaignlive.co.uk/article/in-housing-everything-"
+"need-know/1492428) en comparación con externalizar a través de agencias de "
+"marketing externas o consultorías personalizadas. Pero si vas a hacerlo "
+"internamente, tiene sentido construir tu pila de ciencia de datos sobre un "
+"núcleo abierto; permite que tu equipo de ciencia de datos se enfoque en la "
+"personalización para *tu* negocio en lugar de construir y mantener las bases"
+" que otros ya han creado."
+
+#: ../source/guide/benefits/why_open_source.md:17
+#: d913146be54d49cd89195b2f94acc2c9
+msgid "Innovation"
+msgstr "Innovación"
+
+#: ../source/guide/benefits/why_open_source.md:18
+#: df815780e300419395b2e86e204e6f4f
+msgid ""
+"Open source software is often at the forefront of innovation in data "
+"science, with new tools and techniques being developed and shared by the "
+"community. By building your data science stack on an open source core, you "
+"can stay up-to-date with the latest advances in the field and take advantage"
+" of new developments and improvements as they arise."
+msgstr ""
+"El software de código abierto a menudo está a la vanguardia de la innovación"
+" en la ciencia de datos, con nuevas herramientas y técnicas que son "
+"desarrolladas y compartidas por la comunidad. Al construir tu pila de "
+"ciencia de datos sobre un núcleo de código abierto, puedes mantenerte al día"
+" con los últimos avances en el campo y aprovechar los nuevos desarrollos y "
+"mejoras a medida que surgen."
+
+#: ../source/guide/benefits/why_open_source.md:20
+#: 00cf1725d4c246d2959f780b31552e8a
+msgid "Community support"
+msgstr "Soporte comunitario"
+
+#: ../source/guide/benefits/why_open_source.md:21
+#: 18753b9115d44c448c4cdd028438e528
+msgid ""
+"PyMC-Marketing and [PyMC](https://www.pymc.io/) (the Bayesian engine that "
+"powers PyMC-Marketing) are supported by a large, active community of "
+"developers who contribute to the development of these libraries and provide "
+"support and guidance to users. For example the [the PyMC-Marketing "
+"Discussions on Github](https://github.com/pymc-labs/pymc-"
+"marketing/discussions) allows members of our community to connect with and "
+"ask questions of peers, core developers, and members of [PyMC "
+"Labs](https://www.pymc-labs.com).  The [PyMC "
+"Discouse](https://discourse.pymc.io) is a similar forum for users of PyMC "
+"(the engine that powers PyMC-Marketing). This thriving community can be "
+"invaluable for businesses that don't have the resources to hire their own "
+"team of data scientists."
+msgstr ""
+"PyMC-Marketing y [PyMC](https://www.pymc.io/) (el motor bayesiano que "
+"impulsa PyMC-Marketing) son respaldados por una gran y activa comunidad de "
+"desarrolladores que contribuyen al desarrollo de estas bibliotecas y brindan"
+" apoyo y orientación a los usuarios. Por ejemplo, las [discusiones de PyMC-"
+"Marketing en Github](https://github.com/pymc-labs/pymc-"
+"marketing/discussions) permiten a los miembros de nuestra comunidad "
+"conectarse y hacer preguntas a sus pares, desarrolladores principales y "
+"miembros de [PyMC Labs](https://www.pymc-labs.com). El [Discurso de "
+"PyMC](https://discourse.pymc.io) es un foro similar para los usuarios de "
+"PyMC (el motor que impulsa PyMC-Marketing). Esta próspera comunidad puede "
+"ser invaluable para las empresas que no tienen los recursos para contratar "
+"su propio equipo de científicos de datos."
+
+#: ../source/guide/benefits/why_open_source.md:23
+#: 361cfef2697d4316b86c3ff00ce1cbb3
+msgid "Talent acquisition and onboarding"
+msgstr "Adquisición de talento y incorporación"
+
+#: ../source/guide/benefits/why_open_source.md:24
+#: 4953a1b2cce7431aad4355fd189454fc
+msgid ""
+"Using open source software as a foundation for your data science stack can "
+"help attract top talent to your company. Developers and data scientists are "
+"often drawn to companies that use cutting-edge tools and contribute to the "
+"larger open source community."
+msgstr ""
+"Usar software de código abierto como base para tu pila de ciencia de datos "
+"puede ayudar a atraer talento de primer nivel a tu empresa. Los "
+"desarrolladores y científicos de datos a menudo se sienten atraídos por "
+"empresas que utilizan herramientas de vanguardia y contribuyen a la "
+"comunidad de código abierto más amplia."

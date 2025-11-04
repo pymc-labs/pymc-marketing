@@ -1,0 +1,122 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.utility.tail_distance.rst:2
+#: 4238db550861415c846a34885613b506
+msgid "tail\\_distance"
+msgstr "distancia\\_de\\_cola"
+
+#: 450803a3f4734b3a9c3cfe1483d91da6 of
+#: pymc_marketing.mmm.utility.tail_distance:2
+msgid "Calculate the absolute distance between the mean and the quantiles."
+msgstr "Calcule la distancia absoluta entre la media y los cuantiles."
+
+#: 17cadc67aa1542098acd34610ce6b56d of
+#: pymc_marketing.mmm.utility.tail_distance:4
+msgid ""
+"It is a simple and interpretable metric that can be used to assess the risk."
+msgstr ""
+"Es una métrica simple e interpretable que se puede utilizar para evaluar el "
+"riesgo."
+
+#: d484923e50a749a293dfa755131742f3 of
+#: pymc_marketing.mmm.utility.tail_distance:6
+msgid "The tail distance is calculated as:"
+msgstr "La distancia de la cola se calcula como:"
+
+#: e1123de5997341b490cfd7f71c4aed7a of
+#: pymc_marketing.mmm.utility.tail_distance:8
+#, python-brace-format
+msgid ""
+"Tail\\\\ Distance = |Q_{(1 - \\\\alpha)} - \\\\mu| + |\\\\mu - Q_{\\\\alpha}|\n"
+"\n"
+msgstr "Distancia\\\\ Cola = |Q_{(1 - \\\\alpha)} - \\\\mu| + |\\\\mu - Q_{\\\\alpha}|"
+
+#: b4027ba1b49848c7b33c4b222b29115c of
+#: pymc_marketing.mmm.utility.tail_distance:11
+msgid "where:"
+msgstr "donde:"
+
+#: 6857b191b6c1443e8e0b5ca0760ef5cf of
+#: pymc_marketing.mmm.utility.tail_distance:12
+msgid ":math:`\\\\mu` is the mean of the sample returns."
+msgstr ":math:`\\\\mu` es la media de los retornos de la muestra."
+
+#: 072f057e9e834c8d8132acc96251b7e8 of
+#: pymc_marketing.mmm.utility.tail_distance:13
+#, python-brace-format
+msgid ""
+":math:`Q_{(1 - \\\\alpha)}` is the quantile at the specified confidence "
+"level."
+msgstr ""
+":math:`Q_{(1 - \\\\alpha)}` es el cuantil en el nivel de confianza "
+"especificado."
+
+#: 212483d4d0884404a97b6b68edb4befb of
+#: pymc_marketing.mmm.utility.tail_distance:14
+#, python-brace-format
+msgid ":math:`Q_{\\\\alpha}` is the quantile at the specified confidence level."
+msgstr ""
+":math:`Q_{\\\\alpha}` es el cuantil en el nivel de confianza especificado."
+
+#: 527dacedc7dd4957bc91747108fd743d of
+#: pymc_marketing.mmm.utility.tail_distance
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 60fed75e19024ed48acbe0cb35b17012 of
+#: pymc_marketing.mmm.utility.tail_distance:18
+msgid "**confidence_level** : :class:`python:float`, optional"
+msgstr "**nivel_de_confianza** : :class:`python:float`, opcional"
+
+#: 2a200d91ce8f44aeb81e3d8ec6a01ed7 of
+#: pymc_marketing.mmm.utility.tail_distance:17
+msgid "python:float, optional"
+msgstr "python:float, opcional"
+
+#: f7d2495da6374550acbfb2ec17638735 of
+#: pymc_marketing.mmm.utility.tail_distance:19
+msgid ""
+"Confidence level for the quantiles (default is 0.75). Confidence level must "
+"be between 0 and 1."
+msgstr ""
+"Nivel de confianza para los cuantiles (el valor predeterminado es 0.75). El "
+"nivel de confianza debe estar entre 0 y 1."
+
+#: fc2e9296a8ca480badd5b072e5eff42e of
+#: pymc_marketing.mmm.utility.tail_distance
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: d43c4de10b704d36a96d05d455a0d22b of
+#: pymc_marketing.mmm.utility.tail_distance:26
+msgid ":obj:`UtilityFunctionType`"
+msgstr ":obj:`UtilityFunctionType`"
+
+#: 5472dc81b2904c6ea3e006d5750b13bb of
+#: pymc_marketing.mmm.utility.tail_distance:27
+msgid ""
+"A function that calculates the tail distance metric given samples and "
+"budgets."
+msgstr ""
+"Una función que calcula la métrica de distancia de cola dada muestras y "
+"presupuestos."

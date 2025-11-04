@@ -1,0 +1,74 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.events.AsymmetricGaussianBasis.update_priors.rst:2
+#: 91466db4cef64320a022b0b3529f79c5
+msgid "AsymmetricGaussianBasis.update\\_priors"
+msgstr "AsymmetricGaussianBasis.actualizar\\_priors"
+
+#: 6e10be6dfb6944fa9a7262fc08f858d5 of
+#: pymc_marketing.mmm.components.base.Transformation.update_priors:2
+msgid "Update the priors for a function after initialization."
+msgstr "Actualiza los priors para una función después de la inicialización."
+
+#: 009fef8554d74ee385055eb6a734e26f of
+#: pymc_marketing.mmm.components.base.Transformation.update_priors:4
+#, python-brace-format
+msgid ""
+"Uses {prefix}_{parameter_name} as the key for the priors instead of the "
+"parameter name in order to be used in the larger MMM."
+msgstr ""
+"Utiliza {prefix}_{parameter_name} como la clave para los priors en lugar del"
+" nombre del parámetro para ser utilizado en el MMM más grande."
+
+#: eb5a1a17725541f8853d6d297dc08621 of
+#: pymc_marketing.mmm.components.base.Transformation.update_priors
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: a66c0c302da241de996f3cd0aaefc9f0 of
+#: pymc_marketing.mmm.components.base.Transformation.update_priors:9
+msgid "**priors** : :class:`python:dict`\\[:class:`python:str`, :obj:`Prior`]"
+msgstr ""
+"**antecedentes** : :class:`python:dict`\\[:class:`python:str`, :obj:`Prior`]"
+
+#: e0af2493db2c4a67a887aebd1433e2f3 of
+#: pymc_marketing.mmm.components.base.Transformation.update_priors:8
+msgid "python:dict[python:str, Prior]"
+msgstr "python:dict[python:str, Prior]"
+
+#: c5babeeaceaf4a2d96d235ee26857d3f of
+#: pymc_marketing.mmm.components.base.Transformation.update_priors:10
+msgid "Dictionary with the new priors for the parameters of the function."
+msgstr "Diccionario con los nuevos priors para los parámetros de la función."
+
+#: 3559f3e3331f4e9ca6dff60fa93ddd5c of
+#: pymc_marketing.mmm.components.base.Transformation.update_priors:25
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: 9839b3f73a674366bce28c549cc3855e of
+#: pymc_marketing.mmm.components.base.Transformation.update_priors:26
+msgid "Update the priors for a transformation after initialization."
+msgstr ""
+"Actualice los antecedentes para una transformación después de la "
+"inicialización."

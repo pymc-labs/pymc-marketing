@@ -1,0 +1,228 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.bass.model.create_bass_model.rst:2
+#: 79b8cbc4a69341d2a973971221de3298
+msgid "create\\_bass\\_model"
+msgstr "crear\\_modelo\\_bajo"
+
+#: 5e4009d2c5ec4829b972ff304c82ad9f of
+#: pymc_marketing.bass.model.create_bass_model:2
+msgid "Define a Bass diffusion model for product adoption forecasting."
+msgstr ""
+"Defina un modelo de difusión de Bass para la previsión de la adopción de "
+"productos."
+
+#: 2ce3e8c917774842887597faa35b0bb2 of
+#: pymc_marketing.bass.model.create_bass_model:4
+msgid ""
+"This function creates a Bayesian Bass diffusion model using PyMC to forecast"
+" product adoption over time. The Bass model captures both innovation "
+"(external influence like advertising) and imitation (internal influence like"
+" word-of-mouth) effects in the adoption process."
+msgstr ""
+"Esta función crea un modelo de difusión de Bass bayesiano utilizando PyMC "
+"para predecir la adopción de productos a lo largo del tiempo. El modelo de "
+"Bass captura tanto los efectos de innovación (influencia externa como la "
+"publicidad) como los de imitación (influencia interna como el boca a boca) "
+"en el proceso de adopción."
+
+#: 2dcc72a658774964b4520de725b9410e of
+#: pymc_marketing.bass.model.create_bass_model:9
+msgid "The model includes the following components:"
+msgstr "El modelo incluye los siguientes componentes:"
+
+#: 2b8349f7f89e4e8da9a134f96b16634e of
+#: pymc_marketing.bass.model.create_bass_model:11
+msgid "Market potential 'm': Total number of eventual adopters"
+msgstr "Potencial de mercado 'm': Número total de posibles adoptantes"
+
+#: 795f93b1630443078f9291bb41d9b8ff of
+#: pymc_marketing.bass.model.create_bass_model:12
+msgid "Innovation coefficient 'p': Measures external influence"
+msgstr "Coeficiente de innovación 'p': Mide la influencia externa"
+
+#: a3e3a4357dec4d69b3f8fab7bbf8f8ea of
+#: pymc_marketing.bass.model.create_bass_model:13
+msgid "Imitation coefficient 'q': Measures internal influence"
+msgstr "Coeficiente de imitación 'q': Mide la influencia interna"
+
+#: 7db65c9b79ac4ef4a9469f19cb8d8201 of
+#: pymc_marketing.bass.model.create_bass_model:14
+msgid "Adopters over time: Number of new adopters at each time point"
+msgstr ""
+"Adoptantes a lo largo del tiempo: Número de nuevos adoptantes en cada punto "
+"temporal"
+
+#: e666f9e63f3341f289d60559aed278c4 of
+#: pymc_marketing.bass.model.create_bass_model:15
+msgid "Innovators: Adopters influenced by external factors"
+msgstr "Innovadores: Adoptantes influenciados por factores externos"
+
+#: 8355610ed31d400da715a9bc23bd87ec of
+#: pymc_marketing.bass.model.create_bass_model:16
+msgid "Imitators: Adopters influenced by previous adopters"
+msgstr "Imitadores: Adoptantes influenciados por adoptantes anteriores"
+
+#: ae5dacba06684635a6a58d7e64c0368e of
+#: pymc_marketing.bass.model.create_bass_model:17
+msgid "Peak adoption time: When adoption rate reaches maximum"
+msgstr ""
+"Tiempo máximo de adopción: Cuando la tasa de adopción alcanza su máximo"
+
+#: 1792150f68044d6383039ea9c315895f of
+#: pymc_marketing.bass.model.create_bass_model
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 9dccf5ec98ac4648a65c823e69d17d4d of
+#: pymc_marketing.bass.model.create_bass_model:21
+msgid "**t** : :obj:`pt.TensorLike`"
+msgstr "**t** : :obj:`pt.TensorLike`"
+
+#: e3520d1a083e4c54aa4614ac407d996d of
+#: pymc_marketing.bass.model.create_bass_model:20
+msgid "pt.TensorLike"
+msgstr "pt.TensorComo"
+
+#: 7f73b19aee3a4e2c8b87795926645dcb of
+#: pymc_marketing.bass.model.create_bass_model:22
+msgid "Time points for which the adoption is modeled."
+msgstr "Puntos de tiempo para los cuales se modela la adopción."
+
+#: 8e3f5eb2dcce4d89810c42f62165307b of
+#: pymc_marketing.bass.model.create_bass_model:24
+msgid "**observed** : :obj:`pt.TensorLike` | :data:`python:None`"
+msgstr "**observado** : :obj:`pt.TensorLike` | :data:`python:None`"
+
+#: f1a493660bba4b9788c5418e4df5f060 of
+#: pymc_marketing.bass.model.create_bass_model:23
+msgid "pt.TensorLike | python:None"
+msgstr "pt.TensorLike | python:Ninguno"
+
+#: b4707849013241fd995eba050ea36343 of
+#: pymc_marketing.bass.model.create_bass_model:25
+msgid ""
+"Observed adoption data at each time point. If None, only prior predictive "
+"sampling is possible."
+msgstr ""
+"Datos de adopción observados en cada punto temporal. Si es None, solo es "
+"posible el muestreo predictivo previo."
+
+#: 9b9f11ee96e54cdab2ffecb6bfeba9f7 of
+#: pymc_marketing.bass.model.create_bass_model:28
+msgid ""
+"**priors** : :class:`python:dict`\\[:class:`python:str`, :obj:`Prior` | "
+":obj:`Censored` | :obj:`VariableFactory`]"
+msgstr ""
+"**priors** : :class:`python:dict`\\[:class:`python:str`, :obj:`Prior` | "
+":obj:`Censored` | :obj:`VariableFactory`]"
+
+#: b111e03898694691bfb9185a32e2a7b4 of
+#: pymc_marketing.bass.model.create_bass_model:27
+msgid "python:dict[python:str, Prior | Censored | VariableFactory]"
+msgstr "python:dict[python:str, Prior | Censurado | VariableFactory]"
+
+#: 72702977c5be4f1d8f263c1f1ca87a46 of
+#: pymc_marketing.bass.model.create_bass_model:29
+msgid ""
+"Dictionary containing priors for: - 'm': Market potential prior - 'p': "
+"Innovation coefficient prior - 'q': Imitation coefficient prior - "
+"'likelihood': Observation likelihood model"
+msgstr ""
+"Diccionario que contiene priors para: - 'm': Prior de potencial de mercado -"
+" 'p': Prior del coeficiente de innovación - 'q': Prior del coeficiente de "
+"imitación - 'likelihood': Modelo de probabilidad de observación"
+
+#: 9a7bd3aa80354588bc48c5227f7b0168 of
+#: pymc_marketing.bass.model.create_bass_model:35
+msgid "**coords** : :class:`python:dict`\\[:class:`python:str`, :obj:`Any`]"
+msgstr "**coords** : :class:`python:dict`\\[:class:`python:str`, :obj:`Any`]"
+
+#: 3356aea908f0448fb218dbebfdf9ad1d of
+#: pymc_marketing.bass.model.create_bass_model:34
+msgid "python:dict[python:str, Any]"
+msgstr "python:dict[python:str, Cualquiera]"
+
+#: a7858a155dd34a3aaa8023eeafe35589 of
+#: pymc_marketing.bass.model.create_bass_model:36
+msgid ""
+"Coordinate values for dimensions in the model, including 'date' for the time"
+" dimension and any other dimensions included in the prior specifications."
+msgstr ""
+"Coordine los valores para las dimensiones en el modelo, incluyendo 'fecha' "
+"para la dimensión temporal y cualquier otra dimensión incluida en las "
+"especificaciones anteriores."
+
+#: 275bf2d18af34bc48be90315f018b145 of
+#: pymc_marketing.bass.model.create_bass_model
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: d7c521e535eb4ad39b7bc12a1552cb0e of
+#: pymc_marketing.bass.model.create_bass_model:44
+msgid ":class:`~pymc.Model`"
+msgstr ":class:`~pymc.Model`"
+
+#: 60d2281489ba43fc83695e86cdd81ea3 of
+#: pymc_marketing.bass.model.create_bass_model:45
+msgid ""
+"A PyMC model object for the Bass diffusion model, containing the variables "
+"m, p, q, adopters, innovators, imitators, peak, and the likelihood y."
+msgstr ""
+"Un objeto de modelo PyMC para el modelo de difusión de Bass, que contiene "
+"las variables m, p, q, adoptantes, innovadores, imitadores, pico y la "
+"verosimilitud y."
+
+#: 453bbf6adb7f44f58d0998ef97ab13f3 of
+#: pymc_marketing.bass.model.create_bass_model:57
+msgid "Notes"
+msgstr "Notas"
+
+#: eac1093780944a74a4b96272053b96b9 of
+#: pymc_marketing.bass.model.create_bass_model:58
+msgid ""
+"The returned model can be used for prior predictive checks, posterior "
+"sampling, and posterior predictive checks to forecast product adoption."
+msgstr ""
+"El modelo devuelto puede ser utilizado para verificaciones predictivas "
+"previas, muestreo posterior y verificaciones predictivas posteriores para "
+"pronosticar la adopción del producto."
+
+#: 891df38c7dab493bbd718794a9c9817c of
+#: pymc_marketing.bass.model.create_bass_model:61
+msgid "The model implements the following mathematical relationships:"
+msgstr "El modelo implementa las siguientes relaciones matemáticas:"
+
+#: 82180902e58142b7900249d53322093c of
+#: pymc_marketing.bass.model.create_bass_model:63
+#, python-brace-format
+msgid ""
+"\\text{adopters}(t) &= m \\cdot f(p, q, t) \\\\\n"
+"\\text{innovators}(t) &= m \\cdot p \\cdot (1 - F(p, q, t)) \\\\\n"
+"\\text{imitators}(t) &= m \\cdot q \\cdot F(p, q, t) \\cdot (1 - F(p, q, t)) \\\\\n"
+"\\text{peak} &= \\frac{\\ln(q) - \\ln(p)}{p + q}"
+msgstr ""
+"\\text{adopters}(t) &= m \\cdot f(p, q, t) \\\\\n"
+"\\text{innovators}(t) &= m \\cdot p \\cdot (1 - F(p, q, t)) \\\\\n"
+"\\text{imitators}(t) &= m \\cdot q \\cdot F(p, q, t) \\cdot (1 - F(p, q, t)) \\\\\n"
+"\\text{peak} &= \\frac{\\ln(q) - \\ln(p)}{p + q}"

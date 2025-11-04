@@ -1,0 +1,149 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.plot.plot_samples.rst:2
+#: 1808c3b261bc489ba9c399cef4ad2a23
+msgid "plot\\_samples"
+msgstr "trazar_muestras"
+
+#: 80801af0c1bd44dfbf260454475aaab1 of pymc_marketing.plot.plot_samples:2
+msgid "Plot n samples of the curve across coords."
+msgstr "Trazar n muestras de la curva a través de coords."
+
+#: c9c8ef8901b24578adadd781401f88f2 of pymc_marketing.plot.plot_samples
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 6eb2f3a521e84d10aace56b0d20d24ae of pymc_marketing.plot.plot_samples:7
+msgid "**curve** : :obj:`xr.DataArray`"
+msgstr "**curva** : :obj:`xr.DataArray`"
+
+#: b32062247e4646c698b3801b59f3e7d3 of pymc_marketing.plot.plot_samples:6
+msgid "xr.DataArray"
+msgstr "xr.DataArray"
+
+#: bd24c9c9836f42c68b10ce692e0a4bbe of pymc_marketing.plot.plot_samples:8
+msgid "Curve to plot"
+msgstr "Curva a graficar"
+
+#: 3fdf04a0202f44b198f6ac510df440b9 of pymc_marketing.plot.plot_samples:10
+msgid ""
+"**non_grid_names** : :class:`python:str` | :obj:`set`\\[:class:`python:str`]"
+msgstr ""
+"**non_grid_names** : :class:`python:str` | :obj:`set`\\[:class:`python:str`]"
+
+#: 30dfe1ce5dde49149438cfddf5d8f442 of pymc_marketing.plot.plot_samples:9
+msgid "python:str | set[python:str]"
+msgstr "python:str | conjunto[python:str]"
+
+#: 792acdd5b25e4fb286267ce2a14bdebc of pymc_marketing.plot.plot_samples:11
+msgid ""
+"The names to exclude from the grid. chain and draw are excluded "
+"automatically"
+msgstr ""
+"Los nombres que se deben excluir de la cuadrícula. chain y draw se excluyen "
+"automáticamente."
+
+#: 292c86db89a24afbb3fac30d1d0dcdd6 of pymc_marketing.plot.plot_samples:14
+msgid "**n** : :class:`python:int`, optional"
+msgstr "**n** : :class:`python:int`, opcional"
+
+#: 45bcfea1e3aa46c58dc462136da9c5d3 of pymc_marketing.plot.plot_samples:13
+msgid "python:int, optional"
+msgstr "python:int, opcional"
+
+#: c5e9b903bb8b473fbb5686059c52a149 of pymc_marketing.plot.plot_samples:15
+msgid "Number of samples to plot"
+msgstr "Número de muestras a graficar"
+
+#: 1f866effdd334e5ab210fb7cd21e9a78 of pymc_marketing.plot.plot_samples:17
+msgid "**rng** : :obj:`np.random.Generator`, optional"
+msgstr "**rng** : :obj:`np.random.Generator`, opcional"
+
+#: 8e631de5813142dbb2bc23b552950248 of pymc_marketing.plot.plot_samples:16
+msgid "np.random.Generator, optional"
+msgstr "np.random.Generator, opcional"
+
+#: def138af239e491280242c2f5e819629 of pymc_marketing.plot.plot_samples:18
+msgid "Random number generator"
+msgstr "Generador de números aleatorios"
+
+#: 5d0f1e39dec34a8b8c848d46405c803c of pymc_marketing.plot.plot_samples:20
+msgid "**axes** : :obj:`npt.NDArray`\\[:obj:`plt.Axes`], optional"
+msgstr "**ejes** : :obj:`npt.NDArray`\\[:obj:`plt.Axes`], opcional"
+
+#: f26c15ff51e74a8e9dc2681bdfe2c1ce of pymc_marketing.plot.plot_samples:19
+msgid "npt.NDArray[plt.Axes], optional"
+msgstr "npt.NDArray[plt.Axes], opcional"
+
+#: b44ff9f1868449e99c9988f0dc84d962 of pymc_marketing.plot.plot_samples:21
+msgid "Axes to plot on"
+msgstr "Ejes para trazar en"
+
+#: f9fdb77d93834381abff33f146ae0349 of pymc_marketing.plot.plot_samples:23
+msgid "**subplot_kwargs** : :class:`python:dict`, optional"
+msgstr "**subplot_kwargs** : :class:`python:dict`, opcional"
+
+#: b23c4c2d0c274ea39e0cdbb529482a3f d09b076340fb4079b74b5970524b4e5f of
+#: pymc_marketing.plot.plot_samples:22 pymc_marketing.plot.plot_samples:25
+msgid "python:dict, optional"
+msgstr "python:dict, opcional"
+
+#: 95bfee1fd05142e8b53fdb4a9beb9c34 of pymc_marketing.plot.plot_samples:24
+msgid "Additional kwargs to while creating the fig and axes"
+msgstr "kwargs adicionales al crear la figura y los ejes"
+
+#: f364db2e2b0b4d2c9dcf1e1a7f741bfe of pymc_marketing.plot.plot_samples:26
+msgid "**plot_kwargs** : :class:`python:dict`, optional"
+msgstr "**plot_kwargs** : :class:`python:dict`, opcional"
+
+#: cbc94f04988040ccaf8e759a6165caa9 of pymc_marketing.plot.plot_samples:27
+msgid "Kwargs for the plot function"
+msgstr "Kwargs para la función de gráfico"
+
+#: c15b4fc80f504ae0aa7984043597d091 of pymc_marketing.plot.plot_samples:29
+msgid "**same_axes** : :ref:`bool <python:bltin-boolean-values>`"
+msgstr "**same_axes** : :ref:`bool <python:bltin-boolean-values>`"
+
+#: 29915bd0747740c289313a8e0ef9ff65 of pymc_marketing.plot.plot_samples:28
+msgid "bool"
+msgstr "bool"
+
+#: aeae468a1e0b49c9b81f35ece6ff7486 of pymc_marketing.plot.plot_samples:30
+msgid "All of the plots in the same axis"
+msgstr "Todos los gráficos en el mismo eje"
+
+#: cd82266f8e5e49389dfab73515cfb87c of pymc_marketing.plot.plot_samples
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 43522c7b2a264247bbaa9455b1e6fd40 of pymc_marketing.plot.plot_samples:36
+msgid ""
+":class:`python:tuple`\\[:obj:`plt.Figure`, "
+":obj:`npt.NDArray`\\[:obj:`plt.Axes`]]"
+msgstr ""
+":class:`python:tuple`\\[:obj:`plt.Figure`, "
+":obj:`npt.NDArray`\\[:obj:`plt.Axes`]]"
+
+#: 4a6c48fbd6954b41b97464ad52ff632e of pymc_marketing.plot.plot_samples:37
+msgid "Figure and the axes"
+msgstr "Figura y los ejes"

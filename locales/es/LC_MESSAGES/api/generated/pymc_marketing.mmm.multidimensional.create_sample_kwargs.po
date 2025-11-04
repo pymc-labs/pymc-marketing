@@ -1,0 +1,120 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.create_sample_kwargs.rst:2
+#: 792aa153558a440580f451ce54099c32
+msgid "create\\_sample\\_kwargs"
+msgstr "create\\_sample\\_kwargs"
+
+#: c6d4100c46064d8d9345d614d6047a80 of
+#: pymc_marketing.mmm.multidimensional.create_sample_kwargs:2
+msgid "Create the dictionary of keyword arguments for `pm.sample`."
+msgstr "Cree el diccionario de argumentos clave para `pm.sample`."
+
+#: e5688101444d4031868b0fb8a5e69401 of
+#: pymc_marketing.mmm.multidimensional.create_sample_kwargs
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 0e5b0fb56cb240d98f273f329c213976 of
+#: pymc_marketing.mmm.multidimensional.create_sample_kwargs:7
+msgid "**sampler_config** : :class:`python:dict` | :data:`python:None`"
+msgstr "**sampler_config** : :class:`python:dict` | :data:`python:None`"
+
+#: 4d0ae5202e0445d78716a2d25e6a4fdd of
+#: pymc_marketing.mmm.multidimensional.create_sample_kwargs:6
+msgid "python:dict | python:None"
+msgstr "python:dict | python:None"
+
+#: 6046760028784f39a4ea15fe38505d0e of
+#: pymc_marketing.mmm.multidimensional.create_sample_kwargs:8
+msgid ""
+"The configuration dictionary for the sampler. If None, defaults to an empty "
+"dict."
+msgstr ""
+"El diccionario de configuración para el muestreador. Si es None, se "
+"establece por defecto en un diccionario vacío."
+
+#: df1233eb42b7462c85994f32b36fde23 of
+#: pymc_marketing.mmm.multidimensional.create_sample_kwargs:10
+msgid "**progressbar** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+"**barra de progreso** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: d61ce452bda94b2fa69fc85adf897765 of
+#: pymc_marketing.mmm.multidimensional.create_sample_kwargs:9
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: f084cf83c0f54ebe8c11749f91bc85ed of
+#: pymc_marketing.mmm.multidimensional.create_sample_kwargs:11
+msgid "Whether to show the progress bar during sampling. Defaults to True."
+msgstr ""
+"Si se debe mostrar la barra de progreso durante la toma de muestras. Por "
+"defecto es True."
+
+#: 37f774da23f046b3b414b65519c2eff2 of
+#: pymc_marketing.mmm.multidimensional.create_sample_kwargs:13
+msgid ""
+"**random_seed** : :obj:`RandomState <numpy.random.RandomState>`, optional"
+msgstr ""
+"**random_seed** : :obj:`RandomState <numpy.random.RandomState>`, opcional"
+
+#: 5f1c0e4f08f74caeb7f6d3110eb42cb1 of
+#: pymc_marketing.mmm.multidimensional.create_sample_kwargs:12
+msgid "RandomState, optional"
+msgstr "RandomState, opcional"
+
+#: 2bace807d84549e0b2483da7f883631a of
+#: pymc_marketing.mmm.multidimensional.create_sample_kwargs:14
+msgid "The random seed for the sampler."
+msgstr "La semilla aleatoria para el muestreador."
+
+#: ccbdce2748e048f180f0cf9749f9d2f6 of
+#: pymc_marketing.mmm.multidimensional.create_sample_kwargs:16
+msgid "**\\*\\*kwargs** : :obj:`Any`"
+msgstr "**\\*\\*kwargs** : :obj:`Cualquiera`"
+
+#: 2bc44b241640498daa706358d0498cf0 of
+#: pymc_marketing.mmm.multidimensional.create_sample_kwargs:15
+msgid "Any"
+msgstr "Cualquiera"
+
+#: ab1598e3044d4a0da5a99ecd70bdf736 of
+#: pymc_marketing.mmm.multidimensional.create_sample_kwargs:17
+msgid "Additional keyword arguments to pass to the sampler."
+msgstr "Argumentos de palabras clave adicionales para pasar al muestreador."
+
+#: 223c5823c05047289934d9958b287772 of
+#: pymc_marketing.mmm.multidimensional.create_sample_kwargs
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: e21c5afeb4db44ac810a46375267cc15 of
+#: pymc_marketing.mmm.multidimensional.create_sample_kwargs:23
+msgid ":class:`python:dict`"
+msgstr ":class:`python:dict`"
+
+#: 94765f69fa7640c6b948560e73e8b98d of
+#: pymc_marketing.mmm.multidimensional.create_sample_kwargs:24
+msgid "The dictionary of keyword arguments for `pm.sample`."
+msgstr "El diccionario de argumentos clave para `pm.sample`."

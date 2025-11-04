@@ -11,12 +11,13 @@ jobs:
   label-no-releasenotes:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Label no releasenotes
         run: |
           number=${{ github.event.pull_request.number }}
           is_bot=$(gh pr view $number --json author --jq '.author.is_bot')
-          if [[ $is_bot == "true" ]]; then
+          bot_login=$(gh pr view $number --json author --jq '.author.login')
+          if [[ $is_bot == "true" && $bot_login != "copilot-swe-agent" ]]; then
             gh pr edit $number --add-label "no releasenotes"
           fi
         env:

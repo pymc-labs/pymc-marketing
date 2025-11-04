@@ -1,0 +1,92 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.plot.random_samples.rst:2
+#: 7a1f63d275ae4d92b4ab491248606d7c
+msgid "random\\_samples"
+msgstr "muestras\\_aleatorias"
+
+#: 38fb2b0d650e4911a57ee6137b9344c4 of pymc_marketing.plot.random_samples:2
+msgid "Generate random samples from the chains and draws."
+msgstr "Generar muestras aleatorias de las cadenas y extracciones."
+
+#: 1c9836391f27496ab81be16390f85eb7 of pymc_marketing.plot.random_samples
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 4d57264f8a134482876719bdd1c5ea7d of pymc_marketing.plot.random_samples:7
+msgid "**rng** : :obj:`np.random.Generator`"
+msgstr "**rng** : :obj:`np.random.Generator`"
+
+#: a405a39969c8431c880223e486785f2c of pymc_marketing.plot.random_samples:6
+msgid "np.random.Generator"
+msgstr "np.random.Generator"
+
+#: 75bd8f4b713b4776ae56f435afdf42b2 of pymc_marketing.plot.random_samples:8
+msgid "Random number generator"
+msgstr "Generador de números aleatorios"
+
+#: 388930f0db164b67b24ffee023d940aa of pymc_marketing.plot.random_samples:10
+msgid "**n** : :class:`python:int`"
+msgstr "**n** : :class:`python:int`"
+
+#: 2736e1eb3d934b0ca290cc5815ae0635 4794761b28574a20ac818332db1f821c
+#: c00b5866687e4036841f5c83f642d3be of pymc_marketing.plot.random_samples:9
+#: pymc_marketing.plot.random_samples:12 pymc_marketing.plot.random_samples:15
+msgid "python:int"
+msgstr "python:int"
+
+#: ee24a9a3dbd941e4b79d273e3f706916 of pymc_marketing.plot.random_samples:11
+msgid "Number of samples to generate"
+msgstr "Número de muestras a generar"
+
+#: 9038385f4c2441298a896f1a202c3cec of pymc_marketing.plot.random_samples:13
+msgid "**n_chains** : :class:`python:int`"
+msgstr "**n_chains** : :class:`python:int`"
+
+#: d4e95609ce4e48f28a6389c4833d82e7 of pymc_marketing.plot.random_samples:14
+msgid "Number of chains"
+msgstr "Número de cadenas"
+
+#: c7256c61c0c542889483f46722efc279 of pymc_marketing.plot.random_samples:16
+msgid "**n_draws** : :class:`python:int`"
+msgstr "**n_draws** : :class:`python:int`"
+
+#: 98d9f22fdbb84559a097d8acd679a85a of pymc_marketing.plot.random_samples:17
+msgid "Number of draws"
+msgstr "Número de sorteos"
+
+#: b771aa17ba994fbf9668cfaa08b2088a of pymc_marketing.plot.random_samples
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 7be8082136474aa080424c6d733d9cfe of pymc_marketing.plot.random_samples:23
+msgid ""
+":class:`python:list`\\[:class:`python:tuple`\\[:class:`python:int`, "
+":class:`python:int`]]"
+msgstr ""
+":class:`python:list`\\[:class:`python:tuple`\\[:class:`python:int`, "
+":class:`python:int`]]"
+
+#: bd388358c6034d5aa7205ed5a22e3fa9 of pymc_marketing.plot.random_samples:24
+msgid "The random samples"
+msgstr "Las muestras aleatorias"

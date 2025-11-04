@@ -349,26 +349,41 @@ def create_zero_dataset(
         if date_col in channel_xr.dims:
             raise ValueError("`channel_xr` must NOT include the date dimension.")
 
-        # --- 4.3 Convert to DataFrame & merge ----------------------------------
-        channel_df = channel_xr.to_dataframe().reset_index()
+        # --- 4.3 Inject constants ----------------------------------------------
+        # Special-case: when there are NO dims (e.g., only channel dimension in the
+        # allocation which was pivoted into variables), xarray can't create an index
+        # for to_dataframe(). In this scenario, simply broadcast scalar values
+        # across all rows.
+        if len(channel_xr.dims) == 0:
+            for ch in channel_cols:
+                if ch in channel_xr.data_vars:
+                    # assign scalar value across all rows
+                    try:
+                        pred_df[ch] = channel_xr[ch].item()
+                    except Exception:
+                        pred_df[ch] = channel_xr[ch].values
+        else:
+            # Convert to DataFrame & merge when dims are present
+            channel_df = channel_xr.to_dataframe().reset_index()
 
-        # Left-join on every dimension; suffix prevents collisions during merge
-        pred_df = pred_df.merge(
-            channel_df,
-            on=dim_cols,
-            how="left",
-            suffixes=("", "_chan"),
-        )
+            # Left-join on every dimension; suffix prevents collisions during merge
+            pred_df = pred_df.merge(
+                channel_df,
+                on=dim_cols,
+                how="left",
+                suffixes=("", "_chan"),
+            )
 
         # --- 4.4 Copy merged values into official channel columns --------------
-        for ch in channel_cols:
-            chan_col = f"{ch}_chan"
-            if chan_col in pred_df.columns:
-                pred_df[ch] = pred_df[chan_col]
-                pred_df.drop(columns=chan_col, inplace=True)
+        if len(channel_xr.dims) != 0:
+            for ch in channel_cols:
+                chan_col = f"{ch}_chan"
+                if chan_col in pred_df.columns:
+                    pred_df[ch] = pred_df[chan_col]
+                    pred_df.drop(columns=chan_col, inplace=True)
 
-        # Replace any remaining NaNs introduced by the merge
-        pred_df[channel_cols] = pred_df[channel_cols].fillna(0.0)
+            # Replace any remaining NaNs introduced by the merge
+            pred_df[channel_cols] = pred_df[channel_cols].fillna(0.0)
 
     # ---- 5. Bring in any “other” columns from the training data ----------------
     other_cols = [
@@ -426,7 +441,7 @@ def add_noise_to_channel_allocation(
     rng = np.random.default_rng(seed)
 
     # Per-channel scale (1-D ndarray), shape (n_channels,)
-    scale = (rel_std * df[channels].mean()).to_numpy()
+    scale: np.ndarray = (rel_std * df[channels].mean()).to_numpy()
 
     # Draw all required noise in one call, shape (n_rows, n_channels)
     noise = rng.normal(loc=0.0, scale=scale, size=(len(df), len(channels)))
@@ -434,6 +449,10 @@ def add_noise_to_channel_allocation(
     # Create the noisy copy
     noisy_df = df.copy()
     noisy_df[channels] += noise
+
+    # Override channels with zero spend, we don't want to add noise to those ones
+    zero_spend_mask = df[channels] == 0
+    noisy_df[zero_spend_mask] = 0.0
 
     # Ensure no negative spends
     noisy_df[channels] = noisy_df[channels].clip(lower=0.0)

@@ -1,0 +1,76 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.preprocessing.preprocessing_method_y.rst:2
+#: 10d94710cfee4660a3bd2dee7911ee3b
+msgid "preprocessing\\_method\\_y"
+msgstr "método\\_de\\_preprocesamiento\\_y"
+
+#: 8d8446d68fbb4326b8c2520526afb1b7 of
+#: pymc_marketing.mmm.preprocessing.preprocessing_method_y:2
+msgid "Tag a method as a preprocessing method for the y data."
+msgstr ""
+"Etiquete un método como un método de preprocesamiento para los datos y."
+
+#: 6554e323f1974a9c84bdfe119e09ab0b of
+#: pymc_marketing.mmm.preprocessing.preprocessing_method_y:4
+msgid "Decorator to mark a method as a preprocessing method for the y data."
+msgstr ""
+"Decorador para marcar un método como un método de preprocesamiento para los "
+"datos y."
+
+#: 78cfc83ef7cf44e1b42aa9e902b8a7cf of
+#: pymc_marketing.mmm.preprocessing.preprocessing_method_y
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: c3d9e07c632449a581099f4ebc5fb79e of
+#: pymc_marketing.mmm.preprocessing.preprocessing_method_y:8
+msgid "**method** : :obj:`Callable`"
+msgstr "**método** : :obj:`Callable`"
+
+#: 8cc45c5c0d944d6da1daefcfedd3b7ad of
+#: pymc_marketing.mmm.preprocessing.preprocessing_method_y:7
+msgid "Callable"
+msgstr "Llamable"
+
+#: 784a0ccbb7bf4c209b164c6e6c558000 of
+#: pymc_marketing.mmm.preprocessing.preprocessing_method_y:9
+msgid "The method to tag as a preprocessing method for the y data."
+msgstr ""
+"El método para etiquetar como un método de preprocesamiento para los datos "
+"y."
+
+#: e9f3a540db9d4b179c9173c406e0e3e8 of
+#: pymc_marketing.mmm.preprocessing.preprocessing_method_y
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 3a7cad4ad42349c99f67f0826b179977 of
+#: pymc_marketing.mmm.preprocessing.preprocessing_method_y:15
+msgid ":obj:`Callable`"
+msgstr ":obj:`Callable`"
+
+#: 2efe5628a6d74a8baa30bd1d6c146fca of
+#: pymc_marketing.mmm.preprocessing.preprocessing_method_y:16
+msgid "The tagged method."
+msgstr "El método etiquetado."

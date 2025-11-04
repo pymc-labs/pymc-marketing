@@ -118,6 +118,29 @@ def test_sample_curve(saturation) -> None:
     assert curve.shape == (1, 500, 100)
 
 
+@pytest.mark.parametrize("saturation", saturation_functions())
+@pytest.mark.parametrize("num_points", [50, 200, 1000])
+def test_sample_curve_num_points(saturation, num_points) -> None:
+    """Test that num_points parameter controls the number of points in the curve."""
+    prior = saturation.sample_prior()
+    curve = saturation.sample_curve(prior, num_points=num_points)
+    assert isinstance(curve, xr.DataArray)
+    assert curve.name == "saturation"
+    assert curve.shape == (1, 500, num_points)
+
+
+@pytest.mark.parametrize(
+    argnames="num_points", argvalues=[0, -1], ids=["zero", "negative"]
+)
+def test_sample_curve_with_bad_num_points(num_points) -> None:
+    """Test that invalid num_points raises ValidationError."""
+    saturation = LogisticSaturation()
+    prior = saturation.sample_prior()
+
+    with pytest.raises(ValidationError):
+        saturation.sample_curve(prior, num_points=num_points)
+
+
 def create_mock_parameters(
     coords: dict[str, list],
     variable_dim_mapping: dict[str, tuple[str]],

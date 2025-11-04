@@ -1,0 +1,56 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.hsgp.CovFunc.replace.rst:2
+#: 78ba2b5091c6472a928c22e92dcedaff
+msgid "CovFunc.replace"
+msgstr "CovFunc.reemplazar"
+
+#: 17495dc82e364902b38a2c92902b98f4 of
+#: pymc_marketing.mmm.hsgp.CovFunc.replace:2
+msgid "Return a copy with all occurrences of substring old replaced by new."
+msgstr ""
+"Devuelve una copia con todas las ocurrencias de la subcadena old "
+"reemplazadas por new."
+
+#: 43a1306655354f389229ae2ab436e347 of
+#: pymc_marketing.mmm.hsgp.CovFunc.replace:4
+msgid "count"
+msgstr "conteo"
+
+#: 046b86b17b594e49b983264b7a61613d of
+#: pymc_marketing.mmm.hsgp.CovFunc.replace:5
+msgid ""
+"Maximum number of occurrences to replace. -1 (the default value) means "
+"replace all occurrences."
+msgstr ""
+"Número máximo de ocurrencias a reemplazar. -1 (el valor predeterminado) "
+"significa reemplazar todas las ocurrencias."
+
+#: 8c0c6e32422f45b693a4e3e82f14c096 of
+#: pymc_marketing.mmm.hsgp.CovFunc.replace:8
+msgid ""
+"If the optional argument count is given, only the first count occurrences "
+"are replaced."
+msgstr ""
+"Si se proporciona el argumento opcional count, solo se reemplazan las "
+"primeras count ocurrencias."

@@ -1,0 +1,161 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.multidimensional.MMM.sample_posterior_predictive.rst:2
+#: aeda3d081c6b47eab9cb6411c9191ef7
+msgid "MMM.sample\\_posterior\\_predictive"
+msgstr "MMM.muestra\\_predictiva\\_posterior"
+
+#: 2d2ba164d0954bd6abb201b1f87d3077 of
+#: pymc_marketing.mmm.multidimensional.MMM.sample_posterior_predictive:2
+msgid "Sample from the model's posterior predictive distribution."
+msgstr "Muestra de la distribución predictiva posterior del modelo."
+
+#: 442cbfeccf8f4bf1ae4e5bac11cb9bc3 of
+#: pymc_marketing.mmm.multidimensional.MMM.sample_posterior_predictive
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 0ca8238ce6834061b2c95e3c2fc4b9e2 of
+#: pymc_marketing.mmm.multidimensional.MMM.sample_posterior_predictive:7
+msgid "**X** : :obj:`pd.DataFrame`"
+msgstr "**X** : :obj:`pd.DataFrame`"
+
+#: 22c2aec843c74a3b86e4b80783531185 of
+#: pymc_marketing.mmm.multidimensional.MMM.sample_posterior_predictive:6
+msgid "pd.DataFrame"
+msgstr "pd.DataFrame"
+
+#: 52b0183f0b66405aa8124cdf564791fb of
+#: pymc_marketing.mmm.multidimensional.MMM.sample_posterior_predictive:8
+msgid ""
+"Input data for prediction, with the same structure as the training data."
+msgstr ""
+"Datos de entrada para la predicción, con la misma estructura que los datos "
+"de entrenamiento."
+
+#: e09e2399f73b4e819cdc4ffb1d58939e of
+#: pymc_marketing.mmm.multidimensional.MMM.sample_posterior_predictive:10
+msgid "**y** : :obj:`pd.Series`, optional"
+msgstr "**y** : :obj:`pd.Series`, opcional"
+
+#: ce8089013b904ed4b1e48504912c834d of
+#: pymc_marketing.mmm.multidimensional.MMM.sample_posterior_predictive:9
+msgid "pd.Series, optional"
+msgstr "pd.Series, opcional"
+
+#: da7b0a433dc44f359934a5168548c90a of
+#: pymc_marketing.mmm.multidimensional.MMM.sample_posterior_predictive:11
+msgid "Optional target data for validation or alignment. Default is None."
+msgstr ""
+"Datos de destino opcionales para validación o alineación. El valor "
+"predeterminado es None."
+
+#: 86b918b7bd214a1c8c858d21392b2dc2 of
+#: pymc_marketing.mmm.multidimensional.MMM.sample_posterior_predictive:13
+msgid "**extend_idata** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+"**extend_idata** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 1733e44b61a04d8ab372761a73d29c9a 1e6e8ca1544545058845ae5772df9d51
+#: 3208eebbcafe4fdd9c11c371a98ef746 f0907b1b890b4e5a8440e31278bd842e of
+#: pymc_marketing.mmm.multidimensional.MMM.sample_posterior_predictive:12
+#: pymc_marketing.mmm.multidimensional.MMM.sample_posterior_predictive:15
+#: pymc_marketing.mmm.multidimensional.MMM.sample_posterior_predictive:18
+#: pymc_marketing.mmm.multidimensional.MMM.sample_posterior_predictive:22
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: 450718398a5b43afa139bc1c013760a2 of
+#: pymc_marketing.mmm.multidimensional.MMM.sample_posterior_predictive:14
+msgid ""
+"Whether to add predictions to the inference data object. Defaults to True."
+msgstr ""
+"Si se deben agregar predicciones al objeto de datos de inferencia. Por "
+"defecto es True."
+
+#: e69a175593114a4d8405d0ede34daf90 of
+#: pymc_marketing.mmm.multidimensional.MMM.sample_posterior_predictive:16
+msgid "**combined** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr "**combinado** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: f9f506b61eca49fc9e323a2e54c651c8 of
+#: pymc_marketing.mmm.multidimensional.MMM.sample_posterior_predictive:17
+msgid ""
+"Combine chain and draw dimensions into a single sample dimension. Defaults "
+"to True."
+msgstr ""
+"Combina la cadena y las dimensiones de dibujo en una sola dimensión de "
+"muestra. Por defecto es Verdadero."
+
+#: 9904f53d38b949a1887257c3335eed37 of
+#: pymc_marketing.mmm.multidimensional.MMM.sample_posterior_predictive:19
+msgid ""
+"**include_last_observations** : :ref:`bool <python:bltin-boolean-values>`, "
+"optional"
+msgstr ""
+"**include_last_observations** : :ref:`bool <python:bltin-boolean-values>`, "
+"opcional"
+
+#: 1f8aeb2495f84cbda2969bb98d5a7db1 of
+#: pymc_marketing.mmm.multidimensional.MMM.sample_posterior_predictive:20
+msgid ""
+"Whether to include the last observations of the training data for continuity"
+" (useful for adstock transformations). Defaults to False."
+msgstr ""
+"Si incluir las últimas observaciones de los datos de entrenamiento para "
+"continuidad (útil para transformaciones de adstock). Por defecto es False."
+
+#: 780357c52fd1429e9cb1df44dd21ca06 of
+#: pymc_marketing.mmm.multidimensional.MMM.sample_posterior_predictive:23
+msgid "**clone_model** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr "**clone_model** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: b2c48d89f3e544aab61d34e879530eae of
+#: pymc_marketing.mmm.multidimensional.MMM.sample_posterior_predictive:24
+msgid "Whether to clone the model. Defaults to True."
+msgstr "Si se debe clonar el modelo. Por defecto es True."
+
+#: daae41ee3d4443aea7bf15753c433aa7 of
+#: pymc_marketing.mmm.multidimensional.MMM.sample_posterior_predictive:26
+msgid "**\\*\\*sample_posterior_predictive_kwargs**"
+msgstr "**\\*\\*sample_posterior_predictive_kwargs**"
+
+#: 38c53a6ecd12443fbc6ed446820a8b83 of
+#: pymc_marketing.mmm.multidimensional.MMM.sample_posterior_predictive:27
+msgid "Additional arguments for `pm.sample_posterior_predictive`."
+msgstr "Argumentos adicionales para `pm.sample_posterior_predictive`."
+
+#: be0c339af2524059b730425d161ef7c6 of
+#: pymc_marketing.mmm.multidimensional.MMM.sample_posterior_predictive
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: b1f303a19b38416c90a22865e919367b of
+#: pymc_marketing.mmm.multidimensional.MMM.sample_posterior_predictive:33
+msgid ":obj:`xr.DataArray`"
+msgstr ":obj:`xr.DataArray`"
+
+#: 7730c31470f544b694f50abfe9ca07ab of
+#: pymc_marketing.mmm.multidimensional.MMM.sample_posterior_predictive:34
+msgid "Posterior predictive samples."
+msgstr "Muestras predictivas posteriores."

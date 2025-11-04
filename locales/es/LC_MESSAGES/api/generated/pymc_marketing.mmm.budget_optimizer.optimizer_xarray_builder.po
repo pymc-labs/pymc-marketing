@@ -1,0 +1,121 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.optimizer_xarray_builder.rst:2
+#: 56c1b576ec5c4c1cb87742da16264872
+msgid "optimizer\\_xarray\\_builder"
+msgstr "constructor\\_xarray\\_optimizador"
+
+#: 5398790a9a00489eb89bc38a113c641a of
+#: pymc_marketing.mmm.budget_optimizer.optimizer_xarray_builder:2
+msgid "Create an xarray.DataArray with flexible dimensions and coordinates."
+msgstr "Cree un xarray.DataArray con dimensiones y coordenadas flexibles."
+
+#: 8a46aeee3205430dbceed5f7f13dec2a of
+#: pymc_marketing.mmm.budget_optimizer.optimizer_xarray_builder
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 7a0e0dd66d9740cab8b5371ab6e8303b of
+#: pymc_marketing.mmm.budget_optimizer.optimizer_xarray_builder:7
+msgid "**value** : :term:`numpy:array_like`"
+msgstr "**valor** : :term:`numpy:array_like`"
+
+#: 586139ca56b24a75a37bde6b06a927f6 of
+#: pymc_marketing.mmm.budget_optimizer.optimizer_xarray_builder:6
+msgid "numpy:array_like"
+msgstr "numpy:similar_a_array"
+
+#: b62afe409a4f4e2eb1d1bf83f16552e3 of
+#: pymc_marketing.mmm.budget_optimizer.optimizer_xarray_builder:8
+msgid ""
+"The data values for the DataArray. Shape must match the dimensions implied "
+"by the kwargs."
+msgstr ""
+"Los valores de datos para el DataArray. La forma debe coincidir con las "
+"dimensiones implicadas por los kwargs."
+
+#: 0868967c55654cc897294cb5ac61f4b8 of
+#: pymc_marketing.mmm.budget_optimizer.optimizer_xarray_builder:11
+msgid "**\\*\\*kwargs**"
+msgstr "**\\*\\*kwargs**"
+
+#: a6cb997ddc0d48d082e41bb9c0ec5f1f of
+#: pymc_marketing.mmm.budget_optimizer.optimizer_xarray_builder:12
+msgid ""
+"Key-value pairs representing dimension names and their corresponding "
+"coordinates."
+msgstr ""
+"Pares clave-valor que representan nombres de dimensiones y sus coordenadas "
+"correspondientes."
+
+#: 2b36572094254c5d8e652f46e2f77f8b of
+#: pymc_marketing.mmm.budget_optimizer.optimizer_xarray_builder
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 44ec10aba1dd4642a7af37a193f4b705 of
+#: pymc_marketing.mmm.budget_optimizer.optimizer_xarray_builder:19
+msgid ":obj:`xarray.DataArray`"
+msgstr ":obj:`xarray.DataArray`"
+
+#: a5a83598f3ff44fc97f621959cbaaace of
+#: pymc_marketing.mmm.budget_optimizer.optimizer_xarray_builder:20
+msgid "The resulting DataArray with the specified dimensions and values."
+msgstr "El DataArray resultante con las dimensiones y valores especificados."
+
+#: f47042daa2ef45a481cd7a9b07ea9043 of
+#: pymc_marketing.mmm.budget_optimizer.optimizer_xarray_builder
+msgid "Raises"
+msgstr "Aumentos"
+
+#: ce6ea672dc4743d88857e4f2e62741f6 of
+#: pymc_marketing.mmm.budget_optimizer.optimizer_xarray_builder:27
+msgid ":obj:`ValueError`"
+msgstr ":obj:`ValueError`"
+
+#: 320f6c70704a47b09186530ff6061786 of
+#: pymc_marketing.mmm.budget_optimizer.optimizer_xarray_builder:28
+msgid ""
+"If the shape of `value` doesn't match the lengths of the specified "
+"coordinates."
+msgstr ""
+"Si la forma de `value` no coincide con las longitudes de las coordenadas "
+"especificadas."
+
+#: 30c602ba7e13424e9373dbbba6eb5c91 of
+#: pymc_marketing.mmm.budget_optimizer.optimizer_xarray_builder:37
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: 06a889dc126b49709d1eb9a67e9e3d91 of
+#: pymc_marketing.mmm.budget_optimizer.optimizer_xarray_builder:38
+msgid "Create a DataArray for budget bounds with channels and bound types:"
+msgstr ""
+"Cree un DataArray para los límites del presupuesto con canales y tipos de "
+"límite:"
+
+#: 042f35b35afd4d6697b9ab8af2ff7804 of
+#: pymc_marketing.mmm.budget_optimizer.optimizer_xarray_builder:48
+msgid "Create a DataArray for budget allocation with channels and regions:"
+msgstr ""
+"Cree un DataArray para la asignación de presupuesto con canales y regiones:"

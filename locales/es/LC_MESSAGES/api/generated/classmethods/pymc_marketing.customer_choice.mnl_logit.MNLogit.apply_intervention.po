@@ -1,0 +1,48 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.customer_choice.mnl_logit.MNLogit.apply_intervention.rst:2
+#: 44e29efd083241c1b671a06c6c586acd
+msgid "MNLogit.apply\\_intervention"
+msgstr "MNLogit.aplicar\\_intervención"
+
+#: 603913b1568649f6b0bc24200a186617 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit.apply_intervention:2
+msgid "Apply one of two types of intervention."
+msgstr "Aplique uno de los dos tipos de intervención."
+
+#: 82eed69e929442149899a76418c8f181 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit.apply_intervention:4
+msgid ""
+"The first type of intervention assumes we have a fitted model and just aims "
+"to sample from the posterior predictive distribution after adjusting one of "
+"more of the models observable attributes and passing in the new_choice_df. "
+"The second type of intervention allows that we remove a product entirely "
+"from the market place and model the market share which accrues to each "
+"product in the adjusted market."
+msgstr ""
+"El primer tipo de intervención asume que tenemos un modelo ajustado y solo "
+"tiene como objetivo muestrear de la distribución predictiva posterior "
+"después de ajustar uno o más de los atributos observables del modelo y pasar"
+" el {new_choice_df}. El segundo tipo de intervención permite que eliminemos "
+"un producto por completo del mercado y modelar la cuota de mercado que se "
+"acumula para cada producto en el mercado ajustado."

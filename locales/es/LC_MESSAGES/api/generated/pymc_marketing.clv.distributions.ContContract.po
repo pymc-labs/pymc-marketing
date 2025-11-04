@@ -1,0 +1,140 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.ContContract.rst:2
+#: c4b61467fbfe4e47bd0ae60bd2052d62
+msgid "ContContract"
+msgstr "ContContrato"
+
+#: 2aae50f7ae80415fb447ccc7a3319eb1 of
+#: pymc_marketing.clv.distributions.ContContract:2
+msgid ""
+"Distribution class of a continuous contractual data-generating process."
+msgstr ""
+"Clase de distribución de un proceso continuo de generación de datos "
+"contractuales."
+
+#: 0006b26fcdef47b2a82c40ec98f9524e of
+#: pymc_marketing.clv.distributions.ContContract:4
+msgid ""
+"That is where purchases can occur at any time point (continuous) and "
+"churning/dropping out is explicit (contractual)."
+msgstr ""
+"Ahí es donde las compras pueden ocurrir en cualquier momento (continuo) y la"
+" cancelación/abandonar es explícita (contractual)."
+
+#: c9f5270954f3418495c17a4f83176316 of
+#: pymc_marketing.clv.distributions.ContContract:7
+#, python-brace-format
+msgid ""
+"f(\\lambda, p | d, x, t_1, \\dots, t_x, T)\n"
+"= f(\\lambda, p | t_x, T) = (1 - p)^{x-1} \\lambda^x \\exp(-\\lambda t_x)\n"
+"p^d \\left\\{(1-p)\\exp(-\\lambda*(T - t_x))\\right\\}^{1 - d}"
+msgstr ""
+"f(\\lambda, p | d, x, t_1, \\dots, t_x, T)  \n"
+"= f(\\lambda, p | t_x, T) = (1 - p)^{x-1} \\lambda^x \\exp(-\\lambda t_x)  \n"
+"p^d \\left\\{(1-p)\\exp(-\\lambda*(T - t_x))\\right\\}^{1 - d}"
+
+#: fe93eb24bfa440de84c76c1e0fa7d9e4 of
+#: pymc_marketing.clv.distributions.ContContract:14
+msgid "Support"
+msgstr "Soporte"
+
+#: 19787eef44eb48ca9485cc39130b2ee9 of
+#: pymc_marketing.clv.distributions.ContContract:14
+msgid ":math:`t_j > 0` for :math:`j = 1, \\dots, x`"
+msgstr ":math:`t_j > 0` para :math:`j = 1, \\dots, x`"
+
+#: 55a3dc88215b4388a79fad5dd99b2331 of
+#: pymc_marketing.clv.distributions.ContContract:15
+msgid "Mean"
+msgstr "Promedio"
+
+#: 362ccc6195844788af8b93e6dd24aa94 of
+#: pymc_marketing.clv.distributions.ContContract:15
+#, python-brace-format
+msgid ""
+":math:`\\mathbb{E}[X(t) | \\lambda, p, d] = \\frac{1}{p} - "
+"\\frac{1}{p}\\exp\\left(-\\lambda p \\min(t, T)\\right)`"
+msgstr ""
+":math:`\\mathbb{E}[X(t) | \\lambda, p, d] = \\frac{1}{p} - "
+"\\frac{1}{p}\\exp\\left(-\\lambda p \\min(t, T)\\right`"
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.ContContract.rst:12
+#: 5c9256b457f64d848aff14da91d29b58
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.ContContract.rst:24:<autosummary>:1
+#: 8e2c68a1604e41efbf6988c74518bad8
+msgid ""
+":py:obj:`ContContract.__init__ "
+"<pymc_marketing.clv.distributions.ContContract.__init__>`\\ \\(\\*args\\, "
+"\\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`ContContract.__init__ "
+"<pymc_marketing.clv.distributions.ContContract.__init__>`\\ \\(\\*args\\, "
+"\\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.ContContract.rst:24:<autosummary>:1
+#: 3a5eb02402cd4782aad5551c9e164792
+msgid ""
+":py:obj:`ContContract.dist "
+"<pymc_marketing.clv.distributions.ContContract.dist>`\\ \\(lam\\, p\\, T\\, "
+"\\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`ContContract.dist "
+"<pymc_marketing.clv.distributions.ContContract.dist>`\\ \\(lam\\, p\\, T\\, "
+"\\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.ContContract.rst:24:<autosummary>:1
+#: 569fbb100233412eac4a20d4586c2383
+msgid "Get the distribution from the parameters."
+msgstr "Obtenga la distribución de los parámetros."
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.ContContract.rst:24:<autosummary>:1
+#: 40edb76422cf467095a8bce09f0ac561
+msgid ""
+":py:obj:`ContContract.logp "
+"<pymc_marketing.clv.distributions.ContContract.logp>`\\ \\(lam\\, p\\, T\\)"
+msgstr ""
+":py:obj:`ContContract.logp "
+"<pymc_marketing.clv.distributions.ContContract.logp>`\\ \\(lam\\, p\\, T\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.ContContract.rst:24:<autosummary>:1
+#: 2602ac7cad294269b1f7f068b6bc3aa3
+msgid "Log-likelihood of the distribution."
+msgstr "Log-verosimilitud de la distribución."
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.ContContract.rst:26
+#: b8edb6be782642b1a196c133bb6907d0
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.ContContract.rst:29:<autosummary>:1
+#: c44fa7cbc84345789531cbff7bd474fe
+msgid ""
+":py:obj:`rv_op <pymc_marketing.clv.distributions.ContContract.rv_op>`\\ "
+"\\(lam\\, p\\, T\\[\\, size\\]\\)"
+msgstr ""
+":py:obj:`rv_op <pymc_marketing.clv.distributions.ContContract.rv_op>`\\ "
+"\\(lam\\, p\\, T\\[\\, size\\]\\)"

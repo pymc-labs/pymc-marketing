@@ -1,0 +1,31 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.model_builder.ModelBuilder.build_from_idata.rst:2
+#: c3d3dd29853d4681b9b43570b9945a68
+msgid "ModelBuilder.build\\_from\\_idata"
+msgstr "ModelBuilder.build\\_from\\_idata"
+
+#: a3c3b107c4b448ce899a27092cf4c56f of
+#: pymc_marketing.model_builder.ModelIO.build_from_idata:2
+msgid "Build the model from the InferenceData object."
+msgstr "Construya el modelo a partir del objeto InferenceData."

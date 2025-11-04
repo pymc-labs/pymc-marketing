@@ -1,0 +1,253 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.weibull_adstock.rst:2
+#: 0dd630a0be224291bb93ec52e47608b9
+msgid "weibull\\_adstock"
+msgstr "weibull\\_adstock"
+
+#: 044419437d184b01a7947c97f2d1d523 of
+#: pymc_marketing.mmm.transformers.weibull_adstock:2
+msgid "Weibull Adstocking Transformation."
+msgstr "Transformación de Adstock Weibull."
+
+#: fc3a7c13f37d4a0a817bfe2b8badc612 of
+#: pymc_marketing.mmm.transformers.weibull_adstock:4
+msgid ""
+"This transformation is similar to geometric adstock transformation but has "
+"more degrees of freedom, adding more flexibility."
+msgstr ""
+"Esta transformación es similar a la transformación adstock geométrica, pero "
+"tiene más grados de libertad, lo que añade más flexibilidad."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.weibull_adstock.rst:7
+#: 79bdcd5211464fe7b9a81383b17e8aab
+msgid ""
+"(:download:`Source code "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-weibull_adstock-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-weibull_adstock-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-weibull_adstock-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-weibull_adstock-1.pdf>`)"
+msgstr ""
+"(:download:`Código fuente "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-weibull_adstock-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-weibull_adstock-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-weibull_adstock-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-weibull_adstock-1.pdf>`)"
+
+#: f065996bf26b428aa4af1333acc2a8f4 of
+#: pymc_marketing.mmm.transformers.weibull_adstock
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: e59304765d8447eda900cea616bad10c of
+#: pymc_marketing.mmm.transformers.weibull_adstock:55
+msgid "**x** : :obj:`tensor`"
+msgstr "**x** : :obj:`tensor`"
+
+#: 5a4ffbb5bdef4da09c80dec8c9746c5d of
+#: pymc_marketing.mmm.transformers.weibull_adstock:54
+msgid "tensor"
+msgstr "tensor"
+
+#: ed16e3602f694ce1a75dd58edd93ea00 of
+#: pymc_marketing.mmm.transformers.weibull_adstock:56
+msgid "Input tensor."
+msgstr "Tensor de entrada."
+
+#: c7c9cec043854d4f8ff366be50c6c04a of
+#: pymc_marketing.mmm.transformers.weibull_adstock:58
+msgid "**lam** : :class:`python:float`, :obj:`by` default 1."
+msgstr "**lam** : :class:`python:float`, :obj:`by` por defecto 1."
+
+#: 682b64392fb144b1a84c4a69a5430fad e03225beb3a94e0882c8dc6da95bbb0c of
+#: pymc_marketing.mmm.transformers.weibull_adstock:57
+#: pymc_marketing.mmm.transformers.weibull_adstock:60
+msgid "python:float, by default 1."
+msgstr "python:float, por defecto 1."
+
+#: 4aa65f5d86d945869a05fcf2869b0a27 of
+#: pymc_marketing.mmm.transformers.weibull_adstock:59
+msgid "Scale parameter of the Weibull distribution. Must be positive."
+msgstr "Parámetro de escala de la distribución de Weibull. Debe ser positivo."
+
+#: 7547bb8103464337a487ea6df6b73cb4 of
+#: pymc_marketing.mmm.transformers.weibull_adstock:61
+msgid "**k** : :class:`python:float`, :obj:`by` default 1."
+msgstr "**k** : :class:`python:float`, :obj:`by` por defecto 1."
+
+#: 09a07c3f26a9488a9ae48e0727bb287c of
+#: pymc_marketing.mmm.transformers.weibull_adstock:62
+msgid "Shape parameter of the Weibull distribution. Must be positive."
+msgstr "Parámetro de forma de la distribución de Weibull. Debe ser positivo."
+
+#: 8c7f9b6f045d4e14a398b9c6a29b280a of
+#: pymc_marketing.mmm.transformers.weibull_adstock:64
+msgid "**l_max** : :class:`python:int`, :obj:`by` default 12"
+msgstr "**l_max** : :class:`python:int`, :obj:`por` defecto 12"
+
+#: 1ba70023da09457394fe56240d8c906e of
+#: pymc_marketing.mmm.transformers.weibull_adstock:63
+msgid "python:int, by default 12"
+msgstr "python:int, por defecto 12"
+
+#: ca75d0bb477447d88229bf71932d41e5 of
+#: pymc_marketing.mmm.transformers.weibull_adstock:65
+msgid "Maximum duration of carryover effect."
+msgstr "Duración máxima del efecto de arrastre."
+
+#: 8b03e42dfd8442c4bc67772425596550 of
+#: pymc_marketing.mmm.transformers.weibull_adstock:67
+msgid "**axis** : :class:`python:int`"
+msgstr "**eje** : :class:`python:int`"
+
+#: 37896c7b201443a89de136bf56044bba of
+#: pymc_marketing.mmm.transformers.weibull_adstock:66
+msgid "python:int"
+msgstr "python:int"
+
+#: 96c07b5c2031443f98a7e6b87640eebd of
+#: pymc_marketing.mmm.transformers.weibull_adstock:68
+msgid "The axis of ``x`` along witch to apply the convolution"
+msgstr "El eje de ``x`` a lo largo del cual aplicar la convolución"
+
+#: c9ea69e381154a03832520141f707dea of
+#: pymc_marketing.mmm.transformers.weibull_adstock:70
+msgid "**mode** : :obj:`ConvMode`, optional"
+msgstr "**modo** : :obj:`ConvMode`, opcional"
+
+#: f6b00a10d40640f99580be320019186c of
+#: pymc_marketing.mmm.transformers.weibull_adstock:69
+msgid "ConvMode, optional"
+msgstr "ConvMode, opcional"
+
+#: 1a254d038b3e41ea93fc41034c7bc236 of
+#: pymc_marketing.mmm.transformers.weibull_adstock:71
+msgid ""
+"The convolution mode determines how the convolution is applied at the "
+"boundaries of the input signal, denoted as \"x.\" The default mode is "
+"ConvMode.After."
+msgstr ""
+"El modo de convolución determina cómo se aplica la convolución en los "
+"límites de la señal de entrada, denotada como \"x.\" El modo predeterminado "
+"es ConvMode.After."
+
+#: 3a1630254b2a412fb0273b121e7946c4 of
+#: pymc_marketing.mmm.transformers.weibull_adstock:74
+msgid ""
+"ConvMode.After: Applies the convolution with the \"Adstock\" effect, "
+"resulting in a trailing decay effect."
+msgstr ""
+"ConvMode.After: Aplica la convolución con el efecto \"Adstock\", resultando "
+"en un efecto de decaimiento en el tiempo."
+
+#: cdca5689f22540f1a1811a86b56dd2ce of
+#: pymc_marketing.mmm.transformers.weibull_adstock:75
+msgid ""
+"ConvMode.Before: Applies the convolution with the \"Excitement\" effect, "
+"creating a leading effect"
+msgstr ""
+"ConvMode.Before: Aplica la convolución con el efecto \"Excitement\", creando"
+" un efecto de anticipación"
+
+#: 52fef84953aa4286b9de630f0141d3fa of
+#: pymc_marketing.mmm.transformers.weibull_adstock:76
+msgid "similar to the wow factor."
+msgstr "similar al factor wow."
+
+#: c6809f67d7ce4f2ea76b57553ff55e4c of
+#: pymc_marketing.mmm.transformers.weibull_adstock:77
+msgid ""
+"ConvMode.Overlap: Applies the convolution with both \"Pull-Forward\" and "
+"\"Pull-Backward\" effects,"
+msgstr ""
+"ConvMode.Overlap: Aplica la convolución con efectos de \"Pull-Forward\" y "
+"\"Pull-Backward\","
+
+#: 923bb553fdb449b3a16612f1ae26e870 of
+#: pymc_marketing.mmm.transformers.weibull_adstock:78
+msgid "where the effect overlaps with both preceding and succeeding elements."
+msgstr ""
+"donde el efecto se superpone con los elementos precedentes y sucesivos."
+
+#: fde3695838be459ba28355962abc9a9a of
+#: pymc_marketing.mmm.transformers.weibull_adstock:80
+msgid ""
+"**type** : :obj:`WeibullType` or :class:`python:str`, :obj:`by` default "
+":obj:`WeibullType.PDF`"
+msgstr ""
+"**tipo** : :obj:`WeibullType` o :class:`python:str`, :obj:`por` defecto "
+":obj:`WeibullType.PDF`"
+
+#: 9c30cbbbf1c94494a3971682484aa7e6 of
+#: pymc_marketing.mmm.transformers.weibull_adstock:79
+msgid "WeibullType or python:str, by default WeibullType.PDF"
+msgstr "WeibullType o python:str, por defecto WeibullType.PDF"
+
+#: 9c36ef449262432eb9deab34f28197b0 of
+#: pymc_marketing.mmm.transformers.weibull_adstock:81
+msgid "Type of Weibull adstock transformation to be applied (PDF or CDF)."
+msgstr ""
+"Tipo de transformación de adstock de Weibull que se aplicará (PDF o CDF)."
+
+#: 4de60e46a989453b9870e8af56551a1b of
+#: pymc_marketing.mmm.transformers.weibull_adstock:83
+msgid ""
+"**normalize** : :ref:`bool <python:bltin-boolean-values>`, :obj:`by` default"
+" :data:`python:False`"
+msgstr ""
+"**normalizar** : :ref:`bool <python:bltin-boolean-values>`, :obj:`por` "
+"defecto :data:`python:False`"
+
+#: 098aa457254c4bb8b6e8afc7703e22fc of
+#: pymc_marketing.mmm.transformers.weibull_adstock:82
+msgid "bool, by default python:False"
+msgstr "bool, por defecto python:False"
+
+#: c18e69197df24941aec7bbdd3e70af14 of
+#: pymc_marketing.mmm.transformers.weibull_adstock:84
+msgid "Whether to normalize the weights."
+msgstr "Si se deben normalizar los pesos."
+
+#: e749341be5ab47569b52cb6072df2d49 of
+#: pymc_marketing.mmm.transformers.weibull_adstock
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 337377e8458748deba0aa238ae4d39bd of
+#: pymc_marketing.mmm.transformers.weibull_adstock:90
+msgid ":obj:`tensor`"
+msgstr ":obj:`tensor`"
+
+#: 88c97715aca24b8ab3157b439bba35b5 of
+#: pymc_marketing.mmm.transformers.weibull_adstock:91
+msgid "Transformed tensor based on Weibull adstock transformation."
+msgstr ""
+"Tensor transformado basado en la transformación de adstock de Weibull."

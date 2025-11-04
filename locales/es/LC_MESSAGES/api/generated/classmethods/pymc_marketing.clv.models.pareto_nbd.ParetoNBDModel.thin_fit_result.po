@@ -1,0 +1,45 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.thin_fit_result.rst:2
+#: 420e6c51ee5c4b1eb36c59b51523ac38
+msgid "ParetoNBDModel.thin\\_fit\\_result"
+msgstr "ParetoNBDModel.thin\\_fit\\_result"
+
+#: 5fd42034f8e84b7f9a198654d7ae28e3 of
+#: pymc_marketing.clv.models.basic.CLVModel.thin_fit_result:2
+msgid "Return a copy of the model with a thinned fit result."
+msgstr "Devuelva una copia del modelo con un resultado de ajuste reducido."
+
+#: 37524b6013724d518d601dfe182e3d7d of
+#: pymc_marketing.clv.models.basic.CLVModel.thin_fit_result:4
+msgid ""
+"This is useful when computing summary statistics that may require too much "
+"memory per posterior draw."
+msgstr ""
+"Esto es útil al calcular estadísticas resumidas que pueden requerir "
+"demasiada memoria por cada extracción posterior."
+
+#: a06f57a5058a4ff4ac3f44b9b3904596 of
+#: pymc_marketing.clv.models.basic.CLVModel.thin_fit_result:20
+msgid "Examples"
+msgstr "Ejemplos"

@@ -1,0 +1,65 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.mmm.MMM.validate_date_col.rst:2
+#: 13942fd3feac472da7f9589c4f895f8f
+msgid "MMM.validate\\_date\\_col"
+msgstr "MMM.validar\\_fecha\\_col"
+
+#: ef9a47482e504489a7a10b7b013b0178 of
+#: pymc_marketing.mmm.validating.ValidateDateColumn.validate_date_col:2
+msgid "Validate the date column."
+msgstr "Valide la columna de fecha."
+
+#: d823f15e0664431782e38df9d86def5c of
+#: pymc_marketing.mmm.validating.ValidateDateColumn.validate_date_col
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 4b161bad0fe044b2a077607667009d5d of
+#: pymc_marketing.mmm.validating.ValidateDateColumn.validate_date_col:7
+msgid "**data** : :obj:`pd.DataFrame`"
+msgstr "**datos** : :obj:`pd.DataFrame`"
+
+#: f7862acf068045fd935a7e227ffa6466 of
+#: pymc_marketing.mmm.validating.ValidateDateColumn.validate_date_col:6
+msgid "pd.DataFrame"
+msgstr "pd.DataFrame"
+
+#: f1f53b420a694058a4fe49be943be6dd of
+#: pymc_marketing.mmm.validating.ValidateDateColumn.validate_date_col:8
+msgid "The data to validate."
+msgstr "Los datos a validar."
+
+#: b06435f25349426ca55dc8d3e9924916 of
+#: pymc_marketing.mmm.validating.ValidateDateColumn.validate_date_col
+msgid "Raises"
+msgstr "Aumentos"
+
+#: b3b8e5125dcf4fc29f2f1034a80f7cb2 of
+#: pymc_marketing.mmm.validating.ValidateDateColumn.validate_date_col:18
+msgid ""
+"ValueError: :obj:`If` :obj:`the` :obj:`date` :obj:`column` :obj:`is` "
+":obj:`not` valid."
+msgstr ""
+"ValueError: :obj:`Si` :obj:`la` :obj:`columna` :obj:`de` :obj:`fecha` "
+":obj:`no` es :obj:`válida`."

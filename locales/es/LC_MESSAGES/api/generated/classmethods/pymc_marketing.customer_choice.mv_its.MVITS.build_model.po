@@ -1,0 +1,69 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.customer_choice.mv_its.MVITS.build_model.rst:2
+#: 55971a3a118d4ef086ec82a0954bedae
+msgid "MVITS.build\\_model"
+msgstr "MVITS.construir\\_modelo"
+
+#: cfd0b8cd5010493bbde1b76a6cd51f6c of
+#: pymc_marketing.customer_choice.mv_its.MVITS.build_model:2
+msgid ""
+"Build a PyMC model for a multivariate interrupted time series analysis."
+msgstr ""
+"Construya un modelo PyMC para un análisis de series temporales interrumpidas"
+" multivariadas."
+
+#: 3f55a5e27cce453b89342eadb22a9208 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.build_model
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: aab530d6aa3740bbbac14f8a2b1a9c97 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.build_model:7
+msgid "**X** : :obj:`pd.DataFrame`"
+msgstr "**X** : :obj:`pd.DataFrame`"
+
+#: 85de3e6f05c5400a92c27d3c929f5963 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.build_model:6
+msgid "pd.DataFrame"
+msgstr "pd.DataFrame"
+
+#: 217b99c6169e4329a8a69c92c1946501 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.build_model:8
+msgid "The data for the existing products."
+msgstr "Los datos de los productos existentes."
+
+#: 99b5c4b0adef4706b9ff036565000403 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.build_model:10
+msgid "**y** : :obj:`np.ndarray <numpy.ndarray>` | :obj:`pd.Series`"
+msgstr "**y** : :obj:`np.ndarray <numpy.ndarray>` | :obj:`pd.Series`"
+
+#: 717b2d9eb1c1448daec9f1ef6f1b0d64 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.build_model:9
+msgid "np.ndarray | pd.Series"
+msgstr "np.ndarray | pd.Series"
+
+#: 95a4e153f73944a3b71d649473f0780d of
+#: pymc_marketing.customer_choice.mv_its.MVITS.build_model:11
+msgid "The data for the new product."
+msgstr "Los datos del nuevo producto."

@@ -1,0 +1,67 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.fourier.FourierBase.from_dict.rst:2
+#: ed7b339435b24bbbb69f5c609a932688
+msgid "FourierBase.from\\_dict"
+msgstr "FourierBase.desde\\_diccionario"
+
+#: fdb1eb295fb7467c82774c4455f7dc0e of
+#: pymc_marketing.mmm.fourier.FourierBase.from_dict:2
+msgid "Deserialize the Fourier seasonality."
+msgstr "Deserializar la estacionalidad de Fourier."
+
+#: c45387e86d674d83aea17d14832c0885 of
+#: pymc_marketing.mmm.fourier.FourierBase.from_dict
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: ed9eca0b916c45c9b6e5c0df03687efa of
+#: pymc_marketing.mmm.fourier.FourierBase.from_dict:7
+msgid "**data** : :class:`python:dict`\\[:class:`python:str`, :obj:`Any`]"
+msgstr ""
+"**datos** : :class:`python:dict`\\[:class:`python:str`, :obj:`Cualquiera`]"
+
+#: be150f362ab1440aa6c3592c780a5390 of
+#: pymc_marketing.mmm.fourier.FourierBase.from_dict:6
+msgid "python:dict[python:str, Any]"
+msgstr "python:dict[python:str, Any]"
+
+#: 3d3b8aa1b27745cbad41e8f118d769c0 of
+#: pymc_marketing.mmm.fourier.FourierBase.from_dict:8
+msgid "Serialized Fourier seasonality"
+msgstr "Estacionalidad de Fourier serializada"
+
+#: ca79565dfa6f495fa1809620d127749c of
+#: pymc_marketing.mmm.fourier.FourierBase.from_dict
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: b954810d5322485e9053fc005636294f of
+#: pymc_marketing.mmm.fourier.FourierBase.from_dict:14
+msgid ":obj:`FourierBase`"
+msgstr ":obj:`FourierBase`"
+
+#: 97b2a64d4fde4bc68c36cfa87325964b of
+#: pymc_marketing.mmm.fourier.FourierBase.from_dict:15
+msgid "Deserialized Fourier seasonality"
+msgstr "Deserialización de la estacionalidad de Fourier"

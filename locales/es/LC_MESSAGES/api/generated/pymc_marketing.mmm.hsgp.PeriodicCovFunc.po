@@ -1,0 +1,812 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:2
+#: 9760093628224398bcf90acea1f7b9c1
+msgid "PeriodicCovFunc"
+msgstr "PeriodicCovFunc"
+
+#: dc30adb27a7e490d85aecad12036e5e9 of
+#: pymc_marketing.mmm.hsgp.PeriodicCovFunc:2
+msgid "Supported covariance functions for the HSGP model."
+msgstr "Funciones de covarianza soportadas para el modelo HSGP."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:12
+#: 565e3e5d6cd841ea82ccbc907ce28a32
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 04561cb7c734427eb822e34513241a21
+msgid ""
+":py:obj:`PeriodicCovFunc.encode "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.encode>`\\ \\(\\/\\[\\, encoding\\,"
+" errors\\]\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.encode "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.encode>`\\ \\(\\/\\[\\, errores de "
+"codificación\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 4439e3a948d54ff48fc4c10f80745656
+msgid "Encode the string using the codec registered for encoding."
+msgstr ""
+"Codifique la cadena utilizando el códec registrado para la codificación."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 1ca60b67bc07447fbc78c8b12754e9c3
+msgid ""
+":py:obj:`PeriodicCovFunc.replace "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.replace>`\\ \\(old\\, new\\[\\, "
+"count\\]\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.replace "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.replace>`\\ \\(antiguo\\, "
+"nuevo\\[\\, conteo\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: f11e07ce3c0b42669c0de7e8b7d8c852
+msgid "Return a copy with all occurrences of substring old replaced by new."
+msgstr ""
+"Devuelve una copia con todas las ocurrencias de la subcadena old "
+"reemplazadas por new."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 7170acd337874ec5be6932a8fa4f8183
+msgid ""
+":py:obj:`PeriodicCovFunc.split "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.split>`\\ \\(\\/\\[\\, sep\\, "
+"maxsplit\\]\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.split "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.split>`\\ \\(\\/\\[\\, sep\\, "
+"maxsplit\\]"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 29e822c19dbe447da4ce5b6813d96550 b2dfa1594d2747d7b5d4475e26b57eef
+msgid ""
+"Return a list of the substrings in the string, using sep as the separator "
+"string."
+msgstr ""
+"Devuelve una lista de las subcadenas en la cadena, utilizando sep como la "
+"cadena separadora."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 7c95aa46daba4bb1bc0185a4ca35f842
+msgid ""
+":py:obj:`PeriodicCovFunc.rsplit "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.rsplit>`\\ \\(\\/\\[\\, sep\\, "
+"maxsplit\\]\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.rsplit "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.rsplit>`\\ \\(\\/\\[\\, sep\\, "
+"maxsplit\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 3df0cfd4914f4e99ad2f0e9a5b202ee2
+msgid ""
+":py:obj:`PeriodicCovFunc.join "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.join>`\\ \\(iterable\\, \\/\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.join "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.join>`\\ \\(iterable\\, \\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: e509ea0e5fa84dc9a52b51f2f4b6316c
+msgid "Concatenate any number of strings."
+msgstr "Concatenar cualquier número de cadenas."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 75efebfdd13b4259860efdaff8396786
+msgid ""
+":py:obj:`PeriodicCovFunc.capitalize "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.capitalize>`\\ \\(\\/\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.capitalize "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.capitalize>`\\ \\(\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: b973a6e3721747408d43f2b00d9b6b52
+msgid "Return a capitalized version of the string."
+msgstr "Devuelve una versión en mayúsculas de la cadena."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 25655c5d574040d7888e7183e3825983
+msgid ""
+":py:obj:`PeriodicCovFunc.casefold "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.casefold>`\\ \\(\\/\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.casefold "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.casefold>`\\ \\(\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 5e58911aec1440ab95058b7a49ac0462
+msgid "Return a version of the string suitable for caseless comparisons."
+msgstr ""
+"Devuelve una versión de la cadena adecuada para comparaciones sin distinción"
+" de mayúsculas y minúsculas."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 97a94a0a9f9d458a91982edcb3251103
+msgid ""
+":py:obj:`PeriodicCovFunc.title "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.title>`\\ \\(\\/\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.title "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.title>`\\ \\(\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 9f48278cd5a746e0abd7a5cc4bab70ce
+msgid "Return a version of the string where each word is titlecased."
+msgstr ""
+"Devuelve una versión de la cadena donde cada palabra está en mayúsculas."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: ae12a808a3364f369dde92df98c53425
+msgid ""
+":py:obj:`PeriodicCovFunc.center "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.center>`\\ \\(width\\[\\, "
+"fillchar\\]\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.center "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.center>`\\ \\(ancho\\[\\, "
+"caracter_de_relleno\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 2a8d0ef53b3a4b22840c9566bbedbe42
+msgid "Return a centered string of length width."
+msgstr "Devuelve una cadena centrada de longitud width."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 578c026abc514574842aac611d3a572e
+msgid ""
+":py:obj:`PeriodicCovFunc.count "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.count>`\\ \\(sub\\[\\, start\\[\\, "
+"end\\]\\]\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.count "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.count>`\\ \\(sub\\[\\, start\\[\\, "
+"end\\]\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 32403cc9d3e14c8f97ef58b4512c583e
+msgid ""
+"Return the number of non-overlapping occurrences of substring sub in string "
+"S[start:end]."
+msgstr ""
+"Devuelve el número de ocurrencias no superpuestas de la subcadena sub en la "
+"cadena S[start:end]."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 52934b50c582453fa7a10a2d5efb2461
+msgid ""
+":py:obj:`PeriodicCovFunc.expandtabs "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.expandtabs>`\\ \\(\\/\\[\\, "
+"tabsize\\]\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.expandtabs "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.expandtabs>`\\ \\(\\/\\[\\, "
+"tabsize\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: a27e3e62622d4ad4b81b88f8f5ff7f18
+msgid "Return a copy where all tab characters are expanded using spaces."
+msgstr ""
+"Devuelva una copia donde todos los caracteres de tabulación se expandan "
+"utilizando espacios."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 87747ad893ff43818a9b24a0fa7af5f4
+msgid ""
+":py:obj:`PeriodicCovFunc.find "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.find>`\\ \\(sub\\[\\, start\\[\\, "
+"end\\]\\]\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.find "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.find>`\\ \\(sub\\[\\, start\\[\\, "
+"end\\]\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 17ea2feeb32c4f97baf4ab2ca28e85db 38fe6ae771024d268ad5ec62a43872ae
+msgid ""
+"Return the lowest index in S where substring sub is found, such that sub is "
+"contained within S[start:end]."
+msgstr ""
+"Devuelve el índice más bajo en S donde se encuentra la subcadena sub, de "
+"modo que sub esté contenida dentro de S[start:end]."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 8d360d83369a48f787b4b65229802790
+msgid ""
+":py:obj:`PeriodicCovFunc.partition "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.partition>`\\ \\(sep\\, \\/\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.partition "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.partition>`\\ \\(sep\\, \\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 4ac2620ecb014fd7b2b334591b40ff8b 8a4570f3e19040d1910e946575d8ed40
+msgid "Partition the string into three parts using the given separator."
+msgstr "Particione la cadena en tres partes utilizando el separador dado."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 7baf1bb7025c49da8f77d37c1b7f6b63
+msgid ""
+":py:obj:`PeriodicCovFunc.index "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.index>`\\ \\(sub\\[\\, start\\[\\, "
+"end\\]\\]\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.index "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.index>`\\ \\(sub\\[\\, start\\[\\, "
+"end\\]\\]"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 92d144e1437c4a438404b9e0534db91d
+msgid ""
+":py:obj:`PeriodicCovFunc.ljust "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.ljust>`\\ \\(width\\[\\, "
+"fillchar\\]\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.ljust "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.ljust>`\\ \\(ancho\\[\\, "
+"caracter_de_relleno\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 50b19f393dda4403be4591a227241dea
+msgid "Return a left-justified string of length width."
+msgstr "Devuelve una cadena alineada a la izquierda de longitud width."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 3b108763e6f34e3191f617ce569df1e8
+msgid ""
+":py:obj:`PeriodicCovFunc.lower "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.lower>`\\ \\(\\/\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.lower "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.lower>`\\ \\(\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: f9b9ec7780a84c2aae8933be868300c2
+msgid "Return a copy of the string converted to lowercase."
+msgstr "Devuelve una copia de la cadena convertida a minúsculas."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: eb2d08a4a8f14b0ea26016cd8f45daf9
+msgid ""
+":py:obj:`PeriodicCovFunc.lstrip "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.lstrip>`\\ \\(\\[chars\\]\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.lstrip "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.lstrip>`\\ \\(\\[chars\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: dd174b844593404eb31146eb1ff8d63e
+msgid "Return a copy of the string with leading whitespace removed."
+msgstr ""
+"Devuelve una copia de la cadena con el espacio en blanco inicial eliminado."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 6da05055b3d04786909092132da0bfb9
+msgid ""
+":py:obj:`PeriodicCovFunc.rfind "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.rfind>`\\ \\(sub\\[\\, start\\[\\, "
+"end\\]\\]\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.rfind "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.rfind>`\\ \\(sub\\[\\, start\\[\\, "
+"end\\]\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 247e25b0e4f34ac0a8a0841d549e42b8 ecd26851b4d74861947f050a49f9fd81
+msgid ""
+"Return the highest index in S where substring sub is found, such that sub is"
+" contained within S[start:end]."
+msgstr ""
+"Devuelve el índice más alto en S donde se encuentra la subcadena sub, de "
+"modo que sub esté contenida dentro de S[start:end]."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 737a562fc608458599ed857754b2d7b2
+msgid ""
+":py:obj:`PeriodicCovFunc.rindex "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.rindex>`\\ \\(sub\\[\\, start\\[\\,"
+" end\\]\\]\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.rindex "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.rindex>`\\ \\(sub\\[\\, start\\[\\,"
+" end\\]\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 8ee200ccf27f4d3aaa488480cfeb6f54
+msgid ""
+":py:obj:`PeriodicCovFunc.rjust "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.rjust>`\\ \\(width\\[\\, "
+"fillchar\\]\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.rjust "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.rjust>`\\ \\(ancho\\[\\, "
+"caracter_de_relleno\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: cc00adc06a814dae9610fa28bf069a60
+msgid "Return a right-justified string of length width."
+msgstr "Devuelve una cadena alineada a la derecha de longitud width."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 39534793470648788ea1cd893fc77d27
+msgid ""
+":py:obj:`PeriodicCovFunc.rstrip "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.rstrip>`\\ \\(\\[chars\\]\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.rstrip "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.rstrip>`\\ \\(\\[chars\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 2db5dbcf67cd4460af796671f68d7144
+msgid "Return a copy of the string with trailing whitespace removed."
+msgstr ""
+"Devuelve una copia de la cadena con el espacio en blanco final eliminado."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 81aefca20a2748ea9870aa374f4973fd
+msgid ""
+":py:obj:`PeriodicCovFunc.rpartition "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.rpartition>`\\ \\(sep\\, \\/\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.rpartition "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.rpartition>`\\ \\(sep\\, \\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: e1725153013a49ab8dc1b3caf98a1d5a
+msgid ""
+":py:obj:`PeriodicCovFunc.splitlines "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.splitlines>`\\ \\(\\/\\[\\, "
+"keepends\\]\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.splitlines "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.splitlines>`\\ \\(\\/\\[\\, "
+"keepends\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 304201d67c994f13a4c1c02953118463
+msgid "Return a list of the lines in the string, breaking at line boundaries."
+msgstr ""
+"Devuelve una lista de las líneas en la cadena, rompiendo en los límites de "
+"línea."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 8490c80f1e8d450186eb102e791fef40
+msgid ""
+":py:obj:`PeriodicCovFunc.strip "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.strip>`\\ \\(\\[chars\\]\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.strip "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.strip>`\\ \\(\\[chars\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: b30a3bf3346043199bd0e87cfa7b11dc
+msgid ""
+"Return a copy of the string with leading and trailing whitespace removed."
+msgstr ""
+"Devuelve una copia de la cadena con los espacios en blanco al principio y al"
+" final eliminados."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 88bf1d81363841808ec0de5493434b16
+msgid ""
+":py:obj:`PeriodicCovFunc.swapcase "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.swapcase>`\\ \\(\\/\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.swapcase "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.swapcase>`\\ \\(\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 53d486962f4e4530a78275b98262654c
+msgid ""
+"Convert uppercase characters to lowercase and lowercase characters to "
+"uppercase."
+msgstr ""
+"Convierte los caracteres en mayúsculas a minúsculas y los caracteres en "
+"minúsculas a mayúsculas."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: bdb3475d47f24c81b07314d2435ad91a
+msgid ""
+":py:obj:`PeriodicCovFunc.translate "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.translate>`\\ \\(table\\, \\/\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.translate "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.translate>`\\ \\(tabla\\, \\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 3d9bd415319e4178a27f4ab7582bc166
+msgid ""
+"Replace each character in the string using the given translation table."
+msgstr ""
+"Reemplace cada carácter en la cadena utilizando la tabla de traducción "
+"proporcionada."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 9c8b51c4a6bc4ca98f4587bf8deb2a11
+msgid ""
+":py:obj:`PeriodicCovFunc.upper "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.upper>`\\ \\(\\/\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.upper "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.upper>`\\ \\(\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 1801dad80ce24cb8aa87b99e242896e1
+msgid "Return a copy of the string converted to uppercase."
+msgstr "Devuelve una copia de la cadena convertida a mayúsculas."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: a9f9eccf8fc04505a4991faa0d2d3e2b
+msgid ""
+":py:obj:`PeriodicCovFunc.startswith "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.startswith>`\\ \\(prefix\\[\\, "
+"start\\[\\, ...\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.startswith "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.startswith>`\\ \\(prefijo\\[\\, "
+"inicio\\[\\, ...\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 2fb66223d950422ba0f48f23b8c25d7d
+msgid "Return True if S starts with the specified prefix, False otherwise."
+msgstr ""
+"Devuelve True si S comienza con el prefijo especificado, False en caso "
+"contrario."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 821bf9d2206c4c808ebc9f41776fee4a
+msgid ""
+":py:obj:`PeriodicCovFunc.endswith "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.endswith>`\\ \\(suffix\\[\\, "
+"start\\[\\, end\\]\\]\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.endswith "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.endswith>`\\ \\(sufijo\\[\\, "
+"inicio\\[\\, fin\\]\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 8ecf4632509e41febfa832f0bd3958a8
+msgid "Return True if S ends with the specified suffix, False otherwise."
+msgstr ""
+"Devuelve True si S termina con el sufijo especificado, False en caso "
+"contrario."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 53b9add5f71749b2b4e97d31245fd829
+msgid ""
+":py:obj:`PeriodicCovFunc.removeprefix "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.removeprefix>`\\ \\(prefix\\, "
+"\\/\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.removeprefix "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.removeprefix>`\\ \\(prefijo\\, "
+"\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 982f86b2075942a0a5eb1d834626fc17
+msgid "Return a str with the given prefix string removed if present."
+msgstr "Devuelve una cadena con el prefijo dado eliminado si está presente."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: cac27edf6a0e42b49fcd4b013ad5fb2d
+msgid ""
+":py:obj:`PeriodicCovFunc.removesuffix "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.removesuffix>`\\ \\(suffix\\, "
+"\\/\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.removesuffix "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.removesuffix>`\\ \\(sufijo\\, "
+"\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 1b691a179326461a9e8917266759ce26
+msgid "Return a str with the given suffix string removed if present."
+msgstr "Devuelve una cadena con el sufijo dado eliminado si está presente."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 1ca6a84dbf3a4e8bbba1cac6dacddc4b
+msgid ""
+":py:obj:`PeriodicCovFunc.isascii "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.isascii>`\\ \\(\\/\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.isascii "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.isascii>`\\ \\(\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: dc017640b8b049aaa10e6b43ce5f0f29
+msgid ""
+"Return True if all characters in the string are ASCII, False otherwise."
+msgstr ""
+"Devuelve True si todos los caracteres en la cadena son ASCII, False en caso "
+"contrario."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 4d600e6a95274d45961f53211bd59c3a
+msgid ""
+":py:obj:`PeriodicCovFunc.islower "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.islower>`\\ \\(\\/\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.islower "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.islower>`\\ \\(\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 2c7aff6ca31b4a3584dbb6921232f4dc
+msgid "Return True if the string is a lowercase string, False otherwise."
+msgstr ""
+"Devuelve True si la cadena es una cadena en minúsculas, False en caso "
+"contrario."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 3155664b98ce4385a6becf9772069c04
+msgid ""
+":py:obj:`PeriodicCovFunc.isupper "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.isupper>`\\ \\(\\/\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.isupper "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.isupper>`\\ \\(\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 22a16f466e4b4e63ac06a4e23afaf14b
+msgid "Return True if the string is an uppercase string, False otherwise."
+msgstr ""
+"Devuelve True si la cadena es una cadena en mayúsculas, False en caso "
+"contrario."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 5a16ae6f477d4ece81db6439fce02d91
+msgid ""
+":py:obj:`PeriodicCovFunc.istitle "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.istitle>`\\ \\(\\/\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.istitle "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.istitle>`\\ \\(\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 9f4c0d28f48d4ab0a522eb13a83b3657
+msgid "Return True if the string is a title-cased string, False otherwise."
+msgstr ""
+"Devuelve True si la cadena es una cadena con mayúsculas en el título, False "
+"en caso contrario."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 65cd28a48be44c6babb3d41baa809051
+msgid ""
+":py:obj:`PeriodicCovFunc.isspace "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.isspace>`\\ \\(\\/\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.isspace "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.isspace>`\\ \\(\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: d52e4923061645a2965fd03e0b3070b9
+msgid "Return True if the string is a whitespace string, False otherwise."
+msgstr ""
+"Devuelve True si la cadena es una cadena de espacios en blanco, False en "
+"caso contrario."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: d427475fe30640e0b834b41031801f3c
+msgid ""
+":py:obj:`PeriodicCovFunc.isdecimal "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.isdecimal>`\\ \\(\\/\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.isdecimal "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.isdecimal>`\\ \\(\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 5da442e7a4f04b829fe041d06025e572
+msgid "Return True if the string is a decimal string, False otherwise."
+msgstr ""
+"Devuelve True si la cadena es una cadena decimal, False en caso contrario."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: cfdb61f3babb4ff0a4beea2f7eb91bad
+msgid ""
+":py:obj:`PeriodicCovFunc.isdigit "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.isdigit>`\\ \\(\\/\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.isdigit "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.isdigit>`\\ \\(\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 57cfbccb5337450f9d38811c9f893189
+msgid "Return True if the string is a digit string, False otherwise."
+msgstr ""
+"Devuelve True si la cadena es una cadena de dígitos, False en caso "
+"contrario."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: fb6c8673a7524b4991321ba28d821337
+msgid ""
+":py:obj:`PeriodicCovFunc.isnumeric "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.isnumeric>`\\ \\(\\/\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.isnumeric "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.isnumeric>`\\ \\(\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 210332582fba463987c327017604d05e
+msgid "Return True if the string is a numeric string, False otherwise."
+msgstr ""
+"Devuelve True si la cadena es una cadena numérica, False en caso contrario."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 401f2ebeee4546228460858a59c3971b
+msgid ""
+":py:obj:`PeriodicCovFunc.isalpha "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.isalpha>`\\ \\(\\/\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.isalpha "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.isalpha>`\\ \\(\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 95276907c6a54d35bbd63a9d02b5e0ea
+msgid "Return True if the string is an alphabetic string, False otherwise."
+msgstr ""
+"Devuelve True si la cadena es una cadena alfabética, False en caso "
+"contrario."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: afa68451648c422bbfc1aa240cb00fb6
+msgid ""
+":py:obj:`PeriodicCovFunc.isalnum "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.isalnum>`\\ \\(\\/\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.isalnum "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.isalnum>`\\ \\(\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 7fc9ae5fee07455d94d08f4ff65d01ff
+msgid "Return True if the string is an alpha-numeric string, False otherwise."
+msgstr ""
+"Devuelve True si la cadena es una cadena alfanumérica, False en caso "
+"contrario."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 1eb181a3dd874981bb0c4418429354fe
+msgid ""
+":py:obj:`PeriodicCovFunc.isidentifier "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.isidentifier>`\\ \\(\\/\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.isidentifier "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.isidentifier>`\\ \\(\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 09354bb30312441caf9e1627a34c4889
+msgid ""
+"Return True if the string is a valid Python identifier, False otherwise."
+msgstr ""
+"Devuelve True si la cadena es un identificador válido de Python, False en "
+"caso contrario."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: bdbb07cccf0140bbbb27a276b9c1f156
+msgid ""
+":py:obj:`PeriodicCovFunc.isprintable "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.isprintable>`\\ \\(\\/\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.isprintable "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.isprintable>`\\ \\(\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 752a3d79f9a540449d05ed6cab00d95a
+msgid ""
+"Return True if all characters in the string are printable, False otherwise."
+msgstr ""
+"Devuelve True si todos los caracteres en la cadena son imprimibles, False en"
+" caso contrario."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 58e0b1be982f40408403b15219fed2bc
+msgid ""
+":py:obj:`PeriodicCovFunc.zfill "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.zfill>`\\ \\(width\\, \\/\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.zfill "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.zfill>`\\ \\(ancho\\, \\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: e9df1e5c3996444b9dd38ddb27862a4f
+msgid ""
+"Pad a numeric string with zeros on the left, to fill a field of the given "
+"width."
+msgstr ""
+"Rellene una cadena numérica con ceros a la izquierda, para llenar un campo "
+"del ancho dado."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 96165f6431ee429a9c5d57220fb157c7
+msgid ""
+":py:obj:`PeriodicCovFunc.format "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.format>`\\ \\(\\*args\\, "
+"\\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.format "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.format>`\\ \\(\\*args\\, "
+"\\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 18aee614a7f34505b77014c208b776db
+msgid ""
+"Return a formatted version of S, using substitutions from args and kwargs."
+msgstr ""
+"Devuelve una versión formateada de S, utilizando sustituciones de args y "
+"kwargs."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 37fe57986bd24920881ca42e4979bd9b
+msgid ""
+":py:obj:`PeriodicCovFunc.format_map "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.format_map>`\\ \\(mapping\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.format_map "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.format_map>`\\ \\(mapeo\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: ae0a8aa7e2a54a7ab9f3fe652976f23e
+msgid "Return a formatted version of S, using substitutions from mapping."
+msgstr ""
+"Devuelve una versión formateada de S, utilizando las sustituciones del "
+"mapeo."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: d4a5c0427b1449c08b9c77cece49f32d
+msgid ""
+":py:obj:`PeriodicCovFunc.maketrans "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.maketrans>`\\ \\(x\\[\\, y\\, "
+"z\\]\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.maketrans "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.maketrans>`\\ \\(x\\[\\, y\\, "
+"z\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 177f385d45f54909b11d11e6dc704180
+msgid "Return a translation table usable for str.translate()."
+msgstr "Devuelva una tabla de traducción utilizable para str.translate()."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:69:<autosummary>:1
+#: 24ee815dd29048fa91d212682d04a3aa
+msgid ""
+":py:obj:`PeriodicCovFunc.__init__ "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.__init__>`\\ \\(\\*args\\, "
+"\\*\\*kwds\\)"
+msgstr ""
+":py:obj:`PeriodicCovFunc.__init__ "
+"<pymc_marketing.mmm.hsgp.PeriodicCovFunc.__init__>`\\ \\(\\*args\\, "
+"\\*\\*kwds\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:71
+#: 554132979a03422c95b0a48b23044dab
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rst:74:<autosummary>:1
+#: a9f901d51e1c44d3a22fdbd5e8962c15
+msgid ":py:obj:`Periodic <pymc_marketing.mmm.hsgp.PeriodicCovFunc.Periodic>`\\"
+msgstr ""
+":py:obj:`Periódico <pymc_marketing.mmm.hsgp.PeriodicCovFunc.Periodic>`\\"

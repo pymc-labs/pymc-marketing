@@ -1,0 +1,383 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:2
+#: ce37888189ee4ea3b6faa4aa43d49e7a
+msgid "AsymmetricGaussianBasis"
+msgstr "AsymmetricGaussianBasis"
+
+#: 3224ba67511a4f758279eea9d433ba72 of
+#: pymc_marketing.mmm.events.AsymmetricGaussianBasis:2
+msgid "Asymmetric Gaussian bump basis transformation."
+msgstr "Transformación de base de bache gaussiano asimétrico."
+
+#: a2a182ede52d4fcc933a918620cc5561 of
+#: pymc_marketing.mmm.events.AsymmetricGaussianBasis:4
+msgid ""
+"Allows different widths (sigma_before, sigma_after) and amplitudes (a_after)"
+" after the event."
+msgstr ""
+"Permite diferentes anchos (sigma_before, sigma_after) y amplitudes (a_after)"
+" después del evento."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:7
+#: f0f3f69d391b4eb6a25464261f1bb6bb
+msgid ""
+"(:download:`Source code "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-events-"
+"AsymmetricGaussianBasis-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-events-"
+"AsymmetricGaussianBasis-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-events-"
+"AsymmetricGaussianBasis-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-events-"
+"AsymmetricGaussianBasis-1.pdf>`)"
+msgstr ""
+"(:descargar:`Código fuente "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-events-"
+"AsymmetricGaussianBasis-1.py>`, :descargar:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-events-"
+"AsymmetricGaussianBasis-1.png>`, :descargar:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-events-"
+"AsymmetricGaussianBasis-1.hires.png>`, :descargar:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-events-"
+"AsymmetricGaussianBasis-1.pdf>`)"
+
+#: 0e27f19dbe494c9da517d0e80797cd75 of
+#: pymc_marketing.mmm.events.AsymmetricGaussianBasis
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 93b8855c2d4045f7831b5c737d64e67b of
+#: pymc_marketing.mmm.events.AsymmetricGaussianBasis:31
+msgid "**event_in** : :obj:`Literal`\\[\"before\", \"after\", \"exclude\"]"
+msgstr "**event_in** : :obj:`Literal`\\[\"antes\", \"después\", \"excluir\"]"
+
+#: 128f7157a34243fc9c7346434c34d0da of
+#: pymc_marketing.mmm.events.AsymmetricGaussianBasis:30
+msgid "Literal[\"before\", \"after\", \"exclude\"]"
+msgstr "Literal[\"antes\", \"después\", \"excluir\"]"
+
+#: 19c8f6ee78ec4a5585068adab62aa3b7 of
+#: pymc_marketing.mmm.events.AsymmetricGaussianBasis:32
+msgid ""
+"Whether to include the event in the before or after part of the basis, or "
+"leave it out entirely. Default is \"after\"."
+msgstr ""
+"Si incluir el evento en la parte anterior o posterior de la base, o dejarlo "
+"completamente fuera. El valor predeterminado es \"después\"."
+
+#: 986a8bc5f0cb43a3a898d71112e5754f of
+#: pymc_marketing.mmm.events.AsymmetricGaussianBasis:35
+msgid "**priors** : :class:`python:dict`\\[:class:`python:str`, :obj:`Prior`]"
+msgstr ""
+"**antecedentes** : :class:`python:dict`\\[:class:`python:str`, :obj:`Prior`]"
+
+#: 2cdbf92593e5414fabf47cc640f69dc5 of
+#: pymc_marketing.mmm.events.AsymmetricGaussianBasis:34
+msgid "python:dict[python:str, Prior]"
+msgstr "python:dict[python:str, Prior]"
+
+#: 8ca3f832ed7b4f0e976949f7197700bc of
+#: pymc_marketing.mmm.events.AsymmetricGaussianBasis:36
+msgid ""
+"Prior for the sigma_before, sigma_after, a_before, and a_after parameters."
+msgstr ""
+"Prior para los parámetros sigma_before, sigma_after, a_before y a_after."
+
+#: 86873c80c24b4d9a909b5228f5f0d7c3 of
+#: pymc_marketing.mmm.events.AsymmetricGaussianBasis:38
+msgid "**prefix** : :class:`python:str`"
+msgstr "**prefijo** : :class:`python:str`"
+
+#: 7dfd8074f79a49b5baf897117849bc04 of
+#: pymc_marketing.mmm.events.AsymmetricGaussianBasis:37
+msgid "python:str"
+msgstr "python:str"
+
+#: 7ae2887b699642249dfa39184f224df2 of
+#: pymc_marketing.mmm.events.AsymmetricGaussianBasis:39
+msgid "Prefix for the parameters."
+msgstr "Prefijo para los parámetros."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:12
+#: cb8767becd0d4dfdb04d82338f44d3a0
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:32:<autosummary>:1
+#: f3c66ea1bcfe47d1a3688acba834a8b9
+msgid ""
+":py:obj:`AsymmetricGaussianBasis.__init__ "
+"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.__init__>`\\ "
+"\\(\\[event\\_in\\]\\)"
+msgstr ""
+":py:obj:`AsymmetricGaussianBasis.__init__ "
+"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.__init__>`\\ "
+"\\(\\[event\\_in\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:32:<autosummary>:1
+#: 6e4e5ad617ba4ec3b7c0cee24465863f
+msgid ""
+":py:obj:`AsymmetricGaussianBasis.apply "
+"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.apply>`\\ \\(x\\[\\, "
+"dims\\, idx\\]\\)"
+msgstr ""
+":py:obj:`AsymmetricGaussianBasis.apply "
+"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.apply>`\\ \\(x\\[\\, "
+"dims\\, idx\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:32:<autosummary>:1
+#: f481f4009364478ca1899a33530eecd8
+msgid "Call within a model context."
+msgstr "Llamar dentro de un contexto de modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:32:<autosummary>:1
+#: a966678b0a5845eabaf5d7ab3c24d62c
+msgid ""
+":py:obj:`AsymmetricGaussianBasis.function "
+"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.function>`\\ \\(x\\, "
+"...\\)"
+msgstr ""
+":py:obj:`AsymmetricGaussianBasis.function "
+"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.function>`\\ \\(x\\, "
+"...\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:32:<autosummary>:1
+#: 79773963ceb64c7baee243fa39b71ed1
+msgid "Asymmetric Gaussian bump function."
+msgstr "Función de bache gaussiano asimétrico."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:32:<autosummary>:1
+#: 7448da99440f45b2b2eeea2af36c727e
+msgid ""
+":py:obj:`AsymmetricGaussianBasis.plot_curve "
+"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.plot_curve>`\\ "
+"\\(curve\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`AsymmetricGaussianBasis.plot_curve "
+"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.plot_curve>`\\ "
+"\\(curva\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:32:<autosummary>:1
+#: cacd703a07db41779adc42d7da21e249
+msgid "Plot curve HDI and samples."
+msgstr "Trazar curva HDI y muestras."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:32:<autosummary>:1
+#: 882226d667fd4a80a66f0a9c5cd89412
+msgid ""
+":py:obj:`AsymmetricGaussianBasis.plot_curve_hdi "
+"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.plot_curve_hdi>`\\ "
+"\\(curve\\)"
+msgstr ""
+":py:obj:`AsymmetricGaussianBasis.plot_curve_hdi "
+"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.plot_curve_hdi>`\\ "
+"\\(curva\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:32:<autosummary>:1
+#: db98426f7931422bb9025e242ca8caed
+msgid "Plot the HDI of the curve."
+msgstr "Trace el IDH de la curva."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:32:<autosummary>:1
+#: f2016775a36b49beab435522bbfa4722
+msgid ""
+":py:obj:`AsymmetricGaussianBasis.plot_curve_samples "
+"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.plot_curve_samples>`\\ "
+"\\(curve\\)"
+msgstr ""
+":py:obj:`AsymmetricGaussianBasis.plot_curve_samples "
+"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.plot_curve_samples>`\\ "
+"\\(curva\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:32:<autosummary>:1
+#: af339c44c6194462b870989bb982074b
+msgid "Plot samples from the curve."
+msgstr "Trazar muestras de la curva."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:32:<autosummary>:1
+#: 8bd74e4039af4406aeb4295e3117ab77
+msgid ""
+":py:obj:`AsymmetricGaussianBasis.sample_curve "
+"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.sample_curve>`\\ "
+"\\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`AsymmetricGaussianBasis.sample_curve "
+"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.sample_curve>`\\ "
+"\\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:32:<autosummary>:1
+#: a0a051efde514c05bd8004ca2716b0fa
+msgid "Sample the curve of the saturation transformation given parameters."
+msgstr ""
+"Muestre la curva de la transformación de saturación dadas las parámetros."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:32:<autosummary>:1
+#: b556c35da42d468e9607e8fa926c81dc
+msgid ""
+":py:obj:`AsymmetricGaussianBasis.sample_prior "
+"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.sample_prior>`\\ "
+"\\(\\[coords\\]\\)"
+msgstr ""
+":py:obj:`AsymmetricGaussianBasis.sample_prior "
+"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.sample_prior>`\\ "
+"\\(\\[coords\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:32:<autosummary>:1
+#: 9672b7d74c4349598855f02b8c02bb3a
+msgid "Sample the priors for the transformation."
+msgstr "Muestre las distribuciones a priori para la transformación."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:32:<autosummary>:1
+#: fe0ad5f8e96c411cb4e011fde922d5c3
+msgid ""
+":py:obj:`AsymmetricGaussianBasis.set_dims_for_all_priors "
+"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.set_dims_for_all_priors>`\\"
+" \\(dims\\)"
+msgstr ""
+":py:obj:`AsymmetricGaussianBasis.set_dims_for_all_priors "
+"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.set_dims_for_all_priors>`\\"
+" \\(dims\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:32:<autosummary>:1
+#: 645c1e7e04e0486083548cf0c4758b0c
+msgid "Set the dims for all priors."
+msgstr "Establezca las dimensiones para todos los priors."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:32:<autosummary>:1
+#: 3286533d1df34effb6681e1711613583
+msgid ""
+":py:obj:`AsymmetricGaussianBasis.to_dict "
+"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.to_dict>`\\ \\(\\)"
+msgstr ""
+":py:obj:`AsymmetricGaussianBasis.to_dict "
+"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.to_dict>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:32:<autosummary>:1
+#: 50b1b78acb2b4778aacc15bf8898ff67
+msgid "Convert the asymmetric Gaussian basis to a dictionary."
+msgstr "Convierte la base gaussiana asimétrica en un diccionario."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:32:<autosummary>:1
+#: 1c55932114da4dd2b43ea9e8a0373b44
+msgid ""
+":py:obj:`AsymmetricGaussianBasis.update_priors "
+"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.update_priors>`\\ "
+"\\(priors\\)"
+msgstr ""
+":py:obj:`AsymmetricGaussianBasis.update_priors "
+"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.update_priors>`\\ "
+"\\(priors\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:32:<autosummary>:1
+#: 3c784aa043a440d287f4b68bbeb9941e
+msgid "Update the priors for a function after initialization."
+msgstr "Actualiza los priors para una función después de la inicialización."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:34
+#: b9b2e463c62d467fb9a5a71d0420a3a4
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:43:<autosummary>:1
+#: ce45baea63254f9a9d842d75419a5e51
+msgid ""
+":py:obj:`combined_dims "
+"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.combined_dims>`\\"
+msgstr ""
+":py:obj:`combined_dims "
+"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.combined_dims>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:43:<autosummary>:1
+#: f604a577dd1f4b9989da13088734c7b6
+msgid "Get the combined dims for all the parameters."
+msgstr "Obtenga las dimensiones combinadas para todos los parámetros."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:43:<autosummary>:1
+#: 30c4226906d54445a8645ac1e6a7cc0d
+msgid ""
+":py:obj:`default_priors "
+"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.default_priors>`\\"
+msgstr ""
+":py:obj:`default_priors "
+"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.default_priors>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:43:<autosummary>:1
+#: 7e9f97a1f87e4a7d8262938811df65c6
+msgid ""
+":py:obj:`function_priors "
+"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.function_priors>`\\"
+msgstr ""
+":py:obj:`function_priors "
+"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.function_priors>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:43:<autosummary>:1
+#: 342153f5721c460cacfb916e673e3f39
+msgid "Get the priors for the function."
+msgstr "Obtenga los antecedentes para la función."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:43:<autosummary>:1
+#: 0b66979145e244ee9eb2a56a4fdff141
+msgid ""
+":py:obj:`lookup_name "
+"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.lookup_name>`\\"
+msgstr ""
+":py:obj:`lookup_name "
+"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.lookup_name>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:43:<autosummary>:1
+#: 92207c1c07c7428080c39b57683dfc24
+msgid ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.model_config>`\\"
+msgstr ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.model_config>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:43:<autosummary>:1
+#: d5c3950fb5214ac686a89793f8aa6424
+msgid "Mapping from variable name to prior for the model."
+msgstr "Mapeo del nombre de la variable a la prior para el modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:43:<autosummary>:1
+#: bd204b7d00f24aeca0dc245f89937d32
+msgid ""
+":py:obj:`prefix "
+"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.prefix>`\\"
+msgstr ""
+":py:obj:`prefijo "
+"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.prefix>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:43:<autosummary>:1
+#: b7902cafeaa542d393156746039e779e
+msgid ""
+":py:obj:`variable_mapping "
+"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.variable_mapping>`\\"
+msgstr ""
+":py:obj:`variable_mapping "
+"<pymc_marketing.mmm.events.AsymmetricGaussianBasis.variable_mapping>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.AsymmetricGaussianBasis.rst:43:<autosummary>:1
+#: fcf464a589424872ac6f73d42ddb3633
+msgid "Mapping from parameter name to variable name in the model."
+msgstr "Mapeo del nombre del parámetro al nombre de la variable en el modelo."

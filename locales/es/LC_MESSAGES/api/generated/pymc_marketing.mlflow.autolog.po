@@ -1,0 +1,200 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mlflow.autolog.rst:2
+#: a25eb4d268bd4324ae470d8791f83f2b
+msgid "autolog"
+msgstr "autolog"
+
+#: 520b9d770208497389baef3b82c85215 of pymc_marketing.mlflow.autolog:2
+msgid "Autologging support for PyMC models and PyMC-Marketing models."
+msgstr "Soporte de autolog para modelos PyMC y modelos PyMC-Marketing."
+
+#: 480b9a74c59042f9be4f414f6405017d of pymc_marketing.mlflow.autolog:4
+msgid ""
+"Includes logging of sampler diagnostics, model information, data used in the"
+" model, and InferenceData objects upon sampling the models."
+msgstr ""
+"Incluye el registro de diagnósticos del muestreador, información del modelo,"
+" datos utilizados en el modelo y objetos InferenceData al muestrear los "
+"modelos."
+
+#: cff7b3b9bf4041fbb94d2acf30ce0852 of pymc_marketing.mlflow.autolog:7
+msgid ""
+"For more information about MLflow, see "
+"https://mlflow.org/docs/latest/python_api/mlflow.html"
+msgstr ""
+"Para más información sobre MLflow, consulte "
+"https://mlflow.org/docs/latest/python_api/mlflow.html"
+
+#: 331eb5008e854827be4271e172a2f417 of pymc_marketing.mlflow.autolog
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 00db0d35a81d40a38270ee163ef1eceb of pymc_marketing.mlflow.autolog:12
+msgid ""
+"**log_sampler_info** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+"**log_sampler_info** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 1fe94e7e36994a978f5298d434ed7115 3ddd29d6df194168990548797feab07c
+#: 4a454fe0b9814c519206ddcbbe084305 66b3ecbc5bb1482f8dbfd757edb296c6
+#: 7b27348483ac481c9f82ca8caaaddc6e d5fd26c2165849b4a9becc4428afce2f
+#: e90f8ad672604d2c9d39427643340df0 of pymc_marketing.mlflow.autolog:11
+#: pymc_marketing.mlflow.autolog:14 pymc_marketing.mlflow.autolog:17
+#: pymc_marketing.mlflow.autolog:31 pymc_marketing.mlflow.autolog:34
+#: pymc_marketing.mlflow.autolog:37 pymc_marketing.mlflow.autolog:40
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: ed62f3ab92dc49be8f71e5496c0e0d89 of pymc_marketing.mlflow.autolog:13
+msgid "Whether to log sampler diagnostics. Default is True."
+msgstr ""
+"Si se deben registrar los diagnósticos del muestreador. El valor "
+"predeterminado es True."
+
+#: f2c3ba6af7344f52ae62948b2f6a2cf1 of pymc_marketing.mlflow.autolog:15
+msgid ""
+"**log_metadata_info** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+"**log_metadata_info** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 7b8177f30dac4740ab562f5e4d81959d of pymc_marketing.mlflow.autolog:16
+msgid ""
+"Whether to log the metadata of inputs used in the model. Default is True."
+msgstr ""
+"Si se debe registrar los metadatos de las entradas utilizadas en el modelo. "
+"El valor predeterminado es True."
+
+#: 24a2ccddc60d4c6b88192a40ae7e9d39 of pymc_marketing.mlflow.autolog:18
+msgid ""
+"**log_model_info** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+"**log_model_info** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 97c1981e1c8b4a8a90a344a521a32050 of pymc_marketing.mlflow.autolog:19
+msgid "Whether to log model information. Default is True."
+msgstr ""
+"Si se debe registrar información del modelo. El valor predeterminado es "
+"True."
+
+#: 19c4b5dd776543bbad67f17dc36d7f8b of pymc_marketing.mlflow.autolog:21
+msgid "**sample_error_file** : :class:`python:str`, optional"
+msgstr "**sample_error_file** : :class:`python:str`, opcional"
+
+#: f0001171baa448e997ec4e1c116f6116 of pymc_marketing.mlflow.autolog:20
+msgid "python:str, optional"
+msgstr "python:str, opcional"
+
+#: 4f31889747444bffa0cc23b885d7d68b of pymc_marketing.mlflow.autolog:22
+msgid ""
+"The name of the file to log the error if an error occurs during sampling. If"
+" None, the error will not be logged. Default is \"sample-error.txt\"."
+msgstr ""
+"El nombre del archivo para registrar el error si ocurre un error durante el "
+"muestreo. Si es None, el error no será registrado. El valor predeterminado "
+"es \"sample-error.txt\"."
+
+#: ed77a08a900b4440b563acc2299af9a1 of pymc_marketing.mlflow.autolog:25
+msgid ""
+"**summary_var_names** : :class:`python:list`\\[:class:`python:str`], "
+"optional"
+msgstr ""
+"**summary_var_names** : :class:`python:list`\\[:class:`python:str`], "
+"opcional"
+
+#: 5b566939031748d2ac5cf0c21629b6e8 of pymc_marketing.mlflow.autolog:24
+msgid "python:list[python:str], optional"
+msgstr "python:list[python:str], opcional"
+
+#: 86bdaf0d1eac49ae8063a5a90ab3c246 of pymc_marketing.mlflow.autolog:26
+msgid ""
+"The names of the variables to include in the ArviZ summary. Default is all "
+"the variables in the InferenceData object."
+msgstr ""
+"Los nombres de las variables que se incluirán en el resumen de ArviZ. El "
+"valor predeterminado son todas las variables en el objeto InferenceData."
+
+#: 2aef233c61ab428195a413858d8c3397 of pymc_marketing.mlflow.autolog:29
+msgid "**arviz_summary_kwargs** : :class:`python:dict`, optional"
+msgstr "**arviz_summary_kwargs** : :class:`python:dict`, opcional"
+
+#: cf0f7f48ae9f429b849b7812977ffe6f of pymc_marketing.mlflow.autolog:28
+msgid "python:dict, optional"
+msgstr "python:dict, opcional"
+
+#: bf91db366e6340279c5f561cd3166fcf of pymc_marketing.mlflow.autolog:30
+msgid "Additional keyword arguments to pass to `az.summary`."
+msgstr "Argumentos adicionales de palabras clave para pasar a `az.summary`."
+
+#: c4ee9987271a48039b33215accae59d9 of pymc_marketing.mlflow.autolog:32
+msgid "**log_mmm** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr "**log_mmm** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 7dec9f2833be49d298729ba9bfa2e75d of pymc_marketing.mlflow.autolog:33
+msgid "Whether to log PyMC-Marketing MMM models. Default is True."
+msgstr ""
+"Si se debe registrar los modelos MMM de PyMC-Marketing. El valor "
+"predeterminado es True."
+
+#: 425608cc462d4b18ada89a7571727256 of pymc_marketing.mlflow.autolog:35
+msgid "**log_clv** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr "**log_clv** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 769c012440c2468f915a5d143b0a5efd of pymc_marketing.mlflow.autolog:36
+msgid "Whether to log PyMC-Marketing CLV models. Default is True."
+msgstr ""
+"Si se deben registrar los modelos CLV de PyMC-Marketing. El valor "
+"predeterminado es True."
+
+#: a097a341d8e44116a87913eaaf77755d of pymc_marketing.mlflow.autolog:38
+msgid "**disable** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr "**desactivar** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 48bf737f59054b48be510f68e5ab1ac0 of pymc_marketing.mlflow.autolog:39
+msgid "Whether to disable autologging. Default is False."
+msgstr ""
+"Si deshabilitar el registro automático. El valor predeterminado es False."
+
+#: bba0639785c6430a8c248aec3a49d942 of pymc_marketing.mlflow.autolog:41
+msgid "**silent** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr "**silencioso** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 6dfc345363074267a948a566a3051250 of pymc_marketing.mlflow.autolog:42
+msgid "Whether to suppress all warnings. Default is False."
+msgstr "Si suprimir todas las advertencias. El valor predeterminado es False."
+
+#: fa1900917d3e4c74882127d489d7cdc4 of pymc_marketing.mlflow.autolog:57
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: 1b6442461215468dbe780e563032e3ce of pymc_marketing.mlflow.autolog:58
+msgid "Autologging for a PyMC model:"
+msgstr "Autologging para un modelo de PyMC:"
+
+#: 5915ebb2ba4648a9bb2ba184918eedfc of pymc_marketing.mlflow.autolog:81
+msgid "Autologging for a PyMC-Marketing MMM:"
+msgstr "Autologging para un MMM de PyMC-Marketing:"
+
+#: 5e26b27955444fa8a761fecaa0fbfcea of pymc_marketing.mlflow.autolog:132
+msgid "Autologging for a PyMC-Marketing CLV model:"
+msgstr "Autologging para un modelo CLV de PyMC-Marketing:"

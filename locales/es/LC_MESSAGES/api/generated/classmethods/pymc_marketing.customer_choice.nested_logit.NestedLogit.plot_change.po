@@ -1,0 +1,112 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.customer_choice.nested_logit.NestedLogit.plot_change.rst:2
+#: bc769305bbb34bb1a9319ea5799ea186
+msgid "NestedLogit.plot\\_change"
+msgstr "NestedLogit.plot\\_change"
+
+#: b4e34e45df5243f2883b3d7a95a8d0e8 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.plot_change:2
+msgid "Plot change induced by a market intervention."
+msgstr "Cambio de trama inducido por una intervención en el mercado."
+
+#: f3c8565453294c4495c3b97ec2e1d35d of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.plot_change
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 54ae70c69dbc4aeaa1e97fcd02da97ca of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.plot_change:7
+msgid "**change_df** : :obj:`pd.DataFrame`"
+msgstr "**change_df** : :obj:`pd.DataFrame`"
+
+#: 882e6d1ebef7465893f2b372c2c90feb of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.plot_change:6
+msgid "pd.DataFrame"
+msgstr "pd.DataFrame"
+
+#: 2c47cf763eff4b32a1e123050c7ebb54 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.plot_change:8
+msgid ""
+"A DataFrame indexed by product (or mode) with the following columns: - "
+"'policy_share': share before the intervention - 'new_policy_share': share "
+"after the intervention"
+msgstr ""
+"Un DataFrame indexado por producto (o modo) con las siguientes columnas: - "
+"'policy_share': participación antes de la intervención - 'new_policy_share':"
+" participación después de la intervención"
+
+#: bee1622fe06543cf8289842dc0ade58c of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.plot_change:12
+msgid "**title** : :class:`python:str`, optional"
+msgstr "**título** : :class:`python:str`, opcional"
+
+#: 427dce747703408eb3ff66383274bda1 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.plot_change:11
+msgid "python:str, optional"
+msgstr "python:str, opcional"
+
+#: c9f6d8dedf1c4514b1affddd60816170 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.plot_change:13
+msgid ""
+"Title of the plot. Default is \"Change in Proportion due to Intervention\"."
+msgstr ""
+"Título de la gráfica. El valor predeterminado es \"Cambio en la Proporción "
+"debido a la Intervención\"."
+
+#: cc627e829ce44dbd9368bc2efd5097cc of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.plot_change:15
+msgid "**figsize** : :class:`python:tuple`, optional"
+msgstr "**figsize** : :class:`python:tuple`, opcional"
+
+#: 7f4bd76a51ec4ef19733e8439e353df5 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.plot_change:14
+msgid "python:tuple, optional"
+msgstr "python:tupla, opcional"
+
+#: 4529a09b520d4730a92a1ada82e8d880 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.plot_change:16
+msgid "Size of the plot in inches, as (width, height). Default is (8, 4)."
+msgstr ""
+"Tamaño del gráfico en pulgadas, como (ancho, alto). El valor predeterminado "
+"es (8, 4)."
+
+#: 917519ee66c64dd1a0967a83109ad768 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.plot_change
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: e3ea601133b5468283f89c36c28685f9 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.plot_change:22
+msgid ":obj:`object`"
+msgstr ":obj:`object`"
+
+#: 01472dfdd5ba43d2be63c62756543bf0 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.plot_change:23
+msgid ""
+"A matplotlib Figure object showing before/after market share comparisons, "
+"with colored lines indicating gain (green) or loss (red) for each product."
+msgstr ""
+"Un objeto Figure de matplotlib que muestra comparaciones de cuota de mercado"
+" antes/después, con líneas de colores que indican ganancia (verde) o pérdida"
+" (rojo) para cada producto."

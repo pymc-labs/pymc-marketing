@@ -1,0 +1,293 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.rst:2
+#: a8a64507ef9143e8b7a7a3fde5b0bfae
+msgid "transformers"
+msgstr "transformadores"
+
+#: 6d6c0c4f50d44c1c83db556fd5c73d13 of pymc_marketing.mmm.transformers:1
+msgid "Media transformation functions for Marketing Mix Models."
+msgstr ""
+"Funciones de transformación de medios para Modelos de Mezcla de Marketing."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.rst:13
+#: 47523246f6624ac4a238a0d5bd31d988
+msgid "Functions"
+msgstr "Funciones"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.rst:34:<autosummary>:1
+#: 88b713de49924af0ac6511c0bb62b270
+msgid ""
+":py:obj:`batched_convolution "
+"<pymc_marketing.mmm.transformers.batched_convolution>`\\ \\(x\\, w\\[\\, "
+"axis\\, mode\\]\\)"
+msgstr ""
+":py:obj:`batched_convolution "
+"<pymc_marketing.mmm.transformers.batched_convolution>`\\ \\(x\\, w\\[\\, "
+"eje\\, modo\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.rst:34:<autosummary>:1
+#: 5d66709a63734350857bc32f94441f16
+msgid ""
+"Apply a 1D convolution in a vectorized way across multiple batch dimensions."
+msgstr ""
+"Aplique una convolución 1D de manera vectorizada a través de múltiples "
+"dimensiones de lote."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.rst:34:<autosummary>:1
+#: 71aeb4d9fe43481b8bd7ccd96c28508e
+msgid ""
+":py:obj:`delayed_adstock "
+"<pymc_marketing.mmm.transformers.delayed_adstock>`\\ \\(x\\[\\, alpha\\, "
+"theta\\, l\\_max\\, ...\\]\\)"
+msgstr ""
+":py:obj:`delayed_adstock "
+"<pymc_marketing.mmm.transformers.delayed_adstock>`\\ \\(x\\[\\, alpha\\, "
+"theta\\, l\\_max\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.rst:34:<autosummary>:1
+#: a89264be53274814b71b0a0400b6c6c1
+msgid "Delayed adstock transformation."
+msgstr "Transformación de adstock retrasada."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.rst:34:<autosummary>:1
+#: 65333b54ce3642ae8166fe0fb4795d69
+msgid ""
+":py:obj:`geometric_adstock "
+"<pymc_marketing.mmm.transformers.geometric_adstock>`\\ \\(x\\[\\, alpha\\, "
+"l\\_max\\, ...\\]\\)"
+msgstr ""
+":py:obj:`geometric_adstock "
+"<pymc_marketing.mmm.transformers.geometric_adstock>`\\ \\(x\\[\\, alpha\\, "
+"l\\_max\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.rst:34:<autosummary>:1
+#: 6aa9c2f2526d40b1b4e1e0bcf750889f
+msgid "Geometric adstock transformation."
+msgstr "Transformación adstock geométrica."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.rst:34:<autosummary>:1
+#: a2475588bf814c4c938b648d4fa241d1
+msgid ""
+":py:obj:`hill_function <pymc_marketing.mmm.transformers.hill_function>`\\ "
+"\\(x\\, slope\\, kappa\\)"
+msgstr ""
+":py:obj:`hill_function <pymc_marketing.mmm.transformers.hill_function>`\\ "
+"\\(x\\, pendiente\\, kappa\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.rst:34:<autosummary>:1
+#: 2e3a9fd621f04d1f977034b685340387
+msgid "Hill Function."
+msgstr "Función de Hill."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.rst:34:<autosummary>:1
+#: 69a95d26bc2f470a8df3da14e5a489b7
+msgid ""
+":py:obj:`hill_saturation_sigmoid "
+"<pymc_marketing.mmm.transformers.hill_saturation_sigmoid>`\\ \\(x\\, "
+"sigma\\, beta\\, lam\\)"
+msgstr ""
+":py:obj:`hill_saturation_sigmoid "
+"<pymc_marketing.mmm.transformers.hill_saturation_sigmoid>`\\ \\(x\\, "
+"sigma\\, beta\\, lam\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.rst:34:<autosummary>:1
+#: 4490bbfac4b149cfa3d97d10f0b4f768
+msgid "Hill Saturation Sigmoid Function."
+msgstr "Función sigmoide de saturación de colina."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.rst:34:<autosummary>:1
+#: c89c209001ba4b8bab420cbedfb87e4d
+msgid ""
+":py:obj:`inverse_scaled_logistic_saturation "
+"<pymc_marketing.mmm.transformers.inverse_scaled_logistic_saturation>`\\ "
+"\\(x\\[\\, lam\\, eps\\]\\)"
+msgstr ""
+":py:obj:`inverse_scaled_logistic_saturation "
+"<pymc_marketing.mmm.transformers.inverse_scaled_logistic_saturation>`\\ "
+"\\(x\\[\\, lam\\, eps\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.rst:34:<autosummary>:1
+#: a044927fc6304accac5d36132bd5e471
+msgid "Inverse scaled logistic saturation transformation."
+msgstr "Transformación de saturación logística inversamente escalada."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.rst:34:<autosummary>:1
+#: f2cac67222ef40e2b1911b2610078cb1
+msgid ""
+":py:obj:`logistic_saturation "
+"<pymc_marketing.mmm.transformers.logistic_saturation>`\\ \\(x\\[\\, "
+"lam\\]\\)"
+msgstr ""
+":py:obj:`logistic_saturation "
+"<pymc_marketing.mmm.transformers.logistic_saturation>`\\ \\(x\\[\\, "
+"lam\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.rst:34:<autosummary>:1
+#: ca3a94099c484f0782d6159b2875ac7f
+msgid "Logistic saturation transformation."
+msgstr "Transformación de saturación logística."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.rst:34:<autosummary>:1
+#: 4f294906c9c347a9833eac53c6c52c5a
+msgid ""
+":py:obj:`michaelis_menten "
+"<pymc_marketing.mmm.transformers.michaelis_menten>`\\ \\(x\\, alpha\\, "
+"lam\\)"
+msgstr ""
+":py:obj:`michaelis_menten "
+"<pymc_marketing.mmm.transformers.michaelis_menten>`\\ \\(x\\, alfa\\, lam\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.rst:34:<autosummary>:1
+#: 36fb03f8903640f4a6f861b8933c9a93
+msgid ""
+"Evaluate the Michaelis-Menten function for given values of x, alpha, and "
+"lambda."
+msgstr ""
+"Evalúe la función de Michaelis-Menten para los valores dados de x, alpha y "
+"lambda."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.rst:34:<autosummary>:1
+#: bd81b3d6781844a4a3b1869d9c6530ff
+msgid ""
+":py:obj:`root_saturation "
+"<pymc_marketing.mmm.transformers.root_saturation>`\\ \\(x\\, alpha\\)"
+msgstr ""
+":py:obj:`root_saturation "
+"<pymc_marketing.mmm.transformers.root_saturation>`\\ \\(x\\, alpha\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.rst:34:<autosummary>:1
+#: 823a326a9c9e4a119ffabe76474a821a
+msgid "Root saturation transformation."
+msgstr "Transformación de saturación de raíces."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.rst:34:<autosummary>:1
+#: 6c916ad3f9524abd99511d50e983a18d
+msgid ""
+":py:obj:`tanh_saturation "
+"<pymc_marketing.mmm.transformers.tanh_saturation>`\\ \\(x\\[\\, b\\, c\\]\\)"
+msgstr ""
+":py:obj:`tanh_saturation "
+"<pymc_marketing.mmm.transformers.tanh_saturation>`\\ \\(x\\[\\, b\\, c\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.rst:34:<autosummary>:1
+#: be323123b9034dbd8f5696917c03c562
+msgid "Tanh saturation transformation."
+msgstr "Transformación de saturación Tanh."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.rst:34:<autosummary>:1
+#: 505a9dd7f456476a91fad2c7dfbda096
+msgid ""
+":py:obj:`tanh_saturation_baselined "
+"<pymc_marketing.mmm.transformers.tanh_saturation_baselined>`\\ \\(x\\, "
+"x0\\[\\, gain\\, r\\]\\)"
+msgstr ""
+":py:obj:`tanh_saturation_baselined "
+"<pymc_marketing.mmm.transformers.tanh_saturation_baselined>`\\ \\(x\\, "
+"x0\\[\\, ganancia\\, r\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.rst:34:<autosummary>:1
+#: d62d5fdf0ca64d30bca41373a3fc3fff
+msgid "Baselined Tanh Saturation."
+msgstr "Saturación Tanh de referencia."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.rst:34:<autosummary>:1
+#: 8d5885a5441a44d9b5f522e36a808952
+msgid ""
+":py:obj:`weibull_adstock "
+"<pymc_marketing.mmm.transformers.weibull_adstock>`\\ \\(x\\[\\, lam\\, k\\, "
+"l\\_max\\, axis\\, ...\\]\\)"
+msgstr ""
+":py:obj:`weibull_adstock "
+"<pymc_marketing.mmm.transformers.weibull_adstock>`\\ \\(x\\[\\, lam\\, k\\, "
+"l\\_max\\, axis\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.rst:34:<autosummary>:1
+#: 3dedda84caba48c8bf6c20e0a8bdf9f9
+msgid "Weibull Adstocking Transformation."
+msgstr "Transformación de Adstock Weibull."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.rst:36
+#: 298d6a2170d1446a84d0a3d1b5771be0
+msgid "Classes"
+msgstr "Clases"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.rst:51:<autosummary>:1
+#: 9bcb65822ec14687a1ac2b6fabdf267a
+msgid ""
+":py:obj:`ConvMode <pymc_marketing.mmm.transformers.ConvMode>`\\ "
+"\\(\\*values\\)"
+msgstr ""
+":py:obj:`ConvMode <pymc_marketing.mmm.transformers.ConvMode>`\\ "
+"\\(\\*valores\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.rst:51:<autosummary>:1
+#: 76e5382294a04d6ba986691efadbc9e9
+msgid "Convolution mode for the convolution."
+msgstr "Modo de convolución para la convolución."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.rst:51:<autosummary>:1
+#: 23ae40b8a5df4c529b40f9188a4dd468
+msgid ""
+":py:obj:`TanhSaturationBaselinedParameters "
+"<pymc_marketing.mmm.transformers.TanhSaturationBaselinedParameters>`\\ "
+"\\(x0\\, gain\\, r\\)"
+msgstr ""
+":py:obj:`TanhSaturationBaselinedParameters "
+"<pymc_marketing.mmm.transformers.TanhSaturationBaselinedParameters>`\\ "
+"\\(x0\\, ganancia\\, r\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.rst:51:<autosummary>:1
+#: c465d70de8ab4c64855fa3a6684de380
+msgid "Representation of tanh saturation parameters in baselined form."
+msgstr ""
+"Representación de los parámetros de saturación de tanh en forma de "
+"referencia."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.rst:51:<autosummary>:1
+#: a1bfe2eec3024f20b82e7d2bab5817a2
+msgid ""
+":py:obj:`TanhSaturationParameters "
+"<pymc_marketing.mmm.transformers.TanhSaturationParameters>`\\ \\(b\\, c\\)"
+msgstr ""
+":py:obj:`TanhSaturationParameters "
+"<pymc_marketing.mmm.transformers.TanhSaturationParameters>`\\ \\(b\\, c\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.rst:51:<autosummary>:1
+#: b113d714b4e34ae59a5a1c145e7efee1
+msgid "Container for tanh saturation parameters."
+msgstr "Contenedor para los parámetros de saturación de tanh."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.rst:51:<autosummary>:1
+#: 5a01181d3d64450f9fcd27f5baa97590
+msgid ""
+":py:obj:`WeibullType <pymc_marketing.mmm.transformers.WeibullType>`\\ "
+"\\(\\*values\\)"
+msgstr ""
+":py:obj:`WeibullType <pymc_marketing.mmm.transformers.WeibullType>`\\ "
+"\\(\\*valores\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.rst:51:<autosummary>:1
+#: 22146398641b45eaa8881becc94b7bf7
+msgid "Weibull type for the Weibull adstock."
+msgstr "Tipo Weibull para el adstock Weibull."

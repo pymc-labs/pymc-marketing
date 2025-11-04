@@ -1,0 +1,66 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.additive_effect.LinearTrendEffect.create_effect.rst:2
+#: cf68863288c348c49041bb7740664683
+msgid "LinearTrendEffect.create\\_effect"
+msgstr "LinearTrendEffect.crear\\_efecto"
+
+#: 9e19cbead1784eadae925d81fae81412 of
+#: pymc_marketing.mmm.additive_effect.LinearTrendEffect.create_effect:2
+msgid "Create the trend effect in the model."
+msgstr "Cree el efecto de tendencia en el modelo."
+
+#: 0739d9a4fc514584b06c0c0227ca03fd of
+#: pymc_marketing.mmm.additive_effect.LinearTrendEffect.create_effect
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 5d8bb4945b2847e5911a438667c22512 of
+#: pymc_marketing.mmm.additive_effect.LinearTrendEffect.create_effect:7
+msgid "**mmm** : :obj:`MMM`"
+msgstr "**mmm** : :obj:`MMM`"
+
+#: 39a7301b97ae4414b5fc9ac17dc5245c of
+#: pymc_marketing.mmm.additive_effect.LinearTrendEffect.create_effect:6
+msgid "MMM"
+msgstr "MMM"
+
+#: f2327622c9774e84ba3dd69ad2506173 of
+#: pymc_marketing.mmm.additive_effect.LinearTrendEffect.create_effect:8
+msgid "The MMM model instance."
+msgstr "La instancia del modelo MMM."
+
+#: fe0877e9f1674200bf5b3167734432b5 of
+#: pymc_marketing.mmm.additive_effect.LinearTrendEffect.create_effect
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: ecb204a975fe4779b69fcc1aff79a6fa of
+#: pymc_marketing.mmm.additive_effect.LinearTrendEffect.create_effect:14
+msgid ":obj:`pt.TensorVariable`"
+msgstr ":obj:`pt.TensorVariable`"
+
+#: 1ff7a699282e4d4dba27fd2fd5e5d3a7 of
+#: pymc_marketing.mmm.additive_effect.LinearTrendEffect.create_effect:15
+msgid "The trend effect in the model."
+msgstr "El efecto de tendencia en el modelo."

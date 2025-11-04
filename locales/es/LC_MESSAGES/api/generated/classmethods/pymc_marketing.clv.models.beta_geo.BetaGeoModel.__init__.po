@@ -1,0 +1,79 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.beta_geo.BetaGeoModel.__init__.rst:2
+#: 5c6219cc9cae443b81eb261f0887fa04
+msgid "BetaGeoModel.\\_\\_init\\_\\_"
+msgstr "BetaGeoModel.\\_\\_init\\_\\_"
+
+#: 0360029f58784b878a912d28a2476d55 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.__init__:2
+msgid ""
+"Initialize model configuration and sampler configuration for the model."
+msgstr ""
+"Inicializar la configuración del modelo y la configuración del muestreador "
+"para el modelo."
+
+#: 352df5f409784af391d342251449e4db of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.__init__
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 79f11f500e9a4511b8b8bd0343af70a3 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.__init__:7
+msgid "**model_config** : :obj:`Dictionary`, optional"
+msgstr "**model_config** : :obj:`Diccionario`, opcional"
+
+#: 94e52d1549ac43ccbc657ddba0f81093 ee3a9c75393c4c3b8a72f36a69c53983 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.__init__:6
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.__init__:10
+msgid "Dictionary, optional"
+msgstr "Diccionario, opcional"
+
+#: 54472a163f684102855cde06a4466cef of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.__init__:8
+msgid ""
+"dictionary of parameters that initialise model configuration. Class-default "
+"defined by the user default_model_config method."
+msgstr ""
+"diccionario de parámetros que inicializan la configuración del modelo. Clase"
+" predeterminada definida por el método default_model_config del usuario."
+
+#: f0a972712c934b60b7a2ab4dc2eec8ec of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.__init__:11
+msgid "**sampler_config** : :obj:`Dictionary`, optional"
+msgstr "**sampler_config** : :obj:`Diccionario`, opcional"
+
+#: d1de53539f9149aaa34ce8107cf43668 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.__init__:12
+msgid ""
+"dictionary of parameters that initialise sampler configuration. Class-"
+"default defined by the user default_sampler_config method."
+msgstr ""
+"diccionario de parámetros que inicializan la configuración del muestreador. "
+"Clase predeterminada definida por el método default_sampler_config del "
+"usuario."
+
+#: ab144b78a9bf48ea9cb71e44a432e7f3 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.__init__:28
+msgid "Examples"
+msgstr "Ejemplos"

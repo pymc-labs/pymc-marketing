@@ -1,0 +1,122 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.multidimensional.MMM.add_events.rst:2
+#: 576e65ac5efe459887c33082d80194d9
+msgid "MMM.add\\_events"
+msgstr "MMM.agregar\\_eventos"
+
+#: 1a7820996666490ba3fdea99ba37b5e4 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_events:2
+msgid "Add event effects to the model."
+msgstr "Agregue efectos de evento al modelo."
+
+#: ed0cafeb16f34584a9474bbf639fe808 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_events:4
+msgid "This must be called before building the model."
+msgstr "Esto debe ser llamado antes de construir el modelo."
+
+#: fc7a581203fc45c6b8e990401a1fca2d of
+#: pymc_marketing.mmm.multidimensional.MMM.add_events
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 4be8bcb834ae4c9a9741a52805ac3383 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_events:8
+msgid "**df_events** : :obj:`pd.DataFrame`"
+msgstr "**df_events** : :obj:`pd.DataFrame`"
+
+#: de4cdad07e8748dda1560301f63a0098 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_events:7
+msgid "pd.DataFrame"
+msgstr "pd.DataFrame"
+
+#: cd6f9fb3c2134e41b689da7459f05c9a of
+#: pymc_marketing.mmm.multidimensional.MMM.add_events:9
+msgid "The DataFrame containing the event data."
+msgstr "El DataFrame que contiene los datos del evento."
+
+#: a0f118768c414f99a55ae3eb1c52f33f of
+#: pymc_marketing.mmm.multidimensional.MMM.add_events:10
+msgid "`name`: name of the event. Used as the model coordinates."
+msgstr ""
+"`name`: nombre del evento. Se utiliza como las coordenadas del modelo."
+
+#: 3c1dff0b00954dca999439ea47cf95f8 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_events:11
+msgid "`start_date`: start date of the event"
+msgstr "`start_date`: fecha de inicio del evento"
+
+#: a664bb43d7684da1a2b0ce055b29d272 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_events:12
+msgid "`end_date`: end date of the event"
+msgstr "`end_date`: fecha de finalización del evento"
+
+#: 1ee49ef3f70a430a93d893f3271bed5c of
+#: pymc_marketing.mmm.multidimensional.MMM.add_events:14
+msgid "**prefix** : :class:`python:str`"
+msgstr "**prefijo** : :class:`python:str`"
+
+#: bd4e56d43ecc49519ffd80ee89b3a9d5 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_events:13
+msgid "python:str"
+msgstr "python:str"
+
+#: 55f9df251246469ca7f945828bef8606 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_events:15
+msgid "The prefix to use for the event effect and associated variables."
+msgstr ""
+"El prefijo a utilizar para el efecto del evento y las variables asociadas."
+
+#: b29ac806cce448de97ba958449f2de7b of
+#: pymc_marketing.mmm.multidimensional.MMM.add_events:17
+msgid "**effect** : :obj:`EventEffect`"
+msgstr "**efecto** : :obj:`EventEffect`"
+
+#: 078fb90e540e4f45acd5badad79c16a9 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_events:16
+msgid "EventEffect"
+msgstr "EfectoEvento"
+
+#: 023c56e451134e0f82a28b8342f6130b of
+#: pymc_marketing.mmm.multidimensional.MMM.add_events:18
+msgid "The event effect to apply."
+msgstr "El efecto del evento a aplicar."
+
+#: 90c6b9864bb9494782da29a0f01bb14b of
+#: pymc_marketing.mmm.multidimensional.MMM.add_events
+msgid "Raises"
+msgstr "Aumentos"
+
+#: 6c0c81c403b8449f8f54b2af483dd22f of
+#: pymc_marketing.mmm.multidimensional.MMM.add_events:28
+msgid ":obj:`ValueError`"
+msgstr ":obj:`ValueError`"
+
+#: a3e2ab309c9b48ac94e7668f74e506f0 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_events:29
+msgid ""
+"If the event effect dimensions do not contain the prefix and model "
+"dimensions."
+msgstr ""
+"Si las dimensiones del efecto del evento no contienen el prefijo y las "
+"dimensiones del modelo."

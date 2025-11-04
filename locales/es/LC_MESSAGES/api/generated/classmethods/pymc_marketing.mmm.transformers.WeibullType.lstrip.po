@@ -1,0 +1,39 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.transformers.WeibullType.lstrip.rst:2
+#: 478e1d76163d49009fd08b78f7fcd60f
+msgid "WeibullType.lstrip"
+msgstr "WeibullType.lstrip"
+
+#: ef3d1a4cb8a24353b3607107387f41fd of
+#: pymc_marketing.mmm.transformers.WeibullType.lstrip:2
+msgid "Return a copy of the string with leading whitespace removed."
+msgstr ""
+"Devuelve una copia de la cadena con el espacio en blanco inicial eliminado."
+
+#: 10b61cb38299488db0d973a572c27a64 of
+#: pymc_marketing.mmm.transformers.WeibullType.lstrip:4
+msgid "If chars is given and not None, remove characters in chars instead."
+msgstr ""
+"Si se proporciona chars y no es None, elimine los caracteres en chars en su "
+"lugar."

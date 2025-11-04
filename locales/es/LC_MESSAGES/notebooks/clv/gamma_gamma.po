@@ -1,0 +1,362 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:10002
+#: b63aa35654144ccabdfb13d5d243e17a
+msgid "Gamma-gamma Model"
+msgstr "Modelo gamma-gamma"
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:10004
+#: 30b8a1f6ef3d497dbda9d0e99f1e3d00
+msgid ""
+"In this notebook we show how to fit a Gamma-Gamma model in PyMC-Marketing. "
+"We compare the results with the "
+"[`lifetimes`](https://github.com/CamDavidsonPilon/lifetimes) package (no "
+"longer maintained and last meaningful update was July 2020). The model is "
+"presented in the paper: Fader, P. S., & Hardie, B. G. (2013). [The Gamma-"
+"Gamma model of monetary "
+"value](http://www.brucehardie.com/notes/025/gamma_gamma.pdf). February, 2, "
+"1-9."
+msgstr ""
+"En este cuaderno mostramos cómo ajustar un modelo Gamma-Gamma en PyMC-"
+"Marketing. Comparamos los resultados con el paquete "
+"[`lifetimes`](https://github.com/CamDavidsonPilon/lifetimes) (que ya no se "
+"mantiene y la última actualización significativa fue en julio de 2020). El "
+"modelo se presenta en el artículo: Fader, P. S., & Hardie, B. G. (2013). [El"
+" modelo Gamma-Gamma del valor "
+"monetario](http://www.brucehardie.com/notes/025/gamma_gamma.pdf). Febrero, "
+"2, 1-9."
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:20002
+#: 18e74c93a1ae474897e402f4adf924ca
+msgid "Prepare Notebook"
+msgstr "Preparar el cuaderno"
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:40002
+#: f6173003b79743d2ade0330c6931ce15
+msgid "Load Data"
+msgstr "Cargar Datos"
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:40004
+#: b90ff2a20ec6431ab3b480b56d7d8e41
+msgid "We start by loading the `CDNOW` dataset."
+msgstr "Comenzamos cargando el conjunto de datos `CDNOW`."
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:60002
+#: 2fe5a6e846b4422b91181a0455fdd5f8
+msgid ""
+"For the Gamma-Gamma model, we need to filter out customers who have made "
+"only one purchase."
+msgstr ""
+"Para el modelo Gamma-Gamma, necesitamos filtrar a los clientes que han "
+"realizado solo una compra."
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:80002
+#: eb7e2f98068f4d7d8010b3fa18b5fa5b
+msgid "Model Specification"
+msgstr "Especificación del modelo"
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:80004
+#: 30cf484902fa49a98eaa47624fd483b5
+msgid ""
+"Here we briefly describe the assumptions and the parametrization of the "
+"Gamma-Gamma model from the paper above."
+msgstr ""
+"Aquí describimos brevemente las suposiciones y la parametrización del modelo"
+" Gamma-Gamma del artículo mencionado."
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:80006
+#: 63be6f01a52842c98d998a9277e54ee7
+msgid ""
+"The model of spend per transaction is based on the following three general "
+"assumptions:"
+msgstr ""
+"El modelo de gasto por transacción se basa en las siguientes tres "
+"suposiciones generales:"
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:80008
+#: 78cdeb1c78fb406d834167bfcc3e4586
+msgid ""
+"The monetary value of a customer’s given transaction varies randomly around "
+"their average transaction value."
+msgstr ""
+"El valor monetario de una transacción dada por un cliente varía "
+"aleatoriamente en torno a su valor promedio de transacción."
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:80009
+#: 79e9abbb263942d3b815852a3c6155fd
+msgid ""
+"Average transaction values vary across customers but do not vary over time "
+"for any given individual."
+msgstr ""
+"Los valores promedio de transacción varían entre los clientes, pero no "
+"varían con el tiempo para ningún individuo en particular."
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:80010
+#: af159f7d45d04577aecefe3c0dee02ab
+msgid ""
+"The distribution of average transaction values across customers is "
+"independent of the transaction process."
+msgstr ""
+"La distribución de los valores promedio de transacción entre los clientes es"
+" independiente del proceso de transacción."
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:80012
+#: 6407af8f30f748c08df87327727e050f
+msgid ""
+"For a customer with x transactions, let $z_1, z_2, \\ldots, z_x$ denote the "
+"value of each transaction. The customer’s observed average transaction value"
+" by"
+msgstr ""
+"Para un cliente con x transacciones, sea $z_1, z_2, \\ldots, z_x$ el valor "
+"de cada transacción. El valor promedio de transacción observado del cliente "
+"por"
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:80014
+#: d5b637a699c943b3937c9c4503e0c093
+#, python-brace-format
+msgid ""
+"\n"
+"\\bar{z} = \\frac{1}{x} \\sum_{i=1}^{x} z_i\n"
+msgstr "\\bar{z} = \\frac{1}{x} \\sum_{i=1}^{x} z_i"
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:80018
+#: aebc09bc1ee740189886f4e926c72f5c
+msgid "Now let's describe the parametrization:"
+msgstr "Ahora describamos la parametrización:"
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:80020
+#: 475c1d5c56b745ba80dac028c61e7f72
+#, python-brace-format
+msgid ""
+"We assume that $z_i \\sim \\text{Gamma}(p, ν)$, with $E(Z_i| p, ν) = \\xi = "
+"p/ν$."
+msgstr ""
+"Asumimos que $z_i \\sim \\text{Gamma}(p, ν)$, con $E(Z_i| p, ν) = \\xi = "
+"p/ν$."
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:80022
+#: 5629c525cd8844ceaf3017b25e114b51
+#, python-brace-format
+msgid ""
+"– Given the convolution properties of the gamma, it follows that total spend"
+" across x transactions is distributed $\\text{Gamma}(px, ν)$."
+msgstr ""
+"– Dadas las propiedades de convolución de la gamma, se deduce que el gasto "
+"total en x transacciones se distribuye como $\\text{Gamma}(px, ν)$."
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:80024
+#: 7672de0107764c1e926e47a2ba9e6aaf
+#, python-brace-format
+msgid ""
+"– Given the scaling property of the gamma distribution, it follows that "
+"$\\bar{z} \\sim \\text{Gamma}(px, νx)$."
+msgstr ""
+"– Dada la propiedad de escalado de la distribución gamma, se deduce que "
+"$\\bar{z} \\sim \\text{Gamma}(px, νx)$."
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:80026
+#: f338cff6374d45f78c5d0bd05be63732
+#, python-brace-format
+msgid "We assume $ν \\sim \\text{Gamma}(q, \\gamma)$."
+msgstr "Asumimos $ν \\sim \\text{Gamma}(q, \\gamma)$."
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:80028
+#: 57fadf5c957d4729b6ec42b83ef9f932
+msgid "We are interested in estimating the parameters $p$, $q$ and $ν$."
+msgstr "Estamos interesados en estimar los parámetros $p$, $q$ y $ν$."
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:90003
+#: 4fe4e6a79df34beda7fe0642ada6a765
+msgid ""
+"The Gamma-Gamma model assumes that there is no relationship between the "
+"monetary value and the purchase frequency. We can check this assumption by "
+"calculating the correlation between the average spend and the frequency of "
+"purchases."
+msgstr ""
+"El modelo Gamma-Gamma asume que no existe relación entre el valor monetario "
+"y la frecuencia de compra. Podemos verificar esta suposición calculando la "
+"correlación entre el gasto promedio y la frecuencia de compras."
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:110002
+#: 327392a0e7b242d09e84788eeec32d27
+msgid ""
+"The value of this correlation is close to $0.11$, which in practice is "
+"considered low enough to proceed with the model."
+msgstr ""
+"El valor de esta correlación es cercano a $0.11$, lo cual en la práctica se "
+"considera lo suficientemente bajo como para proceder con el modelo."
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:120002
+#: c112751c24ea42e483d585e591b143ad
+msgid "Lifetimes Implementation"
+msgstr "Implementación de Lifetimes"
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:120004
+#: 3ec70d302aaa45d7bd95ec6bceb3a2e6
+msgid "First, we fit the model using the `lifetimes` package."
+msgstr "Primero, ajustamos el modelo utilizando el paquete `lifetimes`."
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:150002
+#: 947d308ae246421fa85899c039e4a892
+msgid ""
+"Once the model is fitted we can use the following method to compute the "
+"conditional expectation of the average profit per transaction for a group of"
+" one or more customers."
+msgstr ""
+"Una vez que el modelo está ajustado, podemos utilizar el siguiente método "
+"para calcular la expectativa condicional del beneficio promedio por "
+"transacción para un grupo de uno o más clientes."
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:180002
+#: db60d47ee2c24b26a182ed1dd51215c4
+msgid "PyMC-Marketing Implementation"
+msgstr "Implementación de PyMC-Marketing"
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:190002
+#: 4c9ef45d863a419bbaf362b140f9eacb
+msgid ""
+"We can use the pre-built PyMC-Marketing implementation of the Gamma-Gamma "
+"model, which also provides nice plotting and prediction methods:"
+msgstr ""
+"Podemos utilizar la implementación preconstruida de PyMC-Marketing del "
+"modelo Gamma-Gamma, que también ofrece métodos de representación gráfica y "
+"predicción agradables:"
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:200002
+#: 92dfb02dc7694a49a5d7d524d69e6f4b
+msgid "We can *build* the model so that we can see the model specification:"
+msgstr ""
+"Podemos *construir* el modelo para que podamos ver la especificación del "
+"modelo:"
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:220003
+#: df72631a41eb43ad8391327774a34bbb
+msgid ""
+"It is not necessary to build the model before fitting it. We can fit the "
+"model directly."
+msgstr ""
+"No es necesario construir el modelo antes de ajustarlo. Podemos ajustar el "
+"modelo directamente."
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:230002
+#: 2de501dc27174e19bc0678d10bc8c2f4
+msgid "Using MAP"
+msgstr "Usando MAP"
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:230004
+#: 2f48141fcca046c9bab79112205a22f8
+msgid ""
+"To begin with, lets use a numerical optimizer (`L-BFGS-B`) from "
+"`scipy.optimize` to find the maximum a posteriori (MAP) estimate of the "
+"parameters."
+msgstr ""
+"Para comenzar, utilicemos un optimizador numérico (`L-BFGS-B`) de "
+"`scipy.optimize` para encontrar la estimación de máxima a posteriori (MAP) "
+"de los parámetros."
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:260002
+#: 6a784643bf2b4325b1a08fc92cdaf298
+msgid ""
+"These values are very close to the ones obtained by the `lifetimes` package."
+msgstr ""
+"Estos valores son muy cercanos a los obtenidos por el paquete `lifetimes`."
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:270002
+#: eccf1761d32e420d9f985245735397b4
+msgid "MCMC"
+msgstr "MCMC"
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:270004
+#: 31247c0bf7524ff08a6e8a6c529c3be2
+msgid ""
+"We can also use MCMC to sample from the posterior distribution of the "
+"parameters. MCMC is a more robust method than MAP and provides uncertainty "
+"estimates for the parameters."
+msgstr ""
+"También podemos utilizar MCMC para muestrear de la distribución posterior de"
+" los parámetros. MCMC es un método más robusto que MAP y proporciona "
+"estimaciones de incertidumbre para los parámetros."
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:300002
+#: 820d1d257b5a48a194ae2d1d9907004c
+msgid ""
+"We can see some statistics of the posterior distribution of the parameters."
+msgstr ""
+"Podemos ver algunas estadísticas de la distribución posterior de los "
+"parámetros."
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:320002
+#: 2fc47dbccf10466cbc6813518ad41c44
+msgid "Let's visualize the posterior distributions and the rank plot:"
+msgstr "Visualicemos las distribuciones posteriores y el gráfico de rangos:"
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:340002
+#: dee4686046104b33a5f8bdce676673b1
+msgid ""
+"We can compare the results with the ones obtained by the `lifetimes` package"
+" and the MAP estimation."
+msgstr ""
+"Podemos comparar los resultados con los obtenidos por el paquete `lifetimes`"
+" y la estimación MAP."
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:360002
+#: c76121b099564ff99a304949cf6ebdb9
+msgid ""
+"We see that the `lifetimes` and MAP estimates are essentially the same. Both"
+" of them are close to the mean of the posterior distribution obtained by "
+"MCMC."
+msgstr ""
+"Vemos que las estimaciones de `lifetimes` y MAP son esencialmente las "
+"mismas. Ambas están cerca de la media de la distribución posterior obtenida "
+"mediante MCMC."
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:370002
+#: 40677be68d0a404caee82b2bd22b9ced
+msgid "Expected Customer Spend"
+msgstr "Gasto Esperado del Cliente"
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:370004
+#: 890de669fff14bcca67016a40533bcaa
+msgid ""
+"Once we have the posterior distribution of the parameters, we can use the "
+"`expected_average_profit` method to compute the conditional expectation of "
+"the average profit per transaction for a group of one or more customers."
+msgstr ""
+"Una vez que tengamos la distribución posterior de los parámetros, podemos "
+"utilizar el método `expected_average_profit` para calcular la expectativa "
+"condicional del beneficio promedio por transacción para un grupo de uno o "
+"más clientes."
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:390002
+#: 38b3b00619684fa9a27caffa4e5ee916
+msgid "Let's see how it looks for a subset of customers."
+msgstr "Veamos cómo se ve para un subconjunto de clientes."
+
+#: ../source/notebooks/clv/gamma_gamma.ipynb:420002
+#: 6d3b007bf2b04865a48e8f4a89104091
+msgid ""
+"Finally, lets look at some statistics and the distribution for the whole "
+"dataset."
+msgstr ""
+"Finalmente, veamos algunas estadísticas y la distribución para todo el "
+"conjunto de datos."
