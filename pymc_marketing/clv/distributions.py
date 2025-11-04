@@ -912,7 +912,7 @@ class ShiftedBetaGeometricRV(RandomVariable):
 
         # prevent log(0) by clipping small p samples
         p = np.clip(p_samples, 1e-100, 1)
-        return rng.geometric(p, size=size).astype(float)
+        return rng.geometric(p, size=size).astype(np.float64)
 
 
 sbg = ShiftedBetaGeometricRV()
