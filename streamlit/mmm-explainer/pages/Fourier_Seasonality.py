@@ -16,8 +16,8 @@
 import plotly.graph_objects as go
 
 import streamlit as st
+from pymc_extras.prior import Prior
 from pymc_marketing.mmm import MonthlyFourier, YearlyFourier
-from pymc_marketing.prior import Prior
 
 # Constants
 PLOT_HEIGHT = 500
