@@ -830,8 +830,9 @@ class TestShiftedBetaGeometric:
             draws = dist.eval()
 
             # Verify that the dtype is float, not int
-            assert np.issubdtype(draws.dtype, np.floating), \
+            assert np.issubdtype(draws.dtype, np.floating), (
                 f"Expected float dtype, but got {draws.dtype}"
+            )
 
     def test_logp(self):
         alpha = pt.scalar("alpha")
