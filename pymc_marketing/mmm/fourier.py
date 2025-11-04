@@ -52,7 +52,9 @@ Examples
 --------
 Use yearly fourier seasonality for custom Marketing Mix Model.
 
-.. code-block:: python
+.. plot::
+    :context: close-figs
+    :nofigs:
 
     import pandas as pd
     import pymc as pm
@@ -70,7 +72,8 @@ Use yearly fourier seasonality for custom Marketing Mix Model.
 
 Plot the prior fourier seasonality trend.
 
-.. code-block:: python
+.. plot::
+    :context: close-figs
 
     import matplotlib.pyplot as plt
 
@@ -91,7 +94,9 @@ Change the prior distribution of the fourier seasonality.
 
 Even make it hierarchical...
 
-.. code-block:: python
+.. plot::
+    :context: close-figs
+    :nofigs:
 
     from pymc_marketing.mmm import YearlyFourier
     from pymc_extras.prior import Prior
@@ -107,7 +112,8 @@ Even make it hierarchical...
 
 All the plotting will still work! Just pass any coords.
 
-.. code-block:: python
+.. plot::
+    :context: close-figs
 
     import matplotlib.pyplot as plt
 
