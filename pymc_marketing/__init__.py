@@ -14,7 +14,10 @@
 """PyMC-Marketing."""
 
 # Load the data accessor
-import pymc_marketing.data.fivetran  # noqa: F401
+import pymc_marketing.data.fivetran
+
+# Load prior module to register custom deserializers
+import pymc_marketing.prior  # noqa: F401
 from pymc_marketing import clv, customer_choice, mmm
 from pymc_marketing.version import __version__
 
