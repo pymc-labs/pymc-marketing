@@ -1,0 +1,249 @@
+name: Claude Code Implement Plan
+
+on:
+  issues:
+    types: [opened, labeled]
+
+concurrency:
+  group: claude-implement-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  implement:
+    if: contains(github.event.issue.labels.*.name, 'implementation_needed')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Install Claude Code CLI
+        run: |
+          npm install -g @anthropic-ai/claude-code
+
+      - name: Install GitHub CLI
+        run: |
+          type -p gh >/dev/null || {
+            sudo apt update
+            sudo apt install -y gh
+          }
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Find plan file
+        id: find_plan
+        run: |
+          issue_number="${{ github.event.issue.number }}"
+          plan_file="thoughts/shared/issues/${issue_number}/plan.md"
+
+          if [ ! -f "$plan_file" ]; then
+            echo "❌ No plan file found at $plan_file"
+            echo "Please create a plan first with the plan_needed label"
+            echo "has_plan=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+          echo "plan_file=$plan_file" >> $GITHUB_OUTPUT
+          echo "has_plan=true" >> $GITHUB_OUTPUT
+          echo "✅ Found plan: $plan_file"
+
+      - name: Create implementation branch
+        id: create_branch
+        run: |
+          issue_number="${{ github.event.issue.number }}"
+          branch_name="issue-${issue_number}-implementation"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Check if branch already exists
+          if git ls-remote --heads origin "$branch_name" | grep -q "$branch_name"; then
+            echo "Branch $branch_name already exists, checking out"
+            git fetch origin "$branch_name"
+            git checkout "$branch_name"
+          else
+            echo "Creating new branch: $branch_name"
+            git checkout -b "$branch_name"
+          fi
+
+          echo "branch_name=$branch_name" >> $GITHUB_OUTPUT
+
+      - name: Run implement_plan command
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          plan_file="${{ steps.find_plan.outputs.plan_file }}"
+
+          echo "Starting implementation for issue #${{ github.event.issue.number }}"
+          echo "Using plan: $plan_file"
+
+          claude -p \
+            --dangerously-skip-permissions \
+            --max-turns 200 \
+            --verbose \
+            "/implement_plan @${plan_file}" 2>&1 | tee /tmp/claude_output.log
+
+          echo "Implementation command completed"
+
+      - name: Run tests
+        if: success()
+        working-directory: app
+        run: |
+          echo "Syncing dependencies..."
+          uv sync || true
+
+          echo "Installing test dependencies..."
+          uv add --optional test pytest pytest-asyncio pytest-mock polyfactory || true
+
+          echo "Syncing again after adding test dependencies..."
+          uv sync --extra test || true
+
+          echo "Running test suite..."
+          timeout 60 uv run pytest tests/ -v -m "unit and not slow" --tb=short || {
+            echo "❌ Tests failed"
+            exit 1
+          }
+        continue-on-error: false
+
+      - name: Comment test failure
+        if: failure()
+        run: |
+          {
+            echo "## ❌ Tests Failed"
+            echo ""
+            echo "The test suite failed during implementation."
+            echo ""
+            echo "**Workflow Run**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo ""
+            echo "Review the test failures in the workflow logs and fix the implementation before retrying."
+          } > /tmp/test_failure.md
+
+          gh issue comment ${{ github.event.issue.number }} \
+            --body-file /tmp/test_failure.md || true
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Commit and push changes
+        id: commit_changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Add all changes
+          git add .
+
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            git commit -m "Implement plan for issue #${{ github.event.issue.number }}"
+            git push -u origin "${{ steps.create_branch.outputs.branch_name }}"
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "✅ Committed and pushed implementation"
+          fi
+
+      - name: Create or update pull request
+        if: steps.commit_changes.outputs.has_changes == 'true'
+        run: |
+          issue_number="${{ github.event.issue.number }}"
+          branch_name="${{ steps.create_branch.outputs.branch_name }}"
+          plan_file="${{ steps.find_plan.outputs.plan_file }}"
+
+          # Check if PR already exists for this branch
+          existing_pr=$(gh pr list --head "$branch_name" --json number --jq '.[0].number' || echo "")
+
+          if [ -n "$existing_pr" ]; then
+            echo "PR #$existing_pr already exists for branch $branch_name"
+            gh pr comment "$existing_pr" --body "Implementation updated"
+          else
+            # Create PR body with plan summary
+            {
+              echo "## Summary"
+              echo ""
+              echo "This PR implements the plan for issue #${issue_number}."
+              echo ""
+              echo "### Implementation Plan"
+              echo ""
+              cat "$plan_file"
+              echo ""
+              echo "---"
+              echo ""
+              echo "Closes #${issue_number}"
+            } > /tmp/pr_body.md
+
+            # Create the PR
+            gh pr create \
+              --title "Implement: ${{ github.event.issue.title }}" \
+              --body-file /tmp/pr_body.md \
+              --base main \
+              --head "$branch_name"
+
+            echo "✅ Created pull request for branch $branch_name"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Update labels
+        if: success() && steps.commit_changes.outputs.has_changes == 'true'
+        run: |
+          # Remove implementation_needed, add implementation_complete
+          gh issue edit ${{ github.event.issue.number }} \
+            --remove-label "implementation_needed" \
+            --add-label "implementation_complete"
+
+          echo "✅ Updated labels"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-output-implement-${{ github.event.issue.number }}
+          path: /tmp/claude_output.log
+          retention-days: 7
+
+      - name: Handle errors
+        if: failure()
+        run: |
+          {
+            echo "## ❌ Implementation Failed"
+            echo ""
+            echo "The \`/implement_plan\` workflow encountered an error."
+            echo ""
+            echo "**Workflow Run**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            echo ""
+            echo "**Common issues**:"
+            echo "- No plan file exists for this issue (create a plan first with plan_needed label)"
+            echo "- Implementation errors or test failures"
+            echo "- API errors or timeouts"
+            echo ""
+            echo "Check the workflow logs for details."
+          } > /tmp/error.md
+
+          gh issue comment ${{ github.event.issue.number }} \
+            --body-file /tmp/error.md || true
+        env:
+          GH_TOKEN: ${{ github.token }}
