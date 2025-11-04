@@ -16,6 +16,8 @@ import pytest
 from pymc_extras.deserialize import deserialize
 from pymc_extras.prior import Prior
 
+from pymc_marketing import prior  # noqa: F401
+
 
 @pytest.mark.parametrize(
     "data, expected",
