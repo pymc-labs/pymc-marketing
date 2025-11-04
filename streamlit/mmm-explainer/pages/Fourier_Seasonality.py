@@ -14,10 +14,10 @@
 """Streamlit page for fourier modes."""
 
 import plotly.graph_objects as go
+from pymc_extras.prior import Prior
 
 import streamlit as st
 from pymc_marketing.mmm import MonthlyFourier, YearlyFourier
-from pymc_marketing.prior import Prior
 
 # Constants
 PLOT_HEIGHT = 500
