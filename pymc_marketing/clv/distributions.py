@@ -920,6 +920,7 @@ class ShiftedBetaGeometricRV(RandomVariable):
 sbg = ShiftedBetaGeometricRV()
 
 
+
 class ShiftedBetaGeometric(Discrete):
     r"""Shifted Beta-Geometric distribution.
 
