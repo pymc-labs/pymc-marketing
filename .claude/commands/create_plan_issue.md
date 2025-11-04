@@ -12,13 +12,18 @@ When this command is invoked, execute ALL steps automatically without user inter
    - If not set, use: `thoughts/shared/plans/{descriptive_name}.md`
    - Create issue directory if needed: `mkdir -p thoughts/shared/issues/${GITHUB_ISSUE_NUMBER}`
 
-2. **Auto-load all available context:**
+2. **Process inline content if provided:**
+   - If the command invocation includes content (e.g., `/create_plan_issue [issue details]`), treat that as the issue context
+   - Extract requirements, constraints, and goals from the provided content
+   - This content typically includes the issue title, body, and comments from the workflow
+
+3. **Auto-load all available context:**
    - If GITHUB_ISSUE_NUMBER is set, check for: `thoughts/shared/issues/${GITHUB_ISSUE_NUMBER}/research.md`
    - Read research file completely if it exists
-   - Extract issue requirements from GitHub issue metadata (available in workflow context)
+   - Extract issue requirements from inline content or GitHub issue metadata (available in workflow context)
    - Proceed immediately to research phase
 
-3. **No user interaction required:**
+4. **No user interaction required:**
    - DO NOT ask for clarifications or wait for input
    - Make reasonable technical decisions based on research
    - If multiple approaches exist, choose the most practical one
