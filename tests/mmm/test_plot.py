@@ -1201,7 +1201,7 @@ class TestResidualsOverTime:
         assert axes.shape[0] == 2
 
 
-class TestResidualsPosteriорDistribution:
+class TestResidualsPosteriоrDistribution:
     def test_residuals_distribution_basic(self, mock_suite_with_errors_data):
         """Test basic functionality of residuals posterior distribution plot."""
         fig, axes = mock_suite_with_errors_data.residuals_posterior_distribution()
