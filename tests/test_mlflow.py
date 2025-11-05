@@ -42,6 +42,7 @@ with warnings.catch_warnings():
         log_sample_diagnostics,
     )
 from pymc_marketing.mmm import MMM, GeometricAdstock, LogisticSaturation
+from pymc_marketing.mmm.multidimensional import MMM as MultiDimensionalMMM
 from pymc_marketing.version import __version__
 
 seed = sum(map(ord, "mlflow-with-pymc"))
@@ -61,6 +62,8 @@ def setup_module():
         pm.sample = pm.sample.__wrapped__
     while hasattr(MMM.fit, "__wrapped__"):
         MMM.fit = MMM.fit.__wrapped__
+    while hasattr(MultiDimensionalMMM.fit, "__wrapped__"):
+        MultiDimensionalMMM.fit = MultiDimensionalMMM.fit.__wrapped__
 
 
 @pytest.fixture(scope="module")
