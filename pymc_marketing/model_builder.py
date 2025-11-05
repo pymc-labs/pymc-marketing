@@ -613,7 +613,7 @@ class ModelBuilder(ABC, ModelIO):
                     'b' : {
                         'loc': 3,
                         'scale': 5
-                    }
+                    },
                      'obs_error': 2
                 }
 
