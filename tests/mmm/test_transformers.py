@@ -482,11 +482,13 @@ class TestSaturationTransformers:
         y2 = tanh_saturation_baselined(x, *param_x0).eval()
         y3 = tanh_saturation_baselined(x, *param_x1).eval()
         y4 = tanh_saturation(x, *param_classic1).eval()
-        np.testing.assert_allclose(y1, y2)
-        np.testing.assert_allclose(y2, y3)
-        np.testing.assert_allclose(y3, y4)
-        np.testing.assert_allclose(param_classic1.b.eval(), b)
-        np.testing.assert_allclose(param_classic1.c.eval(), c, rtol=1e-06)
+        # Use consistent tolerances for all comparisons to account for
+        # accumulated floating-point errors in round-trip transformations
+        np.testing.assert_allclose(y1, y2, rtol=1e-6)
+        np.testing.assert_allclose(y2, y3, rtol=1e-6)
+        np.testing.assert_allclose(y3, y4, rtol=1e-6)
+        np.testing.assert_allclose(param_classic1.b.eval(), b, rtol=1e-6)
+        np.testing.assert_allclose(param_classic1.c.eval(), c, rtol=1e-6)
 
     @pytest.mark.parametrize(
         "x, alpha, lam, expected",

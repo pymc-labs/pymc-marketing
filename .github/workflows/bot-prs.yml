@@ -16,7 +16,8 @@ jobs:
         run: |
           number=${{ github.event.pull_request.number }}
           is_bot=$(gh pr view $number --json author --jq '.author.is_bot')
-          if [[ $is_bot == "true" ]]; then
+          bot_login=$(gh pr view $number --json author --jq '.author.login')
+          if [[ $is_bot == "true" && $bot_login != "copilot-swe-agent" ]]; then
             gh pr edit $number --add-label "no releasenotes"
           fi
         env:
