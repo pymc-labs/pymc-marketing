@@ -542,6 +542,84 @@ def test_autolog_mmm(mmm, toy_X, toy_y) -> None:
     }
 
 
+@pytest.fixture(scope="module")
+def multidimensional_mmm() -> MultiDimensionalMMM:
+    return MultiDimensionalMMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="y",
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+    )
+
+
+@pytest.fixture(scope="module")
+def toy_multidim_X() -> pd.DataFrame:
+    # Simple data for multidimensional MMM test
+    n_obs = 20
+    date_data = pd.DataFrame(
+        {
+            "date": pd.date_range(start="2020-01-01", periods=n_obs, freq="W-MON"),
+            "channel_1": rng.integers(low=0, high=100, size=n_obs),
+            "channel_2": rng.integers(low=0, high=100, size=n_obs),
+        }
+    )
+    return date_data
+
+
+@pytest.fixture(scope="module")
+def toy_multidim_y(toy_multidim_X: pd.DataFrame) -> pd.Series:
+    return pd.Series(
+        data=rng.integers(low=0, high=100, size=toy_multidim_X.shape[0]), name="y"
+    )
+
+
+def test_autolog_multidimensional_mmm(
+    multidimensional_mmm, toy_multidim_X, toy_multidim_y
+) -> None:
+    mlflow.set_experiment("pymc-marketing-test-suite-multidimensional-mmm")
+    with mlflow.start_run() as run:
+        draws = 10
+        tune = 5
+        chains = 1
+        idata = multidimensional_mmm.fit(
+            toy_multidim_X,
+            toy_multidim_y,
+            draws=draws,
+            chains=chains,
+            tune=tune,
+        )
+
+    assert mlflow.active_run() is None
+
+    run_id = run.info.run_id
+    inputs, params, metrics, tags, artifacts = get_run_data(run_id)
+
+    param_checks(
+        params=params,
+        draws=draws,
+        chains=chains,
+        tune=tune,
+        nuts_sampler="pymc",
+    )
+
+    assert params["adstock_name"] == "geometric"
+    assert params["saturation_name"] == "logistic"
+
+    metric_checks(metrics, "pymc")
+
+    assert set(artifacts) == {
+        "coords.json",
+        "idata.nc",
+        "model_graph.pdf",
+        "model_repr.txt",
+        "summary.html",
+    }
+    assert tags == {}
+
+    assert len(inputs) == 1
+
+
 @pytest.fixture(scope="function")
 def mock_idata() -> az.InferenceData:
     chains = 4
