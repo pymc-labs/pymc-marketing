@@ -16,7 +16,6 @@
 from functools import reduce
 
 import numpy as np
-import pytensor
 import pytensor.tensor as pt
 from pymc.distributions.continuous import PositiveContinuous
 from pymc.distributions.dist_math import betaln, check_parameters
@@ -913,7 +912,9 @@ class ShiftedBetaGeometricRV(RandomVariable):
 
         # prevent log(0) by clipping small p samples
         p = np.clip(p_samples, 1e-100, 1)
-        return rng.geometric(p, size=size).astype(pytensor.config.floatX)
+        # Convert to float to match dtype="floatX" specification
+        # Using numpy's default float type for consistency with other distributions
+        return rng.geometric(p, size=size).astype(np.float64)
 
 
 sbg = ShiftedBetaGeometricRV()
