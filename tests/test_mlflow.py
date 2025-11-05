@@ -582,7 +582,7 @@ def test_autolog_multidimensional_mmm(
         draws = 10
         tune = 5
         chains = 1
-        idata = multidimensional_mmm.fit(
+        multidimensional_mmm.fit(
             toy_multidim_X,
             toy_multidim_y,
             draws=draws,
