@@ -503,19 +503,19 @@ class MMMPlotSuite:
 
     def prior_predictive(
         self,
-        var: list[str] | None = None,
+        var: str | None = None,
         idata: xr.Dataset | None = None,
         hdi_prob: float = 0.85,
     ) -> tuple[Figure, NDArray[Axes]]:
         """Plot time series from the posterior predictive distribution.
 
         By default, if both `var` and `idata` are not provided, uses
-        `self.idata.posterior_predictive` and defaults the variable to `["y"]`.
+        `self.idata.posterior_predictive` and defaults the variable to `"y"`.
 
         Parameters
         ----------
-        var : list of str, optional
-            A list of variable names to plot. Default is ["y"] if not provided.
+        var : str, optional
+            The variable name to plot. Default is "y" if not provided.
         idata : xarray.Dataset, optional
             The posterior predictive dataset to plot. If not provided, tries to
             use `self.idata.posterior_predictive`.
@@ -541,10 +541,10 @@ class MMMPlotSuite:
         # 1. Retrieve or validate posterior_predictive data
         pp_data = self._get_prior_predictive_data(idata)
 
-        # 2. Determine variables to plot
+        # 2. Determine variable to plot
         if var is None:
-            var = ["y"]
-        main_var = var[0]
+            var = "y"
+        main_var = var
 
         # 3. Identify additional dims & get all combos
         ignored_dims = {"chain", "draw", "date", "sample"}
@@ -566,17 +566,16 @@ class MMMPlotSuite:
                 else {}
             )
 
-            # 6. Plot each requested variable
-            for v in var:
-                if v not in pp_data:
-                    raise ValueError(
-                        f"Variable '{v}' not in the posterior_predictive dataset."
-                    )
+            # 6. Plot the requested variable
+            if var not in pp_data:
+                raise ValueError(
+                    f"Variable '{var}' not in the posterior_predictive dataset."
+                )
 
-                data = pp_data[v].sel(**indexers)
-                # Sum leftover dims, stack chain+draw if needed
-                data = self._reduce_and_stack(data, ignored_dims)
-                ax = self._add_median_and_hdi(ax, data, v, hdi_prob=hdi_prob)
+            data = pp_data[var].sel(**indexers)
+            # Sum leftover dims, stack chain+draw if needed
+            data = self._reduce_and_stack(data, ignored_dims)
+            ax = self._add_median_and_hdi(ax, data, var, hdi_prob=hdi_prob)
 
             # 7. Subplot title & labels
             title = self._build_subplot_title(

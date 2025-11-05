@@ -1706,7 +1706,8 @@ class MMM(RegressionModelBuilder):
 
             if extend_idata and self.idata is not None:
                 self.idata.add_groups(
-                    posterior_predictive=post_pred.posterior_predictive
+                    posterior_predictive=post_pred.posterior_predictive,
+                    posterior_predictive_constant_data=post_pred.constant_data,
                 )  # type: ignore
 
         group = "posterior_predictive"
