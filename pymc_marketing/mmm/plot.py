@@ -1926,7 +1926,7 @@ class MMMPlotSuite:
         finally:
             self.idata.sensitivity_analysis = original  # type: ignore
 
-    def plot_cv_predictions(
+    def cv_predictions(
         self, results, dims: dict[str, list[str]] | None = None
     ) -> tuple[Figure, NDArray[Axes]]:
         """Plot posterior predictive predictions across CV folds.
@@ -2212,7 +2212,7 @@ class MMMPlotSuite:
         plt.show()
         return fig, axes
 
-    def plot_param_stability(
+    def param_stability(
         self, results, parameter: list[str], dims: dict[str, list[str]] | None = None
     ) -> tuple[Figure, NDArray[Axes]]:
         """
@@ -2347,7 +2347,7 @@ class MMMPlotSuite:
 
             return last_fig_ax
 
-    def plot_crps(
+    def cv_crps(
         self, results, dims: dict[str, str | int | list] | None = None
     ) -> tuple[Figure, NDArray[Axes]]:
         """Plot CRPS for train and test sets across all CV splits, optionally stratified by dims.
@@ -2360,7 +2360,7 @@ class MMMPlotSuite:
         # Validate input is combined InferenceData
         if not isinstance(results, az.InferenceData):
             raise TypeError(
-                "plot_crps expects an arviz.InferenceData returned by TimeSliceCrossValidator._combine_idata(...)"
+                "cv_crps expects an arviz.InferenceData returned by TimeSliceCrossValidator._combine_idata(...)"
             )
         if not hasattr(results, "cv_metadata") or "metadata" not in results.cv_metadata:
             raise ValueError(
