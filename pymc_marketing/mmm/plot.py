@@ -372,6 +372,20 @@ class MMMPlotSuite:
             dims_combos = [()]
         return dims_keys, dims_combos
 
+    def _filter_df_by_indexer(
+        self, df: pd.DataFrame | None, indexer: dict
+    ) -> pd.DataFrame:
+        """Train / Test rows for this fold & panel: filter metadata DataFrames by all panel dims."""
+        if df is None:
+            return pd.DataFrame([])
+        if not indexer:
+            return df.copy()
+        mask = pd.Series(True, index=df.index)
+        for k, v in indexer.items():
+            if k in df.columns:
+                mask &= df[k].astype(str) == str(v)
+        return df.loc[mask]
+
     # ------------------------------------------------------------------------
     #                          Main Plotting Methods
     # ------------------------------------------------------------------------
@@ -1927,7 +1941,7 @@ class MMMPlotSuite:
             self.idata.sensitivity_analysis = original  # type: ignore
 
     def cv_predictions(
-        self, results, dims: dict[str, list[str]] | None = None
+        self, results, dims: dict[str, str | int | list] | None = None
     ) -> tuple[Figure, NDArray[Axes]]:
         """Plot posterior predictive predictions across CV folds.
 
@@ -1939,13 +1953,14 @@ class MMMPlotSuite:
                 `cv_metadata.metadata`, and a posterior_predictive group containing
                 `y_original_scale`.
             dims: Optional dict specifying dimensions to filter when plotting.
-                Currently only supports {"geo": [...]}.
+                Supports arbitrary coordinate dimensions. Keys must be coordinates
+                present on `posterior_predictive['y_original_scale']`.
 
-        The plot shows per-geo, per-fold posterior predictive HDI (3%-97%)
-        for train (blue) and test (orange) ranges as shaded bands, the
-        posterior mean as dashed lines, and observed values as black lines.
-        A vertical dashed green line marks the end of the training period for
-        each fold.
+        The plot shows per-panel (one panel per combination of dims/additional coords)
+        and per-fold posterior predictive HDI (3%-97%) for train (blue) and test
+        (orange) ranges as shaded bands, the posterior mean as dashed lines, and
+        observed values as black lines. A vertical dashed green line marks the end
+        of the training period for each fold.
         """
         # Expect an arviz.InferenceData with cv coord and cv_metadata
         if not isinstance(results, az.InferenceData):
@@ -1966,28 +1981,49 @@ class MMMPlotSuite:
                 "Provided InferenceData must include posterior_predictive['y_original_scale']."
             )
 
-        # Support optional dims filtering (currently only supports filtering by 'geo')
+        # Discover posterior_predictive dataarray we'll be working with
+        pp = results.posterior_predictive["y_original_scale"]
+
+        # Determine which coordinate dims are available for paneling (exclude technical dims)
+        technical_dims = {"chain", "draw", "sample", "date", "cv"}
+        available_dims = [d for d in pp.dims if d not in technical_dims]
+
+        # If the user supplied dims, validate they are a subset of available_dims
         if dims is None:
-            geos = list(
-                results.posterior_predictive["y_original_scale"].coords["geo"].values
-            )
+            # Require explicit dims or use additional dims for paneling
+            dims = {}
         else:
-            unsupported = [d for d in dims.keys() if d != "geo"]
+            unsupported = [d for d in dims.keys() if d not in available_dims]
             if unsupported:
                 raise ValueError(
-                    f"plot_predictions only supports dims with 'geo' key. Unsupported dims: {unsupported}"
+                    f"cv_predictions only supports dims that exist. Unsupported dims: {unsupported}"
                 )
-            geos = list(dims.get("geo", []))
-            if not geos:
-                geos = list(
-                    results.posterior_predictive["y_original_scale"]
-                    .coords["geo"]
-                    .values
-                )
+
+        # Build explicit lists for dims that may contain single values
+        dims_keys, dims_combos = self._dim_list_handler(dims)
+
+        # Additional dimensions to create separate panels for (those not in dims and not ignored)
+        additional_dims = [d for d in available_dims if d not in dims_keys]
+        if additional_dims:
+            additional_coords = [pp.coords[d].values for d in additional_dims]
+            additional_combinations = list(itertools.product(*additional_coords))
+        else:
+            additional_combinations = [()]
+
+        # Build all panel indexers: each panel corresponds to a mapping dim->value
+        total_panels = []
+        for dims_combo in dims_combos:
+            for addl_combo in additional_combinations:
+                indexer: dict = {}
+                indexer.update(dict(zip(dims_keys, dims_combo, strict=False)))
+                if additional_dims:
+                    indexer.update(dict(zip(additional_dims, addl_combo, strict=False)))
+                total_panels.append(indexer)
 
         cv_labels = list(results.cv_metadata.coords["cv"].values)
         n_folds = len(cv_labels)
-        n_axes = len(geos) * n_folds
+        n_panels = len(total_panels)
+        n_axes = max(1, n_panels * n_folds)
 
         fig, axes = plt.subplots(
             n_axes, 1, figsize=(12, 4 * max(1, n_axes)), sharex=True
@@ -2061,18 +2097,40 @@ class MMMPlotSuite:
                 plot_kwargs={"color": color, "linestyle": "--", "linewidth": 1},
             )
 
-        for geo_idx, geo in enumerate(geos):
+        # Iterate panels x folds
+        for panel_idx, panel_indexer in enumerate(total_panels):
             for fold_idx, cv_label in enumerate(cv_labels):
-                ax_i = geo_idx * n_folds + fold_idx
+                ax_i = panel_idx * n_folds + fold_idx
                 ax = axes[ax_i]
 
-                # Select posterior predictive array for this CV
+                # Select posterior predictive array for this CV and this panel
                 arr = results.posterior_predictive["y_original_scale"].sel(cv=cv_label)
+                try:
+                    arr = arr.sel(**panel_indexer) if panel_indexer else arr
+                except Exception:
+                    # If a specific panel coord value cannot be selected (e.g., not present), warn and skip
+                    warnings.warn(
+                        f"Could not select posterior_predictive panel {panel_indexer}; skipping.",
+                        stacklevel=2,
+                    )
+                    continue
 
                 # Stack chain/draw -> sample for quantile computation and ensure ordering
-                arr_s = arr.stack(sample=("chain", "draw")).transpose(
-                    "sample", "date", "geo"
-                )
+                arr_s = arr.stack(sample=("chain", "draw"))
+                # Ensure date is a dimension we can index into and keep ordering date,last dims
+                # Move date and sample to front for consistent indexing used by helper
+                try:
+                    arr_s = arr_s.transpose(
+                        "sample",
+                        "date",
+                        *[d for d in arr_s.dims if d not in ("sample", "date")],
+                    )
+                except Exception:
+                    # If transpose fails, continue with whatever ordering exists
+                    warnings.warn(
+                        "Could not transpose posterior_predictive array to ('sample','date',...).",
+                        stacklevel=2,
+                    )
 
                 # Extract train/test metadata for this fold from cv_metadata
                 meta_da = results.cv_metadata["metadata"].sel(cv=cv_label)
@@ -2087,28 +2145,18 @@ class MMMPlotSuite:
                 X_test = meta.get("X_test") if isinstance(meta, dict) else None
                 y_test = meta.get("y_test") if isinstance(meta, dict) else None
 
-                # Train / Test dates for this fold & geo
-                if X_train is not None and "geo" in X_train.columns:
-                    train_df_geo = X_train[X_train["geo"].astype(str) == str(geo)]
-                else:
-                    train_df_geo = (
-                        X_train.copy() if X_train is not None else pd.DataFrame([])
-                    )
-                if X_test is not None and "geo" in X_test.columns:
-                    test_df_geo = X_test[X_test["geo"].astype(str) == str(geo)]
-                else:
-                    test_df_geo = (
-                        X_test.copy() if X_test is not None else pd.DataFrame([])
-                    )
+                # Filter train/test DataFrames to this panel
+                train_df_panel = self._filter_df_by_indexer(X_train, panel_indexer)
+                test_df_panel = self._filter_df_by_indexer(X_test, panel_indexer)
 
                 train_dates = (
-                    pd.to_datetime(train_df_geo["date"].values)
-                    if not train_df_geo.empty
+                    pd.to_datetime(train_df_panel["date"].values)
+                    if not train_df_panel.empty
                     else pd.DatetimeIndex([])
                 )
                 test_dates = (
-                    pd.to_datetime(test_df_geo["date"].values)
-                    if not test_df_geo.empty
+                    pd.to_datetime(test_df_panel["date"].values)
+                    if not test_df_panel.empty
                     else pd.DatetimeIndex([])
                 )
                 train_dates = train_dates.sort_values().unique()
@@ -2117,7 +2165,14 @@ class MMMPlotSuite:
                 # Plot HDI for train (blue) and test (orange)
                 if train_dates.size:
                     try:
-                        sel = arr_s.sel(date=train_dates, geo=geo)
+                        sel = arr_s.sel(
+                            date=train_dates,
+                            **{
+                                k: v
+                                for k, v in panel_indexer.items()
+                                if k in arr_s.dims
+                            },
+                        )
                         _plot_hdi_from_sel(sel, ax, "C0", "HDI (train)")
                     except Exception:
                         warnings.warn(
@@ -2127,7 +2182,14 @@ class MMMPlotSuite:
 
                 if test_dates.size:
                     try:
-                        sel = arr_s.sel(date=test_dates, geo=geo)
+                        sel = arr_s.sel(
+                            date=test_dates,
+                            **{
+                                k: v
+                                for k, v in panel_indexer.items()
+                                if k in arr_s.dims
+                            },
+                        )
                         _plot_hdi_from_sel(sel, ax, "C1", "HDI (test)")
                     except Exception:
                         warnings.warn(
@@ -2139,10 +2201,10 @@ class MMMPlotSuite:
                 if (
                     X_train is not None
                     and y_train is not None
-                    and not train_df_geo.empty
+                    and not train_df_panel.empty
                 ):
                     y_train_vals, train_plot_dates = _align_y_to_df(
-                        y_train, train_df_geo
+                        y_train, train_df_panel
                     )
                     y_train_vals = y_train_vals.dropna()
                     if not y_train_vals.empty:
@@ -2158,8 +2220,12 @@ class MMMPlotSuite:
                             label="observed",
                         )
 
-                if X_test is not None and y_test is not None and not test_df_geo.empty:
-                    y_test_vals, test_plot_dates = _align_y_to_df(y_test, test_df_geo)
+                if (
+                    X_test is not None
+                    and y_test is not None
+                    and not test_df_panel.empty
+                ):
+                    y_test_vals, test_plot_dates = _align_y_to_df(y_test, test_df_panel)
                     y_test_vals = y_test_vals.dropna()
                     if not y_test_vals.empty:
                         dates_to_plot = pd.to_datetime(
@@ -2185,7 +2251,13 @@ class MMMPlotSuite:
                         label="train end",
                     )
 
-                ax.set_title(f"{geo} — Fold {fold_idx} — Posterior Predictive")
+                # Build title from panel indexer values
+                if panel_indexer:
+                    title_parts = [f"{k}={v}" for k, v in panel_indexer.items()]
+                    panel_title = ", ".join(title_parts)
+                else:
+                    panel_title = "Posterior Predictive"
+                ax.set_title(f"{panel_title} — Fold {fold_idx} — Posterior Predictive")
                 ax.set_ylabel("y_original_scale")
 
         # Build a single unique legend placed at the bottom of the figure
@@ -2350,7 +2422,7 @@ class MMMPlotSuite:
     def cv_crps(
         self, results, dims: dict[str, str | int | list] | None = None
     ) -> tuple[Figure, NDArray[Axes]]:
-        """Plot CRPS for train and test sets across all CV splits, optionally stratified by dims.
+        """Plot CRPS for train and test sets across CV splits, optionally stratified by dims.
 
         Now accepts a combined `arviz.InferenceData` produced by
         `TimeSliceCrossValidator._combine_idata(...)`. The InferenceData must
@@ -2381,8 +2453,8 @@ class MMMPlotSuite:
             """Build (n_samples, n_rows) prediction matrix for given rows DataFrame and CV label.
 
             Selects posterior_predictive['y_original_scale'] for the given cv and then
-            behaves like the legacy helper: find date coord, select by date (and geo),
-            and assemble a (n_samples, n_rows) matrix.
+            behaves like the legacy helper: find date coord, select by date (and any
+            other matching row-level coords), and assemble a (n_samples, n_rows) matrix.
             """
             da = idata.posterior_predictive["y_original_scale"].sel(cv=cv_label)
             da_s = da.stack(sample=("chain", "draw"))
@@ -2406,13 +2478,11 @@ class MMMPlotSuite:
                 if "date" in da_s.coords:
                     date_coord = "date"
                 else:
+                    technical_skip = {"sample", "chain", "draw"}
                     for coord, vals in da_s.coords.items():
-                        if coord in ("sample", "chain", "draw", "geo"):
+                        if coord in technical_skip:
                             continue
                         try:
-                            # vals.dtype may be an ExtensionDtype (e.g. pandas) which
-                            # np.issubdtype doesn't accept directly for typing. Use
-                            # pandas API for robust datetime detection instead.
                             if pd.api.types.is_datetime64_any_dtype(
                                 getattr(vals, "dtype", vals)
                             ):
@@ -2426,7 +2496,7 @@ class MMMPlotSuite:
                             continue
                 if date_coord is None:
                     for coord in da_s.coords:
-                        if coord not in ("sample", "chain", "draw", "geo"):
+                        if coord not in ("sample", "chain", "draw"):
                             date_coord = coord
                             break
                 if date_coord is None:
@@ -2446,7 +2516,6 @@ class MMMPlotSuite:
                     if found_col is None:
                         for col in rows_df.columns:
                             try:
-                                # Use pandas datetime detection for dataframe column dtypes
                                 if pd.api.types.is_datetime64_any_dtype(
                                     rows_df[col].dtype
                                 ):
@@ -2464,9 +2533,25 @@ class MMMPlotSuite:
                         )
                     date_value = row[found_col]
 
+                # select by date
                 sel = da_s.sel({date_coord: date_value})
-                if "geo" in sel.dims and "geo" in rows_df.columns:
-                    sel = sel.sel(geo=str(row["geo"]))
+
+                # select by any other dims that appear in both sel.dims and rows_df.columns
+                other_dims = [d for d in sel.dims if d not in ("sample", date_coord)]
+                for dim in other_dims:
+                    if dim in rows_df.columns:
+                        try:
+                            sel = sel.sel({dim: str(row[dim])})
+                        except Exception:
+                            # try without casting to string if that fails
+                            try:
+                                sel = sel.sel({dim: row[dim]})
+                            except Exception:
+                                # unable to select this dim for this row; continue
+                                warnings.warn(
+                                    f"Could not select dimension '{dim}' with value '{row[dim]}'; skipping.",
+                                    stacklevel=2,
+                                )
 
                 arr = np.squeeze(getattr(sel, "values", sel))
                 if arr.ndim == 0:
