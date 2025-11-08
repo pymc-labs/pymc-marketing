@@ -102,6 +102,63 @@ def XY(target_column) -> pd.DataFrame:
 
 
 @pytest.fixture
+def XY_no_country(target_column) -> pd.DataFrame:
+    """Return X,y without a country dimension (flat channels only)."""
+    dates = pd.date_range("2025-01-01", periods=3, freq="W-MON").rename("date")
+    df = pd.DataFrame(
+        {
+            "C1": [1, 2, 3],
+            "C2": [4, 5, 6],
+        },
+        index=dates,
+    )
+
+    # Melt to long form so X has rows per date x channel
+    X = df.reset_index().melt(id_vars="date", var_name="channel", value_name="spend")
+
+    # Create y as a simple target per date and repeat per channel to align with X
+    y_df = pd.DataFrame({target_column: [1, 2, 3]}, index=dates)
+    y = y_df.loc[y_df.index.repeat(df.shape[1])].reset_index(drop=False)
+    # Reset index leaves a 'date' column from reset_index; return the target series
+    y = y[target_column]
+
+    return X, y
+
+
+@pytest.fixture
+def XY_with_product(target_column) -> pd.DataFrame:
+    """Return X,y with both country and an additional 'product' dimension."""
+    dates = pd.date_range("2025-01-01", periods=3, freq="W-MON").rename("date")
+    df = pd.DataFrame(
+        {
+            ("A", "p1", "C1"): [1, 2, 3],
+            ("A", "p1", "C2"): [4, 5, 6],
+            ("B", "p2", "C1"): [7, 8, 9],
+            ("B", "p2", "C2"): [10, 11, 12],
+        },
+        index=dates,
+    )
+    df.columns.names = ["country", "product", "channel"]
+
+    y = pd.DataFrame(
+        {
+            ("A", "p1", target_column): [1, 2, 3],
+            ("B", "p2", target_column): [4, 5, 6],
+        },
+        index=dates,
+    )
+    y.columns.names = ["country", "product", target_column]
+
+    # Stack country and product so X and y are in long form with both dimensions
+    X_long = df.stack(["country", "product"], future_stack=True).reset_index()
+    y_long = y.stack(["country", "product"], future_stack=True).reset_index()[
+        target_column
+    ]
+
+    return X_long, y_long
+
+
+@pytest.fixture
 def cv(XY):
     """Create a TimeSliceCrossValidator instance for testing."""
     return TimeSliceCrossValidator(n_init=1, forecast_horizon=1, date_column="date")
