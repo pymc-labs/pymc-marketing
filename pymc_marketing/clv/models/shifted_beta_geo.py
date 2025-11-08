@@ -42,7 +42,7 @@ class ShiftedBetaGeoModel(CLVModel):
     This model requires data to be summarized by *recency*, *T*, and *cohort* for each customer.
     Modeling assumptions require *1 <= recency <= T*, and *T >= 2*.
 
-    First introduced by Fader & Hardie in [1]_, with additional expressions described in [2]_.
+    First introduced by Fader & Hardie in [1]_, with additional expressions described in [2]_ and [3].
 
     Parameters
     ----------
@@ -52,12 +52,19 @@ class ShiftedBetaGeoModel(CLVModel):
             * `recency`: Time period of last contract renewal. It should equal *T* for active customers.
             * `T`: Max observed time period in the cohort. All customers in a given cohort share the same value for *T*.
             * `cohort`: Customer cohort label
+            * Additional columns for static covariates
     model_config : dict, optional
         Dictionary of model prior parameters:
-            * `a`: Shape parameter of dropout process; defaults to `phi_purchase` * `kappa_purchase`
-            * `b`: Shape parameter of dropout process; defaults to `1-phi_dropout` * `kappa_dropout`
-            * `phi_dropout`: Pooling prior; defaults to `Prior("Uniform", lower=0, upper=1, dims="cohort")`
-            * `kappa_dropout`: Pooling prior; defaults to `Prior("Pareto", alpha=1, m=1, dims="cohort")`
+            * `alpha`: Shape parameter of dropout process (cohort-level);
+              defaults to `phi` * `kappa`
+            * `beta`: Shape parameter of dropout process (cohort-level);
+              defaults to `(1-phi)` * `kappa`
+            * `phi`: Pooling prior if `alpha` and `beta` are not provided;
+              defaults to `Prior("Uniform", lower=0, upper=1, dims="cohort")`
+            * `kappa`: Pooling prior if `alpha` and `beta` are not provided;
+              defaults to `Prior("Pareto", alpha=1, m=1, dims="cohort")`
+            * `dropout_coefficient`: Prior for covariate coefficients; defaults to `Prior("Normal", mu=0, sigma=1)`
+            * `dropout_covariate_cols`: List of column names for customer-level covariates.
     sampler_config : dict, optional
         Dictionary of sampler parameters. Defaults to *None*.
 
@@ -122,6 +129,44 @@ class ShiftedBetaGeoModel(CLVModel):
                 discount_rate=0.05,
             ).sel(cohort=cohort_name)
 
+            # Example with customer-level covariates
+            model_with_covariates = ShiftedBetaGeoModel(
+                data=pd.DataFrame(
+                    {
+                        "customer_id": [1, 2, 3, ...],
+                        "recency": [8, 1, 4, ...],
+                        "T": [8, 5, 5, ...],
+                        "cohort": ["2025-02", "2025-04", "2025-04", ...],
+                        "channel_covariate": [1, 0, 1, ...],
+                        "rating_covariate": [
+                            2.172,
+                            1.234,
+                            2.345,
+                            ...,
+                        ],  # time-invariant
+                    }
+                ),
+                model_config={
+                    "dropout_coefficient": Prior("Normal", mu=0, sigma=2),
+                    "dropout_covariate_cols": ["channel_covariate", "rating_covariate"],
+                },
+            )
+            model_with_covariates.fit()
+
+            # Predictions with covariates require covariate columns in prediction data
+            pred_data = pd.DataFrame(
+                {
+                    "customer_id": [...],
+                    "T": [...],
+                    "cohort": [...],
+                    "channel_covariate": [...],
+                    "rating_covariate": [...],
+                }
+            )
+            retention_with_covariates = model_with_covariates.expected_retention_rate(
+                data=pred_data, future_t=1
+            )
+
 
     References
     ----------
@@ -131,6 +176,9 @@ class ShiftedBetaGeoModel(CLVModel):
     .. [2] Fader, P. S., & Hardie, B. G. (2010). "Customer-Base Valuation in a Contractual Setting:
         The Perils of Ignoring Heterogeneity." Marketing Science, 29(1), 85-93.
     https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_contractual_mksc_10.pdf
+    .. [3] Fader, Peter & G. S. Hardie, Bruce (2007).
+        "Incorporating Time-Invariant Covariates into the Pareto/NBD and BG/NBD Models".
+        https://www.brucehardie.com/notes/019/time_invariant_covariates.pdf
     """
 
     _model_type = "Shifted Beta-Geometric"
@@ -141,9 +189,25 @@ class ShiftedBetaGeoModel(CLVModel):
         model_config: ModelConfig | None = None,
         sampler_config: dict | None = None,
     ):
+        super().__init__(
+            data=data,
+            model_config=model_config,
+            sampler_config=sampler_config,
+            non_distributions=["dropout_covariate_cols"],
+        )
+
+        # Extract covariate columns from model_config
+        self.dropout_covariate_cols = list(self.model_config["dropout_covariate_cols"])
+
         self._validate_cols(
             data,
-            required_cols=["customer_id", "recency", "T", "cohort"],
+            required_cols=[
+                "customer_id",
+                "recency",
+                "T",
+                "cohort",
+                *self.dropout_covariate_cols,
+            ],
             must_be_unique=["customer_id"],
         )
 
@@ -151,12 +215,6 @@ class ShiftedBetaGeoModel(CLVModel):
             (data["recency"] < 1) | (data["recency"] > data["T"]) | (data["T"] < 2)
         ):
             raise ValueError("Model fitting requires 1 <= recency <= T, and T >= 2.")
-
-        super().__init__(
-            data=data,
-            model_config=model_config,
-            sampler_config=sampler_config,
-        )
 
         self._validate_cohorts(self.data, check_param_dims=("alpha", "beta"))
 
@@ -219,6 +277,8 @@ class ShiftedBetaGeoModel(CLVModel):
             # Cohort-level hierarchical defaults (no covariates)
             "phi": Prior("Uniform", lower=0, upper=1, dims="cohort"),
             "kappa": Prior("Pareto", alpha=1, m=1, dims="cohort"),
+            "dropout_coefficient": Prior("Normal", mu=0, sigma=1),
+            "dropout_covariate_cols": [],
         }
 
     def build_model(self) -> None:  # type: ignore[override]
@@ -226,24 +286,78 @@ class ShiftedBetaGeoModel(CLVModel):
         coords = {
             "customer_id": self.data["customer_id"],
             "cohort": self.cohorts,
+            "dropout_covariate": self.dropout_covariate_cols,
         }
         with pm.Model(coords=coords) as self.model:
-            # Cohort-level behavior only
-            if "alpha" in self.model_config and "beta" in self.model_config:
-                alpha = self.model_config["alpha"].create_variable("alpha")
-                beta = self.model_config["beta"].create_variable("beta")
+            if self.dropout_covariate_cols:
+                # Customer-level behavior with covariates
+                dropout_data = pm.Data(
+                    "dropout_data",
+                    self.data[self.dropout_covariate_cols],
+                    dims=["customer_id", "dropout_covariate"],
+                )
+
+                # Get scale parameters (cohort-level baseline)
+                if "alpha" in self.model_config and "beta" in self.model_config:
+                    alpha_scale = self.model_config["alpha"].create_variable(
+                        "alpha_scale"
+                    )
+                    beta_scale = self.model_config["beta"].create_variable("beta_scale")
+                else:
+                    # hierarchical pooling of dropout rate priors
+                    phi = self.model_config["phi"].create_variable("phi")
+                    kappa = self.model_config["kappa"].create_variable("kappa")
+
+                    alpha_scale = pm.Deterministic(
+                        "alpha_scale", phi * kappa, dims="cohort"
+                    )
+                    beta_scale = pm.Deterministic(
+                        "beta_scale", (1.0 - phi) * kappa, dims="cohort"
+                    )
+
+                # Get covariate coefficients
+                self.model_config["dropout_coefficient"].dims = "dropout_covariate"
+                dropout_coefficient_alpha = self.model_config[
+                    "dropout_coefficient"
+                ].create_variable("dropout_coefficient_alpha")
+                dropout_coefficient_beta = self.model_config[
+                    "dropout_coefficient"
+                ].create_variable("dropout_coefficient_beta")
+
+                # Apply covariate effects to get customer-level parameters
+                alpha = pm.Deterministic(
+                    "alpha",
+                    alpha_scale[self.cohort_idx]
+                    * pm.math.exp(
+                        -pm.math.dot(dropout_data, dropout_coefficient_alpha)
+                    ),
+                    dims="customer_id",
+                )
+                beta = pm.Deterministic(
+                    "beta",
+                    beta_scale[self.cohort_idx]
+                    * pm.math.exp(-pm.math.dot(dropout_data, dropout_coefficient_beta)),
+                    dims="customer_id",
+                )
+
+                dropout = ShiftedBetaGeometric.dist(alpha, beta)
             else:
-                # hierarchical pooling of dropout rate priors
-                phi = self.model_config["phi"].create_variable("phi")
-                kappa = self.model_config["kappa"].create_variable("kappa")
+                # Cohort-level behavior only (current behavior)
+                if "alpha" in self.model_config and "beta" in self.model_config:
+                    alpha = self.model_config["alpha"].create_variable("alpha")
+                    beta = self.model_config["beta"].create_variable("beta")
+                else:
+                    # hierarchical pooling of dropout rate priors
+                    phi = self.model_config["phi"].create_variable("phi")
+                    kappa = self.model_config["kappa"].create_variable("kappa")
 
-                alpha = pm.Deterministic("alpha", phi * kappa, dims="cohort")
-                beta = pm.Deterministic("beta", (1.0 - phi) * kappa, dims="cohort")
+                    alpha = pm.Deterministic("alpha", phi * kappa, dims="cohort")
+                    beta = pm.Deterministic("beta", (1.0 - phi) * kappa, dims="cohort")
 
-            dropout = ShiftedBetaGeometric.dist(
-                alpha[self.cohort_idx],
-                beta[self.cohort_idx],
-            )
+                dropout = ShiftedBetaGeometric.dist(
+                    alpha[self.cohort_idx],
+                    beta[self.cohort_idx],
+                )
 
             pm.Censored(
                 "dropout",
@@ -270,6 +384,7 @@ class ShiftedBetaGeoModel(CLVModel):
             required_cols=[
                 "customer_id",
                 *customer_varnames,
+                *self.dropout_covariate_cols,
             ],
             must_be_unique=["customer_id"],
         )
@@ -282,34 +397,94 @@ class ShiftedBetaGeoModel(CLVModel):
 
         cohorts_present = self._validate_cohorts(pred_data, check_pred_data=True)
 
-        # Extract alpha and beta parameters only for cohorts present in the data
-        pred_cohorts = xarray.DataArray(
-            cohorts_present.values,
-            dims=("cohort",),
-            coords={"cohort": cohorts_present.values},
-        )
-        alpha_pred = self.fit_result["alpha"].sel(cohort=pred_cohorts)
-        beta_pred = self.fit_result["beta"].sel(cohort=pred_cohorts)
+        if self.dropout_covariate_cols:
+            # With covariates: reconstruct customer-level alpha and beta
+            customer_id = pred_data["customer_id"]
 
-        # Create a cohort-by-customer DataArray to map alpha and beta cohort parameters to each customer
-        customer_cohort_map = pred_data.set_index("customer_id")["cohort"]
+            # Extract scale parameters (cohort-level)
+            pred_cohorts = xarray.DataArray(
+                cohorts_present.values,
+                dims=("cohort",),
+                coords={"cohort": cohorts_present.values},
+            )
+            alpha_scale = self.fit_result["alpha_scale"].sel(cohort=pred_cohorts)
+            beta_scale = self.fit_result["beta_scale"].sel(cohort=pred_cohorts)
 
-        customer_cohort_mapping = xarray.DataArray(
-            customer_cohort_map.values,
-            dims=("customer_id",),
-            coords={"customer_id": customer_cohort_map.index},
-            name="customer_cohort_mapping",
-        )
-        alpha_pred = alpha_pred.sel(cohort=customer_cohort_mapping)
-        beta_pred = beta_pred.sel(cohort=customer_cohort_mapping)
+            # Create covariate xarray
+            dropout_xarray = xarray.DataArray(
+                pred_data[self.dropout_covariate_cols].values,
+                dims=["customer_id", "dropout_covariate"],
+                coords={
+                    "customer_id": customer_id,
+                    "dropout_covariate": self.dropout_covariate_cols,
+                },
+            )
 
-        # Add cohorts as non-dimensional coordinates to merge with predictive variables
-        alpha_pred = alpha_pred.assign_coords(
-            cohort=("customer_id", customer_cohort_map.values)
-        )
-        beta_pred = beta_pred.assign_coords(
-            cohort=("customer_id", customer_cohort_map.values)
-        )
+            # Get coefficients
+            dropout_coefficient_alpha = self.fit_result["dropout_coefficient_alpha"]
+            dropout_coefficient_beta = self.fit_result["dropout_coefficient_beta"]
+
+            # Map cohort indices for each customer
+            customer_cohort_map = pred_data.set_index("customer_id")["cohort"]
+            pred_cohort_idx = pd.Categorical(
+                customer_cohort_map.values, categories=self.cohorts
+            ).codes
+
+            # Reconstruct customer-level parameters
+            alpha_pred = alpha_scale.isel(
+                cohort=xarray.DataArray(pred_cohort_idx, dims="customer_id")
+            ) * np.exp(
+                -xarray.dot(
+                    dropout_xarray, dropout_coefficient_alpha, dims="dropout_covariate"
+                )
+            )
+            alpha_pred.name = "alpha"
+
+            beta_pred = beta_scale.isel(
+                cohort=xarray.DataArray(pred_cohort_idx, dims="customer_id")
+            ) * np.exp(
+                -xarray.dot(
+                    dropout_xarray, dropout_coefficient_beta, dims="dropout_covariate"
+                )
+            )
+            beta_pred.name = "beta"
+
+            # Add cohorts as non-dimensional coordinates
+            alpha_pred = alpha_pred.assign_coords(
+                cohort=("customer_id", customer_cohort_map.values)
+            )
+            beta_pred = beta_pred.assign_coords(
+                cohort=("customer_id", customer_cohort_map.values)
+            )
+        else:
+            # Extract alpha and beta parameters only for cohorts present in the data
+            pred_cohorts = xarray.DataArray(
+                cohorts_present.values,
+                dims=("cohort",),
+                coords={"cohort": cohorts_present.values},
+            )
+            alpha_pred = self.fit_result["alpha"].sel(cohort=pred_cohorts)
+            beta_pred = self.fit_result["beta"].sel(cohort=pred_cohorts)
+
+            # Create a cohort-by-customer DataArray to map alpha and beta cohort parameters to each customer
+            customer_cohort_map = pred_data.set_index("customer_id")["cohort"]
+
+            customer_cohort_mapping = xarray.DataArray(
+                customer_cohort_map.values,
+                dims=("customer_id",),
+                coords={"customer_id": customer_cohort_map.index},
+                name="customer_cohort_mapping",
+            )
+            alpha_pred = alpha_pred.sel(cohort=customer_cohort_mapping)
+            beta_pred = beta_pred.sel(cohort=customer_cohort_mapping)
+
+            # Add cohorts as non-dimensional coordinates to merge with predictive variables
+            alpha_pred = alpha_pred.assign_coords(
+                cohort=("customer_id", customer_cohort_map.values)
+            )
+            beta_pred = beta_pred.assign_coords(
+                cohort=("customer_id", customer_cohort_map.values)
+            )
 
         # Filter out cohort from customer_varnames to avoid merge conflict
         # (it's already added as a coordinate above)
@@ -362,6 +537,7 @@ class ShiftedBetaGeoModel(CLVModel):
             * `customer_id`: Unique customer identifier
             * `T`: Number of time periods customer has been active
             * `cohort`: Customer cohort label
+            * Covariate columns specified in `dropout_covariate_cols` (if using covariates)
 
         References
         ----------
@@ -410,6 +586,7 @@ class ShiftedBetaGeoModel(CLVModel):
             * `customer_id`: Unique customer identifier
             * `T`: Number of time periods customer has been active
             * `cohort`: Customer cohort label
+            * Covariate columns specified in `dropout_covariate_cols` (if using covariates)
 
         References
         ----------
@@ -467,6 +644,7 @@ class ShiftedBetaGeoModel(CLVModel):
             * `customer_id`: Unique customer identifier
             * `T`: Number of time periods customer has been active
             * `cohort`: Customer cohort label
+            * Covariate columns specified in `dropout_covariate_cols` (if using covariates)
 
         References
         ----------
@@ -519,6 +697,7 @@ class ShiftedBetaGeoModel(CLVModel):
             * `customer_id`: Unique customer identifier
             * `T`: Number of time periods customer has been active
             * `cohort`: Customer cohort label
+            * Covariate columns specified in `dropout_covariate_cols` (if using covariates)
 
         References
         ----------
