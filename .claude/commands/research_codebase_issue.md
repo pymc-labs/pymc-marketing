@@ -12,7 +12,12 @@ When this command is invoked:
    - If not set, use: `thoughts/shared/research/YYYY-MM-DD_HH-MM-SS_topic.md`
    - Create issue directory if needed: `mkdir -p thoughts/shared/issues/${GITHUB_ISSUE_NUMBER}`
 
-2. **Respond with context-aware message:**
+2. **Check if research content is provided inline:**
+   - If the command invocation includes additional content (e.g., `/research_codebase_issue [content]`), treat that content as the research query
+   - If content is provided, skip the ready message and proceed directly to research (step 1 of "Steps to follow after receiving the research query")
+   - If no content is provided, show the ready message below and wait for input
+
+3. **Respond with context-aware message (only if no inline content):**
 
 If GITHUB_ISSUE_NUMBER is set, respond with:
 ```

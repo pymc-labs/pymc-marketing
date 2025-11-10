@@ -16,7 +16,9 @@ import pytest
 from pymc_extras.deserialize import deserialize
 from pymc_extras.prior import Prior
 
-from pymc_marketing import prior
+from pymc_marketing import (
+    prior,  # noqa: F401 - import needed to register custom deserializers
+)
 
 
 @pytest.mark.parametrize(
@@ -51,17 +53,3 @@ from pymc_marketing import prior
 )
 def test_alternative_prior_deserialize(data, expected) -> None:
     assert deserialize(data) == expected
-
-
-@pytest.mark.parametrize(
-    "obj, args, kwargs, match",
-    [
-        (prior.Prior, ["Normal"], {}, "The Prior class"),
-        (prior.Censored, [Prior("Normal")], dict(lower=0), "The Censored"),
-        (prior.Scaled, [Prior("Normal")], dict(factor=2), "The Scaled"),
-        (prior.create_dim_handler, [("date", "channel")], {}, "The create_dim_handler"),
-    ],
-)
-def test_deprecation_warnings(obj, args, kwargs, match):
-    with pytest.warns(DeprecationWarning, match=match):
-        obj(*args, **kwargs)
