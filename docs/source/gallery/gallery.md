@@ -152,8 +152,13 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_counterfactuals.html
 :::
 
-:::{grid-item-card} Upper-funnel causal approach
-:img-top: ../gallery/images/mmm_causal_identification.png
+:::{grid-item-card} Introduction: Upper-Funnel Impact with PyMC‑Marketing
+:img-top: ../gallery/images/mmm_intro_upper_funnel.png
+:link: ../notebooks/mmm/mmm_intro_upper_funnel.html
+:::
+
+:::{grid-item-card} Advanced: Upper-Funnel Impact with PyMC‑Marketing
+:img-top: ../gallery/images/mmm_upper_funnel_causal_approach.png
 :link: ../notebooks/mmm/mmm_upper_funnel_causal_approach.html
 :::
 
