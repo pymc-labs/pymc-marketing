@@ -342,7 +342,7 @@ class ShiftedBetaGeoModel(CLVModel):
 
                 dropout = ShiftedBetaGeometric.dist(alpha, beta)
             else:
-                # Cohort-level behavior only (current behavior)
+                # Cohort-level behavior only, no covariates
                 if "alpha" in self.model_config and "beta" in self.model_config:
                     alpha = self.model_config["alpha"].create_variable("alpha")
                     beta = self.model_config["beta"].create_variable("beta")
@@ -395,43 +395,45 @@ class ShiftedBetaGeoModel(CLVModel):
                 "T must be a non-zero, positive whole number.",
             )
 
+        # Validate cohorts in prediction data match any or all cohorts used to fit model
         cohorts_present = self._validate_cohorts(pred_data, check_pred_data=True)
 
+        # Use cohorts in prediction data to extract only cohort-level parameters
+        pred_cohorts = xarray.DataArray(
+            cohorts_present.values,
+            dims=("cohort",),
+            coords={"cohort": cohorts_present.values},
+        )
+
+        # Create a cohort-by-customer array to map cohort parameters to each customer
+        customer_cohort_map = pred_data.set_index("customer_id")["cohort"]
+
         if self.dropout_covariate_cols:
-            # With covariates: reconstruct customer-level alpha and beta
-            customer_id = pred_data["customer_id"]
+            # Get alpha and beta scale parameters for each cohort
+            alpha_cohort = self.fit_result["alpha_scale"].sel(cohort=pred_cohorts)
+            beta_cohort = self.fit_result["beta_scale"].sel(cohort=pred_cohorts)
+            # Get dropout covariate coefficients
+            dropout_coefficient_alpha = self.fit_result["dropout_coefficient_alpha"]
+            dropout_coefficient_beta = self.fit_result["dropout_coefficient_beta"]
 
-            # Extract scale parameters (cohort-level)
-            pred_cohorts = xarray.DataArray(
-                cohorts_present.values,
-                dims=("cohort",),
-                coords={"cohort": cohorts_present.values},
-            )
-            alpha_scale = self.fit_result["alpha_scale"].sel(cohort=pred_cohorts)
-            beta_scale = self.fit_result["beta_scale"].sel(cohort=pred_cohorts)
-
+            # Reconstruct customer-level alpha and beta with covariates
             # Create covariate xarray
             dropout_xarray = xarray.DataArray(
                 pred_data[self.dropout_covariate_cols].values,
                 dims=["customer_id", "dropout_covariate"],
                 coords={
-                    "customer_id": customer_id,
+                    "customer_id": pred_data["customer_id"],
                     "dropout_covariate": self.dropout_covariate_cols,
                 },
             )
 
-            # Get coefficients
-            dropout_coefficient_alpha = self.fit_result["dropout_coefficient_alpha"]
-            dropout_coefficient_beta = self.fit_result["dropout_coefficient_beta"]
-
             # Map cohort indices for each customer
-            customer_cohort_map = pred_data.set_index("customer_id")["cohort"]
             pred_cohort_idx = pd.Categorical(
                 customer_cohort_map.values, categories=self.cohorts
             ).codes
 
             # Reconstruct customer-level parameters
-            alpha_pred = alpha_scale.isel(
+            alpha_pred = alpha_cohort.isel(
                 cohort=xarray.DataArray(pred_cohort_idx, dims="customer_id")
             ) * np.exp(
                 -xarray.dot(
@@ -440,7 +442,7 @@ class ShiftedBetaGeoModel(CLVModel):
             )
             alpha_pred.name = "alpha"
 
-            beta_pred = beta_scale.isel(
+            beta_pred = beta_cohort.isel(
                 cohort=xarray.DataArray(pred_cohort_idx, dims="customer_id")
             ) * np.exp(
                 -xarray.dot(
@@ -449,42 +451,28 @@ class ShiftedBetaGeoModel(CLVModel):
             )
             beta_pred.name = "beta"
 
-            # Add cohorts as non-dimensional coordinates
-            alpha_pred = alpha_pred.assign_coords(
-                cohort=("customer_id", customer_cohort_map.values)
-            )
-            beta_pred = beta_pred.assign_coords(
-                cohort=("customer_id", customer_cohort_map.values)
-            )
         else:
-            # Extract alpha and beta parameters only for cohorts present in the data
-            pred_cohorts = xarray.DataArray(
-                cohorts_present.values,
-                dims=("cohort",),
-                coords={"cohort": cohorts_present.values},
-            )
-            alpha_pred = self.fit_result["alpha"].sel(cohort=pred_cohorts)
-            beta_pred = self.fit_result["beta"].sel(cohort=pred_cohorts)
+            # Get alpha and beta parameters for each cohort
+            alpha_cohort = self.fit_result["alpha"].sel(cohort=pred_cohorts)
+            beta_cohort = self.fit_result["beta"].sel(cohort=pred_cohorts)
 
-            # Create a cohort-by-customer DataArray to map alpha and beta cohort parameters to each customer
-            customer_cohort_map = pred_data.set_index("customer_id")["cohort"]
-
+            # Map cohorts to customer_id for alpha and beta
             customer_cohort_mapping = xarray.DataArray(
                 customer_cohort_map.values,
                 dims=("customer_id",),
                 coords={"customer_id": customer_cohort_map.index},
                 name="customer_cohort_mapping",
             )
-            alpha_pred = alpha_pred.sel(cohort=customer_cohort_mapping)
-            beta_pred = beta_pred.sel(cohort=customer_cohort_mapping)
+            alpha_pred = alpha_cohort.sel(cohort=customer_cohort_mapping)
+            beta_pred = beta_cohort.sel(cohort=customer_cohort_mapping)
 
-            # Add cohorts as non-dimensional coordinates to merge with predictive variables
-            alpha_pred = alpha_pred.assign_coords(
-                cohort=("customer_id", customer_cohort_map.values)
-            )
-            beta_pred = beta_pred.assign_coords(
-                cohort=("customer_id", customer_cohort_map.values)
-            )
+        # Add cohorts as non-dimensional coordinates to merge with predictive variables
+        alpha_pred = alpha_pred.assign_coords(
+            cohort=("customer_id", customer_cohort_map.values)
+        )
+        beta_pred = beta_pred.assign_coords(
+            cohort=("customer_id", customer_cohort_map.values)
+        )
 
         # Filter out cohort from customer_varnames to avoid merge conflict
         # (it's already added as a coordinate above)
