@@ -437,7 +437,7 @@ class ShiftedBetaGeoModel(CLVModel):
                 cohort=xarray.DataArray(pred_cohort_idx, dims="customer_id")
             ) * np.exp(
                 -xarray.dot(
-                    dropout_xarray, dropout_coefficient_alpha, dims="dropout_covariate"
+                    dropout_xarray, dropout_coefficient_alpha, dim="dropout_covariate"
                 )
             )
             alpha_pred.name = "alpha"
@@ -446,7 +446,7 @@ class ShiftedBetaGeoModel(CLVModel):
                 cohort=xarray.DataArray(pred_cohort_idx, dims="customer_id")
             ) * np.exp(
                 -xarray.dot(
-                    dropout_xarray, dropout_coefficient_beta, dims="dropout_covariate"
+                    dropout_xarray, dropout_coefficient_beta, dim="dropout_covariate"
                 )
             )
             beta_pred.name = "beta"
