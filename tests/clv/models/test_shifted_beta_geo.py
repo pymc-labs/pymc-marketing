@@ -915,6 +915,19 @@ class TestShiftedBetaGeoModel:
         with pytest.raises(ValueError, match="missing from the input data"):
             ShiftedBetaGeoModel(data=data_missing_covariates, model_config=model_config)
 
+    def test_covariate_cols_only_in_config(self, covariate_test_data):
+        """Test that passing only dropout_covariate_cols into model_config (without priors) works."""
+
+        model_config = {
+            "dropout_covariate_cols": ["channel"],
+        }
+
+        # Should not raise ModelConfigError
+        model = ShiftedBetaGeoModel(data=covariate_test_data, model_config=model_config)
+        assert model.dropout_covariate_cols == ["channel"]
+        model.build_model()
+        assert "dropout_covariate" in model.model.coords
+
 
 class TestShiftedBetaGeoModelIndividual:
     @classmethod

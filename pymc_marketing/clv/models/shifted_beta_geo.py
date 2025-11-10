@@ -42,7 +42,7 @@ class ShiftedBetaGeoModel(CLVModel):
     This model requires data to be summarized by *recency*, *T*, and *cohort* for each customer.
     Modeling assumptions require *1 <= recency <= T*, and *T >= 2*.
 
-    First introduced by Fader & Hardie in [1]_, with additional expressions described in [2]_ and [3].
+    First introduced by Fader & Hardie in [1]_, with additional expressions and enhancements described in [2]_ and [3].
 
     Parameters
     ----------
