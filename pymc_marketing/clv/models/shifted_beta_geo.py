@@ -325,6 +325,8 @@ class ShiftedBetaGeoModel(CLVModel):
                 ].create_variable("dropout_coefficient_beta")
 
                 # Apply covariate effects to get customer-level parameters
+                # expressions adapted from BG/NBD covariate extensions on p2 of [3]_:
+                # https://www.brucehardie.com/notes/019/time_invariant_covariates.pdf
                 alpha = pm.Deterministic(
                     "alpha",
                     alpha_scale[self.cohort_idx]
