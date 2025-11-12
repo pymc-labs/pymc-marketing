@@ -11,6 +11,9 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+#
+# NOTE: This file may be consolidated with test_plot_backends.py in the future
+# once the backend migration is complete and stable.
 import warnings
 
 import arviz as az
