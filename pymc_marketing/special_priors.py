@@ -613,3 +613,50 @@ def _is_masked_prior_type(data: dict) -> bool:
 register_deserialization(
     is_type=_is_masked_prior_type, deserialize=MaskedPrior.from_dict
 )
+
+
+class LaplacePrior:
+    """A Laplace prior parameterized by a location and a scale parameter."""
+
+    def __init__(self, dims: tuple | None = None, centered: bool = True, **parameters):
+        self.parameters = parameters
+        self.dims = dims
+        self.centered = centered
+
+        self._checks()
+
+    def _checks(self) -> None:
+        self._parameters_are_correct_set()
+
+    def _parameters_are_correct_set(self) -> None:
+        # Only allow exactly these keys after alias normalization
+        if set(self.parameters.keys()) != {"mu", "b"}:
+            raise ValueError("Parameters must be mu and b")
+
+    def _create_parameter(self, param, value, name):
+        if not hasattr(value, "create_variable"):
+            return value
+
+        child_name = f"{name}_{param}"
+        return self.dim_handler(value.create_variable(child_name), value.dims)
+
+    def create_variable(self, name: str) -> TensorVariable:
+        """Create a variable from the prior distribution."""
+        self.dim_handler = create_dim_handler(self.dims)
+        parameters = {
+            param: self._create_parameter(param, value, name)
+            for param, value in self.parameters.items()
+        }
+        if self.centered:
+            phi = pm.Laplace(
+                name, mu=parameters["mu"], b=parameters["b"], dims=self.dims
+            )
+
+        else:
+            lam = pm.Exponential(name + "_lam", scale=2 * parameters["b"] ** 2)
+            phi = (
+                pm.Normal(name, mu=0, sigma=1, dims=self.dims) * pt.sqrt(lam)
+                + parameters["mu"]
+            )
+
+        return phi
