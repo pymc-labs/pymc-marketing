@@ -1,0 +1,83 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.components.saturation.HillSaturation.sample_curve.rst:2
+#: 8170605a01b04f968a858e1c911860aa
+msgid "HillSaturation.sample\\_curve"
+msgstr "HillSaturation.muestra\\_curva"
+
+#: f80acd663b9d437dbe4caca271651fb7 of
+#: pymc_marketing.mmm.components.saturation.SaturationTransformation.sample_curve:2
+msgid "Sample the curve of the saturation transformation given parameters."
+msgstr ""
+"Muestre la curva de la transformación de saturación dadas las parámetros."
+
+#: 9c68b21cce244d0386db0091e8dbaf83 of
+#: pymc_marketing.mmm.components.saturation.SaturationTransformation.sample_curve
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: b66678a897e042f38757949ca837b610 of
+#: pymc_marketing.mmm.components.saturation.SaturationTransformation.sample_curve:7
+msgid "**parameters** : :obj:`xr.Dataset`"
+msgstr "**parámetros** : :obj:`xr.Dataset`"
+
+#: d645a579ae1f4571a0e47a32e8475103 of
+#: pymc_marketing.mmm.components.saturation.SaturationTransformation.sample_curve:6
+msgid "xr.Dataset"
+msgstr "xr.ConjuntoDeDatos"
+
+#: 0d959bcc95aa4be98f1871ded140eae4 of
+#: pymc_marketing.mmm.components.saturation.SaturationTransformation.sample_curve:8
+msgid "Dataset with the parameters of the saturation transformation."
+msgstr ""
+"Conjunto de datos con los parámetros de la transformación de saturación."
+
+#: 191b2d0cef3f47a69a57325ac388661c of
+#: pymc_marketing.mmm.components.saturation.SaturationTransformation.sample_curve:10
+msgid "**max_value** : :class:`python:float`, optional"
+msgstr "**max_value** : :class:`python:float`, opcional"
+
+#: 907944ee1e8d42cd8abcc10dbff6778a of
+#: pymc_marketing.mmm.components.saturation.SaturationTransformation.sample_curve:9
+msgid "python:float, optional"
+msgstr "python:float, opcional"
+
+#: c4ba333e04904454b3e0bdb1bd9a656a of
+#: pymc_marketing.mmm.components.saturation.SaturationTransformation.sample_curve:11
+msgid "Maximum value of the curve, by default 1.0."
+msgstr "Valor máximo de la curva, por defecto 1.0."
+
+#: d60e8014c0674df19e1527362a675e40 of
+#: pymc_marketing.mmm.components.saturation.SaturationTransformation.sample_curve
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 7a4b1ea7ff364d3da74b832dfa644085 of
+#: pymc_marketing.mmm.components.saturation.SaturationTransformation.sample_curve:17
+msgid ":obj:`xr.DataArray`"
+msgstr ":obj:`xr.DataArray`"
+
+#: d8a0a7af02184899b83582867bd64e1b of
+#: pymc_marketing.mmm.components.saturation.SaturationTransformation.sample_curve:18
+msgid "Curve of the saturation transformation."
+msgstr "Curva de la transformación de saturación."

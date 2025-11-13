@@ -1,0 +1,79 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.plot.drop_scalar_coords.rst:2
+#: fcfd23e92f484309ba4f2455afbc5d59
+msgid "drop\\_scalar\\_coords"
+msgstr "drop\\_scalar\\_coords"
+
+#: a507732b0415415f88fd89c9d7ff11a1 of
+#: pymc_marketing.plot.drop_scalar_coords:2
+msgid "Remove scalar coordinates from an xarray DataArray."
+msgstr "Eliminar coordenadas escalares de un DataArray xarray."
+
+#: f7028611b08e47698456904af6bd10c7 of
+#: pymc_marketing.plot.drop_scalar_coords:4
+msgid ""
+"This function identifies and removes scalar coordinates from the given "
+"DataArray. Scalar coordinates are those with a single value that are not "
+"part of the DataArray's indexes. The function returns a new DataArray with "
+"the scalar coordinates removed."
+msgstr ""
+"Esta función identifica y elimina las coordenadas escalares del DataArray "
+"dado. Las coordenadas escalares son aquellas que tienen un único valor y que"
+" no forman parte de los índices del DataArray. La función devuelve un nuevo "
+"DataArray con las coordenadas escalares eliminadas."
+
+#: 08008eccd1b048f695a09e2d7666dc2a of pymc_marketing.plot.drop_scalar_coords
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 51299af67219459d85c70bce8df377a8 of
+#: pymc_marketing.plot.drop_scalar_coords:11
+msgid "**curve** : :obj:`xr.DataArray`"
+msgstr "**curva** : :obj:`xr.DataArray`"
+
+#: 2825ba45d5dd4d49ac6e3f2696120ff0 of
+#: pymc_marketing.plot.drop_scalar_coords:10
+msgid "xr.DataArray"
+msgstr "xr.DataArray"
+
+#: 4acda45abb76481c918424eab7b1eae3 of
+#: pymc_marketing.plot.drop_scalar_coords:12
+msgid "The input DataArray from which scalar coordinates will be removed."
+msgstr ""
+"El DataArray de entrada del cual se eliminarán las coordenadas escalares."
+
+#: 1aa1271a8d8743a796536464597de24f of pymc_marketing.plot.drop_scalar_coords
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: a546432b5d5e455cbb45f9e945c16266 of
+#: pymc_marketing.plot.drop_scalar_coords:18
+msgid ":obj:`xr.DataArray`"
+msgstr ":obj:`xr.DataArray`"
+
+#: bc332bf71bb747b39fffce6c60c8671a of
+#: pymc_marketing.plot.drop_scalar_coords:19
+msgid "A new DataArray with the identified scalar coordinates removed."
+msgstr ""
+"Un nuevo DataArray con las coordenadas escalares identificadas eliminadas."

@@ -59,7 +59,15 @@ model:
           sigma: 1
           dims: "market"
         dims: ["date", "market"]
-
+# ----------------------------------------------------------------------
+# (optional) sampler options you plan to forward to pm.sample():
+    sampler_config:
+      tune: 1000
+      draws: 200
+      chains: 8
+      random_seed: 42
+      target_accept: 0.90
+      # if you want to use a custom sampler (e.g: nutpie) you could add # nuts_sampler: "nutpie"
 # ----------------------------------------------------------------------
 # Effects with complex priors
 effects:
@@ -99,15 +107,48 @@ effects:
             b: 0.1
             dims: ["weekly_fourier", "market"]
 
+original_scale_vars:
+  - channel_contribution
+  - intercept_contribution
+
 # ----------------------------------------------------------------------
-# (optional) sampler options you plan to forward to pm.sample():
-    sampler_config:
-      tune: 1000
-      draws: 200
-      chains: 8
-      random_seed: 42
-      target_accept: 0.90
-      nuts_sampler: "nutpie"
+# Calibration examples (lift tests + CPT constraints)
+calibration:
+  - add_lift_test_measurements:
+      df_lift_test:
+        class: pandas.DataFrame
+        kwargs:
+          data:
+            market: ["US", "EU"]
+            channel: ["channel_1", "channel_2"]
+            x: [80.0, 50.0]
+            delta_x: [10.0, 6.0]
+            delta_y: [6.0, 4.0]
+            sigma: [1.5, 1.2]
+      name: "example_lift_tests"
+  - add_cost_per_target_calibration:
+      data:
+        class: pandas.read_csv
+        kwargs:
+          filepath_or_buffer:
+            class: pathlib.Path
+            kwargs:
+              args:
+                - class: pyprojroot.here
+                - "data"
+                - "processed"
+                - "X.csv"
+          parse_dates: ["date"]
+      calibration_data:
+        class: pandas.DataFrame
+        kwargs:
+          data:
+            market: ["US", "EU"]
+            channel: ["channel_1", "channel_2"]
+            cost_per_target: [30.0, 42.5]
+            sigma: [2.0, 3.0]
+      name_prefix: "example_cpt"
+
 
 # ----------------------------------------------------------------------
 # (optional) idata from a previous sample

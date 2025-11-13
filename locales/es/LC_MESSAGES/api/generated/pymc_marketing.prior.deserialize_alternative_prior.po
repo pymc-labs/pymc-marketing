@@ -1,0 +1,55 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.prior.deserialize_alternative_prior.rst:2
+#: 47a766d23505448b991e73645da48006
+msgid "deserialize\\_alternative\\_prior"
+msgstr "deserializar\\_alternativa\\_previa"
+
+#: 86b92ac67e504e398954f4507c743450 of
+#: pymc_marketing.prior.deserialize_alternative_prior:2
+msgid ""
+"Alternative deserializer that recursively handles all nested parameters."
+msgstr ""
+"Deserializador alternativo que maneja recursivamente todos los parámetros "
+"anidados."
+
+#: 4ca3fd731074412eae4b59d3130467e9 of
+#: pymc_marketing.prior.deserialize_alternative_prior:4
+msgid ""
+"This implementation is more general and handles cases where any parameter "
+"might be a nested prior, and also extracts centered and transform "
+"parameters."
+msgstr ""
+"Esta implementación es más general y maneja casos en los que cualquier "
+"parámetro podría ser un prior anidado, y también extrae parámetros centrados"
+" y de transformación."
+
+#: 57d71bcfe7cb45ad8e0ca8c6112d9032 of
+#: pymc_marketing.prior.deserialize_alternative_prior:21
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: cb1528444470497b8d0a99394fde4b43 of
+#: pymc_marketing.prior.deserialize_alternative_prior:22
+msgid "This handles cases like:"
+msgstr "Esto maneja casos como:"

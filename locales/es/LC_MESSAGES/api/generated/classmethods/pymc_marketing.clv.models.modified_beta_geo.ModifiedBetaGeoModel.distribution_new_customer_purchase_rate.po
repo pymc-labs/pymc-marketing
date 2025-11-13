@@ -1,0 +1,82 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.distribution_new_customer_purchase_rate.rst:2
+#: 3fcadee5fede404aa2c1fd9f24200e3c
+msgid "ModifiedBetaGeoModel.distribution\\_new\\_customer\\_purchase\\_rate"
+msgstr "ModifiedBetaGeoModel.tasa\\_de\\_compra\\_de\\_nuevos\\_clientes"
+
+#: e8e45dd8e0154ce0b5a57dd8069bc547 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer_purchase_rate:2
+msgid "Sample the Gamma distribution for the population-level purchase rate."
+msgstr ""
+"Muestree la distribución Gamma para la tasa de compra a nivel poblacional."
+
+#: c278139fbd3848b1aad2b118d21fbadb of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer_purchase_rate:4
+msgid ""
+"This is the purchase rate for a new customer and determines the time between"
+" purchases for any new customer."
+msgstr ""
+"Esta es la tasa de compra para un nuevo cliente y determina el tiempo entre "
+"compras para cualquier nuevo cliente."
+
+#: 3572564942464fbb9dc3da7e84fac861 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer_purchase_rate
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 69177adcbc014193a95f26a5c97025c6 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer_purchase_rate:9
+msgid ""
+"**random_seed** : :obj:`RandomState <numpy.random.RandomState>`, optional"
+msgstr ""
+"**random_seed** : :obj:`RandomState <numpy.random.RandomState>`, opcional"
+
+#: 7505016710644ef0bb629725cf1f6024 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer_purchase_rate:8
+msgid "RandomState, optional"
+msgstr "RandomState, opcional"
+
+#: 26c4014d8dcb4d069b78b04f41f2184f of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer_purchase_rate:10
+msgid "Random state to use for sampling."
+msgstr "Estado aleatorio a utilizar para el muestreo."
+
+#: dadc7dcf80244cfeb9f7f672f44a82a5 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer_purchase_rate
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 1095062e24a547b18ebd69e8c8a64db3 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer_purchase_rate:16
+msgid ":obj:`xarray.Dataset`"
+msgstr ":obj:`xarray.Dataset`"
+
+#: 895bbefe344342658ad8135d3acd39ea of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer_purchase_rate:17
+msgid ""
+"Dataset containing the posterior samples for the population-level purchase "
+"rate."
+msgstr ""
+"Conjunto de datos que contiene las muestras posteriores para la tasa de "
+"compra a nivel poblacional."

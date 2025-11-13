@@ -1,0 +1,66 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.media_transformation.MediaTransformation.from_dict.rst:2
+#: c17d1dd18b69441eb59c7a3cdf6fe076
+msgid "MediaTransformation.from\\_dict"
+msgstr "MediaTransformation.from\\_dict"
+
+#: 946a788f0c7e498fbaad95b80a2c804b of
+#: pymc_marketing.mmm.media_transformation.MediaTransformation.from_dict:2
+msgid "Create a media transformation from a dictionary."
+msgstr "Cree una transformación de medios a partir de un diccionario."
+
+#: 7997f10c665d4096bffdb077e177741a of
+#: pymc_marketing.mmm.media_transformation.MediaTransformation.from_dict
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: e52f69c7b6be4d86be1eadd72dd4b783 of
+#: pymc_marketing.mmm.media_transformation.MediaTransformation.from_dict:7
+msgid "**data** : :class:`python:dict`"
+msgstr "**datos** : :class:`python:dict`"
+
+#: 9f9600a288a34c35be85821ad93246fd of
+#: pymc_marketing.mmm.media_transformation.MediaTransformation.from_dict:6
+msgid "python:dict"
+msgstr "python:dict"
+
+#: 99cb0b0d4ab846caa2cadb5f9faca025 of
+#: pymc_marketing.mmm.media_transformation.MediaTransformation.from_dict:8
+msgid "The data to create the media transformation from."
+msgstr "Los datos para crear la transformación de medios desde."
+
+#: 05ab9ba4c9e1403586c73a6cd1ffeb67 of
+#: pymc_marketing.mmm.media_transformation.MediaTransformation.from_dict
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 84f247290f394f4f801850dfffcf3d9d of
+#: pymc_marketing.mmm.media_transformation.MediaTransformation.from_dict:14
+msgid ":obj:`MediaTransformation`"
+msgstr ":obj:`MediaTransformation`"
+
+#: 69e1f330b8204bad8cd8382ba866d2a7 of
+#: pymc_marketing.mmm.media_transformation.MediaTransformation.from_dict:15
+msgid "The media transformation created from the dictionary."
+msgstr "La transformación de los medios creada a partir del diccionario."

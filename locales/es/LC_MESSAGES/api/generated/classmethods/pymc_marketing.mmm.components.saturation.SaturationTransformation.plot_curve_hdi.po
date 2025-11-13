@@ -1,0 +1,121 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.components.saturation.SaturationTransformation.plot_curve_hdi.rst:2
+#: 43ba18b7dfa04780953a4c57d12d309d
+msgid "SaturationTransformation.plot\\_curve\\_hdi"
+msgstr "SaturationTransformation.plot\\_curve\\_hdi"
+
+#: 51aaff4c838947c7b0e642ba4768117f of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_hdi:2
+msgid "Plot the HDI of the curve."
+msgstr "Trace el IDH de la curva."
+
+#: b4bd7ff8677443eaa1af27c5b257382c of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_hdi
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 07364c06c2d14423aebc63957044311d of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_hdi:7
+msgid "**curve** : :obj:`xr.DataArray`"
+msgstr "**curva** : :obj:`xr.DataArray`"
+
+#: eeb10953aea84d338de678745ca80892 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_hdi:6
+msgid "xr.DataArray"
+msgstr "xr.DataArray"
+
+#: 50b3b19609394925aaae8f15ac6c9b9c of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_hdi:8
+msgid "The curve to plot."
+msgstr "La curva a trazar."
+
+#: 6974c084b99846f2989e56f6d8dc6016 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_hdi:10
+msgid "**hdi_kwargs** : :class:`python:dict`, optional"
+msgstr "**hdi_kwargs** : :class:`python:dict`, opcional"
+
+#: 2071f941d8ec4cbebcf7f5b3a7487e41 6594a208f40047a891d332c98143e0bb
+#: aaf951f5568c44a891ad4b1b612e2f1a of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_hdi:9
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_hdi:12
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_hdi:15
+msgid "python:dict, optional"
+msgstr "python:dict, opcional"
+
+#: da7a7b880b2046d19ec29d0e52b38536 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_hdi:11
+msgid "Keyword arguments for the az.hdi function. Defaults to None."
+msgstr ""
+"Argumentos de palabras clave para la función az.hdi. Por defecto es None."
+
+#: 5f991d38915f4acd9834b43863d1cec1 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_hdi:13
+msgid "**plot_kwargs** : :class:`python:dict`, optional"
+msgstr "**plot_kwargs** : :class:`python:dict`, opcional"
+
+#: 46250c06d3d44404844fa230bf640ce0 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_hdi:14
+msgid "Keyword arguments for the fill_between function. Defaults to None."
+msgstr ""
+"Argumentos de palabras clave para la función fill_between. Por defecto es "
+"None."
+
+#: 8de0d0597b95406395c221d04df4949a of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_hdi:16
+msgid "**subplot_kwargs** : :class:`python:dict`, optional"
+msgstr "**subplot_kwargs** : :class:`python:dict`, opcional"
+
+#: 36c12ce76af04a668686890d7636c7d7 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_hdi:17
+msgid "Keyword arguments for plt.subplots"
+msgstr "Argumentos de palabras clave para plt.subplots"
+
+#: 22df907db84d43bb8d76fbdf11dbad41 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_hdi:19
+msgid "**axes** : :obj:`npt.NDArray`\\[:obj:`plt.Axes`], optional"
+msgstr "**ejes** : :obj:`npt.NDArray`\\[:obj:`plt.Axes`], opcional"
+
+#: 9004c5bfa96e4ea08c17e0df89b903af of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_hdi:18
+msgid "npt.NDArray[plt.Axes], optional"
+msgstr "npt.NDArray[plt.Axes], opcional"
+
+#: 992774c11ccb4209bde63f9f59e787ff of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_hdi:20
+msgid "The exact axes to plot on. Overrides any subplot_kwargs"
+msgstr "Los ejes exactos para trazar. Anula cualquier subplot_kwargs."
+
+#: 06df604c66d4483890d033ccdfffed4c of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_hdi
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: f08acb2538e54a109e3308f1d98f4bb4 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_hdi:26
+msgid ""
+":class:`python:tuple`\\[:obj:`plt.Figure`, "
+":obj:`npt.NDArray`\\[:obj:`plt.Axes`]]"
+msgstr ""
+":class:`python:tuple`\\[:obj:`plt.Figure`, "
+":obj:`npt.NDArray`\\[:obj:`plt.Axes`]]"

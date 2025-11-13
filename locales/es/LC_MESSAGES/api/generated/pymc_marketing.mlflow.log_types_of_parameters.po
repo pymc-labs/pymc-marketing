@@ -1,0 +1,51 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mlflow.log_types_of_parameters.rst:2
+#: d6c5671b08aa45b1ae20d3ffce30ac01
+msgid "log\\_types\\_of\\_parameters"
+msgstr "tipos\\_de\\_parámetros\\_de\\_registro"
+
+#: 55ba6f150d09450bb9713207b7d321e0 of
+#: pymc_marketing.mlflow.log_types_of_parameters:2
+msgid "Log the types of parameters in a PyMC model to MLflow."
+msgstr "Registra los tipos de parámetros en un modelo PyMC en MLflow."
+
+#: 375fa2b910a540f2a4bb7f668b0733ab of
+#: pymc_marketing.mlflow.log_types_of_parameters
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 89b44a4d1435499bbba11600933e5a64 of
+#: pymc_marketing.mlflow.log_types_of_parameters:7
+msgid "**model** : :class:`~pymc.Model`"
+msgstr "**modelo** : :class:`~pymc.Model`"
+
+#: 85c65f92cab94c1e970ae0043821445d of
+#: pymc_marketing.mlflow.log_types_of_parameters:6
+msgid "Model"
+msgstr "Modelo"
+
+#: b7fab19673324294865c56ca9951a66c of
+#: pymc_marketing.mlflow.log_types_of_parameters:8
+msgid "The PyMC model object."
+msgstr "El objeto del modelo PyMC."

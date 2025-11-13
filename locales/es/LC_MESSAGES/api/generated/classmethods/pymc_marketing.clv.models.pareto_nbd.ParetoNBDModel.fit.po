@@ -1,0 +1,90 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.fit.rst:2
+#: 55a9ccb069754b689e69ef60837dc189
+msgid "ParetoNBDModel.fit"
+msgstr "ParetoNBDModel.ajustar"
+
+#: e5d8ca742958462ca567a840114b8fec of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.fit:2
+msgid "Infer posteriors of model parameters to run predictions."
+msgstr ""
+"Inferir las distribuciones posteriores de los parámetros del modelo para "
+"realizar predicciones."
+
+#: f89d82dd09964836beb896951d76f4d1 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.fit
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: ee2abb0784c04355a8a1209c3f84516c of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.fit:7
+msgid "**method** : :class:`python:str`"
+msgstr "**método** : :class:`python:str`"
+
+#: a143ce5616cf4cabbecb324289c93f89 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.fit:6
+msgid "python:str"
+msgstr "python:str"
+
+#: 92c2f55779c54f92aa9c8fcf3e98225d of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.fit:8
+msgid "Method used to fit the model. Options are:"
+msgstr "Método utilizado para ajustar el modelo. Las opciones son:"
+
+#: 58cf4e6649eb47b9afa45fb16de8cbfc of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.fit:10
+msgid "\"map\": Posterior point estimates via Maximum a Posteriori (default)."
+msgstr ""
+"\"map\": Estimaciones puntuales posteriores a través de Máxima a Posteriori "
+"(predeterminado)."
+
+#: ace446a136474b86823a9d8de02d2cc9 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.fit:11
+msgid "\"demz\": Full posterior distributions via DEMetropolisZ."
+msgstr "\"demz\": Distribuciones posteriores completas a través de DEMetropolisZ."
+
+#: 1c24e5e8189e4103a0f8c17ada593420 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.fit:12
+msgid ""
+"\"mcmc\": Full posterior distributions via No U-Turn Sampler (NUTS). This "
+"can be very slow."
+msgstr ""
+"\"mcmc\": Distribuciones posteriores completas a través del muestreador sin "
+"giro en U (NUTS). Esto puede ser muy lento."
+
+#: 07646f8d623a4ca1813ae672a1b06905 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.fit:14
+msgid "**kwargs** : :class:`python:dict`"
+msgstr "**kwargs** : :class:`python:dict`"
+
+#: 994adeb5aa6b46609da15ba62ae11164 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.fit:13
+msgid "python:dict"
+msgstr "python:dict"
+
+#: 0ca0bb9bb64642f2ad82d167bb6d24c2 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.fit:15
+msgid "Other keyword arguments passed to the underlying PyMC routines"
+msgstr ""
+"Otros argumentos de palabra clave pasados a las rutinas subyacentes de PyMC"

@@ -1,0 +1,73 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.preprocessing.MaxAbsScaleChannels.rst:2
+#: a0da84ede4884bd583cc7aae48cd3af7
+msgid "MaxAbsScaleChannels"
+msgstr "MaxAbsScaleChannels"
+
+#: ../source/api/generated/pymc_marketing.mmm.preprocessing.MaxAbsScaleChannels.rst:23:<autosummary>:1
+#: dd897173e25e40a19bdcff672d94d47d f3eba514258d47d18c2477d3480ef464 of
+#: pymc_marketing.mmm.preprocessing.MaxAbsScaleChannels:2
+msgid "MaxAbsScaler for the channel data."
+msgstr "MaxAbsScaler para los datos del canal."
+
+#: ../source/api/generated/pymc_marketing.mmm.preprocessing.MaxAbsScaleChannels.rst:12
+#: 4416c140e1844e8bba8fd4c08727e8d4
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.preprocessing.MaxAbsScaleChannels.rst:23:<autosummary>:1
+#: e15275d30f49434d9774fb75ff655d4f
+msgid ""
+":py:obj:`MaxAbsScaleChannels.__init__ "
+"<pymc_marketing.mmm.preprocessing.MaxAbsScaleChannels.__init__>`\\ "
+"\\(\\*args\\, \\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`MaxAbsScaleChannels.__init__ "
+"<pymc_marketing.mmm.preprocessing.MaxAbsScaleChannels.__init__>`\\ "
+"\\(\\*args\\, \\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.preprocessing.MaxAbsScaleChannels.rst:23:<autosummary>:1
+#: 8f7d1b67f96447c291dff046eaa21f33
+msgid ""
+":py:obj:`MaxAbsScaleChannels.max_abs_scale_channel_data "
+"<pymc_marketing.mmm.preprocessing.MaxAbsScaleChannels.max_abs_scale_channel_data>`\\"
+" \\(data\\)"
+msgstr ""
+":py:obj:`MaxAbsScaleChannels.max_abs_scale_channel_data "
+"<pymc_marketing.mmm.preprocessing.MaxAbsScaleChannels.max_abs_scale_channel_data>`\\"
+" \\(datos\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.preprocessing.MaxAbsScaleChannels.rst:25
+#: 1040e204f6fb4780ae809b63d488c85c
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mmm.preprocessing.MaxAbsScaleChannels.rst:28:<autosummary>:1
+#: 25edfe9e09af419a8e09627d01c3acbe
+msgid ""
+":py:obj:`channel_columns "
+"<pymc_marketing.mmm.preprocessing.MaxAbsScaleChannels.channel_columns>`\\"
+msgstr ""
+":py:obj:`channel_columns "
+"<pymc_marketing.mmm.preprocessing.MaxAbsScaleChannels.channel_columns>`"

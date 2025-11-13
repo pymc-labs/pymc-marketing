@@ -1,0 +1,45 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.base.MMMModelBuilder.get_target_transformer.rst:2
+#: 51dd754390e5440bb81249cf20dd7f03
+msgid "MMMModelBuilder.get\\_target\\_transformer"
+msgstr "MMMModelBuilder.obtener\\_transformador\\_objetivo"
+
+#: 956cde9a249b47218bc758bfa46c5d17 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.get_target_transformer:2
+msgid ""
+"Return the target transformer pipeline used for preprocessing the target "
+"variable."
+msgstr ""
+"Devuelve la tubería del transformador objetivo utilizada para el "
+"preprocesamiento de la variable objetivo."
+
+#: 596f73298d8c458f93755337f2286980 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.get_target_transformer
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: fd01f512e89c4c81a83357b8c2598db6 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.get_target_transformer:10
+msgid ":obj:`Pipeline`"
+msgstr ":obj:`Pipeline`"

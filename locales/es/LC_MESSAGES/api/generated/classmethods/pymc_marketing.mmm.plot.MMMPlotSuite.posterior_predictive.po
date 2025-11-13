@@ -1,0 +1,156 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.plot.MMMPlotSuite.posterior_predictive.rst:2
+#: a9b69ec80b5e4b9f9c4272cfbf3a0b3a
+msgid "MMMPlotSuite.posterior\\_predictive"
+msgstr "MMMPlotSuite.predicción\\_posterior"
+
+#: 8598885cc1b44c14afeb1ac7c73ade51 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.posterior_predictive:2
+msgid "Plot time series from the posterior predictive distribution."
+msgstr "Grafique series temporales de la distribución predictiva posterior."
+
+#: a981824070794ccba4891ce4c9a2e121 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.posterior_predictive:4
+msgid ""
+"By default, if both `var` and `idata` are not provided, uses "
+"`self.idata.posterior_predictive` and defaults the variable to `[\"y\"]`."
+msgstr ""
+"Por defecto, si tanto `var` como `idata` no se proporcionan, utiliza "
+"`self.idata.posterior_predictive` y establece la variable por defecto en "
+"`[\"y\"]`."
+
+#: f3a4c84203a4483a84ff9d2d7480aa72 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.posterior_predictive
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 5a3327f928294c5aacc4512ab7eb1fd7 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.posterior_predictive:9
+msgid "**var** : :class:`python:list` of :class:`python:str`, optional"
+msgstr "**var** : :class:`python:list` de :class:`python:str`, opcional"
+
+#: 1f1091002d46455dbbb110eb0d8f45aa of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.posterior_predictive:8
+msgid "python:list of python:str, optional"
+msgstr "python:lista de python:str, opcional"
+
+#: 892e905147604ba3b9fa028d9cd542e0 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.posterior_predictive:10
+msgid "A list of variable names to plot. Default is [\"y\"] if not provided."
+msgstr ""
+"Una lista de nombres de variables a graficar. El valor predeterminado es "
+"[\"y\"] si no se proporciona."
+
+#: 0d19669f90584f4484d1eef8346fdefc of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.posterior_predictive:12
+msgid "**idata** : :obj:`xarray.Dataset`, optional"
+msgstr "**idata** : :obj:`xarray.Dataset`, opcional"
+
+#: 34b36ae475fb4cd29e3ffc5e1ab432d4 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.posterior_predictive:11
+msgid "xarray.Dataset, optional"
+msgstr "xarray.Dataset, opcional"
+
+#: 064487bdbb4645d28eeae8cbcd73052b of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.posterior_predictive:13
+msgid ""
+"The posterior predictive dataset to plot. If not provided, tries to use "
+"`self.idata.posterior_predictive`."
+msgstr ""
+"El conjunto de datos predictivo posterior para graficar. Si no se "
+"proporciona, intenta usar `self.idata.posterior_predictive`."
+
+#: c6d4a9d954424ed2ae337d4f1d3a81ec of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.posterior_predictive:16
+msgid "**hdi_prob: float, optional**"
+msgstr "**hdi_prob: flotante, opcional**"
+
+#: 1e8065316d4a45f5b6c3913e2d53570b of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.posterior_predictive:17
+msgid ""
+"The probability mass of the highest density interval to be displayed. "
+"Default is 0.85."
+msgstr ""
+"La masa de probabilidad del intervalo de mayor densidad que se mostrará. El "
+"valor predeterminado es 0.85."
+
+#: 96085f52543646328234d5d58be61c10 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.posterior_predictive
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 22314a7d13304c1995dc34c8f266afd1 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.posterior_predictive:23
+msgid "**fig** : :obj:`matplotlib.figure.Figure`"
+msgstr "**fig** : :obj:`matplotlib.figure.Figure`"
+
+#: af77955dbacb42a39ac47f4c3b54c803 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.posterior_predictive:22
+msgid "matplotlib.figure.Figure"
+msgstr "matplotlib.figure.Figure"
+
+#: c706b0dfd53e46fab0c5332513c45b00 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.posterior_predictive:24
+msgid "The Figure object containing the subplots."
+msgstr "El objeto Figura que contiene los subgráficos."
+
+#: 934e103883474e2f8547849b13fa45a3 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.posterior_predictive:26
+msgid ""
+"**axes** : :obj:`np.ndarray <numpy.ndarray>` of :obj:`matplotlib.axes.Axes`"
+msgstr ""
+"**ejes** : :obj:`np.ndarray <numpy.ndarray>` de :obj:`matplotlib.axes.Axes`"
+
+#: 99ad5545c4f34eb699170279835bea10 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.posterior_predictive:25
+msgid "np.ndarray of matplotlib.axes.Axes"
+msgstr "np.ndarray de matplotlib.axes.Axes"
+
+#: a4b9bc337e3f457e8a1b7419239e55da of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.posterior_predictive:27
+msgid "Array of Axes objects corresponding to each subplot row."
+msgstr "Array de objetos Axes que corresponden a cada fila de subgráficas."
+
+#: 7277a985554840539fecbd18cbcae639 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.posterior_predictive
+msgid "Raises"
+msgstr "Aumentos"
+
+#: a0ec697ab6434e7fa630f48d4038775e of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.posterior_predictive:34
+msgid ":obj:`ValueError`"
+msgstr ":obj:`ValueError`"
+
+#: 1076fec6abbb4e1f85bbc8085fbd7ada of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.posterior_predictive:35
+msgid ""
+"If no `idata` is provided and `self.idata.posterior_predictive` does not "
+"exist, instructing the user to run `MMM.sample_posterior_predictive()`. If "
+"`hdi_prob` is not between 0 and 1, instructing the user to provide a valid "
+"value."
+msgstr ""
+"Si no se proporciona `idata` y `self.idata.posterior_predictive` no existe, "
+"instruya al usuario para que ejecute `MMM.sample_posterior_predictive()`. Si"
+" `hdi_prob` no está entre 0 y 1, instruya al usuario para que proporcione un"
+" valor válido."

@@ -1,0 +1,113 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.customer_choice.mnl_logit.MNLogit.sample.rst:2
+#: 427d9fbc7b6e455382ae387078aec95b
+msgid "MNLogit.sample"
+msgstr "MNLogit.muestra"
+
+#: 83eccff1804d4789934ed57373a8841a of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit.sample:2
+msgid "Sample all the things."
+msgstr "Muestrea todas las cosas."
+
+#: abd911daf9034336b8b54520a7bb8e32 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit.sample:4
+msgid "Run all of the sample methods in the sequence:"
+msgstr "Ejecute todos los métodos de muestra en la secuencia:"
+
+#: 2775a5795bf94668b2e5998be7a3e96d of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit.sample:6
+msgid ":meth:`sample_prior_predictive`"
+msgstr ":meth:`sample_prior_predictive`"
+
+#: 7ab194ac9bfc427980f9b5e89bbeeb32 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit.sample:7
+msgid ":meth:`fit`"
+msgstr ":meth:`fit`"
+
+#: 5f9fb707b1dc40f6a5fbd9e680c6f40a of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit.sample:8
+msgid ":meth:`sample_posterior_predictive`"
+msgstr ":meth:`sample_posterior_predictive`"
+
+#: 63d36e5cd1fe41c4881e7067366a29fc of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit.sample
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 443aa5d07fd4483ca39f74721c88e066 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit.sample:12
+msgid "**sample_prior_predictive_kwargs** : :class:`python:dict`, optional"
+msgstr "**sample_prior_predictive_kwargs** : :class:`python:dict`, opcional"
+
+#: 42cae9978fe14dbda762b68efaea65fb b2a68455a5664c918b50efbc662eac9a
+#: d468c6444d664026963cb5fea5ebc3b6 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit.sample:11
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit.sample:14
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit.sample:17
+msgid "python:dict, optional"
+msgstr "python:dict, opcional"
+
+#: 8054507b8dd64bd69eb7c80ac5991d61 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit.sample:13
+msgid "The keyword arguments for the sample_prior_predictive method."
+msgstr ""
+"Los argumentos de palabra clave para el método sample_prior_predictive."
+
+#: cba2b87e40834c629fb7f0750ca142a6 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit.sample:15
+msgid "**fit_kwargs** : :class:`python:dict`, optional"
+msgstr "**fit_kwargs** : :class:`python:dict`, opcional"
+
+#: 5ee172d4d5f647558112a41810538711 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit.sample:16
+msgid "The keyword arguments for the fit method."
+msgstr "Los argumentos de palabra clave para el método fit."
+
+#: fd1f0fdab1c7431a8b3b76b3c78c4e61 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit.sample:18
+msgid ""
+"**sample_posterior_predictive_kwargs** : :class:`python:dict`, optional"
+msgstr ""
+"**sample_posterior_predictive_kwargs** : :class:`python:dict`, opcional"
+
+#: c23c89ffa3d04ebb8ebb6a0117094f06 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit.sample:19
+msgid "The keyword arguments for the sample_posterior_predictive method."
+msgstr ""
+"Los argumentos de palabra clave para el método sample_posterior_predictive."
+
+#: 87044421a7d144918fcf0fdc329445ae of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit.sample
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: bf61381c67574486a229c1027039f2ce of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit.sample:25
+msgid ":obj:`Self`"
+msgstr ":obj:`Self`"
+
+#: e0298123f25344bcb34f928a6cb0f633 of
+#: pymc_marketing.customer_choice.mnl_logit.MNLogit.sample:26
+msgid "The model instance."
+msgstr "La instancia del modelo."

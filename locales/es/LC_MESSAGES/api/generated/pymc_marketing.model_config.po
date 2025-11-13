@@ -1,0 +1,70 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.model_config.rst:2
+#: 7b2b45f7efdb418daf7a0bc0235fa4dc
+msgid "model\\_config"
+msgstr "configuración\\_del\\_modelo"
+
+#: aed77a5e7b0c471b98104e48890886ec of pymc_marketing.model_config:1
+msgid "Model configuration utilities."
+msgstr "Utilidades de configuración del modelo."
+
+#: ../source/api/generated/pymc_marketing.model_config.rst:13
+#: b57dc6bb679842e39207269706a9000e
+msgid "Functions"
+msgstr "Funciones"
+
+#: ../source/api/generated/pymc_marketing.model_config.rst:27:<autosummary>:1
+#: 31c0ed61280a4d28832a859b85e1c962
+msgid ""
+":py:obj:`parse_model_config "
+"<pymc_marketing.model_config.parse_model_config>`\\ \\(model\\_config\\[\\, "
+"...\\]\\)"
+msgstr ""
+":py:obj:`parse_model_config "
+"<pymc_marketing.model_config.parse_model_config>`\\ \\(model\\_config\\[\\, "
+"...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.model_config.rst:27:<autosummary>:1
+#: e5e6a56398c843259ab055a6dec1bd7d
+msgid "Parse the model config dictionary."
+msgstr "Analiza el diccionario de configuración del modelo."
+
+#: ../source/api/generated/pymc_marketing.model_config.rst:29
+#: b1705421c7314ed08dee5da74aa13727
+msgid "Exceptions"
+msgstr "Excepciones"
+
+#: ../source/api/generated/pymc_marketing.model_config.rst:32:<autosummary>:1
+#: d794e1cf7de546f681e6fab8976b6df0
+msgid ""
+":py:obj:`ModelConfigError <pymc_marketing.model_config.ModelConfigError>`\\"
+msgstr ""
+":py:obj:`ModelConfigError <pymc_marketing.model_config.ModelConfigError>`"
+
+#: ../source/api/generated/pymc_marketing.model_config.rst:32:<autosummary>:1
+#: 19d403dea3ff413e97ae4a7490296891
+msgid "Exception raised for errors in model configuration."
+msgstr ""
+"Se ha producido una excepción debido a errores en la configuración del "
+"modelo."

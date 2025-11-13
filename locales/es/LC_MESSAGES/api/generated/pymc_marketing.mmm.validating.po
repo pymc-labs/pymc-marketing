@@ -1,0 +1,127 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.rst:2
+#: 8fa2a5f33c9946169f7655a3fe6d49f8
+msgid "validating"
+msgstr "validando"
+
+#: cf4c5bcd4bd0437b9575a00586f23a8d of pymc_marketing.mmm.validating:1
+msgid "Validating methods for MMM classes."
+msgstr "Validando métodos para las clases MMM."
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.rst:13
+#: bdbaed8fc20842bf87727d160be49ae3
+msgid "Functions"
+msgstr "Funciones"
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.rst:24:<autosummary>:1
+#: 875b5bacdbb142d796cee68592804e46
+msgid ""
+":py:obj:`validation_method_X "
+"<pymc_marketing.mmm.validating.validation_method_X>`\\ \\(method\\)"
+msgstr ""
+":py:obj:`validation_method_X "
+"<pymc_marketing.mmm.validating.validation_method_X>`\\ \\(método\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.rst:24:<autosummary>:1
+#: 68e37d3497fa46be8a9a64a73a2e1f13
+msgid "Tag a method as a validation method for the predictor columns."
+msgstr ""
+"Etiquete un método como un método de validación para las columnas del "
+"predictor."
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.rst:24:<autosummary>:1
+#: 81f78f61d54e4a6985b8eaf08e3b4b59
+msgid ""
+":py:obj:`validation_method_y "
+"<pymc_marketing.mmm.validating.validation_method_y>`\\ \\(method\\)"
+msgstr ""
+":py:obj:`validation_method_y "
+"<pymc_marketing.mmm.validating.validation_method_y>`\\ \\(método\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.rst:24:<autosummary>:1
+#: 0ea128f0a0184465bb33b5419b8a8b69
+msgid "Tag a method as a validation method for the target column."
+msgstr ""
+"Etiquete un método como un método de validación para la columna objetivo."
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.rst:26
+#: a5b24401808b4685877367e1614dc08b
+msgid "Classes"
+msgstr "Clases"
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.rst:41:<autosummary>:1
+#: 7dfa862df1ef4dd7bc78ce07697ce15a
+msgid ""
+":py:obj:`ValidateChannelColumns "
+"<pymc_marketing.mmm.validating.ValidateChannelColumns>`\\ \\(\\)"
+msgstr ""
+":py:obj:`ValidateChannelColumns "
+"<pymc_marketing.mmm.validating.ValidateChannelColumns>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.rst:41:<autosummary>:1
+#: b0fdcd96323f4f5f89d0a15ad804d568
+msgid "Validate the channel columns."
+msgstr "Valide las columnas del canal."
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.rst:41:<autosummary>:1
+#: 907e5ffc08624db8aa2f24155259cc2a
+msgid ""
+":py:obj:`ValidateControlColumns "
+"<pymc_marketing.mmm.validating.ValidateControlColumns>`\\ \\(\\)"
+msgstr ""
+":py:obj:`ValidateControlColumns "
+"<pymc_marketing.mmm.validating.ValidateControlColumns>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.rst:41:<autosummary>:1
+#: dfce19633b5e48a183336c99c54f1abc
+msgid "Validate the control columns."
+msgstr "Valide las columnas de control."
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.rst:41:<autosummary>:1
+#: 10b6c492ef5a40d1b50247a75f479db2
+msgid ""
+":py:obj:`ValidateDateColumn "
+"<pymc_marketing.mmm.validating.ValidateDateColumn>`\\ \\(\\)"
+msgstr ""
+":py:obj:`ValidateDateColumn "
+"<pymc_marketing.mmm.validating.ValidateDateColumn>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.rst:41:<autosummary>:1
+#: 97997881c2da4255a1f6ce3928c64d59
+msgid "Validate the date column."
+msgstr "Valide la columna de fecha."
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.rst:41:<autosummary>:1
+#: ddc6ad47367d4957a6bca8bb2090e5fc
+msgid ""
+":py:obj:`ValidateTargetColumn "
+"<pymc_marketing.mmm.validating.ValidateTargetColumn>`\\ \\(\\)"
+msgstr ""
+":py:obj:`ValidateTargetColumn "
+"<pymc_marketing.mmm.validating.ValidateTargetColumn>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.rst:41:<autosummary>:1
+#: 5c653cbd9051423f8b7fa2b656d2e7c7
+msgid "Validate the target column."
+msgstr "Valide la columna objetivo."

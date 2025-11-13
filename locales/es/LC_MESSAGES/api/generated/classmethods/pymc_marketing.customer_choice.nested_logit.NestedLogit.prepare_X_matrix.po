@@ -1,0 +1,153 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.customer_choice.nested_logit.NestedLogit.prepare_X_matrix.rst:2
+#: d9bcc9a123f04bbc9f1393f2f4ef5e0e
+msgid "NestedLogit.prepare\\_X\\_matrix"
+msgstr "NestedLogit.preparar\\_matriz\\_X"
+
+#: 6acb1d0239974aba98577e91d9ff005a of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.prepare_X_matrix:2
+msgid "Prepare the X matrix for the utility equations."
+msgstr "Prepare la matriz X para las ecuaciones de utilidad."
+
+#: 44f16cfb7f1d406fad5e3782ba8ac5ae of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.prepare_X_matrix:4
+msgid ""
+"The X matrix is a tensor with dimensions: (N observations) x (Alternatives) "
+"x (Covariates). Assumes that the utility formulas specify an equal number of"
+" covariates per alternative; these can be zero-valued if an alternative "
+"lacks a specific attribute."
+msgstr ""
+"La matriz X es un tensor con dimensiones: (N observaciones) x (Alternativas)"
+" x (Covariables). Se asume que las fórmulas de utilidad especifican un "
+"número igual de covariables por alternativa; estas pueden tener un valor de "
+"cero si una alternativa carece de un atributo específico."
+
+#: d291d6917c8b4fb48c04355a8b1d8650 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.prepare_X_matrix:10
+msgid ""
+"Utility formulas should express the relationship between the choice outcome "
+"(dependent variable) and the attributes of each alternative that incentivize"
+" that choice. The left-hand side (LHS) of each formula must correspond to a "
+"value of the dependent variable, while the right-hand side (RHS) should "
+"define an additive combination of the available covariates."
+msgstr ""
+"Las fórmulas de utilidad deben expresar la relación entre el resultado de la"
+" elección (variable dependiente) y los atributos de cada alternativa que "
+"incentivan esa elección. El lado izquierdo (LHS) de cada fórmula debe "
+"corresponder a un valor de la variable dependiente, mientras que el lado "
+"derecho (RHS) debe definir una combinación aditiva de las covariables "
+"disponibles."
+
+#: 4ee5f038ce85492d8612fb21f5d3c17d of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.prepare_X_matrix:17
+msgid ""
+"We also allow the incorporation of fixed covariates that do not vary across "
+"alternatives. For these, an alternative-specific parameter is used to allow "
+"the contribution to utility to vary by alternative."
+msgstr ""
+"También permitimos la incorporación de covariables fijas que no varían entre"
+" alternativas. Para estas, se utiliza un parámetro específico de la "
+"alternativa para permitir que la contribución a la utilidad varíe según la "
+"alternativa."
+
+#: cf40e09e40f04358a85e2f0c3d89ac24 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.prepare_X_matrix
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 25f0cd3b5735422692b326196240d61f of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.prepare_X_matrix:26
+msgid ":obj:`Tuple` containing:"
+msgstr ":obj:`Tuple` que contiene:"
+
+#: 0bc2ea7464e140d990d4c0ad44fd6cd1 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.prepare_X_matrix:29
+msgid ""
+"**- X** : :class:`~numpy.ndarray` of :obj:`shape` (:obj:`n_obs`, "
+":obj:`n_alts`, :obj:`n_covariates`)"
+msgstr ""
+"**- X** : :class:`~numpy.ndarray` de :obj:`shape` (:obj:`n_obs`, "
+":obj:`n_alts`, :obj:`n_covariates`)"
+
+#: 6fd4a487c8a24c2f855d6e8b82fc8f93 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.prepare_X_matrix:28
+msgid "ndarray of shape (n_obs, n_alts, n_covariates)"
+msgstr "ndarray de forma (n_obs, n_alts, n_covariates)"
+
+#: 1809c6401898445881379ddd1731c63a of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.prepare_X_matrix:30
+msgid "The design matrix for the utility model."
+msgstr "La matriz de diseño para el modelo de utilidad."
+
+#: f8970cdb4fa348d186c9ff8b3685c730 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.prepare_X_matrix:32
+msgid ""
+"**- F** : :obj:`Optional` :class:`~numpy.ndarray` of :obj:`shape` "
+"(:obj:`n_obs`, :obj:`n_fixed_covariates`)"
+msgstr ""
+"**- F** : :obj:`Opcional` :class:`~numpy.ndarray` de :obj:`forma` "
+"(:obj:`n_obs`, :obj:`n_fixed_covariates`)"
+
+#: 98f186105c4c477c8958b41f77fa3730 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.prepare_X_matrix:31
+msgid "Optional ndarray of shape (n_obs, n_fixed_covariates)"
+msgstr "ndarray opcional de forma (n_obs, n_fixed_covariates)"
+
+#: f94b6ab3ed80442daa9895efc64da34a of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.prepare_X_matrix:33
+msgid "The matrix for fixed covariates (None if no fixed covariates used)."
+msgstr ""
+"La matriz para covariables fijas (Ninguna si no se utilizan covariables "
+"fijas)."
+
+#: 0d5fa429b9b64a77b7bb71b8a3b1e1e8 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.prepare_X_matrix:35
+msgid "**- alts** : :class:`python:list` of :class:`python:str`"
+msgstr "**- alts** : :class:`python:list` de :class:`python:str`"
+
+#: b22d6c1a1e9b43fa9a247b95f755e073 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.prepare_X_matrix:34
+msgid "python:list of python:str"
+msgstr "python:lista de python:str"
+
+#: d724e930566a4cc79950a8d7a1316b8e of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.prepare_X_matrix:36
+msgid "Names of the alternatives (LHS of the utility equations)."
+msgstr ""
+"Nombres de las alternativas (lado izquierdo de las ecuaciones de utilidad)."
+
+#: 15864a389deb4580aa3c612f2692052a of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.prepare_X_matrix:38
+msgid "**- unique_fixed_covariates** : :obj:`np.ndarray <numpy.ndarray>`"
+msgstr "**- unique_fixed_covariates** : :obj:`np.ndarray <numpy.ndarray>`"
+
+#: fe25184aa56d4ffd9e155161bda1781d of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.prepare_X_matrix:37
+msgid "np.ndarray"
+msgstr "np.ndarray"
+
+#: f0b9c0e620714df298c0fa3e6e9f15bf of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.prepare_X_matrix:39
+msgid "Array of unique fixed covariate names."
+msgstr "Array de nombres de covariables fijas únicas."

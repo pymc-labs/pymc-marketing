@@ -1,0 +1,241 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.fourier.WeeklyFourier.plot_curve.rst:2
+#: 185d1be9f83c43db82e6c742925eb467
+msgid "WeeklyFourier.plot\\_curve"
+msgstr "WeeklyFourier.plot\\_curve"
+
+#: 96c6dc0e0d424d509ec36699b342db95 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:2
+msgid "Plot the seasonality for one full period."
+msgstr "Trace la estacionalidad para un período completo."
+
+#: 18c8f1ac6ef94f288eec9ac2b2ef30ff of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: b77a7f5be9d64a7ebd0a8285f576586b of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:7
+msgid "**curve** : :obj:`xr.DataArray`"
+msgstr "**curva** : :obj:`xr.DataArray`"
+
+#: 47fc40f1c4ad438f80b7160bbc6c2efb of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:6
+msgid "xr.DataArray"
+msgstr "xr.DataArray"
+
+#: 0a00d89f0edb469cbc97153fd41ca37a of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:8
+msgid "Sampled full period of the fourier seasonality."
+msgstr "Muestra del período completo de la estacionalidad de Fourier."
+
+#: ad71ea099005495e9e7080348ddc21cb of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:10
+msgid "**n_samples** : :class:`python:int`, optional"
+msgstr "**n_samples** : :class:`python:int`, opcional"
+
+#: e8ac724c7b0547a08dec673ad4f4e60c of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:9
+msgid "python:int, optional"
+msgstr "python:int, opcional"
+
+#: c8bdbc63228b40668db16abd84811f0b of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:11
+msgid "Number of samples"
+msgstr "Número de muestras"
+
+#: fc78a7724a644758a3222c64edc5303b of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:13
+msgid ""
+"**hdi_probs** : :class:`python:float` | "
+":class:`python:list`\\[:class:`python:float`], optional"
+msgstr ""
+"**hdi_probs** : :class:`python:float` | "
+":class:`python:list`\\[:class:`python:float`], opcional"
+
+#: 80a703c7bbff4d50933786a635385953 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:12
+msgid "python:float | python:list[python:float], optional"
+msgstr "python:float | python:list[python:float], opcional"
+
+#: 9834cf545e0f4904b1c7ca0d22f60f1a of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:14
+msgid ""
+"HDI probabilities. Defaults to None which uses arviz default for "
+"stats.ci_prob which is 94%"
+msgstr ""
+"Probabilidades de HDI. Por defecto es None, lo que utiliza el valor "
+"predeterminado de arviz para stats.ci_prob, que es del 94%."
+
+#: ef5ffce50102439799363582129a8b1a of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:17
+msgid ""
+"**random_seed** : :class:`python:int` | :obj:`random` :obj:`number` "
+":term:`python:generator`, optional"
+msgstr ""
+"**semilla_aleatoria** : :class:`python:int` | :obj:`random` :obj:`número` "
+":term:`python:generador`, opcional"
+
+#: 187d7c4e12694c67bad7dd7ce80d2598 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:16
+msgid "python:int | random number python:generator, optional"
+msgstr "python:int | número aleatorio python:generador, opcional"
+
+#: 9423b126d7554a108b00246a75c0cb10 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:18
+msgid "Random number generator. Defaults to None"
+msgstr "Generador de números aleatorios. Por defecto es None."
+
+#: 6d16035316bf4d128c42f6352d401ca8 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:20
+msgid "**subplot_kwargs** : :class:`python:dict`, optional"
+msgstr "**subplot_kwargs** : :class:`python:dict`, opcional"
+
+#: 5f33aa284b7244a59a62a23c800079bf df72b0dc82f74a4484f898de4b0ba3a7
+#: ec3cdddec9ff4899828f35316547abe3 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:19
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:22
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:25
+msgid "python:dict, optional"
+msgstr "python:dict, opcional"
+
+#: 0c220f06c9fe49f09a29f10db87de5ec of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:21
+msgid "Keyword arguments for the subplot, by default None"
+msgstr "Argumentos de palabras clave para el subplot, por defecto None"
+
+#: d67e38044c754aeba0757ac724eac451 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:23
+msgid "**sample_kwargs** : :class:`python:dict`, optional"
+msgstr "**sample_kwargs** : :class:`python:dict`, opcional"
+
+#: dea125f9907a4441bfaabdd29266cfc3 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:24
+msgid ""
+"Keyword arguments for the plot_full_period_samples method, by default None"
+msgstr ""
+"Argumentos de palabras clave para el método plot_full_period_samples, por "
+"defecto None"
+
+#: 8a31b69ee4a64428bea87625c781ee11 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:26
+msgid "**hdi_kwargs** : :class:`python:dict`, optional"
+msgstr "**hdi_kwargs** : :class:`python:dict`, opcional"
+
+#: dec522f63a2b4494a99a781a486b969e of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:27
+msgid "Keyword arguments for the plot_full_period_hdi method, by default None"
+msgstr ""
+"Argumentos de palabras clave para el método plot_full_period_hdi, por "
+"defecto None"
+
+#: 64e2a5e78c794dbab803793789572529 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:29
+msgid "**axes** : :obj:`npt.NDArray`\\[:obj:`plt.Axes`], optional"
+msgstr "**ejes** : :obj:`npt.NDArray`\\[:obj:`plt.Axes`], opcional"
+
+#: bced0ffec76944f6a6e06dd77ee9fbb4 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:28
+msgid "npt.NDArray[plt.Axes], optional"
+msgstr "npt.NDArray[plt.Axes], opcional"
+
+#: 51bdcb68bb3f42e2aa53c70a5f06fc5b of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:30
+msgid "Matplotlib axes, by default None"
+msgstr "Ejes de Matplotlib, por defecto None"
+
+#: cd9c8c6f617d43adaa5c58274d1fd1ba of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:32
+msgid "**same_axes** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr "**same_axes** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 875e93f3eabd4651af52ec0f18c99ad0 edc2a02c9d6b4b0cb9cad4ca8e1f5b99 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:31
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:37
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: 8cccb56cf4ab44cab0c06548acee593b of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:33
+msgid "Use the same axes for all plots, by default False"
+msgstr "Usar los mismos ejes para todos los gráficos, por defecto Falso"
+
+#: b3b263f58722453da5902246e0ceb995 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:35
+msgid "**colors** : :obj:`Iterable`\\[:class:`python:str`], optional"
+msgstr "**colores** : :obj:`Iterable`\\[:class:`python:str`], opcional"
+
+#: 5d7e0022f08f4dcfa00c7898353a4f90 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:34
+msgid "Iterable[python:str], optional"
+msgstr "Iterable[python:str], opcional"
+
+#: f0948a5203f84cb09fe5ed0f50a88595 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:36
+msgid "Colors for the different plots, by default None"
+msgstr "Colores para los diferentes gráficos, por defecto None"
+
+#: c66cf50adec844d1a5326b0ea7ae9361 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:38
+msgid "**legend** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr "**leyenda** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: cb53a7a9b03b4ab8b11962ed4b84e196 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:39
+msgid "Show the legend, by default None"
+msgstr "Mostrar la leyenda, por defecto Ninguno"
+
+#: a2510e26c4954228be1b263e71f7657e of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:41
+msgid "**sel_to_string** : :obj:`SelToString`, optional"
+msgstr "**sel_to_string** : :obj:`SelToString`, opcional"
+
+#: 1e4f0056fb6a4917a079dde3685d4a23 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:40
+msgid "SelToString, optional"
+msgstr "SelToString, opcional"
+
+#: fe1a524375da4edc8aedb6a65d1937e7 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:42
+msgid "Function to convert the selection to a string, by default None"
+msgstr "Función para convertir la selección en una cadena, por defecto None"
+
+#: 3feadc21d0464ebb9d6f379356a828b3 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: c03f174b316043a2983a7bf0c87abce3 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:48
+msgid ""
+":class:`python:tuple`\\[:obj:`plt.Figure`, "
+":obj:`npt.NDArray`\\[:obj:`plt.Axes`]]"
+msgstr ""
+":class:`python:tuple`\\[:obj:`plt.Figure`, "
+":obj:`npt.NDArray`\\[:obj:`plt.Axes`]]"
+
+#: 82ca53eef8514e81b2226de2817b4f35 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve:49
+msgid "Matplotlib figure and axes."
+msgstr "Figura y ejes de Matplotlib."

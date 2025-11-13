@@ -1,0 +1,124 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.create_variable_indexer.rst:2
+#: 1590bf2e5e2e49dd919ba419e9654cc6
+msgid "create\\_variable\\_indexer"
+msgstr "crear\\_indexador\\_de\\_variables"
+
+#: 40c05baa18a740aab3bd7b203e1c3e50 of
+#: pymc_marketing.mmm.lift_test.create_variable_indexer:2
+msgid "Create a function to index variables in the model."
+msgstr "Cree una función para indexar variables en el modelo."
+
+#: b933cdb4eef340a0abe32b0a40812f2b of
+#: pymc_marketing.mmm.lift_test.create_variable_indexer
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: cac6fa7ad0be4633b3e23bc79a963cfc of
+#: pymc_marketing.mmm.lift_test.create_variable_indexer:7
+msgid "**model** : :obj:`pm.Model`"
+msgstr "**modelo** : :obj:`pm.Model`"
+
+#: 9b70e76ea51f41969e9e820ca6744e4b of
+#: pymc_marketing.mmm.lift_test.create_variable_indexer:6
+msgid "pm.Model"
+msgstr "pm.Model"
+
+#: 73edf58081364865970f33adc5cf1f4b of
+#: pymc_marketing.mmm.lift_test.create_variable_indexer:8
+msgid "PyMC model"
+msgstr "Modelo PyMC"
+
+#: 89b7c091154b49479874416a0fc60cf6 of
+#: pymc_marketing.mmm.lift_test.create_variable_indexer:10
+msgid ""
+"**indices** : :class:`python:dict`\\[:class:`python:str`, :obj:`np.ndarray "
+"<numpy.ndarray>`]"
+msgstr ""
+"**índices** : :class:`python:dict`\\[:class:`python:str`, :obj:`np.ndarray "
+"<numpy.ndarray>`]"
+
+#: 4e793bec842e40519c99b5f290bf20ce of
+#: pymc_marketing.mmm.lift_test.create_variable_indexer:9
+msgid "python:dict[python:str, np.ndarray]"
+msgstr "python:dict[python:str, np.ndarray]"
+
+#: 49c72505cc6147b494b75bba00a475bf of
+#: pymc_marketing.mmm.lift_test.create_variable_indexer:11
+msgid "Dictionary of indices for the indices in the model."
+msgstr "Diccionario de índices para los índices en el modelo."
+
+#: 36c6a019e0d74d7f8b2e375461cbadf1 of
+#: pymc_marketing.mmm.lift_test.create_variable_indexer
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 9c1875e115b64125a432bd5f66c98cdb of
+#: pymc_marketing.mmm.lift_test.create_variable_indexer:17
+msgid ""
+":obj:`Callable`\\[[:class:`python:str`], "
+":class:`~pytensor.tensor.TensorVariable`]"
+msgstr ""
+":obj:`Callable`\\[[:class:`python:str`], "
+":class:`~pytensor.tensor.TensorVariable`]"
+
+#: e08ce2fc4e9d4dfc9376a4e00675183d of
+#: pymc_marketing.mmm.lift_test.create_variable_indexer:18
+msgid "Function to index variables in the model."
+msgstr "Función para indexar variables en el modelo."
+
+#: a509c5bbdfd94a3093410179b4ae1067 of
+#: pymc_marketing.mmm.lift_test.create_variable_indexer
+msgid "Raises"
+msgstr "Aumentos"
+
+#: 6bc97365fd814fea96c253cab7635965 of
+#: pymc_marketing.mmm.lift_test.create_variable_indexer:25
+msgid ":obj:`KeyError`"
+msgstr ":obj:`KeyError`"
+
+#: 9013a824146a42edbcb609f17f1433a8 of
+#: pymc_marketing.mmm.lift_test.create_variable_indexer:26
+msgid "If the variable is not in the model."
+msgstr "Si la variable no está en el modelo."
+
+#: 2905833b8a4145b58c162b2695aa0969 of
+#: pymc_marketing.mmm.lift_test.create_variable_indexer:34
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: b50af0b8bc2e473ab701a26de1d54d64 of
+#: pymc_marketing.mmm.lift_test.create_variable_indexer:35
+msgid "Create a variable indexer:"
+msgstr "Crear un indexador de variables:"
+
+#: a88952d3d50145c98d7e63c82308101e of
+#: pymc_marketing.mmm.lift_test.create_variable_indexer:54
+msgid "Get alpha at indices:"
+msgstr "Obtener alfa en los índices:"
+
+#: adaf62a134f64e1dbf79865f72419cdc of
+#: pymc_marketing.mmm.lift_test.create_variable_indexer:60
+msgid "Get beta at indices:"
+msgstr "Obtener beta en índices:"

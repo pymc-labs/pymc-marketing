@@ -1,0 +1,107 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.utils.apply_sklearn_transformer_across_dim.rst:2
+#: 5622feceed6e4d248e3efedbf6ada6f7
+msgid "apply\\_sklearn\\_transformer\\_across\\_dim"
+msgstr "aplicar\\_transformador\\_sklearn\\_a\\_lo\\_largo\\_de\\_dim"
+
+#: 016677da97d84329890e8416bf0a1e4f of
+#: pymc_marketing.mmm.utils.apply_sklearn_transformer_across_dim:2
+msgid ""
+"Apply a scikit-learn transformer across a dimension of an xarray DataArray."
+msgstr ""
+"Aplique un transformador de scikit-learn a través de una dimensión de un "
+"xarray DataArray."
+
+#: 5f777e68b9bd473e8b9727e139f79f0d of
+#: pymc_marketing.mmm.utils.apply_sklearn_transformer_across_dim:4
+msgid ""
+"Helper function in order to use scikit-learn functions with the xarray "
+"target."
+msgstr ""
+"Función auxiliar para utilizar las funciones de scikit-learn con el objetivo"
+" de xarray."
+
+#: a25fd9ed2fc348d3ae864c3156104bbb of
+#: pymc_marketing.mmm.utils.apply_sklearn_transformer_across_dim
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 0536365fa23f43afa75be3f80bea2aee of
+#: pymc_marketing.mmm.utils.apply_sklearn_transformer_across_dim:8
+msgid "**data** : :obj:`xr.DataArray`"
+msgstr "**datos** : :obj:`xr.DataArray`"
+
+#: 93fb0e5011b84524bde6dac945bff2f9 of
+#: pymc_marketing.mmm.utils.apply_sklearn_transformer_across_dim:7
+msgid "xr.DataArray"
+msgstr "xr.DataArray"
+
+#: 92af55d75b3048cab606bc2120ab3e79 of
+#: pymc_marketing.mmm.utils.apply_sklearn_transformer_across_dim:9
+msgid "The input data to transform."
+msgstr "Los datos de entrada a transformar."
+
+#: 7c9e0adf1eef4b86b7a70c72715d0f7f of
+#: pymc_marketing.mmm.utils.apply_sklearn_transformer_across_dim:11
+msgid ""
+"**func** : :obj:`Callable`\\[[:obj:`np.ndarray <numpy.ndarray>`], "
+":obj:`np.ndarray <numpy.ndarray>`]"
+msgstr ""
+"**func** : :obj:`Callable`\\[[:obj:`np.ndarray <numpy.ndarray>`], "
+":obj:`np.ndarray <numpy.ndarray>`]"
+
+#: 8f38e5b3cef14ed1b8829817d6ac5dde of
+#: pymc_marketing.mmm.utils.apply_sklearn_transformer_across_dim:10
+msgid "Callable[[np.ndarray], np.ndarray]"
+msgstr "Callable[[np.ndarray], np.ndarray]"
+
+#: 35649aa3373642e6bf0e7f2ca46dafdf of
+#: pymc_marketing.mmm.utils.apply_sklearn_transformer_across_dim:12
+msgid "scikit-learn method to apply to the data"
+msgstr "método de scikit-learn para aplicar a los datos"
+
+#: 353ef84f0f914d089e456412d2d990ba of
+#: pymc_marketing.mmm.utils.apply_sklearn_transformer_across_dim:14
+msgid "**dim_name** : :class:`python:str`"
+msgstr "**dim_name** : :class:`python:str`"
+
+#: 1395391b5d254d559df5bd4df290ddbd of
+#: pymc_marketing.mmm.utils.apply_sklearn_transformer_across_dim:13
+msgid "python:str"
+msgstr "python:str"
+
+#: 05dc3965e76b4e70b372caeb27b35016 of
+#: pymc_marketing.mmm.utils.apply_sklearn_transformer_across_dim:15
+msgid "Name of the dimension to apply the function to"
+msgstr "Nombre de la dimensión a la que se aplicará la función"
+
+#: 47c8913f60ef439fb870791c4a6ce3cd of
+#: pymc_marketing.mmm.utils.apply_sklearn_transformer_across_dim
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 11b7c81d38e54971a8693aa929a02f07 of
+#: pymc_marketing.mmm.utils.apply_sklearn_transformer_across_dim:21
+msgid ":obj:`xr.DataArray`"
+msgstr ":obj:`xr.DataArray`"

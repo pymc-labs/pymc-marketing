@@ -1,0 +1,33 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-20 21:01+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.TestResult.get.rst:2
+#: 9c6015ee2b9c4b6bb132dad1986a5900
+msgid "TestResult.get"
+msgstr "TestResult.get"
+
+#: 698c6b648d864fdc840804b1b2eae3d9 of
+#: pymc_marketing.mmm.causal.TestResult.get:2
+msgid "Return the value for key if key is in the dictionary, else default."
+msgstr ""
+"Devuelve el valor para la clave si la clave está en el diccionario, de lo "
+"contrario, devuelve el valor por defecto."

@@ -1,0 +1,38 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.hsgp.CovFunc.zfill.rst:2
+#: 5302bdc432ed4e8c92cf9bfc1db300e4
+msgid "CovFunc.zfill"
+msgstr "CovFunc.zfill"
+
+#: 5f1fa0fa521146b4a7226a23a50ec674 of pymc_marketing.mmm.hsgp.CovFunc.zfill:2
+msgid ""
+"Pad a numeric string with zeros on the left, to fill a field of the given "
+"width."
+msgstr ""
+"Rellene una cadena numérica con ceros a la izquierda para completar un campo"
+" de la anchura dada."
+
+#: a0c6c5feddc04439ac53cf2175cc59ab of pymc_marketing.mmm.hsgp.CovFunc.zfill:4
+msgid "The string is never truncated."
+msgstr "La cadena nunca se trunca."

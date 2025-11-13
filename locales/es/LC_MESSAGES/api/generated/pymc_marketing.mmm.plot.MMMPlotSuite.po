@@ -1,0 +1,189 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.plot.MMMPlotSuite.rst:2
+#: 046cb95fe57843a2b30135fbebeb56bf
+msgid "MMMPlotSuite"
+msgstr "MMMPlotSuite"
+
+#: 9041b9b2a35a4c1d9f95f6897f67faa5 of pymc_marketing.mmm.plot.MMMPlotSuite:2
+msgid "Media Mix Model Plot Suite."
+msgstr "Suite de Gráficos del Modelo de Mezcla de Medios."
+
+#: 80588094103940498c0a8e6eb2c058d3 of pymc_marketing.mmm.plot.MMMPlotSuite:4
+msgid ""
+"Provides methods for visualizing the posterior predictive distribution, "
+"contributions over time, and saturation curves for a Media Mix Model."
+msgstr ""
+"Proporciona métodos para visualizar la distribución predictiva posterior, "
+"las contribuciones a lo largo del tiempo y las curvas de saturación para un "
+"Modelo de Mezcla de Medios."
+
+#: ../source/api/generated/pymc_marketing.mmm.plot.MMMPlotSuite.rst:12
+#: 652c63c394d540c5a5c07c2f7cf61324
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.plot.MMMPlotSuite.rst:25:<autosummary>:1
+#: 69020ba908884209ac3ae8f8d796af76
+msgid ""
+":py:obj:`MMMPlotSuite.__init__ "
+"<pymc_marketing.mmm.plot.MMMPlotSuite.__init__>`\\ \\(idata\\)"
+msgstr ""
+":py:obj:`MMMPlotSuite.__init__ "
+"<pymc_marketing.mmm.plot.MMMPlotSuite.__init__>`\\ \\(idata\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.plot.MMMPlotSuite.rst:25:<autosummary>:1
+#: e11e007721e940f79f9ef34dc290d5d5
+msgid ""
+":py:obj:`MMMPlotSuite.allocated_contribution_by_channel_over_time "
+"<pymc_marketing.mmm.plot.MMMPlotSuite.allocated_contribution_by_channel_over_time>`\\"
+" \\(samples\\)"
+msgstr ""
+":py:obj:`MMMPlotSuite.allocated_contribution_by_channel_over_time "
+"<pymc_marketing.mmm.plot.MMMPlotSuite.allocated_contribution_by_channel_over_time>`\\"
+" \\(muestras\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.plot.MMMPlotSuite.rst:25:<autosummary>:1
+#: 3fc15d0005cc4a86abeeb6111e9dc630
+msgid "Plot the allocated contribution by channel with uncertainty intervals."
+msgstr ""
+"Trace la contribución asignada por canal con intervalos de incertidumbre."
+
+#: ../source/api/generated/pymc_marketing.mmm.plot.MMMPlotSuite.rst:25:<autosummary>:1
+#: 68def2aa17ee4796887004d16a20630c
+msgid ""
+":py:obj:`MMMPlotSuite.budget_allocation "
+"<pymc_marketing.mmm.plot.MMMPlotSuite.budget_allocation>`\\ \\(samples\\[\\,"
+" ...\\]\\)"
+msgstr ""
+":py:obj:`MMMPlotSuite.budget_allocation "
+"<pymc_marketing.mmm.plot.MMMPlotSuite.budget_allocation>`\\ "
+"\\(muestras\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.plot.MMMPlotSuite.rst:25:<autosummary>:1
+#: e10b81201bba4abba648d211170124db
+msgid "Plot the budget allocation and channel contributions."
+msgstr ""
+"Trace la asignación del presupuesto y las contribuciones de los canales."
+
+#: ../source/api/generated/pymc_marketing.mmm.plot.MMMPlotSuite.rst:25:<autosummary>:1
+#: 0ef0bd9036cb4450a57d86712b880a2e
+msgid ""
+":py:obj:`MMMPlotSuite.contributions_over_time "
+"<pymc_marketing.mmm.plot.MMMPlotSuite.contributions_over_time>`\\ "
+"\\(var\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`MMMPlotSuite.contributions_over_time "
+"<pymc_marketing.mmm.plot.MMMPlotSuite.contributions_over_time>`\\ "
+"\\(var\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.plot.MMMPlotSuite.rst:25:<autosummary>:1
+#: 2df2483733c74a4e88dacb1d22a512ef
+msgid "Plot the time-series contributions for each variable in `var`."
+msgstr ""
+"Trace las contribuciones de la serie temporal para cada variable en {var}."
+
+#: ../source/api/generated/pymc_marketing.mmm.plot.MMMPlotSuite.rst:25:<autosummary>:1
+#: 35ccf95238904164809afaa21b6f25bb
+msgid ""
+":py:obj:`MMMPlotSuite.plot_sensitivity_analysis "
+"<pymc_marketing.mmm.plot.MMMPlotSuite.plot_sensitivity_analysis>`\\ "
+"\\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`MMMPlotSuite.plot_sensitivity_analysis "
+"<pymc_marketing.mmm.plot.MMMPlotSuite.plot_sensitivity_analysis>`\\ "
+"\\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.plot.MMMPlotSuite.rst:25:<autosummary>:1
+#: bd0839794fce4d41aa6068e8b3505642
+msgid "Plot counterfactual uplift or marginal effects curves."
+msgstr "Trazar curvas de aumento contrafactual o efectos marginales."
+
+#: ../source/api/generated/pymc_marketing.mmm.plot.MMMPlotSuite.rst:25:<autosummary>:1
+#: 1bb9d900a7da4d75bc84c60d97f0a942
+msgid ""
+":py:obj:`MMMPlotSuite.posterior_predictive "
+"<pymc_marketing.mmm.plot.MMMPlotSuite.posterior_predictive>`\\ \\(\\[var\\, "
+"...\\]\\)"
+msgstr ""
+":py:obj:`MMMPlotSuite.posterior_predictive "
+"<pymc_marketing.mmm.plot.MMMPlotSuite.posterior_predictive>`\\ \\(\\[var\\, "
+"...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.plot.MMMPlotSuite.rst:25:<autosummary>:1
+#: 72eb8e1297bd43ec931e5a93a298c7d8
+msgid "Plot time series from the posterior predictive distribution."
+msgstr "Grafique series temporales de la distribución predictiva posterior."
+
+#: ../source/api/generated/pymc_marketing.mmm.plot.MMMPlotSuite.rst:25:<autosummary>:1
+#: 054d280bf7d1449fa663acd4614fb819
+msgid ""
+":py:obj:`MMMPlotSuite.saturation_curves "
+"<pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves>`\\ \\(curve\\[\\, "
+"...\\]\\)"
+msgstr ""
+":py:obj:`MMMPlotSuite.saturation_curves "
+"<pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves>`\\ \\(curva\\[\\, "
+"...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.plot.MMMPlotSuite.rst:25:<autosummary>:1
+#: 584f96d5033d4a42a0d0c44021e2fc5b
+msgid ""
+"Overlay saturation‑curve scatter‑plots with posterior‑predictive sample "
+"curves and HDI bands."
+msgstr ""
+"Superponga gráficos de dispersión de la curva de saturación con curvas de "
+"muestra predictiva posterior y bandas de HDI."
+
+#: ../source/api/generated/pymc_marketing.mmm.plot.MMMPlotSuite.rst:25:<autosummary>:1
+#: dd6132a28e584e60ab5ca8718c6e2159
+msgid ""
+":py:obj:`MMMPlotSuite.saturation_curves_scatter "
+"<pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves_scatter>`\\ "
+"\\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`MMMPlotSuite.saturation_curves_scatter "
+"<pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves_scatter>`\\ "
+"\\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.plot.MMMPlotSuite.rst:25:<autosummary>:1
+#: 21ca88aa4b9b45b6a440b283d848e123
+msgid "Plot scatter plots of channel contributions vs."
+msgstr ""
+"Trazar gráficos de dispersión de las contribuciones del canal frente a."
+
+#: ../source/api/generated/pymc_marketing.mmm.plot.MMMPlotSuite.rst:25:<autosummary>:1
+#: b38e7f634af34acd9eeb0e39a8617cbe
+msgid ""
+":py:obj:`MMMPlotSuite.saturation_scatterplot "
+"<pymc_marketing.mmm.plot.MMMPlotSuite.saturation_scatterplot>`\\ "
+"\\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`MMMPlotSuite.saturation_scatterplot "
+"<pymc_marketing.mmm.plot.MMMPlotSuite.saturation_scatterplot>`\\ "
+"\\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.plot.MMMPlotSuite.rst:25:<autosummary>:1
+#: bb77264eb9e14f1087710079daa0fafc
+msgid "Plot the saturation curves for each channel."
+msgstr "Trace las curvas de saturación para cada canal."

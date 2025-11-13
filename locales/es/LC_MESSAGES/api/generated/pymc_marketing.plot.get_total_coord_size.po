@@ -1,0 +1,66 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.plot.get_total_coord_size.rst:2
+#: 8e2573ab43a844b8b0fee18de10bfb5b
+msgid "get\\_total\\_coord\\_size"
+msgstr "get\\_total\\_coord\\_size"
+
+#: e9e142b3f06a4ecaaccb327ab92bae19 of
+#: pymc_marketing.plot.get_total_coord_size:2
+msgid "Get the total size of the coordinates."
+msgstr "Obtenga el tamaño total de las coordenadas."
+
+#: 1cec3d7d4c3c4b4791ecf8b93f6d0811 of
+#: pymc_marketing.plot.get_total_coord_size
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 73a4c849ff7740048761328f581199e8 of
+#: pymc_marketing.plot.get_total_coord_size:7
+msgid "**coords** : :obj:`Coords`"
+msgstr "**coords** : :obj:`Coords`"
+
+#: d8065c70bd734909be6d643c323e7b45 of
+#: pymc_marketing.plot.get_total_coord_size:6
+msgid "Coords"
+msgstr "Coordenadas"
+
+#: ae576ea2300048879714ea7d552e2814 of
+#: pymc_marketing.plot.get_total_coord_size:8
+msgid "The coordinates to get the total size of."
+msgstr "Las coordenadas para obtener el tamaño total de."
+
+#: 8cbee4aa32dd4af08406f5b24d6d5dd1 of
+#: pymc_marketing.plot.get_total_coord_size
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: d42861ba19134245a47028c542db68c9 of
+#: pymc_marketing.plot.get_total_coord_size:14
+msgid ":class:`python:int`"
+msgstr ":class:`python:int`"
+
+#: 203df666936f4bdaa139489d275a4deb of
+#: pymc_marketing.plot.get_total_coord_size:15
+msgid "The total size of the coordinates."
+msgstr "El tamaño total de las coordenadas."

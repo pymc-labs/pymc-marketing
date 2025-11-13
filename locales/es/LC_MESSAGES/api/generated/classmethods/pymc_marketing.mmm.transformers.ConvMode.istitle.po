@@ -1,0 +1,43 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.transformers.ConvMode.istitle.rst:2
+#: a2cdbe0adcdb497486ccf415ff16e5a2
+msgid "ConvMode.istitle"
+msgstr "ConvMode.esTítulo"
+
+#: 378b210e8a5448b8972d5ac4b301903d of
+#: pymc_marketing.mmm.transformers.ConvMode.istitle:2
+msgid "Return True if the string is a title-cased string, False otherwise."
+msgstr ""
+"Devuelve True si la cadena es una cadena con mayúsculas en el título, False "
+"en caso contrario."
+
+#: f13f61d96cce478fae88c6e815793090 of
+#: pymc_marketing.mmm.transformers.ConvMode.istitle:4
+msgid ""
+"In a title-cased string, upper- and title-case characters may only follow "
+"uncased characters and lowercase characters only cased ones."
+msgstr ""
+"En una cadena con mayúsculas en el título, los caracteres en mayúsculas y en"
+" título solo pueden seguir a caracteres sin mayúsculas, y los caracteres en "
+"minúsculas solo pueden seguir a caracteres con mayúsculas."

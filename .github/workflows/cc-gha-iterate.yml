@@ -1,0 +1,296 @@
+name: Iterate (v2 - Unified Single PR Journey)
+
+on:
+  issues:
+    types: [opened, labeled]
+
+concurrency:
+  group: issue-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  iterate:
+    if: contains(github.event.issue.labels.*.name, 'iterate')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "18"
+
+      - name: Install Claude Code CLI
+        run: |
+          npm install -g @anthropic-ai/claude-code
+
+      - name: Verify Claude installation
+        run: |
+          claude --version
+
+      - name: Checkout branch
+        run: |
+          issue_number="${{ github.event.issue.number }}"
+          branch_name="work-issue-${issue_number}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Check if branch exists remotely
+          if git ls-remote --heads origin "$branch_name" | grep -q "$branch_name"; then
+            echo "✅ Branch exists, checking out"
+            git fetch origin "$branch_name"
+            git checkout "$branch_name"
+            git pull --rebase origin "$branch_name"
+          else
+            echo "❌ Branch $branch_name doesn't exist"
+            echo "Run research first by adding research_needed label"
+            exit 1
+          fi
+
+          echo "Current branch: $(git branch --show-current)"
+
+
+      - name: Gather feedback from issue comments
+        id: extract_feedback
+        run: |
+          issue_number="${{ github.event.issue.number }}"
+
+          # Fetch all comments on the issue, excluding github-actions bot comments
+          gh api "/repos/${{ github.repository }}/issues/${issue_number}/comments" \
+            --jq '.[] | select(.user.login != "github-actions[bot]") | "### Comment by @\(.user.login) at \(.created_at)\n\n\(.body)\n\n---\n"' \
+            > /tmp/all_comments.txt || echo "No comments found" > /tmp/all_comments.txt
+
+          # Use heredoc to safely handle multiline content
+          {
+            echo "feedback<<EOF_FEEDBACK"
+            cat /tmp/all_comments.txt
+            echo "EOF_FEEDBACK"
+          } >> $GITHUB_OUTPUT
+
+          echo "✅ Gathered issue comments as feedback"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Detect document to update
+        id: detect_document
+        run: |
+          issue_number="${{ github.event.issue.number }}"
+          research_file="thoughts/shared/issues/${issue_number}/research.md"
+          plan_file="thoughts/shared/issues/${issue_number}/plan.md"
+
+          research_time=0
+          plan_time=0
+
+          if [ -f "$research_file" ]; then
+            research_time=$(stat -c %Y "$research_file" 2>/dev/null || stat -f %m "$research_file" 2>/dev/null || echo 0)
+            echo "Research file last modified: $research_time"
+          fi
+
+          if [ -f "$plan_file" ]; then
+            plan_time=$(stat -c %Y "$plan_file" 2>/dev/null || stat -f %m "$plan_file" 2>/dev/null || echo 0)
+            echo "Plan file last modified: $plan_time"
+          fi
+
+          # Determine which document to update
+          if [ "$research_time" -eq 0 ] && [ "$plan_time" -eq 0 ]; then
+            echo "❌ No research or plan files found"
+            echo "Run research or planning first"
+            exit 1
+          elif [ "$plan_time" -gt 0 ]; then
+            echo "document_type=plan" >> $GITHUB_OUTPUT
+            echo "document_file=$plan_file" >> $GITHUB_OUTPUT
+            echo "✅ Will update plan (plan exists)"
+          else
+            echo "document_type=research" >> $GITHUB_OUTPUT
+            echo "document_file=$research_file" >> $GITHUB_OUTPUT
+            echo "✅ Will update research (no plan exists)"
+          fi
+
+      - name: Run iteration command
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_ISSUE_NUMBER: ${{ github.event.issue.number }}
+          FEEDBACK_CONTENT: ${{ steps.extract_feedback.outputs.feedback }}
+        run: |
+          feedback="$FEEDBACK_CONTENT"
+          document_file="${{ steps.detect_document.outputs.document_file }}"
+          document_type="${{ steps.detect_document.outputs.document_type }}"
+
+          echo "Updating $document_type based on PR feedback"
+
+          # Create iteration prompt
+          cat > /tmp/iteration_prompt.txt << 'HEADER'
+          Update the document based on all comments and feedback from the issue discussion:
+
+          ## Comments/Feedback from Issue
+
+          HEADER
+
+          printf '%s\n' "$feedback" >> /tmp/iteration_prompt.txt
+          echo "" >> /tmp/iteration_prompt.txt
+          echo "---" >> /tmp/iteration_prompt.txt
+          echo "" >> /tmp/iteration_prompt.txt
+          echo "## Current Document" >> /tmp/iteration_prompt.txt
+          cat "$document_file" >> /tmp/iteration_prompt.txt
+
+          # Use appropriate command based on document type
+          if [ "$document_type" = "research" ]; then
+            echo "Using research command for iteration"
+            claude -p \
+              --dangerously-skip-permissions \
+              --max-turns 200 \
+              --verbose \
+              "/research_codebase_issue @/tmp/iteration_prompt.txt" 2>&1 | tee /tmp/claude_output.log
+          else
+            echo "Using plan command for iteration"
+            claude -p \
+              --dangerously-skip-permissions \
+              --max-turns 200 \
+              --verbose \
+              "/create_plan_issue @/tmp/iteration_prompt.txt" 2>&1 | tee /tmp/claude_output.log
+          fi
+
+          echo "Iteration command completed"
+
+      - name: Verify document was updated
+        id: verify_update
+        run: |
+          issue_number="${{ github.event.issue.number }}"
+          document_file="${{ steps.detect_document.outputs.document_file }}"
+
+          if [ ! -f "$document_file" ]; then
+            echo "❌ Document file not found after iteration"
+            exit 1
+          fi
+
+          echo "updated_file=$document_file" >> $GITHUB_OUTPUT
+          echo "✅ Document updated successfully"
+
+      - name: Commit updated document
+        run: |
+          issue_number="${{ github.event.issue.number }}"
+          branch_name="work-issue-${issue_number}"
+          document_type="${{ steps.detect_document.outputs.document_type }}"
+
+          git add "thoughts/shared/issues/${issue_number}/"
+
+          if git diff --staged --quiet; then
+            echo "⚠️ No changes to commit"
+          else
+            git commit -m "Update $document_type based on feedback for issue #${issue_number}"
+            git push -u origin "$branch_name"
+            echo "✅ Committed and pushed updated $document_type"
+          fi
+
+      - name: Comment updated document on issue
+        run: |
+          issue_number="${{ github.event.issue.number }}"
+          branch_name="work-issue-${issue_number}"
+          updated_file="${{ steps.verify_update.outputs.updated_file }}"
+          document_type="${{ steps.detect_document.outputs.document_type }}"
+
+          # Capitalize document type for display
+          document_type_display=$(echo "$document_type" | awk '{print toupper(substr($0,1,1)) tolower(substr($0,2))}')
+
+          cat > /tmp/issue_comment.md << 'HEADER'
+          ## 🔄 DOCUMENT_TYPE Updated
+
+          The DOCUMENT_TYPE has been updated based on feedback and discussion.
+
+          **Branch**: `BRANCH_NAME`
+          **File**: `UPDATED_FILE`
+
+          <details>
+          <summary><strong>📄 View Updated DOCUMENT_TYPE</strong></summary>
+
+          ---
+
+          HEADER
+
+          sed -i "s|BRANCH_NAME|$branch_name|g" /tmp/issue_comment.md
+          sed -i "s|DOCUMENT_TYPE|$document_type_display|g" /tmp/issue_comment.md
+          sed -i "s|UPDATED_FILE|$updated_file|g" /tmp/issue_comment.md
+          cat "$updated_file" >> /tmp/issue_comment.md
+
+          cat >> /tmp/issue_comment.md << 'FOOTER'
+
+          </details>
+          FOOTER
+
+          gh issue comment "$issue_number" \
+            --body-file /tmp/issue_comment.md
+
+          echo "✅ Posted updated $document_type to issue #${issue_number}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Update labels
+        run: |
+          issue_number="${{ github.event.issue.number }}"
+
+          # Remove iterate label after processing
+          gh issue edit "${issue_number}" \
+            --remove-label "iterate" \
+            --add-label "iteration-done"
+
+          echo "✅ Removed iterate label and added iteration-done label"
+
+          # Note: Main comment is already posted above with updated content
+          echo "✅ Update complete"
+
+          echo "✅ Posted update comment to issue"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Upload Claude output logs
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: claude-output-iterate-${{ github.event.issue.number }}
+          path: /tmp/claude_output.log
+          retention-days: 7
+
+      - name: Handle errors
+        if: failure()
+        run: |
+          issue_number="${{ github.event.issue.number }}"
+          pr_number="${{ steps.find_pr.outputs.pr_number }}"
+
+          cat > /tmp/error_comment.md << 'EOF'
+          ## ❌ Iteration Workflow Failed
+
+          The iteration workflow encountered an error.
+
+          **Issue**: #${{ github.event.issue.number }}
+          **Workflow Run**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          **Common issues**:
+          - Branch doesn't exist (run research first)
+          - No research or plan files found
+          - PR doesn't exist
+
+          Please check the workflow logs for details.
+          EOF
+
+          # Try to comment on PR first, fallback to issue
+          if [ -n "$pr_number" ]; then
+            gh pr comment "$pr_number" --body-file /tmp/error_comment.md || \
+              gh issue comment "$issue_number" --body-file /tmp/error_comment.md
+          else
+            gh issue comment "$issue_number" --body-file /tmp/error_comment.md
+          fi
+
+          echo "Posted error comment"
+        env:
+          GH_TOKEN: ${{ github.token }}

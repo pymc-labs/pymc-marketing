@@ -1,0 +1,65 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.base.BaseValidateMMM.compute_channel_contribution_original_scale.rst:2
+#: ff8307cd669848c6ac341f70c959a19b
+msgid "BaseValidateMMM.compute\\_channel\\_contribution\\_original\\_scale"
+msgstr "BaseValidateMMM.compute\\_channel\\_contribution\\_original\\_scale"
+
+#: cdcc509eee914000af749df1eb3df4aa of
+#: pymc_marketing.mmm.base.MMMModelBuilder.compute_channel_contribution_original_scale:2
+msgid ""
+"Compute the channel contributions in the original scale of the target "
+"variable."
+msgstr ""
+"Calcule las contribuciones del canal en la escala original de la variable "
+"objetivo."
+
+#: 928014f373494583aa94d3c627303234 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.compute_channel_contribution_original_scale
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 200f9eb1c0834e36b730a00fad5ad2a6 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.compute_channel_contribution_original_scale:7
+msgid "**prior** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr "**anterior** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 18aa9263241d4e7cbdc7e9013354c71d of
+#: pymc_marketing.mmm.base.MMMModelBuilder.compute_channel_contribution_original_scale:6
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: bb105aae9e04478fb07e1cc8779bec18 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.compute_channel_contribution_original_scale:8
+msgid "Whether to use the prior or posterior, by default False (posterior)"
+msgstr "Si utilizar el anterior o el posterior, por defecto Falso (posterior)"
+
+#: e41b4f949ec9478ebfbe180ba9db7233 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.compute_channel_contribution_original_scale
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 18f102ac12e24fd0b2f6d946c1239ba1 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.compute_channel_contribution_original_scale:14
+msgid ":obj:`DataArray`"
+msgstr ":obj:`DataArray`"

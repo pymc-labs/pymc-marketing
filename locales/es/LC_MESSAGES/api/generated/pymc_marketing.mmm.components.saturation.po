@@ -1,0 +1,254 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.rst:2
+#: 5cf9c836e9354453bc5d14916fdbf929
+msgid "saturation"
+msgstr "saturación"
+
+#: c12094836dd44cb6b75406cd2509f5ee of
+#: pymc_marketing.mmm.components.saturation:1
+msgid "Saturation transformations for the MMM model."
+msgstr "Transformaciones de saturación para el modelo MMM."
+
+#: 5b9d5208fcaa4b2f859ddfe08b5d4257 of
+#: pymc_marketing.mmm.components.saturation:3
+msgid ""
+"Each of these transformations is a subclass of "
+":class:`pymc_marketing.mmm.components.saturation.SaturationTransformation` "
+"and defines a function that takes media and return the saturated media. The "
+"parameters of the function are the parameters of the saturation "
+"transformation."
+msgstr ""
+"Cada una de estas transformaciones es una subclase de "
+":class:`pymc_marketing.mmm.components.saturation.SaturationTransformation` y"
+" define una función que toma medios y devuelve los medios saturados. Los "
+"parámetros de la función son los parámetros de la transformación de "
+"saturación."
+
+#: b156834d6dbf48c89ad136c7ba8b5d55 of
+#: pymc_marketing.mmm.components.saturation:9
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: 0d0a22a885444287b666780e5a01bf0f of
+#: pymc_marketing.mmm.components.saturation:10
+msgid "Create a new saturation transformation:"
+msgstr "Cree una nueva transformación de saturación:"
+
+#: 8a2d3cfed7c540a4b968166995a0f913 of
+#: pymc_marketing.mmm.components.saturation:26
+msgid "Plot the default priors for a saturation transformation:"
+msgstr ""
+"Trace las priors predeterminadas para una transformación de saturación:"
+
+#: 01b5129260d340288770ee38a991c8cc of
+#: pymc_marketing.mmm.components.saturation:40
+msgid ""
+"Define a hierarchical saturation function with only hierarchical parameters "
+"for saturation parameter of logistic saturation."
+msgstr ""
+"Defina una función de saturación jerárquica con solo parámetros jerárquicos "
+"para el parámetro de saturación de la saturación logística."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.rst:13
+#: a27b4be81ee34a6f81cc9e3ef9b88805
+msgid "Functions"
+msgstr "Funciones"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.rst:23:<autosummary>:1
+#: 92b51bd348fb4295baa071d0c66b36a2
+msgid ""
+":py:obj:`saturation_from_dict "
+"<pymc_marketing.mmm.components.saturation.saturation_from_dict>`\\ "
+"\\(data\\)"
+msgstr ""
+":py:obj:`saturation_from_dict "
+"<pymc_marketing.mmm.components.saturation.saturation_from_dict>`\\ "
+"\\(datos\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.rst:23:<autosummary>:1
+#: 3d39ca41acfb49a8beadc13f12b5c0ca
+msgid "Get a saturation function from a dictionary."
+msgstr "Obtenga una función de saturación de un diccionario."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.rst:25
+#: 01c5020d36de48a389eebfca4c68d691
+msgid "Classes"
+msgstr "Clases"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.rst:58:<autosummary>:1
+#: 9123a6c7fde84514b70ee0a59d283aec
+msgid ""
+":py:obj:`HillSaturation "
+"<pymc_marketing.mmm.components.saturation.HillSaturation>`\\ \\(\\[priors\\,"
+" prefix\\]\\)"
+msgstr ""
+":py:obj:`HillSaturation "
+"<pymc_marketing.mmm.components.saturation.HillSaturation>`\\ \\(\\[priors\\,"
+" prefix\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.rst:58:<autosummary>:1
+#: aaf9a1a520784c0cb77f13961f486b29
+msgid "Wrapper around Hill saturation function."
+msgstr "Envoltura alrededor de la función de saturación de Hill."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.rst:58:<autosummary>:1
+#: 6fa8f39913ee482b88d5e94c82337859
+msgid ""
+":py:obj:`HillSaturationSigmoid "
+"<pymc_marketing.mmm.components.saturation.HillSaturationSigmoid>`\\ "
+"\\(\\[priors\\, prefix\\]\\)"
+msgstr ""
+":py:obj:`HillSaturationSigmoid "
+"<pymc_marketing.mmm.components.saturation.HillSaturationSigmoid>`\\ "
+"\\(\\[priors\\, prefix\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.rst:58:<autosummary>:1
+#: 290e6e2af95b44d79e1e4b389e79dcc0
+msgid "Wrapper around Hill saturation sigmoid function."
+msgstr "Envoltura alrededor de la función sigmoide de saturación de Hill."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.rst:58:<autosummary>:1
+#: 06870f96bbb4440cb72e56af91fa7b71
+msgid ""
+":py:obj:`InverseScaledLogisticSaturation "
+"<pymc_marketing.mmm.components.saturation.InverseScaledLogisticSaturation>`\\"
+" \\(\\[priors\\, prefix\\]\\)"
+msgstr ""
+":py:obj:`InverseScaledLogisticSaturation "
+"<pymc_marketing.mmm.components.saturation.InverseScaledLogisticSaturation>`\\"
+" \\(\\[priors\\, prefix\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.rst:58:<autosummary>:1
+#: 1a836f81da0e4cdc9bf9d5c28d2ccb92
+msgid "Wrapper around inverse scaled logistic saturation function."
+msgstr ""
+"Envoltura alrededor de la función de saturación logística inversamente "
+"escalada."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.rst:58:<autosummary>:1
+#: 12cca1f02ebe4677b310abbbb69d43a0
+msgid ""
+":py:obj:`LogisticSaturation "
+"<pymc_marketing.mmm.components.saturation.LogisticSaturation>`\\ "
+"\\(\\[priors\\, prefix\\]\\)"
+msgstr ""
+":py:obj:`LogisticSaturation "
+"<pymc_marketing.mmm.components.saturation.LogisticSaturation>`\\ "
+"\\(\\[priors\\, prefix\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.rst:58:<autosummary>:1
+#: bcbf1ee6cc0d4cb0bcbace52b4d6f58f
+msgid "Wrapper around logistic saturation function."
+msgstr "Envoltura alrededor de la función de saturación logística."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.rst:58:<autosummary>:1
+#: a6466ff4a32c4738a39b870d5e1757b6
+msgid ""
+":py:obj:`MichaelisMentenSaturation "
+"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation>`\\ "
+"\\(\\[priors\\, prefix\\]\\)"
+msgstr ""
+":py:obj:`MichaelisMentenSaturation "
+"<pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation>`\\ "
+"\\(\\[priors\\, prefix\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.rst:58:<autosummary>:1
+#: 3606cf75efaf41b094a816531eec1bd8
+msgid "Wrapper around Michaelis-Menten saturation function."
+msgstr "Envoltura alrededor de la función de saturación de Michaelis-Menten."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.rst:58:<autosummary>:1
+#: 73aa69b7657a4789aecea256f8e4da67
+msgid ""
+":py:obj:`NoSaturation "
+"<pymc_marketing.mmm.components.saturation.NoSaturation>`\\ \\(\\[priors\\, "
+"prefix\\]\\)"
+msgstr ""
+":py:obj:`NoSaturation "
+"<pymc_marketing.mmm.components.saturation.NoSaturation>`\\ \\(\\[priors\\, "
+"prefix\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.rst:58:<autosummary>:1
+#: e4b31fc386ca44cda4ea4e91f9240400
+msgid "Wrapper around linear saturation function."
+msgstr "Envoltura alrededor de la función de saturación lineal."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.rst:58:<autosummary>:1
+#: cd451be6e2d24a8baff8e8fbd7422187
+msgid ""
+":py:obj:`RootSaturation "
+"<pymc_marketing.mmm.components.saturation.RootSaturation>`\\ \\(\\[priors\\,"
+" prefix\\]\\)"
+msgstr ""
+":py:obj:`RootSaturation "
+"<pymc_marketing.mmm.components.saturation.RootSaturation>`\\ \\(\\[priors\\,"
+" prefix\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.rst:58:<autosummary>:1
+#: 6a2214c3d0354b479c95aae593c8bd3d
+msgid "Wrapper around Root saturation function."
+msgstr "Envoltura alrededor de la función de saturación raíz."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.rst:58:<autosummary>:1
+#: b09f8c6fdbe945c8b81b271e7f060179
+msgid ""
+":py:obj:`SaturationTransformation "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation>`\\ "
+"\\(\\[priors\\, prefix\\]\\)"
+msgstr ""
+":py:obj:`SaturationTransformation "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation>`\\ "
+"\\(\\[priors\\, prefix\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.rst:58:<autosummary>:1
+#: e5ebf7aec5e0430e93489acc7f3a2a3e
+msgid "Subclass for all saturation transformations."
+msgstr "Subclase para todas las transformaciones de saturación."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.rst:58:<autosummary>:1
+#: 2bc41ff6f69f47e199fb8868165ed528
+msgid ""
+":py:obj:`TanhSaturation "
+"<pymc_marketing.mmm.components.saturation.TanhSaturation>`\\ \\(\\[priors\\,"
+" prefix\\]\\)"
+msgstr ""
+":py:obj:`TanhSaturation "
+"<pymc_marketing.mmm.components.saturation.TanhSaturation>`\\ \\(\\[priors\\,"
+" prefix\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.rst:58:<autosummary>:1
+#: 26b75abbdf2645928281bb6a297d635f e859613fe48e46d1bdd6e221575113e1
+msgid "Wrapper around tanh saturation function."
+msgstr "Envoltura alrededor de la función de saturación tanh."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.rst:58:<autosummary>:1
+#: 946fb09f1c5f4b81a693c0c978f64886
+msgid ""
+":py:obj:`TanhSaturationBaselined "
+"<pymc_marketing.mmm.components.saturation.TanhSaturationBaselined>`\\ "
+"\\(\\[priors\\, prefix\\]\\)"
+msgstr ""
+":py:obj:`TanhSaturationBaselined "
+"<pymc_marketing.mmm.components.saturation.TanhSaturationBaselined>`\\ "
+"\\(\\[priors\\, prefix\\]\\)"

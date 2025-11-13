@@ -1,0 +1,45 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.bass.rst:2
+#: 5bc2cf1df1b14e6b86520a2a198a6a26
+msgid "bass"
+msgstr "bajo"
+
+#: 856fe969c779444a9b3e59d805e4cdc3 of pymc_marketing.bass:1
+msgid "Bass model."
+msgstr "Modelo Bass."
+
+#: ../source/api/generated/pymc_marketing.bass.rst:25
+#: b5f528d2674d40bba58febc890519abc
+msgid "Modules"
+msgstr "Módulos"
+
+#: ../source/api/generated/pymc_marketing.bass.rst:31:<autosummary>:1
+#: 58f4469399c4442880a33a82742a1f2c
+msgid ":py:obj:`model <pymc_marketing.bass.model>`\\"
+msgstr ":py:obj:`modelo <pymc_marketing.bass.model>`\\"
+
+#: ../source/api/generated/pymc_marketing.bass.rst:31:<autosummary>:1
+#: f2a1f43ae1bb455cb7484c842b7710cd
+msgid "Bass diffusion model for product adoption."
+msgstr "Modelo de difusión de Bass para la adopción de productos."

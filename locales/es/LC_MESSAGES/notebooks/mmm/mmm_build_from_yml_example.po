@@ -1,0 +1,154 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-13 11:28+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:10003
+#: 360cb647f989438ca083cb676f7a29d5
+msgid "Learning how to create models with yml files"
+msgstr "Aprendiendo a crear modelos con archivos yml"
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:10005
+#: 16a4671fae684d018cdfc3d7e7263397
+msgid ""
+"The following notebook will teach you to create pymc-marketing models from "
+"yml files, allowing you to easily recreate your models in production "
+"environments without several lines of code."
+msgstr ""
+"El siguiente cuaderno le enseñará a crear modelos de pymc-marketing a partir"
+" de archivos yml, lo que le permitirá recrear fácilmente sus modelos en "
+"entornos de producción sin varias líneas de código."
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:10007
+#: 078015c96e9645ecbce766cf8750c5a4
+msgid "Setup"
+msgstr "Configuración"
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:60002
+#: f55f94b5f42642cdbf760432369002fa
+msgid "Multidimensional model"
+msgstr "Modelo multidimensional"
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:120002
+#: 5c598d55f69f448081c380a4d044f7ec
+msgid "How the config works?"
+msgstr "¿Cómo funciona la configuración?"
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:140002
+#: a2a23ace111d4b4c84386ee99f166400
+msgid ""
+"The configuration file uses a structured YAML format with several key "
+"sections:"
+msgstr ""
+"El archivo de configuración utiliza un formato YAML estructurado con varias "
+"secciones clave:"
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:140003
+#: 7679a602706746fcb21b1f081c1f7e35
+msgid "schema_version: Version identifier for the configuration schema"
+msgstr ""
+"schema_version: Identificador de versión para el esquema de configuración"
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:140004
+#: 6a1e1d2b45664d63925a762b57e7b64e
+msgid "model: The main model configuration"
+msgstr "modelo: La configuración principal del modelo"
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:140005
+#: 8aeb1fbfd8924dbea9fbcf09a39d8e1f
+msgid "class: The Python class to instantiate (fully qualified name)"
+msgstr ""
+"clase: La clase de Python a instanciar (nombre completamente calificado)"
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:140006
+#: 80251ad3274643d1abac9bac06435704
+msgid "kwargs: Arguments passed to the model constructor"
+msgstr "kwargs: Argumentos pasados al constructor del modelo"
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:140007
+#: cf83817b1714470f8a680920b3f43ad6
+msgid "Including data columns, transformations (adstock, saturation)"
+msgstr "Incluyendo columnas de datos, transformaciones (adstock, saturación)"
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:140008
+#: 3a9331d43a634ed4be6dce05fbccfdc4
+msgid "sample_kwargs: Optional parameters for the sampling process"
+msgstr "sample_kwargs: Parámetros opcionales para el proceso de muestreo"
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:140009
+#: 9f9ce15a442b4c8090396f3b6d473f6e
+msgid "data: Optional paths to data files"
+msgstr "data: Rutas opcionales a archivos de datos"
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:140011
+#: 935c167e47cc4cdbb16f365158d06b83
+msgid "The build_mmm_from_yaml function:"
+msgstr "La función build_mmm_from_yaml:"
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:140012
+#: 41b66a2db5a34ee28144a534620af5af
+msgid "Parses this YAML configuration"
+msgstr "Analiza esta configuración YAML"
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:140013
+#: f62034ff60d045e9836403a466fd0779
+msgid "Uses the 'build' function to instantiate objects recursively"
+msgstr ""
+"Utiliza la función 'build' para instanciar objetos de manera recursiva."
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:140014
+#: a206702999bd4dbda5d0a16161baa813
+msgid "Handles special cases like priors and distributions"
+msgstr "Maneja casos especiales como priors y distribuciones"
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:140015
+#: b88e19278a5f4783ab6ba5c59f1e3e10
+msgid "Returns a fully configured MMM model ready for sampling"
+msgstr "Devuelve un modelo MMM completamente configurado listo para muestreo."
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:140016
+#: 45c798f7a7634d32b608f90acfa760c0
+msgid ""
+"If idata_path is provided then the idata from a previous class is used in "
+"the model in the idata property."
+msgstr ""
+"Si se proporciona idata_path, entonces el idata de una clase anterior se "
+"utiliza en el modelo en la propiedad idata."
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:150002
+#: e9bd3673a887426b8ed4f7b687845891
+msgid "Basic model"
+msgstr "Modelo básico"
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:190002
+#: c16189d6055944cc8c657740329ed338
+msgid "Multidimensional Hierarchical Model"
+msgstr "Modelo Jerárquico Multidimensional"
+
+#: ../source/notebooks/mmm/mmm_build_from_yml_example.ipynb:230002
+#: 01ab48d89c4040adbcf874ced07de638
+msgid "Multidimensional Hierarchical with arbitrary effects and calibration"
+msgstr "Jerárquico Multidimensional con efectos arbitrarios y calibración"
+
+#~ msgid "Introduction"
+#~ msgstr "Introducción"
+
+#~ msgid "Multidimensional Hierarchical with arbitrary effects"
+#~ msgstr "Jerárquico multidimensional con efectos arbitrarios"

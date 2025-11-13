@@ -1,0 +1,73 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.events.EventEffect.model_rebuild.rst:2
+#: 5c4b9501543c45348ceec0c7fcf1728b
+msgid "EventEffect.model\\_rebuild"
+msgstr "EventEffect.model\\_rebuild"
+
+#: 6f449b5dc6a146dfaab130140289c4d3 of pydantic.main.BaseModel.model_rebuild:2
+msgid "Try to rebuild the pydantic-core schema for the model."
+msgstr "Intente reconstruir el esquema de pydantic-core para el modelo."
+
+#: 3ca8e8edaec141f3bbc12dc5853a8546 of pydantic.main.BaseModel.model_rebuild:4
+msgid ""
+"This may be necessary when one of the annotations is a ForwardRef which "
+"could not be resolved during the initial attempt to build the schema, and "
+"automatic rebuilding fails."
+msgstr ""
+"Esto puede ser necesario cuando una de las anotaciones es un ForwardRef que "
+"no pudo ser resuelto durante el intento inicial de construir el esquema, y "
+"la reconstrucción automática falla."
+
+#: 1f46177e653d487296c0364d1804e0c4 of pydantic.main.BaseModel.model_rebuild:7
+msgid "Args:"
+msgstr "Args:"
+
+#: d11b794e92934868b7bf0f35ee13300e of pydantic.main.BaseModel.model_rebuild:8
+msgid ""
+"force: Whether to force the rebuilding of the model schema, defaults to "
+"`False`. raise_errors: Whether to raise errors, defaults to `True`. "
+"_parent_namespace_depth: The depth level of the parent namespace, defaults "
+"to 2. _types_namespace: The types namespace, defaults to `None`."
+msgstr ""
+"force: Si se debe forzar la reconstrucción del esquema del modelo, por "
+"defecto es `False`. raise_errors: Si se deben generar errores, por defecto "
+"es `True`. _parent_namespace_depth: El nivel de profundidad del espacio de "
+"nombres padre, por defecto es 2. _types_namespace: El espacio de nombres de "
+"tipos, por defecto es `None`."
+
+#: 252bcd983308472db548af72d10895a8 of
+#: pydantic.main.BaseModel.model_rebuild:13
+msgid "Returns:"
+msgstr "Devoluciones:"
+
+#: 210ee7c1eae24cf3a6e42ef86bd49945 of
+#: pydantic.main.BaseModel.model_rebuild:14
+msgid ""
+"Returns `None` if the schema is already \"complete\" and rebuilding was not "
+"required. If rebuilding _was_ required, returns `True` if rebuilding was "
+"successful, otherwise `False`."
+msgstr ""
+"Devuelve `None` si el esquema ya está \"completo\" y no fue necesario "
+"reconstruirlo. Si fue necesario reconstruirlo, devuelve `True` si la "
+"reconstrucción fue exitosa, de lo contrario, devuelve `False`."

@@ -1,0 +1,161 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.media_transformation.MediaConfig.rst:2
+#: 50feea5a91774f1f8dab4433fe6b6347
+msgid "MediaConfig"
+msgstr "MediaConfig"
+
+#: 7c82f69a26f34eb8af2d0f2aa6120a0d of
+#: pymc_marketing.mmm.media_transformation.MediaConfig:2
+msgid "Configuration for a media transformation to certain media channels."
+msgstr ""
+"Configuración para una transformación de medios a ciertos canales de medios."
+
+#: 0b77be0da7904966a061f8e6dcc6c550 of
+#: pymc_marketing.mmm.media_transformation.MediaConfig
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: e36adad7ad364839883c242119361cb4 of
+#: pymc_marketing.mmm.media_transformation.MediaConfig:7
+msgid "**name** : :class:`python:str`"
+msgstr "**nombre** : :class:`python:str`"
+
+#: 5439210dd36d4f4588952ad3dafbbe53 of
+#: pymc_marketing.mmm.media_transformation.MediaConfig:6
+msgid "python:str"
+msgstr "python:str"
+
+#: 7b9681e3a8844ab88e925d800c662264 of
+#: pymc_marketing.mmm.media_transformation.MediaConfig:8
+msgid ""
+"The name of the media transformation and prefix of all media variables."
+msgstr ""
+"El nombre de la transformación de medios y el prefijo de todas las variables"
+" de medios."
+
+#: 84290f7da01a4ec4900d249ac1d084db of
+#: pymc_marketing.mmm.media_transformation.MediaConfig:10
+msgid "**columns** : :class:`python:list`\\[:class:`python:str`]"
+msgstr "**columnas** : :class:`python:list`\\[:class:`python:str`]"
+
+#: 4dccdbacace5442aa581ce756d805475 of
+#: pymc_marketing.mmm.media_transformation.MediaConfig:9
+msgid "python:list[python:str]"
+msgstr "python:list[python:str]"
+
+#: bc82523cea1e418fa7d7ddde398807e9 of
+#: pymc_marketing.mmm.media_transformation.MediaConfig:11
+msgid "The media channels to apply the transformation to."
+msgstr "Los canales de medios a los que aplicar la transformación."
+
+#: e69ed2d72e054e78bb6295cf544c689c of
+#: pymc_marketing.mmm.media_transformation.MediaConfig:13
+msgid "**media_transformation** : :obj:`MediaTransformation`"
+msgstr "**media_transformation** : :obj:`MediaTransformation`"
+
+#: 9c65107fe1a043a1b962b2a506e012b2 of
+#: pymc_marketing.mmm.media_transformation.MediaConfig:12
+msgid "MediaTransformation"
+msgstr "TransformaciónDeMedios"
+
+#: b6a5c128ba1f432ea3c27fc98bba14e3 of
+#: pymc_marketing.mmm.media_transformation.MediaConfig:14
+msgid "The media transformation to apply to the media channels."
+msgstr "La transformación de medios que se aplicará a los canales de medios."
+
+#: ../source/api/generated/pymc_marketing.mmm.media_transformation.MediaConfig.rst:12
+#: 4c0cfcaec18a4297bdecf0ffa0bd3636
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.media_transformation.MediaConfig.rst:24:<autosummary>:1
+#: 01bff0b0441543d0b2be254c9cf2b9dd
+msgid ""
+":py:obj:`MediaConfig.__init__ "
+"<pymc_marketing.mmm.media_transformation.MediaConfig.__init__>`\\ \\(name\\,"
+" columns\\, ...\\)"
+msgstr ""
+":py:obj:`MediaConfig.__init__ "
+"<pymc_marketing.mmm.media_transformation.MediaConfig.__init__>`\\ "
+"\\(nombre\\, columnas\\, ...\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.media_transformation.MediaConfig.rst:24:<autosummary>:1
+#: 8daebb9fe2d14a849d2215c1b14a8ba8
+msgid ""
+":py:obj:`MediaConfig.from_dict "
+"<pymc_marketing.mmm.media_transformation.MediaConfig.from_dict>`\\ "
+"\\(data\\)"
+msgstr ""
+":py:obj:`MediaConfig.from_dict "
+"<pymc_marketing.mmm.media_transformation.MediaConfig.from_dict>`\\ "
+"\\(datos\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.media_transformation.MediaConfig.rst:24:<autosummary>:1
+#: 8c9cfd3dfb464d419eb05cd352bbdb79
+msgid "Create a media configuration from a dictionary."
+msgstr "Cree una configuración de medios a partir de un diccionario."
+
+#: ../source/api/generated/pymc_marketing.mmm.media_transformation.MediaConfig.rst:24:<autosummary>:1
+#: 756b1d23ee764942bec3560fda5eccea
+msgid ""
+":py:obj:`MediaConfig.to_dict "
+"<pymc_marketing.mmm.media_transformation.MediaConfig.to_dict>`\\ \\(\\)"
+msgstr ""
+":py:obj:`MediaConfig.to_dict "
+"<pymc_marketing.mmm.media_transformation.MediaConfig.to_dict>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.media_transformation.MediaConfig.rst:24:<autosummary>:1
+#: d6c1907c7311475681c874a08d5df325
+msgid "Convert the media configuration to a dictionary."
+msgstr "Convierte la configuración de medios a un diccionario."
+
+#: ../source/api/generated/pymc_marketing.mmm.media_transformation.MediaConfig.rst:26
+#: efda83dc183e46838eb82f4da7538af6
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mmm.media_transformation.MediaConfig.rst:31:<autosummary>:1
+#: 6c34c3e781b840a6a6a937d0819849a2
+msgid ""
+":py:obj:`name <pymc_marketing.mmm.media_transformation.MediaConfig.name>`\\"
+msgstr ""
+":py:obj:`name <pymc_marketing.mmm.media_transformation.MediaConfig.name>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.media_transformation.MediaConfig.rst:31:<autosummary>:1
+#: 4ac14a7745f74cb6bcf6725f240f850e
+msgid ""
+":py:obj:`columns "
+"<pymc_marketing.mmm.media_transformation.MediaConfig.columns>`\\"
+msgstr ""
+":py:obj:`columns "
+"<pymc_marketing.mmm.media_transformation.MediaConfig.columns>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.media_transformation.MediaConfig.rst:31:<autosummary>:1
+#: 070178c273504ff3bc5fc004745b45d0
+msgid ""
+":py:obj:`media_transformation "
+"<pymc_marketing.mmm.media_transformation.MediaConfig.media_transformation>`\\"
+msgstr ""
+":py:obj:`media_transformation "
+"<pymc_marketing.mmm.media_transformation.MediaConfig.media_transformation>`\\"

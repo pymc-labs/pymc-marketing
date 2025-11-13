@@ -1,0 +1,119 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.utils.add_noise_to_channel_allocation.rst:2
+#: c2e41e5505de40b79e8706d0b44fca69
+msgid "add\\_noise\\_to\\_channel\\_allocation"
+msgstr "agregar\\_ruido\\_a\\_la\\_asignación\\_de\\_canal"
+
+#: 45f295890e2a4c36becb6cbcc3768ea7 of
+#: pymc_marketing.mmm.utils.add_noise_to_channel_allocation:2
+msgid ""
+"Return *df* with additive Gaussian noise applied to *channels* columns."
+msgstr ""
+"Devuelve *df* con ruido gaussiano aditivo aplicado a las columnas "
+"*channels*."
+
+#: 752facbe1faf4c32b71a773421986616 of
+#: pymc_marketing.mmm.utils.add_noise_to_channel_allocation
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 5353c098e4154e02be17bff59f57d2d1 of
+#: pymc_marketing.mmm.utils.add_noise_to_channel_allocation:7
+msgid "**df** : :obj:`DataFrame`"
+msgstr "**df** : :obj:`DataFrame`"
+
+#: 75b5ba5a285740738de744df38cdb40c of
+#: pymc_marketing.mmm.utils.add_noise_to_channel_allocation:6
+msgid "DataFrame"
+msgstr "DataFrame"
+
+#: c1724746d0c34f77bbff5560710e1da0 of
+#: pymc_marketing.mmm.utils.add_noise_to_channel_allocation:8
+msgid "The original data (will **not** be modified in-place)."
+msgstr "Los datos originales (no **se** modificarán en su lugar)."
+
+#: 7059300e23724c0099dec97d44510800 of
+#: pymc_marketing.mmm.utils.add_noise_to_channel_allocation:10
+msgid "**channels** : :class:`python:list` of :class:`python:str`"
+msgstr "**canales** : :class:`python:list` de :class:`python:str`"
+
+#: 11aed984f9f84606aeecea3017e38be8 of
+#: pymc_marketing.mmm.utils.add_noise_to_channel_allocation:9
+msgid "python:list of python:str"
+msgstr "python:lista de python:str"
+
+#: 266f212a1caa44aabce86e0e8b3b6ae3 of
+#: pymc_marketing.mmm.utils.add_noise_to_channel_allocation:11
+msgid "Column names whose values represent media spends."
+msgstr "Nombres de columnas cuyos valores representan gastos en medios."
+
+#: 79508ec9c63a4fadad231368a2983ef2 of
+#: pymc_marketing.mmm.utils.add_noise_to_channel_allocation:13
+msgid "**rel_std** : :class:`python:float`, default 0.05"
+msgstr "**rel_std** : :class:`python:float`, valor predeterminado 0.05"
+
+#: 2587b4561a014e17a97cbb5eb27021b0 of
+#: pymc_marketing.mmm.utils.add_noise_to_channel_allocation:12
+msgid "python:float, default 0.05"
+msgstr "python:float, valor por defecto 0.05"
+
+#: 566d88e3894b422086e5b36959cb8885 of
+#: pymc_marketing.mmm.utils.add_noise_to_channel_allocation:14
+#, python-format
+msgid ""
+"Noise standard-deviation expressed as a fraction of the *column mean* (i.e. "
+"`0.05` ⇒ 5 % of the mean spend)."
+msgstr ""
+"Desviación estándar del ruido expresada como una fracción de la *media de la"
+" columna* (es decir, `0.05` ⇒ 5 % de la media del gasto)."
+
+#: 0232ed4afd484007893fa8d1a997d6c0 of
+#: pymc_marketing.mmm.utils.add_noise_to_channel_allocation:17
+msgid "**seed** : :class:`python:int` or :data:`python:None`"
+msgstr "**semilla** : :class:`python:int` o :data:`python:None`"
+
+#: 06431829a5c1444abe74bb98f88ed8b0 of
+#: pymc_marketing.mmm.utils.add_noise_to_channel_allocation:16
+msgid "python:int or python:None"
+msgstr "python:int o python:None"
+
+#: c1a98fb41d324bbbb200a74209074b0b of
+#: pymc_marketing.mmm.utils.add_noise_to_channel_allocation:18
+msgid "Optional seed for deterministic output."
+msgstr "Semilla opcional para una salida determinista."
+
+#: dbdba4c5146e4f438012ea415feee9a0 of
+#: pymc_marketing.mmm.utils.add_noise_to_channel_allocation
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: b17f764cec594fb394b7741cedd6e426 of
+#: pymc_marketing.mmm.utils.add_noise_to_channel_allocation:24
+msgid ":obj:`DataFrame`"
+msgstr ":obj:`DataFrame`"
+
+#: fc65e6ba98014b7985225d34d61247df of
+#: pymc_marketing.mmm.utils.add_noise_to_channel_allocation:25
+msgid "A copy of *df* with noisy spends."
+msgstr "Una copia de *df* con gastos ruidosos."

@@ -1,0 +1,143 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves_scatter.rst:2
+#: 4332c1cef737475baff3ae796b2c6184
+msgid "MMMPlotSuite.saturation\\_curves\\_scatter"
+msgstr "MMMPlotSuite.curvas\\_de\\_saturación\\_dispersión"
+
+#: 0be58657b9934cacb56ada0680b9e369 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves_scatter:2
+msgid "Plot scatter plots of channel contributions vs. channel data."
+msgstr ""
+"Trace gráficos de dispersión de las contribuciones del canal frente a los "
+"datos del canal."
+
+#: 5964c84635c747d38f9025a69f0b0f43 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves_scatter:4
+msgid ""
+"Will be removed in version 0.2.0. Use :meth:`saturation_scatterplot` "
+"instead."
+msgstr ""
+"Se eliminará en la versión 0.2.0. Utilice :meth:`saturation_scatterplot` en "
+"su lugar."
+
+#: f1baffb0aea14de987869135c3705c5f of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves_scatter
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 995b5fca5a844ff0ba7773b0bba25ec5 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves_scatter:9
+msgid "**channel_contribution** : :class:`python:str`, optional"
+msgstr "**channel_contribution** : :class:`python:str`, opcional"
+
+#: 85ce930c8ec94de283591de5902f2010 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves_scatter:8
+msgid "python:str, optional"
+msgstr "python:str, opcional"
+
+#: a3e6a511bf584ca9a84fea1d3fb1ecd3 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves_scatter:10
+msgid "Name of the channel contribution variable in the InferenceData."
+msgstr "Nombre de la variable de contribución del canal en el InferenceData."
+
+#: 77c6fafb40804c26860c5a51809a8142 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves_scatter:12
+msgid ""
+"**additional_dims** : :class:`python:list`\\[:class:`python:str`], optional"
+msgstr ""
+"**additional_dims** : :class:`python:list`\\[:class:`python:str`], opcional"
+
+#: 38ff1d512cf548cb8e300e79a55518c1 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves_scatter:11
+msgid "python:list[python:str], optional"
+msgstr "python:list[python:str], opcional"
+
+#: 990c9ae759a048c3acfc1a1b0a0fe5f0 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves_scatter:13
+msgid "Additional dimensions to consider beyond 'channel'."
+msgstr "Dimensiones adicionales a considerar más allá de 'canal'."
+
+#: aa17160beb164d19bd1e9335f6621017 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves_scatter:15
+msgid ""
+"**additional_combinations** : :class:`python:list`\\[:class:`python:tuple`],"
+" optional"
+msgstr ""
+"**combinaciones_adicionales** : "
+":class:`python:list`\\[:class:`python:tuple`], opcional"
+
+#: 732f3fd9f3834d419f3640a224435708 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves_scatter:14
+msgid "python:list[python:tuple], optional"
+msgstr "python:list[python:tuple], opcional"
+
+#: 0a8d93c684dd4fde82c15c6aec73f73e of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves_scatter:16
+msgid "Specific combinations of additional dimensions to plot."
+msgstr "Combinaciones específicas de dimensiones adicionales para graficar."
+
+#: 5a912880a1054b2dafd0cd486c81d912 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves_scatter:18
+msgid "**\\*\\*kwargs**"
+msgstr "**\\*\\*kwargs**"
+
+#: 676a3025bb70402a8862d21fcfcbfb99 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves_scatter:19
+msgid "Additional keyword arguments passed to _init_subplots."
+msgstr "Argumentos de palabra clave adicionales pasados a _init_subplots."
+
+#: ea1f19b8c76d4ba8b7cbe960b6775525 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves_scatter
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 60c102a951dd4d3f9e1061033d8f31e7 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves_scatter:25
+msgid "**fig** : :obj:`plt.Figure`"
+msgstr "**fig** : :obj:`plt.Figure`"
+
+#: 84374e2ca1c148b9a9cf2871a313c3d8 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves_scatter:24
+msgid "plt.Figure"
+msgstr "plt.Figure"
+
+#: ec2ff759c0eb4045ac2cac95ac014375 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves_scatter:26
+msgid "The matplotlib figure."
+msgstr "La figura de matplotlib."
+
+#: acbb7df3cfde4a5699d11171250eace7 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves_scatter:28
+msgid "**axes** : :obj:`np.ndarray <numpy.ndarray>`"
+msgstr "**ejes** : :obj:`np.ndarray <numpy.ndarray>`"
+
+#: 4b134248d07b4255956208f7a312a771 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves_scatter:27
+msgid "np.ndarray"
+msgstr "np.ndarray"
+
+#: 35e5a528c1c9418da110ccd6e25d8a86 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves_scatter:29
+msgid "Array of matplotlib axes."
+msgstr "Array de ejes de matplotlib."

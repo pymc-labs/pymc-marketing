@@ -1,0 +1,114 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.data.fivetran.rst:2
+#: d2866e2e249247dab178f477f08cbaa1
+msgid "fivetran"
+msgstr "fivetran"
+
+#: 3c0b4471314041fa9126b5138e9b0758 of pymc_marketing.data.fivetran:1
+msgid "Fivetran data processing functions."
+msgstr "Funciones de procesamiento de datos de Fivetran."
+
+#: 1164456bde3a4a3d9271454732023dea of pymc_marketing.data.fivetran:3
+msgid ""
+"These functions help transform Fivetran's standardized schemas into formats "
+"suitable for PyMC-Marketing models."
+msgstr ""
+"Estas funciones ayudan a transformar los esquemas estandarizados de Fivetran"
+" en formatos adecuados para los modelos de PyMC-Marketing."
+
+#: d6ac6fdfccee4e1b9b64b191c66ea45f of pymc_marketing.data.fivetran:6
+msgid "Example usage for MMM:"
+msgstr "Ejemplo de uso para MMM:"
+
+#: 9bfcd49b3459438b8d47b9f72fc11305 of pymc_marketing.data.fivetran:30
+msgid ""
+"There are also pandas accessors for these functions which allows calling "
+"them from a pandas DataFrame. These accessors are registered under the "
+"``fivetran`` namespace and can be accessed after importing pymc_marketing."
+msgstr ""
+"También hay accesores de pandas para estas funciones que permiten llamarlas "
+"desde un DataFrame de pandas. Estos accesores están registrados bajo el "
+"espacio de nombres ``fivetran`` y se pueden acceder después de importar "
+"pymc_marketing."
+
+#: ../source/api/generated/pymc_marketing.data.fivetran.rst:13
+#: d970fa2a17e746f7abb305f9d9bcc79f
+msgid "Functions"
+msgstr "Funciones"
+
+#: ../source/api/generated/pymc_marketing.data.fivetran.rst:24:<autosummary>:1
+#: 04b6f5d9c0ae40f3b210b87d5a59ccde
+msgid ""
+":py:obj:`process_fivetran_ad_reporting "
+"<pymc_marketing.data.fivetran.process_fivetran_ad_reporting>`\\ \\(df\\[\\, "
+"...\\]\\)"
+msgstr ""
+":py:obj:`process_fivetran_ad_reporting "
+"<pymc_marketing.data.fivetran.process_fivetran_ad_reporting>`\\ \\(df\\[\\, "
+"...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.data.fivetran.rst:24:<autosummary>:1
+#: 3eab6a8f48d54bb2a3785e39bb98e378
+msgid "Process Fivetran Ad Reporting tables into wide, model-ready features."
+msgstr ""
+"Procesar las tablas de informes de Fivetran en características amplias y "
+"listas para el modelo."
+
+#: ../source/api/generated/pymc_marketing.data.fivetran.rst:24:<autosummary>:1
+#: 7fc97fdf3046484188d7dffb018697b2
+msgid ""
+":py:obj:`process_fivetran_shopify_unique_orders "
+"<pymc_marketing.data.fivetran.process_fivetran_shopify_unique_orders>`\\ "
+"\\(df\\, \\*\\)"
+msgstr ""
+":py:obj:`process_fivetran_shopify_unique_orders "
+"<pymc_marketing.data.fivetran.process_fivetran_shopify_unique_orders>`\\ "
+"\\(df\\, \\*\\)"
+
+#: ../source/api/generated/pymc_marketing.data.fivetran.rst:24:<autosummary>:1
+#: 9635a3d9412b4fc3b6190aa680483e9a
+msgid ""
+"Compute daily unique order counts from a (pre-filtered) Shopify dataset."
+msgstr ""
+"Calcule el conteo diario de pedidos únicos a partir de un conjunto de datos "
+"de Shopify (pre-filtrado)."
+
+#: ../source/api/generated/pymc_marketing.data.fivetran.rst:26
+#: eecdd5a6e70942baba9e03748fa079a5
+msgid "Classes"
+msgstr "Clases"
+
+#: ../source/api/generated/pymc_marketing.data.fivetran.rst:32:<autosummary>:1
+#: 2e18992e59f344308142c6beda76e67a
+msgid ""
+":py:obj:`FivetranAccessor <pymc_marketing.data.fivetran.FivetranAccessor>`\\"
+" \\(obj\\)"
+msgstr ""
+":py:obj:`FivetranAccessor <pymc_marketing.data.fivetran.FivetranAccessor>`\\"
+" \\(obj\\)"
+
+#: ../source/api/generated/pymc_marketing.data.fivetran.rst:32:<autosummary>:1
+#: 331126d4dbf14197acea6a936957ae55
+msgid "Accessor for Fivetran data processing functions."
+msgstr "Accesor para las funciones de procesamiento de datos de Fivetran."

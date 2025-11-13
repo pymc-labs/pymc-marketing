@@ -1,0 +1,68 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.mmm.BaseMMM.get_errors.rst:2
+#: 7857d7cb1a174c69b1a3f2ddcc78cc69
+msgid "BaseMMM.get\\_errors"
+msgstr "BaseMMM.get\\_errors"
+
+#: 9ecd74f0b5734576a29d80b521fc9c9b of
+#: pymc_marketing.mmm.base.MMMModelBuilder.get_errors:2
+msgid "Get model errors posterior distribution."
+msgstr "Obtener la distribución posterior de errores del modelo."
+
+#: 4fb33eabeb004a0cb7df587b2b9ec630 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.get_errors:4
+msgid "errors = true values - predicted"
+msgstr "errores = valores verdaderos - predicho"
+
+#: b29ab67d38584f388a0309efeab55268 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.get_errors
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 7115d33422734452bfc8f684537ee2f3 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.get_errors:8
+msgid ""
+"**original_scale** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+"**original_scale** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 54592122ff484ddf88d828bdef81a6a0 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.get_errors:7
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: 86b8a7cd8b9e4b018c796c80a104a971 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.get_errors:9
+msgid "Whether to plot in the original scale."
+msgstr "Si se debe trazar en la escala original."
+
+#: 0afe75aafa004dd38b1399c343aa8627 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.get_errors
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 629635d1cdee484fab79ae5a340e586e of
+#: pymc_marketing.mmm.base.MMMModelBuilder.get_errors:15
+msgid ":obj:`DataArray`"
+msgstr ":obj:`DataArray`"

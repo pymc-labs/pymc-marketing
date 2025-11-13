@@ -1,0 +1,137 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.plot.plot_hdi.rst:2
+#: b6332904e927440db8ad4e0fc16dbf40
+msgid "plot\\_hdi"
+msgstr "trazar\\_hdi"
+
+#: 3f05602ee0d742e393b0b33e6c8da016 of pymc_marketing.plot.plot_hdi:2
+msgid "Plot hdi of the curve across coords."
+msgstr "Trazar el hdi de la curva a través de las coordenadas."
+
+#: d0e724faa48e451abe9e1351ed2c90c7 of pymc_marketing.plot.plot_hdi
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 495ef3a1cd8e40a5bdefec9087f6ecbe of pymc_marketing.plot.plot_hdi:7
+msgid "**curve** : :obj:`xr.DataArray`"
+msgstr "**curva** : :obj:`xr.DataArray`"
+
+#: 8ee77cf532504c6c97c3150cc09eee1f of pymc_marketing.plot.plot_hdi:6
+msgid "xr.DataArray"
+msgstr "xr.DataArray"
+
+#: aa46982321ff47f985e978e0701405bc of pymc_marketing.plot.plot_hdi:8
+msgid "Curve to plot"
+msgstr "Curva a graficar"
+
+#: c9735aa3c2974450baad1764e59cbf74 of pymc_marketing.plot.plot_hdi:10
+msgid ""
+"**non_grid_names** : :class:`python:str` | :obj:`set`\\[:class:`python:str`]"
+msgstr ""
+"**non_grid_names** : :class:`python:str` | :obj:`set`\\[:class:`python:str`]"
+
+#: 32e221226b3e423095a69ff79ee6a82d of pymc_marketing.plot.plot_hdi:9
+msgid "python:str | set[python:str]"
+msgstr "python:str | conjunto[python:str]"
+
+#: 54dc96a66d6343dc8e79e15b73a8965a of pymc_marketing.plot.plot_hdi:11
+msgid ""
+"The names to exclude from the grid. chain and draw are excluded "
+"automatically"
+msgstr ""
+"Los nombres a excluir de la cuadrícula. chain y draw se excluyen "
+"automáticamente."
+
+#: 80db0efb68594fa0ae4f202319075f56 of pymc_marketing.plot.plot_hdi:14
+msgid "**n** : :class:`python:int`, optional"
+msgstr "**n** : :class:`python:int`, opcional"
+
+#: 579b0f7ef6d24632a29f0ccf1f31a151 of pymc_marketing.plot.plot_hdi:13
+msgid "python:int, optional"
+msgstr "python:int, opcional"
+
+#: c560ea6a4f71496a8b4c714fe52607b0 of pymc_marketing.plot.plot_hdi:15
+msgid "Number of samples to plot"
+msgstr "Número de muestras a graficar"
+
+#: 18e5010450914d1e94e24cedbb7ce29c of pymc_marketing.plot.plot_hdi:17
+msgid "**rng** : :obj:`np.random.Generator`, optional"
+msgstr "**rng** : :obj:`np.random.Generator`, opcional"
+
+#: 79cabf9c98864491bda110c9cbed1344 of pymc_marketing.plot.plot_hdi:16
+msgid "np.random.Generator, optional"
+msgstr "np.random.Generator, opcional"
+
+#: ffacc9fe9c974c5e9651e73bdc1f871a of pymc_marketing.plot.plot_hdi:18
+msgid "Random number generator"
+msgstr "Generador de números aleatorios"
+
+#: dd7a188e28fc465094adad235b35fa73 of pymc_marketing.plot.plot_hdi:20
+msgid "**axes** : :obj:`npt.NDArray`\\[:obj:`plt.Axes`], optional"
+msgstr "**ejes** : :obj:`npt.NDArray`\\[:obj:`plt.Axes`], opcional"
+
+#: 50653e37bfec4558942040f8f76dfacc of pymc_marketing.plot.plot_hdi:19
+msgid "npt.NDArray[plt.Axes], optional"
+msgstr "npt.NDArray[plt.Axes], opcional"
+
+#: 0a800238f3904ff2babfb08c47f17287 of pymc_marketing.plot.plot_hdi:21
+msgid "Axes to plot on"
+msgstr "Ejes para trazar en"
+
+#: 30a5d1c502c54169b677f8b3ce6a1913 of pymc_marketing.plot.plot_hdi:23
+msgid "**subplot_kwargs** : :class:`python:dict`, optional"
+msgstr "**subplot_kwargs** : :class:`python:dict`, opcional"
+
+#: 398bf136a2ef485daff44fc3726e6218 77b32dd4dad24a07b80d46b5876d29b9 of
+#: pymc_marketing.plot.plot_hdi:22 pymc_marketing.plot.plot_hdi:25
+msgid "python:dict, optional"
+msgstr "python:dict, opcional"
+
+#: b55776abd1a244c0990ff26279a98e38 of pymc_marketing.plot.plot_hdi:24
+msgid "Additional kwargs to while creating the fig and axes"
+msgstr "kwargs adicionales al crear la figura y los ejes"
+
+#: f0b1b2ec503b4dc1bf3fa98a098df863 of pymc_marketing.plot.plot_hdi:26
+msgid "**plot_kwargs** : :class:`python:dict`, optional"
+msgstr "**plot_kwargs** : :class:`python:dict`, opcional"
+
+#: 37d0e05adade4076b755407f82507d88 of pymc_marketing.plot.plot_hdi:27
+msgid "Kwargs for the plot function"
+msgstr "Kwargs para la función de gráfico"
+
+#: 5aa6ba6afcda464da64d89e2b69c2803 of pymc_marketing.plot.plot_hdi
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 85658c40048d4982bbfe8b3f76515b31 of pymc_marketing.plot.plot_hdi:33
+msgid ""
+":class:`python:tuple`\\[:obj:`plt.Figure`, "
+":obj:`npt.NDArray`\\[:obj:`plt.Axes`]]"
+msgstr ""
+":class:`python:tuple`\\[:obj:`plt.Figure`, "
+":obj:`npt.NDArray`\\[:obj:`plt.Axes`]]"
+
+#: 0d5d8c8d00ae4a8bb8602a36072dbf96 of pymc_marketing.plot.plot_hdi:34
+msgid "Figure and the axes"
+msgstr "Figura y los ejes"

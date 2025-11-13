@@ -1,0 +1,616 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-20 21:01+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:2
+#: 824754109e44480d8096d4b2a5c54ad7
+msgid "ShiftedBetaGeoModelIndividual"
+msgstr "ModeloIndividualBetaGeoDesplazado"
+
+#: 65ef3dee772a4b009bafc5cf015169fc of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual:2
+#, fuzzy
+msgid "Shifted Beta Geometric model for individual customers."
+msgstr "ModeloIndividualBetaGeoDesplazado"
+
+#: f324a9e0cd154bcaa335fc46e90f86ff of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual:4
+msgid ""
+"Model for customer behavior in a discrete contractual setting. It assumes "
+"that:"
+msgstr ""
+"Modelo para el comportamiento del cliente en un entorno contractual "
+"discreto. Asume que:"
+
+#: 649363c87d2f4688b287d34c938459fa of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual:5
+msgid ""
+"At the end of each period, a customer has a probability `theta` of renewing "
+"the contract and `1-theta` of cancelling"
+msgstr ""
+"Al final de cada período, un cliente tiene una probabilidad `theta` de "
+"renovar el contrato y `1-theta` de cancelarlo."
+
+#: c15840a978e5492093c28b43270f550f of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual:7
+msgid "The probability `theta` does not change over time for a given customer"
+msgstr "La probabilidad `theta` no cambia con el tiempo para un cliente dado."
+
+#: a6d7987578ed4f969ab54c235cddd6cb of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual:8
+msgid ""
+"The probability `theta` varies across customers according to a Beta prior "
+"distribution with hyperparameters `alpha` and `beta`."
+msgstr ""
+"La probabilidad `theta` varía entre los clientes de acuerdo con una "
+"distribución a priori Beta con hiperparámetros `alpha` y `beta`."
+
+#: 0adadb546039439781ebdcd89c918fd2 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual:11
+msgid "based on [R1f80194002f0-1]_."
+msgstr "basado en [R1f80194002f0-1]_."
+
+#: 3947b233ee504bb880ccfe518dd6722b of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 547c6dce466544fbab76b0e62beb3d93 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual:15
+msgid "**data: pd.DataFrame**"
+msgstr "**datos: pd.DataFrame**"
+
+#: f63f959f6d7447b8b20b8c5daf931eef of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual:16
+msgid "DataFrame containing the following columns:"
+msgstr "DataFrame que contiene las siguientes columnas:"
+
+#: 3e9755020b4243b3b4ecbe060708cb29 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual:17
+msgid ""
+"`customer_id`: Customer labels. There should be one unique label for each "
+"customer"
+msgstr ""
+"`customer_id`: Etiquetas de cliente. Debe haber una etiqueta única para cada"
+" cliente."
+
+#: 295bb6aba3034831ae4d44955ea2cbf4 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual:18
+msgid ""
+"`t_churn`: Time at which the customer cancelled the contract (starting at "
+"0)."
+msgstr ""
+"`t_churn`: Tiempo en el que el cliente canceló el contrato (comenzando desde"
+" 0)."
+
+#: 9568306d152a4e909af8fca34dc67ee2 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual:19
+msgid ""
+"It should  equal T for users that have not cancelled by the end of the "
+"observation period"
+msgstr ""
+"Debería ser igual a T para los usuarios que no han cancelado al final del "
+"período de observación."
+
+#: 4478de310d5d484689b63ebc809640c8 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual:21
+msgid "`T`: Maximum observed time period (starting at 0)"
+msgstr "T: Período de tiempo máximo observado (comenzando en 0)"
+
+#: a2d4bb4fc38f489cae86974fadb7c9ff of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual:23
+msgid "**model_config: dict, optional**"
+msgstr "**model_config: dict, opcional**"
+
+#: 73a55b65e0604bdfb86a5fca216fddf0 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual:24
+msgid ""
+"Dictionary of model prior parameters. If not provided, the model will use "
+"default priors specified in the `default_model_config` class attribute."
+msgstr ""
+"Diccionario de parámetros previos del modelo. Si no se proporciona, el "
+"modelo utilizará los priors predeterminados especificados en el atributo de "
+"clase `default_model_config`."
+
+#: 7a636a9e19c34e6aa41ad322f6a8fb55 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual:27
+msgid "**sampler_config: dict, optional**"
+msgstr "**sampler_config: dict, opcional**"
+
+#: ba7081fd59e142b7963558c574f22862 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual:28
+msgid "Dictionary of sampler parameters. Defaults to None."
+msgstr "Diccionario de parámetros del muestreador. Por defecto es None."
+
+#: 04269f2dd9ee40188ade461f5aced59f of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual:42
+msgid "References"
+msgstr "Referencias"
+
+#: 997402929c9b4d238bbe262bfd9d8620 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual:43
+msgid ""
+"Fader, P. S., & Hardie, B. G. (2007). How to project customer retention. "
+"Journal of Interactive Marketing, 21(1), 76-90. "
+"https://journals.sagepub.com/doi/pdf/10.1002/dir.20074"
+msgstr ""
+"Fader, P. S., y Hardie, B. G. (2007). Cómo proyectar la retención de "
+"clientes. Journal of Interactive Marketing, 21(1), 76-90. "
+"https://journals.sagepub.com/doi/pdf/10.1002/dir.20074"
+
+#: 1bef6633c7154b359ad9e925c4eaa661 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual:49
+msgid "[R1f80194002f0-1]_"
+msgstr "[R1f80194002f0-1]_"
+
+#: b5286fc655454c119a85c56b603b421c of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual:52
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:12
+#: 56173488b289488db40a7bee25d9aba5
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
+#: daf7dca162464512940955c90c9e16e1
+msgid ""
+":py:obj:`ShiftedBetaGeoModelIndividual.__init__ "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.__init__>`\\"
+" \\(data\\)"
+msgstr ""
+":py:obj:`ShiftedBetaGeoModelIndividual.__init__ "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.__init__>`\\"
+" \\(datos\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
+#: 6e59cb2cce404ebeb4cdfbc80024a427
+msgid ""
+"Initialize model configuration and sampler configuration for the model."
+msgstr ""
+"Inicializar la configuración del modelo y la configuración del muestreador "
+"para el modelo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
+#: 30d1efd88dc34dc8be20822e8ba4b3c7
+msgid ""
+":py:obj:`ShiftedBetaGeoModelIndividual.attrs_to_init_kwargs "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.attrs_to_init_kwargs>`\\"
+" \\(attrs\\)"
+msgstr ""
+":py:obj:`ShiftedBetaGeoModelIndividual.attrs_to_init_kwargs "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.attrs_to_init_kwargs>`\\"
+" \\(attrs\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
+#: d394c125c0e34c50a696617387bc4986
+msgid ""
+"Convert the model configuration and sampler configuration from the "
+"attributes to keyword arguments."
+msgstr ""
+"Convierte la configuración del modelo y la configuración del muestreador de "
+"los atributos a argumentos de palabra clave."
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
+#: 4d063ed5845e4469a70e5925b95b8b58
+msgid ""
+":py:obj:`ShiftedBetaGeoModelIndividual.build_from_idata "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.build_from_idata>`\\"
+" \\(idata\\)"
+msgstr ""
+":py:obj:`ShiftedBetaGeoModelIndividual.build_from_idata "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.build_from_idata>`\\"
+" \\(idata\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
+#: ad13c5d516764fb5989cca3920994059
+msgid "Build the model from the InferenceData object."
+msgstr "Construya el modelo a partir del objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
+#: c22b99e7013d4f8e8e13ae669b5ba0ab
+msgid ""
+":py:obj:`ShiftedBetaGeoModelIndividual.build_model "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.build_model>`\\"
+" \\(\\)"
+msgstr ""
+":py:obj:`ShiftedBetaGeoModelIndividual.build_model "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.build_model>`\\"
+" \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
+#: 393ee77bbc7940bdba017a006efe5000
+msgid "Build the model."
+msgstr "Construya el modelo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
+#: db3eeea12eb64fe590c046a2c0e2c779
+msgid ""
+":py:obj:`ShiftedBetaGeoModelIndividual.create_idata_attrs "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.create_idata_attrs>`\\"
+" \\(\\)"
+msgstr ""
+":py:obj:`ShiftedBetaGeoModelIndividual.create_idata_attrs "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.create_idata_attrs>`\\"
+" \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
+#: 69187d7fafd74d23902123b9e651f4d5
+msgid "Create attributes for the inference data."
+msgstr "Cree atributos para los datos de inferencia."
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
+#: 4c6e493ec9b347c0acdc0c7138dfa285
+msgid ""
+":py:obj:`ShiftedBetaGeoModelIndividual.distribution_customer_churn_time "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.distribution_customer_churn_time>`\\"
+" \\(...\\)"
+msgstr ""
+":py:obj:`ShiftedBetaGeoModelIndividual.distribution_customer_churn_time "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.distribution_customer_churn_time>`\\"
+" \\(...\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
+#: 3e88e9686b1340b581bcc7a0cdc894e8
+msgid "Sample distribution of churn time for existing customers."
+msgstr ""
+"Distribución de muestra del tiempo de cancelación para clientes existentes."
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
+#: a1ce62b0a52745438a39693bb1cd299b
+msgid ""
+":py:obj:`ShiftedBetaGeoModelIndividual.distribution_new_customer_churn_time "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.distribution_new_customer_churn_time>`\\"
+" \\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`ShiftedBetaGeoModelIndividual.distribution_new_customer_churn_time "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.distribution_new_customer_churn_time>`\\"
+" \\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
+#: b5d05842faa141e09477efb794b62638
+msgid "Sample distribution of churn time for new customers."
+msgstr ""
+"Distribución de muestra del tiempo de cancelación para nuevos clientes."
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
+#: 21aa5eeaeca54b9991b4d517b969e787
+msgid ""
+":py:obj:`ShiftedBetaGeoModelIndividual.distribution_new_customer_theta "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.distribution_new_customer_theta>`\\"
+" \\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`ShiftedBetaGeoModelIndividual.distribution_new_customer_theta "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.distribution_new_customer_theta>`\\"
+" \\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
+#: cce6d8e8791f44fc8b12f6f2f5a6cc61
+msgid "Sample distribution of theta parameter for new customers."
+msgstr "Distribución de muestra del parámetro theta para nuevos clientes."
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
+#: 2986b052be9040edb06e2b3888d87e52
+msgid ""
+":py:obj:`ShiftedBetaGeoModelIndividual.fit "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.fit>`\\"
+" \\(\\[method\\, ...\\]\\)"
+msgstr ""
+":py:obj:`ShiftedBetaGeoModelIndividual.fit "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.fit>`\\"
+" \\(\\[método\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
+#: 2456e86169d446d084250b8f81ea4eac
+msgid "Infer model posterior."
+msgstr "Inferir la posterior del modelo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
+#: 87309c51c9be447cbb27b1f4afbdb873
+msgid ""
+":py:obj:`ShiftedBetaGeoModelIndividual.fit_summary "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.fit_summary>`\\"
+" \\(...\\)"
+msgstr ""
+":py:obj:`ShiftedBetaGeoModelIndividual.fit_summary "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.fit_summary>`\\"
+" \\(...\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
+#: 17791d02409c46eea5dfea247f35efd9
+msgid "Compute the summary of the fit result."
+msgstr "Calcule el resumen del resultado del ajuste."
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
+#: 6433c754574b4cbcbd5c796c37b75bd7
+msgid ""
+":py:obj:`ShiftedBetaGeoModelIndividual.graphviz "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.graphviz>`\\"
+" \\(\\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`ShiftedBetaGeoModelIndividual.graphviz "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.graphviz>`\\"
+" \\(\\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
+#: 4144c11e66f8471892e4a1c6d685c5da
+msgid "Get the graphviz representation of the model."
+msgstr "Obtenga la representación graphviz del modelo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
+#: d6ea8bd1789d4588bcf0d31de004d27e
+msgid ""
+":py:obj:`ShiftedBetaGeoModelIndividual.idata_to_init_kwargs "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.idata_to_init_kwargs>`\\"
+" \\(idata\\)"
+msgstr ""
+":py:obj:`ShiftedBetaGeoModelIndividual.idata_to_init_kwargs "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.idata_to_init_kwargs>`\\"
+" \\(idata\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
+#: 683fb23880794c8fb64883fc865c8317
+msgid "Create the initialization kwargs from an InferenceData object."
+msgstr ""
+"Cree los kwargs de inicialización a partir de un objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
+#: dae12320bcc647f98faacb8943496d07
+msgid ""
+":py:obj:`ShiftedBetaGeoModelIndividual.load "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.load>`\\"
+" \\(fname\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`ShiftedBetaGeoModelIndividual.load "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.load>`\\"
+" \\(fname\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
+#: 37770e6399e44eaa9fd969eff3b3eb27
+msgid "Create a ModelBuilder instance from a file."
+msgstr "Cree una instancia de ModelBuilder a partir de un archivo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
+#: 683b224c8db34b148434e07cdee9b555
+msgid ""
+":py:obj:`ShiftedBetaGeoModelIndividual.load_from_idata "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.load_from_idata>`\\"
+" \\(idata\\)"
+msgstr ""
+":py:obj:`ShiftedBetaGeoModelIndividual.load_from_idata "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.load_from_idata>`\\"
+" \\(idata\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
+#: 82e26b2cac1042e3976b5db6d525c193
+msgid "Create a ModelBuilder instance from an InferenceData object."
+msgstr ""
+"Cree una instancia de ModelBuilder a partir de un objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
+#: 38eb5130560a4bf3b8693d4857f432fe
+msgid ""
+":py:obj:`ShiftedBetaGeoModelIndividual.save "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.save>`\\"
+" \\(fname\\, ...\\)"
+msgstr ""
+":py:obj:`ShiftedBetaGeoModelIndividual.save "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.save>`\\"
+" \\(fname\\, ...\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
+#: 2f016938e1e54700a1bd5bf02c0b83db
+msgid "Save the model's inference data to a file."
+msgstr "Guarde los datos de inferencia del modelo en un archivo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
+#: bdcfdf0deb8d470fb36cda163c2bc969
+msgid ""
+":py:obj:`ShiftedBetaGeoModelIndividual.set_idata_attrs "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.set_idata_attrs>`\\"
+" \\(\\[idata\\]\\)"
+msgstr ""
+":py:obj:`ShiftedBetaGeoModelIndividual.set_idata_attrs "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.set_idata_attrs>`\\"
+" \\(\\[idata\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
+#: a8d4b49747fc4624a6eb8935b22a29e3
+msgid "Set attributes on an InferenceData object."
+msgstr "Establecer atributos en un objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
+#: c18320aba7ab40448ed5c68ace174588
+msgid ""
+":py:obj:`ShiftedBetaGeoModelIndividual.table "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.table>`\\"
+" \\(...\\)"
+msgstr ""
+":py:obj:`ShiftedBetaGeoModelIndividual.table "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.table>`\\"
+" \\(...\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
+#: 0a70376b08e94c90b3de49e606d5b19d
+msgid "Get the summary table of the model."
+msgstr "Obtenga la tabla resumen del modelo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
+#: 5dda49c1cf2d4611b1728769ae0a19a2
+msgid ""
+":py:obj:`ShiftedBetaGeoModelIndividual.thin_fit_result "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.thin_fit_result>`\\"
+" \\(...\\)"
+msgstr ""
+":py:obj:`ShiftedBetaGeoModelIndividual.thin_fit_result "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.thin_fit_result>`\\"
+" \\(...\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
+#: b9d4e661a79e46448a74232ef2980b48
+msgid "Return a copy of the model with a thinned fit result."
+msgstr "Devuelva una copia del modelo con un resultado de ajuste reducido."
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:41
+#: 805755d7fa1a49b2a6a415e294acc18a
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:56:<autosummary>:1
+#: b4b277edab3b48e1ba5936545d87d8d2
+msgid ""
+":py:obj:`default_model_config "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.default_model_config>`\\"
+msgstr ""
+":py:obj:`default_model_config "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.default_model_config>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:56:<autosummary>:1
+#: 1bad7b13cefc4cea96be66536c5ea53b
+msgid "Default model configuration."
+msgstr "Configuración de modelo predeterminada."
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:56:<autosummary>:1
+#: b34c26cae3b34efcb189a280954dfcea
+msgid ""
+":py:obj:`default_sampler_config "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.default_sampler_config>`\\"
+msgstr ""
+":py:obj:`default_sampler_config "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.default_sampler_config>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:56:<autosummary>:1
+#: 782bb536a5194c61a3a354a88ef3398e
+msgid "Default sampler configuration."
+msgstr "Configuración de muestreador predeterminada."
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:56:<autosummary>:1
+#: f036fefd25ce4c24a4ad4c1f60e604a5
+msgid ""
+":py:obj:`fit_result "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.fit_result>`\\"
+msgstr ""
+":py:obj:`fit_result "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.fit_result>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:56:<autosummary>:1
+#: c2c1a2b08f444d50bfed2490e89a44fb
+msgid "Get the posterior fit_result."
+msgstr "Obtenga el resultado de ajuste posterior fit_result."
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:56:<autosummary>:1
+#: 496c185fa3f44b6f872b3efb6745e603
+msgid ""
+":py:obj:`id "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.id>`\\"
+msgstr ""
+":py:obj:`id "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.id>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:56:<autosummary>:1
+#: e4101855d6d5444aae07e400f8c0676a
+msgid "Generate a unique hash value for the model."
+msgstr "Generar un valor hash único para el modelo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:56:<autosummary>:1
+#: 8f64d66c87cf447a84c6399100b98de2
+msgid ""
+":py:obj:`posterior "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.posterior>`\\"
+msgstr ""
+":py:obj:`posterior "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.posterior>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:56:<autosummary>:1
+#: 1e64a9643e06437a982c00937f0f2c7b
+msgid ""
+":py:obj:`posterior_predictive "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.posterior_predictive>`\\"
+msgstr ""
+":py:obj:`posterior_predictive "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.posterior_predictive>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:56:<autosummary>:1
+#: 483a2c7b68c3494db4bdcaf7dbfeb142
+msgid ""
+":py:obj:`predictions "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.predictions>`\\"
+msgstr ""
+":py:obj:`predicciones "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.predictions>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:56:<autosummary>:1
+#: e30b9200b727414aba62006f77892d48
+msgid ""
+":py:obj:`prior "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.prior>`\\"
+msgstr ""
+":py:obj:`prior "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.prior>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:56:<autosummary>:1
+#: a12bd3ed75d24151a0042584edba093d
+msgid ""
+":py:obj:`prior_predictive "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.prior_predictive>`\\"
+msgstr ""
+":py:obj:`prior_predictive "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.prior_predictive>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:56:<autosummary>:1
+#: 0cfb0945e24d4fa2964eff3eedc4d0ec
+msgid ""
+":py:obj:`version "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.version>`\\"
+msgstr ""
+":py:obj:`versión "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.version>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:56:<autosummary>:1
+#: a6e9a0fd9d35488aaef8e6c7f603d3a9
+msgid ""
+":py:obj:`idata "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.idata>`\\"
+msgstr ""
+":py:obj:`idata "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.idata>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:56:<autosummary>:1
+#: 2197a89a1383481582f27a39d3ff3aa5
+msgid ""
+":py:obj:`sampler_config "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.sampler_config>`\\"
+msgstr ""
+":py:obj:`sampler_config "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.sampler_config>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:56:<autosummary>:1
+#: 94b7d8c68d904dbba004a470c7d345a9
+msgid ""
+":py:obj:`model_config "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.model_config>`\\"
+msgstr ""
+":py:obj:`model_config "
+"<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.model_config>`"
+
+#~ msgid "Shifted Beta Geometric model."
+#~ msgstr "Modelo geométrico beta desplazado."

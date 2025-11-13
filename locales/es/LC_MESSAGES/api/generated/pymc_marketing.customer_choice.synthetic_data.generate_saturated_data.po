@@ -1,0 +1,157 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.synthetic_data.generate_saturated_data.rst:2
+#: 52c7efaf5d6b4909a32a761b0fb5836e
+msgid "generate\\_saturated\\_data"
+msgstr "generar\\_datos\\_saturados"
+
+#: 275331d7934e4556b7e7e73c84120547 of
+#: pymc_marketing.customer_choice.synthetic_data.generate_saturated_data:2
+msgid ""
+"Generate synthetic data for the MVITS model, assuming market is saturated."
+msgstr ""
+"Generar datos sintéticos para el modelo MVITS, asumiendo que el mercado está"
+" saturado."
+
+#: 21a54584033e463b8897e50d71252d33 of
+#: pymc_marketing.customer_choice.synthetic_data.generate_saturated_data:4
+msgid ""
+"This function generates synthetic data for the MVITS model, assuming that "
+"the market is saturated. This makes the assumption that the total sales are "
+"normally distributed around some average level of sales, and that the market"
+" shares are constant over time."
+msgstr ""
+"Esta función genera datos sintéticos para el modelo MVITS, asumiendo que el "
+"mercado está saturado. Esto hace la suposición de que las ventas totales "
+"están distribuidas normalmente alrededor de un nivel promedio de ventas y "
+"que las cuotas de mercado son constantes a lo largo del tiempo."
+
+#: 6d29955923f748cdb478247a28dd4d24 of
+#: pymc_marketing.customer_choice.synthetic_data.generate_saturated_data
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 6f618ae5d429454c8991181bdf2a6eeb of
+#: pymc_marketing.customer_choice.synthetic_data.generate_saturated_data:10
+msgid "**total_sales_mu: int**"
+msgstr "**total_ventas_mu: int**"
+
+#: 54efe952cd744a07b71c17e1fae87de7 of
+#: pymc_marketing.customer_choice.synthetic_data.generate_saturated_data:11
+msgid "The average level of sales in the market."
+msgstr "El nivel promedio de ventas en el mercado."
+
+#: 7884882b5dba4a258c26fd34d0a878c2 of
+#: pymc_marketing.customer_choice.synthetic_data.generate_saturated_data:13
+msgid "**total_sales_sigma: float**"
+msgstr "**total_ventas_sigma: float**"
+
+#: cca091c21d18479e9048173d08b3ea89 of
+#: pymc_marketing.customer_choice.synthetic_data.generate_saturated_data:14
+msgid "The standard deviation of sales in the market."
+msgstr "La desviación estándar de las ventas en el mercado."
+
+#: dd2f33bdf68640f2af9e653d7ffb8f46 of
+#: pymc_marketing.customer_choice.synthetic_data.generate_saturated_data:16
+msgid "**treatment_time: int**"
+msgstr "**tiempo_tratamiento: int**"
+
+#: 5c9813d0dec649b9be2f9544a3c90997 of
+#: pymc_marketing.customer_choice.synthetic_data.generate_saturated_data:17
+msgid "The time at which the new model is introduced."
+msgstr "El momento en el que se introduce el nuevo modelo."
+
+#: 1ad154e9e6aa48c5a57cdef17564e8d2 of
+#: pymc_marketing.customer_choice.synthetic_data.generate_saturated_data:19
+msgid "**n_observations: int**"
+msgstr "**n_observaciones: int**"
+
+#: b09f97ce7cbf46ea889d5ea157db8127 of
+#: pymc_marketing.customer_choice.synthetic_data.generate_saturated_data:20
+msgid "The number of observations to generate."
+msgstr "El número de observaciones a generar."
+
+#: 4ffdae178f4d4e958ef8df26e4d08c18 of
+#: pymc_marketing.customer_choice.synthetic_data.generate_saturated_data:22
+msgid "**market_shares_before: list[float]**"
+msgstr "**participaciones_de_mercado_antes: lista[float]**"
+
+#: 35fab1872e474d7abc7d0dc7f644b318 of
+#: pymc_marketing.customer_choice.synthetic_data.generate_saturated_data:23
+msgid "The market shares before the introduction of the new model."
+msgstr "Las cuotas de mercado antes de la introducción del nuevo modelo."
+
+#: 6016aaee6857465a8143a9bacc149815 of
+#: pymc_marketing.customer_choice.synthetic_data.generate_saturated_data:25
+msgid "**market_shares_after: list[float]**"
+msgstr "**participaciones_de_mercado_despues: list[float]**"
+
+#: 5c046d53cebf46078b28c5c6726e89c8 of
+#: pymc_marketing.customer_choice.synthetic_data.generate_saturated_data:26
+msgid "The market shares after the introduction of the new model."
+msgstr "Las cuotas de mercado después de la introducción del nuevo modelo."
+
+#: e53280e393074effbccbf482d2bebc26 of
+#: pymc_marketing.customer_choice.synthetic_data.generate_saturated_data:28
+msgid "**market_share_labels: list[str]**"
+msgstr "**etiquetas_de_cuota_de_mercado: lista[str]**"
+
+#: 652934ed5750490faa3804201efa1e68 of
+#: pymc_marketing.customer_choice.synthetic_data.generate_saturated_data:29
+msgid "The labels for the market shares."
+msgstr "Las etiquetas para las cuotas de mercado."
+
+#: 38f997ed92d24e30b87485e9dc621cb9 of
+#: pymc_marketing.customer_choice.synthetic_data.generate_saturated_data:31
+msgid "**random_seed: np.random.Generator | int, optional**"
+msgstr "**semilla_aleatoria: np.random.Generator | int, opcional**"
+
+#: ed6a8f71778944bb81e04becf6a7b1e5 of
+#: pymc_marketing.customer_choice.synthetic_data.generate_saturated_data:32
+msgid "The random number generator to use."
+msgstr "El generador de números aleatorios a utilizar."
+
+#: 13ee77645d0842d8862519ff283c53f0 of
+#: pymc_marketing.customer_choice.synthetic_data.generate_saturated_data
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: d689c1be1e194beeb632d31bc88d8fb7 of
+#: pymc_marketing.customer_choice.synthetic_data.generate_saturated_data:38
+msgid "data: :obj:`pd.DataFrame`"
+msgstr "data: :obj:`pd.DataFrame`"
+
+#: b5b72ca614924221b7c47c52014e7855 of
+#: pymc_marketing.customer_choice.synthetic_data.generate_saturated_data:39
+msgid "The synthetic data generated."
+msgstr "Los datos sintéticos generados."
+
+#: 3202848e318841c896466e72acdbcc7e of
+#: pymc_marketing.customer_choice.synthetic_data.generate_saturated_data:51
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: 62bf697ada944f0b95b047b4bcfd913a of
+#: pymc_marketing.customer_choice.synthetic_data.generate_saturated_data:52
+msgid "Generate some synthetic data for the MVITS model:"
+msgstr "Generar algunos datos sintéticos para el modelo MVITS:"

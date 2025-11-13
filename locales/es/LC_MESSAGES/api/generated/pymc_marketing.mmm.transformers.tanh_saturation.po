@@ -1,0 +1,164 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.tanh_saturation.rst:2
+#: bff3eacebc2a4ffcb899a93bbcaa6bf5
+msgid "tanh\\_saturation"
+msgstr "tanh\\_saturación"
+
+#: e94cd1dd5ef446fab3eb2ae58db70b38 of
+#: pymc_marketing.mmm.transformers.tanh_saturation:2
+msgid "Tanh saturation transformation."
+msgstr "Transformación de saturación Tanh."
+
+#: 53c2d34812cc482d9b5cc0637ec0707c of
+#: pymc_marketing.mmm.transformers.tanh_saturation:4
+#, python-brace-format
+msgid ""
+"f(x) = b \\tanh \\left( \\frac{x}{bc} \\right)\n"
+"\n"
+msgstr "f(x) = b \\tanh \\left( \\frac{x}{bc} \\right)"
+
+#: c05b41f12b4e4a5db7d43a51463700bf of
+#: pymc_marketing.mmm.transformers.tanh_saturation:7
+#, python-brace-format
+msgid ""
+"The tanh saturation function has a nice property that is useful when setting"
+" priors. The slope of the function when x is zero is :math:`\\frac{1}{c}`. "
+"This means that you can set a prior by considering how many units of media "
+"are required to acquire the first customer. Unlike most other saturation "
+"functions, the slope at 0 is independent of the saturation point."
+msgstr ""
+"La función de saturación tanh tiene una propiedad interesante que es útil al"
+" establecer priors. La pendiente de la función cuando x es cero es "
+":math:`\\frac{1}{c}`. Esto significa que puedes establecer un prior "
+"considerando cuántas unidades de medios se requieren para adquirir el primer"
+" cliente. A diferencia de la mayoría de las otras funciones de saturación, "
+"la pendiente en 0 es independiente del punto de saturación."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.tanh_saturation.rst:7
+#: 8f1d0ea7b980466c9b0c8cf89fe1a40b
+msgid ""
+"(:download:`Source code "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-tanh_saturation-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-tanh_saturation-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-tanh_saturation-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-tanh_saturation-1.pdf>`)"
+msgstr ""
+"(:download:`Código fuente "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-tanh_saturation-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-tanh_saturation-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-tanh_saturation-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-tanh_saturation-1.pdf>`)"
+
+#: e582bb1c22bf4424a6476c9243571045 of
+#: pymc_marketing.mmm.transformers.tanh_saturation
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: bae82b8c3f7c409191758cdcef434fc5 of
+#: pymc_marketing.mmm.transformers.tanh_saturation:44
+msgid "**x** : :obj:`tensor`"
+msgstr "**x** : :obj:`tensor`"
+
+#: 61c281305ca94fc2bf196dea6f8e6f3a of
+#: pymc_marketing.mmm.transformers.tanh_saturation:43
+msgid "tensor"
+msgstr "tensor"
+
+#: 8bc90c83b8204d2b9525fc54a8b36626 of
+#: pymc_marketing.mmm.transformers.tanh_saturation:45
+msgid "Input tensor."
+msgstr "Tensor de entrada."
+
+#: 230a1e9819fb4b24b8750869c202f201 of
+#: pymc_marketing.mmm.transformers.tanh_saturation:47
+msgid "**b** : :class:`python:float`, :obj:`by` default 0.5"
+msgstr "**b** : :class:`python:float`, :obj:`by` por defecto 0.5"
+
+#: 0793da8cfc794d8d83330b7072a2b75d 5be5e5e37b5b4ee89fd94f62deaac8cc of
+#: pymc_marketing.mmm.transformers.tanh_saturation:46
+#: pymc_marketing.mmm.transformers.tanh_saturation:51
+msgid "python:float, by default 0.5"
+msgstr "python:float, por defecto 0.5"
+
+#: 4886f293e62c4178b7795d49be4001a6 of
+#: pymc_marketing.mmm.transformers.tanh_saturation:48
+msgid ""
+"The saturation point. It represents the maximium number of customers that "
+"could be acquired through this channel at any point time. Must be non-"
+"negative."
+msgstr ""
+"El punto de saturación. Representa el número máximo de clientes que se "
+"podrían adquirir a través de este canal en cualquier momento. Debe ser no "
+"negativo."
+
+#: 61b5a64be9c94019850a55cc38e63151 of
+#: pymc_marketing.mmm.transformers.tanh_saturation:52
+msgid "**c** : :class:`python:float`, :obj:`by` default 0.5"
+msgstr "**c** : :class:`python:float`, :obj:`by` por defecto 0.5"
+
+#: 55253c95220f4d96be51f918f553032e of
+#: pymc_marketing.mmm.transformers.tanh_saturation:53
+msgid ""
+"Initial cost per user. Larger values represent less efficient channels. Must"
+" be non-zero."
+msgstr ""
+"Costo inicial por usuario. Valores más altos representan canales menos "
+"eficientes. Debe ser distinto de cero."
+
+#: e942f97b57de49f38c1901f04ef94fc9 of
+#: pymc_marketing.mmm.transformers.tanh_saturation
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: fd8d22ad3d7246ce95a3b3d4de90a8f4 of
+#: pymc_marketing.mmm.transformers.tanh_saturation:60
+msgid ":obj:`tensor`"
+msgstr ":obj:`tensor`"
+
+#: 436d3f7d5e2a4b4bb4c90c3d4be44eb1 of
+#: pymc_marketing.mmm.transformers.tanh_saturation:61
+msgid "Transformed tensor."
+msgstr "Tensor transformado."
+
+#: 3fb47d291e4142fb8fcf4a6c24689688 of
+#: pymc_marketing.mmm.transformers.tanh_saturation:72
+msgid "References"
+msgstr "Referencias"
+
+#: 5e816c2a9be3428b88a5a252ff936113 of
+#: pymc_marketing.mmm.transformers.tanh_saturation:73
+msgid ""
+"See https://www.pymc-labs.com/blog-posts/reducing-customer-acquisition-"
+"costs-how-we-helped-optimizing-hellofreshs-marketing-budget/ # noqa: E501"
+msgstr ""
+"Vea https://www.pymc-labs.com/blog-posts/reducing-customer-acquisition-"
+"costs-how-we-helped-optimizing-hellofreshs-marketing-budget/ # noqa: E501"

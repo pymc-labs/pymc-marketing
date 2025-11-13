@@ -76,7 +76,14 @@ model:
             distribution: HalfNormal
             sigma: 1.5
         dims: [date, geo]
-
+# ----------------------------------------------------------------------
+# (optional) sampler options you plan to forward to pm.sample():
+    sampler_config:
+      tune: 800
+      draws: 400
+      chains: 2
+      random_seed: 42
+      target_accept: 0.80
 # ----------------------------------------------------------------------
 # Effects with complex priors
 effects:
@@ -97,15 +104,6 @@ effects:
                 sigma: 0.2
               dims: ["changepoint", "geo"]
       prefix: "trend"
-
-# ----------------------------------------------------------------------
-# (optional) sampler options you plan to forward to pm.sample():
-    sampler_config:
-      tune: 800
-      draws: 400
-      chains: 2
-      random_seed: 42
-      target_accept: 0.80
 
 # ----------------------------------------------------------------------
 # (optional) idata from a previous sample

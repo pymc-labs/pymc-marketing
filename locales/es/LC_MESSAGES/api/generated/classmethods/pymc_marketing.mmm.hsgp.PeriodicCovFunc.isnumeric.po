@@ -1,0 +1,41 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.hsgp.PeriodicCovFunc.isnumeric.rst:2
+#: d2843297384743da9aa228653bec77a4
+msgid "PeriodicCovFunc.isnumeric"
+msgstr "PeriodicCovFunc.esnumérico"
+
+#: f26bafc08ab5483f8f5ad1498232212a of
+#: pymc_marketing.mmm.hsgp.PeriodicCovFunc.isnumeric:2
+msgid "Return True if the string is a numeric string, False otherwise."
+msgstr ""
+"Devuelve True si la cadena es una cadena numérica, False en caso contrario."
+
+#: b6e942c4914d4fedb2d958ff37ba91f0 of
+#: pymc_marketing.mmm.hsgp.PeriodicCovFunc.isnumeric:4
+msgid ""
+"A string is numeric if all characters in the string are numeric and there is"
+" at least one character in the string."
+msgstr ""
+"Una cadena es numérica si todos los caracteres en la cadena son numéricos y "
+"hay al menos un carácter en la cadena."

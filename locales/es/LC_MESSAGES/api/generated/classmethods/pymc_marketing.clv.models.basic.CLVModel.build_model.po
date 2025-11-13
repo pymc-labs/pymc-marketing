@@ -1,0 +1,79 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.basic.CLVModel.build_model.rst:2
+#: c70cfa6e751d4f9690e5e7ac8be86db2
+msgid "CLVModel.build\\_model"
+msgstr "CLVModel.construir\\_modelo"
+
+#: 5630cd4e24b84569be1fb12d37fafed3 of
+#: pymc_marketing.model_builder.ModelBuilder.build_model:2
+msgid ""
+"Create an instance of `pm.Model` based on provided data and model_config."
+msgstr ""
+"Cree una instancia de `pm.Model` basada en los datos proporcionados y en "
+"model_config."
+
+#: a239fddbc8e84bbba8f3a7e7a5209760 of
+#: pymc_marketing.model_builder.ModelBuilder.build_model:4
+msgid "It attaches the model to self.model."
+msgstr "Adjunta el modelo a self.model."
+
+#: ba5aed7e475b4dcb8840d74520bb35ea of
+#: pymc_marketing.model_builder.ModelBuilder.build_model
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 3080d67cae884e64bdb9d1b0e2a777de of
+#: pymc_marketing.model_builder.ModelBuilder.build_model:8
+msgid "**kwargs** : :class:`python:dict`"
+msgstr "**kwargs** : :class:`python:dict`"
+
+#: 0476d0eea126433bb3937306fbfd7c23 of
+#: pymc_marketing.model_builder.ModelBuilder.build_model:7
+msgid "python:dict"
+msgstr "python:dict"
+
+#: 52b0f65e90304a3eb7644937fde8434b of
+#: pymc_marketing.model_builder.ModelBuilder.build_model:9
+msgid "data arguments for model configuration."
+msgstr "argumentos de datos para la configuración del modelo."
+
+#: 9e32ee2c3abc4c108a4d6789b22f253b of
+#: pymc_marketing.model_builder.ModelBuilder.build_model
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: a80a8ab4dd3044239407299429c37c13 of
+#: pymc_marketing.model_builder.ModelBuilder.build_model:15
+msgid ":data:`python:None`"
+msgstr ":data:`python:Ninguno`"
+
+#: 71db7c8752ac4cb094833b053e75dcb1 of
+#: pymc_marketing.model_builder.ModelBuilder.build_model:27
+msgid ":obj:`default_model_config`"
+msgstr ":obj:`default_model_config`"
+
+#: 87565ce1356e47898f5170f7609a7fc0 of
+#: pymc_marketing.model_builder.ModelBuilder.build_model:28
+msgid "returns default model config"
+msgstr "devuelve la configuración del modelo predeterminado"

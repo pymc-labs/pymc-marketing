@@ -1,0 +1,112 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.preprocessing.rst:2
+#: 391ca69008f04332ab690fa92da7d4af
+msgid "preprocessing"
+msgstr "preprocesamiento"
+
+#: b8ee47b4479844c08f76aa0cc128c139 of pymc_marketing.mmm.preprocessing:1
+msgid "Preprocessing methods for the Marketing Mix Model."
+msgstr "Métodos de preprocesamiento para el Modelo de Mezcla de Marketing."
+
+#: ../source/api/generated/pymc_marketing.mmm.preprocessing.rst:13
+#: 4fced549390b4d628d6c2939ca2ede82
+msgid "Functions"
+msgstr "Funciones"
+
+#: ../source/api/generated/pymc_marketing.mmm.preprocessing.rst:24:<autosummary>:1
+#: 8dae37b90ef34e808b3f107ec5b0f468
+msgid ""
+":py:obj:`preprocessing_method_X "
+"<pymc_marketing.mmm.preprocessing.preprocessing_method_X>`\\ \\(method\\)"
+msgstr ""
+":py:obj:`método_de_preprocesamiento_X "
+"<pymc_marketing.mmm.preprocessing.preprocessing_method_X>`\\ \\(método\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.preprocessing.rst:24:<autosummary>:1
+#: 9ffa6fd1d72f4126bb0f9fa175ca521d
+msgid "Tag a method as a preprocessing method for the X data."
+msgstr ""
+"Etiquete un método como un método de preprocesamiento para los datos X."
+
+#: ../source/api/generated/pymc_marketing.mmm.preprocessing.rst:24:<autosummary>:1
+#: 6105ad3fd00f414b8a33d3307eb89196
+msgid ""
+":py:obj:`preprocessing_method_y "
+"<pymc_marketing.mmm.preprocessing.preprocessing_method_y>`\\ \\(method\\)"
+msgstr ""
+":py:obj:`preprocessing_method_y "
+"<pymc_marketing.mmm.preprocessing.preprocessing_method_y>`\\ \\(método\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.preprocessing.rst:24:<autosummary>:1
+#: d3659e19056549e0b75c0480bdfd4556
+msgid "Tag a method as a preprocessing method for the y data."
+msgstr ""
+"Etiqueta un método como un método de preprocesamiento para los datos y."
+
+#: ../source/api/generated/pymc_marketing.mmm.preprocessing.rst:26
+#: 7625e6d857ec484ead346b6f614ea167
+msgid "Classes"
+msgstr "Clases"
+
+#: ../source/api/generated/pymc_marketing.mmm.preprocessing.rst:38:<autosummary>:1
+#: e03f511f309145d3b8c0818b3cdca525
+msgid ""
+":py:obj:`MaxAbsScaleChannels "
+"<pymc_marketing.mmm.preprocessing.MaxAbsScaleChannels>`\\ \\(\\)"
+msgstr ""
+":py:obj:`MaxAbsScaleChannels "
+"<pymc_marketing.mmm.preprocessing.MaxAbsScaleChannels>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.preprocessing.rst:38:<autosummary>:1
+#: 93d30f65b0a3420e9c98dc7279383560
+msgid "MaxAbsScaler for the channel data."
+msgstr "MaxAbsScaler para los datos del canal."
+
+#: ../source/api/generated/pymc_marketing.mmm.preprocessing.rst:38:<autosummary>:1
+#: defdfcfa5c4740a686b70011e3fe32d4
+msgid ""
+":py:obj:`MaxAbsScaleTarget "
+"<pymc_marketing.mmm.preprocessing.MaxAbsScaleTarget>`\\ \\(\\)"
+msgstr ""
+":py:obj:`MaxAbsScaleTarget "
+"<pymc_marketing.mmm.preprocessing.MaxAbsScaleTarget>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.preprocessing.rst:38:<autosummary>:1
+#: 890856f4cd03444284bbabd40ca062bc
+msgid "MaxAbsScaler for the target data."
+msgstr "MaxAbsScaler para los datos objetivo."
+
+#: ../source/api/generated/pymc_marketing.mmm.preprocessing.rst:38:<autosummary>:1
+#: 2095b80849fa45f0aee4814624bbfaec
+msgid ""
+":py:obj:`StandardizeControls "
+"<pymc_marketing.mmm.preprocessing.StandardizeControls>`\\ \\(\\)"
+msgstr ""
+":py:obj:`StandardizeControls "
+"<pymc_marketing.mmm.preprocessing.StandardizeControls>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.preprocessing.rst:38:<autosummary>:1
+#: 6c42d30efc3b46118248aa65f70d859b
+msgid "StandardScaler for the control data."
+msgstr "StandardScaler para los datos de control."

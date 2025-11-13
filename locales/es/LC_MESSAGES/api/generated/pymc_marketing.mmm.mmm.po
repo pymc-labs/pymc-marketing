@@ -1,0 +1,71 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.rst:2
+#: b8b32224cead451db2bd810d756de544
+msgid "mmm"
+msgstr "mmm"
+
+#: a0c7a840b383424c96113599b13ac5de of pymc_marketing.mmm.mmm:1
+msgid "Media Mix Model class."
+msgstr "Clase de Modelo de Mezcla de Medios."
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.rst:17
+#: c3b9296eb9f04f6b881905381a0b1f56
+msgid "Classes"
+msgstr "Clases"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.rst:26:<autosummary>:1
+#: 00f1092f6563448581f16bc9c28b5b98
+msgid ""
+":py:obj:`BaseMMM <pymc_marketing.mmm.mmm.BaseMMM>`\\ \\(\\[date\\_column\\, "
+"channel\\_columns\\, ...\\]\\)"
+msgstr ""
+":py:obj:`BaseMMM <pymc_marketing.mmm.mmm.BaseMMM>`\\ \\(\\[date\\_column\\, "
+"channel\\_columns\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.rst:26:<autosummary>:1
+#: 76746cbc454d47c2891e059847536947
+msgid ""
+"Base class for a media mix model using Delayed Adstock and Logistic "
+"Saturation (see [R0dde17d13326-1]_)."
+msgstr ""
+"Clase base para un modelo de mezcla de medios que utiliza Adstock Retrasado "
+"y Saturación Logística (ver [R0dde17d13326-1]_)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.rst:26:<autosummary>:1
+#: af32ce89782747de8af6fd82158e204e
+msgid ""
+":py:obj:`MMM <pymc_marketing.mmm.mmm.MMM>`\\ \\(\\[date\\_column\\, "
+"channel\\_columns\\, adstock\\, ...\\]\\)"
+msgstr ""
+":py:obj:`MMM <pymc_marketing.mmm.mmm.MMM>`\\ \\(\\[columna\\_de\\_fecha\\, "
+"columnas\\_de\\_canal\\, adstock\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.mmm.rst:26:<autosummary>:1
+#: 31fcd4ad93a74abda9e0b69add31d7dd
+msgid ""
+"Media Mix Model class, Delayed Adstock and logistic saturation as default "
+"initialization (see [R08ddd2af69d5-1]_)."
+msgstr ""
+"Modelo de Mezcla de Medios, Adstock Retrasado y saturación logística como "
+"inicialización predeterminada (ver [R08ddd2af69d5-1]_."

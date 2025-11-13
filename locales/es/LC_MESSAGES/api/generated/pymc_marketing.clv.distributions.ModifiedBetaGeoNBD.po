@@ -1,0 +1,190 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.ModifiedBetaGeoNBD.rst:2
+#: e1912a19d16a48c6b70bbcf26c438f4f
+msgid "ModifiedBetaGeoNBD"
+msgstr "ModifiedBetaGeoNBD"
+
+#: e74e52b2d06f4b57879f75d8587078ac of
+#: pymc_marketing.clv.distributions.ModifiedBetaGeoNBD:2
+msgid ""
+"Population-level distribution for a discrete, non-contractual Modified-Beta-"
+"Geometric/Negative-Binomial process."
+msgstr ""
+"Distribución a nivel poblacional para un proceso discreto, no contractual, "
+"de Modified-Beta-Geometric/Negative-Binomial."
+
+#: f460c78b39884eb8a9129c45feb02f68 of
+#: pymc_marketing.clv.distributions.ModifiedBetaGeoNBD:4
+msgid ""
+"In MBG/NBD, a customer may drop out at time zero. This is in contrast with "
+"the BG/NBD model, which assumes all non-repeat customers are still active. "
+"Based on Batislam, et al. in [R70808c3914fc-1]_, and Wagner & Hopper in "
+"[R70808c3914fc-2]_ ."
+msgstr ""
+"En MBG/NBD, un cliente puede abandonar en el tiempo cero. Esto contrasta con"
+" el modelo BG/NBD, que asume que todos los clientes no recurrentes aún están"
+" activos. Basado en Batislam, et al. en [R70808c3914fc-1]_, y Wagner & "
+"Hopper en [R70808c3914fc-2]_."
+
+#: d5af7aa9114a41f19eb0921750bbe825 of
+#: pymc_marketing.clv.distributions.ModifiedBetaGeoNBD:8
+#, python-brace-format
+msgid ""
+"\\mathbb{LL}(a, b, \\alpha, r | x, t_x, T) = \\ln \\left[\n"
+"A_1 * A_2 * (A_3 + \\delta_{x>0} A_4) \\right] \\text{, where:} \\\\\n"
+"\\begin{align}\n"
+"A_1 &= \\frac{\\Gamma(r+x) \\alpha^r)}{\\Gamma(x)} \\\\\n"
+"A_2 &= \\frac{\\Gamma(a+b) \\Gamma(b+x+1)}{\\Gamma(b) \\Gamma(a+b+x+1)} \\\\\n"
+"A_3 &= \\left( \\frac{1}{\\alpha + T} \\right)^(r+x) \\\\\n"
+"A_4 &= \\left( \\frac{a}{b+x} \\right) \\left( \\frac{1}{\\alpha + t_x} \\right)^(r+x) \\\\\n"
+"\\end{align}\n"
+"\n"
+msgstr ""
+"\\mathbb{LL}(a, b, \\alpha, r | x, t_x, T) = \\ln \\left[ A_1 * A_2 * (A_3 +"
+" \\delta_{x>0} A_4) \\right] \\text{, where:} \\\\ \\begin{align} A_1 &= "
+"\\frac{\\Gamma(r+x) \\alpha^r)}{\\Gamma(x)} \\\\ A_2 &= \\frac{\\Gamma(a+b) "
+"\\Gamma(b+x+1)}{\\Gamma(b) \\Gamma(a+b+x+1)} \\\\ A_3 &= \\left( "
+"\\frac{1}{\\alpha + T} \\right)^(r+x) \\\\ A_4 &= \\left( \\frac{x>0}0{x>0}1"
+" \\right) \\left( \\frac{x>0}2{x>0}3 \\right)^(r+x) \\\\ \\end{x>0}4"
+
+#: c8d8f5b4a9284e49a35e269e1e025bbc of
+#: pymc_marketing.clv.distributions.ModifiedBetaGeoNBD:18
+msgid "Support"
+msgstr "Soporte"
+
+#: 8c3a202000d74ca7b902243ac48f3758 of
+#: pymc_marketing.clv.distributions.ModifiedBetaGeoNBD:18
+msgid ":math:`t_j >= 0` for :math:`j = 1, \\dots,x`"
+msgstr ":math:`t_j >= 0` para :math:`j = 1, \\dots,x`"
+
+#: 60d3babaccd44dcabd62c5e35a58b75d of
+#: pymc_marketing.clv.distributions.ModifiedBetaGeoNBD:19
+msgid "Mean"
+msgstr "Promedio"
+
+#: 1e35e263885e4adebdbcadf7e1d17105 of
+#: pymc_marketing.clv.distributions.ModifiedBetaGeoNBD:19
+#, python-brace-format
+msgid ""
+":math:`\\mathbb{E}[X(n) | r, \\alpha, a, b] = \\frac{a+b-1}{a-1} \\left[ 1 -"
+" \\left(\\frac{\\alpha}{\\alpha + T}\\right)^r "
+"{_2}{F}{_1}(r,b;a+b-1;\\frac{t}{\\alpha + t}) \\right]`"
+msgstr ""
+":math:`\\mathbb{E}[X(n) | r, \\alpha, a, b] = \\frac{a+b-1}{a-1} \\left[ 1 -"
+" \\left(\\frac{\\alpha}{\\alpha + T}\\right)^r "
+"{_2}{F}{_1}(r,b;a+b-1;\\frac{t}{\\alpha + t}) \\right]`"
+
+#: 335a82a92cc64d7eabbcbb6c9ddf8609 of
+#: pymc_marketing.clv.distributions.ModifiedBetaGeoNBD:35
+msgid "References"
+msgstr "Referencias"
+
+#: 52c5420a76284afeac363ba219ca0350 of
+#: pymc_marketing.clv.distributions.ModifiedBetaGeoNBD:36
+msgid ""
+"Batislam, E.P., M. Denizel, A. Filiztekin (2007), \"Empirical validation and"
+" comparison of models for customer base analysis,\" International Journal of"
+" Research in Marketing, 24 (3), 201-209."
+msgstr ""
+"Batislam, E.P., M. Denizel, A. Filiztekin (2007), \"Validación empírica y "
+"comparación de modelos para el análisis de la base de clientes,\" Revista "
+"Internacional de Investigación en Marketing, 24 (3), 201-209."
+
+#: 354f22981bad4ec6a8a00ffa06ef56e0 of
+#: pymc_marketing.clv.distributions.ModifiedBetaGeoNBD:40
+msgid ""
+"Wagner, U. and Hoppe D. (2008), \"Erratum on the MBG/NBD Model,\" "
+"International Journal of Research in Marketing, 25 (3), 225-226."
+msgstr ""
+"Wagner, U. y Hoppe D. (2008), \"Errata sobre el modelo MBG/NBD,\" Revista "
+"Internacional de Investigación en Marketing, 25 (3), 225-226."
+
+#: b2b5d24a7e734e32b7326701b21cf2c7 of
+#: pymc_marketing.clv.distributions.ModifiedBetaGeoNBD:45
+msgid "[R70808c3914fc-1]_, [R70808c3914fc-2]_"
+msgstr "[R70808c3914fc-1]_, [R70808c3914fc-2]_"
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.ModifiedBetaGeoNBD.rst:12
+#: 0711e585d22e45ecaebf281c7fceef72
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.ModifiedBetaGeoNBD.rst:24:<autosummary>:1
+#: 3d1f09a37b9b463690b87bf1bb96928d
+msgid ""
+":py:obj:`ModifiedBetaGeoNBD.__init__ "
+"<pymc_marketing.clv.distributions.ModifiedBetaGeoNBD.__init__>`\\ "
+"\\(\\*args\\, \\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`ModifiedBetaGeoNBD.__init__ "
+"<pymc_marketing.clv.distributions.ModifiedBetaGeoNBD.__init__>`\\ "
+"\\(\\*args\\, \\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.ModifiedBetaGeoNBD.rst:24:<autosummary>:1
+#: 25ecaab45f4042a3ac37027e609362aa
+msgid ""
+":py:obj:`ModifiedBetaGeoNBD.dist "
+"<pymc_marketing.clv.distributions.ModifiedBetaGeoNBD.dist>`\\ \\(a\\, b\\, "
+"r\\, alpha\\, T\\, ...\\)"
+msgstr ""
+":py:obj:`ModifiedBetaGeoNBD.dist "
+"<pymc_marketing.clv.distributions.ModifiedBetaGeoNBD.dist>`\\ (a\\, b\\, "
+"r\\, alpha\\, T\\, ...)"
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.ModifiedBetaGeoNBD.rst:24:<autosummary>:1
+#: 0682abf3156040bc8f2c2afbf79a39d0
+msgid "Get the distribution from the parameters."
+msgstr "Obtenga la distribución de los parámetros."
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.ModifiedBetaGeoNBD.rst:24:<autosummary>:1
+#: 321b3585cd484ecf8fc3057123f87e0f
+msgid ""
+":py:obj:`ModifiedBetaGeoNBD.logp "
+"<pymc_marketing.clv.distributions.ModifiedBetaGeoNBD.logp>`\\ \\(a\\, b\\, "
+"r\\, alpha\\, T\\)"
+msgstr ""
+":py:obj:`ModifiedBetaGeoNBD.logp "
+"<pymc_marketing.clv.distributions.ModifiedBetaGeoNBD.logp>`\\ \\(a\\, b\\, "
+"r\\, alpha\\, T\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.ModifiedBetaGeoNBD.rst:24:<autosummary>:1
+#: 8a8bf47f4d8741f89d2a90209cd54834
+msgid "Log-likelihood of the distribution."
+msgstr "Log-verosimilitud de la distribución."
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.ModifiedBetaGeoNBD.rst:26
+#: fffcdb772aa04183a191b1153e9d72b4
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.ModifiedBetaGeoNBD.rst:29:<autosummary>:1
+#: 3647c56382dd4a3698e03d4dc3333ae0
+msgid ""
+":py:obj:`rv_op "
+"<pymc_marketing.clv.distributions.ModifiedBetaGeoNBD.rv_op>`\\ \\(a\\, b\\, "
+"r\\, alpha\\, T\\[\\, size\\]\\)"
+msgstr ""
+":py:obj:`rv_op "
+"<pymc_marketing.clv.distributions.ModifiedBetaGeoNBD.rv_op>`\\ \\(a\\, b\\, "
+"r\\, alpha\\, T\\[\\, tamaño\\]\\)"

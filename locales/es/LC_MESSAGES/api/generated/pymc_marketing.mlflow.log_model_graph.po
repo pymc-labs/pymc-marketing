@@ -1,0 +1,65 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mlflow.log_model_graph.rst:2
+#: 7b50500af0634540b6d53aca034919d9
+msgid "log\\_model\\_graph"
+msgstr "log\\_model\\_graph"
+
+#: ad21447504e54019bfcb4b89a86bef4e of pymc_marketing.mlflow.log_model_graph:2
+msgid "Log the model graph PDF as artifact on MLflow."
+msgstr "Registra el PDF del gráfico del modelo como artefacto en MLflow."
+
+#: 348f50453ed945d0968bf8fbb7804134 of pymc_marketing.mlflow.log_model_graph:4
+msgid "Automatically removes the file after logging."
+msgstr "Elimina automáticamente el archivo después de registrar."
+
+#: de7f7534ffa94fec80188d3049829fb5 of pymc_marketing.mlflow.log_model_graph
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 49e2a78d5062415fbc4dcfa6c57df78a of pymc_marketing.mlflow.log_model_graph:8
+msgid "**model** : :class:`~pymc.Model`"
+msgstr "**modelo** : :class:`~pymc.Model`"
+
+#: 9e0766aedb33475fb72804479636b600 of pymc_marketing.mlflow.log_model_graph:7
+msgid "Model"
+msgstr "Modelo"
+
+#: b451d61c89b04ed8906a430e9373cf2b of pymc_marketing.mlflow.log_model_graph:9
+msgid "The PyMC model object."
+msgstr "El objeto del modelo PyMC."
+
+#: 0b9ffe2e65d840408d12e852bce5326f of
+#: pymc_marketing.mlflow.log_model_graph:11
+msgid "**path** : :class:`python:str` | :obj:`Path`"
+msgstr "**ruta** : :class:`python:str` | :obj:`Ruta`"
+
+#: 89d03a38396a4e08ae14ee2190752260 of
+#: pymc_marketing.mlflow.log_model_graph:10
+msgid "python:str | Path"
+msgstr "python:str | Ruta"
+
+#: 72544043f0f1435198b608a1bbe5eb26 of
+#: pymc_marketing.mlflow.log_model_graph:12
+msgid "The path to save the model graph"
+msgstr "La ruta para guardar el gráfico del modelo"

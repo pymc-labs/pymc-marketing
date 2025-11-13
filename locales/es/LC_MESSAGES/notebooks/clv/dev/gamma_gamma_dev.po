@@ -1,0 +1,123 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/clv/dev/gamma_gamma_dev.ipynb:10002
+#: 9868d1f92a15495cb37023edeb99e635
+msgid "Developer Gamma-gamma model PyMC implementation"
+msgstr "Implementación del modelo Gamma-gamma en PyMC por el desarrollador"
+
+#: ../source/notebooks/clv/dev/gamma_gamma_dev.ipynb:20002
+#: d52349cdbb7047a891160c1dd2874ca9
+msgid ""
+"**Reference**:Fader, P. S., & Hardie, B. G. (2013). The Gamma-Gamma model of"
+" monetary value. February, 2, 1-9."
+msgstr ""
+"**Referencia**: Fader, P. S., & Hardie, B. G. (2013). El modelo Gamma-Gamma "
+"del valor monetario. Febrero, 2, 1-9."
+
+#: ../source/notebooks/clv/dev/gamma_gamma_dev.ipynb:20004
+#: 1f5c57204f6247f4b05ba3fd5dc22a6b
+msgid "http://www.brucehardie.com/notes/025/gamma_gamma.pdf"
+msgstr "http://www.brucehardie.com/notes/025/gamma_gamma.pdf"
+
+#: ../source/notebooks/clv/dev/gamma_gamma_dev.ipynb:50002
+#: 41e733dea0b3467badbaf96eb3b4369b
+msgid "Simulate data"
+msgstr "Simular datos"
+
+#: ../source/notebooks/clv/dev/gamma_gamma_dev.ipynb:100002
+#: 6437cc106dda4503b7d834a53e2445aa
+msgid "PyMC implementation"
+msgstr "Implementación de PyMC"
+
+#: ../source/notebooks/clv/dev/gamma_gamma_dev.ipynb:110002
+#: 1aade4d071e249cb9bef30332a6d89c3
+msgid ""
+"We can use the pre-built PyMMMC implementation of the Gamma-Gamma model, "
+"which also provides nice ploting and prediction methods"
+msgstr ""
+"Podemos utilizar la implementación preconstruida de PyMMMC del modelo Gamma-"
+"Gamma, que también ofrece métodos de graficado y predicción atractivos."
+
+#: ../source/notebooks/clv/dev/gamma_gamma_dev.ipynb:120002
+#: 7632ce62c48641789664f51259d4f622
+msgid "Using individual transactions 𝑧"
+msgstr "Usando transacciones individuales 𝑧"
+
+#: ../source/notebooks/clv/dev/gamma_gamma_dev.ipynb:230002
+#: 5e11cf16bed54e5eb462667abc2d97ca
+#, python-brace-format
+msgid "Using average transactions per user $\\overline{z}$"
+msgstr "Usando transacciones promedio por usuario $\\overline{z}$"
+
+#: ../source/notebooks/clv/dev/gamma_gamma_dev.ipynb:310002
+#: 9670814dcd0d4da59c5662f16f2375fd
+msgid "Manual PyMC implementations"
+msgstr "Implementaciones manuales de PyMC"
+
+#: ../source/notebooks/clv/dev/gamma_gamma_dev.ipynb:320002
+#: ae0ca35f5b6449aea919e3da08dc5318
+msgid ""
+"We show how the Gamma-Gamma model can be implemented by hand using PyMC. "
+"This clarifies how the model can be modified or extended to include more "
+"prior information or additional structure."
+msgstr ""
+"Mostramos cómo se puede implementar el modelo Gamma-Gamma manualmente "
+"utilizando PyMC. Esto aclara cómo se puede modificar o extender el modelo "
+"para incluir más información previa o estructura adicional."
+
+#: ../source/notebooks/clv/dev/gamma_gamma_dev.ipynb:330002
+#: 1c5da048d26b429c920e3d66ade57d77
+msgid "Gamma-Gamma model conditioned on individual transactions $z$"
+msgstr "Modelo Gamma-Gamma condicionado a transacciones individuales $z$"
+
+#: ../source/notebooks/clv/dev/gamma_gamma_dev.ipynb:370002
+#: 87e6f39792924203a2f8216084925e83
+#, python-brace-format
+msgid ""
+"Gamma-gamma model conditioned on average transactions per user "
+"$\\overline{z}$"
+msgstr ""
+"Modelo gamma-gamma condicionado a las transacciones promedio por usuario "
+"$\\overline{z}$"
+
+#: ../source/notebooks/clv/dev/gamma_gamma_dev.ipynb:380002
+#: a7610f6e79924b3ea7a068be30e8a1ca
+msgid ""
+"This fails to sample because the model contains \"nearly\" two independent "
+"parameters per observation. For more details check this [Discourse "
+"topic](https://discourse.pymc.io/t/gamma-model-sampling-much-worse-when-"
+"observation-summaries-are-used-instead-of-individual-observations/10444)"
+msgstr ""
+"Esto no puede muestrear porque el modelo contiene \"casi\" dos parámetros "
+"independientes por observación. Para más detalles, consulta este [tema de "
+"Discourse](https://discourse.pymc.io/t/gamma-model-sampling-much-worse-when-"
+"observation-summaries-are-used-instead-of-individual-observations/10444)"
+
+#: ../source/notebooks/clv/dev/gamma_gamma_dev.ipynb:420002
+#: aba565d71462447881ea5dad7a4bdb52
+msgid ""
+"Gamma-Gamma model conditioned on average transaction per user with $\\nu$ "
+"marginalized"
+msgstr ""
+"Modelo Gamma-Gamma condicionado en la transacción promedio por usuario con "
+"$\\nu$ marginalizado"

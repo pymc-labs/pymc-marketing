@@ -1,0 +1,569 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:2
+#: b4ff39c31b7744df94e7132a14a7ea1f
+msgid "RegressionModelBuilder"
+msgstr "ConstructorDeModeloDeRegresión"
+
+#: f1f80aa66f634c239e614ae871f36f9b of
+#: pymc_marketing.model_builder.RegressionModelBuilder:2
+msgid ""
+"ModelBuilder class providing an easy-to-use API similar to scikit-learn for "
+"regression models."
+msgstr ""
+"Clase ModelBuilder que proporciona una API fácil de usar similar a scikit-"
+"learn para modelos de regresión."
+
+#: 139dd50464da4145bd1152bfc5eccad5 of
+#: pymc_marketing.model_builder.RegressionModelBuilder:4
+msgid ""
+"Training data is provided in the fit method and must follow the following "
+"convention:"
+msgstr ""
+"Los datos de entrenamiento se proporcionan en el método fit y deben seguir "
+"la siguiente convención:"
+
+#: 95cec2b99ff54eb9bff42e63681349af of
+#: pymc_marketing.model_builder.RegressionModelBuilder:6
+msgid "X: Matrix containing predictor variables"
+msgstr "X: Matriz que contiene variables predictoras"
+
+#: 082ad8654fe14e46ae358aad2aef74f1 of
+#: pymc_marketing.model_builder.RegressionModelBuilder:7
+msgid "y: Target variable array"
+msgstr "y: Array de variable objetivo"
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:12
+#: ff595d17ad88477bace467764fe264ae
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: 59ce5f38b9124857b5d73469e4311df5
+msgid ""
+":py:obj:`RegressionModelBuilder.__init__ "
+"<pymc_marketing.model_builder.RegressionModelBuilder.__init__>`\\ "
+"\\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`RegressionModelBuilder.__init__ "
+"<pymc_marketing.model_builder.RegressionModelBuilder.__init__>`\\ "
+"\\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: ffb7c7d8ecdb46e7a6106ce8c739ebe7
+msgid ""
+"Initialize model configuration and sampler configuration for the model."
+msgstr ""
+"Inicializar la configuración del modelo y la configuración del muestreador "
+"para el modelo."
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: 0fea5a6154ca4bf0ba1a9e3316de109f
+msgid ""
+":py:obj:`RegressionModelBuilder.approximate_fit "
+"<pymc_marketing.model_builder.RegressionModelBuilder.approximate_fit>`\\ "
+"\\(X\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`RegressionModelBuilder.approximate_fit "
+"<pymc_marketing.model_builder.RegressionModelBuilder.approximate_fit>`\\ "
+"\\(X\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: 2a8475bf7ac846f0b98979221a480938
+msgid "Fit a model using Variational Inference and return InferenceData."
+msgstr ""
+"Ajuste un modelo utilizando Inferencia Variacional y devuelva InferenceData."
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: 940484d60fcb4cf2a4af41dc6bbffd4f
+msgid ""
+":py:obj:`RegressionModelBuilder.attrs_to_init_kwargs "
+"<pymc_marketing.model_builder.RegressionModelBuilder.attrs_to_init_kwargs>`\\"
+" \\(attrs\\)"
+msgstr ""
+":py:obj:`RegressionModelBuilder.attrs_to_init_kwargs "
+"<pymc_marketing.model_builder.RegressionModelBuilder.attrs_to_init_kwargs>`\\"
+" \\(attrs\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: d0568013dd41467684fc4d2b0c7943d1
+msgid ""
+"Convert the model configuration and sampler configuration from the "
+"attributes to keyword arguments."
+msgstr ""
+"Convierte la configuración del modelo y la configuración del muestreador de "
+"los atributos a argumentos de palabra clave."
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: 9408af4912444345aa429189d1788f64
+msgid ""
+":py:obj:`RegressionModelBuilder.build_from_idata "
+"<pymc_marketing.model_builder.RegressionModelBuilder.build_from_idata>`\\ "
+"\\(idata\\)"
+msgstr ""
+":py:obj:`RegressionModelBuilder.build_from_idata "
+"<pymc_marketing.model_builder.RegressionModelBuilder.build_from_idata>`\\ "
+"\\(idata\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: b421f56827e945deaf9c940f4ea57769
+msgid "Build model from the InferenceData object."
+msgstr "Construir el modelo a partir del objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: 20770153fa794f2bb9cac5e8c1996836
+msgid ""
+":py:obj:`RegressionModelBuilder.build_model "
+"<pymc_marketing.model_builder.RegressionModelBuilder.build_model>`\\ \\(X\\,"
+" y\\, ...\\)"
+msgstr ""
+":py:obj:`RegressionModelBuilder.build_model "
+"<pymc_marketing.model_builder.RegressionModelBuilder.build_model>`\\ \\(X\\,"
+" y\\, ...\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: 94561f7b62aa437b85d008002bb37dcb
+msgid ""
+"Create an instance of `pm.Model` based on provided data and model_config."
+msgstr ""
+"Cree una instancia de `pm.Model` basada en los datos proporcionados y en "
+"model_config."
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: 4970b25e32384194b2ec84df748e3b5f
+msgid ""
+":py:obj:`RegressionModelBuilder.create_fit_data "
+"<pymc_marketing.model_builder.RegressionModelBuilder.create_fit_data>`\\ "
+"\\(X\\, y\\)"
+msgstr ""
+":py:obj:`RegressionModelBuilder.create_fit_data "
+"<pymc_marketing.model_builder.RegressionModelBuilder.create_fit_data>`\\ "
+"\\(X\\, y\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: 97601ca3d0db49279812c1b720e14b88
+msgid "Create the fit_data group based on the input data."
+msgstr "Cree el grupo fit_data basado en los datos de entrada."
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: 4aff808d3d8648babac7c037ed24cd95
+msgid ""
+":py:obj:`RegressionModelBuilder.create_idata_attrs "
+"<pymc_marketing.model_builder.RegressionModelBuilder.create_idata_attrs>`\\ "
+"\\(\\)"
+msgstr ""
+":py:obj:`RegressionModelBuilder.create_idata_attrs "
+"<pymc_marketing.model_builder.RegressionModelBuilder.create_idata_attrs>`\\ "
+"\\(\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: bb2d0425fa9a4c49a9d20e0cf0b2bf3d
+msgid "Create attributes for the inference data."
+msgstr "Cree atributos para los datos de inferencia."
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: 5a85af7da4e24b03a43fd0208d451f82
+msgid ""
+":py:obj:`RegressionModelBuilder.fit "
+"<pymc_marketing.model_builder.RegressionModelBuilder.fit>`\\ \\(X\\[\\, y\\,"
+" ...\\]\\)"
+msgstr ""
+":py:obj:`RegressionModelBuilder.fit "
+"<pymc_marketing.model_builder.RegressionModelBuilder.fit>`\\ \\(X\\[\\, y\\,"
+" ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: 41f5ee08107a4c6a9f07f1cda8f14bbe
+msgid "Fit a model using the data passed as a parameter."
+msgstr "Ajuste un modelo utilizando los datos pasados como parámetro."
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: 1e16af2876d342f19e9207384b6e6239
+msgid ""
+":py:obj:`RegressionModelBuilder.graphviz "
+"<pymc_marketing.model_builder.RegressionModelBuilder.graphviz>`\\ "
+"\\(\\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`RegressionModelBuilder.graphviz "
+"<pymc_marketing.model_builder.RegressionModelBuilder.graphviz>`\\ "
+"\\(\\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: 430cc4e78eba46c58f1c445d24d7f733
+msgid "Get the graphviz representation of the model."
+msgstr "Obtenga la representación graphviz del modelo."
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: 9d84b6ab8f2b4ad58d54287c66fc1ee5
+msgid ""
+":py:obj:`RegressionModelBuilder.idata_to_init_kwargs "
+"<pymc_marketing.model_builder.RegressionModelBuilder.idata_to_init_kwargs>`\\"
+" \\(idata\\)"
+msgstr ""
+":py:obj:`RegressionModelBuilder.idata_to_init_kwargs "
+"<pymc_marketing.model_builder.RegressionModelBuilder.idata_to_init_kwargs>`\\"
+" \\(idata\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: 1b76a0a11cab4a45a429e9e5dca704b0
+msgid ""
+"Create  the model configuration and sampler configuration from the "
+"InferenceData to keyword arguments."
+msgstr ""
+"Cree la configuración del modelo y la configuración del muestreador a partir"
+" de InferenceData como argumentos de palabra clave."
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: 43e3b3018d114dbbb546453f4beb6ce5
+msgid ""
+":py:obj:`RegressionModelBuilder.load "
+"<pymc_marketing.model_builder.RegressionModelBuilder.load>`\\ \\(fname\\[\\,"
+" check\\]\\)"
+msgstr ""
+":py:obj:`RegressionModelBuilder.load "
+"<pymc_marketing.model_builder.RegressionModelBuilder.load>`\\ \\(fname\\[\\,"
+" check\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: 03157b6ae37f4ed4a0bb13b7eac3b08e
+msgid "Create a ModelBuilder instance from a file."
+msgstr "Cree una instancia de ModelBuilder a partir de un archivo."
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: f68ac41a503d46fa9544d87969c12a59
+msgid ""
+":py:obj:`RegressionModelBuilder.load_from_idata "
+"<pymc_marketing.model_builder.RegressionModelBuilder.load_from_idata>`\\ "
+"\\(idata\\)"
+msgstr ""
+":py:obj:`RegressionModelBuilder.load_from_idata "
+"<pymc_marketing.model_builder.RegressionModelBuilder.load_from_idata>`\\ "
+"\\(idata\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: ff8742dc44074ae4b12e2a014ede928a
+msgid "Create a ModelBuilder instance from an InferenceData object."
+msgstr ""
+"Cree una instancia de ModelBuilder a partir de un objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: c2e013b777cf4693a2fa73df1a18c793
+msgid ""
+":py:obj:`RegressionModelBuilder.post_sample_model_transformation "
+"<pymc_marketing.model_builder.RegressionModelBuilder.post_sample_model_transformation>`\\"
+" \\(\\)"
+msgstr ""
+":py:obj:`RegressionModelBuilder.post_sample_model_transformation "
+"<pymc_marketing.model_builder.RegressionModelBuilder.post_sample_model_transformation>`\\"
+" \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: dbf1eb9fbb4a4a4a95b7e4a8615f6b9f
+msgid "Perform transformation on the model after sampling."
+msgstr "Realice la transformación en el modelo después de muestrear."
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: 067c3afd9f2a484e89cd4998a36a1a84
+msgid ""
+":py:obj:`RegressionModelBuilder.predict "
+"<pymc_marketing.model_builder.RegressionModelBuilder.predict>`\\ \\(\\[X\\, "
+"extend\\_idata\\]\\)"
+msgstr ""
+":py:obj:`RegressionModelBuilder.predict "
+"<pymc_marketing.model_builder.RegressionModelBuilder.predict>`\\ \\(\\[X\\, "
+"extend\\_idata\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: ef32c6ef12f74301a13c30cd8b70493e
+msgid ""
+"Use a model to predict on unseen data and return point prediction of all the"
+" samples."
+msgstr ""
+"Utilice un modelo para predecir en datos no vistos y devuelva la predicción "
+"puntual de todas las muestras."
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: 7f0fb6e32498437e909f277352bd4e37
+msgid ""
+":py:obj:`RegressionModelBuilder.predict_posterior "
+"<pymc_marketing.model_builder.RegressionModelBuilder.predict_posterior>`\\ "
+"\\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`RegressionModelBuilder.predict_posterior "
+"<pymc_marketing.model_builder.RegressionModelBuilder.predict_posterior>`\\ "
+"\\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: 0519c358f1ef46ffbd2fd6bee76d2294
+msgid "Generate posterior predictive samples on unseen data."
+msgstr "Generar muestras predictivas posteriores en datos no vistos."
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: 1d0b5e7f89564500a077692b60426ec6
+msgid ""
+":py:obj:`RegressionModelBuilder.predict_proba "
+"<pymc_marketing.model_builder.RegressionModelBuilder.predict_proba>`\\ "
+"\\(\\[X\\, ...\\]\\)"
+msgstr ""
+":py:obj:`RegressionModelBuilder.predict_proba "
+"<pymc_marketing.model_builder.RegressionModelBuilder.predict_proba>`\\ "
+"\\(\\[X\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: 2e14c6819bf24c4a95bb1b9ab9a0d688
+msgid ""
+"Alias for `predict_posterior`, for consistency with scikit-learn "
+"probabilistic estimators."
+msgstr ""
+"Alias para `predict_posterior`, por consistencia con los estimadores "
+"probabilísticos de scikit-learn."
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: 3b739bb38f244bfb823bdb8bd4a56b19
+msgid ""
+":py:obj:`RegressionModelBuilder.sample_posterior_predictive "
+"<pymc_marketing.model_builder.RegressionModelBuilder.sample_posterior_predictive>`\\"
+" \\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`RegressionModelBuilder.sample_posterior_predictive "
+"<pymc_marketing.model_builder.RegressionModelBuilder.sample_posterior_predictive>`\\"
+" \\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: 0b50bc5f4b804d339174a83147c60760
+msgid "Sample from the model's posterior predictive distribution."
+msgstr "Muestra de la distribución predictiva posterior del modelo."
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: c2b5e71735ee4fb5bbae94e0b48cc2ca
+msgid ""
+":py:obj:`RegressionModelBuilder.sample_prior_predictive "
+"<pymc_marketing.model_builder.RegressionModelBuilder.sample_prior_predictive>`\\"
+" \\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`RegressionModelBuilder.sample_prior_predictive "
+"<pymc_marketing.model_builder.RegressionModelBuilder.sample_prior_predictive>`\\"
+" \\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: 4d4408bd632e49718c54a4089155a40f
+msgid "Sample from the model's prior predictive distribution."
+msgstr "Muestra de la distribución predictiva previa del modelo."
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: de1573c76287418a8cf42e53a3d39a8e
+msgid ""
+":py:obj:`RegressionModelBuilder.save "
+"<pymc_marketing.model_builder.RegressionModelBuilder.save>`\\ \\(fname\\, "
+"\\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`RegressionModelBuilder.save "
+"<pymc_marketing.model_builder.RegressionModelBuilder.save>`\\ \\(fname\\, "
+"\\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: c4f9911d68a8484897a1338c5f62e062
+msgid "Save the model's inference data to a file."
+msgstr "Guarde los datos de inferencia del modelo en un archivo."
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: d6b7c8b1261b4c9a87f113d865907b0e
+msgid ""
+":py:obj:`RegressionModelBuilder.set_idata_attrs "
+"<pymc_marketing.model_builder.RegressionModelBuilder.set_idata_attrs>`\\ "
+"\\(\\[idata\\]\\)"
+msgstr ""
+":py:obj:`RegressionModelBuilder.set_idata_attrs "
+"<pymc_marketing.model_builder.RegressionModelBuilder.set_idata_attrs>`\\ "
+"\\(\\[idata\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: af5ac8e5dc3949db91aa696ec726fb9b
+msgid "Set attributes on an InferenceData object."
+msgstr "Establecer atributos en un objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: 0cbeca845a2a44e8975582a10e4a8c8e
+msgid ""
+":py:obj:`RegressionModelBuilder.table "
+"<pymc_marketing.model_builder.RegressionModelBuilder.table>`\\ \\(...\\)"
+msgstr ""
+":py:obj:`RegressionModelBuilder.table "
+"<pymc_marketing.model_builder.RegressionModelBuilder.table>`\\ \\(...)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:42:<autosummary>:1
+#: 642d18b06b3a4154b95e5379a1244dc2
+msgid "Get the summary table of the model."
+msgstr "Obtenga la tabla resumen del modelo."
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:44
+#: 8479d026a6a64d768900cd297985e63e
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:60:<autosummary>:1
+#: 81259109a539483791539d41602eba82
+msgid ""
+":py:obj:`default_model_config "
+"<pymc_marketing.model_builder.RegressionModelBuilder.default_model_config>`\\"
+msgstr ""
+":py:obj:`default_model_config "
+"<pymc_marketing.model_builder.RegressionModelBuilder.default_model_config>`"
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:60:<autosummary>:1
+#: 48783b4b378045c6b2a570572dd1d1cd
+msgid "Return a class default configuration dictionary."
+msgstr "Devuelve un diccionario de configuración predeterminado de la clase."
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:60:<autosummary>:1
+#: fc62d44c1d534e0a86600b4f5c160321
+msgid ""
+":py:obj:`default_sampler_config "
+"<pymc_marketing.model_builder.RegressionModelBuilder.default_sampler_config>`\\"
+msgstr ""
+":py:obj:`default_sampler_config "
+"<pymc_marketing.model_builder.RegressionModelBuilder.default_sampler_config>`"
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:60:<autosummary>:1
+#: 1ee5a8c5ae1d4b72b2773a87c57e02b3
+msgid "Return a class default sampler configuration dictionary."
+msgstr ""
+"Devuelve un diccionario de configuración de muestreador predeterminado de "
+"clase."
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:60:<autosummary>:1
+#: f40aeedc05724bfeaed70a6345710795
+msgid ""
+":py:obj:`fit_result "
+"<pymc_marketing.model_builder.RegressionModelBuilder.fit_result>`\\"
+msgstr ""
+":py:obj:`fit_result "
+"<pymc_marketing.model_builder.RegressionModelBuilder.fit_result>`"
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:60:<autosummary>:1
+#: fdb6db124a174b88a4d61cbf872ba55e
+msgid "Get the posterior fit_result."
+msgstr "Obtenga el resultado de ajuste posterior fit_result."
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:60:<autosummary>:1
+#: c1e0e0e7020449e8a00a439d5c3fe070
+msgid ":py:obj:`id <pymc_marketing.model_builder.RegressionModelBuilder.id>`\\"
+msgstr ":py:obj:`id <pymc_marketing.model_builder.RegressionModelBuilder.id>`"
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:60:<autosummary>:1
+#: 357741dc87f043c6ae2cd7144e585546
+msgid "Generate a unique hash value for the model."
+msgstr "Generar un valor hash único para el modelo."
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:60:<autosummary>:1
+#: 6e71c38b60a341f988abd9d1a37a6edc
+msgid ""
+":py:obj:`output_var "
+"<pymc_marketing.model_builder.RegressionModelBuilder.output_var>`\\"
+msgstr ""
+":py:obj:`output_var "
+"<pymc_marketing.model_builder.RegressionModelBuilder.output_var>`"
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:60:<autosummary>:1
+#: 1e1f869c20844130803a29da562aa75d
+msgid "Returns the name of the output variable of the model."
+msgstr "Devuelve el nombre de la variable de salida del modelo."
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:60:<autosummary>:1
+#: fd06625f97bf4e4297785ad1add4deaf
+msgid ""
+":py:obj:`posterior "
+"<pymc_marketing.model_builder.RegressionModelBuilder.posterior>`\\"
+msgstr ""
+":py:obj:`posterior "
+"<pymc_marketing.model_builder.RegressionModelBuilder.posterior>`"
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:60:<autosummary>:1
+#: 99686b51afc94a2b82ab184ae6ad8637
+msgid ""
+":py:obj:`posterior_predictive "
+"<pymc_marketing.model_builder.RegressionModelBuilder.posterior_predictive>`\\"
+msgstr ""
+":py:obj:`posterior_predictive "
+"<pymc_marketing.model_builder.RegressionModelBuilder.posterior_predictive>`"
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:60:<autosummary>:1
+#: 4081b15af01041fa9472d00d2b0e2dbc
+msgid ""
+":py:obj:`predictions "
+"<pymc_marketing.model_builder.RegressionModelBuilder.predictions>`\\"
+msgstr ""
+":py:obj:`predicciones "
+"<pymc_marketing.model_builder.RegressionModelBuilder.predictions>`"
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:60:<autosummary>:1
+#: aae0345b08904bda9fbd7e3cb97405f4
+msgid ""
+":py:obj:`prior "
+"<pymc_marketing.model_builder.RegressionModelBuilder.prior>`\\"
+msgstr ""
+":py:obj:`prior <pymc_marketing.model_builder.RegressionModelBuilder.prior>`"
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:60:<autosummary>:1
+#: 4687e66d5fb64e24b0b1bfb3e8c419c7
+msgid ""
+":py:obj:`prior_predictive "
+"<pymc_marketing.model_builder.RegressionModelBuilder.prior_predictive>`\\"
+msgstr ""
+":py:obj:`prior_predictive "
+"<pymc_marketing.model_builder.RegressionModelBuilder.prior_predictive>`"
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:60:<autosummary>:1
+#: 4216875332a44dad9428ae567299213b
+msgid ""
+":py:obj:`version "
+"<pymc_marketing.model_builder.RegressionModelBuilder.version>`\\"
+msgstr ""
+":py:obj:`versión "
+"<pymc_marketing.model_builder.RegressionModelBuilder.version>`\\"
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:60:<autosummary>:1
+#: d10b7da4892d4f409ed6aa500e6f949e
+msgid ""
+":py:obj:`idata "
+"<pymc_marketing.model_builder.RegressionModelBuilder.idata>`\\"
+msgstr ""
+":py:obj:`idata <pymc_marketing.model_builder.RegressionModelBuilder.idata>`"
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:60:<autosummary>:1
+#: 027301eeecdb4fc3be324a401852e60b
+msgid ""
+":py:obj:`sampler_config "
+"<pymc_marketing.model_builder.RegressionModelBuilder.sampler_config>`\\"
+msgstr ""
+":py:obj:`sampler_config "
+"<pymc_marketing.model_builder.RegressionModelBuilder.sampler_config>`"
+
+#: ../source/api/generated/pymc_marketing.model_builder.RegressionModelBuilder.rst:60:<autosummary>:1
+#: d5f3e0a081ed4548b07e21bbc6c9416a
+msgid ""
+":py:obj:`model_config "
+"<pymc_marketing.model_builder.RegressionModelBuilder.model_config>`\\"
+msgstr ""
+":py:obj:`model_config "
+"<pymc_marketing.model_builder.RegressionModelBuilder.model_config>`"

@@ -1,0 +1,56 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.transformers.ConvMode.replace.rst:2
+#: 92ad164ead29416d8637850ef7e1c9f0
+msgid "ConvMode.replace"
+msgstr "ConvMode.reemplazar"
+
+#: 519222160ea745588d8cbff63fde4175 of
+#: pymc_marketing.mmm.transformers.ConvMode.replace:2
+msgid "Return a copy with all occurrences of substring old replaced by new."
+msgstr ""
+"Devuelve una copia con todas las ocurrencias de la subcadena old "
+"reemplazadas por new."
+
+#: 4562b9e9a2a54525b06a343a7e225c35 of
+#: pymc_marketing.mmm.transformers.ConvMode.replace:4
+msgid "count"
+msgstr "conteo"
+
+#: 7e3c34496fd846cc9b61c01d0f205b7a of
+#: pymc_marketing.mmm.transformers.ConvMode.replace:5
+msgid ""
+"Maximum number of occurrences to replace. -1 (the default value) means "
+"replace all occurrences."
+msgstr ""
+"Número máximo de ocurrencias a reemplazar. -1 (el valor predeterminado) "
+"significa reemplazar todas las ocurrencias."
+
+#: cdefa2bfb5fb40d38dbb1a4d6fbc3330 of
+#: pymc_marketing.mmm.transformers.ConvMode.replace:8
+msgid ""
+"If the optional argument count is given, only the first count occurrences "
+"are replaced."
+msgstr ""
+"Si se proporciona el argumento opcional count, solo se reemplazan las "
+"primeras count ocurrencias."

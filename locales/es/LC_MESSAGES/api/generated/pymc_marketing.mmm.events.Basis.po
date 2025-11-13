@@ -1,0 +1,249 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.Basis.rst:2
+#: 021f4eba9fcd4b4e804f626ffa340877
+msgid "Basis"
+msgstr "Base"
+
+#: b13a92663bfc43e0b1d1052a894ef04e of pymc_marketing.mmm.events.Basis:2
+msgid "Basis transformation associated with an event model."
+msgstr "Transformación de base asociada con un modelo de evento."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.Basis.rst:12
+#: a8e6e29310ec476b82d6fd0307c2a969
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.Basis.rst:31:<autosummary>:1
+#: 10f83fa3eef94e9f928c9514167f0618
+msgid ""
+":py:obj:`Basis.__init__ <pymc_marketing.mmm.events.Basis.__init__>`\\ "
+"\\(\\[priors\\, prefix\\]\\)"
+msgstr ""
+":py:obj:`Basis.__init__ <pymc_marketing.mmm.events.Basis.__init__>`\\ "
+"\\(\\[priors\\, prefix\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.Basis.rst:31:<autosummary>:1
+#: 13aab3ff79c24f809980069b64100987
+msgid ""
+":py:obj:`Basis.apply <pymc_marketing.mmm.events.Basis.apply>`\\ \\(x\\[\\, "
+"dims\\, idx\\]\\)"
+msgstr ""
+":py:obj:`Basis.apply <pymc_marketing.mmm.events.Basis.apply>`\\ \\(x\\[\\, "
+"dims\\, idx\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.Basis.rst:31:<autosummary>:1
+#: 832c95507d3d4758b6609122146c4741
+msgid "Call within a model context."
+msgstr "Llamar dentro de un contexto de modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.Basis.rst:31:<autosummary>:1
+#: 7f3b77367eae412d8bfc72c4f12a6c3b
+msgid ""
+":py:obj:`Basis.plot_curve <pymc_marketing.mmm.events.Basis.plot_curve>`\\ "
+"\\(curve\\[\\, n\\_samples\\, ...\\]\\)"
+msgstr ""
+":py:obj:`Basis.plot_curve <pymc_marketing.mmm.events.Basis.plot_curve>`\\ "
+"\\(curve\\[\\, n\\_samples\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.Basis.rst:31:<autosummary>:1
+#: f80d848fd9e141208ef3f4effa694d17
+msgid "Plot curve HDI and samples."
+msgstr "Trazar curva HDI y muestras."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.Basis.rst:31:<autosummary>:1
+#: 992187ce4b8c40208dcc29657db9e8fc
+msgid ""
+":py:obj:`Basis.plot_curve_hdi "
+"<pymc_marketing.mmm.events.Basis.plot_curve_hdi>`\\ \\(curve\\[\\, "
+"hdi\\_kwargs\\, ...\\]\\)"
+msgstr ""
+":py:obj:`Basis.plot_curve_hdi "
+"<pymc_marketing.mmm.events.Basis.plot_curve_hdi>`\\ \\(curve\\[\\, "
+"hdi\\_kwargs\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.Basis.rst:31:<autosummary>:1
+#: bd88cd8c335e464383baba6801d67b07
+msgid "Plot the HDI of the curve."
+msgstr "Trace el IDH de la curva."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.Basis.rst:31:<autosummary>:1
+#: b3dd2a347b8944ce9273dbcde8a26d3b
+msgid ""
+":py:obj:`Basis.plot_curve_samples "
+"<pymc_marketing.mmm.events.Basis.plot_curve_samples>`\\ \\(curve\\[\\, n\\, "
+"rng\\, ...\\]\\)"
+msgstr ""
+":py:obj:`Basis.plot_curve_samples "
+"<pymc_marketing.mmm.events.Basis.plot_curve_samples>`\\ \\(curva\\[\\, n\\, "
+"rng\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.Basis.rst:31:<autosummary>:1
+#: c636034c41e14941834dba41a6014ac5
+msgid "Plot samples from the curve."
+msgstr "Trazar muestras de la curva."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.Basis.rst:31:<autosummary>:1
+#: 2722977471944038b2b8c98b3fda91a6
+msgid ""
+":py:obj:`Basis.sample_curve "
+"<pymc_marketing.mmm.events.Basis.sample_curve>`\\ \\(\\[parameters\\, "
+"days\\]\\)"
+msgstr ""
+":py:obj:`Basis.sample_curve "
+"<pymc_marketing.mmm.events.Basis.sample_curve>`\\ \\(\\[parámetros\\, "
+"días\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.Basis.rst:31:<autosummary>:1
+#: 2e39da8cd424481c95473ccf31f42fd7
+msgid "Sample the curve of the saturation transformation given parameters."
+msgstr ""
+"Muestre la curva de la transformación de saturación dadas las parámetros."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.Basis.rst:31:<autosummary>:1
+#: a51dd5f70aaf4ca58d9d0873b7e38416
+msgid ""
+":py:obj:`Basis.sample_prior "
+"<pymc_marketing.mmm.events.Basis.sample_prior>`\\ \\(\\[coords\\]\\)"
+msgstr ""
+":py:obj:`Basis.sample_prior "
+"<pymc_marketing.mmm.events.Basis.sample_prior>`\\ \\(\\[coords\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.Basis.rst:31:<autosummary>:1
+#: 150530ed52fc46f8a29670256f103ccb
+msgid "Sample the priors for the transformation."
+msgstr "Muestree las distribuciones previas para la transformación."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.Basis.rst:31:<autosummary>:1
+#: 17f325f624b1477988e28b52dfa7d84a
+msgid ""
+":py:obj:`Basis.set_dims_for_all_priors "
+"<pymc_marketing.mmm.events.Basis.set_dims_for_all_priors>`\\ \\(dims\\)"
+msgstr ""
+":py:obj:`Basis.set_dims_for_all_priors "
+"<pymc_marketing.mmm.events.Basis.set_dims_for_all_priors>`\\ \\(dims\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.Basis.rst:31:<autosummary>:1
+#: 7a83313830664dfcbf51543c8a2bce36
+msgid "Set the dims for all priors."
+msgstr "Establezca las dimensiones para todos los antecedentes."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.Basis.rst:31:<autosummary>:1
+#: b04afb7b76d54ce0af27f08d2b307997
+msgid ":py:obj:`Basis.to_dict <pymc_marketing.mmm.events.Basis.to_dict>`\\ \\(\\)"
+msgstr ":py:obj:`Basis.to_dict <pymc_marketing.mmm.events.Basis.to_dict>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.Basis.rst:31:<autosummary>:1
+#: 21e930c2ce334f42916429087c53d4e7
+msgid "Convert the transformation to a dictionary."
+msgstr "Convierte la transformación a un diccionario."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.Basis.rst:31:<autosummary>:1
+#: c0d3a88dfc6c4f568b884980e42a8467
+msgid ""
+":py:obj:`Basis.update_priors "
+"<pymc_marketing.mmm.events.Basis.update_priors>`\\ \\(priors\\)"
+msgstr ""
+":py:obj:`Basis.update_priors "
+"<pymc_marketing.mmm.events.Basis.update_priors>`\\ \\(priors\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.Basis.rst:31:<autosummary>:1
+#: 66699e08ee034dec97b8bd96bc505b4c
+msgid "Update the priors for a function after initialization."
+msgstr "Actualice los priors para una función después de la inicialización."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.Basis.rst:33
+#: 64a935a4b1b849418840dd991847f7c6
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.Basis.rst:43:<autosummary>:1
+#: d107ff15e85848f2bfd8540b5fd584da
+msgid ""
+":py:obj:`combined_dims <pymc_marketing.mmm.events.Basis.combined_dims>`\\"
+msgstr ""
+":py:obj:`combined_dims <pymc_marketing.mmm.events.Basis.combined_dims>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.Basis.rst:43:<autosummary>:1
+#: 8351b5952a9a437c98a3a60f0dec3dc3
+msgid "Get the combined dims for all the parameters."
+msgstr "Obtenga las dimensiones combinadas para todos los parámetros."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.Basis.rst:43:<autosummary>:1
+#: 860952045a6e42629a1469d15712144f
+msgid ""
+":py:obj:`function_priors "
+"<pymc_marketing.mmm.events.Basis.function_priors>`\\"
+msgstr ""
+":py:obj:`function_priors <pymc_marketing.mmm.events.Basis.function_priors>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.Basis.rst:43:<autosummary>:1
+#: e6589eb54d6945b680167ea6dec65afb
+msgid "Get the priors for the function."
+msgstr "Obtenga los antecedentes para la función."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.Basis.rst:43:<autosummary>:1
+#: 42f63a4948494270b77c9832bb6f305c
+msgid ":py:obj:`model_config <pymc_marketing.mmm.events.Basis.model_config>`\\"
+msgstr ":py:obj:`model_config <pymc_marketing.mmm.events.Basis.model_config>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.Basis.rst:43:<autosummary>:1
+#: bda8433868ea4075a53bfe93a9c53498
+msgid "Mapping from variable name to prior for the model."
+msgstr "Mapeo del nombre de la variable a la prior para el modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.Basis.rst:43:<autosummary>:1
+#: 5da094f70afa4fdca2718a7d1ca4dfbd
+msgid ":py:obj:`prefix <pymc_marketing.mmm.events.Basis.prefix>`\\"
+msgstr ":py:obj:`prefix <pymc_marketing.mmm.events.Basis.prefix>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.Basis.rst:43:<autosummary>:1
+#: 22ffcab509cc4e47b6065c9fbda0c819
+msgid ""
+":py:obj:`variable_mapping "
+"<pymc_marketing.mmm.events.Basis.variable_mapping>`\\"
+msgstr ""
+":py:obj:`variable_mapping "
+"<pymc_marketing.mmm.events.Basis.variable_mapping>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.Basis.rst:43:<autosummary>:1
+#: ec2c514d8c5c42fe8e99afd8a134988b
+msgid "Mapping from parameter name to variable name in the model."
+msgstr "Mapeo del nombre del parámetro al nombre de la variable en el modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.Basis.rst:43:<autosummary>:1
+#: b4522fb642604a8488fa18e1126bb52f
+msgid ":py:obj:`lookup_name <pymc_marketing.mmm.events.Basis.lookup_name>`\\"
+msgstr ":py:obj:`lookup_name <pymc_marketing.mmm.events.Basis.lookup_name>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.Basis.rst:43:<autosummary>:1
+#: 3b2ec45aa62049ceadc2f2992c13ae9e
+msgid ""
+":py:obj:`default_priors <pymc_marketing.mmm.events.Basis.default_priors>`\\"
+msgstr ""
+":py:obj:`default_priors <pymc_marketing.mmm.events.Basis.default_priors>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.Basis.rst:43:<autosummary>:1
+#: f66a884304ae4db99fd9ad3283d46afa
+msgid ":py:obj:`function <pymc_marketing.mmm.events.Basis.function>`\\"
+msgstr ":py:obj:`function <pymc_marketing.mmm.events.Basis.function>`"

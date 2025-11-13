@@ -1,0 +1,31 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.gamma_gamma.GammaGammaModel.expected_new_customer_spend.rst:2
+#: dbb4de580bcf477982c4267fe9c45612
+msgid "GammaGammaModel.expected\\_new\\_customer\\_spend"
+msgstr "GammaGammaModel.gasto\\_esperado\\_de\\_nuevos\\_clientes"
+
+#: f49131474223476889a89e7f926d8c66 of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_new_customer_spend:2
+msgid "Compute the expected mean spend value for a new customer."
+msgstr "Calcule el valor medio de gasto esperado para un nuevo cliente."

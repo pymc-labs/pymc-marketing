@@ -1,0 +1,185 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.tvp.time_varying_prior.rst:2
+#: 4e413e91978b4691bcab05ba42788a26
+msgid "time\\_varying\\_prior"
+msgstr "prior\\_variable\\_en\\_el\\_tiempo"
+
+#: dc131a5d7f0046728f4b831fb7b7c567 of
+#: pymc_marketing.mmm.tvp.time_varying_prior:2
+msgid ""
+"Time varying prior, based on the Hilbert Space Gaussian Process (HSGP)."
+msgstr ""
+"Prior variable en el tiempo, basado en el Proceso Gaussiano del Espacio de "
+"Hilbert (HSGP)."
+
+#: f8924b193c40472890e7402dccc4f6ff of
+#: pymc_marketing.mmm.tvp.time_varying_prior:4
+msgid ""
+"For more information see `pymc.gp.HSGP "
+"<https://www.pymc.io/projects/docs/en/stable/api/gp/generated/pymc.gp.HSGP.html>`_."
+msgstr ""
+"Para más información, consulte `pymc.gp.HSGP "
+"<https://www.pymc.io/projects/docs/en/stable/api/gp/generated/pymc.gp.HSGP.html>`_."
+
+#: d5ad9d68c4fa4335af43736824f854a0 of
+#: pymc_marketing.mmm.tvp.time_varying_prior
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 7b130060fedd4540b1c27a0707d769f8 of
+#: pymc_marketing.mmm.tvp.time_varying_prior:8
+msgid "**name** : :class:`python:str`"
+msgstr "**nombre** : :class:`python:str`"
+
+#: b49ba24473c24b97b100d91d2da76d07 of
+#: pymc_marketing.mmm.tvp.time_varying_prior:7
+msgid "python:str"
+msgstr "python:str"
+
+#: 421aa3cad827430e966499d034fb3877 of
+#: pymc_marketing.mmm.tvp.time_varying_prior:9
+msgid "Name of the prior and associated variables."
+msgstr "Nombre de la variable anterior y las variables asociadas."
+
+#: 180119095bf941efa5f8ac4c2f295344 of
+#: pymc_marketing.mmm.tvp.time_varying_prior:11
+msgid ""
+"**X** : 1d :term:`numpy:array_like` of :class:`python:int` or "
+":class:`python:float`"
+msgstr ""
+"**X** : 1d :term:`numpy:array_like` de :class:`python:int` o "
+":class:`python:float`"
+
+#: 8999f8a651044ecf991ef89b8cbdf113 of
+#: pymc_marketing.mmm.tvp.time_varying_prior:-1
+msgid "1d"
+msgstr "1d"
+
+#: 1bed4080124a49a18a64e4645ebe5cc9 of
+#: pymc_marketing.mmm.tvp.time_varying_prior:12
+msgid "Time points."
+msgstr "Puntos de tiempo."
+
+#: d06383426d6f4555b8932dc94db56379 of
+#: pymc_marketing.mmm.tvp.time_varying_prior:14
+msgid "**X_mid** : :class:`python:int` or :class:`python:float`"
+msgstr "**X_mid** : :class:`python:int` o :class:`python:float`"
+
+#: 055e6b6f26384cafa83472e025c95c90 of
+#: pymc_marketing.mmm.tvp.time_varying_prior:13
+msgid "python:int or python:float"
+msgstr "python:int o python:float"
+
+#: 7b18c06f12a34ecfb1af323480e22689 of
+#: pymc_marketing.mmm.tvp.time_varying_prior:15
+msgid "Midpoint of the time points."
+msgstr "Punto medio de los puntos de tiempo."
+
+#: d56f5cd4aaf848fa9993cea8281cc250 of
+#: pymc_marketing.mmm.tvp.time_varying_prior:17
+msgid ""
+"**dims** : :class:`python:tuple` of :class:`python:str` or "
+":class:`python:str`"
+msgstr ""
+"**dims** : :class:`python:tuple` de :class:`python:str` o "
+":class:`python:str`"
+
+#: af1eb2a96c384cfabb7ade1b16ddfad1 of
+#: pymc_marketing.mmm.tvp.time_varying_prior:16
+msgid "python:tuple of python:str or python:str"
+msgstr "python:tupla de python:str o python:str"
+
+#: fd51974a7157453ea1512b7817cdd1a8 of
+#: pymc_marketing.mmm.tvp.time_varying_prior:18
+msgid ""
+"Dimensions of the prior. If a tuple, the first element is the name of the "
+"time dimension, and the second may be any other dimension, across which "
+"independent time varying priors for each coordinate are desired (e.g. "
+"channels)."
+msgstr ""
+"Dimensiones del previo. Si es una tupla, el primer elemento es el nombre de "
+"la dimensión temporal, y el segundo puede ser cualquier otra dimensión, a "
+"través de la cual se desean previos que varían en el tiempo de manera "
+"independiente para cada coordenada (por ejemplo, canales)."
+
+#: daa6654ae4a54615ae2cb0e2fa3c270e of
+#: pymc_marketing.mmm.tvp.time_varying_prior:23
+msgid "**hsgp_kwargs** : :obj:`HSGPKwargs`"
+msgstr "**hsgp_kwargs** : :obj:`HSGPKwargs`"
+
+#: 516d4fbfcb584dd592bb354aafaa39a0 of
+#: pymc_marketing.mmm.tvp.time_varying_prior:22
+msgid "HSGPKwargs"
+msgstr "HSGPKwargs"
+
+#: 12a591e21fef4a28bedc79e03b0573fc of
+#: pymc_marketing.mmm.tvp.time_varying_prior:24
+msgid ""
+"Keyword arguments for the Hilbert Space Gaussian Process. By default it is "
+"None, in which case the default parameters are used. See `HSGPKwargs` for "
+"more information."
+msgstr ""
+"Argumentos de palabras clave para el Proceso Gaussiano del Espacio de "
+"Hilbert. Por defecto, es None, en cuyo caso se utilizan los parámetros "
+"predeterminados. Consulte `HSGPKwargs` para más información."
+
+#: 5deb00603dca45508872550c453514fc of
+#: pymc_marketing.mmm.tvp.time_varying_prior
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: d6737156c8d74c7ea0a95cb314390950 of
+#: pymc_marketing.mmm.tvp.time_varying_prior:31
+msgid ":obj:`pt.TensorVariable`"
+msgstr ":obj:`pt.TensorVariable`"
+
+#: 826d524a7127449999aeb05632980264 of
+#: pymc_marketing.mmm.tvp.time_varying_prior:32
+msgid "Time-varying prior."
+msgstr "Prior variable en el tiempo."
+
+#: 2c05540387e44fd2a7099a4e5f6a5458 of
+#: pymc_marketing.mmm.tvp.time_varying_prior:43
+msgid "References"
+msgstr "Referencias"
+
+#: 0b704bf46e8b4d86822c7c7ed3565f46 of
+#: pymc_marketing.mmm.tvp.time_varying_prior:44
+msgid ""
+"Ruitort-Mayol, G., and Anderson, M., and Solin, A., and Vehtari, A. (2022). "
+"Practical Hilbert Space Approximate Bayesian Gaussian Processes for "
+"Probabilistic Programming"
+msgstr ""
+"Ruitort-Mayol, G., Anderson, M., Solin, A. y Vehtari, A. (2022). Procesos "
+"Gaussianos Bayesianos Aproximados en Espacios de Hilbert Prácticos para "
+"Programación Probabilística"
+
+#: d2d47cca6df84cdeb9b378e9ee0c6bc2 of
+#: pymc_marketing.mmm.tvp.time_varying_prior:47
+msgid ""
+"Solin, A., Sarkka, S. (2019) Hilbert Space Methods for Reduced-Rank Gaussian"
+" Process Regression."
+msgstr ""
+"Solin, A., Sarkka, S. (2019) Métodos de espacio de Hilbert para la regresión"
+" de procesos gaussianos de rango reducido."

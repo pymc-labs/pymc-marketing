@@ -1,0 +1,848 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:2
+#: 77b15947c14f444abd8bef9d9f3eb9e1
+msgid "BetaGeoModel"
+msgstr "BetaGeoModel"
+
+#: 5be9af3fdb714c93845e5eb614cebcee of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel:2
+msgid ""
+"Beta-Geometric Negative Binomial Distribution (BG/NBD) model for a non-"
+"contractual customer population across continuous time."
+msgstr ""
+"Modelo de distribución binomial negativa geométrica beta (BG/NBD) para una "
+"población de clientes no contractuales a lo largo del tiempo continuo."
+
+#: aba55ac3541c41ff8fc8e8a1aafff4d8 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel:4
+msgid ""
+"First introduced by Fader, Hardie & Lee [R2639b53c1838-1]_, with additional "
+"predictive methods and enhancements in "
+"[R2639b53c1838-2]_,[R2639b53c1838-3]_, [R2639b53c1838-4]_ and "
+"[R2639b53c1838-5]_"
+msgstr ""
+"Primero introducido por Fader, Hardie y Lee [R2639b53c1838-1]_, con métodos "
+"predictivos adicionales y mejoras en [R2639b53c1838-2]_, [R2639b53c1838-3]_,"
+" [R2639b53c1838-4]_ y [R2639b53c1838-5]_"
+
+#: 9c7485d218aa4ce3be4ec796779df4b3 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel:7
+msgid ""
+"The BG/NBD model assumes dropout probabilities for the customer population "
+"are Beta distributed, and time between transactions follows a Gamma "
+"distribution while the customer is still active."
+msgstr ""
+"El modelo BG/NBD asume que las probabilidades de abandono para la población "
+"de clientes están distribuidas según una Beta, y el tiempo entre "
+"transacciones sigue una distribución Gamma mientras el cliente esté activo."
+
+#: a614690883a74f4da301684a1b2b6e7a of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel:10
+msgid ""
+"This model requires data to be summarized by *recency*, *frequency*, and *T*"
+" for each customer, using `clv.utils.rfm_summary()` or equivalent. Modeling "
+"assumptions require *T >= recency*."
+msgstr ""
+"Este modelo requiere que los datos sean resumidos por *recencia*, "
+"*frecuencia* y *T* para cada cliente, utilizando `clv.utils.rfm_summary()` o"
+" equivalente. Las suposiciones del modelo requieren *T >= recencia*."
+
+#: c4a07cc838ff4207a6782793cbed5b67 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel:13
+msgid ""
+"Predictive methods have been adapted from the *BetaGeoFitter* class in the "
+"legacy *lifetimes* library (see "
+"https://github.com/CamDavidsonPilon/lifetimes/)."
+msgstr ""
+"Los métodos predictivos se han adaptado de la clase *BetaGeoFitter* en la "
+"biblioteca heredada *lifetimes* (ver "
+"https://github.com/CamDavidsonPilon/lifetimes/)."
+
+#: 6f5f34fac544447999f1f920ccb192b3 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 32ecdffc2f2944279f40cf8708b486c3 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel:18
+msgid "**data** : :obj:`~pandas.DataFrame`"
+msgstr "**datos** : :obj:`~pandas.DataFrame`"
+
+#: 80faad6ac7834f699547aac949b0ba16 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel:17
+msgid "DataFrame"
+msgstr "DataFrame"
+
+#: a94d8dfbf7cb4f5088ac3c3f987e7563 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel:19
+msgid "DataFrame containing the following columns:"
+msgstr "DataFrame que contiene las siguientes columnas:"
+
+#: 884c810f91954cda8c78b5e9d2c90223 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel:20
+msgid "`customer_id`: Unique customer identifier"
+msgstr "`customer_id`: Identificador único del cliente"
+
+#: 3f4b895fc3734b6281c48d06b52d5aef of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel:21
+msgid "`frequency`: Number of repeat purchases"
+msgstr "`frequency`: Número de compras repetidas"
+
+#: 7c3eb798d34d4e3da6ad5ee193c54d78 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel:22
+msgid "`recency`: Time between the first and the last purchase"
+msgstr "`recency`: Tiempo entre la primera y la última compra"
+
+#: dee21d30bd0240fd81f16abb13141833 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel:23
+msgid ""
+"`T`: Time between the first purchase and the end of the observation period"
+msgstr ""
+"`T`: Tiempo entre la primera compra y el final del período de observación"
+
+#: e9c12653177f4405aee7c58d563182a8 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel:25
+msgid "**model_config** : :class:`python:dict`, optional"
+msgstr "**model_config** : :class:`python:dict`, opcional"
+
+#: 66994e66ded74bfdaba23b36e8b9f3f9 7b254731a50a474f8f36c2f84d29ab73 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel:24
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel:37
+msgid "python:dict, optional"
+msgstr "python:dict, opcional"
+
+#: 44b20e6cbbf24f869b2d2e0d2da994be of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel:26
+msgid "Dictionary of model prior parameters:"
+msgstr "Diccionario de parámetros previos del modelo:"
+
+#: af08a53b528f4b5da8548f1d3a49a300 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel:27
+msgid ""
+"`alpha`: Scale parameter for time between purchases; defaults to "
+"`Prior(\"Weibull\", alpha=2, beta=10)`"
+msgstr ""
+"`alpha`: Parámetro de escala para el tiempo entre compras; por defecto es "
+"`Prior(\"Weibull\", alpha=2, beta=10)`"
+
+#: 8d3762d3373d46529b99c47ec633c073 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel:28
+msgid ""
+"`r`: Shape parameter for time between purchases; defaults to "
+"`Prior(\"Weibull\", alpha=2, beta=1)`"
+msgstr ""
+"`r`: Parámetro de forma para el tiempo entre compras; por defecto es "
+"`Prior(\"Weibull\", alpha=2, beta=1)`"
+
+#: 08304d746a934419972fb1c022737b26 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel:29
+msgid ""
+"`a`: Shape parameter of dropout process; defaults to `phi_purchase` * "
+"`kappa_purchase`"
+msgstr ""
+"`a`: Parámetro de forma del proceso de abandono; por defecto es "
+"`phi_purchase` * `kappa_purchase`"
+
+#: ca54ef1880f2410689011d92214ede91 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel:30
+msgid ""
+"`b`: Shape parameter of dropout process; defaults to `1-phi_dropout` * "
+"`kappa_dropout`"
+msgstr ""
+"`b`: Parámetro de forma del proceso de abandono; por defecto es "
+"`1-phi_dropout` * `kappa_dropout`"
+
+#: ff456e2e99b8403993e3c91f88e46065 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel:31
+msgid ""
+"`phi_dropout`: Nested prior for a and b priors; defaults to "
+"`Prior(\"Uniform\", lower=0, upper=1)`"
+msgstr ""
+"`phi_dropout`: Prior anidado para los priors a y b; por defecto es "
+"`Prior(\"Uniform\", lower=0, upper=1)`"
+
+#: 596915a7c40b4f11bc3860d3729b98c3 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel:32
+msgid ""
+"`kappa_dropout`: Nested prior for a and b priors; defaults to "
+"`Prior(\"Pareto\", alpha=1, m=1)`"
+msgstr ""
+"`kappa_dropout`: Prior anidado para los priors a y b; por defecto es "
+"`Prior(\"Pareto\", alpha=1, m=1)`"
+
+#: d74eb72673174a9e9a52e14b027be2c8 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel:33
+msgid ""
+"`purchase_covariates`: Coefficients for purchase rate covariates; defaults "
+"to `Normal(0, 1)`"
+msgstr ""
+"`purchase_covariates`: Coeficientes para covariables de tasa de compra; por "
+"defecto es `Normal(0, 1)`"
+
+#: a2074ae9668a4061938bb430030a4a19 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel:34
+msgid ""
+"`dropout_covariates`: Coefficients for dropout covariates; defaults to "
+"`Normal.dist(0, 1)`"
+msgstr ""
+"`dropout_covariates`: Coeficientes para covariables de abandono; por defecto"
+" es `Normal.dist(0, 1)`"
+
+#: 9068ac47b9e04d0f8837d7cc5b0218cd of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel:35
+msgid ""
+"`purchase_covariate_cols`: List containing column names of covariates for "
+"customer purchase rates."
+msgstr ""
+"`purchase_covariate_cols`: Lista que contiene los nombres de las columnas de"
+" covariables para las tasas de compra de los clientes."
+
+#: 4683ab5fe0054218b42c447f8e58115a of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel:36
+msgid ""
+"`dropout_covariate_cols`: List containing column names of covariates for "
+"customer dropouts."
+msgstr ""
+"`dropout_covariate_cols`: Lista que contiene los nombres de las columnas de "
+"covariables para la deserción de clientes."
+
+#: 26dd9848a46144f8847397c4001f466f of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel:38
+msgid "**sampler_config** : :class:`python:dict`, optional"
+msgstr "**sampler_config** : :class:`python:dict`, opcional"
+
+#: 4f644af612a2499bbcfd1ea0d0b5217f of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel:39
+msgid "Dictionary of sampler parameters. Defaults to *None*."
+msgstr "Diccionario de parámetros del muestreador. Por defecto es *Ninguno*."
+
+#: 90febfb3179e4363b0881bb020094c2a of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel:53
+msgid "References"
+msgstr "Referencias"
+
+#: a3fd151b27fa4a5cbd8998b63d7d0d3e of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel:54
+msgid ""
+"Fader, P. S., Hardie, B. G., & Lee, K. L. (2005). “Counting your customers "
+"the easy way: An alternative to the Pareto/NBD model.\" Marketing science, "
+"24(2), 275-284. http://brucehardie.com/papers/018/fader_et_al_mksc_05.pdf"
+msgstr ""
+"Fader, P. S., Hardie, B. G., y Lee, K. L. (2005). “Contando a sus clientes "
+"de la manera fácil: Una alternativa al modelo Pareto/NBD.\" Ciencia del "
+"marketing, 24(2), 275-284. "
+"http://brucehardie.com/papers/018/fader_et_al_mksc_05.pdf"
+
+#: 87947a5f940d40088e25b2a6f96f47bd of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel:57
+msgid ""
+"Fader, P. S., Hardie, B. G., & Lee, K. L. (2008). \"Computing P (alive) "
+"using the BG/NBD model.\" "
+"http://www.brucehardie.com/notes/021/palive_for_BGNBD.pdf."
+msgstr ""
+"Fader, P. S., Hardie, B. G., y Lee, K. L. (2008). \"Cálculo de P (vivo) "
+"utilizando el modelo BG/NBD.\" "
+"http://www.brucehardie.com/notes/021/palive_for_BGNBD.pdf."
+
+#: d3b2d20d4017452dab1f74e8c0a0a488 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel:59
+msgid ""
+"Fader, P. S. & Hardie, B. G. (2013) \"Overcoming the BG/NBD Model's #NUM! "
+"Error Problem.\" http://brucehardie.com/notes/027/bgnbd_num_error.pdf."
+msgstr ""
+"Fader, P. S. y Hardie, B. G. (2013) \"Superando el problema de error #NUM! "
+"del modelo BG/NBD.\" http://brucehardie.com/notes/027/bgnbd_num_error.pdf."
+
+#: 27c7ea98464d4a22a576e906fab7a61d of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel:61
+msgid ""
+"Fader, P. S. & Hardie, B. G. (2019) \"A Step-by-Step Derivation of the "
+"BG/NBD Model.\" "
+"https://www.brucehardie.com/notes/039/bgnbd_derivation__2019-11-06.pdf"
+msgstr ""
+"Fader, P. S. y Hardie, B. G. (2019) \"Una derivación paso a paso del modelo "
+"BG/NBD.\" "
+"https://www.brucehardie.com/notes/039/bgnbd_derivation__2019-11-06.pdf"
+
+#: 81c40db419d144038483bcd5e28ac72d of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel:63
+msgid ""
+"Fader, Peter & G. S. Hardie, Bruce (2007). \"Incorporating Time-Invariant "
+"Covariates into the Pareto/NBD and BG/NBD Models\". "
+"https://www.brucehardie.com/notes/019/time_invariant_covariates.pdf"
+msgstr ""
+"Fader, Peter y G. S. Hardie, Bruce (2007). \"Incorporando covariables "
+"invariantes en el tiempo en los modelos Pareto/NBD y BG/NBD\". "
+"https://www.brucehardie.com/notes/019/time_invariant_covariates.pdf"
+
+#: e315bba2ba924708924751b36a641e82 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel:69
+msgid ""
+"[R2639b53c1838-1]_, [R2639b53c1838-2]_, [R2639b53c1838-3]_, "
+"[R2639b53c1838-4]_, [R2639b53c1838-5]_"
+msgstr ""
+"[R2639b53c1838-1]_, [R2639b53c1838-2]_, [R2639b53c1838-3]_, "
+"[R2639b53c1838-4]_, [R2639b53c1838-5]_"
+
+#: c557aa049fc44820844e859f2fdcfce1 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel:72
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:12
+#: 0b9ae376154347c789760712adf309a1
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: a1bc605574c5428bbfb2fe83d245f20b
+msgid ""
+":py:obj:`BetaGeoModel.__init__ "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.__init__>`\\ \\(data\\[\\, "
+"model\\_config\\, ...\\]\\)"
+msgstr ""
+":py:obj:`BetaGeoModel.__init__ "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.__init__>`\\ \\(data\\[\\, "
+"model\\_config\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: c24a35eb4a514221a11f301816394ab3
+msgid ""
+"Initialize model configuration and sampler configuration for the model."
+msgstr ""
+"Inicializar la configuración del modelo y la configuración del muestreador "
+"para el modelo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: 76819d67de4341c584078fb6bb9ea728
+msgid ""
+":py:obj:`BetaGeoModel.attrs_to_init_kwargs "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.attrs_to_init_kwargs>`\\ "
+"\\(attrs\\)"
+msgstr ""
+":py:obj:`BetaGeoModel.attrs_to_init_kwargs "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.attrs_to_init_kwargs>`\\ "
+"\\(attrs\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: 3968e1414e904985b0b5929716948ec9
+msgid ""
+"Convert the model configuration and sampler configuration from the "
+"attributes to keyword arguments."
+msgstr ""
+"Convierte la configuración del modelo y la configuración del muestreador de "
+"los atributos a argumentos de palabra clave."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: 44474442d53142a9a6f79a41bb6505db
+msgid ""
+":py:obj:`BetaGeoModel.build_from_idata "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.build_from_idata>`\\ "
+"\\(idata\\)"
+msgstr ""
+":py:obj:`BetaGeoModel.build_from_idata "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.build_from_idata>`\\ "
+"\\(idata\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: 0609fa8c47e6446983651b7a61acc168
+msgid "Build the model from the InferenceData object."
+msgstr "Construya el modelo a partir del objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: cb48d17d1f6f4e5d81ac890140a87f20
+msgid ""
+":py:obj:`BetaGeoModel.build_model "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.build_model>`\\ \\(\\)"
+msgstr ""
+":py:obj:`BetaGeoModel.build_model "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.build_model>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: b8cbaa060ea645ad891a74c0ceb980f9
+msgid "Build the model."
+msgstr "Construya el modelo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: 2779841460ef43b8b2da61b2abb5c50b
+msgid ""
+":py:obj:`BetaGeoModel.create_idata_attrs "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.create_idata_attrs>`\\ "
+"\\(\\)"
+msgstr ""
+":py:obj:`BetaGeoModel.create_idata_attrs "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.create_idata_attrs>`\\ "
+"\\(\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: 8bae6ab904014763a0125e67425d635d
+msgid "Create attributes for the inference data."
+msgstr "Cree atributos para los datos de inferencia."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: fd7c0e13b9854702a6087e0d27bdf3fe
+msgid ""
+":py:obj:`BetaGeoModel.distribution_new_customer "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer>`\\"
+" \\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`BetaGeoModel.distribution_new_customer "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer>`\\"
+" \\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: 962b280e43c14f719845c96467f1e27a
+msgid ""
+"Compute posterior predictive samples of dropout, purchase rate and "
+"frequency/recency of new customers."
+msgstr ""
+"Calcule muestras predictivas posteriores de abandono, tasa de compra y "
+"frecuencia/recencia de nuevos clientes."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: 0b22e2d4a0fa474a9fb6aa0021e3e4f4
+msgid ""
+":py:obj:`BetaGeoModel.distribution_new_customer_dropout "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer_dropout>`\\"
+" \\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`BetaGeoModel.distribution_new_customer_dropout "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer_dropout>`\\"
+" \\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: 2a4214f8fe564446b961314cf1a2e324
+msgid "Sample the Beta distribution for the population-level dropout rate."
+msgstr ""
+"Muestree la distribución Beta para la tasa de abandono a nivel poblacional."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: 9631f02a754444468d871b33e5c8fe02
+msgid ""
+":py:obj:`BetaGeoModel.distribution_new_customer_purchase_rate "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer_purchase_rate>`\\"
+" \\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`BetaGeoModel.distribution_new_customer_purchase_rate "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer_purchase_rate>`\\"
+" \\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: de3a53fefac543ee9e3ddcb0e093d287
+msgid "Sample the Gamma distribution for the population-level purchase rate."
+msgstr ""
+"Muestree la distribución Gamma para la tasa de compra a nivel poblacional."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: 16562a26f9524b6b9101c8db29487a99
+msgid ""
+":py:obj:`BetaGeoModel.distribution_new_customer_recency_frequency "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer_recency_frequency>`\\"
+" \\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`BetaGeoModel.distribution_new_customer_recency_frequency "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer_recency_frequency>`\\"
+" \\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: 588df9678d31420194864307f91116c4
+msgid "BG/NBD process representing purchases across the customer population."
+msgstr ""
+"Proceso BG/NBD que representa las compras a través de la población de "
+"clientes."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: 36ea8f09cfb44149934ff1c175bf25ce
+msgid ""
+":py:obj:`BetaGeoModel.expected_probability_alive "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_probability_alive>`\\"
+" \\(\\[data\\]\\)"
+msgstr ""
+":py:obj:`BetaGeoModel.expected_probability_alive "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_probability_alive>`\\"
+" \\(\\[data\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: 4e35c426e3d345c88eac32e86479d7e5
+msgid ""
+"Compute the probability a customer with history *frequency*, *recency*, and "
+"*T* is currently active."
+msgstr ""
+"Calcule la probabilidad de que un cliente con historial de *frecuencia*, "
+"*recencia* y *T* esté actualmente activo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: 4edb027a5f994148a69ddb701b4e82dd
+msgid ""
+":py:obj:`BetaGeoModel.expected_probability_no_purchase "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_probability_no_purchase>`\\"
+" \\(t\\)"
+msgstr ""
+":py:obj:`BetaGeoModel.expected_probability_no_purchase "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_probability_no_purchase>`\\"
+" \\(t\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: d9470e9c74754caead34662ab789e132
+msgid ""
+"Compute the probability a customer with history frequency, recency, and T "
+"will have 0 purchases in the period (T, T+t]."
+msgstr ""
+"Calcule la probabilidad de que un cliente con frecuencia, recencia y T en su"
+" historial tenga 0 compras en el período (T, T+t]."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: 66ad6ba74e9e4617a2ef5801f4c88cbc
+msgid ""
+":py:obj:`BetaGeoModel.expected_purchases "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_purchases>`\\ "
+"\\(\\[data\\, future\\_t\\]\\)"
+msgstr ""
+":py:obj:`BetaGeoModel.expected_purchases "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_purchases>`\\ "
+"\\(\\[datos\\, futuro\\_t\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: cf54a7a43e944263b948ee38c58f5fe2
+msgid ""
+"Compute the expected number of future purchases across *future_t* time "
+"periods given *recency*, *frequency*, and *T* for each customer."
+msgstr ""
+"Calcule el número esperado de compras futuras a lo largo de *future_t* "
+"períodos de tiempo dado *recency*, *frequency* y *T* para cada cliente."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: 8b4fc7969dce43a79a967fe7a0e7e9d2
+msgid ""
+":py:obj:`BetaGeoModel.expected_purchases_new_customer "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_purchases_new_customer>`\\"
+" \\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`BetaGeoModel.expected_purchases_new_customer "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_purchases_new_customer>`\\"
+" \\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: 75f2357d0aa54b66aaaf74a2d6f53096
+msgid ""
+"Compute the expected number of purchases for a new customer across *t* time "
+"periods."
+msgstr ""
+"Calcule el número esperado de compras para un nuevo cliente a lo largo de "
+"*t* períodos de tiempo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: c80b7fd4e9bd4a40bdf4678e6e7b7ea3
+msgid ""
+":py:obj:`BetaGeoModel.fit "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.fit>`\\ \\(\\[method\\, "
+"fit\\_method\\]\\)"
+msgstr ""
+":py:obj:`BetaGeoModel.fit "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.fit>`\\ \\(\\[método\\, "
+"fit\\_method\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: 2236206082d7450ab495ea6b5264df65
+msgid "Infer model posterior."
+msgstr "Inferir la posterior del modelo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: a250a5b846eb41eb885dbe87d447743a
+msgid ""
+":py:obj:`BetaGeoModel.fit_summary "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.fit_summary>`\\ "
+"\\(\\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`BetaGeoModel.fit_summary "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.fit_summary>`\\ "
+"\\(\\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: 276397f21aa5494b9e19870c503453a4
+msgid "Compute the summary of the fit result."
+msgstr "Calcule el resumen del resultado del ajuste."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: 3743461ed6b04a54a6468cba66940edd
+msgid ""
+":py:obj:`BetaGeoModel.graphviz "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.graphviz>`\\ "
+"\\(\\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`BetaGeoModel.graphviz "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.graphviz>`\\ "
+"\\(\\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: 64b7a44b724b4f64bdbcc19464571eab
+msgid "Get the graphviz representation of the model."
+msgstr "Obtenga la representación graphviz del modelo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: 654d2a4112674073a01bbadd2efb8b9b
+msgid ""
+":py:obj:`BetaGeoModel.idata_to_init_kwargs "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.idata_to_init_kwargs>`\\ "
+"\\(idata\\)"
+msgstr ""
+":py:obj:`BetaGeoModel.idata_to_init_kwargs "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.idata_to_init_kwargs>`\\ "
+"\\(idata\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: cb1f704618b441bd843e0e75c16a3b10
+msgid "Create the initialization kwargs from an InferenceData object."
+msgstr ""
+"Cree los kwargs de inicialización a partir de un objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: c5b3ac40a528439cb43fbf972349156f
+msgid ""
+":py:obj:`BetaGeoModel.load "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.load>`\\ \\(fname\\[\\, "
+"check\\]\\)"
+msgstr ""
+":py:obj:`BetaGeoModel.load "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.load>`\\ \\(fname\\[\\, "
+"check\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: d08a50ca18ec4dc7b1c73d4a750e66c5
+msgid "Create a ModelBuilder instance from a file."
+msgstr "Cree una instancia de ModelBuilder a partir de un archivo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: c027d8ac27b844538cc9cb8fa48f4014
+msgid ""
+":py:obj:`BetaGeoModel.load_from_idata "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.load_from_idata>`\\ "
+"\\(idata\\[\\, check\\]\\)"
+msgstr ""
+":py:obj:`BetaGeoModel.load_from_idata "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.load_from_idata>`\\ "
+"\\(idata\\[\\, check\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: 70b464b8c13e4a17ae141af96f012990
+msgid "Create a ModelBuilder instance from an InferenceData object."
+msgstr ""
+"Cree una instancia de ModelBuilder a partir de un objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: b4343198766d43bdabcf6b8db5a02deb
+msgid ""
+":py:obj:`BetaGeoModel.save "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.save>`\\ \\(fname\\, "
+"\\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`BetaGeoModel.save "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.save>`\\ \\(fname\\, "
+"\\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: e0180b27bfca433f8dc890615d233532
+msgid "Save the model's inference data to a file."
+msgstr "Guarde los datos de inferencia del modelo en un archivo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: 98e5309187a445b4bb81eec7c6d7e16c
+msgid ""
+":py:obj:`BetaGeoModel.set_idata_attrs "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.set_idata_attrs>`\\ "
+"\\(\\[idata\\]\\)"
+msgstr ""
+":py:obj:`BetaGeoModel.set_idata_attrs "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.set_idata_attrs>`\\ "
+"\\(\\[idata\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: 42af027a62214fc49c54a25767ed7d0a
+msgid "Set attributes on an InferenceData object."
+msgstr "Establecer atributos en un objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: e9ef0e87f66d4d4aa66ce0074eee0af3
+msgid ""
+":py:obj:`BetaGeoModel.table "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.table>`\\ "
+"\\(\\*\\*model\\_table\\_kwargs\\)"
+msgstr ""
+":py:obj:`BetaGeoModel.table "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.table>`\\ "
+"\\(\\*\\*model\\_table\\_kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: 30421ad9d5364fa0acbe137828c4ef6c
+msgid "Get the summary table of the model."
+msgstr "Obtenga la tabla resumen del modelo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: 2912496f2f0d4e42ac28ff9d26298a38
+msgid ""
+":py:obj:`BetaGeoModel.thin_fit_result "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.thin_fit_result>`\\ "
+"\\(keep\\_every\\)"
+msgstr ""
+":py:obj:`BetaGeoModel.thin_fit_result "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.thin_fit_result>`\\ "
+"\\(keep\\_every\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
+#: 180cfdaeea484beb93ce74df8b35e2d7
+msgid "Return a copy of the model with a thinned fit result."
+msgstr "Devuelva una copia del modelo con un resultado de ajuste reducido."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:46
+#: 6309e3e1d16e41eca8af6fc7db4b942c
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:61:<autosummary>:1
+#: b8e005e548874c7ab7a2fee336b0d561
+msgid ""
+":py:obj:`default_model_config "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.default_model_config>`\\"
+msgstr ""
+":py:obj:`default_model_config "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.default_model_config>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:61:<autosummary>:1
+#: 50706118b4a84ea487a146f81f68ff84
+msgid "Default model configuration."
+msgstr "Configuración del modelo predeterminado."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:61:<autosummary>:1
+#: 027c465aa82746469c8a3b3a777a8dd6
+msgid ""
+":py:obj:`default_sampler_config "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.default_sampler_config>`\\"
+msgstr ""
+":py:obj:`default_sampler_config "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.default_sampler_config>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:61:<autosummary>:1
+#: 4e783df83daf43f189a63eeff96201d1
+msgid "Default sampler configuration."
+msgstr "Configuración de muestreador predeterminada."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:61:<autosummary>:1
+#: f1869113cd8441d195f75eb2fe9b373f
+msgid ""
+":py:obj:`fit_result "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.fit_result>`\\"
+msgstr ""
+":py:obj:`fit_result "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.fit_result>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:61:<autosummary>:1
+#: ff0ed5bd0f054887b441c7ff16c689c7
+msgid "Get the posterior fit_result."
+msgstr "Obtenga el resultado de ajuste posterior."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:61:<autosummary>:1
+#: 2d69b7ac41ad4019abcb18859997e080
+msgid ":py:obj:`id <pymc_marketing.clv.models.beta_geo.BetaGeoModel.id>`\\"
+msgstr ":py:obj:`id <pymc_marketing.clv.models.beta_geo.BetaGeoModel.id>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:61:<autosummary>:1
+#: c8f1236eef5b4ddc9fe923e3226af03d
+msgid "Generate a unique hash value for the model."
+msgstr "Generar un valor hash único para el modelo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:61:<autosummary>:1
+#: b6c88f7d7b9a45f4884e5f8bc50183fd
+msgid ""
+":py:obj:`posterior "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.posterior>`\\"
+msgstr ""
+":py:obj:`posterior "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.posterior>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:61:<autosummary>:1
+#: 57d3658ed2de491fb6be54de08e88513
+msgid ""
+":py:obj:`posterior_predictive "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.posterior_predictive>`\\"
+msgstr ""
+":py:obj:`posterior_predictive "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.posterior_predictive>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:61:<autosummary>:1
+#: 67ddb25f35ff4ac88c2e64b0f84fad4b
+msgid ""
+":py:obj:`predictions "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.predictions>`\\"
+msgstr ""
+":py:obj:`predicciones "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.predictions>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:61:<autosummary>:1
+#: ac8b55b3c2a14e5d81ccbd6439dd7eb3
+msgid ""
+":py:obj:`prior <pymc_marketing.clv.models.beta_geo.BetaGeoModel.prior>`\\"
+msgstr ""
+":py:obj:`prior <pymc_marketing.clv.models.beta_geo.BetaGeoModel.prior>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:61:<autosummary>:1
+#: ed849e5e90c34004919629b43c36472a
+msgid ""
+":py:obj:`prior_predictive "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.prior_predictive>`\\"
+msgstr ""
+":py:obj:`prior_predictive "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.prior_predictive>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:61:<autosummary>:1
+#: 6e5c0596a9c74291a60c5ee7570c2dab
+msgid ""
+":py:obj:`version "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.version>`\\"
+msgstr ""
+":py:obj:`versión <pymc_marketing.clv.models.beta_geo.BetaGeoModel.version>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:61:<autosummary>:1
+#: 815092114dc74b75a57fed5bc43ee954
+msgid ""
+":py:obj:`idata <pymc_marketing.clv.models.beta_geo.BetaGeoModel.idata>`\\"
+msgstr ""
+":py:obj:`idata <pymc_marketing.clv.models.beta_geo.BetaGeoModel.idata>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:61:<autosummary>:1
+#: 86a982cc883a49878057879f5cb2fa83
+msgid ""
+":py:obj:`sampler_config "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.sampler_config>`\\"
+msgstr ""
+":py:obj:`sampler_config "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.sampler_config>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:61:<autosummary>:1
+#: bd38a177c4da4cb1a5bdaeed17385465
+msgid ""
+":py:obj:`model_config "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.model_config>`\\"
+msgstr ""
+":py:obj:`model_config "
+"<pymc_marketing.clv.models.beta_geo.BetaGeoModel.model_config>`"

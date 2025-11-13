@@ -1,0 +1,154 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.builders.yaml.build_mmm_from_yaml.rst:2
+#: 9ed2a7782c63482aa52a9b1f561fe83e
+msgid "build\\_mmm\\_from\\_yaml"
+msgstr "build\\_mmm\\_from\\_yaml"
+
+#: 8db1bb5a7a824f3397935ec0e261d2ff of
+#: pymc_marketing.mmm.builders.yaml.build_mmm_from_yaml:2
+msgid "Build an MMM model from *config_path*."
+msgstr "Construya un modelo MMM desde *config_path*."
+
+#: cad392f7484e4f82a6d956b4a0268a7c of
+#: pymc_marketing.mmm.builders.yaml.build_mmm_from_yaml:4
+msgid "The configuration keys:"
+msgstr "Las claves de configuración:"
+
+#: 8755c4a714b84f84bb05a7091146911b of
+#: pymc_marketing.mmm.builders.yaml.build_mmm_from_yaml:6
+msgid "`model` (required): MMM initialization parameters"
+msgstr "`model` (requerido): parámetros de inicialización de MMM"
+
+#: b9ddcc7f842b4539891f4342e1192a1a of
+#: pymc_marketing.mmm.builders.yaml.build_mmm_from_yaml:7
+msgid "`effects` (optional): list of additive effects in the model"
+msgstr "`effects` (opcional): lista de efectos aditivos en el modelo"
+
+#: c5e866645374481ea448c6b19c1d9c34 of
+#: pymc_marketing.mmm.builders.yaml.build_mmm_from_yaml:8
+msgid "`data` (optional): paths to X and y data"
+msgstr "`data` (opcional): rutas a los datos de X e y"
+
+#: d0c6bfeed8694bc8a591478742b09142 of
+#: pymc_marketing.mmm.builders.yaml.build_mmm_from_yaml:9
+msgid "`original_scale_vars` (optional): list of original scale variables"
+msgstr ""
+"`original_scale_vars` (opcional): lista de variables de escala originales"
+
+#: ad62552396f94ea7b6afd4bdfc3dcae9 of
+#: pymc_marketing.mmm.builders.yaml.build_mmm_from_yaml:10
+msgid "`idata_path` (optional): path to inference data"
+msgstr "`idata_path` (opcional): ruta a los datos de inferencia"
+
+#: 4ce7f40b259e47cbb6ab043206402aa5 of
+#: pymc_marketing.mmm.builders.yaml.build_mmm_from_yaml
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: f7275ef06a3b42af92e164dd153e939d of
+#: pymc_marketing.mmm.builders.yaml.build_mmm_from_yaml:14
+msgid "**config_path** : :class:`python:str` | :obj:`Path`"
+msgstr "**config_path** : :class:`python:str` | :obj:`Path`"
+
+#: 1da2ac0a49fd42359740d763ebea8fb8 of
+#: pymc_marketing.mmm.builders.yaml.build_mmm_from_yaml:13
+msgid "python:str | Path"
+msgstr "python:str | Ruta"
+
+#: 56eeb778e612471c9625ffdf0adfb057 of
+#: pymc_marketing.mmm.builders.yaml.build_mmm_from_yaml:15
+msgid "YAML file with model configuration."
+msgstr "Archivo YAML con la configuración del modelo."
+
+#: 1b962aec1b6948819d37d23c8dea177a of
+#: pymc_marketing.mmm.builders.yaml.build_mmm_from_yaml:17
+msgid "**X** : :obj:`pandas.DataFrame`, optional"
+msgstr "**X** : :obj:`pandas.DataFrame`, opcional"
+
+#: b8a23a61fc5a4a6e912c3c6642e371ca of
+#: pymc_marketing.mmm.builders.yaml.build_mmm_from_yaml:16
+msgid "pandas.DataFrame, optional"
+msgstr "pandas.DataFrame, opcional"
+
+#: 57d6b1b2b9964444b74b6b3e42433ca0 of
+#: pymc_marketing.mmm.builders.yaml.build_mmm_from_yaml:18
+msgid ""
+"Pre-loaded covariate matrix.  If omitted, the loader tries to read it from a"
+" path in the YAML under `data.X_path`."
+msgstr ""
+"Matriz de covariables pre-cargada. Si se omite, el cargador intenta leerla "
+"desde una ruta en el YAML bajo `data.X_path`."
+
+#: cb9505622fcd4bc8a9da0d159ababb71 of
+#: pymc_marketing.mmm.builders.yaml.build_mmm_from_yaml:21
+msgid "**y** : :obj:`pandas.DataFrame` | :obj:`pandas.Series`, optional"
+msgstr "**y** : :obj:`pandas.DataFrame` | :obj:`pandas.Series`, opcional"
+
+#: a2b69e9d0d9548f1994624bb0f7a4277 of
+#: pymc_marketing.mmm.builders.yaml.build_mmm_from_yaml:20
+msgid "pandas.DataFrame | pandas.Series, optional"
+msgstr "pandas.DataFrame | pandas.Series, opcional"
+
+#: 56423b903517480cb593f9998c5b28ec of
+#: pymc_marketing.mmm.builders.yaml.build_mmm_from_yaml:22
+msgid ""
+"Pre-loaded target vector.  If omitted, the loader tries to read it from a "
+"path in the YAML under `data.y_path`."
+msgstr ""
+"Vector objetivo pre-cargado. Si se omite, el cargador intenta leerlo desde "
+"una ruta en el YAML bajo `data.y_path`."
+
+#: 8a8789fb48364fc589ebf7afaedd8ea1 of
+#: pymc_marketing.mmm.builders.yaml.build_mmm_from_yaml:25
+msgid "**model_kwargs** : :class:`python:dict`, optional"
+msgstr "**model_kwargs** : :class:`python:dict`, opcional"
+
+#: b7311ecdb0ac4ab78adcfbb4ccbb7bb6 of
+#: pymc_marketing.mmm.builders.yaml.build_mmm_from_yaml:24
+msgid "python:dict, optional"
+msgstr "python:dict, opcional"
+
+#: aa5808608ab645df968c383266192d78 of
+#: pymc_marketing.mmm.builders.yaml.build_mmm_from_yaml:26
+msgid ""
+"Additional keyword arguments for the model. They override any defaults "
+"specified in the YAML config."
+msgstr ""
+"Argumentos de palabra clave adicionales para el modelo. Anulan cualquier "
+"valor predeterminado especificado en la configuración YAML."
+
+#: b7ace848e71546a2b5f25672613b0f01 of
+#: pymc_marketing.mmm.builders.yaml.build_mmm_from_yaml
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 3df58e4037594d07b93cc0f31ca11d3d of
+#: pymc_marketing.mmm.builders.yaml.build_mmm_from_yaml:33
+msgid "**model** : :obj:`MMM`"
+msgstr "**modelo** : :obj:`MMM`"
+
+#: 08d91868796e410684e40518fa8bea3c of
+#: pymc_marketing.mmm.builders.yaml.build_mmm_from_yaml:32
+msgid "MMM"
+msgstr "MMM"

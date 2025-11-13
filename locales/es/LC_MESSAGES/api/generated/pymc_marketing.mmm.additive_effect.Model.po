@@ -1,0 +1,72 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.Model.rst:2
+#: 7a1f427538544d6898f6ba15d3134936
+msgid "Model"
+msgstr "Modelo"
+
+#: 374d5322126344d4b92d16f543f9e3d3 of
+#: pymc_marketing.mmm.additive_effect.Model:2
+msgid "Protocol MMM."
+msgstr "Protocolo MMM."
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.Model.rst:12
+#: c1be64f77d5941619a33b8f501de1d82
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.Model.rst:22:<autosummary>:1
+#: 37c061075ffc411e9d8bb40930cd664c
+msgid ""
+":py:obj:`Model.__init__ "
+"<pymc_marketing.mmm.additive_effect.Model.__init__>`\\ \\(\\*args\\, "
+"\\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`Model.__init__ "
+"<pymc_marketing.mmm.additive_effect.Model.__init__>`\\ \\(\\*args\\, "
+"\\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.Model.rst:24
+#: 0af3e0bb870c469d8a1e8a1ae6c92654
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.Model.rst:28:<autosummary>:1
+#: cdfcc93053854b85a599d33d09f2491d
+msgid ":py:obj:`dims <pymc_marketing.mmm.additive_effect.Model.dims>`\\"
+msgstr ":py:obj:`dims <pymc_marketing.mmm.additive_effect.Model.dims>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.Model.rst:28:<autosummary>:1
+#: db63c9dbe9e347cdbd4db1c15ff4ccc1
+msgid "The additional dimensions of the MMM target."
+msgstr "Las dimensiones adicionales del objetivo MMM."
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.Model.rst:28:<autosummary>:1
+#: b932b043dbe549ae85d7aac13c224150
+msgid ":py:obj:`model <pymc_marketing.mmm.additive_effect.Model.model>`\\"
+msgstr ":py:obj:`modelo <pymc_marketing.mmm.additive_effect.Model.model>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.Model.rst:28:<autosummary>:1
+#: ecc9a7d548fd43acbe78c4fcc8a8a707
+msgid "The PyMC model."
+msgstr "El modelo PyMC."

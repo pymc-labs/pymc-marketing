@@ -1,0 +1,94 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-13 11:28+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.hsgp.HSGPBase.model_validate_strings.rst:2
+#: c444e1249ebd40fdac8c9c428cacdbf9
+msgid "HSGPBase.model\\_validate\\_strings"
+msgstr "HSGPBase.model\\_validar\\_cadenas"
+
+#: c58f1099fcd541faa92f0692ad2d7c31 of
+#: pydantic.main.BaseModel.model_validate_strings:2
+msgid "Validate the given object with string data against the Pydantic model."
+msgstr ""
+"Valide el objeto dado con datos de cadena contra el modelo de Pydantic."
+
+#: 2536ef8ec58d406980ac0dcad9c3b71b of
+#: pydantic.main.BaseModel.model_validate_strings:4
+msgid "Args:"
+msgstr "Args:"
+
+#: 75e8b13175684ab4a10934f8b58ce7f1 of
+#: pydantic.main.BaseModel.model_validate_strings:5
+msgid ""
+"obj: The object containing string data to validate. strict: Whether to "
+"enforce types strictly. extra: Whether to ignore, allow, or forbid extra "
+"data during model validation."
+msgstr ""
+"obj: El objeto que contiene datos de cadena para validar. strict: Si se "
+"deben imponer los tipos de manera estricta. extra: Si se debe ignorar, "
+"permitir o prohibir datos adicionales durante la validación del modelo."
+
+#: 64e2d92532c84745a89d38311ac5309b of
+#: pydantic.main.BaseModel.model_validate_strings:8
+msgid ""
+"See the [`extra` configuration value][pydantic.ConfigDict.extra] for "
+"details."
+msgstr ""
+"Consulte el valor de configuración [`extra`][pydantic.ConfigDict.extra] para"
+" más detalles."
+
+#: 569a43aedc3749c5a5a5a7464d0d10da of
+#: pydantic.main.BaseModel.model_validate_strings:9
+msgid ""
+"context: Extra variables to pass to the validator. by_alias: Whether to use "
+"the field's alias when validating against the provided input data. by_name: "
+"Whether to use the field's name when validating against the provided input "
+"data."
+msgstr ""
+"context: Variables adicionales para pasar al validador. by_alias: Si se debe"
+" utilizar el alias del campo al validar contra los datos de entrada "
+"proporcionados. by_name: Si se debe utilizar el nombre del campo al validar "
+"contra los datos de entrada proporcionados."
+
+#: c5c56caae57e4475b7fbe92363f454f4 of
+#: pydantic.main.BaseModel.model_validate_strings:13
+msgid "Returns:"
+msgstr "Devoluciones:"
+
+#: 3f78bd2c69c64d649326c9afc4fd2253 of
+#: pydantic.main.BaseModel.model_validate_strings:14
+msgid "The validated Pydantic model."
+msgstr "El modelo Pydantic validado."
+
+#~ msgid ""
+#~ "obj: The object containing string data to validate. strict: Whether to "
+#~ "enforce types strictly. context: Extra variables to pass to the validator. "
+#~ "by_alias: Whether to use the field's alias when validating against the "
+#~ "provided input data. by_name: Whether to use the field's name when "
+#~ "validating against the provided input data."
+#~ msgstr ""
+#~ "obj: El objeto que contiene datos de cadena para validar. strict: Si se "
+#~ "deben imponer los tipos de manera estricta. context: Variables adicionales "
+#~ "para pasar al validador. by_alias: Si se debe utilizar el alias del campo al"
+#~ " validar contra los datos de entrada proporcionados. by_name: Si se debe "
+#~ "utilizar el nombre del campo al validar contra los datos de entrada "
+#~ "proporcionados."

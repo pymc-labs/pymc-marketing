@@ -1,0 +1,110 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_dropout.rst:2
+#: adba8cb7add54755931092de228f4bdf
+msgid "BetaGeoBetaBinomModel.distribution\\_new\\_customer\\_dropout"
+msgstr "BetaGeoBetaBinomModel.distribution\\_nuevo\\_cliente\\_deserción"
+
+#: e01dae850ad144fe873d077e33a95d1d of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_dropout:2
+msgid ""
+"Sample from the Beta distribution representing dropout probabilities for new"
+" customers."
+msgstr ""
+"Muestra de la distribución Beta que representa las probabilidades de "
+"abandono para nuevos clientes."
+
+#: e5d4b19cd1bb4106b0054d2406bab380 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_dropout:4
+msgid ""
+"This is the probability a new customer will drop out after making a "
+"purchase."
+msgstr ""
+"Esta es la probabilidad de que un nuevo cliente abandone después de realizar"
+" una compra."
+
+#: 928f3a311bfb4ba7a7f9e8e3c1007fa4 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_dropout
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 470063a51e43454ea123f24d8c1236d7 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_dropout:8
+msgid "**data** : :obj:`~pandas.DataFrame`, optional"
+msgstr "**datos** : :obj:`~pandas.DataFrame`, opcional"
+
+#: b02f85c770cb432e9d6b02e480299fa6 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_dropout:7
+msgid "DataFrame, optional"
+msgstr "DataFrame, opcional"
+
+#: e77e6a1fcb754710bebaa64b47c156b1 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_dropout:9
+msgid "DataFrame containing the following columns:"
+msgstr "DataFrame que contiene las siguientes columnas:"
+
+#: 25a76cc226dc4781805b568c89f69698 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_dropout:11
+msgid "`customer_id`: Unique customer identifier"
+msgstr "`customer_id`: Identificador único del cliente"
+
+#: 31fe8346a3b24fdbb3d816991788d5bd of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_dropout:13
+msgid "If not provided, predictions will be ran with data used to fit model."
+msgstr ""
+"Si no se proporciona, las predicciones se realizarán con los datos "
+"utilizados para ajustar el modelo."
+
+#: 024a8b80560842148f65784e4573032b of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_dropout:15
+msgid "**random_seed** : :obj:`~numpy.random.RandomState`, optional"
+msgstr "**random_seed** : :obj:`~numpy.random.RandomState`, opcional"
+
+#: 9dfbb97b55da4a3b9e0b92a0591f6cd7 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_dropout:14
+msgid "RandomState, optional"
+msgstr "RandomState, opcional"
+
+#: 74dc9de0f2614e3caa795c1dc06f3749 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_dropout:16
+msgid "Random state to use for sampling."
+msgstr "Estado aleatorio a utilizar para el muestreo."
+
+#: 91db3c3397a9486f92dbd6793ae7f130 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_dropout
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 60dd7589877d44c2a74ae8b40546f79f of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_dropout:22
+msgid ":obj:`~xarray.Dataset`"
+msgstr ":obj:`~xarray.Dataset`"
+
+#: 3de5f074c42c4e62897aceca9a11a130 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_dropout:23
+msgid ""
+"Dataset containing the posterior samples for the population-level dropout "
+"rate."
+msgstr ""
+"Conjunto de datos que contiene las muestras posteriores para la tasa de "
+"abandono a nivel poblacional."

@@ -1,0 +1,165 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.sample_response_distribution.rst:2
+#: c9e154e88af24162b5420a758c3f9d37
+msgid "MultiDimensionalBudgetOptimizerWrapper.sample\\_response\\_distribution"
+msgstr "MultiDimensionalBudgetOptimizerWrapper.muestra\\_distribución\\_respuesta"
+
+#: b0f0b89a54b64662908c76e83b219e2d of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.sample_response_distribution:2
+msgid ""
+"Generate synthetic dataset and sample posterior predictive based on "
+"allocation."
+msgstr ""
+"Generar un conjunto de datos sintético y muestrear la predicción posterior "
+"basada en la asignación."
+
+#: 0233a3bb388a497abb8ede38849e504e of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.sample_response_distribution
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: bdd56f52672d48d9909f55421273b8f5 of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.sample_response_distribution:7
+msgid "**allocation_strategy** : :obj:`DataArray`"
+msgstr "**estrategia_de_asignación** : :obj:`DataArray`"
+
+#: f860c6cd6ea74a15ad6983f1d1ba6ccc of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.sample_response_distribution:6
+msgid "DataArray"
+msgstr "DataArray"
+
+#: dd2a2aa7fe174f989a6de28d657bfd51 of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.sample_response_distribution:8
+msgid "The allocation strategy for the channels."
+msgstr "La estrategia de asignación para los canales."
+
+#: 7f1e1908775f447dbd7fa0149118a943 of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.sample_response_distribution:10
+msgid "**noise_level** : :class:`python:float`"
+msgstr "**nivel_de_ruido** : :class:`python:float`"
+
+#: a9272598407f45b1849d4cc2babd3518 of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.sample_response_distribution:9
+msgid "python:float"
+msgstr "python:float"
+
+#: 0834cc316e754d469cd2208f3647e189 of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.sample_response_distribution:11
+msgid "The relative level of noise to add to the data allocation."
+msgstr "El nivel relativo de ruido a añadir a la asignación de datos."
+
+#: 2fd0b2a293824e7090759d23cebbd573 of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.sample_response_distribution:13
+msgid ""
+"**additional_var_names** : :class:`python:list`\\[:class:`python:str`] | "
+":data:`python:None`"
+msgstr ""
+"**additional_var_names** : :class:`python:list`\\[:class:`python:str`] | "
+":data:`python:None`"
+
+#: a292302141d5429bb0ff17a9c9072558 of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.sample_response_distribution:12
+msgid "python:list[python:str] | python:None"
+msgstr "python:list[python:str] | python:None"
+
+#: 9cd318bf6e3e4989bca7d25b71e363d3 of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.sample_response_distribution:14
+msgid ""
+"Additional variable names to include in the posterior predictive sampling."
+msgstr ""
+"Nombres de variables adicionales para incluir en el muestreo predictivo "
+"posterior."
+
+#: 97592ea7857a45fea9e16407e1b24a61 of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.sample_response_distribution:16
+msgid ""
+"**include_last_observations** : :ref:`bool <python:bltin-boolean-values>`"
+msgstr ""
+"**include_last_observations** : :ref:`bool <python:bltin-boolean-values>`"
+
+#: 726ed18e08c14cabbe8f9896a80bfb73 df71ff2a1a374a6cae961e5ce5e3a8cb of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.sample_response_distribution:15
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.sample_response_distribution:18
+msgid "bool"
+msgstr "bool"
+
+#: db132324ac984a2f916b897a1dee3b77 of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.sample_response_distribution:17
+msgid "Whether to include the last observations for continuity."
+msgstr "Si incluir las últimas observaciones para la continuidad."
+
+#: d862ebcaec9c47e6b5bcdaf61dd94bc8 of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.sample_response_distribution:19
+msgid "**include_carryover** : :ref:`bool <python:bltin-boolean-values>`"
+msgstr "**include_carryover** : :ref:`bool <python:bltin-boolean-values>`"
+
+#: be6d3206d9de47b4b4e3b2da827fe8aa of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.sample_response_distribution:20
+msgid "Whether to include carryover effects."
+msgstr "Si incluir efectos de arrastre."
+
+#: 446fc407bb6148c0a77f6e5ab61ceb8c of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.sample_response_distribution:22
+msgid ""
+"**budget_distribution_over_period** : :obj:`xr.DataArray` | "
+":data:`python:None`"
+msgstr ""
+"**distribución_presupuestaria_a_lo_largo_del_período** : :obj:`xr.DataArray`"
+" | :data:`python:None`"
+
+#: 305842df408045119c7558204fdb2d87 of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.sample_response_distribution:21
+msgid "xr.DataArray | python:None"
+msgstr "xr.DataArray | python:None"
+
+#: 64ff9d5aeff149b28e241263617a1858 of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.sample_response_distribution:23
+msgid ""
+"Distribution factors for budget allocation over time. Should have dims "
+"(\"date\", *budget_dims) where date dimension has length num_periods. Values"
+" along date dimension should sum to 1 for each combination of other "
+"dimensions. If provided, multiplies the noise values by this distribution."
+msgstr ""
+"Factores de distribución para la asignación del presupuesto a lo largo del "
+"tiempo. Debe tener dimensiones (\"fecha\", *budget_dims) donde la dimensión "
+"de fecha tiene una longitud de num_periods. Los valores a lo largo de la "
+"dimensión de fecha deben sumar 1 para cada combinación de otras dimensiones."
+" Si se proporciona, multiplica los valores de ruido por esta distribución."
+
+#: 42076d659f474443b9e5579f18000a26 of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.sample_response_distribution
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 6b37131a3da24fe2882811df53387a7c of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.sample_response_distribution:31
+msgid ":obj:`az.InferenceData`"
+msgstr ":obj:`az.InferenceData`"
+
+#: 2164f846982b471897fc401b1dcfab3b of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.sample_response_distribution:32
+msgid "The posterior predictive samples based on the synthetic dataset."
+msgstr ""
+"Las muestras predictivas posteriores basadas en el conjunto de datos "
+"sintético."

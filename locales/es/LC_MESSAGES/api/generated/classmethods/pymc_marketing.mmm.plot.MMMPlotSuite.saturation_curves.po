@@ -1,0 +1,272 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves.rst:2
+#: 11bca11b87cb4b8c90994263abebe8a0
+msgid "MMMPlotSuite.saturation\\_curves"
+msgstr "MMMPlotSuite.curvas\\_de\\_saturación"
+
+#: 5e31e11265004653a6837a06a0481577 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves:2
+msgid ""
+"Overlay saturation‑curve scatter‑plots with posterior‑predictive sample "
+"curves and HDI bands."
+msgstr ""
+"Superponer gráficos de dispersión de la curva de saturación con curvas de "
+"muestra predictiva posterior y bandas de HDI."
+
+#: 8f893f6843db4e72840ccfedec37e25e of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves:4
+msgid "**allowing** you to customize figsize and font sizes."
+msgstr ""
+"**permitiéndole** personalizar el tamaño de la figura y los tamaños de "
+"fuente."
+
+#: 06ee02ffef7a488b8f2bd60d3e4a536a of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 0a9d70531f3c491d8c56e61dc68af3ca of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves:8
+msgid "**curve** : :obj:`xr.DataArray`"
+msgstr "**curva** : :obj:`xr.DataArray`"
+
+#: 2cc047dcba7e420684fcda8c6ae030a5 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves:7
+msgid "xr.DataArray"
+msgstr "xr.DataArray"
+
+#: 0d9d99ea5fd94825abd5f7db80e883dc of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves:9
+msgid "Posterior‑predictive curves (e.g. dims `(\"chain\",\"draw\",\"x\",\"channel\",\"geo\")`)."
+msgstr ""
+"Curvas posteriores predictivas (por ejemplo, dims "
+"`(\"chain\",\"draw\",\"x\",\"channel\",\"geo\")`)."
+
+#: e1afaec69c3d4090afd0b1bd34cc3d8c of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves:11
+msgid ""
+"**original_scale** : :ref:`bool <python:bltin-boolean-values>`, "
+"default=False"
+msgstr ""
+"**original_scale** : :ref:`bool <python:bltin-boolean-values>`, "
+"predeterminado=False"
+
+#: 4f10bd8bfaa34bc3ad6a224a768a968c of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves:10
+msgid "bool, default=False"
+msgstr "bool, predeterminado=False"
+
+#: a71d054318044115b8974c6052e66725 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves:12
+msgid ""
+"Plot `channel_contribution_original_scale` if True, else "
+"`channel_contribution`."
+msgstr ""
+"Dibuje `channel_contribution_original_scale` si es verdadero, de lo "
+"contrario `channel_contribution`."
+
+#: 4b0b2036080b4dad857228f876f3b613 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves:14
+msgid "**n_samples** : :class:`python:int`, default=10"
+msgstr "**n_samples** : :class:`python:int`, predeterminado=10"
+
+#: 97e1a89f92594359a32110f773f89b15 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves:13
+msgid "python:int, default=10"
+msgstr "python:int, por defecto=10"
+
+#: c5eace76b7ea444f9f726b2571b9fd89 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves:15
+msgid "Number of sample‑curves per subplot."
+msgstr "Número de curvas de muestra por subgráfico."
+
+#: 9e3c3342966a4f8684f7bb784294519d of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves:17
+msgid ""
+"**hdi_probs** : :class:`python:float` or :class:`python:list` of "
+":class:`python:float`, optional"
+msgstr ""
+"**hdi_probs** : :class:`python:float` o :class:`python:list` de "
+":class:`python:float`, opcional"
+
+#: 593c670567f84f9cac98df14bb968ae9 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves:16
+msgid "python:float or python:list of python:float, optional"
+msgstr "python:float o python:list de python:float, opcional"
+
+#: 341c1fbc5c194f979a65b4d7a3ee8a68 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves:18
+msgid ""
+"Credible interval probabilities (e.g. 0.94 or [0.5, 0.94]). If None, uses "
+"ArviZ's default (0.94)."
+msgstr ""
+"Probabilidades de intervalos creíbles (por ejemplo, 0.94 o [0.5, 0.94]). Si "
+"es None, utiliza el valor predeterminado de ArviZ (0.94)."
+
+#: e8fb7650e0bc432dbff9bd5bab6a832c of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves:21
+msgid "**random_seed** : :obj:`np.random.Generator`, optional"
+msgstr "**random_seed** : :obj:`np.random.Generator`, opcional"
+
+#: 4998464020754c66b36527ab8ca0e07b of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves:20
+msgid "np.random.Generator, optional"
+msgstr "np.random.Generator, opcional"
+
+#: 516a5f04a9b9405e87e7ae1b5c292997 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves:22
+msgid ""
+"RNG for reproducible sampling. If None, uses `np.random.default_rng()`."
+msgstr ""
+"RNG para muestreo reproducible. Si es None, utiliza "
+"`np.random.default_rng()`."
+
+#: abe5d684e30645e8b750f6065a3a40fa of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves:24
+msgid "**colors** : :term:`python:iterable` of :class:`python:str`, optional"
+msgstr ""
+"**colores** : :term:`python:iterable` de :class:`python:str`, opcional"
+
+#: a236250817c744b18ad0113327297ae8 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves:23
+msgid "python:iterable of python:str, optional"
+msgstr "python: iterable de python:str, opcional"
+
+#: 04948e1e93a94eb2ad64540b92eab18b of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves:25
+msgid "Colors for the sample & HDI plots."
+msgstr "Colores para las muestras y gráficos de HDI."
+
+#: 2a5e54e0e7cd41a690429d90d025769e of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves:27
+msgid "**subplot_kwargs** : :class:`python:dict`, optional"
+msgstr "**subplot_kwargs** : :class:`python:dict`, opcional"
+
+#: 4d476d7b0845428e9d1dae6801049e40 833c2e0c89864c52a2b6cbf48c35b301 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves:26
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves:30
+msgid "python:dict, optional"
+msgstr "python:dict, opcional"
+
+#: e9b0adc1a94e48c0bd1c6adcc3a9966a of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves:28
+#, python-brace-format
+msgid ""
+"Passed to `plt.subplots` (e.g. `{\"figsize\": (10,8)}`). Merged with the "
+"function's own default sizing."
+msgstr ""
+"Pasado a `plt.subplots` (por ejemplo, `{\"figsize\": (10,8)}`). Fusionado "
+"con el tamaño predeterminado de la función."
+
+#: 559ceaca3c084b25b4df79d59664b214 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves:31
+msgid "**rc_params** : :class:`python:dict`, optional"
+msgstr "**rc_params** : :class:`python:dict`, opcional"
+
+#: e877fb5a6bbf48a484eadd1c21cd8c04 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves:32
+msgid ""
+"Temporary `matplotlib.rcParams` for this plot. Example keys: "
+"`\"xtick.labelsize\"`, `\"ytick.labelsize\"`, `\"axes.labelsize\"`, "
+"`\"axes.titlesize\"`."
+msgstr ""
+"`matplotlib.rcParams` temporales para este gráfico. Claves de ejemplo: "
+"`\"xtick.labelsize\"`, `\"ytick.labelsize\"`, `\"axes.labelsize\"`, "
+"`\"axes.titlesize\"`."
+
+#: 60a560e0dee24ff3a8cd86c5dc87b652 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves:36
+msgid ""
+"**dims** : :class:`python:dict`\\[:class:`python:str`, :class:`python:str` |"
+" :class:`python:int` | :class:`python:list`], optional"
+msgstr ""
+"**dims** : :class:`python:dict`\\[:class:`python:str`, :class:`python:str` |"
+" :class:`python:int` | :class:`python:list`], opcional"
+
+#: d8b34b411b854afa8f621ae1645ffcc8 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves:35
+msgid ""
+"python:dict[python:str, python:str | python:int | python:list], optional"
+msgstr ""
+"python:dict[python:str, python:str | python:int | python:list], opcional"
+
+#: b2a29dc71ff8488081c78e0c2acec171 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves:37
+#, python-brace-format
+msgid ""
+"Dimension filters to apply. Example: {\"country\": [\"US\", \"UK\"], "
+"\"region\": \"X\"}. If provided, only the selected slice(s) will be plotted."
+msgstr ""
+"Filtros de dimensión a aplicar. Ejemplo: {\"country\": [\"US\", \"UK\"], "
+"\"region\": \"X\"}. Si se proporciona, solo se trazará la(s) porción(es) "
+"seleccionada(s)."
+
+#: e938289a14624819b14ba9c8f0c8ee6a of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves:40
+msgid "**\\*\\*plot_kwargs**"
+msgstr "**\\*\\*plot_kwargs**"
+
+#: b81cf87fea5f4b42ad62feb33c572def of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves:41
+msgid ""
+"Any other kwargs forwarded to `plot_curve` (for instance `same_axes=True`, "
+"`legend=True`, etc.)."
+msgstr ""
+"Cualquier otro kwargs enviado a `plot_curve` (por ejemplo `same_axes=True`, "
+"`legend=True`, etc.)."
+
+#: 5bccfe1aa3fb4fa8a678c006a1925c4a of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 1893242926f84af0b573a40fccbb21d6 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves:48
+msgid "**fig** : :obj:`plt.Figure`"
+msgstr "**fig** : :obj:`plt.Figure`"
+
+#: 4773515563c8488bb708d853fef10043 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves:47
+msgid "plt.Figure"
+msgstr "plt.Figure"
+
+#: 75534b596f994515827dc7605eff0ca9 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves:49
+msgid "Matplotlib figure with your grid."
+msgstr "Figura de Matplotlib con su cuadrícula."
+
+#: 079e16251bf94226a41c9c795ea9cd33 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves:51
+msgid "**axes** : :obj:`np.ndarray <numpy.ndarray>` of :obj:`plt.Axes`"
+msgstr "**ejes** : :obj:`np.ndarray <numpy.ndarray>` de :obj:`plt.Axes`"
+
+#: a4a07e937b7f4c2f847dc700baeab6da of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves:50
+msgid "np.ndarray of plt.Axes"
+msgstr "np.ndarray de plt.Axes"
+
+#: c6e3806f0a5842a6b4696c5df9d31418 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.saturation_curves:52
+msgid "Array of shape `(n_channels, n_geo)`."
+msgstr "Array de forma `(n_channels, n_geo)`."
