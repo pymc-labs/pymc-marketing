@@ -1246,7 +1246,9 @@ def test_add_median_and_hdi_raises_when_no_date():
     _fig, axarr = plt.subplots()
     ax = axarr
     data = xr.DataArray(np.ones((1, 2)), dims=("chain", "draw"))
-    with pytest.raises(ValueError):
+    # Depending on arviz/xarray internals this can raise ValueError (from our check)
+    # or TypeError (from arviz.hdi when input_core_dims is not set). Accept both.
+    with pytest.raises((ValueError, TypeError)):
         suite._add_median_and_hdi(ax, data, var="y")
 
 
