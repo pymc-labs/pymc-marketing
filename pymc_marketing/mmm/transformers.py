@@ -13,7 +13,7 @@
 #   limitations under the License.
 """Media transformation functions for Marketing Mix Models."""
 
-from enum import Enum
+from enum import StrEnum
 from typing import Any, NamedTuple
 
 import numpy as np
@@ -24,19 +24,17 @@ from numpy.core.multiarray import normalize_axis_index
 from pymc.distributions.dist_math import check_parameters
 
 
-class ConvMode(str, Enum):
+class ConvMode(StrEnum):
     """Convolution mode for the convolution."""
 
-    # TODO: use StrEnum when we upgrade to python 3.11
     After = "After"
     Before = "Before"
     Overlap = "Overlap"
 
 
-class WeibullType(str, Enum):
+class WeibullType(StrEnum):
     """Weibull type for the Weibull adstock."""
 
-    # TODO: use StrEnum when we upgrade to python 3.11
     PDF = "PDF"
     CDF = "CDF"
 
