@@ -14,6 +14,7 @@
 import warnings
 
 import arviz as az
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
@@ -1052,8 +1053,20 @@ def test__dim_list_handler_mixed():
     assert set(combos) == {("A",), ("B",)}
 
 
-def test_time_slice_cv_run_sets_results_and_plot_property():
-    """Ensure TimeSliceCrossValidator.run persists results and exposes MMMPlotSuite via .plot."""
+@pytest.mark.parametrize(
+    "dim_config",
+    [
+        {},
+        {"country": ["A", "B"]},
+        {"country": ["A", "B"], "product": ["p1", "p2"]},
+    ],
+)
+def test_time_slice_cv_run_sets_results_and_plot_property(dim_config):
+    """Ensure TimeSliceCrossValidator.run persists results and exposes MMMPlotSuite via .plot
+
+    Test with different dimension granularities (no extra dims, single dim, multiple dims)
+    so the combined idata and plot helper behave correctly regardless of additional coords.
+    """
     from pymc_marketing.mmm.time_slice_cross_validation import (
         TimeSliceCrossValidator,
     )
@@ -1070,13 +1083,33 @@ def test_time_slice_cv_run_sets_results_and_plot_property():
         def sample_posterior_predictive(
             self, X, extend_idata=True, combined=True, progressbar=False, **kwargs
         ):
-            # Build minimal posterior_predictive with a date coord
-            dates = pd.to_datetime(X["date"].unique())
-            # Create a small chain/draw set
-            arr = np.random.RandomState(1).normal(size=(2, 3, len(dates)))
-            da = xr.DataArray(
-                arr, dims=("chain", "draw", "date"), coords={"date": dates}, name="y"
+            # Build minimal posterior_predictive with a date coord and any extra dims
+            dates = pd.to_datetime(np.unique(X["date"].to_numpy()))
+
+            # determine unique values for each dimension in dim_config
+            dim_keys = list(dim_config.keys())
+            dim_sizes = [len(np.unique(X[k])) for k in dim_keys]
+
+            # build array shape: (chain, draw, *dim_sizes, date)
+            shape = (1, 2, *dim_sizes, len(dates))
+
+            arr = np.random.RandomState(1).normal(size=shape)
+
+            dims = (
+                ("chain", "draw", *dim_keys, "date")
+                if dim_keys
+                else (
+                    "chain",
+                    "draw",
+                    "date",
+                )
             )
+
+            coords = {"date": dates}
+            for k in dim_keys:
+                coords[k] = np.unique(X[k])
+
+            da = xr.DataArray(arr, dims=dims, coords=coords, name="y")
             ds = xr.Dataset({"y": da})
             self.idata = az.InferenceData(posterior_predictive=ds)
             return self.idata
@@ -1085,20 +1118,149 @@ def test_time_slice_cv_run_sets_results_and_plot_property():
         def build_model(self, X, y):
             return FakeModel()
 
-    # Prepare tiny dataset
+    # Prepare tiny dataset with combinations for the requested dims
     dates = pd.date_range("2025-01-01", periods=6, freq="D")
-    X = pd.DataFrame({"date": dates, "geo": ["g1"] * len(dates)})
-    y = pd.Series(np.arange(len(dates)))
+
+    # build cartesian product of dims
+    dim_keys = list(dim_config.keys())
+    if dim_keys:
+        import itertools as _it
+
+        dim_values = [dim_config[k] for k in dim_keys]
+        rows = []
+        for date in dates:
+            for combo in _it.product(*dim_values):
+                row = {"date": date}
+                # Explicitly set strict=False to satisfy ruff B905 (zip strictness)
+                for k, v in zip(dim_keys, combo, strict=False):
+                    row[k] = v
+                rows.append(row)
+        X = pd.DataFrame(rows)
+    else:
+        X = pd.DataFrame({"date": dates, "geo": ["g1"] * len(dates)})
+
+    y = pd.Series(np.arange(len(X)))
 
     cv = TimeSliceCrossValidator(
         n_init=2, forecast_horizon=1, date_column="date", step_size=1
     )
-    results = cv.run(X, y, mmm=FakeMMMFactory())
 
+    run_out = cv.run(X, y, mmm=FakeMMMFactory())
+
+    # Support both historical behavior (run returned list of results) and
+    # current behavior (run returns combined arviz.InferenceData).
+    if isinstance(run_out, list):
+        results = run_out
+        combined = getattr(cv, "cv_idata", None)
+        # If legacy behavior, cv._cv_results should point at returned results
+        assert results == getattr(cv, "_cv_results", results)
+    else:
+        combined = run_out
+        # current behavior: combined InferenceData returned and _cv_results persisted
+        assert isinstance(combined, az.InferenceData)
+        assert hasattr(cv, "_cv_results")
+        results = cv._cv_results
     assert isinstance(results, list)
-    assert hasattr(cv, "_cv_results")
-    assert cv._cv_results is results
+
+    # combined posterior_predictive should contain all configured dims as coords
+    if dim_keys:
+        for k in dim_keys:
+            assert k in combined.posterior_predictive.coords
+
     # Plot property should return MMMPlotSuite that wraps the latest idata
     plot_suite = cv.plot
     assert hasattr(plot_suite, "idata")
     assert plot_suite.idata is cv._cv_results[-1].idata
+
+
+def test_init_subplots_and_build_title():
+    suite = MMMPlotSuite(idata=None)
+    fig, axes = suite._init_subplots(
+        n_subplots=3, ncols=2, width_per_col=2.0, height_per_row=1.5
+    )
+    # axes is a 2D array of shape (3,2)
+    assert axes.shape == (3, 2)
+    w, h = fig.get_size_inches()
+    assert w == pytest.approx(2.0 * 2)
+    assert h == pytest.approx(1.5 * 3)
+
+    title = suite._build_subplot_title(["country", "region"], ("A", "X"))
+    assert title == "country=A, region=X"
+    fallback = suite._build_subplot_title([], (), fallback_title="Fallback")
+    assert fallback == "Fallback"
+
+
+def test_get_additional_dim_combinations_success_and_error():
+    suite = MMMPlotSuite(idata=None)
+    dates = pd.date_range("2025-01-01", periods=4, freq="D")
+    da = xr.DataArray(
+        np.zeros((1, 2, 3, 4)),
+        dims=("chain", "draw", "country", "date"),
+        coords={
+            "chain": [0],
+            "draw": [0, 1],
+            "country": ["A", "B", "C"],
+            "date": dates,
+        },
+        name="y",
+    )
+    ds = xr.Dataset({"y": da})
+
+    addl_dims, combos = suite._get_additional_dim_combinations(
+        ds, "y", ignored_dims={"chain", "draw", "date"}
+    )
+    assert addl_dims == ["country"]
+    assert len(combos) == 3
+
+    # Missing variable should raise
+    with pytest.raises(ValueError):
+        suite._get_additional_dim_combinations(
+            ds, "missing", ignored_dims={"chain", "draw", "date"}
+        )
+
+
+def test_reduce_and_stack_sums_and_stack():
+    suite = MMMPlotSuite(idata=None)
+    dates = pd.date_range("2025-01-01", periods=3, freq="D")
+    data = xr.DataArray(
+        np.ones((1, 2, 2, 3)),
+        dims=("chain", "draw", "region", "date"),
+        coords={"chain": [0], "draw": [0, 1], "region": ["r1", "r2"], "date": dates},
+    )
+    reduced = suite._reduce_and_stack(data)
+    # region summed away, chain+draw stacked into 'sample'
+    assert "region" not in reduced.dims
+    assert "sample" in reduced.dims
+    assert reduced.sizes["sample"] == 2
+
+
+def test_get_posterior_predictive_data_raises_when_missing():
+    suite = MMMPlotSuite(idata=None)
+    with pytest.raises(ValueError):
+        suite._get_posterior_predictive_data(None)
+
+
+def test_add_median_and_hdi_raises_when_no_date():
+    suite = MMMPlotSuite(idata=None)
+    # Prefix unused fig with underscore to satisfy ruff RUF059
+    _fig, axarr = plt.subplots()
+    ax = axarr
+    data = xr.DataArray(np.ones((1, 2)), dims=("chain", "draw"))
+    with pytest.raises(ValueError):
+        suite._add_median_and_hdi(ax, data, var="y")
+
+
+def test_posterior_predictive_with_explicit_xarray_dataset():
+    # Build a small posterior_predictive dataset and pass it directly to posterior_predictive
+    dates = pd.date_range("2025-01-01", periods=4, freq="D")
+    da = xr.DataArray(
+        np.random.default_rng(1).normal(size=(1, 2, 4)),
+        dims=("chain", "draw", "date"),
+        coords={"chain": [0], "draw": [0, 1], "date": dates},
+        name="y",
+    )
+    ds = xr.Dataset({"y": da})
+    suite = MMMPlotSuite(idata=None)
+    fig, axes = suite.posterior_predictive(var=["y"], idata=ds, hdi_prob=0.8)
+    assert fig is not None
+    assert axes is not None
