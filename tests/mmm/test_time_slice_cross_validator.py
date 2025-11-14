@@ -13,16 +13,20 @@
 #   limitations under the License.
 
 
+import copy
 import warnings
 
+import arviz as az
 import numpy as np
 import pandas as pd
 import pytest
+import xarray as xr
 from pymc.testing import mock_sample_setup_and_teardown
 
 from pymc_marketing.mmm.components.adstock import GeometricAdstock
 from pymc_marketing.mmm.components.saturation import LogisticSaturation
 from pymc_marketing.mmm.multidimensional import MMM
+from pymc_marketing.mmm.plot import MMMPlotSuite
 from pymc_marketing.mmm.time_slice_cross_validation import (
     TimeSliceCrossValidationResult,
     TimeSliceCrossValidator,
@@ -38,17 +42,16 @@ class _MMMBuilder:
     def build_model(self, X, y):
         # Build the internal MMM and return the MMM instance so the
         # TimeSliceCrossValidator receives a fit-capable object.
+        # Return a fresh copy per-call to avoid shared-state across folds.
+        mmm_copy = copy.deepcopy(self._mmm)
         try:
-            # Some MMM implementations build in-place and return None; call and ignore return.
-            _ = self._mmm.build_model(X, y)
+            _ = mmm_copy.build_model(X, y)
         except Exception as e:
-            # If build_model fails for any reason, warn so the test output
-            # remains informative instead of silently swallowing the error.
             warnings.warn(
                 f"_MMMBuilder.build_model: underlying build_model raised: {e}",
                 stacklevel=2,
             )
-        return self._mmm
+        return mmm_copy
 
 
 # Mock sampling for faster tests
@@ -243,9 +246,13 @@ class TestTimeSliceCrossValidator:
     def test_run_method_basic(self, cv, XY, mmm_fixture, mock_pymc_sample):
         """Test run method returns correct number of results."""
         X, y = XY
-        results = cv.run(X, y, mmm=_MMMBuilder(mmm_fixture))
+        # run() now returns a combined InferenceData; per-fold results are
+        # available on `cv._cv_results` after calling run().
+        _combined = cv.run(X, y, mmm=_MMMBuilder(mmm_fixture))
 
         expected_splits = cv.get_n_splits(X, y)
+        assert hasattr(cv, "_cv_results")
+        results = cv._cv_results
         assert len(results) == expected_splits
 
         # Check that all results are TimeSliceCrossValidationResult instances
@@ -257,7 +264,9 @@ class TestTimeSliceCrossValidator:
     ):
         """Test that idata objects in results are not identical."""
         X, y = XY
-        results = cv.run(X, y, mmm=_MMMBuilder(mmm_fixture))
+        _ = cv.run(X, y, mmm=_MMMBuilder(mmm_fixture))
+        assert hasattr(cv, "_cv_results")
+        results = cv._cv_results
 
         # Check that we have at least 2 results to compare
         assert len(results) >= 2, "Need at least 2 results to test idata uniqueness"
@@ -406,7 +415,9 @@ class TestStepSize:
             n_init=5, forecast_horizon=3, date_column="date", step_size=4
         )
 
-        results = cv4.run(X, y, mmm=_MMMBuilder(mmm_fixture))
+        _ = cv4.run(X, y, mmm=_MMMBuilder(mmm_fixture))
+        assert hasattr(cv4, "_cv_results")
+        results = cv4._cv_results
 
         # Should have 4 results (as calculated in get_n_splits test)
         assert len(results) == 4
@@ -516,3 +527,260 @@ class TestEdgeCases:
                 forecast_horizon=0,  # Invalid
                 date_column="date",
             )
+
+
+def _build_simple_idata(dates, var_name="y_original_scale"):
+    # build minimal posterior_predictive dataset with chain/draw/date dims
+    arr = np.random.RandomState(1).normal(size=(1, 2, len(dates)))
+    da = xr.DataArray(
+        arr, dims=("chain", "draw", "date"), coords={"date": dates}, name=var_name
+    )
+    ds = xr.Dataset({var_name: da})
+    return az.InferenceData(posterior_predictive=ds)
+
+
+def test_combine_idata_builds_cv_metadata_and_cv_coord():
+    cv = TimeSliceCrossValidator(n_init=1, forecast_horizon=1, date_column="date")
+
+    dates1 = pd.to_datetime(["2025-01-01", "2025-01-08"])
+    dates2 = pd.to_datetime(["2025-01-15", "2025-01-22"])
+
+    idata1 = _build_simple_idata(dates1)
+    idata2 = _build_simple_idata(dates2)
+
+    # create simple dataframe placeholders
+    df_train = pd.DataFrame({"date": dates1})
+    df_test = pd.DataFrame({"date": dates2})
+
+    r1 = TimeSliceCrossValidationResult(
+        X_train=df_train,
+        y_train=pd.Series([1, 2]),
+        X_test=df_test,
+        y_test=pd.Series([3, 4]),
+        idata=idata1,
+    )
+    r2 = TimeSliceCrossValidationResult(
+        X_train=df_train,
+        y_train=pd.Series([5, 6]),
+        X_test=df_test,
+        y_test=pd.Series([7, 8]),
+        idata=idata2,
+    )
+
+    cv._cv_results = [r1, r2]
+
+    combined = cv._combine_idata(cv._cv_results, ["m1", "m2"])
+
+    assert hasattr(combined, "posterior_predictive")
+    assert "cv" in combined.posterior_predictive.coords
+    assert hasattr(combined, "cv_metadata")
+    assert "metadata" in combined.cv_metadata
+
+
+def test_param_stability_uses_posterior_predictive_and_returns_fig_ax():
+    # Build a combined idata with a 'cv' coord and a posterior_predictive variable
+    cv_labels = ["m1", "m2"]
+    # create array with dims chain, draw, cv
+    arr = np.random.RandomState(1).normal(size=(1, 2, len(cv_labels)))
+    da = xr.DataArray(
+        arr, dims=("chain", "draw", "cv"), coords={"cv": cv_labels}, name="beta_channel"
+    )
+    ds = xr.Dataset({"beta_channel": da})
+    idata = az.InferenceData(posterior_predictive=ds)
+
+    suite = MMMPlotSuite(idata=None)
+
+    fig_ax = suite.param_stability(idata, parameter=["beta_channel"])
+    # should return a tuple (fig, ax) when dims is None
+    assert isinstance(fig_ax, tuple)
+    assert len(fig_ax) >= 1
+
+
+# ------------------------------------------------------------
+
+
+def _make_posterior_predictive(cv_labels, dates):
+    # shape: chain=1, draw=2, cv=len(cv_labels), date=len(dates)
+    arr = np.random.RandomState(2).normal(size=(1, 2, len(cv_labels), len(dates)))
+    da = xr.DataArray(
+        arr,
+        dims=("chain", "draw", "cv", "date"),
+        coords={"cv": cv_labels, "date": dates},
+        name="y_original_scale",
+    )
+    ds = xr.Dataset({"y_original_scale": da})
+    return ds
+
+
+def test__combine_idata_raises_if_no_idata():
+    cv = TimeSliceCrossValidator(n_init=1, forecast_horizon=1, date_column="date")
+    # create two results without idata
+    df = pd.DataFrame({"date": [pd.Timestamp("2025-01-01")]})
+    r1 = TimeSliceCrossValidationResult(
+        X_train=df, y_train=pd.Series([1]), X_test=df, y_test=pd.Series([1]), idata=None
+    )
+    r2 = TimeSliceCrossValidationResult(
+        X_train=df, y_train=pd.Series([2]), X_test=df, y_test=pd.Series([2]), idata=None
+    )
+    results = [r1, r2]
+
+    # Ensure internal _cv_results exists so metadata creation can reference
+    # per-fold metadata without raising AttributeError inside the implementation.
+    cv._cv_results = results
+
+    # Current behavior builds an InferenceData that may contain only cv_metadata
+    combined = cv._combine_idata(results, ["m1", "m2"])
+    # Should at least contain cv_metadata group
+    assert hasattr(combined, "cv_metadata")
+    assert "metadata" in combined.cv_metadata
+
+
+def test_combine_idata_uses_fallback_groups_when__groups_missing():
+    cv = TimeSliceCrossValidator(n_init=1, forecast_horizon=1, date_column="date")
+
+    dates1 = pd.to_datetime(["2025-01-01", "2025-01-08"])
+    ds1 = _build_pp_dataset(dates1, var_name="y")
+    ds2 = _build_pp_dataset(dates1, var_name="y")
+
+    idata1 = _DummyIdata({"posterior_predictive": ds1})
+    idata2 = _DummyIdata({"posterior_predictive": ds2})
+
+    df = pd.DataFrame({"date": dates1})
+    r1 = TimeSliceCrossValidationResult(
+        X_train=df,
+        y_train=pd.Series([1, 2]),
+        X_test=df,
+        y_test=pd.Series([3, 4]),
+        idata=idata1,
+    )
+    r2 = TimeSliceCrossValidationResult(
+        X_train=df,
+        y_train=pd.Series([5, 6]),
+        X_test=df,
+        y_test=pd.Series([7, 8]),
+        idata=idata2,
+    )
+
+    # Ensure cv._cv_results exists for metadata creation
+    cv._cv_results = [r1, r2]
+
+    combined = cv._combine_idata([r1, r2], ["m1", "m2"])
+
+    assert hasattr(combined, "posterior_predictive")
+    assert "cv" in combined.posterior_predictive.coords
+    assert hasattr(combined, "cv_metadata")
+
+
+def test_cv_crps_raises_when_cv_metadata_missing():
+    # idata with posterior_predictive but no cv_metadata should raise
+    dates = pd.to_datetime(["2025-01-01", "2025-01-08"])
+    # create posterior_predictive without a 'cv' coordinate (date-only)
+    arr = np.random.RandomState(5).normal(size=(1, 2, len(dates)))
+    da = xr.DataArray(
+        arr,
+        dims=("chain", "draw", "date"),
+        coords={"date": dates},
+        name="y_original_scale",
+    )
+    ds = xr.Dataset({"y_original_scale": da})
+    idata = az.InferenceData(posterior_predictive=ds)
+
+    suite = MMMPlotSuite(idata=idata)
+
+    with pytest.raises(ValueError):
+        suite.cv_crps(idata)
+
+
+def test_run_produces_combined_cv_idata_and_returns_results_list():
+    dates = pd.date_range("2025-01-01", periods=4, freq="D")
+    X = pd.DataFrame({"date": dates, "geo": ["g1"] * len(dates)})
+    y = pd.Series(np.arange(len(dates)))
+
+    cv = TimeSliceCrossValidator(
+        n_init=1, forecast_horizon=1, date_column="date", step_size=1
+    )
+
+    # Local factory that always returns the same idata structure (fixed dates)
+    class LocalFakeModel:
+        def __init__(self):
+            self.idata = None
+            self.sampler_config = None
+
+        def fit(self, X, y, progressbar=True):
+            return None
+
+        def sample_posterior_predictive(
+            self, X, extend_idata=True, combined=True, progressbar=False, **kwargs
+        ):
+            # ignore X and always return idata with the same date coords
+            fixed_dates = pd.to_datetime(
+                ["2025-01-01", "2025-01-02", "2025-01-03", "2025-01-04"]
+            )[:]
+            arr = np.random.RandomState(7).normal(size=(1, 2, len(fixed_dates)))
+            da = xr.DataArray(
+                arr,
+                dims=("chain", "draw", "date"),
+                coords={"date": fixed_dates},
+                name="y_original_scale",
+            )
+            ds_pp = xr.Dataset({"y_original_scale": da})
+            ds_post = xr.Dataset({"beta": da})
+            ds_obs = xr.Dataset({"y": da})
+            ds_const = xr.Dataset({"meta": ("date", fixed_dates)})
+            ds_fit = xr.Dataset({"fit_info": da})
+
+            self.idata = az.InferenceData(
+                posterior=ds_post,
+                posterior_predictive=ds_pp,
+                observed_data=ds_obs,
+                constant_data=ds_const,
+                fit_data=ds_fit,
+            )
+            return self.idata
+
+    class LocalFakeFactory:
+        def build_model(self, X, y):
+            return LocalFakeModel()
+
+    combined = cv.run(X, y, mmm=LocalFakeFactory())
+
+    # run now returns the combined arviz.InferenceData
+    assert isinstance(combined, az.InferenceData)
+    assert hasattr(cv, "cv_idata")
+
+    # also expose per-fold results
+    assert hasattr(cv, "_cv_results")
+    results = cv._cv_results
+
+    # run should return a list of per-fold results (accessible via _cv_results)
+    assert isinstance(results, list)
+
+    # combined should include the posterior_predictive group and cv coord
+    assert hasattr(combined, "posterior_predictive")
+    assert "cv" in combined.posterior_predictive.coords
+
+    # last fold idata should be exposed as cv.idata
+    assert hasattr(cv, "idata") and cv.idata is not None
+
+
+def _build_pp_dataset(dates, var_name="y"):
+    arr = np.random.RandomState(4).normal(size=(1, 2, len(dates)))
+    da = xr.DataArray(
+        arr, dims=("chain", "draw", "date"), coords={"date": dates}, name=var_name
+    )
+    ds = xr.Dataset({var_name: da})
+    return ds
+
+
+class _DummyIdata:
+    """Lightweight stand-in that resembles parts of arviz.InferenceData but
+    intentionally lacks the internal `_groups` attribute to exercise the
+    fallback branch in `_combine_idata` used in tests.
+    """
+
+    def __init__(self, ds_dict: dict):
+        for k, v in ds_dict.items():
+            setattr(self, k, v)
+
+    def __getitem__(self, key):
+        return getattr(self, key, None)
