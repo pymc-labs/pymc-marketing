@@ -46,7 +46,7 @@ class TestShiftedBetaGeoModel:
         cls.beta_case1_case2 = [15.20, 0.267]
 
         # Instantiate model with research paper data
-        cls.data = pd.read_csv("data/sbg_reg_hi_cohorts.csv").query("T <= 8")
+        cls.data = pd.read_csv("data/sbg_cohorts.csv").query("T <= 8")
         cls.model = ShiftedBetaGeoModel(cls.data)
         cls.model.build_model()
 
@@ -138,6 +138,64 @@ class TestShiftedBetaGeoModel:
         return model
 
     @pytest.fixture(scope="class")
+    def covariate_test_data(self):
+        """Test data with covariates for testing covariate functionality."""
+        return pd.DataFrame(
+            {
+                "customer_id": np.arange(1, 21),
+                "recency": np.array(
+                    [3, 4, 5, 5, 5, 3, 4, 5, 5, 5, 3, 4, 5, 5, 5, 3, 4, 5, 5, 5]
+                ),
+                "T": np.array(
+                    [5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5]
+                ),
+                "cohort": np.array(
+                    [
+                        "A",
+                        "A",
+                        "A",
+                        "A",
+                        "A",
+                        "B",
+                        "B",
+                        "B",
+                        "B",
+                        "B",
+                        "A",
+                        "A",
+                        "A",
+                        "A",
+                        "A",
+                        "B",
+                        "B",
+                        "B",
+                        "B",
+                        "B",
+                    ]
+                ),
+                "channel": np.array(
+                    [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0]
+                ),
+                "tier": np.array(
+                    [2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1]
+                ),
+            }
+        )
+
+    @pytest.fixture(scope="class")
+    def covariate_pred_data(self):
+        """Prediction data with covariates for testing predictions."""
+        return pd.DataFrame(
+            {
+                "customer_id": np.arange(1, 6),
+                "T": np.array([5, 5, 5, 5, 5]),
+                "cohort": np.array(["A", "A", "B", "B", "A"]),
+                "channel": np.array([1, 0, 1, 0, 1]),
+                "tier": np.array([2, 1, 2, 1, 2]),
+            }
+        )
+
+    @pytest.fixture(scope="class")
     def custom_model_config(self):
         return {
             "alpha": Prior("HalfNormal", sigma=10, dims="cohort"),
@@ -170,6 +228,7 @@ class TestShiftedBetaGeoModel:
             assert model.model.coords == {
                 "customer_id": tuple(range(1, self.N + 1)),
                 "cohort": ("highend", "regular"),
+                "dropout_covariate": (),
             }
 
         assert default_model.model.eval_rv_shapes() == {
@@ -717,6 +776,157 @@ class TestShiftedBetaGeoModel:
         # Retention rates should increase over time (with more renewals)
         assert np.all(np.diff(expected_retention_rate_case1) >= 0)
         assert np.all(np.diff(expected_retention_rate_case2) >= 0)
+
+    def test_model_with_covariates_hierarchical(self, covariate_test_data):
+        """Test model building and fitting with covariates using hierarchical parameterization."""
+        model_config = {
+            "phi": Prior("Uniform", lower=0, upper=1, dims="cohort"),
+            "kappa": Prior("Pareto", alpha=1, m=1, dims="cohort"),
+            "dropout_coefficient": Prior("Normal", mu=0, sigma=2),
+            "dropout_covariate_cols": ["channel", "tier"],
+        }
+
+        model = ShiftedBetaGeoModel(data=covariate_test_data, model_config=model_config)
+        model.build_model()
+
+        # Check that coords include dropout_covariate
+        assert list(model.model.coords["dropout_covariate"]) == ["channel", "tier"]
+
+        # Check that covariate columns are stored
+        assert model.dropout_covariate_cols == ["channel", "tier"]
+
+        # Check that alpha_scale and beta_scale exist (not alpha and beta directly)
+        assert "alpha_scale" in model.model.named_vars
+        assert "beta_scale" in model.model.named_vars
+
+        # Check that customer-level alpha and beta exist
+        assert "alpha" in model.model.named_vars
+        assert "beta" in model.model.named_vars
+
+        # Check that dropout coefficients exist
+        assert "dropout_coefficient_alpha" in model.model.named_vars
+        assert "dropout_coefficient_beta" in model.model.named_vars
+
+        # Check shapes
+        assert model.model["alpha_scale"].eval().shape == (2,)  # 2 cohorts
+        assert model.model["beta_scale"].eval().shape == (2,)  # 2 cohorts
+        assert model.model["alpha"].eval().shape == (20,)  # 20 customers
+        assert model.model["beta"].eval().shape == (20,)  # 20 customers
+        assert model.model["dropout_coefficient_alpha"].eval().shape == (
+            2,
+        )  # 2 covariates
+        assert model.model["dropout_coefficient_beta"].eval().shape == (
+            2,
+        )  # 2 covariates
+
+        # Fit with MAP to verify it runs without errors
+        model.fit(method="map", maxeval=10)
+        assert model.idata is not None
+
+    def test_model_with_covariates_direct(self, covariate_test_data):
+        """Test model building with covariates using direct alpha/beta parameterization."""
+        model_config = {
+            "alpha": Prior("HalfNormal", sigma=10, dims="cohort"),
+            "beta": Prior("HalfNormal", sigma=10, dims="cohort"),
+            "dropout_coefficient": Prior("Normal", mu=0, sigma=2),
+            "dropout_covariate_cols": ["channel"],
+        }
+
+        model = ShiftedBetaGeoModel(data=covariate_test_data, model_config=model_config)
+        model.build_model()
+
+        # Check that coords include dropout_covariate
+        assert "dropout_covariate" in model.model.coords
+        assert list(model.model.coords["dropout_covariate"]) == ["channel"]
+
+        # Check that alpha_scale and beta_scale exist (direct parameterization with covariates)
+        assert "alpha_scale" in model.model.named_vars
+        assert "beta_scale" in model.model.named_vars
+
+        # Check that customer-level alpha and beta exist
+        assert "alpha" in model.model.named_vars
+        assert "beta" in model.model.named_vars
+
+        # Check shapes
+        assert model.model["alpha_scale"].eval().shape == (2,)  # 2 cohorts
+        assert model.model["beta_scale"].eval().shape == (2,)  # 2 cohorts
+        assert model.model["alpha"].eval().shape == (20,)  # 20 customers
+        assert model.model["beta"].eval().shape == (20,)  # 20 customers
+
+        # Fit with MAP to verify it runs without errors
+        model.fit(method="map", maxeval=10)
+        assert model.idata is not None
+
+    def test_predictions_with_covariates(
+        self, covariate_test_data, covariate_pred_data
+    ):
+        """Test that prediction methods work with covariates."""
+        model_config = {
+            "phi": Prior("Uniform", lower=0, upper=1, dims="cohort"),
+            "kappa": Prior("Pareto", alpha=1, m=1, dims="cohort"),
+            "dropout_coefficient": Prior("Normal", mu=0, sigma=2),
+            "dropout_covariate_cols": ["channel"],
+        }
+
+        model = ShiftedBetaGeoModel(data=covariate_test_data, model_config=model_config)
+        model.build_model()
+        model.fit(method="map", maxeval=10)
+
+        # Use only the channel covariate column from pred_data
+        pred_data = covariate_pred_data[
+            ["customer_id", "T", "cohort", "channel"]
+        ].copy()
+
+        # Test each prediction method
+        retention_rate = model.expected_retention_rate(data=pred_data, future_t=1)
+        assert retention_rate.shape == (1, 1, 5)
+        assert np.all(retention_rate > 0) and np.all(retention_rate < 1)
+
+        prob_alive = model.expected_probability_alive(data=pred_data, future_t=0)
+        assert prob_alive.shape == (1, 1, 5)
+        assert np.all(prob_alive > 0) and np.all(prob_alive <= 1)
+
+        residual_lifetime = model.expected_residual_lifetime(
+            data=pred_data, discount_rate=0.05
+        )
+        assert residual_lifetime.shape == (1, 1, 5)
+        assert np.all(residual_lifetime > 0)
+
+        retention_elasticity = model.expected_retention_elasticity(
+            data=pred_data, discount_rate=0.05
+        )
+        assert retention_elasticity.shape == (1, 1, 5)
+        assert np.all(retention_elasticity > 0)
+
+    def test_missing_covariate_columns_raises_error(self, covariate_test_data):
+        """Test that missing covariate columns in data raises an error."""
+        # Create test data without the required covariate columns by dropping them
+        data_missing_covariates = covariate_test_data.drop(
+            columns=["channel", "tier"]
+        ).iloc[:10]
+
+        model_config = {
+            "phi": Prior("Uniform", lower=0, upper=1, dims="cohort"),
+            "kappa": Prior("Pareto", alpha=1, m=1, dims="cohort"),
+            "dropout_coefficient": Prior("Normal", mu=0, sigma=2),
+            "dropout_covariate_cols": ["channel"],
+        }
+
+        with pytest.raises(ValueError, match="missing from the input data"):
+            ShiftedBetaGeoModel(data=data_missing_covariates, model_config=model_config)
+
+    def test_covariate_cols_only_in_config(self, covariate_test_data):
+        """Test that passing only dropout_covariate_cols into model_config (without priors) works."""
+
+        model_config = {
+            "dropout_covariate_cols": ["channel"],
+        }
+
+        # Should not raise ModelConfigError
+        model = ShiftedBetaGeoModel(data=covariate_test_data, model_config=model_config)
+        assert model.dropout_covariate_cols == ["channel"]
+        model.build_model()
+        assert "dropout_covariate" in model.model.coords
 
 
 class TestShiftedBetaGeoModelIndividual:
