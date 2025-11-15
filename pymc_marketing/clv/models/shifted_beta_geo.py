@@ -94,7 +94,7 @@ class ShiftedBetaGeoModel(CLVModel):
     -----
     Example:
     --------
-    The format of `data`:
+    Required `data` format:
 
         +-------------+----------+-----+-------------+--------------------+----------------------+
         | customer_id | recency  | T   | cohort      | discrete_covariate | continuous_covariate |
@@ -109,8 +109,6 @@ class ShiftedBetaGeoModel(CLVModel):
     Example usage:
 
     .. code-block:: python
-
-        import pymc as pm
 
         from pymc_extras.prior import Prior
         from pymc_marketing.clv import ShiftedBetaGeoModel
@@ -137,7 +135,6 @@ class ShiftedBetaGeoModel(CLVModel):
         # Use 'mcmc' for more informative predictions and reliable performance on smaller datasets
         model.fit(method="mcmc")
         model.fit_summary()
-
 
         # Predict probability customers are still active
         expected_alive_probability = model.expected_probability_alive(
@@ -171,13 +168,7 @@ class ShiftedBetaGeoModel(CLVModel):
                 "dropout_covariate_cols": ["covariate1", "covariate2"],
             },
         )
-        model_with_covariates.fit()
-
-        # Predict alive probability for a specific cohort with covariates
-        retention_with_covariates = model_with_covariates.expected_probability_alive(
-            data=covariate_data, future_t=1
-        )
-
+        model_with_covariates.fit(method="demz")
     """
 
     _model_type = "Shifted Beta-Geometric"
