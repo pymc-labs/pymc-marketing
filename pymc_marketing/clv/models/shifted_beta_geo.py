@@ -74,6 +74,7 @@ class ShiftedBetaGeoModel(CLVModel):
           ``Prior("Normal", mu=0, sigma=1)``.
         - ``dropout_covariate_cols``: Sequence[str]. Column names for customer-level,
           time-invariant covariates; default ``[]``.
+
     sampler_config : dict, optional
         Dictionary of sampler parameters. Defaults to *None*.
 
