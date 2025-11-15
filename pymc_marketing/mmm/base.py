@@ -243,8 +243,10 @@ class MMMModelBuilder(RegressionModelBuilder):
 
         Example
         -------
-        >>> data = pd.DataFrame({"x1": [1, 2, 3], "y": [4, 5, 6]})
-        >>> self.preprocess("X", data)
+        .. code-block:: python
+
+            data = pd.DataFrame({"x1": [1, 2, 3], "y": [4, 5, 6]})
+            self.preprocess("X", data)
 
         """
         data_cp = data.copy()
