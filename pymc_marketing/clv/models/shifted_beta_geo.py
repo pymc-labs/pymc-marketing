@@ -35,150 +35,140 @@ class ShiftedBetaGeoModel(CLVModel):
     """Shifted Beta Geometric (sBG) model for customers renewing contracts over discrete time periods.
 
     The sBG model has the following assumptions:
-      * Dropout probabilities for each cohortare Beta-distributed with hyperparameters `alpha` and `beta`.
-      * Cohort retention rates change over time due to customer heterogeneity.
-      * Customers in the same cohort began their contract in the same time period.
+
+    * Dropout probabilities for each cohort are Beta-distributed with hyperparameters ``alpha`` and ``beta``.
+    * Cohort retention rates change over time due to customer heterogeneity.
+    * Customers in the same cohort began their contract in the same time period.
 
     This model requires data to be summarized by *recency*, *T*, and *cohort* for each customer.
     Modeling assumptions require *1 <= recency <= T*, and *T >= 2*.
 
-    First introduced by Fader & Hardie in [1]_, with additional expressions and enhancements described in [2]_ and [3].
+    First introduced by Fader & Hardie in [1]_, with additional expressions and enhancements
+    described in [2]_ and [3]_.
 
     Parameters
     ----------
     data : ~pandas.DataFrame
         DataFrame containing the following columns:
-            * `customer_id`: Unique customer identifier
-            * `recency`: Time period of last contract renewal. It should equal *T* for active customers.
-            * `T`: Max observed time period in the cohort. All customers in a given cohort share the same value for *T*.
-            * `cohort`: Customer cohort label
-            * Additional columns for static covariates
+
+        - ``customer_id``: Unique customer identifier.
+        - ``recency``: Time period of last contract renewal. It should equal ``T`` for
+          active customers.
+        - ``T``: Max observed time period in the cohort. All customers in a given cohort
+          share the same value for ``T``.
+        - ``cohort``: Customer cohort label.
+        - Any columns listed in ``dropout_covariate_cols`` when using covariates.
+
     model_config : dict, optional
         Dictionary of model prior parameters:
-            * `alpha`: Shape parameter of dropout process (cohort-level);
-              defaults to `phi` * `kappa`
-            * `beta`: Shape parameter of dropout process (cohort-level);
-              defaults to `(1-phi)` * `kappa`
-            * `phi`: Pooling prior if `alpha` and `beta` are not provided;
-              defaults to `Prior("Uniform", lower=0, upper=1, dims="cohort")`
-            * `kappa`: Pooling prior if `alpha` and `beta` are not provided;
-              defaults to `Prior("Pareto", alpha=1, m=1, dims="cohort")`
-            * `dropout_coefficient`: Prior for covariate coefficients; defaults to `Prior("Normal", mu=0, sigma=1)`
-            * `dropout_covariate_cols`: List of column names for customer-level covariates.
+
+        - ``alpha``: Prior or None (cohort-level). Shape parameter of dropout process.
+          Default is ``phi * kappa`` when ``alpha`` is not provided directly.
+        - ``beta``: Prior or None (cohort-level). Shape parameter of dropout process.
+          Default is ``(1 - phi) * kappa`` when ``beta`` is not provided directly.
+        - ``phi``: Prior for pooling if ``alpha`` and ``beta`` are not provided directly;
+          default ``Prior("Uniform", lower=0, upper=1, dims="cohort")``.
+        - ``kappa``: Prior for pooling if ``alpha`` and ``beta`` are not provided directly;
+          default ``Prior("Pareto", alpha=1, m=1, dims="cohort")``.
+        - ``dropout_coefficient``: Prior for covariate coefficients; default
+          ``Prior("Normal", mu=0, sigma=1)``.
+        - ``dropout_covariate_cols``: Sequence[str]. Column names for customer-level,
+          time-invariant covariates; default ``[]``.
     sampler_config : dict, optional
         Dictionary of sampler parameters. Defaults to *None*.
-
-    Examples
-    --------
-        .. code-block:: python
-
-            import pymc as pm
-
-            from pymc_extras.prior import Prior
-            from pymc_marketing.clv import ShiftedBetaGeoModel
-
-            model = ShiftedBetaGeoModel(
-                data=pd.DataFrame(
-                    customer_id=[1, 2, 3, ...],
-                    recency=[8, 1, 4, ...],
-                    T=[8, 5, 5, ...],
-                    cohort=["2025-02-01", "2025-04-01", "2025-04-01", ...],
-                ),
-                model_config={
-                    "alpha": Prior("HalfNormal", sigma=10),
-                    "beta": Prior("HalfStudentT", nu=4, sigma=10),
-                },
-                sampler_config={
-                    "draws": 1000,
-                    "tune": 1000,
-                    "chains": 4,
-                    "cores": 4,
-                    "nuts_kwargs": {"target_accept": 0.95},
-                },
-            )
-
-            # Fit model quickly to large datasets via Maximum a Posteriori
-            model.fit(method="map")
-            model.fit_summary()
-
-            # Use 'mcmc' for more informative predictions and reliable performance on smaller datasets
-            model.fit(method="mcmc")
-            model.fit_summary()
-
-
-            # Predict probability customers are still active
-            expected_alive_probability = model.expected_probability_alive(
-                active_customers,
-                future_t=0,
-            )
-
-            # Predict retention rate for a specific cohort
-            cohort_name = "2025-02-01"
-
-            expected_alive_probability = model.expected_retention_rate(
-                future_t=0,
-            ).sel(cohort=cohort_name)
-
-            # Predict expected remaining lifetime for all customers with a 5% discount rate
-            expected_alive_probability = model.expected_residual_lifetime(
-                discount_rate=0.05,
-            )
-
-            # Predict expected retention elasticity for all customers in a specific cohort
-            expected_alive_probability = model.expected_retention_elasticity(
-                discount_rate=0.05,
-            ).sel(cohort=cohort_name)
-
-            # Example with customer-level covariates
-            model_with_covariates = ShiftedBetaGeoModel(
-                data=pd.DataFrame(
-                    {
-                        "customer_id": [1, 2, 3, ...],
-                        "recency": [8, 1, 4, ...],
-                        "T": [8, 5, 5, ...],
-                        "cohort": ["2025-02", "2025-04", "2025-04", ...],
-                        "channel_covariate": [1, 0, 1, ...],
-                        "rating_covariate": [
-                            2.172,
-                            1.234,
-                            2.345,
-                            ...,
-                        ],  # time-invariant
-                    }
-                ),
-                model_config={
-                    "dropout_coefficient": Prior("Normal", mu=0, sigma=2),
-                    "dropout_covariate_cols": ["channel_covariate", "rating_covariate"],
-                },
-            )
-            model_with_covariates.fit()
-
-            # Predictions with covariates require covariate columns in prediction data
-            pred_data = pd.DataFrame(
-                {
-                    "customer_id": [...],
-                    "T": [...],
-                    "cohort": [...],
-                    "channel_covariate": [...],
-                    "rating_covariate": [...],
-                }
-            )
-            retention_with_covariates = model_with_covariates.expected_retention_rate(
-                data=pred_data, future_t=1
-            )
-
 
     References
     ----------
     .. [1] Fader, P. S., & Hardie, B. G. (2007). "How to project customer retention."
-        Journal of Interactive Marketing, 21(1), 76-90.
-        https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf
-    .. [2] Fader, P. S., & Hardie, B. G. (2010). "Customer-Base Valuation in a Contractual Setting:
-        The Perils of Ignoring Heterogeneity." Marketing Science, 29(1), 85-93.
-    https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_contractual_mksc_10.pdf
-    .. [3] Fader, Peter & G. S. Hardie, Bruce (2007).
-        "Incorporating Time-Invariant Covariates into the Pareto/NBD and BG/NBD Models".
-        https://www.brucehardie.com/notes/019/time_invariant_covariates.pdf
+       Journal of Interactive Marketing, 21(1), 76-90.
+       `PDF <https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf>`_
+    .. [2] Fader, P. S., & Hardie, B. G. (2010). "Customer-Base Valuation in a
+       Contractual Setting: The Perils of Ignoring Heterogeneity." Marketing Science,
+       29(1), 85-93.
+       `PDF <https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_contractual_mksc_10.pdf>`_
+    .. [3] Fader, P., & Hardie, B. (2007). "Incorporating Time-Invariant Covariates into
+       the Pareto/NBD and BG/NBD Models."
+       `Note 019 <https://www.brucehardie.com/notes/019/time_invariant_covariates.pdf>`_
+
+    Notes
+    -----
+    Example:
+    --------
+    Required `data` format:
+
+        +-------------+----------+-----+-------------+--------------------+----------------------+
+        | customer_id | recency  | T   | cohort      | discrete_covariate | continuous_covariate |
+        +=============+==========+=====+=============+====================+======================+
+        | 1           | 8        | 8   | 2025-02     | 1                  | 2.172                |
+        +-------------+----------+-----+-------------+--------------------+----------------------+
+        | 2           | 1        | 5   | 2025-04     | 0                  | 1.234                |
+        +-------------+----------+-----+-------------+--------------------+----------------------+
+        | 3           | 4        | 5   | 2025-04     | 1                  | 2.345                |
+        +-------------+----------+-----+-------------+--------------------+----------------------+
+
+    Example usage:
+
+    .. code-block:: python
+
+        from pymc_extras.prior import Prior
+        from pymc_marketing.clv import ShiftedBetaGeoModel
+
+        model = ShiftedBetaGeoModel(
+            data=data,
+            model_config={
+                "alpha": Prior("HalfNormal", sigma=10),
+                "beta": Prior("HalfStudentT", nu=4, sigma=10),
+            },
+            sampler_config={
+                "draws": 1000,
+                "tune": 1000,
+                "chains": 4,
+                "cores": 4,
+                "nuts_kwargs": {"target_accept": 0.95},
+            },
+        )
+
+        # Fit model quickly to large datasets via Maximum a Posteriori
+        model.fit(method="map")
+        model.fit_summary()
+
+        # Use 'mcmc' for more informative predictions and reliable performance on smaller datasets
+        model.fit(method="mcmc")
+        model.fit_summary()
+
+        # Predict probability customers are still active
+        expected_alive_probability = model.expected_probability_alive(
+            active_customers,
+            future_t=0,
+        )
+
+        # Predict retention rate for a specific cohort
+        cohort_name = "2025-02-01"
+
+        expected_alive_probability = model.expected_retention_rate(
+            future_t=0,
+        ).sel(cohort=cohort_name)
+
+        # Predict expected remaining lifetime for all customers with a 5% discount rate
+        expected_alive_probability = model.expected_residual_lifetime(
+            discount_rate=0.05,
+        )
+
+        # Predict expected retention elasticity for all customers in a specific cohort
+        expected_alive_probability = model.expected_retention_elasticity(
+            discount_rate=0.05,
+        ).sel(cohort=cohort_name)
+
+        # Example with customer-level covariates
+        model_with_covariates = ShiftedBetaGeoModel(
+            data=covariate_data
+            ),
+            model_config={
+                "dropout_coefficient": Prior("Normal", mu=0, sigma=2),
+                "dropout_covariate_cols": ["covariate1", "covariate2"],
+            },
+        )
+        model_with_covariates.fit(method="demz")
     """
 
     _model_type = "Shifted Beta-Geometric"
