@@ -77,8 +77,24 @@ class ShiftedBetaGeoModel(CLVModel):
     sampler_config : dict, optional
         Dictionary of sampler parameters. Defaults to *None*.
 
-    Example Input Data:
-    -------------------
+    References
+    ----------
+    .. [1] Fader, P. S., & Hardie, B. G. (2007). "How to project customer retention."
+       Journal of Interactive Marketing, 21(1), 76-90.
+       `PDF <https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf>`_
+    .. [2] Fader, P. S., & Hardie, B. G. (2010). "Customer-Base Valuation in a
+       Contractual Setting: The Perils of Ignoring Heterogeneity." Marketing Science,
+       29(1), 85-93.
+       `PDF <https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_contractual_mksc_10.pdf>`_
+    .. [3] Fader, P., & Hardie, B. (2007). "Incorporating Time-Invariant Covariates into
+       the Pareto/NBD and BG/NBD Models."
+       `Note 019 <https://www.brucehardie.com/notes/019/time_invariant_covariates.pdf>`_
+
+    Notes
+    -----
+    Example:
+    --------
+    The format of `data`:
 
         +-------------+----------+-----+-------------+-------------------+------------------+
         | customer_id | recency  | T   | cohort      | discrete_covariate | continuous_covariate |
@@ -90,8 +106,8 @@ class ShiftedBetaGeoModel(CLVModel):
         | 3           | 4        | 5   | 2025-04     | 1                 | 2.345            |
         +-------------+----------+-----+-------------+-------------------+------------------+
 
-    Example Code:
-    ------------
+    Example usage:
+
     .. code-block:: python
 
         import pymc as pm
@@ -162,18 +178,6 @@ class ShiftedBetaGeoModel(CLVModel):
             data=covariate_data, future_t=1
         )
 
-    References
-    ----------
-    .. [1] Fader, P. S., & Hardie, B. G. (2007). "How to project customer retention."
-       Journal of Interactive Marketing, 21(1), 76-90.
-       `PDF <https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf>`_
-    .. [2] Fader, P. S., & Hardie, B. G. (2010). "Customer-Base Valuation in a
-       Contractual Setting: The Perils of Ignoring Heterogeneity." Marketing Science,
-       29(1), 85-93.
-       `PDF <https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_contractual_mksc_10.pdf>`_
-    .. [3] Fader, P., & Hardie, B. (2007). "Incorporating Time-Invariant Covariates into
-       the Pareto/NBD and BG/NBD Models."
-       `Note 019 <https://www.brucehardie.com/notes/019/time_invariant_covariates.pdf>`_
     """
 
     _model_type = "Shifted Beta-Geometric"
