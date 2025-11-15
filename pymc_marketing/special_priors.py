@@ -93,8 +93,8 @@ class LogNormalPrior:
 
     References
     ----------
-    - D. Saunders, *A positive constrained non-centered prior that sparks joy*.
-    - Wikipedia, *Log-normal distribution — Definitions*.
+    - D. Saunders, `A positive constrained non-centered prior that sparks joy <https://daniel-saunders-phil.github.io/imagination_machine/posts/a-positive-constrained-non-centered-prior-that-sparks-joy/>`_.
+    - Wikipedia, `Log-normal distribution — Definitions <https://en.wikipedia.org/wiki/Log-normal_distribution#Definitions>`_.
     """
 
     def __init__(self, dims: tuple | None = None, centered: bool = True, **parameters):
@@ -247,7 +247,28 @@ register_deserialization(
 
 
 class LaplacePrior:
-    """A Laplace prior parameterized by a location and a scale parameter."""
+    """A Laplace prior parameterized by a location and a scale parameter.
+
+    Unlike the standard Laplace distribution available through the Prior class,
+    this distribution can optionally be centered or non-centered. A non-centered parameterization
+    is sometimes enables more efficient sampling.
+
+    Parameters
+    ----------
+    mu : Prior, float, int, array-like
+        The location parameter of the distribution.
+    b : Prior, float, int, array-like
+        The scale parameter of the distribution.
+    dims : tuple[str, ...], optional
+        The dimensions of the distribution, by default None.
+    centered : bool, optional
+        Whether to use the centered parameterization, by default True.
+
+    References
+    ----------
+    - A.C. Jones, `Scale mixtures of unbounded continuous distributions <https://andrewcharlesjones.github.io/journal/scale-mixtures.html>`_.
+    - Stan Documentation, `Unbounded continuous distributions <https://mc-stan.org/docs/functions-reference/unbounded_continuous_distributions.html#double-exponential-laplace-distribution>`_.
+    """
 
     def __init__(self, dims: tuple | None = None, centered: bool = True, **parameters):
         self.parameters = parameters
