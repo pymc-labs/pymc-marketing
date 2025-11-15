@@ -77,8 +77,21 @@ class ShiftedBetaGeoModel(CLVModel):
     sampler_config : dict, optional
         Dictionary of sampler parameters. Defaults to *None*.
 
-    Examples
-    --------
+    Example Input Data:
+    -------------------
+
+        +-------------+----------+-----+-------------+-------------------+------------------+
+        | customer_id | recency  | T   | cohort      | discrete_covariate | continuous_covariate |
+        +=============+==========+=====+=============+===================+==================+
+        | 1           | 8        | 8   | 2025-02     | 1                 | 2.172            |
+        +-------------+----------+-----+-------------+-------------------+------------------+
+        | 2           | 1        | 5   | 2025-04     | 0                 | 1.234            |
+        +-------------+----------+-----+-------------+-------------------+------------------+
+        | 3           | 4        | 5   | 2025-04     | 1                 | 2.345            |
+        +-------------+----------+-----+-------------+-------------------+------------------+
+
+    Example Code:
+    ------------
     .. code-block:: python
 
         import pymc as pm
@@ -87,12 +100,7 @@ class ShiftedBetaGeoModel(CLVModel):
         from pymc_marketing.clv import ShiftedBetaGeoModel
 
         model = ShiftedBetaGeoModel(
-            data=pd.DataFrame(
-                customer_id=[1, 2, 3, ...],
-                recency=[8, 1, 4, ...],
-                T=[8, 5, 5, ...],
-                cohort=["2025-02-01", "2025-04-01", "2025-04-01", ...],
-            ),
+            data=data,
             model_config={
                 "alpha": Prior("HalfNormal", sigma=10),
                 "beta": Prior("HalfStudentT", nu=4, sigma=10),
@@ -140,42 +148,19 @@ class ShiftedBetaGeoModel(CLVModel):
 
         # Example with customer-level covariates
         model_with_covariates = ShiftedBetaGeoModel(
-            data=pd.DataFrame(
-                {
-                    "customer_id": [1, 2, 3, ...],
-                    "recency": [8, 1, 4, ...],
-                    "T": [8, 5, 5, ...],
-                    "cohort": ["2025-02", "2025-04", "2025-04", ...],
-                    "channel_covariate": [1, 0, 1, ...],
-                    "rating_covariate": [
-                        2.172,
-                        1.234,
-                        2.345,
-                        ...,
-                    ],  # time-invariant
-                }
+            data=covariate_data
             ),
             model_config={
                 "dropout_coefficient": Prior("Normal", mu=0, sigma=2),
-                "dropout_covariate_cols": ["channel_covariate", "rating_covariate"],
+                "dropout_covariate_cols": ["covariate1", "covariate2"],
             },
         )
         model_with_covariates.fit()
 
-        # Predictions with covariates require covariate columns in prediction data
-        pred_data = pd.DataFrame(
-            {
-                "customer_id": [...],
-                "T": [...],
-                "cohort": [...],
-                "channel_covariate": [...],
-                "rating_covariate": [...],
-            }
+        # Predict alive probability for a specific cohort with covariates
+        retention_with_covariates = model_with_covariates.expected_probability_alive(
+            data=covariate_data, future_t=1
         )
-        retention_with_covariates = model_with_covariates.expected_retention_rate(
-            data=pred_data, future_t=1
-        )
-
 
     References
     ----------
