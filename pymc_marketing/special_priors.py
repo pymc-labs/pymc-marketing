@@ -157,7 +157,7 @@ class LogNormalPrior:
         return phi
 
     def to_dict(self):
-        """Convert the prior distribution to a dictionary."""
+        """Convert the prior class to a dictionary."""
         data = {
             "special_prior": "LogNormalPrior",
         }
@@ -190,7 +190,7 @@ class LogNormalPrior:
         return data
 
     @classmethod
-    def from_dict(cls, data) -> Prior:
+    def from_dict(cls, data) -> "LogNormalPrior":
         """Create a LogNormalPrior prior from a dictionary."""
         if not isinstance(data, dict):
             msg = (
@@ -243,6 +243,142 @@ def _is_LogNormalPrior_type(data: dict) -> bool:
 register_deserialization(
     is_type=_is_LogNormalPrior_type,
     deserialize=LogNormalPrior.from_dict,
+)
+
+
+class LaplacePrior:
+    """A Laplace prior parameterized by a location and a scale parameter."""
+
+    def __init__(self, dims: tuple | None = None, centered: bool = True, **parameters):
+        self.parameters = parameters
+        self.dims = dims
+        self.centered = centered
+
+        self._checks()
+
+    def _checks(self) -> None:
+        self._parameters_are_correct_set()
+
+    def _parameters_are_correct_set(self) -> None:
+        # Only allow exactly these keys after alias normalization
+        if set(self.parameters.keys()) != {"mu", "b"}:
+            raise ValueError("Parameters must be mu and b")
+
+    def _create_parameter(self, param, value, name):
+        if not hasattr(value, "create_variable"):
+            return value
+
+        child_name = f"{name}_{param}"
+        return self.dim_handler(value.create_variable(child_name), value.dims)
+
+    def create_variable(self, name: str) -> TensorVariable:
+        """Create a variable from the prior distribution."""
+        self.dim_handler = create_dim_handler(self.dims)
+        parameters = {
+            param: self._create_parameter(param, value, name)
+            for param, value in self.parameters.items()
+        }
+        if self.centered:
+            phi = pm.Laplace(
+                name, mu=parameters["mu"], b=parameters["b"], dims=self.dims
+            )
+
+        else:
+            sigma = pm.Exponential(name + "_sigma", scale=2 * parameters["b"] ** 2)
+            phi = (
+                pm.Normal(name, mu=0, sigma=1, dims=self.dims) * pt.sqrt(sigma)
+                + parameters["mu"]
+            )
+
+        return phi
+
+    def to_dict(self):
+        """Conver the prior class to a dictionary."""
+        data = {
+            "special_prior": "LaplacePrior",
+        }
+        if self.parameters:
+
+            def handle_value(value):
+                if isinstance(value, Prior):
+                    return value.to_dict()
+
+                if isinstance(value, pt.TensorVariable):
+                    value = value.eval()
+
+                if isinstance(value, np.ndarray):
+                    return value.tolist()
+
+                if hasattr(value, "to_dict"):
+                    return value.to_dict()
+
+                return value
+
+            data["kwargs"] = {
+                param: handle_value(value) for param, value in self.parameters.items()
+            }
+        if not self.centered:
+            data["centered"] = False
+
+        if self.dims:
+            data["dims"] = self.dims
+
+        return data
+
+    @classmethod
+    def from_dict(cls, data) -> "LaplacePrior":
+        """Create a LaplacePrior prior from a dictionary."""
+        if not isinstance(data, dict):
+            msg = (
+                "Must be a dictionary representation of a prior distribution. "
+                f"Not of type: {type(data)}"
+            )
+            raise ValueError(msg)
+
+        kwargs = data.get("kwargs", {})
+
+        def handle_value(value):
+            if isinstance(value, dict):
+                return deserialize(value)
+
+            if isinstance(value, list):
+                return np.array(value)
+
+            return value
+
+        kwargs = {param: handle_value(value) for param, value in kwargs.items()}
+        centered = data.get("centered", True)
+        dims = data.get("dims")
+        if isinstance(dims, list):
+            dims = tuple(dims)
+
+        return cls(dims=dims, centered=centered, **kwargs)
+
+    def sample_prior(
+        self,
+        coords=None,
+        name: str = "variable",
+        **sample_prior_predictive_kwargs,
+    ) -> xr.Dataset:
+        """Sample from the prior distribution."""
+        return sample_prior(
+            factory=self,
+            coords=coords,
+            name=name,
+            **sample_prior_predictive_kwargs,
+        )
+
+
+def _is_LaplacePrior_type(data: dict) -> bool:
+    if "special_prior" in data:
+        return data["special_prior"] == "LaplacePrior"
+    else:
+        return False
+
+
+register_deserialization(
+    is_type=_is_LaplacePrior_type,
+    deserialize=LaplacePrior.from_dict,
 )
 
 
@@ -613,50 +749,3 @@ def _is_masked_prior_type(data: dict) -> bool:
 register_deserialization(
     is_type=_is_masked_prior_type, deserialize=MaskedPrior.from_dict
 )
-
-
-class LaplacePrior:
-    """A Laplace prior parameterized by a location and a scale parameter."""
-
-    def __init__(self, dims: tuple | None = None, centered: bool = True, **parameters):
-        self.parameters = parameters
-        self.dims = dims
-        self.centered = centered
-
-        self._checks()
-
-    def _checks(self) -> None:
-        self._parameters_are_correct_set()
-
-    def _parameters_are_correct_set(self) -> None:
-        # Only allow exactly these keys after alias normalization
-        if set(self.parameters.keys()) != {"mu", "b"}:
-            raise ValueError("Parameters must be mu and b")
-
-    def _create_parameter(self, param, value, name):
-        if not hasattr(value, "create_variable"):
-            return value
-
-        child_name = f"{name}_{param}"
-        return self.dim_handler(value.create_variable(child_name), value.dims)
-
-    def create_variable(self, name: str) -> TensorVariable:
-        """Create a variable from the prior distribution."""
-        self.dim_handler = create_dim_handler(self.dims)
-        parameters = {
-            param: self._create_parameter(param, value, name)
-            for param, value in self.parameters.items()
-        }
-        if self.centered:
-            phi = pm.Laplace(
-                name, mu=parameters["mu"], b=parameters["b"], dims=self.dims
-            )
-
-        else:
-            lam = pm.Exponential(name + "_lam", scale=2 * parameters["b"] ** 2)
-            phi = (
-                pm.Normal(name, mu=0, sigma=1, dims=self.dims) * pt.sqrt(lam)
-                + parameters["mu"]
-            )
-
-        return phi
