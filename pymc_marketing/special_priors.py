@@ -273,7 +273,7 @@ class LaplacePrior(SpecialPrior):
 
     Unlike the standard Laplace distribution available through the Prior class,
     this distribution can optionally be centered or non-centered. A non-centered parameterization
-    is sometimes enables more efficient sampling.
+    can sometimes eliminate sampling problems in hierarchical models.
 
     Parameters
     ----------
