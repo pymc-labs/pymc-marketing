@@ -158,7 +158,7 @@ class LogNormalPrior(SpecialPrior):
 
     .. math::
 
-        \phi & \sim \text{LogNormal}(\mu_{\text{log}}, \sigma_{\text{log}})
+        \phi \sim \text{LogNormal}(\mu_{\text{log}}, \sigma_{\text{log}})
 
     This construction ensures that the resulting random variable
     has approximately the intended mean and variance on the positive scale,
