@@ -174,14 +174,20 @@ from collections.abc import Iterable
 from typing import Any
 
 import arviz as az
+import arviz_plots as azp
 import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
+from arviz_base.labels import DimCoordLabeller, NoVarLabeller, mix_labellers
+from arviz_plots import PlotCollection
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from numpy.typing import NDArray
 
 __all__ = ["MMMPlotSuite"]
+
+WIDTH_PER_COL: float = 10.0
+HEIGHT_PER_ROW: float = 4.0
 
 
 class MMMPlotSuite:
@@ -368,9 +374,152 @@ class MMMPlotSuite:
             dims_combos = [()]
         return dims_keys, dims_combos
 
+    def _resolve_backend(self, backend: str | None) -> str:
+        """Resolve backend parameter to actual backend string."""
+        from pymc_marketing.mmm.config import mmm_config
+
+        return backend or mmm_config["plot.backend"]
+
     # ------------------------------------------------------------------------
     #                          Main Plotting Methods
     # ------------------------------------------------------------------------
+
+    def temp_posterior_predictive(
+        self,
+        var: list[str] | None = None,
+        idata: xr.Dataset | None = None,
+        hdi_prob: float = 0.85,
+        backend: str | None = None,
+        return_as_pc: bool = False,
+    ) -> tuple[Figure, list[Axes] | None] | PlotCollection:
+        """
+        Plot posterior predictive distributions over time.
+
+        Parameters
+        ----------
+        var : list of str, optional
+            List of variable names to plot. If None, uses "y".
+        idata : xr.Dataset, optional
+            Dataset containing posterior predictive samples.
+            If None, uses self.idata.posterior_predictive.
+        hdi_prob : float, default 0.85
+            Probability mass for HDI interval.
+        backend : str, optional
+            Plotting backend to use. Options: "matplotlib", "plotly", "bokeh".
+            If None, uses global config via mmm_config["plot.backend"].
+            Default (via config) is "matplotlib".
+        return_as_pc : bool, default False
+            If True, returns PlotCollection object.
+            If False, returns tuple (figure, axes) for backward compatibility.
+
+        Returns
+        -------
+        PlotCollection or tuple
+            If return_as_pc=True, returns PlotCollection object.
+            If return_as_pc=False, returns (figure, axes) where:
+            - figure: backend-specific figure object (matplotlib.figure.Figure,
+            plotly.graph_objs.Figure, or bokeh.plotting.Figure)
+            - axes: list of matplotlib Axes if backend="matplotlib", else None
+
+        Notes
+        -----
+        When backend is not "matplotlib" and return_as_pc=False, the axes
+        element of the returned tuple will be None, as plotly and bokeh
+        do not have an equivalent axes list concept.
+
+        Examples
+        --------
+        >>> # Backward compatible usage (matplotlib)
+        >>> fig, axes = model.plot.posterior_predictive()
+
+        >>> # Multi-backend with PlotCollection
+        >>> pc = model.plot.posterior_predictive(backend="plotly", return_as_pc=True)
+        >>> pc.show()
+        """
+        if not 0 < hdi_prob < 1:
+            raise ValueError("HDI probability must be between 0 and 1.")
+
+        # Resolve backend
+        backend = self._resolve_backend(backend)
+
+        # 1. Retrieve or validate posterior_predictive data
+        pp_data = self._get_posterior_predictive_data(idata)
+
+        # 2. Determine variables to plot
+        if var is None:
+            var = ["y"]
+        main_var = var[0]
+
+        # 3. Identify additional dims & get all combos
+        ignored_dims = {"chain", "draw", "date", "sample"}
+        additional_dims, dim_combinations = self._get_additional_dim_combinations(
+            data=pp_data, variable=main_var, ignored_dims=ignored_dims
+        )
+
+        # 4. Prepare subplots
+        pc = azp.PlotCollection.wrap(
+            pp_data[main_var].to_dataset(),
+            cols=additional_dims,
+            col_wrap=1,
+            # figure_kwargs={"figsize": (WIDTH_PER_COL * 120, HEIGHT_PER_ROW * 200 * len(dim_combinations)),
+            # "figsize_units": "dots"},
+            figure_kwargs={
+                "figsize": (
+                    WIDTH_PER_COL * 110,
+                    HEIGHT_PER_ROW * 120 * len(dim_combinations),
+                ),
+                "figsize_units": "dots",
+                #    "vertical_spacing":0.1,
+                "sharex": True,
+            },
+            backend=backend,
+        )
+
+        # plot hdi
+        hdi = pp_data.azstats.hdi(hdi_prob)
+        pc.map(
+            azp.visuals.fill_between_y,
+            x=pp_data["date"],
+            y_bottom=hdi.sel(ci_bound="lower"),
+            y_top=hdi.sel(ci_bound="upper"),
+            alpha=0.2,
+            color="C0",
+        )
+
+        # plot median line
+        pc.map(
+            azp.visuals.line_xy,
+            x=pp_data["date"],
+            y=pp_data.median(dim=["chain", "draw"]),
+            color="C0",
+        )
+
+        # add labels
+        pc.map(azp.visuals.labelled_x, text="Date")
+        pc.map(azp.visuals.labelled_y, text="Posterior Predictive")
+        pc.map(
+            azp.visuals.labelled_title,
+            subset_info=True,
+            labeller=mix_labellers((NoVarLabeller, DimCoordLabeller))(),
+        )
+        return MMMPlotSuite._return_pc_or_fig_axes(pc, return_as_pc, backend=backend)
+
+    @staticmethod
+    def _return_pc_or_fig_axes(pc: PlotCollection, return_as_pc: bool, backend: str):
+        """Return PlotCollection or tuple of figure and axes."""
+        if return_as_pc:
+            return pc
+        else:
+            # Extract figure from PlotCollection
+            fig = pc.viz.figure.data.item()
+
+            # Only matplotlib has axes
+            if backend == "matplotlib":
+                axes = fig.get_axes()
+            else:
+                axes = None
+
+            return fig, axes
 
     def posterior_predictive(
         self,
@@ -461,6 +610,112 @@ class MMMPlotSuite:
             ax.legend(loc="best")
 
         return fig, axes
+
+    def temp_contributions_over_time(
+        self,
+        var: list[str],
+        hdi_prob: float = 0.85,
+        dims: dict[str, str | int | list] | None = None,
+        backend: str | None = None,
+        return_as_pc: bool = False,
+    ) -> tuple[Figure, list[Axes] | None] | PlotCollection:
+        """Plot the time-series contributions for each variable in `var`.
+
+        showing the median and the credible interval (default 85%).
+        Creates one subplot per combination of non-(chain/draw/date) dimensions
+        and places all variables on the same subplot.
+
+        Parameters
+        ----------
+        var : list of str
+            A list of variable names to plot from the posterior.
+        hdi_prob: float, optional
+            The probability mass of the highest density interval to be displayed. Default is 0.85.
+        dims : dict[str, str | int | list], optional
+            Dimension filters to apply. Example: {"country": ["US", "UK"], "user_type": "new"}.
+            If provided, only the selected slice(s) will be plotted.
+        backend : str, optional
+            Plotting backend to use. Options: "matplotlib", "plotly", "bokeh".
+            If None, uses global config via mmm_config["plot.backend"].
+            Default (via config) is "matplotlib".
+        return_as_pc : bool, default False
+            If True, returns PlotCollection object.
+            If False, returns tuple (figure, axes) for backward compatibility.
+
+        Returns
+        -------
+        PlotCollection or tuple
+            If return_as_pc=True, returns PlotCollection object.
+            If return_as_pc=False, returns (figure, axes) where:
+            - figure: backend-specific figure object (matplotlib.figure.Figure,
+            plotly.graph_objs.Figure, or bokeh.plotting.Figure)
+            - axes: list of matplotlib Axes if backend="matplotlib", else None
+
+        Raises
+        ------
+        ValueError
+            If `hdi_prob` is not between 0 and 1, instructing the user to provide a valid value.
+        """
+        if not 0 < hdi_prob < 1:
+            raise ValueError("HDI probability must be between 0 and 1.")
+
+        if not hasattr(self.idata, "posterior"):
+            raise ValueError(
+                "No posterior data found in 'self.idata'. "
+                "Please ensure 'self.idata' contains a 'posterior' group."
+            )
+
+        # Resolve backend
+        backend = self._resolve_backend(backend)
+
+        main_var = var[0]
+        ignored_dims = {"chain", "draw", "date"}
+        da = self.idata.posterior[var]
+        additional_dims, dim_combinations = self._get_additional_dim_combinations(
+            data=da, variable=main_var, ignored_dims=ignored_dims
+        )
+
+        # 4. Prepare subplots
+        pc = azp.PlotCollection.wrap(
+            da,
+            cols=additional_dims,
+            col_wrap=1,
+            figure_kwargs={
+                "figsize": (WIDTH_PER_COL, HEIGHT_PER_ROW * len(dim_combinations)),
+                "sharex": True,
+            },
+            backend=backend,
+        )
+
+        # plot hdi
+        hdi = da.azstats.hdi(hdi_prob)
+        pc.map(
+            azp.visuals.fill_between_y,
+            x=da["date"],
+            y_bottom=hdi.sel(ci_bound="lower"),
+            y_top=hdi.sel(ci_bound="upper"),
+            alpha=0.2,
+            color="C0",
+        )
+
+        # plot median line
+        pc.map(
+            azp.visuals.line_xy,
+            x=da["date"],
+            y=da.median(dim=["chain", "draw"]),
+            color="C0",
+        )
+
+        # add labels
+        pc.map(azp.visuals.labelled_x, text="Date")
+        pc.map(azp.visuals.labelled_y, text="Posterior Value")
+        pc.map(
+            azp.visuals.labelled_title,
+            subset_info=True,
+            labeller=mix_labellers((NoVarLabeller, DimCoordLabeller))(),
+        )
+
+        return MMMPlotSuite._return_pc_or_fig_axes(pc, return_as_pc, backend=backend)
 
     def contributions_over_time(
         self,
@@ -586,6 +841,110 @@ class MMMPlotSuite:
             ax.legend(loc="best")
 
         return fig, axes
+
+    def temp_saturation_scatterplot(
+        self,
+        original_scale: bool = False,
+        dims: dict[str, str | int | list] | None = None,
+        backend: str | None = None,
+        return_as_pc: bool = False,
+        **kwargs,
+    ) -> tuple[Figure, list[Axes] | None] | PlotCollection:
+        """Plot the saturation curves for each channel.
+
+        Creates a grid of subplots for each combination of channel and non-(date/channel) dimensions.
+        Optionally, subset by dims (single values or lists).
+        Each channel will have a consistent color across all subplots.
+
+        Parameters
+        ----------
+        original_scale: bool, optional
+            Whether to plot the original scale contributions. Default is False.
+        dims: dict[str, str | int | list], optional
+            Dimension filters to apply. Example: {"country": ["US", "UK"], "user_type": "new"}.
+            If provided, only the selected slice(s) will be plotted.
+        backend: str, optional
+            Plotting backend to use. Options: "matplotlib", "plotly", "bokeh".
+            If None, uses global config via mmm_config["plot.backend"].
+            Default (via config) is "matplotlib".
+        return_as_pc: bool, optional
+            If True, returns PlotCollection object.
+            If False, returns tuple (figure, axes) for backward compatibility.
+
+        Returns
+        -------
+        PlotCollection or tuple
+            If return_as_pc=True, returns PlotCollection object.
+            If return_as_pc=False, returns (figure, axes) where:
+            - figure: backend-specific figure object (matplotlib.figure.Figure,
+            plotly.graph_objs.Figure, or bokeh.plotting.Figure)
+            - axes: list of matplotlib Axes if backend="matplotlib", else None
+        """
+        # Resolve backend
+        backend = self._resolve_backend(backend)
+
+        if not hasattr(self.idata, "constant_data"):
+            raise ValueError(
+                "No 'constant_data' found in 'self.idata'. "
+                "Please ensure 'self.idata' contains the constant_data group."
+            )
+
+        # Identify additional dimensions beyond 'date' and 'channel'
+        cdims = self.idata.constant_data.channel_data.dims
+        additional_dims = [dim for dim in cdims if dim not in ("date", "channel")]
+
+        # Validate dims and remove filtered dims from additional_dims
+        if dims:
+            self._validate_dims(dims, list(self.idata.constant_data.channel_data.dims))
+            additional_dims = [d for d in additional_dims if d not in dims]
+        else:
+            self._validate_dims({}, list(self.idata.constant_data.channel_data.dims))
+
+        channel_contribution = (
+            "channel_contribution_original_scale"
+            if original_scale
+            else "channel_contribution"
+        )
+
+        if original_scale and not hasattr(self.idata.posterior, channel_contribution):
+            raise ValueError(
+                f"""No posterior.{channel_contribution} data found in 'self.idata'. \n
+                Add a original scale deterministic:\n
+                mmm.add_original_scale_contribution_variable(\n
+                var=[\n
+                \"channel_contribution\",\n
+                ...\n
+                ]\n
+                )\n
+                """
+            )
+
+        pc = azp.PlotCollection.grid(
+            self.idata.posterior[channel_contribution]
+            .mean(dim=["chain", "draw"])
+            .to_dataset(),
+            cols=additional_dims,
+            rows=["channel"],
+            aes={"color": ["channel"]},
+            figure_kwargs={"figsize": (14, 2 * 4)},
+            backend=backend,
+        )
+        pc.map(
+            azp.visuals.scatter_xy,
+            x=self.idata.constant_data.channel_data,
+        )
+        pc.map(azp.visuals.labelled_x, text="Channel Data", ignore_aes={"color"})
+        pc.map(
+            azp.visuals.labelled_y, text="Channel Contributions", ignore_aes={"color"}
+        )
+        pc.map(
+            azp.visuals.labelled_title,
+            subset_info=True,
+            labeller=mix_labellers((NoVarLabeller, DimCoordLabeller))(),
+            ignore_aes={"color"},
+        )
+
+        return MMMPlotSuite._return_pc_or_fig_axes(pc, return_as_pc, backend=backend)
 
     def saturation_scatterplot(
         self,
