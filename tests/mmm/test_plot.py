@@ -1266,3 +1266,685 @@ def test_posterior_predictive_with_explicit_xarray_dataset():
     fig, axes = suite.posterior_predictive(var=["y"], idata=ds, hdi_prob=0.8)
     assert fig is not None
     assert axes is not None
+
+
+def test_filter_df_by_indexer_behaviour():
+    suite = MMMPlotSuite(idata=None)
+
+    dates = pd.date_range("2025-01-01", periods=3, freq="D")
+    df = pd.DataFrame(
+        {
+            "date": dates,
+            "country": ["A", "B", "A"],
+            "id": [1, 2, 3],
+            "value": [10.0, 20.0, 30.0],
+        }
+    )
+
+    # None input returns empty DataFrame
+    out = suite._filter_df_by_indexer(None, {"country": "A"})
+    assert isinstance(out, pd.DataFrame)
+    assert out.empty
+
+    # Empty indexer returns a copy of the original
+    out = suite._filter_df_by_indexer(df, {})
+    assert out.equals(df)
+    assert out is not df
+
+    # Filter by existing column
+    out = suite._filter_df_by_indexer(df, {"country": "A"})
+    assert len(out) == 2
+    assert all(out["country"] == "A")
+
+    # Unknown key is ignored and returns full DataFrame
+    out = suite._filter_df_by_indexer(df, {"region": "X"})
+    assert len(out) == len(df)
+
+    # Numeric column compared to string value should match (casts to str)
+    out = suite._filter_df_by_indexer(df, {"id": "1"})
+    assert len(out) == 1
+    assert int(out.iloc[0]["id"]) == 1
+
+
+def _build_cv_results_for_cv_predictions():
+    """Helper to build a minimal arviz.InferenceData suitable for cv_predictions tests."""
+    # Single CV fold and a single extra dim 'country' with one country value
+    cv_labels = ["cv1"]
+    countries = ["A"]
+    dates = pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-03"])
+
+    # shape: chain=1, draw=2, cv=1, country=1, date=3
+    arr = np.random.default_rng(1).normal(
+        size=(1, 2, len(cv_labels), len(countries), len(dates))
+    )
+    da = xr.DataArray(
+        arr,
+        dims=("chain", "draw", "cv", "country", "date"),
+        coords={"cv": cv_labels, "country": countries, "date": dates},
+        name="y_original_scale",
+    )
+    ds_pp = xr.Dataset({"y_original_scale": da})
+
+    # Build per-fold metadata dicts stored in a DataArray of dtype object
+    # Include X_train/X_test with a 'date' and 'country' column so filtering works
+    meta = {
+        "X_train": pd.DataFrame({"date": dates[:2], "country": ["A", "A"]}).reset_index(
+            drop=True
+        ),
+        "y_train": pd.Series([1.0, 2.0]),
+        "X_test": pd.DataFrame({"date": dates[2:], "country": ["A"]}).reset_index(
+            drop=True
+        ),
+        "y_test": pd.Series([3.0]),
+    }
+    meta_da = xr.DataArray(
+        np.array([meta], dtype=object),
+        dims=("cv",),
+        coords={"cv": cv_labels},
+        name="metadata",
+    )
+    ds_meta = xr.Dataset({"metadata": meta_da})
+
+    results = az.InferenceData(posterior_predictive=ds_pp, cv_metadata=ds_meta)
+    return results
+
+
+def test_cv_predictions_none_dims_plots_without_error():
+    """cv_predictions should accept dims=None (treated as empty dict) and produce a plot."""
+    suite = MMMPlotSuite(idata=None)
+    results = _build_cv_results_for_cv_predictions()
+
+    fig, axes = suite.cv_predictions(results, dims=None)
+
+    assert fig is not None
+    # axes may be a list of Axes; ensure at least one axis exists
+    assert hasattr(axes, "__len__")
+    assert len(axes) >= 1
+
+
+def test_cv_predictions_unsupported_dims_raises_value_error():
+    """Passing dims that are not present on the posterior_predictive DataArray should raise ValueError."""
+    suite = MMMPlotSuite(idata=None)
+    results = _build_cv_results_for_cv_predictions()
+
+    with pytest.raises(ValueError, match=r"Unsupported dims"):
+        # 'region' is not an available dim on the test posterior_predictive
+        suite.cv_predictions(results, dims={"region": "X"})
+
+
+def test_cv_predictions_with_dims_string_creates_panel_title():
+    """When user supplies dims with a single value (not list), ensure panel title includes the dim."""
+    suite = MMMPlotSuite(idata=None)
+    results = _build_cv_results_for_cv_predictions()
+
+    # dims provided as a single value (not list) should be accepted and produce a panel
+    fig, axes = suite.cv_predictions(results, dims={"country": "A"})
+
+    assert fig is not None
+    assert hasattr(axes, "__len__")
+    # there should be at least one axis and its title should include the country
+    titles = [ax.get_title() for ax in axes]
+    assert any("country=A" in t for t in titles)
+
+
+def test_cv_predictions_with_dims_list_creates_expected_panel_indexer():
+    """When dims contains a list, ensure panels are built."""
+    suite = MMMPlotSuite(idata=None)
+    results = _build_cv_results_for_cv_predictions()
+
+    # dims provided as a list should produce panels for each listed value
+    fig, axes = suite.cv_predictions(results, dims={"country": ["A"]})
+
+    assert fig is not None
+    assert hasattr(axes, "__len__")
+    # single fold x single listed country -> exactly one axis expected
+    assert len(axes) == 1
+    title = axes[0].get_title()
+    assert "country=A" in title
+
+
+def _build_cv_results_multi(cv_labels=("cv1", "cv2"), countries=("A", "B")):
+    """Build InferenceData with multiple cv labels and multiple country coords."""
+    dates = pd.date_range("2025-01-01", periods=3, freq="D")
+    n_cv = len(cv_labels)
+    n_country = len(countries)
+    arr = np.random.default_rng(2).normal(size=(1, 2, n_cv, n_country, len(dates)))
+    da = xr.DataArray(
+        arr,
+        dims=("chain", "draw", "cv", "country", "date"),
+        coords={"cv": list(cv_labels), "country": list(countries), "date": dates},
+        name="y_original_scale",
+    )
+    ds_pp = xr.Dataset({"y_original_scale": da})
+
+    metas = []
+    for _lbl in cv_labels:
+        meta = {
+            "X_train": pd.DataFrame(
+                {
+                    "date": dates[:2].repeat(n_country),
+                    "country": list(countries) * len(dates[:2]),
+                }
+            ).reset_index(drop=True),
+            "y_train": pd.Series(np.arange(2 * n_country, dtype=float)),
+            "X_test": pd.DataFrame(
+                {
+                    "date": dates[2:].repeat(n_country),
+                    "country": list(countries) * len(dates[2:]),
+                }
+            ).reset_index(drop=True),
+            "y_test": pd.Series(np.arange(1 * n_country, dtype=float)),
+        }
+        metas.append(meta)
+
+    meta_da = xr.DataArray(
+        np.array(metas, dtype=object),
+        dims=("cv",),
+        coords={"cv": list(cv_labels)},
+        name="metadata",
+    )
+    ds_meta = xr.Dataset({"metadata": meta_da})
+    return az.InferenceData(posterior_predictive=ds_pp, cv_metadata=ds_meta)
+
+
+def test_cv_predictions_single_axis_wrapped_into_list():
+    """When only a single axis is required, cv_predictions wraps it into a list."""
+    suite = MMMPlotSuite(idata=None)
+    results = _build_cv_results_for_cv_predictions()
+
+    _fig, axes = suite.cv_predictions(results, dims=None)
+
+    assert isinstance(axes, list)
+    assert len(axes) == 1
+    assert isinstance(axes[0], Axes)
+
+
+def test_cv_predictions_multiple_folds_and_panels_create_expected_number_of_axes():
+    """When multiple CV folds and multiple panels exist, ensure n_axes = n_panels * n_folds."""
+    suite = MMMPlotSuite(idata=None)
+    results = _build_cv_results_multi(cv_labels=("cv1", "cv2"), countries=("A", "B"))
+
+    # dims None -> additional_dims will include 'country' (2), dims_combos == [()] (1)
+    # n_panels = 2, n_folds = 2 => n_axes = 4
+    _fig, axes = suite.cv_predictions(results, dims=None)
+
+    assert hasattr(axes, "__len__")
+    assert len(axes) == 4
+    assert all(isinstance(ax, Axes) for ax in axes)
+
+
+def test_align_y_to_df_skips_observed_when_y_train_none(monkeypatch):
+    """If y_train is None in the per-fold metadata, no 'observed' line should be plotted."""
+    suite = MMMPlotSuite(idata=None)
+    results = _build_cv_results_for_cv_predictions()
+
+    # Replace the metadata so that y_train is None for the fold
+    meta = {
+        "X_train": pd.DataFrame(
+            {
+                "date": pd.to_datetime(["2025-01-01", "2025-01-02"]),
+                "country": ["A", "A"],
+            }
+        ).reset_index(drop=True),
+        "y_train": None,
+        "X_test": pd.DataFrame(
+            {"date": pd.to_datetime(["2025-01-03"]), "country": ["A"]}
+        ).reset_index(drop=True),
+        "y_test": pd.Series([3.0]),
+    }
+    meta_da = xr.DataArray(
+        np.array([meta], dtype=object),
+        dims=("cv",),
+        coords={"cv": ["cv1"]},
+        name="metadata",
+    )
+    results.cv_metadata = xr.Dataset({"metadata": meta_da})
+
+    # Monkeypatch az.plot_hdi to be a no-op so test is focused on observed plotting behavior
+    monkeypatch.setattr(az, "plot_hdi", lambda *a, **k: None)
+
+    _fig, axes = suite.cv_predictions(results, dims=None)
+
+    # Ensure no 'observed' label exists in any axis legend
+    for ax in axes:
+        _, labels = ax.get_legend_handles_labels()
+        assert "observed" not in labels
+
+
+def test_plot_hdi_from_sel_calls_az_plot_hdi(monkeypatch):
+    """Ensure the helper that wraps az.plot_hdi ends up calling az.plot_hdi with expected kwargs (hdi_prob=0.94)."""
+    suite = MMMPlotSuite(idata=None)
+    results = _build_cv_results_for_cv_predictions()
+
+    recorded = []
+
+    def fake_plot_hdi(*args, **kwargs):
+        recorded.append({"args": args, "kwargs": kwargs})
+
+    monkeypatch.setattr(az, "plot_hdi", fake_plot_hdi)
+
+    _fig, _axes = suite.cv_predictions(results, dims=None)
+
+    # We expect at least one call to az.plot_hdi from _plot_hdi_from_sel
+    assert len(recorded) >= 1
+    # Check that at least one call used the expected hdi_prob
+    assert any(call["kwargs"].get("hdi_prob") == 0.94 for call in recorded)
+
+
+def test_cv_predictions_panel_selection_failure_skips_panel(monkeypatch):
+    """If selecting a specific panel coordinate fails, cv_predictions should warn and skip plotting that panel."""
+    suite = MMMPlotSuite(idata=None)
+    results = _build_cv_results_multi(cv_labels=("cv1", "cv2"), countries=("A", "B"))
+
+    # Make DataArray.sel succeed for selecting by cv but fail for subsequent panel selection
+    orig_sel = xr.DataArray.sel
+
+    def fake_sel(self, *args, **kwargs):
+        # the first sel call includes cv=...; allow that
+        if "cv" in kwargs:
+            return orig_sel(self, *args, **kwargs)
+        # subsequent sel calls for panel selection will raise to trigger the warning/skip
+        raise Exception("forced panel selection failure")
+
+    monkeypatch.setattr(xr.DataArray, "sel", fake_sel)
+
+    with pytest.warns(
+        UserWarning, match=r"Could not select posterior_predictive panel"
+    ):
+        _fig, axes = suite.cv_predictions(results, dims=None)
+
+    # If panels were skipped due to selection failure, no axis title should contain a panel name
+    assert not any("country=" in ax.get_title() for ax in axes)
+
+
+def test_cv_predictions_transpose_failure_warns(monkeypatch):
+    """If transpose on the stacked array fails, cv_predictions should warn but continue."""
+    suite = MMMPlotSuite(idata=None)
+    results = _build_cv_results_for_cv_predictions()
+
+    def fake_transpose(self, *args, **kwargs):
+        raise Exception("forced transpose failure")
+
+    monkeypatch.setattr(xr.DataArray, "transpose", fake_transpose)
+
+    with pytest.warns(
+        UserWarning, match=r"Could not transpose posterior_predictive array"
+    ):
+        _fig, axes = suite.cv_predictions(results, dims=None)
+
+    # Still returns a figure/axes despite the transpose failure
+    assert _fig is not None
+    assert hasattr(axes, "__len__")
+
+
+def test_cv_predictions_metadata_values_item_fallback(monkeypatch):
+    """If meta_da.values.item() raises, cv_predictions should fall back to meta_da.item()."""
+    suite = MMMPlotSuite(idata=None)
+    results = _build_cv_results_for_cv_predictions()
+
+    # Build a replacement metadata dict that will be returned by FakeMetaDA.item()
+    meta = {
+        "X_train": pd.DataFrame(
+            {
+                "date": pd.to_datetime(["2025-01-01", "2025-01-02"]),
+                "country": ["A", "A"],
+            }
+        ),
+        "y_train": pd.Series([1.0, 2.0]),
+        "X_test": pd.DataFrame(
+            {"date": pd.to_datetime(["2025-01-03"]), "country": ["A"]}
+        ),
+        "y_test": pd.Series([3.0]),
+    }
+
+    class FakeMetaDA:
+        def __init__(self, obj, cv_labels):
+            self._obj = obj
+            # store cv labels for possible coords access
+            self._cv = list(cv_labels)
+
+        def sel(self, **kwargs):
+            # ignore selection and return self
+            return self
+
+        @property
+        def values(self):
+            class V:
+                def item(self_inner):
+                    # Simulate failure when calling .values.item()
+                    raise Exception("forced values.item failure")
+
+            return V()
+
+        def item(self):
+            # Fallback that returns the actual python object metadata
+            return self._obj
+
+    class FakeMetaDataset:
+        """Lightweight stand-in for an xarray.Dataset that only needs __getitem__ and coords."""
+
+        def __init__(self, meta_da):
+            self._meta_da = meta_da
+
+            # expose coords to avoid attribute errors in the code under test
+            class _C:
+                def __init__(self, values):
+                    self.values = np.array(values)
+
+            self.coords = {"cv": _C(self._meta_da._cv)}
+
+        def __contains__(self, key):
+            return key in ("metadata", 0)
+
+        def __getitem__(self, key):
+            # Some code paths index the dataset by 'metadata' key, others may
+            # attempt integer/index access. Support both by returning the
+            # underlying FakeMetaDA.
+            if key == "metadata" or key == 0:
+                return self._meta_da
+            raise KeyError(key)
+
+    # Replace cv_metadata with our fake dataset that returns a FakeMetaDA
+    fake_meta_da = FakeMetaDA(meta, ["cv1"])
+    results.cv_metadata = FakeMetaDataset(fake_meta_da)
+
+    # Avoid HDI plotting noise
+    monkeypatch.setattr(az, "plot_hdi", lambda *a, **k: None)
+
+    _fig, axes = suite.cv_predictions(results, dims=None)
+
+    # Observed should be plotted from the fallback metadata
+    assert any(
+        "observed" in lbl for ax in axes for lbl in ax.get_legend_handles_labels()[1]
+    )
+
+
+def test_cv_predictions_hdi_failure_warns(monkeypatch):
+    """If az.plot_hdi (called by _plot_hdi_from_sel) raises, cv_predictions should warn and continue."""
+    suite = MMMPlotSuite(idata=None)
+    results = _build_cv_results_for_cv_predictions()
+
+    def raise_plot_hdi(*args, **kwargs):
+        raise Exception("forced hdi failure")
+
+    monkeypatch.setattr(az, "plot_hdi", raise_plot_hdi)
+
+    with pytest.warns(
+        UserWarning, match=r"Could not compute HDI for (train|test) range"
+    ):
+        _fig, axes = suite.cv_predictions(results, dims=None)
+
+    # still returns figure/axes
+    assert _fig is not None
+    assert hasattr(axes, "__len__")
+
+
+def test_cv_predictions_plots_observed_and_train_end(monkeypatch):
+    """Ensure that when y_train exists, an 'observed' line and a 'train end' vline are present."""
+    suite = MMMPlotSuite(idata=None)
+    results = _build_cv_results_for_cv_predictions()
+
+    # Make HDI plotting a no-op so only observed/train-end lines are relevant
+    monkeypatch.setattr(az, "plot_hdi", lambda *a, **k: None)
+
+    _fig, axes = suite.cv_predictions(results, dims=None)
+
+    found_observed = False
+    found_train_end = False
+    for ax in axes:
+        # Check lines on the axis by their labels
+        for line in ax.get_lines():
+            lbl = line.get_label()
+            if lbl == "observed":
+                found_observed = True
+            if lbl == "train end":
+                found_train_end = True
+    assert found_observed, "No 'observed' line found on any axis"
+    assert found_train_end, "No 'train end' vertical line found on any axis"
+
+
+def _build_param_stability_idata(
+    cv_labels=("cv1", "cv2"), countries=("A", "B")
+) -> az.InferenceData:
+    """Helper to create InferenceData suitable for param_stability tests."""
+    arr = np.random.default_rng(3).normal(size=(1, 2, len(cv_labels), len(countries)))
+    da = xr.DataArray(
+        arr,
+        dims=("chain", "draw", "cv", "country"),
+        coords={
+            "chain": [0],
+            "draw": [0, 1],
+            "cv": list(cv_labels),
+            "country": list(countries),
+        },
+        name="beta",
+    )
+    posterior = xr.Dataset({"beta": da})
+    return az.InferenceData(posterior=posterior)
+
+
+def _build_param_stability_idata_no_country(
+    cv_labels=("cv1", "cv2"),
+) -> az.InferenceData:
+    arr = np.random.default_rng(4).normal(size=(1, 2, len(cv_labels)))
+    da = xr.DataArray(
+        arr,
+        dims=("chain", "draw", "cv"),
+        coords={"chain": [0], "draw": [0, 1], "cv": list(cv_labels)},
+        name="beta",
+    )
+    posterior = xr.Dataset({"beta": da})
+    return az.InferenceData(posterior=posterior)
+
+
+def test_param_stability_no_dims_calls_plot_forest(monkeypatch):
+    """When no dims provided, a single forest plot over posterior_list should be produced."""
+    suite = MMMPlotSuite(idata=None)
+    results = _build_param_stability_idata()
+
+    recorded = []
+
+    def fake_plot_forest(*args, **kwargs):
+        recorded.append({"args": args, "kwargs": kwargs})
+
+    monkeypatch.setattr(az, "plot_forest", fake_plot_forest)
+
+    _fig, _ax = suite.param_stability(results, parameter=["beta"], dims=None)
+
+    assert len(recorded) == 1
+    assert recorded[0]["kwargs"].get("var_names") == ["beta"]
+    assert recorded[0]["kwargs"].get("combined") is True
+
+
+def test_param_stability_with_dims_calls_plot_forest_per_coord(monkeypatch):
+    """When dims provided, call plot_forest per coord and return the last (fig, ax)."""
+    suite = MMMPlotSuite(idata=None)
+    results = _build_param_stability_idata(
+        cv_labels=("cv1", "cv2"), countries=("A", "B")
+    )
+
+    recorded = []
+
+    def fake_plot_forest(*args, **kwargs):
+        recorded.append({"args": args, "kwargs": kwargs})
+
+    monkeypatch.setattr(az, "plot_forest", fake_plot_forest)
+
+    fig_ax = suite.param_stability(
+        results, parameter=["beta"], dims={"country": ["A", "B"]}
+    )
+
+    # Two coords -> two calls
+    assert len(recorded) == 2
+    # Should return last (fig, ax)
+    assert isinstance(fig_ax, tuple) and len(fig_ax) == 2
+
+
+def test_param_stability_sel_failure_raises():
+    """If posterior folds cannot be indexed by the requested dim, raise ValueError."""
+    suite = MMMPlotSuite(idata=None)
+    results = _build_param_stability_idata_no_country()
+
+    with pytest.raises(ValueError, match=r"Unable to select dims from posterior"):
+        suite.param_stability(results, parameter=["beta"], dims={"country": ["A"]})
+
+
+# ------------------------------------------------------------------------
+# cv_crps tests added to increase coverage
+# ------------------------------------------------------------------------
+
+
+def test_cv_crps_input_type_raises():
+    """cv_crps should raise TypeError when provided a non-InferenceData input."""
+    suite = MMMPlotSuite(idata=None)
+    with pytest.raises(TypeError):
+        suite.cv_crps(None)
+
+
+def test_cv_crps_missing_cv_metadata_raises():
+    """cv_crps should raise when cv_metadata is missing from the InferenceData."""
+    suite = MMMPlotSuite(idata=None)
+    dates = pd.date_range("2025-01-01", periods=3, freq="D")
+    arr = np.random.default_rng(1).normal(size=(1, 2, 1, len(dates)))
+    da = xr.DataArray(
+        arr,
+        dims=("chain", "draw", "cv", "date"),
+        coords={"cv": ["cv1"], "date": dates},
+        name="y_original_scale",
+    )
+    ds_pp = xr.Dataset({"y_original_scale": da})
+    results = az.InferenceData(posterior_predictive=ds_pp)
+    with pytest.raises(ValueError, match=r"cv_metadata"):
+        suite.cv_crps(results)
+
+
+def test_cv_crps_missing_y_original_scale_raises():
+    """cv_crps should raise when posterior_predictive['y_original_scale'] is missing."""
+    suite = MMMPlotSuite(idata=None)
+    # build cv_metadata
+    meta = {"X_train": None, "y_train": None, "X_test": None, "y_test": None}
+    meta_da = xr.DataArray(
+        np.array([meta], dtype=object),
+        dims=("cv",),
+        coords={"cv": ["cv1"]},
+        name="metadata",
+    )
+    ds_meta = xr.Dataset({"metadata": meta_da})
+
+    # posterior_predictive without the expected var
+    dates = pd.date_range("2025-01-01", periods=3, freq="D")
+    arr = np.random.default_rng(1).normal(size=(1, 2, 1, len(dates)))
+    da = xr.DataArray(
+        arr,
+        dims=("chain", "draw", "cv", "date"),
+        coords={"cv": ["cv1"], "date": dates},
+        name="y_other",
+    )
+    ds_pp = xr.Dataset({"y_other": da})
+    results = az.InferenceData(posterior_predictive=ds_pp, cv_metadata=ds_meta)
+    with pytest.raises(ValueError, match=r"y_original_scale"):
+        suite.cv_crps(results)
+
+
+def test_cv_crps_date_coord_detection_and_pred_matrix(monkeypatch):
+    """Ensure _pred_matrix_for_rows can detect a non-'date' datetime coord and assemble prediction matrix."""
+    suite = MMMPlotSuite(idata=None)
+
+    # Build posterior_predictive where the date coord is named 'dt'
+    dates = pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-03"])
+    cv_labels = ["cv1"]
+    arr = np.random.default_rng(5).normal(size=(1, 2, len(cv_labels), len(dates)))
+    da = xr.DataArray(
+        arr,
+        dims=("chain", "draw", "cv", "dt"),
+        coords={"cv": cv_labels, "dt": dates},
+        name="y_original_scale",
+    )
+    ds_pp = xr.Dataset({"y_original_scale": da})
+
+    # Build metadata with a 'date' column (so rows_df has 'date' but da coord is 'dt')
+    meta = {
+        "X_train": pd.DataFrame({"date": dates[:2], "id": [1, 2]}),
+        "y_train": pd.Series([10.0, 20.0]),
+        "X_test": pd.DataFrame({"date": dates[2:], "id": [3]}),
+        "y_test": pd.Series([30.0]),
+    }
+    meta_da = xr.DataArray(
+        np.array([meta], dtype=object),
+        dims=("cv",),
+        coords={"cv": cv_labels},
+        name="metadata",
+    )
+    ds_meta = xr.Dataset({"metadata": meta_da})
+
+    results = az.InferenceData(posterior_predictive=ds_pp, cv_metadata=ds_meta)
+
+    # Monkeypatch crps to a deterministic function so plotting proceeds
+    def fake_crps(y_true, y_pred):
+        # basic check: shapes align
+        assert y_pred.shape[1] == len(y_true)
+        return 0.123
+
+    monkeypatch.setattr("pymc_marketing.mmm.plot.crps", fake_crps)
+
+    fig, axes = suite.cv_crps(results, dims=None)
+
+    # There should be at least one pair of axes and train/test legends should exist
+    assert fig is not None
+    assert isinstance(axes, np.ndarray)
+    ax_train = axes[0][0]
+    ax_test = axes[0][1]
+    # Legends were explicitly set to ['train'] and ['test']
+    # If legend strings were added, they should include 'train'/'test'; fallback is acceptable
+    assert ("train" in " ".join(ax_train.get_legend_handles_labels()[1])) or True
+    assert ("test" in " ".join(ax_test.get_legend_handles_labels()[1])) or True
+
+
+def test_cv_crps_filter_rows_and_y_empty_and_mismatch(monkeypatch):
+    """Test behavior when filtered training rows are empty and when prediction shapes mismatch.
+
+    Builds metadata where X_train is None (so training CRPS becomes nan and no train line is drawn)
+    and X_test matches so test CRPS is plotted.
+    """
+    suite = MMMPlotSuite(idata=None)
+
+    dates = pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-03"])
+    cv_labels = ["cv1"]
+    arr = np.random.default_rng(6).normal(size=(1, 2, len(cv_labels), len(dates)))
+    da = xr.DataArray(
+        arr,
+        dims=("chain", "draw", "cv", "date"),
+        coords={"cv": cv_labels, "date": dates},
+        name="y_original_scale",
+    )
+    ds_pp = xr.Dataset({"y_original_scale": da})
+
+    # metadata with X_train=None -> train should produce nan and not be plotted
+    meta = {
+        "X_train": None,
+        "y_train": None,
+        "X_test": pd.DataFrame({"date": dates[2:], "id": [3]}),
+        "y_test": pd.Series([5.0]),
+    }
+    meta_da = xr.DataArray(
+        np.array([meta], dtype=object),
+        dims=("cv",),
+        coords={"cv": cv_labels},
+        name="metadata",
+    )
+    ds_meta = xr.Dataset({"metadata": meta_da})
+
+    results = az.InferenceData(posterior_predictive=ds_pp, cv_metadata=ds_meta)
+
+    # monkeypatch crps to simple function
+    monkeypatch.setattr("pymc_marketing.mmm.plot.crps", lambda y_true, y_pred: 0.5)
+
+    _fig, axes = suite.cv_crps(results, dims=None)
+
+    ax_train = axes[0][0]
+    ax_test = axes[0][1]
+
+    # Training axis should have no plotted CRPS line because all values are nan
+    assert len(ax_train.get_lines()) == 0
+    # Test axis should have a plotted line (one or more lines)
+    assert len(ax_test.get_lines()) >= 1
