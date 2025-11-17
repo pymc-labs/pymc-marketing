@@ -784,3 +784,104 @@ class _DummyIdata:
 
     def __getitem__(self, key):
         return getattr(self, key, None)
+
+
+def test_combine_idata_raises_when_model_names_shorter():
+    """Ensure a clear error is raised when user supplies fewer model_names than CV splits."""
+    cv = TimeSliceCrossValidator(n_init=1, forecast_horizon=1, date_column="date")
+
+    dates1 = pd.to_datetime(
+        ["2025-01-01", "2025-01-08"]
+    )  # two dates -> two time points
+    idata1 = _build_simple_idata(dates1)
+    idata2 = _build_simple_idata(dates1)
+
+    df_train = pd.DataFrame({"date": dates1})
+    df_test = pd.DataFrame({"date": dates1})
+
+    r1 = TimeSliceCrossValidationResult(
+        X_train=df_train,
+        y_train=pd.Series([1, 2]),
+        X_test=df_test,
+        y_test=pd.Series([3, 4]),
+        idata=idata1,
+    )
+    r2 = TimeSliceCrossValidationResult(
+        X_train=df_train,
+        y_train=pd.Series([5, 6]),
+        X_test=df_test,
+        y_test=pd.Series([7, 8]),
+        idata=idata2,
+    )
+
+    results = [r1, r2]
+
+    # ensure per-fold metadata is available for _create_metadata
+    cv._cv_results = results
+
+    # Passing only one model name for two results should raise a ValueError
+    # Implementation may raise at different points (explicit IndexError check
+    # or later during concat/coord alignment), so accept any ValueError here.
+    with pytest.raises(ValueError):
+        cv._combine_idata(results, ["only_one_name"])
+
+
+def test_combine_idata_uses_fallback_when_concat_raises(monkeypatch):
+    """If xr.concat raises on the primary concat call, the implementation should
+    fall back to assigning per-dataset 'cv' coords and concat along 'cv'."""
+    cv = TimeSliceCrossValidator(n_init=1, forecast_horizon=1, date_column="date")
+
+    dates1 = pd.to_datetime(["2025-01-01", "2025-01-08"])
+    ds1 = _build_pp_dataset(dates1, var_name="y")
+    ds2 = _build_pp_dataset(dates1, var_name="y")
+
+    idata1 = az.InferenceData(posterior_predictive=ds1)
+    idata2 = az.InferenceData(posterior_predictive=ds2)
+
+    df = pd.DataFrame({"date": dates1})
+    r1 = TimeSliceCrossValidationResult(
+        X_train=df,
+        y_train=pd.Series([1, 2]),
+        X_test=df,
+        y_test=pd.Series([3, 4]),
+        idata=idata1,
+    )
+    r2 = TimeSliceCrossValidationResult(
+        X_train=df,
+        y_train=pd.Series([5, 6]),
+        X_test=df,
+        y_test=pd.Series([7, 8]),
+        idata=idata2,
+    )
+
+    results = [r1, r2]
+
+    # ensure per-fold metadata is available for _create_metadata
+    cv._cv_results = results
+
+    # Monkeypatch xr.concat to raise on the first invocation and then delegate to
+    # the original implementation so the fallback path can succeed on its call.
+    original_concat = xr.concat
+    state = {"called": 0, "raised_once": False}
+
+    def fake_concat(objs, *args, **kwargs):
+        # On first call, simulate a failure
+        if state["called"] == 0:
+            state["called"] += 1
+            state["raised_once"] = True
+            raise RuntimeError("forced concat failure")
+        # Subsequent calls behave normally
+        return original_concat(objs, *args, **kwargs)
+
+    monkeypatch.setattr(xr, "concat", fake_concat)
+
+    try:
+        combined = cv._combine_idata(results, ["m1", "m2"])
+    finally:
+        # restore to be safe (monkeypatch fixture will restore, but keep defensive)
+        monkeypatch.setattr(xr, "concat", original_concat)
+
+    assert state["raised_once"] is True
+    assert hasattr(combined, "posterior_predictive")
+    assert "cv" in combined.posterior_predictive.coords
+    assert hasattr(combined, "cv_metadata")
