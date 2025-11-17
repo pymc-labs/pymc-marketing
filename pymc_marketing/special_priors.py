@@ -151,20 +151,20 @@ class LogNormalPrior(SpecialPrior):
 
     .. math::
 
-        \mu_{\log} &= \ln \left( \frac{\mean^2}{\sqrt{\mean^2 + \std^2}} \right) \\
-        \sigma_{\log} &= \sqrt{ \ln \left( 1 + \frac{\std^2}{\mean^2} \right) }
+        \mu_{\text{log}} &= \ln \left( \frac{\text{mean}^2}{\sqrt{\text{mean}^2 + \text{std}^2}} \right) \\
+        \sigma_{\text{log}} &= \sqrt{ \ln \left( 1 + \frac{\text{std}^2}{\text{mean}^2} \right) }
 
-    where :math:`\\mean > 0` and :math:`\\std > 0`.
+    where :math:`\text{mean} > 0` and :math:`\text{std} > 0`.
 
     The prior is then defined as:
 
     .. math::
 
-        \\phi &\\sim \text{LogNormal}(\\mu_{\\log}, \\sigma_{\\log})
+        \phi & \sim \text{LogNormal}(\mu_{\text{log}}, \sigma_{\text{log}})
 
     This construction ensures that the resulting random variable
     has approximately the intended mean and variance on the positive scale,
-    even when :math:`\\mean` and :math:`\\std` are themselves random variables.
+    even when :math:`\text{mean}` and :math:`\text{std}` are themselves random variables.
 
     Parameters
     ----------
