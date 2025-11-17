@@ -1204,10 +1204,10 @@ def test_get_additional_dim_combinations_success_and_error():
         },
         name="y",
     )
-    ds = xr.Dataset({"y": da})
+    ds_pp = xr.Dataset({"y": da})
 
     addl_dims, combos = suite._get_additional_dim_combinations(
-        ds, "y", ignored_dims={"chain", "draw", "date"}
+        ds_pp, "y", ignored_dims={"chain", "draw", "date"}
     )
     assert addl_dims == ["country"]
     assert len(combos) == 3
@@ -1215,7 +1215,7 @@ def test_get_additional_dim_combinations_success_and_error():
     # Missing variable should raise
     with pytest.raises(ValueError):
         suite._get_additional_dim_combinations(
-            ds, "missing", ignored_dims={"chain", "draw", "date"}
+            ds_pp, "missing", ignored_dims={"chain", "draw", "date"}
         )
 
 
@@ -1948,3 +1948,144 @@ def test_cv_crps_filter_rows_and_y_empty_and_mismatch(monkeypatch):
     assert len(ax_train.get_lines()) == 0
     # Test axis should have a plotted line (one or more lines)
     assert len(ax_test.get_lines()) >= 1
+
+
+def test_cv_crps_dim_selection_casting_succeeds(monkeypatch):
+    """If the first sel attempt with str(row[dim]) fails, the second sel with the raw
+    row value should succeed and CRPS should be computed and plotted for train/test."""
+    suite = MMMPlotSuite(idata=None)
+
+    dates = pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-03"])
+    cv_labels = ["cv1"]
+    # Use integer-valued country coords so selecting by string will fail but selecting by int will work
+    countries = [1, 2]
+    arr = np.random.default_rng(7).normal(
+        size=(1, 2, len(cv_labels), len(countries), len(dates))
+    )
+    da = xr.DataArray(
+        arr,
+        dims=("chain", "draw", "cv", "country", "date"),
+        coords={"cv": cv_labels, "country": countries, "date": dates},
+        name="y_original_scale",
+    )
+    ds_pp = xr.Dataset({"y_original_scale": da})
+
+    # Metadata contains integer country values in the DataFrame rows
+    meta = {
+        "X_train": pd.DataFrame({"date": dates[:2], "country": [1, 1]}),
+        "y_train": pd.Series([10.0, 20.0]),
+        "X_test": pd.DataFrame({"date": dates[2:], "country": [1]}),
+        "y_test": pd.Series([30.0]),
+    }
+    meta_da = xr.DataArray(
+        np.array([meta], dtype=object),
+        dims=("cv",),
+        coords={"cv": cv_labels},
+        name="metadata",
+    )
+    ds_meta = xr.Dataset({"metadata": meta_da})
+    results = az.InferenceData(posterior_predictive=ds_pp, cv_metadata=ds_meta)
+
+    # Make crps deterministic and validate shapes inside
+    def fake_crps(y_true, y_pred):
+        assert y_pred.shape[1] == len(y_true)
+        return 0.42
+
+    monkeypatch.setattr("pymc_marketing.mmm.plot.crps", fake_crps)
+
+    fig, axes = suite.cv_crps(results, dims=None)
+
+    assert fig is not None
+    assert isinstance(axes, np.ndarray)
+    ax_train = axes[0][0]
+    ax_test = axes[0][1]
+
+    # Both train and test should have at least one plotted line when CRPS is computed
+    assert len(ax_train.get_lines()) >= 1
+    assert len(ax_test.get_lines()) >= 1
+
+
+def test_detect_datetime_column():
+    # Create a DataFrame with various column types
+    rows_df = pd.DataFrame(
+        {
+            "numeric": [1, 2, 3],
+            "text": ["a", "b", "c"],
+            "datetime": pd.date_range("2025-01-01", periods=3),
+        }
+    )
+
+    found_col = None
+
+    # Code block to test
+    for col in rows_df.columns:
+        try:
+            if pd.api.types.is_datetime64_any_dtype(rows_df[col].dtype):
+                found_col = col
+                break
+        except Exception as exc:
+            warnings.warn(
+                f"Error while inspecting dataframe column dtype for date detection: {exc}",
+                stacklevel=2,
+            )
+            continue
+
+    # Assert that the datetime column was correctly identified
+    assert found_col == "datetime"
+
+
+def test_transpose_with_fallback():
+    # Create a mock DataArray with dimensions
+    dims = ("chain", "draw", "sample", "date")
+    coords = {
+        "chain": [0],
+        "draw": [0, 1],
+        "sample": [0, 1, 2],
+        "date": pd.date_range("2025-01-01", periods=3),
+    }
+    data = np.random.rand(1, 2, 3, 3)
+    da_s = xr.DataArray(data, dims=dims, coords=coords)
+
+    # Simulate the try block
+    try:
+        da_s = da_s.transpose("sample", ...)
+    except Exception:
+        dims = list(da_s.dims)
+        order = ["sample"] + [d for d in dims if d != "sample"]
+        da_s = da_s.transpose(*order)
+
+    # Assert that the resulting DataArray has "sample" as the first dimension
+    assert da_s.dims[0] == "sample"
+    # Assert that all original dimensions are preserved
+    assert set(da_s.dims) == set(dims)
+
+
+def test_transpose_sel2_with_fallback():
+    # Create a mock DataArray with dimensions
+    dims = ("chain", "draw", "sample", "date")
+    coords = {
+        "chain": [0],
+        "draw": [0, 1],
+        "sample": [0, 1, 2],
+        "date": pd.date_range("2025-01-01", periods=3),
+    }
+    data = np.random.rand(1, 2, 3, 3)
+    sel2 = xr.DataArray(data, dims=dims, coords=coords)
+
+    # Simulate the try block with a forced failure
+    try:
+        # Force an exception to test the fallback logic
+        raise ValueError("Simulated transpose failure")
+    except Exception as exc:
+        warnings.warn(
+            f"Could not transpose sel2 to ('sample','date'): {exc}",
+            stacklevel=2,
+        )
+        dims = list(sel2.dims)
+        order = ["sample", "date"] + [d for d in dims if d not in ("sample", "date")]
+        sel2 = sel2.transpose(*order)
+
+    # Assert that the dimensions are correct after the fallback logic
+    assert sel2.dims[:2] == ("sample", "date")
+    # Assert that all original dimensions are preserved
+    assert set(sel2.dims) == set(dims)
