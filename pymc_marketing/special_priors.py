@@ -140,10 +140,6 @@ class SpecialPrior(ABC):
 class LogNormalPrior(SpecialPrior):
     r"""Lognormal prior parameterized by positive-scale mean and std.
 
-    A lognormal prior parameterized by mean and standard deviation
-    on the positive domain, with optional centered or non-centered
-    parameterization.
-
     This prior differs from the standard ``LogNormal`` distribution,
     which takes log-scale parameters (``mu_log``, ``sigma_log``).
     Instead, it is parameterized directly in terms of the mean and
@@ -291,13 +287,6 @@ class LaplacePrior(SpecialPrior):
     - A.C. Jones, `Scale mixtures of unbounded continuous distributions <https://andrewcharlesjones.github.io/journal/scale-mixtures.html>`_.
     - Stan Documentation, `Unbounded continuous distributions <https://mc-stan.org/docs/functions-reference/unbounded_continuous_distributions.html#double-exponential-laplace-distribution>`_.
     """
-
-    def __init__(self, dims: tuple | None = None, centered: bool = True, **parameters):
-        self.parameters = parameters
-        self.dims = dims
-        self.centered = centered
-
-        self._checks()
 
     def _checks(self) -> None:
         self._parameters_are_correct_set()
