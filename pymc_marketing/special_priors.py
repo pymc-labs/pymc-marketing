@@ -43,12 +43,12 @@ class SpecialPrior(ABC):
         self._checks()
 
     @abstractmethod
-    def _checks(self) -> None:
+    def _checks(self) -> None:  # pragma: no cover
         """Check that the parameters are correct."""
         pass
 
     @abstractmethod
-    def create_variable(self, name: str) -> TensorVariable:
+    def create_variable(self, name: str) -> TensorVariable:  # pragma: no cover
         """Create a variable from the prior distribution."""
         pass
 
@@ -117,8 +117,6 @@ class SpecialPrior(ABC):
         kwargs = {param: handle_value(value) for param, value in kwargs.items()}
         centered = data.get("centered", True)
         dims = data.get("dims")
-        if isinstance(dims, list):
-            dims = tuple(dims)
 
         return cls(dims=dims, centered=centered, **kwargs)
 

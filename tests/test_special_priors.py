@@ -79,6 +79,14 @@ def test_LogNormalPrior_args_invalid():
         LogNormalPrior(alpha=1.0, beta=1.0)
 
 
+def test_LogNormalPrior_from_dict_invalid():
+    with pytest.raises(
+        ValueError,
+        match=r"Must be a dictionary representation of a prior distribution.",
+    ):
+        LogNormalPrior.from_dict(LogNormalPrior(mean=0.0, std=1.0))
+
+
 def test_the_deserializer_can_distinguish_between_types_of_prior_classes():
     assert _is_LogNormalPrior_type(LogNormalPrior(mu=1.0, sigma=1.0).to_dict())
     assert not _is_LogNormalPrior_type(Prior("Normal", mu=1.0, sigma=1.0).to_dict())
