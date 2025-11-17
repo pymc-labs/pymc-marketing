@@ -205,11 +205,7 @@ class LogNormalPrior(SpecialPrior):
         if "std" not in parameters and "sigma" in parameters:
             parameters["std"] = parameters.pop("sigma")
 
-        self.parameters = parameters
-        self.dims = dims
-        self.centered = centered
-
-        self._checks()
+        super().__init__(dims=dims, centered=centered, **parameters)
 
     def _checks(self) -> None:
         self._parameters_are_correct_set()
