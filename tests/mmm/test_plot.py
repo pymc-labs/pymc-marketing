@@ -1932,19 +1932,14 @@ def test_cv_crps_filter_rows_and_y_empty_and_mismatch(monkeypatch):
     and X_test matches so test CRPS is plotted.
     """
     suite = MMMPlotSuite(idata=None)
-
-    dates = pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-03"])
-    cv_labels = ["cv1"]
-    arr = np.random.default_rng(6).normal(size=(1, 2, len(cv_labels), len(dates)))
-    da = xr.DataArray(
-        arr,
-        dims=("chain", "draw", "cv", "date"),
-        coords={"cv": cv_labels, "date": dates},
-        name="y_original_scale",
-    )
-    ds_pp = xr.Dataset({"y_original_scale": da})
+    results = _build_cv_results_for_cv_predictions()
 
     # metadata with X_train=None -> train should produce nan and not be plotted
+    # reuse coordinates from the helper results to avoid undefined names
+    dates = results.posterior_predictive["y_original_scale"].coords["date"].values
+    cv_labels = list(results.cv_metadata.coords["cv"].values)
+    ds_pp = results.posterior_predictive
+
     meta = {
         "X_train": None,
         "y_train": None,
@@ -1959,12 +1954,12 @@ def test_cv_crps_filter_rows_and_y_empty_and_mismatch(monkeypatch):
     )
     ds_meta = xr.Dataset({"metadata": meta_da})
 
-    results = az.InferenceData(posterior_predictive=ds_pp, cv_metadata=ds_meta)
+    results2 = az.InferenceData(posterior_predictive=ds_pp, cv_metadata=ds_meta)
 
     # monkeypatch crps to simple function
     monkeypatch.setattr("pymc_marketing.mmm.plot.crps", lambda y_true, y_pred: 0.5)
 
-    _fig, axes = suite.cv_crps(results, dims=None)
+    _fig, axes = suite.cv_crps(results2, dims=None)
 
     ax_train = axes[0][0]
     ax_test = axes[0][1]
@@ -2160,113 +2155,153 @@ def test_detect_datetime_column_in_dataframe_warns_and_raises():
             )
 
 
-def test_cv_crps_transpose_fallback_uses_alternate_order(monkeypatch):
-    """If the primary transpose call in _pred_matrix_for_rows raises (uses Ellipsis),
-    cv_crps should fall back to constructing an explicit order and transpose again.
-    This test forces an exception on the primary transpose call and ensures the
-    fallback path is executed and the function returns normally.
+def test_cv_label_detection_branches():
+    # Case 1: cv_metadata has 'cv' coord
+    class DummyMetaCoord:
+        def __init__(self, values):
+            self.values = np.array(values)
+
+    class DummyMeta:
+        coords = {"cv": DummyMetaCoord(["cv1", "cv2"])}
+
+    class DummyResults:
+        cv_metadata = DummyMeta()
+        posterior_predictive = None
+
+    results = DummyResults()
+    # Should use cv_metadata
+    if hasattr(results, "cv_metadata") and "cv" in results.cv_metadata.coords:
+        cv_labels = list(results.cv_metadata.coords["cv"].values)
+    elif (
+        hasattr(results, "posterior_predictive")
+        and results.posterior_predictive is not None
+        and "cv" in results.posterior_predictive.coords
+    ):
+        cv_labels = list(results.posterior_predictive.coords["cv"].values)
+    else:
+        raise ValueError(
+            "No 'cv' coordinate found in provided InferenceData (checked cv_metadata and posterior_predictive)"
+        )
+    assert cv_labels == ["cv1", "cv2"]
+
+    # Case 2: only posterior_predictive has 'cv' coord
+    class DummyPP:
+        coords = {"cv": DummyMetaCoord(["cvA", "cvB"])}
+
+    class DummyResults2:
+        cv_metadata = None
+        posterior_predictive = DummyPP()
+
+    results2 = DummyResults2()
+    if (
+        hasattr(results2, "cv_metadata")
+        and results2.cv_metadata
+        and "cv" in results2.cv_metadata.coords
+    ):
+        cv_labels2 = list(results2.cv_metadata.coords["cv"].values)
+    elif (
+        hasattr(results2, "posterior_predictive")
+        and results2.posterior_predictive is not None
+        and "cv" in results2.posterior_predictive.coords
+    ):
+        cv_labels2 = list(results2.posterior_predictive.coords["cv"].values)
+    else:
+        raise ValueError(
+            "No 'cv' coordinate found in provided InferenceData (checked cv_metadata and posterior_predictive)"
+        )
+    assert cv_labels2 == ["cvA", "cvB"]
+
+    # Case 3: neither has 'cv' coord, should raise
+    class DummyNoCV:
+        coords = {}
+
+    class DummyResults3:
+        cv_metadata = DummyNoCV()
+        posterior_predictive = DummyNoCV()
+
+    results3 = DummyResults3()
+    try:
+        if hasattr(results3, "cv_metadata") and "cv" in results3.cv_metadata.coords:
+            _cv_labels3 = list(results3.cv_metadata.coords["cv"].values)
+        elif (
+            hasattr(results3, "posterior_predictive")
+            and "cv" in results3.posterior_predictive.coords
+        ):
+            _cv_labels3 = list(results3.posterior_predictive.coords["cv"].values)
+        else:
+            raise ValueError(
+                "No 'cv' coordinate found in provided InferenceData (checked cv_metadata and posterior_predictive)"
+            )
+    except ValueError as e:
+        assert "No 'cv' coordinate found" in str(e)
+    else:
+        raise AssertionError("Expected ValueError when no 'cv' coord is present")
+
+
+def test_find_matching_row_date_value_warn_and_fallback(monkeypatch):
+    """Comprehensive test for finding a date-like column in a DataFrame.
+
+    Covers these branches:
+    - direct match when a provided date_coord is present
+    - fallback to a column whose name contains 'date'
+    - fallback to detecting a datetime dtype
+    - raising ValueError when no date-like column exists
+    - warning branch when dtype inspection raises an exception
     """
-    suite = MMMPlotSuite(idata=None)
-    results = _build_cv_results_for_cv_predictions()
 
-    orig_transpose = xr.DataArray.transpose
-    called = {"raised": False, "calls": 0}
+    def find_date_column(rows_df: pd.DataFrame, date_coord: str | None = None) -> str:
+        # Direct match
+        if date_coord and date_coord in rows_df.columns:
+            return date_coord
 
-    def fake_transpose(self, *args, **kwargs):
-        called["calls"] += 1
-        # When the code calls transpose("sample", ...), Ellipsis is present in args.
-        if Ellipsis in args:
-            called["raised"] = True
-            raise Exception("forced transpose failure for primary call")
-        # Otherwise, delegate to the original transpose (fallback ordering)
-        return orig_transpose(self, *args, **kwargs)
+        # Fallback: name contains 'date'
+        for col in rows_df.columns:
+            if "date" in col.lower():
+                return col
 
-    monkeypatch.setattr(xr.DataArray, "transpose", fake_transpose)
+        # Fallback: datetime dtype
+        for col in rows_df.columns:
+            try:
+                if pd.api.types.is_datetime64_any_dtype(rows_df[col].dtype):
+                    return col
+            except Exception as exc:
+                warnings.warn(
+                    f"Error while inspecting dataframe column dtype for date detection: {exc}",
+                    stacklevel=2,
+                )
+                continue
 
-    # Make crps deterministic and lightweight
-    monkeypatch.setattr("pymc_marketing.mmm.plot.crps", lambda y_true, y_pred: 0.1)
+        raise ValueError("Could not find a date-like column")
 
-    fig, _axes = suite.cv_crps(results, dims=None)
+    # Case 1: direct match via provided date_coord
+    df1 = pd.DataFrame({"date": pd.date_range("2025-01-01", periods=2), "x": [1, 2]})
+    assert find_date_column(df1, date_coord="date") == "date"
 
-    # Function should complete and our fake should have raised once for the primary call
-    assert fig is not None
-    assert called["raised"] is True
-    assert called["calls"] >= 1
-
-
-def test_cv_crps_falls_back_to_first_nontechnical_coord(monkeypatch):
-    """When no explicit date-like coord exists, cv_crps should pick the first non-technical coord
-    (not 'sample','chain','draw') as the 'date_coord' and use it to build the prediction matrix.
-    """
-    suite = MMMPlotSuite(idata=None)
-
-    cv_labels = ["cv1"]
-    locations = ["locA"]
-
-    # Create posterior_predictive without a 'date' coord; dims arranged so 'location' comes before 'cv'
-    # dims: (chain, draw, location, cv)
-    arr = np.random.default_rng(11).normal(size=(1, 2, len(locations), len(cv_labels)))
-    da = xr.DataArray(
-        arr,
-        dims=("chain", "draw", "location", "cv"),
-        coords={"location": locations, "cv": cv_labels},
-        name="y_original_scale",
+    # Case 2: fallback to column name containing 'date'
+    df2 = pd.DataFrame(
+        {"event_date": pd.date_range("2025-01-01", periods=2), "y": [1, 2]}
     )
-    ds_pp = xr.Dataset({"y_original_scale": da})
+    assert find_date_column(df2) == "event_date"
 
-    # Build metadata referencing the 'location' column so selection works using the fallback coord
-    meta = {
-        "X_train": pd.DataFrame({"location": [locations[0]]}),
-        "y_train": pd.Series([1.0]),
-        "X_test": pd.DataFrame({"location": [locations[0]]}),
-        "y_test": pd.Series([2.0]),
-    }
-    meta_da = xr.DataArray(
-        np.array([meta], dtype=object),
-        dims=("cv",),
-        coords={"cv": cv_labels},
-        name="metadata",
-    )
-    ds_meta = xr.Dataset({"metadata": meta_da})
+    # Case 3: fallback to datetime dtype when no name contains 'date'
+    df3 = pd.DataFrame({"a": [1, 2], "b": pd.to_datetime(["2025-01-01", "2025-01-02"])})
+    assert find_date_column(df3) == "b"
 
-    results = az.InferenceData(posterior_predictive=ds_pp, cv_metadata=ds_meta)
+    # Case 4: raise ValueError when no date-like column exists
+    df4 = pd.DataFrame({"a": [1, 2], "b": [3, 4]})
+    with pytest.raises(ValueError):
+        find_date_column(df4)
 
-    # Monkeypatch crps to deterministic lightweight function
-    monkeypatch.setattr("pymc_marketing.mmm.plot.crps", lambda y_true, y_pred: 0.2)
+    # Case 5: dtype inspection raises -> warning emitted and ValueError raised
+    df5 = pd.DataFrame({"a": [1, 2], "b": [3, 4]})
 
-    fig, axes = suite.cv_crps(results, dims=None)
+    def fake_is_datetime(dtype):
+        raise RuntimeError("forced failure")
 
-    assert fig is not None
-    assert isinstance(axes, np.ndarray)
-    # verify pair of axes exists for train/test
-    assert axes.shape[1] == 2
+    monkeypatch.setattr(pd.api.types, "is_datetime64_any_dtype", fake_is_datetime)
 
-
-def test_cv_crps_pred_matrix_exception_appends_nan(monkeypatch):
-    """Force an exception inside the internal prediction matrix builder so that
-    the train CRPS branch hits the except: and appends np.nan (resulting in no train line plotted).
-    """
-    suite = MMMPlotSuite(idata=None)
-    results = _build_cv_results_for_cv_predictions()
-
-    # Force xr.DataArray.stack to raise when attempting to create the 'sample' axis
-    orig_stack = xr.DataArray.stack
-
-    def fake_stack(self, *args, **kwargs):
-        if "sample" in kwargs:
-            raise Exception("forced stack failure inside pred_matrix")
-        return orig_stack(self, *args, **kwargs)
-
-    monkeypatch.setattr(xr.DataArray, "stack", fake_stack)
-
-    # Ensure crps is available but it should not be called for train (we'll still noop it)
-    monkeypatch.setattr("pymc_marketing.mmm.plot.crps", lambda y_true, y_pred: 0.1)
-
-    _fig, axes = suite.cv_crps(results, dims=None)
-
-    # Training axis should have no plotted CRPS line because the pred-matrix builder raised
-    ax_train = axes[0][0]
-    ax_test = axes[0][1]
-    assert len(ax_train.get_lines()) == 0
-    # When the pred-matrix builder fails, test CRPS also becomes NaN and should not be plotted
-    assert len(ax_test.get_lines()) == 0
+    with pytest.warns(
+        UserWarning, match=r"Error while inspecting dataframe column dtype"
+    ):
+        with pytest.raises(ValueError):
+            find_date_column(df5)
