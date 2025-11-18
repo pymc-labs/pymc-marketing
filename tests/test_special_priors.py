@@ -23,8 +23,10 @@ from pytensor import function
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.multidimensional import MMM
 from pymc_marketing.special_priors import (
+    LaplacePrior,
     LogNormalPrior,
     MaskedPrior,
+    _is_LaplacePrior_type,
     _is_LogNormalPrior_type,
 )
 
@@ -77,9 +79,72 @@ def test_LogNormalPrior_args_invalid():
         LogNormalPrior(alpha=1.0, beta=1.0)
 
 
+def test_LogNormalPrior_from_dict_invalid():
+    with pytest.raises(
+        ValueError,
+        match=r"Must be a dictionary representation of a prior distribution.",
+    ):
+        LogNormalPrior.from_dict(LogNormalPrior(mean=0.0, std=1.0))
+
+
 def test_the_deserializer_can_distinguish_between_types_of_prior_classes():
     assert _is_LogNormalPrior_type(LogNormalPrior(mu=1.0, sigma=1.0).to_dict())
     assert not _is_LogNormalPrior_type(Prior("Normal", mu=1.0, sigma=1.0).to_dict())
+    assert not _is_LogNormalPrior_type(LaplacePrior(mu=1.0, b=1.0).to_dict())
+
+
+@pytest.mark.parametrize(
+    "mu, b, centered, dims",
+    [
+        (
+            Prior("Normal", mu=0.0, sigma=1.0),
+            Prior("Gamma", alpha=1.0, beta=1.0),
+            True,
+            ("geo",),
+        ),
+        (1.0, 2.0, False, ("geo",)),
+        (1.0, 2.0, True, ("geo",)),
+        (np.array([1, 2, 3]), np.array([4, 5, 6]), True, ("geo",)),
+        (np.array([1, 2, 3]), np.array([4, 5, 6]), False, ("geo",)),
+        (1.0, 2.0, True, ()),
+    ],
+)
+def test_LaplacePrior_args(mu, b, centered, dims):
+    """
+    Checks:
+    - sample_prior runs
+    - create_variable runs
+    - round trip: dict to class to dict to class, doesn't lose any information
+    """
+    rv = LaplacePrior(mu=mu, b=b, centered=centered, dims=dims)
+
+    coords = {"geo": ["G1", "G2", "G3"]}
+
+    if dims:
+        prior = rv.sample_prior(coords=coords)
+        assert prior.geo.shape == (len(coords["geo"]),)
+    else:
+        prior = rv.sample_prior()
+        assert isinstance(prior, xr.Dataset)
+
+    if centered is False:
+        assert "variable_sigma" in prior.data_vars
+
+    with pm.Model(coords=coords):
+        rv.create_variable("test")
+
+    assert rv.to_dict() == rv.from_dict(rv.to_dict()).to_dict()
+
+
+def test_LaplacePrior_args_invalid():
+    with pytest.raises(ValueError):
+        LaplacePrior(alpha=1.0, beta=1.0)
+
+
+def test_the_deserializer_can_distinguish_LaplacePrior_from_other_types():
+    assert _is_LaplacePrior_type(LaplacePrior(mu=1.0, b=1.0).to_dict())
+    assert not _is_LaplacePrior_type(LogNormalPrior(mu=1.0, sigma=1.0).to_dict())
+    assert not _is_LaplacePrior_type(Prior("Normal", mu=1.0, sigma=1.0).to_dict())
 
 
 def test_masked_prior_simple_1d():
