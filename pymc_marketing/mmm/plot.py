@@ -741,7 +741,7 @@ class MMMPlotSuite:
         Plot scatter plots of channel contributions vs. channel data.
 
         .. deprecated:: 0.1.0
-           Will be removed in version 0.2.0. Use :meth:`saturation_scatterplot` instead.
+           Will be removed in version 0.20.0. Use :meth:`saturation_scatterplot` instead.
 
         Parameters
         ----------
