@@ -304,9 +304,9 @@ class LaplacePrior(SpecialPrior):
 
         else:
             sigma = pm.Exponential(name + "_sigma", scale=2 * parameters["b"] ** 2)
-            phi = (
-                pm.Normal(name, mu=0, sigma=1, dims=self.dims) * pt.sqrt(sigma)
-                + parameters["mu"]
+            phi = pm.Normal(name + "_offset", mu=0, sigma=1, dims=self.dims)
+            phi = pm.Deterministic(
+                name, phi * pt.sqrt(sigma) + parameters["mu"], dims=self.dims
             )
 
         return phi
