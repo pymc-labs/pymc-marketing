@@ -170,8 +170,6 @@ Notes
 """
 
 import itertools
-from collections.abc import Iterable
-from typing import Any
 
 import arviz as az
 import arviz_plots as azp
@@ -384,14 +382,13 @@ class MMMPlotSuite:
     #                          Main Plotting Methods
     # ------------------------------------------------------------------------
 
-    def temp_posterior_predictive(
+    def posterior_predictive(
         self,
         var: list[str] | None = None,
         idata: xr.Dataset | None = None,
         hdi_prob: float = 0.85,
         backend: str | None = None,
-        return_as_pc: bool = False,
-    ) -> tuple[Figure, list[Axes] | None] | PlotCollection:
+    ) -> PlotCollection:
         """
         Plot posterior predictive distributions over time.
 
@@ -408,33 +405,11 @@ class MMMPlotSuite:
             Plotting backend to use. Options: "matplotlib", "plotly", "bokeh".
             If None, uses global config via mmm_config["plot.backend"].
             Default (via config) is "matplotlib".
-        return_as_pc : bool, default False
-            If True, returns PlotCollection object.
-            If False, returns tuple (figure, axes) for backward compatibility.
 
         Returns
         -------
-        PlotCollection or tuple
-            If return_as_pc=True, returns PlotCollection object.
-            If return_as_pc=False, returns (figure, axes) where:
-            - figure: backend-specific figure object (matplotlib.figure.Figure,
-            plotly.graph_objs.Figure, or bokeh.plotting.Figure)
-            - axes: list of matplotlib Axes if backend="matplotlib", else None
+        PlotCollection
 
-        Notes
-        -----
-        When backend is not "matplotlib" and return_as_pc=False, the axes
-        element of the returned tuple will be None, as plotly and bokeh
-        do not have an equivalent axes list concept.
-
-        Examples
-        --------
-        >>> # Backward compatible usage (matplotlib)
-        >>> fig, axes = model.plot.posterior_predictive()
-
-        >>> # Multi-backend with PlotCollection
-        >>> pc = model.plot.posterior_predictive(backend="plotly", return_as_pc=True)
-        >>> pc.show()
         """
         if not 0 < hdi_prob < 1:
             raise ValueError("HDI probability must be between 0 and 1.")
@@ -452,7 +427,7 @@ class MMMPlotSuite:
 
         # 3. Identify additional dims & get all combos
         ignored_dims = {"chain", "draw", "date", "sample"}
-        additional_dims, dim_combinations = self._get_additional_dim_combinations(
+        additional_dims, _ = self._get_additional_dim_combinations(
             data=pp_data, variable=main_var, ignored_dims=ignored_dims
         )
 
@@ -461,15 +436,7 @@ class MMMPlotSuite:
             pp_data[main_var].to_dataset(),
             cols=additional_dims,
             col_wrap=1,
-            # figure_kwargs={"figsize": (WIDTH_PER_COL * 120, HEIGHT_PER_ROW * 200 * len(dim_combinations)),
-            # "figsize_units": "dots"},
             figure_kwargs={
-                "figsize": (
-                    WIDTH_PER_COL * 110,
-                    HEIGHT_PER_ROW * 120 * len(dim_combinations),
-                ),
-                "figsize_units": "dots",
-                #    "vertical_spacing":0.1,
                 "sharex": True,
             },
             backend=backend,
@@ -502,123 +469,15 @@ class MMMPlotSuite:
             subset_info=True,
             labeller=mix_labellers((NoVarLabeller, DimCoordLabeller))(),
         )
-        return MMMPlotSuite._return_pc_or_fig_axes(pc, return_as_pc, backend=backend)
+        return pc
 
-    @staticmethod
-    def _return_pc_or_fig_axes(pc: PlotCollection, return_as_pc: bool, backend: str):
-        """Return PlotCollection or tuple of figure and axes."""
-        if return_as_pc:
-            return pc
-        else:
-            # Extract figure from PlotCollection
-            fig = pc.viz.figure.data.item()
-
-            # Only matplotlib has axes
-            if backend == "matplotlib":
-                axes = fig.get_axes()
-            else:
-                axes = None
-
-            return fig, axes
-
-    def posterior_predictive(
-        self,
-        var: list[str] | None = None,
-        idata: xr.Dataset | None = None,
-        hdi_prob: float = 0.85,
-    ) -> tuple[Figure, NDArray[Axes]]:
-        """Plot time series from the posterior predictive distribution.
-
-        By default, if both `var` and `idata` are not provided, uses
-        `self.idata.posterior_predictive` and defaults the variable to `["y"]`.
-
-        Parameters
-        ----------
-        var : list of str, optional
-            A list of variable names to plot. Default is ["y"] if not provided.
-        idata : xarray.Dataset, optional
-            The posterior predictive dataset to plot. If not provided, tries to
-            use `self.idata.posterior_predictive`.
-        hdi_prob: float, optional
-            The probability mass of the highest density interval to be displayed. Default is 0.85.
-
-        Returns
-        -------
-        fig : matplotlib.figure.Figure
-            The Figure object containing the subplots.
-        axes : np.ndarray of matplotlib.axes.Axes
-            Array of Axes objects corresponding to each subplot row.
-
-        Raises
-        ------
-        ValueError
-            If no `idata` is provided and `self.idata.posterior_predictive` does
-            not exist, instructing the user to run `MMM.sample_posterior_predictive()`.
-            If `hdi_prob` is not between 0 and 1, instructing the user to provide a valid value.
-        """
-        if not 0 < hdi_prob < 1:
-            raise ValueError("HDI probability must be between 0 and 1.")
-        # 1. Retrieve or validate posterior_predictive data
-        pp_data = self._get_posterior_predictive_data(idata)
-
-        # 2. Determine variables to plot
-        if var is None:
-            var = ["y"]
-        main_var = var[0]
-
-        # 3. Identify additional dims & get all combos
-        ignored_dims = {"chain", "draw", "date", "sample"}
-        additional_dims, dim_combinations = self._get_additional_dim_combinations(
-            data=pp_data, variable=main_var, ignored_dims=ignored_dims
-        )
-
-        # 4. Prepare subplots
-        fig, axes = self._init_subplots(n_subplots=len(dim_combinations), ncols=1)
-
-        # 5. Loop over dimension combinations
-        for row_idx, combo in enumerate(dim_combinations):
-            ax = axes[row_idx][0]
-
-            # Build indexers
-            indexers = (
-                dict(zip(additional_dims, combo, strict=False))
-                if additional_dims
-                else {}
-            )
-
-            # 6. Plot each requested variable
-            for v in var:
-                if v not in pp_data:
-                    raise ValueError(
-                        f"Variable '{v}' not in the posterior_predictive dataset."
-                    )
-
-                data = pp_data[v].sel(**indexers)
-                # Sum leftover dims, stack chain+draw if needed
-                data = self._reduce_and_stack(data, ignored_dims)
-                ax = self._add_median_and_hdi(ax, data, v, hdi_prob=hdi_prob)
-
-            # 7. Subplot title & labels
-            title = self._build_subplot_title(
-                dims=additional_dims,
-                combo=combo,
-                fallback_title="Posterior Predictive Time Series",
-            )
-            ax.set_title(title)
-            ax.set_xlabel("Date")
-            ax.set_ylabel("Posterior Predictive")
-            ax.legend(loc="best")
-
-        return fig, axes
-
-    def temp_contributions_over_time(
+    def contributions_over_time(
         self,
         var: list[str],
         hdi_prob: float = 0.85,
         dims: dict[str, str | int | list] | None = None,
         backend: str | None = None,
-        return_as_pc: bool = False,
-    ) -> tuple[Figure, list[Axes] | None] | PlotCollection:
+    ) -> PlotCollection:
         """Plot the time-series contributions for each variable in `var`.
 
         showing the median and the credible interval (default 85%).
@@ -638,18 +497,10 @@ class MMMPlotSuite:
             Plotting backend to use. Options: "matplotlib", "plotly", "bokeh".
             If None, uses global config via mmm_config["plot.backend"].
             Default (via config) is "matplotlib".
-        return_as_pc : bool, default False
-            If True, returns PlotCollection object.
-            If False, returns tuple (figure, axes) for backward compatibility.
 
         Returns
         -------
-        PlotCollection or tuple
-            If return_as_pc=True, returns PlotCollection object.
-            If return_as_pc=False, returns (figure, axes) where:
-            - figure: backend-specific figure object (matplotlib.figure.Figure,
-            plotly.graph_objs.Figure, or bokeh.plotting.Figure)
-            - axes: list of matplotlib Axes if backend="matplotlib", else None
+        PlotCollection
 
         Raises
         ------
@@ -671,7 +522,7 @@ class MMMPlotSuite:
         main_var = var[0]
         ignored_dims = {"chain", "draw", "date"}
         da = self.idata.posterior[var]
-        additional_dims, dim_combinations = self._get_additional_dim_combinations(
+        additional_dims, _ = self._get_additional_dim_combinations(
             data=da, variable=main_var, ignored_dims=ignored_dims
         )
 
@@ -681,7 +532,6 @@ class MMMPlotSuite:
             cols=additional_dims,
             col_wrap=1,
             figure_kwargs={
-                "figsize": (WIDTH_PER_COL, HEIGHT_PER_ROW * len(dim_combinations)),
                 "sharex": True,
             },
             backend=backend,
@@ -715,141 +565,14 @@ class MMMPlotSuite:
             labeller=mix_labellers((NoVarLabeller, DimCoordLabeller))(),
         )
 
-        return MMMPlotSuite._return_pc_or_fig_axes(pc, return_as_pc, backend=backend)
+        return pc
 
-    def contributions_over_time(
-        self,
-        var: list[str],
-        hdi_prob: float = 0.85,
-        dims: dict[str, str | int | list] | None = None,
-    ) -> tuple[Figure, NDArray[Axes]]:
-        """Plot the time-series contributions for each variable in `var`.
-
-        showing the median and the credible interval (default 85%).
-        Creates one subplot per combination of non-(chain/draw/date) dimensions
-        and places all variables on the same subplot.
-
-        Parameters
-        ----------
-        var : list of str
-            A list of variable names to plot from the posterior.
-        hdi_prob: float, optional
-            The probability mass of the highest density interval to be displayed. Default is 0.85.
-        dims : dict[str, str | int | list], optional
-            Dimension filters to apply. Example: {"country": ["US", "UK"], "user_type": "new"}.
-            If provided, only the selected slice(s) will be plotted.
-
-        Returns
-        -------
-        fig : matplotlib.figure.Figure
-            The Figure object containing the subplots.
-        axes : np.ndarray of matplotlib.axes.Axes
-            Array of Axes objects corresponding to each subplot row.
-
-        Raises
-        ------
-        ValueError
-            If `hdi_prob` is not between 0 and 1, instructing the user to provide a valid value.
-        """
-        if not 0 < hdi_prob < 1:
-            raise ValueError("HDI probability must be between 0 and 1.")
-
-        if not hasattr(self.idata, "posterior"):
-            raise ValueError(
-                "No posterior data found in 'self.idata'. "
-                "Please ensure 'self.idata' contains a 'posterior' group."
-            )
-
-        main_var = var[0]
-        all_dims = list(self.idata.posterior[main_var].dims)  # type: ignore
-        ignored_dims = {"chain", "draw", "date"}
-        additional_dims = [d for d in all_dims if d not in ignored_dims]
-
-        coords = {
-            key: value.to_numpy()
-            for key, value in self.idata.posterior[var].coords.items()
-        }
-
-        # Apply user-specified filters (`dims`)
-        if dims:
-            self._validate_dims(dims=dims, all_dims=all_dims)
-            # Remove filtered dims from the combinations
-            additional_dims = [d for d in additional_dims if d not in dims]
-        else:
-            self._validate_dims({}, all_dims)
-            # additional_dims = [d for d in additional_dims if d not in dims]
-
-        # Identify combos for remaining dims
-        if additional_dims:
-            additional_coords = [
-                self.idata.posterior.coords[dim].values  # type: ignore
-                for dim in additional_dims
-            ]
-            dim_combinations = list(itertools.product(*additional_coords))
-        else:
-            dim_combinations = [()]
-
-        # If dims contains lists, build all combinations for those as well
-        dims_keys, dims_combos = self._dim_list_handler(dims)
-
-        # Prepare subplots: one for each combo of dims_lists and additional_dims
-        total_combos = list(itertools.product(dims_combos, dim_combinations))
-        fig, axes = self._init_subplots(len(total_combos), ncols=1)
-
-        for row_idx, (dims_combo, addl_combo) in enumerate(total_combos):
-            ax = axes[row_idx][0]
-            # Build indexers for dims and additional_dims
-            indexers = (
-                dict(zip(additional_dims, addl_combo, strict=False))
-                if additional_dims
-                else {}
-            )
-            if dims:
-                # For dims with lists, use the current value from dims_combo
-                for i, k in enumerate(dims_keys):
-                    indexers[k] = dims_combo[i]
-                # For dims with single values, use as is
-                for k, v in (dims or {}).items():
-                    if k not in dims_keys:
-                        indexers[k] = v
-
-            # Plot posterior median and HDI for each var
-            for v in var:
-                data = self.idata.posterior[v]
-                missing_coords = {
-                    key: value for key, value in coords.items() if key not in data.dims
-                }
-                data = data.expand_dims(**missing_coords)
-                data = data.sel(**indexers)  # apply slice
-                data = self._reduce_and_stack(
-                    data, dims_to_ignore={"date", "chain", "draw", "sample"}
-                )
-                ax = self._add_median_and_hdi(ax, data, v, hdi_prob=hdi_prob)
-
-            # Title includes both fixed and combo dims
-            title_dims = (
-                list(dims.keys()) + additional_dims if dims else additional_dims
-            )
-            title_combo = tuple(indexers[k] for k in title_dims)
-
-            title = self._build_subplot_title(
-                dims=title_dims, combo=title_combo, fallback_title="Time Series"
-            )
-            ax.set_title(title)
-            ax.set_xlabel("Date")
-            ax.set_ylabel("Posterior Value")
-            ax.legend(loc="best")
-
-        return fig, axes
-
-    def temp_saturation_scatterplot(
+    def saturation_scatterplot(
         self,
         original_scale: bool = False,
         dims: dict[str, str | int | list] | None = None,
         backend: str | None = None,
-        return_as_pc: bool = False,
-        **kwargs,
-    ) -> tuple[Figure, list[Axes] | None] | PlotCollection:
+    ) -> PlotCollection:
         """Plot the saturation curves for each channel.
 
         Creates a grid of subplots for each combination of channel and non-(date/channel) dimensions.
@@ -867,18 +590,10 @@ class MMMPlotSuite:
             Plotting backend to use. Options: "matplotlib", "plotly", "bokeh".
             If None, uses global config via mmm_config["plot.backend"].
             Default (via config) is "matplotlib".
-        return_as_pc: bool, optional
-            If True, returns PlotCollection object.
-            If False, returns tuple (figure, axes) for backward compatibility.
 
         Returns
         -------
-        PlotCollection or tuple
-            If return_as_pc=True, returns PlotCollection object.
-            If return_as_pc=False, returns (figure, axes) where:
-            - figure: backend-specific figure object (matplotlib.figure.Figure,
-            plotly.graph_objs.Figure, or bokeh.plotting.Figure)
-            - axes: list of matplotlib Axes if backend="matplotlib", else None
+        PlotCollection
         """
         # Resolve backend
         backend = self._resolve_backend(backend)
@@ -926,7 +641,6 @@ class MMMPlotSuite:
             cols=additional_dims,
             rows=["channel"],
             aes={"color": ["channel"]},
-            figure_kwargs={"figsize": (14, 2 * 4)},
             backend=backend,
         )
         pc.map(
@@ -944,161 +658,7 @@ class MMMPlotSuite:
             ignore_aes={"color"},
         )
 
-        return MMMPlotSuite._return_pc_or_fig_axes(pc, return_as_pc, backend=backend)
-
-    def saturation_scatterplot(
-        self,
-        original_scale: bool = False,
-        dims: dict[str, str | int | list] | None = None,
-        **kwargs,
-    ) -> tuple[Figure, NDArray[Axes]]:
-        """Plot the saturation curves for each channel.
-
-        Creates a grid of subplots for each combination of channel and non-(date/channel) dimensions.
-        Optionally, subset by dims (single values or lists).
-        Each channel will have a consistent color across all subplots.
-        """
-        if not hasattr(self.idata, "constant_data"):
-            raise ValueError(
-                "No 'constant_data' found in 'self.idata'. "
-                "Please ensure 'self.idata' contains the constant_data group."
-            )
-
-        # Identify additional dimensions beyond 'date' and 'channel'
-        cdims = self.idata.constant_data.channel_data.dims
-        additional_dims = [dim for dim in cdims if dim not in ("date", "channel")]
-
-        # Validate dims and remove filtered dims from additional_dims
-        if dims:
-            self._validate_dims(dims, list(self.idata.constant_data.channel_data.dims))
-            additional_dims = [d for d in additional_dims if d not in dims]
-        else:
-            self._validate_dims({}, list(self.idata.constant_data.channel_data.dims))
-
-        # Build all combinations for dims with lists
-        dims_keys, dims_combos = self._dim_list_handler(dims)
-
-        # Build all combinations for remaining dims
-        if additional_dims:
-            additional_coords = [
-                self.idata.constant_data.coords[d].values for d in additional_dims
-            ]
-            additional_combinations = list(itertools.product(*additional_coords))
-        else:
-            additional_combinations = [()]
-
-        channels = self.idata.constant_data.coords["channel"].values
-        n_channels = len(channels)
-        n_addl = len(additional_combinations)
-        n_dims = len(dims_combos)
-
-        # For most use cases, n_dims will be 1, so grid is channels x additional_combinations
-        # If dims_combos > 1, treat as extra axis (rare, but possible)
-        nrows = n_channels
-        ncols = n_addl * n_dims
-        total_combos = list(
-            itertools.product(channels, dims_combos, additional_combinations)
-        )
-        n_subplots = len(total_combos)
-
-        # Assign a color to each channel
-        channel_colors = {ch: f"C{i}" for i, ch in enumerate(channels)}
-
-        # Prepare subplots as a grid
-        fig, axes = plt.subplots(
-            nrows=nrows,
-            ncols=ncols,
-            figsize=(
-                kwargs.get("width_per_col", 8) * ncols,
-                kwargs.get("height_per_row", 4) * nrows,
-            ),
-            squeeze=False,
-        )
-
-        channel_contribution = (
-            "channel_contribution_original_scale"
-            if original_scale
-            else "channel_contribution"
-        )
-
-        if original_scale and not hasattr(self.idata.posterior, channel_contribution):
-            raise ValueError(
-                f"""No posterior.{channel_contribution} data found in 'self.idata'. \n
-                Add a original scale deterministic:\n
-                mmm.add_original_scale_contribution_variable(\n
-                var=[\n
-                \"channel_contribution\",\n
-                ...\n
-                ]\n
-                )\n
-                """
-            )
-
-        for _idx, (channel, dims_combo, addl_combo) in enumerate(total_combos):
-            # Compute subplot position
-            row = list(channels).index(channel)
-            # If dims_combos > 1, treat as extra axis (columns: addl * dims)
-            if n_dims > 1:
-                col = list(additional_combinations).index(addl_combo) * n_dims + list(
-                    dims_combos
-                ).index(dims_combo)
-            else:
-                col = list(additional_combinations).index(addl_combo)
-            ax = axes[row][col]
-
-            # Build indexers for dims and additional_dims
-            indexers = (
-                dict(zip(additional_dims, addl_combo, strict=False))
-                if additional_dims
-                else {}
-            )
-            if dims:
-                for i, k in enumerate(dims_keys):
-                    indexers[k] = dims_combo[i]
-                for k, v in (dims or {}).items():
-                    if k not in dims_keys:
-                        indexers[k] = v
-            indexers["channel"] = channel
-
-            # Select X data (constant_data)
-            x_data = self.idata.constant_data.channel_data.sel(**indexers)
-            # Select Y data (posterior contributions) and scale if needed
-            y_data = self.idata.posterior[channel_contribution].sel(**indexers)
-            y_data = y_data.mean(dim=[d for d in y_data.dims if d in ("chain", "draw")])
-            x_data = x_data.broadcast_like(y_data)
-            y_data = y_data.broadcast_like(x_data)
-            ax.scatter(
-                x_data.values.flatten(),
-                y_data.values.flatten(),
-                alpha=0.8,
-                color=channel_colors[channel],
-                label=str(channel),
-            )
-            # Build subplot title
-            title_dims = (
-                ["channel"] + (list(dims.keys()) if dims else []) + additional_dims
-            )
-            title_combo = (
-                channel,
-                *[indexers[k] for k in title_dims if k != "channel"],
-            )
-            title = self._build_subplot_title(
-                dims=title_dims,
-                combo=title_combo,
-                fallback_title="Channel Saturation Curve",
-            )
-            ax.set_title(title)
-            ax.set_xlabel("Channel Data (X)")
-            ax.set_ylabel("Channel Contributions (Y)")
-            ax.legend(loc="best")
-
-        # Hide any unused axes (if grid is larger than needed)
-        for i in range(nrows):
-            for j in range(ncols):
-                if i * ncols + j >= n_subplots:
-                    axes[i][j].set_visible(False)
-
-        return fig, axes
+        return pc
 
     def saturation_curves(
         self,
@@ -1107,12 +667,9 @@ class MMMPlotSuite:
         n_samples: int = 10,
         hdi_probs: float | list[float] | None = None,
         random_seed: np.random.Generator | None = None,
-        colors: Iterable[str] | None = None,
-        subplot_kwargs: dict | None = None,
-        rc_params: dict | None = None,
         dims: dict[str, str | int | list] | None = None,
-        **plot_kwargs,
-    ) -> tuple[plt.Figure, np.ndarray]:
+        backend: str | None = None,
+    ) -> PlotCollection:
         """
         Overlay saturation‑curve scatter‑plots with posterior‑predictive sample curves and HDI bands.
 
@@ -1131,32 +688,26 @@ class MMMPlotSuite:
             If None, uses ArviZ's default (0.94).
         random_seed : np.random.Generator, optional
             RNG for reproducible sampling. If None, uses `np.random.default_rng()`.
-        colors : iterable of str, optional
-            Colors for the sample & HDI plots.
-        subplot_kwargs : dict, optional
-            Passed to `plt.subplots` (e.g. `{"figsize": (10,8)}`).
-            Merged with the function's own default sizing.
-        rc_params : dict, optional
-            Temporary `matplotlib.rcParams` for this plot.
-            Example keys: `"xtick.labelsize"`, `"ytick.labelsize"`,
-            `"axes.labelsize"`, `"axes.titlesize"`.
         dims : dict[str, str | int | list], optional
             Dimension filters to apply. Example: {"country": ["US", "UK"], "region": "X"}.
             If provided, only the selected slice(s) will be plotted.
-        **plot_kwargs
-            Any other kwargs forwarded to `plot_curve`
-            (for instance `same_axes=True`, `legend=True`, etc.).
+        backend: str, optional
+            Plotting backend to use. Options: "matplotlib", "plotly", "bokeh".
+            If None, uses global config via mmm_config["plot.backend"].
+            Default (via config) is "matplotlib".
 
         Returns
         -------
-        fig : plt.Figure
-            Matplotlib figure with your grid.
-        axes : np.ndarray of plt.Axes
-            Array of shape `(n_channels, n_geo)`.
+        PlotCollection
 
+        Example use:
+        >>> curve = model.saturation.sample_curve(
+        >>>     model.idata.posterior[["saturation_beta", "saturation_lam"]], max_value=2
+        >>> )
+        >>> pc = model.plot.saturation_curves(curve, original_scale=True, n_samples=10,
+        >>>     hdi_probs=[0.9, 0.7], random_seed=rng)
+        >>> pc.show()
         """
-        from pymc_marketing.plot import plot_hdi, plot_samples
-
         if not hasattr(self.idata, "constant_data"):
             raise ValueError(
                 "No 'constant_data' found in 'self.idata'. "
@@ -1181,9 +732,11 @@ class MMMPlotSuite:
                 "    )\n"
                 """
             )
-        curve_data = (
-            curve * self.idata.constant_data.target_scale if original_scale else curve
-        )
+        if original_scale:
+            curve_data = curve * self.idata.constant_data.target_scale
+            curve_data["x"] = curve_data["x"] * self.idata.constant_data.channel_scale
+        else:
+            curve_data = curve
         curve_data = curve_data.rename("saturation_curve")
 
         # — 1. figure out grid shape based on scatter data dimensions / identify dims and combos
@@ -1196,167 +749,54 @@ class MMMPlotSuite:
             additional_dims = [d for d in additional_dims if d not in dims]
         else:
             self._validate_dims({}, all_dims)
-        # Build all combinations for dims with lists
-        dims_keys, dims_combos = self._dim_list_handler(dims)
-        # Build all combinations for remaining dims
-        if additional_dims:
-            additional_coords = [
-                self.idata.constant_data.coords[d].values for d in additional_dims
-            ]
-            additional_combinations = list(itertools.product(*additional_coords))
-        else:
-            additional_combinations = [()]
-        channels = self.idata.constant_data.coords["channel"].values
-        n_channels = len(channels)
-        n_addl = len(additional_combinations)
-        n_dims = len(dims_combos)
-        nrows = n_channels
-        ncols = n_addl * n_dims
-        total_combos = list(
-            itertools.product(channels, dims_combos, additional_combinations)
+
+        # create the saturation scatterplot
+        pc = self.saturation_scatterplot(
+            original_scale=original_scale, dims=dims, backend=backend
         )
-        n_subplots = len(total_combos)
 
-        # — 2. merge subplot_kwargs —
-        user_subplot = subplot_kwargs or {}
+        # add the hdi bands
+        if hdi_probs is not None:
+            # Robustly handle hdi_probs as float, list, tuple, or np.ndarray
+            if isinstance(hdi_probs, (float, int)):
+                hdi_probs_iter = [hdi_probs]
+            elif isinstance(hdi_probs, (list, tuple, np.ndarray)):
+                hdi_probs_iter = hdi_probs
+            else:
+                raise TypeError("hdi_probs must be a float, list, tuple, or np.ndarray")
+            for hdi_prob in hdi_probs_iter:
+                hdi = curve_data.azstats.hdi(hdi_prob)
+                pc.map(
+                    azp.visuals.fill_between_y,
+                    x=curve_data["x"],
+                    y_bottom=hdi.sel(ci_bound="lower"),
+                    y_top=hdi.sel(ci_bound="upper"),
+                    alpha=0.2,
+                )
 
-        # Handle user-specified ncols/nrows
-        if "ncols" in user_subplot:
-            # User specified ncols, calculate nrows
-            ncols = user_subplot["ncols"]
-            nrows = int(np.ceil(n_subplots / ncols))
-            user_subplot.pop("ncols")  # Remove to avoid conflict
-        elif "nrows" in user_subplot:
-            # User specified nrows, calculate ncols
-            nrows = user_subplot["nrows"]
-            ncols = int(np.ceil(n_subplots / nrows))
-            user_subplot.pop("nrows")  # Remove to avoid conflict
-        default_subplot = {"figsize": (ncols * 4, nrows * 3)}
-        subkw = {**default_subplot, **user_subplot}
-        # — 3. create subplots ourselves —
-        rc_params = rc_params or {}
-        with plt.rc_context(rc_params):
-            fig, axes = plt.subplots(nrows=nrows, ncols=ncols, **subkw)
-        # ensure a 2D array
-        if nrows == 1 and ncols == 1:
-            axes = np.array([[axes]])
-        elif nrows == 1:
-            axes = axes.reshape(1, -1)
-        elif ncols == 1:
-            axes = axes.reshape(-1, 1)
-        # Flatten axes for easier iteration
-        axes_flat = axes.flatten()
-        if colors is None:
-            colors = [f"C{i}" for i in range(n_channels)]
-        elif not isinstance(colors, list):
-            colors = list(colors)
-        subplot_idx = 0
-        for _idx, (ch, dims_combo, addl_combo) in enumerate(total_combos):
-            if subplot_idx >= len(axes_flat):
-                break
-            ax = axes_flat[subplot_idx]
-            subplot_idx += 1
-            # Build indexers for dims and additional_dims
-            indexers = (
-                dict(zip(additional_dims, addl_combo, strict=False))
-                if additional_dims
-                else {}
+        if n_samples > 0:
+            ##  sample the curves
+            rng = np.random.default_rng(random_seed)
+
+            # Stack the two dimensions
+            stacked = curve_data.stack(sample=("chain", "draw"))
+
+            # Sample from the stacked dimension
+            idx = rng.choice(stacked.sizes["sample"], size=n_samples, replace=False)
+
+            # Select and unstack
+            sampled_curves = stacked.isel(sample=idx)
+
+            # plot the sampled curves
+            pc.map(
+                azp.visuals.multiple_lines, x_dim="x", data=sampled_curves, alpha=0.2
             )
-            if dims:
-                for i, k in enumerate(dims_keys):
-                    indexers[k] = dims_combo[i]
-                for k, v in (dims or {}).items():
-                    if k not in dims_keys:
-                        indexers[k] = v
-            indexers["channel"] = ch
-            # Select and broadcast curve data for this channel
-            curve_idx = {
-                dim: val for dim, val in indexers.items() if dim in curve_data.dims
-            }
-            subplot_curve = curve_data.sel(**curve_idx)
-            if original_scale:
-                valid_idx = {
-                    k: v
-                    for k, v in indexers.items()
-                    if k in self.idata.constant_data.channel_scale.dims
-                }
-                channel_scale = self.idata.constant_data.channel_scale.sel(**valid_idx)
-                x_original = subplot_curve.coords["x"] * channel_scale
-                subplot_curve = subplot_curve.assign_coords(x=x_original)
-            if n_samples > 0:
-                plot_samples(
-                    subplot_curve,
-                    non_grid_names="x",
-                    n=n_samples,
-                    rng=random_seed,
-                    axes=np.array([[ax]]),
-                    colors=[colors[list(channels).index(ch)]],
-                    same_axes=False,
-                    legend=False,
-                    **plot_kwargs,
-                )
-            if hdi_probs is not None:
-                # Robustly handle hdi_probs as float, list, tuple, or np.ndarray
-                if isinstance(hdi_probs, (float, int)):
-                    hdi_probs_iter = [hdi_probs]
-                elif isinstance(hdi_probs, (list, tuple, np.ndarray)):
-                    hdi_probs_iter = hdi_probs
-                else:
-                    raise TypeError(
-                        "hdi_probs must be a float, list, tuple, or np.ndarray"
-                    )
-                for hdi_prob in hdi_probs_iter:
-                    plot_hdi(
-                        subplot_curve,
-                        non_grid_names="x",
-                        hdi_prob=hdi_prob,
-                        axes=np.array([[ax]]),
-                        colors=[colors[list(channels).index(ch)]],
-                        same_axes=False,
-                        legend=False,
-                        **plot_kwargs,
-                    )
-            x_data = self.idata.constant_data.channel_data.sel(**indexers)
-            y = (
-                self.idata.posterior[contrib_var]
-                .sel(**indexers)
-                .mean(
-                    dim=[
-                        d
-                        for d in self.idata.posterior[contrib_var].dims
-                        if d in ("chain", "draw")
-                    ]
-                )
-            )
-            x_data, y = x_data.broadcast_like(y), y.broadcast_like(x_data)
-            ax.scatter(
-                x_data.values.flatten(),
-                y.values.flatten(),
-                alpha=0.8,
-                color=colors[list(channels).index(ch)],
-            )
-            title_dims = (
-                ["channel"] + (list(dims.keys()) if dims else []) + additional_dims
-            )
-            title_combo = (
-                ch,
-                *[indexers[k] for k in title_dims if k != "channel"],
-            )
-            title = self._build_subplot_title(
-                dims=title_dims,
-                combo=title_combo,
-                fallback_title="Channel Saturation Curves",
-            )
-            ax.set_title(title)
-            ax.set_xlabel("Channel Data (X)")
-            ax.set_ylabel("Channel Contribution (Y)")
-        for ax_idx in range(subplot_idx, len(axes_flat)):
-            axes_flat[ax_idx].set_visible(False)
-        return fig, axes
+
+        return pc
 
     def saturation_curves_scatter(
         self, original_scale: bool = False, **kwargs
-    ) -> tuple[Figure, NDArray[Axes]]:
+    ) -> PlotCollection:
         """
         Plot scatter plots of channel contributions vs. channel data.
 
@@ -1376,10 +816,7 @@ class MMMPlotSuite:
 
         Returns
         -------
-        fig : plt.Figure
-            The matplotlib figure.
-        axes : np.ndarray
-            Array of matplotlib axes.
+        PlotCollection
         """
         import warnings
 
@@ -1393,47 +830,36 @@ class MMMPlotSuite:
         # are not used by saturation_scatterplot, so we don't pass them
         return self.saturation_scatterplot(original_scale=original_scale, **kwargs)
 
-    def budget_allocation(
+    def budget_allocation_roas(
         self,
         samples: xr.Dataset,
-        scale_factor: float | None = None,
-        figsize: tuple[float, float] = (12, 6),
-        ax: plt.Axes | None = None,
-        original_scale: bool = True,
         dims: dict[str, str | int | list] | None = None,
-    ) -> tuple[Figure, plt.Axes] | tuple[Figure, np.ndarray]:
-        """Plot the budget allocation and channel contributions.
-
-        Creates a bar chart comparing allocated spend and channel contributions
-        for each channel. If additional dimensions besides 'channel' are present,
-        creates a subplot for each combination of these dimensions.
+        dims_to_group_by: list[str] | str | None = None,
+        backend: str | None = None,
+    ) -> PlotCollection:
+        """Plot the ROI distribution of a given a response distribution and a budget allocation.
 
         Parameters
         ----------
         samples : xr.Dataset
             The dataset containing the channel contributions and allocation values.
             Expected to have 'channel_contribution' and 'allocation' variables.
-        scale_factor : float, optional
-            Scale factor to convert to original scale, if original_scale=True.
-            If None and original_scale=True, assumes scale_factor=1.
-        figsize : tuple[float, float], optional
-            The size of the figure to be created. Default is (12, 6).
-        ax : plt.Axes, optional
-            The axis to plot on. If None, a new figure and axis will be created.
-            Only used when no extra dimensions are present.
-        original_scale : bool, optional
-            A boolean flag to determine if the values should be plotted in their
-            original scale. Default is True.
         dims : dict[str, str | int | list], optional
             Dimension filters to apply. Example: {"country": ["US", "UK"], "user_type": "new"}.
             If provided, only the selected slice(s) will be plotted.
+        dims_to_group_by : list[str] | str | None, optional
+            Dimension(s) to group by for plotting purposes.
+            When a dimension is specified, all the ROAs distributions for each coordinate of that dimension will be
+            plotted together in a single plot. This is useful for comparing the ROAs distributions.
+            If None, will not group by any dimensions (i.e. each distribution will be plotted separately).
+            If a single string, will group by that dimension.
+            If a list of strings, will group by each of those dimensions.
+        backend : str | None, optional
+            Backend to use for plotting. If None, will use the global backend configuration.
 
         Returns
         -------
-        fig : matplotlib.figure.Figure
-            The Figure object containing the plot.
-        axes : matplotlib.axes.Axes or numpy.ndarray of matplotlib.axes.Axes
-            The Axes object with the plot, or array of Axes for multiple subplots.
+        PlotCollection
         """
         # Get the channels from samples
         if "channel" not in samples.dims:
@@ -1442,11 +868,9 @@ class MMMPlotSuite:
             )
 
         # Check for required variables in samples
-        if not any(
-            "channel_contribution" in var_name for var_name in samples.data_vars
-        ):
+        if "channel_contribution_original_scale" not in samples.data_vars:
             raise ValueError(
-                "Expected a variable containing 'channel_contribution' in samples, but none found."
+                "Expected a variable containing 'channel_contribution_original_scale' in samples, but none found."
             )
         if "allocation" not in samples:
             raise ValueError(
@@ -1454,11 +878,7 @@ class MMMPlotSuite:
             )
 
         # Find the variable containing 'channel_contribution' in its name
-        channel_contrib_var = next(
-            var_name
-            for var_name in samples.data_vars
-            if "channel_contribution" in var_name
-        )
+        channel_contrib_var = "channel_contribution_original_scale"
 
         all_dims = list(samples.dims)
         # Validate dims
@@ -1467,184 +887,54 @@ class MMMPlotSuite:
         else:
             self._validate_dims({}, all_dims)
 
-        # Handle list-valued dims: build all combinations
-        dims_keys, dims_combos = self._dim_list_handler(dims)
+        channel_contribution = samples[channel_contrib_var].sum(dim="date")
+        channel_contribution.name = "channel_contribution"
 
-        # After filtering with dims, only use extra dims not in dims and not ignored for subplotting
-        ignored_dims = {"channel", "date", "sample", "chain", "draw"}
-        channel_contribution_dims = list(samples[channel_contrib_var].dims)
-        extra_dims = [
-            d
-            for d in channel_contribution_dims
-            if d not in ignored_dims and d not in (dims or {})
-        ]
+        from arviz_base import convert_to_datatree
 
-        # Identify combos for remaining dims
-        if extra_dims:
-            extra_coords = [samples.coords[dim].values for dim in extra_dims]
-            extra_combos = list(itertools.product(*extra_coords))
+        roa_da = channel_contribution / samples.allocation
+        roa_dt = convert_to_datatree(roa_da)
+        if isinstance(dims_to_group_by, str):
+            dims_to_group_by = [dims_to_group_by]
+        if dims_to_group_by:
+            grouped = {"all": roa_dt.copy()}
+            for dim in dims_to_group_by:
+                new_grouped = {}
+                for curr_k, curr_group in grouped.items():
+                    curr_coords = curr_group.posterior.coords[dim].values
+                    new_grouped.update(
+                        {
+                            f"{curr_k}, {dim}: {key}": curr_group.sel({dim: key})
+                            for key in curr_coords
+                        }
+                    )
+                grouped = new_grouped
+
+            grouped_roa_dt = {}
+            for k, v in grouped.items():
+                grouped_roa_dt[k[5:]] = v
         else:
-            extra_combos = [()]
+            grouped_roa_dt = roa_dt
 
-        # Prepare subplots: one for each combo of dims_lists and extra_dims
-        total_combos = list(itertools.product(dims_combos, extra_combos))
-        n_subplots = len(total_combos)
-        if n_subplots == 1 and ax is not None:
-            axes = np.array([[ax]])
-            fig = ax.get_figure()
-        else:
-            fig, axes = self._init_subplots(
-                n_subplots=n_subplots,
-                ncols=1,
-                width_per_col=figsize[0],
-                height_per_row=figsize[1],
-            )
-
-        for row_idx, (dims_combo, extra_combo) in enumerate(total_combos):
-            ax_ = axes[row_idx][0]
-            # Build indexers for dims and extra_dims
-            indexers = (
-                dict(zip(extra_dims, extra_combo, strict=False)) if extra_dims else {}
-            )
-            if dims:
-                # For dims with lists, use the current value from dims_combo
-                for i, k in enumerate(dims_keys):
-                    indexers[k] = dims_combo[i]
-                # For dims with single values, use as is
-                for k, v in (dims or {}).items():
-                    if k not in dims_keys:
-                        indexers[k] = v
-
-            # Select channel contributions for this subplot
-            channel_contrib_data = samples[channel_contrib_var].sel(**indexers)
-            allocation_data = samples.allocation
-            # Only select dims that exist in allocation
-            allocation_indexers = {
-                k: v for k, v in indexers.items() if k in allocation_data.dims
-            }
-            allocation_data = allocation_data.sel(**allocation_indexers)
-
-            # Average over all dims except channel (and those used for this subplot)
-            used_dims = set(indexers.keys()) | {"channel"}
-            reduction_dims = [
-                dim for dim in channel_contrib_data.dims if dim not in used_dims
-            ]
-            channel_contribution = channel_contrib_data.mean(
-                dim=reduction_dims
-            ).to_numpy()
-            if channel_contribution.ndim > 1:
-                channel_contribution = channel_contribution.flatten()
-            if original_scale and scale_factor is not None:
-                channel_contribution *= scale_factor
-
-            allocation_used_dims = set(allocation_indexers.keys()) | {"channel"}
-            allocation_reduction_dims = [
-                dim for dim in allocation_data.dims if dim not in allocation_used_dims
-            ]
-            if allocation_reduction_dims:
-                allocated_spend = allocation_data.mean(
-                    dim=allocation_reduction_dims
-                ).to_numpy()
-            else:
-                allocated_spend = allocation_data.to_numpy()
-            if allocated_spend.ndim > 1:
-                allocated_spend = allocated_spend.flatten()
-
-            self._plot_budget_allocation_bars(
-                ax_,
-                samples.coords["channel"].values,
-                allocated_spend,
-                channel_contribution,
-            )
-
-            # Build subplot title
-            title_dims = (list(dims.keys()) if dims else []) + extra_dims
-            title_combo = tuple(indexers[k] for k in title_dims)
-            title = self._build_subplot_title(
-                dims=title_dims,
-                combo=title_combo,
-                fallback_title="Budget Allocation",
-            )
-            ax_.set_title(title)
-
-        fig.tight_layout()
-        return fig, axes if n_subplots > 1 else (fig, axes[0][0])
-
-    def _plot_budget_allocation_bars(
-        self,
-        ax: plt.Axes,
-        channels: NDArray,
-        allocated_spend: NDArray,
-        channel_contribution: NDArray,
-    ) -> None:
-        """Plot budget allocation bars on a given axis.
-
-        Parameters
-        ----------
-        ax : plt.Axes
-            The axis to plot on.
-        channels : NDArray
-            Array of channel names.
-        allocated_spend : NDArray
-            Array of allocated spend values.
-        channel_contribution : NDArray
-            Array of channel contribution values.
-        """
-        bar_width = 0.35
-        opacity = 0.7
-        index = range(len(channels))
-
-        # Plot allocated spend
-        bars1 = ax.bar(
-            index,
-            allocated_spend,
-            bar_width,
-            color="C0",
-            alpha=opacity,
-            label="Allocated Spend",
+        pc = azp.plot_dist(
+            grouped_roa_dt,
+            kind="kde",
+            sample_dims=["sample"],
+            backend=backend,
+            labeller=mix_labellers((NoVarLabeller, DimCoordLabeller))(),
         )
 
-        # Create twin axis for contributions
-        ax2 = ax.twinx()
+        if dims_to_group_by:
+            pc.add_legend(dim="model", title="")
 
-        # Plot contributions
-        bars2 = ax2.bar(
-            [i + bar_width for i in index],
-            channel_contribution,
-            bar_width,
-            color="C1",
-            alpha=opacity,
-            label="Channel Contribution",
-        )
-
-        # Labels and formatting
-        ax.set_xlabel("Channels")
-        ax.set_ylabel("Allocated Spend", color="C0", labelpad=10)
-        ax2.set_ylabel("Channel Contributions", color="C1", labelpad=10)
-
-        # Set x-ticks in the middle of the bars
-        ax.set_xticks([i + bar_width / 2 for i in index])
-        ax.set_xticklabels(channels)
-        ax.tick_params(axis="x", rotation=90)
-
-        # Turn off grid and add legend
-        ax.grid(False)
-        ax2.grid(False)
-
-        bars = [bars1, bars2]
-        labels = ["Allocated Spend", "Channel Contributions"]
-        ax.legend(bars, labels, loc="best")
+        return pc
 
     def allocated_contribution_by_channel_over_time(
         self,
         samples: xr.Dataset,
-        scale_factor: float | None = None,
-        lower_quantile: float = 0.025,
-        upper_quantile: float = 0.975,
-        original_scale: bool = True,
-        figsize: tuple[float, float] = (10, 6),
-        ax: plt.Axes | None = None,
-    ) -> tuple[Figure, plt.Axes | NDArray[Axes]]:
+        hdi_prob: float = 0.85,
+        backend: str | None = None,
+    ) -> PlotCollection:
         """Plot the allocated contribution by channel with uncertainty intervals.
 
         This function visualizes the mean allocated contributions by channel along with
@@ -1658,27 +948,14 @@ class MMMPlotSuite:
             The dataset containing the samples of channel contributions.
             Expected to have 'channel_contribution' variable with dimensions
             'channel', 'date', and 'sample'.
-        scale_factor : float, optional
-            Scale factor to convert to original scale, if original_scale=True.
-            If None and original_scale=True, assumes scale_factor=1.
-        lower_quantile : float, optional
-            The lower quantile for the uncertainty interval. Default is 0.025.
-        upper_quantile : float, optional
-            The upper quantile for the uncertainty interval. Default is 0.975.
-        original_scale : bool, optional
-            If True, the contributions are plotted on the original scale. Default is True.
-        figsize : tuple[float, float], optional
-            The size of the figure to be created. Default is (10, 6).
-        ax : plt.Axes, optional
-            The axis to plot on. If None, a new figure and axis will be created.
-            Only used when no extra dimensions are present.
+        hdi_prob : float, optional
+            The probability mass of the highest density interval to be displayed. Default is 0.85.
+        backend : str | None, optional
+            Backend to use for plotting. If None, will use the global backend configuration.
 
         Returns
         -------
-        fig : matplotlib.figure.Figure
-            The Figure object containing the plot.
-        axes : matplotlib.axes.Axes or numpy.ndarray of matplotlib.axes.Axes
-            The Axes object with the plot, or array of Axes for multiple subplots.
+        PlotCollection
         """
         # Check for expected dimensions and variables
         if "channel" not in samples.dims:
@@ -1713,193 +990,70 @@ class MMMPlotSuite:
         ignored_dims = {"channel", "date", "sample"}
         extra_dims = [dim for dim in all_dims if dim not in ignored_dims]
 
-        # If no extra dimensions or using provided axis, create a single plot
-        if not extra_dims or ax is not None:
-            if ax is None:
-                fig, ax = plt.subplots(figsize=figsize)
-            else:
-                fig = ax.get_figure()
+        pc = azp.PlotCollection.wrap(
+            samples[channel_contrib_var].to_dataset(),
+            cols=extra_dims,
+            aes={"color": ["channel"]},
+            col_wrap=1,
+            figure_kwargs={
+                "sharex": True,
+            },
+            backend=backend,
+        )
 
-            channel_contribution = samples[channel_contrib_var]
+        # plot hdi
+        hdi = samples[channel_contrib_var].azstats.hdi(hdi_prob, dim="sample")
+        pc.map(
+            azp.visuals.fill_between_y,
+            x=samples[channel_contrib_var]["date"],
+            y_bottom=hdi.sel(ci_bound="lower"),
+            y_top=hdi.sel(ci_bound="upper"),
+            alpha=0.2,
+        )
 
-            # Apply scale factor if in original scale
-            if original_scale and scale_factor is not None:
-                channel_contribution = channel_contribution * scale_factor
+        # plot mean contribution line
+        pc.map(
+            azp.visuals.line_xy,
+            x=samples[channel_contrib_var]["date"],
+            y=samples[channel_contrib_var].mean(dim="sample"),
+        )
 
-            # Plot mean values by channel
-            channel_contribution.mean(dim="sample").plot(hue="channel", ax=ax)
+        pc.map(azp.visuals.labelled_x, text="Date", ignore_aes={"color"})
+        pc.map(
+            azp.visuals.labelled_y, text="Channel Contribution", ignore_aes={"color"}
+        )
+        pc.map(
+            azp.visuals.labelled_title,
+            subset_info=True,
+            labeller=mix_labellers((NoVarLabeller, DimCoordLabeller))(),
+            ignore_aes={"color"},
+        )
 
-            # Add uncertainty intervals for each channel
-            for channel in samples.coords["channel"].values:
-                ax.fill_between(
-                    x=channel_contribution.date.values,
-                    y1=channel_contribution.sel(channel=channel).quantile(
-                        lower_quantile, dim="sample"
-                    ),
-                    y2=channel_contribution.sel(channel=channel).quantile(
-                        upper_quantile, dim="sample"
-                    ),
-                    alpha=0.1,
-                )
+        pc.add_legend(dim="channel")
+        return pc
 
-            ax.set_xlabel("Date")
-            ax.set_ylabel("Channel Contribution")
-            ax.set_title("Allocated Contribution by Channel Over Time")
-
-            fig.tight_layout()
-            return fig, ax
-
-        # For multiple dimensions, create a grid of subplots
-        # Determine layout based on number of extra dimensions
-        if len(extra_dims) == 1:
-            # One extra dimension: use for rows
-            dim_values = [samples.coords[extra_dims[0]].values]
-            nrows = len(dim_values[0])
-            ncols = 1
-            subplot_dims = [extra_dims[0], None]
-        elif len(extra_dims) == 2:
-            # Two extra dimensions: one for rows, one for columns
-            dim_values = [
-                samples.coords[extra_dims[0]].values,
-                samples.coords[extra_dims[1]].values,
-            ]
-            nrows = len(dim_values[0])
-            ncols = len(dim_values[1])
-            subplot_dims = extra_dims
-        else:
-            # Three or more: use first two for rows/columns, average over the rest
-            dim_values = [
-                samples.coords[extra_dims[0]].values,
-                samples.coords[extra_dims[1]].values,
-            ]
-            nrows = len(dim_values[0])
-            ncols = len(dim_values[1])
-            subplot_dims = [extra_dims[0], extra_dims[1]]
-
-        # Calculate figure size based on number of subplots
-        subplot_figsize = (figsize[0] * max(1, ncols), figsize[1] * max(1, nrows))
-        fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=subplot_figsize)
-
-        # Make axes indexable even for 1x1 grid
-        if nrows == 1 and ncols == 1:
-            axes = np.array([[axes]])
-        elif nrows == 1:
-            axes = axes.reshape(1, -1)
-        elif ncols == 1:
-            axes = axes.reshape(-1, 1)
-
-        # Create a subplot for each combination of dimension values
-        for i, row_val in enumerate(dim_values[0]):
-            for j, col_val in enumerate(
-                dim_values[1] if len(dim_values) > 1 else [None]
-            ):
-                ax = axes[i, j]
-
-                # Select data for this subplot
-                selection = {subplot_dims[0]: row_val}
-                if col_val is not None:
-                    selection[subplot_dims[1]] = col_val
-
-                # Select channel contributions for this subplot
-                subset = samples[channel_contrib_var].sel(**selection)
-
-                # Apply scale factor if needed
-                if original_scale and scale_factor is not None:
-                    subset = subset * scale_factor
-
-                # Plot mean values by channel for this subset
-                subset.mean(dim="sample").plot(hue="channel", ax=ax)
-
-                # Add uncertainty intervals for each channel
-                for channel in samples.coords["channel"].values:
-                    channel_data = subset.sel(channel=channel)
-                    ax.fill_between(
-                        x=channel_data.date.values,
-                        y1=channel_data.quantile(lower_quantile, dim="sample"),
-                        y2=channel_data.quantile(upper_quantile, dim="sample"),
-                        alpha=0.1,
-                    )
-
-                # Add subplot title based on dimension values
-                title_parts = []
-                if subplot_dims[0] is not None:
-                    title_parts.append(f"{subplot_dims[0]}={row_val}")
-                if subplot_dims[1] is not None:
-                    title_parts.append(f"{subplot_dims[1]}={col_val}")
-
-                base_title = "Allocated Contribution by Channel Over Time"
-                if title_parts:
-                    ax.set_title(f"{base_title} - {', '.join(title_parts)}")
-                else:
-                    ax.set_title(base_title)
-
-                ax.set_xlabel("Date")
-                ax.set_ylabel("Channel Contribution")
-
-        fig.tight_layout()
-        return fig, axes
-
-    def sensitivity_analysis(
+    def _sensitivity_analysis_plot(
         self,
         hdi_prob: float = 0.94,
-        ax: plt.Axes | None = None,
         aggregation: dict[str, tuple[str, ...] | list[str]] | None = None,
-        subplot_kwargs: dict[str, Any] | None = None,
-        *,
-        plot_kwargs: dict[str, Any] | None = None,
-        ylabel: str = "Effect",
-        xlabel: str = "Sweep",
-        title: str | None = None,
-        add_figure_title: bool = False,
-        subplot_title_fallback: str = "Sensitivity Analysis",
-    ) -> tuple[Figure, NDArray[Axes]] | plt.Axes:
-        """Plot sensitivity analysis results.
+        backend: str | None = None,
+    ) -> PlotCollection:
+        """Plot helper for sensitivity analysis results.
 
         Parameters
         ----------
         hdi_prob : float, default 0.94
             HDI probability mass.
-        ax : plt.Axes, optional
-            The axis to plot on.
         aggregation : dict, optional
             Aggregation to apply to the data.
             E.g., {"sum": ("channel",)} to sum over the channel dimension.
+        backend : str | None, optional
+            Backend to use for plotting. If None, will use the global backend configuration.
 
-        Other Parameters
-        ----------------
-        plot_kwargs : dict, optional
-            Keyword arguments forwarded to the underlying line plot. Defaults include
-            ``{"color": "C0"}``.
-        ylabel : str, optional
-            Y-axis label. Defaults to "Effect".
-        xlabel : str, optional
-            X-axis label. Defaults to "Sweep".
-        title : str, optional
-            Figure-level title to add when ``add_figure_title=True``.
-        add_figure_title : bool, optional
-            Whether to add a figure-level title. Defaults to ``False``.
-        subplot_title_fallback : str, optional
-            Fallback title used for subplot titles when no plotting dims exist. Defaults
-            to "Sensitivity Analysis".
+        Returns
+        -------
+        PlotCollection
 
-        Examples
-        --------
-        Basic run using stored results in `idata`:
-
-        .. code-block:: python
-
-            # Assuming you already ran a sweep and stored results
-            # under idata.sensitivity_analysis via SensitivityAnalysis.run_sweep(..., extend_idata=True)
-            ax = mmm.plot.sensitivity_analysis(hdi_prob=0.9)
-
-        With aggregation over dimensions (e.g., sum over channels):
-
-        .. code-block:: python
-
-            ax = mmm.plot.sensitivity_analysis(
-                hdi_prob=0.9,
-                aggregation={"sum": ("channel",)},
-            )
         """
         if not hasattr(self.idata, "sensitivity_analysis"):
             raise ValueError(
@@ -1930,165 +1084,99 @@ class MMMPlotSuite:
                     x = x.mean(dim=dims_list)
                 else:
                     x = x.median(dim=dims_list)
+
         # Determine plotting dimensions (excluding sample & sweep)
-        plot_dims = [d for d in x.dims if d not in {"sample", "sweep"}]
-        if plot_dims:
-            dim_combinations = list(
-                itertools.product(*[x.coords[d].values for d in plot_dims])
+        plot_dims = set(x.dims) - {"sample", "sweep"}
+
+        pc = azp.PlotCollection.wrap(
+            x.to_dataset(),
+            cols=plot_dims,
+            col_wrap=2,
+            figure_kwargs={
+                "sharex": True,
+            },
+            backend=backend,
+        )
+
+        # plot hdi
+        hdi = x.azstats.hdi(hdi_prob, dim="sample")
+        pc.map(
+            azp.visuals.fill_between_y,
+            x=x["sweep"],
+            y_bottom=hdi.sel(ci_bound="lower"),
+            y_top=hdi.sel(ci_bound="upper"),
+            alpha=0.4,
+            color="C0",
+        )
+        # plot aggregated line
+        pc.map(
+            azp.visuals.line_xy,
+            x=x["sweep"],
+            y=x.mean(dim="sample"),
+            color="C0",
+        )
+        # add labels
+        pc.map(azp.visuals.labelled_x, text="Sweep")
+        pc.map(
+            azp.visuals.labelled_title,
+            subset_info=True,
+            labeller=mix_labellers((NoVarLabeller, DimCoordLabeller))(),
+        )
+        return pc
+
+    def sensitivity_analysis(
+        self,
+        hdi_prob: float = 0.94,
+        aggregation: dict[str, tuple[str, ...] | list[str]] | None = None,
+        backend: str | None = None,
+    ) -> PlotCollection:
+        """Plot sensitivity analysis results.
+
+        Parameters
+        ----------
+        hdi_prob : float, default 0.94
+            HDI probability mass.
+        aggregation : dict, optional
+            Aggregation to apply to the data.
+            E.g., {"sum": ("channel",)} to sum over the channel dimension.
+        backend : str | None, optional
+            Backend to use for plotting. If None, will use the global backend configuration.
+
+        Returns
+        -------
+        PlotCollection
+
+        Examples
+        --------
+        Basic run using stored results in `idata`:
+
+        .. code-block:: python
+
+            # Assuming you already ran a sweep and stored results
+            # under idata.sensitivity_analysis via SensitivityAnalysis.run_sweep(..., extend_idata=True)
+            mmm.plot.sensitivity_analysis(hdi_prob=0.9)
+
+        With aggregation over dimensions (e.g., sum over channels):
+
+        .. code-block:: python
+
+            mmm.plot.sensitivity_analysis(
+                hdi_prob=0.9,
+                aggregation={"sum": ("channel",)},
             )
-        else:
-            dim_combinations = [()]
-
-        n_panels = len(dim_combinations)
-
-        # Handle axis/grid creation
-        subplot_kwargs = {**(subplot_kwargs or {})}
-        nrows_user = subplot_kwargs.pop("nrows", None)
-        ncols_user = subplot_kwargs.pop("ncols", None)
-        if nrows_user is not None and ncols_user is not None:
-            raise ValueError(
-                "Specify only one of 'nrows' or 'ncols' in subplot_kwargs."
-            )
-
-        if n_panels > 1:
-            if ax is not None:
-                raise ValueError(
-                    "Multiple sensitivity panels detected; please omit 'ax' and use 'subplot_kwargs' instead."
-                )
-            if ncols_user is not None:
-                ncols = ncols_user
-                nrows = int(np.ceil(n_panels / ncols))
-            elif nrows_user is not None:
-                nrows = nrows_user
-                ncols = int(np.ceil(n_panels / nrows))
-            else:
-                ncols = max(1, int(np.ceil(np.sqrt(n_panels))))
-                nrows = int(np.ceil(n_panels / ncols))
-            subplot_kwargs.setdefault("figsize", (ncols * 4.0, nrows * 3.0))
-            fig, axes_grid = plt.subplots(
-                nrows=nrows,
-                ncols=ncols,
-                **subplot_kwargs,
-            )
-            if isinstance(axes_grid, plt.Axes):
-                axes_grid = np.array([[axes_grid]])
-            elif axes_grid.ndim == 1:
-                axes_grid = axes_grid.reshape(1, -1)
-            axes_array = axes_grid
-        else:
-            if ax is not None:
-                axes_array = np.array([[ax]])
-                fig = ax.figure
-            else:
-                if ncols_user is not None or nrows_user is not None:
-                    subplot_kwargs.setdefault("figsize", (4.0, 3.0))
-                    fig, single_ax = plt.subplots(
-                        nrows=1,
-                        ncols=1,
-                        **subplot_kwargs,
-                    )
-                else:
-                    fig, single_ax = plt.subplots()
-                axes_array = np.array([[single_ax]])
-
-        # Merge plotting kwargs with defaults
-        _plot_kwargs = {"color": "C0"}
-        if plot_kwargs:
-            _plot_kwargs.update(plot_kwargs)
-        _line_color = _plot_kwargs.get("color", "C0")
-
-        axes_flat = axes_array.flatten()
-        for idx, combo in enumerate(dim_combinations):
-            current_ax = axes_flat[idx]
-            indexers = dict(zip(plot_dims, combo, strict=False)) if plot_dims else {}
-            subset = x.sel(**indexers) if indexers else x
-            subset = subset.squeeze(drop=True)
-            subset = subset.astype(float)
-
-            if "sweep" in subset.dims:
-                sweep_dim = "sweep"
-            else:
-                cand = [d for d in subset.dims if d != "sample"]
-                if not cand:
-                    raise ValueError(
-                        "Expected 'sweep' (or a non-sample) dimension in sensitivity results."
-                    )
-                sweep_dim = cand[0]
-
-            sweep = (
-                np.asarray(subset.coords[sweep_dim].values)
-                if sweep_dim in subset.coords
-                else np.arange(subset.sizes[sweep_dim])
-            )
-
-            mean = subset.mean("sample") if "sample" in subset.dims else subset
-            reduce_dims = [d for d in mean.dims if d != sweep_dim]
-            if reduce_dims:
-                mean = mean.sum(dim=reduce_dims)
-
-            if "sample" in subset.dims:
-                hdi = az.hdi(subset, hdi_prob=hdi_prob, input_core_dims=[["sample"]])
-                if isinstance(hdi, xr.Dataset):
-                    hdi = hdi[next(iter(hdi.data_vars))]
-            else:
-                hdi = xr.concat([mean, mean], dim="hdi").assign_coords(
-                    hdi=np.array([0, 1])
-                )
-
-            reduce_hdi = [d for d in hdi.dims if d not in (sweep_dim, "hdi")]
-            if reduce_hdi:
-                hdi = hdi.sum(dim=reduce_hdi)
-            if set(hdi.dims) == {sweep_dim, "hdi"} and list(hdi.dims) != [
-                sweep_dim,
-                "hdi",
-            ]:
-                hdi = hdi.transpose(sweep_dim, "hdi")  # type: ignore
-
-            current_ax.plot(sweep, np.asarray(mean.values, dtype=float), **_plot_kwargs)
-            az.plot_hdi(
-                x=sweep,
-                hdi_data=np.asarray(hdi.values, dtype=float),
-                hdi_prob=hdi_prob,
-                color=_line_color,
-                ax=current_ax,
-            )
-
-            title = self._build_subplot_title(
-                dims=plot_dims,
-                combo=combo,
-                fallback_title=subplot_title_fallback,
-            )
-            current_ax.set_title(title)
-            current_ax.set_xlabel(xlabel)
-            current_ax.set_ylabel(ylabel)
-
-        # Hide any unused axes (happens if grid > panels)
-        for ax_extra in axes_flat[n_panels:]:
-            ax_extra.set_visible(False)
-
-        # Optional figure-level title: only for multi-panel layouts, default color (black)
-        if add_figure_title and title is not None and n_panels > 1:
-            fig.suptitle(title)
-
-        if n_panels == 1:
-            return axes_array[0, 0]
-
-        fig.tight_layout()
-        return fig, axes_array
+        """
+        pc = self._sensitivity_analysis_plot(
+            hdi_prob=hdi_prob, aggregation=aggregation, backend=backend
+        )
+        pc.map(azp.visuals.labelled_y, text="Contribution")
+        return pc
 
     def uplift_curve(
         self,
         hdi_prob: float = 0.94,
-        ax: plt.Axes | None = None,
         aggregation: dict[str, tuple[str, ...] | list[str]] | None = None,
-        subplot_kwargs: dict[str, Any] | None = None,
-        *,
-        plot_kwargs: dict[str, Any] | None = None,
-        ylabel: str = "Uplift",
-        xlabel: str = "Sweep",
-        title: str | None = "Uplift curve",
-        add_figure_title: bool = True,
-    ) -> tuple[Figure, NDArray[Axes]] | plt.Axes:
+        backend: str | None = None,
+    ) -> PlotCollection:
         """
         Plot precomputed uplift curves stored under `idata.sensitivity_analysis['uplift_curve']`.
 
@@ -2096,24 +1184,11 @@ class MMMPlotSuite:
         ----------
         hdi_prob : float, default 0.94
             HDI probability mass.
-        ax : plt.Axes, optional
-            The axis to plot on.
         aggregation : dict, optional
             Aggregation to apply to the data.
             E.g., {"sum": ("channel",)} to sum over the channel dimension.
-        subplot_kwargs : dict, optional
-            Additional subplot configuration forwarded to :meth:`sensitivity_analysis`.
-        plot_kwargs : dict, optional
-            Keyword arguments forwarded to the underlying line plot. If not provided, defaults
-            are used by :meth:`sensitivity_analysis` (e.g., color "C0").
-        ylabel : str, optional
-            Y-axis label. Defaults to "Uplift".
-        xlabel : str, optional
-            X-axis label. Defaults to "Sweep".
-        title : str, optional
-            Figure-level title to add when ``add_figure_title=True``. Defaults to "Uplift curve".
-        add_figure_title : bool, optional
-            Whether to add a figure-level title. Defaults to ``True``.
+        backend : str | None, optional
+            Backend to use for plotting. If None, will use the global backend configuration.
 
         Examples
         --------
@@ -2134,7 +1209,7 @@ class MMMPlotSuite:
             uplift = sa.compute_uplift_curve_respect_to_base(
                 results, ref=1.0, extend_idata=True
             )
-            _ = mmm.plot.uplift_curve(hdi_prob=0.9)
+            mmm.plot.uplift_curve(hdi_prob=0.9)
         """
         if not hasattr(self.idata, "sensitivity_analysis"):
             raise ValueError(
@@ -2163,34 +1238,22 @@ class MMMPlotSuite:
         original_group = self.idata.sensitivity_analysis  # type: ignore
         try:
             self.idata.sensitivity_analysis = tmp_idata  # type: ignore
-            return self.sensitivity_analysis(
+            pc = self._sensitivity_analysis_plot(
                 hdi_prob=hdi_prob,
-                ax=ax,
                 aggregation=aggregation,
-                subplot_kwargs=subplot_kwargs,
-                subplot_title_fallback="Uplift curve",
-                plot_kwargs=plot_kwargs,
-                ylabel=ylabel,
-                xlabel=xlabel,
-                title=title,
-                add_figure_title=add_figure_title,
+                backend=backend,
             )
+            pc.map(azp.visuals.labelled_y, text="Uplift (%)")
+            return pc
         finally:
             self.idata.sensitivity_analysis = original_group  # type: ignore
 
     def marginal_curve(
         self,
         hdi_prob: float = 0.94,
-        ax: plt.Axes | None = None,
         aggregation: dict[str, tuple[str, ...] | list[str]] | None = None,
-        subplot_kwargs: dict[str, Any] | None = None,
-        *,
-        plot_kwargs: dict[str, Any] | None = None,
-        ylabel: str = "Marginal effect",
-        xlabel: str = "Sweep",
-        title: str | None = "Marginal effects",
-        add_figure_title: bool = True,
-    ) -> tuple[Figure, NDArray[Axes]] | plt.Axes:
+        backend: str | None = None,
+    ) -> PlotCollection:
         """
         Plot precomputed marginal effects stored under `idata.sensitivity_analysis['marginal_effects']`.
 
@@ -2198,23 +1261,15 @@ class MMMPlotSuite:
         ----------
         hdi_prob : float, default 0.94
             HDI probability mass.
-        ax : plt.Axes, optional
-            The axis to plot on.
         aggregation : dict, optional
             Aggregation to apply to the data.
             E.g., {"sum": ("channel",)} to sum over the channel dimension.
-        subplot_kwargs : dict, optional
-            Additional subplot configuration forwarded to :meth:`sensitivity_analysis`.
-        plot_kwargs : dict, optional
-            Keyword arguments forwarded to the underlying line plot. Defaults to ``{"color": "C1"}``.
-        ylabel : str, optional
-            Y-axis label. Defaults to "Marginal effect".
-        xlabel : str, optional
-            X-axis label. Defaults to "Sweep".
-        title : str, optional
-            Figure-level title to add when ``add_figure_title=True``. Defaults to "Marginal effects".
-        add_figure_title : bool, optional
-            Whether to add a figure-level title. Defaults to ``True``.
+        backend : str | None, optional
+            Backend to use for plotting. If None, will use the global backend configuration.
+
+        Returns
+        -------
+        PlotCollection
 
         Examples
         --------
@@ -2233,7 +1288,7 @@ class MMMPlotSuite:
                 sweep_type="multiplicative",
             )
             me = sa.compute_marginal_effects(results, extend_idata=True)
-            _ = mmm.plot.marginal_curve(hdi_prob=0.9)
+            mmm.plot.marginal_curve(hdi_prob=0.9)
         """
         if not hasattr(self.idata, "sensitivity_analysis"):
             raise ValueError(
@@ -2261,22 +1316,12 @@ class MMMPlotSuite:
         original = self.idata.sensitivity_analysis  # type: ignore
         try:
             self.idata.sensitivity_analysis = tmp  # type: ignore
-            # Reuse core plotting; percentage=False by definition
-            # Merge defaults for plot_kwargs if not provided
-            _plot_kwargs = {"color": "C1"}
-            if plot_kwargs:
-                _plot_kwargs.update(plot_kwargs)
-            return self.sensitivity_analysis(
+            pc = self._sensitivity_analysis_plot(
                 hdi_prob=hdi_prob,
-                ax=ax,
                 aggregation=aggregation,
-                subplot_kwargs=subplot_kwargs,
-                subplot_title_fallback="Marginal effects",
-                plot_kwargs=_plot_kwargs,
-                ylabel=ylabel,
-                xlabel=xlabel,
-                title=title,
-                add_figure_title=add_figure_title,
+                backend=backend,
             )
+            pc.map(azp.visuals.labelled_y, text="Marginal Effect")
+            return pc
         finally:
             self.idata.sensitivity_analysis = original  # type: ignore
