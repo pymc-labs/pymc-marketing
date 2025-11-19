@@ -46,7 +46,7 @@ Quickstart with MMM:
     mmm.sample_posterior_predictive(X)
 
     # Posterior predictive time series
-    _ = mmm.plot.posterior_predictive(var=["y"], hdi_prob=0.9)
+    _ = mmm.plot.posterior_predictive(var="y", hdi_prob=0.9)
 
     # Posterior contributions over time (e.g., channel_contribution)
     _ = mmm.plot.contributions_over_time(var=["channel_contribution"], hdi_prob=0.9)
@@ -88,7 +88,7 @@ Requirements
         idata.extend(pm.sample_posterior_predictive(idata, random_seed=1))
 
     plot = MMMPlotSuite(idata)
-    _ = plot.posterior_predictive(var=["y"], hdi_prob=0.9)
+    _ = plot.posterior_predictive(var="y", hdi_prob=0.9)
 
 Custom contributions_over_time
 --------
@@ -173,14 +173,10 @@ import itertools
 
 import arviz as az
 import arviz_plots as azp
-import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
 from arviz_base.labels import DimCoordLabeller, NoVarLabeller, mix_labellers
 from arviz_plots import PlotCollection
-from matplotlib.axes import Axes
-from matplotlib.figure import Figure
-from numpy.typing import NDArray
 
 __all__ = ["MMMPlotSuite"]
 
@@ -200,53 +196,6 @@ class MMMPlotSuite:
         idata: xr.Dataset | az.InferenceData,
     ):
         self.idata = idata
-
-    def _init_subplots(
-        self,
-        n_subplots: int,
-        ncols: int = 1,
-        width_per_col: float = 10.0,
-        height_per_row: float = 4.0,
-    ) -> tuple[Figure, NDArray[Axes]]:
-        """Initialize a grid of subplots.
-
-        Parameters
-        ----------
-        n_subplots : int
-            Number of rows (if ncols=1) or total subplots.
-        ncols : int
-            Number of columns in the subplot grid.
-        width_per_col : float
-            Width (in inches) for each column of subplots.
-        height_per_row : float
-            Height (in inches) for each row of subplots.
-
-        Returns
-        -------
-        fig : matplotlib.figure.Figure
-            The created Figure object.
-        axes : np.ndarray of matplotlib.axes.Axes
-            2D array of axes of shape (n_subplots, ncols).
-        """
-        fig, axes = plt.subplots(
-            nrows=n_subplots,
-            ncols=ncols,
-            figsize=(width_per_col * ncols, height_per_row * n_subplots),
-            squeeze=False,
-        )
-        return fig, axes
-
-    def _build_subplot_title(
-        self,
-        dims: list[str],
-        combo: tuple,
-        fallback_title: str = "Time Series",
-    ) -> str:
-        """Build a subplot title string from dimension names and their values."""
-        if dims:
-            title_parts = [f"{d}={v}" for d, v in zip(dims, combo, strict=False)]
-            return ", ".join(title_parts)
-        return fallback_title
 
     def _get_additional_dim_combinations(
         self,
@@ -270,23 +219,6 @@ class MMMPlotSuite:
 
         return additional_dims, dim_combinations
 
-    def _reduce_and_stack(
-        self, data: xr.DataArray, dims_to_ignore: set[str] | None = None
-    ) -> xr.DataArray:
-        """Sum over leftover dims and stack chain+draw into sample if present."""
-        if dims_to_ignore is None:
-            dims_to_ignore = {"date", "chain", "draw", "sample"}
-
-        leftover_dims = [d for d in data.dims if d not in dims_to_ignore]
-        if leftover_dims:
-            data = data.sum(dim=leftover_dims)
-
-        # Combine chain+draw into 'sample' if both exist
-        if "chain" in data.dims and "draw" in data.dims:
-            data = data.stack(sample=("chain", "draw"))
-
-        return data
-
     def _get_posterior_predictive_data(
         self,
         idata: xr.Dataset | None,
@@ -306,25 +238,6 @@ class MMMPlotSuite:
                 "an external 'idata' argument."
             )
         return self.idata.posterior_predictive  # type: ignore
-
-    def _add_median_and_hdi(
-        self, ax: Axes, data: xr.DataArray, var: str, hdi_prob: float = 0.85
-    ) -> Axes:
-        """Add median and HDI to the given axis."""
-        median = data.median(dim="sample") if "sample" in data.dims else data.median()
-        hdi = az.hdi(
-            data,
-            hdi_prob=hdi_prob,
-            input_core_dims=[["sample"]] if "sample" in data.dims else None,
-        )
-
-        if "date" not in data.dims:
-            raise ValueError(f"Expected 'date' dimension in {var}, but none found.")
-        dates = data.coords["date"].values
-        # Add median and HDI to the plot
-        ax.plot(dates, median, label=var, alpha=0.9)
-        ax.fill_between(dates, hdi[var][..., 0], hdi[var][..., 1], alpha=0.2)
-        return ax
 
     def _validate_dims(
         self,
@@ -384,7 +297,7 @@ class MMMPlotSuite:
 
     def posterior_predictive(
         self,
-        var: list[str] | None = None,
+        var: str | None = None,
         idata: xr.Dataset | None = None,
         hdi_prob: float = 0.85,
         backend: str | None = None,
@@ -394,8 +307,8 @@ class MMMPlotSuite:
 
         Parameters
         ----------
-        var : list of str, optional
-            List of variable names to plot. If None, uses "y".
+        var : str, optional
+            Variable name to plot. If None, uses "y".
         idata : xr.Dataset, optional
             Dataset containing posterior predictive samples.
             If None, uses self.idata.posterior_predictive.
@@ -420,10 +333,10 @@ class MMMPlotSuite:
         # 1. Retrieve or validate posterior_predictive data
         pp_data = self._get_posterior_predictive_data(idata)
 
-        # 2. Determine variables to plot
+        # 2. Determine variable to plot
         if var is None:
-            var = ["y"]
-        main_var = var[0]
+            var = "y"
+        main_var = var
 
         # 3. Identify additional dims & get all combos
         ignored_dims = {"chain", "draw", "date", "sample"}
@@ -522,6 +435,16 @@ class MMMPlotSuite:
         main_var = var[0]
         ignored_dims = {"chain", "draw", "date"}
         da = self.idata.posterior[var]
+
+        # Apply dims filtering if provided
+        if dims:
+            self._validate_dims(dims, list(da[main_var].dims))
+            for dim_name, dim_value in dims.items():
+                if isinstance(dim_value, (list, tuple, np.ndarray)):
+                    da = da.sel({dim_name: dim_value})
+                else:
+                    da = da.sel({dim_name: dim_value})
+
         additional_dims, _ = self._get_additional_dim_combinations(
             data=da, variable=main_var, ignored_dims=ignored_dims
         )
@@ -634,10 +557,21 @@ class MMMPlotSuite:
                 """
             )
 
+        # Apply dims filtering to channel_data and channel_contribution
+        channel_data = self.idata.constant_data.channel_data
+        channel_contrib = self.idata.posterior[channel_contribution]
+
+        if dims:
+            for dim_name, dim_value in dims.items():
+                if isinstance(dim_value, (list, tuple, np.ndarray)):
+                    channel_data = channel_data.sel({dim_name: dim_value})
+                    channel_contrib = channel_contrib.sel({dim_name: dim_value})
+                else:
+                    channel_data = channel_data.sel({dim_name: dim_value})
+                    channel_contrib = channel_contrib.sel({dim_name: dim_value})
+
         pc = azp.PlotCollection.grid(
-            self.idata.posterior[channel_contribution]
-            .mean(dim=["chain", "draw"])
-            .to_dataset(),
+            channel_contrib.mean(dim=["chain", "draw"]).to_dataset(),
             cols=additional_dims,
             rows=["channel"],
             aes={"color": ["channel"]},
@@ -645,7 +579,7 @@ class MMMPlotSuite:
         )
         pc.map(
             azp.visuals.scatter_xy,
-            x=self.idata.constant_data.channel_data,
+            x=channel_data,
         )
         pc.map(azp.visuals.labelled_x, text="Channel Data", ignore_aes={"color"})
         pc.map(
@@ -732,6 +666,12 @@ class MMMPlotSuite:
                 "    )\n"
                 """
             )
+        # Validate curve dimensions
+        if "x" not in curve.dims:
+            raise ValueError("curve must have an 'x' dimension")
+        if "channel" not in curve.dims:
+            raise ValueError("curve must have a 'channel' dimension")
+
         if original_scale:
             curve_data = curve * self.idata.constant_data.target_scale
             curve_data["x"] = curve_data["x"] * self.idata.constant_data.channel_scale
@@ -911,8 +851,12 @@ class MMMPlotSuite:
                 grouped = new_grouped
 
             grouped_roa_dt = {}
+            prefix = "all, "
             for k, v in grouped.items():
-                grouped_roa_dt[k[5:]] = v
+                if k.startswith(prefix):
+                    grouped_roa_dt[k[len(prefix) :]] = v
+                else:
+                    grouped_roa_dt[k] = v
         else:
             grouped_roa_dt = roa_dt
 
