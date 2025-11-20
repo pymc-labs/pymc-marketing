@@ -834,42 +834,6 @@ class MMMPlotSuite:
 
         return pc
 
-    def saturation_curves_scatter(
-        self, original_scale: bool = False, **kwargs
-    ) -> PlotCollection:
-        """
-        Plot scatter plots of channel contributions vs. channel data.
-
-        .. deprecated:: 0.1.0
-           Will be removed in version 0.20.0. Use :meth:`saturation_scatterplot` instead.
-
-        Parameters
-        ----------
-        channel_contribution : str, optional
-            Name of the channel contribution variable in the InferenceData.
-        additional_dims : list[str], optional
-            Additional dimensions to consider beyond 'channel'.
-        additional_combinations : list[tuple], optional
-            Specific combinations of additional dimensions to plot.
-        **kwargs
-            Additional keyword arguments passed to _init_subplots.
-
-        Returns
-        -------
-        PlotCollection
-        """
-        import warnings
-
-        warnings.warn(
-            "saturation_curves_scatter is deprecated and will be removed in version 0.2.0. "
-            "Use saturation_scatterplot instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        # Note: channel_contribution, additional_dims, and additional_combinations
-        # are not used by saturation_scatterplot, so we don't pass them
-        return self.saturation_scatterplot(original_scale=original_scale, **kwargs)
-
     def budget_allocation_roas(
         self,
         samples: xr.Dataset,
@@ -1434,3 +1398,63 @@ class MMMPlotSuite:
         )
         pc.map(azp.visuals.labelled_y, text="Marginal Effect")
         return pc
+
+    def budget_allocation(self, *args, **kwargs):
+        """
+        Create bar chart comparing allocated spend and channel contributions.
+
+        .. deprecated:: 0.18.0
+           This method was removed in MMMPlotSuite v2. The arviz_plots library
+           used in v2 doesn't support this specific chart type. See alternatives below.
+
+        Raises
+        ------
+        NotImplementedError
+            This method is not available in MMMPlotSuite v2.
+
+        Notes
+        -----
+        Alternatives:
+
+        1. **For ROI distributions**: Use :meth:`budget_allocation_roas`
+           (different purpose but related to budget allocation)
+
+        2. **To use the old method**: Switch to legacy suite:
+
+           >>> from pymc_marketing.mmm import mmm_config
+           >>> mmm_config["plot.use_v2"] = False
+           >>> mmm.plot.budget_allocation(samples)
+
+        3. **Custom implementation**: Create bar chart using samples data:
+
+           >>> import matplotlib.pyplot as plt
+           >>> channel_contrib = samples["channel_contribution"].mean(...)
+           >>> allocated_spend = samples["allocation"]
+           >>> # Create custom bar chart with matplotlib
+
+        See Also
+        --------
+        budget_allocation_roas : Plot ROI distributions by channel
+
+        Examples
+        --------
+        Use legacy suite temporarily:
+
+        >>> from pymc_marketing.mmm import mmm_config
+        >>> original = mmm_config.get("plot.use_v2")
+        >>> try:
+        ...     mmm_config["plot.use_v2"] = False
+        ...     fig, ax = mmm.plot.budget_allocation(samples)
+        ...     fig.savefig("budget.png")
+        ... finally:
+        ...     mmm_config["plot.use_v2"] = original
+        """
+        raise NotImplementedError(
+            "budget_allocation() was removed in MMMPlotSuite v2.\n\n"
+            "The new arviz_plots-based implementation doesn't support this chart type.\n\n"
+            "Alternatives:\n"
+            "  1. For ROI distributions: use budget_allocation_roas()\n"
+            "  2. To use old method: set mmm_config['plot.use_v2'] = False\n"
+            "  3. Implement custom bar chart using the samples data\n\n"
+            "See documentation: https://docs.pymc-marketing.io/en/latest/mmm/plotting_migration.html#budget-allocation"
+        )

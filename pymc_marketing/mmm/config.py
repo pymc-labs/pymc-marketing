@@ -39,6 +39,7 @@ class MMMConfig(dict):
     _defaults = {
         "plot.backend": "matplotlib",
         "plot.show_warnings": True,
+        "plot.use_v2": False,  # Use new arviz_plots-based suite (False = legacy suite for backward compatibility)
     }
 
     def __init__(self):

@@ -185,3 +185,123 @@ def mock_idata_for_legacy():
     )
 
     return az.InferenceData(posterior_predictive=posterior_predictive)
+
+
+@pytest.fixture
+def mock_idata():
+    """Mock InferenceData for compatibility testing."""
+    rng = np.random.default_rng(42)
+
+    posterior = xr.Dataset(
+        {
+            "intercept": xr.DataArray(
+                rng.normal(size=(4, 100, 52)),
+                dims=("chain", "draw", "date"),
+                coords={
+                    "chain": np.arange(4),
+                    "draw": np.arange(100),
+                    "date": pd.date_range("2025-01-01", periods=52, freq="W"),
+                },
+            ),
+            "channel_contribution": xr.DataArray(
+                rng.normal(size=(4, 100, 52, 3)),
+                dims=("chain", "draw", "date", "channel"),
+                coords={
+                    "chain": np.arange(4),
+                    "draw": np.arange(100),
+                    "date": pd.date_range("2025-01-01", periods=52, freq="W"),
+                    "channel": ["TV", "Radio", "Digital"],
+                },
+            ),
+        }
+    )
+
+    posterior_predictive = xr.Dataset(
+        {
+            "y": xr.DataArray(
+                rng.normal(size=(4, 100, 52)),
+                dims=("chain", "draw", "date"),
+                coords={
+                    "chain": np.arange(4),
+                    "draw": np.arange(100),
+                    "date": pd.date_range("2025-01-01", periods=52, freq="W"),
+                },
+            ),
+        }
+    )
+
+    constant_data = xr.Dataset(
+        {
+            "channel_data": xr.DataArray(
+                rng.uniform(0, 100, size=(52, 3)),
+                dims=("date", "channel"),
+                coords={
+                    "date": pd.date_range("2025-01-01", periods=52, freq="W"),
+                    "channel": ["TV", "Radio", "Digital"],
+                },
+            ),
+            "channel_scale": xr.DataArray(
+                rng.uniform(0.5, 2.0, size=(3,)),
+                dims=("channel",),
+                coords={"channel": ["TV", "Radio", "Digital"]},
+            ),
+            "target_scale": xr.DataArray(1.0),
+        }
+    )
+
+    return az.InferenceData(
+        posterior=posterior,
+        posterior_predictive=posterior_predictive,
+        constant_data=constant_data,
+    )
+
+
+@pytest.fixture
+def mock_mmm(mock_idata):
+    """Mock MMM instance with idata for compatibility testing."""
+    from unittest.mock import Mock
+
+    from pymc_marketing.mmm.multidimensional import MMM
+
+    mmm = Mock(spec=MMM)
+    mmm.idata = mock_idata
+    mmm._validate_model_was_built = Mock()
+    mmm._validate_idata_exists = Mock()
+
+    # Make .plot property work with actual implementation
+    type(mmm).plot = MMM.plot
+
+    return mmm
+
+
+@pytest.fixture
+def mock_mmm_fitted(mock_mmm):
+    """Mock fitted MMM instance for compatibility testing."""
+    # Same as mock_mmm, just clearer name for tests that need fitted model
+    return mock_mmm
+
+
+@pytest.fixture
+def mock_allocation_samples():
+    """Mock samples dataset for budget allocation tests."""
+    rng = np.random.default_rng(42)
+
+    return xr.Dataset(
+        {
+            "channel_contribution_original_scale": xr.DataArray(
+                rng.normal(size=(4, 100, 52, 3)),
+                dims=("chain", "draw", "date", "channel"),
+                coords={
+                    "chain": np.arange(4),
+                    "draw": np.arange(100),
+                    "date": pd.date_range("2025-01-01", periods=52, freq="W"),
+                    "channel": ["TV", "Radio", "Digital"],
+                },
+            ),
+            "allocation": xr.DataArray(
+                rng.uniform(100, 1000, size=(3,)),
+                dims=("channel",),
+                coords={"channel": ["TV", "Radio", "Digital"]},
+            ),
+        }
+    )
