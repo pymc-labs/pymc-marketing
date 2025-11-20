@@ -42,6 +42,8 @@ Based on comprehensive codebase analysis, the migration is **75% complete** with
 
 **❌ Missing Critical Components:**
 - Rename `old_plot.py` to `legacy_plot.py` and `OldMMMPlotSuite` to `LegacyMMMPlotSuite`
+- **Data Parameter Standardization**: All plotting methods should accept data as input parameters (some with fallback to `self.idata`, some without). Currently inconsistent across methods.
+- **`_sensitivity_analysis_plot()` refactoring**: Must accept `data` as REQUIRED parameter (no fallback), and all callers (`sensitivity_analysis()`, `uplift_curve()`, `marginal_curve()`) must be updated to pass data explicitly.
 - Backward compatibility flag (`use_v2`) to toggle between legacy/new suite
 - Deprecation warning system for users
 - Comprehensive backend testing for the new suite
@@ -52,6 +54,7 @@ Based on comprehensive codebase analysis, the migration is **75% complete** with
 - Return type documentation incomplete
 - Breaking parameter type changes across all methods (intentional, no backward compatibility needed)
 - Lost customization parameters (colors, subplot_kwargs, rc_params) - handled by arviz_plots
+- **Deprecated method carried forward**: `saturation_curves_scatter()` is implemented in v2 but should be removed (already deprecated in v0.1.0)
 
 ## Detailed Findings
 
@@ -87,7 +90,7 @@ Based on comprehensive codebase analysis, the migration is **75% complete** with
 | `contributions_over_time()` | ✅ | ✅ | ⚠️ | Return type only |
 | `saturation_scatterplot()` | ✅ | ✅ | ⚠️ | Lost `**kwargs`, return type |
 | `saturation_curves()` | ✅ | ✅ | ❌ | Lost colors, subplot_kwargs, rc_params |
-| `saturation_curves_scatter()` | ✅ | ✅ | ✅ | DEPRECATED in both (delegates) |
+| `saturation_curves_scatter()` | ⚠️ | ✅ | ⚠️ | **SHOULD BE REMOVED** - Currently in v2 but deprecated, delegates to saturation_scatterplot |
 | `budget_allocation()` | ❌ | ✅ | ❌ | **REMOVED** - no replacement |
 | `budget_allocation_roas()` | ✅ | ❌ | N/A | New method, different purpose |
 | `allocated_contribution_by_channel_over_time()` | ✅ | ✅ | ❌ | Lost scale_factor, quantiles, figsize, ax |
@@ -428,69 +431,7 @@ def budget_allocation(self, *args, **kwargs):
     )
 ```
 
-#### Issue 4: Lost Customization Parameters ⚠️ **MODERATE**
-
-**Problem**: Many customization parameters removed in new implementation.
-
-**Examples**:
-
-`saturation_curves()`:
-```python
-# LEGACY - rich customization
-def saturation_curves(
-    self,
-    curve,
-    colors: Iterable[str] | None = None,
-    subplot_kwargs: dict | None = None,
-    rc_params: dict | None = None,
-    **plot_kwargs
-)
-
-# NEW - simplified
-def saturation_curves(
-    self,
-    curve,
-    backend: str | None = None,
-    # Lost: colors, subplot_kwargs, rc_params, plot_kwargs
-)
-```
-
-`sensitivity_analysis()`:
-```python
-# LEGACY
-def sensitivity_analysis(
-    self,
-    ax: plt.Axes | None = None,
-    subplot_kwargs: dict[str, Any] | None = None,
-    plot_kwargs: dict[str, Any] | None = None,
-    ylabel: str = "Effect",
-    xlabel: str = "Sweep",
-    title: str | None = None,
-    ...
-)
-
-# NEW
-def sensitivity_analysis(
-    self,
-    backend: str | None = None,
-    # Lost: ax, subplot_kwargs, plot_kwargs, ylabel, xlabel, title
-)
-```
-
-**Rationale**: arviz_plots handles layout automatically, reducing need for manual control.
-
-**Mitigation**: Document how to customize `PlotCollection` objects after creation:
-```python
-pc = mmm.plot.saturation_curves(curve)
-
-# For matplotlib backend
-if pc.backend == "matplotlib":
-    for ax in pc.axes.flat:
-        ax.set_title("Custom Title")
-        ax.set_xlabel("Custom X Label")
-```
-
-#### Issue 5: Backend Parameter Coverage ✅ **GOOD**
+#### Issue 4: Backend Parameter Coverage ✅ **GOOD**
 
 **Status**: All public methods have `backend` parameter:
 - `posterior_predictive()` ✅
@@ -502,8 +443,58 @@ if pc.backend == "matplotlib":
 - `sensitivity_analysis()` ✅
 - `uplift_curve()` ✅
 - `marginal_curve()` ✅
+- ~~`saturation_curves_scatter()`~~ - **TO BE REMOVED** (deprecated method, see Issue 5)
 
 **Pattern**: Consistent across all methods, properly resolves via `_resolve_backend()`.
+
+#### Issue 5: Deprecated Method Should Be Removed ⚠️ **MINOR BUT IMPORTANT**
+
+**Problem**: `saturation_curves_scatter()` is currently implemented in MMMPlotSuite v2 but is deprecated and just delegates to `saturation_scatterplot()`.
+
+**Current implementation** (lines 737-771 in [plot.py](pymc_marketing/mmm/plot.py#L737-L771)):
+```python
+def saturation_curves_scatter(self, original_scale: bool = False, **kwargs) -> PlotCollection:
+    """
+    .. deprecated:: 0.1.0
+       Will be removed in version 0.20.0. Use :meth:`saturation_scatterplot` instead.
+    """
+    import warnings
+    warnings.warn(
+        "saturation_curves_scatter is deprecated and will be removed in version 0.2.0. "
+        "Use saturation_scatterplot instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return self.saturation_scatterplot(original_scale=original_scale, **kwargs)
+```
+
+**Rationale for removal**:
+- Since MMMPlotSuite v2 is a completely new implementation, we should NOT carry forward deprecated methods
+- The legacy suite (LegacyMMMPlotSuite) already has this method for users who need it
+- Users who opt into v2 (`mmm_config["plot.use_v2"] = True`) should use the new, correct method name
+- Keeping deprecated methods in v2 defeats the purpose of a clean migration
+- The method was deprecated in v0.1.0, giving users ample time to migrate
+
+**Recommendation**: **REMOVE** `saturation_curves_scatter()` from MMMPlotSuite (plot.py) entirely.
+
+**Implementation**:
+1. Delete the method from [pymc_marketing/mmm/plot.py:737-771](pymc_marketing/mmm/plot.py#L737-L771)
+2. Keep it in LegacyMMMPlotSuite (legacy_plot.py) for backward compatibility
+3. Document the removal in migration guide
+
+**Alternative** (if keeping for one more release):
+Add a note in the deprecation warning that it won't be available in v2 by default:
+```python
+warnings.warn(
+    "saturation_curves_scatter is deprecated and will be removed in version 0.20.0. "
+    "Use saturation_scatterplot instead. "
+    "Note: This method is not available when using mmm_config['plot.use_v2'] = True.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+```
+
+**Preferred approach**: Clean removal from v2, keep only in legacy suite.
 
 ### 6. Testing Infrastructure ⚠️ **MAJOR GAPS**
 
@@ -667,7 +658,7 @@ def test_budget_allocation_roas(new_mock_suite, backend):
     assert isinstance(pc, PlotCollection)
     assert pc.backend == backend
 
-# ... Create tests for all 9 methods with 3 backends = 27 core tests ...
+# ... Create tests for all 8 methods with 3 backends = 24 core tests ...
 ```
 
 **Step 3: Remove experimental test_plot_backends.py**
@@ -710,7 +701,7 @@ def test_invalid_backend_warning(mock_suite):
 ```
 
 **Result**:
-- New suite: ~9 methods × 3 backends = ~27 core test cases (plus backend-specific tests)
+- New suite: ~8 methods × 3 backends = ~24 core test cases (plus backend-specific tests) - note: saturation_curves_scatter removed
 - Legacy suite: ~28 existing test functions (matplotlib only, will be removed in v0.20.0)
 
 **File 2: Create tests/mmm/test_plot_compatibility.py**
@@ -997,8 +988,9 @@ def mock_allocation_samples():
 
 **Backend Testing:**
 - [ ] Remove experimental test_plot_backends.py file
-- [ ] Parametrize all ~28 tests in test_plot.py with backend parameter
-- [ ] All ~84 parametrized tests pass (28 tests × 3 backends)
+- [ ] Remove deprecated `saturation_curves_scatter()` from MMMPlotSuite
+- [ ] Parametrize all tests in new test_plot.py with backend parameter (~8 methods)
+- [ ] All ~24 parametrized tests pass (8 methods × 3 backends)
 - [ ] Backend override test works correctly
 - [ ] Invalid backend warning test passes
 
@@ -1136,6 +1128,7 @@ pc.save("plot.png")  # Save
 
 | Method | Status | Replacement | Notes |
 |--------|--------|-------------|-------|
+| `saturation_curves_scatter()` | **REMOVED in v2** | `saturation_scatterplot()` | Deprecated in v0.1.0, not carried forward to v2 |
 | `budget_allocation()` | **REMOVED** | None exact | Use legacy suite or custom plot |
 | `budget_allocation_roas()` | **NEW** | N/A | Different purpose (ROI dist) |
 
@@ -1258,9 +1251,549 @@ def method_name(...) -> PlotCollection:
 
 6. **Incremental Migration**: Multiple patterns show support for gradual API transitions over several releases before removing old code.
 
+## Data Parameter Standardization ⚠️ **CRITICAL - MUST IMPLEMENT**
+
+### Summary
+
+**Goal**: All plotting methods should accept data as input parameters for consistency, testability, and flexibility.
+
+**Status**: Currently **inconsistent** - some methods accept data, others hard-code `self.idata` access.
+
+**Impact**: Must be fixed BEFORE writing tests, as tests need to be written against the correct API.
+
+**Time Estimate**: 4 hours
+
+**Key Changes**:
+- 7 methods need updates
+- `_sensitivity_analysis_plot()` must accept `data` as REQUIRED parameter (no fallback)
+- All other methods can have fallback to `self.idata`
+- Removes monkey-patching in `uplift_curve()` and `marginal_curve()`
+
+### Current State Analysis
+
+The new MMMPlotSuite methods currently have **inconsistent data parameter patterns**:
+
+**✅ Methods that already accept data as input:**
+- `posterior_predictive(idata: xr.Dataset | None)` - With fallback to `self.idata.posterior_predictive`
+- `budget_allocation_roas(samples: xr.Dataset)` - No fallback
+- `allocated_contribution_by_channel_over_time(samples: xr.Dataset)` - No fallback
+
+**❌ Methods that need data parameters added:**
+- `contributions_over_time()` - Currently uses `self.idata.posterior` directly
+- `saturation_scatterplot()` - Currently uses `self.idata.constant_data` and `self.idata.posterior`
+- `saturation_curves()` - Accepts `curve` but still uses `self.idata.constant_data` and `self.idata.posterior` for scatter
+- `_sensitivity_analysis_plot()` - Currently uses `self.idata.sensitivity_analysis` (**must accept data, NO fallback**)
+- `sensitivity_analysis()` - Needs to accept and pass data to `_sensitivity_analysis_plot()`
+- `uplift_curve()` - Needs to accept and pass data to `_sensitivity_analysis_plot()`
+- `marginal_curve()` - Needs to accept and pass data to `_sensitivity_analysis_plot()`
+
+### Required API Changes
+
+#### 1. contributions_over_time() - Add data parameter with fallback
+
+**Current signature** (line 387):
+```python
+def contributions_over_time(
+    self,
+    var: list[str],
+    hdi_prob: float = 0.85,
+    dims: dict[str, str | int | list] | None = None,
+    backend: str | None = None,
+) -> PlotCollection:
+```
+
+**New signature**:
+```python
+def contributions_over_time(
+    self,
+    var: list[str],
+    data: xr.Dataset | None = None,  # ← ADD THIS
+    hdi_prob: float = 0.85,
+    dims: dict[str, str | int | list] | None = None,
+    backend: str | None = None,
+) -> PlotCollection:
+    """Plot the time-series contributions for each variable in `var`.
+
+    Parameters
+    ----------
+    var : list of str
+        A list of variable names to plot from the posterior.
+    data : xr.Dataset, optional
+        Dataset containing posterior data. If None, uses self.idata.posterior.
+    ...
+    """
+```
+
+**Implementation changes** (lines 426-437):
+```python
+# OLD:
+if not hasattr(self.idata, "posterior"):
+    raise ValueError(...)
+da = self.idata.posterior[var]
+
+# NEW:
+if data is None:
+    if not hasattr(self.idata, "posterior"):
+        raise ValueError(
+            "No posterior data found in 'self.idata' and no 'data' argument provided. "
+            "Please ensure 'self.idata' contains a 'posterior' group or provide 'data'."
+        )
+    data = self.idata.posterior
+da = data[var]
+```
+
+#### 2. saturation_scatterplot() - Add data parameters with fallback
+
+**Current signature** (line 493):
+```python
+def saturation_scatterplot(
+    self,
+    original_scale: bool = False,
+    dims: dict[str, str | int | list] | None = None,
+    backend: str | None = None,
+) -> PlotCollection:
+```
+
+**New signature**:
+```python
+def saturation_scatterplot(
+    self,
+    original_scale: bool = False,
+    constant_data: xr.Dataset | None = None,  # ← ADD THIS
+    posterior_data: xr.Dataset | None = None,  # ← ADD THIS
+    dims: dict[str, str | int | list] | None = None,
+    backend: str | None = None,
+) -> PlotCollection:
+    """Plot the saturation curves for each channel.
+
+    Parameters
+    ----------
+    original_scale : bool, optional
+        Whether to plot the original scale contributions. Default is False.
+    constant_data : xr.Dataset, optional
+        Dataset containing constant_data group with 'channel_data' variable.
+        If None, uses self.idata.constant_data.
+    posterior_data : xr.Dataset, optional
+        Dataset containing posterior group with channel contribution variables.
+        If None, uses self.idata.posterior.
+    ...
+    """
+```
+
+**Implementation changes** (lines 524-562):
+```python
+# OLD:
+if not hasattr(self.idata, "constant_data"):
+    raise ValueError(...)
+cdims = self.idata.constant_data.channel_data.dims
+channel_data = self.idata.constant_data.channel_data
+channel_contrib = self.idata.posterior[channel_contribution]
+
+# NEW:
+if constant_data is None:
+    if not hasattr(self.idata, "constant_data"):
+        raise ValueError(
+            "No 'constant_data' found in 'self.idata' and no 'constant_data' argument provided. "
+            "Please ensure 'self.idata' contains the constant_data group or provide 'constant_data'."
+        )
+    constant_data = self.idata.constant_data
+
+if posterior_data is None:
+    if not hasattr(self.idata, "posterior"):
+        raise ValueError(
+            "No 'posterior' found in 'self.idata' and no 'posterior_data' argument provided. "
+            "Please ensure 'self.idata' contains the posterior group or provide 'posterior_data'."
+        )
+    posterior_data = self.idata.posterior
+
+cdims = constant_data.channel_data.dims
+channel_data = constant_data.channel_data
+channel_contrib = posterior_data[channel_contribution]
+```
+
+#### 3. saturation_curves() - Update to use data parameters from saturation_scatterplot
+
+**Current signature** (line 597):
+```python
+def saturation_curves(
+    self,
+    curve: xr.DataArray,
+    original_scale: bool = False,
+    n_samples: int = 10,
+    hdi_probs: float | list[float] | None = None,
+    random_seed: np.random.Generator | None = None,
+    dims: dict[str, str | int | list] | None = None,
+    backend: str | None = None,
+) -> PlotCollection:
+```
+
+**New signature**:
+```python
+def saturation_curves(
+    self,
+    curve: xr.DataArray,
+    original_scale: bool = False,
+    constant_data: xr.Dataset | None = None,  # ← ADD THIS
+    posterior_data: xr.Dataset | None = None,  # ← ADD THIS
+    n_samples: int = 10,
+    hdi_probs: float | list[float] | None = None,
+    random_seed: np.random.Generator | None = None,
+    dims: dict[str, str | int | list] | None = None,
+    backend: str | None = None,
+) -> PlotCollection:
+    """Overlay saturation‑curve scatter‑plots with posterior‑predictive sample curves.
+
+    Parameters
+    ----------
+    curve : xr.DataArray
+        Posterior‑predictive curves (e.g. dims `("chain","draw","x","channel","geo")`).
+    original_scale : bool, default=False
+        Plot `channel_contribution_original_scale` if True, else `channel_contribution`.
+    constant_data : xr.Dataset, optional
+        Dataset containing constant_data group. If None, uses self.idata.constant_data.
+    posterior_data : xr.Dataset, optional
+        Dataset containing posterior group. If None, uses self.idata.posterior.
+    ...
+    """
+```
+
+**Implementation changes** (lines 645-696):
+```python
+# OLD:
+if not hasattr(self.idata, "constant_data"):
+    raise ValueError(...)
+if original_scale:
+    curve_data = curve * self.idata.constant_data.target_scale
+    curve_data["x"] = curve_data["x"] * self.idata.constant_data.channel_scale
+cdims = self.idata.constant_data.channel_data.dims
+pc = self.saturation_scatterplot(original_scale=original_scale, dims=dims, backend=backend)
+
+# NEW:
+if constant_data is None:
+    if not hasattr(self.idata, "constant_data"):
+        raise ValueError(
+            "No 'constant_data' found in 'self.idata' and no 'constant_data' argument provided."
+        )
+    constant_data = self.idata.constant_data
+
+if posterior_data is None:
+    if not hasattr(self.idata, "posterior"):
+        raise ValueError(
+            "No 'posterior' found in 'self.idata' and no 'posterior_data' argument provided."
+        )
+    posterior_data = self.idata.posterior
+
+if original_scale:
+    curve_data = curve * constant_data.target_scale
+    curve_data["x"] = curve_data["x"] * constant_data.channel_scale
+cdims = constant_data.channel_data.dims
+pc = self.saturation_scatterplot(
+    original_scale=original_scale,
+    constant_data=constant_data,
+    posterior_data=posterior_data,
+    dims=dims,
+    backend=backend
+)
+```
+
+#### 4. _sensitivity_analysis_plot() - Accept data parameter WITHOUT fallback ⚠️ **CRITICAL**
+
+**Current signature** (line 979):
+```python
+def _sensitivity_analysis_plot(
+    self,
+    hdi_prob: float = 0.94,
+    aggregation: dict[str, tuple[str, ...] | list[str]] | None = None,
+    backend: str | None = None,
+) -> PlotCollection:
+```
+
+**New signature**:
+```python
+def _sensitivity_analysis_plot(
+    self,
+    data: xr.DataArray | xr.Dataset,  # ← ADD THIS (REQUIRED, NO DEFAULT)
+    hdi_prob: float = 0.94,
+    aggregation: dict[str, tuple[str, ...] | list[str]] | None = None,
+    backend: str | None = None,
+) -> PlotCollection:
+    """Plot helper for sensitivity analysis results.
+
+    Parameters
+    ----------
+    data : xr.DataArray or xr.Dataset
+        Sensitivity analysis data to plot. Must have 'sample' and 'sweep' dimensions.
+        If Dataset, should contain 'x' variable. NO fallback to self.idata.
+    ...
+    """
+```
+
+**Implementation changes** (lines 1002-1007):
+```python
+# OLD:
+if not hasattr(self.idata, "sensitivity_analysis"):
+    raise ValueError("No sensitivity analysis results found. Run run_sweep() first.")
+sa = self.idata.sensitivity_analysis
+x = sa["x"] if isinstance(sa, xr.Dataset) else sa
+
+# NEW:
+# Validate input data
+if data is None:
+    raise ValueError(
+        "data parameter is required for _sensitivity_analysis_plot. "
+        "This is a helper method that should receive data explicitly."
+    )
+
+# Handle Dataset or DataArray
+x = data["x"] if isinstance(data, xr.Dataset) else data
+```
+
+**Rationale for NO fallback:**
+- This is a **private helper method** (prefixed with `_`)
+- It should be a pure plotting function that operates on provided data
+- The public methods (`sensitivity_analysis()`, `uplift_curve()`, `marginal_curve()`) handle data retrieval from `self.idata`
+- This separation of concerns makes the code more testable and maintainable
+
+#### 5. sensitivity_analysis() - Update to pass data
+
+**Current implementation** (lines 1071-1116):
+```python
+def sensitivity_analysis(
+    self,
+    hdi_prob: float = 0.94,
+    aggregation: dict[str, tuple[str, ...] | list[str]] | None = None,
+    backend: str | None = None,
+) -> PlotCollection:
+    pc = self._sensitivity_analysis_plot(
+        hdi_prob=hdi_prob, aggregation=aggregation, backend=backend
+    )
+    pc.map(azp.visuals.labelled_y, text="Contribution")
+    return pc
+```
+
+**New implementation**:
+```python
+def sensitivity_analysis(
+    self,
+    data: xr.DataArray | xr.Dataset | None = None,  # ← ADD THIS
+    hdi_prob: float = 0.94,
+    aggregation: dict[str, tuple[str, ...] | list[str]] | None = None,
+    backend: str | None = None,
+) -> PlotCollection:
+    """Plot sensitivity analysis results.
+
+    Parameters
+    ----------
+    data : xr.DataArray or xr.Dataset, optional
+        Sensitivity analysis data to plot. If None, uses self.idata.sensitivity_analysis.
+    ...
+    """
+    # Retrieve data if not provided
+    if data is None:
+        if not hasattr(self.idata, "sensitivity_analysis"):
+            raise ValueError(
+                "No sensitivity analysis results found in 'self.idata' and no 'data' argument provided. "
+                "Run 'mmm.sensitivity.run_sweep()' first or provide 'data'."
+            )
+        data = self.idata.sensitivity_analysis  # type: ignore
+
+    pc = self._sensitivity_analysis_plot(
+        data=data,  # ← PASS DATA
+        hdi_prob=hdi_prob,
+        aggregation=aggregation,
+        backend=backend,
+    )
+    pc.map(azp.visuals.labelled_y, text="Contribution")
+    return pc
+```
+
+#### 6. uplift_curve() - Update to pass data
+
+**Current implementation** (lines 1158-1193):
+```python
+def uplift_curve(
+    self,
+    hdi_prob: float = 0.94,
+    aggregation: dict[str, tuple[str, ...] | list[str]] | None = None,
+    backend: str | None = None,
+) -> PlotCollection:
+    if not hasattr(self.idata, "sensitivity_analysis"):
+        raise ValueError(...)
+
+    sa_group = self.idata.sensitivity_analysis
+    if isinstance(sa_group, xr.Dataset):
+        if "uplift_curve" not in sa_group:
+            raise ValueError(...)
+        data_var = sa_group["uplift_curve"]
+    else:
+        raise ValueError(...)
+
+    # Monkey-patch approach with temporary swap
+    tmp_idata = xr.Dataset({"x": data_var})
+    original_group = self.idata.sensitivity_analysis
+    try:
+        self.idata.sensitivity_analysis = tmp_idata
+        pc = self._sensitivity_analysis_plot(...)
+        ...
+    finally:
+        self.idata.sensitivity_analysis = original_group
+```
+
+**New implementation**:
+```python
+def uplift_curve(
+    self,
+    data: xr.DataArray | xr.Dataset | None = None,  # ← ADD THIS
+    hdi_prob: float = 0.94,
+    aggregation: dict[str, tuple[str, ...] | list[str]] | None = None,
+    backend: str | None = None,
+) -> PlotCollection:
+    """Plot precomputed uplift curves.
+
+    Parameters
+    ----------
+    data : xr.DataArray or xr.Dataset, optional
+        Uplift curve data to plot. If Dataset, should contain 'uplift_curve' variable.
+        If None, uses self.idata.sensitivity_analysis['uplift_curve'].
+    ...
+    """
+    # Retrieve data if not provided
+    if data is None:
+        if not hasattr(self.idata, "sensitivity_analysis"):
+            raise ValueError(
+                "No sensitivity analysis results found in 'self.idata' and no 'data' argument provided. "
+                "Run 'mmm.sensitivity.run_sweep()' first or provide 'data'."
+            )
+
+        sa_group = self.idata.sensitivity_analysis  # type: ignore
+        if isinstance(sa_group, xr.Dataset):
+            if "uplift_curve" not in sa_group:
+                raise ValueError(
+                    "Expected 'uplift_curve' in idata.sensitivity_analysis. "
+                    "Use SensitivityAnalysis.compute_uplift_curve_respect_to_base(..., extend_idata=True)."
+                )
+            data = sa_group["uplift_curve"]
+        else:
+            raise ValueError(
+                "sensitivity_analysis does not contain 'uplift_curve'. Did you persist it to idata?"
+            )
+
+    # Handle Dataset input
+    if isinstance(data, xr.Dataset):
+        if "uplift_curve" in data:
+            data = data["uplift_curve"]
+        elif "x" in data:
+            data = data["x"]
+        else:
+            raise ValueError("Dataset must contain 'uplift_curve' or 'x' variable.")
+
+    # Call helper with data (no more monkey-patching!)
+    pc = self._sensitivity_analysis_plot(
+        data=data,  # ← PASS DATA DIRECTLY
+        hdi_prob=hdi_prob,
+        aggregation=aggregation,
+        backend=backend,
+    )
+    pc.map(azp.visuals.labelled_y, text="Uplift (%)")
+    return pc
+```
+
+#### 7. marginal_curve() - Update to pass data
+
+**Current implementation** (lines 1237-1271):
+```python
+def marginal_curve(
+    self,
+    hdi_prob: float = 0.94,
+    aggregation: dict[str, tuple[str, ...] | list[str]] | None = None,
+    backend: str | None = None,
+) -> PlotCollection:
+    if not hasattr(self.idata, "sensitivity_analysis"):
+        raise ValueError(...)
+
+    sa_group = self.idata.sensitivity_analysis
+    # Similar monkey-patching as uplift_curve
+```
+
+**New implementation**:
+```python
+def marginal_curve(
+    self,
+    data: xr.DataArray | xr.Dataset | None = None,  # ← ADD THIS
+    hdi_prob: float = 0.94,
+    aggregation: dict[str, tuple[str, ...] | list[str]] | None = None,
+    backend: str | None = None,
+) -> PlotCollection:
+    """Plot precomputed marginal effects.
+
+    Parameters
+    ----------
+    data : xr.DataArray or xr.Dataset, optional
+        Marginal effects data to plot. If Dataset, should contain 'marginal_effects' variable.
+        If None, uses self.idata.sensitivity_analysis['marginal_effects'].
+    ...
+    """
+    # Retrieve data if not provided
+    if data is None:
+        if not hasattr(self.idata, "sensitivity_analysis"):
+            raise ValueError(
+                "No sensitivity analysis results found in 'self.idata' and no 'data' argument provided. "
+                "Run 'mmm.sensitivity.run_sweep()' first or provide 'data'."
+            )
+
+        sa_group = self.idata.sensitivity_analysis  # type: ignore
+        if isinstance(sa_group, xr.Dataset):
+            if "marginal_effects" not in sa_group:
+                raise ValueError(
+                    "Expected 'marginal_effects' in idata.sensitivity_analysis. "
+                    "Use SensitivityAnalysis.compute_marginal_effects(..., extend_idata=True)."
+                )
+            data = sa_group["marginal_effects"]
+        else:
+            raise ValueError(
+                "sensitivity_analysis does not contain 'marginal_effects'. Did you persist it to idata?"
+            )
+
+    # Handle Dataset input
+    if isinstance(data, xr.Dataset):
+        if "marginal_effects" in data:
+            data = data["marginal_effects"]
+        elif "x" in data:
+            data = data["x"]
+        else:
+            raise ValueError("Dataset must contain 'marginal_effects' or 'x' variable.")
+
+    # Call helper with data (no more monkey-patching!)
+    pc = self._sensitivity_analysis_plot(
+        data=data,  # ← PASS DATA DIRECTLY
+        hdi_prob=hdi_prob,
+        aggregation=aggregation,
+        backend=backend,
+    )
+    pc.map(azp.visuals.labelled_y, text="Marginal Effect")
+    return pc
+```
+
+### Benefits of This Standardization
+
+1. **Consistency**: All methods follow the same pattern for data handling
+2. **Flexibility**: Users can pass external data or use data from self.idata
+3. **Testability**: Methods can be tested with mock data without needing full MMM setup
+4. **Separation of Concerns**: `_sensitivity_analysis_plot()` is a pure plotting function
+5. **No More Monkey-Patching**: The uplift_curve() and marginal_curve() methods no longer need to temporarily swap self.idata
+6. **Better Error Messages**: Clear messages when data is missing
+
+### Implementation Priority
+
+This is **CRITICAL** and should be completed as **Priority 0** (along with file renaming) because:
+- It's a fundamental API design issue
+- It affects multiple methods
+- It's easier to fix before the migration is complete
+- Tests need to be written against the correct API
+
 ## Recommendations
 
-### Priority 0: File Renaming (Must Complete First)
+### Priority 0: File Renaming and Data Parameter Standardization (Must Complete First)
 
 0. **Rename files and classes** ✅ 30 minutes
    - Rename `pymc_marketing/mmm/old_plot.py` to `legacy_plot.py`
@@ -1268,25 +1801,40 @@ def method_name(...) -> PlotCollection:
    - Update any imports in existing code/tests
    - **This must be done BEFORE implementing other changes**
 
+0b. **Data Parameter Standardization** ✅ 4 hours
+   - Update `contributions_over_time()` to accept `data` parameter with fallback
+   - Update `saturation_scatterplot()` to accept `constant_data` and `posterior_data` parameters with fallback
+   - Update `saturation_curves()` to accept and pass `constant_data` and `posterior_data` parameters
+   - Update `_sensitivity_analysis_plot()` to accept `data` parameter WITHOUT fallback (REQUIRED parameter)
+   - Update `sensitivity_analysis()` to accept and pass `data` parameter with fallback
+   - Update `uplift_curve()` to accept and pass `data` parameter with fallback (removes monkey-patching)
+   - Update `marginal_curve()` to accept and pass `data` parameter with fallback (removes monkey-patching)
+   - **This is critical for API consistency and must be done BEFORE writing tests**
+
 ### Priority 1: Critical (Must Complete for PR)
 
-1. **Add backward compatibility flag** ✅ 2 hours
+1. **Remove deprecated method from new suite** ✅ 15 minutes
+   - Delete `saturation_curves_scatter()` from [pymc_marketing/mmm/plot.py:737-771](pymc_marketing/mmm/plot.py#L737-L771)
+   - Keep it in LegacyMMMPlotSuite (will be in legacy_plot.py after renaming)
+   - Document in migration guide that deprecated methods are not carried forward to v2
+
+2. **Add backward compatibility flag** ✅ 2 hours
    - Modify `config.py` to add `"plot.use_v2": False`
    - Implement version switching in `multidimensional.py:602-607`
    - Import from `legacy_plot` module
    - Add deprecation warning with migration guide link
    - Test manual switching works
 
-2. **Create comprehensive backend testing for new suite** ✅ 6 hours
+3. **Create comprehensive backend testing for new suite** ✅ 6 hours
    - Rename existing test_plot.py to test_legacy_plot.py
    - Update imports in legacy test file to use legacy_plot module
    - CREATE NEW test_plot.py for the new MMMPlotSuite
-   - Write ~9 methods × 3 backends = ~27 parametrized tests
+   - Write ~8 methods × 3 backends = ~24 parametrized tests (note: saturation_curves_scatter removed)
    - Remove experimental test_plot_backends.py file
    - Add backend override and invalid backend tests
    - Verify all new tests pass
 
-3. **Create compatibility test suite** ✅ 3 hours
+4. **Create compatibility test suite** ✅ 3 hours
    - Create `test_plot_compatibility.py`
    - Test version switching (5 tests)
    - Test deprecation warnings (4 tests)
@@ -1296,13 +1844,13 @@ def method_name(...) -> PlotCollection:
 
 ### Priority 2: Important (Before Merge)
 
-4. **Update documentation** ⏱️ 4 hours
+5. **Update documentation** ⏱️ 4 hours
    - Update method docstrings with PlotCollection info
    - Add version directives (.. versionadded::)
    - Document backend parameter
    - Add usage examples
 
-5. **Write migration guide** ⏱️ 6 hours
+6. **Write migration guide** ⏱️ 6 hours
    - Create `docs/source/guides/mmm_plotting_migration.rst`
    - Document all breaking changes (including parameter type changes)
    - Provide side-by-side examples
@@ -1385,22 +1933,35 @@ def method_name(...) -> PlotCollection:
 
 ### Phase 1: Code Changes
 - [ ] **Rename `old_plot.py` to `legacy_plot.py` and `OldMMMPlotSuite` to `LegacyMMMPlotSuite`**
+- [ ] **Remove deprecated method from new suite:**
+  - [ ] Delete `saturation_curves_scatter()` from pymc_marketing/mmm/plot.py (lines 737-771)
+  - [ ] Keep it in LegacyMMMPlotSuite (legacy_plot.py) for backward compatibility
+  - [ ] Add note in migration guide about deprecated methods not carried forward to v2
+- [ ] **Data Parameter Standardization (CRITICAL - do before tests):**
+  - [ ] Update `contributions_over_time()` - add `data` parameter with fallback
+  - [ ] Update `saturation_scatterplot()` - add `constant_data` and `posterior_data` parameters with fallback
+  - [ ] Update `saturation_curves()` - add and pass `constant_data` and `posterior_data` parameters
+  - [ ] Update `_sensitivity_analysis_plot()` - add `data` parameter WITHOUT fallback (REQUIRED)
+  - [ ] Update `sensitivity_analysis()` - add and pass `data` parameter with fallback
+  - [ ] Update `uplift_curve()` - add and pass `data` parameter with fallback
+  - [ ] Update `marginal_curve()` - add and pass `data` parameter with fallback
 - [ ] Add `"plot.use_v2": False` to config.py defaults
 - [ ] Modify multidimensional.py `.plot` property with version switching
 - [ ] Add FutureWarning for legacy suite usage
-- [ ] Update all docstrings to document PlotCollection return type
+- [ ] Update all docstrings to document PlotCollection return type and new data parameters
 
 ### Phase 2: Testing
 - [ ] **Rename `tests/mmm/test_plot.py` to `test_legacy_plot.py` (tests for legacy suite)**
 - [ ] **Update imports in renamed test file to use `legacy_plot.LegacyMMMPlotSuite`**
 - [ ] **Create NEW `tests/mmm/test_plot.py` for new MMMPlotSuite**
-- [ ] **Write ~9 methods × 3 backends = ~27 parametrized tests for new suite**
+- [ ] **Write ~8 methods × 3 backends = ~24 parametrized tests for new suite** (note: saturation_curves_scatter removed)
 - [ ] Remove experimental `tests/mmm/test_plot_backends.py` file
+- [ ] Remove deprecated `saturation_curves_scatter()` from pymc_marketing/mmm/plot.py
 - [ ] Add backend override and invalid backend tests
 - [ ] Create `tests/mmm/test_plot_compatibility.py` (15+ tests)
 - [ ] Add mock_mmm fixture
 - [ ] Add mock_allocation_samples fixture
-- [ ] Verify all ~27 new suite backend tests pass
+- [ ] Verify all ~24 new suite backend tests pass
 - [ ] Verify all 15 compatibility tests pass
 - [ ] Test warning suppression works
 - [ ] Test both suites produce valid output
