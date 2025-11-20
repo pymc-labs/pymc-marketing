@@ -291,6 +291,42 @@ class MMMPlotSuite:
 
         return backend or mmm_config["plot.backend"]
 
+    def _get_data_or_fallback(
+        self,
+        data: xr.Dataset | None,
+        idata_attr: str,
+        data_name: str,
+    ) -> xr.Dataset:
+        """Get data from parameter or fall back to self.idata attribute.
+
+        Parameters
+        ----------
+        data : xr.Dataset or None
+            Data provided by user.
+        idata_attr : str
+            Attribute name on self.idata to use as fallback (e.g., "posterior").
+        data_name : str
+            Human-readable name for error messages (e.g., "posterior data").
+
+        Returns
+        -------
+        xr.Dataset
+            The data to use.
+
+        Raises
+        ------
+        ValueError
+            If data is None and self.idata doesn't have the required attribute.
+        """
+        if data is None:
+            if not hasattr(self.idata, idata_attr):
+                raise ValueError(
+                    f"No {data_name} found in 'self.idata' and no 'data' argument provided. "
+                    f"Please ensure 'self.idata' contains a '{idata_attr}' group or provide 'data' explicitly."
+                )
+            data = getattr(self.idata, idata_attr)
+        return data
+
     # ------------------------------------------------------------------------
     #                          Main Plotting Methods
     # ------------------------------------------------------------------------
@@ -387,6 +423,7 @@ class MMMPlotSuite:
     def contributions_over_time(
         self,
         var: list[str],
+        data: xr.Dataset | None = None,
         hdi_prob: float = 0.85,
         dims: dict[str, str | int | list] | None = None,
         backend: str | None = None,
@@ -401,6 +438,14 @@ class MMMPlotSuite:
         ----------
         var : list of str
             A list of variable names to plot from the posterior.
+        data : xr.Dataset, optional
+            Dataset containing posterior data. If None, uses self.idata.posterior.
+
+            This parameter allows:
+            - Testing with mock data without modifying self.idata
+            - Plotting external results not stored in self.idata
+            - Comparing different posterior samples side-by-side
+            - Avoiding unintended side effects on self.idata
         hdi_prob: float, optional
             The probability mass of the highest density interval to be displayed. Default is 0.85.
         dims : dict[str, str | int | list], optional
@@ -419,14 +464,21 @@ class MMMPlotSuite:
         ------
         ValueError
             If `hdi_prob` is not between 0 and 1, instructing the user to provide a valid value.
+        ValueError
+            If no posterior data found in self.idata and no data argument provided.
         """
         if not 0 < hdi_prob < 1:
             raise ValueError("HDI probability must be between 0 and 1.")
 
-        if not hasattr(self.idata, "posterior"):
+        # Get data with fallback to self.idata.posterior
+        data = self._get_data_or_fallback(data, "posterior", "posterior data")
+
+        # Validate data has the required variables
+        missing_vars = [v for v in var if v not in data]
+        if missing_vars:
             raise ValueError(
-                "No posterior data found in 'self.idata'. "
-                "Please ensure 'self.idata' contains a 'posterior' group."
+                f"Variables {missing_vars} not found in data. "
+                f"Available variables: {list(data.data_vars)}"
             )
 
         # Resolve backend
@@ -434,7 +486,7 @@ class MMMPlotSuite:
 
         main_var = var[0]
         ignored_dims = {"chain", "draw", "date"}
-        da = self.idata.posterior[var]
+        da = data[var]
 
         # Apply dims filtering if provided
         if dims:
@@ -493,6 +545,8 @@ class MMMPlotSuite:
     def saturation_scatterplot(
         self,
         original_scale: bool = False,
+        constant_data: xr.Dataset | None = None,
+        posterior_data: xr.Dataset | None = None,
         dims: dict[str, str | int | list] | None = None,
         backend: str | None = None,
     ) -> PlotCollection:
@@ -506,6 +560,22 @@ class MMMPlotSuite:
         ----------
         original_scale: bool, optional
             Whether to plot the original scale contributions. Default is False.
+        constant_data : xr.Dataset, optional
+            Dataset containing constant_data group with 'channel_data' variable.
+            If None, uses self.idata.constant_data.
+
+            This parameter allows:
+            - Testing with mock constant data
+            - Plotting with alternative scaling factors
+            - Comparing different data scenarios
+        posterior_data : xr.Dataset, optional
+            Dataset containing posterior group with channel contribution variables.
+            If None, uses self.idata.posterior.
+
+            This parameter allows:
+            - Testing with mock posterior samples
+            - Plotting external inference results
+            - Comparing different model fits
         dims: dict[str, str | int | list], optional
             Dimension filters to apply. Example: {"country": ["US", "UK"], "user_type": "new"}.
             If provided, only the selected slice(s) will be plotted.
@@ -517,26 +587,40 @@ class MMMPlotSuite:
         Returns
         -------
         PlotCollection
+
+        Raises
+        ------
+        ValueError
+            If required data not found in self.idata and not provided explicitly.
         """
         # Resolve backend
         backend = self._resolve_backend(backend)
 
-        if not hasattr(self.idata, "constant_data"):
+        # Get constant_data and posterior_data with fallback
+        constant_data = self._get_data_or_fallback(
+            constant_data, "constant_data", "constant data"
+        )
+        posterior_data = self._get_data_or_fallback(
+            posterior_data, "posterior", "posterior data"
+        )
+
+        # Validate required variables exist
+        if "channel_data" not in constant_data:
             raise ValueError(
-                "No 'constant_data' found in 'self.idata'. "
-                "Please ensure 'self.idata' contains the constant_data group."
+                "'channel_data' variable not found in constant_data. "
+                f"Available variables: {list(constant_data.data_vars)}"
             )
 
         # Identify additional dimensions beyond 'date' and 'channel'
-        cdims = self.idata.constant_data.channel_data.dims
+        cdims = constant_data.channel_data.dims
         additional_dims = [dim for dim in cdims if dim not in ("date", "channel")]
 
         # Validate dims and remove filtered dims from additional_dims
         if dims:
-            self._validate_dims(dims, list(self.idata.constant_data.channel_data.dims))
+            self._validate_dims(dims, list(constant_data.channel_data.dims))
             additional_dims = [d for d in additional_dims if d not in dims]
         else:
-            self._validate_dims({}, list(self.idata.constant_data.channel_data.dims))
+            self._validate_dims({}, list(constant_data.channel_data.dims))
 
         channel_contribution = (
             "channel_contribution_original_scale"
@@ -544,9 +628,9 @@ class MMMPlotSuite:
             else "channel_contribution"
         )
 
-        if original_scale and not hasattr(self.idata.posterior, channel_contribution):
+        if channel_contribution not in posterior_data:
             raise ValueError(
-                f"""No posterior.{channel_contribution} data found in 'self.idata'. \n
+                f"""No posterior.{channel_contribution} data found in posterior_data. \n
                 Add a original scale deterministic:\n
                 mmm.add_original_scale_contribution_variable(\n
                 var=[\n
@@ -558,8 +642,8 @@ class MMMPlotSuite:
             )
 
         # Apply dims filtering to channel_data and channel_contribution
-        channel_data = self.idata.constant_data.channel_data
-        channel_contrib = self.idata.posterior[channel_contribution]
+        channel_data = constant_data.channel_data
+        channel_contrib = posterior_data[channel_contribution]
 
         if dims:
             for dim_name, dim_value in dims.items():
@@ -598,6 +682,8 @@ class MMMPlotSuite:
         self,
         curve: xr.DataArray,
         original_scale: bool = False,
+        constant_data: xr.Dataset | None = None,
+        posterior_data: xr.Dataset | None = None,
         n_samples: int = 10,
         hdi_probs: float | list[float] | None = None,
         random_seed: np.random.Generator | None = None,
@@ -615,6 +701,14 @@ class MMMPlotSuite:
             Posterior‑predictive curves (e.g. dims `("chain","draw","x","channel","geo")`).
         original_scale : bool, default=False
             Plot `channel_contribution_original_scale` if True, else `channel_contribution`.
+        constant_data : xr.Dataset, optional
+            Dataset containing constant_data group. If None, uses self.idata.constant_data.
+
+            This parameter allows testing with mock data and plotting alternative scenarios.
+        posterior_data : xr.Dataset, optional
+            Dataset containing posterior group. If None, uses self.idata.posterior.
+
+            This parameter allows testing with mock posterior samples and comparing model fits.
         n_samples : int, default=10
             Number of sample‑curves per subplot.
         hdi_probs : float or list of float, optional
@@ -642,11 +736,13 @@ class MMMPlotSuite:
         >>>     hdi_probs=[0.9, 0.7], random_seed=rng)
         >>> pc.show()
         """
-        if not hasattr(self.idata, "constant_data"):
-            raise ValueError(
-                "No 'constant_data' found in 'self.idata'. "
-                "Please ensure 'self.idata' contains the constant_data group."
-            )
+        # Get constant_data and posterior_data with fallback
+        constant_data = self._get_data_or_fallback(
+            constant_data, "constant_data", "constant data"
+        )
+        posterior_data = self._get_data_or_fallback(
+            posterior_data, "posterior", "posterior data"
+        )
 
         contrib_var = (
             "channel_contribution_original_scale"
@@ -654,9 +750,9 @@ class MMMPlotSuite:
             else "channel_contribution"
         )
 
-        if original_scale and not hasattr(self.idata.posterior, contrib_var):
+        if original_scale and contrib_var not in posterior_data:
             raise ValueError(
-                f"""No posterior.{contrib_var} data found in 'self.idata'.\n"
+                f"""No posterior.{contrib_var} data found in posterior_data.\n"
                 "Add a original scale deterministic:\n"
                 "    mmm.add_original_scale_contribution_variable(\n"
                 "        var=[\n"
@@ -673,14 +769,14 @@ class MMMPlotSuite:
             raise ValueError("curve must have a 'channel' dimension")
 
         if original_scale:
-            curve_data = curve * self.idata.constant_data.target_scale
-            curve_data["x"] = curve_data["x"] * self.idata.constant_data.channel_scale
+            curve_data = curve * constant_data.target_scale
+            curve_data["x"] = curve_data["x"] * constant_data.channel_scale
         else:
             curve_data = curve
         curve_data = curve_data.rename("saturation_curve")
 
         # — 1. figure out grid shape based on scatter data dimensions / identify dims and combos
-        cdims = self.idata.constant_data.channel_data.dims
+        cdims = constant_data.channel_data.dims
         all_dims = list(cdims)
         additional_dims = [d for d in cdims if d not in ("date", "channel")]
         # Validate dims and remove filtered dims from additional_dims
@@ -692,7 +788,11 @@ class MMMPlotSuite:
 
         # create the saturation scatterplot
         pc = self.saturation_scatterplot(
-            original_scale=original_scale, dims=dims, backend=backend
+            original_scale=original_scale,
+            constant_data=constant_data,
+            posterior_data=posterior_data,
+            dims=dims,
+            backend=backend,
         )
 
         # add the hdi bands
@@ -978,14 +1078,23 @@ class MMMPlotSuite:
 
     def _sensitivity_analysis_plot(
         self,
+        data: xr.DataArray | xr.Dataset,
         hdi_prob: float = 0.94,
         aggregation: dict[str, tuple[str, ...] | list[str]] | None = None,
         backend: str | None = None,
     ) -> PlotCollection:
         """Plot helper for sensitivity analysis results.
 
+        This is a private helper method that operates on provided data.
+        Public methods (sensitivity_analysis, uplift_curve, marginal_curve)
+        handle data retrieval from self.idata.
+
         Parameters
         ----------
+        data : xr.DataArray or xr.Dataset
+            Sensitivity analysis data to plot. Must have 'sample' and 'sweep' dimensions.
+            If Dataset, should contain 'x' variable. This parameter is REQUIRED with
+            no fallback to self.idata to maintain separation of concerns.
         hdi_prob : float, default 0.94
             HDI probability mass.
         aggregation : dict, optional
@@ -999,12 +1108,15 @@ class MMMPlotSuite:
         PlotCollection
 
         """
-        if not hasattr(self.idata, "sensitivity_analysis"):
+        # Handle Dataset or DataArray
+        x = data["x"] if isinstance(data, xr.Dataset) else data
+
+        # Validate dimensions
+        required_dims = {"sample", "sweep"}
+        if not required_dims.issubset(set(x.dims)):
             raise ValueError(
-                "No sensitivity analysis results found. Run run_sweep() first."
+                f"Data must have dimensions {required_dims}, got {set(x.dims)}"
             )
-        sa = self.idata.sensitivity_analysis  # type: ignore
-        x = sa["x"] if isinstance(sa, xr.Dataset) else sa
         # Coerce numeric dtype
         try:
             x = x.astype(float)
@@ -1070,6 +1182,7 @@ class MMMPlotSuite:
 
     def sensitivity_analysis(
         self,
+        data: xr.DataArray | xr.Dataset | None = None,
         hdi_prob: float = 0.94,
         aggregation: dict[str, tuple[str, ...] | list[str]] | None = None,
         backend: str | None = None,
@@ -1078,6 +1191,13 @@ class MMMPlotSuite:
 
         Parameters
         ----------
+        data : xr.DataArray or xr.Dataset, optional
+            Sensitivity analysis data to plot. If None, uses self.idata.sensitivity_analysis.
+
+            This parameter allows:
+            - Testing with mock sensitivity analysis results
+            - Plotting external sweep results
+            - Comparing different sensitivity analyses
         hdi_prob : float, default 0.94
             HDI probability mass.
         aggregation : dict, optional
@@ -1089,6 +1209,11 @@ class MMMPlotSuite:
         Returns
         -------
         PlotCollection
+
+        Raises
+        ------
+        ValueError
+            If no sensitivity analysis data found and no data provided.
 
         Examples
         --------
@@ -1109,14 +1234,20 @@ class MMMPlotSuite:
                 aggregation={"sum": ("channel",)},
             )
         """
+        # Retrieve data if not provided
+        data = self._get_data_or_fallback(
+            data, "sensitivity_analysis", "sensitivity analysis results"
+        )
+
         pc = self._sensitivity_analysis_plot(
-            hdi_prob=hdi_prob, aggregation=aggregation, backend=backend
+            data=data, hdi_prob=hdi_prob, aggregation=aggregation, backend=backend
         )
         pc.map(azp.visuals.labelled_y, text="Contribution")
         return pc
 
     def uplift_curve(
         self,
+        data: xr.DataArray | xr.Dataset | None = None,
         hdi_prob: float = 0.94,
         aggregation: dict[str, tuple[str, ...] | list[str]] | None = None,
         backend: str | None = None,
@@ -1126,6 +1257,14 @@ class MMMPlotSuite:
 
         Parameters
         ----------
+        data : xr.DataArray or xr.Dataset, optional
+            Uplift curve data to plot. If Dataset, should contain 'uplift_curve' variable.
+            If None, uses self.idata.sensitivity_analysis['uplift_curve'].
+
+            This parameter allows:
+            - Testing with mock uplift curve data
+            - Plotting externally computed uplift curves
+            - Comparing uplift curves from different models
         hdi_prob : float, default 0.94
             HDI probability mass.
         aggregation : dict, optional
@@ -1133,6 +1272,16 @@ class MMMPlotSuite:
             E.g., {"sum": ("channel",)} to sum over the channel dimension.
         backend : str | None, optional
             Backend to use for plotting. If None, will use the global backend configuration.
+
+        Returns
+        -------
+        PlotCollection
+            arviz_plots PlotCollection object.
+
+        Raises
+        ------
+        ValueError
+            If no uplift curve data found and no data provided.
 
         Examples
         --------
@@ -1155,45 +1304,45 @@ class MMMPlotSuite:
             )
             mmm.plot.uplift_curve(hdi_prob=0.9)
         """
-        if not hasattr(self.idata, "sensitivity_analysis"):
-            raise ValueError(
-                "No sensitivity analysis results found in 'self.idata'. "
-                "Run 'mmm.sensitivity.run_sweep()' first."
+        # Retrieve data if not provided
+        if data is None:
+            sa_group = self._get_data_or_fallback(
+                None, "sensitivity_analysis", "sensitivity analysis results"
             )
-
-        sa_group = self.idata.sensitivity_analysis  # type: ignore
-        if isinstance(sa_group, xr.Dataset):
-            if "uplift_curve" not in sa_group:
+            if isinstance(sa_group, xr.Dataset):
+                if "uplift_curve" not in sa_group:
+                    raise ValueError(
+                        "Expected 'uplift_curve' in idata.sensitivity_analysis. "
+                        "Use SensitivityAnalysis.compute_uplift_curve_respect_to_base(..., extend_idata=True)."
+                    )
+                data = sa_group["uplift_curve"]
+            else:
                 raise ValueError(
-                    "Expected 'uplift_curve' in idata.sensitivity_analysis. "
-                    "Use SensitivityAnalysis.compute_uplift_curve_respect_to_base(..., extend_idata=True)."
+                    "sensitivity_analysis does not contain 'uplift_curve'. Did you persist it to idata?"
                 )
-            data_var = sa_group["uplift_curve"]
-        else:
-            raise ValueError(
-                "sensitivity_analysis does not contain 'uplift_curve'. Did you persist it to idata?"
-            )
 
-        # Delegate to a thin wrapper by temporarily constructing a Dataset
-        tmp_idata = xr.Dataset({"x": data_var})
-        # Monkey-patch minimal attributes needed
-        tmp_idata["x"].attrs.update(getattr(sa_group, "attrs", {}))  # type: ignore
-        # Temporarily swap
-        original_group = self.idata.sensitivity_analysis  # type: ignore
-        try:
-            self.idata.sensitivity_analysis = tmp_idata  # type: ignore
-            pc = self._sensitivity_analysis_plot(
-                hdi_prob=hdi_prob,
-                aggregation=aggregation,
-                backend=backend,
-            )
-            pc.map(azp.visuals.labelled_y, text="Uplift (%)")
-            return pc
-        finally:
-            self.idata.sensitivity_analysis = original_group  # type: ignore
+        # Handle Dataset input
+        if isinstance(data, xr.Dataset):
+            if "uplift_curve" in data:
+                data = data["uplift_curve"]
+            elif "x" in data:
+                data = data["x"]
+            else:
+                raise ValueError("Dataset must contain 'uplift_curve' or 'x' variable.")
+
+        # Call helper with data (no more monkey-patching!)
+        pc = self._sensitivity_analysis_plot(
+            data=data,
+            hdi_prob=hdi_prob,
+            aggregation=aggregation,
+            backend=backend,
+        )
+        pc.map(azp.visuals.labelled_y, text="Uplift (%)")
+        return pc
 
     def marginal_curve(
         self,
+        data: xr.DataArray | xr.Dataset | None = None,
         hdi_prob: float = 0.94,
         aggregation: dict[str, tuple[str, ...] | list[str]] | None = None,
         backend: str | None = None,
@@ -1203,6 +1352,14 @@ class MMMPlotSuite:
 
         Parameters
         ----------
+        data : xr.DataArray or xr.Dataset, optional
+            Marginal effects data to plot. If Dataset, should contain 'marginal_effects' variable.
+            If None, uses self.idata.sensitivity_analysis['marginal_effects'].
+
+            This parameter allows:
+            - Testing with mock marginal effects data
+            - Plotting externally computed marginal effects
+            - Comparing marginal effects from different models
         hdi_prob : float, default 0.94
             HDI probability mass.
         aggregation : dict, optional
@@ -1214,6 +1371,12 @@ class MMMPlotSuite:
         Returns
         -------
         PlotCollection
+            arviz_plots PlotCollection object.
+
+        Raises
+        ------
+        ValueError
+            If no marginal effects data found and no data provided.
 
         Examples
         --------
@@ -1234,38 +1397,40 @@ class MMMPlotSuite:
             me = sa.compute_marginal_effects(results, extend_idata=True)
             mmm.plot.marginal_curve(hdi_prob=0.9)
         """
-        if not hasattr(self.idata, "sensitivity_analysis"):
-            raise ValueError(
-                "No sensitivity analysis results found in 'self.idata'. "
-                "Run 'mmm.sensitivity.run_sweep()' first."
+        # Retrieve data if not provided
+        if data is None:
+            sa_group = self._get_data_or_fallback(
+                None, "sensitivity_analysis", "sensitivity analysis results"
             )
-
-        sa_group = self.idata.sensitivity_analysis  # type: ignore
-        if isinstance(sa_group, xr.Dataset):
-            if "marginal_effects" not in sa_group:
+            if isinstance(sa_group, xr.Dataset):
+                if "marginal_effects" not in sa_group:
+                    raise ValueError(
+                        "Expected 'marginal_effects' in idata.sensitivity_analysis. "
+                        "Use SensitivityAnalysis.compute_marginal_effects(..., extend_idata=True)."
+                    )
+                data = sa_group["marginal_effects"]
+            else:
                 raise ValueError(
-                    "Expected 'marginal_effects' in idata.sensitivity_analysis. "
-                    "Use SensitivityAnalysis.compute_marginal_effects(..., extend_idata=True)."
+                    "sensitivity_analysis does not contain 'marginal_effects'. Did you persist it to idata?"
                 )
-            data_var = sa_group["marginal_effects"]
-        else:
-            raise ValueError(
-                "sensitivity_analysis does not contain 'marginal_effects'. Did you persist it to idata?"
-            )
 
-        # We want a different y-label and color
-        # Temporarily swap group to reuse plotting logic
-        tmp = xr.Dataset({"x": data_var})
-        tmp["x"].attrs.update(getattr(sa_group, "attrs", {}))  # type: ignore
-        original = self.idata.sensitivity_analysis  # type: ignore
-        try:
-            self.idata.sensitivity_analysis = tmp  # type: ignore
-            pc = self._sensitivity_analysis_plot(
-                hdi_prob=hdi_prob,
-                aggregation=aggregation,
-                backend=backend,
-            )
-            pc.map(azp.visuals.labelled_y, text="Marginal Effect")
-            return pc
-        finally:
-            self.idata.sensitivity_analysis = original  # type: ignore
+        # Handle Dataset input
+        if isinstance(data, xr.Dataset):
+            if "marginal_effects" in data:
+                data = data["marginal_effects"]
+            elif "x" in data:
+                data = data["x"]
+            else:
+                raise ValueError(
+                    "Dataset must contain 'marginal_effects' or 'x' variable."
+                )
+
+        # Call helper with data (no more monkey-patching!)
+        pc = self._sensitivity_analysis_plot(
+            data=data,
+            hdi_prob=hdi_prob,
+            aggregation=aggregation,
+            backend=backend,
+        )
+        pc.map(azp.visuals.labelled_y, text="Marginal Effect")
+        return pc
