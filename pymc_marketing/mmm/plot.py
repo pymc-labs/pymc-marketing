@@ -338,27 +338,96 @@ class MMMPlotSuite:
         hdi_prob: float = 0.85,
         backend: str | None = None,
     ) -> PlotCollection:
-        """
-        Plot posterior predictive distributions over time.
+        """Plot posterior predictive distributions over time.
+
+        Visualizes posterior predictive samples as time series, showing the median
+        line and highest density interval (HDI) bands. Useful for checking model fit
+        and understanding prediction uncertainty.
+
+        .. versionadded:: 0.18.0
+           New arviz_plots-based implementation supporting multiple backends.
 
         Parameters
         ----------
         var : str, optional
-            Variable name to plot. If None, uses "y".
+            Variable name to plot from posterior_predictive group. If None, uses "y".
         idata : xr.Dataset, optional
-            Dataset containing posterior predictive samples.
+            Dataset containing posterior predictive samples with a "date" coordinate.
             If None, uses self.idata.posterior_predictive.
+
+            This parameter allows:
+            - Testing with mock data without modifying self.idata
+            - Plotting external posterior predictive samples
+            - Comparing different model fits side-by-side
         hdi_prob : float, default 0.85
-            Probability mass for HDI interval.
+            Probability mass for HDI interval (between 0 and 1).
         backend : str, optional
             Plotting backend to use. Options: "matplotlib", "plotly", "bokeh".
             If None, uses global config via mmm_config["plot.backend"].
-            Default (via config) is "matplotlib".
+            Default is "matplotlib".
 
         Returns
         -------
         PlotCollection
+            arviz_plots PlotCollection object containing the plot.
 
+            Use ``.show()`` to display or ``.save("filename")`` to save.
+            Unlike the legacy suite which returned ``(Figure, Axes)``,
+            this provides a unified interface across all backends.
+
+        Raises
+        ------
+        ValueError
+            If no posterior_predictive data found in self.idata and no idata provided.
+        ValueError
+            If hdi_prob is not between 0 and 1.
+
+        See Also
+        --------
+        LegacyMMMPlotSuite.posterior_predictive : Legacy matplotlib-only implementation
+
+        Notes
+        -----
+        Breaking changes from legacy implementation:
+
+        - Returns PlotCollection instead of (Figure, Axes)
+        - Different interface for saving and displaying plots
+
+        Examples
+        --------
+        Basic usage:
+
+        >>> mmm.sample_posterior_predictive(X)
+        >>> pc = mmm.plot.posterior_predictive()
+        >>> pc.show()
+
+        Plot with different HDI probability:
+
+        >>> pc = mmm.plot.posterior_predictive(hdi_prob=0.94)
+        >>> pc.show()
+
+        Save to file:
+
+        >>> pc = mmm.plot.posterior_predictive()
+        >>> pc.save("posterior_predictive.png")
+
+        Use different backend:
+
+        >>> pc = mmm.plot.posterior_predictive(backend="plotly")
+        >>> pc.show()
+
+        Provide explicit data:
+
+        >>> external_pp = xr.Dataset(...)  # Custom posterior predictive
+        >>> pc = mmm.plot.posterior_predictive(idata=external_pp)
+        >>> pc.show()
+
+        Direct instantiation pattern:
+
+        >>> from pymc_marketing.mmm.plot import MMMPlotSuite
+        >>> mps = MMMPlotSuite(custom_idata)
+        >>> pc = mps.posterior_predictive()
+        >>> pc.show()
         """
         if not 0 < hdi_prob < 1:
             raise ValueError("HDI probability must be between 0 and 1.")
@@ -428,44 +497,124 @@ class MMMPlotSuite:
         dims: dict[str, str | int | list] | None = None,
         backend: str | None = None,
     ) -> PlotCollection:
-        """Plot the time-series contributions for each variable in `var`.
+        """Plot time-series contributions for specified variables.
 
-        showing the median and the credible interval (default 85%).
-        Creates one subplot per combination of non-(chain/draw/date) dimensions
-        and places all variables on the same subplot.
+        Visualizes how variables contribute over time, showing the median line and
+        HDI bands. Useful for understanding channel contributions, intercepts, or
+        other time-varying effects in your model.
+
+        .. versionadded:: 0.18.0
+           New arviz_plots-based implementation supporting multiple backends.
 
         Parameters
         ----------
         var : list of str
-            A list of variable names to plot from the posterior.
+            Variable names to plot from the posterior group. Must have a "date" dimension.
+            Examples: ["channel_contribution"], ["intercept"], ["channel_contribution", "intercept"].
         data : xr.Dataset, optional
-            Dataset containing posterior data. If None, uses self.idata.posterior.
+            Dataset containing posterior data with variables in `var`.
+            If None, uses self.idata.posterior.
+
+            .. versionadded:: 0.18.0
+               Added data parameter for explicit data passing.
 
             This parameter allows:
             - Testing with mock data without modifying self.idata
             - Plotting external results not stored in self.idata
             - Comparing different posterior samples side-by-side
             - Avoiding unintended side effects on self.idata
-        hdi_prob: float, optional
-            The probability mass of the highest density interval to be displayed. Default is 0.85.
+        hdi_prob : float, default 0.85
+            Probability mass for HDI interval (between 0 and 1).
         dims : dict[str, str | int | list], optional
-            Dimension filters to apply. Example: {"country": ["US", "UK"], "user_type": "new"}.
+            Dimension filters to apply. Keys are dimension names, values are either:
+            - Single value: {"country": "US", "user_type": "new"}
+            - List of values: {"country": ["US", "UK"]}
+
             If provided, only the selected slice(s) will be plotted.
         backend : str, optional
             Plotting backend to use. Options: "matplotlib", "plotly", "bokeh".
             If None, uses global config via mmm_config["plot.backend"].
-            Default (via config) is "matplotlib".
+            Default is "matplotlib".
 
         Returns
         -------
         PlotCollection
+            arviz_plots PlotCollection object containing the plot.
+
+            Use ``.show()`` to display or ``.save("filename")`` to save.
+            Unlike the legacy suite which returned ``(Figure, Axes)``,
+            this provides a unified interface across all backends.
 
         Raises
         ------
         ValueError
-            If `hdi_prob` is not between 0 and 1, instructing the user to provide a valid value.
+            If hdi_prob is not between 0 and 1.
         ValueError
             If no posterior data found in self.idata and no data argument provided.
+        ValueError
+            If any variable in `var` not found in data.
+
+        See Also
+        --------
+        LegacyMMMPlotSuite.contributions_over_time : Legacy matplotlib-only implementation
+
+        Notes
+        -----
+        Breaking changes from legacy implementation:
+
+        - Returns PlotCollection instead of (Figure, Axes)
+        - Variable names must be passed in a list (was already list in legacy)
+
+        Examples
+        --------
+        Basic usage - plot channel contributions:
+
+        >>> mmm.fit(X, y)
+        >>> pc = mmm.plot.contributions_over_time(var=["channel_contribution"])
+        >>> pc.show()
+
+        Plot multiple variables together:
+
+        >>> pc = mmm.plot.contributions_over_time(
+        ...     var=["channel_contribution", "intercept"]
+        ... )
+        >>> pc.show()
+
+        Filter by dimension:
+
+        >>> pc = mmm.plot.contributions_over_time(
+        ...     var=["channel_contribution"], dims={"geo": "US"}
+        ... )
+        >>> pc.show()
+
+        Filter with multiple dimension values:
+
+        >>> pc = mmm.plot.contributions_over_time(
+        ...     var=["channel_contribution"], dims={"geo": ["US", "UK"]}
+        ... )
+        >>> pc.show()
+
+        Use different backend:
+
+        >>> pc = mmm.plot.contributions_over_time(
+        ...     var=["channel_contribution"], backend="plotly"
+        ... )
+        >>> pc.show()
+
+        Provide explicit data (option 1 - via data parameter):
+
+        >>> custom_posterior = xr.Dataset(...)
+        >>> pc = mmm.plot.contributions_over_time(
+        ...     var=["my_contribution"], data=custom_posterior
+        ... )
+        >>> pc.show()
+
+        Provide explicit data (option 2 - direct instantiation):
+
+        >>> from pymc_marketing.mmm.plot import MMMPlotSuite
+        >>> mps = MMMPlotSuite(custom_idata)
+        >>> pc = mps.contributions_over_time(var=["my_contribution"])
+        >>> pc.show()
         """
         if not 0 < hdi_prob < 1:
             raise ValueError("HDI probability must be between 0 and 1.")
@@ -550,19 +699,30 @@ class MMMPlotSuite:
         dims: dict[str, str | int | list] | None = None,
         backend: str | None = None,
     ) -> PlotCollection:
-        """Plot the saturation curves for each channel.
+        """Plot saturation scatter plot showing channel spend vs contributions.
 
-        Creates a grid of subplots for each combination of channel and non-(date/channel) dimensions.
-        Optionally, subset by dims (single values or lists).
-        Each channel will have a consistent color across all subplots.
+        Creates scatter plots of actual channel spend (X-axis) against channel
+        contributions (Y-axis), one subplot per channel. Useful for understanding
+        the saturation behavior and diminishing returns of each marketing channel.
+
+        .. versionadded:: 0.18.0
+           New arviz_plots-based implementation supporting multiple backends.
 
         Parameters
         ----------
-        original_scale: bool, optional
-            Whether to plot the original scale contributions. Default is False.
+        original_scale : bool, default False
+            Whether to plot in original scale (True) or scaled space (False).
+            If True, requires channel_contribution_original_scale in posterior.
         constant_data : xr.Dataset, optional
-            Dataset containing constant_data group with 'channel_data' variable.
+            Dataset containing constant_data group with required variables:
+            - 'channel_data': Channel spend data (dims include "date", "channel")
+            - 'channel_scale': Scaling factor per channel (if original_scale=True)
+            - 'target_scale': Target scaling factor (if original_scale=True)
+
             If None, uses self.idata.constant_data.
+
+            .. versionadded:: 0.18.0
+               Added constant_data parameter for explicit data passing.
 
             This parameter allows:
             - Testing with mock constant data
@@ -570,28 +730,90 @@ class MMMPlotSuite:
             - Comparing different data scenarios
         posterior_data : xr.Dataset, optional
             Dataset containing posterior group with channel contribution variables.
+            Must contain 'channel_contribution' or 'channel_contribution_original_scale'.
             If None, uses self.idata.posterior.
+
+            .. versionadded:: 0.18.0
+               Added posterior_data parameter for explicit data passing.
 
             This parameter allows:
             - Testing with mock posterior samples
             - Plotting external inference results
             - Comparing different model fits
-        dims: dict[str, str | int | list], optional
-            Dimension filters to apply. Example: {"country": ["US", "UK"], "user_type": "new"}.
+        dims : dict[str, str | int | list], optional
+            Dimension filters to apply. Examples:
+            - {"geo": "US"} - Single value
+            - {"geo": ["US", "UK"]} - Multiple values
+
             If provided, only the selected slice(s) will be plotted.
-        backend: str, optional
+        backend : str, optional
             Plotting backend to use. Options: "matplotlib", "plotly", "bokeh".
             If None, uses global config via mmm_config["plot.backend"].
-            Default (via config) is "matplotlib".
+            Default is "matplotlib".
 
         Returns
         -------
         PlotCollection
+            arviz_plots PlotCollection object containing the plot.
+
+            Use ``.show()`` to display or ``.save("filename")`` to save.
+            Unlike the legacy suite which returned ``(Figure, Axes)``,
+            this provides a unified interface across all backends.
 
         Raises
         ------
         ValueError
             If required data not found in self.idata and not provided explicitly.
+        ValueError
+            If 'channel_data' not found in constant_data.
+        ValueError
+            If original_scale=True but channel_contribution_original_scale not in posterior.
+
+        See Also
+        --------
+        saturation_curves : Add posterior predictive curves to this scatter plot
+        LegacyMMMPlotSuite.saturation_scatterplot : Legacy matplotlib-only implementation
+
+        Notes
+        -----
+        Breaking changes from legacy implementation:
+
+        - Returns PlotCollection instead of (Figure, Axes)
+        - Lost **kwargs for matplotlib customization (use backend-specific methods)
+        - Different grid layout algorithm
+
+        Examples
+        --------
+        Basic usage (scaled space):
+
+        >>> mmm.fit(X, y)
+        >>> pc = mmm.plot.saturation_scatterplot()
+        >>> pc.show()
+
+        Plot in original scale:
+
+        >>> mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+        >>> pc = mmm.plot.saturation_scatterplot(original_scale=True)
+        >>> pc.show()
+
+        Filter by dimension:
+
+        >>> pc = mmm.plot.saturation_scatterplot(dims={"geo": "US"})
+        >>> pc.show()
+
+        Use different backend:
+
+        >>> pc = mmm.plot.saturation_scatterplot(backend="plotly")
+        >>> pc.show()
+
+        Provide explicit data:
+
+        >>> custom_constant = xr.Dataset(...)
+        >>> custom_posterior = xr.Dataset(...)
+        >>> pc = mmm.plot.saturation_scatterplot(
+        ...     constant_data=custom_constant, posterior_data=custom_posterior
+        ... )
+        >>> pc.show()
         """
         # Resolve backend
         backend = self._resolve_backend(backend)
@@ -690,50 +912,120 @@ class MMMPlotSuite:
         dims: dict[str, str | int | list] | None = None,
         backend: str | None = None,
     ) -> PlotCollection:
-        """
-        Overlay saturation‑curve scatter‑plots with posterior‑predictive sample curves and HDI bands.
+        """Overlay saturation scatter plots with posterior predictive curves and HDI bands.
 
-        **allowing** you to customize figsize and font sizes.
+        Builds on saturation_scatterplot() by adding:
+        - Sample curves from the posterior distribution
+        - HDI bands showing uncertainty
+        - Smooth saturation curves over the scatter plot
+
+        .. versionadded:: 0.18.0
+           New arviz_plots-based implementation supporting multiple backends.
 
         Parameters
         ----------
         curve : xr.DataArray
-            Posterior‑predictive curves (e.g. dims `("chain","draw","x","channel","geo")`).
-        original_scale : bool, default=False
-            Plot `channel_contribution_original_scale` if True, else `channel_contribution`.
+            Posterior predictive saturation curves with required dimensions:
+            - "chain", "draw": MCMC samples
+            - "x": Input values for curve evaluation
+            - "channel": Channel names
+
+            Generate using: ``mmm.saturation.sample_curve(...)``
+        original_scale : bool, default False
+            Plot in original scale (True) or scaled space (False).
+            If True, requires channel_contribution_original_scale in posterior.
         constant_data : xr.Dataset, optional
             Dataset containing constant_data group. If None, uses self.idata.constant_data.
+
+            .. versionadded:: 0.18.0
+               Added constant_data parameter for explicit data passing.
 
             This parameter allows testing with mock data and plotting alternative scenarios.
         posterior_data : xr.Dataset, optional
             Dataset containing posterior group. If None, uses self.idata.posterior.
 
+            .. versionadded:: 0.18.0
+               Added posterior_data parameter for explicit data passing.
+
             This parameter allows testing with mock posterior samples and comparing model fits.
-        n_samples : int, default=10
-            Number of sample‑curves per subplot.
+        n_samples : int, default 10
+            Number of sample curves to draw per subplot.
+            Set to 0 to show only HDI bands without individual samples.
         hdi_probs : float or list of float, optional
-            Credible interval probabilities (e.g. 0.94 or [0.5, 0.94]).
-            If None, uses ArviZ's default (0.94).
+            HDI probability levels for credible intervals.
+            Examples: 0.94 (single band), [0.5, 0.94] (multiple bands).
+            If None, no HDI bands are drawn.
         random_seed : np.random.Generator, optional
-            RNG for reproducible sampling. If None, uses `np.random.default_rng()`.
+            Random number generator for reproducible curve sampling.
+            If None, uses ``np.random.default_rng()``.
         dims : dict[str, str | int | list], optional
-            Dimension filters to apply. Example: {"country": ["US", "UK"], "region": "X"}.
+            Dimension filters to apply. Examples:
+            - {"geo": "US"}
+            - {"geo": ["US", "UK"]}
+
             If provided, only the selected slice(s) will be plotted.
-        backend: str, optional
+        backend : str, optional
             Plotting backend to use. Options: "matplotlib", "plotly", "bokeh".
             If None, uses global config via mmm_config["plot.backend"].
-            Default (via config) is "matplotlib".
+            Default is "matplotlib".
 
         Returns
         -------
         PlotCollection
+            arviz_plots PlotCollection object containing the plot.
 
-        Example use:
-        >>> curve = model.saturation.sample_curve(
-        >>>     model.idata.posterior[["saturation_beta", "saturation_lam"]], max_value=2
-        >>> )
-        >>> pc = model.plot.saturation_curves(curve, original_scale=True, n_samples=10,
-        >>>     hdi_probs=[0.9, 0.7], random_seed=rng)
+            Use ``.show()`` to display or ``.save("filename")`` to save.
+
+        Raises
+        ------
+        ValueError
+            If curve is missing required dimensions ("x" or "channel").
+        ValueError
+            If original_scale=True but channel_contribution_original_scale not in posterior.
+
+        See Also
+        --------
+        saturation_scatterplot : Base scatter plot without curves
+        LegacyMMMPlotSuite.saturation_curves : Legacy matplotlib-only implementation
+
+        Notes
+        -----
+        Breaking changes from legacy implementation:
+
+        - Returns PlotCollection instead of (Figure, Axes)
+        - Lost colors, subplot_kwargs, rc_params parameters
+        - Different HDI calculation (uses arviz_plots instead of custom)
+
+        Examples
+        --------
+        Generate and plot saturation curves:
+
+        >>> # Generate curves using saturation transformation
+        >>> curve = mmm.saturation.sample_curve(
+        ...     idata=mmm.idata.posterior[["saturation_beta", "saturation_lam"]],
+        ...     max_value=2.0,
+        ... )
+        >>> pc = mmm.plot.saturation_curves(curve)
+        >>> pc.show()
+
+        Add HDI bands:
+
+        >>> pc = mmm.plot.saturation_curves(curve, hdi_probs=[0.5, 0.94])
+        >>> pc.show()
+
+        Original scale with custom seed:
+
+        >>> import numpy as np
+        >>> rng = np.random.default_rng(42)
+        >>> mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+        >>> pc = mmm.plot.saturation_curves(
+        ...     curve, original_scale=True, n_samples=15, random_seed=rng
+        ... )
+        >>> pc.show()
+
+        Filter by dimension:
+
+        >>> pc = mmm.plot.saturation_curves(curve, dims={"geo": "US"})
         >>> pc.show()
         """
         # Get constant_data and posterior_data with fallback
@@ -841,29 +1133,93 @@ class MMMPlotSuite:
         dims_to_group_by: list[str] | str | None = None,
         backend: str | None = None,
     ) -> PlotCollection:
-        """Plot the ROI distribution of a given a response distribution and a budget allocation.
+        """Plot ROI (Return on Ad Spend) distributions for budget allocation scenarios.
+
+        Visualizes the posterior distribution of ROI for each channel given a budget
+        allocation. Useful for comparing ROI across channels and understanding
+        optimization trade-offs.
+
+        .. versionadded:: 0.18.0
+           New method in MMMPlotSuite v2. This is different from the legacy
+           budget_allocation() method which showed bar charts.
 
         Parameters
         ----------
         samples : xr.Dataset
-            The dataset containing the channel contributions and allocation values.
-            Expected to have 'channel_contribution' and 'allocation' variables.
+            Dataset from budget allocation optimization containing:
+            - 'channel_contribution_original_scale': Channel contributions
+            - 'allocation': Allocated budget per channel
+            - 'channel' dimension
+
+            Typically obtained from: ``mmm.allocate_budget_to_maximize_response(...)``
         dims : dict[str, str | int | list], optional
-            Dimension filters to apply. Example: {"country": ["US", "UK"], "user_type": "new"}.
+            Dimension filters to apply. Examples:
+            - {"geo": "US"}
+            - {"geo": ["US", "UK"]}
+
             If provided, only the selected slice(s) will be plotted.
         dims_to_group_by : list[str] | str | None, optional
-            Dimension(s) to group by for plotting purposes.
-            When a dimension is specified, all the ROAs distributions for each coordinate of that dimension will be
-            plotted together in a single plot. This is useful for comparing the ROAs distributions.
-            If None, will not group by any dimensions (i.e. each distribution will be plotted separately).
-            If a single string, will group by that dimension.
-            If a list of strings, will group by each of those dimensions.
+            Dimension(s) to group by for overlaying distributions.
+            When specified, all ROI distributions for each coordinate of that
+            dimension will be plotted together for comparison.
+
+            - None (default): Each distribution plotted separately
+            - Single string: Group by that dimension (e.g., "geo")
+            - List of strings: Group by multiple dimensions (e.g., ["geo", "segment"])
         backend : str | None, optional
-            Backend to use for plotting. If None, will use the global backend configuration.
+            Backend to use for plotting. If None, uses global backend configuration.
 
         Returns
         -------
         PlotCollection
+            arviz_plots PlotCollection object containing the plot.
+
+            Use ``.show()`` to display or ``.save("filename")`` to save.
+
+        Raises
+        ------
+        ValueError
+            If 'channel' dimension not found in samples.
+        ValueError
+            If required variables not found in samples.
+
+        See Also
+        --------
+        LegacyMMMPlotSuite.budget_allocation : Legacy bar chart method (different purpose)
+
+        Notes
+        -----
+        This method is NEW in MMMPlotSuite v2 and serves a different purpose
+        than the legacy ``budget_allocation()`` method:
+
+        - **New method** (this): Shows ROI distributions (KDE plots)
+        - **Legacy method**: Shows bar charts comparing spend vs contributions
+
+        To use the legacy method, set: ``mmm_config["plot.use_v2"] = False``
+
+        Examples
+        --------
+        Basic usage with budget optimization results:
+
+        >>> allocation_results = mmm.allocate_budget_to_maximize_response(
+        ...     total_budget=100_000, budget_bounds={"lower": 0.5, "upper": 2.0}
+        ... )
+        >>> pc = mmm.plot.budget_allocation_roas(allocation_results)
+        >>> pc.show()
+
+        Group by geography to compare ROI across regions:
+
+        >>> pc = mmm.plot.budget_allocation_roas(
+        ...     allocation_results, dims_to_group_by="geo"
+        ... )
+        >>> pc.show()
+
+        Filter and group:
+
+        >>> pc = mmm.plot.budget_allocation_roas(
+        ...     allocation_results, dims={"segment": "premium"}, dims_to_group_by="geo"
+        ... )
+        >>> pc.show()
         """
         # Get the channels from samples
         if "channel" not in samples.dims:
@@ -943,27 +1299,89 @@ class MMMPlotSuite:
         hdi_prob: float = 0.85,
         backend: str | None = None,
     ) -> PlotCollection:
-        """Plot the allocated contribution by channel with uncertainty intervals.
+        """Plot channel contributions over time from budget allocation optimization.
 
-        This function visualizes the mean allocated contributions by channel along with
-        the uncertainty intervals defined by the lower and upper quantiles.
-        If additional dimensions besides 'channel', 'date', and 'sample' are present,
-        creates a subplot for each combination of these dimensions.
+        Visualizes how contributions from each channel evolve over time given an
+        optimized budget allocation. Shows mean contribution lines per channel with
+        HDI uncertainty bands.
+
+        .. versionadded:: 0.18.0
+           New arviz_plots-based implementation supporting multiple backends.
 
         Parameters
         ----------
         samples : xr.Dataset
-            The dataset containing the samples of channel contributions.
-            Expected to have 'channel_contribution' variable with dimensions
-            'channel', 'date', and 'sample'.
-        hdi_prob : float, optional
-            The probability mass of the highest density interval to be displayed. Default is 0.85.
+            Dataset from budget allocation optimization containing channel
+            contributions over time. Required dimensions:
+            - 'channel': Channel names
+            - 'date': Time dimension
+            - 'sample': MCMC samples
+
+            Required variables:
+            - Variable containing 'channel_contribution' (e.g., 'channel_contribution'
+              or 'channel_contribution_original_scale')
+
+            Typically obtained from: ``mmm.allocate_budget_to_maximize_response(...)``
+        hdi_prob : float, default 0.85
+            Probability mass for HDI interval (between 0 and 1).
         backend : str | None, optional
-            Backend to use for plotting. If None, will use the global backend configuration.
+            Backend to use for plotting. If None, uses global backend configuration.
 
         Returns
         -------
         PlotCollection
+            arviz_plots PlotCollection object containing the plot.
+
+            Use ``.show()`` to display or ``.save("filename")`` to save.
+            Unlike the legacy suite which returned ``(Figure, Axes)``,
+            this provides a unified interface across all backends.
+
+        Raises
+        ------
+        ValueError
+            If required dimensions ('channel', 'date', 'sample') not found in samples.
+        ValueError
+            If no variable containing 'channel_contribution' found in samples.
+
+        See Also
+        --------
+        budget_allocation_roas : Plot ROI distributions from same allocation results
+        LegacyMMMPlotSuite.allocated_contribution_by_channel_over_time : Legacy implementation
+
+        Notes
+        -----
+        Breaking changes from legacy implementation:
+
+        - Returns PlotCollection instead of (Figure, Axes)
+        - Lost scale_factor, lower_quantile, upper_quantile, figsize, ax parameters
+        - Now uses HDI instead of quantiles for uncertainty
+        - Automatic handling of extra dimensions (creates subplots)
+
+        Examples
+        --------
+        Basic usage with budget optimization results:
+
+        >>> allocation_results = mmm.allocate_budget_to_maximize_response(
+        ...     total_budget=100_000, budget_bounds={"lower": 0.5, "upper": 2.0}
+        ... )
+        >>> pc = mmm.plot.allocated_contribution_by_channel_over_time(
+        ...     allocation_results
+        ... )
+        >>> pc.show()
+
+        Custom HDI probability:
+
+        >>> pc = mmm.plot.allocated_contribution_by_channel_over_time(
+        ...     allocation_results, hdi_prob=0.94
+        ... )
+        >>> pc.show()
+
+        Use different backend:
+
+        >>> pc = mmm.plot.allocated_contribution_by_channel_over_time(
+        ...     allocation_results, backend="plotly"
+        ... )
+        >>> pc.show()
         """
         # Check for expected dimensions and variables
         if "channel" not in samples.dims:
@@ -1047,30 +1465,67 @@ class MMMPlotSuite:
         aggregation: dict[str, tuple[str, ...] | list[str]] | None = None,
         backend: str | None = None,
     ) -> PlotCollection:
-        """Plot helper for sensitivity analysis results.
+        """Private helper for plotting sensitivity analysis results.
 
-        This is a private helper method that operates on provided data.
-        Public methods (sensitivity_analysis, uplift_curve, marginal_curve)
-        handle data retrieval from self.idata.
+        This is an internal method that performs the core plotting logic for
+        sensitivity analysis visualizations. Public methods (sensitivity_analysis,
+        uplift_curve, marginal_curve) handle data retrieval and call this helper.
+
+        .. versionadded:: 0.18.0
+           New arviz_plots-based implementation supporting multiple backends.
 
         Parameters
         ----------
         data : xr.DataArray or xr.Dataset
-            Sensitivity analysis data to plot. Must have 'sample' and 'sweep' dimensions.
-            If Dataset, should contain 'x' variable. This parameter is REQUIRED with
-            no fallback to self.idata to maintain separation of concerns.
+            Sensitivity analysis data to plot. Must have required dimensions:
+            - 'sample': MCMC samples
+            - 'sweep': Sweep values (e.g., multipliers or input values)
+
+            If Dataset, should contain 'x' variable.
+
+            IMPORTANT: This parameter is REQUIRED with no fallback to self.idata.
+            This design maintains separation of concerns - public methods handle
+            data retrieval, this helper handles pure plotting.
         hdi_prob : float, default 0.94
-            HDI probability mass.
+            HDI probability mass (between 0 and 1).
         aggregation : dict, optional
-            Aggregation to apply to the data.
-            E.g., {"sum": ("channel",)} to sum over the channel dimension.
+            Aggregations to apply before plotting.
+            Keys are operations ("sum", "mean", "median"), values are dimension tuples.
+            Example: {"sum": ("channel",)} sums over the channel dimension.
         backend : str | None, optional
-            Backend to use for plotting. If None, will use the global backend configuration.
+            Backend to use for plotting. If None, uses global backend configuration.
 
         Returns
         -------
         PlotCollection
+            arviz_plots PlotCollection object containing the plot.
 
+            Note: Y-axis label is NOT set by this helper. Public methods calling
+            this helper should set appropriate labels (e.g., "Contribution",
+            "Uplift (%)", "Marginal Effect").
+
+        Raises
+        ------
+        ValueError
+            If data is missing required dimensions ('sample', 'sweep').
+
+        Notes
+        -----
+        Design rationale for REQUIRED data parameter:
+
+        - **Separation of concerns**: Public methods handle data location/retrieval
+          (from self.idata.sensitivity_analysis, self.idata.posterior, etc.),
+          this helper handles pure visualization logic.
+        - **Testability**: Easy to test plotting logic with mock data.
+        - **Cleaner implementation**: No monkey-patching or state manipulation.
+        - **Flexibility**: Can be reused for different data sources without
+          coupling to self.idata structure.
+
+        This is a PRIVATE method (starts with _) and should not be called directly
+        by users. Use public methods instead:
+        - sensitivity_analysis(): General sensitivity analysis plots
+        - uplift_curve(): Uplift percentage plots
+        - marginal_curve(): Marginal effects plots
         """
         # Handle Dataset or DataArray
         x = data["x"] if isinstance(data, xr.Dataset) else data
@@ -1151,52 +1606,118 @@ class MMMPlotSuite:
         aggregation: dict[str, tuple[str, ...] | list[str]] | None = None,
         backend: str | None = None,
     ) -> PlotCollection:
-        """Plot sensitivity analysis results.
+        """Plot sensitivity analysis results showing response to input changes.
+
+        Visualizes how model outputs (e.g., channel contributions) change as inputs
+        (e.g., channel spend) are varied. Shows mean response line and HDI bands
+        across sweep values.
+
+        .. versionadded:: 0.18.0
+           New arviz_plots-based implementation supporting multiple backends.
 
         Parameters
         ----------
         data : xr.DataArray or xr.Dataset, optional
-            Sensitivity analysis data to plot. If None, uses self.idata.sensitivity_analysis.
+            Sensitivity analysis data with required dimensions:
+            - 'sample': MCMC samples
+            - 'sweep': Sweep values (e.g., multipliers)
+
+            If Dataset, should contain 'x' variable.
+            If None, uses self.idata.sensitivity_analysis.
+
+            .. versionadded:: 0.18.0
+               Added data parameter for explicit data passing.
 
             This parameter allows:
             - Testing with mock sensitivity analysis results
             - Plotting external sweep results
             - Comparing different sensitivity analyses
         hdi_prob : float, default 0.94
-            HDI probability mass.
+            HDI probability mass (between 0 and 1).
         aggregation : dict, optional
-            Aggregation to apply to the data.
-            E.g., {"sum": ("channel",)} to sum over the channel dimension.
+            Aggregations to apply before plotting.
+            Keys: "sum", "mean", or "median"
+            Values: tuple of dimension names
+
+            Example: ``{"sum": ("channel",)}`` sums over channels before plotting.
         backend : str | None, optional
-            Backend to use for plotting. If None, will use the global backend configuration.
+            Backend to use for plotting. If None, uses global backend configuration.
 
         Returns
         -------
         PlotCollection
+            arviz_plots PlotCollection object containing the plot.
+
+            Use ``.show()`` to display or ``.save("filename")`` to save.
+            Unlike the legacy suite which returned ``(Figure, Axes)`` or ``Axes``,
+            this provides a unified interface across all backends.
 
         Raises
         ------
         ValueError
-            If no sensitivity analysis data found and no data provided.
+            If no sensitivity analysis data found in self.idata and no data provided.
+
+        See Also
+        --------
+        uplift_curve : Plot uplift percentages (derived from sensitivity analysis)
+        marginal_curve : Plot marginal effects (derived from sensitivity analysis)
+        LegacyMMMPlotSuite.sensitivity_analysis : Legacy matplotlib-only implementation
+
+        Notes
+        -----
+        Breaking changes from legacy implementation:
+
+        - Returns PlotCollection instead of (Figure, Axes) or Axes
+        - Lost ax, subplot_kwargs, plot_kwargs parameters (use backend methods)
+        - Cleaner implementation without monkey-patching
+        - Data parameter for explicit data passing (no side effects on self.idata)
 
         Examples
         --------
-        Basic run using stored results in `idata`:
+        Run sweep and plot results:
 
         .. code-block:: python
 
-            # Assuming you already ran a sweep and stored results
-            # under idata.sensitivity_analysis via SensitivityAnalysis.run_sweep(..., extend_idata=True)
-            mmm.plot.sensitivity_analysis(hdi_prob=0.9)
+            from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
 
-        With aggregation over dimensions (e.g., sum over channels):
-
-        .. code-block:: python
-
-            mmm.plot.sensitivity_analysis(
-                hdi_prob=0.9,
-                aggregation={"sum": ("channel",)},
+            # Run sensitivity sweep
+            sweeps = np.linspace(0.5, 1.5, 11)
+            sa = SensitivityAnalysis(mmm.model, mmm.idata)
+            results = sa.run_sweep(
+                var_input="channel_data",
+                sweep_values=sweeps,
+                var_names="channel_contribution",
+                sweep_type="multiplicative",
+                extend_idata=True,  # Store in idata
             )
+
+            # Plot stored results
+            pc = mmm.plot.sensitivity_analysis(hdi_prob=0.9)
+            pc.show()
+
+        Aggregate over channels:
+
+        .. code-block:: python
+
+            pc = mmm.plot.sensitivity_analysis(
+                hdi_prob=0.9, aggregation={"sum": ("channel",)}
+            )
+            pc.show()
+
+        Use different backend:
+
+        .. code-block:: python
+
+            pc = mmm.plot.sensitivity_analysis(backend="plotly")
+            pc.show()
+
+        Provide explicit data:
+
+        .. code-block:: python
+
+            external_results = sa.run_sweep(...)  # Not stored in idata
+            pc = mmm.plot.sensitivity_analysis(data=external_results)
+            pc.show()
         """
         # Retrieve data if not provided
         data = self._get_data_or_fallback(
@@ -1216,45 +1737,83 @@ class MMMPlotSuite:
         aggregation: dict[str, tuple[str, ...] | list[str]] | None = None,
         backend: str | None = None,
     ) -> PlotCollection:
-        """
-        Plot precomputed uplift curves stored under `idata.sensitivity_analysis['uplift_curve']`.
+        """Plot uplift curves showing percentage change relative to baseline.
+
+        Visualizes relative percentage changes in model outputs (e.g., channel
+        contributions) as inputs are varied, compared to a reference point.
+        Shows mean uplift line and HDI bands.
+
+        .. versionadded:: 0.18.0
+           New arviz_plots-based implementation supporting multiple backends.
 
         Parameters
         ----------
         data : xr.DataArray or xr.Dataset, optional
-            Uplift curve data to plot. If Dataset, should contain 'uplift_curve' variable.
+            Uplift curve data computed from sensitivity analysis.
+            If Dataset, should contain 'uplift_curve' variable.
             If None, uses self.idata.sensitivity_analysis['uplift_curve'].
+
+            Must be precomputed using:
+            ``SensitivityAnalysis.compute_uplift_curve_respect_to_base(...)``
+
+            .. versionadded:: 0.18.0
+               Added data parameter for explicit data passing.
 
             This parameter allows:
             - Testing with mock uplift curve data
             - Plotting externally computed uplift curves
             - Comparing uplift curves from different models
         hdi_prob : float, default 0.94
-            HDI probability mass.
+            HDI probability mass (between 0 and 1).
         aggregation : dict, optional
-            Aggregation to apply to the data.
-            E.g., {"sum": ("channel",)} to sum over the channel dimension.
+            Aggregations to apply before plotting.
+            Keys: "sum", "mean", or "median"
+            Values: tuple of dimension names
+
+            Example: ``{"sum": ("channel",)}`` sums over channels before plotting.
         backend : str | None, optional
-            Backend to use for plotting. If None, will use the global backend configuration.
+            Backend to use for plotting. If None, uses global backend configuration.
 
         Returns
         -------
         PlotCollection
-            arviz_plots PlotCollection object.
+            arviz_plots PlotCollection object containing the plot.
+
+            Use ``.show()`` to display or ``.save("filename")`` to save.
+            Unlike the legacy suite which returned ``(Figure, Axes)`` or ``Axes``,
+            this provides a unified interface across all backends.
 
         Raises
         ------
         ValueError
-            If no uplift curve data found and no data provided.
+            If no uplift curve data found in self.idata and no data provided.
+        ValueError
+            If 'uplift_curve' variable not found in sensitivity_analysis group.
+
+        See Also
+        --------
+        sensitivity_analysis : Plot raw sensitivity analysis results
+        marginal_curve : Plot marginal effects (absolute changes)
+        LegacyMMMPlotSuite.uplift_curve : Legacy matplotlib-only implementation
+
+        Notes
+        -----
+        Breaking changes from legacy implementation:
+
+        - Returns PlotCollection instead of (Figure, Axes) or Axes
+        - Cleaner implementation without monkey-patching
+        - No longer modifies self.idata.sensitivity_analysis temporarily
+        - Data parameter for explicit data passing
 
         Examples
         --------
-        Persist uplift curve and plot:
+        Compute and plot uplift curve:
 
         .. code-block:: python
 
             from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
 
+            # Run sensitivity sweep
             sweeps = np.linspace(0.5, 1.5, 11)
             sa = SensitivityAnalysis(mmm.model, mmm.idata)
             results = sa.run_sweep(
@@ -1263,10 +1822,39 @@ class MMMPlotSuite:
                 var_names="channel_contribution",
                 sweep_type="multiplicative",
             )
+
+            # Compute uplift relative to baseline (ref=1.0)
             uplift = sa.compute_uplift_curve_respect_to_base(
-                results, ref=1.0, extend_idata=True
+                results,
+                ref=1.0,
+                extend_idata=True,  # Store in idata
             )
-            mmm.plot.uplift_curve(hdi_prob=0.9)
+
+            # Plot stored uplift curve
+            pc = mmm.plot.uplift_curve(hdi_prob=0.9)
+            pc.show()
+
+        Aggregate over channels:
+
+        .. code-block:: python
+
+            pc = mmm.plot.uplift_curve(aggregation={"sum": ("channel",)})
+            pc.show()
+
+        Use different backend:
+
+        .. code-block:: python
+
+            pc = mmm.plot.uplift_curve(backend="plotly")
+            pc.show()
+
+        Provide explicit data:
+
+        .. code-block:: python
+
+            uplift_data = sa.compute_uplift_curve_respect_to_base(results, ref=1.0)
+            pc = mmm.plot.uplift_curve(data=uplift_data)
+            pc.show()
         """
         # Retrieve data if not provided
         if data is None:
@@ -1311,45 +1899,86 @@ class MMMPlotSuite:
         aggregation: dict[str, tuple[str, ...] | list[str]] | None = None,
         backend: str | None = None,
     ) -> PlotCollection:
-        """
-        Plot precomputed marginal effects stored under `idata.sensitivity_analysis['marginal_effects']`.
+        """Plot marginal effects showing absolute rate of change.
+
+        Visualizes the instantaneous rate of change (derivative) of model outputs
+        with respect to inputs. Shows how much output changes per unit change in
+        input at each sweep value.
+
+        .. versionadded:: 0.18.0
+           New arviz_plots-based implementation supporting multiple backends.
 
         Parameters
         ----------
         data : xr.DataArray or xr.Dataset, optional
-            Marginal effects data to plot. If Dataset, should contain 'marginal_effects' variable.
+            Marginal effects data computed from sensitivity analysis.
+            If Dataset, should contain 'marginal_effects' variable.
             If None, uses self.idata.sensitivity_analysis['marginal_effects'].
+
+            Must be precomputed using:
+            ``SensitivityAnalysis.compute_marginal_effects(...)``
+
+            .. versionadded:: 0.18.0
+               Added data parameter for explicit data passing.
 
             This parameter allows:
             - Testing with mock marginal effects data
             - Plotting externally computed marginal effects
             - Comparing marginal effects from different models
         hdi_prob : float, default 0.94
-            HDI probability mass.
+            HDI probability mass (between 0 and 1).
         aggregation : dict, optional
-            Aggregation to apply to the data.
-            E.g., {"sum": ("channel",)} to sum over the channel dimension.
+            Aggregations to apply before plotting.
+            Keys: "sum", "mean", or "median"
+            Values: tuple of dimension names
+
+            Example: ``{"sum": ("channel",)}`` sums over channels before plotting.
         backend : str | None, optional
-            Backend to use for plotting. If None, will use the global backend configuration.
+            Backend to use for plotting. If None, uses global backend configuration.
 
         Returns
         -------
         PlotCollection
-            arviz_plots PlotCollection object.
+            arviz_plots PlotCollection object containing the plot.
+
+            Use ``.show()`` to display or ``.save("filename")`` to save.
+            Unlike the legacy suite which returned ``(Figure, Axes)`` or ``Axes``,
+            this provides a unified interface across all backends.
 
         Raises
         ------
         ValueError
-            If no marginal effects data found and no data provided.
+            If no marginal effects data found in self.idata and no data provided.
+        ValueError
+            If 'marginal_effects' variable not found in sensitivity_analysis group.
+
+        See Also
+        --------
+        sensitivity_analysis : Plot raw sensitivity analysis results
+        uplift_curve : Plot uplift percentages (relative changes)
+        LegacyMMMPlotSuite.marginal_curve : Legacy matplotlib-only implementation
+
+        Notes
+        -----
+        Breaking changes from legacy implementation:
+
+        - Returns PlotCollection instead of (Figure, Axes) or Axes
+        - Cleaner implementation without monkey-patching
+        - No longer modifies self.idata.sensitivity_analysis temporarily
+        - Data parameter for explicit data passing
+
+        Marginal effects show the **slope** of the sensitivity curve, helping
+        identify where returns are diminishing most rapidly.
 
         Examples
         --------
-        Persist marginal effects and plot:
+        Compute and plot marginal effects:
 
         .. code-block:: python
 
             from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
 
+            # Run sensitivity sweep
             sweeps = np.linspace(0.5, 1.5, 11)
             sa = SensitivityAnalysis(mmm.model, mmm.idata)
             results = sa.run_sweep(
@@ -1358,8 +1987,38 @@ class MMMPlotSuite:
                 var_names="channel_contribution",
                 sweep_type="multiplicative",
             )
-            me = sa.compute_marginal_effects(results, extend_idata=True)
-            mmm.plot.marginal_curve(hdi_prob=0.9)
+
+            # Compute marginal effects (derivatives)
+            me = sa.compute_marginal_effects(
+                results,
+                extend_idata=True,  # Store in idata
+            )
+
+            # Plot stored marginal effects
+            pc = mmm.plot.marginal_curve(hdi_prob=0.9)
+            pc.show()
+
+        Aggregate over channels:
+
+        .. code-block:: python
+
+            pc = mmm.plot.marginal_curve(aggregation={"sum": ("channel",)})
+            pc.show()
+
+        Use different backend:
+
+        .. code-block:: python
+
+            pc = mmm.plot.marginal_curve(backend="plotly")
+            pc.show()
+
+        Provide explicit data:
+
+        .. code-block:: python
+
+            marginal_data = sa.compute_marginal_effects(results)
+            pc = mmm.plot.marginal_curve(data=marginal_data)
+            pc.show()
         """
         # Retrieve data if not provided
         if data is None:

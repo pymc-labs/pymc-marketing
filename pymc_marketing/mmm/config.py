@@ -19,21 +19,101 @@ VALID_BACKENDS = {"matplotlib", "plotly", "bokeh"}
 
 
 class MMMConfig(dict):
-    """
-    Configuration dictionary for MMM plotting settings.
+    """Configuration dictionary for MMM plotting settings.
 
-    Provides backend configuration with validation and reset functionality.
-    Modeled after ArviZ's rcParams pattern.
+    Global configuration object that controls MMM plotting behavior including
+    backend selection and version control. Modeled after ArviZ's rcParams pattern.
+
+    Available Configuration Keys
+    ----------------------------
+
+    **plot.backend** : str, default="matplotlib"
+        Plotting backend to use for all plots in MMMPlotSuite. Options:
+
+        * ``"matplotlib"`` - Static plots, publication-quality, widest compatibility
+        * ``"plotly"`` - Interactive plots with hover tooltips and zoom
+        * ``"bokeh"`` - Interactive plots with rich interactions
+
+        Can be overridden per-method using the ``backend`` parameter.
+
+        .. versionadded:: 0.18.0
+
+    **plot.show_warnings** : bool, default=True
+        Whether to show deprecation and other warnings from the plotting suite.
+
+        .. versionadded:: 0.18.0
+
+    **plot.use_v2** : bool, default=False
+        Whether to use new arviz_plots-based plotting suite vs legacy suite.
+
+        * ``False`` (default in v0.18.0): Use legacy matplotlib-only suite
+        * ``True``: Use new multi-backend arviz_plots-based suite
+
+        This flag controls which suite is returned by ``MMM.plot`` property.
+
+        .. versionadded:: 0.18.0
+
+        .. versionchanged:: 0.19.0
+           Default will change to True (new suite becomes default).
+
+        .. deprecated:: 0.20.0
+           This flag will be removed as legacy suite is removed.
 
     Examples
     --------
+    Set plotting backend globally:
+
     >>> from pymc_marketing.mmm import mmm_config
     >>> mmm_config["plot.backend"] = "plotly"
-    >>> mmm_config["plot.backend"]
-    'plotly'
+    >>> # All plots now use plotly by default
+    >>> mmm = MMM(...)
+    >>> mmm.fit(X, y)
+    >>> pc = mmm.plot.posterior_predictive()  # Uses plotly
+    >>> pc.show()
+
+    Enable new plotting suite (v2):
+
+    >>> mmm_config["plot.use_v2"] = True
+    >>> # Now using arviz_plots-based multi-backend suite
+    >>> mmm = MMM(...)
+    >>> mmm.fit(X, y)
+    >>> pc = mmm.plot.contributions_over_time(var=["intercept"])
+    >>> pc.show()
+
+    Suppress warnings:
+
+    >>> mmm_config["plot.show_warnings"] = False
+
+    Reset to defaults:
+
     >>> mmm_config.reset()
     >>> mmm_config["plot.backend"]
     'matplotlib'
+
+    Context manager pattern for temporary config changes:
+
+    >>> original = mmm_config["plot.backend"]
+    >>> try:
+    ...     mmm_config["plot.backend"] = "plotly"
+    ...     # Use plotly for this section
+    ...     pc = mmm.plot.posterior_predictive()
+    ...     pc.show()
+    ... finally:
+    ...     mmm_config["plot.backend"] = original
+
+    See Also
+    --------
+    MMM.plot : Property that returns appropriate plot suite based on config
+    MMMPlotSuite : New multi-backend plotting suite
+    LegacyMMMPlotSuite : Legacy matplotlib-only suite
+
+    Notes
+    -----
+    Configuration changes affect all subsequent plot calls globally unless
+    overridden at the method level using the ``backend`` parameter.
+
+    The configuration is a singleton - changes affect all MMM instances in
+    the current Python session.
     """
 
     _defaults = {
