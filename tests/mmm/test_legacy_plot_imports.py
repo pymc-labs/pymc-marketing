@@ -31,11 +31,3 @@ def test_legacy_class_name():
     from pymc_marketing.mmm.legacy_plot import LegacyMMMPlotSuite
 
     assert LegacyMMMPlotSuite.__name__ == "LegacyMMMPlotSuite"
-
-
-def test_old_plot_module_not_exists():
-    """Test that old_plot module has been removed."""
-    with pytest.raises(
-        ImportError, match=r"(No module named.*old_plot|cannot import name 'old_plot')"
-    ):
-        from pymc_marketing.mmm import old_plot  # noqa: F401
