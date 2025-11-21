@@ -649,7 +649,9 @@ class MMM(RegressionModelBuilder):
                     "The current MMMPlotSuite will be deprecated in v0.20.0. "
                     "The new version uses arviz_plots and supports multiple backends "
                     "(matplotlib, plotly, bokeh). "
-                    "To use the new version: mmm_config['plot.use_v2'] = True\n"
+                    "To use the new version:\n"
+                    "  from pymc_marketing.mmm import mmm_config\n"
+                    "  mmm_config['plot.use_v2'] = True\n"
                     "To suppress this warning: mmm_config['plot.show_warnings'] = False\n"
                     "See migration guide: https://docs.pymc-marketing.io/en/latest/mmm/plotting_migration.html",
                     FutureWarning,
