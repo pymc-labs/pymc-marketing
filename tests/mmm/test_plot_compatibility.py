@@ -98,6 +98,45 @@ class TestVersionSwitching:
         finally:
             mmm_config["plot.use_v2"] = original
 
+    def test_switching_between_v2_true_and_false(self, mock_mmm):
+        """Test that switching from use_v2=True to False and back works correctly."""
+        from pymc_marketing.mmm import mmm_config
+        from pymc_marketing.mmm.legacy_plot import LegacyMMMPlotSuite
+        from pymc_marketing.mmm.plot import MMMPlotSuite
+
+        original = mmm_config.get("plot.use_v2", False)
+        try:
+            # Start with use_v2 = True
+            mmm_config["plot.use_v2"] = True
+
+            # Should return new suite without warnings
+            with warnings.catch_warnings():
+                warnings.simplefilter("error")
+                plot_suite_v2 = mock_mmm.plot
+
+            assert isinstance(plot_suite_v2, MMMPlotSuite)
+
+            # Switch to use_v2 = False
+            mmm_config["plot.use_v2"] = False
+
+            # Should return legacy suite with deprecation warning
+            with pytest.warns(FutureWarning, match="deprecated in v0.20.0"):
+                plot_suite_legacy = mock_mmm.plot
+
+            assert isinstance(plot_suite_legacy, LegacyMMMPlotSuite)
+
+            # Switch back to use_v2 = True
+            mmm_config["plot.use_v2"] = True
+
+            # Should return new suite again without warnings
+            with warnings.catch_warnings():
+                warnings.simplefilter("error")
+                plot_suite_v2_again = mock_mmm.plot
+
+            assert isinstance(plot_suite_v2_again, MMMPlotSuite)
+        finally:
+            mmm_config["plot.use_v2"] = original
+
 
 class TestDeprecationWarnings:
     """Test deprecation warnings shown correctly with helpful information."""

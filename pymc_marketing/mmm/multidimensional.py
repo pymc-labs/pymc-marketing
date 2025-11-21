@@ -183,14 +183,17 @@ from pymc_marketing.mmm.components.saturation import (
     SaturationTransformation,
     saturation_from_dict,
 )
+from pymc_marketing.mmm.config import mmm_config
 from pymc_marketing.mmm.events import EventEffect
 from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.hsgp import HSGPBase
+from pymc_marketing.mmm.legacy_plot import LegacyMMMPlotSuite
 from pymc_marketing.mmm.lift_test import (
     add_cost_per_target_potentials,
     add_lift_measurements_to_likelihood_from_saturation,
     scale_lift_measurements,
 )
+from pymc_marketing.mmm.plot import MMMPlotSuite
 from pymc_marketing.mmm.scaling import Scaling, VariableScaling
 from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
 from pymc_marketing.mmm.tvp import infer_time_index
@@ -630,12 +633,6 @@ class MMM(RegressionModelBuilder):
         MMMPlotSuite or LegacyMMMPlotSuite
             Plot suite instance for creating MMM visualizations.
         """
-        import warnings
-
-        from pymc_marketing.mmm.config import mmm_config
-        from pymc_marketing.mmm.legacy_plot import LegacyMMMPlotSuite
-        from pymc_marketing.mmm.plot import MMMPlotSuite
-
         self._validate_model_was_built()
         self._validate_idata_exists()
 
