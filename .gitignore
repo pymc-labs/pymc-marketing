@@ -147,6 +147,3 @@ dmypy.json
 # Gallery images
 docs/source/gallery/images/
 docs/gettext/
-
-# ignore Claude
-.claude/*
