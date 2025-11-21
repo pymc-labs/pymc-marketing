@@ -1,0 +1,337 @@
+name: Implement (v2 - Single PR Journey)
+
+on:
+  issues:
+    types: [opened, labeled]
+
+concurrency:
+  group: issue-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  implement:
+    if: contains(github.event.issue.labels.*.name, 'implement')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "18"
+
+      - name: Install Claude Code CLI
+        run: |
+          npm install -g @anthropic-ai/claude-code
+
+      - name: Install GitHub CLI
+        run: |
+          type -p gh >/dev/null || {
+            sudo apt update
+            sudo apt install -y gh
+          }
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Checkout branch
+        run: |
+          issue_number="${{ github.event.issue.number }}"
+          branch_name="work-issue-${issue_number}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Check if branch exists remotely
+          if git ls-remote --heads origin "$branch_name" | grep -q "$branch_name"; then
+            echo "✅ Branch exists, checking out"
+            git fetch origin "$branch_name"
+            git checkout "$branch_name"
+            git pull --rebase origin "$branch_name"
+          else
+            echo "❌ Branch $branch_name doesn't exist"
+            echo "Run research and planning first"
+            exit 1
+          fi
+
+          echo "Current branch: $(git branch --show-current)"
+
+      - name: Find plan file
+        id: find_plan
+        run: |
+          issue_number="${{ github.event.issue.number }}"
+          plan_file="thoughts/shared/issues/${issue_number}/plan.md"
+
+          if [ ! -f "$plan_file" ]; then
+            echo "❌ No plan file found at $plan_file"
+            echo "Create a plan first by adding plan_needed label"
+            exit 1
+          fi
+
+          echo "plan_file=$plan_file" >> $GITHUB_OUTPUT
+          echo "✅ Found plan: $plan_file"
+
+      - name: Get or create PR
+        id: get_pr
+        run: |
+          issue_number="${{ github.event.issue.number }}"
+          branch_name="work-issue-${issue_number}"
+
+          # Check if PR already exists for this branch
+          pr_number=$(gh pr list --head "$branch_name" --json number --jq '.[0].number' 2>/dev/null || echo "")
+
+          if [ -n "$pr_number" ]; then
+            echo "pr_number=$pr_number" >> $GITHUB_OUTPUT
+            echo "pr_exists=true" >> $GITHUB_OUTPUT
+            echo "✅ PR #${pr_number} already exists"
+          else
+            echo "pr_exists=false" >> $GITHUB_OUTPUT
+            echo "📝 No existing PR found, will create new one"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Create PR
+        if: steps.get_pr.outputs.pr_exists == 'false'
+        id: create_pr
+        run: |
+          issue_number="${{ github.event.issue.number }}"
+          branch_name="work-issue-${issue_number}"
+
+          # Create PR body
+          cat > /tmp/pr_body.md << EOF
+          ## 📋 Implementation for #${issue_number}
+
+          This PR implements the plan for issue #${issue_number}.
+
+          ### Files
+          - Research: \`thoughts/shared/issues/${issue_number}/research.md\`
+          - Plan: \`thoughts/shared/issues/${issue_number}/plan.md\`
+
+          **Discussion**: See issue #${issue_number} for research and plan details
+
+          **Status**: Implementation in progress...
+
+          **Closes**: #${issue_number}
+          EOF
+
+          pr_url=$(gh pr create \
+            --title "${{ github.event.issue.title }}" \
+            --body-file /tmp/pr_body.md \
+            --base main \
+            --head "$branch_name" \
+            | tail -1)
+
+          pr_number=$(echo "$pr_url" | grep -oE '[0-9]+$')
+
+          echo "pr_number=$pr_number" >> $GITHUB_OUTPUT
+          echo "✅ Created PR #${pr_number}"
+
+          # Post to issue that PR was created
+          gh issue comment "$issue_number" \
+            --body "## 🚀 Pull Request Created
+
+          PR #${pr_number} has been created for implementation.
+
+          **Next**: Implementation will now proceed automatically."
+
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Set PR number
+        id: set_pr
+        run: |
+          if [ "${{ steps.get_pr.outputs.pr_exists }}" = "true" ]; then
+            echo "pr_number=${{ steps.get_pr.outputs.pr_number }}" >> $GITHUB_OUTPUT
+          else
+            echo "pr_number=${{ steps.create_pr.outputs.pr_number }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run implement_plan command
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          plan_file="${{ steps.find_plan.outputs.plan_file }}"
+
+          echo "Starting implementation for issue #${{ github.event.issue.number }}"
+          echo "Using plan: $plan_file"
+
+          claude -p \
+            --dangerously-skip-permissions \
+            --max-turns 200 \
+            --verbose \
+            "/implement_plan @${plan_file}
+
+            IMPORTANT: Do not ask the user any questions during implementation. Make reasonable decisions and proceed with the implementation. If you encounter ambiguity, choose the most straightforward approach." 2>&1 | tee /tmp/claude_output.log
+
+          echo "Implementation command completed"
+
+      - name: Commit and push changes
+        id: commit_changes
+        run: |
+          issue_number="${{ github.event.issue.number }}"
+          branch_name="work-issue-${issue_number}"
+
+          git add .
+
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            git commit -m "Implement plan for issue #${issue_number}
+
+          - Implemented changes according to plan
+
+          Co-authored-by: Claude Code <noreply@anthropic.com>"
+
+            git push -u origin "$branch_name"
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "✅ Committed and pushed implementation"
+          fi
+
+      - name: Comment success on PR
+        if: steps.commit_changes.outputs.has_changes == 'true'
+        run: |
+          pr_number="${{ steps.set_pr.outputs.pr_number }}"
+
+          cat > /tmp/success_comment.md << 'EOF'
+          ## ✅ Implementation Complete
+
+          The implementation has been completed.
+
+          **Changes**:
+          - Implementation follows the plan in `thoughts/shared/issues/${{ github.event.issue.number }}/plan.md`
+          - Code committed to this PR
+
+          **Next steps**:
+          - Review the implementation changes
+          - Run tests to verify the changes
+          - Merge this PR to close issue #${{ github.event.issue.number }}
+          EOF
+
+          gh pr comment "$pr_number" --body-file /tmp/success_comment.md
+
+          echo "Posted success comment to PR"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Update PR to ready for review
+        if: steps.commit_changes.outputs.has_changes == 'true'
+        run: |
+          pr_number="${{ steps.set_pr.outputs.pr_number }}"
+
+          # Update PR description to show completion
+          cat > /tmp/pr_body.md << EOF
+          ## 📋 Research and Implementation for #${{ github.event.issue.number }}
+
+          This PR contains the complete workflow for issue #${{ github.event.issue.number }}:
+
+          - ✅ Research (completed)
+          - ✅ Planning (completed)
+          - ✅ Implementation (completed)
+
+          ### Research
+          Research findings are in \`thoughts/shared/issues/${{ github.event.issue.number }}/research.md\`
+
+          ### Implementation Plan
+          Plan is in \`thoughts/shared/issues/${{ github.event.issue.number }}/plan.md\`
+
+          ### Implementation
+          All changes have been implemented and tested.
+
+          **Ready for review and merge!**
+
+          **Closes**: #${{ github.event.issue.number }}
+          EOF
+
+          gh pr edit "$pr_number" --body-file /tmp/pr_body.md
+
+          echo "✅ Updated PR description"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Update labels
+        if: success() && steps.commit_changes.outputs.has_changes == 'true'
+        run: |
+          issue_number="${{ github.event.issue.number }}"
+
+          # Remove implement label
+          gh issue edit "${issue_number}" \
+            --remove-label "implement" \
+            --add-label "implementation-done"
+
+          echo "✅ Removed implement label and added implementation-done label"
+
+          # Comment on issue
+          gh issue comment "${issue_number}" \
+            --body "## ✅ Implementation Complete
+
+          Implementation has been completed and is ready for review in PR #${{ steps.set_pr.outputs.pr_number }}.
+
+          Please review the changes and run tests before merging."
+
+          echo "✅ Posted completion comment to issue"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: claude-output-implement-${{ github.event.issue.number }}
+          path: /tmp/claude_output.log
+          retention-days: 7
+
+      - name: Handle errors
+        if: failure()
+        run: |
+          issue_number="${{ github.event.issue.number }}"
+          pr_number="${{ steps.set_pr.outputs.pr_number }}"
+
+          cat > /tmp/error_comment.md << 'EOF'
+          ## ❌ Implementation Failed
+
+          The implementation workflow encountered an error.
+
+          **Issue**: #${{ github.event.issue.number }}
+          **Workflow Run**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          **Common issues**:
+          - No plan file exists (create plan first with plan_needed label)
+          - Implementation errors
+          - API errors or timeouts
+
+          Check the workflow logs for details.
+
+          **To retry**: Remove and re-add the `implement` label.
+          EOF
+
+          # Try to comment on PR first, fallback to issue
+          if [ -n "$pr_number" ]; then
+            gh pr comment "$pr_number" --body-file /tmp/error_comment.md || \
+              gh issue comment "$issue_number" --body-file /tmp/error_comment.md
+          else
+            gh issue comment "$issue_number" --body-file /tmp/error_comment.md
+          fi
+
+          echo "Posted error comment"
+        env:
+          GH_TOKEN: ${{ github.token }}

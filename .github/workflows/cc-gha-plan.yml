@@ -1,0 +1,248 @@
+name: Plan (v2 - Single PR Journey)
+
+on:
+  issues:
+    types: [opened, labeled]
+
+concurrency:
+  group: issue-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    if: contains(github.event.issue.labels.*.name, 'plan_needed')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "18"
+
+      - name: Install Claude Code CLI
+        run: |
+          npm install -g @anthropic-ai/claude-code
+
+      - name: Verify Claude installation
+        run: |
+          claude --version
+
+      - name: Create issue prompt file
+        run: |
+          cat > /tmp/issue_prompt.txt << 'EOF'
+          # Issue: ${{ github.event.issue.title }}
+
+          ${{ github.event.issue.body }}
+          EOF
+
+          # Fetch and append all comments
+          echo "" >> /tmp/issue_prompt.txt
+          echo "---" >> /tmp/issue_prompt.txt
+          echo "" >> /tmp/issue_prompt.txt
+          echo "## Comments" >> /tmp/issue_prompt.txt
+          echo "" >> /tmp/issue_prompt.txt
+
+          gh api "/repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments" \
+            --jq '.[] | "### Comment by @\(.user.login) at \(.created_at)\n\n\(.body)\n\n---\n"' \
+            >> /tmp/issue_prompt.txt || echo "No comments found" >> /tmp/issue_prompt.txt
+
+          echo "Issue prompt with comments saved to /tmp/issue_prompt.txt"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Checkout branch
+        run: |
+          issue_number="${{ github.event.issue.number }}"
+          branch_name="work-issue-${issue_number}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Check if branch exists remotely
+          if git ls-remote --heads origin "$branch_name" | grep -q "$branch_name"; then
+            echo "✅ Branch exists, checking out"
+            git fetch origin "$branch_name"
+            git checkout "$branch_name"
+            git pull --rebase origin "$branch_name"
+          else
+            echo "❌ Branch $branch_name doesn't exist"
+            echo "Run research first by adding research_needed label"
+            exit 1
+          fi
+
+          echo "Current branch: $(git branch --show-current)"
+
+      - name: Find research context
+        id: find_research_context
+        run: |
+          issue_number="${{ github.event.issue.number }}"
+          research_file="thoughts/shared/issues/${issue_number}/research.md"
+
+          if [ -f "$research_file" ]; then
+            echo "✅ Found research: $research_file"
+            echo "research_file=$research_file" >> $GITHUB_OUTPUT
+            echo "has_research=true" >> $GITHUB_OUTPUT
+            cp "$research_file" /tmp/research_context.md
+          else
+            echo "⚠️ No research file found, will plan without research context"
+            echo "has_research=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run plan command
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          issue_number="${{ github.event.issue.number }}"
+          issue_dir="thoughts/shared/issues/${issue_number}"
+
+          mkdir -p "$issue_dir"
+
+          echo "Starting planning for issue #${issue_number}"
+          echo "Output will be: ${issue_dir}/plan.md"
+
+          claude -p \
+            --dangerously-skip-permissions \
+            --max-turns 200 \
+            --verbose \
+            "/create_plan_issue $(cat /tmp/issue_prompt.txt)" 2>&1 | tee /tmp/claude_output.log
+
+          echo "Plan command completed"
+
+      - name: Find plan output
+        id: find_plan
+        run: |
+          issue_number="${{ github.event.issue.number }}"
+          plan_file="thoughts/shared/issues/${issue_number}/plan.md"
+
+          if [ ! -f "$plan_file" ]; then
+            echo "❌ No plan file found at $plan_file"
+            exit 1
+          fi
+
+          echo "plan_file=$plan_file" >> $GITHUB_OUTPUT
+          echo "✅ Found plan: $plan_file"
+
+          echo "Preview:"
+          head -20 "$plan_file"
+
+      - name: Commit and push plan
+        run: |
+          issue_number="${{ github.event.issue.number }}"
+          branch_name="work-issue-${issue_number}"
+
+          git add "thoughts/shared/issues/${issue_number}/"
+
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Add implementation plan for issue #${issue_number}"
+            git push -u origin "$branch_name"
+            echo "✅ Committed and pushed plan"
+          fi
+
+      - name: Comment plan on issue
+        run: |
+          issue_number="${{ github.event.issue.number }}"
+          branch_name="work-issue-${issue_number}"
+          plan_file="${{ steps.find_plan.outputs.plan_file }}"
+
+          cat > /tmp/issue_comment.md << 'HEADER'
+          ## 📋 Implementation Plan
+
+          An implementation plan has been created for this issue.
+
+          **Branch**: `BRANCH_NAME`
+          **File**: `PLAN_FILE`
+
+          <details>
+          <summary><strong>📝 View Implementation Plan</strong></summary>
+
+          ---
+
+          HEADER
+
+          sed -i "s|BRANCH_NAME|$branch_name|g" /tmp/issue_comment.md
+          sed -i "s|PLAN_FILE|$plan_file|g" /tmp/issue_comment.md
+          cat "$plan_file" >> /tmp/issue_comment.md
+
+          cat >> /tmp/issue_comment.md << 'FOOTER'
+
+          </details>
+
+          **Next steps**:
+          - Use `iterate` label to refine research or plan if needed
+          - Add `implement` label when ready to start implementation (this will create a PR)
+          FOOTER
+
+          gh issue comment "$issue_number" \
+            --body-file /tmp/issue_comment.md
+
+          echo "✅ Posted plan to issue #${issue_number}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Update labels
+        run: |
+          issue_number="${{ github.event.issue.number }}"
+
+          # Remove plan_needed label and add plan-done
+          gh issue edit "${issue_number}" \
+            --remove-label "plan_needed" \
+            --add-label "plan-done"
+
+          echo "✅ Removed plan_needed label and added plan-done label"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Upload Claude output logs
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: claude-output-plan-${{ github.event.issue.number }}
+          path: /tmp/claude_output.log
+          retention-days: 7
+
+      - name: Handle errors
+        if: failure()
+        run: |
+          issue_number="${{ github.event.issue.number }}"
+          pr_number="${{ steps.find_pr.outputs.pr_number }}"
+
+          cat > /tmp/error_comment.md << 'EOF'
+          ## ❌ Planning Workflow Failed
+
+          The planning workflow encountered an error.
+
+          **Issue**: #${{ github.event.issue.number }}
+          **Workflow Run**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          **Common issues**:
+          - Branch doesn't exist (run research first with research_needed label)
+          - No research file found (research workflow may have failed)
+
+          Please check the workflow logs for details.
+          EOF
+
+          # Try to comment on PR first, fallback to issue
+          if [ -n "$pr_number" ]; then
+            gh pr comment "$pr_number" --body-file /tmp/error_comment.md || \
+              gh issue comment "$issue_number" --body-file /tmp/error_comment.md
+          else
+            gh issue comment "$issue_number" --body-file /tmp/error_comment.md
+          fi
+
+          echo "Posted error comment"
+        env:
+          GH_TOKEN: ${{ github.token }}

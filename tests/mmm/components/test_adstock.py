@@ -28,6 +28,7 @@ from pymc_extras.prior import Prior
 
 from pymc_marketing.mmm import (
     AdstockTransformation,
+    BinomialAdstock,
     DelayedAdstock,
     GeometricAdstock,
     NoAdstock,
@@ -42,6 +43,7 @@ def adstocks() -> list:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         transformations = [
+            BinomialAdstock(l_max=10),
             DelayedAdstock(l_max=10),
             GeometricAdstock(l_max=10),
             WeibullPDFAdstock(l_max=10),

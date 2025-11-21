@@ -186,7 +186,7 @@ from pymc_marketing.mmm.components.saturation import (
 from pymc_marketing.mmm.config import mmm_config
 from pymc_marketing.mmm.events import EventEffect
 from pymc_marketing.mmm.fourier import YearlyFourier
-from pymc_marketing.mmm.hsgp import HSGPBase
+from pymc_marketing.mmm.hsgp import HSGPBase, hsgp_from_dict
 from pymc_marketing.mmm.legacy_plot import LegacyMMMPlotSuite
 from pymc_marketing.mmm.lift_test import (
     add_cost_per_target_potentials,
@@ -529,8 +529,22 @@ class MMM(RegressionModelBuilder):
         attrs["control_columns"] = json.dumps(self.control_columns)
         attrs["channel_columns"] = json.dumps(self.channel_columns)
         attrs["yearly_seasonality"] = json.dumps(self.yearly_seasonality)
-        attrs["time_varying_intercept"] = json.dumps(self.time_varying_intercept)
-        attrs["time_varying_media"] = json.dumps(self.time_varying_media)
+        attrs["time_varying_intercept"] = json.dumps(
+            self.time_varying_intercept
+            if not isinstance(self.time_varying_intercept, HSGPBase)
+            else {
+                **self.time_varying_intercept.to_dict(),
+                **{"hsgp_class": self.time_varying_intercept.__class__.__name__},
+            }
+        )
+        attrs["time_varying_media"] = json.dumps(
+            self.time_varying_media
+            if not isinstance(self.time_varying_media, HSGPBase)
+            else {
+                **self.time_varying_media.to_dict(),
+                **{"hsgp_class": self.time_varying_media.__class__.__name__},
+            }
+        )
         attrs["target_column"] = self.target_column
         attrs["scaling"] = json.dumps(self.scaling.model_dump(mode="json"))
         attrs["dag"] = json.dumps(getattr(self, "dag", None))
@@ -588,11 +602,13 @@ class MMM(RegressionModelBuilder):
             "saturation": saturation_from_dict(json.loads(attrs["saturation"])),
             "adstock_first": json.loads(attrs.get("adstock_first", "true")),
             "yearly_seasonality": json.loads(attrs["yearly_seasonality"]),
-            "time_varying_intercept": json.loads(
-                attrs.get("time_varying_intercept", "false")
+            "time_varying_intercept": hsgp_from_dict(
+                json.loads(attrs.get("time_varying_intercept", "false"))
             ),
             "target_column": attrs["target_column"],
-            "time_varying_media": json.loads(attrs.get("time_varying_media", "false")),
+            "time_varying_media": hsgp_from_dict(
+                json.loads(attrs.get("time_varying_media", "false"))
+            ),
             "sampler_config": json.loads(attrs["sampler_config"]),
             "dims": tuple(json.loads(attrs.get("dims", "[]"))),
             "scaling": json.loads(attrs.get("scaling", "null")),
