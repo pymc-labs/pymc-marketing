@@ -122,11 +122,20 @@ class MMMConfig(dict):
         "plot.use_v2": False,  # Use new arviz_plots-based suite (False = legacy suite for backward compatibility)
     }
 
+    VALID_KEYS = set(_defaults.keys())
+
     def __init__(self):
         super().__init__(self._defaults)
 
     def __setitem__(self, key, value):
-        """Set config value with validation for backend."""
+        """Set config value with validation for key and backend."""
+        if key not in self.VALID_KEYS:
+            warnings.warn(
+                f"Invalid config key '{key}'. Valid keys are: {sorted(self.VALID_KEYS)}. "
+                f"Setting anyway, but this key may not be recognized.",
+                UserWarning,
+                stacklevel=2,
+            )
         if key == "plot.backend":
             if value not in VALID_BACKENDS:
                 warnings.warn(

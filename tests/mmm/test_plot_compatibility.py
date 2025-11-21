@@ -373,3 +373,64 @@ class TestMissingMethods:
                 plot_suite.budget_allocation_roas(samples=None)
         finally:
             mmm_config["plot.use_v2"] = original
+
+
+class TestConfigValidation:
+    """Test MMMConfig key validation."""
+
+    def test_invalid_key_warns_but_allows_setting(self):
+        """Test that setting an invalid config key warns but still sets the value."""
+        from pymc_marketing.mmm import mmm_config
+
+        # Store original state
+        original_invalid = mmm_config.get("invalid.key", None)
+        try:
+            # Try to set an invalid key
+            with pytest.warns(UserWarning, match="Invalid config key"):
+                mmm_config["invalid.key"] = "some_value"
+
+            # Verify the warning message contains valid keys
+            with pytest.warns(UserWarning) as warning_list:
+                mmm_config["another.invalid.key"] = "another_value"
+
+            warning_msg = str(warning_list[0].message)
+            assert "Invalid config key" in warning_msg
+            assert "another.invalid.key" in warning_msg
+            assert "plot.backend" in warning_msg or "plot.show_warnings" in warning_msg
+
+            # Verify the invalid key was still set (allows setting but warns)
+            assert mmm_config["invalid.key"] == "some_value"
+            assert mmm_config["another.invalid.key"] == "another_value"
+        finally:
+            # Clean up invalid keys
+            if "invalid.key" in mmm_config:
+                del mmm_config["invalid.key"]
+            if "another.invalid.key" in mmm_config:
+                del mmm_config["another.invalid.key"]
+            if original_invalid is not None:
+                mmm_config["invalid.key"] = original_invalid
+
+    def test_valid_keys_do_not_warn(self):
+        """Test that setting valid config keys does not warn."""
+        from pymc_marketing.mmm import mmm_config
+
+        original_backend = mmm_config.get("plot.backend", "matplotlib")
+        original_use_v2 = mmm_config.get("plot.use_v2", False)
+        original_warnings = mmm_config.get("plot.show_warnings", True)
+
+        try:
+            # Setting valid keys should not warn
+            with warnings.catch_warnings():
+                warnings.simplefilter("error", UserWarning)
+                mmm_config["plot.backend"] = "plotly"
+                mmm_config["plot.use_v2"] = True
+                mmm_config["plot.show_warnings"] = False
+
+            # Verify values were set
+            assert mmm_config["plot.backend"] == "plotly"
+            assert mmm_config["plot.use_v2"] is True
+            assert mmm_config["plot.show_warnings"] is False
+        finally:
+            mmm_config["plot.backend"] = original_backend
+            mmm_config["plot.use_v2"] = original_use_v2
+            mmm_config["plot.show_warnings"] = original_warnings
