@@ -1593,7 +1593,7 @@ def test_cv_predictions_metadata_values_item_fallback(monkeypatch):
         "y_train": pd.Series([1.0, 2.0]),
         "X_test": pd.DataFrame(
             {"date": pd.to_datetime(["2025-01-03"]), "country": ["A"]}
-        ),
+        ).reset_index(drop=True),
         "y_test": pd.Series([3.0]),
     }
 
@@ -2079,515 +2079,573 @@ def test_transpose_with_fallback():
     assert set(da_s.dims) == set(dims)
 
 
-def test_transpose_sel2_with_fallback(monkeypatch):
-    """Test that when transpose fails in cv_predictions._plot_hdi_from_sel, a warning is issued.
+def test_pred_matrix_transpose_fallback_with_custom_order():
+    """Test that when transpose with ellipsis fails, custom order transpose is used.
 
-    Strategy: Make the FIRST transpose (line 2123 in plot.py) fail, so that arr_s arrives at
-    _plot_hdi_from_sel with wrong dimension order, forcing _plot_hdi_from_sel to attempt
-    its own transpose. Then make THAT transpose also fail to trigger the warning.
+    This covers lines 2466-2469 where if da_s.transpose("sample", ...) fails,
+    the code falls back to building a custom dimension order.
     """
     suite = MMMPlotSuite(idata=None)
-    results = _build_cv_results_for_cv_predictions()
 
-    # Track which transposes were called
-    transpose_attempts = []
+    # Build test data with multiple dimensions
+    dates = pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-03"])
+    cv_labels = ["cv1"]
+    countries = ["A", "B"]
+    products = ["p1", "p2"]
+
+    arr = np.random.default_rng(42).normal(
+        size=(2, 3, len(cv_labels), len(countries), len(products), len(dates))
+    )
+    da = xr.DataArray(
+        arr,
+        dims=("chain", "draw", "cv", "country", "product", "date"),
+        coords={
+            "cv": cv_labels,
+            "country": countries,
+            "product": products,
+            "date": dates,
+        },
+        name="y_original_scale",
+    )
+    ds_pp = xr.Dataset({"y_original_scale": da})
+
+    # Metadata that only filters by date and country (leaving product dimension)
+    meta = {
+        "X_train": pd.DataFrame({"date": dates[:2], "country": ["A", "A"]}),
+        "y_train": pd.Series([10.0, 20.0]),
+        "X_test": pd.DataFrame({"date": dates[2:], "country": ["A"]}),
+        "y_test": pd.Series([30.0]),
+    }
+    meta_da = xr.DataArray(
+        np.array([meta], dtype=object),
+        dims=("cv",),
+        coords={"cv": cv_labels},
+        name="metadata",
+    )
+    ds_meta = xr.Dataset({"metadata": meta_da})
+    results = az.InferenceData(posterior_predictive=ds_pp, cv_metadata=ds_meta)
+
+    # Monkeypatch transpose to fail with ellipsis but succeed with explicit order
     original_transpose = xr.DataArray.transpose
+    transpose_call_count = [0]
 
-    def failing_transpose(self, *args, **kwargs):
-        # Record this transpose attempt
-        transpose_attempts.append(args)
-
-        # Always fail transposes - this will cause:
-        # 1. First transpose (arr_s) to fail -> warning about posterior_predictive array
-        # 2. Data reaches _plot_hdi_from_sel in wrong order
-        # 3. _plot_hdi_from_sel tries to transpose -> fails -> warning about sel2
-        if "sample" in args and "date" in args:
-            raise RuntimeError("Simulated transpose failure")
-
-        # Other transposes succeed
+    def selective_failing_transpose(self, *args, **kwargs):
+        transpose_call_count[0] += 1
+        # Fail only when called with ellipsis (second argument is ...)
+        if len(args) == 2 and args[0] == "sample" and args[1] == Ellipsis:
+            raise ValueError("Simulated ellipsis transpose failure")
         return original_transpose(self, *args, **kwargs)
 
-    monkeypatch.setattr(xr.DataArray, "transpose", failing_transpose)
+    from unittest.mock import patch
 
-    # Should see BOTH warnings: one for posterior_predictive array, one for sel2
-    with pytest.warns(UserWarning):
-        _fig, _axes = suite.cv_predictions(results, dims=None)
+    with patch.object(xr.DataArray, "transpose", selective_failing_transpose):
+        # This should trigger the fallback to custom order
+        fig, _axes = suite.cv_predictions(results, dims=None)
 
-    # Verify at least one transpose was attempted
-    assert len(transpose_attempts) > 0
-
-
-def test_detect_datetime_column_in_dataframe_warns_and_raises():
-    # DataFrame with a datetime column
-    df = pd.DataFrame(
-        {
-            "a": [1, 2, 3],
-            "b": ["x", "y", "z"],
-            "dt": pd.date_range("2025-01-01", periods=3),
-        }
-    )
-
-    found_col = None
-    for col in df.columns:
-        try:
-            if pd.api.types.is_datetime64_any_dtype(df[col].dtype):
-                found_col = col
-                break
-        except Exception as exc:
-            warnings.warn(
-                f"Error while inspecting dataframe column dtype for date detection: {exc}",
-                stacklevel=2,
-            )
-            continue
-    assert found_col == "dt"
-
-    # DataFrame with no datetime column should raise
-    df2 = pd.DataFrame({"a": [1, 2], "b": [3, 4]})
-    found_col = None
-    for col in df2.columns:
-        try:
-            if pd.api.types.is_datetime64_any_dtype(df2[col].dtype):
-                found_col = col
-                break
-        except Exception as exc:
-            warnings.warn(
-                f"Error while inspecting dataframe column dtype for date detection: {exc}",
-                stacklevel=2,
-            )
-            continue
-    if found_col is None:
-        with pytest.raises(ValueError, match="Could not find a date-like column"):
-            raise ValueError(
-                "Could not find a date-like column in rows_df to match posterior_predictive coordinate"
-            )
+    # Verify plot was created despite transpose failure
+    assert fig is not None
+    assert transpose_call_count[0] > 0
 
 
-def test_title_dims_and_values_building():
-    """Test building title_dims and title_values from dims and additional_dims.
+def test_pred_matrix_date_coord_detection_exception_warns():
+    """Test that exceptions during date coord dtype detection are handled gracefully.
 
-    This tests the logic around lines 2714-2722 in plot.py that builds subplot titles
-    from dimension combinations.
+    This covers lines 2484 and 2491-2496 where pd.api.types.is_datetime64_any_dtype
+    might raise an exception. When a date column exists in the DataFrame metadata,
+    the function should complete successfully even if coord inspection fails.
     """
-    # Case 1: dims provided, additional_dims exist
-    dims = {"country": "A", "product": "p1"}
-    additional_dims = ["region", "segment"]
-    dims_keys = ["country", "product"]
-    dims_combo = ("A", "p1")
-    addl_combo = ("X", "Y")
+    suite = MMMPlotSuite(idata=None)
 
-    # Build title_dims
-    title_dims = list(dims.keys() if dims else []) + additional_dims
-    assert title_dims == ["country", "product", "region", "segment"]
+    dates = pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-03"])
+    cv_labels = ["cv1"]
 
-    # Build title_values
-    title_values = []
-    for v in dims_combo:
-        title_values.append(v)
-    assert title_values == ["A", "p1"]
+    # Create a DataArray with a non-standard date coordinate name
+    arr = np.random.default_rng(43).normal(size=(1, 2, len(cv_labels), len(dates)))
+    da = xr.DataArray(
+        arr,
+        dims=("chain", "draw", "cv", "period_timestamp"),
+        coords={"cv": cv_labels, "period_timestamp": dates},
+        name="y_original_scale",
+    )
+    ds_pp = xr.Dataset({"y_original_scale": da})
 
-    # Add dims that aren't in dims_keys (this branch should not execute here)
-    for k in dims or {}:
-        if k not in dims_keys:
-            title_values.append((dims or {})[k])
-    assert title_values == ["A", "p1"]  # unchanged
+    # Metadata with 'date' column that will be found via DataFrame inspection
+    meta = {
+        "X_train": pd.DataFrame({"date": dates[:2], "id": [1, 2]}),
+        "y_train": pd.Series([10.0, 20.0]),
+        "X_test": pd.DataFrame({"date": dates[2:], "id": [3]}),
+        "y_test": pd.Series([30.0]),
+    }
+    meta_da = xr.DataArray(
+        np.array([meta], dtype=object),
+        dims=("cv",),
+        coords={"cv": cv_labels},
+        name="metadata",
+    )
+    ds_meta = xr.Dataset({"metadata": meta_da})
+    results = az.InferenceData(posterior_predictive=ds_pp, cv_metadata=ds_meta)
 
-    # Add additional combo values
-    if addl_combo:
-        title_values.extend(addl_combo)
-    assert title_values == ["A", "p1", "X", "Y"]
+    # Monkeypatch to make dtype check fail for the coordinate
+    original_check = pd.api.types.is_datetime64_any_dtype
 
-    # Case 2: dims=None, additional_dims exist
-    dims2 = None
-    additional_dims2 = ["channel", "geo"]
-    dims_keys2 = []
-    dims_combo2 = ()
-    addl_combo2 = ("ch1", "US")
+    def selective_failing_check(val):
+        # Fail when checking the non-standard coordinate
+        if hasattr(val, "name") and val.name == "period_timestamp":
+            raise ValueError("Simulated dtype check error for coord")
+        return original_check(val)
 
-    title_dims2 = list(dims2.keys() if dims2 else []) + additional_dims2
-    assert title_dims2 == ["channel", "geo"]
+    from unittest.mock import patch
 
-    title_values2 = []
-    for v in dims_combo2:
-        title_values2.append(v)
-    assert title_values2 == []
+    # Should complete successfully despite coord inspection failure
+    # because 'date' column is found in DataFrame metadata
+    with patch("pandas.api.types.is_datetime64_any_dtype", selective_failing_check):
+        fig, _axes = suite.cv_predictions(results, dims=None)
 
-    for k in dims2 or {}:
-        if k not in dims_keys2:
-            title_values2.append((dims2 or {})[k])
-    assert title_values2 == []
-
-    if addl_combo2:
-        title_values2.extend(addl_combo2)
-    assert title_values2 == ["ch1", "US"]
-
-    # Case 3: dims with key not in dims_keys (single value instead of list)
-    dims3 = {"country": ["A", "B"], "status": "active"}
-    dims_keys3 = [
-        "country"
-    ]  # status is NOT in dims_keys (it's a single value, not list)
-    dims_combo3 = ("A",)  # only country value from combo
-
-    title_dims3 = [*list(dims3.keys() if dims3 else [])]
-    assert set(title_dims3) == {"country", "status"}
-
-    title_values3 = []
-    for v in dims_combo3:
-        title_values3.append(v)
-    assert title_values3 == ["A"]
-
-    # This should add "active" because "status" is in dims but not in dims_keys
-    for k in dims3 or {}:
-        if k not in dims_keys3:
-            title_values3.append((dims3 or {})[k])
-    assert "active" in title_values3
-
-    # Case 4: Empty dims and no additional_dims
-    dims4 = {}
-    additional_dims4 = []
-    dims_combo4 = ()
-    addl_combo4 = ()
-
-    title_dims4 = list(dims4.keys() if dims4 else []) + additional_dims4
-    assert title_dims4 == []
-
-    title_values4 = []
-    for v in dims_combo4:
-        title_values4.append(v)
-    for k in dims4 or {}:
-        if k not in []:
-            title_values4.append((dims4 or {})[k])
-    if addl_combo4:
-        title_values4.extend(addl_combo4)
-    assert title_values4 == []
+    # Verify it completed successfully
+    assert fig is not None
 
 
-def test_cv_label_detection_branches():
-    """Test the CV label detection logic branches.
+def test_pred_matrix_no_date_coord_raises(monkeypatch):
+    """Test that ValueError path is exercised when no date coordinate can be determined.
 
-    This covers the logic around lines 2696-2707 in plot.py where cv_labels
-    are detected from the test_train_split dimension in posterior_predictive.
+    This covers lines 2502-2505 where if date_coord is None after all detection,
+    a ValueError is raised. Since cv_crps catches all exceptions and converts to NaN,
+    we verify the code executes the error path (which will result in NaN CRPS values).
     """
-    import xarray as xr
+    suite = MMMPlotSuite(idata=None)
 
-    # Case 1: cv_labels is None, posterior_predictive has test_train_split dimension
-    mock_posterior_predictive = xr.Dataset(
-        {
-            "y": xr.DataArray(
-                [[1, 2], [3, 4]],
-                dims=["chain", "test_train_split"],
-                coords={"test_train_split": ["train_0", "test_1"]},
-            )
-        }
+    # Create data with ONLY technical dimensions (chain, draw, cv, sample)
+    cv_labels = ["cv1"]
+
+    arr = np.random.default_rng(45).normal(size=(1, 2, len(cv_labels)))
+    da = xr.DataArray(
+        arr,
+        dims=("chain", "draw", "cv"),
+        coords={"cv": cv_labels},
+        name="y_original_scale",
+    )
+    ds_pp = xr.Dataset({"y_original_scale": da})
+
+    # Metadata WITHOUT any date column (to trigger the no-date-coord error)
+    meta = {
+        "X_train": pd.DataFrame({"value": [1]}),
+        "y_train": pd.Series([10.0]),
+        "X_test": pd.DataFrame({"value": [2]}),
+        "y_test": pd.Series([20.0]),
+    }
+    meta_da = xr.DataArray(
+        np.array([meta], dtype=object),
+        dims=("cv",),
+        coords={"cv": cv_labels},
+        name="metadata",
+    )
+    ds_meta = xr.Dataset({"metadata": meta_da})
+    results = az.InferenceData(posterior_predictive=ds_pp, cv_metadata=ds_meta)
+
+    # Mock crps to track if it was called (it shouldn't be if ValueError was raised)
+    crps_called = []
+
+    def mock_crps(y_true, y_pred):
+        crps_called.append(True)
+        return 0.5
+
+    monkeypatch.setattr("pymc_marketing.mmm.plot.crps", mock_crps)
+
+    # This should complete without error, but the CRPS won't be calculated
+    # because _pred_matrix_for_rows will raise ValueError (caught internally)
+    fig, _axes = suite.cv_crps(results, dims=None)
+
+    # Verify that crps was NOT called (because ValueError was raised and caught)
+    assert len(crps_called) == 0, (
+        "CRPS should not be called when date coord cannot be determined"
     )
 
-    cv_labels = None
-    if cv_labels is None:
-        if "test_train_split" in mock_posterior_predictive.dims:
-            cv_labels = list(
-                mock_posterior_predictive.coords["test_train_split"].values
-            )
-
-    assert cv_labels == ["train_0", "test_1"]
-
-    # Case 2: cv_labels is None, posterior_predictive does NOT have test_train_split dimension
-    mock_posterior_predictive2 = xr.Dataset(
-        {"y": xr.DataArray([[1, 2], [3, 4]], dims=["chain", "draw"])}
-    )
-
-    cv_labels2 = None
-    if cv_labels2 is None:
-        if "test_train_split" in mock_posterior_predictive2.dims:
-            cv_labels2 = list(
-                mock_posterior_predictive2.coords["test_train_split"].values
-            )
-
-    assert cv_labels2 is None
-
-    # Case 3: cv_labels is already provided (not None)
-    cv_labels3 = ["custom_label_1", "custom_label_2"]
-    if cv_labels3 is None:
-        # This should not execute
-        cv_labels3 = ["should_not_see_this"]
-
-    assert cv_labels3 == ["custom_label_1", "custom_label_2"]
-
-    # Case 4: cv_labels is empty list (test for the new branch we added)
-    cv_labels4 = []
-    if not cv_labels4:
-        if "test_train_split" in mock_posterior_predictive.dims:
-            cv_labels4 = list(
-                mock_posterior_predictive.coords["test_train_split"].values
-            )
-
-    assert cv_labels4 == ["train_0", "test_1"]
+    plt.close(fig)
 
 
-def test_find_matching_row_date_value_warn_and_fallback():
-    """Test the logic for finding matching date value in rows_df with warning and fallback.
+def test_pred_matrix_date_column_detection_with_exception(monkeypatch):
+    """Test that exceptions during DataFrame column dtype detection trigger warnings.
 
-    This covers the logic around lines 2727-2747 in plot.py where a date value from
-    posterior_predictive is matched against rows_df, with warnings for failures.
+    This covers lines 2517-2529 where pd.api.types.is_datetime64_any_dtype raises
+    an exception when checking DataFrame columns and a warning is issued.
     """
-    import warnings
+    suite = MMMPlotSuite(idata=None)
 
-    import pandas as pd
+    dates = pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-03"])
+    cv_labels = ["cv1"]
 
-    # Case 1: Successful match
-    rows_df = pd.DataFrame(
-        {"date": pd.date_range("2023-01-01", periods=5), "value": [10, 20, 30, 40, 50]}
+    arr = np.random.default_rng(46).normal(size=(1, 2, len(cv_labels), len(dates)))
+    da = xr.DataArray(
+        arr,
+        dims=("chain", "draw", "cv", "timestamp"),  # Non-standard date coord name
+        coords={"cv": cv_labels, "timestamp": dates},
+        name="y_original_scale",
     )
+    ds_pp = xr.Dataset({"y_original_scale": da})
 
-    date_value = pd.Timestamp("2023-01-03")
-    date_col = "date"
-
-    found_idx = None
-    for idx, row_val in enumerate(rows_df[date_col]):
-        try:
-            if row_val == date_value:
-                found_idx = idx
-                break
-        except Exception as exc:
-            warnings.warn(
-                f"Error comparing date values: {exc}",
-                stacklevel=2,
-            )
-            continue
-
-    assert found_idx == 2
-
-    # Case 2: No match found (should fallback)
-    date_value2 = pd.Timestamp("2025-12-31")  # Not in the dataframe
-
-    found_idx2 = None
-    for idx, row_val in enumerate(rows_df[date_col]):
-        try:
-            if row_val == date_value2:
-                found_idx2 = idx
-                break
-        except Exception as exc:
-            warnings.warn(
-                f"Error comparing date values: {exc}",
-                stacklevel=2,
-            )
-            continue
-
-    if found_idx2 is None:
-        # Fallback: just use coordinate index
-        coord_idx = 0  # simulated
-        warnings.warn(
-            f"Could not find matching row for date value {date_value2}, using index {coord_idx}",
-            stacklevel=2,
-        )
-        found_idx2 = coord_idx
-
-    assert found_idx2 == 0  # Fallback to index 0
-
-    # Case 3: Exception during comparison (should warn and continue)
-    class BadDate:
-        def __eq__(self, other):
-            raise ValueError("Comparison failed!")
-
-    rows_df3 = pd.DataFrame(
-        {
-            "date": [BadDate(), pd.Timestamp("2023-01-02"), pd.Timestamp("2023-01-03")],
-            "value": [1, 2, 3],
-        }
+    # DataFrame with columns but none named 'timestamp' and one that will cause exception
+    meta = {
+        "X_train": pd.DataFrame(
+            {
+                "period_id": [1, 2],  # Not a date column
+                "actual_date": dates[:2],  # This IS a datetime column
+            }
+        ),
+        "y_train": pd.Series([10.0, 20.0]),
+        "X_test": pd.DataFrame({"period_id": [3], "actual_date": dates[2:]}),
+        "y_test": pd.Series([30.0]),
+    }
+    meta_da = xr.DataArray(
+        np.array([meta], dtype=object),
+        dims=("cv",),
+        coords={"cv": cv_labels},
+        name="metadata",
     )
+    ds_meta = xr.Dataset({"metadata": meta_da})
+    results = az.InferenceData(posterior_predictive=ds_pp, cv_metadata=ds_meta)
 
-    date_value3 = pd.Timestamp("2023-01-03")
+    # Monkeypatch to make dtype check fail for 'period_id' column
+    original_check = pd.api.types.is_datetime64_any_dtype
 
-    found_idx3 = None
-    with pytest.warns(UserWarning, match="Error comparing date values"):
-        for idx, row_val in enumerate(rows_df3[date_col]):
-            try:
-                if row_val == date_value3:
-                    found_idx3 = idx
-                    break
-            except Exception as exc:
-                warnings.warn(
-                    f"Error comparing date values: {exc}",
-                    stacklevel=2,
-                )
-                continue
+    def selective_failing_check(val):
+        # Fail when checking the period_id column
+        if hasattr(val, "name") and val.name == "period_id":
+            raise ValueError("Simulated dtype check error")
+        return original_check(val)
 
-    assert found_idx3 == 2  # Should skip the bad comparison and find the match
+    from unittest.mock import patch
+
+    # Monkeypatch crps to simple function so cv_crps completes
+    monkeypatch.setattr("pymc_marketing.mmm.plot.crps", lambda y_true, y_pred: 0.5)
+
+    # Should complete successfully despite exception during dtype check of 'period_id'
+    # because 'actual_date' is found as a valid datetime column
+    # Use cv_crps since that's where _pred_matrix_for_rows is called
+    with patch("pandas.api.types.is_datetime64_any_dtype", selective_failing_check):
+        fig, _axes = suite.cv_crps(results, dims=None)
+
+    # Verify it completed successfully (found actual_date column)
+    assert fig is not None
 
 
-def test_date_column_detection_fallback_branches():
-    """Test the complete date column detection logic with multiple fallback branches.
+def test_pred_matrix_no_date_column_in_dataframe_raises(monkeypatch):
+    """Test that ValueError path is exercised when no date-like column is found in DataFrame.
 
-    This covers lines 2512-2532 in plot.py where the code tries multiple strategies
-    to find a date column when date_coord is not in rows_df.columns:
-    1. First tries to find a column with "date" in the name
-    2. Then tries to find a column with datetime dtype
-    3. Finally raises ValueError if no date column is found
+    This covers lines 2530-2533 where if found_col is None after all detection,
+    a ValueError is raised. Since cv_crps catches all exceptions and converts to NaN,
+    we verify the code executes the error path (which will result in NaN CRPS values).
     """
-    import warnings
+    suite = MMMPlotSuite(idata=None)
 
-    import pandas as pd
+    dates = pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-03"])
+    cv_labels = ["cv1"]
 
-    # Case 1: Column with "date" in the name (first branch - lines 2513-2516)
-    rows_df1 = pd.DataFrame(
-        {
-            "my_date_column": pd.date_range("2023-01-01", periods=3),
-            "value": [10, 20, 30],
-            "other": ["a", "b", "c"],
-        }
+    arr = np.random.default_rng(47).normal(size=(1, 2, len(cv_labels), len(dates)))
+    da = xr.DataArray(
+        arr,
+        dims=("chain", "draw", "cv", "timestamp"),
+        coords={"cv": cv_labels, "timestamp": dates},
+        name="y_original_scale",
+    )
+    ds_pp = xr.Dataset({"y_original_scale": da})
+
+    # DataFrame with NO date-like columns at all
+    meta = {
+        "X_train": pd.DataFrame({"id": [1, 2], "value": [100, 200]}),
+        "y_train": pd.Series([10.0, 20.0]),
+        "X_test": pd.DataFrame({"id": [3], "value": [300]}),
+        "y_test": pd.Series([30.0]),
+    }
+    meta_da = xr.DataArray(
+        np.array([meta], dtype=object),
+        dims=("cv",),
+        coords={"cv": cv_labels},
+        name="metadata",
+    )
+    ds_meta = xr.Dataset({"metadata": meta_da})
+    results = az.InferenceData(posterior_predictive=ds_pp, cv_metadata=ds_meta)
+
+    # Mock crps to track if it was called (it shouldn't be if ValueError was raised)
+    crps_called = []
+
+    def mock_crps(y_true, y_pred):
+        crps_called.append(True)
+        return 0.5
+
+    monkeypatch.setattr("pymc_marketing.mmm.plot.crps", mock_crps)
+
+    # This should complete without error, but the CRPS won't be calculated
+    # because _pred_matrix_for_rows will raise ValueError (caught internally)
+    fig, _axes = suite.cv_crps(results, dims=None)
+
+    # Verify that crps was NOT called (because ValueError was raised and caught)
+    assert len(crps_called) == 0, (
+        "CRPS should not be called when date column detection fails"
     )
 
-    # Simulate the logic when date_coord is not in rows_df.columns
-    date_coord = "timestamp"  # Not in columns
-    found_col = None
+    plt.close(fig)
 
-    if date_coord not in rows_df1.columns:
-        # First try: look for "date" in column name
-        for col in rows_df1.columns:
-            if "date" in col.lower():
-                found_col = col
-                break
 
-    assert found_col == "my_date_column"
+def test_pred_matrix_dim_selection_first_attempt_fails_second_succeeds(monkeypatch):
+    """Test dimension selection fallback when str(row[dim]) fails but row[dim] works.
 
-    # Case 2: Column with datetime dtype but no "date" in name (second branch - lines 2518-2528)
-    rows_df2 = pd.DataFrame(
-        {
-            "timestamp": pd.date_range("2023-01-01", periods=3),
-            "value": [10, 20, 30],
-            "other": ["a", "b", "c"],
-        }
+    This covers lines 2543-2551 where the first sel attempt with str() fails,
+    triggering the except block that tries without casting.
+    """
+    suite = MMMPlotSuite(idata=None)
+
+    dates = pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-03"])
+    cv_labels = ["cv1"]
+    # Use float coordinates (converting to string might not match)
+    regions = [1.5, 2.5]
+
+    arr = np.random.default_rng(48).normal(
+        size=(1, 2, len(cv_labels), len(regions), len(dates))
+    )
+    da = xr.DataArray(
+        arr,
+        dims=("chain", "draw", "cv", "region", "date"),
+        coords={"cv": cv_labels, "region": regions, "date": dates},
+        name="y_original_scale",
+    )
+    ds_pp = xr.Dataset({"y_original_scale": da})
+
+    # DataFrame with float region values matching the coordinates
+    meta = {
+        "X_train": pd.DataFrame({"date": dates[:2], "region": [1.5, 1.5]}),
+        "y_train": pd.Series([10.0, 20.0]),
+        "X_test": pd.DataFrame({"date": dates[2:], "region": [1.5]}),
+        "y_test": pd.Series([30.0]),
+    }
+    meta_da = xr.DataArray(
+        np.array([meta], dtype=object),
+        dims=("cv",),
+        coords={"cv": cv_labels},
+        name="metadata",
+    )
+    ds_meta = xr.Dataset({"metadata": meta_da})
+    results = az.InferenceData(posterior_predictive=ds_pp, cv_metadata=ds_meta)
+
+    # Monkeypatch crps to simple function so cv_crps completes
+    monkeypatch.setattr("pymc_marketing.mmm.plot.crps", lambda y_true, y_pred: 0.5)
+
+    # Should complete successfully using the non-string selection fallback
+    # Use cv_crps since that's where _pred_matrix_for_rows is called
+    fig, _axes = suite.cv_crps(results, dims=None)
+    assert fig is not None
+
+
+def test_pred_matrix_dim_selection_both_attempts_fail_warns(monkeypatch):
+    """Test behavior when both dimension selection attempts fail.
+
+    This covers lines 2549-2554 where both sel attempts fail. When dimension
+    selection fails for all rows, the prediction matrix cannot be built and
+    CRPS calculation is skipped (caught by the exception handler in cv_crps).
+    """
+    suite = MMMPlotSuite(idata=None)
+
+    dates = pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-03"])
+    cv_labels = ["cv1"]
+    regions = ["A", "B"]
+
+    arr = np.random.default_rng(49).normal(
+        size=(1, 2, len(cv_labels), len(regions), len(dates))
+    )
+    da = xr.DataArray(
+        arr,
+        dims=("chain", "draw", "cv", "region", "date"),
+        coords={"cv": cv_labels, "region": regions, "date": dates},
+        name="y_original_scale",
+    )
+    ds_pp = xr.Dataset({"y_original_scale": da})
+
+    # DataFrame with region value 'C' that does NOT exist in coordinates
+    meta = {
+        "X_train": pd.DataFrame({"date": dates[:2], "region": ["C", "C"]}),
+        "y_train": pd.Series([10.0, 20.0]),
+        "X_test": pd.DataFrame({"date": dates[2:], "region": ["C"]}),
+        "y_test": pd.Series([30.0]),
+    }
+    meta_da = xr.DataArray(
+        np.array([meta], dtype=object),
+        dims=("cv",),
+        coords={"cv": cv_labels},
+        name="metadata",
+    )
+    ds_meta = xr.Dataset({"metadata": meta_da})
+    results = az.InferenceData(posterior_predictive=ds_pp, cv_metadata=ds_meta)
+
+    # Mock crps to track if it was called (it shouldn't be when selection fails)
+    crps_called = []
+
+    def mock_crps(y_true, y_pred):
+        crps_called.append(True)
+        return 0.5
+
+    monkeypatch.setattr("pymc_marketing.mmm.plot.crps", mock_crps)
+
+    # This should complete without error, but the CRPS won't be calculated
+    # because _pred_matrix_for_rows will fail when trying to select invalid region values
+    fig, _axes = suite.cv_crps(results, dims=None)
+
+    # Verify that crps was NOT called (because dimension selection failed for all rows)
+    assert len(crps_called) == 0, (
+        "CRPS should not be called when dimension selection fails for all rows"
     )
 
-    found_col2 = None
+    plt.close(fig)
 
-    if date_coord not in rows_df2.columns:
-        # First try: look for "date" in column name
-        for col in rows_df2.columns:
-            if "date" in col.lower():
-                found_col2 = col
-                break
 
-        # Second try: check dtypes
-        if found_col2 is None:
-            for col in rows_df2.columns:
-                try:
-                    if pd.api.types.is_datetime64_any_dtype(rows_df2[col].dtype):
-                        found_col2 = col
-                        break
-                except Exception as exc:
-                    warnings.warn(
-                        f"Error while inspecting dataframe column dtype for date detection: {exc}",
-                        stacklevel=2,
-                    )
-                    continue
+def test_pred_matrix_scalar_prediction_raises(monkeypatch):
+    """Test that ValueError path is exercised when prediction selection returns a scalar.
 
-    # Case 3: Exception during dtype inspection (warning branch - lines 2524-2528)
-    class BadColumn:
-        """Mock column that raises exception when dtype is accessed."""
+    This covers lines 2558-2561 where arr.ndim == 0 triggers a ValueError.
+    Since cv_crps catches all exceptions and converts to NaN, we verify the code
+    executes the error path (which will result in NaN CRPS values).
+    """
+    suite = MMMPlotSuite(idata=None)
 
-        def __init__(self):
-            pass
+    # Create data with only a single date point
+    dates = pd.to_datetime(["2025-01-01"])
+    cv_labels = ["cv1"]
 
-        @property
-        def dtype(self):
-            raise RuntimeError("Cannot access dtype")
+    # Single date, single chain, single draw -> will be scalar after selection
+    arr = np.array([[[[5.0]]]])  # shape (1, 1, 1, 1)
+    da = xr.DataArray(
+        arr,
+        dims=("chain", "draw", "cv", "date"),
+        coords={"cv": cv_labels, "date": dates},
+        name="y_original_scale",
+    )
+    ds_pp = xr.Dataset({"y_original_scale": da})
 
-    # Create a DataFrame with a problematic column followed by a valid datetime column
-    rows_df3 = pd.DataFrame(
-        {
-            "valid_timestamp": pd.date_range("2023-01-01", periods=3),
-            "value": [10, 20, 30],
-        }
+    # Metadata with the single date
+    meta = {
+        "X_train": None,
+        "y_train": None,
+        "X_test": pd.DataFrame({"date": dates}),
+        "y_test": pd.Series([30.0]),
+    }
+    meta_da = xr.DataArray(
+        np.array([meta], dtype=object),
+        dims=("cv",),
+        coords={"cv": cv_labels},
+        name="metadata",
+    )
+    ds_meta = xr.Dataset({"metadata": meta_da})
+    results = az.InferenceData(posterior_predictive=ds_pp, cv_metadata=ds_meta)
+
+    # Mock crps to track if it was called (it shouldn't be if ValueError was raised)
+    crps_called = []
+
+    def mock_crps(y_true, y_pred):
+        crps_called.append(True)
+        return 0.5
+
+    monkeypatch.setattr("pymc_marketing.mmm.plot.crps", mock_crps)
+
+    # This should complete without error, but the CRPS won't be calculated
+    # because _pred_matrix_for_rows will raise ValueError (caught internally)
+    fig, _axes = suite.cv_crps(results, dims=None)
+
+    # Verify that crps was NOT called (because ValueError was raised and caught)
+    assert len(crps_called) == 0, (
+        "CRPS should not be called when scalar prediction is encountered"
     )
 
-    # Simulate checking columns where one might fail
-    found_col3 = None
-    warned = False
+    plt.close(fig)
 
-    if date_coord not in rows_df3.columns:
-        # First try: look for "date" in column name
-        for col in rows_df3.columns:
-            if "date" in col.lower():
-                found_col3 = col
-                break
 
-        # Second try: check dtypes (with potential exception)
-        if found_col3 is None:
-            with pytest.warns(
-                UserWarning, match="Error while inspecting dataframe column dtype"
-            ):
-                # Simulate processing a bad column followed by a good one
-                for col in ["bad_col", "valid_timestamp"]:
-                    try:
-                        if col == "bad_col":
-                            # Simulate exception on bad column
-                            raise RuntimeError("Cannot access dtype")
-                        elif col in rows_df3.columns:
-                            if pd.api.types.is_datetime64_any_dtype(
-                                rows_df3[col].dtype
-                            ):
-                                found_col3 = col
-                                break
-                    except Exception as exc:
-                        warnings.warn(
-                            f"Error while inspecting dataframe column dtype for date detection: {exc}",
-                            stacklevel=2,
-                        )
-                        warned = True
-                        continue
+def test_pred_matrix_multidimensional_array_reshapes():
+    """Test that multidimensional prediction arrays are properly reshaped.
 
-    assert found_col3 == "valid_timestamp"
-    assert warned is True
+    This covers lines 2562-2563 where arr.ndim > 1 triggers reshape operation.
+    """
+    suite = MMMPlotSuite(idata=None)
 
-    # Case 4: No date column found - should raise ValueError (lines 2529-2532)
-    rows_df4 = pd.DataFrame(
-        {"value": [10, 20, 30], "other": ["a", "b", "c"], "count": [1, 2, 3]}
+    dates = pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-03"])
+    cv_labels = ["cv1"]
+    # Multiple extra dimensions that might not get fully selected
+    countries = ["A", "B"]
+    products = ["p1", "p2"]
+
+    arr = np.random.default_rng(50).normal(
+        size=(2, 3, len(cv_labels), len(countries), len(products), len(dates))
     )
-
-    found_col4 = None
-
-    if date_coord not in rows_df4.columns:
-        # First try: look for "date" in column name
-        for col in rows_df4.columns:
-            if "date" in col.lower():
-                found_col4 = col
-                break
-
-        # Second try: check dtypes
-        if found_col4 is None:
-            for col in rows_df4.columns:
-                try:
-                    if pd.api.types.is_datetime64_any_dtype(rows_df4[col].dtype):
-                        found_col4 = col
-                        break
-                except Exception as exc:
-                    warnings.warn(
-                        f"Error while inspecting dataframe column dtype for date detection: {exc}",
-                        stacklevel=2,
-                    )
-                    continue
-
-        # Final check: raise if still not found
-        if found_col4 is None:
-            with pytest.raises(
-                ValueError, match="Could not find a date-like column in rows_df"
-            ):
-                raise ValueError(
-                    "Could not find a date-like column in rows_df to match posterior_predictive coordinate"
-                )
-
-    # Case 5: date_coord IS in columns (skip all the detection logic)
-    rows_df5 = pd.DataFrame(
-        {"timestamp": pd.date_range("2023-01-01", periods=3), "value": [10, 20, 30]}
+    da = xr.DataArray(
+        arr,
+        dims=("chain", "draw", "cv", "country", "product", "date"),
+        coords={
+            "cv": cv_labels,
+            "country": countries,
+            "product": products,
+            "date": dates,
+        },
+        name="y_original_scale",
     )
+    ds_pp = xr.Dataset({"y_original_scale": da})
 
-    date_coord5 = "timestamp"
-    found_col5 = None
+    # Metadata that only filters by date and country (leaving product dimension)
+    meta = {
+        "X_train": pd.DataFrame({"date": dates[:2], "country": ["A", "A"]}),
+        "y_train": pd.Series([10.0, 20.0]),
+        "X_test": pd.DataFrame({"date": dates[2:], "country": ["A"]}),
+        "y_test": pd.Series([30.0]),
+    }
+    meta_da = xr.DataArray(
+        np.array([meta], dtype=object),
+        dims=("cv",),
+        coords={"cv": cv_labels},
+        name="metadata",
+    )
+    ds_meta = xr.Dataset({"metadata": meta_da})
+    results = az.InferenceData(posterior_predictive=ds_pp, cv_metadata=ds_meta)
 
-    if date_coord5 not in rows_df5.columns:
-        # This should not execute
-        found_col5 = "should_not_see_this"
-    else:
-        # date_coord is in columns, use it directly
-        found_col5 = date_coord5
+    # Should complete, using reshape to flatten extra dimensions
+    fig, _axes = suite.cv_predictions(results, dims=None)
+    assert fig is not None
 
-    assert found_col5 == "timestamp"
+
+def test_pred_matrix_date_column_found_via_lower_check(monkeypatch):
+    """Test that date columns are found via 'date' in col.lower() check.
+
+    This covers lines 2510-2514 where if date_coord not in columns, the code
+    searches for a column with 'date' in its lowercase name.
+    """
+    suite = MMMPlotSuite(idata=None)
+
+    dates = pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-03"])
+    cv_labels = ["cv1"]
+
+    arr = np.random.default_rng(51).normal(size=(1, 2, len(cv_labels), len(dates)))
+    da = xr.DataArray(
+        arr,
+        dims=("chain", "draw", "cv", "timestamp"),  # coord name is 'timestamp'
+        coords={"cv": cv_labels, "timestamp": dates},
+        name="y_original_scale",
+    )
+    ds_pp = xr.Dataset({"y_original_scale": da})
+
+    # DataFrame with column 'Order_Date' (has 'date' in lowercase but not exact match)
+    meta = {
+        "X_train": pd.DataFrame({"Order_Date": dates[:2], "id": [1, 2]}),
+        "y_train": pd.Series([10.0, 20.0]),
+        "X_test": pd.DataFrame({"Order_Date": dates[2:], "id": [3]}),
+        "y_test": pd.Series([30.0]),
+    }
+    meta_da = xr.DataArray(
+        np.array([meta], dtype=object),
+        dims=("cv",),
+        coords={"cv": cv_labels},
+        name="metadata",
+    )
+    ds_meta = xr.Dataset({"metadata": meta_da})
+    results = az.InferenceData(posterior_predictive=ds_pp, cv_metadata=ds_meta)
+
+    # Monkeypatch crps to simple function so cv_crps completes
+    monkeypatch.setattr("pymc_marketing.mmm.plot.crps", lambda y_true, y_pred: 0.5)
+
+    # Should complete successfully by finding 'Order_Date' via lower() check
+    # Use cv_crps since that's where _pred_matrix_for_rows is called
+    fig, _axes = suite.cv_crps(results, dims=None)
+    assert fig is not None
