@@ -40,7 +40,7 @@ dependencies = [
     "pyprojroot",
     "pymc-extras>=0.4.0",
     "preliz>=0.20.0",
-    "arviz_plots[matplotlib]>0.7.0"
+    "arviz_plots[matplotlib]>=0.7.0"
 ]
 
 [project.optional-dependencies]
@@ -93,6 +93,7 @@ test = [
     "osqp<1.0.0,>=0.6.2",
     "pygraphviz",
     "preliz>=0.20.0",
+    "arviz_plots[plotly,bokeh]>=0.7.0"
 ]
 
 [tool.hatch.build.targets.sdist]
