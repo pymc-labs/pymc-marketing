@@ -25,7 +25,9 @@ make init
 ### Testing and Quality
 To use pytest you first need to activate the enviroment:
 ```bash
-source ~/miniconda3/etc/profile.d/conda.sh && conda activate pymc-marketing-dev
+# Try to initialize conda (works if conda is in PATH or common locations)
+eval "$(conda shell.bash hook 2>/dev/null)" && conda activate pymc-marketing-dev || \
+source "$(conda info --base 2>/dev/null)/etc/profile.d/conda.sh" && conda activate pymc-marketing-dev
 ```
 
 Running tests:
