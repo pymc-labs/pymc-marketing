@@ -473,3 +473,90 @@ class TestConfigValidation:
             mmm_config["plot.backend"] = original_backend
             mmm_config["plot.use_v2"] = original_use_v2
             mmm_config["plot.show_warnings"] = original_warnings
+
+    def test_reset_restores_defaults(self):
+        """Test that reset() restores all configuration to default values."""
+        from pymc_marketing.mmm import mmm_config
+
+        # Store original state
+        original_backend = mmm_config.get("plot.backend", "matplotlib")
+        original_use_v2 = mmm_config.get("plot.use_v2", False)
+        original_warnings = mmm_config.get("plot.show_warnings", True)
+
+        try:
+            # Change all config values
+            mmm_config["plot.backend"] = "plotly"
+            mmm_config["plot.use_v2"] = True
+            mmm_config["plot.show_warnings"] = False
+
+            # Verify they were changed
+            assert mmm_config["plot.backend"] == "plotly"
+            assert mmm_config["plot.use_v2"] is True
+            assert mmm_config["plot.show_warnings"] is False
+
+            # Reset to defaults
+            mmm_config.reset()
+
+            # Verify all values are back to defaults
+            assert mmm_config["plot.backend"] == "matplotlib"
+            assert mmm_config["plot.use_v2"] is False
+            assert mmm_config["plot.show_warnings"] is True
+
+            # Verify reset clears any invalid keys that were set
+            mmm_config["invalid.key"] = "test"
+            assert "invalid.key" in mmm_config
+            mmm_config.reset()
+            assert "invalid.key" not in mmm_config
+        finally:
+            # Restore original state
+            mmm_config["plot.backend"] = original_backend
+            mmm_config["plot.use_v2"] = original_use_v2
+            mmm_config["plot.show_warnings"] = original_warnings
+
+    def test_invalid_backend_warns_but_allows_setting(self):
+        """Test that setting an invalid backend warns but still sets the value."""
+        from pymc_marketing.mmm import mmm_config
+
+        original_backend = mmm_config.get("plot.backend", "matplotlib")
+
+        try:
+            # Try to set an invalid backend
+            with pytest.warns(UserWarning, match="Invalid backend"):
+                mmm_config["plot.backend"] = "invalid_backend"
+
+            # Verify the warning message contains valid backends
+            with pytest.warns(UserWarning) as warning_list:
+                mmm_config["plot.backend"] = "another_invalid"
+
+            warning_msg = str(warning_list[0].message)
+            assert "Invalid backend" in warning_msg
+            assert "another_invalid" in warning_msg
+            assert (
+                "matplotlib" in warning_msg
+                or "plotly" in warning_msg
+                or "bokeh" in warning_msg
+            )
+
+            # Verify the invalid backend was still set (allows setting but warns)
+            assert mmm_config["plot.backend"] == "another_invalid"
+        finally:
+            mmm_config["plot.backend"] = original_backend
+
+    def test_valid_backends_do_not_warn(self):
+        """Test that setting valid backend values does not warn."""
+        from pymc_marketing.mmm import mmm_config
+
+        original_backend = mmm_config.get("plot.backend", "matplotlib")
+
+        try:
+            # Setting valid backends should not warn
+            with warnings.catch_warnings():
+                warnings.simplefilter("error", UserWarning)
+                mmm_config["plot.backend"] = "matplotlib"
+                mmm_config["plot.backend"] = "plotly"
+                mmm_config["plot.backend"] = "bokeh"
+
+            # Verify values were set
+            assert mmm_config["plot.backend"] == "bokeh"
+        finally:
+            mmm_config["plot.backend"] = original_backend
