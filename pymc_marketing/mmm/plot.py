@@ -244,8 +244,40 @@ class MMMPlotSuite:
             return ", ".join(title_parts)
         return fallback_title
 
-    def _align_y_axes(self, ax_left, ax_right) -> None:
-        """Align y=0 of primary and secondary y-axis."""
+    def _align_y_axes(self, ax_left: Axes, ax_right: Axes) -> None:
+        """Align y=0 position between primary and secondary y-axes.
+
+        This function ensures that the zero point (y=0) appears at the same
+        relative position on both axes, making it easier to compare values
+        across axes with different scales. The function adjusts the y-limits
+        of one or both axes to achieve this alignment.
+
+        Parameters
+        ----------
+        ax_left : matplotlib.axes.Axes
+            The primary axis (left y-axis) to align.
+        ax_right : matplotlib.axes.Axes
+            The secondary axis (right y-axis) to align with the primary axis.
+
+        Returns
+        -------
+        None
+            This function modifies the axes in-place and returns nothing.
+
+        Notes
+        -----
+        The alignment algorithm works by:
+        1. Calculating the relative position of zero on both axes (0 = bottom,
+           1 = top, values in between indicate mixed positive/negative ranges).
+        2. If both axes have mixed values, adjusting one axis to match the
+           other's zero position.
+        3. If one axis is all positive (zero at bottom) and the other has
+           negative values, adjusting the bottom limit of the positive axis.
+        4. If one axis is all negative (zero at top) and the other has
+           positive values, adjusting the top limit of the negative axis.
+
+        This ensures visual alignment of the zero baseline across dual-axis plots.
+        """
         # Store limits of both axes in named tuples.
         YLimits = namedtuple("YLimits", ["bottom", "top"])
         ylims_left = YLimits(*ax_left.axes.get_ylim())
