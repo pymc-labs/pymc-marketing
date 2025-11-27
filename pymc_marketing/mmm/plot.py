@@ -178,7 +178,7 @@ import xarray as xr
 from arviz_base.labels import DimCoordLabeller, NoVarLabeller, mix_labellers
 from arviz_plots import PlotCollection
 
-from pymc_marketing.mmm.config import mmm_config
+from pymc_marketing.mmm.config import mmm_plot_config
 
 __all__ = ["MMMPlotSuite"]
 
@@ -289,7 +289,7 @@ class MMMPlotSuite:
 
     def _resolve_backend(self, backend: str | None) -> str:
         """Resolve backend parameter to actual backend string."""
-        return backend or mmm_config["plot.backend"]
+        return backend or mmm_plot_config["plot.backend"]
 
     def _get_data_or_fallback(
         self,
@@ -360,7 +360,7 @@ class MMMPlotSuite:
             Probability mass for HDI interval (between 0 and 1).
         backend : str, optional
             Plotting backend to use. Options: "matplotlib", "plotly", "bokeh".
-            If None, uses global config via mmm_config["plot.backend"].
+            If None, uses global config via mmm_plot_config["plot.backend"].
             Default is "matplotlib".
 
         Returns
@@ -536,7 +536,7 @@ class MMMPlotSuite:
             If provided, only the selected slice(s) will be plotted.
         backend : str, optional
             Plotting backend to use. Options: "matplotlib", "plotly", "bokeh".
-            If None, uses global config via mmm_config["plot.backend"].
+            If None, uses global config via mmm_plot_config["plot.backend"].
             Default is "matplotlib".
 
         Returns
@@ -755,7 +755,7 @@ class MMMPlotSuite:
             If provided, only the selected slice(s) will be plotted.
         backend : str, optional
             Plotting backend to use. Options: "matplotlib", "plotly", "bokeh".
-            If None, uses global config via mmm_config["plot.backend"].
+            If None, uses global config via mmm_plot_config["plot.backend"].
             Default is "matplotlib".
 
         Returns
@@ -972,7 +972,7 @@ class MMMPlotSuite:
             If provided, only the selected slice(s) will be plotted.
         backend : str, optional
             Plotting backend to use. Options: "matplotlib", "plotly", "bokeh".
-            If None, uses global config via mmm_config["plot.backend"].
+            If None, uses global config via mmm_plot_config["plot.backend"].
             Default is "matplotlib".
 
         Returns
@@ -1206,7 +1206,7 @@ class MMMPlotSuite:
         - **New method** (this): Shows ROI distributions (KDE plots)
         - **Legacy method**: Shows bar charts comparing spend vs contributions
 
-        To use the legacy method, set: ``mmm_config["plot.use_v2"] = False``
+        To use the legacy method, set: ``mmm_plot_config["plot.use_v2"] = False``
 
         Examples
         --------
@@ -2078,9 +2078,9 @@ class MMMPlotSuite:
 
            .. code-block:: python
 
-               from pymc_marketing.mmm import mmm_config
+               from pymc_marketing.mmm import mmm_plot_config
 
-               mmm_config["plot.use_v2"] = False
+               mmm_plot_config["plot.use_v2"] = False
                mmm.plot.budget_allocation(samples)
 
         3. **Custom implementation**: Create bar chart using samples data:
@@ -2103,22 +2103,22 @@ class MMMPlotSuite:
 
         .. code-block:: python
 
-            from pymc_marketing.mmm import mmm_config
+            from pymc_marketing.mmm import mmm_plot_config
 
-            original = mmm_config.get("plot.use_v2")
+            original = mmm_plot_config.get("plot.use_v2")
             try:
-                mmm_config["plot.use_v2"] = False
+                mmm_plot_config["plot.use_v2"] = False
                 fig, ax = mmm.plot.budget_allocation(samples)
                 fig.savefig("budget.png")
             finally:
-                mmm_config["plot.use_v2"] = original
+                mmm_plot_config["plot.use_v2"] = original
         """
         raise NotImplementedError(
             "budget_allocation() was removed in MMMPlotSuite v2.\n\n"
             "The new arviz_plots-based implementation doesn't support this chart type.\n\n"
             "Alternatives:\n"
             "  1. For ROI distributions: use budget_allocation_roas()\n"
-            "  2. To use old method: set mmm_config['plot.use_v2'] = False\n"
+            "  2. To use old method: set mmm_plot_config['plot.use_v2'] = False\n"
             "  3. Implement custom bar chart using the samples data\n\n"
             "See documentation: https://docs.pymc-marketing.io/en/latest/mmm/plotting_migration.html#budget-allocation"
         )

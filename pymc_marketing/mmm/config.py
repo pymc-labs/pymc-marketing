@@ -18,7 +18,7 @@ import warnings
 VALID_BACKENDS = {"matplotlib", "plotly", "bokeh"}
 
 
-class MMMConfig(dict):
+class MMMPlotConfig(dict):
     """Configuration dictionary for MMM plotting settings.
 
     Global configuration object that controls MMM plotting behavior including
@@ -65,9 +65,9 @@ class MMMConfig(dict):
 
     .. code-block:: python
 
-        from pymc_marketing.mmm import mmm_config
+        from pymc_marketing.mmm import mmm_plot_config
 
-        mmm_config["plot.backend"] = "plotly"
+        mmm_plot_config["plot.backend"] = "plotly"
         # All plots now use plotly by default
         mmm = MMM(...)
         mmm.fit(X, y)
@@ -78,7 +78,7 @@ class MMMConfig(dict):
 
     .. code-block:: python
 
-        mmm_config["plot.use_v2"] = True
+        mmm_plot_config["plot.use_v2"] = True
         # Now using arviz_plots-based multi-backend suite
         mmm = MMM(...)
         mmm.fit(X, y)
@@ -89,28 +89,28 @@ class MMMConfig(dict):
 
     .. code-block:: python
 
-        mmm_config["plot.show_warnings"] = False
+        mmm_plot_config["plot.show_warnings"] = False
 
     Reset to defaults:
 
     .. code-block:: python
 
-        mmm_config.reset()
-        mmm_config["plot.backend"]
+        mmm_plot_config.reset()
+        mmm_plot_config["plot.backend"]
         # 'matplotlib'
 
     Context manager pattern for temporary config changes:
 
     .. code-block:: python
 
-        original = mmm_config["plot.backend"]
+        original = mmm_plot_config["plot.backend"]
         try:
-            mmm_config["plot.backend"] = "plotly"
+            mmm_plot_config["plot.backend"] = "plotly"
             # Use plotly for this section
             pc = mmm.plot.posterior_predictive()
             pc.show()
         finally:
-            mmm_config["plot.backend"] = original
+            mmm_plot_config["plot.backend"] = original
 
     See Also
     --------
@@ -164,4 +164,4 @@ class MMMConfig(dict):
 
 
 # Global config instance
-mmm_config = MMMConfig()
+mmm_plot_config = MMMPlotConfig()

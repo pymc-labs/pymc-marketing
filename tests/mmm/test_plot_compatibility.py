@@ -23,16 +23,16 @@ from matplotlib.figure import Figure
 
 
 class TestVersionSwitching:
-    """Test that mmm_config['plot.use_v2'] controls which suite is returned."""
+    """Test that mmm_plot_config['plot.use_v2'] controls which suite is returned."""
 
     def test_use_v2_false_returns_legacy_suite(self, mock_mmm):
         """Test that use_v2=False returns LegacyMMMPlotSuite."""
-        from pymc_marketing.mmm import mmm_config
+        from pymc_marketing.mmm import mmm_plot_config
         from pymc_marketing.mmm.legacy_plot import LegacyMMMPlotSuite
 
-        original = mmm_config.get("plot.use_v2", False)
+        original = mmm_plot_config.get("plot.use_v2", False)
         try:
-            mmm_config["plot.use_v2"] = False
+            mmm_plot_config["plot.use_v2"] = False
 
             with pytest.warns(FutureWarning, match="deprecated in v0.20.0"):
                 plot_suite = mock_mmm.plot
@@ -40,17 +40,17 @@ class TestVersionSwitching:
             assert isinstance(plot_suite, LegacyMMMPlotSuite)
             assert plot_suite.__class__.__name__ == "LegacyMMMPlotSuite"
         finally:
-            mmm_config["plot.use_v2"] = original
+            mmm_plot_config["plot.use_v2"] = original
 
     def test_use_v2_true_returns_new_suite(self, mock_mmm):
         """Test that use_v2=True returns MMMPlotSuite."""
-        from pymc_marketing.mmm import mmm_config
+        from pymc_marketing.mmm import mmm_plot_config
         from pymc_marketing.mmm.legacy_plot import LegacyMMMPlotSuite
         from pymc_marketing.mmm.plot import MMMPlotSuite
 
-        original = mmm_config.get("plot.use_v2", False)
+        original = mmm_plot_config.get("plot.use_v2", False)
         try:
-            mmm_config["plot.use_v2"] = True
+            mmm_plot_config["plot.use_v2"] = True
 
             # Should not warn
             with warnings.catch_warnings():
@@ -61,16 +61,16 @@ class TestVersionSwitching:
             assert not isinstance(plot_suite, LegacyMMMPlotSuite)
             assert plot_suite.__class__.__name__ == "MMMPlotSuite"
         finally:
-            mmm_config["plot.use_v2"] = original
+            mmm_plot_config["plot.use_v2"] = original
 
     def test_default_is_legacy_suite(self, mock_mmm):
         """Test that default behavior uses legacy suite (backward compatible)."""
-        from pymc_marketing.mmm import mmm_config
+        from pymc_marketing.mmm import mmm_plot_config
         from pymc_marketing.mmm.legacy_plot import LegacyMMMPlotSuite
 
         # Ensure default state
-        if "plot.use_v2" in mmm_config:
-            del mmm_config["plot.use_v2"]
+        if "plot.use_v2" in mmm_plot_config:
+            del mmm_plot_config["plot.use_v2"]
 
         with pytest.warns(FutureWarning):
             plot_suite = mock_mmm.plot
@@ -79,13 +79,13 @@ class TestVersionSwitching:
 
     def test_config_flag_persists_across_calls(self, mock_mmm):
         """Test that setting config flag affects all subsequent calls."""
-        from pymc_marketing.mmm import mmm_config
+        from pymc_marketing.mmm import mmm_plot_config
         from pymc_marketing.mmm.plot import MMMPlotSuite
 
-        original = mmm_config.get("plot.use_v2", False)
+        original = mmm_plot_config.get("plot.use_v2", False)
         try:
             # Set once
-            mmm_config["plot.use_v2"] = True
+            mmm_plot_config["plot.use_v2"] = True
 
             # Multiple calls should all use new suite
             plot_suite1 = mock_mmm.plot
@@ -96,18 +96,18 @@ class TestVersionSwitching:
             assert isinstance(plot_suite2, MMMPlotSuite)
             assert isinstance(plot_suite3, MMMPlotSuite)
         finally:
-            mmm_config["plot.use_v2"] = original
+            mmm_plot_config["plot.use_v2"] = original
 
     def test_switching_between_v2_true_and_false(self, mock_mmm):
         """Test that switching from use_v2=True to False and back works correctly."""
-        from pymc_marketing.mmm import mmm_config
+        from pymc_marketing.mmm import mmm_plot_config
         from pymc_marketing.mmm.legacy_plot import LegacyMMMPlotSuite
         from pymc_marketing.mmm.plot import MMMPlotSuite
 
-        original = mmm_config.get("plot.use_v2", False)
+        original = mmm_plot_config.get("plot.use_v2", False)
         try:
             # Start with use_v2 = True
-            mmm_config["plot.use_v2"] = True
+            mmm_plot_config["plot.use_v2"] = True
 
             # Should return new suite without warnings
             with warnings.catch_warnings():
@@ -117,7 +117,7 @@ class TestVersionSwitching:
             assert isinstance(plot_suite_v2, MMMPlotSuite)
 
             # Switch to use_v2 = False
-            mmm_config["plot.use_v2"] = False
+            mmm_plot_config["plot.use_v2"] = False
 
             # Should return legacy suite with deprecation warning
             with pytest.warns(FutureWarning, match="deprecated in v0.20.0"):
@@ -126,7 +126,7 @@ class TestVersionSwitching:
             assert isinstance(plot_suite_legacy, LegacyMMMPlotSuite)
 
             # Switch back to use_v2 = True
-            mmm_config["plot.use_v2"] = True
+            mmm_plot_config["plot.use_v2"] = True
 
             # Should return new suite again without warnings
             with warnings.catch_warnings():
@@ -135,7 +135,7 @@ class TestVersionSwitching:
 
             assert isinstance(plot_suite_v2_again, MMMPlotSuite)
         finally:
-            mmm_config["plot.use_v2"] = original
+            mmm_plot_config["plot.use_v2"] = original
 
 
 class TestDeprecationWarnings:
@@ -143,33 +143,33 @@ class TestDeprecationWarnings:
 
     def test_deprecation_warning_shown_by_default(self, mock_mmm):
         """Test that deprecation warning is shown when using legacy suite."""
-        from pymc_marketing.mmm import mmm_config
+        from pymc_marketing.mmm import mmm_plot_config
 
-        original_use_v2 = mmm_config.get("plot.use_v2", False)
-        original_warnings = mmm_config.get("plot.show_warnings", True)
+        original_use_v2 = mmm_plot_config.get("plot.use_v2", False)
+        original_warnings = mmm_plot_config.get("plot.show_warnings", True)
 
         try:
-            mmm_config["plot.use_v2"] = False
-            mmm_config["plot.show_warnings"] = True
+            mmm_plot_config["plot.use_v2"] = False
+            mmm_plot_config["plot.show_warnings"] = True
 
             with pytest.warns(FutureWarning, match=r"deprecated in v0\.20\.0"):
                 plot_suite = mock_mmm.plot
 
             assert plot_suite is not None
         finally:
-            mmm_config["plot.use_v2"] = original_use_v2
-            mmm_config["plot.show_warnings"] = original_warnings
+            mmm_plot_config["plot.use_v2"] = original_use_v2
+            mmm_plot_config["plot.show_warnings"] = original_warnings
 
     def test_deprecation_warning_suppressible(self, mock_mmm):
         """Test that deprecation warning can be suppressed."""
-        from pymc_marketing.mmm import mmm_config
+        from pymc_marketing.mmm import mmm_plot_config
 
-        original_use_v2 = mmm_config.get("plot.use_v2", False)
-        original_warnings = mmm_config.get("plot.show_warnings", True)
+        original_use_v2 = mmm_plot_config.get("plot.use_v2", False)
+        original_warnings = mmm_plot_config.get("plot.show_warnings", True)
 
         try:
-            mmm_config["plot.use_v2"] = False
-            mmm_config["plot.show_warnings"] = False
+            mmm_plot_config["plot.use_v2"] = False
+            mmm_plot_config["plot.show_warnings"] = False
 
             # Should not warn
             with warnings.catch_warnings():
@@ -178,17 +178,17 @@ class TestDeprecationWarnings:
 
             assert plot_suite is not None
         finally:
-            mmm_config["plot.use_v2"] = original_use_v2
-            mmm_config["plot.show_warnings"] = original_warnings
+            mmm_plot_config["plot.use_v2"] = original_use_v2
+            mmm_plot_config["plot.show_warnings"] = original_warnings
 
     def test_warning_message_includes_migration_info(self, mock_mmm):
         """Test that warning provides clear migration instructions."""
-        from pymc_marketing.mmm import mmm_config
+        from pymc_marketing.mmm import mmm_plot_config
 
-        original_use_v2 = mmm_config.get("plot.use_v2", False)
+        original_use_v2 = mmm_plot_config.get("plot.use_v2", False)
 
         try:
-            mmm_config["plot.use_v2"] = False
+            mmm_plot_config["plot.use_v2"] = False
 
             with pytest.warns(FutureWarning) as warning_list:
                 _ = mock_mmm.plot
@@ -204,16 +204,16 @@ class TestDeprecationWarnings:
                 for word in ["migration", "guide", "documentation", "docs"]
             ), "Should reference migration guide"
         finally:
-            mmm_config["plot.use_v2"] = original_use_v2
+            mmm_plot_config["plot.use_v2"] = original_use_v2
 
     def test_no_warning_when_using_new_suite(self, mock_mmm):
         """Test that no warning shown when using new suite."""
-        from pymc_marketing.mmm import mmm_config
+        from pymc_marketing.mmm import mmm_plot_config
 
-        original = mmm_config.get("plot.use_v2", False)
+        original = mmm_plot_config.get("plot.use_v2", False)
 
         try:
-            mmm_config["plot.use_v2"] = True
+            mmm_plot_config["plot.use_v2"] = True
 
             with warnings.catch_warnings():
                 warnings.simplefilter("error")
@@ -221,7 +221,7 @@ class TestDeprecationWarnings:
 
             assert plot_suite is not None
         finally:
-            mmm_config["plot.use_v2"] = original
+            mmm_plot_config["plot.use_v2"] = original
 
 
 class TestReturnTypeCompatibility:
@@ -229,12 +229,12 @@ class TestReturnTypeCompatibility:
 
     def test_legacy_suite_returns_tuple(self, mock_mmm_fitted):
         """Test legacy suite returns (Figure, Axes) tuple."""
-        from pymc_marketing.mmm import mmm_config
+        from pymc_marketing.mmm import mmm_plot_config
 
-        original = mmm_config.get("plot.use_v2", False)
+        original = mmm_plot_config.get("plot.use_v2", False)
 
         try:
-            mmm_config["plot.use_v2"] = False
+            mmm_plot_config["plot.use_v2"] = False
 
             with pytest.warns(FutureWarning):
                 plot_suite = mock_mmm_fitted.plot
@@ -252,16 +252,16 @@ class TestReturnTypeCompatibility:
             else:
                 assert isinstance(result[1], Axes)
         finally:
-            mmm_config["plot.use_v2"] = original
+            mmm_plot_config["plot.use_v2"] = original
 
     def test_new_suite_returns_plot_collection(self, mock_mmm_fitted):
         """Test new suite returns PlotCollection."""
-        from pymc_marketing.mmm import mmm_config
+        from pymc_marketing.mmm import mmm_plot_config
 
-        original = mmm_config.get("plot.use_v2", False)
+        original = mmm_plot_config.get("plot.use_v2", False)
 
         try:
-            mmm_config["plot.use_v2"] = True
+            mmm_plot_config["plot.use_v2"] = True
 
             plot_suite = mock_mmm_fitted.plot
             result = plot_suite.posterior_predictive()
@@ -274,17 +274,17 @@ class TestReturnTypeCompatibility:
             )
             assert hasattr(result, "show"), "PlotCollection should have show method"
         finally:
-            mmm_config["plot.use_v2"] = original
+            mmm_plot_config["plot.use_v2"] = original
 
     def test_both_suites_produce_valid_plots(self, mock_mmm_fitted):
         """Test that both suites can successfully create plots."""
-        from pymc_marketing.mmm import mmm_config
+        from pymc_marketing.mmm import mmm_plot_config
 
-        original = mmm_config.get("plot.use_v2", False)
+        original = mmm_plot_config.get("plot.use_v2", False)
 
         try:
             # Legacy suite
-            mmm_config["plot.use_v2"] = False
+            mmm_plot_config["plot.use_v2"] = False
             with pytest.warns(FutureWarning):
                 legacy_result = mock_mmm_fitted.plot.contributions_over_time(
                     var=["intercept"]
@@ -292,11 +292,11 @@ class TestReturnTypeCompatibility:
             assert legacy_result is not None
 
             # New suite
-            mmm_config["plot.use_v2"] = True
+            mmm_plot_config["plot.use_v2"] = True
             new_result = mock_mmm_fitted.plot.contributions_over_time(var=["intercept"])
             assert new_result is not None
         finally:
-            mmm_config["plot.use_v2"] = original
+            mmm_plot_config["plot.use_v2"] = original
 
 
 class TestDeprecatedMethodRemoval:
@@ -304,28 +304,28 @@ class TestDeprecatedMethodRemoval:
 
     def test_saturation_curves_scatter_removed_from_new_suite(self, mock_mmm_fitted):
         """Test saturation_curves_scatter removed from new MMMPlotSuite."""
-        from pymc_marketing.mmm import mmm_config
+        from pymc_marketing.mmm import mmm_plot_config
 
-        original = mmm_config.get("plot.use_v2", False)
+        original = mmm_plot_config.get("plot.use_v2", False)
 
         try:
-            mmm_config["plot.use_v2"] = True
+            mmm_plot_config["plot.use_v2"] = True
             plot_suite = mock_mmm_fitted.plot
 
             assert not hasattr(plot_suite, "saturation_curves_scatter"), (
                 "saturation_curves_scatter should not exist in new MMMPlotSuite"
             )
         finally:
-            mmm_config["plot.use_v2"] = original
+            mmm_plot_config["plot.use_v2"] = original
 
     def test_saturation_curves_scatter_exists_in_legacy_suite(self, mock_mmm_fitted):
         """Test saturation_curves_scatter still exists in LegacyMMMPlotSuite."""
-        from pymc_marketing.mmm import mmm_config
+        from pymc_marketing.mmm import mmm_plot_config
 
-        original = mmm_config.get("plot.use_v2", False)
+        original = mmm_plot_config.get("plot.use_v2", False)
 
         try:
-            mmm_config["plot.use_v2"] = False
+            mmm_plot_config["plot.use_v2"] = False
 
             with pytest.warns(FutureWarning):
                 plot_suite = mock_mmm_fitted.plot
@@ -334,7 +334,7 @@ class TestDeprecatedMethodRemoval:
                 "saturation_curves_scatter should exist in LegacyMMMPlotSuite"
             )
         finally:
-            mmm_config["plot.use_v2"] = original
+            mmm_plot_config["plot.use_v2"] = original
 
 
 class TestMissingMethods:
@@ -344,12 +344,12 @@ class TestMissingMethods:
         self, mock_mmm_fitted, mock_allocation_samples
     ):
         """Test that budget_allocation() works in legacy suite."""
-        from pymc_marketing.mmm import mmm_config
+        from pymc_marketing.mmm import mmm_plot_config
 
-        original = mmm_config.get("plot.use_v2", False)
+        original = mmm_plot_config.get("plot.use_v2", False)
 
         try:
-            mmm_config["plot.use_v2"] = False
+            mmm_plot_config["plot.use_v2"] = False
 
             with pytest.warns(FutureWarning):
                 plot_suite = mock_mmm_fitted.plot
@@ -359,31 +359,31 @@ class TestMissingMethods:
             assert isinstance(result, tuple)
             assert len(result) == 2
         finally:
-            mmm_config["plot.use_v2"] = original
+            mmm_plot_config["plot.use_v2"] = original
 
     def test_budget_allocation_raises_in_new_suite(self, mock_mmm_fitted):
         """Test that budget_allocation() raises helpful error in new suite."""
-        from pymc_marketing.mmm import mmm_config
+        from pymc_marketing.mmm import mmm_plot_config
 
-        original = mmm_config.get("plot.use_v2", False)
+        original = mmm_plot_config.get("plot.use_v2", False)
 
         try:
-            mmm_config["plot.use_v2"] = True
+            mmm_plot_config["plot.use_v2"] = True
             plot_suite = mock_mmm_fitted.plot
 
             with pytest.raises(NotImplementedError, match="removed in MMMPlotSuite v2"):
                 plot_suite.budget_allocation(samples=None)
         finally:
-            mmm_config["plot.use_v2"] = original
+            mmm_plot_config["plot.use_v2"] = original
 
     def test_budget_allocation_roas_exists_in_new_suite(self, mock_mmm_fitted):
         """Test that budget_allocation_roas() exists in new suite."""
-        from pymc_marketing.mmm import mmm_config
+        from pymc_marketing.mmm import mmm_plot_config
 
-        original = mmm_config.get("plot.use_v2", False)
+        original = mmm_plot_config.get("plot.use_v2", False)
 
         try:
-            mmm_config["plot.use_v2"] = True
+            mmm_plot_config["plot.use_v2"] = True
             plot_suite = mock_mmm_fitted.plot
 
             # Just check that the method exists (not AttributeError)
@@ -394,16 +394,16 @@ class TestMissingMethods:
                 "budget_allocation_roas should be callable"
             )
         finally:
-            mmm_config["plot.use_v2"] = original
+            mmm_plot_config["plot.use_v2"] = original
 
     def test_budget_allocation_roas_missing_in_legacy_suite(self, mock_mmm_fitted):
         """Test that budget_allocation_roas() doesn't exist in legacy suite."""
-        from pymc_marketing.mmm import mmm_config
+        from pymc_marketing.mmm import mmm_plot_config
 
-        original = mmm_config.get("plot.use_v2", False)
+        original = mmm_plot_config.get("plot.use_v2", False)
 
         try:
-            mmm_config["plot.use_v2"] = False
+            mmm_plot_config["plot.use_v2"] = False
 
             with pytest.warns(FutureWarning):
                 plot_suite = mock_mmm_fitted.plot
@@ -411,26 +411,26 @@ class TestMissingMethods:
             with pytest.raises(AttributeError):
                 plot_suite.budget_allocation_roas(samples=None)
         finally:
-            mmm_config["plot.use_v2"] = original
+            mmm_plot_config["plot.use_v2"] = original
 
 
 class TestConfigValidation:
-    """Test MMMConfig key validation."""
+    """Test MMMPlotConfig key validation."""
 
     def test_invalid_key_warns_but_allows_setting(self):
         """Test that setting an invalid config key warns but still sets the value."""
-        from pymc_marketing.mmm import mmm_config
+        from pymc_marketing.mmm import mmm_plot_config
 
         # Store original state
-        original_invalid = mmm_config.get("invalid.key", None)
+        original_invalid = mmm_plot_config.get("invalid.key", None)
         try:
             # Try to set an invalid key
             with pytest.warns(UserWarning, match="Invalid config key"):
-                mmm_config["invalid.key"] = "some_value"
+                mmm_plot_config["invalid.key"] = "some_value"
 
             # Verify the warning message contains valid keys
             with pytest.warns(UserWarning) as warning_list:
-                mmm_config["another.invalid.key"] = "another_value"
+                mmm_plot_config["another.invalid.key"] = "another_value"
 
             warning_msg = str(warning_list[0].message)
             assert "Invalid config key" in warning_msg
@@ -438,95 +438,95 @@ class TestConfigValidation:
             assert "plot.backend" in warning_msg or "plot.show_warnings" in warning_msg
 
             # Verify the invalid key was still set (allows setting but warns)
-            assert mmm_config["invalid.key"] == "some_value"
-            assert mmm_config["another.invalid.key"] == "another_value"
+            assert mmm_plot_config["invalid.key"] == "some_value"
+            assert mmm_plot_config["another.invalid.key"] == "another_value"
         finally:
             # Clean up invalid keys
-            if "invalid.key" in mmm_config:
-                del mmm_config["invalid.key"]
-            if "another.invalid.key" in mmm_config:
-                del mmm_config["another.invalid.key"]
+            if "invalid.key" in mmm_plot_config:
+                del mmm_plot_config["invalid.key"]
+            if "another.invalid.key" in mmm_plot_config:
+                del mmm_plot_config["another.invalid.key"]
             if original_invalid is not None:
-                mmm_config["invalid.key"] = original_invalid
+                mmm_plot_config["invalid.key"] = original_invalid
 
     def test_valid_keys_do_not_warn(self):
         """Test that setting valid config keys does not warn."""
-        from pymc_marketing.mmm import mmm_config
+        from pymc_marketing.mmm import mmm_plot_config
 
-        original_backend = mmm_config.get("plot.backend", "matplotlib")
-        original_use_v2 = mmm_config.get("plot.use_v2", False)
-        original_warnings = mmm_config.get("plot.show_warnings", True)
+        original_backend = mmm_plot_config.get("plot.backend", "matplotlib")
+        original_use_v2 = mmm_plot_config.get("plot.use_v2", False)
+        original_warnings = mmm_plot_config.get("plot.show_warnings", True)
 
         try:
             # Setting valid keys should not warn
             with warnings.catch_warnings():
                 warnings.simplefilter("error", UserWarning)
-                mmm_config["plot.backend"] = "plotly"
-                mmm_config["plot.use_v2"] = True
-                mmm_config["plot.show_warnings"] = False
+                mmm_plot_config["plot.backend"] = "plotly"
+                mmm_plot_config["plot.use_v2"] = True
+                mmm_plot_config["plot.show_warnings"] = False
 
             # Verify values were set
-            assert mmm_config["plot.backend"] == "plotly"
-            assert mmm_config["plot.use_v2"] is True
-            assert mmm_config["plot.show_warnings"] is False
+            assert mmm_plot_config["plot.backend"] == "plotly"
+            assert mmm_plot_config["plot.use_v2"] is True
+            assert mmm_plot_config["plot.show_warnings"] is False
         finally:
-            mmm_config["plot.backend"] = original_backend
-            mmm_config["plot.use_v2"] = original_use_v2
-            mmm_config["plot.show_warnings"] = original_warnings
+            mmm_plot_config["plot.backend"] = original_backend
+            mmm_plot_config["plot.use_v2"] = original_use_v2
+            mmm_plot_config["plot.show_warnings"] = original_warnings
 
     def test_reset_restores_defaults(self):
         """Test that reset() restores all configuration to default values."""
-        from pymc_marketing.mmm import mmm_config
+        from pymc_marketing.mmm import mmm_plot_config
 
         # Store original state
-        original_backend = mmm_config.get("plot.backend", "matplotlib")
-        original_use_v2 = mmm_config.get("plot.use_v2", False)
-        original_warnings = mmm_config.get("plot.show_warnings", True)
+        original_backend = mmm_plot_config.get("plot.backend", "matplotlib")
+        original_use_v2 = mmm_plot_config.get("plot.use_v2", False)
+        original_warnings = mmm_plot_config.get("plot.show_warnings", True)
 
         try:
             # Change all config values
-            mmm_config["plot.backend"] = "plotly"
-            mmm_config["plot.use_v2"] = True
-            mmm_config["plot.show_warnings"] = False
+            mmm_plot_config["plot.backend"] = "plotly"
+            mmm_plot_config["plot.use_v2"] = True
+            mmm_plot_config["plot.show_warnings"] = False
 
             # Verify they were changed
-            assert mmm_config["plot.backend"] == "plotly"
-            assert mmm_config["plot.use_v2"] is True
-            assert mmm_config["plot.show_warnings"] is False
+            assert mmm_plot_config["plot.backend"] == "plotly"
+            assert mmm_plot_config["plot.use_v2"] is True
+            assert mmm_plot_config["plot.show_warnings"] is False
 
             # Reset to defaults
-            mmm_config.reset()
+            mmm_plot_config.reset()
 
             # Verify all values are back to defaults
-            assert mmm_config["plot.backend"] == "matplotlib"
-            assert mmm_config["plot.use_v2"] is False
-            assert mmm_config["plot.show_warnings"] is True
+            assert mmm_plot_config["plot.backend"] == "matplotlib"
+            assert mmm_plot_config["plot.use_v2"] is False
+            assert mmm_plot_config["plot.show_warnings"] is True
 
             # Verify reset clears any invalid keys that were set
-            mmm_config["invalid.key"] = "test"
-            assert "invalid.key" in mmm_config
-            mmm_config.reset()
-            assert "invalid.key" not in mmm_config
+            mmm_plot_config["invalid.key"] = "test"
+            assert "invalid.key" in mmm_plot_config
+            mmm_plot_config.reset()
+            assert "invalid.key" not in mmm_plot_config
         finally:
             # Restore original state
-            mmm_config["plot.backend"] = original_backend
-            mmm_config["plot.use_v2"] = original_use_v2
-            mmm_config["plot.show_warnings"] = original_warnings
+            mmm_plot_config["plot.backend"] = original_backend
+            mmm_plot_config["plot.use_v2"] = original_use_v2
+            mmm_plot_config["plot.show_warnings"] = original_warnings
 
     def test_invalid_backend_warns_but_allows_setting(self):
         """Test that setting an invalid backend warns but still sets the value."""
-        from pymc_marketing.mmm import mmm_config
+        from pymc_marketing.mmm import mmm_plot_config
 
-        original_backend = mmm_config.get("plot.backend", "matplotlib")
+        original_backend = mmm_plot_config.get("plot.backend", "matplotlib")
 
         try:
             # Try to set an invalid backend
             with pytest.warns(UserWarning, match="Invalid backend"):
-                mmm_config["plot.backend"] = "invalid_backend"
+                mmm_plot_config["plot.backend"] = "invalid_backend"
 
             # Verify the warning message contains valid backends
             with pytest.warns(UserWarning) as warning_list:
-                mmm_config["plot.backend"] = "another_invalid"
+                mmm_plot_config["plot.backend"] = "another_invalid"
 
             warning_msg = str(warning_list[0].message)
             assert "Invalid backend" in warning_msg
@@ -538,25 +538,25 @@ class TestConfigValidation:
             )
 
             # Verify the invalid backend was still set (allows setting but warns)
-            assert mmm_config["plot.backend"] == "another_invalid"
+            assert mmm_plot_config["plot.backend"] == "another_invalid"
         finally:
-            mmm_config["plot.backend"] = original_backend
+            mmm_plot_config["plot.backend"] = original_backend
 
     def test_valid_backends_do_not_warn(self):
         """Test that setting valid backend values does not warn."""
-        from pymc_marketing.mmm import mmm_config
+        from pymc_marketing.mmm import mmm_plot_config
 
-        original_backend = mmm_config.get("plot.backend", "matplotlib")
+        original_backend = mmm_plot_config.get("plot.backend", "matplotlib")
 
         try:
             # Setting valid backends should not warn
             with warnings.catch_warnings():
                 warnings.simplefilter("error", UserWarning)
-                mmm_config["plot.backend"] = "matplotlib"
-                mmm_config["plot.backend"] = "plotly"
-                mmm_config["plot.backend"] = "bokeh"
+                mmm_plot_config["plot.backend"] = "matplotlib"
+                mmm_plot_config["plot.backend"] = "plotly"
+                mmm_plot_config["plot.backend"] = "bokeh"
 
             # Verify values were set
-            assert mmm_config["plot.backend"] == "bokeh"
+            assert mmm_plot_config["plot.backend"] == "bokeh"
         finally:
-            mmm_config["plot.backend"] = original_backend
+            mmm_plot_config["plot.backend"] = original_backend

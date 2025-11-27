@@ -190,7 +190,7 @@ class LegacyMMMPlotSuite:
 
     .. deprecated:: 0.18.0
        This class will be removed in v0.20.0. Use MMMPlotSuite with
-       mmm_config["plot.use_v2"] = True for the new arviz_plots-based suite.
+       mmm_plot_config["plot.use_v2"] = True for the new arviz_plots-based suite.
 
     This class is maintained for backward compatibility but will be removed
     in a future release. The new MMMPlotSuite supports multiple backends
@@ -379,9 +379,9 @@ class LegacyMMMPlotSuite:
 
     def _resolve_backend(self, backend: str | None) -> str:
         """Resolve backend parameter to actual backend string."""
-        from pymc_marketing.mmm.config import mmm_config
+        from pymc_marketing.mmm.config import mmm_plot_config
 
-        return backend or mmm_config["plot.backend"]
+        return backend or mmm_plot_config["plot.backend"]
 
     # ------------------------------------------------------------------------
     #                          Main Plotting Methods
