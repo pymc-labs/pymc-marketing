@@ -344,9 +344,6 @@ class MMMPlotSuite:
         line and highest density interval (HDI) bands. Useful for checking model fit
         and understanding prediction uncertainty.
 
-        .. versionadded:: 0.18.0
-           New arviz_plots-based implementation supporting multiple backends.
-
         Parameters
         ----------
         var : str, optional
@@ -516,9 +513,6 @@ class MMMPlotSuite:
         HDI bands. Useful for understanding channel contributions, intercepts, or
         other time-varying effects in your model.
 
-        .. versionadded:: 0.18.0
-           New arviz_plots-based implementation supporting multiple backends.
-
         Parameters
         ----------
         var : list of str
@@ -527,10 +521,6 @@ class MMMPlotSuite:
         data : xr.Dataset, optional
             Dataset containing posterior data with variables in `var`.
             If None, uses self.idata.posterior.
-
-            .. versionadded:: 0.18.0
-               Added data parameter for explicit data passing.
-
             This parameter allows:
             - Testing with mock data without modifying self.idata
             - Plotting external results not stored in self.idata
@@ -733,9 +723,6 @@ class MMMPlotSuite:
         contributions (Y-axis), one subplot per channel. Useful for understanding
         the saturation behavior and diminishing returns of each marketing channel.
 
-        .. versionadded:: 0.18.0
-           New arviz_plots-based implementation supporting multiple backends.
-
         Parameters
         ----------
         original_scale : bool, default False
@@ -748,10 +735,6 @@ class MMMPlotSuite:
             - 'target_scale': Target scaling factor (if original_scale=True)
 
             If None, uses self.idata.constant_data.
-
-            .. versionadded:: 0.18.0
-               Added constant_data parameter for explicit data passing.
-
             This parameter allows:
             - Testing with mock constant data
             - Plotting with alternative scaling factors
@@ -760,10 +743,6 @@ class MMMPlotSuite:
             Dataset containing posterior group with channel contribution variables.
             Must contain 'channel_contribution' or 'channel_contribution_original_scale'.
             If None, uses self.idata.posterior.
-
-            .. versionadded:: 0.18.0
-               Added posterior_data parameter for explicit data passing.
-
             This parameter allows:
             - Testing with mock posterior samples
             - Plotting external inference results
@@ -957,9 +936,6 @@ class MMMPlotSuite:
         - HDI bands showing uncertainty
         - Smooth saturation curves over the scatter plot
 
-        .. versionadded:: 0.18.0
-           New arviz_plots-based implementation supporting multiple backends.
-
         Parameters
         ----------
         curve : xr.DataArray
@@ -974,17 +950,9 @@ class MMMPlotSuite:
             If True, requires channel_contribution_original_scale in posterior.
         constant_data : xr.Dataset, optional
             Dataset containing constant_data group. If None, uses self.idata.constant_data.
-
-            .. versionadded:: 0.18.0
-               Added constant_data parameter for explicit data passing.
-
             This parameter allows testing with mock data and plotting alternative scenarios.
         posterior_data : xr.Dataset, optional
             Dataset containing posterior group. If None, uses self.idata.posterior.
-
-            .. versionadded:: 0.18.0
-               Added posterior_data parameter for explicit data passing.
-
             This parameter allows testing with mock posterior samples and comparing model fits.
         n_samples : int, default 10
             Number of sample curves to draw per subplot.
@@ -1186,10 +1154,6 @@ class MMMPlotSuite:
         allocation. Useful for comparing ROI across channels and understanding
         optimization trade-offs.
 
-        .. versionadded:: 0.18.0
-           New method in MMMPlotSuite v2. This is different from the legacy
-           budget_allocation() method which showed bar charts.
-
         Parameters
         ----------
         samples : xr.Dataset
@@ -1357,9 +1321,6 @@ class MMMPlotSuite:
         Visualizes how contributions from each channel evolve over time given an
         optimized budget allocation. Shows mean contribution lines per channel with
         HDI uncertainty bands.
-
-        .. versionadded:: 0.18.0
-           New arviz_plots-based implementation supporting multiple backends.
 
         Parameters
         ----------
@@ -1530,9 +1491,6 @@ class MMMPlotSuite:
         sensitivity analysis visualizations. Public methods (sensitivity_analysis,
         uplift_curve, marginal_curve) handle data retrieval and call this helper.
 
-        .. versionadded:: 0.18.0
-           New arviz_plots-based implementation supporting multiple backends.
-
         Parameters
         ----------
         data : xr.DataArray or xr.Dataset
@@ -1671,9 +1629,6 @@ class MMMPlotSuite:
         (e.g., channel spend) are varied. Shows mean response line and HDI bands
         across sweep values.
 
-        .. versionadded:: 0.18.0
-           New arviz_plots-based implementation supporting multiple backends.
-
         Parameters
         ----------
         data : xr.DataArray or xr.Dataset, optional
@@ -1683,10 +1638,6 @@ class MMMPlotSuite:
 
             If Dataset, should contain 'x' variable.
             If None, uses self.idata.sensitivity_analysis.
-
-            .. versionadded:: 0.18.0
-               Added data parameter for explicit data passing.
-
             This parameter allows:
             - Testing with mock sensitivity analysis results
             - Plotting external sweep results
@@ -1802,9 +1753,6 @@ class MMMPlotSuite:
         contributions) as inputs are varied, compared to a reference point.
         Shows mean uplift line and HDI bands.
 
-        .. versionadded:: 0.18.0
-           New arviz_plots-based implementation supporting multiple backends.
-
         Parameters
         ----------
         data : xr.DataArray or xr.Dataset, optional
@@ -1814,10 +1762,6 @@ class MMMPlotSuite:
 
             Must be precomputed using:
             ``SensitivityAnalysis.compute_uplift_curve_respect_to_base(...)``
-
-            .. versionadded:: 0.18.0
-               Added data parameter for explicit data passing.
-
             This parameter allows:
             - Testing with mock uplift curve data
             - Plotting externally computed uplift curves
@@ -1964,9 +1908,6 @@ class MMMPlotSuite:
         with respect to inputs. Shows how much output changes per unit change in
         input at each sweep value.
 
-        .. versionadded:: 0.18.0
-           New arviz_plots-based implementation supporting multiple backends.
-
         Parameters
         ----------
         data : xr.DataArray or xr.Dataset, optional
@@ -1976,10 +1917,6 @@ class MMMPlotSuite:
 
             Must be precomputed using:
             ``SensitivityAnalysis.compute_marginal_effects(...)``
-
-            .. versionadded:: 0.18.0
-               Added data parameter for explicit data passing.
-
             This parameter allows:
             - Testing with mock marginal effects data
             - Plotting externally computed marginal effects
