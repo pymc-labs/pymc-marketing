@@ -63,43 +63,54 @@ class MMMConfig(dict):
     --------
     Set plotting backend globally:
 
-    >>> from pymc_marketing.mmm import mmm_config
-    >>> mmm_config["plot.backend"] = "plotly"
-    >>> # All plots now use plotly by default
-    >>> mmm = MMM(...)
-    >>> mmm.fit(X, y)
-    >>> pc = mmm.plot.posterior_predictive()  # Uses plotly
-    >>> pc.show()
+    .. code-block:: python
+
+        from pymc_marketing.mmm import mmm_config
+
+        mmm_config["plot.backend"] = "plotly"
+        # All plots now use plotly by default
+        mmm = MMM(...)
+        mmm.fit(X, y)
+        pc = mmm.plot.posterior_predictive()  # Uses plotly
+        pc.show()
 
     Enable new plotting suite (v2):
 
-    >>> mmm_config["plot.use_v2"] = True
-    >>> # Now using arviz_plots-based multi-backend suite
-    >>> mmm = MMM(...)
-    >>> mmm.fit(X, y)
-    >>> pc = mmm.plot.contributions_over_time(var=["intercept"])
-    >>> pc.show()
+    .. code-block:: python
+
+        mmm_config["plot.use_v2"] = True
+        # Now using arviz_plots-based multi-backend suite
+        mmm = MMM(...)
+        mmm.fit(X, y)
+        pc = mmm.plot.contributions_over_time(var=["intercept"])
+        pc.show()
 
     Suppress warnings:
 
-    >>> mmm_config["plot.show_warnings"] = False
+    .. code-block:: python
+
+        mmm_config["plot.show_warnings"] = False
 
     Reset to defaults:
 
-    >>> mmm_config.reset()
-    >>> mmm_config["plot.backend"]
-    'matplotlib'
+    .. code-block:: python
+
+        mmm_config.reset()
+        mmm_config["plot.backend"]
+        # 'matplotlib'
 
     Context manager pattern for temporary config changes:
 
-    >>> original = mmm_config["plot.backend"]
-    >>> try:
-    ...     mmm_config["plot.backend"] = "plotly"
-    ...     # Use plotly for this section
-    ...     pc = mmm.plot.posterior_predictive()
-    ...     pc.show()
-    ... finally:
-    ...     mmm_config["plot.backend"] = original
+    .. code-block:: python
+
+        original = mmm_config["plot.backend"]
+        try:
+            mmm_config["plot.backend"] = "plotly"
+            # Use plotly for this section
+            pc = mmm.plot.posterior_predictive()
+            pc.show()
+        finally:
+            mmm_config["plot.backend"] = original
 
     See Also
     --------
