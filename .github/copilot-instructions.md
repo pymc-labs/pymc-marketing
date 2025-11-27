@@ -89,8 +89,17 @@ def function_name(param1: type, param2: type) -> return_type:
 
     Examples
     --------
+    Doctest style:
+
     >>> function_name(value1, value2)
     expected_output
+
+    Or Sphinx code block style:
+
+    .. code-block:: python
+
+        result = function_name(value1, value2)
+
     """
 ```
 
@@ -102,7 +111,12 @@ def function_name(param1: type, param2: type) -> return_type:
 
 ### Testing
 
+Ensure the conda environment is activated before running tests:
+
 ```bash
+# Activate environment first
+conda activate pymc-marketing-dev
+
 # Run all tests
 make test
 
@@ -117,14 +131,17 @@ Tests are located in the `tests/` directory and mirror the structure of `pymc_ma
 
 ## Key Dependencies
 
-- **PyMC** (>=5.24.1): Core probabilistic programming framework
-- **PyTensor** (>=2.31.3): Tensor computation library
-- **ArviZ** (>=0.13.0): Bayesian model diagnostics and visualization
+See `pyproject.toml` for version requirements. Main dependencies include:
+
+- **PyMC**: Core probabilistic programming framework
+- **PyTensor**: Tensor computation library
+- **ArviZ**: Bayesian model diagnostics and visualization
 - **pandas**: Data manipulation
 - **NumPy**: Numerical computing
-- **scikit-learn** (>=1.1.1): Machine learning utilities
+- **scikit-learn**: Machine learning utilities
 - **xarray**: Multi-dimensional arrays with labels
-- **Pydantic** (>=2.1.0): Data validation
+- **Pydantic**: Data validation
+- **pymc-extras**: Extended PyMC utilities (priors, etc.)
 
 ## Common Patterns
 
@@ -142,10 +159,10 @@ class MyModel(ModelBuilder):
 
 ### Prior Distributions
 
-Use the `Prior` class from `pymc_marketing.prior` for defining priors:
+Use the `Prior` class from `pymc_extras.prior` for defining priors:
 
 ```python
-from pymc_marketing.prior import Prior
+from pymc_extras.prior import Prior
 
 prior = Prior("Normal", mu=0, sigma=1)
 ```
