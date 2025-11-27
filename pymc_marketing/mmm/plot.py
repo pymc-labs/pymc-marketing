@@ -178,6 +178,8 @@ import xarray as xr
 from arviz_base.labels import DimCoordLabeller, NoVarLabeller, mix_labellers
 from arviz_plots import PlotCollection
 
+from pymc_marketing.mmm.config import mmm_config
+
 __all__ = ["MMMPlotSuite"]
 
 WIDTH_PER_COL: float = 10.0
@@ -287,8 +289,6 @@ class MMMPlotSuite:
 
     def _resolve_backend(self, backend: str | None) -> str:
         """Resolve backend parameter to actual backend string."""
-        from pymc_marketing.mmm.config import mmm_config
-
         return backend or mmm_config["plot.backend"]
 
     def _get_data_or_fallback(
@@ -397,37 +397,50 @@ class MMMPlotSuite:
         --------
         Basic usage:
 
-        >>> mmm.sample_posterior_predictive(X)
-        >>> pc = mmm.plot.posterior_predictive()
-        >>> pc.show()
+        .. code-block:: python
+
+            mmm.sample_posterior_predictive(X)
+            pc = mmm.plot.posterior_predictive()
+            pc.show()
 
         Plot with different HDI probability:
 
-        >>> pc = mmm.plot.posterior_predictive(hdi_prob=0.94)
-        >>> pc.show()
+        .. code-block:: python
+
+            pc = mmm.plot.posterior_predictive(hdi_prob=0.94)
+            pc.show()
 
         Save to file:
 
-        >>> pc = mmm.plot.posterior_predictive()
-        >>> pc.save("posterior_predictive.png")
+        .. code-block:: python
+
+            pc = mmm.plot.posterior_predictive()
+            pc.save("posterior_predictive.png")
 
         Use different backend:
 
-        >>> pc = mmm.plot.posterior_predictive(backend="plotly")
-        >>> pc.show()
+        .. code-block:: python
+
+            pc = mmm.plot.posterior_predictive(backend="plotly")
+            pc.show()
 
         Provide explicit data:
 
-        >>> external_pp = xr.Dataset(...)  # Custom posterior predictive
-        >>> pc = mmm.plot.posterior_predictive(idata=external_pp)
-        >>> pc.show()
+        .. code-block:: python
+
+            external_pp = xr.Dataset(...)  # Custom posterior predictive
+            pc = mmm.plot.posterior_predictive(idata=external_pp)
+            pc.show()
 
         Direct instantiation pattern:
 
-        >>> from pymc_marketing.mmm.plot import MMMPlotSuite
-        >>> mps = MMMPlotSuite(custom_idata)
-        >>> pc = mps.posterior_predictive()
-        >>> pc.show()
+        .. code-block:: python
+
+            from pymc_marketing.mmm.plot import MMMPlotSuite
+
+            mps = MMMPlotSuite(custom_idata)
+            pc = mps.posterior_predictive()
+            pc.show()
         """
         if not 0 < hdi_prob < 1:
             raise ValueError("HDI probability must be between 0 and 1.")
@@ -569,52 +582,67 @@ class MMMPlotSuite:
         --------
         Basic usage - plot channel contributions:
 
-        >>> mmm.fit(X, y)
-        >>> pc = mmm.plot.contributions_over_time(var=["channel_contribution"])
-        >>> pc.show()
+        .. code-block:: python
+
+            mmm.fit(X, y)
+            pc = mmm.plot.contributions_over_time(var=["channel_contribution"])
+            pc.show()
 
         Plot multiple variables together:
 
-        >>> pc = mmm.plot.contributions_over_time(
-        ...     var=["channel_contribution", "intercept"]
-        ... )
-        >>> pc.show()
+        .. code-block:: python
+
+            pc = mmm.plot.contributions_over_time(
+                var=["channel_contribution", "intercept"]
+            )
+            pc.show()
 
         Filter by dimension:
 
-        >>> pc = mmm.plot.contributions_over_time(
-        ...     var=["channel_contribution"], dims={"geo": "US"}
-        ... )
-        >>> pc.show()
+        .. code-block:: python
+
+            pc = mmm.plot.contributions_over_time(
+                var=["channel_contribution"], dims={"geo": "US"}
+            )
+            pc.show()
 
         Filter with multiple dimension values:
 
-        >>> pc = mmm.plot.contributions_over_time(
-        ...     var=["channel_contribution"], dims={"geo": ["US", "UK"]}
-        ... )
-        >>> pc.show()
+        .. code-block:: python
+
+            pc = mmm.plot.contributions_over_time(
+                var=["channel_contribution"], dims={"geo": ["US", "UK"]}
+            )
+            pc.show()
 
         Use different backend:
 
-        >>> pc = mmm.plot.contributions_over_time(
-        ...     var=["channel_contribution"], backend="plotly"
-        ... )
-        >>> pc.show()
+        .. code-block:: python
+
+            pc = mmm.plot.contributions_over_time(
+                var=["channel_contribution"], backend="plotly"
+            )
+            pc.show()
 
         Provide explicit data (option 1 - via data parameter):
 
-        >>> custom_posterior = xr.Dataset(...)
-        >>> pc = mmm.plot.contributions_over_time(
-        ...     var=["my_contribution"], data=custom_posterior
-        ... )
-        >>> pc.show()
+        .. code-block:: python
+
+            custom_posterior = xr.Dataset(...)
+            pc = mmm.plot.contributions_over_time(
+                var=["my_contribution"], data=custom_posterior
+            )
+            pc.show()
 
         Provide explicit data (option 2 - direct instantiation):
 
-        >>> from pymc_marketing.mmm.plot import MMMPlotSuite
-        >>> mps = MMMPlotSuite(custom_idata)
-        >>> pc = mps.contributions_over_time(var=["my_contribution"])
-        >>> pc.show()
+        .. code-block:: python
+
+            from pymc_marketing.mmm.plot import MMMPlotSuite
+
+            mps = MMMPlotSuite(custom_idata)
+            pc = mps.contributions_over_time(var=["my_contribution"])
+            pc.show()
         """
         if not 0 < hdi_prob < 1:
             raise ValueError("HDI probability must be between 0 and 1.")
@@ -786,34 +814,44 @@ class MMMPlotSuite:
         --------
         Basic usage (scaled space):
 
-        >>> mmm.fit(X, y)
-        >>> pc = mmm.plot.saturation_scatterplot()
-        >>> pc.show()
+        .. code-block:: python
+
+            mmm.fit(X, y)
+            pc = mmm.plot.saturation_scatterplot()
+            pc.show()
 
         Plot in original scale:
 
-        >>> mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
-        >>> pc = mmm.plot.saturation_scatterplot(original_scale=True)
-        >>> pc.show()
+        .. code-block:: python
+
+            mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+            pc = mmm.plot.saturation_scatterplot(original_scale=True)
+            pc.show()
 
         Filter by dimension:
 
-        >>> pc = mmm.plot.saturation_scatterplot(dims={"geo": "US"})
-        >>> pc.show()
+        .. code-block:: python
+
+            pc = mmm.plot.saturation_scatterplot(dims={"geo": "US"})
+            pc.show()
 
         Use different backend:
 
-        >>> pc = mmm.plot.saturation_scatterplot(backend="plotly")
-        >>> pc.show()
+        .. code-block:: python
+
+            pc = mmm.plot.saturation_scatterplot(backend="plotly")
+            pc.show()
 
         Provide explicit data:
 
-        >>> custom_constant = xr.Dataset(...)
-        >>> custom_posterior = xr.Dataset(...)
-        >>> pc = mmm.plot.saturation_scatterplot(
-        ...     constant_data=custom_constant, posterior_data=custom_posterior
-        ... )
-        >>> pc.show()
+        .. code-block:: python
+
+            custom_constant = xr.Dataset(...)
+            custom_posterior = xr.Dataset(...)
+            pc = mmm.plot.saturation_scatterplot(
+                constant_data=custom_constant, posterior_data=custom_posterior
+            )
+            pc.show()
         """
         # Resolve backend
         backend = self._resolve_backend(backend)
@@ -1000,33 +1038,42 @@ class MMMPlotSuite:
         --------
         Generate and plot saturation curves:
 
-        >>> # Generate curves using saturation transformation
-        >>> curve = mmm.saturation.sample_curve(
-        ...     idata=mmm.idata.posterior[["saturation_beta", "saturation_lam"]],
-        ...     max_value=2.0,
-        ... )
-        >>> pc = mmm.plot.saturation_curves(curve)
-        >>> pc.show()
+        .. code-block:: python
+
+            # Generate curves using saturation transformation
+            curve = mmm.saturation.sample_curve(
+                idata=mmm.idata.posterior[["saturation_beta", "saturation_lam"]],
+                max_value=2.0,
+            )
+            pc = mmm.plot.saturation_curves(curve)
+            pc.show()
 
         Add HDI bands:
 
-        >>> pc = mmm.plot.saturation_curves(curve, hdi_probs=[0.5, 0.94])
-        >>> pc.show()
+        .. code-block:: python
+
+            pc = mmm.plot.saturation_curves(curve, hdi_probs=[0.5, 0.94])
+            pc.show()
 
         Original scale with custom seed:
 
-        >>> import numpy as np
-        >>> rng = np.random.default_rng(42)
-        >>> mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
-        >>> pc = mmm.plot.saturation_curves(
-        ...     curve, original_scale=True, n_samples=15, random_seed=rng
-        ... )
-        >>> pc.show()
+        .. code-block:: python
+
+            import numpy as np
+
+            rng = np.random.default_rng(42)
+            mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+            pc = mmm.plot.saturation_curves(
+                curve, original_scale=True, n_samples=15, random_seed=rng
+            )
+            pc.show()
 
         Filter by dimension:
 
-        >>> pc = mmm.plot.saturation_curves(curve, dims={"geo": "US"})
-        >>> pc.show()
+        .. code-block:: python
+
+            pc = mmm.plot.saturation_curves(curve, dims={"geo": "US"})
+            pc.show()
         """
         # Get constant_data and posterior_data with fallback
         constant_data = self._get_data_or_fallback(
@@ -1201,25 +1248,31 @@ class MMMPlotSuite:
         --------
         Basic usage with budget optimization results:
 
-        >>> allocation_results = mmm.allocate_budget_to_maximize_response(
-        ...     total_budget=100_000, budget_bounds={"lower": 0.5, "upper": 2.0}
-        ... )
-        >>> pc = mmm.plot.budget_allocation_roas(allocation_results)
-        >>> pc.show()
+        .. code-block:: python
+
+            allocation_results = mmm.allocate_budget_to_maximize_response(
+                total_budget=100_000, budget_bounds={"lower": 0.5, "upper": 2.0}
+            )
+            pc = mmm.plot.budget_allocation_roas(allocation_results)
+            pc.show()
 
         Group by geography to compare ROI across regions:
 
-        >>> pc = mmm.plot.budget_allocation_roas(
-        ...     allocation_results, dims_to_group_by="geo"
-        ... )
-        >>> pc.show()
+        .. code-block:: python
+
+            pc = mmm.plot.budget_allocation_roas(
+                allocation_results, dims_to_group_by="geo"
+            )
+            pc.show()
 
         Filter and group:
 
-        >>> pc = mmm.plot.budget_allocation_roas(
-        ...     allocation_results, dims={"segment": "premium"}, dims_to_group_by="geo"
-        ... )
-        >>> pc.show()
+        .. code-block:: python
+
+            pc = mmm.plot.budget_allocation_roas(
+                allocation_results, dims={"segment": "premium"}, dims_to_group_by="geo"
+            )
+            pc.show()
         """
         # Get the channels from samples
         if "channel" not in samples.dims:
@@ -1361,27 +1414,33 @@ class MMMPlotSuite:
         --------
         Basic usage with budget optimization results:
 
-        >>> allocation_results = mmm.allocate_budget_to_maximize_response(
-        ...     total_budget=100_000, budget_bounds={"lower": 0.5, "upper": 2.0}
-        ... )
-        >>> pc = mmm.plot.allocated_contribution_by_channel_over_time(
-        ...     allocation_results
-        ... )
-        >>> pc.show()
+        .. code-block:: python
+
+            allocation_results = mmm.allocate_budget_to_maximize_response(
+                total_budget=100_000, budget_bounds={"lower": 0.5, "upper": 2.0}
+            )
+            pc = mmm.plot.allocated_contribution_by_channel_over_time(
+                allocation_results
+            )
+            pc.show()
 
         Custom HDI probability:
 
-        >>> pc = mmm.plot.allocated_contribution_by_channel_over_time(
-        ...     allocation_results, hdi_prob=0.94
-        ... )
-        >>> pc.show()
+        .. code-block:: python
+
+            pc = mmm.plot.allocated_contribution_by_channel_over_time(
+                allocation_results, hdi_prob=0.94
+            )
+            pc.show()
 
         Use different backend:
 
-        >>> pc = mmm.plot.allocated_contribution_by_channel_over_time(
-        ...     allocation_results, backend="plotly"
-        ... )
-        >>> pc.show()
+        .. code-block:: python
+
+            pc = mmm.plot.allocated_contribution_by_channel_over_time(
+                allocation_results, backend="plotly"
+            )
+            pc.show()
         """
         # Check for expected dimensions and variables
         if "channel" not in samples.dims:
@@ -2080,16 +2139,22 @@ class MMMPlotSuite:
 
         2. **To use the old method**: Switch to legacy suite:
 
-           >>> from pymc_marketing.mmm import mmm_config
-           >>> mmm_config["plot.use_v2"] = False
-           >>> mmm.plot.budget_allocation(samples)
+           .. code-block:: python
+
+               from pymc_marketing.mmm import mmm_config
+
+               mmm_config["plot.use_v2"] = False
+               mmm.plot.budget_allocation(samples)
 
         3. **Custom implementation**: Create bar chart using samples data:
 
-           >>> import matplotlib.pyplot as plt
-           >>> channel_contrib = samples["channel_contribution"].mean(...)
-           >>> allocated_spend = samples["allocation"]
-           >>> # Create custom bar chart with matplotlib
+           .. code-block:: python
+
+               import matplotlib.pyplot as plt
+
+               channel_contrib = samples["channel_contribution"].mean(...)
+               allocated_spend = samples["allocation"]
+               # Create custom bar chart with matplotlib
 
         See Also
         --------
@@ -2099,14 +2164,17 @@ class MMMPlotSuite:
         --------
         Use legacy suite temporarily:
 
-        >>> from pymc_marketing.mmm import mmm_config
-        >>> original = mmm_config.get("plot.use_v2")
-        >>> try:
-        ...     mmm_config["plot.use_v2"] = False
-        ...     fig, ax = mmm.plot.budget_allocation(samples)
-        ...     fig.savefig("budget.png")
-        ... finally:
-        ...     mmm_config["plot.use_v2"] = original
+        .. code-block:: python
+
+            from pymc_marketing.mmm import mmm_config
+
+            original = mmm_config.get("plot.use_v2")
+            try:
+                mmm_config["plot.use_v2"] = False
+                fig, ax = mmm.plot.budget_allocation(samples)
+                fig.savefig("budget.png")
+            finally:
+                mmm_config["plot.use_v2"] = original
         """
         raise NotImplementedError(
             "budget_allocation() was removed in MMMPlotSuite v2.\n\n"
