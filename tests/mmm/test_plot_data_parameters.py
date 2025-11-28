@@ -20,23 +20,23 @@ import xarray as xr
 from pymc_marketing.mmm.plot import MMMPlotSuite
 
 
-def test_contributions_over_time_accepts_data_parameter(mock_posterior_data):
-    """Test that contributions_over_time accepts data parameter."""
-    # Create suite without idata
-    suite = MMMPlotSuite(idata=None)
-
-    # Should work with explicit data parameter
-    pc = suite.contributions_over_time(var=["intercept"], data=mock_posterior_data)
-
-    assert isinstance(pc, arviz_plots.PlotCollection)
-
-
-def test_contributions_over_time_data_parameter_fallback(mock_idata_with_posterior):
-    """Test that contributions_over_time falls back to self.idata.posterior."""
-    suite = MMMPlotSuite(idata=mock_idata_with_posterior)
-
-    # Should work without data parameter (fallback)
-    pc = suite.contributions_over_time(var=["intercept"])
+@pytest.mark.parametrize(
+    "use_explicit_data",
+    [
+        pytest.param(True, id="explicit_data_parameter"),
+        pytest.param(False, id="fallback_to_idata"),
+    ],
+)
+def test_contributions_over_time_data_parameter(
+    use_explicit_data, mock_posterior_data, mock_idata_with_posterior
+):
+    """Test contributions_over_time with explicit data or fallback to idata.posterior."""
+    if use_explicit_data:
+        suite = MMMPlotSuite(idata=None)
+        pc = suite.contributions_over_time(var=["intercept"], data=mock_posterior_data)
+    else:
+        suite = MMMPlotSuite(idata=mock_idata_with_posterior)
+        pc = suite.contributions_over_time(var=["intercept"])
 
     assert isinstance(pc, arviz_plots.PlotCollection)
 
