@@ -38,7 +38,7 @@ from pymc_marketing.mmm.components.saturation import (
     TanhSaturationBaselined,
     saturation_from_dict,
 )
-from pymc_marketing.mmm.config import mmm_config
+from pymc_marketing.mmm.config import mmm_plot_config
 from pymc_marketing.mmm.fourier import MonthlyFourier, WeeklyFourier, YearlyFourier
 from pymc_marketing.mmm.hsgp import (
     HSGP,
@@ -110,7 +110,7 @@ __all__ = [
     "create_eta_prior",
     "create_m_and_L_recommendations",
     "mmm",
-    "mmm_config",
+    "mmm_plot_config",
     "preprocessing",
     "preprocessing_method_X",
     "preprocessing_method_y",

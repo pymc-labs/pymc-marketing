@@ -183,7 +183,7 @@ from pymc_marketing.mmm.components.saturation import (
     SaturationTransformation,
     saturation_from_dict,
 )
-from pymc_marketing.mmm.config import mmm_config
+from pymc_marketing.mmm.config import mmm_plot_config
 from pymc_marketing.mmm.events import EventEffect
 from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.hsgp import HSGPBase, hsgp_from_dict
@@ -621,26 +621,26 @@ class MMM(RegressionModelBuilder):
     def plot(self):
         """Use the MMMPlotSuite to plot the results.
 
-        The plot suite version is controlled by mmm_config["plot.use_v2"]:
+        The plot suite version is controlled by mmm_plot_config["plot.use_v2"]:
         - False (default): Uses legacy matplotlib-based suite (will be deprecated)
         - True: Uses new arviz_plots-based suite with multi-backend support
 
         .. versionchanged:: 0.18.0
-           Added version control via mmm_config["plot.use_v2"].
+           Added version control via mmm_plot_config["plot.use_v2"].
            The legacy suite will be removed in v0.20.0.
 
         Examples
         --------
         Use new plot suite:
 
-        >>> from pymc_marketing.mmm import mmm_config
-        >>> mmm_config["plot.use_v2"] = True
+        >>> from pymc_marketing.mmm import mmm_plot_config
+        >>> mmm_plot_config["plot.use_v2"] = True
         >>> pc = mmm.plot.posterior_predictive()
         >>> pc.show()
 
         Use legacy plot suite:
 
-        >>> mmm_config["plot.use_v2"] = False
+        >>> mmm_plot_config["plot.use_v2"] = False
         >>> fig, ax = mmm.plot.posterior_predictive()
         >>> fig.savefig("plot.png")
 
@@ -653,19 +653,19 @@ class MMM(RegressionModelBuilder):
         self._validate_idata_exists()
 
         # Check version flag
-        if mmm_config.get("plot.use_v2", False):
+        if mmm_plot_config.get("plot.use_v2", False):
             return MMMPlotSuite(idata=self.idata)
         else:
             # Show deprecation warning for legacy suite
-            if mmm_config.get("plot.show_warnings", True):
+            if mmm_plot_config.get("plot.show_warnings", True):
                 warnings.warn(
                     "The current MMMPlotSuite will be deprecated in v0.20.0. "
                     "The new version uses arviz_plots and supports multiple backends "
                     "(matplotlib, plotly, bokeh). "
                     "To use the new version:\n"
-                    "  from pymc_marketing.mmm import mmm_config\n"
-                    "  mmm_config['plot.use_v2'] = True\n"
-                    "To suppress this warning: mmm_config['plot.show_warnings'] = False\n"
+                    "  from pymc_marketing.mmm import mmm_plot_config\n"
+                    "  mmm_plot_config['plot.use_v2'] = True\n"
+                    "To suppress this warning: mmm_plot_config['plot.show_warnings'] = False\n"
                     "See migration guide: https://docs.pymc-marketing.io/en/latest/mmm/plotting_migration.html",
                     FutureWarning,
                     stacklevel=2,

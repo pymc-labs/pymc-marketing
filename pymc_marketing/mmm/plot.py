@@ -178,6 +178,8 @@ import xarray as xr
 from arviz_base.labels import DimCoordLabeller, NoVarLabeller, mix_labellers
 from arviz_plots import PlotCollection
 
+from pymc_marketing.mmm.config import mmm_plot_config
+
 __all__ = ["MMMPlotSuite"]
 
 WIDTH_PER_COL: float = 10.0
@@ -287,9 +289,7 @@ class MMMPlotSuite:
 
     def _resolve_backend(self, backend: str | None) -> str:
         """Resolve backend parameter to actual backend string."""
-        from pymc_marketing.mmm.config import mmm_config
-
-        return backend or mmm_config["plot.backend"]
+        return backend or mmm_plot_config["plot.backend"]
 
     def _get_data_or_fallback(
         self,
@@ -344,9 +344,6 @@ class MMMPlotSuite:
         line and highest density interval (HDI) bands. Useful for checking model fit
         and understanding prediction uncertainty.
 
-        .. versionadded:: 0.18.0
-           New arviz_plots-based implementation supporting multiple backends.
-
         Parameters
         ----------
         var : str, optional
@@ -363,7 +360,7 @@ class MMMPlotSuite:
             Probability mass for HDI interval (between 0 and 1).
         backend : str, optional
             Plotting backend to use. Options: "matplotlib", "plotly", "bokeh".
-            If None, uses global config via mmm_config["plot.backend"].
+            If None, uses global config via mmm_plot_config["plot.backend"].
             Default is "matplotlib".
 
         Returns
@@ -397,37 +394,50 @@ class MMMPlotSuite:
         --------
         Basic usage:
 
-        >>> mmm.sample_posterior_predictive(X)
-        >>> pc = mmm.plot.posterior_predictive()
-        >>> pc.show()
+        .. code-block:: python
+
+            mmm.sample_posterior_predictive(X)
+            pc = mmm.plot.posterior_predictive()
+            pc.show()
 
         Plot with different HDI probability:
 
-        >>> pc = mmm.plot.posterior_predictive(hdi_prob=0.94)
-        >>> pc.show()
+        .. code-block:: python
+
+            pc = mmm.plot.posterior_predictive(hdi_prob=0.94)
+            pc.show()
 
         Save to file:
 
-        >>> pc = mmm.plot.posterior_predictive()
-        >>> pc.save("posterior_predictive.png")
+        .. code-block:: python
+
+            pc = mmm.plot.posterior_predictive()
+            pc.save("posterior_predictive.png")
 
         Use different backend:
 
-        >>> pc = mmm.plot.posterior_predictive(backend="plotly")
-        >>> pc.show()
+        .. code-block:: python
+
+            pc = mmm.plot.posterior_predictive(backend="plotly")
+            pc.show()
 
         Provide explicit data:
 
-        >>> external_pp = xr.Dataset(...)  # Custom posterior predictive
-        >>> pc = mmm.plot.posterior_predictive(idata=external_pp)
-        >>> pc.show()
+        .. code-block:: python
+
+            external_pp = xr.Dataset(...)  # Custom posterior predictive
+            pc = mmm.plot.posterior_predictive(idata=external_pp)
+            pc.show()
 
         Direct instantiation pattern:
 
-        >>> from pymc_marketing.mmm.plot import MMMPlotSuite
-        >>> mps = MMMPlotSuite(custom_idata)
-        >>> pc = mps.posterior_predictive()
-        >>> pc.show()
+        .. code-block:: python
+
+            from pymc_marketing.mmm.plot import MMMPlotSuite
+
+            mps = MMMPlotSuite(custom_idata)
+            pc = mps.posterior_predictive()
+            pc.show()
         """
         if not 0 < hdi_prob < 1:
             raise ValueError("HDI probability must be between 0 and 1.")
@@ -503,9 +513,6 @@ class MMMPlotSuite:
         HDI bands. Useful for understanding channel contributions, intercepts, or
         other time-varying effects in your model.
 
-        .. versionadded:: 0.18.0
-           New arviz_plots-based implementation supporting multiple backends.
-
         Parameters
         ----------
         var : list of str
@@ -514,10 +521,6 @@ class MMMPlotSuite:
         data : xr.Dataset, optional
             Dataset containing posterior data with variables in `var`.
             If None, uses self.idata.posterior.
-
-            .. versionadded:: 0.18.0
-               Added data parameter for explicit data passing.
-
             This parameter allows:
             - Testing with mock data without modifying self.idata
             - Plotting external results not stored in self.idata
@@ -533,7 +536,7 @@ class MMMPlotSuite:
             If provided, only the selected slice(s) will be plotted.
         backend : str, optional
             Plotting backend to use. Options: "matplotlib", "plotly", "bokeh".
-            If None, uses global config via mmm_config["plot.backend"].
+            If None, uses global config via mmm_plot_config["plot.backend"].
             Default is "matplotlib".
 
         Returns
@@ -569,52 +572,67 @@ class MMMPlotSuite:
         --------
         Basic usage - plot channel contributions:
 
-        >>> mmm.fit(X, y)
-        >>> pc = mmm.plot.contributions_over_time(var=["channel_contribution"])
-        >>> pc.show()
+        .. code-block:: python
+
+            mmm.fit(X, y)
+            pc = mmm.plot.contributions_over_time(var=["channel_contribution"])
+            pc.show()
 
         Plot multiple variables together:
 
-        >>> pc = mmm.plot.contributions_over_time(
-        ...     var=["channel_contribution", "intercept"]
-        ... )
-        >>> pc.show()
+        .. code-block:: python
+
+            pc = mmm.plot.contributions_over_time(
+                var=["channel_contribution", "intercept"]
+            )
+            pc.show()
 
         Filter by dimension:
 
-        >>> pc = mmm.plot.contributions_over_time(
-        ...     var=["channel_contribution"], dims={"geo": "US"}
-        ... )
-        >>> pc.show()
+        .. code-block:: python
+
+            pc = mmm.plot.contributions_over_time(
+                var=["channel_contribution"], dims={"geo": "US"}
+            )
+            pc.show()
 
         Filter with multiple dimension values:
 
-        >>> pc = mmm.plot.contributions_over_time(
-        ...     var=["channel_contribution"], dims={"geo": ["US", "UK"]}
-        ... )
-        >>> pc.show()
+        .. code-block:: python
+
+            pc = mmm.plot.contributions_over_time(
+                var=["channel_contribution"], dims={"geo": ["US", "UK"]}
+            )
+            pc.show()
 
         Use different backend:
 
-        >>> pc = mmm.plot.contributions_over_time(
-        ...     var=["channel_contribution"], backend="plotly"
-        ... )
-        >>> pc.show()
+        .. code-block:: python
+
+            pc = mmm.plot.contributions_over_time(
+                var=["channel_contribution"], backend="plotly"
+            )
+            pc.show()
 
         Provide explicit data (option 1 - via data parameter):
 
-        >>> custom_posterior = xr.Dataset(...)
-        >>> pc = mmm.plot.contributions_over_time(
-        ...     var=["my_contribution"], data=custom_posterior
-        ... )
-        >>> pc.show()
+        .. code-block:: python
+
+            custom_posterior = xr.Dataset(...)
+            pc = mmm.plot.contributions_over_time(
+                var=["my_contribution"], data=custom_posterior
+            )
+            pc.show()
 
         Provide explicit data (option 2 - direct instantiation):
 
-        >>> from pymc_marketing.mmm.plot import MMMPlotSuite
-        >>> mps = MMMPlotSuite(custom_idata)
-        >>> pc = mps.contributions_over_time(var=["my_contribution"])
-        >>> pc.show()
+        .. code-block:: python
+
+            from pymc_marketing.mmm.plot import MMMPlotSuite
+
+            mps = MMMPlotSuite(custom_idata)
+            pc = mps.contributions_over_time(var=["my_contribution"])
+            pc.show()
         """
         if not 0 < hdi_prob < 1:
             raise ValueError("HDI probability must be between 0 and 1.")
@@ -705,9 +723,6 @@ class MMMPlotSuite:
         contributions (Y-axis), one subplot per channel. Useful for understanding
         the saturation behavior and diminishing returns of each marketing channel.
 
-        .. versionadded:: 0.18.0
-           New arviz_plots-based implementation supporting multiple backends.
-
         Parameters
         ----------
         original_scale : bool, default False
@@ -720,10 +735,6 @@ class MMMPlotSuite:
             - 'target_scale': Target scaling factor (if original_scale=True)
 
             If None, uses self.idata.constant_data.
-
-            .. versionadded:: 0.18.0
-               Added constant_data parameter for explicit data passing.
-
             This parameter allows:
             - Testing with mock constant data
             - Plotting with alternative scaling factors
@@ -732,10 +743,6 @@ class MMMPlotSuite:
             Dataset containing posterior group with channel contribution variables.
             Must contain 'channel_contribution' or 'channel_contribution_original_scale'.
             If None, uses self.idata.posterior.
-
-            .. versionadded:: 0.18.0
-               Added posterior_data parameter for explicit data passing.
-
             This parameter allows:
             - Testing with mock posterior samples
             - Plotting external inference results
@@ -748,7 +755,7 @@ class MMMPlotSuite:
             If provided, only the selected slice(s) will be plotted.
         backend : str, optional
             Plotting backend to use. Options: "matplotlib", "plotly", "bokeh".
-            If None, uses global config via mmm_config["plot.backend"].
+            If None, uses global config via mmm_plot_config["plot.backend"].
             Default is "matplotlib".
 
         Returns
@@ -786,34 +793,44 @@ class MMMPlotSuite:
         --------
         Basic usage (scaled space):
 
-        >>> mmm.fit(X, y)
-        >>> pc = mmm.plot.saturation_scatterplot()
-        >>> pc.show()
+        .. code-block:: python
+
+            mmm.fit(X, y)
+            pc = mmm.plot.saturation_scatterplot()
+            pc.show()
 
         Plot in original scale:
 
-        >>> mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
-        >>> pc = mmm.plot.saturation_scatterplot(original_scale=True)
-        >>> pc.show()
+        .. code-block:: python
+
+            mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+            pc = mmm.plot.saturation_scatterplot(original_scale=True)
+            pc.show()
 
         Filter by dimension:
 
-        >>> pc = mmm.plot.saturation_scatterplot(dims={"geo": "US"})
-        >>> pc.show()
+        .. code-block:: python
+
+            pc = mmm.plot.saturation_scatterplot(dims={"geo": "US"})
+            pc.show()
 
         Use different backend:
 
-        >>> pc = mmm.plot.saturation_scatterplot(backend="plotly")
-        >>> pc.show()
+        .. code-block:: python
+
+            pc = mmm.plot.saturation_scatterplot(backend="plotly")
+            pc.show()
 
         Provide explicit data:
 
-        >>> custom_constant = xr.Dataset(...)
-        >>> custom_posterior = xr.Dataset(...)
-        >>> pc = mmm.plot.saturation_scatterplot(
-        ...     constant_data=custom_constant, posterior_data=custom_posterior
-        ... )
-        >>> pc.show()
+        .. code-block:: python
+
+            custom_constant = xr.Dataset(...)
+            custom_posterior = xr.Dataset(...)
+            pc = mmm.plot.saturation_scatterplot(
+                constant_data=custom_constant, posterior_data=custom_posterior
+            )
+            pc.show()
         """
         # Resolve backend
         backend = self._resolve_backend(backend)
@@ -919,9 +936,6 @@ class MMMPlotSuite:
         - HDI bands showing uncertainty
         - Smooth saturation curves over the scatter plot
 
-        .. versionadded:: 0.18.0
-           New arviz_plots-based implementation supporting multiple backends.
-
         Parameters
         ----------
         curve : xr.DataArray
@@ -936,17 +950,9 @@ class MMMPlotSuite:
             If True, requires channel_contribution_original_scale in posterior.
         constant_data : xr.Dataset, optional
             Dataset containing constant_data group. If None, uses self.idata.constant_data.
-
-            .. versionadded:: 0.18.0
-               Added constant_data parameter for explicit data passing.
-
             This parameter allows testing with mock data and plotting alternative scenarios.
         posterior_data : xr.Dataset, optional
             Dataset containing posterior group. If None, uses self.idata.posterior.
-
-            .. versionadded:: 0.18.0
-               Added posterior_data parameter for explicit data passing.
-
             This parameter allows testing with mock posterior samples and comparing model fits.
         n_samples : int, default 10
             Number of sample curves to draw per subplot.
@@ -966,7 +972,7 @@ class MMMPlotSuite:
             If provided, only the selected slice(s) will be plotted.
         backend : str, optional
             Plotting backend to use. Options: "matplotlib", "plotly", "bokeh".
-            If None, uses global config via mmm_config["plot.backend"].
+            If None, uses global config via mmm_plot_config["plot.backend"].
             Default is "matplotlib".
 
         Returns
@@ -1000,33 +1006,42 @@ class MMMPlotSuite:
         --------
         Generate and plot saturation curves:
 
-        >>> # Generate curves using saturation transformation
-        >>> curve = mmm.saturation.sample_curve(
-        ...     idata=mmm.idata.posterior[["saturation_beta", "saturation_lam"]],
-        ...     max_value=2.0,
-        ... )
-        >>> pc = mmm.plot.saturation_curves(curve)
-        >>> pc.show()
+        .. code-block:: python
+
+            # Generate curves using saturation transformation
+            curve = mmm.saturation.sample_curve(
+                idata=mmm.idata.posterior[["saturation_beta", "saturation_lam"]],
+                max_value=2.0,
+            )
+            pc = mmm.plot.saturation_curves(curve)
+            pc.show()
 
         Add HDI bands:
 
-        >>> pc = mmm.plot.saturation_curves(curve, hdi_probs=[0.5, 0.94])
-        >>> pc.show()
+        .. code-block:: python
+
+            pc = mmm.plot.saturation_curves(curve, hdi_probs=[0.5, 0.94])
+            pc.show()
 
         Original scale with custom seed:
 
-        >>> import numpy as np
-        >>> rng = np.random.default_rng(42)
-        >>> mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
-        >>> pc = mmm.plot.saturation_curves(
-        ...     curve, original_scale=True, n_samples=15, random_seed=rng
-        ... )
-        >>> pc.show()
+        .. code-block:: python
+
+            import numpy as np
+
+            rng = np.random.default_rng(42)
+            mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+            pc = mmm.plot.saturation_curves(
+                curve, original_scale=True, n_samples=15, random_seed=rng
+            )
+            pc.show()
 
         Filter by dimension:
 
-        >>> pc = mmm.plot.saturation_curves(curve, dims={"geo": "US"})
-        >>> pc.show()
+        .. code-block:: python
+
+            pc = mmm.plot.saturation_curves(curve, dims={"geo": "US"})
+            pc.show()
         """
         # Get constant_data and posterior_data with fallback
         constant_data = self._get_data_or_fallback(
@@ -1139,10 +1154,6 @@ class MMMPlotSuite:
         allocation. Useful for comparing ROI across channels and understanding
         optimization trade-offs.
 
-        .. versionadded:: 0.18.0
-           New method in MMMPlotSuite v2. This is different from the legacy
-           budget_allocation() method which showed bar charts.
-
         Parameters
         ----------
         samples : xr.Dataset
@@ -1195,31 +1206,37 @@ class MMMPlotSuite:
         - **New method** (this): Shows ROI distributions (KDE plots)
         - **Legacy method**: Shows bar charts comparing spend vs contributions
 
-        To use the legacy method, set: ``mmm_config["plot.use_v2"] = False``
+        To use the legacy method, set: ``mmm_plot_config["plot.use_v2"] = False``
 
         Examples
         --------
         Basic usage with budget optimization results:
 
-        >>> allocation_results = mmm.allocate_budget_to_maximize_response(
-        ...     total_budget=100_000, budget_bounds={"lower": 0.5, "upper": 2.0}
-        ... )
-        >>> pc = mmm.plot.budget_allocation_roas(allocation_results)
-        >>> pc.show()
+        .. code-block:: python
+
+            allocation_results = mmm.allocate_budget_to_maximize_response(
+                total_budget=100_000, budget_bounds={"lower": 0.5, "upper": 2.0}
+            )
+            pc = mmm.plot.budget_allocation_roas(allocation_results)
+            pc.show()
 
         Group by geography to compare ROI across regions:
 
-        >>> pc = mmm.plot.budget_allocation_roas(
-        ...     allocation_results, dims_to_group_by="geo"
-        ... )
-        >>> pc.show()
+        .. code-block:: python
+
+            pc = mmm.plot.budget_allocation_roas(
+                allocation_results, dims_to_group_by="geo"
+            )
+            pc.show()
 
         Filter and group:
 
-        >>> pc = mmm.plot.budget_allocation_roas(
-        ...     allocation_results, dims={"segment": "premium"}, dims_to_group_by="geo"
-        ... )
-        >>> pc.show()
+        .. code-block:: python
+
+            pc = mmm.plot.budget_allocation_roas(
+                allocation_results, dims={"segment": "premium"}, dims_to_group_by="geo"
+            )
+            pc.show()
         """
         # Get the channels from samples
         if "channel" not in samples.dims:
@@ -1305,9 +1322,6 @@ class MMMPlotSuite:
         optimized budget allocation. Shows mean contribution lines per channel with
         HDI uncertainty bands.
 
-        .. versionadded:: 0.18.0
-           New arviz_plots-based implementation supporting multiple backends.
-
         Parameters
         ----------
         samples : xr.Dataset
@@ -1361,27 +1375,33 @@ class MMMPlotSuite:
         --------
         Basic usage with budget optimization results:
 
-        >>> allocation_results = mmm.allocate_budget_to_maximize_response(
-        ...     total_budget=100_000, budget_bounds={"lower": 0.5, "upper": 2.0}
-        ... )
-        >>> pc = mmm.plot.allocated_contribution_by_channel_over_time(
-        ...     allocation_results
-        ... )
-        >>> pc.show()
+        .. code-block:: python
+
+            allocation_results = mmm.allocate_budget_to_maximize_response(
+                total_budget=100_000, budget_bounds={"lower": 0.5, "upper": 2.0}
+            )
+            pc = mmm.plot.allocated_contribution_by_channel_over_time(
+                allocation_results
+            )
+            pc.show()
 
         Custom HDI probability:
 
-        >>> pc = mmm.plot.allocated_contribution_by_channel_over_time(
-        ...     allocation_results, hdi_prob=0.94
-        ... )
-        >>> pc.show()
+        .. code-block:: python
+
+            pc = mmm.plot.allocated_contribution_by_channel_over_time(
+                allocation_results, hdi_prob=0.94
+            )
+            pc.show()
 
         Use different backend:
 
-        >>> pc = mmm.plot.allocated_contribution_by_channel_over_time(
-        ...     allocation_results, backend="plotly"
-        ... )
-        >>> pc.show()
+        .. code-block:: python
+
+            pc = mmm.plot.allocated_contribution_by_channel_over_time(
+                allocation_results, backend="plotly"
+            )
+            pc.show()
         """
         # Check for expected dimensions and variables
         if "channel" not in samples.dims:
@@ -1470,9 +1490,6 @@ class MMMPlotSuite:
         This is an internal method that performs the core plotting logic for
         sensitivity analysis visualizations. Public methods (sensitivity_analysis,
         uplift_curve, marginal_curve) handle data retrieval and call this helper.
-
-        .. versionadded:: 0.18.0
-           New arviz_plots-based implementation supporting multiple backends.
 
         Parameters
         ----------
@@ -1612,9 +1629,6 @@ class MMMPlotSuite:
         (e.g., channel spend) are varied. Shows mean response line and HDI bands
         across sweep values.
 
-        .. versionadded:: 0.18.0
-           New arviz_plots-based implementation supporting multiple backends.
-
         Parameters
         ----------
         data : xr.DataArray or xr.Dataset, optional
@@ -1624,10 +1638,6 @@ class MMMPlotSuite:
 
             If Dataset, should contain 'x' variable.
             If None, uses self.idata.sensitivity_analysis.
-
-            .. versionadded:: 0.18.0
-               Added data parameter for explicit data passing.
-
             This parameter allows:
             - Testing with mock sensitivity analysis results
             - Plotting external sweep results
@@ -1743,9 +1753,6 @@ class MMMPlotSuite:
         contributions) as inputs are varied, compared to a reference point.
         Shows mean uplift line and HDI bands.
 
-        .. versionadded:: 0.18.0
-           New arviz_plots-based implementation supporting multiple backends.
-
         Parameters
         ----------
         data : xr.DataArray or xr.Dataset, optional
@@ -1755,10 +1762,6 @@ class MMMPlotSuite:
 
             Must be precomputed using:
             ``SensitivityAnalysis.compute_uplift_curve_respect_to_base(...)``
-
-            .. versionadded:: 0.18.0
-               Added data parameter for explicit data passing.
-
             This parameter allows:
             - Testing with mock uplift curve data
             - Plotting externally computed uplift curves
@@ -1905,9 +1908,6 @@ class MMMPlotSuite:
         with respect to inputs. Shows how much output changes per unit change in
         input at each sweep value.
 
-        .. versionadded:: 0.18.0
-           New arviz_plots-based implementation supporting multiple backends.
-
         Parameters
         ----------
         data : xr.DataArray or xr.Dataset, optional
@@ -1917,10 +1917,6 @@ class MMMPlotSuite:
 
             Must be precomputed using:
             ``SensitivityAnalysis.compute_marginal_effects(...)``
-
-            .. versionadded:: 0.18.0
-               Added data parameter for explicit data passing.
-
             This parameter allows:
             - Testing with mock marginal effects data
             - Plotting externally computed marginal effects
@@ -2080,16 +2076,22 @@ class MMMPlotSuite:
 
         2. **To use the old method**: Switch to legacy suite:
 
-           >>> from pymc_marketing.mmm import mmm_config
-           >>> mmm_config["plot.use_v2"] = False
-           >>> mmm.plot.budget_allocation(samples)
+           .. code-block:: python
+
+               from pymc_marketing.mmm import mmm_plot_config
+
+               mmm_plot_config["plot.use_v2"] = False
+               mmm.plot.budget_allocation(samples)
 
         3. **Custom implementation**: Create bar chart using samples data:
 
-           >>> import matplotlib.pyplot as plt
-           >>> channel_contrib = samples["channel_contribution"].mean(...)
-           >>> allocated_spend = samples["allocation"]
-           >>> # Create custom bar chart with matplotlib
+           .. code-block:: python
+
+               import matplotlib.pyplot as plt
+
+               channel_contrib = samples["channel_contribution"].mean(...)
+               allocated_spend = samples["allocation"]
+               # Create custom bar chart with matplotlib
 
         See Also
         --------
@@ -2099,21 +2101,24 @@ class MMMPlotSuite:
         --------
         Use legacy suite temporarily:
 
-        >>> from pymc_marketing.mmm import mmm_config
-        >>> original = mmm_config.get("plot.use_v2")
-        >>> try:
-        ...     mmm_config["plot.use_v2"] = False
-        ...     fig, ax = mmm.plot.budget_allocation(samples)
-        ...     fig.savefig("budget.png")
-        ... finally:
-        ...     mmm_config["plot.use_v2"] = original
+        .. code-block:: python
+
+            from pymc_marketing.mmm import mmm_plot_config
+
+            original = mmm_plot_config.get("plot.use_v2")
+            try:
+                mmm_plot_config["plot.use_v2"] = False
+                fig, ax = mmm.plot.budget_allocation(samples)
+                fig.savefig("budget.png")
+            finally:
+                mmm_plot_config["plot.use_v2"] = original
         """
         raise NotImplementedError(
             "budget_allocation() was removed in MMMPlotSuite v2.\n\n"
             "The new arviz_plots-based implementation doesn't support this chart type.\n\n"
             "Alternatives:\n"
             "  1. For ROI distributions: use budget_allocation_roas()\n"
-            "  2. To use old method: set mmm_config['plot.use_v2'] = False\n"
+            "  2. To use old method: set mmm_plot_config['plot.use_v2'] = False\n"
             "  3. Implement custom bar chart using the samples data\n\n"
             "See documentation: https://docs.pymc-marketing.io/en/latest/mmm/plotting_migration.html#budget-allocation"
         )

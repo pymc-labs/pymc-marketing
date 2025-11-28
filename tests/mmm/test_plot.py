@@ -482,13 +482,13 @@ class TestBackendBehavior:
         """Test that method backend parameter overrides global config."""
         from arviz_plots import PlotCollection
 
-        from pymc_marketing.mmm import mmm_config
+        from pymc_marketing.mmm import mmm_plot_config
 
-        original = mmm_config.get("plot.backend", "matplotlib")
+        original = mmm_plot_config.get("plot.backend", "matplotlib")
 
         try:
             # Set global to matplotlib
-            mmm_config["plot.backend"] = "matplotlib"
+            mmm_plot_config["plot.backend"] = "matplotlib"
 
             # Override with plotly
             pc_plotly = mock_suite.contributions_over_time(
@@ -501,19 +501,19 @@ class TestBackendBehavior:
             assert isinstance(pc_default, PlotCollection)
 
         finally:
-            mmm_config["plot.backend"] = original
+            mmm_plot_config["plot.backend"] = original
 
     @pytest.mark.parametrize("config_backend", ["matplotlib", "plotly", "bokeh"])
     def test_backend_parameter_none_uses_config(self, mock_suite, config_backend):
         """Test that backend=None uses global config."""
         from arviz_plots import PlotCollection
 
-        from pymc_marketing.mmm import mmm_config
+        from pymc_marketing.mmm import mmm_plot_config
 
-        original = mmm_config.get("plot.backend", "matplotlib")
+        original = mmm_plot_config.get("plot.backend", "matplotlib")
 
         try:
-            mmm_config["plot.backend"] = config_backend
+            mmm_plot_config["plot.backend"] = config_backend
 
             pc = mock_suite.contributions_over_time(
                 var=["intercept"],
@@ -523,7 +523,7 @@ class TestBackendBehavior:
             assert isinstance(pc, PlotCollection)
 
         finally:
-            mmm_config["plot.backend"] = original
+            mmm_plot_config["plot.backend"] = original
 
     def test_invalid_backend_raises_error(self, mock_suite):
         """Test that invalid backend raises an appropriate error."""
