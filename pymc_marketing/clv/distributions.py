@@ -928,9 +928,9 @@ class ShiftedBetaGeometric(Discrete):
     Hardie and Fader describe this distribution with the following PMF and survival functions in [1]_:
 
     .. math::
-        \mathbb{P}(T=t|\alpha,\beta) = (\frac{B(\alpha+1,\beta+t-1)}{B(\alpha,\beta}),t=1,2,...  \\
+        \mathbb{P}(T=t|\alpha,\beta) = \frac{B(\alpha+1,\beta+t-1)}{B(\alpha,\beta)},t=1,2,...  \\
         \begin{align}
-        \mathbb{S}(t|\alpha,\beta) = (\frac{B(\alpha,\beta+t)}{B(\alpha,\beta}),t=1,2,... \\
+        \mathbb{S}(t|\alpha,\beta) = \frac{B(\alpha,\beta+t)}{B(\alpha,\beta)},t=1,2,... \\
         \end{align}
 
     ========  ===============================================
