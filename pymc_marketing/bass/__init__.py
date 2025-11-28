@@ -12,3 +12,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 """Bass model."""
+
+from pymc_marketing.bass.model import BassPriors, create_bass_model
+
+__all__ = ["BassPriors", "create_bass_model"]
