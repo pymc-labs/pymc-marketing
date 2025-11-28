@@ -1050,3 +1050,671 @@ def test__dim_list_handler_mixed():
     keys, combos = suite._dim_list_handler({"country": ["A", "B"], "region": "X"})
     assert keys == ["country"]
     assert set(combos) == {("A",), ("B",)}
+
+
+@pytest.fixture(scope="module")
+def mock_idata_with_errors_data() -> az.InferenceData:
+    """Create mock InferenceData with data needed for errors plot."""
+    seed = sum(map(ord, "Errors plot tests"))
+    rng = np.random.default_rng(seed)
+
+    dates = pd.date_range("2025-01-01", periods=20, freq="W-MON")
+    countries = ["A", "B"]
+
+    # Create posterior_predictive with y_original_scale
+    posterior_predictive = xr.Dataset(
+        {
+            "y_original_scale": xr.DataArray(
+                rng.normal(100, 10, size=(4, 50, 20, 2)),
+                dims=("chain", "draw", "date", "country"),
+                coords={
+                    "chain": np.arange(4),
+                    "draw": np.arange(50),
+                    "date": dates,
+                    "country": countries,
+                },
+            ),
+        }
+    )
+
+    # Create constant_data with target_data
+    constant_data = xr.Dataset(
+        {
+            "target_data": xr.DataArray(
+                rng.normal(100, 10, size=(20, 2)),
+                dims=("date", "country"),
+                coords={
+                    "date": dates,
+                    "country": countries,
+                },
+            ),
+        }
+    )
+
+    return az.InferenceData(
+        posterior_predictive=posterior_predictive, constant_data=constant_data
+    )
+
+
+@pytest.fixture(scope="module")
+def mock_suite_with_errors_data(mock_idata_with_errors_data):
+    """Fixture to create a MMMPlotSuite with data for errors plot."""
+    return MMMPlotSuite(idata=mock_idata_with_errors_data)
+
+
+class TestResidualsOverTime:
+    def test_residuals_over_time_basic(self, mock_suite_with_errors_data):
+        """Test basic functionality of residuals over time plot."""
+        fig, axes = mock_suite_with_errors_data.residuals_over_time()
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        assert all(isinstance(ax, Axes) for ax in axes.flat)
+
+    def test_residuals_over_time_single_hdi(self, mock_suite_with_errors_data):
+        """Test residuals over time plot with single HDI probability."""
+        fig, axes = mock_suite_with_errors_data.residuals_over_time(hdi_prob=[0.94])
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        assert all(isinstance(ax, Axes) for ax in axes.flat)
+
+    def test_residuals_over_time_multiple_hdi(self, mock_suite_with_errors_data):
+        """Test residuals over time plot with multiple HDI probabilities."""
+        fig, axes = mock_suite_with_errors_data.residuals_over_time(
+            hdi_prob=[0.94, 0.50]
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        assert all(isinstance(ax, Axes) for ax in axes.flat)
+
+    def test_residuals_over_time_no_y_original_scale(self, mock_suite):
+        """Test that residuals over time raises error without y_original_scale."""
+        # Create idata with posterior_predictive but without y_original_scale
+        dates = pd.date_range("2025-01-01", periods=20, freq="W-MON")
+        idata = az.InferenceData(
+            posterior_predictive=xr.Dataset(
+                {
+                    "y": xr.DataArray(
+                        np.random.randn(2, 50, 20),
+                        dims=("chain", "draw", "date"),
+                        coords={"chain": [0, 1], "draw": np.arange(50), "date": dates},
+                    )
+                }
+            )
+        )
+        suite = MMMPlotSuite(idata=idata)
+
+        with pytest.raises(ValueError, match=r"Variable 'y_original_scale' not found"):
+            suite.residuals_over_time()
+
+    def test_residuals_over_time_no_target_data(self, mock_suite_with_constant_data):
+        """Test that residuals over time raises error without target_data in constant_data."""
+        # Create idata with posterior_predictive but no target_data
+        idata = mock_suite_with_constant_data.idata.copy()
+
+        # Add y_original_scale to posterior_predictive
+        dates = pd.date_range("2025-01-01", periods=20, freq="W-MON")
+        idata.posterior_predictive = xr.Dataset(
+            {
+                "y_original_scale": xr.DataArray(
+                    np.random.normal(100, 10, size=(4, 50, 20)),
+                    dims=("chain", "draw", "date"),
+                    coords={
+                        "chain": np.arange(4),
+                        "draw": np.arange(50),
+                        "date": dates,
+                    },
+                ),
+            }
+        )
+
+        # Remove target_data from constant_data
+        idata.constant_data = idata.constant_data.drop_vars(
+            "target_data", errors="ignore"
+        )
+
+        suite = MMMPlotSuite(idata=idata)
+        with pytest.raises(ValueError, match=r"Variable 'target_data' not found"):
+            suite.residuals_over_time()
+
+    def test_residuals_over_time_invalid_hdi_prob(self, mock_suite_with_errors_data):
+        """Test that residuals over time raises error with invalid HDI probability."""
+        with pytest.raises(
+            ValueError, match=r"All HDI probabilities must be between 0 and 1"
+        ):
+            mock_suite_with_errors_data.residuals_over_time(hdi_prob=[1.5])
+
+        with pytest.raises(
+            ValueError, match=r"All HDI probabilities must be between 0 and 1"
+        ):
+            mock_suite_with_errors_data.residuals_over_time(hdi_prob=[0.94, -0.1])
+
+    def test_residuals_over_time_multidimensional(self, mock_suite_with_errors_data):
+        """Test residuals over time plot creates subplot for each dimension combination."""
+        fig, axes = mock_suite_with_errors_data.residuals_over_time()
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        # Should create one subplot per country (2 countries)
+        assert axes.shape[0] == 2
+
+
+class TestResidualsPosteriоrDistribution:
+    def test_residuals_distribution_basic(self, mock_suite_with_errors_data):
+        """Test basic functionality of residuals posterior distribution plot."""
+        fig, axes = mock_suite_with_errors_data.residuals_posterior_distribution()
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        assert all(isinstance(ax, Axes) for ax in axes.flat)
+
+    def test_residuals_distribution_with_aggregation_mean(
+        self, mock_suite_with_errors_data
+    ):
+        """Test residuals posterior distribution with mean aggregation."""
+        fig, axes = mock_suite_with_errors_data.residuals_posterior_distribution(
+            aggregation="mean"
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        # With aggregation, should create a single plot
+        assert axes.size == 1
+
+    def test_residuals_distribution_with_aggregation_sum(
+        self, mock_suite_with_errors_data
+    ):
+        """Test residuals posterior distribution with sum aggregation."""
+        fig, axes = mock_suite_with_errors_data.residuals_posterior_distribution(
+            aggregation="sum"
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        # With aggregation, should create a single plot
+        assert axes.size == 1
+
+    def test_residuals_distribution_custom_quantiles(self, mock_suite_with_errors_data):
+        """Test residuals posterior distribution with custom quantiles."""
+        fig, axes = mock_suite_with_errors_data.residuals_posterior_distribution(
+            quantiles=[0.05, 0.5, 0.95]
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        assert all(isinstance(ax, Axes) for ax in axes.flat)
+
+    def test_residuals_distribution_invalid_quantile(self, mock_suite_with_errors_data):
+        """Test that residuals distribution raises error with invalid quantile."""
+        with pytest.raises(ValueError, match=r"All quantiles must be between 0 and 1"):
+            mock_suite_with_errors_data.residuals_posterior_distribution(
+                quantiles=[1.5]
+            )
+
+    def test_residuals_distribution_invalid_aggregation(
+        self, mock_suite_with_errors_data
+    ):
+        """Test that residuals distribution raises error with invalid aggregation."""
+        with pytest.raises(ValueError, match=r"aggregation must be one of"):
+            mock_suite_with_errors_data.residuals_posterior_distribution(
+                aggregation="invalid"
+            )
+
+    def test_residuals_distribution_multidimensional(self, mock_suite_with_errors_data):
+        """Test residuals distribution creates subplot for each dimension combination."""
+        fig, axes = mock_suite_with_errors_data.residuals_posterior_distribution()
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        # Should create one subplot per country (2 countries)
+        assert axes.shape[0] == 2
+
+
+class TestWaterfallPlot:
+    """Test cases for waterfall_components_decomposition plot."""
+
+    @pytest.fixture(scope="class")
+    def mock_idata_for_waterfall(self):
+        """Create mock InferenceData for waterfall plot testing."""
+        dates = pd.date_range("2025-01-01", periods=20, freq="W-MON")
+        channels = ["C1", "C2"]
+        controls = ["control1"]
+
+        idata = az.InferenceData(
+            posterior=xr.Dataset(
+                {
+                    "intercept_contribution_original_scale": xr.DataArray(
+                        np.random.normal(50, 5, size=(2, 100, 20)),
+                        dims=("chain", "draw", "date"),
+                        coords={
+                            "chain": [0, 1],
+                            "draw": np.arange(100),
+                            "date": dates,
+                        },
+                    ),
+                    "channel_contribution_original_scale": xr.DataArray(
+                        np.random.normal(30, 10, size=(2, 100, 20, 2)),
+                        dims=("chain", "draw", "date", "channel"),
+                        coords={
+                            "chain": [0, 1],
+                            "draw": np.arange(100),
+                            "date": dates,
+                            "channel": channels,
+                        },
+                    ),
+                    "control_contribution_original_scale": xr.DataArray(
+                        np.random.normal(10, 3, size=(2, 100, 20, 1)),
+                        dims=("chain", "draw", "date", "control"),
+                        coords={
+                            "chain": [0, 1],
+                            "draw": np.arange(100),
+                            "date": dates,
+                            "control": controls,
+                        },
+                    ),
+                }
+            )
+        )
+        return idata
+
+    @pytest.fixture(scope="class")
+    def mock_suite_for_waterfall(self, mock_idata_for_waterfall):
+        """Create MMMPlotSuite for waterfall tests."""
+        return MMMPlotSuite(idata=mock_idata_for_waterfall)
+
+    def test_waterfall_basic(self, mock_suite_for_waterfall):
+        """Test basic waterfall plot functionality."""
+        fig, ax = mock_suite_for_waterfall.waterfall_components_decomposition(
+            var=[
+                "intercept_contribution_original_scale",
+                "channel_contribution_original_scale",
+                "control_contribution_original_scale",
+            ]
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(ax, Axes)
+        assert ax.get_title() == "Response Decomposition Waterfall by Components"
+        assert ax.get_xlabel() == "Cumulative Contribution"
+        assert ax.get_ylabel() == "Components"
+
+    def test_waterfall_custom_figsize(self, mock_suite_for_waterfall):
+        """Test waterfall plot with custom figure size."""
+        fig, _ = mock_suite_for_waterfall.waterfall_components_decomposition(
+            var=["intercept_contribution_original_scale"],
+            figsize=(16, 8),
+        )
+
+        assert isinstance(fig, Figure)
+        assert fig.get_figwidth() == 16
+        assert fig.get_figheight() == 8
+
+    def test_waterfall_single_variable(self, mock_suite_for_waterfall):
+        """Test waterfall plot with a single variable."""
+        fig, ax = mock_suite_for_waterfall.waterfall_components_decomposition(
+            var=["intercept_contribution_original_scale"]
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(ax, Axes)
+
+    def test_waterfall_missing_posterior_error(self):
+        """Test error when posterior data is missing."""
+        # Create InferenceData without posterior
+        idata_no_posterior = az.InferenceData()
+        suite = MMMPlotSuite(idata=idata_no_posterior)
+
+        with pytest.raises(ValueError, match=r"No posterior data found"):
+            suite.waterfall_components_decomposition(
+                var=["intercept_contribution_original_scale"]
+            )
+
+    def test_waterfall_missing_variables_error(self, mock_suite_for_waterfall):
+        """Test error when requested variables don't exist."""
+        with pytest.raises(ValueError, match=r"None of the requested variables"):
+            mock_suite_for_waterfall.waterfall_components_decomposition(
+                var=["nonexistent_variable"]
+            )
+
+    def test_process_decomposition_components(self, mock_suite_for_waterfall):
+        """Test the private _process_decomposition_components method."""
+        # Create a simple DataFrame
+        dates = pd.date_range("2025-01-01", periods=5, freq="D")
+        df = pd.DataFrame(
+            {
+                "date": dates,
+                "intercept": [10, 11, 12, 13, 14],
+                "channel__C1": [20, 21, 22, 23, 24],
+                "channel__C2": [5, 6, 7, 8, 9],
+            }
+        )
+
+        result = mock_suite_for_waterfall._process_decomposition_components(df)
+
+        # Check output structure
+        assert isinstance(result, pd.DataFrame)
+        assert "component" in result.columns
+        assert "contribution" in result.columns
+        assert "percentage" in result.columns
+
+        # Should have 3 components (intercept, channel__C1, channel__C2)
+        assert len(result) == 3
+
+        # Check that contributions are summed correctly
+        total = result["contribution"].sum()
+        assert np.isclose(
+            total,
+            (10 + 11 + 12 + 13 + 14) + (20 + 21 + 22 + 23 + 24) + (5 + 6 + 7 + 8 + 9),
+        )
+
+        # Check that percentages sum to 100
+        assert np.isclose(result["percentage"].sum(), 100.0)
+
+    def test_process_decomposition_components_with_categorical(
+        self, mock_suite_for_waterfall
+    ):
+        """Test _process_decomposition_components with categorical columns."""
+        dates = pd.date_range("2025-01-01", periods=4, freq="D")
+        df = pd.DataFrame(
+            {
+                "date": dates,
+                "geo": pd.Categorical(["US", "US", "UK", "UK"]),
+                "intercept": [10, 11, 12, 13],
+                "channel__C1": [20, 21, 22, 23],
+            }
+        )
+
+        result = mock_suite_for_waterfall._process_decomposition_components(df)
+
+        # Should handle categorical columns correctly
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 2  # intercept and channel__C1
+
+    def test_waterfall_with_multidimensional_data(self):
+        """Test waterfall plot with multidimensional data (geo dimension)."""
+        dates = pd.date_range("2025-01-01", periods=10, freq="W-MON")
+        channels = ["C1", "C2"]
+        geos = ["US", "UK"]
+
+        idata = az.InferenceData(
+            posterior=xr.Dataset(
+                {
+                    "intercept_contribution": xr.DataArray(
+                        np.random.normal(50, 5, size=(2, 50, 10, 2)),
+                        dims=("chain", "draw", "date", "geo"),
+                        coords={
+                            "chain": [0, 1],
+                            "draw": np.arange(50),
+                            "date": dates,
+                            "geo": geos,
+                        },
+                    ),
+                    "channel_contribution": xr.DataArray(
+                        np.random.normal(30, 10, size=(2, 50, 10, 2, 2)),
+                        dims=("chain", "draw", "date", "channel", "geo"),
+                        coords={
+                            "chain": [0, 1],
+                            "draw": np.arange(50),
+                            "date": dates,
+                            "channel": channels,
+                            "geo": geos,
+                        },
+                    ),
+                }
+            )
+        )
+
+        suite = MMMPlotSuite(idata=idata)
+        fig, ax = suite.waterfall_components_decomposition(
+            var=["intercept_contribution", "channel_contribution"]
+        )
+
+        # Should work with multidimensional data
+        assert isinstance(fig, Figure)
+        assert isinstance(ax, Axes)
+
+
+class TestPosteriorDistribution:
+    """Tests for the posterior_distribution plotting method."""
+
+    @pytest.fixture(scope="class")
+    def mock_idata_for_posterior_dist(self) -> az.InferenceData:
+        """Mock InferenceData with parameter variables for testing."""
+        seed = sum(map(ord, "Posterior distribution tests"))
+        rng = np.random.default_rng(seed)
+        normal = rng.normal
+
+        channels = ["TV", "Radio", "Digital"]
+        geos = ["US", "UK"]
+
+        posterior = xr.Dataset(
+            {
+                "lam": xr.DataArray(
+                    normal(loc=0.5, scale=0.1, size=(2, 10, 3)),
+                    dims=("chain", "draw", "channel"),
+                    coords={
+                        "chain": np.arange(2),
+                        "draw": np.arange(10),
+                        "channel": channels,
+                    },
+                ),
+                "alpha": xr.DataArray(
+                    normal(loc=1.0, scale=0.2, size=(2, 10, 3, 2)),
+                    dims=("chain", "draw", "channel", "geo"),
+                    coords={
+                        "chain": np.arange(2),
+                        "draw": np.arange(10),
+                        "channel": channels,
+                        "geo": geos,
+                    },
+                ),
+            }
+        )
+
+        return az.InferenceData(posterior=posterior)
+
+    @pytest.fixture(scope="class")
+    def mock_suite_for_posterior_dist(self, mock_idata_for_posterior_dist):
+        return MMMPlotSuite(idata=mock_idata_for_posterior_dist)
+
+    def test_posterior_distribution_basic(self, mock_suite_for_posterior_dist):
+        """Test basic posterior distribution plotting."""
+        fig, axes = mock_suite_for_posterior_dist.posterior_distribution(
+            var="lam", plot_dim="channel"
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        assert axes.shape[0] == 1  # Single subplot for simple case
+        assert all(isinstance(ax, Axes) for ax in axes.flat)
+
+    def test_posterior_distribution_with_additional_dim(
+        self, mock_suite_for_posterior_dist
+    ):
+        """Test posterior distribution with additional dimensions."""
+        fig, axes = mock_suite_for_posterior_dist.posterior_distribution(
+            var="alpha", plot_dim="channel"
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        # Should create one subplot per geo (2 geos)
+        assert axes.shape[0] == 2
+        assert all(isinstance(ax, Axes) for ax in axes.flat)
+
+    def test_posterior_distribution_with_dims_filter(
+        self, mock_suite_for_posterior_dist
+    ):
+        """Test posterior distribution with dimension filtering."""
+        fig, axes = mock_suite_for_posterior_dist.posterior_distribution(
+            var="alpha", plot_dim="channel", dims={"geo": "US"}
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        # Should create single subplot when filtering to one geo
+        assert axes.shape[0] == 1
+        assert "geo=US" in axes[0, 0].get_title()
+
+    def test_posterior_distribution_with_dims_list(self, mock_suite_for_posterior_dist):
+        """Test posterior distribution with list of dimension values."""
+        fig, axes = mock_suite_for_posterior_dist.posterior_distribution(
+            var="alpha", plot_dim="channel", dims={"geo": ["US", "UK"]}
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        # Should create one subplot per geo in the list
+        assert axes.shape[0] == 2
+        for i, geo in enumerate(["US", "UK"]):
+            assert f"geo={geo}" in axes[i, 0].get_title()
+
+    def test_posterior_distribution_vertical_orientation(
+        self, mock_suite_for_posterior_dist
+    ):
+        """Test posterior distribution with vertical orientation."""
+        fig, axes = mock_suite_for_posterior_dist.posterior_distribution(
+            var="lam", plot_dim="channel", orient="v"
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        ax = axes[0, 0]
+        # For vertical orientation, channel should be on x-axis
+        assert ax.get_xlabel() == "channel"
+        assert ax.get_ylabel() == "lam"
+
+    def test_posterior_distribution_horizontal_orientation(
+        self, mock_suite_for_posterior_dist
+    ):
+        """Test posterior distribution with horizontal orientation (default)."""
+        fig, axes = mock_suite_for_posterior_dist.posterior_distribution(
+            var="lam", plot_dim="channel", orient="h"
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        ax = axes[0, 0]
+        # For horizontal orientation, channel should be on y-axis
+        assert ax.get_xlabel() == "lam"
+        assert ax.get_ylabel() == "channel"
+
+    def test_posterior_distribution_invalid_var(self, mock_suite_for_posterior_dist):
+        """Test that invalid variable name raises error."""
+        with pytest.raises(ValueError, match=r"Variable 'invalid_var' not found"):
+            mock_suite_for_posterior_dist.posterior_distribution(
+                var="invalid_var", plot_dim="channel"
+            )
+
+    def test_posterior_distribution_invalid_plot_dim(
+        self, mock_suite_for_posterior_dist
+    ):
+        """Test that invalid plot_dim raises error."""
+        with pytest.raises(
+            ValueError, match=r"Dimension 'invalid_dim' not found in variable"
+        ):
+            mock_suite_for_posterior_dist.posterior_distribution(
+                var="lam", plot_dim="invalid_dim"
+            )
+
+    def test_posterior_distribution_no_posterior(self):
+        """Test that missing posterior data raises error."""
+        idata = az.InferenceData()
+        suite = MMMPlotSuite(idata=idata)
+        with pytest.raises(ValueError, match=r"No posterior data found"):
+            suite.posterior_distribution(var="lam", plot_dim="channel")
+
+    def test_posterior_distribution_custom_figsize(self, mock_suite_for_posterior_dist):
+        """Test posterior distribution with custom figure size."""
+        fig, _ = mock_suite_for_posterior_dist.posterior_distribution(
+            var="lam", plot_dim="channel", figsize=(12, 8)
+        )
+
+        assert isinstance(fig, Figure)
+        # Check that custom figsize was applied
+        assert fig.get_figwidth() == 12
+        assert fig.get_figheight() == 8
+
+
+class TestChannelContributionShareHDI:
+    def test_channel_contribution_share_hdi_basic(self, mock_suite_with_constant_data):
+        """Test basic functionality of channel_contribution_share_hdi."""
+        fig, ax = mock_suite_with_constant_data.channel_contribution_share_hdi()
+
+        assert isinstance(fig, Figure)
+        assert isinstance(ax, Axes)
+        # Check that title is set
+        assert "Channel Contribution Share" in fig._suptitle.get_text()
+
+    def test_channel_contribution_share_hdi_custom_hdi(
+        self, mock_suite_with_constant_data
+    ):
+        """Test channel_contribution_share_hdi with custom HDI probability."""
+        fig, ax = mock_suite_with_constant_data.channel_contribution_share_hdi(
+            hdi_prob=0.90
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(ax, Axes)
+
+    def test_channel_contribution_share_hdi_custom_figsize(
+        self, mock_suite_with_constant_data
+    ):
+        """Test channel_contribution_share_hdi with custom figsize."""
+        fig, ax = mock_suite_with_constant_data.channel_contribution_share_hdi(
+            figsize=(12, 8)
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(ax, Axes)
+        assert fig.get_figwidth() == 12
+        assert fig.get_figheight() == 8
+
+    def test_channel_contribution_share_hdi_with_dims(
+        self, mock_suite_with_constant_data
+    ):
+        """Test channel_contribution_share_hdi with dimension filtering."""
+        fig, ax = mock_suite_with_constant_data.channel_contribution_share_hdi(
+            dims={"country": "A"}
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(ax, Axes)
+
+    def test_channel_contribution_share_hdi_no_posterior(self):
+        """Test that channel_contribution_share_hdi raises error without posterior."""
+        idata = az.InferenceData()
+        suite = MMMPlotSuite(idata=idata)
+
+        with pytest.raises(ValueError, match=r"No posterior data found"):
+            suite.channel_contribution_share_hdi()
+
+    def test_channel_contribution_share_hdi_no_original_scale(
+        self, mock_suite_with_constant_data
+    ):
+        """Test that channel_contribution_share_hdi raises error without original scale contribution."""
+        # Remove the original scale contribution from the mock data
+        idata_copy = mock_suite_with_constant_data.idata.copy()
+        idata_copy.posterior = idata_copy.posterior.drop_vars(
+            "channel_contribution_original_scale"
+        )
+        suite_without_original_scale = MMMPlotSuite(idata=idata_copy)
+
+        with pytest.raises(
+            ValueError,
+            match=r"Variable 'channel_contribution_original_scale' not found in posterior",
+        ):
+            suite_without_original_scale.channel_contribution_share_hdi()
+
+    def test_channel_contribution_share_hdi_plot_kwargs(
+        self, mock_suite_with_constant_data
+    ):
+        """Test channel_contribution_share_hdi with additional plot_kwargs."""
+        fig, ax = mock_suite_with_constant_data.channel_contribution_share_hdi(
+            colors="C1"
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(ax, Axes)

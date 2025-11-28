@@ -187,9 +187,11 @@ class ModelIO:
 
         Examples
         --------
-        >>> model = MyModel()
-        >>> model.id
-        '0123456789abcdef'
+        .. code-block:: python
+
+            model = MyModel()
+            model.id
+            "0123456789abcdef"
 
         """
         hasher = hashlib.sha256()
@@ -337,20 +339,24 @@ class ModelIO:
         This method is meant to be overridden and implemented by subclasses.
         It should not be called directly on the base abstract class or its instances.
 
-        >>> class MyModel(ModelBuilder):
-        >>>     def __init__(self):
-        >>>         super().__init__()
-        >>> model = MyModel()
-        >>> model.fit(X, y)
-        >>> # Basic save
-        >>> model.save("model_results.nc")
-        >>>
-        >>> # Save with specific options
-        >>> model.save(
-        ...     "model_results.nc",
-        ...     engine="netcdf4",
-        ...     groups=["posterior", "log_likelihood"],
-        ... )
+        .. code-block:: python
+
+            class MyModel(ModelBuilder):
+                def __init__(self):
+                    super().__init__()
+
+
+            model = MyModel()
+            model.fit(X, y)
+            # Basic save
+            model.save("model_results.nc")
+
+            # Save with specific options
+            model.save(
+                "model_results.nc",
+                engine="netcdf4",
+                groups=["posterior", "log_likelihood"],
+            )
 
         """
         if self.idata is not None and "posterior" in self.idata:
@@ -561,9 +567,12 @@ class ModelBuilder(ABC, ModelIO):
 
         Examples
         --------
-        >>> class MyModel(ModelBuilder):
-        >>>     ...
-        >>> model = MyModel(model_config, sampler_config)
+        .. code-block:: python
+
+            class MyModel(ModelBuilder): ...
+
+
+            model = MyModel(model_config, sampler_config)
 
         """
         if sampler_config is None:
@@ -592,19 +601,21 @@ class ModelBuilder(ABC, ModelIO):
 
         Examples
         --------
-        >>>     @classmethod
-        >>>     def default_model_config(self):
-        >>>         Return {
-        >>>             'a' : {
-        >>>                 'loc': 7,
-        >>>                 'scale' : 3
-        >>>             },
-        >>>             'b' : {
-        >>>                 'loc': 3,
-        >>>                 'scale': 5
-        >>>             }
-        >>>              'obs_error': 2
-        >>>         }
+        .. code-block:: python
+
+            @classmethod
+            def default_model_config(self):
+                Return {
+                    'a' : {
+                        'loc': 7,
+                        'scale' : 3
+                    },
+                    'b' : {
+                        'loc': 3,
+                        'scale': 5
+                    },
+                     'obs_error': 2
+                }
 
         Returns
         -------
@@ -623,14 +634,16 @@ class ModelBuilder(ABC, ModelIO):
 
         Examples
         --------
-        >>>     @classmethod
-        >>>     def default_sampler_config(self):
-        >>>         Return {
-        >>>             'draws': 1_000,
-        >>>             'tune': 1_000,
-        >>>             'chains': 1,
-        >>>             'target_accept': 0.95,
-        >>>         }
+        .. code-block:: python
+
+            @classmethod
+            def default_sampler_config(self):
+                Return {
+                    'draws': 1_000,
+                    'tune': 1_000,
+                    'chains': 1,
+                    'target_accept': 0.95,
+                }
 
         Returns
         -------
@@ -809,13 +822,15 @@ class RegressionModelBuilder(ModelBuilder):
 
         Examples
         --------
-        >>> def _data_setter(self, data : pd.DataFrame):
-        >>>     with self.model:
-        >>>         pm.set_data({'x': X['x'].values})
-        >>>         try: # if y values in new data
-        >>>             pm.set_data({'y_data': y.values})
-        >>>         except: # dummies otherwise
-        >>>             pm.set_data({'y_data': np.zeros(len(data))})
+        .. code-block:: python
+
+            def _data_setter(self, data: pd.DataFrame):
+                with self.model:
+                    pm.set_data({"x": X["x"].values})
+                    try:  # if y values in new data
+                        pm.set_data({"y_data": y.values})
+                    except:  # dummies otherwise
+                        pm.set_data({"y_data": np.zeros(len(data))})
 
         """
 
@@ -942,10 +957,12 @@ class RegressionModelBuilder(ModelBuilder):
 
         Examples
         --------
-        >>> model = MyModel()
-        >>> idata = model.fit(X, y)
-        Auto-assigning NUTS sampler...
-        Initializing NUTS using jitter+adapt_diag...
+        .. code-block:: python
+
+            model = MyModel()
+            idata = model.fit(X, y)
+            Auto-assigning NUTS sampler...
+            Initializing NUTS using jitter+adapt_diag...
 
         """
         if (
@@ -1035,11 +1052,13 @@ class RegressionModelBuilder(ModelBuilder):
 
         Examples
         --------
-        >>> model = MyModel()
-        >>> idata = model.fit(X, y)
-        >>> x_pred = []
-        >>> prediction_data = pd.DataFrame({"input": x_pred})
-        >>> pred_mean = model.predict(prediction_data)
+        .. code-block:: python
+
+            model = MyModel()
+            idata = model.fit(X, y)
+            x_pred = []
+            prediction_data = pd.DataFrame({"input": x_pred})
+            pred_mean = model.predict(prediction_data)
 
         """
         posterior_predictive_samples = self.sample_posterior_predictive(

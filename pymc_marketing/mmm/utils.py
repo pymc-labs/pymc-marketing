@@ -466,3 +466,184 @@ def create_index(
 ) -> tuple[int | slice, ...]:
     """Create an index to take the first dimension of a tensor based on the provided dimensions."""
     return tuple(slice(None) if dim in take else 0 for dim in dims)
+
+
+def build_contributions(
+    idata,
+    var: list[str] | tuple[str, ...],
+    agg: str | Callable = "mean",
+    *,
+    agg_dims: list[str] | tuple[str, ...] | None = None,
+    index_dims: list[str] | tuple[str, ...] | None = None,
+    expand_dims: list[str] | tuple[str, ...] | None = None,
+    cast_regular_to_category: bool = True,
+) -> pd.DataFrame:
+    """Build a wide contributions DataFrame from idata.posterior variables.
+
+    This function extracts contribution variables from the posterior,
+    aggregates them across sampling dimensions, and returns a wide DataFrame
+    with automatic dimension detection and handling.
+
+    Parameters
+    ----------
+    idata : az.InferenceData-like
+        Must have `.posterior` attribute containing the contribution variables.
+    var : list or tuple of str
+        Posterior variable names to include (e.g., contribution variables).
+    agg : str or callable, default "mean"
+        xarray reduction method applied over `agg_dims` for each variable.
+        Can be "mean", "median", "sum", or any callable reduction function.
+    agg_dims : list or tuple of str, optional
+        Sampling dimensions to reduce over. If None, defaults to
+        ("chain", "draw") but only includes dimensions that exist.
+    index_dims : list or tuple of str, optional
+        Dimensions to preserve as index-like columns. If None, defaults
+        to ("date",) but only includes dimensions that exist.
+    expand_dims : list or tuple of str, optional
+        Dimensions whose coordinates should become separate wide columns.
+        If None, defaults to ("channel", "control"). Only one such dimension
+        is expected per variable.
+    cast_regular_to_category : bool, default True
+        Whether to cast non-index regular dimensions to pandas 'category' dtype.
+
+    Returns
+    -------
+    pd.DataFrame
+        Wide DataFrame with columns for:
+        - Index dimensions (e.g., date)
+        - Regular dimensions (e.g., geo, product)
+        - One column per label in each expand dimension (e.g., channel__C1, control__x1)
+        - Single columns for scalar variables (e.g., intercept)
+
+    Raises
+    ------
+    ValueError
+        If none of the requested variables are present in idata.posterior.
+
+    Examples
+    --------
+    Build contributions DataFrame with default settings:
+
+    .. code-block:: python
+
+        df = build_contributions(
+            idata=mmm.idata,
+            var=[
+                "intercept_contribution_original_scale",
+                "channel_contribution_original_scale",
+                "control_contribution_original_scale",
+            ],
+        )
+
+    Use median aggregation instead of mean:
+
+    .. code-block:: python
+
+        df = build_contributions(
+            idata=mmm.idata,
+            var=["channel_contribution"],
+            agg="median",
+        )
+
+    """
+    # Set defaults for dimension handling
+    if agg_dims is None:
+        agg_dims = ("chain", "draw")
+    if index_dims is None:
+        index_dims = ("date",)
+    if expand_dims is None:
+        expand_dims = ("channel", "control")
+
+    # Select and validate variables
+    present = [v for v in var if v in idata.posterior]
+    if not present:
+        raise ValueError(
+            f"None of the requested variables {var} are present in idata.posterior."
+        )
+
+    def _reduce(da: xr.DataArray) -> xr.DataArray:
+        """Reduce DataArray over aggregation dimensions."""
+        dims = tuple(d for d in agg_dims if d in da.dims)
+        if not dims:
+            return da
+        if isinstance(agg, str):
+            return getattr(da, agg)(dim=dims)
+        return da.reduce(agg, dim=dims)
+
+    # Reduce each variable
+    reduced = {v: _reduce(idata.posterior[v]) for v in present}
+
+    # Discover union of "regular" dims and their coords
+    special = set(expand_dims) | set(agg_dims) | {"variable"}
+    all_dims = set().union(*(set(da.dims) for da in reduced.values()))
+    regular_dims = [d for d in all_dims if d not in special]
+
+    # Collect union coordinates (keep index_dims order first)
+    coord_unions = {}
+    for d in set(regular_dims) | set(index_dims):
+        idxs = [
+            pd.Index(da.coords[d].to_pandas())
+            for da in reduced.values()
+            if d in da.dims
+        ]
+        if not idxs:
+            continue
+        u = idxs[0]
+        for idx in idxs[1:]:
+            u = u.union(idx)
+        coord_unions[d] = u
+
+    # Create template grid for broadcasting
+    template = xr.DataArray(0)
+    for d, idx in coord_unions.items():
+        template = template.expand_dims({d: idx})
+
+    # Expand variables with channel/control dimension, broadcast others
+    datasets = []
+    for name, da in reduced.items():
+        da_b = xr.broadcast(da, template)[0] if template.dims else da
+
+        # Detect expand dimension (at most one expected per variable)
+        exp_dim = next((d for d in expand_dims if d in da_b.dims), None)
+        if exp_dim is not None:
+            # Convert to dataset with wide columns: "<exp_dim>__<label>"
+            ds = da_b.to_dataset(dim=exp_dim)
+            ds = ds.rename({v: f"{exp_dim}__{v}" for v in ds.data_vars})
+            datasets.append(ds)
+        else:
+            # Single column variable; use a concise name if possible
+            short = (
+                "intercept"
+                if "intercept" in name
+                else "yearly_seasonality"
+                if "yearly" in name and "season" in name
+                else name
+            )
+            datasets.append(da_b.to_dataset(name=short))
+
+    # Merge all datasets
+    ds_all = (
+        xr.merge(datasets, compat="override", join="outer")
+        if len(datasets) > 1
+        else datasets[0]
+    )
+
+    # Stable column order: index_dims first, then other regular dims
+    ordered_dims = [d for d in index_dims if d in ds_all.dims] + [
+        d for d in regular_dims if d not in index_dims and d in ds_all.dims
+    ]
+
+    df = ds_all.to_dataframe().reset_index()
+
+    # Cast non-index regular dims to category (memory & modeling friendly)
+    if cast_regular_to_category:
+        for d in ordered_dims:
+            if d not in index_dims and d in df:
+                df[d] = df[d].astype("category")
+
+    # Sort for readability
+    sort_cols = [c for c in ordered_dims if c in df.columns]
+    if sort_cols:
+        df = df.sort_values(sort_cols, kind="stable")
+
+    return df
