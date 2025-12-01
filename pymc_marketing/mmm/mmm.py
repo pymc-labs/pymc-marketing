@@ -2121,28 +2121,26 @@ class MMM(
 
         Example
         -------
-        >>> self.format_recovered_transformation_parameters(quantile=0.5)
-        >>> Output:
-        {
-            'x1': {
-                'saturation_params': {
-                    'lam': 2.4761893929757077,
-                    'beta': 0.360226791880304
+        .. code-block:: python
+
+            self.format_recovered_transformation_parameters(quantile=0.5)
+            # Output:
+            {
+                "x1": {
+                    "saturation_params": {
+                        "lam": 2.4761893929757077,
+                        "beta": 0.360226791880304,
+                    },
+                    "adstock_params": {"alpha": 0.39910387900504796},
                 },
-            'adstock_params': {
-                'alpha': 0.39910387900504796
-                }
-            },
-            'x2': {
-                'saturation_params': {
-                    'lam': 2.6485978655163436,
-                    'beta': 0.2399381337197204
+                "x2": {
+                    "saturation_params": {
+                        "lam": 2.6485978655163436,
+                        "beta": 0.2399381337197204,
+                    },
+                    "adstock_params": {"alpha": 0.18859423763437405},
                 },
-            'adstock_params': {
-                'alpha': 0.18859423763437405
-                }
             }
-        }
 
         """
         # Retrieve channel names
