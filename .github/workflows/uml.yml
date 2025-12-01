@@ -20,29 +20,12 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Configure Git Identity
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email 'github-actions[bot]@users.noreply.github.com'
-
       - name: Update the UML Diagrams
         run: |
           sudo apt-get update && sudo apt-get install -y graphviz
           make uml
 
-      - name: Detect UML changes
-        id: changes
-        run: |
-          git add docs/source/uml/*.png
-          if git diff --staged --exit-code; then
-            echo "No changes to commit"
-            echo "changes_exist=false" >> $GITHUB_OUTPUT
-          else
-            echo "changes_exist=true" >> $GITHUB_OUTPUT
-          fi
-
       - name: Create PR for changes
-        if: steps.changes.outputs.changes_exist == 'true'
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ github.token }}
