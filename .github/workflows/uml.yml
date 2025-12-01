@@ -3,7 +3,7 @@ name: Update the UML Diagrams
 on:
   workflow_dispatch:
   schedule:
-    - cron:  '0 12 * * 1'
+    - cron: "0 12 * * 1"
 
 jobs:
   build:
@@ -43,19 +43,18 @@ jobs:
 
       - name: Create PR for changes
         if: steps.changes.outputs.changes_exist == 'true'
-        run: |
-          git checkout -b update-uml-diagrams
-          git commit -m "Update UML Diagrams"
-          git push -u origin update-uml-diagrams
-          gh pr create \
-            --base main \
-            --title "Update UML Diagrams" \
-            --body "This PR updates the UML diagrams
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ github.token }}
+          commit-message: "chore: Update UML Diagrams"
+          title: "Update UML Diagrams"
+          body: |
+            This PR updates the UML diagrams
 
             This PR was created automatically by the [UML workflow](https://github.com/pymc-labs/pymc-marketing/blob/main/.github/workflows/uml.yml).
 
-            See the logs [here](https://github.com/pymc-labs/pymc-marketing/actions/workflows/uml.yml) for more details." \
-            --label "no releasenotes" \
-            --reviewer "williambdean,juanitorduz"
-        env:
-          GH_TOKEN: ${{ github.token }}
+            See the logs [here](https://github.com/pymc-labs/pymc-marketing/actions/workflows/uml.yml) for more details.
+          branch: automated/update-uml-diagrams
+          delete-branch: true
+          labels: "no releasenotes"
+          reviewers: williambdean,juanitorduz
