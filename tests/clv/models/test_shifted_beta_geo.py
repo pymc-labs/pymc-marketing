@@ -928,6 +928,40 @@ class TestShiftedBetaGeoModel:
         model.build_model()
         assert "dropout_covariate" in model.model.coords
 
+    def test_predictions_with_covariates_subset_cohorts(self):
+        # Training data with 3 cohorts
+        train_data = pd.DataFrame(
+            {
+                "customer_id": range(30),
+                "recency": [3, 4, 5] * 10,
+                "T": [5] * 30,
+                "cohort": ["A"] * 10 + ["B"] * 10 + ["C"] * 10,
+                "channel": [0, 1, 0, 1, 0] * 6,
+            }
+        )
+
+        model = ShiftedBetaGeoModel(
+            data=train_data, model_config={"dropout_covariate_cols": ["channel"]}
+        )
+        model.fit(method="map", maxeval=10)
+
+        # Prediction data with subset of cohorts (NOT starting at index 0)
+        pred_data = pd.DataFrame(
+            {
+                "customer_id": [100, 101, 102],
+                "T": [3, 3, 3],
+                "cohort": ["B", "C", "C"],  # Missing cohort "A"
+                "channel": [1, 0, 1],
+            }
+        )
+
+        # Should not raise IndexError
+        prob_alive = model.expected_probability_alive(data=pred_data, future_t=1)
+        assert prob_alive.shape[-1] == 3  # 3 customers
+
+        retention = model.expected_retention_rate(data=pred_data, future_t=1)
+        assert retention.shape[-1] == 3
+
 
 class TestShiftedBetaGeoModelIndividual:
     @classmethod

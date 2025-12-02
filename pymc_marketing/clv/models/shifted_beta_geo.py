@@ -421,7 +421,7 @@ class ShiftedBetaGeoModel(CLVModel):
 
             # Map cohort indices for each customer
             pred_cohort_idx = pd.Categorical(
-                customer_cohort_map.values, categories=self.cohorts
+                customer_cohort_map.values, categories=cohorts_present
             ).codes
 
             # Reconstruct customer-level parameters
