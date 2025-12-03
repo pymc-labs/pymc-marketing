@@ -2390,7 +2390,7 @@ class MMM(
         return fig
 
     def _transform_to_original_scale_new(
-        self, samples: DataArray, var_names: list[str] | None
+        self, samples: DataArray, var_names: list[str] | None = None
     ) -> DataArray:
         """Transform samples to original scale using new scaling approach.
 
@@ -2399,7 +2399,7 @@ class MMM(
         samples : DataArray
             Samples in scaled space
         var_names : list[str] | None
-            Variable names requested in sampling
+            Variable names requested in sampling.
 
         Returns
         -------
