@@ -2532,6 +2532,7 @@ class MMM(
 
         # Transform to original scale if requested
         if original_scale:
+            self._posterior_predictive_samples_original_scale = True
             var_names = sample_posterior_predictive_kwargs.get("var_names")
             if self._has_new_scaling():
                 posterior_predictive_samples = self._transform_to_original_scale_new(
