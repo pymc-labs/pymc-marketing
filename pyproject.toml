@@ -101,6 +101,9 @@ exclude = ["docs"]
 [tool.hatch.version]
 path = "pymc_marketing/version.py"
 
+[tool.hatch.metadata]
+allow-direct-references = true
+
 # <https://github.com/hynek/hatch-fancy-pypi-readme>
 [tool.hatch.metadata.hooks.fancy-pypi-readme]
 content-type = "text/markdown"
