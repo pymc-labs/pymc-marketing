@@ -310,7 +310,7 @@ class MVITS(RegressionModelBuilder):
 
             # expectation
 
-            mu = intercept[None, :] - y[:, None] * beta[None, :]  # type: ignore[index]
+            mu = intercept[None, :] - y[:, None] * beta[None, :]
 
             for mu_effect in self.mu_effects:
                 mu += mu_effect.create_effect(self)
