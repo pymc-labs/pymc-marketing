@@ -247,7 +247,7 @@ class TimeSliceCrossValidator:
         return cv_idata
 
     def _fit_mmm(self, mmm, X, y, sampler_config: dict | None = None):
-        """Fit the MMM and sample posterior predictive.
+        """Fit the MMM.
 
         sampler_config, if provided, will be set on the MMM instance before fitting.
         """
@@ -263,12 +263,6 @@ class TimeSliceCrossValidator:
             X,
             y,
             progressbar=True,
-        )
-        _ = mmm.sample_posterior_predictive(
-            X,
-            extend_idata=True,
-            combined=True,
-            progressbar=False,
         )
         return mmm
 
