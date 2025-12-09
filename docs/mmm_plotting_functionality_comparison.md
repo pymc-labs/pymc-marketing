@@ -1,5 +1,7 @@
 # MMM Plotting Functionality Comparison
 
+> **Quick Summary:** See [MMM_PLOTTING_SUMMARY.md](./MMM_PLOTTING_SUMMARY.md) for an executive summary with just the key findings.
+
 This document provides a comprehensive comparison of plotting functionality across the MMM codebase, specifically comparing what's available in `mmm.base.MMMModelBuilder`, `mmm.mmm.MMM`, and `mmm.plot.MMMPlotSuite`.
 
 ## Summary
