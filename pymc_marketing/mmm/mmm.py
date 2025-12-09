@@ -2389,21 +2389,26 @@ class MMM(
         fig.suptitle("Direct response curves", fontsize=16)
         return fig
 
-    def _transform_to_original_scale_new(self, samples: DataArray) -> DataArray:
+    def _transform_to_original_scale_new(
+        self, samples: DataArray, var_names: list[str] | None = None
+    ) -> DataArray:
         """Transform samples to original scale using new scaling approach.
 
         Parameters
         ----------
         samples : DataArray
             Samples in scaled space
+        var_names : list[str] | None
+            Variable names requested in sampling.
 
         Returns
         -------
         DataArray
             Samples in original scale
         """
-        if self.output_var in samples:
-            samples[self.output_var] = samples[self.output_var] * self.target_scale
+        vars_to_transform = var_names if var_names is not None else [self.output_var]
+        for var_name in (v for v in vars_to_transform if v in samples):
+            samples[var_name] *= self.target_scale
         return samples
 
     def _transform_to_original_scale_legacy(
@@ -2527,12 +2532,13 @@ class MMM(
 
         # Transform to original scale if requested
         if original_scale:
+            self._posterior_predictive_samples_original_scale = True
+            var_names = sample_posterior_predictive_kwargs.get("var_names")
             if self._has_new_scaling():
                 posterior_predictive_samples = self._transform_to_original_scale_new(
-                    posterior_predictive_samples
+                    posterior_predictive_samples, var_names
                 )
             else:
-                var_names = sample_posterior_predictive_kwargs.get("var_names")
                 posterior_predictive_samples = self._transform_to_original_scale_legacy(
                     posterior_predictive_samples, var_names
                 )
