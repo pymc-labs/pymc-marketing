@@ -400,6 +400,9 @@ class ShiftedBetaGeoModel(CLVModel):
         # Create a cohort-by-customer array to map cohort parameters to each customer
         customer_cohort_map = pred_data.set_index("customer_id")["cohort"]
 
+        # Use consistent customer_id coordinate source for all xarrays
+        customer_ids = np.asarray(pred_data["customer_id"])
+
         if self.dropout_covariate_cols:
             # Get alpha and beta scale parameters for each cohort
             alpha_cohort = self.fit_result["alpha_scale"].sel(cohort=pred_cohorts)
@@ -408,39 +411,44 @@ class ShiftedBetaGeoModel(CLVModel):
             dropout_coefficient_alpha = self.fit_result["dropout_coefficient_alpha"]
             dropout_coefficient_beta = self.fit_result["dropout_coefficient_beta"]
 
-            # Reconstruct customer-level alpha and beta with covariates
-            # Create covariate xarray
+            # Create customer-cohort mapping
+            customer_cohort_mapping = xarray.DataArray(
+                customer_cohort_map.values,
+                dims=("customer_id",),
+                coords={"customer_id": customer_ids},
+                name="customer_cohort_mapping",
+            )
+
+            # Extract cohort-level parameters for each customer
+            alpha_base = alpha_cohort.sel(cohort=customer_cohort_mapping)
+            beta_base = beta_cohort.sel(cohort=customer_cohort_mapping)
+
+            # Create covariate xarray with same customer_id coordinates
             dropout_xarray = xarray.DataArray(
                 pred_data[self.dropout_covariate_cols].values,
                 dims=["customer_id", "dropout_covariate"],
                 coords={
-                    "customer_id": pred_data["customer_id"],
+                    "customer_id": customer_ids,
                     "dropout_covariate": self.dropout_covariate_cols,
                 },
             )
 
-            # Map cohort indices for each customer
-            pred_cohort_idx = pd.Categorical(
-                customer_cohort_map.values, categories=self.cohorts
-            ).codes
-
-            # Reconstruct customer-level parameters
-            alpha_pred = alpha_cohort.isel(
-                cohort=xarray.DataArray(pred_cohort_idx, dims="customer_id")
-            ) * np.exp(
+            # Apply covariate effects
+            covariate_effect_alpha = np.exp(
                 -xarray.dot(
                     dropout_xarray, dropout_coefficient_alpha, dim="dropout_covariate"
                 )
             )
-            alpha_pred.name = "alpha"
-
-            beta_pred = beta_cohort.isel(
-                cohort=xarray.DataArray(pred_cohort_idx, dims="customer_id")
-            ) * np.exp(
+            covariate_effect_beta = np.exp(
                 -xarray.dot(
                     dropout_xarray, dropout_coefficient_beta, dim="dropout_covariate"
                 )
             )
+
+            alpha_pred = alpha_base * covariate_effect_alpha
+            alpha_pred.name = "alpha"
+
+            beta_pred = beta_base * covariate_effect_beta
             beta_pred.name = "beta"
 
         else:
@@ -452,7 +460,7 @@ class ShiftedBetaGeoModel(CLVModel):
             customer_cohort_mapping = xarray.DataArray(
                 customer_cohort_map.values,
                 dims=("customer_id",),
-                coords={"customer_id": customer_cohort_map.index},
+                coords={"customer_id": customer_ids},
                 name="customer_cohort_mapping",
             )
             alpha_pred = alpha_cohort.sel(cohort=customer_cohort_mapping)
@@ -466,13 +474,13 @@ class ShiftedBetaGeoModel(CLVModel):
             cohort=("customer_id", customer_cohort_map.values)
         )
 
-        # Filter out cohort from customer_varnames to avoid merge conflict
+        # Filter out cohort from customer_varnames to avoid coord mismatch error
         # (it's already added as a coordinate above)
         customer_varnames_filtered = [v for v in customer_varnames if v != "cohort"]
 
         if customer_varnames_filtered:
             customer_vars = to_xarray(
-                pred_data["customer_id"],
+                customer_ids,
                 *[
                     pred_data[customer_varname]
                     for customer_varname in customer_varnames_filtered
@@ -480,6 +488,13 @@ class ShiftedBetaGeoModel(CLVModel):
             )
             if len(customer_varnames_filtered) == 1:
                 customer_vars = [customer_vars]
+
+            # Add cohort coordinate to customer_vars for consistent swap_dims behavior
+            customer_vars = [
+                cv.assign_coords(cohort=("customer_id", customer_cohort_map.values))
+                for cv in customer_vars
+            ]
+
         else:
             customer_vars = []
 
