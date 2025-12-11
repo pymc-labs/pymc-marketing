@@ -211,10 +211,9 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::
 
 :::{grid-item-card} Shifted BG Model for Cohorts
-:img-top: ../gallery/images/sBG_individual.png
-:link: ../notebooks/clv/sBG_individual.html
+:img-top: ../gallery/images/sbg.png
+:link: ../notebooks/clv/sbg.html
 :::
-::::
 
 :::{grid-item-card} sBG Model for Individuals
 :img-top: ../gallery/images/sBG_individual.png
