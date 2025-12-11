@@ -373,7 +373,7 @@ class MNLogit(RegressionModelBuilder):
 
         return attrs
 
-    def sample_prior_predictive(self, extend_idata, kwargs):
+    def sample_prior_predictive(self, extend_idata, **kwargs):
         """Sample Prior Predictive Distribution."""
         with self.model:  # sample with new input data
             prior_pred: az.InferenceData = pm.sample_prior_predictive(500, **kwargs)
@@ -385,7 +385,7 @@ class MNLogit(RegressionModelBuilder):
             else:
                 self.idata = prior_pred
 
-    def fit(self, extend_idata, kwargs):
+    def fit(self, extend_idata, **kwargs):
         """Fit Nested Logit Model."""
         if extend_idata:
             with self.model:
@@ -394,7 +394,7 @@ class MNLogit(RegressionModelBuilder):
             with self.model:
                 self.idata = pm.sample(**kwargs)
 
-    def sample_posterior_predictive(self, extend_idata, kwargs):
+    def sample_posterior_predictive(self, extend_idata, **kwargs):
         """Sample Posterior Predictive Distribution."""
         if extend_idata:
             with self.model:
@@ -448,11 +448,11 @@ class MNLogit(RegressionModelBuilder):
             self.model = model
 
         self.sample_prior_predictive(
-            extend_idata=True, kwargs=sample_prior_predictive_kwargs
+            extend_idata=True, **sample_prior_predictive_kwargs
         )
-        self.fit(extend_idata=True, kwargs=fit_kwargs)
+        self.fit(extend_idata=True, **fit_kwargs)
         self.sample_posterior_predictive(
-            extend_idata=True, kwargs=sample_posterior_predictive_kwargs
+            extend_idata=True, **sample_posterior_predictive_kwargs
         )
         return self
 
