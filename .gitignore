@@ -150,3 +150,6 @@ docs/gettext/
 
 # Sandbox folder
 sandbox/
+
+.cursor/plans
+automatic_translation.py
