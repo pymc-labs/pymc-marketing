@@ -1,5 +1,14 @@
+---
+og:description: Marketing Analytics Tools from PyMC Labs. Unlock the power of Marketing Mix Modeling (MMM), Customer Lifetime Value (CLV) and Customer Choice Analysis (CSA) analytics with PyMC-Marketing. This open-source marketing analytics tool empowers businesses to make smarter, data-driven decisions for maximizing ROI in marketing campaigns.
+---
+
 :::{title} PyMC-Marketing
 :::
+
+```{eval-rst}
+.. meta::
+   :description: Marketing Analytics Tools from PyMC Labs. Unlock the power of Marketing Mix Modeling (MMM), Customer Lifetime Value (CLV) and Customer Choice Analysis (CSA) analytics with PyMC-Marketing. This open-source marketing analytics tool empowers businesses to make smarter, data-driven decisions for maximizing ROI in marketing campaigns.
+```
 
 :::{image} _static/marketing-logo-dark.jpg
 :align: center
@@ -231,10 +240,11 @@ For more blogposts and resources, check out the [PyMC Labs Blog](https://www.pym
 
 :::{toctree}
 :hidden:
+
 getting_started/index
-contributing/index
 guide/index
 gallery/gallery
-api/index
 guide/mmm/comparison
+api/index
+contributing/index
 :::
