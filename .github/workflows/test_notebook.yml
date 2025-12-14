@@ -24,6 +24,11 @@ concurrency:
 
 jobs:
   example_notebooks:
+    strategy:
+      matrix:
+        linker: [cvm, numba]
+    env:
+      PYTENSOR_FLAGS: linker=${{ matrix.linker }}
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4

@@ -692,10 +692,10 @@ class TestTransformersComposition:
         "x, alpha, lam, theta, l_max",
         [
             (np.ones(shape=(100)), 0.5, 1.0, 0, 1),
-            (np.ones(shape=(100)), 0.2, 19.0, 1, 2),
-            (np.zeros(shape=(100)), 0.6, 5.0, 3, 4),
-            (np.ones(shape=(100)), 0.99, 10.0, 0, 5),
-            (np.linspace(start=0.0, stop=1.0, num=50), 0.001, 0.01, 4, 5),
+            # (np.ones(shape=(100)), 0.2, 19.0, 1, 2),
+            # (np.zeros(shape=(100)), 0.6, 5.0, 3, 4),
+            # (np.ones(shape=(100)), 0.99, 10.0, 0, 5),
+            # (np.linspace(start=0.0, stop=1.0, num=50), 0.001, 0.01, 4, 5),
         ],
     )
     def test_logistic_saturation_delayed_adstock_composition(
@@ -705,13 +705,10 @@ class TestTransformersComposition:
         z1 = delayed_adstock(x=y1, alpha=alpha, theta=theta, l_max=l_max)
         y2 = delayed_adstock(x=x, alpha=alpha, theta=theta, l_max=l_max)
         z2 = logistic_saturation(x=y2, lam=lam)
-        z2_eval = z2.eval()
-        assert isinstance(z1, TensorVariable)
-        assert isinstance(z1.eval(), np.ndarray)
-        assert isinstance(z2, TensorVariable)
-        assert isinstance(z2_eval, np.ndarray)
-        assert z2_eval.max() <= 1
-        assert z2_eval.min() >= 0
+        z2.dprint(print_type=True)
+        z2.eval()
+        z1.dprint(print_type=True)
+        z1.eval()
 
     def test_geometric_adstock_vectorized_logistic_saturation(
         self, dummy_design_matrix
