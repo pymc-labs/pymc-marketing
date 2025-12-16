@@ -3289,7 +3289,6 @@ class MMMPlotSuite:
         if cv_labels is None:
             raise ValueError(
                 "Provided InferenceData does not contain a 'cv' coordinate."
-                "Pass the combined InferenceData returned by TimeSliceCrossValidator.run(...)"
             )
 
         # Build posterior_list by selecting along cv for the posterior group

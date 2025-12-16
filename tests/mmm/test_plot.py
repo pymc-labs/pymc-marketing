@@ -3329,6 +3329,16 @@ def test_cv_predictions_invalid_input_type_raises():
         suite.cv_predictions("not an InferenceData object")
 
 
+def test_param_stability_invalid_input_type_raises():
+    """Test that param_stability raises TypeError for invalid input type."""
+    suite = MMMPlotSuite(idata=None)
+    with pytest.raises(
+        TypeError,
+        match=r"plot_param_stability expects an `arviz.InferenceData` returned by TimeSliceCrossValidator.run(...)",
+    ):
+        suite.param_stability("not an InferenceData object", parameter=[])
+
+
 def test_cv_predictions_missing_posterior_predictive_raises():
     """Test that cv_predictions raises ValueError when posterior_predictive is missing."""
     suite = MMMPlotSuite(idata=None)
@@ -3388,3 +3398,86 @@ def test_cv_predictions_missing_y_original_scale_raises():
 
     with pytest.raises(ValueError, match=r"y_original_scale"):
         suite.cv_predictions(idata)
+
+
+def test_param_stability_missing_cv_coordinate(mock_suite):
+    """Test that param_stability raises ValueError when 'cv' coordinate is missing."""
+    # Create an InferenceData without 'cv' coordinate (use mock_idata)
+    invalid_idata = mock_suite.idata
+
+    # Create a mock MMMPlotSuite with the invalid idata
+    suite = MMMPlotSuite(idata=invalid_idata)
+
+    # Expect ValueError when calling param_stability without 'cv' coordinate
+    with pytest.raises(
+        ValueError,
+        match=r"Provided InferenceData does not contain a 'cv' coordinate",
+    ):
+        suite.param_stability(results=invalid_idata, parameter=["test_param"])
+
+
+def test_param_stability_fallback_uses_posterior_predictive_and_returns_fig_ax():
+    """
+    When `posterior` is missing, param_stability should fall back to
+    selecting from `posterior_predictive` and return (fig, ax) without error.
+
+    The posterior_predictive dataset must expose chain/draw (or similar)
+    dims so arviz.plot_forest can operate on the selected datasets.
+    """
+    # Build a posterior_predictive dataset that exposes a 'cv' coordinate
+    # and has 'chain' and 'draw' dims so arviz.plot_forest can consume it.
+    rng = np.random.default_rng(123)
+    pp = xr.Dataset(
+        {
+            "y": (
+                ("cv", "chain", "draw"),
+                rng.standard_normal(size=(2, 1, 4)),
+            )
+        },
+        coords={
+            "cv": np.array(["fold0", "fold1"]),
+            "chain": np.array([0]),
+            "draw": np.arange(4),
+        },
+    )
+    results = az.InferenceData(posterior_predictive=pp)
+
+    suite = object.__new__(MMMPlotSuite)
+    # call method; should not raise and should return (fig, ax)
+    fig, ax = suite.param_stability(results, parameter=["y"], dims=None)
+
+    assert hasattr(fig, "savefig")
+    assert hasattr(ax, "plot")
+    plt.close(fig)
+
+
+def test_param_stability_raises_valueerror_when_no_posterior_or_predictive_for_cv_label():
+    """
+    If cv labels are discovered from another group (e.g., sample_stats) but
+    both `posterior` and `posterior_predictive` fail to select by that cv label,
+    param_stability should raise a ValueError.
+    """
+    # sample_stats provides the cv coordinate (so cv_labels is found)
+    sample_stats = xr.Dataset(coords={"cv": np.array(["foldA"])})
+    # posterior and posterior_predictive exist but do NOT have a 'cv' coord,
+    # so .sel(cv=...) should raise and the code should end up raising ValueError.
+    posterior = xr.Dataset(
+        {"param": (("chain", "draw"), np.ones((1, 1)))},
+        coords={"chain": [0], "draw": [0]},
+    )
+    posterior_predictive = xr.Dataset(
+        {"y": (("chain", "draw"), np.ones((1, 1)))}, coords={"chain": [0], "draw": [0]}
+    )
+    idata = az.InferenceData(
+        sample_stats=sample_stats,
+        posterior=posterior,
+        posterior_predictive=posterior_predictive,
+    )
+
+    suite = object.__new__(MMMPlotSuite)
+
+    with pytest.raises(
+        ValueError,
+        match=r"Provided InferenceData does not contain a 'cv' coordinate.",
+    ):
+        suite.param_stability(idata, parameter=["param"], dims=None)
