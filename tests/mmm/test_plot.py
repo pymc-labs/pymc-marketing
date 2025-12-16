@@ -3317,3 +3317,74 @@ def test_pred_matrix_date_column_found_via_lower_check(monkeypatch):
     # Use cv_crps since that's where _pred_matrix_for_rows is called
     fig, _axes = suite.cv_crps(results, dims=None)
     assert fig is not None
+
+
+def test_cv_predictions_invalid_input_type_raises():
+    """Test that cv_predictions raises TypeError for invalid input type."""
+    suite = MMMPlotSuite(idata=None)
+    with pytest.raises(
+        TypeError,
+        match=r"plot_cv_predictions expects an arviz.InferenceData object for 'results'",
+    ):
+        suite.cv_predictions("not an InferenceData object")
+
+
+def test_cv_predictions_missing_posterior_predictive_raises():
+    """Test that cv_predictions raises ValueError when posterior_predictive is missing."""
+    suite = MMMPlotSuite(idata=None)
+    # Create InferenceData without posterior_predictive
+    idata = az.InferenceData()
+    with pytest.raises(
+        ValueError,
+        match=r"Provided InferenceData must include a 'cv_metadata' group with a 'metadata' DataArray",
+    ):
+        suite.cv_predictions(idata)
+
+
+def test_cv_predictions_missing_cv_metadata_raises():
+    """Test that cv_predictions raises ValueError when cv_metadata is missing."""
+    suite = MMMPlotSuite(idata=None)
+    dates = pd.date_range("2025-01-01", periods=3, freq="D")
+    arr = np.random.default_rng(1).normal(size=(1, 2, 1, len(dates)))
+    da = xr.DataArray(
+        arr,
+        dims=("chain", "draw", "cv", "date"),
+        coords={"cv": ["cv1"], "date": dates},
+        name="y_original_scale",
+    )
+    ds_pp = xr.Dataset({"y_original_scale": da})
+    idata = az.InferenceData(posterior_predictive=ds_pp)
+
+    with pytest.raises(ValueError, match=r"cv_metadata"):
+        suite.cv_predictions(idata)
+
+
+def test_cv_predictions_missing_y_original_scale_raises():
+    """Test that cv_predictions raises ValueError when y_original_scale is missing."""
+    suite = MMMPlotSuite(idata=None)
+    dates = pd.date_range("2025-01-01", periods=3, freq="D")
+
+    # Create posterior_predictive without y_original_scale
+    arr = np.random.default_rng(1).normal(size=(1, 2, 1, len(dates)))
+    da = xr.DataArray(
+        arr,
+        dims=("chain", "draw", "cv", "date"),
+        coords={"cv": ["cv1"], "date": dates},
+        name="y_other",  # Wrong variable name
+    )
+    ds_pp = xr.Dataset({"y_other": da})
+
+    # Create minimal cv_metadata
+    meta = {"X_train": None, "y_train": None, "X_test": None, "y_test": None}
+    meta_da = xr.DataArray(
+        np.array([meta], dtype=object),
+        dims=("cv",),
+        coords={"cv": ["cv1"]},
+        name="metadata",
+    )
+    ds_meta = xr.Dataset({"metadata": meta_da})
+
+    idata = az.InferenceData(posterior_predictive=ds_pp, cv_metadata=ds_meta)
+
+    with pytest.raises(ValueError, match=r"y_original_scale"):
+        suite.cv_predictions(idata)
