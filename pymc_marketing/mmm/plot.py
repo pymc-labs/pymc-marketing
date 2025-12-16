@@ -3422,12 +3422,11 @@ class MMMPlotSuite:
 
             # Ensure 'sample' is first axis
             if da_s.dims[0] != "sample":
-                try:
-                    da_s = da_s.transpose("sample", ...)
-                except Exception:
-                    dims = list(da_s.dims)
-                    order = ["sample"] + [d for d in dims if d != "sample"]
-                    da_s = da_s.transpose(*order)
+                da_s = da_s.transpose("sample", ...)
+            else:
+                dims = list(da_s.dims)
+                order = ["sample"] + [d for d in dims if d != "sample"]
+                da_s = da_s.transpose(*order)
 
             n_samples = int(da_s.sizes["sample"])
             n_rows = len(rows_df)
