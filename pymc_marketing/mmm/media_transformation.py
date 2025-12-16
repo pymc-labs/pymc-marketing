@@ -172,8 +172,6 @@ class MediaTransformation:
         ----------
         x : pt.TensorLike
             The media data to transform.
-        dim : str
-            The dimension of the parameters.
 
         Returns
         -------
