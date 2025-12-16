@@ -657,3 +657,10 @@ def test_transformation_accepts_supported_priors(prior_value):
         assert np.array_equal(actual, prior_value)
     else:
         assert actual == prior_value
+
+
+def test_exposed_priors_property() -> None:
+    dist = Prior("Laplace", mu=0, b=1)
+    priors = {"x": dist}
+    tfm = DummyTransformation(priors=priors)
+    assert tfm.priors == {"x": dist}
