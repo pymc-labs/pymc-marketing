@@ -220,7 +220,7 @@ class Transformation:
         return self.function_priors
 
     @function_priors.setter  # type: ignore
-    def _(self, priors: dict[str, Any | Prior] | None) -> None:
+    def function_priors(self, priors: dict[str, Any | Prior] | None) -> None:
         priors = priors or {}
 
         non_distributions = [
