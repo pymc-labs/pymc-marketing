@@ -105,6 +105,7 @@ from pydantic import (
     ConfigDict,
     Field,
     InstanceOf,
+    field_serializer,
     model_validator,
     validate_call,
 )
@@ -194,6 +195,16 @@ class EventEffect(BaseModel):
     dims: str | tuple[str, ...]
     model_config = ConfigDict(extra="forbid")
 
+    @field_serializer("basis", when_used="json")
+    def serialize_basis(self, value: Basis) -> dict:
+        """Serialize Basis to dict for JSON mode."""
+        return value.to_dict()
+
+    @field_serializer("effect_size", when_used="json")
+    def serialize_effect_size(self, value: Prior) -> dict:
+        """Serialize Prior to dict for JSON mode."""
+        return value.to_dict()
+
     @model_validator(mode="before")
     def _dims_to_tuple(self):
         if isinstance(self["dims"], str):
@@ -236,11 +247,15 @@ class EventEffect(BaseModel):
     @classmethod
     def from_dict(cls, data: dict) -> "EventEffect":
         """Create an event effect from a dictionary."""
-        return cls(
-            basis=deserialize(data["basis"]),
-            effect_size=deserialize(data["effect_size"]),
-            dims=data["dims"],
-        )
+        inner_data = data.get("data", data)
+
+        # Defensively deserialize Prior/Basis fields if they are dicts
+        for key in ["basis", "effect_size"]:
+            if key in inner_data and isinstance(inner_data[key], dict):
+                inner_data = inner_data.copy()
+                inner_data[key] = deserialize(inner_data[key])
+
+        return cls.model_validate(inner_data)
 
 
 def _is_event_effect(data: dict) -> bool:

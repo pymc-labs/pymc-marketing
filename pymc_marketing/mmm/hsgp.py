@@ -26,9 +26,16 @@ import pytensor.tensor as pt
 import xarray as xr
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
-from pydantic import BaseModel, Field, InstanceOf, model_validator, validate_call
+from pydantic import (
+    BaseModel,
+    Field,
+    InstanceOf,
+    field_serializer,
+    model_validator,
+    validate_call,
+)
 from pymc.distributions.shape_utils import Dims
-from pymc_extras.deserialize import register_deserialization
+from pymc_extras.deserialize import deserialize, register_deserialization
 from pymc_extras.prior import Prior, _get_transform, create_dim_handler
 from pytensor.tensor import TensorLike
 from pytensor.tensor.variable import TensorVariable
@@ -748,6 +755,23 @@ class HSGP(HSGPBase):
 
         return self
 
+    @field_serializer("eta", "ls", when_used="json")
+    def serialize_priors(self, value: Prior | float) -> dict | float:
+        """Serialize Prior objects to dicts, keep floats as-is.
+
+        Parameters
+        ----------
+        value : Prior | float
+            The field value to serialize.
+
+        Returns
+        -------
+        dict | float
+            Serialized Prior as dict or float unchanged.
+
+        """
+        return value.to_dict() if isinstance(value, Prior) else value
+
     @classmethod
     def parameterize_from_data(
         cls,
@@ -930,11 +954,16 @@ class HSGP(HSGPBase):
             The object created from the data.
 
         """
-        for key in ["eta", "ls"]:
-            if isinstance(data[key], dict):
-                data[key] = Prior.from_dict(data[key])
+        # Extract inner data if wrapped (for backward compatibility)
+        inner_data = data.get("data", data)
 
-        return cls(**data)
+        # Deserialize Prior fields if they are dicts
+        for key in ["eta", "ls"]:
+            if key in inner_data and isinstance(inner_data[key], dict):
+                inner_data = inner_data.copy()  # Don't mutate input
+                inner_data[key] = deserialize(inner_data[key])
+
+        return cls.model_validate(inner_data)
 
 
 class PeriodicCovFunc(str, Enum):
@@ -1172,6 +1201,23 @@ class HSGPPeriodic(HSGPBase):
 
         return self
 
+    @field_serializer("scale", "ls", when_used="json")
+    def serialize_priors(self, value: Prior | float) -> dict | float:
+        """Serialize Prior objects to dicts, keep floats as-is.
+
+        Parameters
+        ----------
+        value : Prior | float
+            The field value to serialize.
+
+        Returns
+        -------
+        dict | float
+            Serialized Prior as dict or float unchanged.
+
+        """
+        return value.to_dict() if isinstance(value, Prior) else value
+
     def create_variable(self, name: str) -> TensorVariable:
         """Create HSGP variable.
 
@@ -1275,11 +1321,16 @@ class HSGPPeriodic(HSGPBase):
             The object created from the data.
 
         """
-        for key in ["scale", "ls"]:
-            if isinstance(data[key], dict):
-                data[key] = Prior.from_dict(data[key])
+        # Extract inner data if wrapped (for backward compatibility)
+        inner_data = data.get("data", data)
 
-        return cls(**data)
+        # Deserialize Prior fields if they are dicts
+        for key in ["scale", "ls"]:
+            if key in inner_data and isinstance(inner_data[key], dict):
+                inner_data = inner_data.copy()  # Don't mutate input
+                inner_data[key] = deserialize(inner_data[key])
+
+        return cls.model_validate(inner_data)
 
 
 class SoftPlusHSGP(HSGP):

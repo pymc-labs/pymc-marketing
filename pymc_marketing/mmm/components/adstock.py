@@ -58,7 +58,7 @@ from __future__ import annotations
 import numpy as np
 import pytensor.tensor as pt
 import xarray as xr
-from pydantic import Field, validate_call
+from pydantic import Field, field_serializer
 from pymc_extras.deserialize import deserialize, register_deserialization
 from pymc_extras.prior import Prior
 
@@ -96,26 +96,47 @@ class AdstockTransformation(Transformation, metaclass=AdstockRegistrationMeta): 
     prefix: str = "adstock"
     lookup_name: str
 
-    @validate_call
+    # Pydantic fields for adstock parameters
+    l_max: int = Field(
+        ..., gt=0, description="Maximum lag for the adstock transformation."
+    )
+    normalize: bool = Field(
+        True, description="Whether to normalize the adstock values."
+    )
+    mode: ConvMode = Field(ConvMode.After, description="Convolution mode.")
+
     def __init__(
         self,
-        l_max: int = Field(
-            ..., gt=0, description="Maximum lag for the adstock transformation."
-        ),
-        normalize: bool = Field(
-            True, description="Whether to normalize the adstock values."
-        ),
-        mode: ConvMode = Field(ConvMode.After, description="Convolution mode."),
-        priors: dict[str, SupportedPrior] | None = Field(
-            default=None, description="Priors for the parameters."
-        ),
-        prefix: str | None = Field(None, description="Prefix for the parameters."),
+        l_max: int,
+        normalize: bool = True,
+        mode: ConvMode = ConvMode.After,
+        priors: dict[str, SupportedPrior] | None = None,
+        prefix: str | None = None,
     ) -> None:
-        self.l_max = l_max
-        self.normalize = normalize
-        self.mode = mode
+        super().__init__(
+            l_max=l_max,
+            normalize=normalize,
+            mode=mode,
+            priors=priors,
+            prefix=prefix,
+        )
 
-        super().__init__(priors=priors, prefix=prefix)
+    @field_serializer("mode", when_used="json")
+    def serialize_mode(self, value: ConvMode) -> str:
+        """Serialize ConvMode enum to string.
+
+        Parameters
+        ----------
+        value : ConvMode
+            The convolution mode.
+
+        Returns
+        -------
+        str
+            The mode as a string.
+
+        """
+        return value.name
 
     def __repr__(self) -> str:
         """Representation of the adstock transformation."""

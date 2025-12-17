@@ -49,7 +49,7 @@ Create a combined media configuration for offline and online media channels:
         MediaConfigList,
     )
 
-    media_configs: MediaConfigList(
+    media_configs = MediaConfigList(
         [
             MediaConfig(
                 name="offline",
@@ -91,26 +91,30 @@ Apply the media transformation to media data in PyMC model:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import cast
 
 import pymc as pm
 import pytensor.tensor as pt
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    RootModel,
+    computed_field,
+    field_serializer,
+    model_validator,
+)
 from pymc.distributions.shape_utils import Dims
-from pymc_extras.deserialize import register_deserialization
+from pymc_extras.deserialize import deserialize, register_deserialization
 
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
-    adstock_from_dict,
 )
 from pymc_marketing.mmm.components.saturation import (
     SaturationTransformation,
-    saturation_from_dict,
 )
 
 
-@dataclass
-class MediaTransformation:
+class MediaTransformation(BaseModel):
     """Wrapper for applying adstock and saturation transformation to media data.
 
     Parameters
@@ -137,20 +141,38 @@ class MediaTransformation:
     saturation: SaturationTransformation
     adstock_first: bool
     dims: Dims | None = None
+    model_config = ConfigDict(extra="forbid")
 
-    def __post_init__(self):
-        """Set the first and second transformations based on the adstock_first flag."""
-        self.first, self.second = (
-            (self.adstock, self.saturation)
-            if self.adstock_first
-            else (self.saturation, self.adstock)
-        )
+    @field_serializer("adstock", when_used="json")
+    def serialize_adstock(self, value: AdstockTransformation) -> dict:
+        """Serialize AdstockTransformation to dict for JSON mode."""
+        return value.to_dict()
+
+    @field_serializer("saturation", when_used="json")
+    def serialize_saturation(self, value: SaturationTransformation) -> dict:
+        """Serialize SaturationTransformation to dict for JSON mode."""
+        return value.to_dict()
+
+    @computed_field
+    def first(self) -> AdstockTransformation | SaturationTransformation:
+        """First transformation to apply based on adstock_first flag."""
+        return self.adstock if self.adstock_first else self.saturation
+
+    @computed_field
+    def second(self) -> AdstockTransformation | SaturationTransformation:
+        """Second transformation to apply based on adstock_first flag."""
+        return self.saturation if self.adstock_first else self.adstock
+
+    @model_validator(mode="after")
+    def _post_init(self):
+        """Validate dims and ensure compatibility."""
         if isinstance(self.dims, str):
             self.dims = (self.dims,)
 
         self.dims = self.dims or ()
 
         self._check_compatible_dims()
+        return self
 
     def _check_compatible_dims(self):
         self.dims = cast(Dims, self.dims)
@@ -172,6 +194,8 @@ class MediaTransformation:
         ----------
         x : pt.TensorLike
             The media data to transform.
+        dim : str
+            The dimension of the parameters.
 
         Returns
         -------
@@ -242,12 +266,14 @@ class MediaTransformation:
             The media transformation created from the dictionary.
 
         """
-        return cls(
-            adstock=adstock_from_dict(data["adstock"]),
-            saturation=saturation_from_dict(data["saturation"]),
-            adstock_first=data["adstock_first"],
-            dims=data.get("dims"),
-        )
+        # Defensively deserialize Transformation fields if they are dicts
+        inner_data = data.copy()
+        if "adstock" in inner_data and isinstance(inner_data["adstock"], dict):
+            inner_data["adstock"] = deserialize(inner_data["adstock"])
+        if "saturation" in inner_data and isinstance(inner_data["saturation"], dict):
+            inner_data["saturation"] = deserialize(inner_data["saturation"])
+
+        return cls.model_validate(inner_data)
 
 
 def _is_media_transformation(data):
@@ -265,8 +291,7 @@ register_deserialization(
 )
 
 
-@dataclass
-class MediaConfig:
+class MediaConfig(BaseModel):
     """Configuration for a media transformation to certain media channels.
 
     Parameters
@@ -283,6 +308,12 @@ class MediaConfig:
     name: str
     columns: list[str]
     media_transformation: MediaTransformation
+    model_config = ConfigDict(extra="forbid")
+
+    @field_serializer("media_transformation", when_used="json")
+    def serialize_media_transformation(self, value: MediaTransformation) -> dict:
+        """Serialize MediaTransformation to dict for JSON mode."""
+        return value.to_dict()
 
     def to_dict(self) -> dict:
         """Convert the media configuration to a dictionary.
@@ -314,13 +345,16 @@ class MediaConfig:
             The media configuration created from the dictionary.
 
         """
-        return cls(
-            name=data["name"],
-            columns=data["columns"],
-            media_transformation=MediaTransformation.from_dict(
-                data["media_transformation"]
-            ),
-        )
+        # Defensively deserialize nested MediaTransformation if it's a dict
+        inner_data = data.copy()
+        if "media_transformation" in inner_data and isinstance(
+            inner_data["media_transformation"], dict
+        ):
+            inner_data["media_transformation"] = deserialize(
+                inner_data["media_transformation"]
+            )
+
+        return cls.model_validate(inner_data)
 
 
 def _is_media_config(data):
@@ -333,7 +367,7 @@ def _is_media_config(data):
     )
 
 
-class MediaConfigList:
+class MediaConfigList(RootModel):
     """Wrapper for a list of media configurations to apply to media data.
 
     Parameters
@@ -382,8 +416,17 @@ class MediaConfigList:
 
     """
 
-    def __init__(self, media_configs: list[MediaConfig]) -> None:
-        self.media_configs = media_configs
+    root: list[MediaConfig]
+
+    @property
+    def media_configs(self) -> list[MediaConfig]:
+        """Backward-compatible property for accessing the root list."""
+        return self.root
+
+    @field_serializer("root", when_used="json")
+    def serialize_media_configs(self, value: list[MediaConfig]) -> list[dict]:
+        """Serialize list of MediaConfigs to list of dicts for JSON mode."""
+        return [config.to_dict() for config in value]
 
     def __eq__(self, other) -> bool:
         """Check if the media configuration lists are equal.
@@ -458,7 +501,15 @@ class MediaConfigList:
             The media configuration list created from the dictionary.
 
         """
-        return cls([MediaConfig.from_dict(config) for config in data])
+        # Defensively deserialize each MediaConfig if needed
+        media_configs = []
+        for config_data in data:
+            if isinstance(config_data, dict):
+                media_configs.append(MediaConfig.from_dict(config_data))
+            else:
+                media_configs.append(config_data)
+
+        return cls(media_configs)
 
     def __call__(self, x) -> pt.TensorVariable:
         """Apply media transformation to media data.

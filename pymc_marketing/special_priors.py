@@ -28,19 +28,57 @@ import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
+from pydantic import BaseModel, ConfigDict, field_serializer
 from pymc_extras.deserialize import deserialize, register_deserialization
 from pymc_extras.prior import Prior, VariableFactory, create_dim_handler, sample_prior
 from pytensor.tensor import TensorVariable
 
 
-class SpecialPrior(ABC):
+class SpecialPrior(BaseModel, ABC):
     """A base class for specialized priors."""
 
+    dims: tuple | None = None
+    centered: bool = True
+    parameters: dict[str, Any] = {}
+
+    model_config = ConfigDict(extra="forbid")
+
     def __init__(self, dims: tuple | None = None, centered: bool = True, **parameters):
-        self.dims = dims
-        self.centered = centered
-        self.parameters = parameters
+        super().__init__(dims=dims, centered=centered, parameters=parameters)
         self._checks()
+
+    @field_serializer("parameters", when_used="json")
+    def serialize_parameters(self, value: dict[str, Any]) -> dict[str, Any]:
+        """Serialize parameters dict, handling Prior objects and arrays.
+
+        Parameters
+        ----------
+        value : dict[str, Any]
+            The parameters dictionary to serialize.
+
+        Returns
+        -------
+        dict[str, Any]
+            Serialized parameters with Prior objects converted to dicts.
+
+        """
+
+        def handle_value(v):
+            if isinstance(v, Prior):
+                return v.to_dict()
+
+            if isinstance(v, pt.TensorVariable):
+                v = v.eval()
+
+            if isinstance(v, np.ndarray):
+                return v.tolist()
+
+            if hasattr(v, "to_dict"):
+                return v.to_dict()
+
+            return v
+
+        return {param: handle_value(v) for param, v in value.items()}
 
     @abstractmethod
     def _checks(self) -> None:  # pragma: no cover
@@ -95,7 +133,25 @@ class SpecialPrior(ABC):
 
     @classmethod
     def from_dict(cls, data) -> "SpecialPrior":
-        """Create a SpecialPrior prior from a dictionary."""
+        """Create a SpecialPrior prior from a dictionary.
+
+        Parameters
+        ----------
+        data : dict
+            Dictionary representation of the SpecialPrior with keys:
+            "kwargs" (dict of parameters), "centered" (bool), "dims" (tuple).
+
+        Returns
+        -------
+        SpecialPrior
+            Deserialized SpecialPrior instance.
+
+        Raises
+        ------
+        ValueError
+            If data is not a dictionary.
+
+        """
         if not isinstance(data, dict):
             msg = (
                 "Must be a dictionary representation of a prior distribution. "
@@ -103,8 +159,11 @@ class SpecialPrior(ABC):
             )
             raise ValueError(msg)
 
-        kwargs = data.get("kwargs", {})
+        # Extract kwargs with defensive deserialization
+        inner_data = data.copy()  # Prevent mutation of input
+        kwargs = inner_data.get("kwargs", {})
 
+        # Deserialize nested Prior/array values
         def handle_value(value):
             if isinstance(value, dict):
                 return deserialize(value)
@@ -114,11 +173,17 @@ class SpecialPrior(ABC):
 
             return value
 
-        kwargs = {param: handle_value(value) for param, value in kwargs.items()}
-        centered = data.get("centered", True)
-        dims = data.get("dims")
+        # Build deserialized parameters
+        deserialized_kwargs = {
+            param: handle_value(value) for param, value in kwargs.items()
+        }
 
-        return cls(dims=dims, centered=centered, **kwargs)
+        # Extract other fields with defaults
+        centered = inner_data.get("centered", True)
+        dims = inner_data.get("dims")
+
+        # Use the __init__ which calls _checks() and model_validate
+        return cls(dims=dims, centered=centered, **deserialized_kwargs)
 
     def sample_prior(
         self,
@@ -325,7 +390,7 @@ register_deserialization(
 )
 
 
-class MaskedPrior:
+class MaskedPrior(BaseModel):
     """Create variables from a prior over only the active entries of a boolean mask.
 
     .. warning::
@@ -497,19 +562,69 @@ class MaskedPrior:
             y = masked.create_likelihood_variable("y", mu=mu, observed=observed)
     """
 
+    prior: Prior
+    mask: xr.DataArray
+    dims: tuple | None = None
+    active_dim: str | None = None
+
+    model_config = ConfigDict(extra="forbid")
+
     def __init__(
         self, prior: Prior, mask: xr.DataArray, active_dim: str | None = None
     ) -> None:
-        self.prior = prior
-        self.mask = mask
-        self.dims = prior.dims
-        self.active_dim = active_dim or f"non_null_dims:{'_'.join(self.dims)}"
+        dims = prior.dims
+        computed_active_dim = active_dim or f"non_null_dims:{'_'.join(dims)}"
+        super().__init__(
+            prior=prior,
+            mask=mask,
+            dims=dims,
+            active_dim=computed_active_dim,
+        )
         self._validate_mask()
 
         warnings.warn(
             "This class is experimental and its API may change in future versions.",
             stacklevel=2,
         )
+
+    @field_serializer("prior", when_used="json")
+    def serialize_prior(self, value: Prior) -> dict[str, Any]:
+        """Serialize Prior to dict for JSON mode.
+
+        Parameters
+        ----------
+        value : Prior
+            The Prior object to serialize.
+
+        Returns
+        -------
+        dict[str, Any]
+            Serialized Prior as dictionary.
+
+        """
+        return value.to_dict() if hasattr(value, "to_dict") else None
+
+    @field_serializer("mask", when_used="json")
+    def serialize_mask(self, value: xr.DataArray) -> list:
+        """Serialize xarray.DataArray mask to nested list for JSON mode.
+
+        Parameters
+        ----------
+        value : xr.DataArray
+            The mask DataArray to serialize.
+
+        Returns
+        -------
+        list
+            Nested list representation of the mask values.
+
+        """
+        mask_list = (
+            value.values.astype(bool).tolist()
+            if hasattr(value, "values")
+            else np.asarray(value, dtype=bool).tolist()
+        )
+        return mask_list
 
     def _validate_mask(self) -> None:
         if tuple(self.mask.dims) != tuple(self.dims):

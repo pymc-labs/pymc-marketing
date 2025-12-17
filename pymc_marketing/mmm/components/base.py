@@ -24,7 +24,7 @@ import warnings
 from collections.abc import Iterable
 from copy import deepcopy
 from inspect import signature
-from typing import Any, TypeAlias
+from typing import Any, ClassVar, TypeAlias
 
 import numpy as np
 import numpy.typing as npt
@@ -32,8 +32,15 @@ import pymc as pm
 import xarray as xr
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
-from pydantic import InstanceOf
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    InstanceOf,
+    PrivateAttr,
+)
+from pydantic._internal._model_construction import ModelMetaclass
 from pymc.distributions.shape_utils import Dims
+from pymc_extras.deserialize import deserialize
 from pymc_extras.prior import Prior, VariableFactory, create_dim_handler
 from pytensor import tensor as pt
 from pytensor.tensor.variable import TensorVariable
@@ -114,7 +121,7 @@ def index_variable(var, dims, idx) -> TensorVariable:
     return var[tuple(idx[dim] if dim in idx else slice(None) for dim in dims)]
 
 
-class Transformation:
+class Transformation(BaseModel):
     """Base class for adstock and saturation functions.
 
     The subclasses will need to implement the following attributes:
@@ -142,19 +149,64 @@ class Transformation:
 
     """
 
-    prefix: str
-    default_priors: dict[str, Prior]
-    function: Any
-    lookup_name: str
+    # Class variables (not Pydantic fields - using ClassVar to exclude from model)
+    prefix: ClassVar[str]
+    default_priors: ClassVar[dict[str, Prior]]
+    function: ClassVar[Any]
+    lookup_name: ClassVar[str]
+
+    # Private attribute for internal use (not serialized)
+    _function_priors: dict[str, Prior] = PrivateAttr(default_factory=dict)
+
+    model_config = ConfigDict(extra="forbid")
 
     def __init__(
         self,
         priors: dict[str, SupportedPrior] | None = None,
         prefix: str | None = None,
+        **kwargs,
     ) -> None:
+        """Initialize Transformation with priors and prefix.
+
+        Parameters
+        ----------
+        priors : dict[str, Prior | float | TensorVariable | VariableFactory | list | numpy array], optional
+            Dictionary with the priors for the parameters of the function.
+        prefix : str, optional
+            The prefix for the variables that will be created.
+        **kwargs
+            Additional keyword arguments passed to BaseModel.__init__.
+
+        """
+        # Parse priors BEFORE initializing (but don't set yet)
+        priors = priors or {}
+        non_distributions = [
+            key
+            for key, value in priors.items()
+            if not isinstance(value, Prior) and not isinstance(value, dict)
+        ]
+        parsed_priors = parse_model_config(priors, non_distributions=non_distributions)
+
+        # Call parent init FIRST (this initializes Pydantic and PrivateAttr defaults)
+        super().__init__(**kwargs)
+
+        # NOW set the private attribute with parsed priors (after Pydantic initialization)
+        object.__setattr__(self, "_function_priors", parsed_priors)
+
+        # Set prefix ONLY if explicitly provided
+        if prefix is not None:
+            object.__setattr__(self, "prefix", prefix)
+
+        # Apply defaults and validate
+        default_priors = getattr(type(self), "default_priors", {})
+        try:
+            current_priors = object.__getattribute__(self, "_function_priors")
+        except AttributeError:
+            current_priors = {}
+        self._function_priors = {**deepcopy(default_priors), **current_priors}
+
+        # Run checks
         self._checks()
-        self.function_priors = priors  # type: ignore
-        self.prefix = prefix or self.prefix
 
     def __repr__(self) -> str:
         """Representation of the transformation."""
@@ -179,10 +231,85 @@ class Transformation:
         -------
         Transformation
         """
-        for prior in self.function_priors.values():
+        for prior in self._function_priors.values():
             prior.dims = dims
 
         return self
+
+    def __getattribute__(self, name: str) -> Any:
+        """Override to provide model_config as prefixed priors mapping.
+
+        Parameters
+        ----------
+        name : str
+            Attribute name.
+
+        Returns
+        -------
+        Any
+            Attribute value or prefixed priors for model_config.
+
+        """
+        if name == "model_config":
+            try:
+                # Get _function_priors - it's stored in instance.__dict__
+                instance_dict = object.__getattribute__(self, "__dict__")
+                if "_function_priors" in instance_dict:
+                    function_priors = instance_dict["_function_priors"]
+                    # Get variable_mapping to create prefixed dict
+                    var_mapping = object.__getattribute__(self, "variable_mapping")
+                    return {
+                        variable_name: function_priors[parameter_name]
+                        for parameter_name, variable_name in var_mapping.items()
+                    }
+            except (AttributeError, KeyError):
+                pass
+        return object.__getattribute__(self, name)
+
+    def __getattr__(self, name: str) -> Any:
+        """Support backward compatibility for function_priors property access.
+
+        Parameters
+        ----------
+        name : str
+            Attribute name.
+
+        Returns
+        -------
+        Any
+            Attribute value.
+
+        """
+        if name == "function_priors":
+            return self._function_priors
+        raise AttributeError(
+            f"'{type(self).__name__}' object has no attribute '{name}'"
+        )
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        """Support backward compatibility for function_priors property setting.
+
+        Parameters
+        ----------
+        name : str
+            Attribute name.
+        value : Any
+            Attribute value.
+
+        """
+        if name == "function_priors":
+            priors = value or {}
+            non_distributions = [
+                key
+                for key, value in priors.items()
+                if not isinstance(value, Prior) and not isinstance(value, dict)
+            ]
+            priors = parse_model_config(priors, non_distributions=non_distributions)
+            object.__setattr__(
+                self, "_function_priors", {**deepcopy(self.default_priors), **priors}
+            )
+        else:
+            object.__setattr__(self, name, value)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert the transformation to a dictionary.
@@ -209,28 +336,43 @@ class Transformation:
 
         return self.to_dict() == other.to_dict()
 
-    @property
-    def function_priors(self) -> dict[str, Prior]:
-        """Get the priors for the function."""
-        return self._function_priors
+    @classmethod
+    def from_dict(cls, data: dict) -> "Transformation":
+        """Deserialize from dictionary with defensive pattern.
 
-    @property
-    def priors(self) -> dict[str, SupportedPrior]:
-        """Get the priors for the function."""
-        return self.function_priors
+        Parameters
+        ----------
+        data : dict
+            Dictionary to deserialize.
 
-    @function_priors.setter  # type: ignore
-    def function_priors(self, priors: dict[str, Any | Prior] | None) -> None:
-        priors = priors or {}
+        Returns
+        -------
+        Transformation
+            The deserialized transformation.
 
-        non_distributions = [
-            key
-            for key, value in priors.items()
-            if not isinstance(value, Prior) and not isinstance(value, dict)
-        ]
+        """
+        inner_data = data.copy() if isinstance(data, dict) else data
 
-        priors = parse_model_config(priors, non_distributions=non_distributions)
-        self._function_priors = {**deepcopy(self.default_priors), **priors}
+        # Deserialize priors if present
+        if "priors" in inner_data and isinstance(inner_data["priors"], dict):
+            inner_data["priors"] = {
+                key: deserialize(value) if isinstance(value, dict) else value
+                for key, value in inner_data["priors"].items()
+            }
+
+        # Remove lookup_name (not a constructor parameter)
+        inner_data.pop("lookup_name", None)
+
+        # Filter to only valid model fields for this class
+        # This allows subclasses to receive their specific parameters (l_max, normalize, mode, etc.)
+        # while preventing validation errors from unexpected keys
+        valid_fields = set(cls.model_fields.keys())
+        filtered_data = {k: v for k, v in inner_data.items() if k in valid_fields}
+
+        # Create instance with filtered parameters
+        instance = cls(**filtered_data)
+
+        return instance
 
     def update_priors(self, priors: dict[str, Prior]) -> None:
         """Update the priors for a function after initialization.
@@ -282,10 +424,15 @@ class Transformation:
         self.function_priors.update(new_priors)
 
     @property
-    def model_config(self) -> dict[str, Any]:
-        """Mapping from variable name to prior for the model."""
+    def transformation_config(self) -> dict[str, Any]:
+        """Mapping from variable name to prior for the model.
+
+        This property provides backward compatibility access to model configuration
+        through the original name. Use directly for new code.
+
+        """
         return {
-            variable_name: self.function_priors[parameter_name]
+            variable_name: self._function_priors[parameter_name]
             for parameter_name, variable_name in self.variable_mapping.items()
         }
 
@@ -692,9 +839,19 @@ def create_registration_meta(subclasses: dict[str, Any]) -> type[type]:
 
     """
 
-    class RegistrationMeta(type):
+    class RegistrationMeta(ModelMetaclass):
         def __new__(cls, name, bases, attrs):
-            new_cls = super().__new__(cls, name, bases, attrs)
+            # Check if any base inherits from BaseModel
+            # If not, use type.__new__ instead of ModelMetaclass.__new__
+            is_basemodel_subclass = any(
+                isinstance(base, type) and issubclass(base, BaseModel) for base in bases
+            )
+
+            if is_basemodel_subclass:
+                new_cls = super().__new__(cls, name, bases, attrs)
+            else:
+                # For non-BaseModel classes, just use type.__new__
+                new_cls = type.__new__(cls, name, bases, attrs)
 
             if "lookup_name" not in attrs:
                 return new_cls

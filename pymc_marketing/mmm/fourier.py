@@ -755,7 +755,7 @@ class FourierBase(BaseModel):
         Returns
         -------
         dict[str, Any]
-            Serialized Fourier seasonality
+            Serialized Fourier seasonality with class wrapper
 
         """
         return {
@@ -770,7 +770,7 @@ class FourierBase(BaseModel):
         Parameters
         ----------
         data : dict[str, Any]
-            Serialized Fourier seasonality
+            Serialized Fourier seasonality with optional wrapper
 
         Returns
         -------
@@ -778,9 +778,15 @@ class FourierBase(BaseModel):
             Deserialized Fourier seasonality
 
         """
-        data = data["data"]
-        data["prior"] = deserialize(data["prior"])
-        return cls(**data)
+        # Extract inner data if wrapped (for backward compatibility)
+        inner_data = data.get("data", data)
+
+        # Deserialize nested Prior if present
+        if "prior" in inner_data and isinstance(inner_data["prior"], dict):
+            inner_data = inner_data.copy()  # Don't mutate input
+            inner_data["prior"] = deserialize(inner_data["prior"])
+
+        return cls.model_validate(inner_data)
 
 
 class YearlyFourier(FourierBase):

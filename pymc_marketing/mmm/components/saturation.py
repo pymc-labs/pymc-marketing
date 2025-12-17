@@ -77,7 +77,7 @@ from __future__ import annotations
 import numpy as np
 import pytensor.tensor as pt
 import xarray as xr
-from pydantic import Field, InstanceOf, validate_call
+from pydantic import InstanceOf
 from pymc_extras.deserialize import deserialize, register_deserialization
 from pymc_extras.prior import Prior
 
@@ -151,16 +151,11 @@ class SaturationTransformation(Transformation, metaclass=SaturationRegistrationM
 
     prefix: str = "saturation"
 
-    @validate_call
     def sample_curve(
         self,
-        parameters: InstanceOf[xr.Dataset] = Field(
-            ..., description="Parameters of the saturation transformation."
-        ),
-        max_value: float = Field(1.0, gt=0, description="Maximum range value."),
-        num_points: int = Field(
-            100, gt=0, description="Number of points between 0 and max_value."
-        ),
+        parameters: InstanceOf[xr.Dataset],
+        max_value: float = 1.0,
+        num_points: int = 100,
     ) -> xr.DataArray:
         """Sample the curve of the saturation transformation given parameters.
 
