@@ -3299,12 +3299,8 @@ class MMMPlotSuite:
                 p = idata.posterior.sel(cv=lbl)
             except Exception:
                 # fallback to selecting from posterior_predictive if posterior missing
-                try:
-                    p = idata.posterior_predictive.sel(cv=lbl)
-                except Exception:
-                    p = None
-            if p is None:
-                raise ValueError(f"No posterior data found for CV label {lbl}")
+                p = idata.posterior_predictive.sel(cv=lbl)
+
             posterior_list.append(p)
             model_names.append(str(lbl))
 
@@ -3442,18 +3438,12 @@ class MMMPlotSuite:
                     for coord, vals in da_s.coords.items():
                         if coord in technical_skip:
                             continue
-                        try:
-                            if pd.api.types.is_datetime64_any_dtype(
-                                getattr(vals, "dtype", vals)
-                            ):
-                                date_coord = coord
-                                break
-                        except Exception as exc:
-                            warnings.warn(
-                                f"Error while inspecting coord dtype for date detection: {exc}",
-                                stacklevel=2,
-                            )
-                            continue
+                        if pd.api.types.is_datetime64_any_dtype(
+                            getattr(vals, "dtype", vals)
+                        ):
+                            date_coord = coord
+                            break
+
                 if date_coord is None:
                     for coord in da_s.coords:
                         if coord not in ("sample", "chain", "draw"):
@@ -3608,9 +3598,10 @@ class MMMPlotSuite:
             # loop over cv folds using cv_metadata
             for _cv_idx, cv_label in enumerate(cv_labels):
                 meta_da = results.cv_metadata["metadata"].sel(cv=cv_label)
-                try:
-                    meta = meta_da.values.item()
-                except Exception:
+                vals = getattr(meta_da, "values", None)
+                if isinstance(vals, np.ndarray) and vals.size == 1:
+                    meta = vals.item()
+                else:
                     meta = getattr(meta_da, "item", lambda: None)()
 
                 X_train_df = meta.get("X_train") if isinstance(meta, dict) else None
