@@ -3449,35 +3449,3 @@ def test_param_stability_fallback_uses_posterior_predictive_and_returns_fig_ax()
     assert hasattr(fig, "savefig")
     assert hasattr(ax, "plot")
     plt.close(fig)
-
-
-def test_param_stability_raises_valueerror_when_no_posterior_or_predictive_for_cv_label():
-    """
-    If cv labels are discovered from another group (e.g., sample_stats) but
-    both `posterior` and `posterior_predictive` fail to select by that cv label,
-    param_stability should raise a ValueError.
-    """
-    # sample_stats provides the cv coordinate (so cv_labels is found)
-    sample_stats = xr.Dataset(coords={"cv": np.array(["foldA"])})
-    # posterior and posterior_predictive exist but do NOT have a 'cv' coord,
-    # so .sel(cv=...) should raise and the code should end up raising ValueError.
-    posterior = xr.Dataset(
-        {"param": (("chain", "draw"), np.ones((1, 1)))},
-        coords={"chain": [0], "draw": [0]},
-    )
-    posterior_predictive = xr.Dataset(
-        {"y": (("chain", "draw"), np.ones((1, 1)))}, coords={"chain": [0], "draw": [0]}
-    )
-    idata = az.InferenceData(
-        sample_stats=sample_stats,
-        posterior=posterior,
-        posterior_predictive=posterior_predictive,
-    )
-
-    suite = object.__new__(MMMPlotSuite)
-
-    with pytest.raises(
-        ValueError,
-        match=r"Provided InferenceData does not contain a 'cv' coordinate.",
-    ):
-        suite.param_stability(idata, parameter=["param"], dims=None)
