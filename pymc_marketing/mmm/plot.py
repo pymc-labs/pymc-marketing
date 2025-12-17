@@ -3005,10 +3005,7 @@ class MMMPlotSuite:
 
         # Robust wrapper to call arviz.plot_hdi from an xarray DataArray `sel`.
         def _plot_hdi_from_sel(sel, ax, color, label):
-            try:
-                sel2 = sel.squeeze()
-            except Exception:
-                sel2 = sel
+            sel2 = sel.squeeze()
             arr = getattr(sel2, "values", sel2)
             if getattr(arr, "ndim", 0) == 0:
                 return
@@ -3449,10 +3446,6 @@ class MMMPlotSuite:
                         if coord not in ("sample", "chain", "draw"):
                             date_coord = coord
                             break
-                if date_coord is None:
-                    raise ValueError(
-                        "Could not determine date coordinate in posterior_predictive idata"
-                    )
 
                 # find matching row date value
                 if date_coord in rows_df.columns:
@@ -3465,18 +3458,9 @@ class MMMPlotSuite:
                             break
                     if found_col is None:
                         for col in rows_df.columns:
-                            try:
-                                if pd.api.types.is_datetime64_any_dtype(
-                                    rows_df[col].dtype
-                                ):
-                                    found_col = col
-                                    break
-                            except Exception as exc:
-                                warnings.warn(
-                                    f"Error while inspecting dataframe column dtype for date detection: {exc}",
-                                    stacklevel=2,
-                                )
-                                continue
+                            if pd.api.types.is_datetime64_any_dtype(rows_df[col].dtype):
+                                found_col = col
+
                     if found_col is None:
                         raise ValueError(
                             "Could not find a date-like column in rows_df to match posterior_predictive coordinate"
@@ -3494,14 +3478,7 @@ class MMMPlotSuite:
                             sel = sel.sel({dim: str(row[dim])})
                         except Exception:
                             # try without casting to string if that fails
-                            try:
-                                sel = sel.sel({dim: row[dim]})
-                            except Exception:
-                                # unable to select this dim for this row; continue
-                                warnings.warn(
-                                    f"Could not select dimension '{dim}' with value '{row[dim]}'; skipping.",
-                                    stacklevel=2,
-                                )
+                            sel = sel.sel({dim: row[dim]})
 
                 arr = np.squeeze(getattr(sel, "values", sel))
                 if arr.ndim == 0:
@@ -3569,14 +3546,8 @@ class MMMPlotSuite:
                 if k in df.columns:
                     mask &= df[k].astype(str) == str(v)
             filtered_df = df[mask].reset_index(drop=True)
-            try:
-                if y is None:
-                    y_arr = np.array([])
-                else:
-                    y_arr = y.to_numpy()[mask]
-            except Exception:
-                # Fallback: try converting whole series
-                y_arr = y.to_numpy() if y is not None else np.array([])
+            y_arr = y.to_numpy()[mask]
+
             return filtered_df, y_arr
 
         # iterate and compute per-panel CRPS across folds
