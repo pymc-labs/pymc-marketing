@@ -2995,8 +2995,6 @@ class MMMPlotSuite:
 
         # Helper to align y Series to a DataFrame's rows without using reindex (avoids duplicate-index errors)
         def _align_y_to_df(y_series, df):
-            if y_series is None or df is None:
-                return pd.Series([], dtype=float), pd.DatetimeIndex([])
             y_df = y_series.reset_index()
             y_df.columns = ["orig_index", "y_value"]
             df_idx = pd.DataFrame({"orig_index": df.index, "date": df["date"].values})
@@ -3007,8 +3005,6 @@ class MMMPlotSuite:
         def _plot_hdi_from_sel(sel, ax, color, label):
             sel2 = sel.squeeze()
             arr = getattr(sel2, "values", sel2)
-            if getattr(arr, "ndim", 0) == 0:
-                return
             if arr.ndim == 1:
                 if hasattr(sel2, "coords") and "sample" in sel2.coords:
                     arr = arr.reshape((-1, 1))
@@ -3449,7 +3445,7 @@ class MMMPlotSuite:
 
                 # find matching row date value
                 if date_coord in rows_df.columns:
-                    date_value = row[date_coord]
+                    date_value = row[date_coord]  # type: ignore[index]
                 else:
                     found_col = None
                     for col in rows_df.columns:
@@ -3465,7 +3461,8 @@ class MMMPlotSuite:
                         raise ValueError(
                             "Could not find a date-like column in rows_df to match posterior_predictive coordinate"
                         )
-                    date_value = row[found_col]
+                    # found_col is guaranteed to be str here after the check above
+                    date_value = row[found_col]  # type: ignore[index]
 
                 # select by date
                 sel = da_s.sel({date_coord: date_value})
@@ -3540,6 +3537,8 @@ class MMMPlotSuite:
         ) -> tuple[pd.DataFrame, np.ndarray]:
             # Accept optional df and y to satisfy callers; always return concrete types
             if df is None or df.empty:
+                return pd.DataFrame([], columns=[]), np.array([])
+            if y is None:
                 return pd.DataFrame([], columns=[]), np.array([])
             mask = np.ones(len(df), dtype=bool)
             for k, v in indexers.items():
