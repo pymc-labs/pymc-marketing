@@ -131,8 +131,11 @@ intersphinx_mapping = {
     "xarray": ("https://docs.xarray.dev/en/stable/", None),
 }
 
+
 # linkcode extension (links of [source] pointing to github)
 def linkcode_resolve(domain, info):
+    """Given sphinx contextual objects when building the docs, generate links to source on GH."""
+
     def find_obj() -> object:
         # try to find the file and line number, based on code from numpy:
         # https://github.com/numpy/numpy/blob/master/doc/source/conf.py#L286
@@ -155,11 +158,11 @@ def linkcode_resolve(domain, info):
 
     try:
         obj = find_obj()
-    except Exception as err:
+    except Exception:
         filename = fallback_source()
     else:
         try:
-            filename = "pymc_marketing/%s#L%d-L%d" % find_source(obj)
+            filename = f"pymc_marketing/{find_source(obj)}#L%d-L%d"
         except Exception:
             try:
                 filename = obj.__module__.replace(".", "/") + ".py"
@@ -167,12 +170,13 @@ def linkcode_resolve(domain, info):
                 # Some objects do not have a __module__ attribute (?)
                 filename = fallback_source()
 
-    import subprocess
-
     tag = subprocess.Popen(
-        ["git", "rev-parse", "HEAD"], stdout=subprocess.PIPE, universal_newlines=True
+        ["git", "rev-parse", "HEAD"],  # noqa: S607
+        stdout=subprocess.PIPE,
+        universal_newlines=True,
     ).communicate()[0][:-1]
     return f"https://github.com/pymc-labs/pymc-marketing/blob/{tag}/{filename}"
+
 
 # -- HTML specific extensions -------------------------------------
 
@@ -197,7 +201,9 @@ sitemap_url_scheme = f"{{lang}}{rtd_version}/{{link}}"
 # a list of builtin themes.
 html_theme = "labs_sphinx_theme"
 html_extra_path = ["robots.txt"]
-html_copy_source = False  # don't include rst source files as _sources/...txt in the build
+html_copy_source = (
+    False  # don't include rst source files as _sources/...txt in the build
+)
 
 html_favicon = "_static/favicon.ico"
 

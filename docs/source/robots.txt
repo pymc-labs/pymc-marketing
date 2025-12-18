@@ -1,4 +1,4 @@
-# Custom robots.txt file 
+# Custom robots.txt file
 # It controls the crawling and indexing of your documentation by search engines.
 # Part of the configuration happens through readthedocs and part through extensions
 #
