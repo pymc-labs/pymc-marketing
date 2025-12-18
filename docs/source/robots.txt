@@ -8,9 +8,5 @@
 # * Our guide about SEO techniques: https://docs.readthedocs.com/platform/stable/guides/technical-docs-seo-guide.html
 
 User-agent: *
-Allow: /en/stable
-Allow: /es/stable
-Disallow: /en/stable/api/generated/
-Disallow: /es/stable/api/generated/
 
 Sitemap: https://www.pymc-marketing.io/en/stable/sitemap.xml
