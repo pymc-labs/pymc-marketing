@@ -124,12 +124,14 @@ class NestedLogit(RegressionModelBuilder):
         nesting_structure: dict,
         model_config: dict | None = None,
         sampler_config: dict | None = None,
+        alphas_nests: bool = False,
     ):
         self.choice_df = choice_df
         self.utility_equations = utility_equations
         self.depvar = depvar
         self.covariates = covariates
         self.nesting_structure = nesting_structure
+        self.alphas_nests = alphas_nests # whether to estimate nest-specific intercepts
 
         model_config = model_config or {}
         model_config = parse_model_config(model_config)
@@ -153,12 +155,14 @@ class NestedLogit(RegressionModelBuilder):
         betas = Prior("Normal", mu=0, sigma=1, dims="alt_covariates")
         betas_fixed = Prior("Normal", mu=0, sigma=1, dims=("alts", "fixed_covariates"))
         lambdas_nests = Prior("Beta", alpha=1, beta=1, dims="nests")
+        alphas_nests = Prior("Normal", mu=0, sigma=1, dims="nests")
 
         return {
             "alphas_": alphas,
             "betas": betas,
             "betas_fixed_": betas_fixed,
             "lambdas_nests": lambdas_nests,
+            "alphas_nests": alphas_nests,
             "likelihood": Prior(
                 "Categorical",
                 p=0,
@@ -184,6 +188,7 @@ class NestedLogit(RegressionModelBuilder):
             "lambdas_nests": self.model_config["lambdas_nests"].to_dict(),
             "betas": self.model_config["betas"].to_dict(),
             "betas_fixed_": self.model_config["betas_fixed_"].to_dict(),
+            "alphas_nests": self.model_config["alphas_nests"].to_dict(),
         }
 
         return result
@@ -617,7 +622,7 @@ class NestedLogit(RegressionModelBuilder):
         return wtp
 
     def calc_conditional_prob(
-        self, U, lambdas, nest_idx, nest_name, nest_indices
+        self, U, lambdas, nest_idx, nest_name, nest_indices, alphas_nest=None
     ):
         """Calculate conditional probability within a nest.
         
@@ -677,11 +682,11 @@ class NestedLogit(RegressionModelBuilder):
         )
         
         # Exponentiated inclusive value for nest probability calculation
-        exp_W_nest = pm.math.exp(I_nest)
+        exp_W_nest = pm.math.exp(alphas_nest[nest_idx] + I_nest)
         
         return exp_W_nest, P_y_given_nest
 
-    def make_nest_probs(self, U, lambdas, nest_indices):
+    def make_nest_probs(self, U, lambdas, nest_indices, alphas_nest=None):
         """Calculate nest selection probabilities and conditional probabilities.
         
         This computes:
@@ -710,7 +715,7 @@ class NestedLogit(RegressionModelBuilder):
         # Calculate conditional probs and inclusive values for each nest
         for i, nest_name in enumerate(nest_indices.keys()):
             exp_W, P_cond = self.calc_conditional_prob(
-                U, lambdas, i, nest_name, nest_indices
+                U, lambdas, i, nest_name, nest_indices, alphas_nest=alphas_nest
             )
             exp_inclusive_values.append(exp_W)
             conditional_probs[nest_name] = P_cond
@@ -739,6 +744,8 @@ class NestedLogit(RegressionModelBuilder):
             Fixed covariates, shape (n_obs, n_fixed_covariates)
         y : np.ndarray
             Observed choices, shape (n_obs,)
+        alphas_nests : bool, optional
+            Whether to include nest-specific intercepts (default is False)
             
         Returns
         -------
@@ -753,6 +760,10 @@ class NestedLogit(RegressionModelBuilder):
             alphas = self.make_intercepts()
             betas = self.make_alt_coefs()
             lambdas = self.make_lambdas()
+            if self.alphas_nests:
+                alphas_nests_ = self.model_config["alphas_nests"].create_variable(name="alphas_nests")
+            else: 
+                alphas_nests_ = pt.zeros(len(nest_indices.keys()))
             
 
             # Data containers
@@ -771,7 +782,7 @@ class NestedLogit(RegressionModelBuilder):
             
             # Nest probabilities and conditional probabilities
             nest_probs, conditional_probs = self.make_nest_probs(
-                U, lambdas, nest_indices
+                U, lambdas, nest_indices, alphas_nest=alphas_nests_
             )
             
             # Combine to get final choice probabilities
@@ -816,6 +827,7 @@ class NestedLogit(RegressionModelBuilder):
         attrs["choice_df"] = json.dumps("Placeholder for DF")
         attrs["nesting_structure"] = json.dumps(self.nesting_structure)
         attrs["utility_equations"] = json.dumps(self.utility_equations)
+        attrs["alphas_nests"] = json.dumps(self.alphas_nests)
 
         return attrs
 
