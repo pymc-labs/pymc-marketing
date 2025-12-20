@@ -463,7 +463,7 @@ class TimeSliceCrossValidator:
 
     def split(
         self, X: pd.DataFrame, y: pd.Series | None = None
-    ) -> "Generator[tuple[np.ndarray, np.ndarray], None, None]":
+    ) -> Generator[tuple[np.ndarray, np.ndarray], None, None]:
         """Generate train/test indices for each time-slice split.
 
         This implementation selects rows by date masks so that all coordinate
