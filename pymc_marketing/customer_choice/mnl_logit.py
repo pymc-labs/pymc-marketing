@@ -302,46 +302,141 @@ class MNLogit(RegressionModelBuilder):
         """Do not use, required by parent class. Prefer make_model()."""
         return super().build_model(X, y, **kwargs)
 
-    def make_model(self, X, F, y) -> None:
-        """Build Model."""
-        with pm.Model(coords=self.coords) as model:
-            # Intercept Parameters
-            alphas = self.model_config["alphas_"].create_variable(name="alphas_")
-            # Covariate Weight Parameters
-            betas = self.model_config["betas"].create_variable("betas")
+    def make_intercepts(self):
+        """Create alternative-specific intercepts with reference alternative set to zero.
+        
+        Returns
+        -------
+        alphas : TensorVariable
+            Alternative-specific intercepts with last alternative = 0
+        """
+        alphas_ = self.model_config["alphas_"].create_variable(name="alphas_")
+        alphas = pm.Deterministic(
+            "alphas", pt.set_subtensor(alphas_[-1], 0), dims="alts"
+        )
+        return alphas
 
-            # Instantiate covariate data for each Utility function
-            X_data = pm.Data("X", X, dims=("obs", "alts", "alt_covariates"))
-            # Instantiate outcome data
-            observed = pm.Data("y", y, dims="obs")
-            if self.F is not None:
-                betas_fixed_ = self.model_config["betas_fixed_"].create_variable(
-                    name="betas_fixed_"
-                )
-                betas_fixed = pm.Deterministic(
-                    "betas_fixed",
-                    pt.set_subtensor(betas_fixed_[-1, :], 0),
-                    dims=("alts", "fixed_covariates"),
-                )
-                F_data = pm.Data("F", F)
-                F = pm.Deterministic(
-                    "F_interaction", pm.math.dot(F_data, betas_fixed.T)
-                )
-            else:
-                F = pt.zeros(observed.shape[0])
+    def make_alt_coefs(self):
+        """Create coefficients for alternative-specific covariates.
+        
+        Returns
+        -------
+        betas : TensorVariable
+            Coefficients for alternative-specific covariates
+        """
+        betas = self.model_config["betas"].create_variable("betas")
+        return betas
 
-            # Compute utility as a dot product
-            U = pm.math.dot(X_data, betas)  # (N, alts)
-            # Zero out reference alternative intercept
-            alphas = pm.Deterministic(
-                "alphas", pt.set_subtensor(alphas[-1], 0), dims="alts"
+    def make_fixed_coefs(self, X_fixed, n_obs, n_alts):
+        """Create alternative-varying coefficients for fixed (non-varying) covariates.
+        
+        Parameters
+        ----------
+        X_fixed : np.ndarray or None
+            Fixed covariates matrix of shape (n_obs, n_fixed_covariates)
+        n_obs : int
+            Number of observations
+        n_alts : int
+            Number of alternatives
+            
+        Returns
+        -------
+        F : TensorVariable
+            Contribution to utility from fixed covariates, shape (n_obs, n_alts)
+        """
+        if X_fixed is None or len(X_fixed) == 0:
+            F = pt.zeros((n_obs, n_alts))
+        else:
+            X_fixed_data = pm.Data("F", X_fixed)
+            betas_fixed_ = self.model_config["betas_fixed_"].create_variable(
+                name="betas_fixed_"
             )
-            U = pm.Deterministic("U", F + U + alphas, dims=("obs", "alts"))
-            ## Apply Softmax Transform
-            p_ = pm.Deterministic("p", pm.math.softmax(U, axis=1), dims=("obs", "alts"))
+            betas_fixed = pm.Deterministic(
+                "betas_fixed",
+                pt.set_subtensor(betas_fixed_[-1, :], 0),
+                dims=("alts", "fixed_covariates"),
+            )
+            F = pm.Deterministic(
+                "F_interaction", pm.math.dot(X_fixed_data, betas_fixed.T)
+            )
+        return F
 
-            # likelihood
-            _ = pm.Categorical("likelihood", p=p_, observed=observed, dims="obs")
+    def make_utility(self, X_data, alphas, betas, F):
+        """Compute systematic utility for each alternative.
+        
+        Parameters
+        ----------
+        X_data : TensorVariable
+            Alternative-specific covariates, shape (n_obs, n_alts, n_covariates)
+        alphas : TensorVariable
+            Alternative-specific intercepts
+        betas : TensorVariable
+            Coefficients for alternative-specific covariates
+        F : TensorVariable
+            Contribution from fixed covariates
+            
+        Returns
+        -------
+        U : TensorVariable
+            Systematic utility, shape (n_obs, n_alts)
+        """
+        U = pm.math.dot(X_data, betas)  # (n_obs, n_alts)
+        U = pm.Deterministic("U", F + U + alphas, dims=("obs", "alts"))
+        return U
+
+    def make_choice_prob(self, U):
+        """Compute choice probabilities via softmax transformation.
+        
+        Parameters
+        ----------
+        U : TensorVariable
+            Systematic utility, shape (n_obs, n_alts)
+            
+        Returns
+        -------
+        p : TensorVariable
+            Choice probabilities, shape (n_obs, n_alts)
+        """
+        p = pm.Deterministic("p", pm.math.softmax(U, axis=1), dims=("obs", "alts"))
+        return p
+
+    def make_model(self, X, F, y) -> pm.Model:
+        """Build Model.
+        
+        Parameters
+        ----------
+        X : np.ndarray
+            Alternative-specific covariates, shape (n_obs, n_alts, n_covariates)
+        F : np.ndarray or None
+            Fixed covariates, shape (n_obs, n_fixed_covariates)
+        y : np.ndarray
+            Observed choices, shape (n_obs,)
+            
+        Returns
+        -------
+        model : pm.Model
+            PyMC model
+        """
+        n_obs, n_alts = X.shape[0], X.shape[1]
+        
+        with pm.Model(coords=self.coords) as model:
+            # Create parameters
+            alphas = self.make_intercepts()
+            betas = self.make_alt_coefs()
+            
+            # Instantiate data
+            X_data = pm.Data("X", X, dims=("obs", "alts", "alt_covariates"))
+            observed = pm.Data("y", y, dims="obs")
+            
+            # Handle fixed covariates
+            F_contrib = self.make_fixed_coefs(F, n_obs, n_alts)
+            
+            # Compute utility and probabilities
+            U = self.make_utility(X_data, alphas, betas, F_contrib)
+            p = self.make_choice_prob(U)
+
+            # Likelihood
+            _ = pm.Categorical("likelihood", p=p, observed=observed, dims="obs")
 
         return model
 
