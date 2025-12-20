@@ -165,7 +165,7 @@ def build_mmm_from_yaml(
         date_col_in_X = date_column in X.columns
 
         if date_column in X.columns:
-            X[date_column] = pd.to_datetime(X[date_column])
+            X.loc[:, date_column] = pd.to_datetime(X[date_column])
 
         if not date_col_in_X:
             raise ValueError(
