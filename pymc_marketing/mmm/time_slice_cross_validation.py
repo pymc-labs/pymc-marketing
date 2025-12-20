@@ -19,22 +19,69 @@ The validator does not retain a fitted MMM instance; models may be
 constructed per-fold from a YAML configuration or supplied to ``run()``.
 """
 
+from collections.abc import Generator
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
 
 import arviz as az
 import numpy as np
 import pandas as pd
 import xarray as xr
-from tqdm.notebook import tqdm
+from tqdm.auto import tqdm
 
 from pymc_marketing.mmm.builders.yaml import build_mmm_from_yaml
 from pymc_marketing.mmm.plot import MMMPlotSuite
 
 
+class MMMBuilder(Protocol):
+    """Protocol for objects that can build MMM models.
+
+    Any object passed to ``TimeSliceCrossValidator.run(mmm=...)`` must
+    implement this protocol.
+
+    Methods
+    -------
+    build_model(X, y)
+        Build and return an MMM instance ready for fitting.
+    """
+
+    def build_model(self, X: pd.DataFrame, y: pd.Series) -> Any:
+        """Build and return an MMM instance.
+
+        Parameters
+        ----------
+        X : pd.DataFrame
+            Feature matrix.
+        y : pd.Series
+            Target variable.
+
+        Returns
+        -------
+        object
+            An MMM instance with ``fit``, ``sample_posterior_predictive``,
+            and ``idata`` attributes.
+        """
+        ...
+
+
 @dataclass
 class TimeSliceCrossValidationResult:
-    """Container for the results of one time-slice CV step."""
+    """Container for the results of one time-slice CV step.
+
+    Attributes
+    ----------
+    X_train : pd.DataFrame
+        Feature matrix used for training in this fold.
+    y_train : pd.Series
+        Target variable used for training in this fold.
+    X_test : pd.DataFrame
+        Feature matrix used for testing in this fold.
+    y_test : pd.Series
+        Target variable used for testing in this fold.
+    idata : az.InferenceData
+        ArviZ InferenceData object containing posterior samples and predictions
+        from the fitted model for this fold.
+    """
 
     X_train: pd.DataFrame
     y_train: pd.Series
@@ -44,41 +91,83 @@ class TimeSliceCrossValidationResult:
 
 
 class TimeSliceCrossValidator:
-    """
-    Time-Slice Cross Validator for Media Mix Models (MMM).
+    """Time-Slice Cross Validator for Media Mix Models (MMM).
 
-    Provides scikit-learn-style API:
-        - split(X, y): yields train/test indices
-        - get_n_splits(): returns number of splits
-        - run(): executes full CV loop and returns fitted models and predictions
+    Provides a scikit-learn-style API for performing rolling time-slice
+    cross-validation on media mix models. This is useful for evaluating
+    model stability and out-of-sample prediction performance.
 
-    Optional sampler configuration
-    ------------------------------
-    This validator accepts an optional ``sampler_config`` either at construction
-    time or when calling ``run``. The configuration is applied to the underlying
-    MMM object by setting ``mmm.sampler_config`` before each fold is fitted.
+    Parameters
+    ----------
+    n_init : int
+        Number of initial time periods to use for the first training fold.
+        Must be a positive integer.
+    forecast_horizon : int
+        Number of time periods to forecast in each fold.
+        Must be a positive integer.
+    date_column : str
+        Name of the column in X containing date values.
+    step_size : int, optional
+        Number of time periods to step forward between consecutive folds.
+        Default is 1. Must be a positive integer.
+    sampler_config : dict, optional
+        Configuration dictionary for the PyMC sampler. Can include keys like
+        'tune', 'draws', 'chains', 'random_seed', 'target_accept', etc.
+        Can be overridden per-run via the ``run()`` method.
 
-    Example (set on construction):
+    Attributes
+    ----------
+    n_init : int
+        Number of initial training periods.
+    forecast_horizon : int
+        Number of forecast periods per fold.
+    date_column : str
+        Name of the date column.
+    step_size : int
+        Step size between folds.
+    sampler_config : dict or None
+        Sampler configuration dictionary.
 
-        cv = TimeSliceCrossValidator(
-            n_init=158,
-            forecast_horizon=10,
-            date_column='date',
-            step_size=50,
-            sampler_config={
-                'tune': 500,
-                'draws': 200,
-                'chains': 4,
-                'random_seed': 123,
-                'target_accept': 0.90,
-                'nuts_sampler': 'nutpie',
-                'nuts_sampler_kwargs': {'backend': 'jax', 'gradient_backend': 'jax'},
-            }
-        )
+    See Also
+    --------
+    pymc_marketing.mmm.MMM : The Media Mix Model class.
+    pymc_marketing.mmm.plot.MMMPlotSuite : Plotting utilities for CV results.
 
-    Example (override per run):
+    Notes
+    -----
+    This validator does not retain a fitted MMM instance; models are
+    constructed per-fold from a YAML configuration or supplied to ``run()``.
 
-        cv.run(X, y, sampler_config={'draws': 1000, 'tune': 1000})
+    Each fold stores its full InferenceData, which can consume significant
+    memory for large models with many folds.
+
+    Examples
+    --------
+    Basic usage with a YAML configuration:
+
+    >>> cv = TimeSliceCrossValidator(
+    ...     n_init=100,
+    ...     forecast_horizon=10,
+    ...     date_column="date",
+    ...     step_size=5,
+    ... )
+    >>> combined_idata = cv.run(X, y, yaml_path="model_config.yml")
+
+    With custom sampler configuration:
+
+    >>> cv = TimeSliceCrossValidator(
+    ...     n_init=158,
+    ...     forecast_horizon=10,
+    ...     date_column="date",
+    ...     step_size=50,
+    ...     sampler_config={
+    ...         "tune": 500,
+    ...         "draws": 200,
+    ...         "chains": 4,
+    ...         "random_seed": 123,
+    ...     },
+    ... )
+    >>> combined_idata = cv.run(X, y, mmm=mmm_builder)
     """
 
     def __init__(
@@ -87,8 +176,8 @@ class TimeSliceCrossValidator:
         forecast_horizon: int,
         date_column: str,
         step_size: int = 1,
-        sampler_config: dict | None = None,
-    ):
+        sampler_config: dict[str, Any] | None = None,
+    ) -> None:
         if not isinstance(step_size, int) or step_size <= 0:
             raise ValueError("step_size must be a positive integer")
         if not isinstance(n_init, int) or n_init <= 0:
@@ -134,16 +223,21 @@ class TimeSliceCrossValidator:
             )
 
     def _create_metadata(self, cv_coord: pd.Index) -> xr.Dataset:
-        """
-        Build a cv_metadata Dataset that stores per-fold metadata.
+        """Build a cv_metadata Dataset that stores per-fold metadata.
 
         The dataset stores per-fold metadata as Python objects (DataFrames/Series)
         under a single DataArray named 'metadata' indexed by the same 'cv' labels.
-        Consumers can access fold metadata via `cv_idata.cv_metadata.metadata.sel(cv=...)`.
+        Consumers can access fold metadata via ``cv_idata.cv_metadata.metadata.sel(cv=...)``.
 
-        cv_coord: pd.Index
+        Parameters
+        ----------
+        cv_coord : pd.Index
             The coordinate index for the 'cv' dimension.
 
+        Returns
+        -------
+        xr.Dataset
+            Dataset containing per-fold metadata.
         """
         metadata_list = []
         for r in self._cv_results:
@@ -170,8 +264,30 @@ class TimeSliceCrossValidator:
 
         return ds_meta
 
-    def _combine_idata(self, results, model_names: list[str]) -> az.InferenceData:
-        """Combine InferenceData objects from multiple CV results."""
+    def _combine_idata(
+        self,
+        results: list[TimeSliceCrossValidationResult],
+        model_names: list[str],
+    ) -> az.InferenceData:
+        """Combine InferenceData objects from multiple CV results.
+
+        Parameters
+        ----------
+        results : list of TimeSliceCrossValidationResult
+            List of CV results from each fold.
+        model_names : list of str
+            Names for each CV fold.
+
+        Returns
+        -------
+        az.InferenceData
+            Combined InferenceData with folds concatenated along 'cv' coordinate.
+
+        Raises
+        ------
+        ValueError
+            If no InferenceData objects were produced during CV.
+        """
         cv_idata: az.InferenceData | None = None
         if results:
             # try to discover available groups from the first idata
@@ -246,10 +362,30 @@ class TimeSliceCrossValidator:
             )
         return cv_idata
 
-    def _fit_mmm(self, mmm, X, y, sampler_config: dict | None = None):
-        """Fit the MMM.
+    def _fit_mmm(
+        self,
+        mmm: Any,
+        X: pd.DataFrame,
+        y: pd.Series,
+        sampler_config: dict[str, Any] | None = None,
+    ) -> Any:
+        """Fit the MMM model.
 
-        sampler_config, if provided, will be set on the MMM instance before fitting.
+        Parameters
+        ----------
+        mmm : object
+            MMM instance to fit.
+        X : pd.DataFrame
+            Feature matrix.
+        y : pd.Series
+            Target variable.
+        sampler_config : dict, optional
+            Sampler configuration to apply before fitting.
+
+        Returns
+        -------
+        object
+            The fitted MMM instance.
         """
         # Determine which sampler config to apply (explicit override takes precedence)
         effective_sampler_config = (
@@ -267,9 +403,36 @@ class TimeSliceCrossValidator:
         return mmm
 
     def _time_slice_step(
-        self, mmm, X_train, y_train, X_test, y_test, sampler_config: dict | None = None
-    ):
-        """Run one CV step and return results."""
+        self,
+        mmm: Any,
+        X_train: pd.DataFrame,
+        y_train: pd.Series,
+        X_test: pd.DataFrame,
+        y_test: pd.Series,
+        sampler_config: dict[str, Any] | None = None,
+    ) -> TimeSliceCrossValidationResult:
+        """Run one CV step and return results.
+
+        Parameters
+        ----------
+        mmm : object
+            MMM instance to fit.
+        X_train : pd.DataFrame
+            Training feature matrix.
+        y_train : pd.Series
+            Training target variable.
+        X_test : pd.DataFrame
+            Test feature matrix.
+        y_test : pd.Series
+            Test target variable.
+        sampler_config : dict, optional
+            Sampler configuration to apply before fitting.
+
+        Returns
+        -------
+        TimeSliceCrossValidationResult
+            Results container with fitted model data and predictions.
+        """
         # Fit the model for this fold. sampler_config can override the validator-level config.
         mmm = self._fit_mmm(mmm, X_train, y_train, sampler_config=sampler_config)
 
@@ -300,8 +463,22 @@ class TimeSliceCrossValidator:
             idata=mmm.idata,
         )
 
-    def get_n_splits(self, X, y=None):
-        """Return number of possible rolling splits."""
+    def get_n_splits(self, X: pd.DataFrame, y: pd.Series | None = None) -> int:
+        """Return the number of possible rolling splits.
+
+        Parameters
+        ----------
+        X : pd.DataFrame
+            Feature matrix containing the date column.
+        y : pd.Series, optional
+            Target variable. Not used but included for scikit-learn API
+            compatibility.
+
+        Returns
+        -------
+        int
+            Number of cross-validation splits that can be generated.
+        """
         total_dates = len(X[self.date_column].unique())
         # Calculate how many splits we can make with the given step_size
         # We need at least n_init + forecast_horizon dates for one split
@@ -314,13 +491,44 @@ class TimeSliceCrossValidator:
         ) // self.step_size + 1
         return max(0, max_splits)
 
-    def split(self, X, y):
-        """Yield (train_idx, test_idx) pairs for each time-slice split.
+    def split(
+        self, X: pd.DataFrame, y: pd.Series | None = None
+    ) -> "Generator[tuple[np.ndarray, np.ndarray], None, None]":
+        """Generate train/test indices for each time-slice split.
 
         This implementation selects rows by date masks so that all coordinate
-        levels (e.g. multiple geos) for the selected date ranges are included
+        levels (e.g., multiple geos) for the selected date ranges are included
         in each fold. It returns integer positions suitable for use with
         ``DataFrame.iloc``.
+
+        Parameters
+        ----------
+        X : pd.DataFrame
+            Feature matrix containing the date column.
+        y : pd.Series, optional
+            Target variable. Not used but included for scikit-learn API
+            compatibility.
+
+        Yields
+        ------
+        train_idx : np.ndarray
+            Integer indices for training rows in this fold.
+        test_idx : np.ndarray
+            Integer indices for test rows in this fold.
+
+        Raises
+        ------
+        ValueError
+            If no splits are possible with the given parameters.
+
+        Examples
+        --------
+        >>> cv = TimeSliceCrossValidator(
+        ...     n_init=10, forecast_horizon=5, date_column="date"
+        ... )
+        >>> for train_idx, test_idx in cv.split(X, y):
+        ...     X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
+        ...     y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
         """
         n_splits = self.get_n_splits(X, y)
         if n_splits <= 0:
@@ -348,36 +556,92 @@ class TimeSliceCrossValidator:
 
             yield train_idx, test_idx
 
-    # Run CV
     def run(
         self,
-        X,
-        y,
-        sampler_config: dict | None = None,
+        X: pd.DataFrame,
+        y: pd.Series,
+        sampler_config: dict[str, Any] | None = None,
         yaml_path: str | None = None,
-        mmm: Any | None = None,
+        mmm: MMMBuilder | None = None,
         model_names: list[str] | None = None,
     ) -> az.InferenceData:
-        """Run the complete time-slice CV loop.
+        """Run the complete time-slice cross-validation loop.
 
-        If `yaml_path` is provided, the validator will rebuild the MMM from the
-        YAML for each fold using the training data before calling `_fit_mmm`.
+        Executes cross-validation by iterating through all folds, fitting a model
+        for each training set, and generating predictions on the combined
+        train+test data.
 
-        sampler_config: Optional dict to override the validator-level sampler configuration
-                        for all folds in this run. If provided here it takes precedence
-                        over the configuration passed at construction time.
+        Parameters
+        ----------
+        X : pd.DataFrame
+            Feature matrix containing the date column and predictor variables.
+        y : pd.Series
+            Target variable.
+        sampler_config : dict, optional
+            Sampler configuration to override the validator-level configuration
+            for all folds in this run. If provided, takes precedence over the
+            configuration passed at construction time.
+        yaml_path : str, optional
+            Path to a YAML configuration file for building the MMM model per fold.
+            Mutually exclusive with ``mmm``.
+        mmm : object, optional
+            An object with a ``build_model(X, y)`` method that returns a fitted
+            MMM instance. Mutually exclusive with ``yaml_path``.
+        model_names : list of str, optional
+            Names to assign to each CV fold in the combined InferenceData.
+            If provided, length must match the number of splits. If not provided,
+            names are generated from each model's ``_model_name`` attribute or
+            as ``'Iteration {i}'``.
 
-        model_names: Optional list of names to assign to each CV fold's model in the
-                     combined InferenceData. If provided its length must match the
-                     number of splits. If not provided, default names will be generated
-                     from each fold's model's `_model_name` attribute (if available)
-                     or a generic `Iteration {i}` name.
+        Returns
+        -------
+        arviz.InferenceData
+            Combined InferenceData where each fold is concatenated along a new
+            coordinate named 'cv'. Includes a 'cv_metadata' group with per-fold
+            train/test data.
 
-        This function always returns a combined `arviz.InferenceData` where each
-        CV fold is concatenated along a new coordinate named `cv`. If no
-        InferenceData objects are present in the folds, a ValueError is raised.
+        Raises
+        ------
+        ValueError
+            If neither ``yaml_path`` nor ``mmm`` is provided.
+            If ``model_names`` length doesn't match the number of splits.
+            If no InferenceData objects are produced during CV.
+
+        See Also
+        --------
+        split : Generate train/test indices for cross-validation.
+        get_n_splits : Return the number of splits.
+
+        Notes
+        -----
+        Per-fold results are also stored in ``self._cv_results`` after calling
+        this method.
+
+        Examples
+        --------
+        Using a YAML configuration:
+
+        >>> cv = TimeSliceCrossValidator(
+        ...     n_init=100, forecast_horizon=10, date_column="date"
+        ... )
+        >>> combined_idata = cv.run(X, y, yaml_path="model_config.yml")
+
+        Using a model builder object:
+
+        >>> cv = TimeSliceCrossValidator(
+        ...     n_init=100, forecast_horizon=10, date_column="date"
+        ... )
+        >>> combined_idata = cv.run(X, y, mmm=mmm_builder)
         """
-        results = []
+        # Upfront validation of model_names length
+        n_splits = self.get_n_splits(X, y)
+        if model_names is not None and len(model_names) != n_splits:
+            raise ValueError(
+                f"`model_names` length ({len(model_names)}) must match the number "
+                f"of CV splits ({n_splits})."
+            )
+
+        results: list[TimeSliceCrossValidationResult] = []
         # Preserve the user-provided `model_names` parameter separately so we
         # don't shadow it with the accumulator used to collect generated names.
         user_model_names = model_names
@@ -401,13 +665,8 @@ class TimeSliceCrossValidator:
 
             # determine name for this fold
             if user_model_names is not None:
-                # user supplied explicit model names: validate length implicitly
-                try:
-                    fold_name = user_model_names[_i]
-                except IndexError:
-                    raise ValueError(
-                        "`model_names` was provided but its length is shorter than the number of CV splits."
-                    )
+                # Length was validated upfront, so direct indexing is safe
+                fold_name = user_model_names[_i]
             else:
                 base_name = (
                     getattr(fold_mmm, "_model_name", None)
