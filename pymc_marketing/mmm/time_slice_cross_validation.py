@@ -21,7 +21,7 @@ constructed per-fold from a YAML configuration or supplied to ``run()``.
 
 from collections.abc import Generator
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any
 
 import arviz as az
 import numpy as np
@@ -31,37 +31,7 @@ from tqdm.auto import tqdm
 
 from pymc_marketing.mmm.builders.yaml import build_mmm_from_yaml
 from pymc_marketing.mmm.plot import MMMPlotSuite
-
-
-class MMMBuilder(Protocol):
-    """Protocol for objects that can build MMM models.
-
-    Any object passed to ``TimeSliceCrossValidator.run(mmm=...)`` must
-    implement this protocol.
-
-    Methods
-    -------
-    build_model(X, y)
-        Build and return an MMM instance ready for fitting.
-    """
-
-    def build_model(self, X: pd.DataFrame, y: pd.Series) -> Any:
-        """Build and return an MMM instance.
-
-        Parameters
-        ----------
-        X : pd.DataFrame
-            Feature matrix.
-        y : pd.Series
-            Target variable.
-
-        Returns
-        -------
-        object
-            An MMM instance with ``fit``, ``sample_posterior_predictive``,
-            and ``idata`` attributes.
-        """
-        ...
+from pymc_marketing.mmm.types import MMMBuilder
 
 
 @dataclass

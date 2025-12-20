@@ -68,6 +68,7 @@ from pymc_marketing.mmm.time_slice_cross_validation import (
     TimeSliceCrossValidationResult,
     TimeSliceCrossValidator,
 )
+from pymc_marketing.mmm.types import MMMBuilder
 from pymc_marketing.mmm.validating import validation_method_X, validation_method_y
 
 __all__ = [
@@ -86,6 +87,7 @@ __all__ = [
     "InverseScaledLogisticSaturation",
     "LinearTrend",
     "LogisticSaturation",
+    "MMMBuilder",
     "MMMModelBuilder",
     "MediaConfig",
     "MediaConfigList",
