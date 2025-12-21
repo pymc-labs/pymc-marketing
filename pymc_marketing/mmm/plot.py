@@ -2903,26 +2903,59 @@ class MMMPlotSuite:
         return fig, ax
 
     def cv_predictions(
-        self, results, dims: dict[str, str | int | list] | None = None
+        self, results: az.InferenceData, dims: dict[str, str | int | list] | None = None
     ) -> tuple[Figure, NDArray[Axes]]:
         """Plot posterior predictive predictions across CV folds.
 
-        Args:
-            results: a combined `arviz.InferenceData` produced by
-                `TimeSliceCrossValidator._combine_idata(...)`. The InferenceData must
-                contain a coordinate named `cv`, a `cv_metadata` group with per-fold
-                metadata (X_train, y_train, X_test, y_test) stored under
-                `cv_metadata.metadata`, and a posterior_predictive group containing
-                `y_original_scale`.
-            dims: Optional dict specifying dimensions to filter when plotting.
-                Supports arbitrary coordinate dimensions. Keys must be coordinates
-                present on `posterior_predictive['y_original_scale']`.
+        Generates visualization showing posterior predictive distributions for
+        each cross-validation fold, with separate panels for different dimension
+        combinations.
 
-        The plot shows per-panel (one panel per combination of dims/additional coords)
-        and per-fold posterior predictive HDI (3%-97%) for train (blue) and test
-        (orange) ranges as shaded bands, the posterior mean as dashed lines, and
-        observed values as black lines. A vertical dashed green line marks the end
-        of the training period for each fold.
+        Parameters
+        ----------
+        results : arviz.InferenceData
+            Combined InferenceData produced by ``TimeSliceCrossValidator.run()``.
+            Must contain:
+
+            - A coordinate named 'cv'
+            - A 'cv_metadata' group with per-fold metadata (X_train, y_train,
+              X_test, y_test) stored under ``cv_metadata.metadata``
+            - A posterior_predictive group containing 'y_original_scale'
+
+        dims : dict, optional
+            Dictionary specifying dimensions to filter when plotting.
+            Keys must be coordinates present on
+            ``posterior_predictive['y_original_scale']``.
+            Values can be single values or lists of values.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The matplotlib figure object.
+        axes : numpy.ndarray of matplotlib.axes.Axes
+            Array of axes objects, one per panel.
+
+        Raises
+        ------
+        TypeError
+            If ``results`` is not an ``arviz.InferenceData`` object.
+        ValueError
+            If required groups or variables are missing from ``results``.
+            If unsupported dimensions are specified in ``dims``.
+
+        Notes
+        -----
+        The plot shows:
+
+        - HDI (94%) for train (blue) and test (orange) ranges as shaded bands
+        - Observed values as black lines
+        - A vertical dashed green line marking the end of training for each fold
+
+        See Also
+        --------
+        TimeSliceCrossValidator.run : Generate the combined InferenceData.
+        param_stability : Plot parameter stability across folds.
+        cv_crps : Plot CRPS scores across folds.
         """
         # Expect an arviz.InferenceData with cv coord and cv_metadata
         if not isinstance(results, az.InferenceData):
@@ -3062,10 +3095,10 @@ class MMMPlotSuite:
                 arr = results.posterior_predictive["y_original_scale"].sel(cv=cv_label)
                 try:
                     arr = arr.sel(**panel_indexer) if panel_indexer else arr
-                except Exception:
+                except (KeyError, ValueError) as exc:
                     # If a specific panel coord value cannot be selected (e.g., not present), warn and skip
                     warnings.warn(
-                        f"Could not select posterior_predictive panel {panel_indexer}; skipping.",
+                        f"Could not select posterior_predictive panel {panel_indexer}: {exc}; skipping.",
                         stacklevel=2,
                     )
                     continue
@@ -3080,10 +3113,10 @@ class MMMPlotSuite:
                         "date",
                         *[d for d in arr_s.dims if d not in ("sample", "date")],
                     )
-                except Exception:
+                except (ValueError, KeyError) as exc:
                     # If transpose fails, continue with whatever ordering exists
                     warnings.warn(
-                        "Could not transpose posterior_predictive array to ('sample','date',...).",
+                        f"Could not transpose posterior_predictive array to ('sample','date',...): {exc}",
                         stacklevel=2,
                     )
 
@@ -3091,7 +3124,7 @@ class MMMPlotSuite:
                 meta_da = results.cv_metadata["metadata"].sel(cv=cv_label)
                 try:
                     meta = meta_da.values.item()
-                except Exception:
+                except (ValueError, AttributeError):
                     # fallback: try python object access
                     meta = getattr(meta_da, "item", lambda: None)()
 
@@ -3129,9 +3162,9 @@ class MMMPlotSuite:
                             },
                         )
                         _plot_hdi_from_sel(sel, ax, "C0", "HDI (train)")
-                    except Exception:
+                    except (KeyError, ValueError, TypeError) as exc:
                         warnings.warn(
-                            "Could not compute HDI for train range; skipping.",
+                            f"Could not compute HDI for train range: {exc}; skipping.",
                             stacklevel=2,
                         )
 
@@ -3146,9 +3179,9 @@ class MMMPlotSuite:
                             },
                         )
                         _plot_hdi_from_sel(sel, ax, "C1", "HDI (test)")
-                    except Exception:
+                    except (KeyError, ValueError, TypeError) as exc:
                         warnings.warn(
-                            "Could not compute HDI for test range; skipping.",
+                            f"Could not compute HDI for test range: {exc}; skipping.",
                             stacklevel=2,
                         )
 
@@ -3240,18 +3273,62 @@ class MMMPlotSuite:
         return fig, axes
 
     def param_stability(
-        self, results, parameter: list[str], dims: dict[str, list[str]] | None = None
+        self,
+        results: az.InferenceData,
+        parameter: list[str],
+        dims: dict[str, list[str]] | None = None,
     ) -> tuple[Figure, NDArray[Axes]]:
-        """
-        Plot parameter stability across CV iterations.
+        """Plot parameter stability across CV iterations.
 
-        Args:
-            results: a combined `arviz.InferenceData` produced by
-                `TimeSliceCrossValidator.run(...)`. The InferenceData must
-                contain a coordinate named `cv` which labels each CV fold.
-            parameter: list of parameter names (e.g. ["beta_channel"]).
-            dims: optional dict specifying dimensions and coordinate values to slice over
-                e.g. {"geo": ["geo_a", "geo_b"]}
+        Generates forest plots showing how parameter estimates vary across
+        cross-validation folds, helping assess model stability.
+
+        Parameters
+        ----------
+        results : arviz.InferenceData
+            Combined InferenceData produced by ``TimeSliceCrossValidator.run()``.
+            Must contain a coordinate named 'cv' which labels each CV fold.
+        parameter : list of str
+            List of parameter names to plot (e.g., ``["beta_channel"]``).
+        dims : dict, optional
+            Dictionary specifying dimensions and coordinate values to slice over.
+            Each key is a dimension name, and the value is a list of coordinate
+            values. A separate forest plot is generated for each combination.
+            Example: ``{"geo": ["geo_a", "geo_b"]}``.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The matplotlib figure object (last one if multiple plots generated).
+        ax : matplotlib.axes.Axes
+            The axes object (last one if multiple plots generated).
+
+        Raises
+        ------
+        TypeError
+            If ``results`` is not an ``arviz.InferenceData`` object.
+        ValueError
+            If the InferenceData does not contain a 'cv' coordinate.
+            If unable to select specified dimensions from posterior.
+
+        See Also
+        --------
+        TimeSliceCrossValidator.run : Generate the combined InferenceData.
+        cv_predictions : Plot posterior predictive across folds.
+        cv_crps : Plot CRPS scores across folds.
+
+        Examples
+        --------
+        Basic usage:
+
+        >>> suite = MMMPlotSuite(idata=None)
+        >>> fig, ax = suite.param_stability(combined_idata, parameter=["beta_channel"])
+
+        With dimension slicing:
+
+        >>> fig, ax = suite.param_stability(
+        ...     combined_idata, parameter=["beta_channel"], dims={"geo": ["US", "UK"]}
+        ... )
         """
         # Ensure the provided input is an arviz.InferenceData with a 'cv' coord
         if not isinstance(results, az.InferenceData):
@@ -3271,7 +3348,7 @@ class MMMPlotSuite:
         ):
             try:
                 ds = getattr(idata, grp)
-            except Exception:
+            except AttributeError:
                 ds = None
             if ds is None:
                 continue
@@ -3290,7 +3367,7 @@ class MMMPlotSuite:
         for lbl in cv_labels:
             try:
                 p = idata.posterior.sel(cv=lbl)
-            except Exception:
+            except (KeyError, AttributeError):
                 # fallback to selecting from posterior_predictive if posterior missing
                 p = idata.posterior_predictive.sel(cv=lbl)
 
@@ -3327,10 +3404,10 @@ class MMMPlotSuite:
                     for p in posterior_list:
                         try:
                             sel_data.append(p.sel({dim_name: coord}))
-                        except Exception:
+                        except (KeyError, ValueError) as exc:
                             raise ValueError(
-                                "Unable to select dims from posterior for one or more folds"
-                            )
+                                f"Unable to select dims from posterior for one or more folds: {exc}"  # noqa: S608
+                            ) from exc
 
                     az.plot_forest(
                         data=sel_data,
@@ -3370,14 +3447,58 @@ class MMMPlotSuite:
             return last_fig_ax
 
     def cv_crps(
-        self, results, dims: dict[str, str | int | list] | None = None
+        self, results: az.InferenceData, dims: dict[str, str | int | list] | None = None
     ) -> tuple[Figure, NDArray[Axes]]:
-        """Plot CRPS for train and test sets across CV splits, optionally stratified by dims.
+        """Plot CRPS scores for train and test sets across CV splits.
 
-        Now accepts a combined `arviz.InferenceData` produced by
-        `TimeSliceCrossValidator._combine_idata(...)`. The InferenceData must
-        contain a coordinate named `cv` and a `cv_metadata` group with per-fold
-        metadata (X_train, y_train, X_test, y_test) stored under `cv_metadata.metadata`.
+        Generates plots showing the Continuous Ranked Probability Score (CRPS)
+        for each cross-validation fold, optionally stratified by additional
+        dimensions.
+
+        Parameters
+        ----------
+        results : arviz.InferenceData
+            Combined InferenceData produced by ``TimeSliceCrossValidator.run()``.
+            Must contain:
+
+            - A coordinate named 'cv'
+            - A 'cv_metadata' group with per-fold metadata (X_train, y_train,
+              X_test, y_test) stored under ``cv_metadata.metadata``
+            - A posterior_predictive group containing 'y_original_scale'
+
+        dims : dict, optional
+            Dictionary specifying dimensions to stratify the CRPS computation.
+            Keys must be coordinates present on
+            ``posterior_predictive['y_original_scale']``.
+            Values can be single values or lists of values.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The matplotlib figure object.
+        axes : numpy.ndarray of matplotlib.axes.Axes
+            2D array of axes objects with shape (n_panels, 2), where the first
+            column shows train CRPS and the second shows test CRPS.
+
+        Raises
+        ------
+        TypeError
+            If ``results`` is not an ``arviz.InferenceData`` object.
+        ValueError
+            If required groups or variables are missing from ``results``.
+            If no 'cv' coordinate is found in the InferenceData.
+
+        See Also
+        --------
+        TimeSliceCrossValidator.run : Generate the combined InferenceData.
+        cv_predictions : Plot posterior predictive across folds.
+        param_stability : Plot parameter stability across folds.
+
+        Notes
+        -----
+        CRPS (Continuous Ranked Probability Score) is a proper scoring rule
+        that measures the quality of probabilistic predictions. Lower values
+        indicate better predictions.
         """
         # Validate input is combined InferenceData
         if not isinstance(results, az.InferenceData):
@@ -3473,7 +3594,7 @@ class MMMPlotSuite:
                     if dim in rows_df.columns:
                         try:
                             sel = sel.sel({dim: str(row[dim])})
-                        except Exception:
+                        except (KeyError, ValueError):
                             # try without casting to string if that fails
                             sel = sel.sel({dim: row[dim]})
 
@@ -3598,7 +3719,7 @@ class MMMPlotSuite:
                             crps_train_list.append(
                                 crps(y_true=y_train_arr, y_pred=y_pred_train)
                             )
-                    except Exception:
+                    except (KeyError, ValueError, IndexError):
                         crps_train_list.append(np.nan)
 
                 # Testing data
@@ -3618,7 +3739,7 @@ class MMMPlotSuite:
                             crps_test_list.append(
                                 crps(y_true=y_test_arr, y_pred=y_pred_test)
                             )
-                    except Exception:
+                    except (KeyError, ValueError, IndexError):
                         crps_test_list.append(np.nan)
 
             # convert to arrays for plotting
