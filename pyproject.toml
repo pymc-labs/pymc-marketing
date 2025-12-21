@@ -153,7 +153,7 @@ ignore = [
     "D",
     "S101", # Use of assert
 ]
-"scripts/*" = ["D"]
+"scripts/*" = ["D", "E402"]
 
 [tool.ruff.lint.pycodestyle]
 max-line-length = 120

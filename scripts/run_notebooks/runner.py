@@ -28,6 +28,25 @@ python scripts/run_notebooks/runner.py --notebooks mmm --start-idx 2 --end-idx 5
 
 """
 
+# Monkey-patch nbclient to handle display_id=None for widget updates.
+# This fixes an issue where ipywidgets/tqdm progress bars cause
+# "assert display_id is not None" errors in nbclient.
+import nbclient.client
+
+_original_output = nbclient.client.NotebookClient.output
+
+
+def _patched_output(self, outs, msg, display_id, cell_index):
+    """Patched output method that handles display_id=None gracefully."""
+    msg_type = msg["header"]["msg_type"]
+    # Skip update_display_data messages with no display_id instead of crashing
+    if msg_type == "update_display_data" and display_id is None:
+        return None
+    return _original_output(self, outs, msg, display_id, cell_index)
+
+
+nbclient.client.NotebookClient.output = _patched_output
+
 import argparse
 import logging
 from pathlib import Path
@@ -63,7 +82,19 @@ def generate_random_id() -> str:
     return str(uuid4())
 
 
+def clear_cell_outputs(cells: list) -> None:
+    """Clear all outputs from cells to avoid widget state issues with nbclient."""
+    for cell in cells:
+        if cell.get("cell_type") == "code":
+            cell["outputs"] = []
+            cell["execution_count"] = None
+
+
 def inject_pymc_sample_mock_code(cells: list) -> None:
+    # Clear outputs first to avoid nbclient display_id assertion errors
+    # caused by saved widget state from ipywidgets/tqdm progress bars
+    clear_cell_outputs(cells)
+
     cells.insert(
         0,
         NotebookNode(
