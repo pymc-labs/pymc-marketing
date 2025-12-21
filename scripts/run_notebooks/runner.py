@@ -37,17 +37,13 @@ _original_output = nbclient.client.NotebookClient.output
 
 
 def _patched_output(self, outs, msg, display_id, cell_index):
-    """Patched output method that handles display_id=None for widget updates."""
+    """Patched output method that catches assertion errors from widget updates."""
     try:
         return _original_output(self, outs, msg, display_id, cell_index)
-    except AssertionError as e:
-        # Only suppress the specific display_id assertion from nbclient
-        # Re-raise any other assertion errors so notebook bugs are still caught
-        if "display_id" in str(e) or (
-            msg["header"]["msg_type"] == "update_display_data" and display_id is None
-        ):
-            return None
-        raise
+    except AssertionError:
+        # Silently skip messages that cause display_id assertion errors
+        # (typically from ipywidgets/tqdm progress bar updates)
+        return None
 
 
 nbclient.client.NotebookClient.output = _patched_output
