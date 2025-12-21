@@ -37,10 +37,10 @@ _original_output = nbclient.client.NotebookClient.output
 
 
 def _patched_output(self, outs, msg, display_id, cell_index):
-    """Patched output method that handles display_id=None gracefully."""
+    """Patched output method that skips widget update messages entirely."""
     msg_type = msg["header"]["msg_type"]
-    # Skip update_display_data messages with no display_id instead of crashing
-    if msg_type == "update_display_data" and display_id is None:
+    # Skip ALL update_display_data messages to avoid assertion errors with widgets
+    if msg_type == "update_display_data":
         return None
     return _original_output(self, outs, msg, display_id, cell_index)
 
