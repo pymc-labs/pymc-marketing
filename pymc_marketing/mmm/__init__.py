@@ -64,6 +64,11 @@ from pymc_marketing.mmm.preprocessing import (
     preprocessing_method_y,
 )
 from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
+from pymc_marketing.mmm.time_slice_cross_validation import (
+    TimeSliceCrossValidationResult,
+    TimeSliceCrossValidator,
+)
+from pymc_marketing.mmm.types import MMMBuilder
 from pymc_marketing.mmm.validating import validation_method_X, validation_method_y
 
 __all__ = [
@@ -82,6 +87,7 @@ __all__ = [
     "InverseScaledLogisticSaturation",
     "LinearTrend",
     "LogisticSaturation",
+    "MMMBuilder",
     "MMMModelBuilder",
     "MediaConfig",
     "MediaConfigList",
@@ -97,6 +103,8 @@ __all__ = [
     "SoftPlusHSGP",
     "TanhSaturation",
     "TanhSaturationBaselined",
+    "TimeSliceCrossValidationResult",
+    "TimeSliceCrossValidator",
     "WeeklyFourier",
     "WeibullCDFAdstock",
     "WeibullPDFAdstock",
