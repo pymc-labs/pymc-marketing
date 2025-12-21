@@ -814,27 +814,32 @@ class MixedLogit(RegressionModelBuilder):
         # First stage: model price as function of instruments
         if diagonal:
             gamma = self.model_config["gamma"].create_variable("gamma")
-            mu_P = X_inst_data * gamma  # Broadcasting: (n_obs, n_alts)
+            gamma_0 = pm.Normal("gamma_0", 0, 10, shape=n_alts) # Price intercepts
+            gamma_0 = pt.set_subtensor(gamma_0[-1], 0)  # Reference alt intercept = 0
+            mu_P = gamma_0 + (X_inst_data * gamma)  # Broadcasting: (n_obs, n_alts)
         else:
             n_instruments = X_instruments.shape[1]
             gamma = pm.Normal("gamma", 0.0, 5.0, shape=(n_instruments, n_alts))
-            mu_P = pt.dot(X_inst_data, gamma)
+            gamma_0 = pm.Normal("gamma_0", 0, 10, shape=n_alts) # Price intercepts
+            gamma_0 = pt.set_subtensor(gamma_0[-1], 0)  # Reference alt intercept = 0
+            mu_P = gamma_0 + pt.dot(X_inst_data, gamma)
         
         # Price likelihood (first stage)
         P_obs = pm.Normal("P_obs", mu_P, sigma_eta, observed=y_price_data)
-        
+        raw_residual = y_price_data - mu_P
         # Compute price errors (residuals)
         price_error = pm.Deterministic(
             "price_error", 
-            P_obs - y_price_data, 
+            raw_residual - raw_residual.mean(axis=0), 
             dims=("obs", "alts")
         )
         
         # Control function: include correlated errors in utility
         lambda_cf = self.model_config["lambda_cf"].create_variable("lambda_cf")
+        price_error_contrib = lambda_cf * price_error
         price_error_contrib = pm.Deterministic(
             "price_error_contrib",
-            lambda_cf * price_error,
+            price_error_contrib,
             dims=("obs", "alts")
         )
         
