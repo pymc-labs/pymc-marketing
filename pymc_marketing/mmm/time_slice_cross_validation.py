@@ -27,7 +27,7 @@ import arviz as az
 import numpy as np
 import pandas as pd
 import xarray as xr
-from tqdm.auto import tqdm
+from tqdm.notebook import tqdm
 
 from pymc_marketing.mmm.builders.yaml import build_mmm_from_yaml
 from pymc_marketing.mmm.plot import MMMPlotSuite
