@@ -94,8 +94,6 @@ test = [
     "osqp<1.0.0,>=0.6.2",
     "pygraphviz",
     "preliz>=0.20.0",
-    "jupyter",
-    "ipywidgets",
 ]
 
 [tool.hatch.build.targets.sdist]
