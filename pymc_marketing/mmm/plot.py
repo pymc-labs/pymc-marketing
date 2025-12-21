@@ -3074,6 +3074,10 @@ class MMMPlotSuite:
                     else None
                 )
 
+            # Ensure x is at least 1D array (arviz.plot_hdi fails on 0-dim arrays)
+            if x is not None:
+                x = np.atleast_1d(x)
+
             az.plot_hdi(
                 y=arr,
                 x=x,

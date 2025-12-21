@@ -2212,7 +2212,8 @@ def test_cv_predictions_panel_selection_failure_skips_panel(monkeypatch):
         if "cv" in kwargs:
             return orig_sel(self, *args, **kwargs)
         # subsequent sel calls for panel selection will raise to trigger the warning/skip
-        raise Exception("forced panel selection failure")
+        # Code catches (KeyError, ValueError), so raise KeyError
+        raise KeyError("forced panel selection failure")
 
     monkeypatch.setattr(xr.DataArray, "sel", fake_sel)
 
@@ -2231,7 +2232,8 @@ def test_cv_predictions_transpose_failure_warns(monkeypatch):
     results = _build_cv_results_for_cv_predictions()
 
     def fake_transpose(self, *args, **kwargs):
-        raise Exception("forced transpose failure")
+        # Code catches (ValueError, KeyError), so raise ValueError
+        raise ValueError("forced transpose failure")
 
     monkeypatch.setattr(xr.DataArray, "transpose", fake_transpose)
 
@@ -2280,7 +2282,8 @@ def test_cv_predictions_metadata_values_item_fallback(monkeypatch):
             class V:
                 def item(self_inner):
                     # Simulate failure when calling .values.item()
-                    raise Exception("forced values.item failure")
+                    # Code catches (ValueError, AttributeError), so raise ValueError
+                    raise ValueError("forced values.item failure")
 
             return V()
 
@@ -2333,7 +2336,8 @@ def test_cv_predictions_hdi_failure_warns(monkeypatch):
     results = _build_cv_results_for_cv_predictions()
 
     def raise_plot_hdi(*args, **kwargs):
-        raise Exception("forced hdi failure")
+        # Code catches (KeyError, ValueError, TypeError), so raise TypeError
+        raise TypeError("forced hdi failure")
 
     monkeypatch.setattr(az, "plot_hdi", raise_plot_hdi)
 
