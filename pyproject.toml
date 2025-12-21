@@ -35,6 +35,7 @@ dependencies = [
     "pytensor>=2.31.3",
     "scikit-learn>=1.1.1",
     "seaborn>=0.12.2",
+    "tqdm",
     "xarray>=2024.1.0",
     "xarray-einstats>=0.5.1",
     "pyprojroot",
