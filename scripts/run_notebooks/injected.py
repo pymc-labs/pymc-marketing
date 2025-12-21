@@ -1,5 +1,11 @@
 """Injected code to the top of each notebook to mock long running code."""
 
+import os
+
+# Disable tqdm notebook widgets to avoid nbclient display_id assertion errors
+# when ipywidgets is installed. This forces tqdm to use text-based progress bars.
+os.environ["TQDM_DISABLE"] = "1"
+
 import numpy as np
 import pymc as pm
 import xarray as xr
