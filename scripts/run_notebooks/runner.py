@@ -28,14 +28,6 @@ python scripts/run_notebooks/runner.py --notebooks mmm --start-idx 2 --end-idx 5
 
 """
 
-import os
-
-# Disable tqdm progress bars to avoid nbclient display_id assertion errors.
-# When ipywidgets is installed, tqdm uses Jupyter widgets which can cause
-# issues with papermill/nbclient. This must be set before any imports that
-# might use tqdm (including pymc).
-os.environ["TQDM_DISABLE"] = "1"
-
 import argparse
 import logging
 from pathlib import Path
