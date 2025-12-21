@@ -1,24 +1,17 @@
 """Injected code to the top of each notebook to mock long running code."""
 
-import sys
-
 import numpy as np
 import pymc as pm
+
+# Disable tqdm notebook widgets to avoid nbclient display_id assertion errors.
+# When ipywidgets is installed, tqdm.auto uses widget progress bars which cause
+# issues when running notebooks with papermill/nbclient.
+# Force tqdm.auto to use the standard text-based tqdm instead of notebook widgets.
+import tqdm.auto
+import tqdm.std
 import xarray as xr
 
-
-# Disable ipywidgets to avoid nbclient display_id assertion errors.
-# When ipywidgets is installed, tqdm uses widget progress bars which cause
-# issues when running notebooks with papermill/nbclient.
-# Creating a module that raises ImportError forces tqdm to fall back to text mode.
-class _BrokenModule:
-    """A module placeholder that raises ImportError on attribute access."""
-
-    def __getattr__(self, name):
-        raise ImportError("ipywidgets disabled for notebook testing")
-
-
-sys.modules["ipywidgets"] = _BrokenModule()
+tqdm.auto.tqdm = tqdm.std.tqdm
 
 
 def mock_sample(*args, **kwargs):
