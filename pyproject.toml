@@ -41,6 +41,7 @@ dependencies = [
     "pyprojroot",
     "pymc-extras>=0.4.0",
     "preliz>=0.20.0",
+    "pyyaml",
 ]
 
 [project.optional-dependencies]
