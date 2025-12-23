@@ -934,14 +934,13 @@ class MixedLogit(RegressionModelBuilder):
             if self.grp_idx is not None:
                 grp_idx_data = pm.Data("grp_idx", self.grp_idx, dims="obs")
             n_obs, n_alts = X_data.shape[0], X_data.shape[1]
-            
+
             # Create parameters
             alphas = self.make_intercepts()
             betas_non_random = self.make_non_random_coefs()
             betas_random, _ = self.make_random_coefs(
                 n_obs, grp_idx_data, self.non_centered
             )
-
 
             # Build coefficient matrix (combines random and non-random)
             B_full = self.make_beta_matrix(betas_non_random, betas_random, n_obs)
