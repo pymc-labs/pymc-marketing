@@ -98,8 +98,11 @@ def nstL(sample_df, utility_eqs, nesting_structure_1):
 def nstL2_invalid(sample_df, utility_eqs, nesting_structure_invalid_two_layer):
     """NestedLogit instance that will fail with two-layer nesting."""
     return NestedLogit(
-        sample_df, utility_eqs, "choice", ["X1", "X2"],
-        nesting_structure_invalid_two_layer
+        sample_df,
+        utility_eqs,
+        "choice",
+        ["X1", "X2"],
+        nesting_structure_invalid_two_layer,
     )
 
 

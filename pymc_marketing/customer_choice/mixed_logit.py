@@ -32,7 +32,7 @@ from pymc_marketing.model_config import parse_model_config
 HDI_ALPHA = 0.5
 
 
-class MixedLogit(RegressionModelBuilder): 
+class MixedLogit(RegressionModelBuilder):
     """
     Mixed Logit (Random Parameters Logit) class.
 
@@ -167,7 +167,7 @@ class MixedLogit(RegressionModelBuilder):
             "Normal",
             mu=0,  # Will be set to mu_random in make_random_coefs
             sigma=1,  # Will be set to sigma_random in make_random_coefs
-            dims=("individuals", "random_covariates")
+            dims=("individuals", "random_covariates"),
         )
 
         # Control function parameters (for price endogeneity)
@@ -213,7 +213,9 @@ class MixedLogit(RegressionModelBuilder):
             "betas_non_random": self.model_config["betas_non_random"].to_dict(),
             "mu_random": self.model_config["mu_random"].to_dict(),
             "sigma_random": self.model_config["sigma_random"].to_dict(),
-            "betas_random_individual": self.model_config["betas_random_individual"].to_dict(),
+            "betas_random_individual": self.model_config[
+                "betas_random_individual"
+            ].to_dict(),
             "likelihood": self.model_config["likelihood"].to_dict(),
         }
 
@@ -226,7 +228,10 @@ class MixedLogit(RegressionModelBuilder):
 
     @staticmethod
     def _check_columns(
-        df: pd.DataFrame, fixed_covariates: str, alt_covariates: str, random_covariates: str
+        df: pd.DataFrame,
+        fixed_covariates: str,
+        alt_covariates: str,
+        random_covariates: str,
     ) -> None:
         """Validate that all specified covariates exist in the dataframe."""
         for f in fixed_covariates.split("+"):
@@ -426,7 +431,9 @@ class MixedLogit(RegressionModelBuilder):
 
         # Create mapping from group IDs to indices
         unique_groups = df[group_id].unique()
-        group_mapping = dict(zip(unique_groups, range(len(unique_groups)), strict=False))
+        group_mapping = dict(
+            zip(unique_groups, range(len(unique_groups)), strict=False)
+        )
         grp_idx = np.asarray(df[group_id].map(group_mapping).values)
 
         return grp_idx, len(unique_groups)
@@ -438,7 +445,7 @@ class MixedLogit(RegressionModelBuilder):
         covariates: list[str],
         f_covariates: np.ndarray,
         random_covar_names: list[str],
-        n_individuals: int
+        n_individuals: int,
     ) -> dict:
         """Prepare coordinates for PyMC mixed logit model.
 
@@ -521,8 +528,7 @@ class MixedLogit(RegressionModelBuilder):
 
         # Identify indices of random covariates
         self.random_covariate_idx = [
-            i for i, cov in enumerate(self.covariates)
-            if cov in random_covar_names
+            i for i, cov in enumerate(self.covariates) if cov in random_covar_names
         ]
 
         y, alt_mapping = self._prepare_y_outcome(
@@ -543,7 +549,7 @@ class MixedLogit(RegressionModelBuilder):
             self.covariates,
             self.fixed_covar,
             self.random_covar_names,
-            self.n_individuals
+            self.n_individuals,
         )
 
         return X, F, y
@@ -566,7 +572,9 @@ class MixedLogit(RegressionModelBuilder):
         )
         return alphas
 
-    def make_fixed_coefs(self, X_fixed: np.ndarray | None, n_obs: int, n_alts: int) -> TensorVariable:
+    def make_fixed_coefs(
+        self, X_fixed: np.ndarray | None, n_obs: int, n_alts: int
+    ) -> TensorVariable:
         """Create alternative-varying coefficients for fixed (non-varying) covariates.
 
         Each fixed covariate gets a separate coefficient for each alternative, allowing
@@ -599,12 +607,12 @@ class MixedLogit(RegressionModelBuilder):
             betas_fixed = pm.Deterministic(
                 "betas_fixed",
                 pt.set_subtensor(betas_fixed_[-1, :], 0),
-                dims=("alts", "fixed_covariates")
+                dims=("alts", "fixed_covariates"),
             )
             W_contrib = pm.Deterministic(
                 "W_interaction",
                 pm.math.dot(W_data, betas_fixed.T),
-                dims=("obs", "alts")
+                dims=("obs", "alts"),
             )
         return W_contrib
 
@@ -627,10 +635,7 @@ class MixedLogit(RegressionModelBuilder):
         return betas_non_random
 
     def make_random_coefs(
-        self,
-        n_obs: int,
-        grp_idx: np.ndarray | None = None,
-        non_centered: bool = True
+        self, n_obs: int, grp_idx: np.ndarray | None = None, non_centered: bool = True
     ) -> tuple[TensorVariable | None, list[str]]:
         """Create random coefficients that vary across individuals.
 
@@ -660,9 +665,8 @@ class MixedLogit(RegressionModelBuilder):
         mu_random = self.model_config["mu_random"].create_variable("mu_random")
         sigma_random = self.model_config["sigma_random"].create_variable("sigma_random")
 
-           # ---------- PARAMETERIZATION SWITCH ----------
+        # ---------- PARAMETERIZATION SWITCH ----------
         if non_centered:
-
             # -------- NON-CENTRED --------
             if grp_idx is None:
                 z = pm.Normal(
@@ -699,7 +703,6 @@ class MixedLogit(RegressionModelBuilder):
                 )
 
         else:
-
             # -------- CENTRED --------
             if grp_idx is None:
                 betas_random = pm.Normal(
@@ -725,12 +728,11 @@ class MixedLogit(RegressionModelBuilder):
 
         return betas_random, self.random_covar_names
 
-
     def make_beta_matrix(
         self,
         betas_non_random: TensorVariable | None,
         betas_random: TensorVariable | None,
-        n_obs: int
+        n_obs: int,
     ) -> TensorVariable:
         """Combine random and non-random coefficients into full coefficient matrix.
 
@@ -763,8 +765,7 @@ class MixedLogit(RegressionModelBuilder):
         # Fill in non-random coefficients
         if betas_non_random is not None:
             non_random_idx = [
-                i for i in range(n_covariates)
-                if i not in self.random_covariate_idx
+                i for i in range(n_covariates) if i not in self.random_covariate_idx
             ]
             # Broadcast non-random coefficients across all observations
             B_full = pt.set_subtensor(B_full[:, non_random_idx], betas_non_random)
@@ -775,11 +776,7 @@ class MixedLogit(RegressionModelBuilder):
 
         return B_full
 
-    def make_control_function(
-        self,
-        n_obs: int,
-        n_alts: int
-    ) -> TensorVariable:
+    def make_control_function(self, n_obs: int, n_alts: int) -> TensorVariable:
         """Create control function for price endogeneity correction.
 
         Implements a control function approach where:
@@ -814,13 +811,13 @@ class MixedLogit(RegressionModelBuilder):
         # First stage: model price as function of instruments
         if diagonal:
             gamma = self.model_config["gamma"].create_variable("gamma")
-            gamma_0 = pm.Normal("gamma_0", 0, 10, shape=n_alts) # Price intercepts
+            gamma_0 = pm.Normal("gamma_0", 0, 10, shape=n_alts)  # Price intercepts
             gamma_0 = pt.set_subtensor(gamma_0[-1], 0)  # Reference alt intercept = 0
             mu_P = gamma_0 + (X_inst_data * gamma)  # Broadcasting: (n_obs, n_alts)
         else:
             n_instruments = X_instruments.shape[1]
             gamma = pm.Normal("gamma", 0.0, 5.0, shape=(n_instruments, n_alts))
-            gamma_0 = pm.Normal("gamma_0", 0, 10, shape=n_alts) # Price intercepts
+            gamma_0 = pm.Normal("gamma_0", 0, 10, shape=n_alts)  # Price intercepts
             gamma_0 = pt.set_subtensor(gamma_0[-1], 0)  # Reference alt intercept = 0
             mu_P = gamma_0 + pt.dot(X_inst_data, gamma)
 
@@ -831,16 +828,14 @@ class MixedLogit(RegressionModelBuilder):
         price_error = pm.Deterministic(
             "price_error",
             raw_residual - raw_residual.mean(axis=0),
-            dims=("obs", "alts")
+            dims=("obs", "alts"),
         )
 
         # Control function: include correlated errors in utility
         lambda_cf = self.model_config["lambda_cf"].create_variable("lambda_cf")
         price_error_contrib = lambda_cf * price_error
         price_error_contrib = pm.Deterministic(
-            "price_error_contrib",
-            price_error_contrib,
-            dims=("obs", "alts")
+            "price_error_contrib", price_error_contrib, dims=("obs", "alts")
         )
 
         return price_error_contrib
@@ -851,7 +846,7 @@ class MixedLogit(RegressionModelBuilder):
         B_full: TensorVariable,
         alphas: TensorVariable,
         W_contrib: TensorVariable,
-        price_error_contrib: TensorVariable
+        price_error_contrib: TensorVariable,
     ) -> TensorVariable:
         """Compute total systematic utility for each alternative.
 
@@ -887,9 +882,7 @@ class MixedLogit(RegressionModelBuilder):
 
         # Combine all utility components
         U = pm.Deterministic(
-            "U",
-            U_cov + W_contrib + alphas + price_error_contrib,
-            dims=("obs", "alts")
+            "U", U_cov + W_contrib + alphas + price_error_contrib, dims=("obs", "alts")
         )
         return U
 
@@ -907,11 +900,14 @@ class MixedLogit(RegressionModelBuilder):
             Choice probabilities, shape (n_obs, n_alts)
         """
         U_centered = U - U.max(axis=1, keepdims=True)
-        p = pm.Deterministic("p", pm.math.softmax(U_centered, axis=1), dims=("obs", "alts"))
+        p = pm.Deterministic(
+            "p", pm.math.softmax(U_centered, axis=1), dims=("obs", "alts")
+        )
         return p
 
-    def make_model(self, X: np.ndarray, F: np.ndarray | None, y: np.ndarray,
-                   observed: bool = True) -> pm.Model:
+    def make_model(
+        self, X: np.ndarray, F: np.ndarray | None, y: np.ndarray, observed: bool = True
+    ) -> pm.Model:
         """Build mixed logit model with random coefficients.
 
         Parameters
@@ -936,7 +932,9 @@ class MixedLogit(RegressionModelBuilder):
             # Create parameters
             alphas = self.make_intercepts()
             betas_non_random = self.make_non_random_coefs()
-            betas_random, _ = self.make_random_coefs(n_obs, self.grp_idx, self.non_centered)
+            betas_random, _ = self.make_random_coefs(
+                n_obs, self.grp_idx, self.non_centered
+            )
 
             # Instantiate data
             X_data = pm.Data("X", X, dims=("obs", "alts", "covariates"))
@@ -955,12 +953,16 @@ class MixedLogit(RegressionModelBuilder):
             price_error_contrib = self.make_control_function(n_obs, n_alts)
 
             # Compute utility and probabilities
-            U = self.make_utility(X_data, B_full, alphas, W_contrib, price_error_contrib)
+            U = self.make_utility(
+                X_data, B_full, alphas, W_contrib, price_error_contrib
+            )
             p = self.make_choice_prob(U)
 
             # Likelihood
             if observed:
-                _ = pm.Categorical("likelihood", p=p, observed=observed_data, dims="obs")
+                _ = pm.Categorical(
+                    "likelihood", p=p, observed=observed_data, dims="obs"
+                )
             else:
                 _ = pm.Categorical("likelihood", p=p, dims="obs")
 
@@ -995,13 +997,15 @@ class MixedLogit(RegressionModelBuilder):
 
         return attrs
 
-    def sample_prior_predictive(self, 
-                                X=None,
-                                y=None,
-                                samples: int | None = None,
-                                extend_idata: bool = True,
-                                combined: bool = True,
-                                **kwargs,) -> None: 
+    def sample_prior_predictive(
+        self,
+        X=None,
+        y=None,
+        samples: int | None = None,
+        extend_idata: bool = True,
+        combined: bool = True,
+        **kwargs,
+    ) -> None:
         """Sample Prior Predictive Distribution."""
         with self.model:
             prior_pred: az.InferenceData = pm.sample_prior_predictive(500, **kwargs)
@@ -1013,7 +1017,7 @@ class MixedLogit(RegressionModelBuilder):
             else:
                 self.idata = prior_pred
 
-    def fit(self, extend_idata: bool, kwargs: dict[str, Any]) -> None: # type: ignore[misc, override]
+    def fit(self, extend_idata: bool, kwargs: dict[str, Any]) -> None:  # type: ignore[misc, override]
         """Fit Mixed Logit Model."""
         if extend_idata:
             with self.model:
@@ -1028,12 +1032,15 @@ class MixedLogit(RegressionModelBuilder):
         X=None,
         extend_idata: bool = True,
         combined: bool = True,
-        **sample_posterior_predictive_kwargs,) -> None:
+        **sample_posterior_predictive_kwargs,
+    ) -> None:
         """Sample Posterior Predictive Distribution."""
         if self.idata is not None:
             with self.model:
                 self.post_pred = pm.sample_posterior_predictive(
-                    self.idata, var_names=["likelihood", "p"], **sample_posterior_predictive_kwargs
+                    self.idata,
+                    var_names=["likelihood", "p"],
+                    **sample_posterior_predictive_kwargs,
                 )
             if extend_idata:
                 self.idata.extend(self.post_pred)
@@ -1262,7 +1269,9 @@ class MixedLogit(RegressionModelBuilder):
 
         for product in change_df.index:
             value_before = change_df[change_df.index == product]["policy_share"].item()
-            value_after = change_df[change_df.index == product]["new_policy_share"].item()
+            value_after = change_df[change_df.index == product][
+                "new_policy_share"
+            ].item()
 
             # Red if decreased, green if increased
             color = "red" if value_before > value_after else "green"

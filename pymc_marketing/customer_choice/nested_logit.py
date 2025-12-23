@@ -130,7 +130,7 @@ class NestedLogit(RegressionModelBuilder):
         self.depvar = depvar
         self.covariates = covariates
         self.nesting_structure = nesting_structure
-        self.alphas_nests = alphas_nests # whether to estimate nest-specific intercepts
+        self.alphas_nests = alphas_nests  # whether to estimate nest-specific intercepts
 
         model_config = model_config or {}
         model_config = parse_model_config(model_config)
@@ -364,7 +364,9 @@ class NestedLogit(RegressionModelBuilder):
         return nest_indices
 
     @staticmethod
-    def _prepare_coords(df, alternatives, covariates, f_covariates, nests, nest_indices):
+    def _prepare_coords(
+        df, alternatives, covariates, f_covariates, nests, nest_indices
+    ):
         """Prepare coordinates for PyMC nested logit model.
 
         Parameters
@@ -466,9 +468,7 @@ class NestedLogit(RegressionModelBuilder):
         self.prod_indices = prod_mapping
 
         # Parse nesting structure (single-layer only)
-        nest_indices = self._parse_nesting(
-            self.nesting_structure, self.prod_indices
-        )
+        nest_indices = self._parse_nesting(self.nesting_structure, self.prod_indices)
         self.nest_indices = {"top": nest_indices}
         self.all_nests = list(nest_indices.keys())
         self.lambda_lkup = dict(
@@ -552,12 +552,10 @@ class NestedLogit(RegressionModelBuilder):
             betas_fixed = pm.Deterministic(
                 "betas_fixed",
                 pt.set_subtensor(betas_fixed_[-1, :], 0),
-                dims=("alts", "fixed_covariates")
+                dims=("alts", "fixed_covariates"),
             )
             W_contrib = pm.Deterministic(
-                "w_nest",
-                pm.math.dot(W_data, betas_fixed.T),
-                dims=("obs", "alts")
+                "w_nest", pm.math.dot(W_data, betas_fixed.T), dims=("obs", "alts")
             )
         return W_contrib
 
@@ -607,9 +605,7 @@ class NestedLogit(RegressionModelBuilder):
         # WTP = -β_attribute / β_price
         # Negative sign because price coefficient is typically negative
         wtp = pm.Deterministic(
-            "wtp",
-            -betas / betas[price_index],
-            dims="alt_covariates"
+            "wtp", -betas / betas[price_index], dims="alt_covariates"
         )
 
         return wtp
@@ -648,9 +644,7 @@ class NestedLogit(RegressionModelBuilder):
 
         # Store utilities in deterministic for inspection
         y_nest = pm.Deterministic(
-            f"y_{nest_name}",
-            u_nest,
-            dims=("obs", f"{nest_name}_alts")
+            f"y_{nest_name}", u_nest, dims=("obs", f"{nest_name}_alts")
         )
 
         # Numerical stability: subtract max across alternatives for each observation
@@ -661,18 +655,15 @@ class NestedLogit(RegressionModelBuilder):
         # Using softmax directly is more stable than manual exp/sum
         P_y_given_nest = pm.Deterministic(
             f"p_y_given_{nest_name}",
-            pm.math.softmax( (y_nest - max_y_nest) / lambdas[nest_idx], axis=1),
-            dims=("obs", f"{nest_name}_alts")
+            pm.math.softmax((y_nest - max_y_nest) / lambdas[nest_idx], axis=1),
+            dims=("obs", f"{nest_name}_alts"),
         )
 
         # Inclusive value (log-sum-exp) for each observation
         # I_nest[i] = λ * log(Σ_j exp(U_ij / λ))
         # The log-sum-exp trick: log(Σ exp(x)) = max(x) + log(Σ exp(x - max(x)))
         lsexp = pm.math.logsumexp((y_nest - max_y_nest) / lambdas[nest_idx], axis=1)
-        I_nest = pm.Deterministic(
-            f"I_{nest_name}",
-            lambdas[nest_idx] * lsexp
-        )
+        I_nest = pm.Deterministic(f"I_{nest_name}", lambdas[nest_idx] * lsexp)
 
         # Exponentiated inclusive value for nest probability calculation
         exp_W_nest = pm.math.exp(alphas_nest[nest_idx] + I_nest)
@@ -719,9 +710,7 @@ class NestedLogit(RegressionModelBuilder):
         nest_probs = {}
         for i, nest_name in enumerate(nest_indices.keys()):
             nest_probs[nest_name] = pm.Deterministic(
-                f"P_{nest_name}",
-                exp_inclusive_values[i] / total_inclusive,
-                dims="obs"
+                f"P_{nest_name}", exp_inclusive_values[i] / total_inclusive, dims="obs"
             )
 
         return nest_probs, conditional_probs
@@ -754,10 +743,11 @@ class NestedLogit(RegressionModelBuilder):
             betas = self.make_alt_coefs()
             lambdas = self.make_lambdas()
             if self.alphas_nests:
-                alphas_nests_ = self.model_config["alphas_nests"].create_variable(name="alphas_nests")
+                alphas_nests_ = self.model_config["alphas_nests"].create_variable(
+                    name="alphas_nests"
+                )
             else:
                 alphas_nests_ = pt.zeros(len(nest_indices.keys()))
-
 
             # Data containers
             X_data = pm.Data("X", X, dims=("obs", "alts", "alt_covariates"))
@@ -770,7 +760,7 @@ class NestedLogit(RegressionModelBuilder):
             U = pm.Deterministic(
                 "U",
                 alphas + pm.math.dot(X_data, betas) + W_contrib,
-                dims=("obs", "alts")
+                dims=("obs", "alts"),
             )
 
             # Nest probabilities and conditional probabilities
@@ -785,9 +775,9 @@ class NestedLogit(RegressionModelBuilder):
             for nest_name, indices in nest_indices.items():
                 p = pt.set_subtensor(
                     p[:, indices],
-                    conditional_probs[nest_name] * nest_probs[nest_name][:, None]
+                    conditional_probs[nest_name] * nest_probs[nest_name][:, None],
                 )
-            p = pm.Deterministic("p",p, dims=("obs", "alts"))
+            p = pm.Deterministic("p", p, dims=("obs", "alts"))
             # Likelihood
             _ = pm.Categorical("likelihood", p=p, observed=y_data, dims="obs")
 

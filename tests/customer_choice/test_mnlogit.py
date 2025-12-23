@@ -69,9 +69,11 @@ def utility_eqs():
 def mnl(sample_df, utility_eqs):
     return MNLogit(sample_df, utility_eqs, "choice", ["X1", "X2"])
 
+
 @pytest.fixture
 def utility_eqs_no_fixed():
     return ["alt ~ alt_X1 + alt_X2", "other ~ other_X1 + other_X2"]
+
 
 @pytest.fixture
 def mnl_no_fixed(sample_df, utility_eqs_no_fixed):
@@ -177,7 +179,6 @@ def test_make_change_plot_returns_figure(mnl, sample_change_df):
     assert isinstance(fig, plt.Figure)
 
 
-
 class TestMakeIntercepts:
     """Tests for the make_intercepts() method."""
 
@@ -243,7 +244,9 @@ class TestMakeFixedCoefs:
             assert F_contrib_draw.shape == (n_obs, n_alts)
             assert F_contrib.name == "F_interaction"
 
-    def test_make_fixed_coefs_without_fixed_covariates(self, mnl_no_fixed, sample_df, utility_eqs_no_fixed):
+    def test_make_fixed_coefs_without_fixed_covariates(
+        self, mnl_no_fixed, sample_df, utility_eqs_no_fixed
+    ):
         """Test that fixed coefs returns zeros when no fixed covariates."""
         X, F, _y = mnl_no_fixed.preprocess_model_data(sample_df, utility_eqs_no_fixed)
         n_obs, n_alts = X.shape[0], X.shape[1]
@@ -367,7 +370,9 @@ class TestMakeModelIntegration:
         assert "p" in model.named_vars
         assert "likelihood" in model.named_vars
 
-    def test_make_model_without_fixed_covariates(self, mnl_no_fixed, sample_df, utility_eqs_no_fixed):
+    def test_make_model_without_fixed_covariates(
+        self, mnl_no_fixed, sample_df, utility_eqs_no_fixed
+    ):
         """Test that make_model works correctly without fixed covariates."""
         X, F, y = mnl_no_fixed.preprocess_model_data(sample_df, utility_eqs_no_fixed)
         model = mnl_no_fixed.make_model(X, F, y)
@@ -408,7 +413,9 @@ class TestMakeModelIntegration:
 class TestBackwardCompatibility:
     """Tests to ensure refactored code maintains backward compatibility."""
 
-    def test_same_model_structure_as_original(self, mnl, sample_df, utility_eqs, mock_pymc_sample):
+    def test_same_model_structure_as_original(
+        self, mnl, sample_df, utility_eqs, mock_pymc_sample
+    ):
         """Test that refactored model produces same structure as original."""
         X, F, y = mnl.preprocess_model_data(sample_df, utility_eqs)
         _ = mnl.make_model(X, F, y)
@@ -440,10 +447,7 @@ class TestEdgeCases:
 
     def test_single_covariate(self, sample_df):
         """Test model with single alternative-specific covariate."""
-        utility_eqs_single = [
-            "alt ~ alt_X1 | income",
-            "other ~ other_X1 | income"
-        ]
+        utility_eqs_single = ["alt ~ alt_X1 | income", "other ~ other_X1 | income"]
         mnl_single = MNLogit(sample_df, utility_eqs_single, "choice", ["X1"])
 
         X, F, y = mnl_single.preprocess_model_data(sample_df, utility_eqs_single)
@@ -454,13 +458,15 @@ class TestEdgeCases:
 
     def test_many_alternatives(self):
         """Test model with many alternatives."""
-        df_many = pd.DataFrame({
-            "choice": ["alt1", "alt2", "alt3", "alt4"],
-            "alt1_X1": [1, 2, 3, 4],
-            "alt2_X1": [2, 3, 4, 5],
-            "alt3_X1": [3, 4, 5, 6],
-            "alt4_X1": [4, 5, 6, 7],
-        })
+        df_many = pd.DataFrame(
+            {
+                "choice": ["alt1", "alt2", "alt3", "alt4"],
+                "alt1_X1": [1, 2, 3, 4],
+                "alt2_X1": [2, 3, 4, 5],
+                "alt3_X1": [3, 4, 5, 6],
+                "alt4_X1": [4, 5, 6, 7],
+            }
+        )
         utility_eqs_many = [
             "alt1 ~ alt1_X1",
             "alt2 ~ alt2_X1",

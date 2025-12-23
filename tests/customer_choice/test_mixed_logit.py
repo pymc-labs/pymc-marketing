@@ -110,12 +110,7 @@ def covariates_list():
 @pytest.fixture
 def mxl(sample_df, utility_eqs_basic, covariates_list):
     """Basic MixedLogit instance - don't preprocess yet."""
-    return MixedLogit(
-        sample_df,
-        utility_eqs_basic,
-        "choice",
-        covariates_list
-    )
+    return MixedLogit(sample_df, utility_eqs_basic, "choice", covariates_list)
 
 
 @pytest.fixture
@@ -126,19 +121,14 @@ def mxl_panel(sample_df_panel, utility_eqs_basic, covariates_list):
         utility_eqs_basic,
         "choice",
         covariates_list,
-        group_id="individual_id"
+        group_id="individual_id",
     )
 
 
 @pytest.fixture
 def mxl_no_random(sample_df, utility_eqs_no_random, covariates_list):
     """MixedLogit instance with no random coefficients - don't preprocess yet."""
-    return MixedLogit(
-        sample_df,
-        utility_eqs_no_random,
-        "choice",
-        covariates_list
-    )
+    return MixedLogit(sample_df, utility_eqs_no_random, "choice", covariates_list)
 
 
 @pytest.fixture
@@ -156,6 +146,7 @@ def sample_change_df():
 # =============================================================================
 # Formula Parsing Tests
 # =============================================================================
+
 
 class TestParseFormula:
     """Tests for formula parsing with three-part syntax."""
@@ -231,6 +222,7 @@ class TestParseFormula:
 # Data Preparation Tests
 # =============================================================================
 
+
 class TestPrepareXMatrix:
     """Tests for X matrix preparation."""
 
@@ -292,9 +284,7 @@ class TestPrepareGroupIndex:
 
     def test_prepare_group_index_with_groups(self, mxl, sample_df_panel):
         """Test group index with panel data."""
-        grp_idx, n_groups = mxl._prepare_group_index(
-            sample_df_panel, "individual_id"
-        )
+        grp_idx, n_groups = mxl._prepare_group_index(sample_df_panel, "individual_id")
 
         assert grp_idx is not None
         assert len(grp_idx) == len(sample_df_panel)
@@ -317,7 +307,7 @@ class TestPrepareCoords:
             ["price", "time"],
             np.array(["income"]),
             ["price"],
-            5
+            5,
         )
 
         assert "alts" in coords
@@ -336,7 +326,7 @@ class TestPrepareCoords:
             ["price", "time"],
             np.array(["income"]),
             [],
-            5
+            5,
         )
 
         assert coords["random_covariates"] == []
@@ -372,10 +362,13 @@ class TestPreprocessModelData:
 # Model Building Component Tests
 # =============================================================================
 
+
 class TestMakeIntercepts:
     """Tests for make_intercepts() method."""
 
-    def test_make_intercepts_creates_deterministic(self, mxl, sample_df, utility_eqs_basic):
+    def test_make_intercepts_creates_deterministic(
+        self, mxl, sample_df, utility_eqs_basic
+    ):
         """Test that intercepts are created correctly."""
         _X, _F, _y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
 
@@ -482,9 +475,7 @@ class TestMakeRandomCoefs:
             # Number of random covariates should be 1 (price)
             assert betas_draw.shape == (n_obs, 1)
 
-    def test_make_random_coefs_correct_shape(
-        self, mxl, sample_df, utility_eqs_basic
-    ):
+    def test_make_random_coefs_correct_shape(self, mxl, sample_df, utility_eqs_basic):
         """Test that random coefficients have correct dimensions."""
         X, _F, _y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
         n_obs = X.shape[0]
@@ -503,7 +494,9 @@ class TestMakeRandomCoefs:
         self, mxl_no_random, sample_df, utility_eqs_no_random
     ):
         """Test behavior when no random coefficients specified."""
-        X, _F, _y = mxl_no_random.preprocess_model_data(sample_df, utility_eqs_no_random)
+        X, _F, _y = mxl_no_random.preprocess_model_data(
+            sample_df, utility_eqs_no_random
+        )
         n_obs = X.shape[0]
 
         with pm.Model(coords=mxl_no_random.coords):
@@ -619,7 +612,9 @@ class TestMakeControlFunction:
             # Should be all zeros
             assert np.allclose(price_error_draw, 0)
 
-    def test_make_control_function_with_instruments(self, sample_df, utility_eqs_basic, covariates_list):
+    def test_make_control_function_with_instruments(
+        self, sample_df, utility_eqs_basic, covariates_list
+    ):
         """Test control function with instrumental variables."""
         # Create mock instrumental variables
         n_obs = len(sample_df)
@@ -634,8 +629,8 @@ class TestMakeControlFunction:
             instrumental_vars={
                 "X_instruments": X_instruments,
                 "y_price": y_price,
-                "diagonal": True
-            }
+                "diagonal": True,
+            },
         )
 
         X, _F, _y = mxl_with_iv.preprocess_model_data(sample_df, utility_eqs_basic)
@@ -765,6 +760,7 @@ class TestMakeChoiceProb:
 # Model Integration Tests
 # =============================================================================
 
+
 class TestMakeModel:
     """Integration tests for make_model() method."""
 
@@ -862,6 +858,7 @@ class TestMakeModel:
 # Sampling Tests
 # =============================================================================
 
+
 def test_sample(mxl, sample_df, utility_eqs_basic, mock_pymc_sample):
     """Test that sampling works."""
     X, F, y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
@@ -881,6 +878,7 @@ def test_sample_panel(mxl_panel, sample_df_panel, utility_eqs_basic, mock_pymc_s
 # =============================================================================
 # Intervention Tests
 # =============================================================================
+
 
 class TestInterventions:
     """Tests for intervention analysis."""
@@ -903,9 +901,7 @@ class TestInterventions:
         assert "p" in idata_new["posterior_predictive"]
         assert hasattr(mxl, "intervention_idata")
 
-    def test_intervention_product_removal(
-        self, mxl, sample_df, mock_pymc_sample
-    ):
+    def test_intervention_product_removal(self, mxl, sample_df, mock_pymc_sample):
         """Test intervention by removing an alternative."""
         X, F, y = mxl.preprocess_model_data(sample_df, mxl.utility_equations)
         _ = mxl.make_model(X, F, y)
@@ -947,6 +943,7 @@ class TestInterventions:
 # Plotting Tests
 # =============================================================================
 
+
 def test_plot_change(mxl, sample_change_df):
     """Test that plot_change returns a matplotlib figure."""
     fig = mxl.plot_change(sample_change_df, title="Test Intervention")
@@ -957,6 +954,7 @@ def test_plot_change(mxl, sample_change_df):
 # =============================================================================
 # Edge Cases and Error Handling
 # =============================================================================
+
 
 class TestEdgeCases:
     """Tests for edge cases."""
@@ -978,13 +976,17 @@ class TestEdgeCases:
         assert len(mxl_single.random_covar_names) == 1
         assert "price" in mxl_single.random_covar_names
 
-    def test_multiple_random_covariates(self, sample_df, utility_eqs_multiple_random, covariates_list):
+    def test_multiple_random_covariates(
+        self, sample_df, utility_eqs_multiple_random, covariates_list
+    ):
         """Test model with multiple random covariates."""
         mxl_multi = MixedLogit(
             sample_df, utility_eqs_multiple_random, "choice", covariates_list
         )
 
-        X, F, y = mxl_multi.preprocess_model_data(sample_df, utility_eqs_multiple_random)
+        X, F, y = mxl_multi.preprocess_model_data(
+            sample_df, utility_eqs_multiple_random
+        )
         model = mxl_multi.make_model(X, F, y)
 
         assert isinstance(model, pm.Model)
@@ -995,17 +997,19 @@ class TestEdgeCases:
 
     def test_many_alternatives(self):
         """Test model with many alternatives."""
-        df_many = pd.DataFrame({
-            "choice": ["mode1", "mode2", "mode3", "mode4"],
-            "mode1_price": [1, 2, 3, 4],
-            "mode1_time": [10, 20, 30, 40],
-            "mode2_price": [2, 3, 4, 5],
-            "mode2_time": [20, 30, 40, 50],
-            "mode3_price": [3, 4, 5, 6],
-            "mode3_time": [30, 40, 50, 60],
-            "mode4_price": [4, 5, 6, 7],
-            "mode4_time": [40, 50, 60, 70],
-        })
+        df_many = pd.DataFrame(
+            {
+                "choice": ["mode1", "mode2", "mode3", "mode4"],
+                "mode1_price": [1, 2, 3, 4],
+                "mode1_time": [10, 20, 30, 40],
+                "mode2_price": [2, 3, 4, 5],
+                "mode2_time": [20, 30, 40, 50],
+                "mode3_price": [3, 4, 5, 6],
+                "mode3_time": [30, 40, 50, 60],
+                "mode4_price": [4, 5, 6, 7],
+                "mode4_time": [40, 50, 60, 70],
+            }
+        )
         utility_eqs_many = [
             "mode1 ~ mode1_price + mode1_time | | mode1_price",
             "mode2 ~ mode2_price + mode2_time | | mode2_price",
@@ -1022,25 +1026,32 @@ class TestEdgeCases:
 
     def test_panel_with_unequal_observations(self, covariates_list):
         """Test panel data with unequal observations per individual."""
-        df_unequal = pd.DataFrame({
-            "choice": ["bus", "car", "bus", "train", "car"],
-            "individual_id": [1, 1, 2, 3, 3],  # Individual 1: 2 obs, 2: 1 obs, 3: 2 obs
-            "bus_price": [2.0, 2.5, 2.0, 2.2, 2.3],
-            "bus_time": [45, 50, 45, 48, 52],
-            "car_price": [5.0, 4.8, 5.2, 5.1, 4.9],
-            "car_time": [30, 28, 32, 29, 31],
-            "train_price": [3.5, 3.8, 3.6, 3.7, 3.9],
-            "train_time": [35, 38, 36, 37, 39],
-            "income": [50000, 50000, 60000, 70000, 70000],
-        })
+        df_unequal = pd.DataFrame(
+            {
+                "choice": ["bus", "car", "bus", "train", "car"],
+                "individual_id": [
+                    1,
+                    1,
+                    2,
+                    3,
+                    3,
+                ],  # Individual 1: 2 obs, 2: 1 obs, 3: 2 obs
+                "bus_price": [2.0, 2.5, 2.0, 2.2, 2.3],
+                "bus_time": [45, 50, 45, 48, 52],
+                "car_price": [5.0, 4.8, 5.2, 5.1, 4.9],
+                "car_time": [30, 28, 32, 29, 31],
+                "train_price": [3.5, 3.8, 3.6, 3.7, 3.9],
+                "train_time": [35, 38, 36, 37, 39],
+                "income": [50000, 50000, 60000, 70000, 70000],
+            }
+        )
         utility_eqs = [
             "bus ~ bus_price + bus_time | income | bus_price",
             "car ~ car_price + car_time | income | car_price",
             "train ~ train_price + train_time | income | train_price",
         ]
         mxl_unequal = MixedLogit(
-            df_unequal, utility_eqs, "choice", covariates_list,
-            group_id="individual_id"
+            df_unequal, utility_eqs, "choice", covariates_list, group_id="individual_id"
         )
 
         X, F, y = mxl_unequal.preprocess_model_data(df_unequal, utility_eqs)
@@ -1053,6 +1064,7 @@ class TestEdgeCases:
 # =============================================================================
 # Backward Compatibility Tests
 # =============================================================================
+
 
 class TestBackwardCompatibility:
     """Tests to ensure compatibility with existing patterns."""
@@ -1091,9 +1103,7 @@ class TestBackwardCompatibility:
         assert "posterior_predictive" in idata_new
         assert "p" in idata_new["posterior_predictive"]
 
-    def test_coordinate_structure_consistency(
-        self, mxl, sample_df, utility_eqs_basic
-    ):
+    def test_coordinate_structure_consistency(self, mxl, sample_df, utility_eqs_basic):
         """Test that coordinate structure is consistent with other models."""
         _X, _F, _y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
 
@@ -1111,6 +1121,7 @@ class TestBackwardCompatibility:
 # =============================================================================
 # Model Configuration Tests
 # =============================================================================
+
 
 class TestModelConfig:
     """Tests for model configuration."""
