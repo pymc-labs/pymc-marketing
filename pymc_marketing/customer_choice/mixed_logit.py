@@ -932,6 +932,8 @@ class MixedLogit(RegressionModelBuilder):
             observed_data = pm.Data("y", y, dims="obs")
             if self.grp_idx is not None:
                 grp_idx_data = pm.Data("grp_idx", self.grp_idx, dims="obs")
+            else:
+                grp_idx_data = self.grp_idx
             n_obs, n_alts = X_data.shape[0], X_data.shape[1]
 
             # Create parameters
