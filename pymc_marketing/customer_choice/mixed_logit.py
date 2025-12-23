@@ -32,7 +32,7 @@ from pymc_marketing.model_config import parse_model_config
 HDI_ALPHA = 0.5
 
 
-class MixedLogit(RegressionModelBuilder):
+class MixedLogit(RegressionModelBuilder): # type: ignore[override]
     """
     Mixed Logit (Random Parameters Logit) class.
 
