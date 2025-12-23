@@ -418,19 +418,19 @@ class MNLogit(RegressionModelBuilder):
             PyMC model
         """
         n_obs, n_alts = X.shape[0], X.shape[1]
-        
+
         with pm.Model(coords=self.coords) as model:
             # Create parameters
             alphas = self.make_intercepts()
             betas = self.make_alt_coefs()
-            
+
             # Instantiate data
             X_data = pm.Data("X", X, dims=("obs", "alts", "alt_covariates"))
             observed = pm.Data("y", y, dims="obs")
-            
+
             # Handle fixed covariates
             F_contrib = self.make_fixed_coefs(F, n_obs, n_alts)
-            
+
             # Compute utility and probabilities
             U = self.make_utility(X_data, alphas, betas, F_contrib)
             p = self.make_choice_prob(U)
