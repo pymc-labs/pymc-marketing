@@ -327,19 +327,19 @@ class NestedLogit(RegressionModelBuilder):
         product_indices: dict[str, int],
     ) -> dict[str, np.ndarray]:
         """Parse single-layer nesting structure.
-        
+
         Parameters
         ----------
         nest_dict : dict[str, list[str]]
             Mapping of nest names to lists of alternative names
         product_indices : dict[str, int]
             Mapping of alternative names to indices
-            
+
         Returns
         -------
         nest_indices : dict[str, np.ndarray]
             Mapping of nest names to arrays of alternative indices
-            
+
         Examples
         --------
         >>> nest_dict = {"Land": ["Car", "Bus"], "Air": ["Plane"]}
@@ -366,7 +366,7 @@ class NestedLogit(RegressionModelBuilder):
     @staticmethod
     def _prepare_coords(df, alternatives, covariates, f_covariates, nests, nest_indices):
         """Prepare coordinates for PyMC nested logit model.
-        
+
         Parameters
         ----------
         df : pd.DataFrame
@@ -381,7 +381,7 @@ class NestedLogit(RegressionModelBuilder):
             List of nest names
         nest_indices : dict[str, np.ndarray]
             Mapping of nest names to alternative indices
-            
+
         Returns
         -------
         coords : dict
@@ -494,7 +494,7 @@ class NestedLogit(RegressionModelBuilder):
 
     def make_intercepts(self):
         """Create alternative-specific intercepts with reference alternative set to zero.
-        
+
         Returns
         -------
         alphas : TensorVariable
@@ -508,7 +508,7 @@ class NestedLogit(RegressionModelBuilder):
 
     def make_alt_coefs(self):
         """Create coefficients for alternative-specific covariates.
-        
+
         Returns
         -------
         betas : TensorVariable
@@ -519,12 +519,12 @@ class NestedLogit(RegressionModelBuilder):
 
     def make_fixed_coefs(self, X_fixed, n_obs, n_alts):
         """Create alternative-varying coefficients for fixed (non-varying) covariates.
-        
+
         Each fixed covariate gets a separate coefficient for each alternative, allowing
         the effect of individual characteristics (e.g., income, age) to vary by choice.
         The reference alternative (last) has all coefficients constrained to zero for
         identification.
-        
+
         Parameters
         ----------
         X_fixed : np.ndarray or None
@@ -533,7 +533,7 @@ class NestedLogit(RegressionModelBuilder):
             Number of observations
         n_alts : int
             Number of alternatives
-            
+
         Returns
         -------
         W_contrib : TensorVariable
@@ -563,7 +563,7 @@ class NestedLogit(RegressionModelBuilder):
 
     def make_lambdas(self):
         """Create nest-specific lambda (scale) parameters.
-        
+
         Returns
         -------
         lambdas_nests : TensorVariable
@@ -577,38 +577,32 @@ class NestedLogit(RegressionModelBuilder):
 
     def make_wtp(self, betas, price_index=None):
         """Optionally compute willingness-to-pay (WTP) estimates.
-        
+
         WTP represents how much of the price attribute individuals are willing
         to trade for one unit increase in each non-price attribute.
-        
+
         Parameters
         ----------
         betas : TensorVariable
             Coefficient vector for alternative-specific covariates
         price_index : int, optional
             Index of the price/cost coefficient in betas. If None, WTP is not computed.
-            
+
         Returns
         -------
         wtp : TensorVariable or None
             WTP for each non-price attribute, or None if price_index not specified
-            
+
         Notes
         -----
         WTP is calculated as: WTP_k = -β_k / β_price
         where β_price is typically negative (higher price → lower utility)
         and β_k is the coefficient for attribute k.
-        
+
         The negative sign ensures WTP is positive for desirable attributes.
         """
         if price_index is None:
             return None
-
-        # Create WTP coordinates (all covariates except price)
-        wtp_dims = [
-            cov for i, cov in enumerate(self.covariates)
-            if i != price_index
-        ]
 
         # WTP = -β_attribute / β_price
         # Negative sign because price coefficient is typically negative
@@ -624,10 +618,10 @@ class NestedLogit(RegressionModelBuilder):
         self, U, lambdas, nest_idx, nest_name, nest_indices, alphas_nest=None
     ):
         """Calculate conditional probability within a nest.
-        
+
         This implements the scaled softmax probability within a nest:
         P(y_i = j | j ∈ nest) = exp(U_ij / λ) / Σ_{k ∈ nest} exp(U_ik / λ)
-        
+
         Parameters
         ----------
         U : TensorVariable
@@ -640,7 +634,7 @@ class NestedLogit(RegressionModelBuilder):
             Name of the nest
         nest_indices : dict
             Mapping of nest names to alternative indices
-            
+
         Returns
         -------
         exp_W_nest : TensorVariable
@@ -687,11 +681,11 @@ class NestedLogit(RegressionModelBuilder):
 
     def make_nest_probs(self, U, lambdas, nest_indices, alphas_nest=None):
         """Calculate nest selection probabilities and conditional probabilities.
-        
+
         This computes:
         1. P(nest) = exp(I_nest) / Σ exp(I_nest')  [nest selection probability]
         2. P(y|nest) = exp(U_y/λ) / Σ_{j∈nest} exp(U_j/λ)  [within-nest choice]
-        
+
         Parameters
         ----------
         U : TensorVariable
@@ -700,7 +694,7 @@ class NestedLogit(RegressionModelBuilder):
             Nest-specific lambda parameters
         nest_indices : dict
             Mapping of nest names to alternative indices
-            
+
         Returns
         -------
         nest_probs : dict
@@ -734,7 +728,7 @@ class NestedLogit(RegressionModelBuilder):
 
     def make_model(self, X, W, y) -> pm.Model:
         """Build nested logit model.
-        
+
         Parameters
         ----------
         X : np.ndarray
@@ -745,7 +739,7 @@ class NestedLogit(RegressionModelBuilder):
             Observed choices, shape (n_obs,)
         alphas_nests : bool, optional
             Whether to include nest-specific intercepts (default is False)
-            
+
         Returns
         -------
         model : pm.Model

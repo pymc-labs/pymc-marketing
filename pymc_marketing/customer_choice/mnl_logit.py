@@ -304,7 +304,7 @@ class MNLogit(RegressionModelBuilder):
 
     def make_intercepts(self):
         """Create alternative-specific intercepts with reference alternative set to zero.
-        
+
         Returns
         -------
         alphas : TensorVariable
@@ -318,7 +318,7 @@ class MNLogit(RegressionModelBuilder):
 
     def make_alt_coefs(self):
         """Create coefficients for alternative-specific covariates.
-        
+
         Returns
         -------
         betas : TensorVariable
@@ -329,7 +329,7 @@ class MNLogit(RegressionModelBuilder):
 
     def make_fixed_coefs(self, X_fixed, n_obs, n_alts):
         """Create alternative-varying coefficients for fixed (non-varying) covariates.
-        
+
         Parameters
         ----------
         X_fixed : np.ndarray or None
@@ -338,7 +338,7 @@ class MNLogit(RegressionModelBuilder):
             Number of observations
         n_alts : int
             Number of alternatives
-            
+
         Returns
         -------
         F : TensorVariable
@@ -363,7 +363,7 @@ class MNLogit(RegressionModelBuilder):
 
     def make_utility(self, X_data, alphas, betas, F):
         """Compute systematic utility for each alternative.
-        
+
         Parameters
         ----------
         X_data : TensorVariable
@@ -374,7 +374,7 @@ class MNLogit(RegressionModelBuilder):
             Coefficients for alternative-specific covariates
         F : TensorVariable
             Contribution from fixed covariates
-            
+
         Returns
         -------
         U : TensorVariable
@@ -386,12 +386,12 @@ class MNLogit(RegressionModelBuilder):
 
     def make_choice_prob(self, U):
         """Compute choice probabilities via softmax transformation.
-        
+
         Parameters
         ----------
         U : TensorVariable
             Systematic utility, shape (n_obs, n_alts)
-            
+
         Returns
         -------
         p : TensorVariable
@@ -402,7 +402,7 @@ class MNLogit(RegressionModelBuilder):
 
     def make_model(self, X, F, y) -> pm.Model:
         """Build Model.
-        
+
         Parameters
         ----------
         X : np.ndarray
@@ -411,7 +411,7 @@ class MNLogit(RegressionModelBuilder):
             Fixed covariates, shape (n_obs, n_fixed_covariates)
         y : np.ndarray
             Observed choices, shape (n_obs,)
-            
+
         Returns
         -------
         model : pm.Model

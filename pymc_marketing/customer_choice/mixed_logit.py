@@ -554,7 +554,7 @@ class MixedLogit(RegressionModelBuilder):
 
     def make_intercepts(self) -> TensorVariable:
         """Create alternative-specific intercepts with reference alternative set to zero.
-        
+
         Returns
         -------
         alphas : TensorVariable
@@ -568,12 +568,12 @@ class MixedLogit(RegressionModelBuilder):
 
     def make_fixed_coefs(self, X_fixed: np.ndarray | None, n_obs: int, n_alts: int) -> TensorVariable:
         """Create alternative-varying coefficients for fixed (non-varying) covariates.
-        
+
         Each fixed covariate gets a separate coefficient for each alternative, allowing
         the effect of individual characteristics (e.g., income, age) to vary by choice.
         The reference alternative (last) has all coefficients constrained to zero for
         identification.
-        
+
         Parameters
         ----------
         X_fixed : np.ndarray or None
@@ -582,7 +582,7 @@ class MixedLogit(RegressionModelBuilder):
             Number of observations
         n_alts : int
             Number of alternatives
-            
+
         Returns
         -------
         W_contrib : TensorVariable
@@ -610,9 +610,9 @@ class MixedLogit(RegressionModelBuilder):
 
     def make_non_random_coefs(self) -> TensorVariable | None:
         """Create coefficients for non-random alternative-specific covariates.
-        
+
         These are standard fixed coefficients that don't vary across individuals.
-        
+
         Returns
         -------
         betas_non_random : TensorVariable or None
@@ -633,19 +633,19 @@ class MixedLogit(RegressionModelBuilder):
         non_centered: bool = True
     ) -> tuple[TensorVariable | None, list[str]]:
         """Create random coefficients that vary across individuals.
-        
+
         For each covariate specified as random, this creates:
         1. Population-level mean (mu_random)
         2. Population-level standard deviation (sigma_random)
         3. Individual/group-level deviations (betas_random_individual)
-        
+
         Parameters
         ----------
         n_obs : int
             Number of observations
         grp_idx : np.ndarray or None
             Group index array for panel data (maps observations to groups)
-            
+
         Returns
         -------
         tuple
@@ -733,11 +733,11 @@ class MixedLogit(RegressionModelBuilder):
         n_obs: int
     ) -> TensorVariable:
         """Combine random and non-random coefficients into full coefficient matrix.
-        
+
         Creates a (n_obs, n_covariates) matrix where:
         - Random coefficients vary across observations
         - Non-random coefficients are constant across observations
-        
+
         Parameters
         ----------
         betas_non_random : TensorVariable or None
@@ -746,7 +746,7 @@ class MixedLogit(RegressionModelBuilder):
             Random coefficients, shape (n_obs, n_random_covariates)
         n_obs : int
             Number of observations
-            
+
         Returns
         -------
         B_full : TensorVariable
@@ -781,19 +781,19 @@ class MixedLogit(RegressionModelBuilder):
         n_alts: int
     ) -> TensorVariable:
         """Create control function for price endogeneity correction.
-        
+
         Implements a control function approach where:
         1. Price is modeled as a function of instruments
         2. Price errors are computed
         3. Price errors are included in utility with correlation parameter
-        
+
         Parameters
         ----------
         n_obs : int
             Number of observations
         n_alts : int
             Number of alternatives
-            
+
         Returns
         -------
         price_error_contrib : TensorVariable
@@ -825,7 +825,7 @@ class MixedLogit(RegressionModelBuilder):
             mu_P = gamma_0 + pt.dot(X_inst_data, gamma)
 
         # Price likelihood (first stage)
-        P_obs = pm.Normal("P_obs", mu_P, sigma_eta, observed=y_price_data)
+        _ = pm.Normal("P_obs", mu_P, sigma_eta, observed=y_price_data)
         raw_residual = y_price_data - mu_P
         # Compute price errors (residuals)
         price_error = pm.Deterministic(
@@ -854,13 +854,13 @@ class MixedLogit(RegressionModelBuilder):
         price_error_contrib: TensorVariable
     ) -> TensorVariable:
         """Compute total systematic utility for each alternative.
-        
+
         Combines contributions from:
         - Alternative-specific covariates with individual-specific coefficients
         - Fixed covariates with alternative-specific effects
         - Alternative-specific constants
         - Price endogeneity correction (if applicable)
-        
+
         Parameters
         ----------
         X_data : TensorVariable
@@ -873,7 +873,7 @@ class MixedLogit(RegressionModelBuilder):
             Fixed covariate contribution, shape (n_obs, n_alts)
         price_error_contrib : TensorVariable
             Control function contribution, shape (n_obs, n_alts)
-            
+
         Returns
         -------
         U : TensorVariable
@@ -895,12 +895,12 @@ class MixedLogit(RegressionModelBuilder):
 
     def make_choice_prob(self, U: TensorVariable) -> TensorVariable:
         """Compute choice probabilities via softmax transformation.
-        
+
         Parameters
         ----------
         U : TensorVariable
             Systematic utility, shape (n_obs, n_alts)
-            
+
         Returns
         -------
         p : TensorVariable
@@ -913,7 +913,7 @@ class MixedLogit(RegressionModelBuilder):
     def make_model(self, X: np.ndarray, F: np.ndarray | None, y: np.ndarray,
                    observed: bool = True) -> pm.Model:
         """Build mixed logit model with random coefficients.
-        
+
         Parameters
         ----------
         X : np.ndarray
@@ -924,7 +924,7 @@ class MixedLogit(RegressionModelBuilder):
             Observed choices, shape (n_obs,)
         observed: bool
             Whether to include observed data in the model
-            
+
         Returns
         -------
         model : pm.Model
