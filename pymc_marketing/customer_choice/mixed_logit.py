@@ -32,7 +32,7 @@ from pymc_marketing.model_config import parse_model_config
 HDI_ALPHA = 0.5
 
 
-class MixedLogit(RegressionModelBuilder): # type: ignore[override]
+class MixedLogit(RegressionModelBuilder): 
     """
     Mixed Logit (Random Parameters Logit) class.
 
@@ -995,7 +995,13 @@ class MixedLogit(RegressionModelBuilder): # type: ignore[override]
 
         return attrs
 
-    def sample_prior_predictive(self, extend_idata: bool, kwargs: dict[str, Any]) -> None: # type: ignore[misc, override]
+    def sample_prior_predictive(self, 
+                                X=None,
+                                y=None,
+                                samples: int | None = None,
+                                extend_idata: bool = True,
+                                combined: bool = True,
+                                **kwargs,) -> None: 
         """Sample Prior Predictive Distribution."""
         with self.model:
             prior_pred: az.InferenceData = pm.sample_prior_predictive(500, **kwargs)
@@ -1017,12 +1023,17 @@ class MixedLogit(RegressionModelBuilder): # type: ignore[override]
             with self.model:
                 self.idata = pm.sample(**kwargs)
 
-    def sample_posterior_predictive(self, extend_idata: bool, kwargs: dict[str, Any]) -> None: # type: ignore[misc, override]
+    def sample_posterior_predictive(
+        self,
+        X=None,
+        extend_idata: bool = True,
+        combined: bool = True,
+        **sample_posterior_predictive_kwargs,) -> None:
         """Sample Posterior Predictive Distribution."""
         if self.idata is not None:
             with self.model:
                 self.post_pred = pm.sample_posterior_predictive(
-                    self.idata, var_names=["likelihood", "p"], **kwargs
+                    self.idata, var_names=["likelihood", "p"], **sample_posterior_predictive_kwargs
                 )
             if extend_idata:
                 self.idata.extend(self.post_pred)
@@ -1067,11 +1078,11 @@ class MixedLogit(RegressionModelBuilder): # type: ignore[override]
             self.model = model
 
         self.sample_prior_predictive(
-            extend_idata=True, kwargs=sample_prior_predictive_kwargs
+            extend_idata=True, **sample_prior_predictive_kwargs
         )
         self.fit(extend_idata=True, kwargs=fit_kwargs)
         self.sample_posterior_predictive(
-            extend_idata=True, kwargs=sample_posterior_predictive_kwargs
+            extend_idata=True, **sample_posterior_predictive_kwargs
         )
         return self
 
