@@ -995,7 +995,7 @@ class MixedLogit(RegressionModelBuilder):
 
         return attrs
 
-    def sample_prior_predictive(self, extend_idata: bool, kwargs: dict[str, Any]) -> None: # type: ignore[override]
+    def sample_prior_predictive(self, extend_idata: bool, kwargs: dict[str, Any]) -> None: # type: ignore[misc, override]
         """Sample Prior Predictive Distribution."""
         with self.model:
             prior_pred: az.InferenceData = pm.sample_prior_predictive(500, **kwargs)
@@ -1007,7 +1007,7 @@ class MixedLogit(RegressionModelBuilder):
             else:
                 self.idata = prior_pred
 
-    def fit(self, extend_idata: bool, kwargs: dict[str, Any]) -> None: # type: ignore[override]
+    def fit(self, extend_idata: bool, kwargs: dict[str, Any]) -> None: # type: ignore[misc, override]
         """Fit Mixed Logit Model."""
         if extend_idata:
             with self.model:
@@ -1017,7 +1017,7 @@ class MixedLogit(RegressionModelBuilder):
             with self.model:
                 self.idata = pm.sample(**kwargs)
 
-    def sample_posterior_predictive(self, extend_idata: bool, kwargs: dict[str, Any]) -> None: # type: ignore[override]
+    def sample_posterior_predictive(self, extend_idata: bool, kwargs: dict[str, Any]) -> None: # type: ignore[misc, override]
         """Sample Posterior Predictive Distribution."""
         if self.idata is not None:
             with self.model:
