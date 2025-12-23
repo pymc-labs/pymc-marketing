@@ -926,22 +926,22 @@ class MixedLogit(RegressionModelBuilder):
         model : pm.Model
             PyMC model
         """
-        n_obs, n_alts = X.shape[0], X.shape[1]
 
         with pm.Model(coords=self.coords) as model:
+            # Instantiate data
+            X_data = pm.Data("X", X, dims=("obs", "alts", "covariates"))
+            observed_data = pm.Data("y", y, dims="obs")
+            if self.grp_idx is not None:
+                grp_idx_data = pm.Data("grp_idx", self.grp_idx, dims="obs")
+            n_obs, n_alts = X_data.shape[0], X_data.shape[1]
+            
             # Create parameters
             alphas = self.make_intercepts()
             betas_non_random = self.make_non_random_coefs()
             betas_random, _ = self.make_random_coefs(
-                n_obs, self.grp_idx, self.non_centered
+                n_obs, grp_idx_data, self.non_centered
             )
 
-            # Instantiate data
-            X_data = pm.Data("X", X, dims=("obs", "alts", "covariates"))
-            observed_data = pm.Data("y", y, dims="obs")
-
-            if self.grp_idx is not None:
-                _ = pm.Data("grp_idx", self.grp_idx, dims="obs")
 
             # Build coefficient matrix (combines random and non-random)
             B_full = self.make_beta_matrix(betas_non_random, betas_random, n_obs)
