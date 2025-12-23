@@ -926,7 +926,6 @@ class MixedLogit(RegressionModelBuilder):
         model : pm.Model
             PyMC model
         """
-
         with pm.Model(coords=self.coords) as model:
             # Instantiate data
             X_data = pm.Data("X", X, dims=("obs", "alts", "covariates"))
