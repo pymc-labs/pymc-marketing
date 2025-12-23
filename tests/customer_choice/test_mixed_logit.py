@@ -17,8 +17,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pymc as pm
-import pytest
 import pytensor.tensor as pt
+import pytest
 
 from pymc_marketing.customer_choice.mixed_logit import MixedLogit
 
@@ -111,9 +111,9 @@ def covariates_list():
 def mxl(sample_df, utility_eqs_basic, covariates_list):
     """Basic MixedLogit instance - don't preprocess yet."""
     return MixedLogit(
-        sample_df, 
-        utility_eqs_basic, 
-        "choice", 
+        sample_df,
+        utility_eqs_basic,
+        "choice",
         covariates_list
     )
 
@@ -166,7 +166,7 @@ class TestParseFormula:
         target, alt_covs, fixed_covs, random_covs = mxl.parse_formula(
             sample_df, formula, "choice"
         )
-        
+
         assert target == "bus"
         assert alt_covs == "bus_price + bus_time"
         assert fixed_covs == "income"
@@ -178,7 +178,7 @@ class TestParseFormula:
         target, alt_covs, fixed_covs, random_covs = mxl.parse_formula(
             sample_df, formula, "choice"
         )
-        
+
         assert target == "bus"
         assert alt_covs == "bus_price + bus_time"
         assert fixed_covs == "income"
@@ -190,7 +190,7 @@ class TestParseFormula:
         target, alt_covs, fixed_covs, random_covs = mxl.parse_formula(
             sample_df, formula, "choice"
         )
-        
+
         assert target == "bus"
         assert alt_covs == "bus_price + bus_time"
         assert fixed_covs == ""
@@ -205,25 +205,25 @@ class TestParseFormula:
     def test_parse_formula_missing_alt_covariate(self, mxl, sample_df):
         """Test that missing alternative covariate raises error."""
         formula = "bus ~ missing_col + bus_time | income | bus_price"
-        with pytest.raises(ValueError, match="Alternative covariate.*not found"):
+        with pytest.raises(ValueError, match=r"Alternative covariate.*not found"):
             mxl.parse_formula(sample_df, formula, "choice")
 
     def test_parse_formula_missing_fixed_covariate(self, mxl, sample_df):
         """Test that missing fixed covariate raises error."""
         formula = "bus ~ bus_price + bus_time | missing_fixed | bus_price"
-        with pytest.raises(ValueError, match="Fixed covariate.*not found"):
+        with pytest.raises(ValueError, match=r"Fixed covariate.*not found"):
             mxl.parse_formula(sample_df, formula, "choice")
 
     def test_parse_formula_missing_random_covariate(self, mxl, sample_df):
         """Test that missing random covariate raises error."""
         formula = "bus ~ bus_price + bus_time | income | missing_random"
-        with pytest.raises(ValueError, match="Random covariate.*not found"):
+        with pytest.raises(ValueError, match=r"Random covariate.*not found"):
             mxl.parse_formula(sample_df, formula, "choice")
 
     def test_parse_formula_too_many_separators(self, mxl, sample_df):
         """Test that too many | separators raises error."""
         formula = "bus ~ bus_price | income | bus_price | extra"
-        with pytest.raises(ValueError, match="too many.*separators"):
+        with pytest.raises(ValueError, match=r"too many.*separators"):
             mxl.parse_formula(sample_df, formula, "choice")
 
 
@@ -239,7 +239,7 @@ class TestPrepareXMatrix:
         X, F, alts, fixed_cov, random_covs = mxl.prepare_X_matrix(
             sample_df, utility_eqs_basic, "choice"
         )
-        
+
         assert X.shape == (5, 3, 2)  # 5 obs x 3 alts x 2 covariates
         assert F.shape == (5, 1)  # Fixed covariate
         assert set(alts) == {"bus", "car", "train"}
@@ -249,10 +249,10 @@ class TestPrepareXMatrix:
 
     def test_prepare_X_matrix_no_fixed(self, mxl, sample_df, utility_eqs_no_fixed):
         """Test X matrix preparation without fixed covariates."""
-        X, F, alts, fixed_cov, random_covs = mxl.prepare_X_matrix(
+        X, F, _alts, fixed_cov, random_covs = mxl.prepare_X_matrix(
             sample_df, utility_eqs_no_fixed, "choice"
         )
-        
+
         assert X.shape == (5, 3, 2)
         assert F is None
         assert len(fixed_cov) == 0
@@ -261,10 +261,10 @@ class TestPrepareXMatrix:
 
     def test_prepare_X_matrix_no_random(self, mxl, sample_df, utility_eqs_no_random):
         """Test X matrix preparation without random covariates."""
-        X, F, alts, fixed_cov, random_covs = mxl.prepare_X_matrix(
+        X, F, _alts, _fixed_cov, random_covs = mxl.prepare_X_matrix(
             sample_df, utility_eqs_no_random, "choice"
         )
-        
+
         assert X.shape == (5, 3, 2)
         assert F.shape == (5, 1)
         assert len(random_covs) == 0
@@ -276,7 +276,7 @@ class TestPrepareXMatrix:
             "car ~ car_price + car_time | income | car_price",
             # Missing train equation
         ]
-        with pytest.raises(ValueError, match="Alternative.*has no utility equation"):
+        with pytest.raises(ValueError, match=r"Alternative.*has no utility equation"):
             mxl.prepare_X_matrix(sample_df, incomplete_eqs, "choice")
 
 
@@ -286,7 +286,7 @@ class TestPrepareGroupIndex:
     def test_prepare_group_index_none(self, mxl, sample_df):
         """Test group index when group_id is None."""
         grp_idx, n_groups = mxl._prepare_group_index(sample_df, None)
-        
+
         assert grp_idx is None
         assert n_groups == len(sample_df)
 
@@ -295,14 +295,14 @@ class TestPrepareGroupIndex:
         grp_idx, n_groups = mxl._prepare_group_index(
             sample_df_panel, "individual_id"
         )
-        
+
         assert grp_idx is not None
         assert len(grp_idx) == len(sample_df_panel)
         assert n_groups == 3  # Three unique individuals
 
     def test_prepare_group_index_missing_column(self, mxl, sample_df):
         """Test that missing group_id column raises error."""
-        with pytest.raises(ValueError, match="Group ID column.*not found"):
+        with pytest.raises(ValueError, match=r"Group ID column.*not found"):
             mxl._prepare_group_index(sample_df, "nonexistent_id")
 
 
@@ -319,7 +319,7 @@ class TestPrepareCoords:
             ["price"],
             5
         )
-        
+
         assert "alts" in coords
         assert "covariates" in coords
         assert "random_covariates" in coords
@@ -338,7 +338,7 @@ class TestPrepareCoords:
             [],
             5
         )
-        
+
         assert coords["random_covariates"] == []
         assert coords["normal_covariates"] == ["price", "time"]
 
@@ -349,7 +349,7 @@ class TestPreprocessModelData:
     def test_preprocess_model_data_basic(self, mxl, sample_df, utility_eqs_basic):
         """Test basic preprocessing."""
         X, F, y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
-        
+
         assert X.shape == (5, 3, 2)
         assert F.shape == (5, 1)
         assert len(y) == 5
@@ -361,8 +361,8 @@ class TestPreprocessModelData:
         self, mxl_panel, sample_df_panel, utility_eqs_basic
     ):
         """Test preprocessing with panel data."""
-        X, F, y = mxl_panel.preprocess_model_data(sample_df_panel, utility_eqs_basic)
-        
+        _X, _F, _y = mxl_panel.preprocess_model_data(sample_df_panel, utility_eqs_basic)
+
         assert mxl_panel.grp_idx is not None
         assert mxl_panel.n_individuals == 3
         assert len(mxl_panel.grp_idx) == 6
@@ -377,11 +377,11 @@ class TestMakeIntercepts:
 
     def test_make_intercepts_creates_deterministic(self, mxl, sample_df, utility_eqs_basic):
         """Test that intercepts are created correctly."""
-        X, F, y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
-        
+        _X, _F, _y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
+
         with pm.Model(coords=mxl.coords):
             alphas = mxl.make_intercepts()
-            
+
             assert isinstance(alphas, pt.TensorVariable)
             assert alphas.name == "alphas"
 
@@ -389,12 +389,12 @@ class TestMakeIntercepts:
         self, mxl, sample_df, utility_eqs_basic
     ):
         """Test that last alternative intercept is zero."""
-        X, F, y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
-        
+        _X, _F, _y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
+
         with pm.Model(coords=mxl.coords):
             alphas = mxl.make_intercepts()
             alphas_draw = pm.draw(alphas)
-            
+
             assert alphas_draw[-1] == 0.0
 
 
@@ -405,11 +405,11 @@ class TestMakeNonRandomCoefs:
         self, mxl, sample_df, utility_eqs_basic
     ):
         """Test that non-random coefficients are created."""
-        X, F, y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
-        
+        _X, _F, _y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
+
         with pm.Model(coords=mxl.coords):
             betas = mxl.make_non_random_coefs()
-            
+
             assert isinstance(betas, pt.TensorVariable)
             assert betas.name == "betas_non_random"
 
@@ -417,12 +417,12 @@ class TestMakeNonRandomCoefs:
         self, mxl, sample_df, utility_eqs_basic
     ):
         """Test that non-random coefficients have correct shape."""
-        X, F, y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
-        
+        _X, _F, _y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
+
         with pm.Model(coords=mxl.coords):
             betas = mxl.make_non_random_coefs()
             betas_draw = pm.draw(betas)
-            
+
             # Should have one coefficient (time), since price is random
             assert betas_draw.shape == (len(mxl.coords["normal_covariates"]),)
 
@@ -433,13 +433,13 @@ class TestMakeNonRandomCoefs:
         mxl_all_random = MixedLogit(
             sample_df, utility_eqs_multiple_random, "choice", covariates_list
         )
-        X, F, y = mxl_all_random.preprocess_model_data(
+        _X, _F, _y = mxl_all_random.preprocess_model_data(
             sample_df, utility_eqs_multiple_random
         )
-        
+
         with pm.Model(coords=mxl_all_random.coords):
             betas = mxl_all_random.make_non_random_coefs()
-            
+
             # Should return None when all covariates are random
             # Check that there are no normal covariates
             assert len(mxl_all_random.coords["normal_covariates"]) == 0
@@ -453,12 +453,12 @@ class TestMakeRandomCoefs:
         self, mxl, sample_df, utility_eqs_basic
     ):
         """Test random coefficients at individual level."""
-        X, F, y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
+        X, _F, _y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
         n_obs = X.shape[0]
-        
+
         with pm.Model(coords=mxl.coords):
             betas_random, param_names = mxl.make_random_coefs(n_obs, None)
-            
+
             assert isinstance(betas_random, pt.TensorVariable)
             assert betas_random.name == "betas_random_individual"
             # param_names should be base covariate names
@@ -468,14 +468,14 @@ class TestMakeRandomCoefs:
         self, mxl_panel, sample_df_panel, utility_eqs_basic
     ):
         """Test random coefficients at group level (panel data)."""
-        X, F, y = mxl_panel.preprocess_model_data(sample_df_panel, utility_eqs_basic)
+        X, _F, _y = mxl_panel.preprocess_model_data(sample_df_panel, utility_eqs_basic)
         n_obs = X.shape[0]
-        
+
         with pm.Model(coords=mxl_panel.coords):
-            betas_random, param_names = mxl_panel.make_random_coefs(
+            betas_random, _param_names = mxl_panel.make_random_coefs(
                 n_obs, mxl_panel.grp_idx
             )
-            
+
             assert isinstance(betas_random, pt.TensorVariable)
             # Should have group-level coefficients expanded to observations
             betas_draw = pm.draw(betas_random)
@@ -486,15 +486,15 @@ class TestMakeRandomCoefs:
         self, mxl, sample_df, utility_eqs_basic
     ):
         """Test that random coefficients have correct dimensions."""
-        X, F, y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
+        X, _F, _y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
         n_obs = X.shape[0]
-        
+
         with pm.Model(coords=mxl.coords):
             betas_random, _ = mxl.make_random_coefs(n_obs, None)
-            
+
             if betas_random is not None:
                 betas_draw = pm.draw(betas_random)
-                
+
                 # Should be (n_obs, n_random_covariates)
                 n_random = len(mxl.coords["random_covariates"])
                 assert betas_draw.shape == (n_obs, n_random)
@@ -503,12 +503,12 @@ class TestMakeRandomCoefs:
         self, mxl_no_random, sample_df, utility_eqs_no_random
     ):
         """Test behavior when no random coefficients specified."""
-        X, F, y = mxl_no_random.preprocess_model_data(sample_df, utility_eqs_no_random)
+        X, _F, _y = mxl_no_random.preprocess_model_data(sample_df, utility_eqs_no_random)
         n_obs = X.shape[0]
-        
+
         with pm.Model(coords=mxl_no_random.coords):
             betas_random, param_names = mxl_no_random.make_random_coefs(n_obs, None)
-            
+
             assert betas_random is None
             assert param_names == []
 
@@ -520,17 +520,17 @@ class TestMakeBetaMatrix:
         self, mxl, sample_df, utility_eqs_basic
     ):
         """Test that beta matrix correctly combines random and non-random."""
-        X, F, y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
+        X, _F, _y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
         n_obs = X.shape[0]
-        
+
         with pm.Model(coords=mxl.coords):
             betas_non_random = mxl.make_non_random_coefs()
             betas_random, _ = mxl.make_random_coefs(n_obs, None)
             B_full = mxl.make_beta_matrix(betas_non_random, betas_random, n_obs)
-            
+
             assert isinstance(B_full, pt.TensorVariable)
             assert B_full.name == "betas_individuals"
-            
+
             B_draw = pm.draw(B_full)
             assert B_draw.shape == (n_obs, 2)  # n_obs x n_covariates
 
@@ -538,21 +538,21 @@ class TestMakeBetaMatrix:
         self, mxl, sample_df, utility_eqs_basic
     ):
         """Test that coefficients are placed in correct positions."""
-        X, F, y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
+        X, _F, _y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
         n_obs = X.shape[0]
-        
+
         # In utility_eqs_basic, price is random (index 0), time is not (index 1)
         # After preprocessing, random_covariate_idx should contain the index of "price"
         assert "price" in mxl.random_covar_names
         assert "time" in mxl.coords["normal_covariates"]
-        
+
         with pm.Model(coords=mxl.coords):
             betas_non_random = mxl.make_non_random_coefs()
             betas_random, _ = mxl.make_random_coefs(n_obs, None)
             B_full = mxl.make_beta_matrix(betas_non_random, betas_random, n_obs)
-            
+
             B_draw = pm.draw(B_full)
-            
+
             # Check that we have coefficients for all covariates
             assert B_draw.shape == (n_obs, len(mxl.covariates))
 
@@ -564,12 +564,12 @@ class TestMakeFixedCoefs:
         self, mxl, sample_df, utility_eqs_basic
     ):
         """Test fixed coefficients when fixed covariates provided."""
-        X, F, y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
+        X, F, _y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
         n_obs, n_alts = X.shape[0], X.shape[1]
-        
+
         with pm.Model(coords=mxl.coords):
             W_contrib = mxl.make_fixed_coefs(F, n_obs, n_alts)
-            
+
             assert isinstance(W_contrib, pt.TensorVariable)
             W_draw = pm.draw(W_contrib)
             assert W_draw.shape == (n_obs, n_alts)
@@ -578,12 +578,12 @@ class TestMakeFixedCoefs:
         self, mxl, sample_df, utility_eqs_no_fixed
     ):
         """Test fixed coefficients when no fixed covariates."""
-        X, F, y = mxl.preprocess_model_data(sample_df, utility_eqs_no_fixed)
+        X, F, _y = mxl.preprocess_model_data(sample_df, utility_eqs_no_fixed)
         n_obs, n_alts = X.shape[0], X.shape[1]
-        
+
         with pm.Model(coords=mxl.coords):
             W_contrib = mxl.make_fixed_coefs(F, n_obs, n_alts)
-            
+
             W_draw = pm.draw(W_contrib)
             assert W_draw.shape == (n_obs, n_alts)
             # Should be all zeros
@@ -593,12 +593,12 @@ class TestMakeFixedCoefs:
         self, mxl, sample_df, utility_eqs_basic
     ):
         """Test that fixed coefficients for last alternative are zero."""
-        X, F, y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
+        X, F, _y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
         n_obs, n_alts = X.shape[0], X.shape[1]
-        
+
         with pm.Model(coords=mxl.coords) as model:
-            W_contrib = mxl.make_fixed_coefs(F, n_obs, n_alts)
-            
+            _ = mxl.make_fixed_coefs(F, n_obs, n_alts)
+
             # Check that betas_fixed deterministic exists
             assert "betas_fixed" in model.named_vars
 
@@ -608,12 +608,12 @@ class TestMakeControlFunction:
 
     def test_make_control_function_none(self, mxl, sample_df, utility_eqs_basic):
         """Test control function when no instrumental variables."""
-        X, F, y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
+        X, _F, _y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
         n_obs, n_alts = X.shape[0], X.shape[1]
-        
+
         with pm.Model(coords=mxl.coords):
             price_error = mxl.make_control_function(n_obs, n_alts)
-            
+
             price_error_draw = pm.draw(price_error)
             assert price_error_draw.shape == (n_obs, n_alts)
             # Should be all zeros
@@ -625,7 +625,7 @@ class TestMakeControlFunction:
         n_obs = len(sample_df)
         X_instruments = np.random.randn(n_obs, 2)
         y_price = np.random.randn(n_obs, 3)
-        
+
         mxl_with_iv = MixedLogit(
             sample_df,
             utility_eqs_basic,
@@ -637,13 +637,13 @@ class TestMakeControlFunction:
                 "diagonal": True
             }
         )
-        
-        X, F, y = mxl_with_iv.preprocess_model_data(sample_df, utility_eqs_basic)
+
+        X, _F, _y = mxl_with_iv.preprocess_model_data(sample_df, utility_eqs_basic)
         n_obs, n_alts = X.shape[0], X.shape[1]
-        
+
         with pm.Model(coords=mxl_with_iv.coords) as model:
-            price_error = mxl_with_iv.make_control_function(n_obs, n_alts)
-            
+            _ = mxl_with_iv.make_control_function(n_obs, n_alts)
+
             # Should create control function variables
             assert "gamma" in model.named_vars
             assert "lambda_cf" in model.named_vars
@@ -657,9 +657,9 @@ class TestMakeUtility:
         self, mxl, sample_df, utility_eqs_basic
     ):
         """Test that utility calculation creates deterministic."""
-        X, F, y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
+        X, F, _y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
         n_obs, n_alts = X.shape[0], X.shape[1]
-        
+
         with pm.Model(coords=mxl.coords):
             alphas = mxl.make_intercepts()
             betas_non_random = mxl.make_non_random_coefs()
@@ -668,17 +668,17 @@ class TestMakeUtility:
             B_full = mxl.make_beta_matrix(betas_non_random, betas_random, n_obs)
             W_contrib = mxl.make_fixed_coefs(F, n_obs, n_alts)
             price_error = mxl.make_control_function(n_obs, n_alts)
-            
+
             U = mxl.make_utility(X_data, B_full, alphas, W_contrib, price_error)
-            
+
             assert isinstance(U, pt.TensorVariable)
             assert U.name == "U"
 
     def test_make_utility_correct_shape(self, mxl, sample_df, utility_eqs_basic):
         """Test that utility has correct shape."""
-        X, F, y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
+        X, F, _y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
         n_obs, n_alts = X.shape[0], X.shape[1]
-        
+
         with pm.Model(coords=mxl.coords):
             alphas = mxl.make_intercepts()
             betas_non_random = mxl.make_non_random_coefs()
@@ -687,10 +687,10 @@ class TestMakeUtility:
             B_full = mxl.make_beta_matrix(betas_non_random, betas_random, n_obs)
             W_contrib = mxl.make_fixed_coefs(F, n_obs, n_alts)
             price_error = mxl.make_control_function(n_obs, n_alts)
-            
+
             U = mxl.make_utility(X_data, B_full, alphas, W_contrib, price_error)
             U_draw = pm.draw(U)
-            
+
             assert U_draw.shape == (n_obs, n_alts)
 
 
@@ -701,9 +701,9 @@ class TestMakeChoiceProb:
         self, mxl, sample_df, utility_eqs_basic
     ):
         """Test that choice probabilities are created."""
-        X, F, y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
+        X, F, _y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
         n_obs, n_alts = X.shape[0], X.shape[1]
-        
+
         with pm.Model(coords=mxl.coords):
             alphas = mxl.make_intercepts()
             betas_non_random = mxl.make_non_random_coefs()
@@ -713,17 +713,17 @@ class TestMakeChoiceProb:
             W_contrib = mxl.make_fixed_coefs(F, n_obs, n_alts)
             price_error = mxl.make_control_function(n_obs, n_alts)
             U = mxl.make_utility(X_data, B_full, alphas, W_contrib, price_error)
-            
+
             p = mxl.make_choice_prob(U)
-            
+
             assert isinstance(p, pt.TensorVariable)
             assert p.name == "p"
 
     def test_make_choice_prob_correct_shape(self, mxl, sample_df, utility_eqs_basic):
         """Test that probabilities have correct shape."""
-        X, F, y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
+        X, F, _y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
         n_obs, n_alts = X.shape[0], X.shape[1]
-        
+
         with pm.Model(coords=mxl.coords):
             alphas = mxl.make_intercepts()
             betas_non_random = mxl.make_non_random_coefs()
@@ -733,17 +733,17 @@ class TestMakeChoiceProb:
             W_contrib = mxl.make_fixed_coefs(F, n_obs, n_alts)
             price_error = mxl.make_control_function(n_obs, n_alts)
             U = mxl.make_utility(X_data, B_full, alphas, W_contrib, price_error)
-            
+
             p = mxl.make_choice_prob(U)
             p_draw = pm.draw(p)
-            
+
             assert p_draw.shape == (n_obs, n_alts)
 
     def test_make_choice_prob_sums_to_one(self, mxl, sample_df, utility_eqs_basic):
         """Test that probabilities sum to 1 for each observation."""
-        X, F, y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
+        X, F, _y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
         n_obs, n_alts = X.shape[0], X.shape[1]
-        
+
         with pm.Model(coords=mxl.coords):
             alphas = mxl.make_intercepts()
             betas_non_random = mxl.make_non_random_coefs()
@@ -753,10 +753,10 @@ class TestMakeChoiceProb:
             W_contrib = mxl.make_fixed_coefs(F, n_obs, n_alts)
             price_error = mxl.make_control_function(n_obs, n_alts)
             U = mxl.make_utility(X_data, B_full, alphas, W_contrib, price_error)
-            
+
             p = mxl.make_choice_prob(U)
             p_draw = pm.draw(p)
-            
+
             # Check that probabilities sum to 1 for each observation
             assert np.allclose(p_draw.sum(axis=1), 1.0)
 
@@ -772,7 +772,7 @@ class TestMakeModel:
         """Test that make_model returns a PyMC model."""
         X, F, y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
         model = mxl.make_model(X, F, y)
-        
+
         assert isinstance(model, pm.Model)
         assert mxl.alternatives == ["bus", "car", "train"]
         assert mxl.covariates == ["price", "time"]
@@ -781,18 +781,18 @@ class TestMakeModel:
         """Test that all expected variables are created."""
         X, F, y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
         model = mxl.make_model(X, F, y)
-        
+
         # Check essential variables exist
         assert "alphas" in model.named_vars
         assert "betas_individuals" in model.named_vars
         assert "U" in model.named_vars
         assert "p" in model.named_vars
         assert "likelihood" in model.named_vars
-        
+
         # Check random coefficient variables (if random covariates exist)
         if len(mxl.random_covar_names) > 0:
             assert "betas_random_individual" in model.named_vars
-        
+
         # Check non-random coefficient variables (if non-random covariates exist)
         if len(mxl.coords["normal_covariates"]) > 0:
             assert "betas_non_random" in model.named_vars
@@ -803,7 +803,7 @@ class TestMakeModel:
         """Test model without fixed covariates."""
         X, F, y = mxl.preprocess_model_data(sample_df, utility_eqs_no_fixed)
         model = mxl.make_model(X, F, y)
-        
+
         assert isinstance(model, pm.Model)
         # betas_fixed should not be in model
         assert "betas_fixed" not in model.named_vars
@@ -814,7 +814,7 @@ class TestMakeModel:
         """Test model without random coefficients (like standard MNLogit)."""
         X, F, y = mxl_no_random.preprocess_model_data(sample_df, utility_eqs_no_random)
         model = mxl_no_random.make_model(X, F, y)
-        
+
         assert isinstance(model, pm.Model)
         # Should not have random coefficient variables
         assert "mu_random" not in model.named_vars
@@ -826,7 +826,7 @@ class TestMakeModel:
         """Test model with panel data structure."""
         X, F, y = mxl_panel.preprocess_model_data(sample_df_panel, utility_eqs_basic)
         model = mxl_panel.make_model(X, F, y)
-        
+
         assert isinstance(model, pm.Model)
         # Should have group-level random coefficients if there are random covariates
         if len(mxl_panel.random_covar_names) > 0:
@@ -837,7 +837,7 @@ class TestMakeModel:
         """Test that model coordinates are correctly specified."""
         X, F, y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
         model = mxl.make_model(X, F, y)
-        
+
         # Check that coords were passed to the model
         assert model.coords is not None
         assert "alts" in model.coords
@@ -851,7 +851,7 @@ class TestMakeModel:
         """Test that pm.Data variables are correctly created."""
         X, F, y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
         model = mxl.make_model(X, F, y)
-        
+
         # Check that data containers exist
         assert "X" in model.named_vars
         assert "y" in model.named_vars
@@ -892,13 +892,13 @@ class TestInterventions:
         X, F, y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
         _ = mxl.make_model(X, F, y)
         mxl.sample()
-        
+
         # Create intervention: reduce bus price by 10%
         new_df = sample_df.copy()
         new_df["bus_price"] = new_df["bus_price"] * 0.9
-        
+
         idata_new = mxl.apply_intervention(new_df)
-        
+
         assert "posterior_predictive" in idata_new
         assert "p" in idata_new["posterior_predictive"]
         assert hasattr(mxl, "intervention_idata")
@@ -910,16 +910,16 @@ class TestInterventions:
         X, F, y = mxl.preprocess_model_data(sample_df, mxl.utility_equations)
         _ = mxl.make_model(X, F, y)
         mxl.sample()
-        
+
         # Remove train from choice set
         new_df = sample_df[sample_df["choice"] != "train"].copy()
         new_utility_eqs = [
             "bus ~ bus_price + bus_time | income | bus_price",
             "car ~ car_price + car_time | income | car_price",
         ]
-        
+
         idata_new = mxl.apply_intervention(new_df, new_utility_eqs)
-        
+
         assert "posterior_predictive" in idata_new
         assert "posterior" in idata_new
 
@@ -930,13 +930,13 @@ class TestInterventions:
         X, F, y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
         _ = mxl.make_model(X, F, y)
         mxl.sample()
-        
+
         new_df = sample_df.copy()
         new_df["bus_price"] = new_df["bus_price"] * 0.9
         mxl.apply_intervention(new_df)
-        
+
         change_df = mxl.calculate_share_change(mxl.idata, mxl.intervention_idata)
-        
+
         assert isinstance(change_df, pd.DataFrame)
         assert "policy_share" in change_df.columns
         assert "new_policy_share" in change_df.columns
@@ -950,7 +950,7 @@ class TestInterventions:
 def test_plot_change(mxl, sample_change_df):
     """Test that plot_change returns a matplotlib figure."""
     fig = mxl.plot_change(sample_change_df, title="Test Intervention")
-    
+
     assert isinstance(fig, plt.Figure)
 
 
@@ -969,10 +969,10 @@ class TestEdgeCases:
             "train ~ train_price + train_time | income | train_price",
         ]
         mxl_single = MixedLogit(sample_df, utility_eqs, "choice", covariates_list)
-        
+
         X, F, y = mxl_single.preprocess_model_data(sample_df, utility_eqs)
         model = mxl_single.make_model(X, F, y)
-        
+
         assert isinstance(model, pm.Model)
         # Should have 1 random covariate (price)
         assert len(mxl_single.random_covar_names) == 1
@@ -983,10 +983,10 @@ class TestEdgeCases:
         mxl_multi = MixedLogit(
             sample_df, utility_eqs_multiple_random, "choice", covariates_list
         )
-        
+
         X, F, y = mxl_multi.preprocess_model_data(sample_df, utility_eqs_multiple_random)
         model = mxl_multi.make_model(X, F, y)
-        
+
         assert isinstance(model, pm.Model)
         # Should have 2 random covariates (price and time)
         assert len(mxl_multi.random_covar_names) == 2
@@ -1013,10 +1013,10 @@ class TestEdgeCases:
             "mode4 ~ mode4_price + mode4_time | | mode4_price",
         ]
         mxl_many = MixedLogit(df_many, utility_eqs_many, "choice", ["price", "time"])
-        
+
         X, F, y = mxl_many.preprocess_model_data(df_many, utility_eqs_many)
         model = mxl_many.make_model(X, F, y)
-        
+
         assert isinstance(model, pm.Model)
         assert X.shape[1] == 4  # Four alternatives
 
@@ -1039,13 +1039,13 @@ class TestEdgeCases:
             "train ~ train_price + train_time | income | train_price",
         ]
         mxl_unequal = MixedLogit(
-            df_unequal, utility_eqs, "choice", covariates_list, 
+            df_unequal, utility_eqs, "choice", covariates_list,
             group_id="individual_id"
         )
-        
+
         X, F, y = mxl_unequal.preprocess_model_data(df_unequal, utility_eqs)
         model = mxl_unequal.make_model(X, F, y)
-        
+
         assert isinstance(model, pm.Model)
         assert mxl_unequal.n_individuals == 3
 
@@ -1063,13 +1063,13 @@ class TestBackwardCompatibility:
         """Test that MixedLogit without random coefs behaves like MNLogit."""
         X, F, y = mxl_no_random.preprocess_model_data(sample_df, utility_eqs_no_random)
         model = mxl_no_random.make_model(X, F, y)
-        
+
         # Should have standard MNLogit structure
         assert "alphas" in model.named_vars
         assert "betas_non_random" in model.named_vars
         assert "U" in model.named_vars
         assert "p" in model.named_vars
-        
+
         # Sample and test
         mxl_no_random.sample()
         assert hasattr(mxl_no_random, "idata")
@@ -1082,11 +1082,11 @@ class TestBackwardCompatibility:
         X, F, y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
         _ = mxl.make_model(X, F, y)
         mxl.sample()
-        
+
         new_df = sample_df.copy()
         new_df["bus_price"] = new_df["bus_price"] * 0.9
         idata_new = mxl.apply_intervention(new_df)
-        
+
         # Should have same structure as MNLogit interventions
         assert "posterior_predictive" in idata_new
         assert "p" in idata_new["posterior_predictive"]
@@ -1095,13 +1095,13 @@ class TestBackwardCompatibility:
         self, mxl, sample_df, utility_eqs_basic
     ):
         """Test that coordinate structure is consistent with other models."""
-        X, F, y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
-        
+        _X, _F, _y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
+
         # Should have standard coordinates
         assert "alts" in mxl.coords
         assert "obs" in mxl.coords
         assert "covariates" in mxl.coords
-        
+
         # Plus mixed logit specific coordinates
         assert "random_covariates" in mxl.coords
         assert "normal_covariates" in mxl.coords
@@ -1118,7 +1118,7 @@ class TestModelConfig:
     def test_default_model_config(self, mxl):
         """Test that default model config has all required priors."""
         config = mxl.default_model_config
-        
+
         assert "alphas_" in config
         assert "betas_fixed_" in config
         assert "betas_non_random" in config
@@ -1131,19 +1131,19 @@ class TestModelConfig:
         """Test that model config is serializable."""
         X, F, y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
         _ = mxl.make_model(X, F, y)
-        
+
         serializable_config = mxl._serializable_model_config
-        
+
         assert isinstance(serializable_config, dict)
         assert "alphas_" in serializable_config
         assert "mu_random" in serializable_config
 
     def test_create_idata_attrs(self, mxl, sample_df, utility_eqs_basic):
         """Test that idata attributes are created correctly."""
-        X, F, y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
-        
+        _X, _F, _y = mxl.preprocess_model_data(sample_df, utility_eqs_basic)
+
         attrs = mxl.create_idata_attrs()
-        
+
         assert "covariates" in attrs
         assert "random_covariates" in attrs
         assert "depvar" in attrs

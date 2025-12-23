@@ -98,7 +98,7 @@ def nstL(sample_df, utility_eqs, nesting_structure_1):
 def nstL2_invalid(sample_df, utility_eqs, nesting_structure_invalid_two_layer):
     """NestedLogit instance that will fail with two-layer nesting."""
     return NestedLogit(
-        sample_df, utility_eqs, "choice", ["X1", "X2"], 
+        sample_df, utility_eqs, "choice", ["X1", "X2"],
         nesting_structure_invalid_two_layer
     )
 
@@ -186,7 +186,7 @@ def test_preprocess_model_data_sets_attributes(nstL, sample_df, utility_eqs):
     for nest in expected_nests:
         assert nest in nstL.lambda_lkup
         assert isinstance(nstL.lambda_lkup[nest], int)
-    
+
     # Check that nest-specific coordinate dimensions exist
     assert "nest1_alts" in nstL.coords
     assert "nest2_alts" in nstL.coords
@@ -204,7 +204,7 @@ def test_build_model_returns_pymc_model(nstL, sample_df, utility_eqs):
 def test_build_model_2layer_raises_error(nstL2_invalid, sample_df, utility_eqs):
     """Test that attempting two-layer nesting raises an informative error."""
     with pytest.raises(ValueError, match=r"must map to a list of alternatives"):
-        X, F, y = nstL2_invalid.preprocess_model_data(sample_df, utility_eqs)
+        _, _, _ = nstL2_invalid.preprocess_model_data(sample_df, utility_eqs)
 
 
 def test_sample(nstL, sample_df, utility_eqs, mock_pymc_sample):
