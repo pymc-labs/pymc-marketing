@@ -1,0 +1,891 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:10002
+#: 5bb3c25c15fa4531aee4ebbf4a92b46b
+msgid "Pareto/NBD Model"
+msgstr "Modelo Pareto/NBD"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:10003
+#: 3d126bed2ad04d06ad9778da05a0cda3
+msgid ""
+"The Pareto/Negative-Binomial Distribution model was the first Buy-Till-You-"
+"Die (BTYD) model for estimating non-contractual customer activity over a "
+"continuous time period. First introduced by Schmittlein, et. al. in 1987 and"
+" developed further by Bruce Hardie and Peter Fader, it is frequently used as"
+" a benchmark in CLV research due to its robust performance and wide range of"
+" functionality. For detailed derivations of this model please refer to [\"A "
+"Note on Deriving the Pareto/NBD Model and Related "
+"Expressions.\"](https://www.brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf)"
+msgstr ""
+"El modelo de Distribución Pareto/Binomial Negativa fue el primer modelo Buy-"
+"Till-You-Die (BTYD) para estimar la actividad de clientes no contractuales a"
+" lo largo de un periodo de tiempo continuo. Introducido por primera vez por "
+"Schmittlein, et. al. en 1987 y desarrollado posteriormente por Bruce Hardie "
+"y Peter Fader, se utiliza frecuentemente como un referente en la "
+"investigación de CLV debido a su sólido rendimiento y amplia gama de "
+"funcionalidades. Para derivaciones detalladas de este modelo, por favor "
+"consulte [\"A Note on Deriving the Pareto/NBD Model and Related "
+"Expressions.\"](https://www.brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf)"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:10006
+#: 77b1074ec1b34cd1b2e5bab165d418d5
+msgid ""
+"In this notebook we will use Bayesian inference to fit a Pareto/NBD model in"
+" PyMC-Marketing, and compare results with the frequentist "
+"[`lifetimes`](https://github.com/CamDavidsonPilon/lifetimes) library (no "
+"longer maintained). We will also demonstrate the predictive functionality of"
+" this model, along with an example for time-invariant covariates."
+msgstr ""
+"En este cuaderno utilizaremos la inferencia bayesiana para ajustar un modelo"
+" Pareto/NBD en PyMC-Marketing y compararemos los resultados con la "
+"biblioteca frecuentista "
+"[`lifetimes`](https://github.com/CamDavidsonPilon/lifetimes) (ya no "
+"mantenida). También demostraremos la funcionalidad predictiva de este "
+"modelo, junto con un ejemplo para covariables invariantes en el tiempo."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:20002
+#: b35689c5a03146a3a08b071a5488c03b
+msgid "Setup Notebook"
+msgstr "Configurar el Notebook"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:40002
+#: f744223655194418941d6097eca5b44b
+msgid "Load Data"
+msgstr "Cargar Datos"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:40004
+#: 364113a9e2ef4ff7a13f176951c53c2b
+msgid ""
+"In this notebook we will be using the CDNOW sample dataset, a popular "
+"benchmarking dataset in CLV and BTYD modeling research. Refer "
+"[here](https://www.brucehardie.com/notes/026/) for more information about "
+"the dataset."
+msgstr ""
+"En este cuaderno utilizaremos el conjunto de datos de muestra CDNOW, un "
+"conjunto de datos de referencia popular en la investigación de modelado de "
+"CLV y BTYD. Consulte [aquí](https://www.brucehardie.com/notes/026/) para "
+"obtener más información sobre el conjunto de datos."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:60002
+#: 6eeb744a39a14b4bbfe407b4b688a12f
+msgid ""
+"The only requirements for modeling spending behaviour with `ParetoNBDModel` "
+"are a customer identifier column, and a datetime column for each purchase. "
+"The number of CDs purchased and money spent per transaction could also be "
+"useful covariates, so we'll keep them in mind for later."
+msgstr ""
+"Los únicos requisitos para modelar el comportamiento de gasto con "
+"`ParetoNBDModel` son una columna de identificador de cliente y una columna "
+"de fecha y hora para cada compra. El número de CDs comprados y el dinero "
+"gastado por transacción también podrían ser covariables útiles, así que los "
+"tendremos en cuenta para más adelante."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:60004
+#: b24d1d79200c4a179b603c376de9496f
+msgid ""
+"It is common for customer transaction databases to also contain returns, "
+"discount values, etc., so let's do a quick validation check:"
+msgstr ""
+"Es común que las bases de datos de transacciones de clientes también "
+"contengan devoluciones, valores de descuento, etc., así que hagamos una "
+"rápida verificación de validación:"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:80002
+#: 40f256405cce449d9f33e58b00dba219
+msgid ""
+"Note there were some transactions with spend values of 0! Perhaps these were"
+" returns or promotional giveaways. Instances such as this are not true "
+"purchasing activities, and should be excluded from modeling."
+msgstr ""
+"Tenga en cuenta que hubo algunas transacciones con valores de gasto de 0. "
+"¡Quizás se trató de devoluciones o regalos promocionales! Casos como este no"
+" son actividades de compra reales y deben ser excluidos del modelado."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:100002
+#: 2482e72726a946bd80598e478cd79943
+msgid "Use the `rfm_summary` utility to aggregate data for modeling:"
+msgstr ""
+"Utilice la utilidad `rfm_summary` para agregar datos para el modelado:"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:120002
+#: 05a912ed66b74cb39cbdebe40c21e899
+msgid ""
+"Recall the data aggregation definitions from the [CLV "
+"Quickstart](https://www.pymc-"
+"marketing.io/en/stable/notebooks/clv/clv_quickstart.html):"
+msgstr ""
+"Recuerde las definiciones de agregación de datos del [CLV "
+"Quickstart](https://www.pymc-"
+"marketing.io/en/stable/notebooks/clv/clv_quickstart.html):"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:120004
+#: aa33aa9501e7463b8d8c4eb7895bc24c
+msgid "`customer_id` is an index of a unique identifiers for each customer."
+msgstr ""
+"`customer_id` es un índice de identificadores únicos para cada cliente."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:120005
+#: 49775405c8684bb787e054e6809c5142
+msgid ""
+"`frequency` is the number of repeat purchases that a customer has made "
+"(i.e., total number of purchases minus one)."
+msgstr ""
+"`frequency` es el número de compras repetidas que un cliente ha realizado "
+"(es decir, el número total de compras menos uno)."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:120006
+#: 9bce44dbeccc4995aa6216fceec4a75b
+msgid ""
+"`recency` indicates the time period when a customer made their most recent "
+"purchase. If a customer has only made 1 purchase, recency is 0."
+msgstr ""
+"`recency` indica el período de tiempo en el que un cliente realizó su compra"
+" más reciente. Si un cliente solo ha realizado 1 compra, la recency es 0."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:120007
+#: d83fb5c9c0224a38846e66e7370b9a95
+msgid ""
+"`T` is a customer's \"age\", or the number of time periods since their first"
+" purchase."
+msgstr ""
+"`T` es la \"edad\" de un cliente, o el número de períodos de tiempo desde su"
+" primera compra."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:130002
+#: 681286165e2542518702707661ae3a73
+msgid "Model Definition"
+msgstr "Definición del Modelo"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:130003
+#: 722105a79ed340ed94ac5020700c654b
+msgid ""
+"The Pareto/NBD model is based on the following assumptions for each "
+"customer:"
+msgstr ""
+"El modelo Pareto/NBD se basa en las siguientes suposiciones para cada "
+"cliente:"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:130004
+#: c2506bece77940d0966753702309e774
+msgid ""
+"Customers are active for an unobserved period of time, then become "
+"permanently inactive."
+msgstr ""
+"Los clientes están activos durante un período de tiempo no observado, y "
+"luego se vuelven permanentemente inactivos."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:130006
+#: 531541ac1f9545c388992021ab4f1c9f
+msgid "Purchasing Process"
+msgstr "Proceso de Compra"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:130008
+#: aff4259a42fa49569855328392ef2a11
+msgid ""
+"While active, the the number of transactions made by a customer follows a "
+"Poisson process with transaction rate $\\lambda$:"
+msgstr ""
+"Mientras está activo, el número de transacciones realizadas por un cliente "
+"sigue un proceso de Poisson con una tasa de transacción $\\lambda$:"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:130010
+#: b7bb988bc33747c9a8a14378b3c12a73
+msgid "P(X(t)=x|\\lambda) = \\frac{(\\lambda t)^{x}e^{-\\lambda t}}{x!}, x=0,1,2,..."
+msgstr "P(X(t)=x|\\lambda) = \\frac{(\\lambda t)^{x}e^{-\\lambda t}}{x!}, x=0,1,2,..."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:130012
+#: 7c07f78a64784760ba1228a2fd071ee7
+msgid ""
+"This is equivalent to assuming time between transactions is exponentially "
+"distributed with transaction rate $\\lambda$:"
+msgstr ""
+"Esto es equivalente a suponer que el tiempo entre transacciones se "
+"distribuye exponencialmente con una tasa de transacción $\\lambda$:"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:130014
+#: cad3469870a5407996118d21485fa29e
+msgid ""
+"f(t_{j}-t_{j-1}| \\lambda) = \\lambda e^{-\\lambda (t_{j} - t_{j - 1})}, "
+"\\quad t_{j} \\geq t_{j - 1} \\geq 0"
+msgstr ""
+"f(t_{j}-t_{j-1}| \\lambda) = \\lambda e^{-\\lambda (t_{j} - t_{j - 1})}, "
+"\\quad t_{j} \\geq t_{j - 1} \\geq 0"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:130016
+#: 08faa8567d4e4295b32ad25918508c66
+msgid "Where $t$ is the time period of the $j$th purchase."
+msgstr "Donde $t$ es el período de tiempo de la $j$-ésima compra."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:130017
+#: 7abc4cb6766a4984af8b3d3ebf2b9f98
+msgid ""
+"Heterogeneity in $\\lambda$ follows a Gamma distribution with shape "
+"parameter $r$ and scale parameter $\\alpha$:"
+msgstr ""
+"La heterogeneidad en $\\lambda$ sigue una distribución Gamma con parámetro "
+"de forma $r$ y parámetro de escala $\\alpha$:"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:130019
+#: 2a4c5a73d5ba4904a0f04f85e0f04ad3
+msgid ""
+"g(\\lambda|r, \\alpha) = \\frac{\\alpha^{r}\\lambda^{r - 1}e^{-\\lambda "
+"\\alpha}}{\\Gamma(r)}"
+msgstr ""
+"g(\\lambda|r, \\alpha) = \\frac{\\alpha^{r}\\lambda^{r - 1}e^{-\\lambda "
+"\\alpha}}{\\Gamma(r)}"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:130020
+#: 7e361e4eea0442bda69281a414dcea99
+msgid "Dropout Process"
+msgstr "Proceso de abandono"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:130021
+#: 91bbacb6987b41d380d6cb3095aa4303
+msgid ""
+"The duration of a customer's unobserved active lifetime is exponentially "
+"distributed with dropout rate $\\mu$."
+msgstr ""
+"La duración de la vida activa no observada de un cliente se distribuye "
+"exponencialmente con una tasa de abandono $\\mu$."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:130023
+#: 28abdfa8b3ad4c30a00111afc71efd00
+msgid ""
+"Heterogeneity in $\\mu$ also follows a Gamma distribution with shape "
+"parameter $s$ and scale parameter $\\beta$:"
+msgstr ""
+"La heterogeneidad en $\\mu$ también sigue una distribución Gamma con "
+"parámetro de forma $s$ y parámetro de escala $\\beta$:"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:130025
+#: 5c462df40ce04db5bac038e06ba5dac6
+msgid "g(\\mu|s, \\beta) = \\frac{\\beta^{s}\\mu^{s - 1}e^{-\\mu \\beta}}{\\Gamma(s)}"
+msgstr "g(\\mu|s, \\beta) = \\frac{\\beta^{s}\\mu^{s - 1}e^{-\\mu \\beta}}{\\Gamma(s)}"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:130027
+#: 1ba89778247043b1acd1c3b3848f917a
+msgid ""
+"Transaction rate $\\lambda$ and time until dropout $\\mu$ vary independently"
+" for each customer."
+msgstr ""
+"La tasa de transacción $\\lambda$ y el tiempo hasta la deserción $\\mu$ "
+"varían de manera independiente para cada cliente."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:130029
+#: ac5fb7009a654eefb125cc10e96f64db
+msgid ""
+"If we take the expectation across the distributions of $\\lambda$ and "
+"$\\mu$, we can derive a likelihood function to estimate parameters $r$, "
+"$\\alpha$, $s$, and $\\beta$ across the customer population. For more "
+"details on the `ParetoNBD` likelihood please refer to the "
+"[docs](https://www.pymc-"
+"marketing.io/en/stable/api/generated/pymc_marketing.clv.distributions.ParetoNBD.html#pymc_marketing.clv.distributions.ParetoNBD)."
+msgstr ""
+"Si tomamos la expectativa a través de las distribuciones de $\\lambda$ y "
+"$\\mu$, podemos derivar una función de verosimilitud para estimar los "
+"parámetros $r$, $\\alpha$, $s$ y $\\beta$ en la población de clientes. Para "
+"más detalles sobre la verosimilitud de `ParetoNBD`, por favor consulte la "
+"[documentación](https://www.pymc-"
+"marketing.io/en/stable/api/generated/pymc_marketing.clv.distributions.ParetoNBD.html#pymc_marketing.clv.distributions.ParetoNBD)."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:140002
+#: e6aca68a6ccb452ba9ba9c53e83b6781
+msgid "Model Fitting"
+msgstr "Ajuste del modelo"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:150002
+#: 2a1650c4aeba4baf8435763b400f60f8
+msgid "`lifetimes` Benchmark Model"
+msgstr "Modelo de referencia de `lifetimes`"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:150004
+#: 2fb21696950747dea73f40904daaedfe
+msgid ""
+"Let's time travel back to July 2020 and use the old `lifetimes` library to "
+"fit a Pareto/NBD model with Maximum Likelihood Estimation (MLE). The "
+"`Nelder-Mead` optimizer from `scipy.optimize` is ran under the hood to "
+"estimate scalar values for $r$, $\\alpha$, $s$, and $\\beta$."
+msgstr ""
+"Hagamos un viaje en el tiempo de regreso a julio de 2020 y utilicemos la "
+"antigua biblioteca `lifetimes` para ajustar un modelo Pareto/NBD con "
+"Estimación de Máxima Verosimilitud (MLE). El optimizador `Nelder-Mead` de "
+"`scipy.optimize` se ejecuta en segundo plano para estimar valores escalares "
+"para $r$, $\\alpha$, $s$ y $\\beta$."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:170002
+#: 0d711ca817154f60a2bc6e6eb6969f35
+msgid ""
+"The Bayesian equivalent of MLE is Maximum a Posteriori(MAP), in which the "
+"returned scalar values are regularized with priors during estimation."
+msgstr ""
+"El equivalente bayesiano de MLE es el Máximo a Posteriori (MAP), en el cual "
+"los valores escalares devueltos son regularizados con priors durante la "
+"estimación."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:170004
+#: 872e9c4665774b2d9d6c2aec674f3bd1
+msgid ""
+"A \"Flat\" prior indicates the user is agnostic, holding no prior beliefs or"
+" assumptions about the data. $r$, $\\alpha$, $s$, and $\\beta$ must also be "
+"positive values, so let's configure our Bayesian `ParetoNBDModel` with "
+"`HalfFlat` priors:"
+msgstr ""
+"Un prior \"plano\" indica que el usuario es agnóstico, sin creencias o "
+"suposiciones previas sobre los datos. $r$, $\\alpha$, $s$ y $\\beta$ también"
+" deben ser valores positivos, así que configuremos nuestro `ParetoNBDModel` "
+"bayesiano con priors `HalfFlat`:"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:190002
+#: 38416a0deaef49d6acb921de1ddaa5c0
+msgid "Build the model to view the choice of Priors used for modeling:"
+msgstr ""
+"Construya el modelo para ver la elección de Priors utilizados para el "
+"modelado:"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:210002
+#: 1260b971286146228b8d8d346ccb4c1d
+msgid "Note it is not necessary to build a model prior to modeling."
+msgstr ""
+"Tenga en cuenta que no es necesario construir un modelo antes de la "
+"modelización."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:210004
+#: dddd0e816b0b489ca19af07489bc84b4
+msgid "Now let's fit our `ParetoNBDModel` with MAP."
+msgstr "Ahora ajustemos nuestro `ParetoNBDModel` con MAP."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:230002
+#: e061a7e4b9854911a775c27cf86e6031
+msgid ""
+"For MAP fitting `pymc-marketing` uses the `L-BGFS-B` optimizer from "
+"`scipy.optimize`, a faster and more stable alternative to `Nelder-Mead`."
+msgstr ""
+"Para el ajuste de MAP, `pymc-marketing` utiliza el optimizador `L-BGFS-B` de"
+" `scipy.optimize`, una alternativa más rápida y estable a `Nelder-Mead`."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:250002
+#: 2b9eb397d72d47f4acf52b9f1ccc99b5
+#, python-format
+msgid ""
+"Model parameter estimations are equivalent between the frequentist MLE fit "
+"from `lifetimes`, and a Bayesian `pymc-marketing` model fit with flat "
+"priors. However, the CDNOW sample we're working with is quite small and "
+"comprises only 10% of the total CDNOW dataset, so it's quite likely these "
+"estimates are overfitting if we attempt to run predictions on the full "
+"dataset."
+msgstr ""
+"Las estimaciones de parámetros del modelo son equivalentes entre el ajuste "
+"MLE frecuentista de `lifetimes` y un ajuste del modelo bayesiano `pymc-"
+"marketing` con priors uniformes. Sin embargo, la muestra de CDNOW con la que"
+" estamos trabajando es bastante pequeña y comprende solo el 10% del conjunto"
+" de datos total de CDNOW, por lo que es muy probable que estas estimaciones "
+"estén sobreajustadas si intentamos realizar predicciones en el conjunto de "
+"datos completo."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:250004
+#: beeecd805a6f462d90fc3d43bf8a90fe
+msgid ""
+"With prior distributions, we can inform model fitting with our own "
+"subjective domain knowledge, and even improve the speed of model fits. The "
+"default prior configuration for `ParetoNBDModel` works well for a variety of"
+" use cases:"
+msgstr ""
+"Con distribuciones a priori, podemos informar el ajuste del modelo con "
+"nuestro propio conocimiento subjetivo del dominio e incluso mejorar la "
+"velocidad de los ajustes del modelo. La configuración a priori "
+"predeterminada para `ParetoNBDModel` funciona bien para una variedad de "
+"casos de uso:"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:270002
+#: d0a74467de254120a5cd81477769a5a0
+msgid "Prior and Posterior Predictive Checks"
+msgstr "Comprobaciones Predictivas Anteriores y Posteriores"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:270003
+#: 24c39e93e4394ac285d7aef4252aaf7d
+msgid ""
+"PPCs allow us to check the efficacy of our priors, and the peformance of the"
+" fitted posteriors. PPCs aren't usually an option with MAP fitted models, "
+"but here we're actually sampling from the latent $\\lambda$ and $\\mu$ Gamma"
+" distributions, so PPCs are possible for `ParetoNBDModel` regardless of the "
+"fit method!"
+msgstr ""
+"Los PPCs nos permiten verificar la eficacia de nuestros priors y el "
+"rendimiento de los posteriors ajustados. Los PPCs generalmente no son una "
+"opción con modelos ajustados por MAP, pero aquí en realidad estamos "
+"muestreando de las distribuciones Gamma latentes $\\lambda$ y $\\mu$, por lo"
+" que los PPCs son posibles para `ParetoNBDModel` independientemente del "
+"método de ajuste."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:270005
+#: 3bc2c9ccf5014325b55c0d164cd8e119
+msgid ""
+"Let's see how the model performs in a *prior* predictive check, where we "
+"sample from the default priors before fitting the model:"
+msgstr ""
+"Veamos cómo se desempeña el modelo en un chequeo predictivo *previo*, donde "
+"muestreamos de las distribuciones a priori predeterminadas antes de ajustar "
+"el modelo:"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:290002
+#: 950cc53fbc434b9fb6e1d259bd880848
+msgid ""
+"Here the `ParetoNBDModel` is simulating customer purchases from the prior "
+"distributions to compare against the obseved data. The default priors look "
+"reasonable for non-repeat customers, but do not model repeat customers well."
+msgstr ""
+"Aquí el `ParetoNBDModel` está simulando las compras de los clientes a partir"
+" de las distribuciones previas para compararlas con los datos observados. "
+"Las distribuciones previas por defecto parecen razonables para los clientes "
+"no recurrentes, pero no modelan bien a los clientes recurrentes."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:290004
+#: d7e8afd2273f4ca08641f8fd5a3de147
+msgid ""
+"Let's fit our model and run a *posterior* predictive check for comparison:"
+msgstr ""
+"Ajustemos nuestro modelo y realicemos un chequeo predictivo *posterior* para"
+" comparación:"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:310002
+#: 5f220451bd7846bc959f7ba623289148
+msgid "Our fitted model is able to reliably simulate customer behavior!"
+msgstr ""
+"¡Nuestro modelo ajustado es capaz de simular de manera confiable el "
+"comportamiento del cliente!"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:320002
+#: 6f2bb59fd9f3430bbba6885f3406990e
+msgid "Full Bayesian Inference"
+msgstr "Inferencia Bayesiana Completa"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:330002
+#: d52fc29fc3b141df9a6a3034dbe0b769
+msgid ""
+"MAP fits estimate only scalar values for $r$, $\\alpha$, $s$, and $\\beta$, "
+"but with full Bayesian sampling we can infer the posterior probability "
+"distributions for these parameters, illustrating uncertainty in our "
+"estimates as well as enabling prediction intervals."
+msgstr ""
+"MAP solo ajusta valores escalares para $r$, $\\alpha$, $s$ y $\\beta$, pero "
+"con un muestreo bayesiano completo podemos inferir las distribuciones de "
+"probabilidad posterior para estos parámetros, ilustrando la incertidumbre en"
+" nuestras estimaciones así como permitiendo intervalos de predicción."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:330004
+#: 76e3f69ad62a43baabc903a514e27f58
+msgid ""
+"NUTS is the default sampler in `pymc-marketing`, which samples from the "
+"posterior by exploring the gradients of the probability space. However, NUTS"
+" sampling with `ParetoNBDModel` can be quite slow due to the complexity of "
+"the likelihood expression. In fact, the mathematical complexity of this "
+"model is what motivated the development of the "
+"[`BetaGeoModel`](https://www.pymc-"
+"marketing.io/en/stable/notebooks/clv/bg_nbd.html) in 2005. The BG/NBD model "
+"makes some simplifying assumptions and sacrifices functionality in customer "
+"dropout estimation for better computational performance."
+msgstr ""
+"NUTS es el muestreador predeterminado en `pymc-marketing`, que muestrea de "
+"la posterior explorando los gradientes del espacio de probabilidad. Sin "
+"embargo, el muestreo NUTS con `ParetoNBDModel` puede ser bastante lento "
+"debido a la complejidad de la expresión de verosimilitud. De hecho, la "
+"complejidad matemática de este modelo fue lo que motivó el desarrollo del "
+"[`BetaGeoModel`](https://www.pymc-"
+"marketing.io/en/stable/notebooks/clv/bg_nbd.html) en 2005. El modelo BG/NBD "
+"hace algunas suposiciones simplificadoras y sacrifica funcionalidad en la "
+"estimación de abandono de clientes para mejorar el rendimiento "
+"computacional."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:330006
+#: 4aa8ba7a6a1c410d9b6b94c9e5b5dd8f
+msgid ""
+"To save time and computational costs, it is recommended to use the gradient-"
+"free DEMetropolisZ sampler. This often requires more samples during fitting,"
+" so if any `rhat statistic` warnings are encountered, increase the size of "
+"the `tune` and `draw` parameters until the warning no longer appears."
+msgstr ""
+"Para ahorrar tiempo y costos computacionales, se recomienda utilizar el "
+"muestreador DEMetropolisZ sin gradiente. Esto a menudo requiere más muestras"
+" durante el ajuste, por lo que si se encuentran advertencias de `estadística"
+" rhat`, aumente el tamaño de los parámetros `tune` y `draw` hasta que la "
+"advertencia ya no aparezca."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:360002
+#: ca74673238354012bd45a29e70219b94
+msgid ""
+"Use `thin_fit_result` if the large number of draws are causing computational"
+" issues. Keeping every second sample will reduce the number of draws by "
+"half:"
+msgstr ""
+"Utilice `thin_fit_result` si la gran cantidad de extracciones está causando "
+"problemas computacionales. Mantener cada segunda muestra reducirá el número "
+"de extracciones a la mitad:"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:400002
+#: c6656676d756430eb02b4c8a2cbfea26
+msgid "Let's see how the DEMZ posteriors compare to the MAP estimations:"
+msgstr ""
+"Veamos cómo se comparan los posteriores de DEMZ con las estimaciones MAP:"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:420002
+#: 3476c67b56524d8bbb22595d5ebf5409
+msgid ""
+"After fitting, models can be persisted with `pnbd_pymc.save(\"pnbd.nc\")` "
+"and `pnbd_pymc.load(\"pnbd.nc\")`."
+msgstr ""
+"Después de ajustar, los modelos se pueden guardar con "
+"`pnbd_pymc.save(\"pnbd.nc\")` y cargar con `pnbd_pymc.load(\"pnbd.nc\")`."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:430002
+#: a6995e37d2e041b497acbd9b589f3579
+msgid "Predictive Methods"
+msgstr "Métodos Predictivos"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:430004
+#: dcbeb7bac9f543f19e4ece8fc4ea4163
+msgid "The Pareto/NBD model supports a variety of predictive methods:"
+msgstr "El modelo Pareto/NBD admite una variedad de métodos predictivos:"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:430006
+#: ec6045d0ccdb46b2ab88ac797188efc4
+msgid "`expected_purchases`"
+msgstr "`compras_esperadas`"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:430007
+#: 90373d43e22341ecacc09a534a38cc2c
+msgid "`expected_probability_alive`"
+msgstr "`probabilidad_esperada_viva`"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:430008
+#: a2b2fbb6edc347db81feb96fea80b3b2
+msgid "`expected_purchases_new_customer`"
+msgstr "compras_esperadas_nuevo_cliente"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:430009
+#: a5161a07a7e04a8987c311d9548d3cf3
+msgid "`expected_purchase_probability`"
+msgstr "probabilidad_de_compra_esperada"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:430011
+#: 562571749de548ffb052f2e0d71b0c20
+msgid "Let's take a small sample of users:"
+msgstr "Tomemos una pequeña muestra de usuarios:"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:450002
+#: d9c1913b6756480a9ba122545b749582
+msgid ""
+"Observe customers 5 & 10 are *non-repeat buyers*, whereas 1413 and 46 are "
+"*frequent buyers*."
+msgstr ""
+"Observe que los clientes 5 y 10 son *compradores no recurrentes*, mientras "
+"que 1413 y 46 son *compradores frecuentes*."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:460002
+#: a928df08feca495d8155a2ee33133230
+msgid "Expected Number of Purchases"
+msgstr "Número Esperado de Compras"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:460003
+#: a9cd179d03df4e778018938e6d66b157
+msgid ""
+"Let's plot each customer's expected number of purchases over the next $90$ "
+"time periods:"
+msgstr ""
+"Vamos a trazar el número esperado de compras de cada cliente durante los "
+"próximos $90$ períodos de tiempo:"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:490002
+#: eb9bb5ea83ce49628c31f6c6b97d442f
+msgid ""
+"Note the HDI prediction intervals are only available if the model is fit "
+"with full posteriors."
+msgstr ""
+"Tenga en cuenta que los intervalos de predicción del IDH solo están "
+"disponibles si el modelo se ajusta con posteriors completos."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:490004
+#: b7b7ded919264deba2f4ae86b79e3bb0
+msgid ""
+"Observe the large number of purchases expected from the frequent buyers "
+"(Customers 46 and 1413) whereas little or no future activity is expected of "
+"the remaining customers."
+msgstr ""
+"Observe el gran número de compras que se esperan de los compradores "
+"frecuentes (Clientes 46 y 1413), mientras que se espera poca o ninguna "
+"actividad futura de los demás clientes."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:500002
+#: ab4575c33a1845d387f7d8469a7ab3ec
+msgid "Expected Probability Alive"
+msgstr "Probabilidad Esperada de Estar Vivo"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:500003
+#: da2f9743066c4c4b9bbf2d84918bd314
+msgid ""
+"Let's check the probability our customers are still alive and compare "
+"against the MAP results."
+msgstr ""
+"Verifiquemos la probabilidad de que nuestros clientes sigan vivos y "
+"comparemos con los resultados del MAP."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:520002
+#: 8473503f1ed142deb31fa0d6cbfc1c9f
+msgid ""
+"Customer 1413 has a rather low alive probability despite being a frequent "
+"purchaser. This would be a good example of a customer to target with a "
+"special offer for retention."
+msgstr ""
+"El cliente 1413 tiene una probabilidad de permanencia bastante baja a pesar "
+"de ser un comprador frecuente. Este sería un buen ejemplo de un cliente al "
+"que dirigirse con una oferta especial para la retención."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:520004
+#: ac40c7e4b6e44b14938e8ea3c9dbe79b
+msgid ""
+"These probabilities are estimated at time period 0, but we can also estimate"
+" the probabilities customers will still be active in the future. Let's "
+"calculate the posterior densities 90 time periods from now and compare to "
+"the MAP at time period 0:"
+msgstr ""
+"Estas probabilidades se estiman en el período de tiempo 0, pero también "
+"podemos estimar las probabilidades de que los clientes sigan activos en el "
+"futuro. Calculemos las densidades posteriores 90 períodos de tiempo a partir"
+" de ahora y comparemos con el MAP en el período de tiempo 0:"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:540002
+#: 85fe881a28f24bdf89cd7fef1d7bf4d7
+msgid ""
+"Pay attention to the x-axes for each customer - The probabilities barely "
+"changed for the *non-repeat* customers, but there is a significant delta for"
+" *frequent buyers*."
+msgstr ""
+"Preste atención a los ejes x para cada cliente - Las probabilidades apenas "
+"cambiaron para los *clientes no recurrentes*, pero hay un delta "
+"significativo para los *compradores frecuentes*."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:540004
+#: e36497d840844905a1186c5379d70b45
+msgid ""
+"A good rule of thumb is that an alive probability of .25-.30 usually "
+"indicates an at-risk or inactive customer. Future projections can give "
+"additional insight into customer churn risk."
+msgstr ""
+"Una buena regla general es que una probabilidad de actividad de .25-.30 "
+"suele indicar un cliente en riesgo o inactivo. Las proyecciones futuras "
+"pueden proporcionar información adicional sobre el riesgo de deserción de "
+"clientes."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:550002
+#: 4083f927d6d14a4bbd435ba53e2999ca
+msgid "Probability of $n$ Purchases over Time $t$"
+msgstr "Probabilidad de $n$ Compras a lo largo del Tiempo $t$"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:550004
+#: 1a1d2747774a4f05ab5468aac5b6d485
+msgid ""
+"Customer 46 is our best customer in this small sample set, and is expected "
+"to make at least $15$ purchases over the next $90$ time periods. What is the"
+" probability of this many purchases being made, and how will it change over "
+"time?"
+msgstr ""
+"El cliente 46 es nuestro mejor cliente en este pequeño conjunto de muestras "
+"y se espera que realice al menos $15$ compras en los próximos $90$ períodos "
+"de tiempo. ¿Cuál es la probabilidad de que se realicen tantas compras y cómo"
+" cambiará con el tiempo?"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:550006
+#: c77e078916ca4b75a495467568097fc1
+msgid "Let's plot a heatmap to paint the full picture:"
+msgstr "Vamos a trazar un mapa de calor para pintar el panorama completo:"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:580002
+#: caed838855014614aaed43d7d9fb3139
+#, python-format
+msgid ""
+"This heatmap highlights how Customer 46 is expected to make at least 15 "
+"purchases *up to* time period 90, but the odds of 15 purchases being made "
+"before time period 75 or even time period 60 are slightly higher. Also note "
+"these probabilities assume exact expectations (i.e., there's a 6.2% chance "
+"of the 15th purchase being made precisely during time period 60.)"
+msgstr ""
+"Este mapa de calor destaca cómo se espera que el Cliente 46 realice al menos"
+" 15 compras *hasta* el período de tiempo 90, pero las probabilidades de que "
+"se realicen 15 compras antes del período de tiempo 75 o incluso del período "
+"de tiempo 60 son ligeramente más altas. También tenga en cuenta que estas "
+"probabilidades asumen expectativas exactas (es decir, hay un 6.2% de "
+"probabilidad de que la 15ª compra se realice precisamente durante el período"
+" de tiempo 60)."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:590002
+#: 85fd5800688e49728d7001dd11c2903b
+msgid "Expected Number of Purchases for New Customers"
+msgstr "Número Esperado de Compras para Nuevos Clientes"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:590003
+#: 0cc46aea985a4c49965610ffbf06e276
+msgid ""
+"So far we've only been running predictions for existing customers, but we "
+"can also estimate the expected number of transactions over time for a new "
+"customer:"
+msgstr ""
+"Hasta ahora, solo hemos estado realizando predicciones para clientes "
+"existentes, pero también podemos estimar el número esperado de transacciones"
+" a lo largo del tiempo para un nuevo cliente:"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:610002
+#: d7605909282b4a159480b50feec0526a
+msgid ""
+"Let's see how these estimates change when we add covariates to the model."
+msgstr ""
+"Veamos cómo cambian estas estimaciones cuando añadimos covariables al "
+"modelo."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:620002
+#: 62c5aef9835c400384b5d1fd8522787b
+msgid "Time-Invariant Covariates"
+msgstr "Covariables Invariantes en el Tiempo"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:630002
+#: 80e97beb313040bf9fcb36641fb8cc34
+msgid ""
+"Recall $\\alpha$, and $\\beta$ represent the scale parameters for the "
+"purchase and dropout rate distributions, respectively. To model for time-"
+"invariant covariates, we simply modify these parameters as follows:"
+msgstr ""
+"Recuerde que $\\alpha$ y $\\beta$ representan los parámetros de escala para "
+"las distribuciones de la tasa de compra y de abandono, respectivamente. Para"
+" modelar covariables invariables en el tiempo, simplemente modificamos estos"
+" parámetros de la siguiente manera:"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:630004
+#: e57a9532086b4eeb8f1ab5ddcfb8ea2a
+#, python-brace-format
+msgid "\\alpha = \\alpha_0e^{-\\gamma_1'z_1}"
+msgstr "\\alpha = \\alpha_0e^{-\\gamma_1'z_1}"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:630005
+#: 848cc73d5b45425693d3bbb494a4032b
+#, python-brace-format
+msgid "\\beta = \\beta_0e^{-\\gamma_2'z_2}"
+msgstr "\\beta = \\beta_0e^{-\\gamma_2'z_2}"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:630007
+#: e3d7d62461324b90918fa52696a23fc2
+msgid ""
+"Where $\\gamma_1$ and $\\gamma_2$ are coefficients capturing the impact of "
+"the covariates, and $z_1$ and $z_2$ the covariate arrays for each customer."
+msgstr ""
+"Donde $\\gamma_1$ y $\\gamma_2$ son coeficientes que capturan el impacto de "
+"las covariables, y $z_1$ y $z_2$ son los arreglos de covariables para cada "
+"cliente."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:630009
+#: 49be3a47659040299ecfa1aa073026d8
+msgid "Let's take a look at the covariates available in the raw data:"
+msgstr ""
+"Echemos un vistazo a las covariables disponibles en los datos en bruto:"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:650002
+#: 7961a7ee8760430aa7981aaa52b5d94c
+msgid ""
+"One-tailed distributions with large values like this will complicate model "
+"fitting, so let's log and standardize our covariates:"
+msgstr ""
+"Las distribuciones de una cola con valores grandes como este complicarán el "
+"ajuste del modelo, así que registremos y estandaricemos nuestras "
+"covariables:"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:670002
+#: 82c292c470334e1ba1c1cdfb46af05f3
+msgid ""
+"To parametrize `ParetoNBDModel` with covariates, join the covariates to the "
+"existing RFM data and specify the column names in the `model_config`. "
+"Covariates for the purchase and dropout rates can be specified separately, "
+"enabling experimentation with various combinations to find what works best:"
+msgstr ""
+"Para parametrizar `ParetoNBDModel` con covariables, une las covariables a "
+"los datos RFM existentes y especifica los nombres de las columnas en la "
+"`model_config`. Las covariables para las tasas de compra y abandono pueden "
+"especificarse por separado, lo que permite experimentar con varias "
+"combinaciones para encontrar lo que mejor funciona:"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:690002
+#: 9efcc553fb9b40ce9bfafe1bd47c4914
+msgid ""
+"The additional parameters are automatically created when covariates are "
+"added."
+msgstr ""
+"Los parámetros adicionales se crean automáticamente cuando se añaden "
+"covariables."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:690004
+#: e972e21673064c9db5b3020a636f9351
+msgid "Let's do a quick MAP fit and check the results:"
+msgstr "Hagamos un ajuste rápido del MAP y verifiquemos los resultados:"
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:710002
+#: 56cf698a5b4544e89543573682038f38
+msgid ""
+"The `purchase_coefficient` and `dropout_coefficient` parameters indicate the"
+" respective impacts of each covariate - a negative sign can be interpreted "
+"as \"less likely to make a purchase or drop out\"."
+msgstr ""
+"Los parámetros `purchase_coefficient` y `dropout_coefficient` indican los "
+"respectivos impactos de cada covariable; un signo negativo puede "
+"interpretarse como \"menos probable que realice una compra o que abandone\"."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:710004
+#: 43669d4e98644317bd785d0e54affa83
+msgid ""
+"We can see the average number of CDs per purchase only has a small impact on"
+" the time between purchases, but a rather large impact on the dropout rate. "
+"Customers who frequently purchase multiple CDs are the least likely to "
+"dropout."
+msgstr ""
+"Podemos ver que el número promedio de CDs por compra solo tiene un pequeño "
+"impacto en el tiempo entre compras, pero un impacto bastante grande en la "
+"tasa de abandono. Los clientes que compran múltiples CDs con frecuencia son "
+"los menos propensos a abandonar."
+
+#: ../source/notebooks/clv/pareto_nbd.ipynb:710006
+#: 28148628debb44e9b4a14e8b8d8a279b
+msgid ""
+"The average spend per purchase is significant for both purchasing and time "
+"until dropout, but note that  if using the [Gamma-Gamma "
+"model](https://www.pymc-"
+"marketing.io/en/stable/notebooks/clv/gamma_gamma.html) to estimate customer "
+"lifetime value per the [Quickstart](https://www.pymc-"
+"marketing.io/en/stable/notebooks/clv/clv_quickstart.html), then *average "
+"spend cannot be used as a covariate* because an important modeling "
+"assumption for the Gamma-Gamma model is that spend and frequency are "
+"uncorrelated."
+msgstr ""
+"El gasto promedio por compra es significativo tanto para la compra como para"
+" el tiempo hasta la deserción, pero tenga en cuenta que si utiliza el "
+"[modelo Gamma-Gamma](https://www.pymc-"
+"marketing.io/en/stable/notebooks/clv/gamma_gamma.html) para estimar el valor"
+" de vida del cliente según el [Inicio Rápido](https://www.pymc-"
+"marketing.io/en/stable/notebooks/clv/clv_quickstart.html), entonces *el "
+"gasto promedio no puede ser utilizado como una covariable* porque una "
+"suposición importante del modelo Gamma-Gamma es que el gasto y la frecuencia"
+" son no correlacionados."

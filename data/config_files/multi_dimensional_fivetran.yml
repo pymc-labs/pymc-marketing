@@ -1,0 +1,28 @@
+model:
+  class: pymc_marketing.mmm.multidimensional.MMM
+  kwargs:
+    date_column: "date"
+    channel_columns:                                     # explicit for reproducibility
+      - facebook_ads_impressions
+      - google_ads_impressions
+      - tiktok_ads_impressions
+      # …
+    target_column: "orders"
+
+    # --- media transformations ---------------------------------------
+    adstock:
+      class: pymc_marketing.mmm.GeometricAdstock
+      kwargs: {l_max: 12}        # any other hyper-parameters here
+
+    saturation:
+      class: pymc_marketing.mmm.MichaelisMentenSaturation
+      kwargs: {}                 # default α, λ priors inside the class
+
+# ----------------------------------------------------------------------
+# (optional) sampler options you plan to forward to pm.sample():
+    sampler_config:
+      tune: 900
+      draws: 500
+      chains: 4
+      random_seed: 42
+      target_accept: 0.90

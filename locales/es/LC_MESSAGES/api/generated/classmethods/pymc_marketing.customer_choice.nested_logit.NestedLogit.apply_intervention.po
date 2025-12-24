@@ -1,0 +1,131 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.customer_choice.nested_logit.NestedLogit.apply_intervention.rst:2
+#: 4bb8f81287834507a71489a35825d940
+msgid "NestedLogit.apply\\_intervention"
+msgstr "NestedLogit.aplicar\\_intervención"
+
+#: 949e70cb6c004524a5c092375586781a of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.apply_intervention:2
+msgid "Apply one of two types of intervention."
+msgstr "Aplique uno de los dos tipos de intervención."
+
+#: c588d37e4db24b6b93c74c6c9c582900 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.apply_intervention:4
+msgid "This method supports two intervention strategies:"
+msgstr "Este método admite dos estrategias de intervención:"
+
+#: 510d6407dddd4a71b2664725655cc9df of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.apply_intervention:6
+msgid ""
+"1. **Observable attribute changes**: Uses the existing fitted model and "
+"modifies observable inputs (e.g., prices, features) to simulate how market "
+"shares change. This method uses posterior predictive sampling."
+msgstr ""
+"1. **Cambios en atributos observables**: Utiliza el modelo ajustado "
+"existente y modifica las entradas observables (por ejemplo, precios, "
+"características) para simular cómo cambian las cuotas de mercado. Este "
+"método utiliza muestreo predictivo posterior."
+
+#: dfe4fb50be9648e6a284a288b4b81a38 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.apply_intervention:10
+msgid ""
+"2. **Product removal**: Allows a product to be entirely removed from the "
+"choice set and simulates how demand redistributes among the remaining "
+"alternatives. This re-specifies and re-estimates the model before posterior "
+"prediction."
+msgstr ""
+"2. **Eliminación de producto**: Permite que un producto sea completamente "
+"eliminado del conjunto de opciones y simula cómo se redistribuye la demanda "
+"entre las alternativas restantes. Esto reespecifica y reestima el modelo "
+"antes de la predicción posterior."
+
+#: 1ac54b0610164caf87a11f62d3740bd4 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.apply_intervention
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 5dcc301a870542739c3eddaba9662903 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.apply_intervention:16
+msgid "**new_choice_df** : :obj:`pd.DataFrame`"
+msgstr "**new_choice_df** : :obj:`pd.DataFrame`"
+
+#: 7dbd6e33d17f4acfa7e05c80f088f78a of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.apply_intervention:15
+msgid "pd.DataFrame"
+msgstr "pd.DataFrame"
+
+#: 65eb46edcdae401d9e2ab91626abd7d9 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.apply_intervention:17
+msgid ""
+"The new dataset reflecting changes to observable attributes or product "
+"availability."
+msgstr ""
+"El nuevo conjunto de datos que refleja cambios en los atributos observables "
+"o la disponibilidad del producto."
+
+#: d1cabe38b476495d88e9e45c2a875763 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.apply_intervention:19
+msgid ""
+"**new_utility_equations** : :class:`python:list`\\[:class:`python:str`] | "
+":data:`python:None`, optional"
+msgstr ""
+"**nuevas_ecuaciones_utilitarias** : "
+":class:`python:list`\\[:class:`python:str`] | :data:`python:None`, opcional"
+
+#: 219fedfefba049879fa2c496fc8210f5 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.apply_intervention:18
+msgid "python:list[python:str] | python:None, optional"
+msgstr "python:list[python:str] | python:Ninguno, opcional"
+
+#: 8959dc4c45444a63b2c0bae7cc58948c of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.apply_intervention:20
+msgid ""
+"An updated list of utility specifications for each alternative, if different"
+" from the original model. If `None`, the original equations are reused and "
+"only the data is changed."
+msgstr ""
+"Una lista actualizada de especificaciones de utilidad para cada alternativa,"
+" si es diferente del modelo original. Si es `None`, se reutilizan las "
+"ecuaciones originales y solo se cambian los datos."
+
+#: 2d4a1295cf89423ba8603565011d9028 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.apply_intervention
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 953b756dcf7c4298acd3517948cdc450 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.apply_intervention:27
+msgid ":obj:`az.InferenceData`"
+msgstr ":obj:`az.InferenceData`"
+
+#: 7126b37093ab4b44aad1536e3f7154a8 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.apply_intervention:28
+msgid ""
+"The posterior or full predictive distribution under the intervention, "
+"including predicted probabilities (`\"p\"`) and likelihood draws "
+"(`\"likelihood\"`)."
+msgstr ""
+"La distribución predictiva posterior o completa bajo la intervención, "
+"incluyendo las probabilidades predichas (`\"p\"`) y las muestras de "
+"verosimilitud (`\"likelihood\"`)."

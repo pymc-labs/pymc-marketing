@@ -1,0 +1,160 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.base.rst:2
+#: 3a035cd8d81f4f06a5d584a5c3f74af9
+msgid "base"
+msgstr "base"
+
+#: eee77f52689346d5b2a70d851495ca33 of pymc_marketing.mmm.components.base:1
+msgid "Base class for adstock and saturation functions used in MMM."
+msgstr "Clase base para funciones de adstock y saturación utilizadas en MMM."
+
+#: fc55f48d5dbe4281b22429db95d7245a of pymc_marketing.mmm.components.base:3
+msgid "Use the subclasses directly for custom transformations:"
+msgstr ""
+"Utilice las subclases directamente para transformaciones personalizadas:"
+
+#: eaab9bdd5c7b49949a1b3e0b5b1d1d79 of pymc_marketing.mmm.components.base:5
+msgid ""
+"Adstock Transformations: "
+":class:`pymc_marketing.mmm.components.adstock.AdstockTransformation`"
+msgstr ""
+"Transformaciones de Adstock: "
+":class:`pymc_marketing.mmm.components.adstock.AdstockTransformation`"
+
+#: 471eecfb1119474288125dd909bed4da of pymc_marketing.mmm.components.base:6
+msgid ""
+"Saturation Transformations: "
+":class:`pymc_marketing.mmm.components.saturation.SaturationTransformation`"
+msgstr ""
+"Transformaciones de Saturación: "
+":class:`pymc_marketing.mmm.components.saturation.SaturationTransformation`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.base.rst:13
+#: 1c492a35f5044ae19157b6874bad48b1
+msgid "Functions"
+msgstr "Funciones"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.base.rst:24:<autosummary>:1
+#: 95d047e66ecc433abab6f8be8d65fe08
+msgid ""
+":py:obj:`create_registration_meta "
+"<pymc_marketing.mmm.components.base.create_registration_meta>`\\ "
+"\\(subclasses\\)"
+msgstr ""
+":py:obj:`create_registration_meta "
+"<pymc_marketing.mmm.components.base.create_registration_meta>`\\ "
+"\\(subclases\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.base.rst:24:<autosummary>:1
+#: dcc4fd9e182b478cb1d5136b06550888
+msgid "Create a metaclass for registering subclasses."
+msgstr "Cree una metaclase para registrar subclases."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.base.rst:24:<autosummary>:1
+#: 673c44b2ee094e92af1d8bab6e0d27b4
+msgid ""
+":py:obj:`index_variable "
+"<pymc_marketing.mmm.components.base.index_variable>`\\ \\(var\\, dims\\, "
+"idx\\)"
+msgstr ""
+":py:obj:`index_variable "
+"<pymc_marketing.mmm.components.base.index_variable>`\\ \\(var\\, dims\\, "
+"idx\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.base.rst:24:<autosummary>:1
+#: 13be83a8760940fb87cbe24915cdd935
+msgid "Index a variable based on the provided dimensions and index."
+msgstr "Indexar una variable según las dimensiones e índice proporcionados."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.base.rst:26
+#: 5662f3321b91463d9a579194befdce66
+msgid "Classes"
+msgstr "Clases"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.base.rst:38:<autosummary>:1
+#: 7369b447d5404f2596e66eb3ec9d86d4
+msgid ""
+":py:obj:`Transformation "
+"<pymc_marketing.mmm.components.base.Transformation>`\\ \\(\\[priors\\, "
+"prefix\\]\\)"
+msgstr ""
+":py:obj:`Transformación "
+"<pymc_marketing.mmm.components.base.Transformation>`\\ \\(\\[priors\\, "
+"prefix\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.base.rst:38:<autosummary>:1
+#: 939883960db44905ac9b716c6bfb565c
+msgid "Base class for adstock and saturation functions."
+msgstr "Clase base para funciones de adstock y saturación."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.base.rst:40
+#: 1ab432b0125c47c38076edd3bcfe5ae2
+msgid "Exceptions"
+msgstr "Excepciones"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.base.rst:45:<autosummary>:1
+#: 72ee38ea8fe9453080d7958d2048ac5a
+msgid ""
+":py:obj:`DuplicatedTransformationError "
+"<pymc_marketing.mmm.components.base.DuplicatedTransformationError>`\\ "
+"\\(name\\, lookup\\_name\\)"
+msgstr ""
+":py:obj:`DuplicatedTransformationError "
+"<pymc_marketing.mmm.components.base.DuplicatedTransformationError>`\\ "
+"\\(nombre\\, nombre\\_de\\_búsqueda\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.base.rst:45:<autosummary>:1
+#: 6a508615e5e44265a448f6b6a2c2018c
+msgid "Exception when a transformation is duplicated."
+msgstr "Excepción cuando se duplica una transformación."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.base.rst:45:<autosummary>:1
+#: 07498e719de149edaf6087631f706a17
+msgid ""
+":py:obj:`MissingDataParameter "
+"<pymc_marketing.mmm.components.base.MissingDataParameter>`\\ \\(\\)"
+msgstr ""
+":py:obj:`MissingDataParameter "
+"<pymc_marketing.mmm.components.base.MissingDataParameter>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.base.rst:45:<autosummary>:1
+#: ea17ce3845754a6fa7fb12890850026e
+msgid "Error if the function doesn't have a data parameter."
+msgstr "Error si la función no tiene un parámetro de datos."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.base.rst:45:<autosummary>:1
+#: a29b2ca458b54d60bb5b7a6c54e987a7
+msgid ""
+":py:obj:`ParameterPriorException "
+"<pymc_marketing.mmm.components.base.ParameterPriorException>`\\ \\(priors\\,"
+" parameters\\)"
+msgstr ""
+":py:obj:`ParameterPriorException "
+"<pymc_marketing.mmm.components.base.ParameterPriorException>`\\ \\(prior\\, "
+"parámetros\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.base.rst:45:<autosummary>:1
+#: 9becef1449da4a7ca40deddc4db78931
+msgid "Error when the functions and specified priors don't match up."
+msgstr "Error cuando las funciones y los priors especificados no coinciden."

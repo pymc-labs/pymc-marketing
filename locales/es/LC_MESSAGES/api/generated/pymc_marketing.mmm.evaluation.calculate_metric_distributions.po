@@ -1,0 +1,138 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.evaluation.calculate_metric_distributions.rst:2
+#: 207d1d2b418b49bab997f35b6f41d096
+msgid "calculate\\_metric\\_distributions"
+msgstr "calcular\\_distribuciones\\_métricas"
+
+#: b7ae30aac5dc4c61afa5c006494b5c11 of
+#: pymc_marketing.mmm.evaluation.calculate_metric_distributions:2
+msgid "Calculate distributions of evaluation metrics for posterior samples."
+msgstr ""
+"Calcular distribuciones de métricas de evaluación para muestras posteriores."
+
+#: d55387a7f6564254b9df46573a09bd9e of
+#: pymc_marketing.mmm.evaluation.calculate_metric_distributions
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: d976b1218b394118887f6635b4d4c361 of
+#: pymc_marketing.mmm.evaluation.calculate_metric_distributions:7
+msgid "**y_true** : :obj:`npt.NDArray` | :obj:`pd.Series`"
+msgstr "**y_true** : :obj:`npt.NDArray` | :obj:`pd.Series`"
+
+#: a68bac2ff3a14d7da1adeea1382be864 of
+#: pymc_marketing.mmm.evaluation.calculate_metric_distributions:6
+msgid "npt.NDArray | pd.Series"
+msgstr "npt.NDArray | pd.Series"
+
+#: ce94844d59ab4d10a311aa81e86209ae of
+#: pymc_marketing.mmm.evaluation.calculate_metric_distributions:8
+msgid "True values for the dataset. Shape: (date,)"
+msgstr "Valores verdaderos para el conjunto de datos. Forma: (fecha,)"
+
+#: 5f2d2e107dd34d11aaf426e55d6572f4 of
+#: pymc_marketing.mmm.evaluation.calculate_metric_distributions:10
+msgid "**y_pred** : :obj:`npt.NDArray` | :obj:`xr.DataArray`"
+msgstr "**y_pred** : :obj:`npt.NDArray` | :obj:`xr.DataArray`"
+
+#: 5519567e634f4ad2a07db232f6b5f855 of
+#: pymc_marketing.mmm.evaluation.calculate_metric_distributions:9
+msgid "npt.NDArray | xr.DataArray"
+msgstr "npt.NDArray | xr.DataArray"
+
+#: 79a003d366aa4aab88f335e411b5cc16 of
+#: pymc_marketing.mmm.evaluation.calculate_metric_distributions:11
+msgid "Posterior predictive samples. Shape: (date, sample)"
+msgstr "Muestras predictivas posteriores. Forma: (fecha, muestra)"
+
+#: 6267fe95ecb54a45be70d4f47407e7bc of
+#: pymc_marketing.mmm.evaluation.calculate_metric_distributions:13
+msgid ""
+"**metrics_to_calculate** : :class:`python:list` of :class:`python:str` or "
+":data:`python:None`, optional"
+msgstr ""
+"**métricas_a_calcular** : :class:`python:list` de :class:`python:str` o "
+":data:`python:None`, opcional"
+
+#: a09618dcb4bb4a7b9f32d2ca239f8153 of
+#: pymc_marketing.mmm.evaluation.calculate_metric_distributions:12
+msgid "python:list of python:str or python:None, optional"
+msgstr "python:lista de python:str o python:None, opcional"
+
+#: 687897e43a594e4abd5fadd09182ba59 of
+#: pymc_marketing.mmm.evaluation.calculate_metric_distributions:14
+msgid "List of metrics to calculate. Options include:"
+msgstr "Lista de métricas a calcular. Las opciones incluyen:"
+
+#: 0d56d111b5eb4b61b3b8c5225b10ba25 of
+#: pymc_marketing.mmm.evaluation.calculate_metric_distributions:15
+msgid "`r_squared`: Bayesian R-squared."
+msgstr "`r_squared`: R-cuadrado bayesiano."
+
+#: 175ff8a618554aad9b99ef92b9b48bf1 of
+#: pymc_marketing.mmm.evaluation.calculate_metric_distributions:16
+msgid "`rmse`: Root Mean Squared Error."
+msgstr "`rmse`: Error Cuadrático Medio."
+
+#: c7966108b5a94fec82cf89e79c70df3f of
+#: pymc_marketing.mmm.evaluation.calculate_metric_distributions:17
+msgid "`nrmse`: Normalized Root Mean Squared Error."
+msgstr "`nrmse`: Error Cuadrático Medio Normalizado."
+
+#: 0a91bbea24be4f5f919af0a5bc78b19a of
+#: pymc_marketing.mmm.evaluation.calculate_metric_distributions:18
+msgid "`mae`: Mean Absolute Error."
+msgstr "mae: Error Absoluto Medio."
+
+#: f91cf8ced70a427d9fd45a6459308f8c of
+#: pymc_marketing.mmm.evaluation.calculate_metric_distributions:19
+msgid "`nmae`: Normalized Mean Absolute Error."
+msgstr "`nmae`: Error Absoluto Medio Normalizado."
+
+#: c2356af2c4814c218d4b64a4f056da80 of
+#: pymc_marketing.mmm.evaluation.calculate_metric_distributions:20
+msgid "`mape`: Mean Absolute Percentage Error."
+msgstr "`mape`: Error Porcentual Absoluto Medio."
+
+#: 2a344db59cb64437a50df13821d77860 of
+#: pymc_marketing.mmm.evaluation.calculate_metric_distributions:21
+msgid "Defaults to all metrics if None."
+msgstr "Por defecto, se aplican todas las métricas si no hay ninguna."
+
+#: e2cde55ec3f94017bde309ec31687fe9 of
+#: pymc_marketing.mmm.evaluation.calculate_metric_distributions
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 192431900ecd4601b61a80595fc546bd of
+#: pymc_marketing.mmm.evaluation.calculate_metric_distributions:27
+msgid ""
+":class:`python:dict` of :class:`python:str` :obj:`to` :obj:`npt.NDArray`"
+msgstr ""
+":class:`python:dict` de :class:`python:str` :obj:`a` :obj:`npt.NDArray`"
+
+#: 7ea6ea8f7d7e4fa2a8dba2e20159dd2a of
+#: pymc_marketing.mmm.evaluation.calculate_metric_distributions:28
+msgid "A dictionary containing calculated metric distributions."
+msgstr "Un diccionario que contiene distribuciones métricas calculadas."

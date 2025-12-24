@@ -1,0 +1,75 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.rst:2
+#: 2a3fd32f140c4d668b37cfc0bb2ab0c9
+msgid "gamma\\_gamma"
+msgstr "gamma\\_gamma"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.rst:29:<autosummary>:1
+#: 2f898a13e6054455b91d3bff0a9359c1 6771d979a0bb405da1033145dc73c037
+#: bfc6363f52374c11a7b77daa6b8fc8dc of pymc_marketing.clv.models.gamma_gamma:1
+msgid "Gamma-Gamma Model for expected future monetary value."
+msgstr "Modelo Gamma-Gamma para el valor monetario futuro esperado."
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.rst:17
+#: 6ab821333cec4e9b8c2c6a181763ef5f
+msgid "Classes"
+msgstr "Clases"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.rst:29:<autosummary>:1
+#: 0840bf6d12f54dadae1a4b834fbe679f
+msgid ""
+":py:obj:`BaseGammaGammaModel "
+"<pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel>`\\ \\(data\\, "
+"\\*\\[\\, model\\_config\\, ...\\]\\)"
+msgstr ""
+":py:obj:`BaseGammaGammaModel "
+"<pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel>`\\ \\(datos\\, "
+"\\*\\[\\, configuración\\_del\\_modelo\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.rst:29:<autosummary>:1
+#: 38ff3ef0ef884864b158a4c4853709ff
+msgid "Base class for Gamma-Gamma models."
+msgstr "Clase base para modelos Gamma-Gamma."
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.rst:29:<autosummary>:1
+#: 3ee40010cabe4148bbc6bad6596c3acd
+msgid ""
+":py:obj:`GammaGammaModel "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModel>`\\ \\(data\\[\\, "
+"model\\_config\\, ...\\]\\)"
+msgstr ""
+":py:obj:`GammaGammaModel "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModel>`\\ \\(data\\[\\, "
+"model\\_config\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.rst:29:<autosummary>:1
+#: d633df06863f4fa9813c51463f4908fb
+msgid ""
+":py:obj:`GammaGammaModelIndividual "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual>`\\ "
+"\\(data\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`GammaGammaModelIndividual "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual>`\\ "
+"\\(data\\[\\, ...\\]\\)"

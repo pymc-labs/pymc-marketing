@@ -17,7 +17,7 @@ This modules provides Fourier seasonality transformations for use in
 Marketing Mix Models. The Fourier seasonality is a set of sine and cosine
 functions that can be used to model periodic patterns in the data.
 
-There are two types of Fourier seasonality transformations available:
+There are three types of Fourier seasonality transformations available:
 
 - Yearly Fourier: A yearly seasonality with a period of 365.25 days
 - Monthly Fourier: A monthly seasonality with a period of 365.25 / 12 days
@@ -70,9 +70,23 @@ Use yearly fourier seasonality for custom Marketing Mix Model.
 
 Plot the prior fourier seasonality trend.
 
-.. code-block:: python
+.. plot::
+    :context: close-figs
 
+    import pandas as pd
+    import pymc as pm
     import matplotlib.pyplot as plt
+
+    from pymc_marketing.mmm import YearlyFourier
+
+    yearly = YearlyFourier(n_order=3)
+
+    dates = pd.date_range("2023-01-01", periods=52, freq="W-MON")
+
+    dayofyear = dates.dayofyear.to_numpy()
+
+    with pm.Model() as model:
+        fourier_trend = yearly.apply(dayofyear)
 
     prior = yearly.sample_prior()
     curve = yearly.sample_curve(prior)
@@ -107,9 +121,22 @@ Even make it hierarchical...
 
 All the plotting will still work! Just pass any coords.
 
-.. code-block:: python
+.. plot::
+    :context: close-figs
 
     import matplotlib.pyplot as plt
+
+    from pymc_marketing.mmm import YearlyFourier
+    from pymc_extras.prior import Prior
+
+    # "fourier" is the default prefix!
+    prior = Prior(
+        "Laplace",
+        mu=Prior("Normal", dims="fourier"),
+        b=Prior("HalfNormal", sigma=0.1, dims="fourier"),
+        dims=("fourier", "hierarchy"),
+    )
+    yearly = YearlyFourier(n_order=3, prior=prior)
 
     coords = {"hierarchy": ["A", "B", "C"]}
     prior = yearly.sample_prior(coords=coords)
@@ -522,7 +549,7 @@ class FourierBase(BaseModel):
         """
         full_period = np.arange(self.days_in_period + 1)
 
-        coords = {}
+        coords: dict[str, npt.NDArray[Any]] = {}
         if use_dates:
             start_date = self.get_default_start_date(start_date=start_date)
             date_range = pd.date_range(
@@ -944,14 +971,19 @@ class WeeklyFourier(FourierBase):
         )
 
     def _get_days_in_period(self, dates: pd.DatetimeIndex) -> pd.Index:
-        """Return the weekday within the weekly periodicity.
+        """Return dayofyear associated with dates.
+
+        With no gaps, a pure weekly Fourier basis sin(2π k t/7) will evaluate the same whether
+        you pass t=dayofyear or t=weekday, because the sine/cos only depend on t mod 7.
+        However, there are empirical reasons to prefer this representation,
+        since it avoids divergences when used in combination with tvp.
 
         Returns
         -------
         int or float
             The relevant period within the characteristic periodicity
         """
-        return dates.weekday
+        return dates.dayofyear
 
 
 def _is_yearly_fourier(data: Any) -> bool:

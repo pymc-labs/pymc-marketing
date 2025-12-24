@@ -63,7 +63,15 @@ model:
           sigma: 1
           dims: "market"
         dims: ["date", "market"]
-
+# ----------------------------------------------------------------------
+# (optional) sampler options you plan to forward to pm.sample():
+    sampler_config:
+      tune: 1000
+      draws: 200
+      chains: 8
+      random_seed: 42
+      target_accept: 0.90
+      # if you want to use a custom sampler (e.g: nutpie) you could add # nuts_sampler: "nutpie"
 # ----------------------------------------------------------------------
 # Effects with complex priors
 effects:
@@ -102,16 +110,6 @@ effects:
               dims: "market"
             b: 0.1
             dims: ["market", "weekly_fourier"]
-
-# ----------------------------------------------------------------------
-# (optional) sampler options you plan to forward to pm.sample():
-    sampler_config:
-      tune: 1000
-      draws: 200
-      chains: 8
-      random_seed: 42
-      target_accept: 0.90
-      nuts_sampler: "nutpie"
 
 # ----------------------------------------------------------------------
 # (optional) idata from a previous sample

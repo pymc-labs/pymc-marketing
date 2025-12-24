@@ -1,0 +1,157 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer.rst:2
+#: e98e497462d24a1a9b8c23a333979ad5
+msgid "BetaGeoModel.distribution\\_new\\_customer"
+msgstr "BetaGeoModel.distribution\\_nuevo\\_cliente"
+
+#: d3eac86465ba4aeebe35e1db6dc88568 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer:2
+msgid ""
+"Compute posterior predictive samples of dropout, purchase rate and "
+"frequency/recency of new customers."
+msgstr ""
+"Calcule muestras predictivas posteriores de abandono, tasa de compra y "
+"frecuencia/recencia de nuevos clientes."
+
+#: 02d35170799342529897e7a1fe23707b of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer:4
+msgid ""
+"In a model with covariates, if `data` is not specified, the dataset used for"
+" fitting will be used and a prediction will be computed for a *new customer*"
+" with each set of covariates. *This is not a conditional prediction for "
+"observed customers!*"
+msgstr ""
+"En un modelo con covariables, si `data` no se especifica, se utilizará el "
+"conjunto de datos empleado para el ajuste y se calculará una predicción para"
+" un *nuevo cliente* con cada conjunto de covariables. *¡Esta no es una "
+"predicción condicional para clientes observados!*"
+
+#: 7bc5c03bc32d4e7bb6cc92ee744bbed3 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 9f008bf9fcf64b90997fea540e360840 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer:10
+msgid "**data** : :obj:`~pandas.DataFrame`, :obj:`Optional`"
+msgstr "**datos** : :obj:`~pandas.DataFrame`, :obj:`Opcional`"
+
+#: d2b15b93c45d458e86a16ab2c14252d3 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer:9
+msgid "DataFrame, Optional"
+msgstr "DataFrame, Opcional"
+
+#: 599fd4fbe7ad493e8e4cb4cc65fdb5c3 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer:11
+msgid "DataFrame containing the following columns:"
+msgstr "DataFrame que contiene las siguientes columnas:"
+
+#: d2cf66b425054280aacfd3f287bf5a48 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer:13
+msgid "`customer_id`: Unique customer identifier"
+msgstr "`customer_id`: Identificador único del cliente"
+
+#: 68d0b47b0c2d46568c531b79d823cdfa of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer:14
+msgid ""
+"`T`: Time between the first purchase and the end of the observation period"
+msgstr ""
+"`T`: Tiempo entre la primera compra y el final del período de observación"
+
+#: 8c75e0bb530945bab661703cb5f48c9a of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer:16
+msgid "If not provided, predictions will be ran with data used to fit model."
+msgstr ""
+"Si no se proporciona, las predicciones se realizarán con los datos "
+"utilizados para ajustar el modelo."
+
+#: 3fdb5b085b68412484af67c1543f9c3b of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer:18
+msgid "**T** : :term:`numpy:array_like`, optional"
+msgstr "**T** : :term:`numpy:array_like`, opcional"
+
+#: 4e37b8f3e201478c8f8155b4670beb98 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer:17
+msgid "numpy:array_like, optional"
+msgstr "numpy:similar a un arreglo, opcional"
+
+#: a1800291d52d4015adf7438a1d653f69 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer:19
+msgid ""
+"time between the first purchase and the end of the observation period. Not "
+"needed if `data` parameter is provided with a `T` column."
+msgstr ""
+"tiempo entre la primera compra y el final del período de observación. No es "
+"necesario si se proporciona el parámetro `data` con una columna `T`."
+
+#: 4ed9283b66a840639ac1b5e5dceb2c21 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer:22
+msgid "**random_seed** : :obj:`~numpy.random.RandomState`, optional"
+msgstr "**random_seed** : :obj:`~numpy.random.RandomState`, opcional"
+
+#: 45b1247514b8405fb5b47d48e00eca40 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer:21
+msgid "RandomState, optional"
+msgstr "RandomState, opcional"
+
+#: 251c991d22884b96a481913df2226775 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer:23
+msgid "Random state to use for sampling."
+msgstr "Estado aleatorio a utilizar para muestreo."
+
+#: 03000f01492044b3877e23d31728fd8c of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer:25
+msgid ""
+"**var_names** : :term:`python:sequence` of :class:`python:str`, optional"
+msgstr ""
+"**var_names** : :term:`python:sequence` de :class:`python:str`, opcional"
+
+#: 96f65dfba6624b508c90daf7042fab5b of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer:24
+msgid "python:sequence of python:str, optional"
+msgstr "python:secuencia de python:str, opcional"
+
+#: 38db66a7c54345d29ce1c11cf008c482 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer:26
+msgid ""
+"Names of the variables to sample from. Defaults to [\"dropout\", "
+"\"purchase_rate\", \"recency_frequency\"]."
+msgstr ""
+"Nombres de las variables de las que muestrear. Por defecto es [\"dropout\", "
+"\"purchase_rate\", \"recency_frequency\"]."
+
+#: c20686320df6408f8c927cc56fc237fa of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer:28
+msgid "**n_samples** : :class:`python:int`, optional"
+msgstr "**n_samples** : :class:`python:int`, opcional"
+
+#: b851ff145fe54185b0fb2e640fddfed8 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer:27
+msgid "python:int, optional"
+msgstr "python:int, opcional"
+
+#: a489d1cfb6f243d78657ad6a25f3b2b4 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer:29
+msgid "Number of samples to generate. Defaults to 1000"
+msgstr "Número de muestras a generar. Por defecto es 1000."

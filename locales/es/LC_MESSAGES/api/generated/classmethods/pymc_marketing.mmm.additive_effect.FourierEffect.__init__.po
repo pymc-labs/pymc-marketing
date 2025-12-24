@@ -1,0 +1,66 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.additive_effect.FourierEffect.__init__.rst:2
+#: ea27caf0c36f447386f5d8dc1019759f
+msgid "FourierEffect.\\_\\_init\\_\\_"
+msgstr "FourierEffect.\\_\\_init\\_\\_"
+
+#: acb0f49392224a2bb4ee99724a2ffcaf of
+#: pymc_marketing.mmm.additive_effect.FourierEffect.__init__:2
+msgid "Initialize the Fourier effect."
+msgstr "Inicializar el efecto de Fourier."
+
+#: a78f30cf3ccb4f4a8bf20711e85cd842 of
+#: pymc_marketing.mmm.additive_effect.FourierEffect.__init__
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: eb414581be7f4efb952678ad43a5aa54 of
+#: pymc_marketing.mmm.additive_effect.FourierEffect.__init__:7
+msgid "**fourier** : :obj:`FourierBase`"
+msgstr "**fourier** : :obj:`FourierBase`"
+
+#: 9bb1dfe78d4649649b41365a8de5c116 of
+#: pymc_marketing.mmm.additive_effect.FourierEffect.__init__:6
+msgid "FourierBase"
+msgstr "FourierBase"
+
+#: 361a56f40e434a329324d7f03ad54f1c of
+#: pymc_marketing.mmm.additive_effect.FourierEffect.__init__:8
+msgid "The FourierBase instance to use for the effect."
+msgstr "La instancia de FourierBase que se utilizará para el efecto."
+
+#: d27eaa165c2f4050a77582b22b0ef5b1 of
+#: pymc_marketing.mmm.additive_effect.FourierEffect.__init__:10
+msgid "**date_dim_name** : :class:`python:str`, optional"
+msgstr "**date_dim_name** : :class:`python:str`, opcional"
+
+#: c116e900454847279fb81d611e3aa2f7 of
+#: pymc_marketing.mmm.additive_effect.FourierEffect.__init__:9
+msgid "python:str, optional"
+msgstr "python:str, opcional"
+
+#: 475af910e2344736ba85c6f02e5d1150 of
+#: pymc_marketing.mmm.additive_effect.FourierEffect.__init__:11
+msgid "The name of the date dimension in the model, by default \"date\"."
+msgstr "El nombre de la dimensión de fecha en el modelo, por defecto \"date\"."

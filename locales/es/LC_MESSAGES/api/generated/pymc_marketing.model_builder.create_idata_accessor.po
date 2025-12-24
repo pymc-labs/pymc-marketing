@@ -1,0 +1,89 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.model_builder.create_idata_accessor.rst:2
+#: 5d3b24c92bf24e25be5e0e92a6d6e9be
+msgid "create\\_idata\\_accessor"
+msgstr "create_idata_accessor"
+
+#: 7fdcda23437440418d233e822f377010 of
+#: pymc_marketing.model_builder.create_idata_accessor:2
+msgid "Create a property accessor for an InferenceData object."
+msgstr "Cree un accesor de propiedad para un objeto InferenceData."
+
+#: c5535e65b6a74129a4384b8083d4f489 of
+#: pymc_marketing.model_builder.create_idata_accessor:4
+msgid ""
+"Underlying object must have an InferenceData object attribute named 'idata'."
+msgstr ""
+"El objeto subyacente debe tener un atributo de objeto InferenceData llamado "
+"'idata'."
+
+#: a762e6b3305647dc8e958f34c3389902 of
+#: pymc_marketing.model_builder.create_idata_accessor
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: d8f226cd3b9043d1bc15684b1ab5b4b4 of
+#: pymc_marketing.model_builder.create_idata_accessor:8
+msgid "**value** : :class:`python:str`"
+msgstr "**valor** : :class:`python:str`"
+
+#: 330b454d4a7740f5acb52597547da278 4be37f709b23453fbd2638e1b6a72aca of
+#: pymc_marketing.model_builder.create_idata_accessor:7
+#: pymc_marketing.model_builder.create_idata_accessor:10
+msgid "python:str"
+msgstr "python:str"
+
+#: 977d840621f34ed2885f9ee59416e263 of
+#: pymc_marketing.model_builder.create_idata_accessor:9
+msgid "The value to access in the InferenceData object."
+msgstr "El valor a acceder en el objeto InferenceData."
+
+#: 0810218ab40f4485ba6709f2a10aa06c of
+#: pymc_marketing.model_builder.create_idata_accessor:11
+msgid "**message** : :class:`python:str`"
+msgstr "**mensaje** : :class:`python:str`"
+
+#: c5e3a5b1b457422e92ce53a401d862ee of
+#: pymc_marketing.model_builder.create_idata_accessor:12
+msgid ""
+"The error message to raise if the value is not found in the InferenceData "
+"object."
+msgstr ""
+"El mensaje de error que se debe generar si el valor no se encuentra en el "
+"objeto InferenceData."
+
+#: a9abf4f8c16d4d5d815e132b6f4304dc of
+#: pymc_marketing.model_builder.create_idata_accessor
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: b5e26ecee1a64446b1a4ebf8a38d0225 of
+#: pymc_marketing.model_builder.create_idata_accessor:18
+msgid ":obj:`property`"
+msgstr ":obj:`propiedad`"
+
+#: c17159840d5042ac87e2e330381aa5ad of
+#: pymc_marketing.model_builder.create_idata_accessor:19
+msgid "The property accessor for the InferenceData object."
+msgstr "El accesor de propiedad para el objeto InferenceData."

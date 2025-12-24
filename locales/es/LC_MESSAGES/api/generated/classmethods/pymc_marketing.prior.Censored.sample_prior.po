@@ -1,0 +1,102 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.prior.Censored.sample_prior.rst:2
+#: ec58109ccd534ed9a1839c3dadd6e798
+msgid "Censored.sample\\_prior"
+msgstr "Censurado.muestra\\_previa"
+
+#: 526966cca567418588b85379219f8d70 of
+#: pymc_extras.prior.Censored.sample_prior:2
+msgid "Sample the prior distribution for the variable."
+msgstr "Muestree la distribución previa para la variable."
+
+#: 2367d7d9668a4c6d82003156103e7e7a of pymc_extras.prior.Censored.sample_prior
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: ff9eb72cd6b4462faf9c19fc1d07d9bd of
+#: pymc_extras.prior.Censored.sample_prior:7
+msgid ""
+"**coords** : :class:`python:dict`\\[:class:`python:str`, "
+":class:`python:list`\\[:class:`python:str`]], optional"
+msgstr ""
+"**coords** : :class:`python:dict`\\[:class:`python:str`, "
+":class:`python:list`\\[:class:`python:str`]], opcional"
+
+#: f078d06ff6a94cf5a427be3a713aa7f2 of
+#: pymc_extras.prior.Censored.sample_prior:6
+msgid "python:dict[python:str, python:list[python:str]], optional"
+msgstr "python:dict[python:str, python:list[python:str]], opcional"
+
+#: 8b9facf08fcf466a98ddc1201303d40e of
+#: pymc_extras.prior.Censored.sample_prior:8
+msgid ""
+"The coordinates for the variable, by default None. Only required if the dims"
+" are specified."
+msgstr ""
+"Las coordenadas para la variable, por defecto None. Solo son necesarias si "
+"se especifican las dimensiones."
+
+#: 99250c3dc7c94ed8ac43086d01e7a38f of
+#: pymc_extras.prior.Censored.sample_prior:11
+msgid "**name** : :class:`python:str`, optional"
+msgstr "**nombre** : :class:`python:str`, opcional"
+
+#: 7a6b667c6883466ea5ec0472b7b02482 of
+#: pymc_extras.prior.Censored.sample_prior:10
+msgid "python:str, optional"
+msgstr "python:str, opcional"
+
+#: efbf278dee984cc58e4384b97f7147f2 of
+#: pymc_extras.prior.Censored.sample_prior:12
+msgid "The name of the variable, by default \"var\"."
+msgstr "El nombre de la variable, por defecto \"var\"."
+
+#: b1498a99c4b64133b8b0b64a823da1a0 of
+#: pymc_extras.prior.Censored.sample_prior:14
+msgid "**sample_prior_predictive_kwargs** : :class:`python:dict`"
+msgstr "**sample_prior_predictive_kwargs** : :class:`python:dict`"
+
+#: f94e2a101eee4ae3add9493737809b2a of
+#: pymc_extras.prior.Censored.sample_prior:13
+msgid "python:dict"
+msgstr "python:dict"
+
+#: 21f6d5be427e4cdda2aafa74ce632be3 of
+#: pymc_extras.prior.Censored.sample_prior:15
+msgid "Additional arguments to pass to `pm.sample_prior_predictive`."
+msgstr "Argumentos adicionales para pasar a `pm.sample_prior_predictive`."
+
+#: faf492b899884eba83609d844109e523 of pymc_extras.prior.Censored.sample_prior
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: bde7fb205efc4110a013158fab97671d of
+#: pymc_extras.prior.Censored.sample_prior:21
+msgid ":obj:`xr.Dataset`"
+msgstr ":obj:`xr.Dataset`"
+
+#: 4af48700ce9b41b181b16a9de539f4c6 of
+#: pymc_extras.prior.Censored.sample_prior:22
+msgid "The dataset of the prior samples."
+msgstr "El conjunto de datos de las muestras anteriores."

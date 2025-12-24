@@ -1,0 +1,139 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-21 09:54+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.model_dump.rst:2
+#: f68e05411f58499197c42c981d0368bb
+msgid "CustomModelWrapper.model\\_dump"
+msgstr "CustomModelWrapper.model\\_dump"
+
+#: 09a76f43660d420f93496f5afa9f9944 of pydantic.main.BaseModel.model_dump:2
+msgid "!!! abstract \"Usage Documentation\""
+msgstr "!!! abstract \"Usage Documentation\""
+
+#: 9452c43bad364e1f97b3bc5d545263e4 of pydantic.main.BaseModel.model_dump:3
+msgid "[`model_dump`](../concepts/serialization.md#python-mode)"
+msgstr "[`model_dump`](../concepts/serialization.md#python-mode)"
+
+#: 53ae6498dc27434e850c521436e64280 of pydantic.main.BaseModel.model_dump:5
+msgid ""
+"Generate a dictionary representation of the model, optionally specifying "
+"which fields to include or exclude."
+msgstr ""
+"Generar una representación de diccionario del modelo, especificando "
+"opcionalmente qué campos incluir o excluir."
+
+#: 7fcea0d6ea994d12ba2714709ccb5181 of pydantic.main.BaseModel.model_dump:7
+msgid "Args:"
+msgstr "Args:"
+
+#: b5b75764bbde4d04a9d49c2653e99028 of pydantic.main.BaseModel.model_dump:8
+msgid "mode: The mode in which `to_python` should run."
+msgstr "modo: El modo en el que `to_python` debe ejecutarse."
+
+#: 0a3706bd7b7b4e91895b64aece99dce7 of pydantic.main.BaseModel.model_dump:9
+msgid ""
+"If mode is 'json', the output will only contain JSON serializable types. If "
+"mode is 'python', the output may contain non-JSON-serializable Python "
+"objects."
+msgstr ""
+"Si el modo es 'json', la salida solo contendrá tipos serializables en JSON. "
+"Si el modo es 'python', la salida puede contener objetos de Python no "
+"serializables en JSON."
+
+#: d384bdf74ddb43a4963d092da9674eda of pydantic.main.BaseModel.model_dump:11
+msgid ""
+"include: A set of fields to include in the output. exclude: A set of fields "
+"to exclude from the output. context: Additional context to pass to the "
+"serializer. by_alias: Whether to use the field's alias in the dictionary key"
+" if defined. exclude_unset: Whether to exclude fields that have not been "
+"explicitly set. exclude_defaults: Whether to exclude fields that are set to "
+"their default value. exclude_none: Whether to exclude fields that have a "
+"value of `None`. exclude_computed_fields: Whether to exclude computed "
+"fields."
+msgstr ""
+"include: Un conjunto de campos a incluir en la salida. exclude: Un conjunto "
+"de campos a excluir de la salida. context: Contexto adicional para pasar al "
+"serializador. by_alias: Si se debe usar el alias del campo en la clave del "
+"diccionario si está definido. exclude_unset: Si se deben excluir los campos "
+"que no han sido establecidos explícitamente. exclude_defaults: Si se deben "
+"excluir los campos que están establecidos en su valor predeterminado. "
+"exclude_none: Si se deben excluir los campos que tienen un valor de `None`. "
+"exclude_computed_fields: Si se deben excluir los campos computados."
+
+#: 3602f10df3424ce8821dd6d1fc8d428e of pydantic.main.BaseModel.model_dump:19
+msgid ""
+"While this can be useful for round-tripping, it is usually recommended tu "
+"use the dedicated `round_trip` parameter instead."
+msgstr ""
+"Si bien esto puede ser útil para el intercambio de datos, generalmente se "
+"recomienda utilizar el parámetro `round_trip` dedicado en su lugar."
+
+#: 8f496391925b41f8aad98c06c094f9e9 of pydantic.main.BaseModel.model_dump:21
+msgid ""
+"round_trip: If True, dumped values should be valid as input for non-"
+"idempotent types such as Json[T]. warnings: How to handle serialization "
+"errors. False/\"none\" ignores them, True/\"warn\" logs errors,"
+msgstr ""
+"round_trip: Si es verdadero, los valores volcado deben ser válidos como "
+"entrada para tipos no idempotentes como Json[T]. advertencias: Cómo manejar "
+"los errores de serialización. Falso/\"ninguno\" los ignora, "
+"Verdadero/\"advertir\" registra errores,"
+
+#: 436abf13d1e64f8f93754230dbc29f79 of pydantic.main.BaseModel.model_dump:23
+msgid ""
+"\"error\" raises a "
+"[`PydanticSerializationError`][pydantic_core.PydanticSerializationError]."
+msgstr ""
+"\"error\" genera un "
+"[`PydanticSerializationError`][pydantic_core.PydanticSerializationError]."
+
+#: 93ad04cf7f6442a1a12ef331127312bf of pydantic.main.BaseModel.model_dump:24
+msgid ""
+"fallback: A function to call when an unknown value is encountered. If not "
+"provided,"
+msgstr ""
+"fallback: Una función que se llama cuando se encuentra un valor desconocido."
+" Si no se proporciona,"
+
+#: 72c9c12fdf224b29ad156c31b0c96dee of pydantic.main.BaseModel.model_dump:25
+msgid ""
+"a [`PydanticSerializationError`][pydantic_core.PydanticSerializationError] "
+"error is raised."
+msgstr ""
+"se genera un error de "
+"[`PydanticSerializationError`][pydantic_core.PydanticSerializationError]."
+
+#: eaf51be5d06b4a3e9962af57d4f0528c of pydantic.main.BaseModel.model_dump:26
+msgid ""
+"serialize_as_any: Whether to serialize fields with duck-typing serialization"
+" behavior."
+msgstr ""
+"serialize_as_any: Si se deben serializar los campos con un comportamiento de"
+" serialización de tipo pato."
+
+#: feca72245d014579b29e3cadbadf3b6b of pydantic.main.BaseModel.model_dump:28
+msgid "Returns:"
+msgstr "Returns:"
+
+#: acf025fadcda4809876796b00e852f76 of pydantic.main.BaseModel.model_dump:29
+msgid "A dictionary representation of the model."
+msgstr "Una representación en diccionario del modelo."

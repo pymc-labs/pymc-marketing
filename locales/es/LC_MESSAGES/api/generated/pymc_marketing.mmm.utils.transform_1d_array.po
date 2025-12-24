@@ -1,0 +1,83 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.utils.transform_1d_array.rst:2
+#: c849ec50cadc4fd4ada83c8894155315
+msgid "transform\\_1d\\_array"
+msgstr "transformar\\_1d\\_array"
+
+#: 7c48fb376ec749da8a6b65591efb2b48 of
+#: pymc_marketing.mmm.utils.transform_1d_array:2
+msgid "Transform a 1D array using a scikit-learn transformer."
+msgstr ""
+"Transformar un array unidimensional utilizando un transformador de scikit-"
+"learn."
+
+#: 73b0c6d54a25440f9891d1e50fb368a9 of
+#: pymc_marketing.mmm.utils.transform_1d_array
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: feb2192d13f84efcb1d3726a9a6ab09d of
+#: pymc_marketing.mmm.utils.transform_1d_array:7
+msgid "**transform** : scikit-learn :obj:`transformer`"
+msgstr "**transformar** : scikit-learn :obj:`transformador`"
+
+#: a7941f6a21cf45d9b520980a061bc772 of
+#: pymc_marketing.mmm.utils.transform_1d_array:-1
+msgid "scikit-learn"
+msgstr "scikit-learn"
+
+#: a261cd1e9724482cb3c7454267b63ea1 of
+#: pymc_marketing.mmm.utils.transform_1d_array:8
+msgid "The transformer to apply to the data."
+msgstr "El transformador que se aplicará a los datos."
+
+#: 434ea8b2cf784fb3816a737c9a2be3cf of
+#: pymc_marketing.mmm.utils.transform_1d_array:10
+msgid "**y** : :obj:`np.ndarray <numpy.ndarray>`"
+msgstr "**y** : :obj:`np.ndarray <numpy.ndarray>`"
+
+#: 92162f90d1624dfb9d9bc9e364b0cb32 of
+#: pymc_marketing.mmm.utils.transform_1d_array:9
+msgid "np.ndarray"
+msgstr "np.ndarray"
+
+#: e850b378ee314178bd4479abd91bec3a of
+#: pymc_marketing.mmm.utils.transform_1d_array:11
+msgid "The data to transform."
+msgstr "Los datos a transformar."
+
+#: b1e57794782749d3836ca9c9d27faf66 of
+#: pymc_marketing.mmm.utils.transform_1d_array
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: c61abecdcfdd4ebb97e723e70be7c5aa of
+#: pymc_marketing.mmm.utils.transform_1d_array:17
+msgid ":obj:`np.ndarray <numpy.ndarray>`"
+msgstr ":obj:`np.ndarray <numpy.ndarray>`"
+
+#: 75ed2db09f8a42208fa3a4a88fff283d of
+#: pymc_marketing.mmm.utils.transform_1d_array:18
+msgid "The transformed data."
+msgstr "Los datos transformados."

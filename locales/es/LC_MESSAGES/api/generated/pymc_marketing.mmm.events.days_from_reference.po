@@ -1,0 +1,83 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.days_from_reference.rst:2
+#: e3df28e875cd467d830510c01de93e63
+msgid "days\\_from\\_reference"
+msgstr "días\\_desde\\_referencia"
+
+#: 700e0f65e97b4fba924d90009630545e of
+#: pymc_marketing.mmm.events.days_from_reference:2
+msgid "Calculate the difference in days between dates and a reference date."
+msgstr ""
+"Calcule la diferencia en días entre las fechas y una fecha de referencia."
+
+#: e656ff9968304bdfa46bfbcfa1390bcb of
+#: pymc_marketing.mmm.events.days_from_reference
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 6f3c22153983428ea64a87dbbbeaa64d of
+#: pymc_marketing.mmm.events.days_from_reference:7
+msgid "**dates** : :obj:`pd.Series` | :obj:`pd.DatetimeIndex`"
+msgstr "**fechas** : :obj:`pd.Series` | :obj:`pd.DatetimeIndex`"
+
+#: 9d9c8f1cd3c441efae6c77c88b250d97 of
+#: pymc_marketing.mmm.events.days_from_reference:6
+msgid "pd.Series | pd.DatetimeIndex"
+msgstr "pd.Series | pd.DatetimeIndex"
+
+#: f5a880d10bf446f5aeb74172396c39ef of
+#: pymc_marketing.mmm.events.days_from_reference:8
+msgid "Dates to calculate the difference from the reference date."
+msgstr ""
+"Fechas para calcular la diferencia a partir de la fecha de referencia."
+
+#: 1eaf89c9b3b449ffa34b7d619e97702b of
+#: pymc_marketing.mmm.events.days_from_reference:10
+msgid "**reference_date** : :class:`python:str` | :obj:`pd.Timestamp`"
+msgstr "**fecha_referencia** : :class:`python:str` | :obj:`pd.Timestamp`"
+
+#: 830b8d1e553f4f0a8f75bbc83744a356 of
+#: pymc_marketing.mmm.events.days_from_reference:9
+msgid "python:str | pd.Timestamp"
+msgstr "python:str | pd.Timestamp"
+
+#: 633b615996254973b3a2d877e6b01081 of
+#: pymc_marketing.mmm.events.days_from_reference:11
+msgid "Reference date."
+msgstr "Fecha de referencia."
+
+#: 75b7254678834da49a5ccb96f5c7b2e0 of
+#: pymc_marketing.mmm.events.days_from_reference
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: f5e4c2dff9684d68bfaa75cac0f665b8 of
+#: pymc_marketing.mmm.events.days_from_reference:17
+msgid ":obj:`np.ndarray <numpy.ndarray>`"
+msgstr ":obj:`np.ndarray <numpy.ndarray>`"
+
+#: e2a6d32c0ba84fd9b73b7c76a3f53d60 of
+#: pymc_marketing.mmm.events.days_from_reference:18
+msgid "Difference in days between dates and the reference date."
+msgstr "Diferencia en días entre las fechas y la fecha de referencia."

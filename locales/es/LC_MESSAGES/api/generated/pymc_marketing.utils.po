@@ -1,0 +1,50 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.utils.rst:2
+#: b122cab5762b4a9ca80d74f81fde204c
+msgid "utils"
+msgstr "utilidades"
+
+#: a20693d12852494d818a5edd6ebc1750 of pymc_marketing.utils:1
+msgid "Utility functions for PyMC-Marketing."
+msgstr "Funciones utilitarias para PyMC-Marketing."
+
+#: ../source/api/generated/pymc_marketing.utils.rst:13
+#: 5fa40e5d2bb6497c9ed035387a094aa8
+msgid "Functions"
+msgstr "Funciones"
+
+#: ../source/api/generated/pymc_marketing.utils.rst:18:<autosummary>:1
+#: ac419a3497d4441ba076bf0b4e1a5dfd
+msgid ":py:obj:`from_netcdf <pymc_marketing.utils.from_netcdf>`\\ \\(filepath\\)"
+msgstr ""
+":py:obj:`from_netcdf <pymc_marketing.utils.from_netcdf>`\\ "
+"\\(ruta_de_archivo\\)"
+
+#: ../source/api/generated/pymc_marketing.utils.rst:18:<autosummary>:1
+#: fe92065d4a7a4a809a6f33732e128043
+msgid ""
+"Load inference data from a netcdf file without `fit_data` group warnings."
+msgstr ""
+"Cargar datos de inferencia desde un archivo netcdf sin advertencias del "
+"grupo `fit_data`."

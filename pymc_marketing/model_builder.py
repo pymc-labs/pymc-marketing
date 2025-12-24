@@ -187,9 +187,11 @@ class ModelIO:
 
         Examples
         --------
-        >>> model = MyModel()
-        >>> model.id
-        '0123456789abcdef'
+        .. code-block:: python
+
+            model = MyModel()
+            model.id
+            "0123456789abcdef"
 
         """
         hasher = hashlib.sha256()
@@ -337,20 +339,24 @@ class ModelIO:
         This method is meant to be overridden and implemented by subclasses.
         It should not be called directly on the base abstract class or its instances.
 
-        >>> class MyModel(ModelBuilder):
-        >>>     def __init__(self):
-        >>>         super().__init__()
-        >>> model = MyModel()
-        >>> model.fit(X, y)
-        >>> # Basic save
-        >>> model.save("model_results.nc")
-        >>>
-        >>> # Save with specific options
-        >>> model.save(
-        ...     "model_results.nc",
-        ...     engine="netcdf4",
-        ...     groups=["posterior", "log_likelihood"],
-        ... )
+        .. code-block:: python
+
+            class MyModel(ModelBuilder):
+                def __init__(self):
+                    super().__init__()
+
+
+            model = MyModel()
+            model.fit(X, y)
+            # Basic save
+            model.save("model_results.nc")
+
+            # Save with specific options
+            model.save(
+                "model_results.nc",
+                engine="netcdf4",
+                groups=["posterior", "log_likelihood"],
+            )
 
         """
         if self.idata is not None and "posterior" in self.idata:
@@ -560,9 +566,12 @@ class ModelBuilder(ABC, ModelIO):
 
         Examples
         --------
-        >>> class MyModel(ModelBuilder):
-        >>>     ...
-        >>> model = MyModel(model_config, sampler_config)
+        .. code-block:: python
+
+            class MyModel(ModelBuilder): ...
+
+
+            model = MyModel(model_config, sampler_config)
 
         """
         if sampler_config is None:
@@ -591,19 +600,21 @@ class ModelBuilder(ABC, ModelIO):
 
         Examples
         --------
-        >>>     @classmethod
-        >>>     def default_model_config(self):
-        >>>         Return {
-        >>>             'a' : {
-        >>>                 'loc': 7,
-        >>>                 'scale' : 3
-        >>>             },
-        >>>             'b' : {
-        >>>                 'loc': 3,
-        >>>                 'scale': 5
-        >>>             }
-        >>>              'obs_error': 2
-        >>>         }
+        .. code-block:: python
+
+            @classmethod
+            def default_model_config(self):
+                Return {
+                    'a' : {
+                        'loc': 7,
+                        'scale' : 3
+                    },
+                    'b' : {
+                        'loc': 3,
+                        'scale': 5
+                    },
+                     'obs_error': 2
+                }
 
         Returns
         -------
@@ -622,14 +633,16 @@ class ModelBuilder(ABC, ModelIO):
 
         Examples
         --------
-        >>>     @classmethod
-        >>>     def default_sampler_config(self):
-        >>>         Return {
-        >>>             'draws': 1_000,
-        >>>             'tune': 1_000,
-        >>>             'chains': 1,
-        >>>             'target_accept': 0.95,
-        >>>         }
+        .. code-block:: python
+
+            @classmethod
+            def default_sampler_config(self):
+                Return {
+                    'draws': 1_000,
+                    'tune': 1_000,
+                    'chains': 1,
+                    'target_accept': 0.95,
+                }
 
         Returns
         -------
@@ -807,13 +820,15 @@ class RegressionModelBuilder(ModelBuilder):
 
         Examples
         --------
-        >>> def _data_setter(self, data : pd.DataFrame):
-        >>>     with self.model:
-        >>>         pm.set_data({'x': X['x'].values})
-        >>>         try: # if y values in new data
-        >>>             pm.set_data({'y_data': y.values})
-        >>>         except: # dummies otherwise
-        >>>             pm.set_data({'y_data': np.zeros(len(data))})
+        .. code-block:: python
+
+            def _data_setter(self, data: pd.DataFrame):
+                with self.model:
+                    pm.set_data({"x": X["x"].values})
+                    try:  # if y values in new data
+                        pm.set_data({"y_data": y.values})
+                    except:  # dummies otherwise
+                        pm.set_data({"y_data": np.zeros(len(data))})
 
         """
 
@@ -940,10 +955,12 @@ class RegressionModelBuilder(ModelBuilder):
 
         Examples
         --------
-        >>> model = MyModel()
-        >>> idata = model.fit(X, y)
-        Auto-assigning NUTS sampler...
-        Initializing NUTS using jitter+adapt_diag...
+        .. code-block:: python
+
+            model = MyModel()
+            idata = model.fit(X, y)
+            Auto-assigning NUTS sampler...
+            Initializing NUTS using jitter+adapt_diag...
 
         """
         if (
@@ -1033,11 +1050,13 @@ class RegressionModelBuilder(ModelBuilder):
 
         Examples
         --------
-        >>> model = MyModel()
-        >>> idata = model.fit(X, y)
-        >>> x_pred = []
-        >>> prediction_data = pd.DataFrame({"input": x_pred})
-        >>> pred_mean = model.predict(prediction_data)
+        .. code-block:: python
+
+            model = MyModel()
+            idata = model.fit(X, y)
+            x_pred = []
+            prediction_data = pd.DataFrame({"input": x_pred})
+            pred_mean = model.predict(prediction_data)
 
         """
         posterior_predictive_samples = self.sample_posterior_predictive(
@@ -1056,6 +1075,118 @@ class RegressionModelBuilder(ModelBuilder):
             dim=["chain", "draw"], keep_attrs=True
         )
         return posterior_means.data
+
+    def approximate_fit(
+        self,
+        X: pd.DataFrame | xr.Dataset | xr.DataArray,
+        y: pd.Series | xr.DataArray | np.ndarray | None = None,
+        progressbar: bool | None = None,
+        random_seed: RandomState | None = None,
+        *,
+        fit_kwargs: dict[str, Any] | None = None,
+        sample_kwargs: dict[str, Any] | None = None,
+    ) -> az.InferenceData:
+        """Fit a model using Variational Inference and return InferenceData.
+
+        This performs variational inference via `pymc.fit`, then draws posterior samples
+        from the fitted approximation via `Approximation.sample`, returning an
+        `arviz.InferenceData` compatible with the rest of the API (same structure as `.fit`).
+
+        Parameters
+        ----------
+        X : array-like | array, shape (n_obs, n_features)
+            The training input samples. If scikit-learn is available, array-like, otherwise array.
+        y : array-like | array, shape (n_obs,)
+            The target values (real numbers). If scikit-learn is available, array-like, otherwise array.
+        progressbar : bool, optional
+            Specifies whether the fitting/sample progress bar should be displayed. Defaults to True.
+        random_seed : Optional[RandomState]
+            Provides stochastic procedures with initial random seed for reproducibility.
+        fit_kwargs : dict, optional
+            Extra keyword arguments forwarded to `pymc.fit` (e.g., {"n": 10_000, "method": "advi"}).
+        sample_kwargs : dict, optional
+            Extra keyword arguments forwarded to `Approximation.sample` (e.g., {"draws": 1_000}).
+
+        Returns
+        -------
+        az.InferenceData
+            Inference data of the variationally fitted model.
+        """
+        if (
+            isinstance(y, pd.Series)
+            and isinstance(X, pd.DataFrame)
+            and not X.index.equals(y.index)
+        ):
+            raise ValueError("Index of X and y must match.")
+
+        if y is None:
+            y = np.zeros(X.shape[0])
+
+        if self.output_var in X:
+            raise ValueError(
+                f"X includes a column named '{self.output_var}', which conflicts with the target variable."
+            )
+
+        if not hasattr(self, "model"):
+            self.build_model(X, y)
+
+        # Prepare kwargs for pymc.fit
+        _fit_kwargs: dict[str, Any] = {}
+        if fit_kwargs is not None:
+            _fit_kwargs.update(fit_kwargs)
+        if progressbar is not None:
+            _fit_kwargs["progressbar"] = progressbar
+        if random_seed is not None:
+            _fit_kwargs["random_seed"] = random_seed
+
+        # Run variational inference and then sample from the approximation
+        with self.model:
+            approximation = pm.fit(**_fit_kwargs)
+
+            _sample_kwargs: dict[str, Any] = {}
+            if sample_kwargs is not None:
+                _sample_kwargs.update(sample_kwargs)
+            # Use sampler_config draws if not explicitly provided
+            _sample_kwargs.setdefault("draws", self.sampler_config.get("draws", 1_000))
+            if random_seed is not None:
+                _sample_kwargs.setdefault("random_seed", random_seed)
+            _sample_kwargs.setdefault("return_inferencedata", True)
+
+            idata: az.InferenceData = approximation.sample(**_sample_kwargs)  # type: ignore[assignment]
+
+        # Compute deterministics after sampling for parity with MCMC `.fit`
+        with self.model:
+            idata.posterior = pm.compute_deterministics(
+                idata.posterior, merge_dataset=True
+            )
+
+        self.post_sample_model_transformation()
+
+        # Extend or set self.idata
+        if self.idata:
+            self.idata = self.idata.copy()
+            self.idata.extend(idata, join="right")
+        else:
+            self.idata = idata
+
+        # Annotate, attach fit_data, and set attrs
+        self.idata["posterior"].attrs["pymc_marketing_version"] = __version__
+
+        if "fit_data" in self.idata:
+            del self.idata.fit_data
+
+        fit_data = self.create_fit_data(X, y)
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                category=UserWarning,
+                message="The group fit_data is not defined in the InferenceData scheme",
+            )
+            self.idata.add_groups(fit_data=fit_data)
+
+        self.set_idata_attrs(self.idata)
+        return self.idata  # type: ignore
 
     def sample_prior_predictive(
         self,

@@ -1,0 +1,818 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:2
+#: b1dc1fb2d8414910a95bde0acc542b99
+msgid "WeibullType"
+msgstr "WeibullType"
+
+#: 3954d1a4238c4ba58a43d192670c5212 of
+#: pymc_marketing.mmm.transformers.WeibullType:2
+msgid "Weibull type for the Weibull adstock."
+msgstr "Tipo Weibull para el adstock Weibull."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:12
+#: 03fecdecd66a4bada86d75f0ce636515
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 2166188a8b7f40db80ef6aaaf25c7469
+msgid ""
+":py:obj:`WeibullType.encode "
+"<pymc_marketing.mmm.transformers.WeibullType.encode>`\\ \\(\\/\\[\\, "
+"encoding\\, errors\\]\\)"
+msgstr ""
+":py:obj:`WeibullType.encode "
+"<pymc_marketing.mmm.transformers.WeibullType.encode>`\\ \\(\\/\\[\\, errores"
+" de codificación\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: f33bcfd066884089b64dc1bb4b6f0c29
+msgid "Encode the string using the codec registered for encoding."
+msgstr ""
+"Codifique la cadena utilizando el códec registrado para la codificación."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 0ac2fd7f96ca4e378d5300eed5b09bfd
+msgid ""
+":py:obj:`WeibullType.replace "
+"<pymc_marketing.mmm.transformers.WeibullType.replace>`\\ \\(old\\, new\\[\\,"
+" count\\]\\)"
+msgstr ""
+":py:obj:`WeibullType.replace "
+"<pymc_marketing.mmm.transformers.WeibullType.replace>`\\ \\(antiguo\\, "
+"nuevo\\[\\, conteo\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 197e4acc0e79414c90dd0c78a9ad78b4
+msgid "Return a copy with all occurrences of substring old replaced by new."
+msgstr ""
+"Devuelve una copia con todas las ocurrencias de la subcadena old "
+"reemplazadas por new."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 3f6ee358fefa47298b057d3951b28d98
+msgid ""
+":py:obj:`WeibullType.split "
+"<pymc_marketing.mmm.transformers.WeibullType.split>`\\ \\(\\/\\[\\, sep\\, "
+"maxsplit\\]\\)"
+msgstr ""
+":py:obj:`WeibullType.split "
+"<pymc_marketing.mmm.transformers.WeibullType.split>`\\ \\(\\/\\[\\, sep\\, "
+"maxsplit\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 14d6b67a8bac48c28d9a0208a487eb9e 8a2618b2c754417bb4c7903e246467a7
+msgid ""
+"Return a list of the substrings in the string, using sep as the separator "
+"string."
+msgstr ""
+"Devuelve una lista de las subcadenas en la cadena, utilizando sep como la "
+"cadena separadora."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: e176089c0b5a4c078695757ce8ecbd42
+msgid ""
+":py:obj:`WeibullType.rsplit "
+"<pymc_marketing.mmm.transformers.WeibullType.rsplit>`\\ \\(\\/\\[\\, sep\\, "
+"maxsplit\\]\\)"
+msgstr ""
+":py:obj:`WeibullType.rsplit "
+"<pymc_marketing.mmm.transformers.WeibullType.rsplit>`\\ \\(\\/\\[\\, sep\\, "
+"maxsplit\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 2d6c038fd8f04b7b80665571891fd8ab
+msgid ""
+":py:obj:`WeibullType.join "
+"<pymc_marketing.mmm.transformers.WeibullType.join>`\\ \\(iterable\\, \\/\\)"
+msgstr ""
+":py:obj:`WeibullType.join "
+"<pymc_marketing.mmm.transformers.WeibullType.join>`\\ \\(iterable\\, \\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 59e8d2560c644f76a9438d8f46d1abb7
+msgid "Concatenate any number of strings."
+msgstr "Concatenar cualquier número de cadenas."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 7cdebb83054a4b19903d3d9250d9322f
+msgid ""
+":py:obj:`WeibullType.capitalize "
+"<pymc_marketing.mmm.transformers.WeibullType.capitalize>`\\ \\(\\/\\)"
+msgstr ""
+":py:obj:`WeibullType.capitalize "
+"<pymc_marketing.mmm.transformers.WeibullType.capitalize>`\\ \\(\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 45583e0513c94712b9367265d4a1a74e
+msgid "Return a capitalized version of the string."
+msgstr "Devuelve una versión en mayúsculas de la cadena."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 16993b374cd243528e9863dc7e18acf4
+msgid ""
+":py:obj:`WeibullType.casefold "
+"<pymc_marketing.mmm.transformers.WeibullType.casefold>`\\ \\(\\/\\)"
+msgstr ""
+":py:obj:`WeibullType.casefold "
+"<pymc_marketing.mmm.transformers.WeibullType.casefold>`\\ \\(\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: d0ee5ec39a3b45f09a4091ec52d91233
+msgid "Return a version of the string suitable for caseless comparisons."
+msgstr ""
+"Devuelve una versión de la cadena adecuada para comparaciones sin distinción"
+" de mayúsculas y minúsculas."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: a1bac8c57b804c51a4b26a1d100fa3f6
+msgid ""
+":py:obj:`WeibullType.title "
+"<pymc_marketing.mmm.transformers.WeibullType.title>`\\ \\(\\/\\)"
+msgstr ""
+":py:obj:`WeibullType.title "
+"<pymc_marketing.mmm.transformers.WeibullType.title>`\\ \\(\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 20b4fdf6981646378d3f09ff5d3ddbed
+msgid "Return a version of the string where each word is titlecased."
+msgstr ""
+"Devuelve una versión de la cadena donde cada palabra está en mayúsculas."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: b59353d26e2849ad8c813168e433112b
+msgid ""
+":py:obj:`WeibullType.center "
+"<pymc_marketing.mmm.transformers.WeibullType.center>`\\ \\(width\\[\\, "
+"fillchar\\]\\)"
+msgstr ""
+":py:obj:`WeibullType.center "
+"<pymc_marketing.mmm.transformers.WeibullType.center>`\\ \\(ancho\\[\\, "
+"caracter_de_relleno\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 203de43177fb4d39822a158a04aff2b3
+msgid "Return a centered string of length width."
+msgstr "Devuelve una cadena centrada de longitud width."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: ec700e3509d3479cb1087ae712db6c11
+msgid ""
+":py:obj:`WeibullType.count "
+"<pymc_marketing.mmm.transformers.WeibullType.count>`\\ \\(sub\\[\\, "
+"start\\[\\, end\\]\\]\\)"
+msgstr ""
+":py:obj:`WeibullType.count "
+"<pymc_marketing.mmm.transformers.WeibullType.count>`\\ \\(sub\\[\\, "
+"start\\[\\, end\\]\\]"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: edc5a84ef00c486e8319acaba5cca477
+msgid ""
+"Return the number of non-overlapping occurrences of substring sub in string "
+"S[start:end]."
+msgstr ""
+"Devuelve el número de ocurrencias no superpuestas de la subcadena sub en la "
+"cadena S[start:end]."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 395b738752524d5081eacee2dba3182e
+msgid ""
+":py:obj:`WeibullType.expandtabs "
+"<pymc_marketing.mmm.transformers.WeibullType.expandtabs>`\\ \\(\\/\\[\\, "
+"tabsize\\]\\)"
+msgstr ""
+":py:obj:`WeibullType.expandtabs "
+"<pymc_marketing.mmm.transformers.WeibullType.expandtabs>`\\ \\(\\/\\[\\, "
+"tabsize\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 2c4d155b3cc84ea3aeb8c6a07a184642
+msgid "Return a copy where all tab characters are expanded using spaces."
+msgstr ""
+"Devuelva una copia donde todos los caracteres de tabulación se expandan "
+"utilizando espacios."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 0270f2610ee44604847df475033884ff
+msgid ""
+":py:obj:`WeibullType.find "
+"<pymc_marketing.mmm.transformers.WeibullType.find>`\\ \\(sub\\[\\, "
+"start\\[\\, end\\]\\]\\)"
+msgstr ""
+":py:obj:`WeibullType.find "
+"<pymc_marketing.mmm.transformers.WeibullType.find>`\\ \\(sub\\[\\, "
+"start\\[\\, end\\]\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 3b9290d15029446989834fe17f8621fa 44169fc9232644f9af305f9923bb7b6a
+msgid ""
+"Return the lowest index in S where substring sub is found, such that sub is "
+"contained within S[start:end]."
+msgstr ""
+"Devuelve el índice más bajo en S donde se encuentra la subcadena sub, de "
+"modo que sub esté contenida dentro de S[start:end]."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: b394aa5d9f1e44779cf3bd0d8302d53c
+msgid ""
+":py:obj:`WeibullType.partition "
+"<pymc_marketing.mmm.transformers.WeibullType.partition>`\\ \\(sep\\, \\/\\)"
+msgstr ""
+":py:obj:`WeibullType.partition "
+"<pymc_marketing.mmm.transformers.WeibullType.partition>`\\ \\(sep\\, \\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: a7ed0e4872194d79b864a40b2652f249 e064e0c899634729944f6c3d7c60407d
+msgid "Partition the string into three parts using the given separator."
+msgstr "Particione la cadena en tres partes utilizando el separador dado."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 9726823364524dbab5f365b7573854f5
+msgid ""
+":py:obj:`WeibullType.index "
+"<pymc_marketing.mmm.transformers.WeibullType.index>`\\ \\(sub\\[\\, "
+"start\\[\\, end\\]\\]\\)"
+msgstr ""
+":py:obj:`WeibullType.index "
+"<pymc_marketing.mmm.transformers.WeibullType.index>`\\ \\(sub\\[\\, "
+"start\\[\\, end\\]\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: d7c0cb4e01bc4453bfdd0e0badbcd8d9
+msgid ""
+":py:obj:`WeibullType.ljust "
+"<pymc_marketing.mmm.transformers.WeibullType.ljust>`\\ \\(width\\[\\, "
+"fillchar\\]\\)"
+msgstr ""
+":py:obj:`WeibullType.ljust "
+"<pymc_marketing.mmm.transformers.WeibullType.ljust>`\\ \\(ancho\\[\\, "
+"caracter_de_relleno\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 4f077a6a38644553a6326b79eb7bf2a8
+msgid "Return a left-justified string of length width."
+msgstr "Devuelve una cadena alineada a la izquierda de longitud width."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 3397587c5466478cac459174a3b828ee
+msgid ""
+":py:obj:`WeibullType.lower "
+"<pymc_marketing.mmm.transformers.WeibullType.lower>`\\ \\(\\/\\)"
+msgstr ""
+":py:obj:`WeibullType.lower "
+"<pymc_marketing.mmm.transformers.WeibullType.lower>`\\ \\(\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 571dfd333cf6474ba46eadeed2900611
+msgid "Return a copy of the string converted to lowercase."
+msgstr "Devuelve una copia de la cadena convertida a minúsculas."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: d12c7414e849439aa955318cadb22f70
+msgid ""
+":py:obj:`WeibullType.lstrip "
+"<pymc_marketing.mmm.transformers.WeibullType.lstrip>`\\ \\(\\[chars\\]\\)"
+msgstr ""
+":py:obj:`WeibullType.lstrip "
+"<pymc_marketing.mmm.transformers.WeibullType.lstrip>`\\ \\(\\[chars\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: f72834b9c09e4807a64137ac49f4e362
+msgid "Return a copy of the string with leading whitespace removed."
+msgstr ""
+"Devuelve una copia de la cadena con el espacio en blanco inicial eliminado."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 32e3c306dd9b44218ae691922df3f4c2
+msgid ""
+":py:obj:`WeibullType.rfind "
+"<pymc_marketing.mmm.transformers.WeibullType.rfind>`\\ \\(sub\\[\\, "
+"start\\[\\, end\\]\\]\\)"
+msgstr ""
+":py:obj:`WeibullType.rfind "
+"<pymc_marketing.mmm.transformers.WeibullType.rfind>`\\ \\(sub\\[\\, "
+"start\\[\\, end\\]\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 1bae5e7f06294494a26d1f0b8c923980 eee09fda8ac14faf97d89e9e1b75939c
+msgid ""
+"Return the highest index in S where substring sub is found, such that sub is"
+" contained within S[start:end]."
+msgstr ""
+"Devuelve el índice más alto en S donde se encuentra la subcadena sub, de "
+"modo que sub esté contenida dentro de S[start:end]."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: d15941d982e9452dbf6a7f0b659b9780
+msgid ""
+":py:obj:`WeibullType.rindex "
+"<pymc_marketing.mmm.transformers.WeibullType.rindex>`\\ \\(sub\\[\\, "
+"start\\[\\, end\\]\\]\\)"
+msgstr ""
+":py:obj:`WeibullType.rindex "
+"<pymc_marketing.mmm.transformers.WeibullType.rindex>`\\ \\(sub\\[\\, "
+"start\\[\\, end\\]\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 2abc33a1ea37463281ec16e4408f8d7a
+msgid ""
+":py:obj:`WeibullType.rjust "
+"<pymc_marketing.mmm.transformers.WeibullType.rjust>`\\ \\(width\\[\\, "
+"fillchar\\]\\)"
+msgstr ""
+":py:obj:`WeibullType.rjust "
+"<pymc_marketing.mmm.transformers.WeibullType.rjust>`\\ \\(ancho\\[\\, "
+"caracter_de_relleno\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: a9da33f59e454a0d8cb7d661444c890f
+msgid "Return a right-justified string of length width."
+msgstr "Devuelve una cadena alineada a la derecha de longitud width."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 28d206d64b2348399d46b111d678651e
+msgid ""
+":py:obj:`WeibullType.rstrip "
+"<pymc_marketing.mmm.transformers.WeibullType.rstrip>`\\ \\(\\[chars\\]\\)"
+msgstr ""
+":py:obj:`WeibullType.rstrip "
+"<pymc_marketing.mmm.transformers.WeibullType.rstrip>`\\ \\(\\[chars\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 62fbdf90f3c04312a351684015f84e73
+msgid "Return a copy of the string with trailing whitespace removed."
+msgstr ""
+"Devuelve una copia de la cadena con los espacios en blanco al final "
+"eliminados."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: f25610dc95184aa0b9b71e95b823b783
+msgid ""
+":py:obj:`WeibullType.rpartition "
+"<pymc_marketing.mmm.transformers.WeibullType.rpartition>`\\ \\(sep\\, \\/\\)"
+msgstr ""
+":py:obj:`WeibullType.rpartition "
+"<pymc_marketing.mmm.transformers.WeibullType.rpartition>`\\ \\(sep\\, \\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 414c5deac0bf4c449fe680d12cb9c6ea
+msgid ""
+":py:obj:`WeibullType.splitlines "
+"<pymc_marketing.mmm.transformers.WeibullType.splitlines>`\\ \\(\\/\\[\\, "
+"keepends\\]\\)"
+msgstr ""
+":py:obj:`WeibullType.splitlines "
+"<pymc_marketing.mmm.transformers.WeibullType.splitlines>`\\ \\(\\/\\[\\, "
+"mantenerfinales\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 07a05c8cddf84f0799dc2269a8f74f03
+msgid "Return a list of the lines in the string, breaking at line boundaries."
+msgstr ""
+"Devuelve una lista de las líneas en la cadena, rompiendo en los límites de "
+"línea."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 55acee055e3f48e5b79e3ac7b62f8011
+msgid ""
+":py:obj:`WeibullType.strip "
+"<pymc_marketing.mmm.transformers.WeibullType.strip>`\\ \\(\\[chars\\]\\)"
+msgstr ""
+":py:obj:`WeibullType.strip "
+"<pymc_marketing.mmm.transformers.WeibullType.strip>`\\ \\(\\[chars\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: ab383ac95b284aedbbe5853647a4eeaa
+msgid ""
+"Return a copy of the string with leading and trailing whitespace removed."
+msgstr ""
+"Devuelve una copia de la cadena con los espacios en blanco al principio y al"
+" final eliminados."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 24082b3b1f5d489a82ef0133911f561f
+msgid ""
+":py:obj:`WeibullType.swapcase "
+"<pymc_marketing.mmm.transformers.WeibullType.swapcase>`\\ \\(\\/\\)"
+msgstr ""
+":py:obj:`WeibullType.swapcase "
+"<pymc_marketing.mmm.transformers.WeibullType.swapcase>`\\ \\(\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 73acb0f46072435da4cf60bf098e83d6
+msgid ""
+"Convert uppercase characters to lowercase and lowercase characters to "
+"uppercase."
+msgstr ""
+"Convierte los caracteres en mayúsculas a minúsculas y los caracteres en "
+"minúsculas a mayúsculas."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: dfb09c36874d495eb086dfe7a491816a
+msgid ""
+":py:obj:`WeibullType.translate "
+"<pymc_marketing.mmm.transformers.WeibullType.translate>`\\ \\(table\\, "
+"\\/\\)"
+msgstr ""
+":py:obj:`WeibullType.translate "
+"<pymc_marketing.mmm.transformers.WeibullType.translate>`\\ \\(tabla\\, "
+"\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 19263b17777f4e36ac2876d21877d5c4
+msgid ""
+"Replace each character in the string using the given translation table."
+msgstr ""
+"Reemplace cada carácter en la cadena utilizando la tabla de traducción "
+"proporcionada."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: e14740b1b30a4ad7aa081adf5631297a
+msgid ""
+":py:obj:`WeibullType.upper "
+"<pymc_marketing.mmm.transformers.WeibullType.upper>`\\ \\(\\/\\)"
+msgstr ""
+":py:obj:`WeibullType.upper "
+"<pymc_marketing.mmm.transformers.WeibullType.upper>`\\ \\(\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 378bd40deafe4cd7a9779a4aa8d2e7d5
+msgid "Return a copy of the string converted to uppercase."
+msgstr "Devuelve una copia de la cadena convertida a mayúsculas."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 9f0ddd7ad5a040068e3da7e4101508f3
+msgid ""
+":py:obj:`WeibullType.startswith "
+"<pymc_marketing.mmm.transformers.WeibullType.startswith>`\\ \\(prefix\\[\\, "
+"start\\[\\, end\\]\\]\\)"
+msgstr ""
+":py:obj:`WeibullType.startswith "
+"<pymc_marketing.mmm.transformers.WeibullType.startswith>`\\ \\(prefijo\\[\\,"
+" inicio\\[\\, fin\\]\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 3ff3e7d4fecd458e8d740d2befbea579
+msgid "Return True if S starts with the specified prefix, False otherwise."
+msgstr ""
+"Devuelve True si S comienza con el prefijo especificado, False en caso "
+"contrario."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: c82a9143f7264bfcafc5e06516425696
+msgid ""
+":py:obj:`WeibullType.endswith "
+"<pymc_marketing.mmm.transformers.WeibullType.endswith>`\\ \\(suffix\\[\\, "
+"start\\[\\, end\\]\\]\\)"
+msgstr ""
+":py:obj:`WeibullType.endswith "
+"<pymc_marketing.mmm.transformers.WeibullType.endswith>`\\ \\(sufijo\\[\\, "
+"inicio\\[\\, fin\\]\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 54e7ad6f6f57404e9c5e57fc6fa5b057
+msgid "Return True if S ends with the specified suffix, False otherwise."
+msgstr ""
+"Devuelve True si S termina con el sufijo especificado, False en caso "
+"contrario."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 897b62be263a430ca4723f451013df34
+msgid ""
+":py:obj:`WeibullType.removeprefix "
+"<pymc_marketing.mmm.transformers.WeibullType.removeprefix>`\\ \\(prefix\\, "
+"\\/\\)"
+msgstr ""
+":py:obj:`WeibullType.removeprefix "
+"<pymc_marketing.mmm.transformers.WeibullType.removeprefix>`\\ \\(prefijo\\, "
+"\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: cad0aa58bdca4eab91198fb9fa8c7b3b
+msgid "Return a str with the given prefix string removed if present."
+msgstr "Devuelve una cadena con el prefijo dado eliminado si está presente."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 33046085179a414a8852d2359a87e1d2
+msgid ""
+":py:obj:`WeibullType.removesuffix "
+"<pymc_marketing.mmm.transformers.WeibullType.removesuffix>`\\ \\(suffix\\, "
+"\\/\\)"
+msgstr ""
+":py:obj:`WeibullType.removesuffix "
+"<pymc_marketing.mmm.transformers.WeibullType.removesuffix>`\\ \\(sufijo\\, "
+"\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 08cff4296c61465ca429644e6c77bb2e
+msgid "Return a str with the given suffix string removed if present."
+msgstr "Devuelve una cadena con el sufijo dado eliminado si está presente."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 3ec7468a2cab453f9527459272ede69b
+msgid ""
+":py:obj:`WeibullType.isascii "
+"<pymc_marketing.mmm.transformers.WeibullType.isascii>`\\ \\(\\/\\)"
+msgstr ""
+":py:obj:`WeibullType.isascii "
+"<pymc_marketing.mmm.transformers.WeibullType.isascii>`\\ \\(\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 423df54571e0498a8d97441a16ec17e3
+msgid ""
+"Return True if all characters in the string are ASCII, False otherwise."
+msgstr ""
+"Devuelve True si todos los caracteres en la cadena son ASCII, False en caso "
+"contrario."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: b08e63e537894de38469fb1a245de721
+msgid ""
+":py:obj:`WeibullType.islower "
+"<pymc_marketing.mmm.transformers.WeibullType.islower>`\\ \\(\\/\\)"
+msgstr ""
+":py:obj:`WeibullType.islower "
+"<pymc_marketing.mmm.transformers.WeibullType.islower>`\\ \\(\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: cab6e9ff11b145d2b5d2dfd3bf28ed8a
+msgid "Return True if the string is a lowercase string, False otherwise."
+msgstr ""
+"Devuelve True si la cadena es una cadena en minúsculas, False en caso "
+"contrario."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: bf63b09990644302966d9806d6b5af1c
+msgid ""
+":py:obj:`WeibullType.isupper "
+"<pymc_marketing.mmm.transformers.WeibullType.isupper>`\\ \\(\\/\\)"
+msgstr ""
+":py:obj:`WeibullType.isupper "
+"<pymc_marketing.mmm.transformers.WeibullType.isupper>`\\ \\(\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: c564e2ab4a9d422b8567825e250e0712
+msgid "Return True if the string is an uppercase string, False otherwise."
+msgstr ""
+"Devuelve True si la cadena es una cadena en mayúsculas, False en caso "
+"contrario."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: c86c49889e944cb1996cd04d374db71b
+msgid ""
+":py:obj:`WeibullType.istitle "
+"<pymc_marketing.mmm.transformers.WeibullType.istitle>`\\ \\(\\/\\)"
+msgstr ""
+":py:obj:`WeibullType.istitle "
+"<pymc_marketing.mmm.transformers.WeibullType.istitle>`\\ \\(\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 67750e97d3f943668619e3ef42314e11
+msgid "Return True if the string is a title-cased string, False otherwise."
+msgstr ""
+"Devuelve True si la cadena es una cadena con mayúsculas en el título, False "
+"en caso contrario."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 8dc8efe7edd04a92bd057836e69ae4a9
+msgid ""
+":py:obj:`WeibullType.isspace "
+"<pymc_marketing.mmm.transformers.WeibullType.isspace>`\\ \\(\\/\\)"
+msgstr ""
+":py:obj:`WeibullType.isspace "
+"<pymc_marketing.mmm.transformers.WeibullType.isspace>`\\ \\(\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: f56179b00ad242899a1902a56b780b75
+msgid "Return True if the string is a whitespace string, False otherwise."
+msgstr ""
+"Devuelve True si la cadena es una cadena de espacios en blanco, False en "
+"caso contrario."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 4978bb57bef041efa1bf025bdaf383d0
+msgid ""
+":py:obj:`WeibullType.isdecimal "
+"<pymc_marketing.mmm.transformers.WeibullType.isdecimal>`\\ \\(\\/\\)"
+msgstr ""
+":py:obj:`WeibullType.isdecimal "
+"<pymc_marketing.mmm.transformers.WeibullType.isdecimal>`\\ \\(\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: e40cb9df9af24ee28ce6061eb82b6699
+msgid "Return True if the string is a decimal string, False otherwise."
+msgstr ""
+"Devuelve True si la cadena es una cadena decimal, False en caso contrario."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 4668562787fa4765826a2d97b0050f74
+msgid ""
+":py:obj:`WeibullType.isdigit "
+"<pymc_marketing.mmm.transformers.WeibullType.isdigit>`\\ \\(\\/\\)"
+msgstr ""
+":py:obj:`WeibullType.isdigit "
+"<pymc_marketing.mmm.transformers.WeibullType.isdigit>`\\ \\(\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 0a7381768bfe4040bb723d5c41e292f1
+msgid "Return True if the string is a digit string, False otherwise."
+msgstr ""
+"Devuelve True si la cadena es una cadena de dígitos, False en caso "
+"contrario."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 26aca074c95c49d7a2c10703703be3b2
+msgid ""
+":py:obj:`WeibullType.isnumeric "
+"<pymc_marketing.mmm.transformers.WeibullType.isnumeric>`\\ \\(\\/\\)"
+msgstr ""
+":py:obj:`WeibullType.isnumeric "
+"<pymc_marketing.mmm.transformers.WeibullType.isnumeric>`\\ \\(\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 0531a681a2b9442fb4da7b27daa37497
+msgid "Return True if the string is a numeric string, False otherwise."
+msgstr ""
+"Devuelve True si la cadena es una cadena numérica, False en caso contrario."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: ee92de3f9d7e4dce915ca95e688a4791
+msgid ""
+":py:obj:`WeibullType.isalpha "
+"<pymc_marketing.mmm.transformers.WeibullType.isalpha>`\\ \\(\\/\\)"
+msgstr ""
+":py:obj:`WeibullType.isalpha "
+"<pymc_marketing.mmm.transformers.WeibullType.isalpha>`\\ \\(\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 01ba850a06394ca8aa38cbfeef685c2b
+msgid "Return True if the string is an alphabetic string, False otherwise."
+msgstr ""
+"Devuelve True si la cadena es una cadena alfabética, False en caso "
+"contrario."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: c7a40aac3cc74fab8f194d6c8cbfeebf
+msgid ""
+":py:obj:`WeibullType.isalnum "
+"<pymc_marketing.mmm.transformers.WeibullType.isalnum>`\\ \\(\\/\\)"
+msgstr ""
+":py:obj:`WeibullType.isalnum "
+"<pymc_marketing.mmm.transformers.WeibullType.isalnum>`\\ \\(\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 007d39baf5074315aecb1697ba525959
+msgid "Return True if the string is an alpha-numeric string, False otherwise."
+msgstr ""
+"Devuelve True si la cadena es una cadena alfanumérica, False en caso "
+"contrario."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 901a99b58c0944c5a9ed92ac53feb377
+msgid ""
+":py:obj:`WeibullType.isidentifier "
+"<pymc_marketing.mmm.transformers.WeibullType.isidentifier>`\\ \\(\\/\\)"
+msgstr ""
+":py:obj:`WeibullType.isidentifier "
+"<pymc_marketing.mmm.transformers.WeibullType.isidentifier>`\\ \\(\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: ed6ae24396c143f6a242755a08f93361
+msgid ""
+"Return True if the string is a valid Python identifier, False otherwise."
+msgstr ""
+"Devuelve True si la cadena es un identificador válido de Python, False en "
+"caso contrario."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: a6c0f6611c264255856836e67d43ee7d
+msgid ""
+":py:obj:`WeibullType.isprintable "
+"<pymc_marketing.mmm.transformers.WeibullType.isprintable>`\\ \\(\\/\\)"
+msgstr ""
+":py:obj:`WeibullType.isprintable "
+"<pymc_marketing.mmm.transformers.WeibullType.isprintable>`\\ \\(\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 2c809e5d7ed14e779373754ecd03c00d
+msgid ""
+"Return True if all characters in the string are printable, False otherwise."
+msgstr ""
+"Devuelve True si todos los caracteres en la cadena son imprimibles, False en"
+" caso contrario."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 2747c120330f4e68a908d966151c4eff
+msgid ""
+":py:obj:`WeibullType.zfill "
+"<pymc_marketing.mmm.transformers.WeibullType.zfill>`\\ \\(width\\, \\/\\)"
+msgstr ""
+":py:obj:`WeibullType.zfill "
+"<pymc_marketing.mmm.transformers.WeibullType.zfill>`\\ \\(ancho\\, \\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: a9de237cb38c46739fc5741dacbb72b3
+msgid ""
+"Pad a numeric string with zeros on the left, to fill a field of the given "
+"width."
+msgstr ""
+"Rellene una cadena numérica con ceros a la izquierda para completar un campo"
+" de la anchura dada."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: de91843952f340d781ef72e5da3e92d0
+msgid ""
+":py:obj:`WeibullType.format "
+"<pymc_marketing.mmm.transformers.WeibullType.format>`\\ \\(\\*args\\, "
+"\\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`WeibullType.format "
+"<pymc_marketing.mmm.transformers.WeibullType.format>`\\ \\(\\*args\\, "
+"\\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: b170303a3c82412eb907cae76c4c404d
+msgid ""
+"Return a formatted version of S, using substitutions from args and kwargs."
+msgstr ""
+"Devuelve una versión formateada de S, utilizando sustituciones de args y "
+"kwargs."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: ec65ceec1ece4612bd5094d0bdeced6c
+msgid ""
+":py:obj:`WeibullType.format_map "
+"<pymc_marketing.mmm.transformers.WeibullType.format_map>`\\ \\(mapping\\)"
+msgstr ""
+":py:obj:`WeibullType.format_map "
+"<pymc_marketing.mmm.transformers.WeibullType.format_map>`\\ \\(mapeo\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 66e942fecfe5497d8b48a2ed1c9f7aa9
+msgid "Return a formatted version of S, using substitutions from mapping."
+msgstr ""
+"Devuelve una versión formateada de S, utilizando sustituciones del mapeo."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 2e30e6dc7a974e4dbf7f17972454707f
+msgid ""
+":py:obj:`WeibullType.maketrans "
+"<pymc_marketing.mmm.transformers.WeibullType.maketrans>`\\ \\(x\\[\\, y\\, "
+"z\\]\\)"
+msgstr ""
+":py:obj:`WeibullType.maketrans "
+"<pymc_marketing.mmm.transformers.WeibullType.maketrans>`\\ \\(x\\[\\, y\\, "
+"z\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 9d65f5c462bb47d794b17ff40c3e53d0
+msgid "Return a translation table usable for str.translate()."
+msgstr "Devuelva una tabla de traducción utilizable para str.translate()."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:69:<autosummary>:1
+#: 9eeaa393d19c41efa218b53c02999643
+msgid ""
+":py:obj:`WeibullType.__init__ "
+"<pymc_marketing.mmm.transformers.WeibullType.__init__>`\\ \\(\\*args\\, "
+"\\*\\*kwds\\)"
+msgstr ""
+":py:obj:`WeibullType.__init__ "
+"<pymc_marketing.mmm.transformers.WeibullType.__init__>`\\ \\(\\*args\\, "
+"\\*\\*kwds\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:71
+#: d4fcab2c98934787a00c8a3d0a4ec2d5
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:75:<autosummary>:1
+#: 12a45ce7c7874ef6ba6a9025071a5eac
+msgid ":py:obj:`PDF <pymc_marketing.mmm.transformers.WeibullType.PDF>`\\"
+msgstr ":py:obj:`PDF <pymc_marketing.mmm.transformers.WeibullType.PDF>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.WeibullType.rst:75:<autosummary>:1
+#: 606dbf6f711d41479e1b022021413235
+msgid ":py:obj:`CDF <pymc_marketing.mmm.transformers.WeibullType.CDF>`\\"
+msgstr ":py:obj:`CDF <pymc_marketing.mmm.transformers.WeibullType.CDF>`\\"

@@ -1,0 +1,112 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.prior.Censored.create_likelihood_variable.rst:2
+#: a1ed5246a5774cc78c8eb6e025806b27
+msgid "Censored.create\\_likelihood\\_variable"
+msgstr "Censored.crear\\_variable\\_de\\_probabilidad"
+
+#: f6aa26367cad4607af5c266e05d17586 of
+#: pymc_extras.prior.Censored.create_likelihood_variable:2
+msgid "Create observed censored variable."
+msgstr "Crear variable censurada observada."
+
+#: 6009fac63d264179b3e52ecff61fe6ef of
+#: pymc_extras.prior.Censored.create_likelihood_variable:4
+msgid ""
+"Will require that the distribution has a `mu` parameter and that it has not "
+"been set in the parameters."
+msgstr ""
+"Requerirá que la distribución tenga un parámetro `mu` y que no se haya "
+"establecido en los parámetros."
+
+#: ba01ce1d60ff4e448625a7010bff9084 of
+#: pymc_extras.prior.Censored.create_likelihood_variable
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 61bbca39d38c45639c735571cd5faa46 of
+#: pymc_extras.prior.Censored.create_likelihood_variable:9
+msgid "**name** : :class:`python:str`"
+msgstr "**nombre** : :class:`python:str`"
+
+#: 26e71159be66423886384d2578bd6e19 of
+#: pymc_extras.prior.Censored.create_likelihood_variable:8
+msgid "python:str"
+msgstr "python:str"
+
+#: 8fb44720573240a0850d7e483a46da35 of
+#: pymc_extras.prior.Censored.create_likelihood_variable:10
+msgid "The name of the variable."
+msgstr "El nombre de la variable."
+
+#: ced89bf534bd4fcb8ea2916e00542d66 of
+#: pymc_extras.prior.Censored.create_likelihood_variable:12
+msgid "**mu** : :obj:`pt.TensorLike`"
+msgstr "**mu** : :obj:`pt.TensorLike`"
+
+#: 656c3effed25438ab101b4dd0e9707b3 f9a60b3e4dd84b89bb2372c5a7771f2a of
+#: pymc_extras.prior.Censored.create_likelihood_variable:11
+#: pymc_extras.prior.Censored.create_likelihood_variable:14
+msgid "pt.TensorLike"
+msgstr "pt.TensorComo"
+
+#: 0a687b3509d6456daae2784f5327bd80 of
+#: pymc_extras.prior.Censored.create_likelihood_variable:13
+msgid "The mu parameter for the likelihood."
+msgstr "El parámetro mu para la verosimilitud."
+
+#: 748c23c6062b435b87a2ae6fcf601864 of
+#: pymc_extras.prior.Censored.create_likelihood_variable:15
+msgid "**observed** : :obj:`pt.TensorLike`"
+msgstr "**observado** : :obj:`pt.TensorLike`"
+
+#: 1419c109a8804dc2b16a7731d4c60171 of
+#: pymc_extras.prior.Censored.create_likelihood_variable:16
+msgid "The observed data."
+msgstr "Los datos observados."
+
+#: 8ff4fa67183141dbba07281b8ad2a8df of
+#: pymc_extras.prior.Censored.create_likelihood_variable
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 59a2274a798a4401a0a2fbb054cc8d8b of
+#: pymc_extras.prior.Censored.create_likelihood_variable:22
+msgid ":obj:`pt.TensorVariable`"
+msgstr ":obj:`pt.TensorVariable`"
+
+#: 77d2e79eb472491a89784d6b0488afae of
+#: pymc_extras.prior.Censored.create_likelihood_variable:23
+msgid "The PyMC variable."
+msgstr "La variable PyMC."
+
+#: a7391875c19a48b383a282afa5e32091 of
+#: pymc_extras.prior.Censored.create_likelihood_variable:35
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: 992c1d953031471e96164c1d375b8a81 of
+#: pymc_extras.prior.Censored.create_likelihood_variable:36
+msgid "Create a censored likelihood variable in a larger PyMC model."
+msgstr ""
+"Cree una variable de probabilidad censurada en un modelo más grande de PyMC."

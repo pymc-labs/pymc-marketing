@@ -1,0 +1,106 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-13 11:28+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.linear_trend.LinearTrend.model_validate.rst:2
+#: aeec0e0984894d399aebd5a5840ec650
+msgid "LinearTrend.model\\_validate"
+msgstr "LinearTrend.model\\_validate"
+
+#: cc8887b30f054a89bc8fbdd6a1bf46bb of
+#: pydantic.main.BaseModel.model_validate:2
+msgid "Validate a pydantic model instance."
+msgstr "Valide una instancia del modelo pydantic."
+
+#: 87a614d943a5453aa4f2abd7954b2377 of
+#: pydantic.main.BaseModel.model_validate:4
+msgid "Args:"
+msgstr "Args:"
+
+#: 730a1629774d48419b42594d356e454e of
+#: pydantic.main.BaseModel.model_validate:5
+msgid ""
+"obj: The object to validate. strict: Whether to enforce types strictly. "
+"extra: Whether to ignore, allow, or forbid extra data during model "
+"validation."
+msgstr ""
+"obj: El objeto a validar. strict: Si se deben imponer los tipos de manera "
+"estricta. extra: Si se debe ignorar, permitir o prohibir datos adicionales "
+"durante la validación del modelo."
+
+#: 92c65921cd2b41fb91332dc72edbaa7b of
+#: pydantic.main.BaseModel.model_validate:8
+msgid ""
+"See the [`extra` configuration value][pydantic.ConfigDict.extra] for "
+"details."
+msgstr ""
+"Consulte el valor de configuración [`extra`][pydantic.ConfigDict.extra] para"
+" más detalles."
+
+#: 5c7466ed0d0741f8b4df33b9cb65f29a of
+#: pydantic.main.BaseModel.model_validate:9
+msgid ""
+"from_attributes: Whether to extract data from object attributes. context: "
+"Additional context to pass to the validator. by_alias: Whether to use the "
+"field's alias when validating against the provided input data. by_name: "
+"Whether to use the field's name when validating against the provided input "
+"data."
+msgstr ""
+"from_attributes: Si se debe extraer datos de los atributos del objeto. "
+"context: Contexto adicional para pasar al validador. by_alias: Si se debe "
+"usar el alias del campo al validar contra los datos de entrada "
+"proporcionados. by_name: Si se debe usar el nombre del campo al validar "
+"contra los datos de entrada proporcionados."
+
+#: 4cb17e0ed65d44cf8d8ad7abd01486a5 of
+#: pydantic.main.BaseModel.model_validate:14
+msgid "Raises:"
+msgstr "Aumentos:"
+
+#: f91776606b6e4788aa0490178fed3255 of
+#: pydantic.main.BaseModel.model_validate:15
+msgid "ValidationError: If the object could not be validated."
+msgstr "ValidationError: Si el objeto no pudo ser validado."
+
+#: 63e719ca9ca0457b92f8f70b46be108d of
+#: pydantic.main.BaseModel.model_validate:17
+msgid "Returns:"
+msgstr "Devoluciones:"
+
+#: 190968242e454c9d8778352deabc95ec of
+#: pydantic.main.BaseModel.model_validate:18
+msgid "The validated model instance."
+msgstr "La instancia del modelo validado."
+
+#~ msgid ""
+#~ "obj: The object to validate. strict: Whether to enforce types strictly. "
+#~ "from_attributes: Whether to extract data from object attributes. context: "
+#~ "Additional context to pass to the validator. by_alias: Whether to use the "
+#~ "field's alias when validating against the provided input data. by_name: "
+#~ "Whether to use the field's name when validating against the provided input "
+#~ "data."
+#~ msgstr ""
+#~ "obj: El objeto a validar. strict: Si se debe imponer tipos estrictamente. "
+#~ "from_attributes: Si se debe extraer datos de los atributos del objeto. "
+#~ "context: Contexto adicional para pasar al validador. by_alias: Si se debe "
+#~ "usar el alias del campo al validar contra los datos de entrada "
+#~ "proporcionados. by_name: Si se debe usar el nombre del campo al validar "
+#~ "contra los datos de entrada proporcionados."

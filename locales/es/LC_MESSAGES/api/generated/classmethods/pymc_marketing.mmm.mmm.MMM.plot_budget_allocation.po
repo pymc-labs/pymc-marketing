@@ -1,0 +1,123 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.mmm.MMM.plot_budget_allocation.rst:2
+#: 5ea6fd70e6c446608186a786a6dacfa2
+msgid "MMM.plot\\_budget\\_allocation"
+msgstr "MMM.plot\\_budget\\_allocation"
+
+#: 70d6c64786c9452b97b9b15d2d1d4da1 of
+#: pymc_marketing.mmm.mmm.MMM.plot_budget_allocation:2
+msgid "Plot the budget allocation and channel contributions."
+msgstr "Trace la asignación del presupuesto y las contribuciones del canal."
+
+#: a1118cc600ae4531997ac83cb225e5ab of
+#: pymc_marketing.mmm.mmm.MMM.plot_budget_allocation
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 3ec3e361d9d14460ad84485b998cdefc of
+#: pymc_marketing.mmm.mmm.MMM.plot_budget_allocation:7
+msgid "**samples** : :obj:`Dataset`"
+msgstr "**muestras** : :obj:`Conjunto de datos`"
+
+#: c5f8d6bad6444056abfb40be3a6b79f6 of
+#: pymc_marketing.mmm.mmm.MMM.plot_budget_allocation:6
+msgid "Dataset"
+msgstr "Conjunto de datos"
+
+#: f0f5aa159a0a4df7aa41e53dfa8a133e of
+#: pymc_marketing.mmm.mmm.MMM.plot_budget_allocation:8
+msgid "The dataset containing the channel contributions."
+msgstr "El conjunto de datos que contiene las contribuciones del canal."
+
+#: b7c4f084e2c14b3c8a3ad90130169e81 of
+#: pymc_marketing.mmm.mmm.MMM.plot_budget_allocation:10
+msgid ""
+"**figsize** : :class:`python:tuple`\\[:class:`python:float`, "
+":class:`python:float`], optional"
+msgstr ""
+"**figsize** : :class:`python:tuple`\\[:class:`python:float`, "
+":class:`python:float`], opcional"
+
+#: 51e2bc9388b242c3b4a7cec4dcb0ea1f of
+#: pymc_marketing.mmm.mmm.MMM.plot_budget_allocation:9
+msgid "python:tuple[python:float, python:float], optional"
+msgstr "python:tuple[python:float, python:float], opcional"
+
+#: 52dd196f12ae41c2ae56289c8e53e4ae of
+#: pymc_marketing.mmm.mmm.MMM.plot_budget_allocation:11
+msgid "The size of the figure to be created, by default (12, 6)."
+msgstr "El tamaño de la figura a crear, por defecto (12, 6)."
+
+#: 3f098ae2e638446d94f64d19f785a780 of
+#: pymc_marketing.mmm.mmm.MMM.plot_budget_allocation:13
+msgid "**ax** : :obj:`plt.Axes`, optional"
+msgstr "**ax** : :obj:`plt.Axes`, opcional"
+
+#: 8c9ceacaf8a3474d980613fa5d344aaf of
+#: pymc_marketing.mmm.mmm.MMM.plot_budget_allocation:12
+msgid "plt.Axes, optional"
+msgstr "plt.Axes, opcional"
+
+#: 2dafa0b780a94679b8e8feb9c4d1cb36 of
+#: pymc_marketing.mmm.mmm.MMM.plot_budget_allocation:14
+msgid "The axis to plot on. If None, a new figure and axis will be created."
+msgstr ""
+"El eje en el que trazar. Si es None, se creará una nueva figura y un nuevo "
+"eje."
+
+#: 28b583a16c0c4d89874215a6ecc0eaec of
+#: pymc_marketing.mmm.mmm.MMM.plot_budget_allocation:16
+msgid ""
+"**original_scale** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+"**original_scale** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 92c2ec7f51384dba981e9c9dcdc5e7a0 of
+#: pymc_marketing.mmm.mmm.MMM.plot_budget_allocation:15
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: 33282c4dd1df43d682f876a48e741fa9 of
+#: pymc_marketing.mmm.mmm.MMM.plot_budget_allocation:17
+msgid ""
+"A boolean flag to determine if the values should be plotted in their "
+"original scale, by default True."
+msgstr ""
+"Un indicador booleano para determinar si los valores deben ser representados"
+" en su escala original, por defecto True."
+
+#: 2784e73e4c6c4ff294084a8ac0b3c0bc of
+#: pymc_marketing.mmm.mmm.MMM.plot_budget_allocation
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 1f1d6adcba674472a3c1f4207fc35ec0 of
+#: pymc_marketing.mmm.mmm.MMM.plot_budget_allocation:24
+msgid ":obj:`Tuple`\\[:obj:`plt.Figure`, :obj:`plt.Axes`]"
+msgstr ":obj:`Tuple`\\[:obj:`plt.Figure`, :obj:`plt.Axes`]"
+
+#: 6aed323b16454a7896c81c017d8b19ac of
+#: pymc_marketing.mmm.mmm.MMM.plot_budget_allocation:25
+msgid "The matplotlib figure object and axis containing the plot."
+msgstr "El objeto figura de matplotlib y el eje que contiene la gráfica."

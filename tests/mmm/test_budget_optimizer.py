@@ -16,6 +16,7 @@ from unittest.mock import patch
 import arviz as az
 import numpy as np
 import pandas as pd
+import pymc as pm
 import pytensor
 import pytensor.tensor as pt
 import pytest
@@ -24,6 +25,7 @@ import xarray as xr
 from pymc_marketing.mmm import MMM
 from pymc_marketing.mmm.budget_optimizer import (
     BudgetOptimizer,
+    CustomModelWrapper,
     MinimizeException,
     optimizer_xarray_builder,
 )
@@ -61,7 +63,7 @@ def dummy_df():
 
 @pytest.fixture(scope="module")
 def dummy_idata(dummy_df) -> az.InferenceData:
-    df_kwargs, df, y = dummy_df
+    df_kwargs, _df, _y = dummy_df
 
     return az.from_dict(
         posterior={
@@ -307,7 +309,7 @@ def test_allocate_budget_custom_minimize_args(
     }
 
     with pytest.raises(
-        ValueError, match="NumPy boolean array indexing assignment cannot assign"
+        ValueError, match=r"NumPy boolean array indexing assignment cannot assign"
     ):
         optimizer.allocate_budget(
             total_budget, budget_bounds, minimize_kwargs=minimize_kwargs
@@ -315,7 +317,7 @@ def test_allocate_budget_custom_minimize_args(
 
     kwargs = minimize_mock.call_args_list[0].kwargs
 
-    np.testing.assert_array_equal(x=kwargs["x0"], y=np.array([50.0, 50.0]))
+    np.testing.assert_array_equal(actual=kwargs["x0"], desired=np.array([50.0, 50.0]))
     assert kwargs["bounds"] == [(0.0, 50.0), (0.0, 50.0)]
     assert kwargs["method"] == minimize_kwargs["method"]
     assert kwargs["options"] == minimize_kwargs["options"]
@@ -386,7 +388,7 @@ def test_allocate_budget_infeasible_constraints(
     )
 
     # Ensure optimization raises MinimizeException due to infeasible constraints
-    with pytest.raises(MinimizeException, match="Optimization failed"):
+    with pytest.raises(MinimizeException, match=r"Optimization failed"):
         optimizer.allocate_budget(total_budget, budget_bounds)
 
 
@@ -461,7 +463,7 @@ def test_allocate_budget_custom_response_constraint(
         num_periods=30,
     )
 
-    allocation, res = optimizer.allocate_budget(
+    _allocation, res = optimizer.allocate_budget(
         total_budget=total_budget,
         budget_bounds=None,
     )
@@ -590,7 +592,7 @@ def test_mmm_optimize_budget_callback_parametrized(dummy_df, dummy_idata, callba
 
     with pytest.warns(
         DeprecationWarning,
-        match="This method is deprecated and will be removed in a future version",
+        match=r"This method is deprecated and will be removed in a future version",
     ):
         result = mmm.optimize_budget(
             budget=100,
@@ -767,7 +769,7 @@ def test_budget_distribution_over_period_wrong_dims(dummy_df, dummy_idata):
     )
 
     with pytest.raises(
-        ValueError, match="budget_distribution_over_period must have dims"
+        ValueError, match=r"budget_distribution_over_period must have dims"
     ):
         BudgetOptimizer(
             model=mmm,
@@ -905,3 +907,64 @@ def test_budget_distribution_over_period_integration(dummy_df, dummy_idata):
     assert isinstance(result_without_factors, xr.DataArray)
     assert result_with_factors.dims == ("channel",)
     assert result_without_factors.dims == ("channel",)
+
+
+def test_custom_protocol_model_budget_optimizer_works():
+    """Validate the optimizer works with the built-in CustomModelWrapper.
+
+    This serves as an example for users wanting to plug in their own PyMC models via
+    ``CustomModelWrapper``, which satisfies the OptimizerCompatibleModelWrapper protocol.
+    """
+    # 1) Build and fit a tiny custom PyMC model
+    rng = np.random.default_rng(0)
+    num_obs = 12
+    channels = ["C1", "C2", "C3"]
+    X = rng.uniform(0.0, 1.0, size=(num_obs, len(channels)))
+    true_beta = np.array([0.8, 0.4, 0.2])
+    y = (X @ true_beta) + rng.normal(0.0, 0.05, size=num_obs)
+
+    coords = {"date": np.arange(num_obs), "channel": channels}
+    with pm.Model(coords=coords) as train_model:
+        pm.Data("channel_data", X, dims=("date", "channel"))
+        beta = pm.Normal("beta", 0.0, 1.0, dims="channel")
+        mu = (train_model["channel_data"] * beta).sum(axis=-1)
+        pm.Deterministic("total_contribution", mu.sum(), dims=())
+        pm.Deterministic(
+            "channel_contribution",
+            train_model["channel_data"] * beta,
+            dims=("date", "channel"),
+        )
+        sigma = pm.HalfNormal("sigma", 0.2)
+        pm.Normal("y", mu=mu, sigma=sigma, observed=y, dims="date")
+
+        idata = pm.sample(50, tune=50, chains=1, progressbar=False, random_seed=1)
+
+    # 2) Wrap the model with CustomModelWrapper
+    wrapper = CustomModelWrapper(
+        base_model=train_model,
+        idata=idata,
+        channels=channels,
+    )
+
+    # Ensure the wrapper produces correctly shaped optimization models
+    opt_model = wrapper._set_predictors_for_optimization(num_periods=6)
+    assert tuple(opt_model.named_vars_to_dims["channel_data"]) == ("date", "channel")
+    assert list(opt_model.coords["channel"]) == channels
+    assert len(opt_model.coords["date"]) == 6
+
+    # 3) Optimize budgets over a small future horizon
+    optimizer = BudgetOptimizer(model=wrapper, num_periods=6)
+
+    # Use dict bounds (single budget dimension)
+    bounds = {c: (0.0, 50.0) for c in channels}
+
+    optimal_budgets, result = optimizer.allocate_budget(
+        total_budget=100.0, budget_bounds=bounds
+    )
+
+    # Assertions: types, dims, success, sum constraint
+    assert isinstance(optimal_budgets, xr.DataArray)
+    assert optimal_budgets.dims == ("channel",)
+    assert list(optimal_budgets.coords["channel"].values) == channels
+    assert result.success
+    assert np.isclose(optimal_budgets.sum().item(), 100.0)

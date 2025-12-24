@@ -1,0 +1,81 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.additive_effect.LinearTrendEffect.set_data.rst:2
+#: a1c3c429a8494c2d879cb12822ca676f
+msgid "LinearTrendEffect.set\\_data"
+msgstr "LinearTrendEffect.establecer\\_datos"
+
+#: cb379d666a5f430788c5d1d6746c30e4 of
+#: pymc_marketing.mmm.additive_effect.LinearTrendEffect.set_data:2
+msgid "Set the data for new predictions."
+msgstr "Establezca los datos para nuevas predicciones."
+
+#: 4abee8cdf9964e41984e35f550a63d98 of
+#: pymc_marketing.mmm.additive_effect.LinearTrendEffect.set_data
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 6667d8db3852490ca6571fa272930fca of
+#: pymc_marketing.mmm.additive_effect.LinearTrendEffect.set_data:7
+msgid "**mmm** : :obj:`MMM`"
+msgstr "**mmm** : :obj:`MMM`"
+
+#: 72c3bee83253410dbad4fb1bf146ecda of
+#: pymc_marketing.mmm.additive_effect.LinearTrendEffect.set_data:6
+msgid "MMM"
+msgstr "MMM"
+
+#: ff113f7b865f4f22923e6a82cbeee6f3 of
+#: pymc_marketing.mmm.additive_effect.LinearTrendEffect.set_data:8
+msgid "The MMM model instance."
+msgstr "La instancia del modelo MMM."
+
+#: fe8b5ffc5c644e5390a834fd082a7dd6 of
+#: pymc_marketing.mmm.additive_effect.LinearTrendEffect.set_data:10
+msgid "**model** : :obj:`pm.Model`"
+msgstr "**modelo** : :obj:`pm.Model`"
+
+#: e3cd08255cef47b68a8b8b42e3323c3e of
+#: pymc_marketing.mmm.additive_effect.LinearTrendEffect.set_data:9
+msgid "pm.Model"
+msgstr "pm.Model"
+
+#: 478a8a6e24c04363b3cf8dfaecab8389 of
+#: pymc_marketing.mmm.additive_effect.LinearTrendEffect.set_data:11
+msgid "The PyMC model."
+msgstr "El modelo PyMC."
+
+#: cc23a9d020f9497589ca17b9c318aacf of
+#: pymc_marketing.mmm.additive_effect.LinearTrendEffect.set_data:13
+msgid "**X** : :obj:`xr.Dataset`"
+msgstr "**X** : :obj:`xr.Dataset`"
+
+#: a465e4274f9e4575aec552abe60e7032 of
+#: pymc_marketing.mmm.additive_effect.LinearTrendEffect.set_data:12
+msgid "xr.Dataset"
+msgstr "xr.ConjuntoDeDatos"
+
+#: 4a1d37387766484baaa48b2c8e582d5e of
+#: pymc_marketing.mmm.additive_effect.LinearTrendEffect.set_data:14
+msgid "The dataset for prediction."
+msgstr "El conjunto de datos para la predicción."

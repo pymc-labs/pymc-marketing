@@ -1,0 +1,68 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.components.saturation.LogisticSaturation.set_dims_for_all_priors.rst:2
+#: 735fbf095e554f3f9c2e9195f57d5fa8
+msgid "LogisticSaturation.set\\_dims\\_for\\_all\\_priors"
+msgstr "LogisticSaturation.establecer\\_dimensiones\\_para\\_todos\\_los\\_prior."
+
+#: 0918841060d1488a850afb1ac45e2a65 of
+#: pymc_marketing.mmm.components.base.Transformation.set_dims_for_all_priors:2
+msgid "Set the dims for all priors."
+msgstr "Establezca las dimensiones para todos los antecedentes."
+
+#: a1f9db1782ed43df90ec425221d8cb66 of
+#: pymc_marketing.mmm.components.base.Transformation.set_dims_for_all_priors:4
+msgid "Convenience method to loop through all the priors and set the dims."
+msgstr ""
+"Método conveniente para recorrer todos los antecedentes y establecer las "
+"dimensiones."
+
+#: adcce20a1de648ef9cab6258a29a89f2 of
+#: pymc_marketing.mmm.components.base.Transformation.set_dims_for_all_priors
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 35bf481de51e4bfeb6468e1149452d3a of
+#: pymc_marketing.mmm.components.base.Transformation.set_dims_for_all_priors:8
+msgid "**dims** : :obj:`Dims`"
+msgstr "**dims** : :obj:`Dims`"
+
+#: f1a5dc49969c4c179990a84c0c2f096b of
+#: pymc_marketing.mmm.components.base.Transformation.set_dims_for_all_priors:7
+msgid "Dims"
+msgstr "Dimensiones"
+
+#: fe4fd07197cb434aabf3c3843fab77af of
+#: pymc_marketing.mmm.components.base.Transformation.set_dims_for_all_priors:9
+msgid "The dims for the priors."
+msgstr "Las dimensiones para los priors."
+
+#: db9e328523c445f9aba6736ea21bf5d4 of
+#: pymc_marketing.mmm.components.base.Transformation.set_dims_for_all_priors
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: aff4bf4d8668423ea346cbc5e408d0f3 of
+#: pymc_marketing.mmm.components.base.Transformation.set_dims_for_all_priors:15
+msgid ":obj:`Transformation`"
+msgstr ":obj:`Transformación`"

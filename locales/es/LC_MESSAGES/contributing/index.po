@@ -1,0 +1,417 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/contributing/index.md:1 e00e7465a48844918ba4d89fae43bec5
+msgid "Contributing"
+msgstr "Contribuyendo"
+
+#: ../source/contributing/index.md:3 6181f153c2484bf2a4eb8063fb8e77f1
+msgid ""
+"PyMC-Marketing welcomes contributions from interested individuals or groups."
+" These guidelines are provided to give potential contributors information to"
+" make their contribution compliant with the conventions of the PyMC-"
+"Marketing project, and maximize the probability of such contributions to be "
+"merged as quickly and efficiently as possible. Contributors need not be "
+"experts, but should be interested in the project, willing to learn, and "
+"share knowledge."
+msgstr ""
+"PyMC-Marketing da la bienvenida a las contribuciones de individuos o grupos "
+"interesados. Estas directrices se proporcionan para ofrecer a los posibles "
+"contribuyentes información que les permita hacer su contribución conforme a "
+"las convenciones del proyecto PyMC-Marketing y maximizar la probabilidad de "
+"que tales contribuciones sean fusionadas de la manera más rápida y eficiente"
+" posible. Los contribuyentes no necesitan ser expertos, pero deben estar "
+"interesados en el proyecto, dispuestos a aprender y a compartir "
+"conocimientos."
+
+#: ../source/contributing/index.md:5 5943af67d75d405b8b16f43e6e587f99
+msgid ""
+"There are 4 main ways of contributing to the PyMC-Marketing project (in "
+"ascending order of difficulty or scope):"
+msgstr ""
+"Existen 4 formas principales de contribuir al proyecto PyMC-Marketing (en "
+"orden ascendente de dificultad o alcance):"
+
+#: ../source/contributing/index.md:7 b98428d7c5a847798adafe9e29250d56
+msgid "Submitting issues related to bugs or desired enhancements."
+msgstr "Enviando problemas relacionados con errores o mejoras deseadas."
+
+#: ../source/contributing/index.md:8 d154038bf3d743f78c49b509cb2772c0
+msgid "Contributing or improving the documentation (docs) or examples."
+msgstr "Contribuyendo o mejorando la documentación (docs) o ejemplos."
+
+#: ../source/contributing/index.md:9 4f797bebcbd343b58dbd062753ae73f5
+msgid ""
+"Fixing outstanding issues (bugs) with the existing codebase. They range from"
+" low-level software bugs to higher-level design problems."
+msgstr ""
+"Solucionando problemas pendientes (errores) en la base de código existente. "
+"Estos varían desde errores de software de bajo nivel hasta problemas de "
+"diseño de nivel superior."
+
+#: ../source/contributing/index.md:10 8b759688f65e4b7ca958371374b1d9f3
+msgid "Adding new or improved functionality to the existing codebase."
+msgstr ""
+"Añadiendo nuevas o mejoradas funcionalidades a la base de código existente."
+
+#: ../source/contributing/index.md:12 a19d232b26494c299be308745a20e355
+msgid ""
+"Items 2-4 require setting up a local development environment, see [Local "
+"development steps](#Contributing-code-via-pull-requests) for more "
+"information."
+msgstr ""
+"Los elementos 2-4 requieren la configuración de un entorno de desarrollo "
+"local, consulte [Pasos de desarrollo local](#Contributing-code-via-pull-"
+"requests) para más información."
+
+#: ../source/contributing/index.md:14 917aaaccdca44ae0b5828a3a8451db9a
+msgid "Opening issues"
+msgstr "Abriendo problemas"
+
+#: ../source/contributing/index.md:15 d9f126b32f68476fb488589dd6f95c47
+msgid ""
+"We appreciate being notified of problems with the existing PyMC-Marketing "
+"code. We prefer that issues be filed the on [Github Issue "
+"Tracker](https://github.com/pymc-labs/pymc-marketing/issues), rather than on"
+" social media or by direct email to the developers."
+msgstr ""
+"Agradecemos que nos notifiquen sobre problemas con el código existente de "
+"PyMC-Marketing. Preferimos que los problemas se informen en el [Github Issue"
+" Tracker](https://github.com/pymc-labs/pymc-marketing/issues), en lugar de "
+"en redes sociales o por correo electrónico directo a los desarrolladores."
+
+#: ../source/contributing/index.md:17 71f17bee39f2470db6864e6c89bdd259
+msgid ""
+"Please verify that your issue is not being currently addressed by other "
+"issues or pull requests by using the GitHub search tool to look for key "
+"words in the project issue tracker."
+msgstr ""
+"Por favor, verifique que su problema no esté siendo abordado actualmente por"
+" otros problemas o solicitudes de extracción utilizando la herramienta de "
+"búsqueda de GitHub para buscar palabras clave en el rastreador de problemas "
+"del proyecto."
+
+#: ../source/contributing/index.md:19 8504176161f74b4186c13968128fbb8b
+msgid "Contributing code via pull requests"
+msgstr "Contribuyendo código a través de solicitudes de extracción"
+
+#: ../source/contributing/index.md:21 dcafa78b9de342108755c641db27a3a5
+msgid ""
+"While issue reporting is valuable, we strongly encourage users who are "
+"inclined to do so to submit patches for new or existing issues via pull "
+"requests. This is particularly the case for simple fixes, such as typos or "
+"tweaks to documentation, which do not require a heavy investment of time and"
+" attention."
+msgstr ""
+"Si bien la presentación de informes de problemas es valiosa, alentamos "
+"encarecidamente a los usuarios que estén inclinados a hacerlo a que envíen "
+"parches para problemas nuevos o existentes a través de solicitudes de "
+"extracción. Este es particularmente el caso de correcciones simples, como "
+"errores tipográficos o ajustes en la documentación, que no requieren una "
+"gran inversión de tiempo y atención."
+
+#: ../source/contributing/index.md:23 142081bfea0f4e2b91c377eb390cd576
+msgid ""
+"Contributors are also encouraged to contribute new code to enhance PyMC-"
+"Marketing's functionality, via pull requests."
+msgstr ""
+"Se anima a los colaboradores a contribuir con nuevo código para mejorar la "
+"funcionalidad de PyMC-Marketing, a través de solicitudes de extracción."
+
+#: ../source/contributing/index.md:25 20fa3241df2b448096cd1e9383e9b53b
+msgid ""
+"The preferred workflow for contributing to PyMC-Marketing is to fork the "
+"GitHub repository, clone it to your local machine, and develop on a feature "
+"branch."
+msgstr ""
+"El flujo de trabajo preferido para contribuir a PyMC-Marketing es bifurcar "
+"el repositorio de GitHub, clonarlo en su máquina local y desarrollar en una "
+"rama de características."
+
+#: ../source/contributing/index.md:27 f1948d4db8644519a8227345d8a0782f
+msgid ""
+"For more instructions see the [Pull request checklist](#pull-request-"
+"checklist)"
+msgstr ""
+"Para más instrucciones, consulte la [lista de verificación de solicitudes de"
+" extracción](#pull-request-checklist)"
+
+#: ../source/contributing/index.md:29 27439fa4c39546f0bf3381068d56041c
+msgid "Local development steps"
+msgstr "Pasos para el desarrollo local"
+
+#: ../source/contributing/index.md:31 2a3ac3f3febc4cb4b2a084570dbca213
+msgid ""
+"If you have not already done so, fork the [project "
+"repository](https://github.com/pymc-labs/pymc-marketing) by clicking on the "
+"'Fork' button near the top right of the main repository page. This creates a"
+" copy of the code under your GitHub user account."
+msgstr ""
+"Si aún no lo ha hecho, bifurque el [repositorio del "
+"proyecto](https://github.com/pymc-labs/pymc-marketing) haciendo clic en el "
+"botón 'Fork' cerca de la parte superior derecha de la página principal del "
+"repositorio. Esto crea una copia del código bajo su cuenta de usuario de "
+"GitHub."
+
+#: ../source/contributing/index.md:33 69c7532cfb23437d974ea0b06e44f4b1
+msgid ""
+"Clone your fork of the `pymc-marketing` repo from your GitHub account to "
+"your local disk, and add the base repository as a remote:"
+msgstr ""
+"Clona tu bifurcación del repositorio `pymc-marketing` de tu cuenta de GitHub"
+" a tu disco local y añade el repositorio base como remoto:"
+
+#: ../source/contributing/index.md:41 0cc9a2212e6a432d8b0b0a1baee8d1a4
+msgid ""
+"Alternatively, if you use the [GitHub CLI](https://cli.github.com/), then "
+"the required command is just"
+msgstr ""
+"Alternativamente, si utiliza el [GitHub CLI](https://cli.github.com/), "
+"entonces el comando requerido es solo"
+
+#: ../source/contributing/index.md:48 a7046444311541f99fc32c5220075ac3
+msgid ""
+"Create a feature branch (e.g. `my-feature`) to hold your development "
+"changes:"
+msgstr ""
+"Cree una rama de características (por ejemplo, `my-feature`) para contener "
+"sus cambios de desarrollo:"
+
+#: ../source/contributing/index.md:54 3497557ecb3843899ae05ba0600b02cd
+msgid ""
+"Always use a feature branch. It's good practice to never routinely work on "
+"the `main` branch of any repository."
+msgstr ""
+"Siempre utiliza una rama de características. Es una buena práctica no "
+"trabajar rutinariamente en la rama `main` de ningún repositorio."
+
+#: ../source/contributing/index.md:56 4c2c0c34f69f427a83208e877bd7e563
+msgid ""
+"Create a dedicated development environment from the file present in the "
+"repo:"
+msgstr ""
+"Cree un entorno de desarrollo dedicado a partir del archivo presente en el "
+"repositorio:"
+
+#: ../source/contributing/index.md:62 4a6a498912a64a3cb354f72be152dd87
+msgid ""
+"This will create an environment called `pymc-marketing-dev`. Activate the "
+"environment."
+msgstr ""
+"Esto creará un entorno llamado `pymc-marketing-dev`. Active el entorno."
+
+#: ../source/contributing/index.md:68 c573b11760c44f4f850aaa281bdf8f96
+msgid ""
+"Install the package (in editable mode) and its development dependencies:"
+msgstr ""
+"Instale el paquete (en modo editable) y sus dependencias de desarrollo:"
+
+#: ../source/contributing/index.md:74 cff42bd0197e45cf9874ba6bfe3e1d6e
+msgid ""
+"Set [pre-commit hooks](https://pre-commit.com/). First install pre-commit "
+"package (either `pip install pre-commit`, see the package's installation "
+"instructions). Alternatively you can run `make check_lint` which will "
+"install the `pre-commit` package. Then run this to set up the git hook "
+"scripts:"
+msgstr ""
+"Configura los [ganchos pre-commit](https://pre-commit.com/). Primero, "
+"instala el paquete pre-commit (ya sea `pip install pre-commit`, consulta las"
+" instrucciones de instalación del paquete). Alternativamente, puedes "
+"ejecutar `make check_lint`, lo que instalará el paquete `pre-commit`. Luego,"
+" ejecuta esto para configurar los scripts de ganchos de git:"
+
+#: ../source/contributing/index.md:80 9e774edf4a564b2586a2bcd9e62d594a
+msgid ""
+"You can then work on your changes locally, in your feature branch. Add "
+"changed files using `git add` and then `git commit` files:"
+msgstr ""
+"Puedes trabajar en tus cambios localmente, en tu rama de características. "
+"Agrega los archivos modificados usando `git add` y luego `git commit` "
+"archivos:"
+
+#: ../source/contributing/index.md:87 05c7de143c4c4c389cd9f0a4c48ce810
+msgid ""
+"to record your changes locally. After committing, it is a good idea to sync "
+"with the base repository in case there have been any changes:"
+msgstr ""
+"para registrar sus cambios localmente. Después de hacer el commit, es una "
+"buena idea sincronizar con el repositorio base en caso de que haya habido "
+"algún cambio:"
+
+#: ../source/contributing/index.md:95 77b4ff74327948f0ad08f5c0ca52b240
+msgid "Then push the changes to your GitHub account with:"
+msgstr "Luego, envía los cambios a tu cuenta de GitHub con:"
+
+#: ../source/contributing/index.md:101 c536fe5d31af4e31b4ed6fc381cf2649
+msgid ""
+"[Optionally] Build the docs locally. If you have changed any of the "
+"documentation, you can build it locally to check that it looks as expected."
+msgstr ""
+"[Opcionalmente] Construya la documentación localmente. Si ha cambiado alguna"
+" de la documentación, puede construirla localmente para verificar que se vea"
+" como se espera."
+
+#: ../source/contributing/index.md:107 0d9d3845e1884c21b459f8f883df6ac6
+msgid ""
+"To delete all intermediate files and cached content and build the docs from "
+"scratch, run `make cleandocs` before `make html`"
+msgstr ""
+"Para eliminar todos los archivos intermedios y el contenido en caché y "
+"construir la documentación desde cero, ejecute `make cleandocs` antes de "
+"`make html`."
+
+#: ../source/contributing/index.md:109 d685f361f7744fde92386ebc55e147f9
+msgid ""
+"Before you submit a Pull request, follow the [Pull request checklist](#pull-"
+"request-checklist)."
+msgstr ""
+"Antes de enviar una solicitud de extracción, siga la [lista de verificación "
+"de solicitudes de extracción](#pull-request-checklist)."
+
+#: ../source/contributing/index.md:111 bbf54d81ae86413abdae91af678a93d1
+msgid ""
+"Finally, to submit a pull request, go to the GitHub web page of your fork of"
+" the PyMC-Marketing repo. Click the 'Pull request' button to send your "
+"changes to the project's maintainers for review. This will send an email to "
+"the committers."
+msgstr ""
+"Finalmente, para enviar una solicitud de extracción, dirígete a la página "
+"web de GitHub de tu bifurcación del repositorio PyMC-Marketing. Haz clic en "
+"el botón 'Pull request' para enviar tus cambios a los mantenedores del "
+"proyecto para su revisión. Esto enviará un correo electrónico a los "
+"responsables de los commits."
+
+#: ../source/contributing/index.md:113 a60c19da10b347b9a4209c1751e6809c
+msgid "Pull request checklist"
+msgstr "Lista de verificación de la solicitud de extracción"
+
+#: ../source/contributing/index.md:115 cb0cb93cbfc9418fa4aae790c01c68fc
+msgid ""
+"We recommend that your contribution complies with the following guidelines "
+"before you submit a pull request:"
+msgstr ""
+"Recomendamos que su contribución cumpla con las siguientes directrices antes"
+" de enviar una solicitud de extracción:"
+
+#: ../source/contributing/index.md:117 163eedc7bcd8470ba816443fa95fdaa6
+msgid ""
+"If your pull request addresses an issue, please use the pull request title "
+"to describe the issue and mention the issue number in the pull request "
+"description. This will make sure a link back to the original issue is "
+"created."
+msgstr ""
+"Si su solicitud de extracción aborda un problema, utilice el título de la "
+"solicitud de extracción para describir el problema y mencione el número del "
+"problema en la descripción de la solicitud de extracción. Esto asegurará que"
+" se cree un enlace de regreso al problema original."
+
+#: ../source/contributing/index.md:119 62e5bc03ab41428e853582a5d9f6d236
+msgid ""
+"All public methods must have informative docstrings with sample usage when "
+"appropriate."
+msgstr ""
+"Todos los métodos públicos deben tener docstrings informativos con ejemplos "
+"de uso cuando sea apropiado."
+
+#: ../source/contributing/index.md:121 ddc92ae323064ecbadcc656fdff55958
+msgid ""
+"To indicate a work in progress please mark the PR as `draft`. Drafts may be "
+"useful to (1) indicate you are working on something to avoid duplicated "
+"work, (2) request broad review of functionality or API, or (3) seek "
+"collaborators."
+msgstr ""
+"Para indicar un trabajo en progreso, por favor marque el PR como `borrador`."
+" Los borradores pueden ser útiles para (1) indicar que está trabajando en "
+"algo para evitar trabajo duplicado, (2) solicitar una revisión amplia de la "
+"funcionalidad o API, o (3) buscar colaboradores."
+
+#: ../source/contributing/index.md:123 acba43c6df6249a984fcc50d68fb72cd
+msgid "All other tests pass when everything is rebuilt from scratch."
+msgstr "Todas las demás pruebas pasan cuando todo se reconstruye desde cero."
+
+#: ../source/contributing/index.md:125 857174f7fa9444a1bf02544a88ef2a44
+msgid ""
+"When adding additional functionality, either edit an existing example, or "
+"create a new example (typically in the form of a Jupyter Notebook) in the "
+"`pymc-marketing/docs/source/mmm` or `pymc-marketing/docs/source/clv` "
+"folders. Have a look at other examples for reference. Examples should "
+"demonstrate why the new functionality is useful in practice."
+msgstr ""
+"Al agregar funcionalidad adicional, edite un ejemplo existente o cree un "
+"nuevo ejemplo (típicamente en forma de un Jupyter Notebook) en las carpetas "
+"`pymc-marketing/docs/source/mmm` o `pymc-marketing/docs/source/clv`. "
+"Consulte otros ejemplos como referencia. Los ejemplos deben demostrar por "
+"qué la nueva funcionalidad es útil en la práctica."
+
+#: ../source/contributing/index.md:127 08a72114a90740a69b8ec1a2ea11f44a
+msgid ""
+"Documentation and high-coverage tests are necessary for enhancements to be "
+"accepted."
+msgstr ""
+"La documentación y las pruebas de alta cobertura son necesarias para que las"
+" mejoras sean aceptadas."
+
+#: ../source/contributing/index.md:129 8734019e8be14fc783b60c43fd687b0b
+msgid ""
+"Documentation follows [NumPy style "
+"guide](https://numpydoc.readthedocs.io/en/latest/format.html)"
+msgstr ""
+"La documentación sigue la [guía de estilo de "
+"NumPy](https://numpydoc.readthedocs.io/en/latest/format.html)"
+
+#: ../source/contributing/index.md:131 f2a5f5e9fda64fe99a74026edf82d7c6
+msgid ""
+"Run any of the pre-existing examples in `pymc-marketing/docs/source/*` that "
+"contain analyses that would be affected by your changes to ensure that "
+"nothing breaks. This is a useful opportunity to not only check your work for"
+" bugs that might not be revealed by unit test, but also to show how your "
+"contribution improves PyMC-Marketing for end users."
+msgstr ""
+"Ejecute cualquiera de los ejemplos preexistentes en `pymc-"
+"marketing/docs/source/*` que contengan análisis que se verían afectados por "
+"sus cambios para asegurarse de que nada se rompa. Esta es una oportunidad "
+"útil no solo para verificar su trabajo en busca de errores que podrían no "
+"ser revelados por las pruebas unitarias, sino también para mostrar cómo su "
+"contribución mejora PyMC-Marketing para los usuarios finales."
+
+#: ../source/contributing/index.md:133 e22e330ea70a4c9e9409094597bf1c73
+msgid ""
+"Your code passes linting tests. Run the line below to check linting errors:"
+msgstr ""
+"Tu código pasa las pruebas de linting. Ejecuta la línea a continuación para "
+"verificar errores de linting:"
+
+#: ../source/contributing/index.md:138 a239891b1b384fdc8a7b3ab97639f230
+msgid "If you want to fix linting errors automatically, run"
+msgstr "Si desea corregir los errores de linting automáticamente, ejecute"
+
+#: ../source/contributing/index.md:144 429b90a637d94dc5a8888fa43efc94d9
+msgid "To run tests:"
+msgstr "Para ejecutar pruebas:"
+
+#: ../source/contributing/index.md:150 6057d3c183e34edfa3308941625a01f3
+msgid "To check code style:"
+msgstr "Para verificar el estilo de código:"
+
+#: ../source/contributing/index.md:156 d8694020dc7a48a5adf2684fa55229f8
+msgid "To fix code style automatically:"
+msgstr "Para corregir el estilo de código automáticamente:"

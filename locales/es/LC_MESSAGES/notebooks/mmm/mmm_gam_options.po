@@ -1,0 +1,1694 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-20 21:01+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:10003
+#: 3147e18e7cc04084be9066ce88e0c5ce
+msgid ""
+"From Marketing Mix Models to Custom Bayesian GAMs: Extending PyMC-"
+"Marketing’s Core"
+msgstr ""
+"De Modelos de Mezcla de Marketing a GAMs Bayesianos Personalizados: "
+"Ampliando el Núcleo de PyMC-Marketing"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:10005
+#: 02b9767fe48b4af3b63dd6335bad69c0
+msgid "Introduction"
+msgstr "Introducción"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:10007
+#: 64a220635900491cb8c4decdb20e44b6
+msgid ""
+"While PyMC-Marketing is widely recognized for its advanced Marketing Mix "
+"Modeling (MMM) capabilities, its true potential extends far beyond "
+"traditional MMM frameworks. At its core, PyMC-Marketing provides a flexible "
+"and composable architecture that enables the construction of complex "
+"probabilistic models—particularly generalized additive models (GAMs)—within "
+"the Bayesian paradigm. By leveraging PyMC’s expressive modeling syntax and "
+"the modular structure of PyMC-Marketing, everyone can integrate nonlinear "
+"transformations, hierarchical priors, auto-regressive dynamics with just a "
+"few lines of code or to define their own custom transformations that reflect"
+" domain-specific knowledge and data-driven insights. In doing so, PyMC-"
+"Marketing becomes not only a framework for marketing optimization but also a"
+" general-purpose engine for building interpretable Bayesian GAMs. This "
+"flexibility makes it an invaluable tool for anyone seeking to combine causal"
+" reasoning, functional flexibility, and probabilistic inference in a "
+"coherent modeling workflow."
+msgstr ""
+"Mientras que PyMC-Marketing es ampliamente reconocido por sus avanzadas "
+"capacidades de Modelado de Mezcla de Marketing (MMM), su verdadero potencial"
+" se extiende mucho más allá de los marcos tradicionales de MMM. En su "
+"núcleo, PyMC-Marketing proporciona una arquitectura flexible y componible "
+"que permite la construcción de modelos probabilísticos "
+"complejos—particularmente modelos aditivos generalizados (GAMs)—dentro del "
+"paradigma bayesiano. Al aprovechar la sintaxis de modelado expresiva de PyMC"
+" y la estructura modular de PyMC-Marketing, cualquier persona puede integrar"
+" transformaciones no lineales, priors jerárquicos, dinámicas auto-regresivas"
+" con solo unas pocas líneas de código o definir sus propias transformaciones"
+" personalizadas que reflejen conocimientos específicos del dominio y "
+"perspectivas basadas en datos. Al hacerlo, PyMC-Marketing se convierte no "
+"solo en un marco para la optimización del marketing, sino también en un "
+"motor de propósito general para construir GAMs bayesianos interpretables. "
+"Esta flexibilidad lo convierte en una herramienta invaluable para cualquiera"
+" que busque combinar razonamiento causal, flexibilidad funcional e "
+"inferencia probabilística en un flujo de trabajo de modelado coherente."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:10009
+#: 4c90b8b4c5f341a2953986fe59fc442d
+msgid ""
+"This allows researchers and analysts to move seamlessly from standard MMMs "
+"to fully specified graphical models that capture richer causal and "
+"functional relationships across variables."
+msgstr ""
+"Esto permite a los investigadores y analistas moverse sin problemas de los "
+"MMM estándar a modelos gráficos completamente especificados que capturan "
+"relaciones causales y funcionales más ricas entre las variables."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:10011
+#: 18c2421df0ac4518a27ccedbf16174df
+msgid ""
+"In the following notebook, we'll showing you several of these "
+"functionalities. You can [read more about individual "
+"components](https://www.pymc-"
+"marketing.io/en/latest/notebooks/mmm/mmm_components.html) and how to build "
+"MMM's in the components notebook."
+msgstr ""
+"En el siguiente cuaderno, le mostraremos varias de estas funcionalidades. "
+"Puede [leer más sobre los componentes individuales](https://www.pymc-"
+"marketing.io/en/latest/notebooks/mmm/mmm_components.html) y cómo construir "
+"MMM en el cuaderno de componentes."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:10013
+#: 0891e2f8de8744e78136e906d982ab98
+msgid "Import libraries"
+msgstr "Importar bibliotecas"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:30002
+#: e39965a0644e445abcc19339ef44e0b3
+msgid "Setting notebook"
+msgstr "Configuración del cuaderno"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:50002
+#: 5ca6bf5132ef4b0ab05b93410a8834cd
+msgid "Data generation process"
+msgstr "Proceso de generación de datos"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:50004
+#: 8cd567bd80f349f6b1b5dddf603a4fa4
+msgid ""
+"For the following examples, we won’t build a large structural process, since"
+" the goal of this notebook is simply to showcase the library’s capabilities."
+" Instead, we’ll generate a few time series following random walks and define"
+" a simple linear target variable that depends on the number of created "
+"drivers."
+msgstr ""
+"Para los siguientes ejemplos, no construiremos un gran proceso estructural, "
+"ya que el objetivo de este cuaderno es simplemente mostrar las capacidades "
+"de la biblioteca. En su lugar, generaremos algunas series temporales "
+"siguiendo caminatas aleatorias y definiremos una variable objetivo lineal "
+"simple que depende del número de controladores creados."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:50006
+#: 1942c28abe8c449fa6b0e988e4a7cd83
+msgid ""
+"The series can be viewed as marketing variables or drivers aimed at a "
+"specific target. As we move through the notebook, we’ll generate numerous "
+"examples of potential datasets that can be used with each of the models."
+msgstr ""
+"La serie puede verse como variables de marketing o impulsores dirigidos a un"
+" objetivo específico. A medida que avancemos por el cuaderno, generaremos "
+"numerosos ejemplos de conjuntos de datos potenciales que pueden utilizarse "
+"con cada uno de los modelos."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:80002
+#: 6d3ab007c79448e78aff28ec9137d8eb
+msgid "Great, let's visualize our time series!"
+msgstr "Genial, ¡visualicemos nuestra serie temporal!"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:100002
+#: 5a8d65e279a84920b4d3b66749dc3e44
+msgid ""
+"We’ll build a simple linear model based on these four factors. You can think"
+" of them as representing impressions, spend, or any other typical marketing "
+"variable, while the target could correspond to outcomes such as revenue, "
+"installs, site registrations, or purchases."
+msgstr ""
+"Construiremos un modelo lineal simple basado en estos cuatro factores. Puede"
+" pensar en ellos como representaciones de impresiones, gasto o cualquier "
+"otra variable de marketing típica, mientras que el objetivo podría "
+"corresponder a resultados como ingresos, instalaciones, registros en el "
+"sitio o compras."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:120002
+#: 9d1576d30f7d458ab053050e62065c18
+msgid "We put all the data together in the same dataset."
+msgstr "Juntamos todos los datos en el mismo conjunto de datos."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:140002
+#: ec9808b8a70f4fa1ba94361c8e20de98
+msgid "Sampler settings"
+msgstr "Configuración del muestreador"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:140004
+#: 62c0746802e04a9fab7059b4e204bb66
+msgid "We'll make a set of predifine sampler settings for all our models."
+msgstr ""
+"Crearemos un conjunto de configuraciones de muestreo predefinidas para todos"
+" nuestros modelos."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:160002
+#: d35bdc25edfb4f9ea39bd4cb32799a9e
+msgid "Simple Linear Model"
+msgstr "Modelo Lineal Simple"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:160004
+#: 8bbde160edb248ceb9c7b3a381b5b46b
+msgid ""
+"To begin, we’ll construct a basic linear model using the `MMM` class. This "
+"example demonstrates how PyMC-Marketing can easily represent a standard "
+"linear regression."
+msgstr ""
+"Para comenzar, construiremos un modelo lineal básico utilizando la clase "
+"`MMM`. Este ejemplo demuestra cómo PyMC-Marketing puede representar "
+"fácilmente una regresión lineal estándar."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:160007
+#: ea388cd88e1e40e0b8b9f2eb23ac02a3
+msgid ""
+"PyMC-Marketing never forces the use of non-linearity. You can build purely "
+"linear models when that's what your data and business context require."
+msgstr ""
+"PyMC-Marketing nunca obliga al uso de no linealidad. Puedes construir "
+"modelos puramente lineales cuando eso es lo que tus datos y el contexto "
+"empresarial requieren."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:160010
+#: d5f34943fbd64ed38675347b10cb40ff
+#, python-brace-format
+msgid ""
+"In this setup, the target variable $Y_t$ is modeled as a linear combination "
+"of several predictors $X_{i,t}$, each weighted by its corresponding "
+"coefficient $b_i$, plus a random error term $\\varepsilon_t$:"
+msgstr ""
+"En esta configuración, la variable objetivo $Y_t$ se modela como una "
+"combinación lineal de varios predictores $X_{i,t}$, cada uno ponderado por "
+"su correspondiente coeficiente $b_i$, más un término de error aleatorio "
+"$\\varepsilon_t$:"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:160012
+#: 40f4ed93a3114c3b9de0c336e1c1a781
+#, python-brace-format
+msgid ""
+"\n"
+"Y_t = \\sum_{i=1}^{I} b_i X_{i,t} + \\varepsilon_t\n"
+msgstr "Y_t = \\sum_{i=1}^{I} b_i X_{i,t} + \\varepsilon_t"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:160016
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:450018
+#: 7718ca71f6d444f8b8030644c1afdbd3
+msgid "Here:"
+msgstr "Aquí:"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:160017
+#: 3b7ac4cd51dc40a7b472639ab1818029
+msgid ""
+"$Y_t$ represents the target at time $t$ (e.g., revenue, installs, or "
+"registrations),"
+msgstr ""
+"$Y_t$ representa el objetivo en el tiempo $t$ (por ejemplo, ingresos, "
+"instalaciones o registros),"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:160018
+#: 8392be5f08c9438286772576b4f63967
+#, python-brace-format
+msgid ""
+"$X_{i,t}$ are the explanatory variables (e.g., impressions, spend, or other "
+"marketing drivers),"
+msgstr ""
+"$X_{i,t}$ son las variables explicativas (por ejemplo, impresiones, gasto u "
+"otros impulsores de marketing),"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:160019
+#: 4d4feecada6644c18b1a22dc207f9d5f
+msgid ""
+"$b_i$ are the channel-specific coefficients capturing the marginal "
+"contribution of each variable, and"
+msgstr ""
+"$b_i$ son los coeficientes específicos del canal que capturan la "
+"contribución marginal de cada variable, y"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:160020
+#: a41ea3b9c88647038aafd0ed89464ee7
+msgid ""
+"$\\varepsilon_t$ is the residual term accounting for unobserved variation."
+msgstr ""
+"$\\varepsilon_t$ es el término residual que contabiliza la variación no "
+"observada."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:160023
+#: 2c30899a9bdc4ca4813bf56d0dd15019
+msgid ""
+"This case represents our precise previous data generation process, but the "
+"important thing is how easy it is to write this equation using the MMM API."
+msgstr ""
+"Este caso representa nuestro preciso proceso de generación de datos "
+"anterior, pero lo importante es lo fácil que es escribir esta ecuación "
+"utilizando la API de MMM."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:180002
+#: 8b307557933742dcb9d1dd2bf8f5c7ba
+msgid ""
+"With just a few lines of code, you can define a linear model that already "
+"includes flexible prior configurations and multidimensional structure."
+msgstr ""
+"Con solo unas pocas líneas de código, puede definir un modelo lineal que ya "
+"incluye configuraciones previas flexibles y una estructura multidimensional."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:180004
+#: 4ee0305004da43d484529f7f0df4fcac
+msgid ""
+"The real advantage, however, isn’t just building a more complex graphical "
+"model so easily — it’s gaining access to all the powerful tools that PyMC-"
+"Marketing provides, even for a simple regression."
+msgstr ""
+"La verdadera ventaja, sin embargo, no es solo construir un modelo gráfico "
+"más complejo tan fácilmente; es obtener acceso a todas las poderosas "
+"herramientas que PyMC-Marketing proporciona, incluso para una regresión "
+"simple."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:180006
+#: 9a9699e84071490a8959c7b10a710a64
+msgid "PyMC-Marketing gives you, out of the box:"
+msgstr "PyMC-Marketing le ofrece, listo para usar:"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:180007
+#: 6239c210a904464eb2cf9465696b0467
+msgid "**Automatic scaling and rescaling** of inputs and outputs."
+msgstr "**Escalado y reescalado automáticos** de entradas y salidas."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:180008
+#: e7f46f700604458ca79ca1e7cd9a75ef
+msgid "**Comprehensive plotting tools** for posterior evaluation."
+msgstr "**Herramientas de trazado completas** para la evaluación posterior."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:180009
+#: 85fde19145e44d2bac51f07a90e3fc6b
+msgid ""
+"**Sensitivity and marginal effect analysis** for each node in the model."
+msgstr ""
+"**Análisis de sensibilidad y efecto marginal** para cada nodo en el modelo."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:180010
+#: 7603909164f04f0f85961f6e66a6a01c
+msgid "**Model calibration** using experimental or causal evidence."
+msgstr ""
+"**Calibración del modelo** utilizando evidencia experimental o causal."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:180011
+#: 1f830a19908344b68fac48cda93417da
+msgid "**Budget allocation and optimization** capabilities."
+msgstr "**Capacidades de asignación y optimización del presupuesto.**"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:180013
+#: ae846bb1a2b04b19a632f646bf6184ac
+msgid ""
+"All these features are available even for the simplest models, allowing you "
+"to move seamlessly from basic regressions to full probabilistic marketing "
+"frameworks."
+msgstr ""
+"Todas estas características están disponibles incluso para los modelos más "
+"simples, lo que le permite pasar sin problemas de regresiones básicas a "
+"marcos de marketing probabilísticos completos."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:180015
+#: 492fc1c68803446b948714b372762460
+msgid "Once every model is ready, you can train them in the very same way!"
+msgstr ""
+"Una vez que cada modelo esté listo, ¡puedes entrenarlos de la misma manera!"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:200002
+#: ce59101c7ebc45e39eeb59a311e4e961
+msgid ""
+"As you can see, we already create a model, add variables to be transform in "
+"original scale, and train it. All of these is saved into my object. How "
+"could we make this a little more complex?"
+msgstr ""
+"Como puede ver, ya hemos creado un modelo, añadido variables para ser "
+"transformadas en la escala original y lo hemos entrenado. Todo esto se "
+"guarda en mi objeto. ¿Cómo podríamos hacer esto un poco más complejo?"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:200004
+#: 948a358f149944a8bb6000e148d7394f
+msgid ""
+"Before go there, we'll need to add something else to our data, in this case,"
+" we'll add a few extra dimensions, in order to have a larger dataset."
+msgstr ""
+"Antes de ir allí, necesitaremos agregar algo más a nuestros datos; en este "
+"caso, añadiremos algunas dimensiones adicionales para tener un conjunto de "
+"datos más grande."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:220002
+#: 33543d632bcb488da4621559f944eff5
+msgid ""
+"Now our dataset looks better, we have a time series with lenght day per each"
+" country, region and product type. Take a look to the number of time series "
+"only made for $x1$."
+msgstr ""
+"Ahora nuestro conjunto de datos se ve mejor, tenemos una serie temporal con "
+"longitud de un día para cada país, región y tipo de producto. Eche un "
+"vistazo al número de series temporales hechas solo para $x1$."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:240002
+#: 912d9c69a20c492c9da0f68ca98e1611
+msgid ""
+"For each time series, we'll make a linear combination as before to get a "
+"target variable!"
+msgstr ""
+"Para cada serie temporal, haremos una combinación lineal como antes para "
+"obtener una variable objetivo."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:270002
+#: d9ca0e582e8f48bd9e24e5af9c01558a
+msgid "Adding additional dimensions into our additive model"
+msgstr "Añadiendo dimensiones adicionales a nuestro modelo aditivo"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:270004
+#: acca7b23b7e143bca325b2db392e7850
+msgid ""
+"If we wanted to build a similar linear model across multiple dimensions, it "
+"might seem like it would require a huge amount of code — right? **Short "
+"answer: no.**"
+msgstr ""
+"Si quisiéramos construir un modelo lineal similar en múltiples dimensiones, "
+"podría parecer que requeriría una gran cantidad de código — ¿verdad? "
+"**Respuesta corta: no.**"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:270006
+#: af968255efab43b79173d4f199e21bf9
+msgid ""
+"With PyMC-Marketing, it only takes **one extra line**. By simply adding the "
+"`dims` parameter, you can include as many dimensions as your dataset "
+"contains, and the class will automatically handle all the structure and "
+"bookkeeping for you."
+msgstr ""
+"Con PyMC-Marketing, solo se necesita **una línea adicional**. Al agregar "
+"simplemente el parámetro `dims`, puede incluir tantas dimensiones como "
+"contenga su conjunto de datos, y la clase se encargará automáticamente de "
+"toda la estructura y la contabilidad por usted."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:300002
+#: 9758774833fe48c0abf436299eef6b28
+msgid ""
+"Now we have a **multidimensional model** that still represents the same "
+"linear function as before, but with additional indices across dimensions."
+msgstr ""
+"Ahora tenemos un **modelo multidimensional** que aún representa la misma "
+"función lineal que antes, pero con índices adicionales a través de las "
+"dimensiones."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:300004
+#: a6d11e427e754a438895a4b229dfea2f
+msgid "Creating hierarchical multidimensional model"
+msgstr "Creando un modelo multidimensional jerárquico"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:300006
+#: f4fb3c7a1a5a4727aeafec73b3156fe7
+msgid ""
+"Another great feature of PyMC-Marketing is its ability to **handle "
+"broadcasting automatically**. This means you don’t need to keep the same "
+"parameter shape for every random variable — you can adjust the parameter "
+"sizes as needed, and the `MMM` class will take care of the broadcasting for "
+"you."
+msgstr ""
+"Otra gran característica de PyMC-Marketing es su capacidad para **manejar la"
+" difusión automáticamente**. Esto significa que no necesitas mantener la "
+"misma forma de parámetro para cada variable aleatoria; puedes ajustar los "
+"tamaños de los parámetros según sea necesario, y la clase `MMM` se encargará"
+" de la difusión por ti."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:300008
+#: 8cd9824a3d6a4903908fa9e463231689
+msgid "Here’s a quick example:"
+msgstr "Aquí hay un ejemplo rápido:"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:320002
+#: 5020007404564ee0a44732787319450a
+msgid ""
+"As you can see, it was incredibly easy to build a hierarchical model with "
+"higher dimensionality. However, there’s a small trade-off — as the model "
+"grows in size (both in parameters and data), sampling can start to take "
+"longer."
+msgstr ""
+"Como puede ver, fue increíblemente fácil construir un modelo jerárquico con "
+"mayor dimensionalidad. Sin embargo, hay un pequeño compromiso: a medida que "
+"el modelo crece en tamaño (tanto en parámetros como en datos), el muestreo "
+"puede comenzar a tardar más."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:320004
+#: 3dfe453a5d0b41739494fb6f5f3e315a
+msgid ""
+"We’ll explore several techniques to handle this more efficiently later on. "
+"For now, let’s quickly draw samples from the **prior predictive "
+"distribution** only!"
+msgstr ""
+"Exploraremos varias técnicas para manejar esto de manera más eficiente más "
+"adelante. Por ahora, ¡tomemos rápidamente muestras solo de la **distribución"
+" predictiva previa**!"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:340002
+#: c8982df3f4b743029a75c7a2b461df35
+msgid "Adding Trend and Seasonality Components"
+msgstr "Añadiendo componentes de tendencia y estacionalidad"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:340004
+#: 522324c615e44f08bc0365638d4d6b08
+msgid ""
+"To make our model more realistic, we can extend the linear structure by "
+"adding **trend** and **seasonality** components."
+msgstr ""
+"Para hacer que nuestro modelo sea más realista, podemos extender la "
+"estructura lineal añadiendo componentes de **tendencia** y "
+"**estacionalidad**."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:340006
+#: e9728902a6054fa085752ca26a06f1ca
+msgid ""
+"PyMC-Marketing provides convenient classes for this: "
+"[`LinearTrend`](https://www.pymc-"
+"marketing.io/en/stable/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.html)"
+" and [`WeeklyFourier`](https://www.pymc-"
+"marketing.io/en/stable/api/generated/pymc_marketing.mmm.fourier.html)."
+msgstr ""
+"PyMC-Marketing proporciona clases convenientes para esto: "
+"[`LinearTrend`](https://www.pymc-"
+"marketing.io/en/stable/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.html)"
+" y [`WeeklyFourier`](https://www.pymc-"
+"marketing.io/en/stable/api/generated/pymc_marketing.mmm.fourier.html)."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:340008
+#: 46e5c20f6ca24c64a4818eabd454fa04
+msgid ""
+"The `LinearTrend` component introduces a piecewise linear trend with a "
+"configurable number of changepoints.   It allows the model to adapt to "
+"shifts in long-term behavior, such as gradual growth or decay over time.   "
+"Mathematically, the trend can be expressed as:"
+msgstr ""
+"El componente `LinearTrend` introduce una tendencia lineal por tramos con un"
+" número configurable de puntos de cambio. Permite que el modelo se adapte a "
+"cambios en el comportamiento a largo plazo, como el crecimiento o la "
+"disminución gradual a lo largo del tiempo. Matemáticamente, la tendencia se "
+"puede expresar como:"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:340012
+#: 00ec75c7449d4e678c151e481befda2b
+#, python-brace-format
+msgid ""
+"\n"
+"\\text{Trend}(t) = k \\, t + \\sum_{j=1}^{J} \\delta_j \\, s_j(t)\n"
+msgstr "\\text{Trend}(t) = k \\, t + \\sum_{j=1}^{J} \\delta_j \\, s_j(t)"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:340016
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:550017
+#: fcf9c9c9a01e4a5681bf2375372596cd
+msgid "where:"
+msgstr "donde:"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:340017
+#: 834cbe48fe244cceaf6cc4e836def52d
+msgid "$k$ represents the base slope,"
+msgstr "$k$ representa la pendiente base,"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:340018
+#: f4901ef50d1b4607bd52d62592898358
+msgid "$\\delta_j$ are changepoint adjustments, and"
+msgstr "$\\delta_j$ son ajustes de punto de cambio, y"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:340019
+#: c3d8ef01aeff449487f747d21865d7f5
+msgid "$s_j(t)$ are indicator functions that activate after each changepoint."
+msgstr ""
+"$s_j(t)$ son funciones indicadoras que se activan después de cada punto de "
+"cambio."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:340021
+#: 7ea438737664431bb805d8ef3534f278
+msgid ""
+"The `WeeklyFourier` component captures **seasonal patterns** using a Fourier"
+" series representation.   This is particularly useful for weekly or periodic"
+" effects in marketing data, such as cyclical user activity.   The seasonal "
+"term can be written as:"
+msgstr ""
+"El componente `WeeklyFourier` captura **patrones estacionales** utilizando "
+"una representación de serie de Fourier. Esto es particularmente útil para "
+"efectos semanales o periódicos en datos de marketing, como la actividad "
+"cíclica de los usuarios. El término estacional se puede escribir como:"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:340025
+#: 7338a4c7d1cd493d908e133b5dabb049
+#, python-brace-format
+msgid ""
+"\n"
+"\\text{Seasonality}(t) = \\sum_{n=1}^{N} \\big[ a_n \\cos\\!\\left(\\frac{2\\pi n t}{P}\\right) + b_n \\sin\\!\\left(\\frac{2\\pi n t}{P}\\right) \\big]\n"
+msgstr ""
+"\\text{Seasonality}(t) = \\sum_{n=1}^{N} \\big[ a_n "
+"\\cos\\!\\left(\\frac{2\\pi n t}{P}\\right) + b_n "
+"\\sin\\!\\left(\\frac{2\\pi n t}{P}\\right) \\big]"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:340029
+#: aa0527e4d67f4f9d80e09ba53c835ba6
+msgid ""
+"where $P$ is the period (e.g., 7 days for weekly cycles) and $N$ is the "
+"number of Fourier terms."
+msgstr ""
+"donde $P$ es el período (por ejemplo, 7 días para ciclos semanales) y $N$ es"
+" el número de términos de Fourier."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:340031
+#: c206718e9c614eb5b31f61d35e22e150
+msgid ""
+"Again, add these complex terms is not difficult at all. Check the following "
+"example:"
+msgstr ""
+"De nuevo, agregar estos términos complejos no es difícil en absoluto. "
+"Verifique el siguiente ejemplo:"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:370002
+#: de0bf979cc2443f5a6655dde9b02ea91
+msgid ""
+"Our model is becoming more sophisticated, yet it still represents a linear "
+"regression enriched with structural time-series components. But what if we "
+"want to capture more realistic marketing dynamics—such as **saturation** or "
+"**adstock effects**?"
+msgstr ""
+"Nuestro modelo se está volviendo más sofisticado, sin embargo, aún "
+"representa una regresión lineal enriquecida con componentes estructurales de"
+" series temporales. Pero, ¿qué pasa si queremos capturar dinámicas de "
+"marketing más realistas, como **saturación** o **efectos de adstock**?"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:370004
+#: cd46b683ba0a4216bd8b6cf08cd8d2b7
+msgid ""
+"That’s where we reach the true essence of **Marketing Mix Modeling (MMM)**. "
+"These components allow us to model how marketing impact evolves over time "
+"and how returns diminish as spend increases. How difficult is to replace our"
+" linear functions?"
+msgstr ""
+"Ahí es donde alcanzamos la verdadera esencia del **Modelado de Mezcla de "
+"Marketing (MMM)**. Estos componentes nos permiten modelar cómo evoluciona el"
+" impacto del marketing a lo largo del tiempo y cómo los retornos disminuyen "
+"a medida que aumenta el gasto. ¿Qué tan difícil es reemplazar nuestras "
+"funciones lineales?"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:400002
+#: 4aa17725076a400da98e230949a913b6
+msgid ""
+"As you can see, the model has been growing in complexity while still relying"
+" entirely on PyMC-Marketing’s built-in components."
+msgstr ""
+"Como puede ver, el modelo ha ido creciendo en complejidad mientras sigue "
+"dependiendo completamente de los componentes integrados de PyMC-Marketing."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:400004
+#: 6fa731df55e3484aac0519089542b0d2
+msgid ""
+"What’s remarkable is that the amount of code remains almost identical to our"
+" very first linear model — meaning that building a nonlinear model with "
+"several structural time-series components takes virtually the same effort as"
+" a simple regression. How cool is that?"
+msgstr ""
+"Lo notable es que la cantidad de código permanece casi idéntica a nuestro "
+"primer modelo lineal, lo que significa que construir un modelo no lineal con"
+" varios componentes estructurales de series temporales requiere "
+"prácticamente el mismo esfuerzo que una regresión simple. ¿Qué tan genial es"
+" eso?"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:400006
+#: e10aa5e6ac084288aa392b5dd55db062
+msgid ""
+"But what if we need a transformation that isn’t yet included in the PyMC-"
+"Marketing library? No problem — you can always define your own **custom "
+"functions** and specify exactly how each channel should be transformed."
+msgstr ""
+"Pero, ¿qué pasa si necesitamos una transformación que aún no está incluida "
+"en la biblioteca PyMC-Marketing? No hay problema: siempre puedes definir tus"
+" propias **funciones personalizadas** y especificar exactamente cómo debe "
+"transformarse cada canal."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:400008
+#: dbacede4333f4d5ab143a816527b3172
+msgid ""
+"For example, suppose you want your channels to contribute **exponentially** "
+"to the target. Can we do that? Absolutely!"
+msgstr ""
+"Por ejemplo, suponga que desea que sus canales contribuyan "
+"**exponencialmente** al objetivo. ¿Podemos hacerlo? ¡Absolutamente!"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:400010
+#: 5c64b985aa334e1bbfbcd40c99a14e35
+msgid "Custom functions in PyMC-Marketing"
+msgstr "Funciones personalizadas en PyMC-Marketing"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:420002
+#: d70552eb18d64d7990fdec5d203d18cc
+msgid ""
+"If you follow the [`SaturationTransformation`](https://www.pymc-"
+"marketing.io/en/stable/api/generated/pymc_marketing.mmm.components.saturation.SaturationTransformation.html)"
+" protocol, you can easily implement any custom function and safely integrate"
+" it into your model."
+msgstr ""
+"Si sigue el protocolo [`SaturationTransformation`](https://www.pymc-"
+"marketing.io/en/stable/api/generated/pymc_marketing.mmm.components.saturation.SaturationTransformation.html),"
+" puede implementar fácilmente cualquier función personalizada e integrarla "
+"de manera segura en su modelo."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:420004
+#: e457c9bf0bac445a8bed3adbd8c75c38
+msgid ""
+"Since you’ll be working directly with PyMC’s internals, it may require a few"
+" extra lines of code — but PyMC-Marketing provides well-designed **base "
+"classes** that make this process much simpler and less error-prone."
+msgstr ""
+"Dado que estará trabajando directamente con los internos de PyMC, puede "
+"requerir algunas líneas de código adicionales, pero PyMC-Marketing "
+"proporciona **clases base** bien diseñadas que hacen que este proceso sea "
+"mucho más simple y menos propenso a errores."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:420006
+#: 86347c0bc5574cd7bd954054ed41a3f4
+msgid ""
+"This approach gives you full flexibility to design and test your own "
+"functional forms, while still benefiting from all the higher-level utilities"
+" of the library."
+msgstr ""
+"Este enfoque le brinda total flexibilidad para diseñar y probar sus propias "
+"formas funcionales, mientras sigue beneficiándose de todas las utilidades de"
+" nivel superior de la biblioteca."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:450002
+#: 30a50dc1169045f98d8ef7922ac15f52
+msgid ""
+"Once again, we’ve expanded our model with only a minimal amount of "
+"additional code for the new transformation.   The core API remains exactly "
+"the same — no extra setup, no additional boilerplate, and no juggling "
+"between components."
+msgstr ""
+"Una vez más, hemos ampliado nuestro modelo con solo una cantidad mínima de "
+"código adicional para la nueva transformación. La API principal permanece "
+"exactamente igual: sin configuración adicional, sin código adicional y sin "
+"tener que alternar entre componentes."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:450005
+#: 4bd8d302ce0445b180e93617c90f67a4
+msgid ""
+"And we’re still not done. We can keep enhancing our model by adding **extra "
+"linear components** for control variables. As usual, this only requires **a "
+"single line of code** — just one more parameter, and the rest of the "
+"workflow stays unchanged."
+msgstr ""
+"Y aún no hemos terminado. Podemos seguir mejorando nuestro modelo añadiendo "
+"**componentes lineales adicionales** para las variables de control. Como de "
+"costumbre, esto solo requiere **una sola línea de código** — solo un "
+"parámetro más, y el resto del flujo de trabajo permanece sin cambios."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:450007
+#: d5e57d8f22674d06bea9b26b2399747f
+msgid "Adding linear covariates"
+msgstr "Añadiendo covariables lineales"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:450009
+#: f14aec5969264870a3ae0b17306a6de2
+msgid ""
+"These additional variables are often referred to as **controls** — external "
+"covariates that help explain variations in the target which are not directly"
+" driven by our marketing channels. Examples might include macroeconomic "
+"indicators, competitor activity, or other contextual features such as "
+"weather or seasonality indexes."
+msgstr ""
+"Estas variables adicionales a menudo se denominan **controles** — "
+"covariables externas que ayudan a explicar las variaciones en el objetivo "
+"que no son impulsadas directamente por nuestros canales de marketing. "
+"Ejemplos pueden incluir indicadores macroeconómicos, actividad de "
+"competidores u otras características contextuales como el clima o índices de"
+" estacionalidad."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:450011
+#: 531f7ef288204c55a5a3fc80c7ef6831
+#, python-brace-format
+msgid ""
+"In PyMC-Marketing, we can incorporate these controls as an **additional "
+"linear term** in the model’s mean function.   Formally, if we denote our "
+"control variables as $Z_{i,t}$ and their corresponding coefficients as "
+"$\\beta_{Z_i}$, the new model becomes:"
+msgstr ""
+"En PyMC-Marketing, podemos incorporar estos controles como un **término "
+"lineal adicional** en la función media del modelo. Formalmente, si denotamos"
+" nuestras variables de control como $Z_{i,t}$ y sus correspondientes "
+"coeficientes como $\\beta_{Z_i}$, el nuevo modelo se convierte en:"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:450014
+#: c31461feef83457e901e43a2caa1004d
+#, python-brace-format
+msgid ""
+"\n"
+"Y_t = \\sum_{i=1}^{I} f(X_{i,t}, \\theta_i) \\;+\\; \\sum_{i=1}^{K} \\beta_{Z_i} Z_{i,t} \\;+\\; . . . + \\varepsilon_t\n"
+msgstr ""
+"Y_t = \\sum_{i=1}^{I} f(X_{i,t}, \\theta_i) \\;+\\; \\sum_{i=1}^{K} "
+"\\beta_{Z_i} Z_{i,t} \\;+\\; . . . + \\varepsilon_t"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:450019
+#: e4c080d2dfec490c96de377e9a273788
+#, python-brace-format
+msgid "$X_{i,t}$ are the marketing drivers with parameters $\\theta_i$,"
+msgstr "$X_{i,t}$ son los impulsores de marketing con parámetros $\\theta_i$,"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:450020
+#: 8e6e478aa7004862bc2d7a0d8a0f5296
+#, python-brace-format
+msgid "$Z_{i,t}$ are the control covariates with parameters $\\beta_{Z_i}$, and"
+msgstr ""
+"$Z_{i,t}$ son las covariables de control con parámetros $\\beta_{Z_i}$, y"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:450021
+#: ee8fc8bede23494988920d693a3bfe57
+msgid "$\\varepsilon_t$ remains the residual noise term."
+msgstr "$\\varepsilon_t$ sigue siendo el término de ruido residual."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:450023
+#: fc14cbd8b69b4168ad4ac526b608be07
+msgid ""
+"In practice, this means that after defining your main marketing components, "
+"you can simply pass your control variables to the model — typically as a "
+"tensor with shape `(date, control)` — and PyMC-Marketing will automatically "
+"handle the rest."
+msgstr ""
+"En la práctica, esto significa que después de definir sus componentes "
+"principales de marketing, puede simplemente pasar sus variables de control "
+"al modelo —típicamente como un tensor con forma `(fecha, control)`— y PyMC-"
+"Marketing se encargará automáticamente del resto."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:490002
+#: 41c3ae167ce948ad82432d6967d46bcf
+msgid "Arbitrary terms in PyMC-Marketing"
+msgstr "Términos arbitrarios en PyMC-Marketing"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:490004
+#: c8a323cdba3d4226bc376e0e9fb2c2f2
+msgid ""
+"Sometimes you need a term that isn’t part of the built-ins. PyMC-Marketing "
+"lets you go fully custom: you can add **any** function of your inputs—of any"
+" shape or dimensionality—directly into the mean function. This does require "
+"a few more lines of code (you’re interfacing with PyMC internals), but the "
+"**protocol-based design** provides guardrails so you don’t break the model. "
+"The trade-off is straightforward: more flexibility and control in exchange "
+"for a bit more boilerplate. If you implement a class that follows the "
+"expected protocol, you can compose virtually anything."
+msgstr ""
+"A veces necesita un término que no forma parte de los elementos "
+"incorporados. PyMC-Marketing le permite ser completamente personalizado: "
+"puede agregar **cualquier** función de sus entradas—de cualquier forma o "
+"dimensionalidad—directamente en la función media. Esto requiere algunas "
+"líneas más de código (está interfiriendo con los internos de PyMC), pero el "
+"**diseño basado en protocolos** proporciona barandillas para que no rompa el"
+" modelo. La compensación es sencilla: más flexibilidad y control a cambio de"
+" un poco más de código repetitivo. Si implementa una clase que sigue el "
+"protocolo esperado, puede componer prácticamente cualquier cosa."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:490006
+#: 7773c9e56c4a4c63b553d51adf8e9cf7
+msgid "In the example below, we introduce two custom pieces:"
+msgstr "En el ejemplo a continuación, presentamos dos piezas personalizadas:"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:490008
+#: 8be6d5bb90b54c4692f8c681045efc10
+msgid ""
+"**A custom transformation** `InverseHillSaturation` that transforms inputs "
+"with an inverse-Hill form:"
+msgstr ""
+"**Una transformación personalizada** `InverseHillSaturation` que transforma "
+"las entradas con una forma inversa de Hill:"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:490010
+#: 9029f7d4e3f04c2ca9435aca97229ecc
+#, python-brace-format
+msgid ""
+"\n"
+"f(x;\\,\\lambda,\\beta) \\;=\\; \\frac{\\beta}{\\,1 + (x/\\lambda)^2\\,}.\n"
+msgstr "f(x;\\,\\lambda,\\beta) \\;=\\; \\frac{\\beta}{\\,1 + (x/\\lambda)^2\\,}."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:490014
+#: 62e7e07e12124317a0d9a010b1abb847
+#, python-brace-format
+msgid ""
+"**A wrapper effect** `TransformedControlsEffect` that (a) ingests a set of "
+"control covariates, (b) applies any `Transformation` (here, our custom "
+"InverseHillSaturation) respecting the model’s coordinates, and (c) **adds "
+"the resulting contribution into the mean** $\\mu_t$. Concretely, if the "
+"special controls are $H_{k,t}$ with parameters $(\\lambda_k, \\beta_k)$, the"
+" additional term is:"
+msgstr ""
+"**Un efecto envolvente** `TransformedControlsEffect` que (a) ingiere un "
+"conjunto de covariables de control, (b) aplica cualquier `Transformation` "
+"(aquí, nuestra InverseHillSaturation personalizada) respetando las "
+"coordenadas del modelo, y (c) **agrega la contribución resultante a la "
+"media** $\\mu_t$. Concretamente, si los controles especiales son $H_{k,t}$ "
+"con parámetros $(\\lambda_k, \\beta_k)$, el término adicional es:"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:490016
+#: a805463df0e5422599ed80c928ef1df6
+msgid ""
+"\n"
+"\\textstyle\n"
+"\\mathrm{SpecialControls}(t)\n"
+"\\;=\\;\n"
+"\\sum_{k=1}^{K}\n"
+"\\frac{\\beta_k}{\\,1 + (Z_{k,t}/\\lambda_k)^2\\,}.\n"
+msgstr ""
+"\\textstyle\n"
+"\\mathrm{SpecialControls}(t)\n"
+"\\;=\\;\n"
+"\\sum_{k=1}^{K}\n"
+"\\frac{\\beta_k}{\\,1 + (Z_{k,t}/\\lambda_k)^2\\,}."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:490024
+#: e04461b7605d4c2c8bf16e593ad64884
+#, python-brace-format
+msgid ""
+"Putting this together with the existing marketing drivers $X_{i,t}$ and any "
+"standard linear controls, the mean function becomes:"
+msgstr ""
+"Al combinar esto con los impulsores de marketing existentes $X_{i,t}$ y "
+"cualquier control lineal estándar, la función media se convierte en:"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:490026
+#: e5a77a2b1b4c4113bc21d59747d271a7
+msgid ""
+"\n"
+"\\textstyle\n"
+"Y_t\n"
+"=\n"
+"\\sum_{i=1}^{I} f(X_{i,t}, \\theta_i)\n"
+"\\;+\\;\n"
+"\\underbrace{\\sum_{j=1}^{J} \\beta_{Z_j} Z_{j,t}}_{\\text{linear controls}}\n"
+"\\;+\\;\n"
+"\\underbrace{\\sum_{k=1}^{K}\\frac{\\beta_k}{1+(Z_{k,t}/\\lambda_k)^2}}_{\\text{special transformed controls}}\n"
+"\\;+\\;\n"
+". . .\n"
+"+\n"
+"\\varepsilon_t.\n"
+msgstr ""
+"\\textstyle\n"
+"Y_t\n"
+"=\n"
+"\\sum_{i=1}^{I} f(X_{i,t}, \\theta_i)\n"
+"\\;+\\;\n"
+"\\underbrace{\\sum_{j=1}^{J} \\beta_{Z_j} Z_{j,t}}_{\\text{linear controls}}\n"
+"\\;+\\;\n"
+"\\underbrace{\\sum_{k=1}^{K}\\frac{I}0{1+(Z_{I}1/\\lambda_k)^2}}_{\\text{I}2}\n"
+"\\;+\\;\n"
+". . .\n"
+"+\n"
+"\\varepsilon_t."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:490041
+#: 26a8061751a6494f91a566cca171f82c
+msgid "What are those guardrails you must follow?"
+msgstr "¿Cuáles son esas pautas que debes seguir?"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:490043
+#: 4723e97be3e740789186e35b44052d84
+msgid ""
+"A component that you push into `mu_effects` is expected to behave like the "
+"examples in `pymc_marketing/mmm/additive_effect.py`. The implicit “*MuEffect"
+" protocol*” is only three methods, but each has to satisfy some invariants "
+"so that the class can be called during model build‐time and again later when"
+" the model is cloned for posterior-predictive sampling."
+msgstr ""
+"Un componente que se inserta en `mu_effects` se espera que se comporte como "
+"los ejemplos en `pymc_marketing/mmm/additive_effect.py`. El implícito "
+"“*protocolo MuEffect*” consta de solo tres métodos, pero cada uno debe "
+"satisfacer algunas invariantes para que la clase pueda ser llamada durante "
+"el tiempo de construcción del modelo y nuevamente más tarde cuando el modelo"
+" se clone para el muestreo posterior predictivo."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:490045
+#: 6bec65790b674dbf9d10af37b4350ec2
+msgid ""
+"`create effect`: Should return the tensor to be added additively to the "
+"model `mu_var`."
+msgstr ""
+"crear efecto: Debe devolver el tensor que se añadirá aditivamente al modelo "
+"`mu_var`."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:490046
+#: 2f583e12dfd8470d850fd3e75ed88e24
+msgid ""
+"`set_data`: Process to be able to run `sample_posterior_predictive` on "
+"existing or new data."
+msgstr ""
+"`set_data`: Proceso para poder ejecutar `sample_posterior_predictive` en "
+"datos existentes o nuevos."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:490047
+#: d26c879c4c23476e9de0a291ec3f99d2
+msgid ""
+"`create_data`: Process to add the `pm.Data` container with the information "
+"for the custom component."
+msgstr ""
+"create_data: Proceso para agregar el contenedor `pm.Data` con la información"
+" para el componente personalizado."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:490049
+#: fdbac409b0e7490c8ab7a21ad9732f2c
+msgid "Don't forget the following 👇🏻"
+msgstr "No olvides lo siguiente 👇🏻"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:490050
+#: 04e90d0878e0417cb7c5ae95b421837b
+msgid ""
+"Unique names: choose a distinct prefix so your variables don’t collide with "
+"built-ins like \"control_contribution\". Always add a deterministic with a "
+"“contribution” suffix if you want the user to retrieve it later; otherwise "
+"name clashes are possible."
+msgstr ""
+"Nombres únicos: elija un prefijo distinto para que sus variables no "
+"colisionen con los elementos integrados como \"control_contribution\". "
+"Siempre añada un determinista con un sufijo de “contribution” si desea que "
+"el usuario pueda recuperarlo más tarde; de lo contrario, son posibles "
+"conflictos de nombres."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:490052
+#: 63e991e249f24a7595e35b54b4529bc4
+msgid ""
+"Return dims: the tensor returned by create_effect must broadcast to the MMM "
+"target dims exactly ((\"date\", *mmm.dims)). Failure to do so raises "
+"dimension errors when the model is summed."
+msgstr ""
+"Dimensiones de retorno: el tensor devuelto por create_effect debe ajustarse "
+"exactamente a las dimensiones de destino MMM ((\"fecha\", *mmm.dims)). No "
+"hacerlo genera errores de dimensión cuando se suma el modelo."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:490053
+#: 73f9ecae98d94948920055de45b4e606
+msgid ""
+"Broadcasting helpers: when your internal effect has fewer dims, use "
+"create_dim_handler to align it."
+msgstr ""
+"Ayudantes de transmisión: cuando su efecto interno tiene menos dimensiones, "
+"use create_dim_handler para alinearlo."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:490054
+#: 30b3077e24034fb996ab3791aab07d8a
+msgid ""
+"Coordinate additions: if you introduce a new dimension (e.g. \"event\" or "
+"\"fourier_mode\"), add it once with model.add_coord(name, values) inside "
+"create_data."
+msgstr ""
+"Adiciones de coordenadas: si introduces una nueva dimensión (por ejemplo, "
+"\"event\" o \"fourier_mode\"), añádela una vez con model.add_coord(name, "
+"values) dentro de create_data."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:490055
+#: 7d4e4e90ab164c53bd9b79eff7a6f029
+msgid ""
+"Re-use pm.Data names consistently between create_data and set_data; "
+"otherwise pm.set_data can’t find the shared variable."
+msgstr ""
+"Reutilice los nombres de pm.Data de manera consistente entre create_data y "
+"set_data; de lo contrario, pm.set_data no podrá encontrar la variable "
+"compartida."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:490056
+#: d2524a49754f4fb0a6a0b6a26af29494
+msgid ""
+"Do not mutate mmm.model.coords[\"date\"]. If you need dates, read them from "
+"the coords; for new prediction dates, rely on the cloned model’s coords "
+"inside set_data."
+msgstr ""
+"No mutes mmm.model.coords[\"date\"]. Si necesitas fechas, léelas de las "
+"coords; para nuevas fechas de predicción, confía en las coords del modelo "
+"clonado dentro de set_data."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:490058
+#: 6db2fa82ce6c47429d4a199d4291245b
+msgid ""
+"Follow these rules and your component will plug into the MMM training, "
+"posterior sampling, and posterior-predictive workflows without surprises."
+msgstr ""
+"Siga estas reglas y su componente se integrará en los flujos de trabajo de "
+"entrenamiento MMM, muestreo posterior y predicción posterior sin sorpresas."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:500002
+#: 8c96f171b5a4407ab4224538399c6803
+msgid "That being said, let's built our special covariates!"
+msgstr "Dicho esto, ¡construyamos nuestras covariables especiales!"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:550002
+#: 5e960a263f7a420eba984507e372d619
+msgid "Where are the GAMs?"
+msgstr "¿Dónde están los GAM?"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:550004
+#: 9b13430814bf485287657a6b3159db88
+msgid ""
+"At this point, you might be wondering — *where are the GAMs?* After all, "
+"most of what we’ve built so far has looked like a sequence of linear and "
+"nonlinear regressions with extra structure. And that’s true: wrapping a "
+"linear predictor in a nonlinear function doesn’t automatically make it a "
+"**Generalized Additive Model**."
+msgstr ""
+"En este punto, podría estar preguntándose — *¿dónde están los GAMs?* Después"
+" de todo, la mayor parte de lo que hemos construido hasta ahora ha parecido "
+"una secuencia de regresiones lineales y no lineales con estructura "
+"adicional. Y eso es cierto: envolver un predictor lineal en una función no "
+"lineal no lo convierte automáticamente en un **Modelo Aditivo "
+"Generalizado**."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:550006
+#: 71528e49282f45c7b58ac88bb3b67718
+msgid ""
+"However, if we introduce a **nonparametric adstock** and **monotone "
+"saturation** functions, the model truly began to take the shape of a GAM. "
+"Each channel now contributes its own smooth function of the transformed "
+"exposure — not a fixed parametric curve, but a data-driven, regularized "
+"shape. The mean of the response can now be expressed as an additive "
+"combination of smooth terms:"
+msgstr ""
+"Sin embargo, si introducimos funciones de **adstock no paramétrico** y "
+"**saturación monótona**, el modelo realmente comenzó a tomar la forma de un "
+"GAM. Cada canal ahora contribuye con su propia función suave de la "
+"exposición transformada — no una curva paramétrica fija, sino una forma "
+"regularizada impulsada por los datos. La media de la respuesta ahora se "
+"puede expresar como una combinación aditiva de términos suaves:"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:550008
+#: f722158f759e4bd3a049db56d4a8d81d
+msgid ""
+"\n"
+"g\\!\\big(\\mathbb{E}[Y_t]\\big)\n"
+"=\\alpha\n"
+"+\\sum_i f_i\\!\\big(e_{i,t}\\big)\n"
+"+\\sum_m \\beta_{Z_m} Z_{m,t}\n"
+"+s_{\\text{trend}}(t)\n"
+"+s_{\\text{season}}(t),\n"
+msgstr ""
+"g\\!\\big(\\mathbb{E}[Y_t]\\big)\n"
+"=\\alpha\n"
+"+\\sum_i f_i\\!\\big(e_{i,t}\\big)\n"
+"+\\sum_m \\beta_{Z_m} Z_{m,t}\n"
+"+s_{\\text{trend}}(t)\n"
+"+s_{\\text{season}}(t),"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:550019
+#: a42e0b6901ed4d5b96431742ffadbe98
+#, python-brace-format
+msgid ""
+"$e_{i,t} = (x_i * w_i)_t$ is the **adstocked exposure** — a distributed-lag "
+"convolution with a smooth kernel $w_i$,"
+msgstr ""
+"$e_{i,t} = (x_i * w_i)_t$ es la **exposición adstock** — una convolución de "
+"rezago distribuido con un núcleo suave $w_i$,"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:550020
+#: bfdfd804ce184a37bca19f8cfdc353b3
+msgid ""
+"$f_i(\\cdot)$ is a **monotone smooth saturation function**, learned "
+"nonparametrically,"
+msgstr ""
+"$f_i(\\cdot)$ es una **función de saturación suave monótona**, aprendida de "
+"manera no paramétrica,"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:550021
+#: a36586e98c2f4ca384a2b90aa132c4a5
+msgid ""
+"and $s_{\\text{trend}}$ and $s_{\\text{season}}$ are smooth time effects "
+"built from linear trends and Fourier terms."
+msgstr ""
+"y $s_{\\text{trend}}$ y $s_{\\text{season}}$ son efectos temporales suaves "
+"construidos a partir de tendencias lineales y términos de Fourier."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:550023
+#: f0b5368131f34fb08a2f9c341b6196f8
+msgid ""
+"Put differently, what makes our model a GAM is not any single "
+"transformation, but the fact that its **mean structure is additive over "
+"smooth components**. Each effect — adstock, saturation, trend, seasonality, "
+"or control — acts as one of the additive smooths that define a GAM."
+msgstr ""
+"Dicho de otra manera, lo que hace que nuestro modelo sea un GAM no es "
+"ninguna transformación única, sino el hecho de que su **estructura media es "
+"aditiva sobre componentes suaves**. Cada efecto — adstock, saturación, "
+"tendencia, estacionalidad o control — actúa como uno de los suavizados "
+"aditivos que definen un GAM."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:550025
+#: 2f2c0200edbe454fac4ea3c8965a627c
+msgid ""
+"So while not every MMM is a GAM, a **flexible MMM** like ours *is one*. "
+"That’s the real power of the PyMC-Marketing framework: it lets you move "
+"naturally from a standard linear regression to a traditional MMM toward a "
+"fully Bayesian **Generalized Additive Model**, without changing your "
+"workflow or code structure."
+msgstr ""
+"Así que, aunque no todos los MMM son GAM, un **MMM flexible** como el "
+"nuestro *sí lo es*. Ese es el verdadero poder del marco PyMC-Marketing: te "
+"permite pasar de manera natural de una regresión lineal estándar a un MMM "
+"tradicional hacia un **Modelo Aditivo Generalizado** completamente "
+"bayesiano, sin cambiar tu flujo de trabajo ni la estructura de tu código."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:550027
+#: aed48038411e42fa858e4ed8d64cdb2a
+msgid ""
+"Check how this can be implemented following the same structures shown above!"
+msgstr ""
+"¡Verifique cómo se puede implementar esto siguiendo las mismas estructuras "
+"mostradas arriba!"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:560003
+#: 348861a599fe43bdb390575e81302a8a
+msgid ""
+"The following implementations are experimental and serve as proof-of-concept"
+" demonstrations for this notebook. They are not part of the official PyMC-"
+"Marketing suite and should be used for educational purposes only."
+msgstr ""
+"Las siguientes implementaciones son experimentales y sirven como "
+"demostraciones de prueba de concepto para este cuaderno. No forman parte de "
+"la suite oficial de PyMC-Marketing y deben ser utilizadas únicamente con "
+"fines educativos."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:600002
+#: ff29f3b6c8e942c7916e7aa11a8d1be4
+msgid ""
+"Amazing, our **Generalized Additive Media Mix Model** is alive and sampling "
+"🔥"
+msgstr ""
+"Increíble, nuestro **Modelo de Mezcla de Medios Aditivos Generalizados** "
+"está activo y muestreando 🔥"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:600004
+#: 0fd65ef097184a71b3dbf1981a824a93
+msgid "Recap: From Simple Lines to Complex Structures"
+msgstr "Resumen: De líneas simples a estructuras complejas"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:600006
+#: b91bdb0ea6e542b9aaa5c1fd8bed404a
+msgid ""
+"Throughout this notebook, we’ve seen how **PyMC-Marketing** evolves from a "
+"simple linear regression into a flexible probabilistic framework capable of "
+"modeling rich time-series structures. We began with a basic linear model, "
+"showing how each component — adstock, saturation, trends, Fourier "
+"seasonality, and controls — can be added seamlessly using a consistent API "
+"and only a few lines of code. Each addition preserved the same conceptual "
+"foundation while expanding the expressive power of the model."
+msgstr ""
+"A lo largo de este cuaderno, hemos visto cómo **PyMC-Marketing** evoluciona "
+"de una simple regresión lineal a un marco probabilístico flexible capaz de "
+"modelar estructuras de series temporales complejas. Comenzamos con un modelo"
+" lineal básico, mostrando cómo cada componente — adstock, saturación, "
+"tendencias, estacionalidad de Fourier y controles — puede ser añadido sin "
+"problemas utilizando una API consistente y solo unas pocas líneas de código."
+" Cada adición preservó la misma base conceptual mientras expandía el poder "
+"expresivo del modelo."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:600008
+#: 31677bbb03214c148151f41cfe843f44
+msgid ""
+"We introduced **dimensionality** (such as countries or regions) without "
+"adding complexity to the code, leveraged **broadcasting** to align "
+"parameters automatically, and integrated both **linear covariates** and "
+"**nonlinear transformations** to capture more realistic behaviors. Finally, "
+"we extended the system with **arbitrary effects**, where users can define "
+"their own transformations, saturation functions, or additive processes, "
+"provided they follow the library’s protocol-based design."
+msgstr ""
+"Introdujimos **dimensionalidad** (como países o regiones) sin añadir "
+"complejidad al código, aprovechamos **broadcasting** para alinear parámetros"
+" automáticamente, e integramos tanto **covariables lineales** como "
+"**transformaciones no lineales** para capturar comportamientos más "
+"realistas. Finalmente, extendimos el sistema con **efectos arbitrarios**, "
+"donde los usuarios pueden definir sus propias transformaciones, funciones de"
+" saturación o procesos aditivos, siempre que sigan el diseño basado en "
+"protocolos de la biblioteca."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:600010
+#: abb599e1a20e43269cc496c476b7534c
+msgid ""
+"By doing so, your models can grow as much as you want in complexity — and "
+"you can rely on PyMC-Marketing to handle it elegantly. With minimal lines of"
+" code, you can increase dimensionality, enable automatic broadcasting, and "
+"add linear or nonlinear transformations, as well as linear covariates. And "
+"with just a few more lines, you can implement entirely custom "
+"transformations or arbitrary additive components tailored to your specific "
+"use case."
+msgstr ""
+"Al hacerlo, sus modelos pueden crecer tanto como desee en complejidad, y "
+"puede confiar en PyMC-Marketing para manejarlo de manera elegante. Con "
+"mínimas líneas de código, puede aumentar la dimensionalidad, habilitar la "
+"difusión automática y agregar transformaciones lineales o no lineales, así "
+"como covariables lineales. Y con solo unas pocas líneas más, puede "
+"implementar transformaciones completamente personalizadas o componentes "
+"aditivos arbitrarios adaptados a su caso de uso específico."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:600012
+#: 460d86ee03294f388fd440b0c376f855
+msgid ""
+"Of course, this flexibility comes at a cost: as your model grows, so does "
+"the number of parameters, sometimes to the point where sampling becomes "
+"computationally expensive or even infeasible. Let’s take a closer look at "
+"how the parameter count has evolved across our models so far — considering "
+"each random variable multiplied by its respective dimensionality."
+msgstr ""
+"Por supuesto, esta flexibilidad tiene un costo: a medida que su modelo "
+"crece, también lo hace el número de parámetros, a veces hasta el punto en "
+"que el muestreo se vuelve costoso computacionalmente o incluso inviable. "
+"Echemos un vistazo más de cerca a cómo ha evolucionado el conteo de "
+"parámetros en nuestros modelos hasta ahora, considerando cada variable "
+"aleatoria multiplicada por su respectiva dimensionalidad."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:620002
+#: 75115657a96549c0a0f07136c20acd07
+msgid "Parameter Growth & Sampling Time"
+msgstr "Parámetro de Crecimiento y Tiempo de Muestreo"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:620004
+#: 732bd025cfbb40f68dcb1530f8662ed7
+msgid "As the model evolved, the parameter count grew rapidly."
+msgstr ""
+"A medida que el modelo evolucionó, el conteo de parámetros creció "
+"rápidamente."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:620006
+#: 959eeec61cd44293b97f695e6677107a
+msgid ""
+"This illustrates a key reality of additive, multidimensional Bayesian "
+"models: **parameter space often grows super-linearly** (and can feel "
+"exponential) as you stack effects (trend, seasonality, adstock, saturation),"
+" add controls, and expand over indices (e.g., country, product, region). "
+"Computational cost typically rises with both **data size** and **parameter "
+"dimensionality**; for gradient-based MCMC like NUTS, wall-time per effective"
+" sample can increase sharply as posteriors become higher-dimensional and "
+"more correlated. That’s why we didn’t fit every variant here—much as we love"
+" writing notebooks, we don’t love writing them for **hours**. 😉"
+msgstr ""
+"Esto ilustra una realidad clave de los modelos bayesianos aditivos y "
+"multidimensionales: **el espacio de parámetros a menudo crece de manera "
+"superlineal** (y puede parecer exponencial) a medida que apilas efectos "
+"(tendencia, estacionalidad, adstock, saturación), agregas controles y te "
+"expandes sobre índices (por ejemplo, país, producto, región). El costo "
+"computacional típicamente aumenta tanto con el **tamaño de los datos** como "
+"con la **dimensionalidad de los parámetros**; para MCMC basado en gradientes"
+" como NUTS, el tiempo de muro por muestra efectiva puede aumentar "
+"drásticamente a medida que las distribuciones posteriores se vuelven de "
+"mayor dimensión y más correlacionadas. Por eso no ajustamos cada variante "
+"aquí; por mucho que nos encante escribir cuadernos, no nos encanta "
+"escribirlos durante **horas**. 😉"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:630002
+#: 631c412663164bec8f46f624d3946586
+msgid "Excluding Variables from Sampling with `MaskedPrior`"
+msgstr "Excluyendo variables del muestreo con `MaskedPrior`"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:630004
+#: c858eb7b3ef745c19f53e3d7870efa8d
+msgid ""
+"When models grow across many dimensions — countries, regions, product types,"
+" and channels — not every combination is meaningful or even observed in the "
+"data. For instance, some products may not be sold in certain countries, or "
+"some channels may not operate in specific regions. In those cases, it’s "
+"inefficient (and potentially misleading) to assign priors and sample "
+"parameters for every combination. That’s where **`MaskedPrior`** comes in."
+msgstr ""
+"Cuando los modelos crecen en muchas dimensiones — países, regiones, tipos de"
+" productos y canales — no todas las combinaciones son significativas o "
+"incluso observadas en los datos. Por ejemplo, algunos productos pueden no "
+"venderse en ciertos países, o algunos canales pueden no operar en regiones "
+"específicas. En esos casos, es ineficiente (y potencialmente engañoso) "
+"asignar priors y muestrear parámetros para cada combinación. Ahí es donde "
+"entra **`MaskedPrior`**."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:630006
+#: 7373e9dacadf45a9bc0a337bbee75cd2
+msgid ""
+"`MaskedPrior` allows you to define priors only over the *active* subset of "
+"your parameter space.   You provide it with:"
+msgstr ""
+"`MaskedPrior` le permite definir priors solo sobre el subconjunto *activo* "
+"de su espacio de parámetros. Usted le proporciona:"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:630008
+#: 305f0c2432c94105a97401ca4ffb500b
+msgid ""
+"a **base prior** (e.g., `Prior(\"Normal\", mu=0, sigma=1, dims=(\"country\","
+" \"channel\"))`), and"
+msgstr ""
+"una **base previa** (por ejemplo, `Prior(\"Normal\", mu=0, sigma=1, "
+"dims=(\"country\", \"channel\"))`), y"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:630009
+#: 5959b2828fbc475798dbf4812e803faf
+msgid ""
+"a **boolean mask** (`xarray.DataArray`) indicating which parameter entries "
+"should be active (`True`) or excluded (`False`)."
+msgstr ""
+"una **máscara booleana** (`xarray.DataArray`) que indica qué entradas de "
+"parámetro deben estar activas (`True`) o excluidas (`False`)."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:630011
+#: f0001cbe9d58427aa1936cb0ecd63e52
+msgid "Internally, `MaskedPrior` performs three main steps:"
+msgstr "Internamente, `MaskedPrior` realiza tres pasos principales:"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:630012
+#: 21a53f8047014fc1a306d19d158ac7c4
+msgid ""
+"**Subset creation:** It builds a reduced variable over only the active "
+"entries (those marked `True` in the mask)."
+msgstr ""
+"**Creación de subconjuntos:** Se construye una variable reducida solo sobre "
+"las entradas activas (aquellas marcadas como `True` en la máscara)."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:630013
+#: 55fef3b5974e40fc97fc5408eae5b892
+msgid ""
+"**Sampling on active subset:** The sampler draws values only for this "
+"smaller subset, ignoring inactive combinations completely."
+msgstr ""
+"**Muestreo en subconjunto activo:** El muestreador extrae valores solo para "
+"este subconjunto más pequeño, ignorando completamente las combinaciones "
+"inactivas."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:630014
+#: 48f89d7f53f24c7a9a233c8f1e5c6f51
+msgid ""
+"**Expansion back to full shape:** The reduced variable is re-expanded to the"
+" original dimensional shape, filling inactive positions with deterministic "
+"zeros."
+msgstr ""
+"**Expansión de nuevo a la forma completa:** La variable reducida se "
+"reexpande a la forma dimensional original, llenando las posiciones inactivas"
+" con ceros deterministas."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:630016
+#: 3bcf644e87f44fcda4ad8fd8edaa896e
+#, python-brace-format
+msgid ""
+"See as the following, if you define a mask $M_{i,j} \\in \\{0,1\\}$ over a "
+"parameter $\\theta_{i,j}$, the masked parameter becomes:"
+msgstr ""
+"Vea lo siguiente, si define una máscara $M_{i,j} \\in \\{0,1\\}$ sobre un "
+"parámetro $\\theta_{i,j}$, el parámetro enmascarado se convierte en:"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:630018
+#: 9a4a18a3068c4ffe8975bf91287ae39b
+#, python-brace-format
+msgid ""
+"\n"
+"\\tilde{\\theta}_{i,j} = \n"
+"\\begin{cases}\n"
+"\\theta_{i,j}, & \\text{if } M_{i,j} = 1, \\\\\\\\\n"
+"0, & \\text{if } M_{i,j} = 0.\n"
+"\\end{cases}\n"
+msgstr ""
+"\\tilde{\\theta}_{i,j} = \n"
+"\\begin{cases}\n"
+"\\theta_{i,j}, & \\text{if } M_{i,j} = 1, \\\\\\\\\n"
+"0, & \\text{if } M_{i,j} = 0.\n"
+"\\end{cases}"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:630026
+#: 61cc959b795746b98623cb99504224c6
+msgid "Sampling occurs only for the active subset:"
+msgstr "La muestreo ocurre solo para el subconjunto activo:"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:630028
+#: 34b6463562414d34abc9ccdc1bf87ee7
+msgid ""
+"\n"
+"\\{\\theta_{i,j} : M_{i,j}=1\\},\n"
+msgstr "\\{\\theta_{i,j} : M_{i,j}=1\\},"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:630032
+#: 6c51e3b45dda40d492595a43287642c9
+#, python-brace-format
+msgid ""
+"and the total number of random variables is reduced to $\\sum_{i,j} "
+"M_{i,j}$."
+msgstr ""
+"y el número total de variables aleatorias se reduce a $\\sum_{i,j} M_{i,j}$."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:630034
+#: 62f98e181ff44cf5b74886a6ff6993e8
+msgid "The benefits are significant:"
+msgstr "Los beneficios son significativos:"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:630035
+#: f0033981261b4ccbb1af0d55d4fcfe1a
+msgid ""
+"**Parameter reduction:** Only meaningful parameters are sampled, reducing "
+"computational burden and improving sampling efficiency."
+msgstr ""
+"**Reducción de parámetros:** Solo se muestrean los parámetros "
+"significativos, lo que reduce la carga computacional y mejora la eficiencia "
+"del muestreo."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:630036
+#: 6ddcc108614b402487bd4e887580556d
+msgid ""
+"**Faster convergence:** With fewer parameters, NUTS and ADVI can converge "
+"more quickly and stably."
+msgstr ""
+"**Convergencia más rápida:** Con menos parámetros, NUTS y ADVI pueden "
+"converger de manera más rápida y estable."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:630037
+#: d4eaaa4d7dce4c70a7cc795168549288
+msgid ""
+"**Structural clarity:** The mask explicitly documents which parameter "
+"combinations are valid in your model."
+msgstr ""
+"**Claridad estructural:** La máscara documenta explícitamente qué "
+"combinaciones de parámetros son válidas en su modelo."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:630038
+#: 860c51939c0948a6b3b48ab6ee2058fb
+msgid ""
+"**Compatibility:** Masked priors integrate seamlessly with PyMC-Marketing’s "
+"components, like adstock and saturation transformations, through standard "
+"prior definitions."
+msgstr ""
+"**Compatibilidad:** Los priors enmascarados se integran a la perfección con "
+"los componentes de PyMC-Marketing, como las transformaciones de adstock y "
+"saturación, a través de definiciones de prior estándar."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:650002
+#: 3b5edb3824e04b0d964d04b872fead6b
+msgid ""
+"This means PyMC-Marketing will not sample adstock or saturation parameters "
+"for those excluded combinations — instead, it fills those entries with "
+"deterministic zeros while maintaining full coordinate alignment."
+msgstr ""
+"Esto significa que PyMC-Marketing no muestreará parámetros de adstock o "
+"saturación para esas combinaciones excluidas; en su lugar, llena esas "
+"entradas con ceros deterministas mientras mantiene una alineación completa "
+"de coordenadas."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:650004
+#: 5d5d44a44a834be0881ad89bfeb2df0c
+msgid ""
+"By leveraging `MaskedPrior`, you can prune large models intelligently, "
+"maintaining structural consistency while dramatically reducing parameter "
+"space. This approach keeps your model both scalable and interpretable, "
+"especially when working with high-dimensional marketing datasets."
+msgstr ""
+"Al aprovechar `MaskedPrior`, puede podar modelos grandes de manera "
+"inteligente, manteniendo la consistencia estructural mientras reduce "
+"drásticamente el espacio de parámetros. Este enfoque mantiene su modelo "
+"tanto escalable como interpretable, especialmente al trabajar con conjuntos "
+"de datos de marketing de alta dimensión."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:650007
+#: 033d82a9f8c94814a6e8fcfcf026c36e
+msgid ""
+"The `MaskedPrior` functionality was merged recently and is still "
+"experimental. Use with caution in production environments."
+msgstr ""
+"La funcionalidad `MaskedPrior` se fusionó recientemente y aún es "
+"experimental. Úsela con precaución en entornos de producción."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:690002
+#: 086c7305bb5c469b90c143c463b72adc
+msgid "Variational inference for High Dimensional grids"
+msgstr "Inferencia variacional para rejillas de alta dimensión"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:690004
+#: 6840366600404c02b2cca1dc14c5e82d
+msgid ""
+"We’ve already seen how dimensional design and `MaskedPrior` can **shrink "
+"parameter space** by excluding irrelevant combinations. However, there are "
+"regimes where this isn’t enough: as you add nonlinear transformations, "
+"trend/seasonality, multi-index structures, and custom effects, you can end "
+"up in **very high-dimensional** posterior geometries. In these cases, exact "
+"MCMC (e.g., NUTS) can become prohibitively expensive. This is where "
+"**approximate inference** shines. As Michael Betancourt aptly notes, *“In "
+"high dimensions, expectations are the only thing that makes sense.”* "
+"Approximations let you target informative summaries (e.g., posterior means, "
+"credible intervals) without paying the full cost of exact sampling."
+msgstr ""
+"Ya hemos visto cómo el diseño dimensional y `MaskedPrior` pueden **reducir "
+"el espacio de parámetros** al excluir combinaciones irrelevantes. Sin "
+"embargo, hay regímenes donde esto no es suficiente: a medida que añades "
+"transformaciones no lineales, tendencias/estacionalidad, estructuras de "
+"múltiples índices y efectos personalizados, puedes terminar en geometrías "
+"posteriores **muy de alta dimensión**. En estos casos, el MCMC exacto (por "
+"ejemplo, NUTS) puede volverse prohibitivamente costoso. Aquí es donde **la "
+"inferencia aproximada** brilla. Como señala acertadamente Michael "
+"Betancourt, *“En altas dimensiones, las expectativas son lo único que tiene "
+"sentido.”* Las aproximaciones te permiten apuntar a resúmenes informativos "
+"(por ejemplo, medias posteriores, intervalos creíbles) sin pagar el costo "
+"total del muestreo exacto."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:690006
+#: 7c80a676bfc84f07a3169816419d4e17
+msgid ""
+"PyMC-Marketing exposes PyMC’s **variational** and **approximate** methods "
+"directly, so you can switch from exact sampling to approximation with "
+"minimal code. For example, using **ADVI** via `pm.fit(...)` and then drawing"
+" samples from the approximation. This tool allows you to prototype and "
+"triage large models quickly. You can later escalate to full MCMC if the "
+"approximation looks adequate and the compute budget allows. For details on "
+"available approximation methods (e.g., ADVI, Full-Rank ADVI, SVGD), see the "
+"PyMC inference docs (search for “PyMC variational inference” and pm.fit)."
+msgstr ""
+"PyMC-Marketing expone los métodos **variacionales** y **aproximados** de "
+"PyMC directamente, para que pueda cambiar de muestreo exacto a aproximación "
+"con un código mínimo. Por ejemplo, utilizando **ADVI** a través de "
+"`pm.fit(...)` y luego extrayendo muestras de la aproximación. Esta "
+"herramienta le permite prototipar y clasificar modelos grandes rápidamente. "
+"Posteriormente, puede escalar a MCMC completo si la aproximación parece "
+"adecuada y el presupuesto de cómputo lo permite. Para obtener detalles sobre"
+" los métodos de aproximación disponibles (por ejemplo, ADVI, ADVI de rango "
+"completo, SVGD), consulte la documentación de inferencia de PyMC (busque "
+"\"inferencia variacional de PyMC\" y pm.fit)."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:690009
+#: 6644f550c9b34b8ea731055b244d78d8
+msgid "**Approximations: Useful but Not Magic:**"
+msgstr "**Approximations: Useful but Not Magic:**"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:690010
+#: 44521c029d1647fca1071d351329b4fd
+msgid ""
+"Bias–variance trade-off: Variational families can underestimate posterior "
+"variance and miss correlations."
+msgstr ""
+"Compensación entre sesgo y varianza: Las familias variacionales pueden "
+"subestimar la varianza posterior y perder correlaciones."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:690011
+#: 640714a560c246f9a7cff48e89f32c1e
+msgid ""
+"Pathologies in geometry: Multimodality, heavy tails, and strong curvature "
+"can break simple variational assumptions or lead to poor local optima."
+msgstr ""
+"Patologías en geometría: La multimodalidad, las colas pesadas y la fuerte "
+"curvatura pueden romper supuestos variacionales simples o llevar a óptimos "
+"locales deficientes."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:690012
+#: 53df45c6c6f348709cd26d5dfd4538f9
+msgid ""
+"Diagnostics matter: Monitor ELBO trajectories, check stability of solutions,"
+" and compare against short pilot NUTS runs on reduced models when possible."
+msgstr ""
+"Los diagnósticos son importantes: Monitoree las trayectorias de ELBO, "
+"verifique la estabilidad de las soluciones y compárelas con ejecuciones "
+"cortas de NUTS en modelos reducidos cuando sea posible."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:690013
+#: 628f280bfd384eb9bb297eca11396dc3
+msgid ""
+"Calibration risk: Downstream decisions (e.g., budget allocation) may be "
+"overconfident if variance is underestimated. Consider conservative policies "
+"or robust utilities."
+msgstr ""
+"Riesgo de calibración: Las decisiones posteriores (por ejemplo, la "
+"asignación de presupuesto) pueden ser excesivamente confiadas si se "
+"subestima la varianza. Considere políticas conservadoras o utilidades "
+"robustas."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:710002
+#: fb3e29039994468e8d7ff155e0c0eea4
+msgid "Final Thoughts"
+msgstr "Reflexiones Finales"
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:710004
+#: 651599f4012b4d8c812b9c0b0234bf0b
+msgid ""
+"What we’ve explored here is just a glimpse of what **PyMC-Marketing** can "
+"do. Beyond being a Marketing Mix Modeling toolkit, it’s a **probabilistic "
+"modeling framework** driven by **PyMC** that gives you the building blocks "
+"to design, extend, and experiment with Bayesian models of any complexity — "
+"from linear regressions to rich, hierarchical, time-aware systems."
+msgstr ""
+"Lo que hemos explorado aquí es solo un vistazo de lo que **PyMC-Marketing** "
+"puede hacer. Más allá de ser un conjunto de herramientas para el Modelado de"
+" Mezcla de Marketing, es un **marco de modelado probabilístico** impulsado "
+"por **PyMC** que te proporciona los bloques de construcción para diseñar, "
+"extender y experimentar con modelos bayesianos de cualquier complejidad, "
+"desde regresiones lineales hasta sistemas ricos, jerárquicos y conscientes "
+"del tiempo."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:710006
+#: 8566c6a567824d14b3483a4d5c2c3fb3
+msgid ""
+"PyMC-Marketing is not limited **for marketing** and more important **you are"
+" not limited by templates**. You can build, modify, and extend your models "
+"freely while standing on the solid foundation of PyMC’s probabilistic "
+"engine. Every additional layer — trend, seasonality, saturation, or custom "
+"effect — adds expressiveness without losing clarity or structure."
+msgstr ""
+"PyMC-Marketing no se limita **para marketing** y, lo más importante, **no "
+"estás limitado por plantillas**. Puedes construir, modificar y extender tus "
+"modelos libremente mientras te apoyas en la sólida base del motor "
+"probabilístico de PyMC. Cada capa adicional — tendencia, estacionalidad, "
+"saturación o efecto personalizado — añade expresividad sin perder claridad "
+"ni estructura."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:710008
+#: 793b594fb80646d4b50096818a62ae7b
+msgid ""
+"So, keep exploring! Try new transformations, mix causal and functional "
+"effects, benchmark inference strategies, and share your ideas with the "
+"community. If there’s a feature you wish existed — ask for it, or even "
+"better, help us build it."
+msgstr ""
+"Así que, ¡sigue explorando! Prueba nuevas transformaciones, mezcla efectos "
+"causales y funcionales, evalúa estrategias de inferencia y comparte tus "
+"ideas con la comunidad. Si hay una función que desearías que existiera, "
+"pídela o, aún mejor, ayúdanos a construirla."
+
+#: ../source/notebooks/mmm/mmm_gam_options.ipynb:710010
+#: 001cb50d818b464293834bdee45473da
+msgid ""
+"PyMC-Marketing is evolving fast, and your curiosity is what drives its next "
+"step! 🔥"
+msgstr ""
+"PyMC-Marketing está evolucionando rápidamente, y su curiosidad es lo que "
+"impulsa su próximo paso! 🔥"

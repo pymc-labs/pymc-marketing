@@ -1,0 +1,68 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.prior.Prior.from_dict.rst:2
+#: b716b132af14489daa29bdd3b545d607
+msgid "Prior.from\\_dict"
+msgstr "Prior.from\\_dict"
+
+#: f8719cea70ba4f0cb95e35c489198d4a of pymc_extras.prior.Prior.from_dict:2
+msgid "Create a Prior from the dictionary format."
+msgstr "Cree un Prior a partir del formato del diccionario."
+
+#: fd38d099cdd74932aa45169f63081657 of pymc_extras.prior.Prior.from_dict
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: f48963c4aeb24b0ba30f401e9b2648e4 of pymc_extras.prior.Prior.from_dict:7
+msgid "**data** : :class:`python:dict`\\[:class:`python:str`, :obj:`Any`]"
+msgstr ""
+"**datos** : :class:`python:dict`\\[:class:`python:str`, :obj:`Cualquiera`]"
+
+#: 18d5dd66b3fb4045a8697b67bcaf4764 of pymc_extras.prior.Prior.from_dict:6
+msgid "python:dict[python:str, Any]"
+msgstr "python:dict[python:str, Any]"
+
+#: 51d0d0c9f96548338d84743c9ec3f438 of pymc_extras.prior.Prior.from_dict:8
+msgid "The dictionary format of the prior."
+msgstr "El formato de diccionario del anterior."
+
+#: d0b42988b4b6470ea988a7f8f718dfd2 of pymc_extras.prior.Prior.from_dict
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 92eecbc946634073b96578751e64fe16 of pymc_extras.prior.Prior.from_dict:14
+msgid ":obj:`Prior`"
+msgstr ":obj:`Prior`"
+
+#: 583d2e1ba6b145de948269c442e9a0d3 of pymc_extras.prior.Prior.from_dict:15
+msgid "The prior distribution."
+msgstr "La distribución previa."
+
+#: 713f8a1f1920416cafa7a6828061ddc7 of pymc_extras.prior.Prior.from_dict:27
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: de86acde7f1345a58e50cd33ccdcca48 of pymc_extras.prior.Prior.from_dict:28
+msgid "Convert prior in the dictionary format to a Prior instance."
+msgstr ""
+"Convierte el anterior en el formato de diccionario a una instancia de Prior."

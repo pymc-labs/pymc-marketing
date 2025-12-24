@@ -1,0 +1,165 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.multidimensional.MMM.sample_prior_predictive.rst:2
+#: 706f4f7adfa543708c2ae43d04d3c7df
+msgid "MMM.sample\\_prior\\_predictive"
+msgstr "MMM.muestra\\_predictiva\\_previa"
+
+#: b06cd7d321f847ae83351c500d04a288 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.sample_prior_predictive:2
+msgid "Sample from the model's prior predictive distribution."
+msgstr "Muestra de la distribución predictiva previa del modelo."
+
+#: a64a1cd73ab041828df356d612f4caa7 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.sample_prior_predictive
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 8200c630a88f48b2b6984b447c58d9a1 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.sample_prior_predictive:7
+msgid ""
+"**X** : :obj:`array <numpy.ndarray>`, :obj:`shape` (:obj:`n_pred`, "
+":obj:`n_features`)"
+msgstr ""
+"**X** : :obj:`array <numpy.ndarray>`, :obj:`shape` (:obj:`n_pred`, "
+":obj:`n_features`)"
+
+#: 094f71545bec4e8bbeaad5af0b6d704b of
+#: pymc_marketing.model_builder.RegressionModelBuilder.sample_prior_predictive:6
+msgid "array, shape (n_pred, n_features)"
+msgstr "array, forma (n_pred, n_features)"
+
+#: 9732e136294d4e63a9eab052b54cebbd of
+#: pymc_marketing.model_builder.RegressionModelBuilder.sample_prior_predictive:8
+msgid "The input data used for prediction using prior distribution."
+msgstr ""
+"Los datos de entrada utilizados para la predicción mediante la distribución "
+"previa."
+
+#: f4550adb81a84019beeb745e95a3b717 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.sample_prior_predictive:10
+msgid "**y** : :obj:`array <numpy.ndarray>`, :obj:`shape` (n_pred,), optional"
+msgstr ""
+"**y** : :obj:`array <numpy.ndarray>`, :obj:`shape` (n_pred,), opcional"
+
+#: 18a56de38cea40daa57e423e00e52ae6 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.sample_prior_predictive:9
+msgid "array, shape (n_pred,), optional"
+msgstr "array, forma (n_pred,), opcional"
+
+#: cd231779e1f94d81b96fca173344b66a of
+#: pymc_marketing.model_builder.RegressionModelBuilder.sample_prior_predictive:11
+msgid ""
+"The target values (real numbers) used for prediction using prior "
+"distribution. If not set, defaults to an array of zeros."
+msgstr ""
+"Los valores objetivo (números reales) utilizados para la predicción mediante"
+" la distribución previa. Si no se establecen, por defecto se utiliza un "
+"arreglo de ceros."
+
+#: 85eedee0a0294a95937cbcf9043b666b of
+#: pymc_marketing.model_builder.RegressionModelBuilder.sample_prior_predictive:14
+msgid "**samples** : :class:`python:int`"
+msgstr "**muestras** : :class:`python:int`"
+
+#: 19dee2b90c354f2c890ce87f48c622cf of
+#: pymc_marketing.model_builder.RegressionModelBuilder.sample_prior_predictive:13
+msgid "python:int"
+msgstr "python:int"
+
+#: c5afbd336f9c47048d5eb96274ec7c18 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.sample_prior_predictive:15
+msgid ""
+"Number of samples from the prior parameter distributions to generate. If not"
+" set, uses sampler_config['draws'] if that is available, otherwise defaults "
+"to 500."
+msgstr ""
+"Número de muestras de las distribuciones de parámetros anteriores a generar."
+" Si no se establece, utiliza sampler_config['draws'] si está disponible, de "
+"lo contrario, se establece por defecto en 500."
+
+#: 388c48c2a98640c485cd44eb283693eb of
+#: pymc_marketing.model_builder.RegressionModelBuilder.sample_prior_predictive:18
+msgid "**extend_idata** : :obj:`Boolean`"
+msgstr "**extend_idata** : :obj:`Booleano`"
+
+#: 9ad6104825fc4c2e9b83450a7b90afb5 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.sample_prior_predictive:17
+msgid "Boolean"
+msgstr "Boolean"
+
+#: ed97c3788ae74edba7a04cdc91bf06a9 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.sample_prior_predictive:19
+msgid ""
+"Determine whether the predictions should be added to inference data object. "
+"Defaults to True."
+msgstr ""
+"Determine si las predicciones deben ser añadidas al objeto de datos de "
+"inferencia. Por defecto es True."
+
+#: 195caf2aaa9a4aa29b7dd267b84c0a70 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.sample_prior_predictive:22
+msgid "**combined: Boolean**"
+msgstr "**combinado: Booleano**"
+
+#: 16d5c4b24fcb43e8904ee0087ded7147 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.sample_prior_predictive:23
+msgid ""
+"Combine chain and draw dims into sample. Won't work if a dim named sample "
+"already exists. Defaults to True."
+msgstr ""
+"Combina la cadena y las dimensiones de dibujo en la muestra. No funcionará "
+"si ya existe una dimensión llamada muestra. Por defecto es True."
+
+#: b873bad1346f46508f9a1478fe6a9767 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.sample_prior_predictive:26
+msgid ""
+"**\\*\\*kwargs: Additional arguments to pass to "
+"pymc.sample_prior_predictive**"
+msgstr ""
+"**\\*\\*kwargs: Argumentos adicionales para pasar a "
+"pymc.sample_prior_predictive**"
+
+#: 182247f333784e8aa0a46eb07f20e0d9 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.sample_prior_predictive
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 6563e7636872448eac4ed13ba7b72825 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.sample_prior_predictive:33
+msgid ""
+"**prior_predictive_samples** : :obj:`DataArray`, :obj:`shape` "
+"(:obj:`n_pred`, :obj:`samples`)"
+msgstr ""
+"**prior_predictive_samples** : :obj:`DataArray`, :obj:`shape` "
+"(:obj:`n_pred`, :obj:`samples`)"
+
+#: 9e521e73cc414eb3aaff9731f57ffa32 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.sample_prior_predictive:32
+msgid "DataArray, shape (n_pred, samples)"
+msgstr "DataArray, forma (n_pred, muestras)"
+
+#: ae398747c85a4581ae4d3becd2e6787b of
+#: pymc_marketing.model_builder.RegressionModelBuilder.sample_prior_predictive:34
+msgid "Prior predictive samples for each input X"
+msgstr "Muestras predictivas previas para cada entrada X"

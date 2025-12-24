@@ -23,7 +23,7 @@ from pymc_extras.prior import Prior
 
 from pymc_marketing.clv import ParetoNBDModel
 from pymc_marketing.clv.distributions import ParetoNBD
-from tests.conftest import create_mock_fit, set_model_fit
+from tests.clv.conftest import create_mock_fit, set_model_fit
 
 
 class TestParetoNBDModel:

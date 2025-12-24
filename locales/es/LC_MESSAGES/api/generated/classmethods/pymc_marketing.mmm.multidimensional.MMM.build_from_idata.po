@@ -1,0 +1,111 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.multidimensional.MMM.build_from_idata.rst:2
+#: d9d03d3c535546e289ab36d78cee7be9
+msgid "MMM.build\\_from\\_idata"
+msgstr "MMM.construir\\_desde\\_idata"
+
+#: d1dd2dfa432a45519d6b7e97279ef137 of
+#: pymc_marketing.mmm.multidimensional.MMM.build_from_idata:2
+msgid "Rebuild the model from an ``InferenceData`` object."
+msgstr "Reconstruya el modelo a partir de un objeto ``InferenceData``."
+
+#: fafa981b23b94451823f4588d713a9aa of
+#: pymc_marketing.mmm.multidimensional.MMM.build_from_idata:4
+msgid ""
+"Uses the stored fit dataset in ``idata`` to reconstruct the model graph by "
+"calling :meth:`build_model`. This is commonly used as part of a ``load`` "
+"workflow to restore a model prior to sampling predictive quantities."
+msgstr ""
+"Utiliza el conjunto de datos de ajuste almacenado en ``idata`` para "
+"reconstruir el gráfico del modelo al llamar a :meth:`build_model`. Esto se "
+"utiliza comúnmente como parte de un flujo de trabajo de ``carga`` para "
+"restaurar un modelo antes de muestrear cantidades predictivas."
+
+#: db76141b5a81493b86a3a9c53b54f7a9 of
+#: pymc_marketing.mmm.multidimensional.MMM.build_from_idata
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 1ba919808ea8468a9b8f0950f246dc66 of
+#: pymc_marketing.mmm.multidimensional.MMM.build_from_idata:10
+msgid "**idata** : :obj:`az.InferenceData`"
+msgstr "**idata** : :obj:`az.InferenceData`"
+
+#: ebe9cfa123684014b250a2a8d417db2d of
+#: pymc_marketing.mmm.multidimensional.MMM.build_from_idata:9
+msgid "az.InferenceData"
+msgstr "az.InferenceData"
+
+#: 507a787b8f694e059f80241dc8df7c52 of
+#: pymc_marketing.mmm.multidimensional.MMM.build_from_idata:11
+msgid ""
+"Inference data containing the fit dataset under the ``fit_data`` group."
+msgstr ""
+"Datos de inferencia que contienen el conjunto de datos de ajuste bajo el "
+"grupo ``fit_data``."
+
+#: 77426676a25840718f4bea80746d9f40 of
+#: pymc_marketing.mmm.multidimensional.MMM.build_from_idata
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 230126f0bca24f80be8e87f861022d77 of
+#: pymc_marketing.mmm.multidimensional.MMM.build_from_idata:17
+msgid ":data:`python:None`"
+msgstr ":data:`python:None`"
+
+#: a2a94cd45f8b49ccb5c8ac310b0f5998 of
+#: pymc_marketing.mmm.multidimensional.MMM.build_from_idata:28
+msgid "Notes"
+msgstr "Notas"
+
+#: 77c6e98dd6b24d01a6ae2eb3320e9fac of
+#: pymc_marketing.mmm.multidimensional.MMM.build_from_idata:29
+msgid "Expects ``idata.fit_data`` to exist and contain both features and the"
+msgstr ""
+"Espera que ``idata.fit_data`` exista y contenga tanto características como "
+"el"
+
+#: b90d9b2a3dd94141aa9bd98722bf456d of
+#: pymc_marketing.mmm.multidimensional.MMM.build_from_idata:30
+msgid "target column named ``self.output_var``."
+msgstr "columna objetivo llamada ``self.output_var``."
+
+#: 9569caf6008546729c1d47cf56ccc6e3 of
+#: pymc_marketing.mmm.multidimensional.MMM.build_from_idata:31
+msgid ""
+"This rebuilds the model structure; it does not attach posterior samples."
+msgstr ""
+"Esto reconstruye la estructura del modelo; no adjunta muestras posteriores."
+
+#: d0beffe4ca52403891dccded8b16f497 of
+#: pymc_marketing.mmm.multidimensional.MMM.build_from_idata:32
+msgid "Assign ``self.idata = idata`` separately if you need to reuse samples."
+msgstr ""
+"Asigne ``self.idata = idata`` por separado si necesita reutilizar muestras."
+
+#: 2b1418558d0d48ebb79e2928dee3bc86 of
+#: pymc_marketing.mmm.multidimensional.MMM.build_from_idata:36
+msgid "Examples"
+msgstr "Ejemplos"

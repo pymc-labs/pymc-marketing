@@ -11,664 +11,505 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-import matplotlib.pyplot as plt
+import arviz as az
 import numpy as np
 import pandas as pd
+import pymc as pm
 import pytest
 import xarray as xr
-from matplotlib.axes import Axes
 
+from pymc_marketing.mmm.components.adstock import GeometricAdstock
+from pymc_marketing.mmm.components.saturation import LogisticSaturation
+from pymc_marketing.mmm.multidimensional import MMM
 from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
 
 
 @pytest.fixture
-def mock_mmm():
-    """Create a mock MMM class with minimal functionality."""
+def simple_model_and_idata():
+    """A minimal PyMC model and an InferenceData posterior compatible with SensitivityAnalysis.
 
-    class MockMMM:
-        def __init__(self):
-            # Create DataFrame with proper date index
-            dates = pd.date_range("2023-01-01", periods=3)
-            self.X = pd.DataFrame(
-                {
-                    "predictor_1": [1, 2, 3],
-                    "predictor_2": [4, 5, 6],
-                },
-                index=dates,
-            )
+    Model dims convention: (date, channel). Response is a deterministic depending on pm.Data and two RVs.
+    """
+    rng = np.random.default_rng(123)
+    n_dates, n_channels, n_draws = 6, 4, 5
 
-            # Create a mock idata structure that matches the real MMM structure
-            # Use a simple object that can have attributes assigned
-            class MockIdata:
-                def __init__(self):
-                    # Create realistic posterior_predictive data
-                    n_chains, n_draws, n_dates = 2, 10, 3
+    coords = {"date": np.arange(n_dates), "channel": list("abcd")}
+    with pm.Model(coords=coords) as model:
+        X = pm.Data(
+            "channel_data",
+            rng.gamma(2.0, 1.0, size=(n_dates, n_channels)).astype("float64"),
+            dims=("date", "channel"),
+        )
+        alpha = pm.Gamma("alpha", 1.0, 1.0, dims=("channel",))
+        lam = pm.Gamma("lam", 1.0, 1.0, dims=("channel",))
 
-                    # This is what the sensitivity analysis expects to find
-                    posterior_predictive_data = xr.Dataset(
-                        dict(
-                            y=(
-                                ["chain", "draw", "date"],
-                                np.random.normal(size=(n_chains, n_draws, n_dates)),
-                            ),
-                        ),
-                        coords={
-                            "chain": np.arange(n_chains),
-                            "draw": np.arange(n_draws),
-                            "date": dates,  # Use the same dates as the DataFrame
-                        },
-                    )
+        def saturation(x, alpha_param, lam_param):
+            return (alpha_param * x) / (x + lam_param)
 
-                    self.posterior_predictive = posterior_predictive_data
+        pm.Deterministic(
+            "channel_contribution",
+            saturation(X, alpha, lam),
+            dims=("date", "channel"),
+        )
 
-                def __getitem__(self, key):
-                    if key == "posterior_predictive":
-                        return self.posterior_predictive
-                    raise KeyError(f"Key {key} not found")
+    # Build a tiny posterior with shapes matching free RVs: (chain=1, draw=n_draws, channel)
+    alpha_draws = np.full((1, n_draws, n_channels), 0.8, dtype="float64")
+    lam_draws = np.full((1, n_draws, n_channels), 1.2, dtype="float64")
 
-                def add_groups(self, groups):
-                    # Mock implementation of add_groups
-                    for group_name, group_data in groups.items():
-                        setattr(self, group_name, group_data)
-
-            self.idata = MockIdata()
-
-        def predict(self, X_new, extend_idata=False, progressbar=False):
-            # Mock predict method to return data in the format expected by plot_sensitivity_analysis
-            # The real predict method returns data with dimensions (chain, draw, date)
-            n_chains, n_draws, n_dates = 2, 10, len(X_new)
-
-            # Create realistic prediction data with proper dimensions
-            data = np.random.normal(
-                loc=X_new["predictor_1"] + X_new["predictor_2"],
-                scale=0.1,
-                size=(n_chains, n_draws, n_dates),
-            )
-
-            return xr.Dataset(
-                dict(
-                    y=(
-                        ["chain", "draw", "date"],
-                        data,
-                    )  # Use the same dimensions as expected
-                ),
-                coords={
-                    "chain": np.arange(n_chains),
-                    "draw": np.arange(n_draws),
-                    "date": X_new.index,  # Use the DataFrame index as dates
-                },
-            )
-
-        def sample_posterior_predictive(
-            self, X_new, extend_idata=False, combined=False, progressbar=False
-        ):
-            # Mock implementation of sample_posterior_predictive
-            return self.predict(X_new, extend_idata, progressbar)
-
-    return MockMMM()
+    idata = az.from_dict(posterior={"alpha": alpha_draws, "lam": lam_draws})
+    return model, idata
 
 
 @pytest.fixture
-def sensitivity_analysis(mock_mmm):
-    """Create a SensitivityAnalysis instance with the mock MMM."""
-    return SensitivityAnalysis(mock_mmm)
+def sensitivity(simple_model_and_idata):
+    model, idata = simple_model_and_idata
+    return SensitivityAnalysis(model, idata)
 
 
 @pytest.mark.parametrize("sweep_type", ["multiplicative", "additive", "absolute"])
-def test_run_sweep_basic(sensitivity_analysis, sweep_type):
-    """Test that run_sweep runs without errors and returns expected results."""
+@pytest.mark.parametrize("use_mask", [False, True])
+def test_run_sweep_basic(sensitivity, sweep_type, use_mask):
     sweep_values = np.linspace(0.5, 1.5, 3)
-    results = sensitivity_analysis.run_sweep(
-        var_names=["predictor_1"],
-        sweep_values=sweep_values,
-        sweep_type=sweep_type,
-    )
 
-    # Check that results is an xarray.Dataset
-    assert isinstance(results, xr.Dataset)
-
-    # Check that the dataset contains the expected variables
-    assert "y" in results
-    assert "marginal_effects" in results
-
-    # Check that the sweep dimension is correct
-    assert "sweep" in results.dims
-    assert len(results["sweep"]) == len(sweep_values)
-
-
-def test_run_sweep_invalid_var_name(sensitivity_analysis):
-    """Test that run_sweep raises an error for invalid variable names."""
-    with pytest.raises(KeyError, match="predictor_invalid"):
-        sensitivity_analysis.run_sweep(
-            var_names=["predictor_invalid"],
-            sweep_values=np.linspace(0.5, 1.5, 3),
-            sweep_type="multiplicative",
-        )
-
-
-def test_run_sweep_metadata(sensitivity_analysis):
-    """Test that metadata is correctly added to the results."""
-    sweep_values = np.linspace(0.5, 1.5, 3)
-    results = sensitivity_analysis.run_sweep(
-        var_names=["predictor_1"],
-        sweep_values=sweep_values,
-        sweep_type="multiplicative",
-    )
-
-    # Check metadata
-    assert results.attrs["sweep_type"] == "multiplicative"
-    assert results.attrs["var_names"] == ["predictor_1"]
-
-
-def test_run_sweep_marginal_effects(sensitivity_analysis):
-    """Test that marginal effects are computed correctly."""
-    sweep_values = np.linspace(0.5, 1.5, 3)
-    results = sensitivity_analysis.run_sweep(
-        var_names=["predictor_1"],
-        sweep_values=sweep_values,
-        sweep_type="multiplicative",
-    )
-
-    # Check that marginal effects are computed
-    assert "marginal_effects" in results
-    assert results["marginal_effects"].dims == results["y"].dims
-
-
-def test_run_sweep_multiple_variables(sensitivity_analysis):
-    """Test that run_sweep works with multiple variables."""
-    sweep_values = np.linspace(0.5, 1.5, 3)
-    results = sensitivity_analysis.run_sweep(
-        var_names=["predictor_1", "predictor_2"],
-        sweep_values=sweep_values,
-        sweep_type="multiplicative",
-    )
-
-    # Check that results is an xarray.Dataset
-    assert isinstance(results, xr.Dataset)
-    assert "y" in results
-    assert "marginal_effects" in results
-
-
-def test_run_sweep_edge_values(sensitivity_analysis):
-    """Test run_sweep with edge values including zero."""
-    sweep_values = np.array([0.0, 0.5, 1.0, 2.0])
-    results = sensitivity_analysis.run_sweep(
-        var_names=["predictor_1"],
-        sweep_values=sweep_values,
-        sweep_type="multiplicative",
-    )
-
-    # Check that it handles zero values
-    assert isinstance(results, xr.Dataset)
-    assert len(results["sweep"]) == len(sweep_values)
-
-
-def test_run_sweep_single_value(sensitivity_analysis):
-    """Test run_sweep with a single sweep value."""
-    sweep_values = np.array([1.5])
-
-    # Single value should fail because we can't compute marginal effects
-    with pytest.raises(IndexError):
-        sensitivity_analysis.run_sweep(
-            var_names=["predictor_1"],
-            sweep_values=sweep_values,
-            sweep_type="additive",
-        )
-
-
-def test_create_intervention_methods(sensitivity_analysis):
-    """Test the different intervention creation methods."""
-    # Set up the sensitivity analysis with required attributes
-    sensitivity_analysis.var_names = ["predictor_1"]
-    sensitivity_analysis.sweep_type = "multiplicative"
-
-    # Test multiplicative
-    X_mult = sensitivity_analysis.create_intervention(2.0)
-    expected_mult = sensitivity_analysis.mmm.X.copy()
-    expected_mult["predictor_1"] *= 2.0
-    pd.testing.assert_frame_equal(X_mult, expected_mult)
-
-    # Test additive
-    sensitivity_analysis.sweep_type = "additive"
-    X_add = sensitivity_analysis.create_intervention(0.5)
-    expected_add = sensitivity_analysis.mmm.X.copy()
-    expected_add["predictor_1"] += 0.5
-    pd.testing.assert_frame_equal(X_add, expected_add)
-
-    # Test absolute
-    sensitivity_analysis.sweep_type = "absolute"
-    X_abs = sensitivity_analysis.create_intervention(3.0)
-    expected_abs = sensitivity_analysis.mmm.X.copy()
-    expected_abs["predictor_1"] = 3.0
-    pd.testing.assert_frame_equal(X_abs, expected_abs)
-
-
-def test_create_intervention_invalid_sweep_type(sensitivity_analysis):
-    """Test that create_intervention raises error for invalid sweep type."""
-    sensitivity_analysis.var_names = ["predictor_1"]
-    sensitivity_analysis.sweep_type = "invalid_type"
-
-    with pytest.raises(ValueError, match="Unsupported sweep_type"):
-        sensitivity_analysis.create_intervention(1.0)
-
-
-@pytest.fixture
-def mock_mmm_with_plot(mock_mmm):
-    """Create a mock MMM with real MMMPlotSuite for testing plot_sensitivity_analysis."""
-    from pymc_marketing.mmm.plot import MMMPlotSuite
-
-    # Use the real MMMPlotSuite class instead of a mock
-    mock_mmm.plot = MMMPlotSuite(mock_mmm.idata)
-    return mock_mmm
-
-
-@pytest.fixture
-def sensitivity_analysis_with_results(mock_mmm_with_plot):
-    """Create a SensitivityAnalysis instance with pre-computed results."""
-    sensitivity_analysis = SensitivityAnalysis(mock_mmm_with_plot)
-
-    # Run a sweep to create results in the MMM's idata
-    sweep_values = np.linspace(0.5, 1.5, 3)
-    results = sensitivity_analysis.run_sweep(
-        var_names=["predictor_1"],
-        sweep_values=sweep_values,
-        sweep_type="multiplicative",
-    )
-
-    # Add the results to the MMM's idata to simulate real usage
-    mock_mmm_with_plot.idata.add_groups({"sensitivity_analysis": results})
-
-    return sensitivity_analysis
-
-
-def test_plot_sensitivity_analysis_basic(sensitivity_analysis_with_results):
-    """Test basic plot_sensitivity_analysis functionality."""
-    mmm = sensitivity_analysis_with_results.mmm
-
-    # Test that the plot function exists and runs without error
-    ax = mmm.plot.plot_sensitivity_analysis()
-
-    # Check that we get a matplotlib Axes object
-    assert isinstance(ax, Axes)
-
-    # Check basic plot properties
-    assert ax.get_title() == "Sensitivity analysis plot"
-    assert "Multiplicative change of" in ax.get_xlabel()
-    assert ax.get_ylabel() == "Total uplift (sum over dates)"
-
-    # Check that lines were plotted
-    lines = ax.get_lines()
-    assert len(lines) > 0
-
-    plt.close()  # Close the current figure
-
-
-def test_plot_sensitivity_analysis_marginal(sensitivity_analysis_with_results):
-    """Test plot_sensitivity_analysis with marginal effects."""
-    mmm = sensitivity_analysis_with_results.mmm
-
-    ax = mmm.plot.plot_sensitivity_analysis(marginal=True)
-
-    assert isinstance(ax, Axes)
-
-    plt.close()  # Close the current figure
-
-
-def test_plot_sensitivity_analysis_with_custom_ax(sensitivity_analysis_with_results):
-    """Test plot_sensitivity_analysis with a custom axes."""
-    mmm = sensitivity_analysis_with_results.mmm
-
-    fig, custom_ax = plt.subplots(figsize=(8, 6))
-
-    # Use the custom axes
-    returned_ax = mmm.plot.plot_sensitivity_analysis(ax=custom_ax)
-
-    # Should return the same axes object
-    assert returned_ax is custom_ax
-    assert isinstance(returned_ax, Axes)
-
-    plt.close(fig)
-
-
-@pytest.mark.parametrize("hdi_prob", [0.89, 0.94, 0.99])
-def test_plot_sensitivity_analysis_hdi_prob(
-    sensitivity_analysis_with_results, hdi_prob
-):
-    """Test plot_sensitivity_analysis with different HDI probabilities."""
-    mmm = sensitivity_analysis_with_results.mmm
-
-    ax = mmm.plot.plot_sensitivity_analysis(hdi_prob=hdi_prob)
-
-    assert isinstance(ax, Axes)
-
-    plt.close()  # Close the current figure
-
-
-@pytest.mark.parametrize("marginal", [True, False])
-def test_plot_sensitivity_analysis_marginal_parameter(
-    sensitivity_analysis_with_results, marginal
-):
-    """Test plot_sensitivity_analysis with marginal parameter."""
-    mmm = sensitivity_analysis_with_results.mmm
-
-    ax = mmm.plot.plot_sensitivity_analysis(marginal=marginal)
-
-    assert isinstance(ax, Axes)
-
-    plt.close()  # Close the current figure
-
-
-def test_plot_sensitivity_analysis_no_results(mock_mmm_with_plot):
-    """Test plot_sensitivity_analysis when no sensitivity analysis results exist."""
-    # Test without running sensitivity analysis first
-    with pytest.raises(ValueError, match="No sensitivity analysis results found"):
-        mock_mmm_with_plot.plot.plot_sensitivity_analysis()
-
-
-def test_plot_sensitivity_analysis_percentage_marginal_error(
-    sensitivity_analysis_with_results,
-):
-    """Test that percentage + marginal raises an error."""
-    mmm = sensitivity_analysis_with_results.mmm
-
-    # This combination should raise an error in the real implementation
-    # For now, our mock doesn't implement this check, but we can test the concept
-    try:
-        ax = mmm.plot.plot_sensitivity_analysis(percentage=True, marginal=True)
-        plt.close(ax.figure)
-        # If no error is raised, that's fine for the mock - the real implementation would error
-    except ValueError as e:
-        # This is expected in the real implementation
-        assert "Not implemented marginal effects in percentage scale" in str(e)
-
-
-def test_plot_sensitivity_analysis_integration(mock_mmm_with_plot):
-    """Test full integration: run sweep and then plot."""
-    sensitivity_analysis = SensitivityAnalysis(mock_mmm_with_plot)
-
-    # Run a sweep
-    sweep_values = np.linspace(0.5, 1.5, 3)
-    results = sensitivity_analysis.run_sweep(
-        var_names=["predictor_1"],
-        sweep_values=sweep_values,
-        sweep_type="multiplicative",
-    )
-
-    # Add results to MMM's idata
-    mock_mmm_with_plot.idata.add_groups({"sensitivity_analysis": results})
-
-    # Now plot should work
-    ax = mock_mmm_with_plot.plot.plot_sensitivity_analysis()
-
-    assert isinstance(ax, Axes)
-
-    plt.close()  # Close the current figure
-
-
-def test_plot_sensitivity_analysis_percentage_scale(sensitivity_analysis_with_results):
-    """Test plotting with percentage scale (non-marginal)."""
-    mmm = sensitivity_analysis_with_results.mmm
-
-    # This should work (percentage=True, marginal=False)
-    ax = mmm.plot.plot_sensitivity_analysis(percentage=True, marginal=False)
-
-    assert isinstance(ax, Axes)
-    # Check that y-axis formatter is set for percentages
-    formatter = ax.yaxis.get_major_formatter()
-    sample_value = 0.1
-    formatted = formatter(sample_value, None)
-    assert "%" in formatted
-
-    plt.close()
-
-
-@pytest.mark.parametrize("sweep_type", ["multiplicative", "additive", "absolute"])
-def test_plot_sensitivity_analysis_sweep_types_xlabel(mock_mmm_with_plot, sweep_type):
-    """Test that xlabel changes based on sweep type."""
-    sensitivity_analysis = SensitivityAnalysis(mock_mmm_with_plot)
-
-    # Run sweep with specific type
-    results = sensitivity_analysis.run_sweep(
-        var_names=["predictor_1"],
-        sweep_values=np.linspace(0.5, 1.5, 5),
-        sweep_type=sweep_type,
-    )
-
-    # Add results to MMM's idata
-    mock_mmm_with_plot.idata.add_groups({"sensitivity_analysis": results})
-
-    # Plot and check xlabel
-    ax = mock_mmm_with_plot.plot.plot_sensitivity_analysis()
-
-    xlabel = ax.get_xlabel()
-    if sweep_type == "absolute":
-        assert "Absolute value of:" in xlabel
+    if use_mask:
+        # Create a mask that keeps first and last channels for all dates
+        # channel_contribution has dims (date, channel) with 6 dates and 4 channels
+        mask_2d = np.zeros((6, 4), dtype=bool)
+        mask_2d[:, [0, 3]] = True  # Keep channels 'a' and 'd' for all dates
+        response_mask = xr.DataArray(mask_2d, dims=("date", "channel"))
     else:
-        assert f"{sweep_type.capitalize()} change of:" in xlabel
+        response_mask = None
 
-    plt.close()
+    results = sensitivity.run_sweep(
+        var_input="channel_data",
+        var_names="channel_contribution",
+        sweep_values=sweep_values,
+        sweep_type=sweep_type,
+        response_mask=response_mask,
+    )
+
+    assert isinstance(results, xr.DataArray)
+    assert list(results.dims)[:2] == ["sample", "sweep"]
+    assert "channel" in results.dims
+    assert results.sizes["sweep"] == len(sweep_values)
+
+    if use_mask:
+        # Check that masked channels are zeroed
+        assert np.all(results.sel(channel="b").values == 0.0)
+        assert np.all(results.sel(channel="c").values == 0.0)
 
 
-@pytest.mark.parametrize("sweep_type", ["multiplicative", "additive"])
-def test_plot_sensitivity_analysis_reference_lines(mock_mmm_with_plot, sweep_type):
-    """Test that reference lines are drawn for multiplicative and additive sweeps."""
-    sensitivity_analysis = SensitivityAnalysis(mock_mmm_with_plot)
+def test_run_sweep_with_response_mask(sensitivity):
+    sweep_values = np.linspace(0.5, 1.5, 3)
+    full = sensitivity.run_sweep(
+        var_input="channel_data",
+        var_names="channel_contribution",
+        sweep_values=sweep_values,
+    )
 
-    # Run sweep
-    results = sensitivity_analysis.run_sweep(
-        var_names=["predictor_1"],
-        sweep_values=np.linspace(0.5, 1.5, 5),
+    # Create 2D mask for (date, channel) dimensions
+    mask_2d = np.zeros((6, 4), dtype=bool)
+    mask_2d[:, [0, 3]] = True  # Keep channels 'a' and 'd' for all dates
+    masked = sensitivity.run_sweep(
+        var_input="channel_data",
+        var_names="channel_contribution",
+        sweep_values=sweep_values,
+        response_mask=xr.DataArray(mask_2d, dims=("date", "channel")),
+    )
+
+    assert masked.shape == full.shape
+    kept = full.sel(channel=["a", "d"]).sum("channel")
+    xr.testing.assert_allclose(masked.sum("channel"), kept)
+    assert np.all(masked.sel(channel="b").values == 0.0)
+
+
+def test_run_sweep_invalid_var_name(sensitivity):
+    with pytest.raises(KeyError):
+        sensitivity.run_sweep(
+            var_input="channel_data",
+            var_names="invalid_variable",
+            sweep_values=np.linspace(0.5, 1.5, 3),
+        )
+
+
+def test_compute_marginal_effects(sensitivity):
+    sweeps = np.linspace(0.5, 1.5, 5)
+    results = sensitivity.run_sweep(
+        var_input="channel_data",
+        var_names="channel_contribution",
+        sweep_values=sweeps,
+        sweep_type="multiplicative",
+    )
+    me = sensitivity.compute_marginal_effects(results)
+    assert isinstance(me, xr.DataArray)
+    # same dims, same sizes except along sweep reduced by differentiation (xarray keeps same length)
+    assert list(me.dims) == list(results.dims)
+    assert me.sizes == results.sizes
+
+
+def test_run_sweep_with_filter(sensitivity):
+    sweeps = np.linspace(0.5, 1.5, 4)
+    results = sensitivity.run_sweep(
+        var_input="channel_data",
+        var_names="channel_contribution",
+        sweep_values=sweeps,
+    )
+    # Apply filtering post hoc per new API
+    filtered = results.sel(channel=["a", "c"])
+    assert filtered.sizes["channel"] == 2
+
+
+def test_extend_idata_stores_results(simple_model_and_idata):
+    model, idata = simple_model_and_idata
+    sa = SensitivityAnalysis(model, idata)
+    sweeps = np.linspace(0.5, 1.5, 3)
+    out = sa.run_sweep(
+        var_input="channel_data",
+        var_names="channel_contribution",
+        sweep_values=sweeps,
+        extend_idata=True,
+    )
+    assert out is None
+    # Ensure results are attached; InferenceData stores arbitrary groups as attributes
+    assert hasattr(idata, "sensitivity_analysis")
+
+
+@pytest.fixture
+def df() -> pd.DataFrame:
+    dates = pd.date_range("2025-01-01", periods=3, freq="W-MON").rename("date")
+    df = pd.DataFrame(
+        {
+            ("A", "C1"): [1, 2, 3],
+            ("B", "C1"): [4, 5, 6],
+            ("A", "C2"): [7, 8, 9],
+            ("B", "C2"): [10, 11, 12],
+        },
+        index=dates,
+    )
+    df.columns.names = ["country", "channel"]
+    df = df.astype(float)
+
+    y = pd.DataFrame(
+        {
+            ("A", "y"): [1, 2, 3],
+            ("B", "y"): [4, 5, 6],
+        },
+        index=dates,
+    )
+    y.columns.names = ["country", "channel"]
+    y = y.astype(float)
+
+    return pd.concat(
+        [
+            df.stack("country", future_stack=True),
+            y.stack("country", future_stack=True),
+        ],
+        axis=1,
+    ).reset_index()
+
+
+@pytest.fixture
+def multidim_mmm(df, mock_pymc_sample):
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["C1", "C2"],
+        dims=("country",),
+        target_column="y",
+        adstock=GeometricAdstock(l_max=3),
+        saturation=LogisticSaturation(),
+    )
+    X = df.drop(columns=["y"]).copy()
+    y = df["y"].copy()
+    # Fit with mocked sampling (conftest provides mock_pymc_sample)
+    mmm.fit(X, y)
+    return mmm
+
+
+@pytest.mark.parametrize("sweep_type", ["multiplicative", "additive", "absolute"])
+def test_mmm_sensitivity_dims_and_filter(multidim_mmm, sweep_type):
+    sweeps = np.linspace(0.5, 1.5, 4)
+    # Run sweep via the MMM.sensitivity property using the real model/idata
+    result = multidim_mmm.sensitivity.run_sweep(
+        var_input="channel_data",
+        var_names="channel_contribution",
+        sweep_values=sweeps,
         sweep_type=sweep_type,
     )
 
-    # Add results to MMM's idata
-    mock_mmm_with_plot.idata.add_groups({"sensitivity_analysis": results})
+    # Dims order should follow (sample, sweep, *dims, channel)
+    assert list(result.dims)[:2] == ["sample", "sweep"]
+    assert list(result.dims[2:]) == ["country", "channel"]
 
-    # Plot
-    ax = mock_mmm_with_plot.plot.plot_sensitivity_analysis()
+    # Coords should match model coords
+    assert list(result.coords["country"].values) == ["A", "B"]
+    assert list(result.coords["channel"].values) == ["C1", "C2"]
 
-    # Check for reference lines (dashed lines)
-    all_lines = ax.get_lines()
-    dashed_lines = [line for line in all_lines if line.get_linestyle() == "--"]
+    # Filtering by labels should preserve order and sizes
+    filtered = result.sel(country=["B"], channel=["C2"])  # filter post hoc per new API
+    assert filtered.sizes["country"] == 1
+    assert filtered.sizes["channel"] == 1
+    assert list(filtered.coords["country"].values) == ["B"]
+    assert list(filtered.coords["channel"].values) == ["C2"]
 
-    # Should have at least one dashed reference line
-    assert len(dashed_lines) >= 1
 
-    if sweep_type == "multiplicative":
-        # Should have vertical line at x=1 and possibly horizontal line at y=0
-        has_vertical_ref = any(
-            np.allclose(line.get_xdata(), [1, 1], atol=0.1) for line in dashed_lines
+def test_compute_uplift_curve_respect_to_base(sensitivity):
+    sweeps = np.linspace(0.5, 1.5, 5)
+    # Run without extending idata to get the results in-memory
+    results = sensitivity.run_sweep(
+        var_input="channel_data",
+        var_names="channel_contribution",
+        sweep_values=sweeps,
+        sweep_type="multiplicative",
+    )
+    # Choose a scalar reference (e.g., overall mean at baseline factor 1.0)
+    ref_value = float(results.sel(sweep=1.0).mean().item())
+
+    uplift = sensitivity.compute_uplift_curve_respect_to_base(
+        results=results, ref=ref_value
+    )
+
+    # Dimensions and sizes unchanged
+    assert list(uplift.dims) == list(results.dims)
+    assert uplift.sizes == results.sizes
+
+    # Uplift equals results minus scalar reference (broadcasted)
+    xr.testing.assert_allclose(uplift, results - ref_value)
+
+    # Now also test persistence to idata
+    # First ensure the group exists
+    _ = sensitivity.run_sweep(
+        var_input="channel_data",
+        var_names="channel_contribution",
+        sweep_values=sweeps,
+        extend_idata=True,
+    )
+    persisted = sensitivity.compute_uplift_curve_respect_to_base(
+        results=results, ref=ref_value, extend_idata=True
+    )
+    assert hasattr(sensitivity.idata, "sensitivity_analysis")
+    sa_group = sensitivity.idata.sensitivity_analysis
+    assert isinstance(sa_group, xr.Dataset)
+    assert "uplift_curve" in sa_group
+    xr.testing.assert_allclose(sa_group["uplift_curve"], persisted)
+
+
+def test_compute_uplift_curve_respect_to_base_array_ref(sensitivity):
+    sweeps = np.linspace(0.5, 1.5, 5)
+    results = sensitivity.run_sweep(
+        var_input="channel_data",
+        var_names="channel_contribution",
+        sweep_values=sweeps,
+        sweep_type="multiplicative",
+    )
+
+    baseline = results.sel(sweep=1.0).mean(dim="sample")
+
+    uplift = sensitivity.compute_uplift_curve_respect_to_base(
+        results=results, ref=baseline
+    )
+
+    broadcasted = results - baseline
+    xr.testing.assert_allclose(uplift, broadcasted)
+
+
+def test_posterior_sample_percentage_controls_draws(sensitivity):
+    sweeps = np.linspace(0.5, 1.5, 4)
+    full = sensitivity.run_sweep(
+        var_input="channel_data",
+        var_names="channel_contribution",
+        sweep_values=sweeps,
+        posterior_sample_fraction=1.0,
+    )
+    limited = sensitivity.run_sweep(
+        var_input="channel_data",
+        var_names="channel_contribution",
+        sweep_values=sweeps,
+        posterior_sample_fraction=0.6,
+    )
+
+    assert full.sizes["sample"] == 5
+    assert limited.sizes["sample"] == 2
+
+
+def test_posterior_sample_batch_backward_compatibility(sensitivity):
+    sweeps = np.linspace(0.5, 1.5, 4)
+    with pytest.warns(DeprecationWarning):
+        legacy = sensitivity.run_sweep(
+            var_input="channel_data",
+            var_names="channel_contribution",
+            sweep_values=sweeps,
+            posterior_sample_batch=2,
         )
-        assert has_vertical_ref
-    elif sweep_type == "additive":
-        # Should have vertical line at x=0
-        has_vertical_ref = any(
-            np.allclose(line.get_xdata(), [0, 0], atol=0.1) for line in dashed_lines
-        )
-        assert has_vertical_ref
 
-    plt.close()
+    assert legacy.sizes["sample"] == 2
 
 
-def test_plot_sensitivity_analysis_y_axis_limits_positive(mock_mmm_with_plot):
-    """Test y-axis limits when all y values are positive."""
-    sensitivity_analysis = SensitivityAnalysis(mock_mmm_with_plot)
+def test_compute_dims_order_from_varinput_internal(sensitivity):
+    # Drops 'date' and preserves remaining order
+    dims_order = sensitivity._compute_dims_order_from_varinput("channel_data")
+    assert dims_order == ["channel"]
 
-    # Create a scenario with positive values by using a sweep that increases values
-    results = sensitivity_analysis.run_sweep(
-        var_names=["predictor_1"],
-        sweep_values=np.linspace(1.0, 2.0, 5),  # All > 1 should give positive uplift
-        sweep_type="multiplicative",
+
+def test_add_to_idata_internal_updates_dataset(simple_model_and_idata):
+    model, idata = simple_model_and_idata
+    sa = SensitivityAnalysis(model, idata)
+    sweeps = np.linspace(0.5, 1.5, 3)
+
+    # Create a tiny result DataArray consistent with model coords
+    result1 = xr.DataArray(
+        np.ones((2, len(sweeps), len(model.coords["channel"]))),
+        dims=["sample", "sweep", "channel"],
+        coords={
+            "sample": np.arange(2),
+            "sweep": sweeps,
+            "channel": list(model.coords["channel"]),
+        },
     )
 
-    # Add results to MMM's idata
-    mock_mmm_with_plot.idata.add_groups({"sensitivity_analysis": results})
+    # First add: creates the group
+    sa._add_to_idata(result1)
+    assert hasattr(idata, "sensitivity_analysis")
+    assert isinstance(idata.sensitivity_analysis, xr.Dataset)
+    xr.testing.assert_allclose(idata.sensitivity_analysis["x"], result1)
 
-    # Plot
-    ax = mock_mmm_with_plot.plot.plot_sensitivity_analysis()
-
-    # Check that bottom y-limit is set to 0 for positive values
-    y_mean = results.y.mean(dim=["chain", "draw"]).sum(dim="date")
-    if np.all(y_mean.values > 0):
-        y_bottom, y_top = ax.get_ylim()
-        assert y_bottom == 0
-
-    plt.close()
+    # Second add: updates the variable and warns
+    result2 = result1 * 2.0
+    with pytest.warns(UserWarning):
+        sa._add_to_idata(result2)
+    xr.testing.assert_allclose(idata.sensitivity_analysis["x"], result2)
 
 
-def test_plot_sensitivity_analysis_y_axis_limits_negative(mock_mmm_with_plot):
-    """Test y-axis limits when all y values are negative."""
-    sensitivity_analysis = SensitivityAnalysis(mock_mmm_with_plot)
+def test_prepare_response_mask_numpy_array(sensitivity):
+    """Test _prepare_response_mask with numpy array input."""
+    response_dims = ("date", "channel")
 
-    # Create a scenario with negative values by using a sweep that decreases values
-    results = sensitivity_analysis.run_sweep(
-        var_names=["predictor_1"],
-        sweep_values=np.linspace(0.1, 0.8, 5),  # All < 1 should give negative uplift
-        sweep_type="multiplicative",
+    # Test boolean array
+    mask = np.array(
+        [
+            [True, False, True, False],
+            [False, True, False, True],
+            [True, True, False, False],
+            [False, False, True, True],
+            [True, False, True, False],
+            [False, True, False, True],
+        ]
+    )
+    result = sensitivity._prepare_response_mask(mask, response_dims, var_names="test")
+    assert result.shape == (6, 4)
+    assert result.dtype == bool
+    np.testing.assert_array_equal(result, mask)
+
+    # Test integer array (should be cast to bool)
+    int_mask = np.array(
+        [
+            [1, 0, 1, 0],
+            [0, 1, 0, 1],
+            [1, 1, 0, 0],
+            [0, 0, 1, 1],
+            [1, 0, 1, 0],
+            [0, 1, 0, 1],
+        ]
+    )
+    result = sensitivity._prepare_response_mask(
+        int_mask, response_dims, var_names="test"
+    )
+    assert result.dtype == bool
+    np.testing.assert_array_equal(result, mask)
+
+
+def test_prepare_response_mask_xarray(sensitivity):
+    """Test _prepare_response_mask with xarray input."""
+    response_dims = ("date", "channel")
+
+    # Test with correct dims
+    mask_data = np.array(
+        [
+            [True, False, True, False],
+            [False, True, False, True],
+            [True, True, False, False],
+            [False, False, True, True],
+            [True, False, True, False],
+            [False, True, False, True],
+        ]
+    )
+    mask_xr = xr.DataArray(mask_data, dims=("date", "channel"))
+    result = sensitivity._prepare_response_mask(
+        mask_xr, response_dims, var_names="test"
+    )
+    np.testing.assert_array_equal(result, mask_data)
+
+    # Test with reordered dims (should be transposed)
+    mask_xr_transposed = xr.DataArray(mask_data.T, dims=("channel", "date"))
+    result = sensitivity._prepare_response_mask(
+        mask_xr_transposed, response_dims, var_names="test"
+    )
+    np.testing.assert_array_equal(result, mask_data)
+
+
+def test_prepare_response_mask_errors(sensitivity):
+    """Test _prepare_response_mask error cases."""
+    response_dims = ("date", "channel")
+
+    # Test missing dims in xarray
+    mask_xr = xr.DataArray(np.ones((6,)), dims=("date",))
+    with pytest.raises(ValueError, match="response_mask is missing required dims"):
+        sensitivity._prepare_response_mask(mask_xr, response_dims, var_names="test")
+
+    # Test wrong number of dimensions
+    mask = np.ones((6,))  # 1D instead of 2D
+    with pytest.raises(
+        ValueError, match="response_mask must have the same number of dims"
+    ):
+        sensitivity._prepare_response_mask(mask, response_dims, var_names="test")
+
+    # Test wrong shape
+    mask = np.ones((5, 3))  # Wrong shape
+    with pytest.raises(ValueError, match="response_mask shape does not match"):
+        sensitivity._prepare_response_mask(mask, response_dims, var_names="test")
+
+    # Test non-castable type
+    mask = np.array([["yes", "no"], ["no", "yes"]])
+    with pytest.raises(TypeError, match="response_mask must be boolean"):
+        sensitivity._prepare_response_mask(mask, response_dims, var_names="test")
+
+
+def test_run_sweep_with_2d_mask(simple_model_and_idata):
+    """Test run_sweep with a 2D mask matching date x channel dims."""
+    model, idata = simple_model_and_idata
+    sa = SensitivityAnalysis(model, idata)
+
+    # Create a 2D mask that only keeps some dates for channel a and d, none for b and c
+    mask_2d = np.zeros((6, 4), dtype=bool)
+    # Keep first 3 dates for channel a
+    mask_2d[:3, 0] = True
+    # Keep last 3 dates for channel d
+    mask_2d[3:, 3] = True
+    # Channels b and c are completely masked
+
+    mask_xr = xr.DataArray(mask_2d, dims=("date", "channel"))
+
+    sweep_values = np.linspace(0.5, 1.5, 3)
+    masked = sa.run_sweep(
+        var_input="channel_data",
+        var_names="channel_contribution",
+        sweep_values=sweep_values,
+        response_mask=mask_xr,
     )
 
-    # Add results to MMM's idata
-    mock_mmm_with_plot.idata.add_groups({"sensitivity_analysis": results})
-
-    # Plot
-    ax = mock_mmm_with_plot.plot.plot_sensitivity_analysis()
-
-    # Check that top y-limit is set to 0 for negative values
-    y_mean = results.y.mean(dim=["chain", "draw"]).sum(dim="date")
-    if np.all(y_mean.values < 0):
-        y_bottom, y_top = ax.get_ylim()
-        assert y_top == 0
-
-    plt.close()
-
-
-def test_plot_sensitivity_analysis_formatter_percentage_vs_absolute(mock_mmm_with_plot):
-    """Test that the y-axis formatter differs between percentage and absolute scales."""
-    sensitivity_analysis = SensitivityAnalysis(mock_mmm_with_plot)
-
-    # Run sweep
-    results = sensitivity_analysis.run_sweep(
-        var_names=["predictor_1"],
-        sweep_values=np.linspace(0.5, 1.5, 5),
-        sweep_type="multiplicative",
+    # Get the full result for comparison
+    full = sa.run_sweep(
+        var_input="channel_data",
+        var_names="channel_contribution",
+        sweep_values=sweep_values,
     )
 
-    # Add results to MMM's idata
-    mock_mmm_with_plot.idata.add_groups({"sensitivity_analysis": results})
+    # Channels 'b' and 'c' should be completely zero since no dates were unmasked
+    assert np.all(masked.sel(channel="b").values == 0.0)
+    assert np.all(masked.sel(channel="c").values == 0.0)
 
-    # Test absolute scale
-    ax1 = mock_mmm_with_plot.plot.plot_sensitivity_analysis(percentage=False)
-    formatter_abs = ax1.yaxis.get_major_formatter()
+    # Channels 'a' and 'd' should have non-zero values
+    assert np.any(masked.sel(channel="a").values > 0.0)
+    assert np.any(masked.sel(channel="d").values > 0.0)
 
-    # Test percentage scale
-    ax2 = mock_mmm_with_plot.plot.plot_sensitivity_analysis(percentage=True)
-    formatter_pct = ax2.yaxis.get_major_formatter()
-
-    # Formatters should behave differently
-    # Test by applying them to a sample value
-    sample_value = 0.1
-    abs_formatted = formatter_abs(sample_value, None)
-    pct_formatted = formatter_pct(sample_value, None)
-
-    # Percentage should contain % while absolute should not
-    assert "%" in pct_formatted
-    assert "%" not in abs_formatted
-
-    plt.close(ax1.figure)
-    plt.close(ax2.figure)
-
-
-def test_plot_sensitivity_analysis_marginal_vs_uplift_labels(mock_mmm_with_plot):
-    """Test that labels and titles change between marginal and uplift plots."""
-    sensitivity_analysis = SensitivityAnalysis(mock_mmm_with_plot)
-
-    # Run sweep with enough points for marginal effects
-    results = sensitivity_analysis.run_sweep(
-        var_names=["predictor_1"],
-        sweep_values=np.linspace(0.5, 1.5, 5),
-        sweep_type="multiplicative",
-    )
-
-    # Add results to MMM's idata
-    mock_mmm_with_plot.idata.add_groups({"sensitivity_analysis": results})
-
-    # Test uplift plot
-    ax1 = mock_mmm_with_plot.plot.plot_sensitivity_analysis(marginal=False)
-    uplift_title = ax1.get_title()
-    uplift_ylabel = ax1.get_ylabel()
-
-    # Test marginal plot
-    ax2 = mock_mmm_with_plot.plot.plot_sensitivity_analysis(marginal=True)
-    marginal_title = ax2.get_title()
-    marginal_ylabel = ax2.get_ylabel()
-
-    # Titles should be different
-    assert uplift_title != marginal_title
-    assert "Sensitivity analysis" in uplift_title
-    assert "Marginal effects" in marginal_title
-
-    # Y-labels should be different
-    assert uplift_ylabel != marginal_ylabel
-    assert "uplift" in uplift_ylabel.lower()
-    assert "marginal effect" in marginal_ylabel.lower()
-
-    plt.close(ax1.figure)
-    plt.close(ax2.figure)
-
-
-def test_plot_sensitivity_analysis_hdi_in_legend(mock_mmm_with_plot):
-    """Test that HDI probability appears in legend."""
-    sensitivity_analysis = SensitivityAnalysis(mock_mmm_with_plot)
-
-    # Run sweep
-    results = sensitivity_analysis.run_sweep(
-        var_names=["predictor_1"],
-        sweep_values=np.linspace(0.5, 1.5, 5),
-        sweep_type="multiplicative",
-    )
-
-    # Add results to MMM's idata
-    mock_mmm_with_plot.idata.add_groups({"sensitivity_analysis": results})
-
-    # Test with specific HDI probability
-    hdi_prob = 0.89
-    ax = mock_mmm_with_plot.plot.plot_sensitivity_analysis(hdi_prob=hdi_prob)
-
-    # Check legend contains HDI probability
-    legend = ax.get_legend()
-    legend_texts = [text.get_text() for text in legend.get_texts()]
-
-    # Should contain the HDI percentage
-    hdi_percentage = f"{hdi_prob * 100:.0f}%"
-    assert any(hdi_percentage in text for text in legend_texts)
-
-    plt.close()
-
-
-def test_plot_sensitivity_analysis_color_consistency(mock_mmm_with_plot):
-    """Test that colors are consistent between marginal and uplift plots."""
-    sensitivity_analysis = SensitivityAnalysis(mock_mmm_with_plot)
-
-    # Run sweep
-    results = sensitivity_analysis.run_sweep(
-        var_names=["predictor_1"],
-        sweep_values=np.linspace(0.5, 1.5, 5),
-        sweep_type="multiplicative",
-    )
-
-    # Add results to MMM's idata
-    mock_mmm_with_plot.idata.add_groups({"sensitivity_analysis": results})
-
-    # Test uplift plot
-    ax1 = mock_mmm_with_plot.plot.plot_sensitivity_analysis(marginal=False)
-    uplift_line_color = ax1.get_lines()[0].get_color()
-
-    # Test marginal plot
-    ax2 = mock_mmm_with_plot.plot.plot_sensitivity_analysis(marginal=True)
-    marginal_line_color = ax2.get_lines()[0].get_color()
-
-    # Colors should be different (C0 vs C1)
-    assert uplift_line_color != marginal_line_color
-
-    plt.close(ax1.figure)
-    plt.close(ax2.figure)
+    # The masked result should be smaller than the full result
+    assert masked.sum().item() < full.sum().item()

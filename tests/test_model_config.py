@@ -241,7 +241,7 @@ def test_parse_model_config_warns() -> None:
         },
     }
 
-    with pytest.warns(DeprecationWarning, match="alpha is automatically"):
+    with pytest.warns(DeprecationWarning, match=r"alpha is automatically"):
         result = parse_model_config(model_config)
 
     assert result == {
@@ -257,7 +257,8 @@ def test_parse_model_config_catches_errors() -> None:
         "gamma": Prior("Normal"),
     }
 
-    msg = "3 errors"
+    # "alpha": "Normal" is now skipped (string, not a dict), so only 2 errors occur
+    msg = "2 errors"
     with pytest.raises(ModelConfigError, match=msg):
         parse_model_config(model_config)
 
@@ -294,9 +295,39 @@ def test_parse_model_config_custom_class(register_arbitrary_prior_class) -> None
         "alpha": {"msg": "Hello", "value": 42},
     }
 
-    with pytest.warns(DeprecationWarning, match="alpha is automatically"):
+    with pytest.warns(DeprecationWarning, match=r"alpha is automatically"):
         result = parse_model_config(model_config)
 
     assert result == {
         "alpha": AribraryPriorClass(msg="Hello", value=42),
     }
+
+
+def test_parse_model_config_with_list_in_non_distributions() -> None:
+    """Test that lists in non_distributions are not deserialized."""
+    model_config = {
+        "dropout_covariate_cols": ["channel", "tier"],
+        "alpha": Prior("Normal", mu=0, sigma=1),
+    }
+
+    # Should not raise ModelConfigError
+    result = parse_model_config(
+        model_config, non_distributions=["dropout_covariate_cols"]
+    )
+
+    assert result["dropout_covariate_cols"] == ["channel", "tier"]
+    assert result["alpha"] == Prior("Normal", mu=0, sigma=1)
+
+
+def test_parse_model_config_with_list_not_in_non_distributions() -> None:
+    """Test that lists not in non_distributions are still skipped (defensive check)."""
+    model_config = {
+        "some_list": ["item1", "item2"],
+        "alpha": Prior("Normal", mu=0, sigma=1),
+    }
+
+    # Should not raise ModelConfigError - lists should be skipped even if not in non_distributions
+    result = parse_model_config(model_config)
+
+    assert result["some_list"] == ["item1", "item2"]
+    assert result["alpha"] == Prior("Normal", mu=0, sigma=1)

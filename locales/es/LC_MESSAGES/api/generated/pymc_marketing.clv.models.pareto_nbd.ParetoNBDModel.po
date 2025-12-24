@@ -1,0 +1,839 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:2
+#: 0e42753b47294dfe93946783ab5508fe
+msgid "ParetoNBDModel"
+msgstr "ModeloParetoNBD"
+
+#: 12a8892ab1c744de9b683480bb427052 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel:2
+msgid "Pareto Negative Binomial Model (Pareto/NBD)."
+msgstr "Modelo Binomial Negativo de Pareto (Pareto/NBD)."
+
+#: 4d0f7f9074ce45c0a3d18a37dab27e24 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel:4
+msgid ""
+"Model for continuous, non-contractual customers, first introduced by "
+"Schmittlein et al. [R646f36bbc86f-1]_, with additional derivations and "
+"predictive methods by Hardie & Fader [R646f36bbc86f-2]_ [R646f36bbc86f-3]_ "
+"[R646f36bbc86f-4]_ [R646f36bbc86f-5]_."
+msgstr ""
+"Modelo para clientes continuos y no contractuales, introducido por primera "
+"vez por Schmittlein et al. [R646f36bbc86f-1]_, con derivaciones adicionales "
+"y métodos predictivos de Hardie y Fader [R646f36bbc86f-2]_ "
+"[R646f36bbc86f-3]_ [R646f36bbc86f-4]_ [R646f36bbc86f-5]_."
+
+#: f3506ac56bf04ef58ca3f1ca7a614209 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel:7
+msgid ""
+"The Pareto/NBD model assumes the time duration a customer is active follows "
+"a Gamma distribution, and time between purchases is also Gamma-distributed "
+"while the customer is still active."
+msgstr ""
+"El modelo Pareto/NBD asume que la duración del tiempo en que un cliente está"
+" activo sigue una distribución Gamma, y el tiempo entre compras también se "
+"distribuye de manera Gamma mientras el cliente sigue activo."
+
+#: cb855d8bf4844ac0a439c55f0f57c6b4 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel:10
+msgid ""
+"This model requires data to be summarized by *recency*, *frequency*, and *T*"
+" for each customer, using `clv.rfm_summary()` or equivalent. Covariates "
+"impacting customer dropouts and transaction rates are optional."
+msgstr ""
+"Este modelo requiere que los datos sean resumidos por *recencia*, "
+"*frecuencia* y *T* para cada cliente, utilizando `clv.rfm_summary()` o "
+"equivalente. Las covariables que impactan en la deserción de clientes y las "
+"tasas de transacción son opcionales."
+
+#: 708fe04bbd154beb8cc707d5424ebd43 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 587d6a21957542f4a0eb5efe620c2215 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel:15
+msgid "**data** : :obj:`~pandas.DataFrame`"
+msgstr "**datos** : :obj:`~pandas.DataFrame`"
+
+#: 0b6802b17695436c9357833768d2187c of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel:14
+msgid "DataFrame"
+msgstr "DataFrame"
+
+#: 81dfd112338a49e2991d9b9464672e8b of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel:16
+msgid "DataFrame containing the following columns:"
+msgstr "DataFrame que contiene las siguientes columnas:"
+
+#: 1dfebab146924c06bc70585b8b37304e of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel:18
+msgid "`customer_id`: Unique customer identifier"
+msgstr "`customer_id`: Identificador único del cliente"
+
+#: da65a8b189084e02a52eb0df15a1a12c of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel:19
+msgid "`frequency`: Number of repeat purchases"
+msgstr "`frequency`: Número de compras repetidas"
+
+#: 912ade6d9e084f1bb06600e05c29aeaf of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel:20
+msgid "`recency`: Time between the first and the last purchase"
+msgstr "`recency`: Tiempo entre la primera y la última compra"
+
+#: 1c44bdae7e17436499c28fb3e394439d of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel:21
+msgid ""
+"`T`: Time between the first purchase and the end of the observation period. "
+"Model assumptions require *T >= recency*"
+msgstr ""
+"`T`: Tiempo entre la primera compra y el final del período de observación. "
+"Las suposiciones del modelo requieren *T >= recency*"
+
+#: 0c9c6e8a75da4ab5829a35375bff3091 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel:24
+msgid "Along with optional covariate columns."
+msgstr "Junto con columnas de covariables opcionales."
+
+#: db500bb80165465585e60745f173c0eb of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel:26
+msgid "**model_config** : :class:`python:dict`, optional"
+msgstr "**model_config** : :class:`python:dict`, opcional"
+
+#: 56a6e0dda760494c806f7684972b99aa f9d5edcd9a9e4648bbe27feff1de9b6b of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel:25
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel:39
+msgid "python:dict, optional"
+msgstr "python:dict, opcional"
+
+#: 9a956d4abf984e04ae9c222a8d75c2ca of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel:27
+msgid "Dictionary containing model parameters and covariate column names:"
+msgstr ""
+"Diccionario que contiene parámetros del modelo y nombres de columnas de "
+"covariables:"
+
+#: 9920434e78df4c699c4eae27b44d7058 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel:29
+msgid ""
+"`r`: Shape parameter of time between purchases; defaults to "
+"`Weibull(alpha=2, beta=1)`"
+msgstr ""
+"`r`: Parámetro de forma del tiempo entre compras; por defecto es "
+"`Weibull(alpha=2, beta=1)`"
+
+#: 439343768f5b4fc2a114940b633d16fd of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel:30
+msgid ""
+"`alpha`: Scale parameter of time between purchases; defaults to "
+"`Weibull(alpha=2, beta=10)`"
+msgstr ""
+"`alpha`: Parámetro de escala del tiempo entre compras; por defecto es "
+"`Weibull(alpha=2, beta=10)`"
+
+#: 84c068bf3c0049f2b99fd4d02f5b86e6 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel:31
+msgid ""
+"`s`: Shape parameter of time until dropout; defaults to `Weibull(alpha=2, "
+"beta=1)`"
+msgstr ""
+"`s`: Parámetro de forma del tiempo hasta la caída; por defecto es "
+"`Weibull(alpha=2, beta=1)`"
+
+#: 4ccbf184f17442c6bc1f22b33e180ef6 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel:32
+msgid ""
+"`beta`: Scale parameter of time until dropout; defaults to `Weibull(alpha=2,"
+" beta=10)`"
+msgstr ""
+"`beta`: Parámetro de escala del tiempo hasta la deserción; por defecto es "
+"`Weibull(alpha=2, beta=10)`"
+
+#: fafe825b00b545b9b98e6b05ef0fb53f of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel:33
+msgid ""
+"`purchase_covariates`: Coefficients for purchase rate covariates; defaults "
+"to `Normal(0, 3)`"
+msgstr ""
+"`purchase_covariates`: Coeficientes para covariables de la tasa de compra; "
+"por defecto es `Normal(0, 3)`"
+
+#: 58c5ca8425ca463683f77e37f28e4171 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel:34
+msgid ""
+"`dropout_covariates`: Coefficients for dropout covariates; defaults to "
+"`Normal.dist(0, 3)`"
+msgstr ""
+"`dropout_covariates`: Coeficientes para covariables de abandono; por defecto"
+" es `Normal.dist(0, 3)`"
+
+#: 0a744bc965a647809fc5158e19986274 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel:35
+msgid ""
+"`purchase_covariate_cols`: List containing column names of covariates for "
+"customer purchase rates."
+msgstr ""
+"`purchase_covariate_cols`: Lista que contiene los nombres de las columnas de"
+" covariables para las tasas de compra de los clientes."
+
+#: 9eab24e4ac744be193aa7475287d5c75 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel:36
+msgid ""
+"`dropout_covariate_cols`: List containing column names of covariates for "
+"customer dropouts."
+msgstr ""
+"`dropout_covariate_cols`: Lista que contiene los nombres de las columnas de "
+"covariables para las bajas de clientes."
+
+#: 77439393c1204c5f9227dd4bf2840488 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel:38
+msgid ""
+"If not provided, the model will use default priors specified in the "
+"`default_model_config` class attribute."
+msgstr ""
+"Si no se proporciona, el modelo utilizará los priors predeterminados "
+"especificados en el atributo de clase `default_model_config`."
+
+#: 4691253fa2e74d0e9e69b017860fc42f of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel:40
+msgid "**sampler_config** : :class:`python:dict`, optional"
+msgstr "**sampler_config** : :class:`python:dict`, opcional"
+
+#: 37c6252aa8c647208cdf3aeb9ed937e6 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel:41
+msgid "Dictionary of sampler parameters. Defaults to None."
+msgstr "Diccionario de parámetros del muestreador. Por defecto es None."
+
+#: c5c84db522574f3d910b96ba7e915485 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel:55
+msgid "References"
+msgstr "Referencias"
+
+#: 9ed60ced3858480faee68b3a0528b527 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel:56
+msgid ""
+"David C. Schmittlein, Donald G. Morrison and Richard Colombo. \"Counting "
+"Your Customers: Who Are They and What Will They Do Next\". Management "
+"Science,Vol. 33, No. 1 (Jan., 1987), pp. 1-24."
+msgstr ""
+"David C. Schmittlein, Donald G. Morrison y Richard Colombo. \"Contando a sus"
+" clientes: ¿Quiénes son y qué harán a continuación?\". Management Science, "
+"Vol. 33, No. 1 (ene., 1987), pp. 1-24."
+
+#: 1ac7aa9899cf4f53a66e97145abc408d of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel:59
+msgid ""
+"Fader, Peter & G. S. Hardie, Bruce (2005). \"A Note on Deriving the "
+"Pareto/NBD Model and Related Expressions\". "
+"http://brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf"
+msgstr ""
+"Fader, Peter y G. S. Hardie, Bruce (2005). \"Una nota sobre la derivación "
+"del modelo Pareto/NBD y expresiones relacionadas\". "
+"http://brucehardie.com/notes/009/pareto_nbd_derivations_2005-11-05.pdf"
+
+#: 9e11ccec706349b385123ffc9f332d7b of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel:62
+msgid ""
+"Fader, Peter & G. S. Hardie, Bruce (2014). \"Additional Results for the "
+"Pareto/NBD Model\". "
+"https://www.brucehardie.com/notes/015/additional_pareto_nbd_results.pdf"
+msgstr ""
+"Fader, Peter y G. S. Hardie, Bruce (2014). \"Resultados Adicionales para el "
+"Modelo Pareto/NBD\". "
+"https://www.brucehardie.com/notes/015/additional_pareto_nbd_results.pdf"
+
+#: f2683e92d6284a2793853f92d06484ce of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel:65
+msgid ""
+"Fader, Peter & G. S. Hardie, Bruce (2014). \"Deriving the Conditional PMF of"
+" the Pareto/NBD Model\". "
+"https://www.brucehardie.com/notes/028/pareto_nbd_conditional_pmf.pdf"
+msgstr ""
+"Fader, Peter y G. S. Hardie, Bruce (2014). \"Derivando la PMF Condicional "
+"del Modelo Pareto/NBD\". "
+"https://www.brucehardie.com/notes/028/pareto_nbd_conditional_pmf.pdf"
+
+#: c2133620b56644b6979b0548f35ee484 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel:68
+msgid ""
+"Fader, Peter & G. S. Hardie, Bruce (2007). \"Incorporating Time-Invariant "
+"Covariates into the Pareto/NBD and BG/NBD Models\". "
+"https://www.brucehardie.com/notes/019/time_invariant_covariates.pdf"
+msgstr ""
+"Fader, Peter y G. S. Hardie, Bruce (2007). \"Incorporando covariables "
+"invariantes en el tiempo en los modelos Pareto/NBD y BG/NBD\". "
+"https://www.brucehardie.com/notes/019/time_invariant_covariates.pdf"
+
+#: 0ba9259a32e34f1a87f503843607c19c of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel:74
+msgid ""
+"[R646f36bbc86f-1]_, [R646f36bbc86f-2]_, [R646f36bbc86f-3]_, "
+"[R646f36bbc86f-4]_, [R646f36bbc86f-5]_"
+msgstr ""
+"[R646f36bbc86f-1]_, [R646f36bbc86f-2]_, [R646f36bbc86f-3]_, "
+"[R646f36bbc86f-4]_, [R646f36bbc86f-5]_"
+
+#: a7192e0e44a44c159b5c74d021096a58 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel:77
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:12
+#: 966f1b09e2434bad940db7192508dbb9
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: 1e8682a37e1845f5a875a79f3ff510de
+msgid ""
+":py:obj:`ParetoNBDModel.__init__ "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.__init__>`\\ \\(data\\,"
+" \\*\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`ParetoNBDModel.__init__ "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.__init__>`\\ "
+"\\(datos\\, \\*\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: 297fe261b57a4142b5e453b76ee5ecdc
+msgid ""
+"Initialize model configuration and sampler configuration for the model."
+msgstr ""
+"Inicializar la configuración del modelo y la configuración del muestreador "
+"para el modelo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: 924d89b191dc475aa8bd2ff360fc317e
+msgid ""
+":py:obj:`ParetoNBDModel.attrs_to_init_kwargs "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.attrs_to_init_kwargs>`\\"
+" \\(attrs\\)"
+msgstr ""
+":py:obj:`ParetoNBDModel.attrs_to_init_kwargs "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.attrs_to_init_kwargs>`\\"
+" \\(attrs\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: c5d52b4e3e86471680c5a4368b84c64d
+msgid ""
+"Convert the model configuration and sampler configuration from the "
+"attributes to keyword arguments."
+msgstr ""
+"Convierte la configuración del modelo y la configuración del muestreador de "
+"los atributos a argumentos de palabra clave."
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: 9ee5854be8514f848eb20a680003bc41
+msgid ""
+":py:obj:`ParetoNBDModel.build_from_idata "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.build_from_idata>`\\ "
+"\\(idata\\)"
+msgstr ""
+":py:obj:`ParetoNBDModel.build_from_idata "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.build_from_idata>`\\ "
+"\\(idata\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: 2d4c6cd2a5f94f58800ad70e77820891
+msgid "Build the model from the InferenceData object."
+msgstr "Construya el modelo a partir del objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: 0b74c5c50ea04ce68c48fe2f31d29444
+msgid ""
+":py:obj:`ParetoNBDModel.build_model "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.build_model>`\\ \\(\\)"
+msgstr ""
+":py:obj:`ParetoNBDModel.build_model "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.build_model>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: 72d9230e5c5143319ddb03a5084d0e84
+msgid "Build the model."
+msgstr "Construya el modelo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: 65e95918b3814395a80fd6e66cbb9f0e
+msgid ""
+":py:obj:`ParetoNBDModel.create_idata_attrs "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.create_idata_attrs>`\\ "
+"\\(\\)"
+msgstr ""
+":py:obj:`ParetoNBDModel.create_idata_attrs "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.create_idata_attrs>`\\ "
+"\\(\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: 9a41ff046c2f4adf956806963e665f35
+msgid "Create attributes for the inference data."
+msgstr "Cree atributos para los datos de inferencia."
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: a725546f4b8242a9b5f3dd6acf185a92
+msgid ""
+":py:obj:`ParetoNBDModel.distribution_new_customer "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer>`\\"
+" \\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`ParetoNBDModel.distribution_new_customer "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer>`\\"
+" \\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: 8189564540b440238707dbd7087103ba
+msgid ""
+"Compute posterior predictive samples of dropout, purchase rate and "
+"frequency/recency of new customers."
+msgstr ""
+"Calcule muestras predictivas posteriores de abandono, tasa de compra y "
+"frecuencia/recencia de nuevos clientes."
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: 7b7b2be7ed9e46039072d1d0fcc7d4e9
+msgid ""
+":py:obj:`ParetoNBDModel.distribution_new_customer_dropout "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer_dropout>`\\"
+" \\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`ParetoNBDModel.distribution_new_customer_dropout "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer_dropout>`\\"
+" \\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: 763850ed89f646a9825f24461f0f423d
+msgid ""
+"Sample from the Gamma distribution representing dropout times for new "
+"customers."
+msgstr ""
+"Muestra de la distribución Gamma que representa los tiempos de abandono para"
+" nuevos clientes."
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: b8be84f6bf334e79826ee81f977914c4
+msgid ""
+":py:obj:`ParetoNBDModel.distribution_new_customer_purchase_rate "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer_purchase_rate>`\\"
+" \\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`ParetoNBDModel.distribution_new_customer_purchase_rate "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer_purchase_rate>`\\"
+" \\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: 42009d8986104a638604b3f8ba32f45a
+msgid ""
+"Sample from the Gamma distribution representing purchase rates for new "
+"customers."
+msgstr ""
+"Muestra de la distribución Gamma que representa las tasas de compra para "
+"nuevos clientes."
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: ddc28f6fe62842488ae7df845d007575
+msgid ""
+":py:obj:`ParetoNBDModel.distribution_new_customer_recency_frequency "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer_recency_frequency>`\\"
+" \\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`ParetoNBDModel.distribution_new_customer_recency_frequency "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer_recency_frequency>`\\"
+" \\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: 20c98e62ba9a42d1950845efbced7707
+msgid ""
+"Pareto/NBD process representing purchases across the customer population."
+msgstr ""
+"Proceso Pareto/NBD que representa las compras a través de la población de "
+"clientes."
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: 3e1b6cd693f049239d22acf98c133bf5
+msgid ""
+":py:obj:`ParetoNBDModel.expected_probability_alive "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_probability_alive>`\\"
+" \\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`ParetoNBDModel.expected_probability_alive "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_probability_alive>`\\"
+" \\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: 16068d07246e48a59595c93b2eafbce2
+msgid "Compute expected probability of being alive."
+msgstr "Calcular la probabilidad esperada de estar vivo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: 4a547765dbb145d8a455740ab0f79b09
+msgid ""
+":py:obj:`ParetoNBDModel.expected_purchase_probability "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchase_probability>`\\"
+" \\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`ParetoNBDModel.expected_purchase_probability "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchase_probability>`\\"
+" \\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: c9e4bb5b916b46a59781b26e6145f434
+msgid ""
+"Compute expected probability of *n_purchases* over *future_t* time periods."
+msgstr ""
+"Calcule la probabilidad esperada de *n_purchases* durante *future_t* "
+"períodos de tiempo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: c5ebb9f59deb4ef1b64f34185f45842f
+msgid ""
+":py:obj:`ParetoNBDModel.expected_purchases "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchases>`\\ "
+"\\(\\[data\\, ...\\]\\)"
+msgstr ""
+":py:obj:`ParetoNBDModel.expected_purchases "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchases>`\\ "
+"\\(\\[datos\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: 7e246a395bd449d68905bc0ee53b702f
+msgid "Compute expected number of future purchases."
+msgstr "Calcular el número esperado de compras futuras."
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: 5f5219bd7c40484c8517d8a23695aa03
+msgid ""
+":py:obj:`ParetoNBDModel.expected_purchases_new_customer "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchases_new_customer>`\\"
+" \\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`ParetoNBDModel.expected_purchases_new_customer "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchases_new_customer>`\\"
+" \\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: 3c3b6ebe046540cca4da4fc94067d0f3
+msgid ""
+"Compute the expected number of purchases for a new customer across *t* time "
+"periods."
+msgstr ""
+"Calcule el número esperado de compras para un nuevo cliente a lo largo de "
+"*t* períodos de tiempo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: 48b2accbb71a41d097777e3e2412e605
+msgid ""
+":py:obj:`ParetoNBDModel.fit "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.fit>`\\ \\(\\[method\\,"
+" fit\\_method\\]\\)"
+msgstr ""
+":py:obj:`ParetoNBDModel.fit "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.fit>`\\ \\(\\[método\\,"
+" fit\\_method\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: 1d3a874c5d5d4933b57355f340519ddc
+msgid "Infer posteriors of model parameters to run predictions."
+msgstr ""
+"Inferir los posteriores de los parámetros del modelo para realizar "
+"predicciones."
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: c0cc8131edba4e8d9b18f94230a4110b
+msgid ""
+":py:obj:`ParetoNBDModel.fit_summary "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.fit_summary>`\\ "
+"\\(\\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`ParetoNBDModel.fit_summary "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.fit_summary>`\\ "
+"\\(\\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: 0558bb3096f049c1a30c51ebf9ec55df
+msgid "Compute the summary of the fit result."
+msgstr "Calcule el resumen del resultado del ajuste."
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: a48a31c1dd924a3ea76dd8426fa5bb5c
+msgid ""
+":py:obj:`ParetoNBDModel.graphviz "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.graphviz>`\\ "
+"\\(\\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`ParetoNBDModel.graphviz "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.graphviz>`\\ "
+"\\(\\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: 41fd773c09894689a3506b40f07e66fc
+msgid "Get the graphviz representation of the model."
+msgstr "Obtenga la representación graphviz del modelo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: 5f7e27d8e2fd401c82a2b0ee622ea60e
+msgid ""
+":py:obj:`ParetoNBDModel.idata_to_init_kwargs "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.idata_to_init_kwargs>`\\"
+" \\(idata\\)"
+msgstr ""
+":py:obj:`ParetoNBDModel.idata_to_init_kwargs "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.idata_to_init_kwargs>`\\"
+" \\(idata\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: 357d0f147d074e5fa28718c61bde2cd3
+msgid "Create the initialization kwargs from an InferenceData object."
+msgstr ""
+"Cree los kwargs de inicialización a partir de un objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: 846c8cd4cca646fda1326e380941d035
+msgid ""
+":py:obj:`ParetoNBDModel.load "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.load>`\\ \\(fname\\[\\,"
+" check\\]\\)"
+msgstr ""
+":py:obj:`ParetoNBDModel.load "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.load>`\\ \\(fname\\[\\,"
+" check\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: 7f18300bcfe644308bdb8eedff0e805e
+msgid "Create a ModelBuilder instance from a file."
+msgstr "Cree una instancia de ModelBuilder a partir de un archivo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: d58234b5e0254d76b5b45a46119ab896
+msgid ""
+":py:obj:`ParetoNBDModel.load_from_idata "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.load_from_idata>`\\ "
+"\\(idata\\[\\, check\\]\\)"
+msgstr ""
+":py:obj:`ParetoNBDModel.load_from_idata "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.load_from_idata>`\\ "
+"\\(idata\\[\\, check\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: 4c083b66d6dc4266a05ebdbbdfc5561e
+msgid "Create a ModelBuilder instance from an InferenceData object."
+msgstr ""
+"Cree una instancia de ModelBuilder a partir de un objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: 17aa2fed339e46a88e4c63f3d443bffe
+msgid ""
+":py:obj:`ParetoNBDModel.save "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.save>`\\ \\(fname\\, "
+"\\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`ParetoNBDModel.save "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.save>`\\ \\(fname\\, "
+"\\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: e8cafa3ff3ca4233bba06be2f266df3a
+msgid "Save the model's inference data to a file."
+msgstr "Guarde los datos de inferencia del modelo en un archivo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: de85093005ca4ac984b00d8691ffd11e
+msgid ""
+":py:obj:`ParetoNBDModel.set_idata_attrs "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.set_idata_attrs>`\\ "
+"\\(\\[idata\\]\\)"
+msgstr ""
+":py:obj:`ParetoNBDModel.set_idata_attrs "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.set_idata_attrs>`\\ "
+"\\(\\[idata\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: 966e6f8b7c8a4d7ca59f61dfa1e58e26
+msgid "Set attributes on an InferenceData object."
+msgstr "Establecer atributos en un objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: d7540020385842f5a9530e187cadb933
+msgid ""
+":py:obj:`ParetoNBDModel.table "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.table>`\\ "
+"\\(\\*\\*model\\_table\\_kwargs\\)"
+msgstr ""
+":py:obj:`ParetoNBDModel.table "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.table>`\\ "
+"\\(\\*\\*model\\_table\\_kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: 84524c342e044e579c0f2703b24c561e
+msgid "Get the summary table of the model."
+msgstr "Obtenga la tabla resumen del modelo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: 8dd4608d70bc4db9b499e464b41569fa
+msgid ""
+":py:obj:`ParetoNBDModel.thin_fit_result "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.thin_fit_result>`\\ "
+"\\(keep\\_every\\)"
+msgstr ""
+":py:obj:`ParetoNBDModel.thin_fit_result "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.thin_fit_result>`\\ "
+"\\(keep\\_every\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
+#: f91e510d768849ae894aa09efcefdea8
+msgid "Return a copy of the model with a thinned fit result."
+msgstr "Devuelva una copia del modelo con un resultado de ajuste reducido."
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:46
+#: 628c6b67913b483996e727a3f207b225
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:61:<autosummary>:1
+#: d35b8c83ae8545458538f4dbfcd9e69d
+msgid ""
+":py:obj:`default_model_config "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.default_model_config>`\\"
+msgstr ""
+":py:obj:`default_model_config "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.default_model_config>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:61:<autosummary>:1
+#: 0760ec2cd434437695efbf75076f8dd4
+msgid "Default model configuration."
+msgstr "Configuración de modelo predeterminada."
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:61:<autosummary>:1
+#: 7f0ffb28a86640db9bddeea8a1bca95e
+msgid ""
+":py:obj:`default_sampler_config "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.default_sampler_config>`\\"
+msgstr ""
+":py:obj:`default_sampler_config "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.default_sampler_config>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:61:<autosummary>:1
+#: d8190cb9726041d18ec9d6e062305192
+msgid "Default sampler configuration."
+msgstr "Configuración de muestreador predeterminada."
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:61:<autosummary>:1
+#: e17fb2a9de144101a57476593565dfb4
+msgid ""
+":py:obj:`fit_result "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.fit_result>`\\"
+msgstr ""
+":py:obj:`fit_result "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.fit_result>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:61:<autosummary>:1
+#: 09b78aac6f50474d9c056a776247c51c
+msgid "Get the posterior fit_result."
+msgstr "Obtenga el resultado de ajuste posterior fit_result."
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:61:<autosummary>:1
+#: fe7c2836dd414a31af3183b2998e8c13
+msgid ":py:obj:`id <pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.id>`\\"
+msgstr ":py:obj:`id <pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.id>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:61:<autosummary>:1
+#: e912152f40a1460cba27293c4893bd6e
+msgid "Generate a unique hash value for the model."
+msgstr "Generar un valor hash único para el modelo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:61:<autosummary>:1
+#: c4680c1a16424dafa9df67a1297294a1
+msgid ""
+":py:obj:`posterior "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.posterior>`\\"
+msgstr ""
+":py:obj:`posterior "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.posterior>`\\"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:61:<autosummary>:1
+#: 21f7709b52d84954aad9634f04b8c346
+msgid ""
+":py:obj:`posterior_predictive "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.posterior_predictive>`\\"
+msgstr ""
+":py:obj:`posterior_predictive "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.posterior_predictive>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:61:<autosummary>:1
+#: b335d593d04941d18be81bd4c4589b18
+msgid ""
+":py:obj:`predictions "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.predictions>`\\"
+msgstr ""
+":py:obj:`predicciones "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.predictions>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:61:<autosummary>:1
+#: 47974bb6e2154018a381ccd4bd6cb423
+msgid ""
+":py:obj:`prior "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.prior>`\\"
+msgstr ""
+":py:obj:`prior <pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.prior>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:61:<autosummary>:1
+#: 00d7d7d453c14ef58d85e77fe573afa9
+msgid ""
+":py:obj:`prior_predictive "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.prior_predictive>`\\"
+msgstr ""
+":py:obj:`prior_predictive "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.prior_predictive>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:61:<autosummary>:1
+#: 7d55db46f0e643adb33ba03359969d2c
+msgid ""
+":py:obj:`version "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.version>`\\"
+msgstr ""
+":py:obj:`versión "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.version>`\\"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:61:<autosummary>:1
+#: 5ade1fe951af48c1aa8b58b5d76ae335
+msgid ""
+":py:obj:`idata "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.idata>`\\"
+msgstr ""
+":py:obj:`idata <pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.idata>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:61:<autosummary>:1
+#: f9e40afbe654461e880d92a700f488fb
+msgid ""
+":py:obj:`sampler_config "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.sampler_config>`\\"
+msgstr ""
+":py:obj:`sampler_config "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.sampler_config>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:61:<autosummary>:1
+#: fc313976e80c49749816faaedde36ab7
+msgid ""
+":py:obj:`model_config "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.model_config>`\\"
+msgstr ""
+":py:obj:`model_config "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.model_config>`"

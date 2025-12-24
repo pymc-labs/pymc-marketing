@@ -1,0 +1,69 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.linear_trend.LinearTrend.apply.rst:2
+#: 8cadfebd161b4010ba4d40c1d0e89384
+msgid "LinearTrend.apply"
+msgstr "LinearTrend.aplicar"
+
+#: a83cd078c8694997b8f87c0e7f7c12ff of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.apply:2
+msgid "Create the linear trend for the given x values."
+msgstr "Cree la tendencia lineal para los valores x dados."
+
+#: d0a0ae7f7c6843b089d2acd752db0495 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.apply
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: d590606e7452403f9735d4c956f1924e of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.apply:7
+msgid "**t** : :obj:`pt.TensorLike`"
+msgstr "**t** : :obj:`pt.TensorLike`"
+
+#: d9196a4d452747e1afd4abb000076f57 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.apply:6
+msgid "pt.TensorLike"
+msgstr "pt.TensorComo"
+
+#: ddd077139b0d45619a2ada2e67508d28 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.apply:8
+msgid ""
+"1D array of strictly increasing time values for the trend starting from 0."
+msgstr ""
+"Array 1D de valores de tiempo estrictamente crecientes para la tendencia que"
+" comienza desde 0."
+
+#: 2286d66277d542b88508a1a2f2a08030 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.apply
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: d815e81db7d64338b170b8834ccac4ab of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.apply:14
+msgid ":obj:`pt.TensorVariable`"
+msgstr ":obj:`pt.TensorVariable`"
+
+#: 7a6295c84e6741709506d12298f70185 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.apply:15
+msgid "TensorVariable with the trend values."
+msgstr "TensorVariable con los valores de tendencia."

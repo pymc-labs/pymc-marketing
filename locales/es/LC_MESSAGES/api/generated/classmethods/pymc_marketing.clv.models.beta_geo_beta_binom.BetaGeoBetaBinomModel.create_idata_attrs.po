@@ -1,0 +1,46 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.create_idata_attrs.rst:2
+#: 9904c988e58e422b8683a4cd89e79419
+msgid "BetaGeoBetaBinomModel.create\\_idata\\_attrs"
+msgstr "BetaGeoBetaBinomModel.create\\_idata\\_attrs"
+
+#: bd4ccaa741ec4f19883b56ca2b60dde0 of
+#: pymc_marketing.model_builder.ModelIO.create_idata_attrs:2
+msgid "Create attributes for the inference data."
+msgstr "Cree atributos para los datos de inferencia."
+
+#: 252ae9e0f2384d2bb8d2b8ccc22b802d of
+#: pymc_marketing.model_builder.ModelIO.create_idata_attrs
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 480782e97a6d4c338d5f5c6000e156a5 of
+#: pymc_marketing.model_builder.ModelIO.create_idata_attrs:10
+msgid ":class:`python:dict`\\[:class:`python:str`, :class:`python:str`]"
+msgstr ":class:`python:dict`\\[:class:`python:str`, :class:`python:str`]"
+
+#: eba47663458d4135a55ebfd1a40e8c07 of
+#: pymc_marketing.model_builder.ModelIO.create_idata_attrs:11
+msgid "A dictionary of attributes for the inference data."
+msgstr "Un diccionario de atributos para los datos de inferencia."

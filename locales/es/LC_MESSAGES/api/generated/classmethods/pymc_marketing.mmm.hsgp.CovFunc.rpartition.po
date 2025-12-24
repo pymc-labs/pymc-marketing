@@ -1,0 +1,51 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.hsgp.CovFunc.rpartition.rst:2
+#: d826ab12651d493f951157f9cea8e416
+msgid "CovFunc.rpartition"
+msgstr "CovFunc.rpartition"
+
+#: a7b0d85fc4714ce9b5ca2f644ee05f35 of
+#: pymc_marketing.mmm.hsgp.CovFunc.rpartition:2
+msgid "Partition the string into three parts using the given separator."
+msgstr "Particione la cadena en tres partes utilizando el separador dado."
+
+#: 17aad8cbb5b444c0aafef4110916ea73 of
+#: pymc_marketing.mmm.hsgp.CovFunc.rpartition:4
+msgid ""
+"This will search for the separator in the string, starting at the end. If "
+"the separator is found, returns a 3-tuple containing the part before the "
+"separator, the separator itself, and the part after it."
+msgstr ""
+"Esto buscará el separador en la cadena, comenzando desde el final. Si se "
+"encuentra el separador, devuelve una tupla de 3 elementos que contiene la "
+"parte antes del separador, el separador en sí y la parte después de este."
+
+#: 223919044d94401eb414c629da3c5988 of
+#: pymc_marketing.mmm.hsgp.CovFunc.rpartition:8
+msgid ""
+"If the separator is not found, returns a 3-tuple containing two empty "
+"strings and the original string."
+msgstr ""
+"Si no se encuentra el separador, devuelve una tupla de 3 elementos que "
+"contiene dos cadenas vacías y la cadena original."

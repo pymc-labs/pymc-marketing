@@ -1,0 +1,46 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.customer_choice.nested_logit.NestedLogit.create_idata_attrs.rst:2
+#: 20c59ffd3fbb48a19d7472b032377326
+msgid "NestedLogit.create\\_idata\\_attrs"
+msgstr "NestedLogit.create_idata_attrs"
+
+#: c08a5ceb8e6849a99fe3481ceb90be14 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.create_idata_attrs:2
+msgid "Create the attributes for the InferenceData object."
+msgstr "Cree los atributos para el objeto InferenceData."
+
+#: 295fd9056eb34207858ebc0de7404714 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.create_idata_attrs
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 613bca1b5a924eb4b273748c286805bf of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.create_idata_attrs:10
+msgid ":class:`python:dict`\\[:class:`python:str`, :class:`python:str`]"
+msgstr ":class:`python:dict`\\[:class:`python:str`, :class:`python:str`]"
+
+#: e198e7edf76341f1a0b60c20251ed87f of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.create_idata_attrs:11
+msgid "The attributes for the InferenceData object."
+msgstr "Los atributos del objeto InferenceData."

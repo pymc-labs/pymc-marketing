@@ -1,0 +1,161 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.prior.Censored.rst:2
+#: 33babe3d5b314b5a9124ec92c6d46205
+msgid "Censored"
+msgstr "Censurado"
+
+#: e98d91645d2c4277aa60cb305c6eef38 of pymc_marketing.prior.Censored:2
+msgid "Backwards-compatible wrapper for the CensoredPrior class."
+msgstr "Envoltura compatible hacia atrás para la clase CensoredPrior."
+
+#: ../source/api/generated/pymc_marketing.prior.Censored.rst:12
+#: 6a4342a128c54f7d9e55851da86e64a2
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.prior.Censored.rst:28:<autosummary>:1
+#: c71eac1b8a5a42f9bfbe13d9d10112a1
+msgid ""
+":py:obj:`Censored.__init__ <pymc_marketing.prior.Censored.__init__>`\\ "
+"\\(\\*args\\, \\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`Censored.__init__ <pymc_marketing.prior.Censored.__init__>`\\ "
+"\\(\\*args\\, \\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.prior.Censored.rst:28:<autosummary>:1
+#: 2cd08ae6ba92455dbf25bc0151408b35
+msgid "Initialize the CensoredPrior class with the given arguments."
+msgstr "Inicializa la clase CensoredPrior con los argumentos dados."
+
+#: ../source/api/generated/pymc_marketing.prior.Censored.rst:28:<autosummary>:1
+#: f00b9151163d4a61ac78c81c6ed8d53b
+msgid ""
+":py:obj:`Censored.create_likelihood_variable "
+"<pymc_marketing.prior.Censored.create_likelihood_variable>`\\ \\(name\\, "
+"...\\)"
+msgstr ""
+":py:obj:`Censored.create_likelihood_variable "
+"<pymc_marketing.prior.Censored.create_likelihood_variable>`\\ \\(nombre\\, "
+"...\\)"
+
+#: ../source/api/generated/pymc_marketing.prior.Censored.rst:28:<autosummary>:1
+#: 660f67efa91049d7b95b8962f556edd8
+msgid "Create observed censored variable."
+msgstr "Crear variable censurada observada."
+
+#: ../source/api/generated/pymc_marketing.prior.Censored.rst:28:<autosummary>:1
+#: 45e0d12c37e84f8dacedf9737d36bf76
+msgid ""
+":py:obj:`Censored.create_variable "
+"<pymc_marketing.prior.Censored.create_variable>`\\ \\(name\\)"
+msgstr ""
+":py:obj:`Censored.create_variable "
+"<pymc_marketing.prior.Censored.create_variable>`\\ \\(nombre\\)"
+
+#: ../source/api/generated/pymc_marketing.prior.Censored.rst:28:<autosummary>:1
+#: 1af8a33b2d5a461e9374da3cfd78de10
+msgid "Create censored random variable."
+msgstr "Crear variable aleatoria censurada."
+
+#: ../source/api/generated/pymc_marketing.prior.Censored.rst:28:<autosummary>:1
+#: 700c12fc0f894ac29e697fbdac6fbec4
+msgid ""
+":py:obj:`Censored.from_dict <pymc_marketing.prior.Censored.from_dict>`\\ "
+"\\(data\\)"
+msgstr ""
+":py:obj:`Censored.from_dict <pymc_marketing.prior.Censored.from_dict>`\\ "
+"\\(datos\\)"
+
+#: ../source/api/generated/pymc_marketing.prior.Censored.rst:28:<autosummary>:1
+#: 539f573e33744828ae5de5022e16c896
+msgid "Create a censored distribution from a dictionary."
+msgstr "Cree una distribución censurada a partir de un diccionario."
+
+#: ../source/api/generated/pymc_marketing.prior.Censored.rst:28:<autosummary>:1
+#: 07fe794b7e3243f397c123cdcb431898
+msgid ""
+":py:obj:`Censored.sample_prior "
+"<pymc_marketing.prior.Censored.sample_prior>`\\ \\(\\[coords\\, name\\]\\)"
+msgstr ""
+":py:obj:`Censored.sample_prior "
+"<pymc_marketing.prior.Censored.sample_prior>`\\ \\(\\[coords\\, name\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.prior.Censored.rst:28:<autosummary>:1
+#: 6ffe14cba53947bf8dd4bc32cf175404
+msgid "Sample the prior distribution for the variable."
+msgstr "Muestre la distribución previa para la variable."
+
+#: ../source/api/generated/pymc_marketing.prior.Censored.rst:28:<autosummary>:1
+#: cfa184e1665d4e8cb65340dc1d07b0bc
+msgid ":py:obj:`Censored.to_dict <pymc_marketing.prior.Censored.to_dict>`\\ \\(\\)"
+msgstr ":py:obj:`Censored.to_dict <pymc_marketing.prior.Censored.to_dict>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.prior.Censored.rst:28:<autosummary>:1
+#: 228015d5367845f0a14f6d200e20f93d
+msgid "Convert the censored distribution to a dictionary."
+msgstr "Convierte la distribución censurada a un diccionario."
+
+#: ../source/api/generated/pymc_marketing.prior.Censored.rst:28:<autosummary>:1
+#: b53cabfbbdee4599b36a7b674667c2a3
+msgid ""
+":py:obj:`Censored.to_graph <pymc_marketing.prior.Censored.to_graph>`\\ "
+"\\(\\)"
+msgstr ""
+":py:obj:`Censored.to_graph <pymc_marketing.prior.Censored.to_graph>`\\ "
+"\\(\\)"
+
+#: ../source/api/generated/pymc_marketing.prior.Censored.rst:28:<autosummary>:1
+#: b770267ecc8846948d8de82233ad9764
+msgid "Generate a graph of the variables."
+msgstr "Generar un gráfico de las variables."
+
+#: ../source/api/generated/pymc_marketing.prior.Censored.rst:30
+#: 5ba5d741a59947889407fa8a1f55dadb
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.prior.Censored.rst:36:<autosummary>:1
+#: 99d776090a1043fe98ac62ef030baa05
+msgid ":py:obj:`dims <pymc_marketing.prior.Censored.dims>`\\"
+msgstr ":py:obj:`dims <pymc_marketing.prior.Censored.dims>`"
+
+#: ../source/api/generated/pymc_marketing.prior.Censored.rst:36:<autosummary>:1
+#: e6ab921fc7e64ec49a8957aed61b5962
+msgid "The dims from the distribution to censor."
+msgstr "Los tonos de la distribución para censurar."
+
+#: ../source/api/generated/pymc_marketing.prior.Censored.rst:36:<autosummary>:1
+#: 1cb3703a3cfa4d4bb35f7490b6cb0f26
+msgid ":py:obj:`lower <pymc_marketing.prior.Censored.lower>`\\"
+msgstr ":py:obj:`lower <pymc_marketing.prior.Censored.lower>`"
+
+#: ../source/api/generated/pymc_marketing.prior.Censored.rst:36:<autosummary>:1
+#: b28cf2d573394b03bc01e19998367605
+msgid ":py:obj:`upper <pymc_marketing.prior.Censored.upper>`\\"
+msgstr ":py:obj:`upper <pymc_marketing.prior.Censored.upper>`"
+
+#: ../source/api/generated/pymc_marketing.prior.Censored.rst:36:<autosummary>:1
+#: b699f2fed0234214881cd0cedaaa6c94
+msgid ":py:obj:`distribution <pymc_marketing.prior.Censored.distribution>`\\"
+msgstr ":py:obj:`distribución <pymc_marketing.prior.Censored.distribución>`\\"

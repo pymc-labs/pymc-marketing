@@ -1,0 +1,129 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.bass.model.F.rst:2
+#: 31bac366d9fa4f96b716108829311d2e
+msgid "f"
+msgstr "f"
+
+#: 4173dd8e6542481085feec66ff90f4d2 of pymc_marketing.bass.model.f:2
+msgid "Installed base fraction rate of change (adoption rate)."
+msgstr ""
+"Tasa de cambio de la fracción de la base instalada (tasa de adopción)."
+
+#: 4babd686350d45faba03cd04003a8231 of pymc_marketing.bass.model.f:4
+msgid ""
+"This function calculates the rate of new adoptions at time t as a proportion"
+" of the potential market. It represents the probability density function of "
+"adoption time."
+msgstr ""
+"Esta función calcula la tasa de nuevas adopciones en el tiempo t como una "
+"proporción del mercado potencial. Representa la función de densidad de "
+"probabilidad del tiempo de adopción."
+
+#: abf477ebd40e4627bc3327b7df05f59f of pymc_marketing.bass.model.f
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: c327616034ec4b67b319a8f82e1fd0cf of pymc_marketing.bass.model.f:10
+msgid ""
+"**p** : :class:`python:float` or :class:`~pytensor.tensor.TensorVariable`"
+msgstr ""
+"**p** : :class:`python:float` o :class:`~pytensor.tensor.TensorVariable`"
+
+#: 782f27a03b2e4722bedc254ecee56ef9 b18bc88ba5cb4b8fa0b65625293f6e2f of
+#: pymc_marketing.bass.model.f:9 pymc_marketing.bass.model.f:12
+msgid "python:float or TensorVariable"
+msgstr "python:float o TensorVariable"
+
+#: d550b2bb872247a396cba5108a73b890 of pymc_marketing.bass.model.f:11
+msgid "Coefficient of innovation (external influence)"
+msgstr "Coeficiente de innovación (influencia externa)"
+
+#: 8be81f1d602c4da6a92766c4adc3b694 of pymc_marketing.bass.model.f:13
+msgid ""
+"**q** : :class:`python:float` or :class:`~pytensor.tensor.TensorVariable`"
+msgstr ""
+"**q** : :class:`python:float` o :class:`~pytensor.tensor.TensorVariable`"
+
+#: 6e1fa87044254648b78f4aed7fddd85a of pymc_marketing.bass.model.f:14
+msgid "Coefficient of imitation (internal influence)"
+msgstr "Coeficiente de imitación (influencia interna)"
+
+#: ea469e7903c64c658a087b0a3c235f2b of pymc_marketing.bass.model.f:16
+msgid ""
+"**t** : :term:`numpy:array_like` or :class:`~pytensor.tensor.TensorVariable`"
+msgstr ""
+"**t** : :term:`numpy:array_like` o :class:`~pytensor.tensor.TensorVariable`"
+
+#: 626c68bc06af475a8d9af6b628a2b9f2 of pymc_marketing.bass.model.f:15
+msgid "numpy:array_like or TensorVariable"
+msgstr "numpy:array_like o TensorVariable"
+
+#: abaa8677306448f4afe4c85e2fd85b38 of pymc_marketing.bass.model.f:17
+msgid "Time points"
+msgstr "Puntos de tiempo"
+
+#: 4a462ca473dc44e3a9778c2ed00e0a27 of pymc_marketing.bass.model.f
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 505be03ce54d4e90a3aba0d907c05069 of pymc_marketing.bass.model.f:23
+msgid ":class:`~pytensor.tensor.TensorVariable`"
+msgstr ":class:`~pytensor.tensor.TensorVariable`"
+
+#: 3e1e5469a8c747599e11ef8dbd3b294c of pymc_marketing.bass.model.f:24
+msgid "The adoption rate at each time point as a fraction of potential market"
+msgstr ""
+"La tasa de adopción en cada punto en el tiempo como una fracción del mercado"
+" potencial"
+
+#: 48ce980a3081479e9cea24114deba925 of pymc_marketing.bass.model.f:34
+msgid "Notes"
+msgstr "Notas"
+
+#: d2bf0bc95e414c919dbbe4184f41b9f7 of pymc_marketing.bass.model.f:35
+msgid "This is the derivative of F(t) with respect to time:"
+msgstr "Esta es la derivada de F(t) con respecto al tiempo:"
+
+#: aec5eaeb108540a4a960ea1ed08a865c of pymc_marketing.bass.model.f:37
+msgid ""
+"f(t) = \\frac{(p+q)^2 \\cdot e^{-(p+q)t}}{p \\cdot "
+"(1+\\frac{q}{p}e^{-(p+q)t})^2}"
+msgstr ""
+"f(t) = \\frac{(p+q)^2 \\cdot e^{-(p+q)t}}{p \\cdot "
+"(1+\\frac{q}{p}e^{-(p+q)t})^2}"
+
+#: 03a33d072fb6479e91e25118a37e6c06 of pymc_marketing.bass.model.f:41
+msgid "Alternatively:"
+msgstr "Alternativamente:"
+
+#: 702bc4546878484b9750ddae4db7f106 of pymc_marketing.bass.model.f:43
+msgid "f(t) = (p + q \\cdot F(t)) \\cdot (1 - F(t))"
+msgstr "f(t) = (p + q \\cdot F(t)) \\cdot (1 - F(t))"
+
+#: e29756ecf15144d095946af5c624ef82 of pymc_marketing.bass.model.f:47
+#, python-brace-format
+msgid "The peak adoption rate occurs at time :math:`t^* = \\frac{\\ln(q/p)}{p+q}`"
+msgstr ""
+"La tasa máxima de adopción ocurre en el tiempo :math:`t^* = "
+"\\frac{\\ln(q/p)}{p+q}`"

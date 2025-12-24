@@ -1,0 +1,277 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/guide/customer_choice/incrementality_intro.md:1
+#: 0d75499cefd741e9847f2b561e9d1346
+msgid "Introduction to causal product incrementality analysis"
+msgstr "Introducción al análisis de incrementabilidad causal del producto"
+
+#: ../source/guide/customer_choice/incrementality_intro.md:3
+#: 4cb5f6d0f4e94d0ebaf18dd856d12132
+msgid ""
+"Let's say your company sells many products into a busy market with many "
+"competitors. Over time, both you and your competitors have been releasing "
+"new products and discontinuing old ones. Your goal, depending on your "
+"company’s strategy, might be to increase market share, sales volume, or "
+"profit margins."
+msgstr ""
+"Supongamos que su empresa vende muchos productos en un mercado concurrido "
+"con muchos competidores. Con el tiempo, tanto usted como sus competidores "
+"han estado lanzando nuevos productos y descontinuando los antiguos. Su "
+"objetivo, dependiendo de la estrategia de su empresa, podría ser aumentar la"
+" cuota de mercado, el volumen de ventas o los márgenes de beneficio."
+
+#: ../source/guide/customer_choice/incrementality_intro.md:5
+#: 50ca862be81548aabf47e7c00a503b5d
+msgid ""
+"One way this is typically done is by releasing new products that you believe"
+" will appeal to customers more than your competitors’ products. But how do "
+"you know if your new products are successful? If your new product sells, "
+"those sales could be coming from a variety of sources:"
+msgstr ""
+"Una forma en que esto se hace típicamente es lanzando nuevos productos que "
+"crees que atraerán más a los clientes que los productos de tus competidores."
+" Pero, ¿cómo sabes si tus nuevos productos son exitosos? Si tu nuevo "
+"producto se vende, esas ventas podrían provenir de una variedad de fuentes:"
+
+#: ../source/guide/customer_choice/incrementality_intro.md:6
+#: ba0a40bcdc5149bb93771f78144b2b47
+msgid ""
+"**Market growth**: These are sales that come from new customers entering the"
+" market. This would be a desirable outcome."
+msgstr ""
+"**Crecimiento del mercado**: Estas son ventas que provienen de nuevos "
+"clientes que ingresan al mercado. Este sería un resultado deseable."
+
+#: ../source/guide/customer_choice/incrementality_intro.md:7
+#: a4b3a22392c149d8a0abb15137b13cc6
+msgid ""
+"**Incremental sales**: These are sales that come from customers who would "
+"have bought a competitor’s product if you hadn’t released your new product. "
+"This is also a good outcome."
+msgstr ""
+"**Ventas incrementales**: Estas son ventas que provienen de clientes que "
+"habrían comprado un producto de la competencia si no hubieras lanzado tu "
+"nuevo producto. Este también es un buen resultado."
+
+#: ../source/guide/customer_choice/incrementality_intro.md:8
+#: 3e1d859ba8024173b571520f7fa0a133
+msgid ""
+"**Cannibalistic sales**: These sales have come from customers who would have"
+" bought one of your existing products if you hadn’t released your new "
+"product. So while the new product's sales are non-zero, they are "
+"cannibalizing sales from your existing products."
+msgstr ""
+"**Ventas canibalísticas**: Estas ventas provienen de clientes que habrían "
+"comprado uno de tus productos existentes si no hubieras lanzado tu nuevo "
+"producto. Así que, aunque las ventas del nuevo producto son mayores a cero, "
+"están canibalizando las ventas de tus productos existentes."
+
+#: ../source/guide/customer_choice/incrementality_intro.md:10
+#: 0992106ba01d47e48fe0d9161e8f47e1
+msgid ""
+"So we can imagine a busy marketplace of products, where each product has a "
+"certain number of sales. We also have many new products being released and "
+"old products being discontinued."
+msgstr ""
+"Así que podemos imaginar un mercado ocupado de productos, donde cada "
+"producto tiene un cierto número de ventas. También tenemos muchos productos "
+"nuevos siendo lanzados y productos antiguos siendo descontinuados."
+
+#: ../source/guide/customer_choice/incrementality_intro.md:12
+#: 9eec1ac4b6d641eebfec3987ac40b9e4
+msgid ""
+"In an effort to understand where sales are coming from we may have purchased"
+" retail sales data which gives us time series data on the sales of all "
+"products in the market. But how can we use this data to understand where our"
+" sales are coming from?"
+msgstr ""
+"En un esfuerzo por entender de dónde provienen las ventas, es posible que "
+"hayamos comprado datos de ventas minoristas que nos proporcionan datos de "
+"series temporales sobre las ventas de todos los productos en el mercado. "
+"Pero, ¿cómo podemos utilizar estos datos para entender de dónde provienen "
+"nuestras ventas?"
+
+#: ../source/guide/customer_choice/incrementality_intro.md:14
+#: b9286bab11bc4386b65eb94d4335f716
+msgid ""
+"If we can do this, then we could gain valuable insights that could inform "
+"our company’s product portfolio decisions. For example, we could:"
+msgstr ""
+"Si podemos hacer esto, entonces podríamos obtener información valiosa que "
+"podría informar las decisiones sobre el portafolio de productos de nuestra "
+"empresa. Por ejemplo, podríamos:"
+
+#: ../source/guide/customer_choice/incrementality_intro.md:15
+#: 286fd62e777b41cab1e209b9079eccd1
+msgid "Understand which products are driving market growth"
+msgstr "Entiende qué productos están impulsando el crecimiento del mercado"
+
+#: ../source/guide/customer_choice/incrementality_intro.md:16
+#: 7dee3ba1d73a48dd9cc40c735de5a980
+msgid ""
+"Understand which products are incremental, taking sales from competitors"
+msgstr ""
+"Entiende cuáles productos son incrementales, tomando ventas de competidores."
+
+#: ../source/guide/customer_choice/incrementality_intro.md:17
+#: 15a816d4e8f24e64a5159488c55ee836
+msgid "Understand which products are cannibalizing sales from other products"
+msgstr ""
+"Entiende qué productos están canibalizando las ventas de otros productos"
+
+#: ../source/guide/customer_choice/incrementality_intro.md:19
+#: f5138a6b50cd488992833d0ad52d27eb
+msgid ""
+"We might be tempted to think of cannibalistic sales as 'bad'. But this need "
+"not be the case, it depends entirely on your product strategy. For example, "
+"it could be that you want to constantly improve your product line up, "
+"releasing products with better attributes which are superior to competitors."
+" In this case, you would expect sales of older products to decrease as "
+"customers switch to the new products. This can be a desirable outcome."
+msgstr ""
+"Podríamos sentirnos tentados a pensar que las ventas canibalísticas son "
+"'malas'. Pero esto no tiene por qué ser así, depende completamente de tu "
+"estrategia de producto. Por ejemplo, podría ser que quieras mejorar "
+"constantemente tu línea de productos, lanzando productos con mejores "
+"atributos que son superiores a los de la competencia. En este caso, "
+"esperarías que las ventas de productos más antiguos disminuyan a medida que "
+"los clientes cambien a los nuevos productos. Este puede ser un resultado "
+"deseable."
+
+#: ../source/guide/customer_choice/incrementality_intro.md:21
+#: 9c0d944eda384724939db2fc21d45219
+msgid "Causal inference in product incrementality"
+msgstr "Inferencia causal en la incrementalidad del producto"
+
+#: ../source/guide/customer_choice/incrementality_intro.md:23
+#: d38b4ea288534fe19749246980def89b
+msgid ""
+"Let's develop the basic logic behind a causal understanding of product "
+"incrementality. We will use a simple example to illustrate the key concepts."
+msgstr ""
+"Desarrollemos la lógica básica detrás de una comprensión causal de la "
+"incrementalidad del producto. Usaremos un ejemplo simple para ilustrar los "
+"conceptos clave."
+
+#: ../source/guide/customer_choice/incrementality_intro.md:25
+#: 148827dcbbc04605a6bc6527d5b83507
+msgid ""
+"In the plot below we have a period of time before we release a new product. "
+"We can see that sales of products A, B, and C are stable (yes this is a "
+"simplification!). But half way through our time period we release a new "
+"product and we can see that it sells reasonable volumes. The question is, "
+"where are these sales coming from? ![](inc_simple.png)"
+msgstr ""
+"En el gráfico a continuación tenemos un período de tiempo antes de lanzar un"
+" nuevo producto. Podemos ver que las ventas de los productos A, B y C son "
+"estables (¡sí, esta es una simplificación!). Pero a mitad de nuestro período"
+" de tiempo lanzamos un nuevo producto y podemos ver que vende volúmenes "
+"razonables. La pregunta es, ¿de dónde provienen estas ventas? "
+"![](inc_simple.png)"
+
+#: ../source/guide/customer_choice/incrementality_intro.md:28
+#: 8da0107d910e447c9a1d8a16f5419fbe
+msgid ""
+"In this simplified example we could look at how the sales of existing "
+"products change, and infer where the sales of the new products came from. In"
+" this case we can see that the sales of product A and C have decreased "
+"(right at the time of the new product introduction) and so we could "
+"reasonably claim that the sales of the new product are cannibalizing sales "
+"from products A and C."
+msgstr ""
+"En este ejemplo simplificado podríamos observar cómo cambian las ventas de "
+"los productos existentes e inferir de dónde provienen las ventas de los "
+"nuevos productos. En este caso, podemos ver que las ventas del producto A y "
+"C han disminuido (justo en el momento de la introducción del nuevo producto)"
+" y por lo tanto podríamos afirmar razonablemente que las ventas del nuevo "
+"producto están canibalizando las ventas de los productos A y C."
+
+#: ../source/guide/customer_choice/incrementality_intro.md:30
+#: 78ab7d7c5e1043fabd8adf3b9cf368d9
+msgid ""
+"To be more precise, we aren't really able to make this causal inference "
+"based on the sales data _before_ new product introduction. Instead, we do it"
+" by comparing the actual product sales after the new product introduction to"
+" a counterfactual scenario where the new product was not introduced. This is"
+" the essence of causal inference in product incrementality. The question is "
+"how do we calculate the counterfactual sales?"
+msgstr ""
+"Para ser más precisos, realmente no podemos hacer esta inferencia causal "
+"basada en los datos de ventas _antes_ de la introducción del nuevo producto."
+" En cambio, lo hacemos comparando las ventas reales del producto después de "
+"la introducción del nuevo producto con un escenario contrafactual donde el "
+"nuevo producto no fue introducido. Esta es la esencia de la inferencia "
+"causal en la incrementalidad del producto. La pregunta es, ¿cómo calculamos "
+"las ventas contrafactuales?"
+
+#: ../source/guide/customer_choice/incrementality_intro.md:32
+#: 1863d3184c4b444fbc219797fc2fdf22
+msgid "![](inc_counterfactual.png)"
+msgstr "![](inc_counterfactual.png)"
+
+#: ../source/guide/customer_choice/incrementality_intro.md:34
+#: 2394f959d62a4ddaa2c6ae68def043d3
+msgid ""
+"In the trivially simple example above where sales are highly stable over "
+"time, we can do this with simple visual extrapolation. But in the real "
+"world, sales data will be noisy, exhibit seasonality, perhaps with some "
+"underlying trend, changes in prices, and marketing campaigns by you and your"
+" competitors and so on."
+msgstr ""
+"En el ejemplo trivialmente simple anterior donde las ventas son altamente "
+"estables a lo largo del tiempo, podemos hacer esto con una simple "
+"extrapolación visual. Pero en el mundo real, los datos de ventas serán "
+"ruidosos, exhibirán estacionalidad, quizás con alguna tendencia subyacente, "
+"cambios en los precios, y campañas de marketing por parte de usted y sus "
+"competidores, y así sucesivamente."
+
+#: ../source/guide/customer_choice/incrementality_intro.md:36
+#: bbbea088092440f38bfd06301d308714
+msgid ""
+"In fact, in many markets it is likely even more complex. We might not be "
+"able to neatly isolate time periods around new product introductions. We "
+"might have multiple new products being introduced at the same (or nearly the"
+" same) time."
+msgstr ""
+"De hecho, en muchos mercados es probable que sea aún más complejo. Puede que"
+" no podamos aislar de manera ordenada los períodos de tiempo en torno a las "
+"introducciones de nuevos productos. Puede que tengamos múltiples nuevos "
+"productos siendo introducidos al mismo (o casi el mismo) tiempo."
+
+#: ../source/guide/customer_choice/incrementality_intro.md:38
+#: 27956c73c1ce45fabb9a01a8f8e7e274
+msgid "![](inc_complex.png)"
+msgstr "![](inc_complex.png)"
+
+#: ../source/guide/customer_choice/incrementality_intro.md:40
+#: 82c05ea4bd344ac2b3402d0ebc33cf43
+msgid ""
+"All of this added complexity will make it non-trivial to infer the causal "
+"impact of new products on existing products. The complexity of the product "
+"environment will need to be matched by a causal modeling strategy that can "
+"handle this complexity."
+msgstr ""
+"Toda esta complejidad añadida hará que no sea trivial inferir el impacto "
+"causal de nuevos productos sobre los productos existentes. La complejidad "
+"del entorno del producto deberá ser igualada por una estrategia de modelado "
+"causal que pueda manejar esta complejidad."

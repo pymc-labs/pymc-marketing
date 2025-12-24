@@ -23,6 +23,14 @@ from lifetimes import ParetoNBDFitter as PF
 from lifetimes.generate_data import beta_geometric_beta_binom_model
 from numpy.testing import assert_almost_equal
 from pymc import Model
+from pymc.logprob.utils import ParameterValueError
+from pymc.testing import (
+    BaseTestDistributionRandom,
+    Nat,
+    Rplus,
+    assert_support_point_is_expected,
+    check_selfconsistency_discrete_logcdf,
+)
 
 from pymc_marketing.clv.distributions import (
     BetaGeoBetaBinom,
@@ -31,6 +39,7 @@ from pymc_marketing.clv.distributions import (
     ContNonContract,
     ModifiedBetaGeoNBD,
     ParetoNBD,
+    ShiftedBetaGeometric,
 )
 
 
@@ -770,3 +779,133 @@ class TestModifiedBetaGeoNBD:
 
         with pytest.raises(NotImplementedError):
             pm.logp(dist, invalid_value)
+
+
+class TestShiftedBetaGeometric:
+    class TestRandomVariable(BaseTestDistributionRandom):
+        pymc_dist = ShiftedBetaGeometric
+        pymc_dist_params = {"alpha": 1.0, "beta": 1.0}
+        expected_rv_op_params = {"alpha": 1.0, "beta": 1.0}
+        tests_to_run = [
+            "check_pymc_params_match_rv_op",
+            "check_rv_size",
+        ]
+
+        def test_random_basic_properties(self):
+            """Test basic random sampling properties"""
+            # Test with standard parameter values
+            alpha_vals = [1.0, 0.5, 2.0]
+            beta_vals = [0.5, 1.0, 2.0]
+
+            for alpha in alpha_vals:
+                for beta in beta_vals:
+                    dist = self.pymc_dist.dist(alpha=alpha, beta=beta, size=1000)
+                    draws = dist.eval()
+
+                    # Check basic properties
+                    assert np.all(draws > 0)
+                    assert np.all(draws.astype(int) == draws)
+                    assert np.mean(draws) > 0
+                    assert np.var(draws) >= 0
+
+        def test_random_edge_cases(self):
+            """Test with very small and large beta and alpha values"""
+            beta_vals = [1e10, 1e-10]
+            alpha_vals = [1e10, 1e-10]
+
+            for beta in beta_vals:
+                for alpha in alpha_vals:
+                    dist = self.pymc_dist.dist(alpha=alpha, beta=beta, size=1000)
+                    draws = dist.eval()
+
+                    # Check basic properties
+                    assert np.all(draws > 0)
+                    assert np.all(draws.astype(int) == draws)
+                    assert np.mean(draws) >= 1
+                    assert np.var(draws) >= 0
+
+    def test_logp(self):
+        alpha = pt.scalar("alpha")
+        beta = pt.scalar("beta")
+        value = pt.vector(dtype="int64")
+
+        # Compile logp function for testing
+        dist = ShiftedBetaGeometric.dist(alpha, beta)
+        logp = pm.logp(dist, value)
+        logp_fn = pytensor.function([value, alpha, beta], logp)
+
+        # Test basic properties of logp
+        test_value = np.array([1, 2, 3, 4, 5])
+        logp_vals = logp_fn(test_value, 1.2, 3.4)
+        assert not np.any(np.isnan(logp_vals))
+        assert np.all(np.isfinite(logp_vals))
+
+        neg_value = np.array([-1], dtype="int64")
+        assert logp_fn(neg_value, alpha=5, beta=1)[0] == -np.inf
+
+        # Check alpha/beta restrictions
+        valid_value = np.array([1], dtype="int64")
+        with pytest.raises(ParameterValueError):
+            logp_fn(valid_value, alpha=-1, beta=2)  # invalid neg alpha
+        with pytest.raises(ParameterValueError):
+            logp_fn(valid_value, alpha=0, beta=0)  # invalid zero alpha and beta
+        with pytest.raises(ParameterValueError):
+            logp_fn(valid_value, alpha=1, beta=-1)  # invalid neg beta
+
+    def test_logp_matches_paper(self):
+        # Reference: Fader & Hardie (2007), Appendix B (Figure B1, cells B6:B12)
+        # https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf
+        alpha = 1.0
+        beta = 1.0
+        t_vec = np.array([1, 2, 3, 4, 5, 6, 7], dtype="int64")
+        p_t = np.array([0.5, 0.167, 0.083, 0.05, 0.033, 0.024, 0.018], dtype="float64")
+        expected = np.log(p_t)
+
+        alpha_ = pt.scalar("alpha")
+        beta_ = pt.scalar("beta")
+        value = pt.vector(dtype="int64")
+        logp = pm.logp(ShiftedBetaGeometric.dist(alpha_, beta_), value)
+        logp_fn = pytensor.function([value, alpha_, beta_], logp)
+        np.testing.assert_allclose(logp_fn(t_vec, alpha, beta), expected, rtol=1e-2)
+
+    def test_logcdf(self):
+        check_selfconsistency_discrete_logcdf(
+            distribution=ShiftedBetaGeometric,
+            domain=Nat,
+            paramdomains={"alpha": Rplus, "beta": Rplus},
+        )
+
+    @pytest.mark.parametrize(
+        "alpha, beta, size, expected_shape",
+        [
+            (1.0, 1.0, None, ()),  # Scalar output
+            ([1.0, 2.0], 1.0, None, (2,)),  # Vector output from alpha
+            (1.0, [1.0, 2.0], None, (2,)),  # Vector output from beta
+            ([1.0, 2.0], [1.0, 2.0], None, (2,)),  # Vector output from alpha and beta
+            (
+                1.0,
+                [1.0, 2.0],
+                (1, 2),
+                (1, 2),
+            ),  # Explicit size with scalar alpha and vector beta
+        ],
+    )
+    def test_support_point(self, alpha, beta, size, expected_shape):
+        """Test that support_point returns reasonable values with correct shapes"""
+        with pm.Model() as model:
+            ShiftedBetaGeometric("x", alpha=alpha, beta=beta, size=size)
+
+        init_point = model.initial_point()["x"]
+
+        # Check shape
+        assert init_point.shape == expected_shape
+
+        # Check values are positive integers
+        assert np.all(init_point > 0)
+        assert np.all(init_point.astype(int) == init_point)
+
+        # Check values are finite and reasonable
+        assert np.all(np.isfinite(init_point))
+        assert np.all(init_point < 1e6)  # Should not be extremely large
+
+        assert_support_point_is_expected(model, init_point)

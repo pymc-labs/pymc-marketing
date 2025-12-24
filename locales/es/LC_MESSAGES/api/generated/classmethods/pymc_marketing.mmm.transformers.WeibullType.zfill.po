@@ -1,0 +1,40 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.transformers.WeibullType.zfill.rst:2
+#: fe905be990f64a2c9c4348a708c9f961
+msgid "WeibullType.zfill"
+msgstr "WeibullType.zfill"
+
+#: 831c991847fa4bb0bbca4f725f42c67c of
+#: pymc_marketing.mmm.transformers.WeibullType.zfill:2
+msgid ""
+"Pad a numeric string with zeros on the left, to fill a field of the given "
+"width."
+msgstr ""
+"Rellene una cadena numérica con ceros a la izquierda para completar un campo"
+" del ancho dado."
+
+#: 4ce4e3e591344819a3fb086849842bdc of
+#: pymc_marketing.mmm.transformers.WeibullType.zfill:4
+msgid "The string is never truncated."
+msgstr "La cadena nunca se trunca."

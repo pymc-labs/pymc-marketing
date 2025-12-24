@@ -1,0 +1,332 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb:10003
+#: 46079da445db4a14b2fbbf8917654750
+msgid "Time-Slice-Cross-Validation and Parameter Stability"
+msgstr ""
+"Validación cruzada por segmentos de tiempo y estabilidad de parámetros"
+
+#: ../source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb:10005
+#: 6990cc2503c041639aaccad19ae9778f
+msgid ""
+"In this notebook we will illustrate how to perform time-slice cross "
+"validation for a media mix model. This is an important step to evaluate the "
+"stability and quality of the model. We not only look into out of sample "
+"predictions but also the stability of the model parameters."
+msgstr ""
+"En este cuaderno, ilustramos cómo realizar la validación cruzada por "
+"segmentos de tiempo para un modelo de mezcla de medios. Este es un paso "
+"importante para evaluar la estabilidad y calidad del modelo. No solo "
+"analizamos las predicciones fuera de muestra, sino también la estabilidad de"
+" los parámetros del modelo."
+
+#: ../source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb:20002
+#: 5d76a39c6b39494594eec7c3f66da46a
+msgid "Prepare Notebook"
+msgstr "Preparar el cuaderno"
+
+#: ../source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb:50002
+#: 264fa3c0fc0844e39cb474e1b6ec90ff
+msgid "Read Data"
+msgstr "Leer Datos"
+
+#: ../source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb:50004
+#: 74b53df96fb24ecf836fcce846181e4f
+#, python-brace-format
+msgid "We use the same data as in the example notebook {ref}`mmm_example`."
+msgstr ""
+"Utilizamos los mismos datos que en el cuaderno de ejemplo "
+"{ref}`mmm_example`."
+
+#: ../source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb:70002
+#: 6b81a649e59741dc9c3268df4f2723a3
+msgid "Specify Time-Slice-Cross-Validation Strategy"
+msgstr ""
+"Especificar la estrategia de validación cruzada por segmentos de tiempo"
+
+#: ../source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb:70004
+#: 20e295e0a63d404e89c98e8d1e06b29c
+msgid ""
+"The main idea of the time-slice cross validation process is to fit the model"
+" on a time slice of the data and then evaluate it on the next time slice. We"
+" repeat this process for each time slice of the data. As we want to simulate"
+" a production-like environment where we enlarge our training data over time,"
+" we make the time-slice size grow over time."
+msgstr ""
+"La idea principal del proceso de validación cruzada por segmentos de tiempo "
+"es ajustar el modelo en un segmento de tiempo de los datos y luego evaluarlo"
+" en el siguiente segmento de tiempo. Repetimos este proceso para cada "
+"segmento de tiempo de los datos. Como queremos simular un entorno similar al"
+" de producción donde ampliamos nuestros datos de entrenamiento con el "
+"tiempo, hacemos que el tamaño del segmento de tiempo crezca con el tiempo."
+
+#: ../source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb:70006
+#: 9e24a1df4cfb45c2a7cbac344b24b903
+msgid ""
+"Following the strategy of the example notebook, we use the costs share of "
+"each channel to set the prior standard deviation of the beta parameters. We "
+"need to compute this share for each training time slice independently."
+msgstr ""
+"Siguiendo la estrategia del cuaderno de ejemplo, utilizamos la participación"
+" de costos de cada canal para establecer la desviación estándar previa de "
+"los parámetros beta. Necesitamos calcular esta participación para cada "
+"intervalo de tiempo de entrenamiento de manera independiente."
+
+#: ../source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb:70008
+#: 429548160f5b4f41857909b2cd6a4935
+msgid "Data Leakage"
+msgstr "Filtración de datos"
+
+#: ../source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb:70011
+#: 65079be551094526a5a5b87748ea5399
+msgid ""
+"It is very important to avoid data leakage when performing time-slice cross "
+"validation. This means that the model should not see any training data from "
+"the future. This also includes any data pre-processing steps!"
+msgstr ""
+"Es muy importante evitar la filtración de datos al realizar la validación "
+"cruzada por segmentos de tiempo. Esto significa que el modelo no debe ver "
+"ningún dato de entrenamiento del futuro. ¡Esto también incluye cualquier "
+"paso de preprocesamiento de datos!"
+
+#: ../source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb:70013
+#: 824d36012edd42c4a71092d4dd0197e3
+msgid ""
+"For example, as mentioned above, we need to compute the costs share for each"
+" training time slice independently if we want to avoid data leakage. Other "
+"sources of data leakage include using a global feature for thr trend "
+"component. In our case, we simply use an increasing variable `t` so we are "
+"safe as we just increase it by one for each time slice."
+msgstr ""
+"Por ejemplo, como se mencionó anteriormente, necesitamos calcular la "
+"participación de costos para cada intervalo de tiempo de entrenamiento de "
+"manera independiente si queremos evitar la filtración de datos. Otras "
+"fuentes de filtración de datos incluyen el uso de una característica global "
+"para el componente de tendencia. En nuestro caso, simplemente utilizamos una"
+" variable creciente `t`, por lo que estamos a salvo, ya que solo la "
+"incrementamos en uno para cada intervalo de tiempo."
+
+#: ../source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb:70016
+#: bf86ff7239cb4c9fbc32c30507dc2114
+msgid ""
+"We wrap the main steps of the training procedure in a set of functions."
+msgstr ""
+"Envolvemos los pasos principales del procedimiento de entrenamiento en un "
+"conjunto de funciones."
+
+#: ../source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb:90002
+#: 0ad256c8b7ff45738829f9b7c7e16848
+msgid ""
+"For the sake of convenience, we define a data container to store the results"
+" of the time-slice cross validation step."
+msgstr ""
+"Para mayor comodidad, definimos un contenedor de datos para almacenar los "
+"resultados del paso de validación cruzada por intervalos de tiempo."
+
+#: ../source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb:110002
+#: 2772fa81e22347caa0bfcc1fb916592f
+msgid ""
+"Finally, we define the main function that performs the time-slice cross "
+"validation step by calling the functions defined above."
+msgstr ""
+"Finalmente, definimos la función principal que realiza el paso de validación"
+" cruzada por segmentos de tiempo al llamar a las funciones definidas "
+"anteriormente."
+
+#: ../source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb:130002
+#: 820f7af5f6e242d390d29d7db060ac75
+msgid "We are now ready to run the time-slice cross validation loop 💪!"
+msgstr ""
+"¡Ahora estamos listos para ejecutar el bucle de validación cruzada por "
+"segmentos de tiempo 💪!"
+
+#: ../source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb:140002
+#: edc9f1be09a94895ac6cf4d916609faf
+msgid "Run Time-Slice-Cross-Validation Loop"
+msgstr "Ejecutar el bucle de validación cruzada de tiempo de segmento"
+
+#: ../source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb:140004
+#: 01d2f35514d24a6e82a509722da3a431
+msgid ""
+"Depending on the business requirements, we need to decide the initial number"
+" of observations to use for fitting the model (`n_init`) and the forecast "
+"horizon (`forecast_horizon`). For this example, we use the first 158 "
+"observations to fit the model and then predict the next 12 observations (3 "
+"months)."
+msgstr ""
+"Dependiendo de los requisitos del negocio, necesitamos decidir el número "
+"inicial de observaciones a utilizar para ajustar el modelo (`n_init`) y el "
+"horizonte de pronóstico (`forecast_horizon`). Para este ejemplo, utilizamos "
+"las primeras 158 observaciones para ajustar el modelo y luego predecimos las"
+" siguientes 12 observaciones (3 meses)."
+
+#: ../source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb:170002
+#: 8eaf4e456a414899b06cdc03dbab9607
+msgid "Let's run it!"
+msgstr "¡Ejecutémoslo!"
+
+#: ../source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb:190002
+#: 091a31f4ac654aaa8e7f9d0015460fc6
+msgid "Model Diagnostics"
+msgstr "Diagnósticos del Modelo"
+
+#: ../source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb:190004
+#: 7e9309f8654047579f60325dac2b366f
+msgid ""
+"First, we evaluate whether we have any divergences in the model (we can "
+"extend the analysis more more model diagnostics)."
+msgstr ""
+"Primero, evaluamos si tenemos alguna divergencia en el modelo (podemos "
+"extender el análisis con más diagnósticos del modelo)."
+
+#: ../source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb:210002
+#: f3038350b085400f9592769ad03af35d
+msgid "We have no divergences in the model 😃!"
+msgstr "No tenemos divergencias en el modelo 😃!"
+
+#: ../source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb:220002
+#: 6e16d42dd246430396f06065267af676
+msgid "Evaluate Parameter Stability"
+msgstr "Evaluar la Estabilidad del Parámetro"
+
+#: ../source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb:220004
+#: a292b71cbff842d5adb161deec5e9189
+msgid ""
+"Next, we look at the stability of the model parameters. For a good model, "
+"these should not change abruptly over time."
+msgstr ""
+"A continuación, examinamos la estabilidad de los parámetros del modelo. Para"
+" un buen modelo, estos no deberían cambiar de manera abrupta a lo largo del "
+"tiempo."
+
+#: ../source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb:230002
+#: d4c4dc2947394776bf1475664cdc07a8
+msgid "Adstock Alpha"
+msgstr "Adstock Alpha"
+
+#: ../source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb:250002
+#: 722d1a7e77d146bc941adeeac0c180c1
+msgid "Saturation Beta"
+msgstr "Saturación Beta"
+
+#: ../source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb:270002
+#: f27d9fc690304aed83100b3a832e5f28
+msgid "Saturation Lambda"
+msgstr "Saturación Lambda"
+
+#: ../source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb:290002
+#: 60d8e7963cf34e41914aeba84bd0f1ef
+msgid ""
+"The parameters seem to be stable over time. This implies that the estimates "
+"ROAS will not change abruptly over time."
+msgstr ""
+"Los parámetros parecen ser estables a lo largo del tiempo. Esto implica que "
+"las estimaciones de ROAS no cambiarán abruptamente con el tiempo."
+
+#: ../source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb:300002
+#: 652378354ca048178cf7ba570c172a13
+msgid "Evaluate Out of Sample Predictions"
+msgstr "Evaluar Predicciones Fuera de Muestra"
+
+#: ../source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb:300004
+#: cb23c400e5154e20b5f1350b20f7d8a1
+msgid ""
+"Finally, we evaluate the out of sample predictions. To begin with, we can "
+"simply plot the posterior predictive distributions for each iteration for "
+"both the training and test data."
+msgstr ""
+"Finalmente, evaluamos las predicciones fuera de muestra. Para comenzar, "
+"podemos simplemente trazar las distribuciones predictivas posteriores para "
+"cada iteración tanto para los datos de entrenamiento como para los datos de "
+"prueba."
+
+#: ../source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb:320002
+#: 973b80d2e7d44a948ac25719498b9761
+msgid "Overall, the out of sample predictions look very good 🚀!"
+msgstr "En general, las predicciones fuera de muestra se ven muy bien 🚀!"
+
+#: ../source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb:330002
+#: c7cb8f728046444c990b941465ea0dfd
+msgid ""
+"We can quantify the model performance using the Continuous Ranked "
+"Probability Score (CRPS)."
+msgstr ""
+"Podemos cuantificar el rendimiento del modelo utilizando la Puntuación de "
+"Probabilidad Continua Clasificada (CRPS)."
+
+#: ../source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb:330004
+#: 17d1adb212f445fe8e066ad49d5d851c
+msgid ""
+"*“The CRPS — Continuous Ranked Probability Score — is a score function that "
+"compares a single ground truth value to a Cumulative Distribution Function. "
+"It can be used as a metric to evaluate a model’s performance when the target"
+" variable is continuous and the model predicts the target’s distribution; "
+"Examples include Bayesian Regression or Bayesian Time Series models.”*"
+msgstr ""
+"El CRPS — Puntaje de Probabilidad Clasificada Continua — es una función de "
+"puntuación que compara un único valor de verdad fundamental con una Función "
+"de Distribución Acumulativa. Puede utilizarse como una métrica para evaluar "
+"el rendimiento de un modelo cuando la variable objetivo es continua y el "
+"modelo predice la distribución del objetivo; ejemplos incluyen la Regresión "
+"Bayesiana o modelos de Series Temporales Bayesianos."
+
+#: ../source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb:330007
+#: 3fff53fbd3b34cfc9bb3bc66fd36d505
+msgid ""
+"For a nice explanation of the CRPS, check out this [blog "
+"post](https://towardsdatascience.com/crps-a-scoring-function-for-bayesian-"
+"machine-learning-models-dd55a7a337a8)."
+msgstr ""
+"Para una buena explicación del CRPS, consulte esta [entrada de "
+"blog](https://towardsdatascience.com/crps-a-scoring-function-for-bayesian-"
+"machine-learning-models-dd55a7a337a8)."
+
+#: ../source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb:330009
+#: acbc68d6ed244d7190a72069190fe6b0
+#, python-brace-format
+msgid ""
+"In PyMC-Marketing, we provide the function {func}`crps "
+"<pymc_marketing.metrics.crps>` to compute this metric. We can use it to "
+"compute the CRPS score for each iteration."
+msgstr ""
+"En PyMC-Marketing, proporcionamos la función `{func}`crps "
+"<pymc_marketing.metrics.crps>` para calcular esta métrica. Podemos "
+"utilizarla para calcular la puntuación CRPS para cada iteración."
+
+#: ../source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb:350002
+#: 7aa167f00d7d4930bdc783c1b41c20e6
+msgid ""
+"Event though the visual results look great, we see that the CRPS mildly "
+"decreases for the training data while it increases for the test data as we "
+"increase the size of the training data. This is a sign that we are "
+"overfitting the model to the training data. Some strategies to overcome this"
+" issue include using regularization techniques and re-evaluate the model "
+"specification. This should be an iterative process."
+msgstr ""
+"A pesar de que los resultados visuales son excelentes, observamos que el "
+"CRPS disminuye levemente para los datos de entrenamiento mientras que "
+"aumenta para los datos de prueba a medida que incrementamos el tamaño de los"
+" datos de entrenamiento. Esto es un indicio de que estamos sobreajustando el"
+" modelo a los datos de entrenamiento. Algunas estrategias para superar este "
+"problema incluyen el uso de técnicas de regularización y la reevaluación de "
+"la especificación del modelo. Este debería ser un proceso iterativo."

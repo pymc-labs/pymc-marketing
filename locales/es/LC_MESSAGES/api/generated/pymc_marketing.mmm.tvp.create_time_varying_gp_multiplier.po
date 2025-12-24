@@ -1,0 +1,155 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.tvp.create_time_varying_gp_multiplier.rst:2
+#: 39eb2b256b324691baf4bb41e61a0121
+msgid "create\\_time\\_varying\\_gp\\_multiplier"
+msgstr "crear\\_multiplicador\\_gp\\_variable\\_en\\_el\\_tiempo"
+
+#: e50de82bd8d4492785ef223182689a26 of
+#: pymc_marketing.mmm.tvp.create_time_varying_gp_multiplier:2
+msgid "Create a time-varying Gaussian Process multiplier."
+msgstr "Cree un multiplicador de Proceso Gaussiano que varíe con el tiempo."
+
+#: 8878de0b6a9e4888b4b4b9f7f7a83b22 of
+#: pymc_marketing.mmm.tvp.create_time_varying_gp_multiplier:4
+msgid ""
+"Create a time-varying Gaussian Process multiplier based on the provided "
+"parameters."
+msgstr ""
+"Cree un multiplicador de Proceso Gaussiano variable en el tiempo basado en "
+"los parámetros proporcionados."
+
+#: 46d25764740b4f8e8ca92472a90cd490 of
+#: pymc_marketing.mmm.tvp.create_time_varying_gp_multiplier
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: b5d180feedcf4391b025e2444455911b of
+#: pymc_marketing.mmm.tvp.create_time_varying_gp_multiplier:8
+msgid "**name** : :class:`python:str`"
+msgstr "**nombre** : :class:`python:str`"
+
+#: d4f73803a43a43a9a2f15722e1e91539 of
+#: pymc_marketing.mmm.tvp.create_time_varying_gp_multiplier:7
+msgid "python:str"
+msgstr "python:str"
+
+#: f23d637184f8417a99285beeb21c0517 of
+#: pymc_marketing.mmm.tvp.create_time_varying_gp_multiplier:9
+msgid "Name of the Gaussian Process multiplier."
+msgstr "Nombre del multiplicador del Proceso Gaussiano."
+
+#: 08ab980238d74266858848adea0dbe40 of
+#: pymc_marketing.mmm.tvp.create_time_varying_gp_multiplier:11
+msgid ""
+"**dims** : :class:`python:tuple`\\[:class:`python:str`, :class:`python:str`]"
+" | :class:`python:str`"
+msgstr ""
+"**dims** : :class:`python:tuple`\\[:class:`python:str`, :class:`python:str`]"
+" | :class:`python:str`"
+
+#: 308a55498f1e42fab4072f7de2d8cabd of
+#: pymc_marketing.mmm.tvp.create_time_varying_gp_multiplier:10
+msgid "python:tuple[python:str, python:str] | python:str"
+msgstr "python:tuple[python:str, python:str] | python:str"
+
+#: f0d261bb7fa04c9d819f5d1d93117df2 of
+#: pymc_marketing.mmm.tvp.create_time_varying_gp_multiplier:12
+msgid "Dimensions for the multiplier."
+msgstr "Dimensiones para el multiplicador."
+
+#: dea2c9d6a1224df48c269b2c40bca6a7 of
+#: pymc_marketing.mmm.tvp.create_time_varying_gp_multiplier:14
+msgid "**time_index** : :obj:`pt.sharedvar.TensorSharedVariable`"
+msgstr "**time_index** : :obj:`pt.sharedvar.TensorSharedVariable`"
+
+#: 2df0b33ce1ca4a4b83b3caf1673ca961 of
+#: pymc_marketing.mmm.tvp.create_time_varying_gp_multiplier:13
+msgid "pt.sharedvar.TensorSharedVariable"
+msgstr "pt.sharedvar.TensorSharedVariable"
+
+#: 30c9e3a064d04caaa8cd1bef764c934d of
+#: pymc_marketing.mmm.tvp.create_time_varying_gp_multiplier:15
+msgid "Shared variable containing time points."
+msgstr "Variable compartida que contiene puntos de tiempo."
+
+#: 01b88776234240eab450a3d4c235317b of
+#: pymc_marketing.mmm.tvp.create_time_varying_gp_multiplier:17
+msgid "**time_index_mid** : :class:`python:int`"
+msgstr "**time_index_mid** : :class:`python:int`"
+
+#: 804cfc303772486c95d7d44342bb1dcb dc211dfab6b74b57a7a124691e77283e of
+#: pymc_marketing.mmm.tvp.create_time_varying_gp_multiplier:16
+#: pymc_marketing.mmm.tvp.create_time_varying_gp_multiplier:19
+msgid "python:int"
+msgstr "python:int"
+
+#: 3d062764cbab49c2a54a655462fa2d19 of
+#: pymc_marketing.mmm.tvp.create_time_varying_gp_multiplier:18
+msgid "Midpoint of the time points."
+msgstr "Punto medio de los momentos temporales."
+
+#: ce9d320bc224477f9d7e2d102d486b3c of
+#: pymc_marketing.mmm.tvp.create_time_varying_gp_multiplier:20
+msgid "**time_resolution** : :class:`python:int`"
+msgstr "**resolución_de_tiempo** : :class:`python:int`"
+
+#: 6198947b13264f59a46378bc669d7083 of
+#: pymc_marketing.mmm.tvp.create_time_varying_gp_multiplier:21
+msgid "Resolution of time points."
+msgstr "Resolución de puntos temporales."
+
+#: 2a6a6646b5724b35b05e326bcbb20e50 of
+#: pymc_marketing.mmm.tvp.create_time_varying_gp_multiplier:23
+msgid "**hsgp_kwargs** : :obj:`HSGPKwargs`"
+msgstr "**hsgp_kwargs** : :obj:`HSGPKwargs`"
+
+#: eb037827a64447a7af8d3f16e686ce9c of
+#: pymc_marketing.mmm.tvp.create_time_varying_gp_multiplier:22
+msgid "HSGPKwargs"
+msgstr "HSGPKwargs"
+
+#: 6b47ee142f0d4a569a77a4dfee5f4e5d of
+#: pymc_marketing.mmm.tvp.create_time_varying_gp_multiplier:24
+msgid ""
+"Keyword arguments for the Hilbert Space Gaussian Process (HSGP) component."
+msgstr ""
+"Argumentos de palabras clave para el componente del Proceso Gaussiano del "
+"Espacio de Hilbert (HSGP)."
+
+#: 3c4f5a28e77f4baf8ef0d7e79faee6e8 of
+#: pymc_marketing.mmm.tvp.create_time_varying_gp_multiplier
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: e11a6c153fca4486b0ecc5d78ffc50d5 of
+#: pymc_marketing.mmm.tvp.create_time_varying_gp_multiplier:30
+msgid ":obj:`pt.TensorVariable`"
+msgstr ":obj:`pt.TensorVariable`"
+
+#: 6b9eb304c1164e2183f1b87ce34b2f1a of
+#: pymc_marketing.mmm.tvp.create_time_varying_gp_multiplier:31
+msgid "Time-varying Gaussian Process multiplier for a given variable."
+msgstr ""
+"Multiplicador de Proceso Gaussiano variable en el tiempo para una variable "
+"dada."

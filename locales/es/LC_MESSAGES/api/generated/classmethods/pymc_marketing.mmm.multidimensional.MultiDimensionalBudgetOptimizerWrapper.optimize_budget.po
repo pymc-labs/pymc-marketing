@@ -1,0 +1,212 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget.rst:2
+#: 2b8c986f3e8a4e19a3c84135576c2041
+msgid "MultiDimensionalBudgetOptimizerWrapper.optimize\\_budget"
+msgstr "MultiDimensionalBudgetOptimizerWrapper.optimizar\\_presupuesto"
+
+#: 9f2d446db0634c8ab3077c55649e0e16 of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget:2
+msgid "Optimize the budget allocation for the model."
+msgstr "Optimice la asignación del presupuesto para el modelo."
+
+#: 613ec360c1f04011a25a9aeab69cc53c of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: f135fd03cc204e0d98f367ec2bd2bc4b of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget:7
+msgid "**budget** : :class:`python:float` | :class:`python:int`"
+msgstr "**presupuesto** : :class:`python:float` | :class:`python:int`"
+
+#: 49347964b32e4225a50d4112a75d31f3 of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget:6
+msgid "python:float | python:int"
+msgstr "python:float | python:int"
+
+#: 47dc36a8889e47ccaba2bbe43c941556 of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget:8
+msgid "Total budget to allocate."
+msgstr "Presupuesto total a asignar."
+
+#: 4bd417dc32ba45b0bc62228df32230b9 of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget:10
+msgid "**budget_bounds** : :obj:`xr.DataArray` | :data:`python:None`"
+msgstr "**límites_presupuesto** : :obj:`xr.DataArray` | :data:`python:None`"
+
+#: 1ecf91938da14959b63dea1c0d0eb9af 85aa0f00366b4e0596aa11d52a576ec3
+#: f9934ddc2e4b4319a97c8346a10882df of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget:9
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget:24
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget:27
+msgid "xr.DataArray | python:None"
+msgstr "xr.DataArray | python:Ninguno"
+
+#: 6c6ac523e166416884d82b764022cec7 of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget:11
+msgid "Budget bounds per channel."
+msgstr "Límites de presupuesto por canal."
+
+#: 022db42838614979b6b9032e826cad5a of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget:13
+msgid "**response_variable** : :class:`python:str`"
+msgstr "**response_variable** : :class:`python:str`"
+
+#: 5dac99b7dec44f36a03b464ca8bb10d8 of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget:12
+msgid "python:str"
+msgstr "python:str"
+
+#: 4a860092e1634eceb2849500e2e127c8 of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget:14
+msgid "Response variable to optimize."
+msgstr "Variable de respuesta a optimizar."
+
+#: 7f75bd340b99475fbfa4f653824b35e6 of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget:16
+msgid "**utility_function** : :obj:`UtilityFunctionType`"
+msgstr "**utility_function** : :obj:`UtilityFunctionType`"
+
+#: 35dee4c2ad7c4a0fbb5c2d797911505f of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget:15
+msgid "UtilityFunctionType"
+msgstr "TipoDeFunciónUtilidad"
+
+#: b48c2af2ac1b4ef0ae88525d7576d383 of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget:17
+msgid "Utility function to maximize."
+msgstr "Función de utilidad para maximizar."
+
+#: 33bedeaf3d1140d289a3b0ea7bdf390f of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget:19
+msgid ""
+"**constraints** : "
+":obj:`Sequence`\\[:class:`python:dict`\\[:class:`python:str`, :obj:`Any`]]"
+msgstr ""
+"**restricciones** : "
+":obj:`Secuencia`\\[:class:`python:dict`\\[:class:`python:str`, "
+":obj:`Cualquiera`]]"
+
+#: efda175bb9a843bfad96a7022efcf0d1 of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget:18
+msgid "Sequence[python:dict[python:str, Any]]"
+msgstr "Secuencia[python:dict[python:str, Any]]"
+
+#: b73348475def426887f76936fdafbb92 of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget:20
+msgid "Custom constraints for the optimizer."
+msgstr "Restricciones personalizadas para el optimizador."
+
+#: cb648834b7f64bd6ad0fceb0b1de34d0 of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget:22
+msgid "**default_constraints** : :ref:`bool <python:bltin-boolean-values>`"
+msgstr "**default_constraints** : :ref:`bool <python:bltin-boolean-values>`"
+
+#: 02172153025b43729928ed03fe6275cd 422cab23eadf4c9992430e69dc999f6a of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget:21
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget:32
+msgid "bool"
+msgstr "bool"
+
+#: 2c9fb2f906c04680888655fe7dae5af5 of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget:23
+msgid "Whether to add default constraints."
+msgstr "Si se deben agregar restricciones predeterminadas."
+
+#: 92d12b66669d4dc9819996ff9425a38f of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget:25
+msgid "**budgets_to_optimize** : :obj:`xr.DataArray` | :data:`python:None`"
+msgstr ""
+"**presupuestos_a_optimizar** : :obj:`xr.DataArray` | :data:`python:None`"
+
+#: f3a49c231af24ff1ae884ff5a01ef44d of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget:26
+msgid "Mask defining which budgets to optimize."
+msgstr "Máscara que define qué presupuestos optimizar."
+
+#: 4af1cbaeb4d248cfbe405b352ea3a840 of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget:28
+msgid ""
+"**budget_distribution_over_period** : :obj:`xr.DataArray` | "
+":data:`python:None`"
+msgstr ""
+"**distribución_presupuestaria_a_lo_largo_del_período** : :obj:`xr.DataArray`"
+" | :data:`python:None`"
+
+#: 3c2488a9c1b44a7e84f8002ea443d34b of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget:29
+msgid ""
+"Distribution factors for budget allocation over time. Should have dims "
+"(\"date\", *budget_dims) where date dimension has length num_periods. Values"
+" along date dimension should sum to 1 for each combination of other "
+"dimensions. If None, budget is distributed evenly across periods."
+msgstr ""
+"Factores de distribución para la asignación del presupuesto a lo largo del "
+"tiempo. Debe tener dimensiones (\"fecha\", *budget_dims) donde la dimensión "
+"de fecha tiene una longitud de num_periods. Los valores a lo largo de la "
+"dimensión de fecha deben sumar 1 para cada combinación de las otras "
+"dimensiones. Si es None, el presupuesto se distribuye de manera uniforme "
+"entre los períodos."
+
+#: b68a7c32a99e4cadb3ee00ca82e900d2 of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget:33
+msgid "**callback** : :ref:`bool <python:bltin-boolean-values>`"
+msgstr "**callback** : :ref:`bool <python:bltin-boolean-values>`"
+
+#: c23e8a960d154a0bb46e23889d4d7083 of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget:34
+msgid "Whether to return callback information tracking optimization progress."
+msgstr ""
+"Si se debe devolver información de seguimiento de la optimización del "
+"progreso de la devolución de llamada."
+
+#: 116cfe7affce49839a505456334e14e6 of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget:36
+msgid "**\\*\\*minimize_kwargs**"
+msgstr "**\\*\\*minimize_kwargs**"
+
+#: af81eb9a64d342848ef36e0938bd8e16 of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget:37
+msgid "Additional arguments for the optimizer."
+msgstr "Argumentos adicionales para el optimizador."
+
+#: 546b643276ef43c3859876be65cc6e76 of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: be306c273ad84f7ea6242edf8956f60e of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget:43
+msgid ":class:`python:tuple`"
+msgstr ":class:`python:tuple`"
+
+#: 5a8952ba55a24532893eebd1091f3f37 of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget:44
+msgid ""
+"Optimal budgets and optimization result. If callback=True, also returns a "
+"list of dictionaries with optimization information at each iteration."
+msgstr ""
+"Presupuestos óptimos y resultado de optimización. Si callback=True, también "
+"devuelve una lista de diccionarios con información de optimización en cada "
+"iteración."

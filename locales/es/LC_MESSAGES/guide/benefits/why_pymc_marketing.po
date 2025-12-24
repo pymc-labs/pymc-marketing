@@ -1,0 +1,124 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/guide/benefits/why_pymc_marketing.md:1
+#: 1207a17f4fc740508be9d5b738743ca3
+msgid "Why PyMC-Marketing?"
+msgstr "¿Por qué PyMC-Marketing?"
+
+#: ../source/guide/benefits/why_pymc_marketing.md:3
+#: ca8ed8255e604538b22e3f600fdf5867
+msgid "Open source"
+msgstr "Código abierto"
+
+#: ../source/guide/benefits/why_pymc_marketing.md:4
+#: c576008d07a94209b0621574aedc0314
+#, python-brace-format
+msgid ""
+"PyMC-Marketing is open source, developed by a team of [PyMC "
+"Labs](https://www.pymc-labs.com) researchers and a community of experts. "
+"PyMC Labs has deep expertise in building Bayesian models to provide business"
+" insights. Pairing that with input from a community with strong applied "
+"marketing expertise and experience makes for a winning combination. See "
+"{doc}`why_open_source` for more on this."
+msgstr ""
+"PyMC-Marketing es de código abierto, desarrollado por un equipo de "
+"investigadores de [PyMC Labs](https://www.pymc-labs.com) y una comunidad de "
+"expertos. PyMC Labs tiene una profunda experiencia en la construcción de "
+"modelos bayesianos para proporcionar información empresarial. Combinar eso "
+"con la aportación de una comunidad con una sólida experiencia y conocimiento"
+" en marketing aplicado crea una combinación ganadora. Consulta "
+"{doc}`why_open_source` para más información sobre esto."
+
+#: ../source/guide/benefits/why_pymc_marketing.md:6
+#: 73cc7860eb5b422cb5860b107f105178
+msgid "Independent and unbiased"
+msgstr "Independiente y imparcial"
+
+#: ../source/guide/benefits/why_pymc_marketing.md:7
+#: 1123eedd20c44e228c7cbffed0a0d13f
+msgid ""
+"We (PyMC Labs) do not have our own advertising channel and we have no vested"
+" interests in one media channel over another. So you can be sure that the "
+"output of our Media Mix Models are based entirely on what your data (and "
+"prior beliefs) tell the models."
+msgstr ""
+"Nosotros (PyMC Labs) no tenemos nuestro propio canal de publicidad y no "
+"tenemos intereses en un canal de medios sobre otro. Así que puedes estar "
+"seguro de que la salida de nuestros Modelos de Mezcla de Medios se basa "
+"completamente en lo que tus datos (y creencias previas) le dicen a los "
+"modelos."
+
+#: ../source/guide/benefits/why_pymc_marketing.md:9
+#: 55037688682247769bb2f640cb00afd0
+msgid "Python"
+msgstr "Python"
+
+#: ../source/guide/benefits/why_pymc_marketing.md:10
+#: 4f6bcfbcbf724dfe8e9a4de5cad25dbb
+msgid ""
+"PyMC-Marketing is written in Python, an excellent choice to build a data "
+"science stack on due to its popularity, existing use in industry, very large"
+" community of Python programmers, and suitability to deploying in "
+"production."
+msgstr ""
+"PyMC-Marketing está escrito en Python, una excelente elección para construir"
+" un stack de ciencia de datos debido a su popularidad, uso existente en la "
+"industria, una comunidad muy grande de programadores de Python y su "
+"idoneidad para desplegar en producción."
+
+#: ../source/guide/benefits/why_pymc_marketing.md:12
+#: 3b6105855cbd42569917dd9d068b6e56
+msgid "Reliability"
+msgstr "Confiabilidad"
+
+#: ../source/guide/benefits/why_pymc_marketing.md:13
+#: 17ce94671b66467e992a57268b705de0
+msgid ""
+"PyMC-Marketing places an emphasis on modularity and rigour, ensured by a "
+"comprehensive suite of software tests."
+msgstr ""
+"PyMC-Marketing pone énfasis en la modularidad y el rigor, garantizados por "
+"un conjunto completo de pruebas de software."
+
+#: ../source/guide/benefits/why_pymc_marketing.md:15
+#: bb5733086ee0429fb5311e4d64867fc3
+msgid "Bayesian"
+msgstr "Bayesiano"
+
+#: ../source/guide/benefits/why_pymc_marketing.md:16
+#: a35daae0189547a0ac7f6e784c6f8856
+#, python-brace-format
+msgid ""
+"PyMC-Marketing is fully Bayesian, built on top of "
+"[PyMC](https://www.pymc.io/welcome.html), the popular Bayesian statistical "
+"modeling package in Python. PyMC itself is well-established, widely-used, "
+"road-tested, and has been a [NumFOCUS Sponsored "
+"Project](https://numfocus.org/project/pymc) since 2016. Read more about "
+"{doc}`why_bayesian` for more on this."
+msgstr ""
+"PyMC-Marketing es completamente bayesiano, construido sobre "
+"[PyMC](https://www.pymc.io/welcome.html), el popular paquete de modelado "
+"estadístico bayesiano en Python. PyMC en sí es bien establecido, ampliamente"
+" utilizado, probado en la práctica y ha sido un [Proyecto Patrocinado por "
+"NumFOCUS](https://numfocus.org/project/pymc) desde 2016. Lee más sobre "
+"{doc}`why_bayesian` para más información sobre esto."

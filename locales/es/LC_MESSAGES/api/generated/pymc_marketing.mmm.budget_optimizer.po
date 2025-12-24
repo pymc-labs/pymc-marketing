@@ -1,0 +1,257 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-20 21:01+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.rst:2
+#: 8ede55ef2010463b9e45f5843ec55370
+msgid "budget\\_optimizer"
+msgstr "optimizador\\_de\\_presupuesto"
+
+#: 4819296ed72d41679cec6d2e3e95a62d of pymc_marketing.mmm.budget_optimizer:1
+msgid "Budget optimization module."
+msgstr "Módulo de optimización de presupuesto."
+
+#: dab93c72ec844a93963a3d783494acd4 of pymc_marketing.mmm.budget_optimizer:4
+msgid "Overview"
+msgstr "Resumen"
+
+#: 497184af450b448ca759256e260da90e of pymc_marketing.mmm.budget_optimizer:6
+msgid ""
+"Optimize how to allocate a total budget across channels (and optional extra "
+"dims) to maximize an expected response derived from a fitted MMM posterior."
+msgstr ""
+"Optimizar la forma de asignar un presupuesto total entre canales (y "
+"dimensiones adicionales opcionales) para maximizar una respuesta esperada "
+"derivada de un posterior de MMM ajustado."
+
+#: 606de232804445558214480b0fe3a66b of pymc_marketing.mmm.budget_optimizer:10
+msgid "Quickstart (multi‑dimensional MMM)"
+msgstr "Inicio rápido (MMM multidimensional)"
+
+#: 3c9086962c7c4a8586710e02f5f9a0d7 of pymc_marketing.mmm.budget_optimizer:81
+msgid "Use a custom pymc model with any dimensionality"
+msgstr "Utilice un modelo pymc personalizado con cualquier dimensionalidad."
+
+#: 70751daeb90844d488c64ab121ecdada of pymc_marketing.mmm.budget_optimizer:151
+msgid "Requirements"
+msgstr "Requisitos"
+
+#: 0625ca12009f41fabb801ec8938c06bd of pymc_marketing.mmm.budget_optimizer:153
+msgid ""
+"The optimizer works on any wrapper that satisfies "
+"`OptimizerCompatibleModelWrapper`: - Attributes: `adstock`, "
+"`_channel_scales`, `idata` (arviz.InferenceData with posterior) - Method: "
+"`_set_predictors_for_optimization(num_periods) -> pm.Model` that returns a "
+"PyMC"
+msgstr ""
+"El optimizador funciona con cualquier envoltura que satisfaga "
+"`OptimizerCompatibleModelWrapper`: - Atributos: `adstock`, "
+"`_channel_scales`, `idata` (arviz.InferenceData con posterior) - Método: "
+"`_set_predictors_for_optimization(num_periods) -> pm.Model` que devuelve un "
+"PyMC"
+
+#: d008bfbe9fff42ee964b67ccb71b54ae of pymc_marketing.mmm.budget_optimizer:156
+msgid ""
+"model where a variable named `channel_data` exists with dims including "
+"`\"date\"` and all budget dims (e.g., `(\"channel\", \"geo\")`). The "
+"optimizer replaces `channel_data` with the optimization variable under the "
+"hood."
+msgstr ""
+"modelo donde existe una variable llamada `channel_data` con dimensiones que "
+"incluyen `\"date\"` y todas las dimensiones de presupuesto (por ejemplo, "
+"`(\"channel\", \"geo\")`). El optimizador reemplaza `channel_data` con la "
+"variable de optimización internamente."
+
+#: 4cf3aa4679c34c2aa0b7eb8d179a86e5 of pymc_marketing.mmm.budget_optimizer:159
+msgid ""
+"Posterior must contain a response variable (default: "
+"`\"total_contribution\"`) or any custom `response_variable` you pass, and "
+"the required MMM deterministics (e.g. `channel_contribution`)."
+msgstr ""
+"Posterior debe contener una variable de respuesta (predeterminada: "
+"`\"total_contribution\"`) o cualquier `response_variable` personalizada que "
+"proporciones, y los determinísticos MMM requeridos (por ejemplo, "
+"`channel_contribution`)."
+
+#: 712dbf625d4f452685b38b0b722f73f8 of pymc_marketing.mmm.budget_optimizer:161
+msgid ""
+"For time distribution: pass a DataArray with dims `(\"date\", *budget_dims)`"
+" and values along `date` summing to 1 for each budget cell."
+msgstr ""
+"Para la distribución del tiempo: pase un DataArray con dimensiones "
+"`(\"fecha\", *dimensiones_presupuesto)` y valores a lo largo de `fecha` que "
+"sumen 1 para cada celda de presupuesto."
+
+#: ecc8443b853344daacae4adb7045b99b of pymc_marketing.mmm.budget_optimizer:163
+msgid ""
+"Bounds can be a dict only for single‑dimensional budgets; otherwise use an "
+"xarray.DataArray (use `optimizer_xarray_builder(...)`)."
+msgstr ""
+"Los límites pueden ser un diccionario solo para presupuestos "
+"unidimensionales; de lo contrario, utilice un xarray.DataArray (utilice "
+"`optimizer_xarray_builder(...)`)."
+
+#: df1d6922db824d61b36f3c8438793dc9 of pymc_marketing.mmm.budget_optimizer:167
+msgid "Notes"
+msgstr "Notas"
+
+#: eebe09affdd54f479c0c82ea0ccb7439 of pymc_marketing.mmm.budget_optimizer:168
+msgid ""
+"If `budgets_to_optimize` is not provided, the optimizer auto‑detects cells "
+"with historical information using "
+"`idata.posterior.channel_contribution.mean((\"chain\",\"draw\",\"date\")).astype(bool)`."
+msgstr ""
+"Si `budgets_to_optimize` no se proporciona, el optimizador detecta "
+"automáticamente las celdas con información histórica utilizando "
+"`idata.posterior.channel_contribution.mean((\"chain\",\"draw\",\"date\")).astype(bool)`."
+
+#: f13dc10ed8f34838a80984c663f6422f of pymc_marketing.mmm.budget_optimizer:170
+msgid "Default bounds are `[0, total_budget]` on each optimized cell."
+msgstr ""
+"Los límites predeterminados son `[0, total_budget]` en cada celda "
+"optimizada."
+
+#: a26a0f131c5b44c296b8bac05e79c7cc of pymc_marketing.mmm.budget_optimizer:171
+msgid ""
+"Set `callback=True` in `allocate_budget(...)` to receive per‑iteration "
+"diagnostics (objective, gradient, constraints) for monitoring."
+msgstr ""
+"Establezca `callback=True` en `allocate_budget(...)` para recibir "
+"diagnósticos por iteración (objetivo, gradiente, restricciones) para su "
+"monitoreo."
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.rst:13
+#: b234e30120ad4f8ea6c25573608a790a
+msgid "Functions"
+msgstr "Funciones"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.rst:23:<autosummary>:1
+#: bf4d7929f6784bd98761e1b615650d69
+msgid ""
+":py:obj:`optimizer_xarray_builder "
+"<pymc_marketing.mmm.budget_optimizer.optimizer_xarray_builder>`\\ "
+"\\(value\\, \\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`optimizer_xarray_builder "
+"<pymc_marketing.mmm.budget_optimizer.optimizer_xarray_builder>`\\ "
+"\\(valor\\, \\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.rst:23:<autosummary>:1
+#: 65cf07596b704c2f9ead06271897d84f
+msgid "Create an xarray.DataArray with flexible dimensions and coordinates."
+msgstr "Cree un xarray.DataArray con dimensiones y coordenadas flexibles."
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.rst:25
+#: be7fd42e364d46e793181ed51aeb37cf
+msgid "Classes"
+msgstr "Clases"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.rst:46:<autosummary>:1
+#: 06fc3b4de2634368b71beb606b6afe7f
+msgid ""
+":py:obj:`BudgetOptimizer "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer>`\\ \\(\\*\\, "
+"num\\_periods\\, ...\\)"
+msgstr ""
+":py:obj:`BudgetOptimizer "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer>`\\ \\(\\*\\, "
+"num\\_periods\\, ...\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.rst:46:<autosummary>:1
+#: b4e9851dcb1f493fb3a3debe87442fbe
+msgid "A class for optimizing budget allocation in a marketing mix model."
+msgstr ""
+"Una clase para optimizar la asignación de presupuesto en un modelo de mezcla"
+" de marketing."
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.rst:46:<autosummary>:1
+#: 512018e2667b46109dc33fd43ef95879
+msgid ""
+":py:obj:`BuildMergedModel "
+"<pymc_marketing.mmm.budget_optimizer.BuildMergedModel>`\\ \\(models\\[\\, "
+"prefixes\\, ...\\]\\)"
+msgstr ""
+":py:obj:`BuildMergedModel "
+"<pymc_marketing.mmm.budget_optimizer.BuildMergedModel>`\\ \\(modelos\\[\\, "
+"prefijos\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.rst:46:<autosummary>:1
+#: af461c910af04f62a94a7ff5a4180426
+msgid "Merge multiple optimizer-compatible models into a single model."
+msgstr ""
+"Fusionar múltiples modelos compatibles con el optimizador en un solo modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.rst:46:<autosummary>:1
+#: d9686c2f29e54a359167a4b3387bcf51
+#, fuzzy
+msgid ""
+":py:obj:`CustomModelWrapper "
+"<pymc_marketing.mmm.budget_optimizer.CustomModelWrapper>`\\ "
+"\\(base\\_model\\, idata\\, channels\\)"
+msgstr ""
+":py:obj:`OptimizerCompatibleModelWrapper "
+"<pymc_marketing.mmm.budget_optimizer.OptimizerCompatibleModelWrapper>`\\ "
+"\\(\\*args\\, \\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.rst:46:<autosummary>:1
+#: 5d41075f4d614e5eab514f749bcb285b
+msgid "Wrapper for the BudgetOptimizer to handle custom PyMC models."
+msgstr ""
+"Envoltorio para el BudgetOptimizer para manejar modelos PyMC personalizados."
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.rst:46:<autosummary>:1
+#: d9686c2f29e54a359167a4b3387bcf51
+msgid ""
+":py:obj:`OptimizerCompatibleModelWrapper "
+"<pymc_marketing.mmm.budget_optimizer.OptimizerCompatibleModelWrapper>`\\ "
+"\\(\\*args\\, \\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`OptimizerCompatibleModelWrapper "
+"<pymc_marketing.mmm.budget_optimizer.OptimizerCompatibleModelWrapper>`\\ "
+"\\(\\*args\\, \\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.rst:46:<autosummary>:1
+#: 73964b61b5ef4b4c81ba71d55383ae01
+msgid ""
+"Protocol for marketing mix model wrappers compatible with the "
+"BudgetOptimizer."
+msgstr ""
+"Protocolo para envolturas del modelo de mezcla de marketing compatibles con "
+"el BudgetOptimizer."
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.rst:48
+#: cfc16ddc1ea6443b993dcd9959ebb3e2
+msgid "Exceptions"
+msgstr "Excepciones"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.rst:51:<autosummary>:1
+#: 6abbe31d75804e1dbb2fd7f705658115
+msgid ""
+":py:obj:`MinimizeException "
+"<pymc_marketing.mmm.budget_optimizer.MinimizeException>`\\ \\(message\\)"
+msgstr ""
+":py:obj:`MinimizeException "
+"<pymc_marketing.mmm.budget_optimizer.MinimizeException>`\\ \\(mensaje\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.rst:51:<autosummary>:1
+#: fb124cfca33848549fafe766ecd510c3
+msgid "Custom exception for optimization failure."
+msgstr "Excepción personalizada para fallo de optimización."

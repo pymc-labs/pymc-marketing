@@ -1,0 +1,275 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.plot.plot_curve.rst:2
+#: 2c2c382a30a44023ab1d4a0552dc06ca
+msgid "plot\\_curve"
+msgstr "trazar\\_curva"
+
+#: 4935867ca3544211a8f9108ebc785996 of pymc_marketing.plot.plot_curve:2
+msgid "Plot HDI with samples of the curve across coords."
+msgstr "Trazar el IDH con muestras de la curva a través de las coordenadas."
+
+#: 9cfaeb142f0f4fa7b26207e000267de6 of pymc_marketing.plot.plot_curve
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 56dee64a71da42a38bd919fba1f4a790 of pymc_marketing.plot.plot_curve:7
+msgid "**curve** : :obj:`xr.DataArray`"
+msgstr "**curva** : :obj:`xr.DataArray`"
+
+#: 4284a39b72724452893d951441f8b893 of pymc_marketing.plot.plot_curve:6
+msgid "xr.DataArray"
+msgstr "xr.DataArray"
+
+#: 1de145141df944579999980a9d4d063d of pymc_marketing.plot.plot_curve:8
+msgid "Curve to plot"
+msgstr "Curva a graficar"
+
+#: a4ab1eca992143a396f2233b7791a3bd of pymc_marketing.plot.plot_curve:10
+msgid ""
+"**non_grid_names** : :class:`python:str` | :obj:`set`\\[:class:`python:str`]"
+msgstr ""
+"**non_grid_names** : :class:`python:str` | :obj:`set`\\[:class:`python:str`]"
+
+#: 113553b33160497c9a903e004c0898a4 of pymc_marketing.plot.plot_curve:9
+msgid "python:str | set[python:str]"
+msgstr "python:str | conjunto[python:str]"
+
+#: 0bc5d5b63d7143228a81a84d8683ba17 of pymc_marketing.plot.plot_curve:11
+msgid ""
+"The names to exclude from the grid. HDI and samples both have defaults of "
+"hdi and chain, draw, respectively"
+msgstr ""
+"Los nombres a excluir de la cuadrícula. HDI y muestras tienen ambos valores "
+"predeterminados de hdi y cadena, dibujar, respectivamente."
+
+#: 905849a66cf84165acfba61bed392325 of pymc_marketing.plot.plot_curve:14
+msgid "**n_samples** : :class:`python:int`, optional"
+msgstr "**n_samples** : :class:`python:int`, opcional"
+
+#: d9dd6f0808a449228051722a91f7cbea of pymc_marketing.plot.plot_curve:13
+msgid "python:int, optional"
+msgstr "python:int, opcional"
+
+#: 9780f78a6ae646c29eb273e0ea6af38e of pymc_marketing.plot.plot_curve:15
+msgid "Number of samples"
+msgstr "Número de muestras"
+
+#: 6cbe5ce3c84e411ea8176f27c5900196 of pymc_marketing.plot.plot_curve:17
+msgid ""
+"**hdi_probs** : :class:`python:float` | "
+":class:`python:list`\\[:class:`python:float`], optional"
+msgstr ""
+"**hdi_probs** : :class:`python:float` | "
+":class:`python:list`\\[:class:`python:float`], opcional"
+
+#: 3a2d9ab75a42476fa9e02e0e8f73f556 of pymc_marketing.plot.plot_curve:16
+msgid "python:float | python:list[python:float], optional"
+msgstr "python:float | python:list[python:float], opcional"
+
+#: 496042957cf64c4d80469dd580c1f382 of pymc_marketing.plot.plot_curve:18
+msgid ""
+"HDI probabilities. Defaults to None which uses arviz default for "
+"stats.ci_prob which is 94%"
+msgstr ""
+"Probabilidades de HDI. Por defecto es None, lo que utiliza el valor "
+"predeterminado de arviz para stats.ci_prob, que es del 94%."
+
+#: bc28b60e08884c5a995bf293546a7665 of pymc_marketing.plot.plot_curve:21
+msgid "**random_seed** : :obj:`np.random.Generator`, optional"
+msgstr "**random_seed** : :obj:`np.random.Generator`, opcional"
+
+#: b0559c4c1c1d4cfbb08b4e2b3a0226fb of pymc_marketing.plot.plot_curve:20
+msgid "np.random.Generator, optional"
+msgstr "np.random.Generator, opcional"
+
+#: 89416e9eb4854c9baae47be193c42991 of pymc_marketing.plot.plot_curve:22
+msgid ""
+"Random number generator. Defaults to None which uses np.random.default_rng()"
+msgstr ""
+"Generador de números aleatorios. Por defecto es None, lo que utiliza "
+"np.random.default_rng()"
+
+#: adcdd8cacdbc4836bce60cab05062902 of pymc_marketing.plot.plot_curve:25
+msgid "**subplot_kwargs** : :class:`python:dict`, optional"
+msgstr "**subplot_kwargs** : :class:`python:dict`, opcional"
+
+#: 028f57742ec2489c83daa19aa428a6e7 120ff0032d814d1986cafeb9e9a95b46
+#: 2c1db89f00bc4402a5f50a3f7f8f00e5 of pymc_marketing.plot.plot_curve:24
+#: pymc_marketing.plot.plot_curve:27 pymc_marketing.plot.plot_curve:30
+msgid "python:dict, optional"
+msgstr "python:dict, opcional"
+
+#: a87742d5917a4695abef65bdfed64aea of pymc_marketing.plot.plot_curve:26
+msgid "Additional kwargs to while creating the fig and axes"
+msgstr "kwargs adicionales al crear la figura y los ejes"
+
+#: d0bf0473a3304046b466d105dcf6bffb of pymc_marketing.plot.plot_curve:28
+msgid "**sample_kwargs** : :class:`python:dict`, optional"
+msgstr "**sample_kwargs** : :class:`python:dict`, opcional"
+
+#: 9409488cbafa4b27b6c4c13b24140144 of pymc_marketing.plot.plot_curve:29
+msgid "Kwargs for the :func:`plot_samples` function"
+msgstr "Kwargs para la función :func:`plot_samples`"
+
+#: 99ba477a4b5140779cb0c168b05ddf8d of pymc_marketing.plot.plot_curve:31
+msgid "**hdi_kwargs** : :class:`python:dict`, optional"
+msgstr "**hdi_kwargs** : :class:`python:dict`, opcional"
+
+#: 72fd4f5b675a4e2d99acc11199e0ec59 of pymc_marketing.plot.plot_curve:32
+msgid "Kwargs for the :func:`plot_hdi` function"
+msgstr "Kwargs para la función :func:`plot_hdi`"
+
+#: 59bbc10afe724619994c902b8df45aba of pymc_marketing.plot.plot_curve:34
+msgid "**same_axes** : :ref:`bool <python:bltin-boolean-values>`"
+msgstr "**same_axes** : :ref:`bool <python:bltin-boolean-values>`"
+
+#: e89de2f3e4234c04a7d03da6445a3196 of pymc_marketing.plot.plot_curve:33
+msgid "bool"
+msgstr "bool"
+
+#: edbffbe73fe44ebb80a2b10c9e6fd5be of pymc_marketing.plot.plot_curve:35
+msgid "If all of the plots are on the same axis"
+msgstr "Si todos los gráficos están en el mismo eje"
+
+#: 3ce1ac5ac0ea43f79fd8c1c9d7b38205 of pymc_marketing.plot.plot_curve:37
+msgid "**colors** : :obj:`Iterable`\\[:class:`python:str`], optional"
+msgstr "**colores** : :obj:`Iterable`\\[:class:`python:str`], opcional"
+
+#: 5734738103024d318e37f6a67ba3cbb8 of pymc_marketing.plot.plot_curve:36
+msgid "Iterable[python:str], optional"
+msgstr "Iterable[python:str], opcional"
+
+#: 27056e7f35ee4e89b14b8198d44e42e0 of pymc_marketing.plot.plot_curve:38
+msgid "Colors for the plots"
+msgstr "Colores para los gráficos"
+
+#: cec96f474cbd4117b5000436dbe239c3 of pymc_marketing.plot.plot_curve:40
+msgid "**legend** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr "**leyenda** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 3a286dd9e8f6490196382a23d47352ae of pymc_marketing.plot.plot_curve:39
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: a77594b40236431397118eb664f06a29 of pymc_marketing.plot.plot_curve:41
+msgid "If to include a legend. Defaults to True if same_axes"
+msgstr "Si se incluye una leyenda. Por defecto es True si same_axes"
+
+#: 056d71f09eb8471fa9ba7b86eae9bdd0 of pymc_marketing.plot.plot_curve:43
+msgid ""
+"**sel_to_string** : :obj:`Callable`\\[[:obj:`Selection`], "
+":class:`python:str`], optional"
+msgstr ""
+"**sel_to_string** : :obj:`Callable`\\[[:obj:`Selection`], "
+":class:`python:str`], opcional"
+
+#: d7413b4a787741658c2df63db045931c of pymc_marketing.plot.plot_curve:42
+msgid "Callable[[Selection], python:str], optional"
+msgstr "Llamable[[Selección], python:str], opcional"
+
+#: fd2ac253432d4c0f815f1c978afb1ab4 of pymc_marketing.plot.plot_curve:44
+#, python-brace-format
+msgid ""
+"Function to convert selection to a string. Defaults to \", "
+"\".join(f\"{key}={value}\" for key, value in sel.items())"
+msgstr ""
+"Función para convertir la selección en una cadena. Por defecto, se utiliza "
+"\", \".join(f\"{key}={value}\" para clave, valor en sel.items())"
+
+#: 8b3edc3c2e804c1fa8365b45d9f01a37 of pymc_marketing.plot.plot_curve
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 1ffe533503674ff586a973c3540b2255 of pymc_marketing.plot.plot_curve:51
+msgid ""
+":class:`python:tuple`\\[:obj:`plt.Figure`, "
+":obj:`npt.NDArray`\\[:obj:`plt.Axes`]]"
+msgstr ""
+":class:`python:tuple`\\[:obj:`plt.Figure`, "
+":obj:`npt.NDArray`\\[:obj:`plt.Axes`]]"
+
+#: 84e4035c06ca4b16b40b589a642b3116 of pymc_marketing.plot.plot_curve:52
+msgid "Figure and the axes"
+msgstr "Figura y los ejes"
+
+#: b4fccf89edb14274be956b1f53af06c7 of pymc_marketing.plot.plot_curve:64
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: 7e8a83e296b7478497d76bcbea3f7535 of pymc_marketing.plot.plot_curve:65
+msgid "Plot prior for arbitrary Deterministic in PyMC model"
+msgstr "Trazar prior para Determinista arbitrario en el modelo PyMC"
+
+#: ../source/api/generated/pymc_marketing.plot.plot_curve.rst:46
+#: 9c8b018bc6bc424a83e04bb4a6ad8d17
+msgid ""
+"(:download:`Source code "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-plot-"
+"plot_curve-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-plot-"
+"plot_curve-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-plot-"
+"plot_curve-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-plot-"
+"plot_curve-1.pdf>`)"
+msgstr ""
+"(:download:`Código fuente "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-plot-"
+"plot_curve-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-plot-"
+"plot_curve-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-plot-"
+"plot_curve-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-plot-"
+"plot_curve-1.pdf>`)"
+
+#: a84e04cc1fab4b53a0bf041782a2b72d of pymc_marketing.plot.plot_curve:110
+msgid "Choose the HDI intervals and number of samples"
+msgstr "Elija los intervalos de HDI y el número de muestras."
+
+#: ../source/api/generated/pymc_marketing.plot.plot_curve.rst:17
+#: 745446e278be42318c9f2b693be3ad9d
+msgid ""
+"(:download:`Source code "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-plot-"
+"plot_curve-2.py>`)"
+msgstr ""
+"(:download:`Código fuente "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-plot-"
+"plot_curve-2.py>`)"
+
+#: 2ee244d4e9f945ba8452f557e6171451 of pymc_marketing.plot.plot_curve:126
+msgid "Plot same curve on same axes with custom colors"
+msgstr "Trazar la misma curva en los mismos ejes con colores personalizados"
+
+#: ../source/api/generated/pymc_marketing.plot.plot_curve.rst:18
+#: c0804b0dd42f4df588013eda4e9fd5c1
+msgid ""
+"(:download:`Source code "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-plot-"
+"plot_curve-3.py>`)"
+msgstr ""
+"(:download:`Código fuente "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-plot-"
+"plot_curve-3.py>`)"

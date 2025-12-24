@@ -1,0 +1,47 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.hsgp.SoftPlusHSGP.deterministics_to_replace.rst:2
+#: 18be7e1119db46ab8dd3897f8b75c0cb
+msgid "SoftPlusHSGP.deterministics\\_to\\_replace"
+msgstr "SoftPlusHSGP.determinísticos\\_a\\_reemplazar"
+
+#: a44f9a20b5c84ce492d3c033c441bde9 of
+#: pymc_marketing.mmm.hsgp.SoftPlusHSGP.deterministics_to_replace:2
+msgid ""
+"Name of the Deterministic variables that are replaced with pm.Flat for out-"
+"of-sample."
+msgstr ""
+"Nombre de las variables determinísticas que se reemplazan con pm.Flat para "
+"fuera de muestra."
+
+#: f060abf8e3294783935141fec7cb1f06 of
+#: pymc_marketing.mmm.hsgp.SoftPlusHSGP.deterministics_to_replace:4
+msgid ""
+"This is required for in order to keep out-of-sample predictions use mean of "
+"1.0 from the training set. Without this, the training and test data will not"
+" be continuous, showing a jump from the training data to the test data."
+msgstr ""
+"Esto es necesario para mantener las predicciones fuera de muestra utilizando"
+" una media de 1.0 del conjunto de entrenamiento. Sin esto, los datos de "
+"entrenamiento y prueba no serán continuos, mostrando un salto de los datos "
+"de entrenamiento a los datos de prueba."

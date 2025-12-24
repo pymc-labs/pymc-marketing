@@ -12,10 +12,10 @@ jobs:
     name: build source distribution
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - name: Build the sdist and the wheel
@@ -40,7 +40,7 @@ jobs:
           echo "Checking import and version number (on release)"
           venv-bdist/bin/python -c "import pymc_marketing as pmm; assert pmm.__version__ == '${{  github.ref_name }}' if '${{ github.ref_type }}' == 'tag' else pmm.__version__; print(pmm.__version__)"
           cd ..
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: artifact
           path: dist/*
@@ -52,7 +52,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'release' && github.event.action == 'published'
     steps:
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v7
         with:
           name: artifact
           path: dist
@@ -60,7 +60,7 @@ jobs:
         with:
           skip-existing: true
           repository-url: https://test.pypi.org/legacy/
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - name: Test pip install from test.pypi
@@ -79,7 +79,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'release' && github.event.action == 'published'
     steps:
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v7
         with:
           name: artifact
           path: dist

@@ -10,6 +10,7 @@
   bass
   clv
   customer_choice
+  data
   deserialize
   hsgp_kwargs
   metrics
@@ -20,5 +21,6 @@
   model_graph
   plot
   prior
+  special_priors
   utils
 ```

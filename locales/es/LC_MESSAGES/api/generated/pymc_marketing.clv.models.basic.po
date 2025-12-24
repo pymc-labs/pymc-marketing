@@ -1,0 +1,46 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.rst:2
+#: c2a67512f30442fab8ffdd4dc616b027
+msgid "basic"
+msgstr "básico"
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.rst:23:<autosummary>:1
+#: 1d6685dad40c431ebfa809f1a30405ca 4778800dfef740f2a49f597e0027f8f5 of
+#: pymc_marketing.clv.models.basic:1
+msgid "CLV Model base class."
+msgstr "Clase base del modelo CLV."
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.rst:17
+#: 9220cc5032eb4424ab78464d96f354b1
+msgid "Classes"
+msgstr "Clases"
+
+#: ../source/api/generated/pymc_marketing.clv.models.basic.rst:23:<autosummary>:1
+#: 95a1da04ab26484784960272493406db
+msgid ""
+":py:obj:`CLVModel <pymc_marketing.clv.models.basic.CLVModel>`\\ \\(data\\, "
+"\\*\\[\\, model\\_config\\, ...\\]\\)"
+msgstr ""
+":py:obj:`CLVModel <pymc_marketing.clv.models.basic.CLVModel>`\\ \\(datos\\, "
+"\\*\\[\\, configuración\\_del\\_modelo\\, ...\\]\\)"

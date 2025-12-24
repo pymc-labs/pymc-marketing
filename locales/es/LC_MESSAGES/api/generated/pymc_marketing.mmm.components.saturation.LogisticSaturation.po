@@ -1,0 +1,328 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:2
+#: e7167c6d9c96408e94f83ba9cbda04eb
+msgid "LogisticSaturation"
+msgstr "SaturaciónLogística"
+
+#: 6a272fb8a7b04ed9974fa3162f4f513c of
+#: pymc_marketing.mmm.components.saturation.LogisticSaturation:2
+msgid "Wrapper around logistic saturation function."
+msgstr "Envoltura alrededor de la función de saturación logística."
+
+#: dc7483a0a40848f18d18868b1ed93d4b of
+#: pymc_marketing.mmm.components.saturation.LogisticSaturation:4
+msgid ""
+"For more information, see "
+":func:`pymc_marketing.mmm.transformers.logistic_saturation`."
+msgstr ""
+"Para más información, consulte "
+":func:`pymc_marketing.mmm.transformers.logistic_saturation`."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:7
+#: 68964f909f644dc68e03677ab87cab1d
+msgid ""
+"(:download:`Source code "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-LogisticSaturation-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-LogisticSaturation-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-LogisticSaturation-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-LogisticSaturation-1.pdf>`)"
+msgstr ""
+"(:download:`Código fuente "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-LogisticSaturation-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-LogisticSaturation-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-LogisticSaturation-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-saturation-LogisticSaturation-1.pdf>`)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:12
+#: a1ab186729b3488685dcf690e08f05cd
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:32:<autosummary>:1
+#: 055d473c54694316ba23c01dac53f12f
+msgid ""
+":py:obj:`LogisticSaturation.__init__ "
+"<pymc_marketing.mmm.components.saturation.LogisticSaturation.__init__>`\\ "
+"\\(\\[priors\\, prefix\\]\\)"
+msgstr ""
+":py:obj:`LogisticSaturation.__init__ "
+"<pymc_marketing.mmm.components.saturation.LogisticSaturation.__init__>`\\ "
+"\\(\\[priors\\, prefix\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:32:<autosummary>:1
+#: 246931a8099949d796cef5ed33dc4970
+msgid ""
+":py:obj:`LogisticSaturation.apply "
+"<pymc_marketing.mmm.components.saturation.LogisticSaturation.apply>`\\ "
+"\\(x\\[\\, dims\\, idx\\]\\)"
+msgstr ""
+":py:obj:`LogisticSaturation.apply "
+"<pymc_marketing.mmm.components.saturation.LogisticSaturation.apply>`\\ "
+"\\(x\\[\\, dims\\, idx\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:32:<autosummary>:1
+#: d641f01e48d64f2a935e7ccf994028ab
+msgid "Call within a model context."
+msgstr "Llamar dentro de un contexto de modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:32:<autosummary>:1
+#: 3d0a597032fd4aeb848c7063c489044f
+msgid ""
+":py:obj:`LogisticSaturation.function "
+"<pymc_marketing.mmm.components.saturation.LogisticSaturation.function>`\\ "
+"\\(x\\, lam\\, beta\\)"
+msgstr ""
+":py:obj:`LogisticSaturation.function "
+"<pymc_marketing.mmm.components.saturation.LogisticSaturation.function>`\\ "
+"\\(x\\, lam\\, beta\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:32:<autosummary>:1
+#: 4c706f2f0e6943e79174f824c41965b5
+msgid "Logistic saturation function."
+msgstr "Función de saturación logística."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:32:<autosummary>:1
+#: 0824e22296274632a9e43bc2f097b2a9
+msgid ""
+":py:obj:`LogisticSaturation.plot_curve "
+"<pymc_marketing.mmm.components.saturation.LogisticSaturation.plot_curve>`\\ "
+"\\(curve\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`LogisticSaturation.plot_curve "
+"<pymc_marketing.mmm.components.saturation.LogisticSaturation.plot_curve>`\\ "
+"\\(curva\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:32:<autosummary>:1
+#: 04b187bd6cba4595b6bd6e7069e3b380
+msgid "Plot curve HDI and samples."
+msgstr "Trazar la curva del IDH y las muestras."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:32:<autosummary>:1
+#: 23077874b9b94a338e37b38803c52f82
+msgid ""
+":py:obj:`LogisticSaturation.plot_curve_hdi "
+"<pymc_marketing.mmm.components.saturation.LogisticSaturation.plot_curve_hdi>`\\"
+" \\(curve\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`LogisticSaturation.plot_curve_hdi "
+"<pymc_marketing.mmm.components.saturation.LogisticSaturation.plot_curve_hdi>`\\"
+" \\(curva\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:32:<autosummary>:1
+#: 9b09730b1ed54855857d57640498824e
+msgid "Plot the HDI of the curve."
+msgstr "Trace el IDH de la curva."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:32:<autosummary>:1
+#: f00f207bdaa04b358aa9880ff76e8293
+msgid ""
+":py:obj:`LogisticSaturation.plot_curve_samples "
+"<pymc_marketing.mmm.components.saturation.LogisticSaturation.plot_curve_samples>`\\"
+" \\(curve\\)"
+msgstr ""
+":py:obj:`LogisticSaturation.plot_curve_samples "
+"<pymc_marketing.mmm.components.saturation.LogisticSaturation.plot_curve_samples>`\\"
+" \\(curva\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:32:<autosummary>:1
+#: ba0a1c8f1ff64e41950982b3cc147d56
+msgid "Plot samples from the curve."
+msgstr "Trazar muestras de la curva."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:32:<autosummary>:1
+#: 991967ea6bcd48f7a4d09ea61ec9b39f
+msgid ""
+":py:obj:`LogisticSaturation.sample_curve "
+"<pymc_marketing.mmm.components.saturation.LogisticSaturation.sample_curve>`\\"
+" \\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`LogisticSaturation.sample_curve "
+"<pymc_marketing.mmm.components.saturation.LogisticSaturation.sample_curve>`\\"
+" \\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:32:<autosummary>:1
+#: 16adfb5242c048c8b99c0b2a6f48f55a
+msgid "Sample the curve of the saturation transformation given parameters."
+msgstr ""
+"Muestre la curva de la transformación de saturación dados los parámetros."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:32:<autosummary>:1
+#: fcd3cb652ba649079db8659fda685375
+msgid ""
+":py:obj:`LogisticSaturation.sample_prior "
+"<pymc_marketing.mmm.components.saturation.LogisticSaturation.sample_prior>`\\"
+" \\(\\[coords\\]\\)"
+msgstr ""
+":py:obj:`LogisticSaturation.sample_prior "
+"<pymc_marketing.mmm.components.saturation.LogisticSaturation.sample_prior>`\\"
+" \\(\\[coords\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:32:<autosummary>:1
+#: db075333c6674405ab182aa00707eb5c
+msgid "Sample the priors for the transformation."
+msgstr "Muestree las distribuciones a priori para la transformación."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:32:<autosummary>:1
+#: 43b9988a94584a33b238f6a3c2784759
+msgid ""
+":py:obj:`LogisticSaturation.set_dims_for_all_priors "
+"<pymc_marketing.mmm.components.saturation.LogisticSaturation.set_dims_for_all_priors>`\\"
+" \\(dims\\)"
+msgstr ""
+":py:obj:`LogisticSaturation.set_dims_for_all_priors "
+"<pymc_marketing.mmm.components.saturation.LogisticSaturation.set_dims_for_all_priors>`\\"
+" (dims)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:32:<autosummary>:1
+#: d21865134ae544ed90213f5f2aae7c5d
+msgid "Set the dims for all priors."
+msgstr "Establezca las dimensiones para todos los antecedentes."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:32:<autosummary>:1
+#: 1e6ba564259b4170a034a3a738385e2d
+msgid ""
+":py:obj:`LogisticSaturation.to_dict "
+"<pymc_marketing.mmm.components.saturation.LogisticSaturation.to_dict>`\\ "
+"\\(\\)"
+msgstr ""
+":py:obj:`LogisticSaturation.to_dict "
+"<pymc_marketing.mmm.components.saturation.LogisticSaturation.to_dict>`\\ "
+"\\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:32:<autosummary>:1
+#: c8ab9539551749539165bd4bed490683
+msgid "Convert the transformation to a dictionary."
+msgstr "Convierte la transformación a un diccionario."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:32:<autosummary>:1
+#: 523d90e7897d45f0abd7872916381141
+msgid ""
+":py:obj:`LogisticSaturation.update_priors "
+"<pymc_marketing.mmm.components.saturation.LogisticSaturation.update_priors>`\\"
+" \\(priors\\)"
+msgstr ""
+":py:obj:`LogisticSaturation.update_priors "
+"<pymc_marketing.mmm.components.saturation.LogisticSaturation.update_priors>`\\"
+" \\(priors\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:32:<autosummary>:1
+#: 937903d8f68447f1a256b41e1f95c57d
+msgid "Update the priors for a function after initialization."
+msgstr "Actualice los priors para una función después de la inicialización."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:34
+#: db60c1821cde4b40acfe2fc0b9f10dcc
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:43:<autosummary>:1
+#: 642a77fa493247c29a59f3cd8e3549fd
+msgid ""
+":py:obj:`combined_dims "
+"<pymc_marketing.mmm.components.saturation.LogisticSaturation.combined_dims>`\\"
+msgstr ""
+":py:obj:`combined_dims "
+"<pymc_marketing.mmm.components.saturation.LogisticSaturation.combined_dims>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:43:<autosummary>:1
+#: 3231fb60eda746418591c02c24d5afba
+msgid "Get the combined dims for all the parameters."
+msgstr "Obtenga las dimensiones combinadas para todos los parámetros."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:43:<autosummary>:1
+#: 674517cd1b5d47f4915bc2a4a4e65b3a
+msgid ""
+":py:obj:`default_priors "
+"<pymc_marketing.mmm.components.saturation.LogisticSaturation.default_priors>`\\"
+msgstr ""
+":py:obj:`default_priors "
+"<pymc_marketing.mmm.components.saturation.LogisticSaturation.default_priors>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:43:<autosummary>:1
+#: 6fee4743101b434c9663409e3d47c039
+msgid ""
+":py:obj:`function_priors "
+"<pymc_marketing.mmm.components.saturation.LogisticSaturation.function_priors>`\\"
+msgstr ""
+":py:obj:`function_priors "
+"<pymc_marketing.mmm.components.saturation.LogisticSaturation.function_priors>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:43:<autosummary>:1
+#: 4d5336ccd8f34c6f8b7ac7af709d71c8
+msgid "Get the priors for the function."
+msgstr "Obtenga los priors para la función."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:43:<autosummary>:1
+#: fcda7d0ca38d426687fd237fe7b6672b
+msgid ""
+":py:obj:`lookup_name "
+"<pymc_marketing.mmm.components.saturation.LogisticSaturation.lookup_name>`\\"
+msgstr ""
+":py:obj:`lookup_name "
+"<pymc_marketing.mmm.components.saturation.LogisticSaturation.lookup_name>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:43:<autosummary>:1
+#: 39a81c7d9fe74302beef0dc474e91dff
+msgid ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.components.saturation.LogisticSaturation.model_config>`\\"
+msgstr ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.components.saturation.LogisticSaturation.model_config>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:43:<autosummary>:1
+#: 59d78b4363e64d91915e196e13384d66
+msgid "Mapping from variable name to prior for the model."
+msgstr "Mapeo del nombre de la variable a la prior para el modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:43:<autosummary>:1
+#: 4f1a0527263945c2a2c4e458272b1ef0
+msgid ""
+":py:obj:`prefix "
+"<pymc_marketing.mmm.components.saturation.LogisticSaturation.prefix>`\\"
+msgstr ""
+":py:obj:`prefix "
+"<pymc_marketing.mmm.components.saturation.LogisticSaturation.prefix>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:43:<autosummary>:1
+#: 913525173638413ba9690f540ed821b8
+msgid ""
+":py:obj:`variable_mapping "
+"<pymc_marketing.mmm.components.saturation.LogisticSaturation.variable_mapping>`\\"
+msgstr ""
+":py:obj:`variable_mapping "
+"<pymc_marketing.mmm.components.saturation.LogisticSaturation.variable_mapping>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.LogisticSaturation.rst:43:<autosummary>:1
+#: f0f8064f4a784cc296e286140d75ddb7
+msgid "Mapping from parameter name to variable name in the model."
+msgstr "Mapeo del nombre del parámetro al nombre de la variable en el modelo."

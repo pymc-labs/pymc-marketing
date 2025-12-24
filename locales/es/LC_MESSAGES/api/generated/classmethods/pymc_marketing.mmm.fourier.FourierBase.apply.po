@@ -1,0 +1,103 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.fourier.FourierBase.apply.rst:2
+#: d6c91489c8704eed96d13bfdf34b0b54
+msgid "FourierBase.apply"
+msgstr "FourierBase.aplicar"
+
+#: 3e4b323583a24337a31d1041ce9b6550 of
+#: pymc_marketing.mmm.fourier.FourierBase.apply:2
+msgid "Apply fourier seasonality to day of year."
+msgstr "Aplicar la estacionalidad de Fourier al día del año."
+
+#: 2a92a79a0b4a4328bfdf1f98c9b1d5d9 of
+#: pymc_marketing.mmm.fourier.FourierBase.apply:4
+msgid "Must be used within a PyMC model context."
+msgstr "Debe ser utilizado dentro del contexto de un modelo PyMC."
+
+#: cdcdaef2a791486c958051cf767daaef of
+#: pymc_marketing.mmm.fourier.FourierBase.apply
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 3474b6a24927422b81eab89052738e8c of
+#: pymc_marketing.mmm.fourier.FourierBase.apply:8
+msgid "**dayofperiod** : :obj:`pt.TensorLike`"
+msgstr "**día del período** : :obj:`pt.TensorLike`"
+
+#: 0b51f223c74448c28d441f74a5b1dffc of
+#: pymc_marketing.mmm.fourier.FourierBase.apply:7
+msgid "pt.TensorLike"
+msgstr "pt.TensorComo"
+
+#: 774c2177688d4fd1bf78093d38dd259f of
+#: pymc_marketing.mmm.fourier.FourierBase.apply:9
+msgid "Day of year or weekday"
+msgstr "Día del año o día de la semana"
+
+#: a994c18cb73640a7acbc9b66c3d16f4b of
+#: pymc_marketing.mmm.fourier.FourierBase.apply:11
+msgid ""
+"**result_callback** : :obj:`Callable`\\[[:obj:`pt.TensorVariable`], "
+":data:`python:None`], optional"
+msgstr ""
+"**result_callback** : :obj:`Callable`\\[[:obj:`pt.TensorVariable`], "
+":data:`python:None`], opcional"
+
+#: 32140f09b85b4cbbbf93d52ceb6d1132 of
+#: pymc_marketing.mmm.fourier.FourierBase.apply:10
+msgid "Callable[[pt.TensorVariable], python:None], optional"
+msgstr "Callable[[pt.TensorVariable], python:None], opcional"
+
+#: a0167f66d9004e47b415d773167d950d of
+#: pymc_marketing.mmm.fourier.FourierBase.apply:12
+msgid "Callback function to apply to the result, by default None"
+msgstr ""
+"Función de devolución de llamada que se aplicará al resultado, por defecto "
+"None"
+
+#: 0ca08f86f5d441e8bd873aad7b0ac9e5 of
+#: pymc_marketing.mmm.fourier.FourierBase.apply
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 64b9eed94170400abb77a0f5eec435fb of
+#: pymc_marketing.mmm.fourier.FourierBase.apply:18
+msgid ":obj:`pt.TensorVariable`"
+msgstr ":obj:`pt.TensorVariable`"
+
+#: 8a99a1a1370a4cb49810ab606cc14567 of
+#: pymc_marketing.mmm.fourier.FourierBase.apply:19
+msgid "Fourier seasonality"
+msgstr "Estacionalidad de Fourier"
+
+#: c37082e31e2441718785357b9e50a5b9 of
+#: pymc_marketing.mmm.fourier.FourierBase.apply:31
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: 07c28cf9b5cd423ca051da2c18cfc969 of
+#: pymc_marketing.mmm.fourier.FourierBase.apply:32
+msgid "Save off the result before summing through the prefix dimension."
+msgstr ""
+"Guarde el resultado antes de sumar a través de la dimensión de prefijo."
