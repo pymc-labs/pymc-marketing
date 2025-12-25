@@ -86,7 +86,10 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
             ValueError,
             match=r"The following required columns are missing from the input data: \['customer_id'\]",
         ):
-            model = GammaGammaModel(data=data_invalid)
+            with pytest.warns(
+                DeprecationWarning, match="will be removed in version 1.0"
+            ):
+                model = GammaGammaModel(data=data_invalid)
             model.build_model()
 
         data_invalid = self.data.drop(columns="frequency")
@@ -95,7 +98,10 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
             ValueError,
             match=r"The following required columns are missing from the input data: \['frequency'\]",
         ):
-            model = GammaGammaModel(data=data_invalid)
+            with pytest.warns(
+                DeprecationWarning, match="will be removed in version 1.0"
+            ):
+                model = GammaGammaModel(data=data_invalid)
             model.build_model()
 
         data_invalid = self.data.drop(columns="monetary_value")
@@ -104,7 +110,10 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
             ValueError,
             match=r"The following required columns are missing from the input data: \['monetary_value'\]",
         ):
-            model = GammaGammaModel(data=data_invalid)
+            with pytest.warns(
+                DeprecationWarning, match="will be removed in version 1.0"
+            ):
+                model = GammaGammaModel(data=data_invalid)
             model.build_model()
 
     @pytest.mark.parametrize(
@@ -156,8 +165,8 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
             "q": Prior("HalfNormal", sigma=10),
             "v": Prior("HalfNormal", sigma=10),
         }
-        model = GammaGammaModel(data=self.data, model_config=model_config)
-        model.fit(chains=2, progressbar=False, random_seed=rng)
+        model = GammaGammaModel(model_config=model_config)
+        model.fit(data=self.data, chains=2, progressbar=False, random_seed=rng)
         fit = model.idata.posterior
         np.testing.assert_allclose(
             [fit["p"].mean(), fit["q"].mean(), fit["v"].mean()],
@@ -283,8 +292,8 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         custom_model_config = {
             "p": Prior("HalfNormal", sigma=10),
         }
-        model = GammaGammaModel(data=self.data, model_config=custom_model_config)
-        model.build_model()
+        model = GammaGammaModel(model_config=custom_model_config)
+        model.build_model(data=self.data)
 
         assert model.__repr__().replace(" ", "") == (
             "Gamma-GammaModel(MeanTransactions)"
@@ -327,7 +336,10 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
             ValueError,
             match=r"The following required columns are missing from the input data: \['customer_id'\]",
         ):
-            model = GammaGammaModelIndividual(data=data_invalid)
+            with pytest.warns(
+                DeprecationWarning, match="will be removed in version 1.0"
+            ):
+                model = GammaGammaModelIndividual(data=data_invalid)
             model.build_model()
 
         data_invalid = self.individual_data.drop(columns="individual_transaction_value")
@@ -336,7 +348,10 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
             ValueError,
             match=r"The following required columns are missing from the input data: \['individual_transaction_value'\]",
         ):
-            model = GammaGammaModelIndividual(data=data_invalid)
+            with pytest.warns(
+                DeprecationWarning, match="will be removed in version 1.0"
+            ):
+                model = GammaGammaModelIndividual(data=data_invalid)
             model.build_model()
 
     @pytest.mark.parametrize(
@@ -382,8 +397,10 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
     @pytest.mark.slow
     def test_model_convergence(self):
         rng = np.random.default_rng(13)
-        model = GammaGammaModelIndividual(data=self.individual_data)
-        model.fit(chains=2, progressbar=False, random_seed=rng)
+        model = GammaGammaModelIndividual()
+        model.fit(
+            data=self.individual_data, chains=2, progressbar=False, random_seed=rng
+        )
         fit = model.idata.posterior
         np.testing.assert_allclose(
             [fit["p"].mean(), fit["q"].mean(), fit["v"].mean()],

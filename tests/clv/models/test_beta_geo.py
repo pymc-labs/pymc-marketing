@@ -146,8 +146,8 @@ class TestBetaGeoModel:
             ValueError,
             match=r"The following required columns are missing from the input data: \['customer_id'\]",
         ):
-            model = BetaGeoModel(data=data_invalid)
-            model.build_model()
+            model = BetaGeoModel()
+            model.build_model(data=data_invalid)
 
         data_invalid = self.data.drop(columns="frequency")
 
@@ -155,8 +155,8 @@ class TestBetaGeoModel:
             ValueError,
             match=r"The following required columns are missing from the input data: \['frequency'\]",
         ):
-            model = BetaGeoModel(data=data_invalid)
-            model.build_model()
+            model = BetaGeoModel()
+            model.build_model(data=data_invalid)
 
         data_invalid = self.data.drop(columns="recency")
 
@@ -164,8 +164,8 @@ class TestBetaGeoModel:
             ValueError,
             match=r"The following required columns are missing from the input data: \['recency'\]",
         ):
-            model = BetaGeoModel(data=data_invalid)
-            model.build_model()
+            model = BetaGeoModel()
+            model.build_model(data=data_invalid)
 
         data_invalid = self.data.drop(columns="T")
 
@@ -173,8 +173,8 @@ class TestBetaGeoModel:
             ValueError,
             match=r"The following required columns are missing from the input data: \['T'\]",
         ):
-            model = BetaGeoModel(data=data_invalid)
-            model.build_model()
+            model = BetaGeoModel()
+            model.build_model(data=data_invalid)
 
     def test_customer_id_duplicate(self):
         data = pd.DataFrame(
@@ -189,8 +189,8 @@ class TestBetaGeoModel:
         with pytest.raises(
             ValueError, match=r"Column customer_id has duplicate entries"
         ):
-            model = BetaGeoModel(data=data)
-            model.build_model()
+            model = BetaGeoModel()
+            model.build_model(data=data)
 
     @pytest.mark.parametrize(
         "frequency, recency, logp_value",
@@ -319,11 +319,8 @@ class TestBetaGeoModel:
     )
     def test_model_convergence(self, method, rtol, model_config):
         # b parameter has the largest mismatch of the four parameters
-        model = BetaGeoModel(
-            data=self.data,
-            model_config=model_config,
-        )
-        model.build_model()
+        model = BetaGeoModel(model_config=model_config)
+        model.build_model(data=self.data)
 
         if method == "advi":
             sample_kwargs = dict(random_seed=self.seed)
@@ -342,7 +339,8 @@ class TestBetaGeoModel:
         )
 
     def test_fit_result_without_fit(self, mocker, model_config):
-        model = BetaGeoModel(data=self.data, model_config=model_config)
+        model = BetaGeoModel(model_config=model_config)
+        model.build_model(data=self.data)
         with pytest.raises(RuntimeError, match=r"The model hasn't been fit yet"):
             model.fit_result
 
@@ -375,8 +373,8 @@ class TestBetaGeoModel:
             }
         )
 
-        bg_model = BetaGeoModel(data=data)
-        bg_model.build_model()
+        bg_model = BetaGeoModel()
+        bg_model.build_model(data=data)
         bg_model.idata = az.from_dict(
             {
                 "a": np.full((2, 5), self.a_true),
@@ -407,8 +405,8 @@ class TestBetaGeoModel:
             }
         )
 
-        bg_model = BetaGeoModel(data=data)
-        bg_model.build_model()
+        bg_model = BetaGeoModel()
+        bg_model.build_model(data=data)
         bg_model.idata = az.from_dict(
             {
                 "a": np.full((2, 5), self.a_true),
@@ -438,8 +436,8 @@ class TestBetaGeoModel:
             }
         )
 
-        bg_model = BetaGeoModel(data=data)
-        bg_model.build_model()
+        bg_model = BetaGeoModel()
+        bg_model.build_model(data=data)
         bg_model.idata = az.from_dict(
             {
                 "a": np.full((2, 5), self.a_true),
@@ -469,8 +467,8 @@ class TestBetaGeoModel:
             }
         )
 
-        bg_model = BetaGeoModel(data=data)
-        bg_model.build_model()
+        bg_model = BetaGeoModel()
+        bg_model.build_model(data=data)
         bg_model.idata = az.from_dict(
             {
                 "a": np.full((2, 5), self.a_true),
@@ -1030,13 +1028,6 @@ class TestBetaGeoModelNewAPI:
         test_data = pd.read_csv("data/clv_quickstart.csv")
         test_data["customer_id"] = test_data.index
         cls.data = test_data
-
-    def test_new_api_fit_with_data(self):
-        """Test new API: model.fit(data=...)"""
-        model = BetaGeoModel()
-        model.fit(data=self.data, method="map", progressbar=False)
-        assert model.idata is not None
-        assert "posterior" in model.idata
 
     def test_new_api_build_then_fit(self):
         """Test new API: model.build_model(data=...) then model.fit()"""

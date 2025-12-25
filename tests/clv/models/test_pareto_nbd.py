@@ -50,7 +50,8 @@ class TestParetoNBDModel:
         cls.T = test_data["T"]
 
         # Instantiate model with CDNOW data for testing
-        cls.model = ParetoNBDModel(cls.data)
+        cls.model = ParetoNBDModel()
+        cls.model.build_model(data=cls.data)
 
         # Also instantiate lifetimes model for comparison
         cls.lifetimes_model = ParetoNBDFitter()
@@ -109,10 +110,8 @@ class TestParetoNBDModel:
 
     def test_model(self, model_config, default_model_config):
         for config in (model_config, default_model_config):
-            model = ParetoNBDModel(self.data, model_config=config)
-
-            # TODO: This can be removed after build_model() is called internally with __init__
-            model.build_model()
+            model = ParetoNBDModel(model_config=config)
+            model.build_model(data=self.data)
 
             assert isinstance(
                 model.model["r"].owner.op,
@@ -158,7 +157,7 @@ class TestParetoNBDModel:
             match=r"The following required columns are missing from the input data: \['customer_id'\]",
         ):
             model = ParetoNBDModel(data=data_invalid)
-            model.build_model()
+            model.build_model(data=data_invalid)
 
         data_invalid = self.data.drop(columns="frequency")
 
@@ -166,8 +165,8 @@ class TestParetoNBDModel:
             ValueError,
             match=r"The following required columns are missing from the input data: \['frequency'\]",
         ):
-            model = ParetoNBDModel(data=data_invalid)
-            model.build_model()
+            model = ParetoNBDModel()
+            model.build_model(data=data_invalid)
 
         data_invalid = self.data.drop(columns="recency")
 
@@ -175,8 +174,8 @@ class TestParetoNBDModel:
             ValueError,
             match=r"The following required columns are missing from the input data: \['recency'\]",
         ):
-            model = ParetoNBDModel(data=data_invalid)
-            model.build_model()
+            model = ParetoNBDModel()
+            model.build_model(data=data_invalid)
 
         data_invalid = self.data.drop(columns="T")
 
@@ -184,8 +183,8 @@ class TestParetoNBDModel:
             ValueError,
             match=r"The following required columns are missing from the input data: \['T'\]",
         ):
-            model = ParetoNBDModel(data=data_invalid)
-            model.build_model()
+            model = ParetoNBDModel()
+            model.build_model(data=data_invalid)
 
     def test_customer_id_error(self):
         with pytest.raises(
@@ -199,8 +198,8 @@ class TestParetoNBDModel:
                     "T": np.array([20, 30, 40]),
                 }
             )
-            model = ParetoNBDModel(test_data)
-            model.build_model()
+            model = ParetoNBDModel()
+            model.build_model(data=test_data)
 
     @pytest.mark.slow
     @pytest.mark.parametrize(
@@ -208,11 +207,8 @@ class TestParetoNBDModel:
         [("mcmc", 0.1), ("map", 0.2), ("demz", 0.2)],
     )
     def test_model_convergence(self, method, rtol):
-        model = ParetoNBDModel(
-            data=self.data,
-        )
-
-        model.fit(method=method, progressbar=False)
+        model = ParetoNBDModel()
+        model.fit(data=self.data, method=method, progressbar=False)
 
         fit = model.idata.posterior
         np.testing.assert_allclose(
@@ -450,10 +446,8 @@ class TestParetoNBDModelWithCovariates:
             purchase_covariate_cols=purchase_covariate_cols,
             dropout_covariate_cols=dropout_covariate_cols,
         )
-        cls.model_with_covariates = ParetoNBDModel(
-            data,
-            model_config=covariate_config,
-        )
+        cls.model_with_covariates = ParetoNBDModel(model_config=covariate_config)
+        cls.model_with_covariates.build_model(data=data)
 
         # Mock an idata object for tests requiring a fitted model
         chains = 2
@@ -494,7 +488,8 @@ class TestParetoNBDModelWithCovariates:
         set_model_fit(cls.model_with_covariates, mock_fit_with_covariates)
 
         # Create a reference model without covariates
-        cls.model_without_covariates = ParetoNBDModel(data)
+        cls.model_without_covariates = ParetoNBDModel()
+        cls.model_without_covariates.build_model(data=data)
         mock_fit_without_covariates = az.from_dict(
             {
                 "r": mock_fit_dict["r"],
