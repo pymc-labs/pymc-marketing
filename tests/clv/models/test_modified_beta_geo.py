@@ -148,7 +148,8 @@ class TestModifiedBetaGeoModel:
             ValueError,
             match=rf"The following required columns are missing from the input data: \['{missing_column}'\]",
         ):
-            ModifiedBetaGeoModel(data=data_invalid)
+            model = ModifiedBetaGeoModel(data=data_invalid)
+            model.build_model()
 
     def test_customer_id_duplicate(self):
         with pytest.raises(
@@ -163,9 +164,8 @@ class TestModifiedBetaGeoModel:
                 }
             )
 
-            ModifiedBetaGeoModel(
-                data=data,
-            )
+            model = ModifiedBetaGeoModel(data=data)
+            model.build_model()
 
     @pytest.mark.parametrize(
         "frequency, recency, logp_value",

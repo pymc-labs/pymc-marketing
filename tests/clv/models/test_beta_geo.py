@@ -146,7 +146,8 @@ class TestBetaGeoModel:
             ValueError,
             match=r"The following required columns are missing from the input data: \['customer_id'\]",
         ):
-            BetaGeoModel(data=data_invalid)
+            model = BetaGeoModel(data=data_invalid)
+            model.build_model()
 
         data_invalid = self.data.drop(columns="frequency")
 
@@ -154,7 +155,8 @@ class TestBetaGeoModel:
             ValueError,
             match=r"The following required columns are missing from the input data: \['frequency'\]",
         ):
-            BetaGeoModel(data=data_invalid)
+            model = BetaGeoModel(data=data_invalid)
+            model.build_model()
 
         data_invalid = self.data.drop(columns="recency")
 
@@ -162,7 +164,8 @@ class TestBetaGeoModel:
             ValueError,
             match=r"The following required columns are missing from the input data: \['recency'\]",
         ):
-            BetaGeoModel(data=data_invalid)
+            model = BetaGeoModel(data=data_invalid)
+            model.build_model()
 
         data_invalid = self.data.drop(columns="T")
 
@@ -170,7 +173,8 @@ class TestBetaGeoModel:
             ValueError,
             match=r"The following required columns are missing from the input data: \['T'\]",
         ):
-            BetaGeoModel(data=data_invalid)
+            model = BetaGeoModel(data=data_invalid)
+            model.build_model()
 
     def test_customer_id_duplicate(self):
         data = pd.DataFrame(
@@ -185,9 +189,8 @@ class TestBetaGeoModel:
         with pytest.raises(
             ValueError, match=r"Column customer_id has duplicate entries"
         ):
-            BetaGeoModel(
-                data=data,
-            )
+            model = BetaGeoModel(data=data)
+            model.build_model()
 
     @pytest.mark.parametrize(
         "frequency, recency, logp_value",
@@ -1016,3 +1019,57 @@ class TestBetaGeoModelWithCovariates:
                     err_msg=f"Tolerance exceeded for variable {var_name}",
                     rtol=0.2,
                 )
+
+
+class TestBetaGeoModelNewAPI:
+    """Tests for the new API where data is passed to fit() or build_model()."""
+
+    @classmethod
+    def setup_class(cls):
+        # Use the same test data as TestBetaGeoModel
+        test_data = pd.read_csv("data/clv_quickstart.csv")
+        test_data["customer_id"] = test_data.index
+        cls.data = test_data
+
+    def test_new_api_fit_with_data(self):
+        """Test new API: model.fit(data=...)"""
+        model = BetaGeoModel()
+        model.fit(data=self.data, method="map", progressbar=False)
+        assert model.idata is not None
+        assert "posterior" in model.idata
+
+    def test_new_api_build_then_fit(self):
+        """Test new API: model.build_model(data=...) then model.fit()"""
+        model = BetaGeoModel()
+        model.build_model(data=self.data)
+        assert hasattr(model, "model")
+        model.fit(method="map", progressbar=False)
+        assert model.idata is not None
+        assert "posterior" in model.idata
+
+    def test_old_api_deprecation_warning(self):
+        """Test that old API raises deprecation warning."""
+        with pytest.warns(DeprecationWarning, match="will be removed in version 1.0"):
+            model = BetaGeoModel(data=self.data)
+        model.build_model()
+        assert hasattr(model, "model")
+
+    def test_old_api_still_works(self):
+        """Test that old API still works with deprecation warning."""
+        with pytest.warns(DeprecationWarning, match="will be removed in version 1.0"):
+            model = BetaGeoModel(data=self.data)
+        model.fit(method="map", progressbar=False)
+        assert model.idata is not None
+        assert "posterior" in model.idata
+
+    def test_build_model_without_data_raises_error(self):
+        """Test that build_model() without data raises appropriate error."""
+        model = BetaGeoModel()
+        with pytest.raises(ValueError, match="requires data parameter"):
+            model.build_model()
+
+    def test_fit_without_data_raises_error(self):
+        """Test that fit() without data raises appropriate error."""
+        model = BetaGeoModel()
+        with pytest.raises(ValueError, match="Data must be provided"):
+            model.fit(method="map", progressbar=False)

@@ -180,7 +180,8 @@ class TestBetaGeoBetaBinomModel:
             ValueError,
             match=r"The following required columns are missing from the input data: \['customer_id'\]",
         ):
-            BetaGeoBetaBinomModel(data=data_invalid)
+            model = BetaGeoBetaBinomModel(data=data_invalid)
+            model.build_model()
 
         data_invalid = self.data.drop(columns="frequency")
 
@@ -188,7 +189,8 @@ class TestBetaGeoBetaBinomModel:
             ValueError,
             match=r"The following required columns are missing from the input data: \['frequency'\]",
         ):
-            BetaGeoBetaBinomModel(data=data_invalid)
+            model = BetaGeoBetaBinomModel(data=data_invalid)
+            model.build_model()
 
         data_invalid = self.data.drop(columns="recency")
 
@@ -196,7 +198,8 @@ class TestBetaGeoBetaBinomModel:
             ValueError,
             match=r"The following required columns are missing from the input data: \['recency'\]",
         ):
-            BetaGeoBetaBinomModel(data=data_invalid)
+            model = BetaGeoBetaBinomModel(data=data_invalid)
+            model.build_model()
 
         data_invalid = self.data.drop(columns="T")
 
@@ -204,7 +207,8 @@ class TestBetaGeoBetaBinomModel:
             ValueError,
             match=r"The following required columns are missing from the input data: \['T'\]",
         ):
-            BetaGeoBetaBinomModel(data=data_invalid)
+            model = BetaGeoBetaBinomModel(data=data_invalid)
+            model.build_model()
 
     def test_customer_id_duplicate(self):
         with pytest.raises(
@@ -219,9 +223,8 @@ class TestBetaGeoBetaBinomModel:
                 }
             )
 
-            BetaGeoBetaBinomModel(
-                data=data,
-            )
+            model = BetaGeoBetaBinomModel(data=data)
+            model.build_model()
 
     def test_T_homogeneity(self):
         with pytest.raises(ValueError, match=r"Column T has non-homogeneous entries"):
@@ -234,9 +237,8 @@ class TestBetaGeoBetaBinomModel:
                 }
             )
 
-            BetaGeoBetaBinomModel(
-                data=data,
-            )
+            model = BetaGeoBetaBinomModel(data=data)
+            model.build_model()
 
     @pytest.mark.parametrize("custom_config", (True, False))
     def test_model_repr(self, custom_config):

@@ -86,7 +86,8 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
             ValueError,
             match=r"The following required columns are missing from the input data: \['customer_id'\]",
         ):
-            GammaGammaModel(data=data_invalid)
+            model = GammaGammaModel(data=data_invalid)
+            model.build_model()
 
         data_invalid = self.data.drop(columns="frequency")
 
@@ -94,7 +95,8 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
             ValueError,
             match=r"The following required columns are missing from the input data: \['frequency'\]",
         ):
-            GammaGammaModel(data=data_invalid)
+            model = GammaGammaModel(data=data_invalid)
+            model.build_model()
 
         data_invalid = self.data.drop(columns="monetary_value")
 
@@ -102,7 +104,8 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
             ValueError,
             match=r"The following required columns are missing from the input data: \['monetary_value'\]",
         ):
-            GammaGammaModel(data=data_invalid)
+            model = GammaGammaModel(data=data_invalid)
+            model.build_model()
 
     @pytest.mark.parametrize(
         "config",
@@ -300,7 +303,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         }
 
         mocker.patch("pymc_marketing.clv.models.basic.CLVModel._fit_MAP", mock_fit_MAP)
-        model.fit("map", maxeval=1)
+        model.fit(method="map", maxeval=1)
         model.save("test_model")
         # Testing the valid case.
 
@@ -324,7 +327,8 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
             ValueError,
             match=r"The following required columns are missing from the input data: \['customer_id'\]",
         ):
-            GammaGammaModelIndividual(data=data_invalid)
+            model = GammaGammaModelIndividual(data=data_invalid)
+            model.build_model()
 
         data_invalid = self.individual_data.drop(columns="individual_transaction_value")
 
@@ -332,7 +336,8 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
             ValueError,
             match=r"The following required columns are missing from the input data: \['individual_transaction_value'\]",
         ):
-            GammaGammaModelIndividual(data=data_invalid)
+            model = GammaGammaModelIndividual(data=data_invalid)
+            model.build_model()
 
     @pytest.mark.parametrize(
         "config",
@@ -458,7 +463,7 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
             param: Prior("HalfNormal") for param in model.model_config
         }
         mocker.patch("pymc_marketing.clv.models.basic.CLVModel._fit_MAP", mock_fit_MAP)
-        model.fit("map", maxeval=1)
+        model.fit(method="map", maxeval=1)
         model.save("test_model")
         # Testing the valid case.
 

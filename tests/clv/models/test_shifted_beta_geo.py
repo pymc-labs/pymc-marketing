@@ -348,7 +348,8 @@ class TestShiftedBetaGeoModel:
             ValueError,
             match=r"The following required columns are missing from the input data: \['customer_id'\]",
         ):
-            ShiftedBetaGeoModel(data=data_invalid)
+            model = ShiftedBetaGeoModel(data=data_invalid)
+            model.build_model()
 
         data_invalid = self.data.drop(columns="recency")
 
@@ -356,7 +357,8 @@ class TestShiftedBetaGeoModel:
             ValueError,
             match=r"The following required columns are missing from the input data: \['recency'\]",
         ):
-            ShiftedBetaGeoModel(data=data_invalid)
+            model = ShiftedBetaGeoModel(data=data_invalid)
+            model.build_model()
 
         data_invalid = self.data.drop(columns="T")
 
@@ -364,7 +366,8 @@ class TestShiftedBetaGeoModel:
             ValueError,
             match=r"The following required columns are missing from the input data: \['T'\]",
         ):
-            ShiftedBetaGeoModel(data=data_invalid)
+            model = ShiftedBetaGeoModel(data=data_invalid)
+            model.build_model()
 
     def test_customer_id_duplicate(self):
         with pytest.raises(
@@ -378,7 +381,8 @@ class TestShiftedBetaGeoModel:
                     "cohort": np.asarray(["A", "A"]),
                 }
             )
-            ShiftedBetaGeoModel(data=data)
+            model = ShiftedBetaGeoModel(data=data)
+            model.build_model()
 
     def test_invalid_recency(self):
         data = pd.DataFrame(
@@ -392,7 +396,8 @@ class TestShiftedBetaGeoModel:
         with pytest.raises(
             ValueError, match=r"Model fitting requires 1 <= recency <= T, and T >= 2."
         ):
-            ShiftedBetaGeoModel(data=data)
+            model = ShiftedBetaGeoModel(data=data)
+            model.build_model()
 
     def test_invalid_T(self):
         data = pd.DataFrame(
@@ -406,7 +411,8 @@ class TestShiftedBetaGeoModel:
         with pytest.raises(
             ValueError, match=r"Model fitting requires 1 <= recency <= T, and T >= 2."
         ):
-            ShiftedBetaGeoModel(data=data)
+            model = ShiftedBetaGeoModel(data=data)
+            model.build_model()
 
     def test_cohort_T_homogeneity(self):
         data = pd.DataFrame(
@@ -420,7 +426,8 @@ class TestShiftedBetaGeoModel:
         with pytest.raises(
             ValueError, match=r"T must be homogeneous within each cohort."
         ):
-            ShiftedBetaGeoModel(data=data)
+            model = ShiftedBetaGeoModel(data=data)
+            model.build_model()
 
     def test_model_repr(self, custom_model_config):
         default_repr = (
@@ -518,10 +525,11 @@ class TestShiftedBetaGeoModel:
             "beta": Prior("HalfStudentT", nu=4, sigma=10, dims="cohort"),
         }
         with pytest.raises(ValueError, match=r'dims="cohort"'):
-            ShiftedBetaGeoModel(
+            model = ShiftedBetaGeoModel(
                 data=self.data,
                 model_config=config_missing_dims,
             )
+            model.build_model()
 
     def test_requires_cohort_dims_on_alpha_beta_incorrect_raises(self):
         config_incorrect_dims = {
@@ -529,10 +537,11 @@ class TestShiftedBetaGeoModel:
             "beta": Prior("HalfStudentT", nu=4, sigma=10, dims="cohort"),
         }
         with pytest.raises(ValueError, match=r'dims="cohort"'):
-            ShiftedBetaGeoModel(
+            model = ShiftedBetaGeoModel(
                 data=self.data,
                 model_config=config_incorrect_dims,
             )
+            model.build_model()
 
     def test_accepts_alpha_beta_with_cohort_dims(self):
         config_ok = {
@@ -540,10 +549,11 @@ class TestShiftedBetaGeoModel:
             "beta": Prior("HalfStudentT", nu=4, sigma=10, dims="dim"),
         }
         with pytest.raises(ValueError, match=r'dims="cohort"'):
-            ShiftedBetaGeoModel(
+            model = ShiftedBetaGeoModel(
                 data=self.data,
                 model_config=config_ok,
             )
+            model.build_model()
 
     def test_extract_predictive_variables_invalid(self):
         invalid_cohort_data = pd.DataFrame(
@@ -913,7 +923,10 @@ class TestShiftedBetaGeoModel:
         }
 
         with pytest.raises(ValueError, match="missing from the input data"):
-            ShiftedBetaGeoModel(data=data_missing_covariates, model_config=model_config)
+            model = ShiftedBetaGeoModel(
+                data=data_missing_covariates, model_config=model_config
+            )
+            model.build_model()
 
     def test_covariate_cols_only_in_config(self, covariate_test_data):
         """Test that passing only dropout_covariate_cols into model_config (without priors) works."""
@@ -1127,7 +1140,8 @@ class TestShiftedBetaGeoModelIndividual:
             ValueError,
             match=r"The following required columns are missing from the input data: \['customer_id'\]",
         ):
-            ShiftedBetaGeoModelIndividual(data=data_invalid)
+            model = ShiftedBetaGeoModelIndividual(data=data_invalid)
+            model.build_model()
 
         data_invalid = data.drop(columns="t_churn")
 
@@ -1135,7 +1149,8 @@ class TestShiftedBetaGeoModelIndividual:
             ValueError,
             match=r"The following required columns are missing from the input data: \['t_churn'\]",
         ):
-            ShiftedBetaGeoModelIndividual(data=data_invalid)
+            model = ShiftedBetaGeoModelIndividual(data=data_invalid)
+            model.build_model()
 
         data_invalid = data.drop(columns="T")
 
@@ -1143,7 +1158,8 @@ class TestShiftedBetaGeoModelIndividual:
             ValueError,
             match=r"The following required columns are missing from the input data: \['T'\]",
         ):
-            ShiftedBetaGeoModelIndividual(data=data_invalid)
+            model = ShiftedBetaGeoModelIndividual(data=data_invalid)
+            model.build_model()
 
     def test_model_repr(self, default_model_config):
         custom_model_config = default_model_config.copy()
@@ -1210,20 +1226,23 @@ class TestShiftedBetaGeoModelIndividual:
 
         dataset["t_churn"] = [10, 10, np.nan]
         with pytest.raises(ValueError, match=match_msg):
-            ShiftedBetaGeoModelIndividual(
+            model = ShiftedBetaGeoModelIndividual(
                 data=pd.DataFrame(dataset), model_config=default_model_config
             )
+            model.build_model()
         dataset["t_churn"] = [10, 10, 11]
         with pytest.raises(ValueError, match=match_msg):
-            ShiftedBetaGeoModelIndividual(
+            model = ShiftedBetaGeoModelIndividual(
                 data=pd.DataFrame(dataset), model_config=default_model_config
             )
+            model.build_model()
         dataset["t_churn"] = [-1, 8, 9]
         dataset["T"] = [8, 9, 10]
         with pytest.raises(ValueError, match=match_msg):
-            ShiftedBetaGeoModelIndividual(
+            model = ShiftedBetaGeoModelIndividual(
                 data=pd.DataFrame(dataset),
             )
+            model.build_model()
 
     @pytest.mark.slow
     def test_model_convergence(self, data, model_config):
@@ -1309,7 +1328,7 @@ class TestShiftedBetaGeoModelIndividual:
             data=data,
         )
         model.build_model()
-        model.fit("map", maxeval=1)
+        model.fit(method="map", maxeval=1)
         model.save("test_model")
         # Testing the valid case.
         model2 = ShiftedBetaGeoModelIndividual.load("test_model")

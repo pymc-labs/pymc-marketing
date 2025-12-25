@@ -50,7 +50,22 @@ class CLVModelTest(CLVModel):
             "x": Prior("Normal", mu=0, sigma=1),
         }
 
-    def build_model(self):
+    def _validate_data(self, data: pd.DataFrame) -> None:
+        """Validate data for CLVModelTest."""
+        self._validate_cols(data, required_cols=["y"], must_be_unique=[])
+
+    def build_model(self, data: pd.DataFrame | None = None) -> None:  # type: ignore[override]
+        if data is not None:
+            self._validate_data(data)
+            self.data = data
+        elif not hasattr(self, "data") or self.data is None:
+            raise ValueError(
+                f"{self._model_type}.build_model() requires data parameter. "
+                "Either pass data to build_model(data=...) or fit(data=...)"
+            )
+        else:
+            self._validate_data(self.data)
+
         with pm.Model() as self.model:
             x = self.model_config["x"].create_variable("x")
             pm.Normal("y", mu=x, sigma=1, observed=self.data["y"])
@@ -165,7 +180,7 @@ class TestCLVModel:
         with pytest.warns(
             DeprecationWarning,
             match=(
-                "'fit_method' is deprecated and will be removed in a future release. "
+                "'fit_method' is deprecated and will be removed in version 1.0. "
                 "Use 'method' instead."
             ),
         ):

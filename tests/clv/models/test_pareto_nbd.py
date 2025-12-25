@@ -157,7 +157,8 @@ class TestParetoNBDModel:
             ValueError,
             match=r"The following required columns are missing from the input data: \['customer_id'\]",
         ):
-            ParetoNBDModel(data=data_invalid)
+            model = ParetoNBDModel(data=data_invalid)
+            model.build_model()
 
         data_invalid = self.data.drop(columns="frequency")
 
@@ -165,7 +166,8 @@ class TestParetoNBDModel:
             ValueError,
             match=r"The following required columns are missing from the input data: \['frequency'\]",
         ):
-            ParetoNBDModel(data=data_invalid)
+            model = ParetoNBDModel(data=data_invalid)
+            model.build_model()
 
         data_invalid = self.data.drop(columns="recency")
 
@@ -173,7 +175,8 @@ class TestParetoNBDModel:
             ValueError,
             match=r"The following required columns are missing from the input data: \['recency'\]",
         ):
-            ParetoNBDModel(data=data_invalid)
+            model = ParetoNBDModel(data=data_invalid)
+            model.build_model()
 
         data_invalid = self.data.drop(columns="T")
 
@@ -181,7 +184,8 @@ class TestParetoNBDModel:
             ValueError,
             match=r"The following required columns are missing from the input data: \['T'\]",
         ):
-            ParetoNBDModel(data=data_invalid)
+            model = ParetoNBDModel(data=data_invalid)
+            model.build_model()
 
     def test_customer_id_error(self):
         with pytest.raises(
@@ -195,7 +199,8 @@ class TestParetoNBDModel:
                     "T": np.array([20, 30, 40]),
                 }
             )
-            ParetoNBDModel(test_data)
+            model = ParetoNBDModel(test_data)
+            model.build_model()
 
     @pytest.mark.slow
     @pytest.mark.parametrize(
@@ -404,15 +409,15 @@ class TestParetoNBDModel:
         assert self.model.idata == loaded_model.idata
         os.remove("test_model")
 
-    def test_fit_exception(self, mock_pymc_sample):
+    def test_fit_exception(self):
         with pytest.warns(
             DeprecationWarning,
             match=(
-                "'fit_method' is deprecated and will be removed in a future release. "
+                "'fit_method' is deprecated and will be removed in version 1.0. "
                 "Use 'method' instead."
             ),
         ):
-            self.model.fit(fit_method="mcmc")
+            self.model.fit(fit_method="map")
 
 
 class TestParetoNBDModelWithCovariates:
@@ -701,10 +706,9 @@ class TestParetoNBDModelWithCovariates:
             "dropout_coefficient": Prior("Normal", mu=3, sigma=3),
         }
         new_model = ParetoNBDModel(
-            synthetic_data,
             model_config=self.model_with_covariates.model_config | custom_priors,
         )
-        new_model.fit(method="map")
+        new_model.fit(data=synthetic_data, method="map")
 
         result = new_model.fit_result
         for var in default_model.free_RVs:
