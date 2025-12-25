@@ -1,9 +1,34 @@
 #!/usr/bin/env python3
 """Sphinx configuration for PyMC-Marketing Docs."""
 
+import multiprocessing
 import os
 
 import pymc_marketing  # isort:skip
+
+# -- Fast Build Mode Configuration ----------------------------------------
+# Set environment variables to speed up builds during development:
+#   - PYMC_MARKETING_FAST_DOCS=1: Skip notebooks and heavy API generation
+#   - SKIP_NOTEBOOKS=1: Skip notebook execution only
+#   - SKIP_API_GENERATION=1: Skip API documentation generation only
+
+FAST_DOCS = os.environ.get("PYMC_MARKETING_FAST_DOCS", "0") == "1"
+SKIP_NOTEBOOKS = os.environ.get("SKIP_NOTEBOOKS", "0") == "1" or FAST_DOCS
+SKIP_API_GENERATION = os.environ.get("SKIP_API_GENERATION", "0") == "1" or FAST_DOCS
+
+if FAST_DOCS:
+    print("=" * 70)
+    print("FAST BUILD MODE ENABLED")
+    print("  - Notebooks: SKIPPED")
+    print("  - API Generation: SKIPPED")
+    print("  - Build time: ~30-60 seconds")
+    print("=" * 70)
+elif SKIP_NOTEBOOKS or SKIP_API_GENERATION:
+    print("=" * 70)
+    print("PARTIAL FAST BUILD MODE")
+    print(f"  - Notebooks: {'SKIPPED' if SKIP_NOTEBOOKS else 'ENABLED'}")
+    print(f"  - API Generation: {'SKIPPED' if SKIP_API_GENERATION else 'ENABLED'}")
+    print("=" * 70)
 
 # -- General configuration ------------------------------------------------
 
@@ -66,6 +91,25 @@ exclude_patterns = [
     "**.ipynb_checkpoints",
 ]
 
+# Fast build mode: Skip notebooks
+if SKIP_NOTEBOOKS:
+    exclude_patterns.extend(
+        [
+            "notebooks/**",
+            "guide/benefits/model_deployment.ipynb",
+        ]
+    )
+    print("  ⚡ Excluding all notebooks from build")
+
+# Fast build mode: Skip API generation
+if SKIP_API_GENERATION:
+    exclude_patterns.extend(
+        [
+            "api/generated/**",
+        ]
+    )
+    print("  ⚡ Excluding API documentation from build")
+
 # The reST default role (used for this markup: `text`) to use for all documents.
 # This sets the behaviour to be the same as in markdown
 default_role = "code"
@@ -87,8 +131,25 @@ notfound_urls_prefix = "/en/latest/"
 remove_from_toctrees = ["**/classmethods/*"]
 
 # myst config
-nb_execution_mode = "auto"
-nb_execution_excludepatterns = ["*.ipynb"]
+# Use cache mode for faster subsequent builds (only re-executes modified notebooks)
+# Use "off" in fast build mode to skip all notebook execution
+if SKIP_NOTEBOOKS:
+    nb_execution_mode = "off"
+else:
+    nb_execution_mode = "cache"  # Changed from "auto" for better performance
+
+nb_execution_cache_path = ".jupyter_cache"  # Persistent cache directory
+nb_execution_timeout = 600  # 10 minutes per notebook
+nb_execution_allow_errors = False
+nb_execution_raise_on_error = True
+nb_execution_excludepatterns = [
+    # Heavy notebooks that take too long - execute manually when needed
+    "notebooks/mmm/mmm_case_study.ipynb",
+    "notebooks/mmm/mmm_multidimensional_example.ipynb",
+    "notebooks/mmm/mmm_tvp_example.ipynb",
+    "notebooks/mmm/mmm_time_varying_media_example.ipynb",
+    "notebooks/clv/dev/*.ipynb",  # Development notebooks
+]
 nb_kernel_rgx_aliases = {".*": "python3"}
 myst_enable_extensions = ["colon_fence", "deflist", "dollarmath", "amsmath"]
 myst_heading_anchors = 0
@@ -96,6 +157,15 @@ myst_heading_anchors = 0
 # numpydoc and autodoc typehints config
 numpydoc_show_class_members = False
 numpydoc_xref_param_type = True
+
+# Enable parallel builds for faster processing
+# Use all CPUs except one to keep system responsive
+autodoc_parallel = max(1, multiprocessing.cpu_count() - 1)
+
+# Optimize autosummary generation
+autosummary_generate = True
+# Don't regenerate unchanged files (speeds up incremental builds)
+autosummary_generate_overwrite = False
 # fmt: off
 numpydoc_xref_ignore = {
     "of", "or", "optional", "default", "numeric", "type", "scalar", "1D", "2D", "3D", "nD", "array",
@@ -127,6 +197,10 @@ intersphinx_mapping = {
     "scipy": ("https://docs.scipy.org/doc/scipy/", None),
     "xarray": ("https://docs.xarray.dev/en/stable/", None),
 }
+
+# Cache intersphinx inventories for faster builds
+intersphinx_cache_limit = 10  # Days to cache
+intersphinx_timeout = 30  # Seconds
 
 # -- Options for HTML output ----------------------------------------------
 
