@@ -618,6 +618,7 @@ class MNLogit(ModelBuilder):
         idata : az.InferenceData
             Loaded inference data
         """
+        self.choice_df = idata['fit_data'].to_dataframe()
         if not hasattr(self, "model"):
             self.build_model()
 
