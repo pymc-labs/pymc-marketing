@@ -99,7 +99,7 @@ class MNLogit(ModelBuilder):
     """
 
     _model_type = "Multinomial Logit Model"
-    version = "0.2.0" 
+    version = "0.2.0"
 
     def __init__(
         self,
@@ -307,13 +307,12 @@ class MNLogit(ModelBuilder):
     def build_model(self, **kwargs) -> None:
         """
         Build model using stored choice_df and utility_equations.
-        
+
         This is the abstract method from ModelBuilder. For discrete choice,
         we don't pass data as arguments - we use the stored data from __init__.
         """
         X, F, y = self.preprocess_model_data(self.choice_df, self.utility_equations)
         self.model = self.make_model(X, F, y)
-
 
     def make_intercepts(self):
         """Create alternative-specific intercepts with reference alternative set to zero.
@@ -472,7 +471,7 @@ class MNLogit(ModelBuilder):
     ):
         """
         Sample from prior predictive distribution.
-        
+
         Parameters
         ----------
         choice_df : pd.DataFrame, optional
@@ -485,7 +484,7 @@ class MNLogit(ModelBuilder):
             Whether to add to self.idata
         **kwargs
             Additional arguments for pm.sample_prior_predictive
-        
+
         Returns
         -------
         az.InferenceData
@@ -495,38 +494,37 @@ class MNLogit(ModelBuilder):
             self.choice_df = choice_df
         if utility_equations is not None:
             self.utility_equations = utility_equations
-        
+
         if not hasattr(self, "model"):
             self.build_model()
-        
+
         with self.model:
             prior_pred = pm.sample_prior_predictive(samples, **kwargs)
             prior_pred["prior"].attrs["pymc_marketing_version"] = __version__
             prior_pred["prior_predictive"].attrs["pymc_marketing_version"] = __version__
             self.set_idata_attrs(prior_pred)
-        
+
         if extend_idata:
             if self.idata is not None:
                 self.idata.extend(prior_pred, join="right")
             else:
                 self.idata = prior_pred
-        
-        return prior_pred
 
+        return prior_pred
 
     def _create_fit_data(self) -> xr.Dataset:
         """
         Create xarray Dataset for storing choice_df in InferenceData.
-        
+
         This allows the model to be reconstructed when loading from file.
-        
+
         Returns
         -------
         xr.Dataset
             Choice data as xarray Dataset with 'obs' dimension
         """
         df_xr = self.choice_df.to_xarray()
-        df_xr = df_xr.rename({'index': 'obs'})
+        df_xr = df_xr.rename({"index": "obs"})
         return df_xr
 
     def fit(
@@ -539,7 +537,7 @@ class MNLogit(ModelBuilder):
     ) -> az.InferenceData:
         """
         Fit the discrete choice model.
-        
+
         Parameters
         ----------
         choice_df : pd.DataFrame, optional
@@ -552,7 +550,7 @@ class MNLogit(ModelBuilder):
             Random seed for reproducibility
         **kwargs
             Additional arguments passed to pm.sample()
-        
+
         Returns
         -------
         az.InferenceData
@@ -563,11 +561,11 @@ class MNLogit(ModelBuilder):
             self.choice_df = choice_df
         if utility_equations is not None:
             self.utility_equations = utility_equations
-        
+
         # Build model if not already built
         if not hasattr(self, "model"):
             self.build_model()
-        
+
         # Configure sampler
         sampler_kwargs = create_sample_kwargs(
             self.sampler_config,
@@ -575,27 +573,27 @@ class MNLogit(ModelBuilder):
             random_seed,
             **kwargs,
         )
-        
+
         # Sample
         with self.model:
             idata = pm.sample(**sampler_kwargs)
-        
+
         # Store and extend results
         if self.idata:
             self.idata = self.idata.copy()
             self.idata.extend(idata, join="right")
         else:
             self.idata = idata
-        
+
         # Add version metadata
         self.idata["posterior"].attrs["pymc_marketing_version"] = __version__
-        
+
         # Add fit_data group
         if "fit_data" in self.idata:
             del self.idata.fit_data
-        
+
         fit_data = self._create_fit_data()
-        
+
         with warnings.catch_warnings():
             warnings.filterwarnings(
                 "ignore",
@@ -603,18 +601,18 @@ class MNLogit(ModelBuilder):
                 message="The group fit_data is not defined in the InferenceData scheme",
             )
             self.idata.add_groups(fit_data=fit_data)
-        
+
         # Set attributes for save/load
         self.set_idata_attrs(self.idata)
-        
+
         return self.idata
-    
+
     def build_from_idata(self, idata: az.InferenceData) -> None:
         """
         Build model from loaded InferenceData.
-        
+
         This is called by load() after the model is initialized.
-        
+
         Parameters
         ----------
         idata : az.InferenceData
@@ -631,7 +629,7 @@ class MNLogit(ModelBuilder):
     ):
         """
         Sample from posterior predictive distribution.
-        
+
         Parameters
         ----------
         choice_df : pd.DataFrame, optional
@@ -640,7 +638,7 @@ class MNLogit(ModelBuilder):
             Whether to add to self.idata
         **kwargs
             Additional arguments for pm.sample_posterior_predictive
-        
+
         Returns
         -------
         az.InferenceData
@@ -656,19 +654,16 @@ class MNLogit(ModelBuilder):
                 if new_F is not None and len(new_F) > 0:
                     data_dict["F"] = new_F
                 pm.set_data(data_dict)
-        
+
         with self.model:
             post_pred = pm.sample_posterior_predictive(
-                self.idata, 
-                var_names=["likelihood", "p"],
-                **kwargs
+                self.idata, var_names=["likelihood", "p"], **kwargs
             )
-        
+
         if extend_idata:
             self.idata.extend(post_pred, join="right")
-        
-        return post_pred
 
+        return post_pred
 
     def sample(
         self,
