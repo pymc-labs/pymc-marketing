@@ -1201,6 +1201,7 @@ class MixedLogit(ModelBuilder):
             )
 
         if extend_idata:
+            assert self.idata is not None
             self.idata.extend(post_pred, join="right")
 
         return post_pred
