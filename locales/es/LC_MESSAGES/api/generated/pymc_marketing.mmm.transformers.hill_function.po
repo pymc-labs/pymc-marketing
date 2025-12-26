@@ -1,0 +1,199 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.hill_function.rst:2
+#: ee6b7b88cc534a399fbd3d7777b2b399
+msgid "hill\\_function"
+msgstr "función\\_colina"
+
+#: 9267924cdc634962bf540ac3b01191b9 of
+#: pymc_marketing.mmm.transformers.hill_function:2
+msgid "Hill Function."
+msgstr "Función de Hill."
+
+#: 7bdd9be70e43418f996484a2251a814c of
+#: pymc_marketing.mmm.transformers.hill_function:4
+#, python-brace-format
+msgid ""
+"f(x) = 1 - \\frac{\\kappa^s}{\\kappa^s + x^s}\n"
+"\n"
+msgstr "f(x) = 1 - \\frac{\\kappa^s}{\\kappa^s + x^s}"
+
+#: 00e894e3a09c46f199c895728a853322 of
+#: pymc_marketing.mmm.transformers.hill_function:7
+msgid "where:"
+msgstr "donde:"
+
+#: f4783ce9288944ed9f2eac17df41645c of
+#: pymc_marketing.mmm.transformers.hill_function:8
+msgid ":math:`s` is the slope of the hill."
+msgstr ":math:`s` es la pendiente de la colina."
+
+#: 5ccddc99234f4481b749ca669456ede8 of
+#: pymc_marketing.mmm.transformers.hill_function:9
+msgid ""
+":math:`\\kappa` is the half-saturation point as :math:`f(\\kappa) = 0.5` for"
+" any value of :math:`s` and :math:`\\kappa`."
+msgstr ""
+":math:`\\kappa` es el punto de media saturación ya que :math:`f(\\kappa) = "
+"0.5` para cualquier valor de :math:`s` y :math:`\\kappa`."
+
+#: c5931ec2acd24b5795b51229a98051d8 of
+#: pymc_marketing.mmm.transformers.hill_function:10
+msgid ":math:`x` is the independent variable and must be non-negative."
+msgstr ":math:`x` es la variable independiente y debe ser no negativa."
+
+#: 6ef88dede3a444c09f2541f077110a27 of
+#: pymc_marketing.mmm.transformers.hill_function:12
+msgid "Hill function from Equation (5) in the paper [R0315939d312c-1]_."
+msgstr ""
+"Función de Hill de la Ecuación (5) en el documento [R0315939d312c-1]_."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.hill_function.rst:7
+#: 088de58139544aad9c778fa4a84b6be7
+msgid ""
+"(:download:`Source code "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-hill_function-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-hill_function-1_00_00.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-hill_function-1_00_00.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-hill_function-1_00_00.pdf>`)"
+msgstr ""
+"(:download:`Código fuente "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-hill_function-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-hill_function-1_00_00.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-hill_function-1_00_00.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-hill_function-1_00_00.pdf>`)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.hill_function.rst:34
+#: a6e2f13cc1264c86b0b072a500554f9b
+msgid ""
+"(:download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-hill_function-1_01_00.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-hill_function-1_01_00.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-hill_function-1_01_00.pdf>`)"
+msgstr ""
+"(:descargar:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-hill_function-1_01_00.png>`, :descargar:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-hill_function-1_01_00.hires.png>`, :descargar:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-hill_function-1_01_00.pdf>`)"
+
+#: c3159af2367a48bcb4829ece34042bc5 of
+#: pymc_marketing.mmm.transformers.hill_function
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 6cd0aacb849b4577bb9eb8119228819a of
+#: pymc_marketing.mmm.transformers.hill_function:50
+msgid "**x** : :class:`python:float` or :term:`numpy:array_like`"
+msgstr "**x** : :class:`python:float` o :term:`numpy:array_like`"
+
+#: fc9a5ae01de945fe99e8629cfdb1d844 of
+#: pymc_marketing.mmm.transformers.hill_function:49
+msgid "python:float or numpy:array_like"
+msgstr "python:float o numpy:array_like"
+
+#: ba8b85dbd6614dbb82af255f863b57fa of
+#: pymc_marketing.mmm.transformers.hill_function:51
+msgid ""
+"The independent variable, typically representing the concentration of a "
+"substrate or the intensity of a stimulus."
+msgstr ""
+"La variable independiente, que típicamente representa la concentración de un"
+" sustrato o la intensidad de un estímulo."
+
+#: ea40988585724c2b9505b375fe07d7bd of
+#: pymc_marketing.mmm.transformers.hill_function:54
+msgid "**slope** : :class:`python:float`"
+msgstr "**pendiente** : :class:`python:float`"
+
+#: 2a10510129a34269bf6269137f86c39b c7f1616398754266b5fb16e776dcac38 of
+#: pymc_marketing.mmm.transformers.hill_function:53
+#: pymc_marketing.mmm.transformers.hill_function:56
+msgid "python:float"
+msgstr "python:float"
+
+#: 53854fe661e94f11ba5079d4ae5cec5b of
+#: pymc_marketing.mmm.transformers.hill_function:55
+msgid "The slope of the hill. Must be non-positive."
+msgstr "La pendiente de la colina. Debe ser no positiva."
+
+#: c233a1a3afb946ada731d67a0f026f73 of
+#: pymc_marketing.mmm.transformers.hill_function:57
+msgid "**kappa** : :class:`python:float`"
+msgstr "**kappa** : :class:`python:float`"
+
+#: d415d5798a5243aab51e696d50a0d3b4 of
+#: pymc_marketing.mmm.transformers.hill_function:58
+msgid ""
+"The half-saturation point as :math:`f(\\kappa) = 0.5` for any value of "
+":math:`s` and :math:`\\kappa`."
+msgstr ""
+"El punto de media saturación como :math:`f(\\kappa) = 0.5` para cualquier "
+"valor de :math:`s` y :math:`\\kappa`."
+
+#: 8b99aff6599d49ce885d870767546732 of
+#: pymc_marketing.mmm.transformers.hill_function
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 332bbf638772484eb7dac0ff99f22a71 of
+#: pymc_marketing.mmm.transformers.hill_function:64
+msgid ":class:`python:float`"
+msgstr ":class:`python:float`"
+
+#: b166be73bd8547ffb35e77a6367ca7ac of
+#: pymc_marketing.mmm.transformers.hill_function:65
+msgid "The value of the Hill function given the parameters."
+msgstr "El valor de la función Hill dado los parámetros."
+
+#: aad3d463ffd54218a27281f7c58a8b70 of
+#: pymc_marketing.mmm.transformers.hill_function:76
+msgid "References"
+msgstr "Referencias"
+
+#: 19a6e63a46f745d0beb56fb06cb4aa18 of
+#: pymc_marketing.mmm.transformers.hill_function:77
+msgid ""
+"Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover "
+"and shape effects.” (2017)."
+msgstr ""
+"Jin, Yuxue, et al. “Métodos bayesianos para la modelización de mezcla de "
+"medios con efectos de arrastre y forma.” (2017)."
+
+#: 70c2c9bc078348a8bc1e525fbd2753c9 of
+#: pymc_marketing.mmm.transformers.hill_function:81
+msgid "[R0315939d312c-1]_"
+msgstr "[R0315939d312c-1]_"

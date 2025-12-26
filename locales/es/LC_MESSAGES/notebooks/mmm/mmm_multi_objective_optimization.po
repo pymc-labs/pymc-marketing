@@ -1,0 +1,871 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-20 21:01+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:10003
+#: 7372bab6799d4d4ab0fe98be9a9095f3
+msgid "Multi-Objective optimization with PyMC-Marketing"
+msgstr "Optimización multiobjetivo con PyMC-Marketing"
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:10005
+#: f718082117a644a19764dc3fa41c9361
+msgid ""
+"Have you ever faced the challenge of deciding whether to focus on bringing "
+"in new users or keeping the ones you already have? It’s a common dilemma in "
+"any growing company. On one hand, acquisition drives visibility, expansion, "
+"and excitement. On the other, retention builds loyalty, stability, and long-"
+"term value. When resources are limited, choosing where to invest—more ads to"
+" attract newcomers or more experiences to keep your current audience "
+"engaged—feels like walking a tightrope between short-term gains and lasting "
+"growth."
+msgstr ""
+"¿Alguna vez se ha enfrentado al desafío de decidir si enfocarse en atraer "
+"nuevos usuarios o en mantener a los que ya tiene? Es un dilema común en "
+"cualquier empresa en crecimiento. Por un lado, la adquisición impulsa la "
+"visibilidad, la expansión y la emoción. Por otro, la retención construye "
+"lealtad, estabilidad y valor a largo plazo. Cuando los recursos son "
+"limitados, elegir dónde invertir—más anuncios para atraer a los recién "
+"llegados o más experiencias para mantener a su audiencia actual "
+"comprometida—se siente como caminar por una cuerda floja entre las ganancias"
+" a corto plazo y el crecimiento duradero."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:10007
+#: 498f74e632ef4e868ba65da083de8cb3
+msgid ""
+"This kind of trade-off isn’t unique to marketing. Product teams constantly "
+"balance innovation and reliability. Operations managers weigh efficiency "
+"against flexibility. Data scientists tune models to maximize accuracy while "
+"minimizing bias or computational cost. These are all examples of competing "
+"objectives that must coexist within finite resources. Multi-objective "
+"optimization provides a systematic framework for navigating these tensions. "
+"It allows decision-makers to explore how improving one goal may compromise "
+"another, and to find balanced solutions along the Pareto frontier—the set of"
+" decisions where no objective can be improved without sacrificing another. "
+"In essence, it transforms difficult trade-offs into informed, strategic "
+"choices."
+msgstr ""
+"Este tipo de compensación no es exclusivo del marketing. Los equipos de "
+"producto equilibran constantemente la innovación y la fiabilidad. Los "
+"gerentes de operaciones sopesan la eficiencia frente a la flexibilidad. Los "
+"científicos de datos ajustan modelos para maximizar la precisión mientras "
+"minimizan el sesgo o el costo computacional. Todos estos son ejemplos de "
+"objetivos en competencia que deben coexistir dentro de recursos finitos. La "
+"optimización multiobjetivo proporciona un marco sistemático para navegar "
+"estas tensiones. Permite a los tomadores de decisiones explorar cómo mejorar"
+" un objetivo puede comprometer a otro, y encontrar soluciones equilibradas a"
+" lo largo de la frontera de Pareto: el conjunto de decisiones donde ningún "
+"objetivo puede mejorarse sin sacrificar otro. En esencia, transforma "
+"compensaciones difíciles en elecciones informadas y estratégicas."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:10009
+#: 53723cb2e03d4b59b8608793c00125f7
+msgid ""
+"This notebook explores multi-objective optimization using PyMC and PyMC-"
+"Marketing, focusing on the trade-off between acquiring new users and "
+"retaining existing ones. It demonstrates how to balance competing objectives"
+" and includes practical examples of building and optimizing models (both "
+"custom and default) to achieve balanced solutions in marketing scenarios."
+msgstr ""
+"Este cuaderno explora la optimización multiobjetivo utilizando PyMC y PyMC-"
+"Marketing, centrándose en la compensación entre la adquisición de nuevos "
+"usuarios y la retención de los existentes. Demuestra cómo equilibrar "
+"objetivos en competencia e incluye ejemplos prácticos de construcción y "
+"optimización de modelos (tanto personalizados como predeterminados) para "
+"lograr soluciones equilibradas en escenarios de marketing."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:10011
+#: 2e40d03ae8bd471487ce0b7b8c5002e2
+msgid "Import dependencies"
+msgstr "Importar dependencias"
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:30002
+#: 0c762852cd204f6a9df8befd7e365248
+msgid "Notebook settings"
+msgstr "Configuración del cuaderno"
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:50002
+#: 5f211faee1f04ce6b42b89f21b1567dd
+msgid "Optimizing Custom PyMC Models"
+msgstr "Optimizando Modelos PyMC Personalizados"
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:50003
+#: c0149f9b84cb4c129e0093a1aa33535b
+msgid ""
+"First, we'll show some of the under-the-hood functions and how you can apply"
+" them to your custom PyMC model."
+msgstr ""
+"Primero, mostraremos algunas de las funciones internas y cómo puede "
+"aplicarlas a su modelo PyMC personalizado."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:50005
+#: b97db1705cce44a1b14d7eb781471ef3
+msgid "To do so, we first need to generate a simple model and some data."
+msgstr ""
+"Para ello, primero necesitamos generar un modelo simple y algunos datos."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:80002
+#: bf1f3d30bc614839809d0c1af547cf21
+msgid ""
+"We set the `impressions` variable as a set of independent random walks, each"
+" with a specific mean and standard deviation."
+msgstr ""
+"Establecemos la variable `impressions` como un conjunto de caminatas "
+"aleatorias independientes, cada una con una media y una desviación estándar "
+"específicas."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:100002
+#: cd6e96f34bc14bda8203f6975a575155
+msgid ""
+"Once we have all the data in place, we can consolidate it into a dataframe. "
+"This will help us define our model structure, which in this case will depend"
+" only on impressions from channels $x1$, $x2$, $x3$, and $x4$."
+msgstr ""
+"Una vez que tengamos todos los datos en su lugar, podemos consolidarlos en "
+"un dataframe. Esto nos ayudará a definir la estructura de nuestro modelo, "
+"que en este caso dependerá únicamente de las impresiones de los canales "
+"$x1$, $x2$, $x3$ y $x4$."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:120002
+#: 1adbedc7b3274b0c9c97899caba753f3
+msgid ""
+"The initial model constructed in this notebook is a straightforward Bayesian"
+" model designed to capture the relationship between input features and a "
+"target variable. The model is defined as:"
+msgstr ""
+"El modelo inicial construido en este cuaderno es un modelo bayesiano "
+"sencillo diseñado para capturar la relación entre las características de "
+"entrada y una variable objetivo. El modelo se define como:"
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:120004
+#: 01b04c5de24946e9a3f920a2d20f6f2d
+msgid ""
+"\n"
+"Y \\sim f(X, \\theta) + \\epsilon\n"
+msgstr "Y \\sim f(X, \\theta) + \\epsilon"
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:120008
+#: 88abc729ddfc42ca995982aab0bae447
+msgid "Where:"
+msgstr "Dónde:"
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:120009
+#: 9b19211a79fc4490a7677cf1e79fa0a7
+msgid "$Y$ is the target variable."
+msgstr "$Y$ es la variable objetivo."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:120010
+#: 4fb8dcc0cbfd4fe9bec5594dab67ddc8
+msgid "$X$ represents the input features."
+msgstr "$X$ representa las características de entrada."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:120011
+#: 313c6a40eef1493f940adccf1d6a2f27
+msgid "$\\theta$ denotes the model parameters."
+msgstr "$\\theta$ denota los parámetros del modelo."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:120012
+#: f4f05cf6c82c4b3f8bb4ad4e1e2cdb6f
+msgid ""
+"$\\epsilon$ denotes the base sales, which are not dependent on marketing."
+msgstr "$\\epsilon$ denota las ventas base, que no dependen del marketing."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:120014
+#: e3118ed66e404ddb94f28d32c36ea3f1
+msgid ""
+"The function $f(X, \\theta)$ is a deterministic transformation of the input "
+"features $X$ using the parameters $\\theta$, which in this context, is "
+"modeled using a Michaelis-Menten saturation function. This function is "
+"particularly useful for capturing diminishing returns in marketing "
+"scenarios, where the effect of increasing input (e.g., advertising spend) on"
+" the output (e.g., sales) eventually plateaus."
+msgstr ""
+"La función $f(X, \\theta)$ es una transformación determinista de las "
+"características de entrada $X$ utilizando los parámetros $\\theta$, que en "
+"este contexto, se modela utilizando una función de saturación de Michaelis-"
+"Menten. Esta función es particularmente útil para capturar rendimientos "
+"decrecientes en escenarios de marketing, donde el efecto de aumentar la "
+"entrada (por ejemplo, el gasto en publicidad) sobre la salida (por ejemplo, "
+"las ventas) eventualmente se estabiliza."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:120016
+#: 51dd16f4da3e415ba7a8b1eec2b24231
+msgid ""
+"Since the model is a simple saturation function, we only need to define "
+"priors for its parameters, the intercept, and the aleatoric uncertainty."
+msgstr ""
+"Dado que el modelo es una función de saturación simple, solo necesitamos "
+"definir priors para sus parámetros, la intersección y la incertidumbre "
+"aleatoria."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:140002
+#: 01ebf36c5bc34229bcc6560ea80ba8ce
+msgid ""
+"With all our priors defined, we can create the model structure. Both models "
+"will share the same structure but will have different target variables. (We "
+"can create a function to generate the same base model based on certain "
+"inputs)."
+msgstr ""
+"Con todos nuestros priors definidos, podemos crear la estructura del modelo."
+" Ambos modelos compartirán la misma estructura pero tendrán diferentes "
+"variables objetivo. (Podemos crear una función para generar el mismo modelo "
+"base basado en ciertas entradas)."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:160002
+#: 2569723a393646f1a7474361d60bf19f
+msgid "Let's take a look at our base model"
+msgstr "Echemos un vistazo a nuestro modelo base."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:180002
+#: fcfbf8a18f864f84a24da976e919a20e
+msgid ""
+"Using this simple structure, we can now generate the target variable based "
+"on fixed parameters. To do so, we'll use the `pm.do` function from PyMC. You"
+" can [read more about it "
+"here](https://www.pymc.io/projects/examples/en/latest/causal_inference/interventional_distribution.html)."
+msgstr ""
+"Usando esta estructura simple, ahora podemos generar la variable objetivo "
+"basada en parámetros fijos. Para ello, utilizaremos la función `pm.do` de "
+"PyMC. Puede [leer más sobre ello "
+"aquí](https://www.pymc.io/projects/examples/en/latest/causal_inference/interventional_distribution.html)."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:180004
+#: 5fdd4b8ac8e04ea0bfa3bf20aa6a9e41
+msgid ""
+"We'll set a grid of true parameters (the ones the model should be able to "
+"recover) for our model's internal functions."
+msgstr ""
+"Estableceremos una cuadrícula de parámetros verdaderos (los que el modelo "
+"debería ser capaz de recuperar) para las funciones internas de nuestro "
+"modelo."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:210002
+#: 388ba41bd0694e3a8be232981976a8fa
+msgid ""
+"Now that our **true models** are defined, we can draw from the fixed "
+"parameters to generate data. This will help us create a dataset with two "
+"target variables. Both are dependent on the same inputs, but while they are "
+"generated similarly, their weights are different."
+msgstr ""
+"Ahora que nuestros **modelos verdaderos** están definidos, podemos extraer "
+"de los parámetros fijos para generar datos. Esto nos ayudará a crear un "
+"conjunto de datos con dos variables objetivo. Ambas dependen de las mismas "
+"entradas, pero aunque se generan de manera similar, sus pesos son "
+"diferentes."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:210005
+#: 98f434a4e3784aafa6a687bf4c1e44f7
+msgid ""
+"This will position us in the situation we want: *two different outcomes, "
+"driven by the same drivers*."
+msgstr ""
+"Esto nos posicionará en la situación que deseamos: *dos resultados "
+"diferentes, impulsados por los mismos factores*."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:240002
+#: 4a81b034b1464bfc8b27a870a7623073
+msgid ""
+"This looks fantastic! Our outcomes are quite different, even though the "
+"internal variables are the same. This is where the real challenge begins."
+msgstr ""
+"¡Esto se ve fantástico! Nuestros resultados son bastante diferentes, aunque "
+"las variables internas son las mismas. Aquí es donde comienza el verdadero "
+"desafío."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:240004
+#: e0cbd4b4304e45de829936b3fb205a5a
+msgid ""
+"Because we have two different target variables, we can say, \"*Let's build "
+"two different models, one for each target variable.*\" This is a promising "
+"idea, and we can simulate this situation using our `build_simple_mmm` "
+"function again."
+msgstr ""
+"Debido a que tenemos dos variables objetivo diferentes, podemos decir, "
+"\"*Construyamos dos modelos diferentes, uno para cada variable objetivo.*\" "
+"Esta es una idea prometedora, y podemos simular esta situación utilizando "
+"nuestra función `build_simple_mmm` nuevamente."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:260002
+#: a1aff8bebe7f4b3b84e5d9e18597c369
+msgid "With our two models built, we can now train them!"
+msgstr "¡Con nuestros dos modelos construidos, ahora podemos entrenarlos!"
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:290002
+#: 3211cf5b70c64303b94e27b170d49a47
+msgid ""
+"Now that both of our models are trained on our data, we can proceed with "
+"optimization."
+msgstr ""
+"Ahora que ambos de nuestros modelos están entrenados con nuestros datos, "
+"podemos proceder con la optimización."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:290004
+#: b8ead4a20fef4c6e87bc2637fd87f706
+msgid ""
+"Before optimizing, we need to wrap our models in a protocol that allows the "
+"optimizer to use them. We have built a small wrapper to make any PyMC model "
+"compatible quickly."
+msgstr ""
+"Antes de optimizar, necesitamos envolver nuestros modelos en un protocolo "
+"que permita al optimizador utilizarlos. Hemos construido un pequeño "
+"envoltorio para hacer que cualquier modelo de PyMC sea compatible "
+"rápidamente."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:310002
+#: 00e33304f5e74b34aa9cccacab7fbc73
+msgid ""
+"You only need to provide your channel list (you can use the model "
+"coordinates for this), the `idata`, and the PyMC model object."
+msgstr ""
+"Solo necesita proporcionar su lista de canales (puede utilizar las "
+"coordenadas del modelo para esto), el `idata` y el objeto del modelo PyMC."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:310005
+#: 60b9fadec9b640be9992e552e23ad82b
+msgid ""
+"Building a custom class wrapper is quite easy. Your model only needs to "
+"follow the protocol in `OptimizerCompatibleModelWrapper`. Internally, you "
+"can customize it as much as you want."
+msgstr ""
+"Crear un envoltorio de clase personalizado es bastante fácil. Su modelo solo"
+" necesita seguir el protocolo en `OptimizerCompatibleModelWrapper`. "
+"Internamente, puede personalizarlo tanto como desee."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:330002
+#: 8912ab29ddc747d397f8bc1bffa8b3d1
+msgid ""
+"Once your model is wrapped, we must create a custom objective function that "
+"allows you to work with the variable to be optimized. Our model has the "
+"deterministic variable `contribution`, which has the dimensions `sample, "
+"date, channel`. The optimizer works with the posterior over all dimensions, "
+"meaning we need to collapse the `date` and `channel` dimensions."
+msgstr ""
+"Una vez que su modelo esté envuelto, debemos crear una función objetivo "
+"personalizada que le permita trabajar con la variable a optimizar. Nuestro "
+"modelo tiene la variable determinista `contribution`, que tiene las "
+"dimensiones `sample, date, channel`. El optimizador trabaja con el posterior"
+" sobre todas las dimensiones, lo que significa que necesitamos colapsar las "
+"dimensiones `date` y `channel`."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:330004
+#: fd9522b602594f2196fad584cc1f4bc5
+msgid "Take a look at how it works!"
+msgstr "¡Echa un vistazo a cómo funciona!"
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:350002
+#: 13e5150bcb0344d0a24947527b017131
+msgid ""
+"With our function in place, all we need to do is define our optimization "
+"horizon, and we are set. We pass our variable to be optimized and the "
+"utility function that gets this variable and performs an operation. In this "
+"case, it takes the mean value of the posterior from the total contribution "
+"over channels and days."
+msgstr ""
+"Con nuestra función en su lugar, todo lo que necesitamos hacer es definir "
+"nuestro horizonte de optimización, y estamos listos. Pasamos nuestra "
+"variable a optimizar y la función de utilidad que obtiene esta variable y "
+"realiza una operación. En este caso, toma el valor medio del posterior de la"
+" contribución total a través de canales y días."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:350004
+#: d09ede31d1db4c7192be5593be425a0e
+msgid ""
+"Because we have two models, we will run two optimizations. Take a moment to "
+"look in detail at how the optimizer must be called 🙌🏻"
+msgstr ""
+"Debido a que tenemos dos modelos, realizaremos dos optimizaciones. Tómese un"
+" momento para observar en detalle cómo debe ser llamado el optimizador 🙌🏻"
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:370002
+#: 010a17fb923a418bbdd9cc80d767fa5d
+msgid "Once both optimizations are complete, we can observe the results!"
+msgstr ""
+"Una vez que ambas optimizaciones estén completas, ¡podemos observar los "
+"resultados!"
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:400002
+#: f08471b90d7c45ff8520e904772d3eff
+msgid ""
+"The picture makes everything crystal clear: the channels that drive new "
+"users are not the same as those that drive re-engaged users. This is "
+"problematic because if we want to optimize for new users, our allocation is "
+"directionally different from the one for re-engaged users."
+msgstr ""
+"La imagen deja todo claro como el agua: los canales que atraen a nuevos "
+"usuarios no son los mismos que los que atraen a usuarios reenganchados. Esto"
+" es problemático porque si queremos optimizar para nuevos usuarios, nuestra "
+"asignación es direccionalmente diferente de la que se utiliza para usuarios "
+"reenganchados."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:400004
+#: d51e7620f4bf4ae998e874671cab3296
+msgid ""
+"We can see that both responses are similar in terms of the budget, but the "
+"budget allocations for those responses change radically. To visualize this "
+"phenomenon better, we can compute the response distributions."
+msgstr ""
+"Podemos ver que ambas respuestas son similares en términos del presupuesto, "
+"pero las asignaciones presupuestarias para esas respuestas cambian "
+"radicalmente. Para visualizar mejor este fenómeno, podemos calcular las "
+"distribuciones de las respuestas."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:420002
+#: 7b100c06d0b64d07bdd5445caed20447
+#, python-format
+msgid ""
+"This makes everything clear: if we use the budget recommendation from the "
+"new users model, we will get a good number of new users, but we'll penalize "
+"re-engaged users, getting 40% fewer than we could with the same budget "
+"distributed differently. A similar story unfolds if we use the "
+"recommendation for re-engaged users; we then penalize new users."
+msgstr ""
+"Esto deja todo claro: si utilizamos la recomendación de presupuesto del "
+"modelo de nuevos usuarios, obtendremos un buen número de nuevos usuarios, "
+"pero penalizaremos a los usuarios reactivados, obteniendo un 40% menos de lo"
+" que podríamos con el mismo presupuesto distribuido de manera diferente. Una"
+" historia similar se desarrolla si utilizamos la recomendación para usuarios"
+" reactivados; entonces penalizamos a los nuevos usuarios."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:420004
+#: 531e279850784fe88cead3690b78d43c
+msgid ""
+"How can we create an optimization problem that considers both responses and "
+"finds a solution that doesn't penalize any target metric? The answer is the "
+"`BuildMergedModel` class."
+msgstr ""
+"¿Cómo podemos crear un problema de optimización que considere ambas "
+"respuestas y encuentre una solución que no penalice ninguna métrica "
+"objetivo? La respuesta es la clase `BuildMergedModel`."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:440002
+#: 14dc24759bbc4ea69a50508e22ab99f9
+msgid ""
+"The `BuildMergedModel` class is designed to merge multiple optimizer-"
+"compatible models into a single unified graphical representation. This is "
+"achieved by combining the posterior `InferenceData` from each model with "
+"unique prefixes, allowing for the integration of multiple models' outputs "
+"into a cohesive framework. The class operates in a symbolic graphical space,"
+" where models are treated as generative processes that can be combined "
+"similarly to SQL queries. This approach enables the seamless merging of "
+"models by aligning and merging dimensions based on a shared variable, "
+"typically referred to as `merge_on`. The merged model is then exposed as a "
+"persistent PyMC model, which can be used for further optimization and "
+"analysis."
+msgstr ""
+"La clase `BuildMergedModel` está diseñada para fusionar múltiples modelos "
+"compatibles con optimizadores en una única representación gráfica unificada."
+" Esto se logra combinando los `InferenceData` posteriores de cada modelo con"
+" prefijos únicos, lo que permite la integración de las salidas de múltiples "
+"modelos en un marco cohesivo. La clase opera en un espacio gráfico "
+"simbólico, donde los modelos se tratan como procesos generativos que pueden "
+"combinarse de manera similar a las consultas SQL. Este enfoque permite la "
+"fusión sin problemas de modelos al alinear y fusionar dimensiones basadas en"
+" una variable compartida, comúnmente denominada `merge_on`. El modelo "
+"fusionado se expone entonces como un modelo PyMC persistente, que puede ser "
+"utilizado para optimización y análisis adicionales."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:440004
+#: e4a922da49374dd292cc36d3eba8886f
+msgid "Let's take a look at how it works!"
+msgstr "¡Echemos un vistazo a cómo funciona!"
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:460002
+#: cbfff4b576af421da523c52b99d31fb3
+msgid ""
+"Now that the model is merged, we can reformulate the optimization process. "
+"Maximizing two variables, such as new user acquisition and re-engagement, is"
+" inherently challenging because they represent different units and "
+"objectives. Attempting to maximize both simultaneously leads to an infinite "
+"solution space, as improving one objective often comes at the expense of the"
+" other."
+msgstr ""
+"Ahora que el modelo está fusionado, podemos reformular el proceso de "
+"optimización. Maximizar dos variables, como la adquisición de nuevos "
+"usuarios y la reactivación, es inherentemente desafiante porque representan "
+"diferentes unidades y objetivos. Intentar maximizar ambos simultáneamente "
+"conduce a un espacio de soluciones infinito, ya que mejorar un objetivo a "
+"menudo se hace a expensas del otro."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:460004
+#: 98445e65a361499f89916f47cafc02f3
+msgid ""
+"However, we can reformulate the problem by maximizing one variable while "
+"holding the other as a constraint. This approach allows the optimizer to "
+"focus on maximizing a single objective while ensuring that the other "
+"variable remains above a specified threshold $Z$, which represents our "
+"minimum goal for that \"*secondary objective*\"."
+msgstr ""
+"Sin embargo, podemos reformular el problema maximizando una variable "
+"mientras mantenemos la otra como una restricción. Este enfoque permite al "
+"optimizador centrarse en maximizar un único objetivo mientras asegura que la"
+" otra variable permanezca por encima de un umbral especificado $Z$, que "
+"representa nuestra meta mínima para ese \"*objetivo secundario*\"."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:460006
+#: 304be7691d0349b99f0291a412d54081
+msgid ""
+"Here, we are saying we want a budget that brings in at least 10 (thousand or"
+" million) re-engaged users, and that new users should be maximized as long "
+"as that constraint is met."
+msgstr ""
+"Aquí, estamos diciendo que queremos un presupuesto que atraiga al menos 10 "
+"(mil o millones) de usuarios reactivados, y que los nuevos usuarios deben "
+"ser maximizados siempre que se cumpla esa restricción."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:490002
+#: a5fdad84e41545cbb044069558957439
+msgid ""
+"The optimization is now performed using a merged model that combines "
+"multiple deterministic variables (objective variables). As a consequence, we"
+" can use any of them in any part of the optimization."
+msgstr ""
+"La optimización ahora se realiza utilizando un modelo combinado que integra "
+"múltiples variables deterministas (variables objetivo). Como consecuencia, "
+"podemos utilizar cualquiera de ellas en cualquier parte de la optimización."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:490005
+#: f293e235df2c4822812374199ceecf84
+msgid ""
+"You can create any type of objective function. This is just an example, so "
+"be as creative as you want. As long as your objective is feasible, the "
+"optimizer can handle the rest."
+msgstr ""
+"Puede crear cualquier tipo de función objetivo. Este es solo un ejemplo, así"
+" que sea tan creativo como desee. Siempre que su objetivo sea factible, el "
+"optimizador puede encargarse del resto."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:520002
+#: 6d0c80333d654fcf8f05a92040b29810
+msgid ""
+"Amazing! The new allocation is more balanced between channels, showing that "
+"we are not optimizing for a single objective. 👏🏻"
+msgstr ""
+"¡Increíble! La nueva asignación es más equilibrada entre los canales, "
+"mostrando que no estamos optimizando para un solo objetivo. 👏🏻"
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:520004
+#: ffbfa343234f489ba7c5a4e50da0de5a
+msgid ""
+"What else can we do? Let's now look at an example using a native `MMM` model"
+" from PyMC-Marketing."
+msgstr ""
+"¿Qué más podemos hacer? Ahora veamos un ejemplo utilizando un modelo `MMM` "
+"nativo de PyMC-Marketing."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:520006
+#: 028edfda999f4fd483db922488412ee5
+msgid "Optimizing MultiDimensional MMM Models"
+msgstr "Optimización de Modelos MMM Multidimensionales"
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:520008
+#: 239b7b12470448bcbdcea0a06a3ec46e
+msgid "With the PyMC-Marketing class, the process barely changes:"
+msgstr "Con la clase PyMC-Marketing, el proceso apenas cambia:"
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:520010
+#: 6925290263fb44edacecd61185af69dd
+msgid "We load or build our MMM model (Multidimensional or not)."
+msgstr "Cargamos o construimos nuestro modelo MMM (Multidimensional o no)."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:520011
+#: 5c7c8d6febe6471eab78d6a079f671a0
+msgid ""
+"We wrap the model in the optimizer class (avoid this if you are using the "
+"old API)."
+msgstr ""
+"Envolvemos el modelo en la clase optimizadora (evite esto si está utilizando"
+" la API antigua)."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:520012
+#: cbb871f427ea4f6f9a5809de0e3a77c0
+msgid "We pass the new merged model to the budget optimizer."
+msgstr "Pasamos el nuevo modelo fusionado al optimizador de presupuesto."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:550002
+#: cc8d7f3a7d334c9594725ce54de0f1ef
+msgid "Once the models are built, we use the wrappers!"
+msgstr "Una vez que se construyen los modelos, ¡utilizamos los envoltorios!"
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:570002
+#: 2655e8e3063e4c40aa430e7d8140fe60
+msgid "Done! Our merged model is ready to use. Let's visualize it."
+msgstr ""
+"¡Hecho! Nuestro modelo combinado está listo para usar. Vamos a visualizarlo."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:590002
+#: 16d92b45467c490bbd272fdb2e9cd1ef
+msgid ""
+"We'll play here with another option (something different than before). Once "
+"our model is ready, we can merge and add a new variable that is dependent on"
+" pre-existing deterministic variables from our different models. This can "
+"help create a deterministic variable that represents the total units across "
+"our models."
+msgstr ""
+"Jugaremos aquí con otra opción (algo diferente a lo anterior). Una vez que "
+"nuestro modelo esté listo, podemos fusionar y agregar una nueva variable que"
+" dependa de variables determinísticas preexistentes de nuestros diferentes "
+"modelos. Esto puede ayudar a crear una variable determinística que "
+"represente el total de unidades a través de nuestros modelos."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:590004
+#: b91b4e947774485f985c68446e798fd9
+msgid ""
+"We just need to access the model and create the deterministic variable."
+msgstr "Solo necesitamos acceder al modelo y crear la variable determinista."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:610002
+#: 4b96ff12b20047ecbcb27daceaf6db6c
+msgid ""
+"Now, we can ask the optimizer to do something similar to what it did before:"
+" bring me the maximum number of units across all markets (models), but keep "
+"a specific market at a level greater than or equal to $Z$."
+msgstr ""
+"Ahora, podemos pedirle al optimizador que haga algo similar a lo que hizo "
+"antes: tráigame el número máximo de unidades en todos los mercados "
+"(modelos), pero mantenga un mercado específico a un nivel mayor o igual a "
+"$Z$."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:610004
+#: c5407af84cff42d29b9bf0cfa22789a0
+msgid "Check how this works 👇🏻"
+msgstr "Ver cómo funciona esto 👇🏻"
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:640002
+#: 11131630660746d48377582ee65ca286
+msgid ""
+"Great! Again, we can see that the optimizer found a solution and finished "
+"the task while respecting the constraints."
+msgstr ""
+"¡Excelente! Nuevamente, podemos ver que el optimizador encontró una solución"
+" y finalizó la tarea respetando las restricciones."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:640004
+#: b76c0167089d4257aa3ec88a06a72014
+msgid ""
+"The `BuildMergedModel` class allows for a huge range of new capabilities in "
+"optimization. You can merge your pre-existing trained models into a single "
+"place and optimize whatever you like, thinking about and adjusting the "
+"objective based on your business needs. But at the same time, that's just "
+"the tip of the iceberg."
+msgstr ""
+"La clase `BuildMergedModel` permite una amplia gama de nuevas capacidades en"
+" optimización. Puede fusionar sus modelos entrenados preexistentes en un "
+"solo lugar y optimizar lo que desee, pensando y ajustando el objetivo según "
+"las necesidades de su negocio. Pero al mismo tiempo, eso es solo la punta "
+"del iceberg."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:640006
+#: 021a6d19adb84588b247a2f57905bd08
+msgid "Learning about the merge models function"
+msgstr "Aprendiendo sobre la función de combinar modelos"
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:640007
+#: 30eb184f6d724c6997fa825424d9d538
+msgid ""
+"Under the hood, the `BuildMergedModel` class is based on the `merge_models` "
+"function in `pytensor_utils`, which allows you to apply the same merge "
+"operation without `idata`. This allows you to create models from other "
+"models and then sample them together if needed."
+msgstr ""
+"En el fondo, la clase `BuildMergedModel` se basa en la función "
+"`merge_models` en `pytensor_utils`, que le permite aplicar la misma "
+"operación de fusión sin `idata`. Esto le permite crear modelos a partir de "
+"otros modelos y luego muestrearlos juntos si es necesario."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:660002
+#: 9f1531795b12492c9f35383517b42260
+msgid ""
+"In this symbolic graphical space, each model acts as a node in a "
+"computational directed acyclic graph (C-DAG), and the merging process is "
+"akin to performing a join operation in SQL, where different datasets are "
+"combined based on common keys. By leveraging the power of PyMC and the "
+"symbolic representation of models, `merge_models` facilitates the "
+"construction of these large graphical models without the need to build them "
+"all together from scratch. You can always build and combine different "
+"pieces, like with **Lego**."
+msgstr ""
+"En este espacio gráfico simbólico, cada modelo actúa como un nodo en un "
+"grafo acíclico dirigido computacional (C-DAG), y el proceso de fusión es "
+"similar a realizar una operación de unión en SQL, donde diferentes conjuntos"
+" de datos se combinan en función de claves comunes. Al aprovechar el poder "
+"de PyMC y la representación simbólica de modelos, `merge_models` facilita la"
+" construcción de estos grandes modelos gráficos sin la necesidad de "
+"construirlos todos juntos desde cero. Siempre puedes construir y combinar "
+"diferentes piezas, como con **Lego**."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:660004
+#: 6295e716311242d7997c413cbaf669e3
+msgid ""
+"Check out how, using this lower-level function, we can use the pure PyMC "
+"models and get a new model from them."
+msgstr ""
+"Descubre cómo, utilizando esta función de nivel inferior, podemos usar los "
+"modelos puros de PyMC y obtener un nuevo modelo a partir de ellos."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:680002
+#: a949a7c9d4964ceb82fc86ea3aa56bf8
+msgid ""
+"Now that the model is built, we can sample from it like any other PyMC "
+"model."
+msgstr ""
+"Ahora que el modelo está construido, podemos muestrear de él como de "
+"cualquier otro modelo de PyMC."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:700002
+#: 66fdf9a6dd0f4a9ab40d5d04eb6b9f11
+msgid ""
+"Is this model different from sampling two models separately? It shouldn't "
+"be. This is merging all your variables and keeping every deterministic or "
+"random variable with a prefix. This means the nodes don't interact or pull "
+"information from each other; the models are fully independent even when they"
+" share the same variable. This is equivalent to running separate models in "
+"parallel."
+msgstr ""
+"¿Es este modelo diferente de muestrear dos modelos por separado? No debería "
+"serlo. Esto está fusionando todas sus variables y manteniendo cada variable "
+"determinista o aleatoria con un prefijo. Esto significa que los nodos no "
+"interactúan ni extraen información entre sí; los modelos son completamente "
+"independientes incluso cuando comparten la misma variable. Esto es "
+"equivalente a ejecutar modelos separados en paralelo."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:700004
+#: 0e8e3250801d4b978a0cd950496cc5aa
+msgid ""
+"Let's see how the posterior for a given parameter looks against the "
+"individual model."
+msgstr ""
+"Veamos cómo se ve la posterior para un parámetro dado en comparación con el "
+"modelo individual."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:720002
+#: d2d0e6b58ba949d4b9ab6b3c8b16271f
+msgid "The recovered parameter is the same!"
+msgstr "¡El parámetro recuperado es el mismo!"
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:720004
+#: 377b494075e3446d8f14db79d647f8bb
+msgid ""
+"Nevertheless, the biggest benefit of combining the models is being able to "
+"connect or relate the variables. Not only for optimization, but during "
+"sampling, you could add penalty terms on a variable of a model A, which, if "
+"related to model B, could condition the values for the parameters of model "
+"B."
+msgstr ""
+"No obstante, el mayor beneficio de combinar los modelos es poder conectar o "
+"relacionar las variables. No solo para la optimización, sino que durante el "
+"muestreo, podrías añadir términos de penalización en una variable de un "
+"modelo A, que, si se relaciona con el modelo B, podría condicionar los "
+"valores de los parámetros del modelo B."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:720006
+#: 7455f227b1b842e38e92c2144b8c22b5
+msgid ""
+"Depending on the model, a possible benefit or problem could be the sampling "
+"time. This can vary quite a bit once you start making these large graphical "
+"models."
+msgstr ""
+"Dependiendo del modelo, un posible beneficio o problema podría ser el tiempo"
+" de muestreo. Esto puede variar bastante una vez que comience a crear estos "
+"grandes modelos gráficos."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:720008
+#: 8c8d81ce16414d94acf9426dc90bff20
+msgid ""
+"To estimate sampling times for any PyMC model, you can use the "
+"`ModelSamplerEstimator` utility class from `pytensor_utils`."
+msgstr ""
+"Para estimar los tiempos de muestreo para cualquier modelo de PyMC, puede "
+"utilizar la clase de utilidad `ModelSamplerEstimator` de `pytensor_utils`."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:740002
+#: a2899aa44b06439aabd7185cdc396923
+msgid ""
+"Once we initialize the class, we can pass a model to it and get back the "
+"sampling estimation in different time units. See the example below!"
+msgstr ""
+"Una vez que inicializamos la clase, podemos pasarle un modelo y obtener la "
+"estimación de muestreo en diferentes unidades de tiempo. ¡Vea el ejemplo a "
+"continuación!"
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:760002
+#: 26c9e62f41494795b1a0d8eb0a1f8300
+msgid ""
+"Doing the same, we can now estimate the time for our individual models."
+msgstr ""
+"Haciendo lo mismo, ahora podemos estimar el tiempo para nuestros modelos "
+"individuales."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:800002
+#: a73eb7bef6ee43c4b4dcfb619b4e9abb
+msgid "Conclusion"
+msgstr "Conclusión"
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:800004
+#: 49e3534d134c4326935b77dbde5983fb
+msgid ""
+"The main focus of this notebook is a powerful technique: combining different"
+" probabilistic models to create a unified framework for decision-making. We "
+"showed how the `BuildMergedModel` class can smoothly integrate various "
+"models, whether they are custom PyMC models or complex MultiDimensional MMMs"
+" from the `pymc-marketing` library. This method allows us to tackle tricky "
+"trade-offs—like maximizing new users while also re-engaging existing ones—by"
+" reformulating the problem as a constrained optimization. We can maximize "
+"one objective while ensuring another meets a minimum performance level, "
+"which helps us find a balanced budget allocation without compromising "
+"important business objectives."
+msgstr ""
+"El enfoque principal de este cuaderno es una técnica poderosa: combinar "
+"diferentes modelos probabilísticos para crear un marco unificado para la "
+"toma de decisiones. Mostramos cómo la clase `BuildMergedModel` puede "
+"integrar sin problemas varios modelos, ya sean modelos personalizados de "
+"PyMC o complejos MMMs Multidimensionales de la biblioteca `pymc-marketing`. "
+"Este método nos permite abordar compromisos complicados, como maximizar "
+"nuevos usuarios mientras también reactivamos a los existentes, reformulando "
+"el problema como una optimización restringida. Podemos maximizar un objetivo"
+" mientras aseguramos que otro cumpla con un nivel mínimo de rendimiento, lo "
+"que nos ayuda a encontrar una asignación de presupuesto equilibrada sin "
+"comprometer objetivos comerciales importantes."
+
+#: ../source/notebooks/mmm/mmm_multi_objective_optimization.ipynb:800006
+#: b766cc04e2274e18938aae5c4990abcf
+msgid ""
+"However, this is not just about marketing. The techniques presented here "
+"demonstrate a flexible and scalable approach to computational modeling. By "
+"building models in a modular, 'Lego-like' fashion using the `merge_models` "
+"function, we can create complex graphical models that truly capture the "
+"connections within business systems. This opens up possibilities for "
+"detailed scenario planning and optimization in various areas, such as "
+"finance, operations, or product development. Plus, with tools like "
+"`ModelSamplerEstimator` to estimate computational costs, practitioners can "
+"handle the complexities of larger models. This provides a practical and "
+"powerful framework for data-driven strategic planning in any organization."
+msgstr ""
+"Sin embargo, esto no se trata solo de marketing. Las técnicas presentadas "
+"aquí demuestran un enfoque flexible y escalable para el modelado "
+"computacional. Al construir modelos de manera modular, 'similar a Lego', "
+"utilizando la función `merge_models`, podemos crear modelos gráficos "
+"complejos que realmente capturan las conexiones dentro de los sistemas "
+"empresariales. Esto abre posibilidades para una planificación de escenarios "
+"detallada y optimización en diversas áreas, como finanzas, operaciones o "
+"desarrollo de productos. Además, con herramientas como "
+"`ModelSamplerEstimator` para estimar los costos computacionales, los "
+"profesionales pueden manejar las complejidades de modelos más grandes. Esto "
+"proporciona un marco práctico y poderoso para la planificación estratégica "
+"basada en datos en cualquier organización."

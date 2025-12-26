@@ -19,11 +19,11 @@ import pandas as pd
 import pymc as pm
 import pytest
 from lifetimes import ParetoNBDFitter
+from pymc_extras.prior import Prior
 
 from pymc_marketing.clv import ParetoNBDModel
 from pymc_marketing.clv.distributions import ParetoNBD
-from pymc_marketing.prior import Prior
-from tests.conftest import create_mock_fit, set_model_fit
+from tests.clv.conftest import create_mock_fit, set_model_fit
 
 
 class TestParetoNBDModel:
@@ -153,22 +153,34 @@ class TestParetoNBDModel:
     def test_missing_cols(self):
         data_invalid = self.data.drop(columns="customer_id")
 
-        with pytest.raises(ValueError, match="Required column customer_id missing"):
+        with pytest.raises(
+            ValueError,
+            match=r"The following required columns are missing from the input data: \['customer_id'\]",
+        ):
             ParetoNBDModel(data=data_invalid)
 
         data_invalid = self.data.drop(columns="frequency")
 
-        with pytest.raises(ValueError, match="Required column frequency missing"):
+        with pytest.raises(
+            ValueError,
+            match=r"The following required columns are missing from the input data: \['frequency'\]",
+        ):
             ParetoNBDModel(data=data_invalid)
 
         data_invalid = self.data.drop(columns="recency")
 
-        with pytest.raises(ValueError, match="Required column recency missing"):
+        with pytest.raises(
+            ValueError,
+            match=r"The following required columns are missing from the input data: \['recency'\]",
+        ):
             ParetoNBDModel(data=data_invalid)
 
         data_invalid = self.data.drop(columns="T")
 
-        with pytest.raises(ValueError, match="Required column T missing"):
+        with pytest.raises(
+            ValueError,
+            match=r"The following required columns are missing from the input data: \['T'\]",
+        ):
             ParetoNBDModel(data=data_invalid)
 
     def test_customer_id_error(self):
@@ -313,7 +325,7 @@ class TestParetoNBDModel:
             map_idata.posterior = map_idata.posterior.isel(
                 chain=slice(None, 1), draw=slice(None, 1)
             )
-            model = self.model._build_with_idata(map_idata)
+            model = self.model.build_from_idata(map_idata)
             # We expect 1000 draws to be sampled with MAP
             expected_shape = (1, 1000)
             expected_pop_dims = (1, 1000, dim_T, 2)

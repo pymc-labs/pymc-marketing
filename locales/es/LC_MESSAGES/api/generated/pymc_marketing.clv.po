@@ -1,0 +1,75 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.clv.rst:2
+#: cb256c299c01479d95ad5923d4ed1b28
+msgid "clv"
+msgstr "clv"
+
+#: f1706a9d93764c3ebde17dbee3dfc952 of pymc_marketing.clv:1
+msgid "CLV models and utilities."
+msgstr "Modelos y utilidades de CLV."
+
+#: ../source/api/generated/pymc_marketing.clv.rst:25
+#: 627947c9a9e64aea9a7e760d51eecab4
+msgid "Modules"
+msgstr "Módulos"
+
+#: ../source/api/generated/pymc_marketing.clv.rst:34:<autosummary>:1
+#: deae71c85e2a44248e98ecd4d5cd0d8d
+msgid ":py:obj:`distributions <pymc_marketing.clv.distributions>`\\"
+msgstr ":py:obj:`distribuciones <pymc_marketing.clv.distribuciones>`\\"
+
+#: ../source/api/generated/pymc_marketing.clv.rst:34:<autosummary>:1
+#: 0d2d87aef47e456da7d445d582e46be7
+msgid "Distributions for the CLV module."
+msgstr "Distribuciones para el módulo CLV."
+
+#: ../source/api/generated/pymc_marketing.clv.rst:34:<autosummary>:1
+#: bd0c2f8f5d544b65b6746dbb0680b755
+msgid ":py:obj:`models <pymc_marketing.clv.models>`\\"
+msgstr ":py:obj:`models <pymc_marketing.clv.models>`\\"
+
+#: ../source/api/generated/pymc_marketing.clv.rst:34:<autosummary>:1
+#: a134044b9946496f8612aebcc638ec4c
+msgid "CLV models."
+msgstr "Modelos de CLV."
+
+#: ../source/api/generated/pymc_marketing.clv.rst:34:<autosummary>:1
+#: 8c428b9d3b7441579cc056ec0c88afa9
+msgid ":py:obj:`plotting <pymc_marketing.clv.plotting>`\\"
+msgstr ":py:obj:`trazado <pymc_marketing.clv.trazado>`\\"
+
+#: ../source/api/generated/pymc_marketing.clv.rst:34:<autosummary>:1
+#: d843196054164921885898c3981422a5
+msgid "Plotting functions for the CLV module."
+msgstr "Funciones de representación para el módulo CLV."
+
+#: ../source/api/generated/pymc_marketing.clv.rst:34:<autosummary>:1
+#: ade05602c35f4e14917b9fc4b986bccb
+msgid ":py:obj:`utils <pymc_marketing.clv.utils>`\\"
+msgstr ":py:obj:`utils <pymc_marketing.clv.utils>`\\"
+
+#: ../source/api/generated/pymc_marketing.clv.rst:34:<autosummary>:1
+#: 31c7c775e5dd49c692316f112ef67cca
+msgid "Utilities for the CLV module."
+msgstr "Utilidades para el módulo CLV."

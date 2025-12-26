@@ -1,0 +1,148 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.utility.portfolio_entropy.rst:2
+#: df6a7b96d03b45538791cd1fea2f0627
+msgid "portfolio\\_entropy"
+msgstr "portfolio\\_entropy"
+
+#: 611494882d8c44d0bfff3d2e7ea74251 of
+#: pymc_marketing.mmm.utility.portfolio_entropy:2
+msgid ""
+"Calculate the entropy of a portfolio's asset weights to assess "
+"diversification."
+msgstr ""
+"Calcule la entropía de los pesos de los activos de una cartera para evaluar "
+"la diversificación."
+
+#: c9b57d852f2a40bd9fb8414697b526a0 of
+#: pymc_marketing.mmm.utility.portfolio_entropy:4
+msgid ""
+"Portfolio entropy, derived from Shannon entropy in information theory, "
+"quantifies the dispersion of asset weights within a portfolio. A higher "
+"entropy value indicates a more diversified portfolio, as investments are "
+"more evenly distributed across assets. Conversely, a lower entropy suggests "
+"concentration in fewer assets, implying higher risk."
+msgstr ""
+"La entropía de la cartera, derivada de la entropía de Shannon en la teoría "
+"de la información, cuantifica la dispersión de los pesos de los activos "
+"dentro de una cartera. Un valor de entropía más alto indica una cartera más "
+"diversificada, ya que las inversiones están más uniformemente distribuidas "
+"entre los activos. Por el contrario, una entropía más baja sugiere "
+"concentración en menos activos, lo que implica un mayor riesgo."
+
+#: 728b839ebe5a46a8a787889f91e932b5 of
+#: pymc_marketing.mmm.utility.portfolio_entropy:9
+msgid "The entropy is calculated using the formula:"
+msgstr "La entropía se calcula utilizando la fórmula:"
+
+#: 4f46593668f54e76bf3ae4264915a59e of
+#: pymc_marketing.mmm.utility.portfolio_entropy:11
+#, python-brace-format
+msgid ""
+"E = -\\sum_{i=1}^{n} w_i \\cdot \\log(w_i)\n"
+"\n"
+msgstr "E = -\\sum_{i=1}^{n} w_i \\cdot \\log(w_i)"
+
+#: 1c62cd63947142c1b1d5468c9b1e1707 of
+#: pymc_marketing.mmm.utility.portfolio_entropy:14
+msgid ""
+"where :math:`w_i` represents the weight of asset \\( i \\) in the portfolio."
+msgstr "donde :math:`w_i` representa el peso del activo \\( i \\) en la cartera."
+
+#: 0e337afd612d42b88dfa1839879b4b74 of
+#: pymc_marketing.mmm.utility.portfolio_entropy
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 9785d9295f5d4ff5aec5eb941e8b8597 of
+#: pymc_marketing.mmm.utility.portfolio_entropy:18
+msgid "**samples** : :obj:`pt.TensorVariable`"
+msgstr "**muestras** : :obj:`pt.TensorVariable`"
+
+#: 0b6dd6b06c644c539aa0ef643ab9e724 fedef1799f1c4db6b1d401598beaac22 of
+#: pymc_marketing.mmm.utility.portfolio_entropy:17
+#: pymc_marketing.mmm.utility.portfolio_entropy:20
+msgid "pt.TensorVariable"
+msgstr "pt.TensorVariable"
+
+#: 3c601cadc8c64b6c84380eb1ca524489 of
+#: pymc_marketing.mmm.utility.portfolio_entropy:19
+msgid "1D PyTensor tensor variable containing samples."
+msgstr "Variable de tensor PyTensor 1D que contiene muestras."
+
+#: 2334f02faf134a7ab27a6fd7ec100d37 of
+#: pymc_marketing.mmm.utility.portfolio_entropy:21
+msgid "**budgets** : :obj:`pt.TensorVariable`"
+msgstr "**presupuestos** : :obj:`pt.TensorVariable`"
+
+#: 271dc43024bb455cbc6d556380042fcd of
+#: pymc_marketing.mmm.utility.portfolio_entropy:22
+msgid ""
+"1D PyTensor tensor variable representing the investment amounts in each "
+"asset."
+msgstr ""
+"Variable tensor 1D PyTensor que representa los montos de inversión en cada "
+"activo."
+
+#: d2c700261b1f4177a5f583836f9c6978 of
+#: pymc_marketing.mmm.utility.portfolio_entropy
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 82748bf48eeb46279cc96bde9907e27a of
+#: pymc_marketing.mmm.utility.portfolio_entropy:28
+msgid ":obj:`pt.TensorVariable`"
+msgstr ":obj:`pt.TensorVariable`"
+
+#: 9ba0110d888848568704173805ae1b51 of
+#: pymc_marketing.mmm.utility.portfolio_entropy:29
+msgid "Portfolio entropy value."
+msgstr "Valor de entropía del portafolio."
+
+#: 28d6a8906bcd4806abd166961c42acb6 of
+#: pymc_marketing.mmm.utility.portfolio_entropy:40
+msgid "References"
+msgstr "Referencias"
+
+#: 33073e9d57544c83bcd52dd563eadb5f of
+#: pymc_marketing.mmm.utility.portfolio_entropy:41
+msgid ""
+"Bera, A. K., & Park, S. Y. (2008). Optimal Portfolio Diversification using "
+"the Maximum Entropy Principle."
+msgstr ""
+"Bera, A. K., y Park, S. Y. (2008). Diversificación óptima de carteras "
+"utilizando el principio de máxima entropía."
+
+#: b701449afd16400a819af388695b74f1 of
+#: pymc_marketing.mmm.utility.portfolio_entropy:42
+msgid ""
+"Pola, G. (2013). On entropy and portfolio diversification. *Journal of Asset"
+" Management*, 14(4), 228-238."
+msgstr ""
+"Pola, G. (2013). Sobre la entropía y la diversificación de carteras. "
+"*Revista de Gestión de Activos*, 14(4), 228-238."
+
+#: b6f5f51e80504c5199aca7fae6eaa5fa of
+#: pymc_marketing.mmm.utility.portfolio_entropy:46
+msgid "[R6e0e66f6ee8f-1]_, [R6e0e66f6ee8f-2]_"
+msgstr "[R6e0e66f6ee8f-1]_, [R6e0e66f6ee8f-2]_"

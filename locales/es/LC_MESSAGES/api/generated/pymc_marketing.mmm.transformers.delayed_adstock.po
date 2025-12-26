@@ -1,0 +1,257 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.delayed_adstock.rst:2
+#: 67707da4e8844c15893756cf9b6db615
+msgid "delayed\\_adstock"
+msgstr "adstock\\_retrasado"
+
+#: 9eba04359d3745bd9e3ef2cd241049c9 of
+#: pymc_marketing.mmm.transformers.delayed_adstock:2
+msgid "Delayed adstock transformation."
+msgstr "Transformación de adstock retrasada."
+
+#: 9086c58ceebb4d9abcb18ec6a135f1a6 of
+#: pymc_marketing.mmm.transformers.delayed_adstock:4
+msgid ""
+"This transformation is similar to geometric adstock transformation, but it "
+"allows for a delayed peak of the effect. The peak is assumed to occur at "
+"`theta`."
+msgstr ""
+"Esta transformación es similar a la transformación adstock geométrica, pero "
+"permite un pico retrasado del efecto. Se asume que el pico ocurre en "
+"`theta`."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.delayed_adstock.rst:7
+#: 1bb2bb9dbedd43a3810f00806e704a8e
+msgid ""
+"(:download:`Source code "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-delayed_adstock-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-delayed_adstock-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-delayed_adstock-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-delayed_adstock-1.pdf>`)"
+msgstr ""
+"(:download:`Código fuente "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-delayed_adstock-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-delayed_adstock-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-delayed_adstock-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-delayed_adstock-1.pdf>`)"
+
+#: 958a777fab564aada08509cbccc6734e of
+#: pymc_marketing.mmm.transformers.delayed_adstock
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 937863d6d3a74c13af53e16addc5eaa1 of
+#: pymc_marketing.mmm.transformers.delayed_adstock:37
+msgid "**x** : :obj:`tensor`"
+msgstr "**x** : :obj:`tensor`"
+
+#: e5ca8a5463674c499b1ec87ef6117d9e of
+#: pymc_marketing.mmm.transformers.delayed_adstock:36
+msgid "tensor"
+msgstr "tensor"
+
+#: 0f73201d3a4e491dbfd59ccbdb541549 of
+#: pymc_marketing.mmm.transformers.delayed_adstock:38
+msgid "Input tensor."
+msgstr "Tensor de entrada."
+
+#: 74f4cf0bae92408d940fcd1d4b771fd5 of
+#: pymc_marketing.mmm.transformers.delayed_adstock:40
+msgid "**alpha** : :class:`python:float`, :obj:`by` default 0.0"
+msgstr "**alpha** : :class:`python:float`, :obj:`por` defecto 0.0"
+
+#: a292bafca2e64f909090bec41f400a09 of
+#: pymc_marketing.mmm.transformers.delayed_adstock:39
+msgid "python:float, by default 0.0"
+msgstr "python:float, por defecto 0.0"
+
+#: 95347083e77d494cb9245acfdb9d5a6d of
+#: pymc_marketing.mmm.transformers.delayed_adstock:41
+msgid "Retention rate of ad effect. Must be between 0 and 1."
+msgstr "Tasa de retención del efecto del anuncio. Debe estar entre 0 y 1."
+
+#: 8de9f52f17f441bb97eff992fe6ebb9b of
+#: pymc_marketing.mmm.transformers.delayed_adstock:43
+msgid "**theta** : :class:`python:float`, :obj:`by` default 0"
+msgstr "**theta** : :class:`python:float`, :obj:`por` defecto 0"
+
+#: cb7f9ce394294b16ae96d14c9426caeb of
+#: pymc_marketing.mmm.transformers.delayed_adstock:42
+msgid "python:float, by default 0"
+msgstr "python:float, por defecto 0"
+
+#: 3f72f2c7f82c439280efd07339784b1a of
+#: pymc_marketing.mmm.transformers.delayed_adstock:44
+msgid "Delay of the peak effect. Must be between 0 and `l_max` - 1."
+msgstr "Retraso del efecto máximo. Debe estar entre 0 y `l_max` - 1."
+
+#: 327a04d5810241eca972faf2a691285c of
+#: pymc_marketing.mmm.transformers.delayed_adstock:46
+msgid "**l_max** : :class:`python:int`, :obj:`by` default 12"
+msgstr "**l_max** : :class:`python:int`, :obj:`por` defecto 12"
+
+#: 681b43ab85ea498a879247937519c20e of
+#: pymc_marketing.mmm.transformers.delayed_adstock:45
+msgid "python:int, by default 12"
+msgstr "python:int, por defecto 12"
+
+#: 501460966eab432ba81acdefce038f6d of
+#: pymc_marketing.mmm.transformers.delayed_adstock:47
+msgid "Maximum duration of carryover effect."
+msgstr "Duración máxima del efecto de arrastre."
+
+#: 9cd979f8e3224a8395eae0a3e914e18b of
+#: pymc_marketing.mmm.transformers.delayed_adstock:49
+msgid ""
+"**normalize** : :ref:`bool <python:bltin-boolean-values>`, :obj:`by` default"
+" :data:`python:False`"
+msgstr ""
+"**normalizar** : :ref:`bool <python:bltin-boolean-values>`, :obj:`por` "
+"defecto :data:`python:False`"
+
+#: f1b6349fc8d94c81a9ba19024996e17c of
+#: pymc_marketing.mmm.transformers.delayed_adstock:48
+msgid "bool, by default python:False"
+msgstr "bool, por defecto python:False"
+
+#: 16cfd32ecd694614952c220172526c8e of
+#: pymc_marketing.mmm.transformers.delayed_adstock:50
+msgid "Whether to normalize the weights."
+msgstr "Si se deben normalizar los pesos."
+
+#: 8680a088bfae452898541ae80165f9e5 of
+#: pymc_marketing.mmm.transformers.delayed_adstock:52
+msgid "**axis** : :class:`python:int`"
+msgstr "**eje** : :class:`python:int`"
+
+#: 60b127cee84044e498e375aef85ae95d of
+#: pymc_marketing.mmm.transformers.delayed_adstock:51
+msgid "python:int"
+msgstr "python:int"
+
+#: 3b0d827646244d4ea44d73089b070f84 of
+#: pymc_marketing.mmm.transformers.delayed_adstock:53
+msgid "The axis of ``x`` along witch to apply the convolution"
+msgstr "El eje de ``x`` a lo largo del cual aplicar la convolución"
+
+#: 3ceebbb3a03f489e8656765989a16096 of
+#: pymc_marketing.mmm.transformers.delayed_adstock:55
+msgid "**mode** : :obj:`ConvMode`, optional"
+msgstr "**modo** : :obj:`ConvMode`, opcional"
+
+#: a74f7242ae264a5a8c678f98f2395a3e of
+#: pymc_marketing.mmm.transformers.delayed_adstock:54
+msgid "ConvMode, optional"
+msgstr "ConvMode, opcional"
+
+#: 36c6af32d8154c40beeb6534e88ae30a of
+#: pymc_marketing.mmm.transformers.delayed_adstock:56
+msgid ""
+"The convolution mode determines how the convolution is applied at the "
+"boundaries of the input signal, denoted as \"x.\" The default mode is "
+"ConvMode.After."
+msgstr ""
+"El modo de convolución determina cómo se aplica la convolución en los "
+"límites de la señal de entrada, denotada como \"x.\" El modo predeterminado "
+"es ConvMode.After."
+
+#: eef490085dfc4c9c92d6752be278eccd of
+#: pymc_marketing.mmm.transformers.delayed_adstock:59
+msgid ""
+"ConvMode.After: Applies the convolution with the \"Adstock\" effect, "
+"resulting in a trailing decay effect."
+msgstr ""
+"ConvMode.After: Aplica la convolución con el efecto \"Adstock\", resultando "
+"en un efecto de decaimiento en el tiempo."
+
+#: cf309778c145499dbbfaa2b65a00d5f0 of
+#: pymc_marketing.mmm.transformers.delayed_adstock:60
+msgid ""
+"ConvMode.Before: Applies the convolution with the \"Excitement\" effect, "
+"creating a leading effect"
+msgstr ""
+"ConvMode.Before: Aplica la convolución con el efecto \"Emoción\", creando un"
+" efecto de anticipación"
+
+#: f962a0d17b444bc6a49a9cc320defd66 of
+#: pymc_marketing.mmm.transformers.delayed_adstock:61
+msgid "similar to the wow factor."
+msgstr "similar al factor wow."
+
+#: b593c8db43804aabaf39cc7e746a7361 of
+#: pymc_marketing.mmm.transformers.delayed_adstock:62
+msgid ""
+"ConvMode.Overlap: Applies the convolution with both \"Pull-Forward\" and "
+"\"Pull-Backward\" effects,"
+msgstr ""
+"ConvMode.Overlap: Aplica la convolución con efectos de \"Pull-Forward\" y "
+"\"Pull-Backward\"."
+
+#: e832111aa811416c92e765d400c2eda2 of
+#: pymc_marketing.mmm.transformers.delayed_adstock:63
+msgid "where the effect overlaps with both preceding and succeeding elements."
+msgstr ""
+"donde el efecto se superpone con los elementos precedentes y sucesivos."
+
+#: 781b778058d0466891656ffe44e4a968 of
+#: pymc_marketing.mmm.transformers.delayed_adstock
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 8796d5a63c4549a8b71c8e41b726fac4 of
+#: pymc_marketing.mmm.transformers.delayed_adstock:69
+msgid ":obj:`tensor`"
+msgstr ":obj:`tensor`"
+
+#: 5b536e67041243f7ae835ced526539a7 of
+#: pymc_marketing.mmm.transformers.delayed_adstock:70
+msgid "Transformed tensor."
+msgstr "Tensor transformado."
+
+#: a85a15988ceb431a982a60f457d70672 of
+#: pymc_marketing.mmm.transformers.delayed_adstock:81
+msgid "References"
+msgstr "Referencias"
+
+#: a885626ffaac41c88e7bf5b28bfab705 of
+#: pymc_marketing.mmm.transformers.delayed_adstock:82
+msgid ""
+"Jin, Yuxue, et al. \"Bayesian methods for media mix modeling with carryover "
+"and shape effects.\" (2017)."
+msgstr ""
+"Jin, Yuxue, et al. \"Métodos bayesianos para la modelización de mezcla de "
+"medios con efectos de arrastre y forma.\" (2017)."
+
+#: 8731fc4b025e4d8fa2fda2852c5b6bba of
+#: pymc_marketing.mmm.transformers.delayed_adstock:87
+msgid "[Rc11c08f63a7a-1]_"
+msgstr "[Rc11c08f63a7a-1]_"

@@ -1,0 +1,45 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.customer_choice.nested_logit.NestedLogit.parse_formula.rst:2
+#: e60aabb61866433c8ebefb62d08ab6eb
+msgid "NestedLogit.parse\\_formula"
+msgstr "NestedLogit.parse\\_formula"
+
+#: 3e3c92dfcff943f3a423f718f789e3bc of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.parse_formula:2
+msgid "Parse the three-part structure of a formula specification."
+msgstr ""
+"Analice la estructura de tres partes de una especificación de fórmula."
+
+#: cc10de68c3d24362b83a52d0c24767ea of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit.parse_formula:4
+msgid ""
+"Splits the formula into target, alternative-specific covariates, and fixed "
+"covariates. Ensures that the target variable appears in the dependent "
+"variable column and that all specified covariates exist in the input "
+"dataframe."
+msgstr ""
+"Divide la fórmula en la variable objetivo, covariables específicas de la "
+"alternativa y covariables fijas. Asegura que la variable objetivo aparezca "
+"en la columna de variable dependiente y que todas las covariables "
+"especificadas existan en el dataframe de entrada."

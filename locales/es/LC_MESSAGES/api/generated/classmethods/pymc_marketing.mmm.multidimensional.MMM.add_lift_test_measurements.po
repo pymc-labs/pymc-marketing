@@ -1,0 +1,187 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.multidimensional.MMM.add_lift_test_measurements.rst:2
+#: 0a9b5486bcd34adf97721680fc4136a9
+msgid "MMM.add\\_lift\\_test\\_measurements"
+msgstr "MMM.agregar\\_mediciones\\_de\\_prueba\\_de\\_elevación"
+
+#: 053f7551e6354021ab9e5d62ddc38c8e of
+#: pymc_marketing.mmm.multidimensional.MMM.add_lift_test_measurements:2
+msgid "Add lift tests to the model."
+msgstr "Añadir pruebas de elevación al modelo."
+
+#: e1c0b9d7943646a697d567a45d9ba0f1 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_lift_test_measurements:4
+msgid ""
+"The model for the difference of a channel's saturation curve is created from"
+" `x` and `x + delta_x` for each channel. This random variable is then "
+"conditioned using the empirical lift, `delta_y`, and `sigma` of the lift "
+"test with the specified distribution `dist`."
+msgstr ""
+"El modelo para la diferencia de la curva de saturación de un canal se crea a"
+" partir de `x` y `x + delta_x` para cada canal. Esta variable aleatoria se "
+"condiciona luego utilizando el aumento empírico, `delta_y`, y `sigma` de la "
+"prueba de aumento con la distribución especificada `dist`."
+
+#: f49c773a7a474a4fb3bb39e74ef9efd1 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_lift_test_measurements:9
+msgid "The pseudo-code for the lift test is as follows:"
+msgstr "El pseudo-código para la prueba del ascensor es el siguiente:"
+
+#: a92d243bd06d42bcbceb6e25d96a2ec5 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_lift_test_measurements:17
+msgid "The model has to be built before adding the lift tests."
+msgstr ""
+"El modelo debe ser construido antes de agregar las pruebas de elevación."
+
+#: 75b4f2f45a604ab99283fdbaf3fd07a8 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_lift_test_measurements
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 22179f3621cc47e886291d168c077ef6 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_lift_test_measurements:21
+msgid "**df_lift_test** : :obj:`pd.DataFrame`"
+msgstr "**df_lift_test** : :obj:`pd.DataFrame`"
+
+#: a326d1e3baba498ea04395d5a5e4f11d of
+#: pymc_marketing.mmm.multidimensional.MMM.add_lift_test_measurements:20
+msgid "pd.DataFrame"
+msgstr "pd.DataFrame"
+
+#: 8e313f918c15439bbf48fe2cf4e95254 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_lift_test_measurements:22
+msgid "DataFrame with lift test results with at least the following columns:"
+msgstr ""
+"DataFrame con los resultados de la prueba de elevación con al menos las "
+"siguientes columnas:"
+
+#: b402d72f31c04a13971020ab3e271fa2 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_lift_test_measurements:23
+msgid "`DIM_NAME`: dimension name. One column per dimension in `mmm.dims`."
+msgstr ""
+"`DIM_NAME`: nombre de la dimensión. Una columna por dimensión en `mmm.dims`."
+
+#: f42332ffc82b4826a924c4dc824a3e32 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_lift_test_measurements:24
+msgid "`channel`: channel name. Must be present in `channel_columns`."
+msgstr ""
+"`channel`: nombre del canal. Debe estar presente en `channel_columns`."
+
+#: 1daaa78c7c014dd291ab7cfe0c7c56a6 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_lift_test_measurements:25
+msgid "`x`: x axis value of the lift test."
+msgstr "`x`: valor del eje x de la prueba de elevación."
+
+#: 1444cb7d6b38402e9739a114fb792b74 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_lift_test_measurements:26
+msgid "`delta_x`: change in x axis value of the lift test."
+msgstr "`delta_x`: cambio en el valor del eje x de la prueba de elevación."
+
+#: 70228ad5096f4463bf6bcbdb60a0352f of
+#: pymc_marketing.mmm.multidimensional.MMM.add_lift_test_measurements:27
+msgid "`delta_y`: change in y axis value of the lift test."
+msgstr "`delta_y`: cambio en el valor del eje y de la prueba de elevación."
+
+#: c1649c1dc2db4a9d92e36f26a0750ce6 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_lift_test_measurements:28
+msgid "`sigma`: standard deviation of the lift test."
+msgstr "`sigma`: desviación estándar de la prueba de elevación."
+
+#: b107d28d8dc547afbec44f8c37ed74b3 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_lift_test_measurements:30
+msgid "**dist** : :obj:`pm.Distribution`, optional"
+msgstr "**dist** : :obj:`pm.Distribution`, opcional"
+
+#: 1be94c8a727f4d1c9c7b3b002023b7e8 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_lift_test_measurements:29
+msgid "pm.Distribution, optional"
+msgstr "pm.Distribution, opcional"
+
+#: 28bdc5b35fae478ebad05daac55f68a1 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_lift_test_measurements:31
+msgid "The distribution to use for the likelihood, by default pm.Gamma"
+msgstr ""
+"La distribución a utilizar para la verosimilitud, por defecto pm.Gamma"
+
+#: f34b821e48bf4c4a9b8f1efa9d516fcb of
+#: pymc_marketing.mmm.multidimensional.MMM.add_lift_test_measurements:33
+msgid "**name** : :class:`python:str`, optional"
+msgstr "**nombre** : :class:`python:str`, opcional"
+
+#: 055d0f1d37864ed5a497a1e970776e12 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_lift_test_measurements:32
+msgid "python:str, optional"
+msgstr "python:str, opcional"
+
+#: 70003c9c340a4cdd9d4d6fc0d0cc705b of
+#: pymc_marketing.mmm.multidimensional.MMM.add_lift_test_measurements:34
+msgid ""
+"The name of the likelihood of the lift test contribution(s), by default "
+"\"lift_measurements\". Name change required if calling this method multiple "
+"times."
+msgstr ""
+"El nombre de la probabilidad de la(s) contribución(es) de la prueba de "
+"elevación, por defecto \"lift_measurements\". Se requiere un cambio de "
+"nombre si se llama a este método múltiples veces."
+
+#: 21cb7040373548d983dec43552731c41 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_lift_test_measurements
+msgid "Raises"
+msgstr "Aumentos"
+
+#: 534ec1e36d884041b051e9411a0256d6 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_lift_test_measurements:46
+msgid ":obj:`RuntimeError`"
+msgstr ":obj:`RuntimeError`"
+
+#: 1d3e343139f8415abcafb1aa10db5275 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_lift_test_measurements:47
+msgid "If the model has not been built yet."
+msgstr "Si el modelo aún no ha sido construido."
+
+#: f2d131b6d08c483c93367aadcd7b293a of
+#: pymc_marketing.mmm.multidimensional.MMM.add_lift_test_measurements:49
+msgid ":obj:`KeyError`"
+msgstr ":obj:`KeyError`"
+
+#: 8788183a41d448999d49620f3019292d of
+#: pymc_marketing.mmm.multidimensional.MMM.add_lift_test_measurements:50
+msgid ""
+"If the 'channel' column or any of the model dimensions is not present in "
+"df_lift_test."
+msgstr ""
+"Si la columna 'channel' o cualquiera de las dimensiones del modelo no está "
+"presente en df_lift_test."
+
+#: 7971836c00be4b718b13f514ac76c1ed of
+#: pymc_marketing.mmm.multidimensional.MMM.add_lift_test_measurements:59
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: 0b10a689c9bb4e5dada15ac6752487a9 of
+#: pymc_marketing.mmm.multidimensional.MMM.add_lift_test_measurements:60
+msgid "Build the model first then add lift test measurements."
+msgstr ""
+"Primero construya el modelo y luego agregue las mediciones de la prueba de "
+"elevación."

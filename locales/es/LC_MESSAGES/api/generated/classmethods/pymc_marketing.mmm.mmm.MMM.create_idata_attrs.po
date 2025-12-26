@@ -1,0 +1,46 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.mmm.MMM.create_idata_attrs.rst:2
+#: bb91ec4a036a44bdb5b9f36971ac2eee
+msgid "MMM.create\\_idata\\_attrs"
+msgstr "MMM.create\\_idata\\_attrs"
+
+#: 20a1229d2c5f49d5a06c6845fc74d1dd of
+#: pymc_marketing.mmm.mmm.BaseMMM.create_idata_attrs:2
+msgid "Create attributes for the inference data."
+msgstr "Cree atributos para los datos de inferencia."
+
+#: 745561d9fdba4b4992376243161a5d92 of
+#: pymc_marketing.mmm.mmm.BaseMMM.create_idata_attrs
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: ba1121be6356406795699004582b3c14 of
+#: pymc_marketing.mmm.mmm.BaseMMM.create_idata_attrs:10
+msgid ":class:`python:dict`\\[:class:`python:str`, :class:`python:str`]"
+msgstr ":class:`python:dict`\\[:class:`python:str`, :class:`python:str`]"
+
+#: 6d7b3905f73f43669089cce7d758de06 of
+#: pymc_marketing.mmm.mmm.BaseMMM.create_idata_attrs:11
+msgid "The attributes for the inference data."
+msgstr "Los atributos para los datos de inferencia."

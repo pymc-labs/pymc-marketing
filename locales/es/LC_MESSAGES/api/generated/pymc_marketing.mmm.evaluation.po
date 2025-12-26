@@ -1,0 +1,86 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.evaluation.rst:2
+#: 8945f49bef8e482eb117f745a9528eeb
+msgid "evaluation"
+msgstr "evaluación"
+
+#: f9f90f2f4321491583a6bd357da0a9e4 of pymc_marketing.mmm.evaluation:1
+msgid "Evaluation and diagnostics for MMM models."
+msgstr "Evaluación y diagnósticos para modelos MMM."
+
+#: ../source/api/generated/pymc_marketing.mmm.evaluation.rst:13
+#: 5650d1814c1b43b88b6d483d8ef221c6
+msgid "Functions"
+msgstr "Funciones"
+
+#: ../source/api/generated/pymc_marketing.mmm.evaluation.rst:20:<autosummary>:1
+#: 9fbc43b67f8c4d178445fdbdc6db9f29
+msgid ""
+":py:obj:`calculate_metric_distributions "
+"<pymc_marketing.mmm.evaluation.calculate_metric_distributions>`\\ "
+"\\(y\\_true\\, y\\_pred\\)"
+msgstr ""
+":py:obj:`calculate_metric_distributions "
+"<pymc_marketing.mmm.evaluation.calculate_metric_distributions>`\\ "
+"\\(y\\_true\\, y\\_pred\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.evaluation.rst:20:<autosummary>:1
+#: dae416616d184854be34a0ad966a4c77
+msgid "Calculate distributions of evaluation metrics for posterior samples."
+msgstr ""
+"Calcular distribuciones de métricas de evaluación para muestras posteriores."
+
+#: ../source/api/generated/pymc_marketing.mmm.evaluation.rst:20:<autosummary>:1
+#: ac74b49fb85044498bf776d020433db0
+msgid ""
+":py:obj:`compute_summary_metrics "
+"<pymc_marketing.mmm.evaluation.compute_summary_metrics>`\\ \\(y\\_true\\, "
+"y\\_pred\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`compute_summary_metrics "
+"<pymc_marketing.mmm.evaluation.compute_summary_metrics>`\\ \\(y\\_true\\, "
+"y\\_pred\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.evaluation.rst:20:<autosummary>:1
+#: 581b675486e14afda103b079077e0df8
+msgid ""
+"Evaluate the model by calculating metric distributions and summarizing them."
+msgstr ""
+"Evalúe el modelo calculando las distribuciones de métricas y resumiéndolas."
+
+#: ../source/api/generated/pymc_marketing.mmm.evaluation.rst:20:<autosummary>:1
+#: 6e10236f6c4145b887840f4e91074abc
+msgid ""
+":py:obj:`summarize_metric_distributions "
+"<pymc_marketing.mmm.evaluation.summarize_metric_distributions>`\\ "
+"\\(...\\[\\, hdi\\_prob\\]\\)"
+msgstr ""
+":py:obj:`resumir_distribuciones_metricas "
+"<pymc_marketing.mmm.evaluacion.resumir_distribuciones_metricas>`\\ "
+"\\(...\\[\\, hdi\\_prob\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.evaluation.rst:20:<autosummary>:1
+#: 219a1cf3503a4eab9749dbd9b47b2f6e
+msgid "Summarize metric distributions with point estimates and HDIs."
+msgstr "Resume las distribuciones métricas con estimaciones puntuales y HDIs."

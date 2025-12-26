@@ -1,0 +1,281 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.rst:2
+#: 57ca8a994ffd4464899b081f9d96bf47
+msgid "lift\\_test"
+msgstr "prueba\\_de\\_elevación"
+
+#: f32627b31fd54a00b396c50803485308 of pymc_marketing.mmm.lift_test:1
+msgid "Adding lift tests as observations of saturation function."
+msgstr ""
+"Añadiendo pruebas de elevación como observaciones de la función de "
+"saturación."
+
+#: 3b3165facda5456c9b08073900ea5f5b of pymc_marketing.mmm.lift_test:3
+msgid ""
+"This provides the inner workings of `MMM.add_lift_test_measurements` method."
+" Other methods can be MMM.add_cost_per_target_calibration. Use any of these "
+"methods directly while working with the `MMM` class."
+msgstr ""
+"Esto proporciona el funcionamiento interno del método "
+"`MMM.add_lift_test_measurements`. Otros métodos pueden ser "
+"MMM.add_cost_per_target_calibration. Utilice cualquiera de estos métodos "
+"directamente al trabajar con la clase `MMM`."
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.rst:13
+#: 64711f4ef8ba445cb009c17d669292e6
+msgid "Functions"
+msgstr "Funciones"
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.rst:37:<autosummary>:1
+#: bb1e89eb82324a049111c8e494efbddb
+msgid ""
+":py:obj:`add_cost_per_target_potentials "
+"<pymc_marketing.mmm.lift_test.add_cost_per_target_potentials>`\\ "
+"\\(calibration\\_df\\, \\*\\)"
+msgstr ""
+":py:obj:`add_cost_per_target_potentials "
+"<pymc_marketing.mmm.lift_test.add_cost_per_target_potentials>`\\ "
+"\\(calibration\\_df\\, \\*\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.rst:37:<autosummary>:1
+#: 4be1f55ccd134d4a8dfdc1b3f0685aff
+msgid "Add ``pm.Potential`` penalties to calibrate cost-per-target."
+msgstr ""
+"Agregue las penalizaciones ``pm.Potential`` para calibrar el costo por "
+"objetivo."
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.rst:37:<autosummary>:1
+#: 0ffe8b54dcc445ed98a24d34c0067018
+msgid ""
+":py:obj:`add_lift_measurements_to_likelihood_from_saturation "
+"<pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation>`\\"
+" \\(...\\)"
+msgstr ""
+":py:obj:`add_lift_measurements_to_likelihood_from_saturation "
+"<pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation>`\\"
+" \\(...\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.rst:37:<autosummary>:1
+#: 58ec2cfc4dd440b898e56215811c3d8c
+msgid ""
+"Add lift measurements to the likelihood from a saturation transformation."
+msgstr ""
+"Agregue las medidas de elevación a la probabilidad de una transformación de "
+"saturación."
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.rst:37:<autosummary>:1
+#: b426b8fd351b4c77875b9a695d0e0354
+msgid ""
+":py:obj:`add_saturation_observations "
+"<pymc_marketing.mmm.lift_test.add_saturation_observations>`\\ "
+"\\(df\\_lift\\_test\\, ...\\)"
+msgstr ""
+":py:obj:`add_saturation_observations "
+"<pymc_marketing.mmm.lift_test.add_saturation_observations>`\\ "
+"\\(df\\_lift\\_test\\, ...\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.rst:37:<autosummary>:1
+#: c871bca81bb440948412f5a6c566d984
+msgid "Add saturation observations to the likelihood of the model."
+msgstr "Agregue observaciones de saturación a la probabilidad del modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.rst:37:<autosummary>:1
+#: 6c53a03a8b474266b3fa22dbe8f70ad0
+msgid ""
+":py:obj:`assert_is_subset <pymc_marketing.mmm.lift_test.assert_is_subset>`\\"
+" \\(required\\, available\\)"
+msgstr ""
+":py:obj:`assert_is_subset <pymc_marketing.mmm.lift_test.assert_is_subset>`\\"
+" (requerido, disponible)"
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.rst:37:<autosummary>:1
+#: e9c1a5a03b4642ecbd28bd4d5f858838
+msgid "Check if the available set is a subset of the required set."
+msgstr ""
+"Verifique si el conjunto disponible es un subconjunto del conjunto "
+"requerido."
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.rst:37:<autosummary>:1
+#: 810f62f6ebf844b9ba8c280190e94c53
+msgid ""
+":py:obj:`assert_monotonic <pymc_marketing.mmm.lift_test.assert_monotonic>`\\"
+" \\(delta\\_x\\, delta\\_y\\)"
+msgstr ""
+":py:obj:`assert_monotonic <pymc_marketing.mmm.lift_test.assert_monotonic>`\\"
+" \\(delta\\_x\\, delta\\_y\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.rst:37:<autosummary>:1
+#: 8512aadf73b840f59b8cd03b42ccb026
+msgid "Check if the lift test results satisfy the increasing assumption."
+msgstr ""
+"Verifique si los resultados de la prueba del ascensor satisfacen la "
+"suposición de aumento."
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.rst:37:<autosummary>:1
+#: 1456d99537324c8b918054a01c95f8f6
+msgid ""
+":py:obj:`create_time_varying_saturation "
+"<pymc_marketing.mmm.lift_test.create_time_varying_saturation>`\\ "
+"\\(saturation\\, ...\\)"
+msgstr ""
+":py:obj:`create_time_varying_saturation "
+"<pymc_marketing.mmm.lift_test.create_time_varying_saturation>`\\ "
+"(saturación\\, ...)"
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.rst:37:<autosummary>:1
+#: 8b7e561679aa4730abeffbfc1695e956
+msgid "Return function and variable mapping that use a time-varying variable."
+msgstr ""
+"Devolver la función y el mapeo de variables que utilizan una variable que "
+"varía con el tiempo."
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.rst:37:<autosummary>:1
+#: aa54cf7436fd4dab808886c68872507f
+msgid ""
+":py:obj:`create_variable_indexer "
+"<pymc_marketing.mmm.lift_test.create_variable_indexer>`\\ \\(model\\, "
+"indices\\)"
+msgstr ""
+":py:obj:`create_variable_indexer "
+"<pymc_marketing.mmm.lift_test.create_variable_indexer>`\\ \\(modelo\\, "
+"índices\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.rst:37:<autosummary>:1
+#: 4d46de2912f141fe9c85e15b9461a309
+msgid "Create a function to index variables in the model."
+msgstr "Cree una función para indexar variables en el modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.rst:37:<autosummary>:1
+#: a35837f9e7e3414db1b7a66c2d3037a3
+msgid ""
+":py:obj:`exact_row_indices "
+"<pymc_marketing.mmm.lift_test.exact_row_indices>`\\ \\(df\\, model\\)"
+msgstr ""
+":py:obj:`exact_row_indices "
+"<pymc_marketing.mmm.lift_test.exact_row_indices>`\\ \\(df\\, modelo\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.rst:37:<autosummary>:1
+#: 20710320cb934e0aacf8b630a0ef69a4
+msgid "Get indices in the model for each row in the DataFrame."
+msgstr "Obtenga los índices en el modelo para cada fila en el DataFrame."
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.rst:37:<autosummary>:1
+#: 05dcac78adba437788a059e8fe61d9e3
+msgid ""
+":py:obj:`scale_channel_lift_measurements "
+"<pymc_marketing.mmm.lift_test.scale_channel_lift_measurements>`\\ "
+"\\(...\\[\\, dim\\_cols\\]\\)"
+msgstr ""
+":py:obj:`scale_channel_lift_measurements "
+"<pymc_marketing.mmm.lift_test.scale_channel_lift_measurements>`\\ "
+"\\(...\\[\\, dim\\_cols\\] )"
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.rst:37:<autosummary>:1
+#: 74d64da6c9ee4802b3c4c338809d940f
+msgid "Scale the lift measurements for a specific channel."
+msgstr "Escalar las medidas de elevación para un canal específico."
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.rst:37:<autosummary>:1
+#: 77b2ea1a78924ea4a6a55423b19cc950
+msgid ""
+":py:obj:`scale_lift_measurements "
+"<pymc_marketing.mmm.lift_test.scale_lift_measurements>`\\ "
+"\\(df\\_lift\\_test\\, ...\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`scale_lift_measurements "
+"<pymc_marketing.mmm.lift_test.scale_lift_measurements>`\\ "
+"\\(df\\_lift\\_test\\, ...\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.rst:37:<autosummary>:1
+#: 26f4741a2a5448aba29f8a5937198edc
+msgid "Scale the DataFrame with lift test results to be used in the model."
+msgstr ""
+"Escalar el DataFrame con los resultados de la prueba de elevación para ser "
+"utilizados en el modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.rst:37:<autosummary>:1
+#: b31032bc38924b4594463c2ebce00ec9
+msgid ""
+":py:obj:`scale_target_for_lift_measurements "
+"<pymc_marketing.mmm.lift_test.scale_target_for_lift_measurements>`\\ "
+"\\(target\\, ...\\)"
+msgstr ""
+":py:obj:`scale_target_for_lift_measurements "
+"<pymc_marketing.mmm.lift_test.scale_target_for_lift_measurements>`\\ "
+"\\(objetivo\\, ...\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.rst:37:<autosummary>:1
+#: b4f8575b40d1470798163e91c6582f21
+msgid "Scale the target for the lift measurements."
+msgstr "Escale el objetivo para las mediciones de elevación."
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.rst:39
+#: 71f767c2da2440e18491453815b96796
+msgid "Exceptions"
+msgstr "Excepciones"
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.rst:44:<autosummary>:1
+#: 983f92a89aae43ffa34c539d2148953f
+msgid ""
+":py:obj:`MissingValueError "
+"<pymc_marketing.mmm.lift_test.MissingValueError>`\\ \\(missing\\_values\\, "
+"...\\)"
+msgstr ""
+":py:obj:`MissingValueError "
+"<pymc_marketing.mmm.lift_test.MissingValueError>`\\ "
+"\\(valores\\_faltantes\\, ...\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.rst:44:<autosummary>:1
+#: 803807465e944f9fba00fd90491a1a69
+msgid "Error when values are missing from a required set."
+msgstr "Error cuando faltan valores de un conjunto requerido."
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.rst:44:<autosummary>:1
+#: e1561bb157b040bf9dc287db4ecab089
+msgid ""
+":py:obj:`NonMonotonicError "
+"<pymc_marketing.mmm.lift_test.NonMonotonicError>`\\"
+msgstr ""
+":py:obj:`NonMonotonicError <pymc_marketing.mmm.lift_test.NonMonotonicError>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.rst:44:<autosummary>:1
+#: be9ca158235446aa821b6febbd3f7e63
+msgid "Data is not monotonic."
+msgstr "Los datos no son monótonos."
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.rst:44:<autosummary>:1
+#: 2b98022d104e45e4ba3c4faba9c7b592
+msgid ""
+":py:obj:`UnalignedValuesError "
+"<pymc_marketing.mmm.lift_test.UnalignedValuesError>`\\ "
+"\\(unaligned\\_values\\)"
+msgstr ""
+":py:obj:`UnalignedValuesError "
+"<pymc_marketing.mmm.lift_test.UnalignedValuesError>`\\ "
+"\\(valores\\_no\\_alineados\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.rst:44:<autosummary>:1
+#: 436660cf2cb84662b5fdda25502ee597
+msgid "Raised when some values are not aligned."
+msgstr "Se levantó cuando algunos valores no están alineados."

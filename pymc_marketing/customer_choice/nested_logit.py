@@ -14,7 +14,7 @@
 """Nested Logit for Product Preference Analysis."""
 
 import json
-from typing import Any
+from typing import Any, Self
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -23,17 +23,16 @@ import pandas as pd
 import patsy
 import pymc as pm
 import pytensor.tensor as pt
+from pymc_extras.prior import Prior
 from pytensor.tensor.variable import TensorVariable
-from typing_extensions import Self
 
-from pymc_marketing.model_builder import ModelBuilder
+from pymc_marketing.model_builder import RegressionModelBuilder
 from pymc_marketing.model_config import parse_model_config
-from pymc_marketing.prior import Prior
 
 HDI_ALPHA = 0.5
 
 
-class NestedLogit(ModelBuilder):
+class NestedLogit(RegressionModelBuilder):
     """
     Nested Logit class.
 
@@ -92,18 +91,22 @@ class NestedLogit(ModelBuilder):
 
     Example `utility_equations` list:
 
-    >>> utility_equations = [
-    ...     "alt_1 ~ X1_alt1 + X2_alt1 | income",
-    ...     "alt_2 ~ X1_alt2 + X2_alt2 | income",
-    ...     "alt_3 ~ X1_alt3 + X2_alt3 | income",
-    ... ]
+    .. code-block:: python
+
+        utility_equations = [
+            "alt_1 ~ X1_alt1 + X2_alt1 | income",
+            "alt_2 ~ X1_alt2 + X2_alt2 | income",
+            "alt_3 ~ X1_alt3 + X2_alt3 | income",
+        ]
 
     Example nesting structure:
 
-    >>> nesting_structure = {
-    ...     "Nest1": ["alt1"],
-    ...     "Nest2": {"Nest2_1": ["alt_2", "alt_3"], "Nest_2_2": ["alt_4", "alt_5"]},
-    ... }
+    .. code-block:: python
+
+        nesting_structure = {
+            "Nest1": ["alt1"],
+            "Nest2": {"Nest2_1": ["alt_2", "alt_3"], "Nest_2_2": ["alt_4", "alt_5"]},
+        }
 
     """
 
@@ -537,14 +540,19 @@ class NestedLogit(ModelBuilder):
         lambda_lkup = self.lambda_lkup
         N = U.shape[0]
         if "_" in nest:
-            parent, child = nest.split("_")
+            parent, _ = nest.split("_")
         else:
             parent = None
-        y_nest = U[:, nest_indices[level][nest]]
+        nest_idx = nest_indices[level][nest]
+        y_nest = U[:, nest_idx]
+        n_alts_in_nest = len(nest_idx)
         if W is None:
-            w_nest = pm.math.zeros((N, len(self.alternatives)))
+            w_nest = pm.math.zeros((N, n_alts_in_nest))
         else:
-            betas_fixed_temp = betas_fixed[nest_indices[level][nest], :]
+            betas_fixed_temp = betas_fixed[nest_idx, :]
+            betas_fixed_temp = pt.atleast_2d(betas_fixed_temp)
+            if n_alts_in_nest == 1 and betas_fixed_temp.shape[0] != 1:
+                betas_fixed_temp = betas_fixed_temp.T
             betas_fixed_temp = pt.set_subtensor(betas_fixed_temp[-1], 0)
             w_nest = pm.math.dot(W, betas_fixed_temp.T)
 
@@ -708,7 +716,7 @@ class NestedLogit(ModelBuilder):
 
                 for idx, n in enumerate(middle_nests):
                     is_last = idx == len(middle_nests) - 1
-                    parent, child = n.split("_")
+                    parent, _ = n.split("_")
                     P_nest = nest_prob_m[n]
                     P_y_given_nest = cond_prob_m[n]["P_y_given"]
                     prod = pm.Deterministic(
@@ -880,6 +888,7 @@ class NestedLogit(ModelBuilder):
         self,
         new_choice_df: pd.DataFrame,
         new_utility_equations: list[str] | None = None,
+        fit_kwargs: dict | None = None,
     ) -> az.InferenceData:
         r"""Apply one of two types of intervention.
 
@@ -909,6 +918,13 @@ class NestedLogit(ModelBuilder):
             predicted probabilities (`"p"`) and likelihood draws (`"likelihood"`).
 
         """
+        if fit_kwargs is None:
+            fit_kwargs = {
+                "target_accept": 0.97,
+                "tune": 2000,
+                "idata_kwargs": {"log_likelihood": True},
+            }
+
         if not hasattr(self, "model"):
             self.sample()
         if new_utility_equations is None:
@@ -937,14 +953,7 @@ class NestedLogit(ModelBuilder):
             new_model = self.make_model(new_X, new_F, new_y)
             with new_model:
                 idata_new_policy = pm.sample_prior_predictive()
-                idata_new_policy.extend(
-                    pm.sample(
-                        target_accept=0.99,
-                        tune=2000,
-                        idata_kwargs={"log_likelihood": True},
-                        random_seed=101,
-                    )
-                )
+                idata_new_policy.extend(pm.sample(**fit_kwargs))
                 idata_new_policy.extend(
                     pm.sample_posterior_predictive(
                         idata_new_policy, var_names=["p", "likelihood"]

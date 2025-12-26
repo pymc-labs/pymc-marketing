@@ -1,0 +1,73 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.rst:2
+#: 30c9c7185e344bdd991d6ca03162b95a
+msgid "mv\\_its"
+msgstr "mv\\_its"
+
+#: fbfbe775aa2d40f2b2b9225c0520cb5d of pymc_marketing.customer_choice.mv_its:1
+msgid ""
+"Multivariate Interrupted Time Series Analysis for Product Incrementality."
+msgstr ""
+"Análisis de Series Temporales Interrumpidas Multivariantes para la "
+"Incrementalidad del Producto."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.rst:13
+#: cb17b349cac84097a781d0bec7649c93
+msgid "Functions"
+msgstr "Funciones"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.rst:23:<autosummary>:1
+#: ce52db5ee9d54880a2b73724900acebe
+msgid ""
+":py:obj:`plot_product "
+"<pymc_marketing.customer_choice.mv_its.plot_product>`\\ \\(data\\[\\, "
+"plot\\_total\\_sales\\, ax\\]\\)"
+msgstr ""
+":py:obj:`plot_product "
+"<pymc_marketing.customer_choice.mv_its.plot_product>`\\ \\(data\\[\\, "
+"plot\\_total\\_sales\\, ax\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.rst:23:<autosummary>:1
+#: 9f6903d11b094b53aec2e31e63b39e04
+msgid "Plot the sales of a single product."
+msgstr "Grafique las ventas de un solo producto."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.rst:25
+#: b80bd6b5c302431881b980ab1cd0df43
+msgid "Classes"
+msgstr "Clases"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.rst:31:<autosummary>:1
+#: 73a6e9da333b4fa5919fa1e5df40ce49
+msgid ""
+":py:obj:`MVITS <pymc_marketing.customer_choice.mv_its.MVITS>`\\ "
+"\\(existing\\_sales\\[\\, saturated\\_market\\, ...\\]\\)"
+msgstr ""
+":py:obj:`MVITS <pymc_marketing.customer_choice.mv_its.MVITS>`\\ "
+"\\(ventas\\_existentes\\[\\, mercado\\_saturado\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.rst:31:<autosummary>:1
+#: 119e3889395140e38a59920411848d8f
+msgid "Multivariate Interrupted Time Series class."
+msgstr "Clase de Series de Tiempo Interrumpidas Multivariadas."

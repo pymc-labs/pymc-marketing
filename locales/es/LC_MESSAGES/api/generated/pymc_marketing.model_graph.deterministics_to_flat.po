@@ -1,0 +1,118 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.model_graph.deterministics_to_flat.rst:2
+#: 9a866be7183c447db07ea7f42d5198a3
+msgid "deterministics\\_to\\_flat"
+msgstr "determinísticos\\_a\\_plano"
+
+#: 214e24d846b748c7a63733ba082abf73 of
+#: pymc_marketing.model_graph.deterministics_to_flat:2
+msgid "Replace all specified Deterministic nodes in a pm.Model with Flat."
+msgstr ""
+"Reemplace todos los nodos deterministas especificados en un pm.Model con "
+"Flat."
+
+#: ae250e665edb4b9ab4eeccd75eaa059b of
+#: pymc_marketing.model_graph.deterministics_to_flat:4
+msgid ""
+"This is useful to capture some state from a model and to then sample from "
+"the model using that state. For example, capturing the mean of a "
+"distribution or a value of a deterministic variable."
+msgstr ""
+"Esto es útil para capturar algún estado de un modelo y luego muestrear del "
+"modelo utilizando ese estado. Por ejemplo, capturando la media de una "
+"distribución o un valor de una variable determinista."
+
+#: 51df18ea5b244c76a8ecd9772efd392b of
+#: pymc_marketing.model_graph.deterministics_to_flat:8
+msgid ""
+"See :class:`pymc_marketing.mmm.hsgp.SoftPlusHSGP` for an example of how this"
+" is used to keep a variable centered around 1.0 during sampling but stay "
+"continuous with new values."
+msgstr ""
+"Vea :class:`pymc_marketing.mmm.hsgp.SoftPlusHSGP` para un ejemplo de cómo se"
+" utiliza esto para mantener una variable centrada alrededor de 1.0 durante "
+"el muestreo, pero que permanezca continua con nuevos valores."
+
+#: b34e30e546804cc9a888babbbe0e03c0 of
+#: pymc_marketing.model_graph.deterministics_to_flat
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: acf179cd1090447fb9be0b0fea98a8be of
+#: pymc_marketing.model_graph.deterministics_to_flat:14
+msgid "**model** : :obj:`pm.Model`"
+msgstr "**modelo** : :obj:`pm.Model`"
+
+#: 0c631d83204f44539e0fac4f587624f3 d13005736c054fd690a57eacb5691017 of
+#: pymc_marketing.model_graph.deterministics_to_flat:13
+#: pymc_marketing.model_graph.deterministics_to_flat:23
+msgid "pm.Model"
+msgstr "pm.Model"
+
+#: 126a3880de7a492b804ad1ae9c5970ae of
+#: pymc_marketing.model_graph.deterministics_to_flat:15
+msgid "PyMC model to be transformed"
+msgstr "Modelo PyMC a ser transformado"
+
+#: ff2aae6fb1db424bab5b84f689e59210 of
+#: pymc_marketing.model_graph.deterministics_to_flat:17
+msgid "**names** : :class:`python:list`\\[:class:`python:str`]"
+msgstr "**nombres** : :class:`python:list`\\[:class:`python:str`]"
+
+#: 831e55b815654e9899bdff08f2e9d1da of
+#: pymc_marketing.model_graph.deterministics_to_flat:16
+msgid "python:list[python:str]"
+msgstr "python:list[python:str]"
+
+#: f8689db7315b41058ed3697e972d2fe6 of
+#: pymc_marketing.model_graph.deterministics_to_flat:18
+msgid "Names of the deterministic variables to be replaced by flat"
+msgstr ""
+"Nombres de las variables deterministas que serán reemplazadas por flat"
+
+#: 54814ff269ab4f0fb3ed03037491f0de of
+#: pymc_marketing.model_graph.deterministics_to_flat
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 600bfae2dc4d48c28ae9ecad52db0375 of
+#: pymc_marketing.model_graph.deterministics_to_flat:24
+msgid "**new_model** : :obj:`pm.Model`"
+msgstr "**nuevo_modelo** : :obj:`pm.Model`"
+
+#: 7e0421ff9a154410a79935d0b2c4d751 of
+#: pymc_marketing.model_graph.deterministics_to_flat:25
+msgid "New model with all priors replaced by flat priors"
+msgstr "Nuevo modelo con todos los priors reemplazados por priors planos"
+
+#: b0934678fcc7439dbff0a525687ffd72 of
+#: pymc_marketing.model_graph.deterministics_to_flat:37
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: f844531db5144d6682b74f159afaf0b1 of
+#: pymc_marketing.model_graph.deterministics_to_flat:38
+msgid "Replace single Deterministic with Flat and sample as if it were zeros."
+msgstr ""
+"Reemplace Determinista único por Plano y muestree como si fueran ceros."

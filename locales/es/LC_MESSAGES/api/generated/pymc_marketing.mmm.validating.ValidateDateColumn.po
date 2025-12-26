@@ -1,0 +1,73 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.ValidateDateColumn.rst:2
+#: da0f09e4d2ff42579251f15d71dcdd9a
+msgid "ValidateDateColumn"
+msgstr "ValidarColumnaFecha"
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.ValidateDateColumn.rst:23:<autosummary>:1
+#: 0e6f4f23551e4658ba1523eb41d0870f d5b9cadf18c549ae96a4099cb8075157 of
+#: pymc_marketing.mmm.validating.ValidateDateColumn:2
+msgid "Validate the date column."
+msgstr "Valide la columna de fecha."
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.ValidateDateColumn.rst:12
+#: c1fb48f996ba4c7f8150c6f25c5a4085
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.ValidateDateColumn.rst:23:<autosummary>:1
+#: 27b0eeb6054f40229491f36e9360d66c
+msgid ""
+":py:obj:`ValidateDateColumn.__init__ "
+"<pymc_marketing.mmm.validating.ValidateDateColumn.__init__>`\\ \\(\\*args\\,"
+" \\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`ValidateDateColumn.__init__ "
+"<pymc_marketing.mmm.validating.ValidateDateColumn.__init__>`\\ \\(\\*args\\,"
+" \\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.ValidateDateColumn.rst:23:<autosummary>:1
+#: b7ef98df065c4be281b82779066c323b
+msgid ""
+":py:obj:`ValidateDateColumn.validate_date_col "
+"<pymc_marketing.mmm.validating.ValidateDateColumn.validate_date_col>`\\ "
+"\\(data\\)"
+msgstr ""
+":py:obj:`ValidateDateColumn.validate_date_col "
+"<pymc_marketing.mmm.validating.ValidateDateColumn.validate_date_col>`\\ "
+"\\(datos\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.ValidateDateColumn.rst:25
+#: 69fd5ab50b5a4d24b4a1bbbe1f22829b
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.ValidateDateColumn.rst:28:<autosummary>:1
+#: 712c4a3820f5414597bfa5d45ecb5e42
+msgid ""
+":py:obj:`date_column "
+"<pymc_marketing.mmm.validating.ValidateDateColumn.date_column>`\\"
+msgstr ""
+":py:obj:`date_column "
+"<pymc_marketing.mmm.validating.ValidateDateColumn.date_column>`"

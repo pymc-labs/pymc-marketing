@@ -19,12 +19,13 @@ import pytensor.tensor as pt
 import pytest
 import xarray as xr
 from pydantic import ValidationError
-
-from pymc_marketing.deserialize import (
+from pymc_extras.deserialize import (
     DESERIALIZERS,
     deserialize,
     register_deserialization,
 )
+from pymc_extras.prior import Prior
+
 from pymc_marketing.mmm import (
     HillSaturation,
     HillSaturationSigmoid,
@@ -38,7 +39,6 @@ from pymc_marketing.mmm import (
     TanhSaturationBaselined,
     saturation_from_dict,
 )
-from pymc_marketing.prior import Prior
 
 
 @pytest.fixture
@@ -116,6 +116,29 @@ def test_sample_curve(saturation) -> None:
     assert isinstance(curve, xr.DataArray)
     assert curve.name == "saturation"
     assert curve.shape == (1, 500, 100)
+
+
+@pytest.mark.parametrize("saturation", saturation_functions())
+@pytest.mark.parametrize("num_points", [50, 200, 1000])
+def test_sample_curve_num_points(saturation, num_points) -> None:
+    """Test that num_points parameter controls the number of points in the curve."""
+    prior = saturation.sample_prior()
+    curve = saturation.sample_curve(prior, num_points=num_points)
+    assert isinstance(curve, xr.DataArray)
+    assert curve.name == "saturation"
+    assert curve.shape == (1, 500, num_points)
+
+
+@pytest.mark.parametrize(
+    argnames="num_points", argvalues=[0, -1], ids=["zero", "negative"]
+)
+def test_sample_curve_with_bad_num_points(num_points) -> None:
+    """Test that invalid num_points raises ValidationError."""
+    saturation = LogisticSaturation()
+    prior = saturation.sample_prior()
+
+    with pytest.raises(ValidationError):
+        saturation.sample_curve(prior, num_points=num_points)
 
 
 def create_mock_parameters(

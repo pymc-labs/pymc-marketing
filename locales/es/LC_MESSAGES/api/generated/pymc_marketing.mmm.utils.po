@@ -1,0 +1,144 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.utils.rst:2
+#: ff903f1bf79546c7b63514168df69504
+msgid "utils"
+msgstr "utilidades"
+
+#: 324a0d1445f243d5acaefcecc1307a4a of pymc_marketing.mmm.utils:1
+msgid "Utility functions for the Marketing Mix Modeling module."
+msgstr ""
+"Funciones utilitarias para el módulo de Modelado de Mezcla de Marketing."
+
+#: ../source/api/generated/pymc_marketing.mmm.utils.rst:13
+#: aaf5a77337294ac8bcf0a00b8ba3df58
+msgid "Functions"
+msgstr "Funciones"
+
+#: ../source/api/generated/pymc_marketing.mmm.utils.rst:23:<autosummary>:1
+#: 60f99766463240e793be432b3173aee4
+msgid ""
+":py:obj:`add_noise_to_channel_allocation "
+"<pymc_marketing.mmm.utils.add_noise_to_channel_allocation>`\\ \\(df\\, "
+"channels\\)"
+msgstr ""
+":py:obj:`add_noise_to_channel_allocation "
+"<pymc_marketing.mmm.utils.add_noise_to_channel_allocation>`\\ \\(df\\, "
+"canales\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.utils.rst:23:<autosummary>:1
+#: 66d0d4ea86554c4cb90402fa43f2fd79
+msgid ""
+"Return *df* with additive Gaussian noise applied to *channels* columns."
+msgstr ""
+"Devuelve *df* con ruido gaussiano aditivo aplicado a las columnas "
+"*channels*."
+
+#: ../source/api/generated/pymc_marketing.mmm.utils.rst:23:<autosummary>:1
+#: a471a047ae2147ac9ea761bd7036487d
+msgid ""
+":py:obj:`apply_sklearn_transformer_across_dim "
+"<pymc_marketing.mmm.utils.apply_sklearn_transformer_across_dim>`\\ "
+"\\(data\\, ...\\)"
+msgstr ""
+":py:obj:`apply_sklearn_transformer_across_dim "
+"<pymc_marketing.mmm.utils.apply_sklearn_transformer_across_dim>`\\ "
+"\\(datos\\, ...\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.utils.rst:23:<autosummary>:1
+#: 30d1cd7499b843dab463fbae20947a06
+msgid ""
+"Apply a scikit-learn transformer across a dimension of an xarray DataArray."
+msgstr ""
+"Aplique un transformador de scikit-learn a través de una dimensión de un "
+"xarray DataArray."
+
+#: ../source/api/generated/pymc_marketing.mmm.utils.rst:23:<autosummary>:1
+#: 1bffe9106a8e4ad6b938de475d3e1125
+msgid ""
+":py:obj:`create_index <pymc_marketing.mmm.utils.create_index>`\\ \\(dims\\, "
+"take\\)"
+msgstr ""
+":py:obj:`create_index <pymc_marketing.mmm.utils.create_index>`\\ \\(dims\\, "
+"take\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.utils.rst:23:<autosummary>:1
+#: a08cd8178e2541bbaaaea551ccaecc17
+msgid ""
+"Create an index to take the first dimension of a tensor based on the "
+"provided dimensions."
+msgstr ""
+"Cree un índice para tomar la primera dimensión de un tensor basado en las "
+"dimensiones proporcionadas."
+
+#: ../source/api/generated/pymc_marketing.mmm.utils.rst:23:<autosummary>:1
+#: a5638af04ccf47919b2c529abe1ff2b3
+msgid ""
+":py:obj:`create_new_spend_data "
+"<pymc_marketing.mmm.utils.create_new_spend_data>`\\ \\(spend\\, ...\\[\\, "
+"...\\]\\)"
+msgstr ""
+":py:obj:`create_new_spend_data "
+"<pymc_marketing.mmm.utils.create_new_spend_data>`\\ \\(gasto\\, ...\\[\\, "
+"...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.utils.rst:23:<autosummary>:1
+#: af8584fd4a854f78aba4e6f2ac888d3d
+msgid "Create new spend data for the channel forward pass."
+msgstr "Cree nuevos datos de gasto para el canal de pase hacia adelante."
+
+#: ../source/api/generated/pymc_marketing.mmm.utils.rst:23:<autosummary>:1
+#: 11ee335e44894de5b480bd1cf966545e
+msgid ""
+":py:obj:`create_zero_dataset "
+"<pymc_marketing.mmm.utils.create_zero_dataset>`\\ \\(model\\, "
+"start\\_date\\, end\\_date\\)"
+msgstr ""
+":py:obj:`create_zero_dataset "
+"<pymc_marketing.mmm.utils.create_zero_dataset>`\\ \\(modelo\\, "
+"fecha\\_de\\_inicio\\, fecha\\_de\\_fin\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.utils.rst:23:<autosummary>:1
+#: a2fd051676084e108658033910fb481a
+msgid ""
+"Create a DataFrame for future prediction, with zeros (or supplied "
+"constants)."
+msgstr ""
+"Cree un DataFrame para la predicción futura, con ceros (o constantes "
+"suministradas)."
+
+#: ../source/api/generated/pymc_marketing.mmm.utils.rst:23:<autosummary>:1
+#: e3b285ee0b95497b9981bf0e1541383f
+msgid ""
+":py:obj:`transform_1d_array <pymc_marketing.mmm.utils.transform_1d_array>`\\"
+" \\(transform\\, y\\)"
+msgstr ""
+":py:obj:`transform_1d_array <pymc_marketing.mmm.utils.transform_1d_array>`\\"
+" \\(transformar\\, y\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.utils.rst:23:<autosummary>:1
+#: 53129d97cf024525a2348ec062aa34ca
+msgid "Transform a 1D array using a scikit-learn transformer."
+msgstr ""
+"Transformar un array unidimensional utilizando un transformador de scikit-"
+"learn."

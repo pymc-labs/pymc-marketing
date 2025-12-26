@@ -1,0 +1,102 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.customer_choice.mv_its.MVITS.set_idata_attrs.rst:2
+#: c91482cd94834002b73f7f1da6c4365b
+msgid "MVITS.set\\_idata\\_attrs"
+msgstr "MVITS.set\\_idata\\_attrs"
+
+#: eec9e69ba7f64fdfac1a32bdf42f526e of
+#: pymc_marketing.model_builder.ModelIO.set_idata_attrs:2
+msgid "Set attributes on an InferenceData object."
+msgstr "Establecer atributos en un objeto InferenceData."
+
+#: 829f438c370e4806a6759a47c5957f85 of
+#: pymc_marketing.model_builder.ModelIO.set_idata_attrs
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 7a099aedf8c54df297c6711e9c3ba6d6 of
+#: pymc_marketing.model_builder.ModelIO.set_idata_attrs:7
+msgid "**idata** : :obj:`arviz.InferenceData`, optional"
+msgstr "**idata** : :obj:`arviz.InferenceData`, opcional"
+
+#: 777724bcf1d94ae99f8e6185758dcdd8 of
+#: pymc_marketing.model_builder.ModelIO.set_idata_attrs:6
+msgid "arviz.InferenceData, optional"
+msgstr "arviz.InferenceData, opcional"
+
+#: 2c71d209486444ef84e2624737672643 of
+#: pymc_marketing.model_builder.ModelIO.set_idata_attrs:8
+msgid "The InferenceData object to set attributes on."
+msgstr "El objeto InferenceData en el que establecer atributos."
+
+#: b986e3956a8b4b3d998588484918c9e0 of
+#: pymc_marketing.model_builder.ModelIO.set_idata_attrs
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 186dcb0fc61d41a79151c8b560ded657 of
+#: pymc_marketing.model_builder.ModelIO.set_idata_attrs:14
+msgid ":class:`~arviz.InferenceData`"
+msgstr ":class:`~arviz.InferenceData`"
+
+#: e0fc12572a5143b19ff3d4bb7db9943a of
+#: pymc_marketing.model_builder.ModelIO.set_idata_attrs:15
+msgid "The InferenceData instance with the attrs set"
+msgstr "La instancia de InferenceData con los atributos configurados"
+
+#: 2a2487f664d24e2b9e8711e22dcddc2b of
+#: pymc_marketing.model_builder.ModelIO.set_idata_attrs
+msgid "Raises"
+msgstr "Aumentos"
+
+#: fd65fe9428d346ec8551e108d6cfe4e4 of
+#: pymc_marketing.model_builder.ModelIO.set_idata_attrs:22
+msgid ":obj:`ValueError`"
+msgstr ":obj:`ValueError`"
+
+#: fa1fe4b6c6e5410a9a20b1f9a7714a3d of
+#: pymc_marketing.model_builder.ModelIO.set_idata_attrs:23
+msgid "If the attrs are missing for a property initialization of the class"
+msgstr ""
+"Si faltan los attrs para la inicialización de una propiedad de la clase"
+
+#: c9c925edc1854edeac2303c953168434 of
+#: pymc_marketing.model_builder.ModelIO.set_idata_attrs:25
+msgid ":obj:`RuntimeError`"
+msgstr ":obj:`RuntimeError`"
+
+#: 1a43e81f67e34e3f87510f87763bee5b of
+#: pymc_marketing.model_builder.ModelIO.set_idata_attrs:26
+msgid "If no InferenceData object is provided."
+msgstr "Si no se proporciona un objeto InferenceData."
+
+#: eee563a3e993409b8d96353d4bced4b3 of
+#: pymc_marketing.model_builder.ModelIO.set_idata_attrs:34
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: 35693167eb3347fda2c3c5f5035bae18 of
+#: pymc_marketing.model_builder.ModelIO.set_idata_attrs:35
+msgid "Set the attrs for an InferenceData object manually."
+msgstr "Establezca los attrs para un objeto InferenceData manualmente."

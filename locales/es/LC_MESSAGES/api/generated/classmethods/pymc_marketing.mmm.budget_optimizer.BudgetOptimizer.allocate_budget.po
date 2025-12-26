@@ -1,0 +1,264 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget.rst:2
+#: 5363753a539549749a46452d0cc1127c
+msgid "BudgetOptimizer.allocate\\_budget"
+msgstr "BudgetOptimizer.asignar\\_presupuesto"
+
+#: c9637cb32b72440eab09a492bb9eb80c of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget:2
+msgid ""
+"Allocate the budget based on `total_budget`, optional `budget_bounds`, and "
+"custom constraints."
+msgstr ""
+"Asigne el presupuesto basado en `total_budget`, `budget_bounds` opcional y "
+"restricciones personalizadas."
+
+#: fe8645596ab44a7093c6f370e286ceb8 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget:4
+msgid ""
+"The default sum constraint ensures that the sum of the optimized budget "
+"equals `total_budget`. If `budget_bounds` are not provided, each channel "
+"will be constrained to lie in [0, total_budget]."
+msgstr ""
+"La restricción de suma predeterminada asegura que la suma del presupuesto "
+"optimizado sea igual a `total_budget`. Si no se proporcionan "
+"`budget_bounds`, cada canal estará restringido a estar en [0, total_budget]."
+
+#: d7d487b42a4744778a3b965937eef61f of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: be183384aee64031a29d9845f19191d9 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget:10
+msgid "**total_budget** : :class:`python:float`"
+msgstr "**total_budget** : :class:`python:float`"
+
+#: 8fb25bfbb66c4a12a08c8d8b59041ad5 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget:9
+msgid "python:float"
+msgstr "python:float"
+
+#: 46749fe053454e4d91640722e8014915 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget:11
+msgid "The total budget to allocate."
+msgstr "El presupuesto total a asignar."
+
+#: caffa752799d4ea089501d33929250ad of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget:13
+msgid "**budget_bounds** : :obj:`DataArray` or :class:`python:dict`, optional"
+msgstr ""
+"**límites_presupuesto** : :obj:`DataArray` o :class:`python:dict`, opcional"
+
+#: 1d8c923f9ccc41949a2ea7eb4f8dcd67 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget:12
+msgid "DataArray or python:dict, optional"
+msgstr "DataArray o python:dict, opcional"
+
+#: e25d6657be8949008e08a9602b896e8c of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget:14
+msgid "If None, default bounds of [0, total_budget] per channel are assumed."
+msgstr ""
+"Si es None, se asumen los límites predeterminados de [0, total_budget] por "
+"canal."
+
+#: aff6532b889840d989e04fa16d14910b of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget:15
+msgid ""
+"If a dict, must map each channel to (low, high) budget pairs (only valid if "
+"there's one dimension)."
+msgstr ""
+"Si es un diccionario, debe asignar cada canal a pares de presupuesto (bajo, "
+"alto) (solo válido si hay una dimensión)."
+
+#: 3f6c92c10c174b79b7a158235f87441f of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget:16
+msgid ""
+"If an xarray.DataArray, must have dims (*budget_dims, \"bound\"), specifying"
+" [low, high] per channel cell."
+msgstr ""
+"Si es un xarray.DataArray, debe tener dimensiones (*budget_dims, \"bound\"),"
+" especificando [bajo, alto] por celda de canal."
+
+#: 20661b837a9b4288b6ee7648f29a95a3 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget:18
+msgid "**x0** : :obj:`np.ndarray <numpy.ndarray>`, optional"
+msgstr "**x0** : :obj:`np.ndarray <numpy.ndarray>`, opcional"
+
+#: 7cc893951b9a407d8d7e01badf477ff2 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget:17
+msgid "np.ndarray, optional"
+msgstr "np.ndarray, opcional"
+
+#: 9830982dd90a44c5846c59c08e9700ef of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget:19
+msgid ""
+"Initial guess. Array of real elements of size (n,), where n is the number of"
+" driver budgets to optimize. If None, the total budget is spread uniformly "
+"across all drivers to be optimized."
+msgstr ""
+"Suposición inicial. Array de elementos reales de tamaño (n,), donde n es el "
+"número de presupuestos de conductores a optimizar. Si es None, el "
+"presupuesto total se distribuye uniformemente entre todos los conductores a "
+"optimizar."
+
+#: b6dcf2c8226f41b89f733c344d427c3d of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget:22
+msgid "**minimize_kwargs** : :class:`python:dict`, optional"
+msgstr "**minimize_kwargs** : :class:`python:dict`, opcional"
+
+#: 7a17dd92c56749de856f536716fabd3c of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget:21
+msgid "python:dict, optional"
+msgstr "python:dict, opcional"
+
+#: 698b6e9436db43f08d8ce8d9c376332e of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget:23
+msgid ""
+"Extra kwargs for `scipy.optimize.minimize`. Defaults to method=\"SLSQP\", "
+"ftol=1e-9, maxiter=1_000."
+msgstr ""
+"Argumentos adicionales para `scipy.optimize.minimize`. Por defecto, "
+"method=\"SLSQP\", ftol=1e-9, maxiter=1_000."
+
+#: 08bd4fd5f79d49cabf229c09e0a2274b of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget:26
+msgid ""
+"**return_if_fail** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+"**return_if_fail** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 53d1f6bf65ec4d469b5f2a3d92f53fa9 a174eca460fa41f9a377db0d0a3ccb7e of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget:25
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget:28
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: 59459b3306b94993bf51a14ed6622308 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget:27
+msgid "Return output even if optimization fails. Default is False."
+msgstr ""
+"Devolver la salida incluso si la optimización falla. El valor predeterminado"
+" es False."
+
+#: 6a677678b196436fabcbf628a49f7321 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget:29
+msgid "**callback** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr "**callback** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: d02c708c7f5b44d79fde70f639771a44 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget:30
+msgid ""
+"Whether to return callback information tracking optimization progress. When "
+"True, returns a third element containing a list of dictionaries with "
+"optimization information at each iteration including 'x' (parameter values),"
+" 'fun' (objective value), 'jac' (gradient), and constraint information. "
+"Default is False for backward compatibility."
+msgstr ""
+"Si se debe devolver información de seguimiento de la optimización del "
+"progreso de la devolución de llamada. Cuando es True, devuelve un tercer "
+"elemento que contiene una lista de diccionarios con información de "
+"optimización en cada iteración, incluyendo 'x' (valores de parámetros), "
+"'fun' (valor objetivo), 'jac' (gradiente) e información de restricciones. El"
+" valor predeterminado es False para mantener la compatibilidad con versiones"
+" anteriores."
+
+#: d9747980e72047bb9826ecb4c9915206 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: df34c3af871a4807aaa7cee512a09b88 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget:39
+msgid "**optimal_budgets** : :obj:`xarray.DataArray`"
+msgstr "**optimal_budgets** : :obj:`xarray.DataArray`"
+
+#: 2429dead213446e683a9ee779fad7a3c of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget:38
+msgid "xarray.DataArray"
+msgstr "xarray.DataArray"
+
+#: eaadbb35a82644548647dbcdf30c2aaf of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget:40
+msgid "The optimized budget allocation across channels."
+msgstr "La asignación de presupuesto optimizada a través de los canales."
+
+#: e6c0a7a9039549e2b73882e3fe15a55d of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget:42
+msgid "**result** : :obj:`OptimizeResult`"
+msgstr "**resultado** : :obj:`OptimizeResult`"
+
+#: 66a878f1ccf74bc8a4e568deedba45ea of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget:41
+msgid "OptimizeResult"
+msgstr "OptimizarResultado"
+
+#: 28f252f34b284366b83261b8b4554049 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget:43
+msgid "The raw scipy optimization result."
+msgstr "El resultado bruto de optimización de scipy."
+
+#: 3ea00aa400c744e4b704f3ff8592446b of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget:45
+msgid ""
+"**callback_info** : "
+":class:`python:list`\\[:class:`python:dict`\\[:class:`python:str`, "
+":obj:`Any`]], optional"
+msgstr ""
+"**callback_info** : "
+":class:`python:list`\\[:class:`python:dict`\\[:class:`python:str`, "
+":obj:`Any`]], opcional"
+
+#: 487ac986c96c44bbb4baead44c72b9d3 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget:44
+msgid "python:list[python:dict[python:str, Any]], optional"
+msgstr "python:list[python:dict[python:str, Any]], opcional"
+
+#: 2659a144f3b546d78045fceeeab2d356 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget:46
+msgid ""
+"Only returned if callback=True. List of dictionaries containing optimization"
+" information at each iteration."
+msgstr ""
+"Solo se devuelve si callback=True. Lista de diccionarios que contienen "
+"información de optimización en cada iteración."
+
+#: e6d48858aba64e258891f21daf503578 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget
+msgid "Raises"
+msgstr "Aumentos"
+
+#: 5fffb4fbadf74f3db1c0554529a5ea14 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget:54
+msgid ":obj:`MinimizeException`"
+msgstr ":obj:`MinimizeException`"
+
+#: 3f63c672cfcc45018b45861cd16b7c29 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget:55
+msgid ""
+"If the optimization fails for any reason, the exception message will contain"
+" the details."
+msgstr ""
+"Si la optimización falla por cualquier motivo, el mensaje de excepción "
+"contendrá los detalles."

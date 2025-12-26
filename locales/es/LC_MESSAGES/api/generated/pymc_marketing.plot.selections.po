@@ -1,0 +1,58 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.plot.selections.rst:2
+#: be80feea082d41f190a3a7c1392d1c4a
+msgid "selections"
+msgstr "selecciones"
+
+#: 97ffc767b9e04dd282dfd2fc6cb69ef7 of pymc_marketing.plot.selections:2
+msgid "Create generator of selections."
+msgstr "Crear generador de selecciones."
+
+#: f4f2b477bc724a899b30aa06b0592b52 of pymc_marketing.plot.selections
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 41b9364611eb465a95a9c255f38b0c76 of pymc_marketing.plot.selections:7
+msgid "**coords** : :obj:`Coords`"
+msgstr "**coords** : :obj:`Coords`"
+
+#: 87def0a331f84722b0b95b78ae82c8ef of pymc_marketing.plot.selections:6
+msgid "Coords"
+msgstr "Coords"
+
+#: b7523887ead0419cb8138cb9cef8902c of pymc_marketing.plot.selections:8
+msgid "The coordinates to create the selections from."
+msgstr "Las coordenadas para crear las selecciones."
+
+#: ee959985ab274bbb9765f7bdb93a8828 of pymc_marketing.plot.selections
+msgid "Yields"
+msgstr "Rendimientos"
+
+#: 7d6b19f3fb1346cead1c337f2ff55ea3 of pymc_marketing.plot.selections:15
+msgid ":class:`python:dict`\\[:class:`python:str`, :obj:`Any`]"
+msgstr ":class:`python:dict`\\[:class:`python:str`, :obj:`Cualquiera`]"
+
+#: 0161b322bf4444a79bb0cf9cee9e6f86 of pymc_marketing.plot.selections:16
+msgid "The selections."
+msgstr "Las selecciones."

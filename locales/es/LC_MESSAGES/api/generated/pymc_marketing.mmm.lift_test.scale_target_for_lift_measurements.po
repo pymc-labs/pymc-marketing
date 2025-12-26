@@ -1,0 +1,85 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.scale_target_for_lift_measurements.rst:2
+#: d6ff5635f79e46cdac8ec18cf9feed3a
+msgid "scale\\_target\\_for\\_lift\\_measurements"
+msgstr "escala\\_objetivo\\_para\\_mediciones\\_de\\_elevación"
+
+#: 59076b5f9a08451499ca417d695351d9 of
+#: pymc_marketing.mmm.lift_test.scale_target_for_lift_measurements:2
+msgid "Scale the target for the lift measurements."
+msgstr "Escale el objetivo para las mediciones de elevación."
+
+#: e830c13e86184af1b72d52cd31a74ae8 of
+#: pymc_marketing.mmm.lift_test.scale_target_for_lift_measurements
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: ddf5ee188c6149bd8ada479f05e97a48 of
+#: pymc_marketing.mmm.lift_test.scale_target_for_lift_measurements:7
+msgid "**target** : :obj:`pd.Series`"
+msgstr "**objetivo** : :obj:`pd.Series`"
+
+#: 93468a6e10864fcab579f087e3b666dd of
+#: pymc_marketing.mmm.lift_test.scale_target_for_lift_measurements:6
+msgid "pd.Series"
+msgstr "pd.Series"
+
+#: 0b80c2917d3f45a383096c9fe2d39252 of
+#: pymc_marketing.mmm.lift_test.scale_target_for_lift_measurements:8
+msgid "Series with the target variable."
+msgstr "Series con la variable objetivo."
+
+#: 73f0d5f9615e4475bc3fbf1f79486a9a of
+#: pymc_marketing.mmm.lift_test.scale_target_for_lift_measurements:10
+msgid ""
+"**transform** : :obj:`Callable`\\[[:obj:`np.ndarray <numpy.ndarray>`], "
+":obj:`np.ndarray <numpy.ndarray>`]"
+msgstr ""
+"**transform** : :obj:`Callable`\\[[:obj:`np.ndarray <numpy.ndarray>`], "
+":obj:`np.ndarray <numpy.ndarray>`]"
+
+#: d6db868712314a47b052cf337482bfae of
+#: pymc_marketing.mmm.lift_test.scale_target_for_lift_measurements:9
+msgid "Callable[[np.ndarray], np.ndarray]"
+msgstr "Callable[[np.ndarray], np.ndarray]"
+
+#: b1ad5c1470294b90be542cab86406438 of
+#: pymc_marketing.mmm.lift_test.scale_target_for_lift_measurements:11
+msgid "Function to scale the target."
+msgstr "Función para escalar el objetivo."
+
+#: d486e3735cea4c0cb88ced4a9daf3848 of
+#: pymc_marketing.mmm.lift_test.scale_target_for_lift_measurements
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: eff5bbcd86e44edcbe0f017d823c1b4d of
+#: pymc_marketing.mmm.lift_test.scale_target_for_lift_measurements:17
+msgid ":obj:`pd.Series`"
+msgstr ":obj:`pd.Series`"
+
+#: ed3b0898e06947e5993009a0ff3572a9 of
+#: pymc_marketing.mmm.lift_test.scale_target_for_lift_measurements:18
+msgid "Series with the scaled target."
+msgstr "Series con el objetivo escalado."

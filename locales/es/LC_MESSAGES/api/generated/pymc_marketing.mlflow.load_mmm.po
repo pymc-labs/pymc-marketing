@@ -1,0 +1,141 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mlflow.load_mmm.rst:2
+#: e41ed0f8e54e45a285335814898a864c
+msgid "load\\_mmm"
+msgstr "cargar\\_mmm"
+
+#: fad1de8e8a294e43898d535538f554e9 of pymc_marketing.mlflow.load_mmm:2
+msgid "Load a PyMC-Marketing MMM model from MLflow."
+msgstr "Cargar un modelo MMM de PyMC-Marketing desde MLflow."
+
+#: 8b1a7dee7e11424db6f0527e07112597 of pymc_marketing.mlflow.load_mmm:4
+msgid ""
+"Can either load the full model including the InferenceData, or just the "
+"lighter PyFuncModel version."
+msgstr ""
+"Puede cargar el modelo completo, incluyendo el InferenceData, o solo la "
+"versión más ligera del PyFuncModel."
+
+#: d52fea1f78e040b5ac166f4c81f3c4e5 of pymc_marketing.mlflow.load_mmm
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 5903da04e9304e119f17dd3f874f8456 of pymc_marketing.mlflow.load_mmm:8
+msgid "**run_id** : :class:`python:str`"
+msgstr "**run_id** : :class:`python:str`"
+
+#: 4dd5ded3decc4360aea667f5866afd18 of pymc_marketing.mlflow.load_mmm:7
+msgid "python:str"
+msgstr "python:str"
+
+#: 6504f452ed274a5fad7ac9fe61fda909 of pymc_marketing.mlflow.load_mmm:9
+msgid "The MLflow run ID from which to load the model."
+msgstr "El ID de ejecución de MLflow desde el cual cargar el modelo."
+
+#: c6654f74f6704ed9866aedd3c473374e of pymc_marketing.mlflow.load_mmm:11
+msgid ""
+"**full_model** : :ref:`bool <python:bltin-boolean-values>`, default=True"
+msgstr ""
+"**full_model** : :ref:`bool <python:bltin-boolean-values>`, "
+"predeterminado=True"
+
+#: 5ed67dc357f440209fe925f2cd0e7635 of pymc_marketing.mlflow.load_mmm:10
+msgid "bool, default=True"
+msgstr "bool, predeterminado=True"
+
+#: 6ac8736f23004ad197783cfce96f7e05 of pymc_marketing.mlflow.load_mmm:12
+msgid "If True, load the full MMM model including the InferenceData."
+msgstr ""
+"Si es verdadero, carga el modelo MMM completo incluyendo los InferenceData."
+
+#: 2152037c89e24510ba1dff2f5c967799 of pymc_marketing.mlflow.load_mmm:14
+msgid ""
+"**keep_idata** : :ref:`bool <python:bltin-boolean-values>`, default=False"
+msgstr ""
+"**keep_idata** : :ref:`bool <python:bltin-boolean-values>`, "
+"predeterminado=False"
+
+#: b33cd90dcfc443798a62f312cbd8aba6 of pymc_marketing.mlflow.load_mmm:13
+msgid "bool, default=False"
+msgstr "bool, predeterminado=False"
+
+#: c0fac218363a4be6a22e347f8222a62e of pymc_marketing.mlflow.load_mmm:15
+msgid "If True, keep the downloaded InferenceData saved locally."
+msgstr ""
+"Si es verdadero, mantenga los InferenceData descargados guardados "
+"localmente."
+
+#: f18219c3724842c093c15e31b65848b6 of pymc_marketing.mlflow.load_mmm:17
+msgid "**artifact_path** : :class:`python:str`, default=\"model\""
+msgstr "**artifact_path** : :class:`python:str`, predeterminado=\"model\""
+
+#: 28e14eb2de7345fd95696e7714df39a1 of pymc_marketing.mlflow.load_mmm:16
+msgid "python:str, default=\"model\""
+msgstr "python:str, por defecto=\"modelo\""
+
+#: 7576e80c91294f19be05f9e6b4d4b528 of pymc_marketing.mlflow.load_mmm:18
+msgid "The artifact path within the run where the model is stored."
+msgstr ""
+"La ruta del artefacto dentro de la ejecución donde se almacena el modelo."
+
+#: 2aacbfcb9d224a4994b8aff727ac062a of pymc_marketing.mlflow.load_mmm:20
+msgid "**dst_path** : :class:`python:str` | :data:`python:None`, default=None"
+msgstr ""
+"**dst_path** : :class:`python:str` | :data:`python:None`, "
+"predeterminado=None"
+
+#: 1311dfa036634a23b16c2eb1d15e14bd of pymc_marketing.mlflow.load_mmm:19
+msgid "python:str | python:None, default=None"
+msgstr "python:str | python:None, por defecto=None"
+
+#: 6048d20d647a4285a5989121784f0ff8 of pymc_marketing.mlflow.load_mmm:21
+#, python-brace-format
+msgid ""
+"The local destination path where the InferenceData will be downloaded. If "
+"None, defaults to \"idata_{run_id}\" to avoid conflicts when loading "
+"multiple models."
+msgstr ""
+"La ruta de destino local donde se descargará el InferenceData. Si es None, "
+"se establece por defecto en \"idata_{run_id}\" para evitar conflictos al "
+"cargar múltiples modelos."
+
+#: 4c4a47d58cb5462c8d0c4ca6380b290d of pymc_marketing.mlflow.load_mmm
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 1605c8614e5d43c4bb27ced287a3d718 of pymc_marketing.mlflow.load_mmm:28
+msgid "**model** : :obj:`mlflow.pyfunc.PyFuncModel` | :obj:`MMM`"
+msgstr "**modelo** : :obj:`mlflow.pyfunc.PyFuncModel` | :obj:`MMM`"
+
+#: 93519f60b9314a5bad664db9028dcc78 of pymc_marketing.mlflow.load_mmm:27
+msgid "mlflow.pyfunc.PyFuncModel | MMM"
+msgstr "mlflow.pyfunc.PyFuncModel | MMM"
+
+#: decac3e537a34dcfbdbca7f6d599d75c of pymc_marketing.mlflow.load_mmm:29
+msgid "The loaded MLflow PyFuncModel or MMM model."
+msgstr "El modelo MLflow PyFuncModel o modelo MMM cargado."
+
+#: 3cf3f82dde5345b4a5defa9d855816d8 of pymc_marketing.mlflow.load_mmm:41
+msgid "Examples"
+msgstr "Ejemplos"

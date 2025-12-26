@@ -19,14 +19,16 @@ import pytensor.tensor as pt
 import pytest
 import xarray as xr
 from pydantic import ValidationError
-
-from pymc_marketing.deserialize import (
+from pymc_extras.deserialize import (
     DESERIALIZERS,
     deserialize,
     register_deserialization,
 )
+from pymc_extras.prior import Prior
+
 from pymc_marketing.mmm import (
     AdstockTransformation,
+    BinomialAdstock,
     DelayedAdstock,
     GeometricAdstock,
     NoAdstock,
@@ -35,13 +37,13 @@ from pymc_marketing.mmm import (
     adstock_from_dict,
 )
 from pymc_marketing.mmm.transformers import ConvMode
-from pymc_marketing.prior import Prior
 
 
 def adstocks() -> list:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         transformations = [
+            BinomialAdstock(l_max=10),
             DelayedAdstock(l_max=10),
             GeometricAdstock(l_max=10),
             WeibullPDFAdstock(l_max=10),
@@ -94,7 +96,7 @@ def test_default_prefix(adstock) -> None:
 
 
 def test_adstock_no_negative_lmax():
-    with pytest.raises(ValidationError, match=".*Input should be greater than 0.*"):
+    with pytest.raises(ValidationError, match=r".*Input should be greater than 0.*"):
         DelayedAdstock(l_max=-1)
 
 

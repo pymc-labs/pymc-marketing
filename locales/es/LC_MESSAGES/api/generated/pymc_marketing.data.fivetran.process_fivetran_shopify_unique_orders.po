@@ -1,0 +1,133 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.data.fivetran.process_fivetran_shopify_unique_orders.rst:2
+#: 8d666b657d664c3293a1c1d5a9761260
+msgid "process\\_fivetran\\_shopify\\_unique\\_orders"
+msgstr "proceso\\_fivetran\\_shopify\\_pedidos\\_únicos"
+
+#: fb99957e92fb44b7897890df9dd2a3f0 of
+#: pymc_marketing.data.fivetran.process_fivetran_shopify_unique_orders:2
+msgid ""
+"Compute daily unique order counts from a (pre-filtered) Shopify dataset."
+msgstr ""
+"Calcule el recuento diario de pedidos únicos a partir de un conjunto de "
+"datos de Shopify (pre-filtrado)."
+
+#: a649742ff8eb4950897452f7070d21b7 of
+#: pymc_marketing.data.fivetran.process_fivetran_shopify_unique_orders:4
+msgid ""
+"This function targets data following the Fivetran Shopify orders schema "
+"(e.g., ``shopify__orders``). It assumes the input ``df`` is already filtered"
+" to the desired subset (e.g., non-canceled, US-delivery, new-only orders)."
+msgstr ""
+"Esta función se dirige a datos que siguen el esquema de pedidos de Fivetran "
+"Shopify (por ejemplo, ``shopify__orders``). Supone que la entrada ``df`` ya "
+"está filtrada al subconjunto deseado (por ejemplo, pedidos no cancelados, "
+"con entrega en EE. UU., solo nuevos)."
+
+#: 1f187ec1616044a09653b8caa3077c7b of
+#: pymc_marketing.data.fivetran.process_fivetran_shopify_unique_orders
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 8a59d3cf8d0642169cf077bd9dd6338a of
+#: pymc_marketing.data.fivetran.process_fivetran_shopify_unique_orders:10
+msgid "**df** : :obj:`pandas.DataFrame`"
+msgstr "**df** : :obj:`pandas.DataFrame`"
+
+#: ad533f18f10a4e07848129e3e8b5500e of
+#: pymc_marketing.data.fivetran.process_fivetran_shopify_unique_orders:9
+msgid "pandas.DataFrame"
+msgstr "pandas.DataFrame"
+
+#: 0c2da2087899499ea714b33330e6bae5 of
+#: pymc_marketing.data.fivetran.process_fivetran_shopify_unique_orders:11
+msgid "Input dataframe following the Shopify orders schema."
+msgstr "Entrada del dataframe siguiendo el esquema de pedidos de Shopify."
+
+#: 0f3b4fa3dffa4f60bde6e394878497f8 of
+#: pymc_marketing.data.fivetran.process_fivetran_shopify_unique_orders:13
+msgid "**date_col** : :class:`python:str`, default \"processed_timestamp\""
+msgstr ""
+"**date_col** : :class:`python:str`, predeterminado \"processed_timestamp\""
+
+#: 7f10fa8454804e0ab333e10494ec5a65 of
+#: pymc_marketing.data.fivetran.process_fivetran_shopify_unique_orders:12
+msgid "python:str, default \"processed_timestamp\""
+msgstr "python:str, predeterminado \"processed_timestamp\""
+
+#: b85c772e40c84dbb8c9aa241e15d5b54 of
+#: pymc_marketing.data.fivetran.process_fivetran_shopify_unique_orders:14
+msgid "Timestamp column from which the daily bucket is derived."
+msgstr "Columna de marca de tiempo de la cual se deriva el bucket diario."
+
+#: 46e320c47fb84adda6cfb8e54cf43b60 of
+#: pymc_marketing.data.fivetran.process_fivetran_shopify_unique_orders:16
+msgid "**order_key_col** : :class:`python:str`, default \"orders_unique_key\""
+msgstr ""
+"**order_key_col** : :class:`python:str`, predeterminado "
+"\"orders_unique_key\""
+
+#: 63d548bac459461690c2b25c91f5808a of
+#: pymc_marketing.data.fivetran.process_fivetran_shopify_unique_orders:15
+msgid "python:str, default \"orders_unique_key\""
+msgstr "python:str, predeterminado \"orders_unique_key\""
+
+#: 33afbb4be62348e4815e8a5c00498133 of
+#: pymc_marketing.data.fivetran.process_fivetran_shopify_unique_orders:17
+msgid "Unique order identifier column."
+msgstr "Columna de identificador de pedido único."
+
+#: 4d6b287061c54abdae026b4f3e5b3533 of
+#: pymc_marketing.data.fivetran.process_fivetran_shopify_unique_orders:19
+msgid "**rename_date_to** : :class:`python:str`, default \"date\""
+msgstr "**rename_date_to** : :class:`python:str`, predeterminado \"date\""
+
+#: f2d837a2dbfc4d5a9df8efbb8e7c1801 of
+#: pymc_marketing.data.fivetran.process_fivetran_shopify_unique_orders:18
+msgid "python:str, default \"date\""
+msgstr "python:str, predeterminado \"fecha\""
+
+#: 9352d5a9731e4ac7ae9986d5255cedc0 of
+#: pymc_marketing.data.fivetran.process_fivetran_shopify_unique_orders:20
+msgid "Name of the date column in the result."
+msgstr "Nombre de la columna de fecha en el resultado."
+
+#: 832e5ac7dc5445df879883c757334050 of
+#: pymc_marketing.data.fivetran.process_fivetran_shopify_unique_orders
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: bd647754a420472cb65a473e9642ee68 of
+#: pymc_marketing.data.fivetran.process_fivetran_shopify_unique_orders:26
+msgid ":obj:`pandas.DataFrame`"
+msgstr ":obj:`pandas.DataFrame`"
+
+#: e99a3e36e49f4f9184cbb0f4d82b3906 of
+#: pymc_marketing.data.fivetran.process_fivetran_shopify_unique_orders:27
+msgid ""
+"A dataframe with two columns: ``rename_date_to`` and ``orders``, where "
+"``orders`` is the unique order count per day."
+msgstr ""
+"Un dataframe con dos columnas: ``rename_date_to`` y ``orders``, donde "
+"``orders`` es el conteo único de pedidos por día."

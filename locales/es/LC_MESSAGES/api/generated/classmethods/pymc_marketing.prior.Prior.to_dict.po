@@ -1,0 +1,54 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.prior.Prior.to_dict.rst:2
+#: 5ab3d6b2355c4e7288bf7f034a4b0e1a
+msgid "Prior.to\\_dict"
+msgstr "Prior.a\\_dict"
+
+#: 57872df96cb2440e8f4a92a08f05fcd6 of pymc_extras.prior.Prior.to_dict:2
+msgid "Convert the prior to dictionary format."
+msgstr "Convierte lo anterior al formato de diccionario."
+
+#: eed39b2379cd47eeb953acfb1033d251 of pymc_extras.prior.Prior.to_dict
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: ff18f79901d14524b67f5625f52fd644 of pymc_extras.prior.Prior.to_dict:10
+msgid ":class:`python:dict`\\[:class:`python:str`, :obj:`Any`]"
+msgstr ":class:`python:dict`\\[:class:`python:str`, :obj:`Cualquiera`]"
+
+#: 0713a13d7007469a9a5050286d08cac1 of pymc_extras.prior.Prior.to_dict:11
+msgid "The dictionary format of the prior."
+msgstr "El formato de diccionario del anterior."
+
+#: d27d7f08f9be4fcc83e5f4f9e3bdc707 of pymc_extras.prior.Prior.to_dict:23
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: bfddb7f6a1154e1e9b693d455bdc644f of pymc_extras.prior.Prior.to_dict:24
+msgid "Convert a prior to the dictionary format."
+msgstr "Convierte un previo al formato de diccionario."
+
+#: 2dcd179056974bba944770cd5c3393bf of pymc_extras.prior.Prior.to_dict:34
+msgid "Convert a hierarchical prior to the dictionary format."
+msgstr "Convierte un prior jerárquico al formato de diccionario."

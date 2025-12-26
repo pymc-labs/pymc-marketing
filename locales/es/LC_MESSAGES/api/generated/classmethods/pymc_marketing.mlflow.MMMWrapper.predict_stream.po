@@ -1,0 +1,76 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mlflow.MMMWrapper.predict_stream.rst:2
+#: 494878ef327a4a778bb519c52fafc513
+msgid "MMMWrapper.predict\\_stream"
+msgstr "MMMWrapper.predecir\\_flujo"
+
+#: 8511bd5011cd4d939f14732dae0682a1
+#: mlflow.pyfunc.model.PythonModel.predict_stream:2 of
+msgid ""
+"Evaluates a pyfunc-compatible input and produces an iterator of output. For "
+"more information about the pyfunc input API, see the :ref:`pyfunc-inference-"
+"api`."
+msgstr ""
+"Evalúa una entrada compatible con pyfunc y produce un iterador de salida. "
+"Para más información sobre la API de entrada de pyfunc, consulte la "
+":ref:`pyfunc-inference-api`."
+
+#: 1a79c7428f12482c954dd22da583a870
+#: mlflow.pyfunc.model.PythonModel.predict_stream:5 of
+msgid "Args:"
+msgstr "Args:"
+
+#: 76343f738d3740cab9a43bb6a620d818
+#: mlflow.pyfunc.model.PythonModel.predict_stream:6 of
+msgid ""
+"context: A :class:`~PythonModelContext` instance containing artifacts that "
+"the model"
+msgstr ""
+"contexto: Una instancia de :class:`~PythonModelContext` que contiene "
+"artefactos que el modelo"
+
+#: 819c6a65ed5f4691b5f6b1053d720e27
+#: mlflow.pyfunc.model.PythonModel.predict_stream:7 of
+msgid "can use to perform inference."
+msgstr "puede usar para realizar inferencias."
+
+#: 3a1602792142432abb603cfddcc265db
+#: mlflow.pyfunc.model.PythonModel.predict_stream:8 of
+msgid ""
+"model_input: A pyfunc-compatible input for the model to evaluate. params: "
+"Additional parameters to pass to the model for inference."
+msgstr ""
+"model_input: Una entrada compatible con pyfunc para que el modelo la evalúe."
+" params: Parámetros adicionales que se pasarán al modelo para la inferencia."
+
+#: ef76c02d1bfa4c168332e6a148b398d8
+#: mlflow.pyfunc.model.PythonModel.predict_stream:12 of
+msgid ""
+"Since MLflow 2.20.0, `context` parameter can be removed from "
+"`predict_stream` function signature if it's not used. `def "
+"predict_stream(self, model_input, params=None)` is valid."
+msgstr ""
+"Desde MLflow 2.20.0, el parámetro `context` puede ser eliminado de la firma "
+"de la función `predict_stream` si no se utiliza. `def predict_stream(self, "
+"model_input, params=None)` es válido."

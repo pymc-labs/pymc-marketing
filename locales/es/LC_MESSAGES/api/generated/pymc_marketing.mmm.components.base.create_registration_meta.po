@@ -1,0 +1,70 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.base.create_registration_meta.rst:2
+#: 7bc1abf9bcac4481a95cb4e6160339d1
+msgid "create\\_registration\\_meta"
+msgstr "crear\\_meta\\_registro"
+
+#: 183e47470ea64ffb86d6e3dcf9856beb of
+#: pymc_marketing.mmm.components.base.create_registration_meta:2
+msgid "Create a metaclass for registering subclasses."
+msgstr "Cree una metaclase para registrar subclases."
+
+#: 7f47762366474107a25a4bcaf3621723 of
+#: pymc_marketing.mmm.components.base.create_registration_meta
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: ef4bc9cacff04b7b91c661e911300349 of
+#: pymc_marketing.mmm.components.base.create_registration_meta:7
+msgid ""
+"**subclasses** : :class:`python:dict`\\[:class:`python:str`, "
+"type[:obj:`Transformation`]]"
+msgstr ""
+"**subclases** : :class:`python:dict`\\[:class:`python:str`, "
+"type[:obj:`Transformación`]]"
+
+#: 01d76230c2504cb2bd876428bdf31f3f of
+#: pymc_marketing.mmm.components.base.create_registration_meta:6
+msgid "python:dict[python:str, type[Transformation]]"
+msgstr "python:dict[python:str, type[Transformación]]"
+
+#: 2383c8318e6d4457935afc551cf3f9f6 of
+#: pymc_marketing.mmm.components.base.create_registration_meta:8
+msgid "The subclasses to register."
+msgstr "Las subclases a registrar."
+
+#: 9e99d84e77734c609f672c4ab0bb08ce of
+#: pymc_marketing.mmm.components.base.create_registration_meta
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: e7ce89397c1b4337b05e23099b258f48 of
+#: pymc_marketing.mmm.components.base.create_registration_meta:14
+msgid "type"
+msgstr "tipo"
+
+#: e6848ed43d354c8d855435e9dba92bf7 of
+#: pymc_marketing.mmm.components.base.create_registration_meta:15
+msgid "The metaclass for registering subclasses."
+msgstr "La metaclase para registrar subclases."

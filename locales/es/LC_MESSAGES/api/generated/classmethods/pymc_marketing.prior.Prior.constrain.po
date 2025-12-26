@@ -1,0 +1,118 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.prior.Prior.constrain.rst:2
+#: b70cc04e5c3a4df9a1330d42089377c5
+msgid "Prior.constrain"
+msgstr "Prior.constrain"
+
+#: 4a146f11557f42e1ac56a9a02eb6e1e0 of pymc_extras.prior.Prior.constrain:2
+msgid ""
+"Create a new prior with a given mass constrained within the given bounds."
+msgstr ""
+"Cree un nuevo prior con una masa dada restringida dentro de los límites "
+"establecidos."
+
+#: 2568860e4671430fafb0af8d68aea29c of pymc_extras.prior.Prior.constrain:4
+msgid "Wrapper around `preliz.maxent`."
+msgstr "Envoltura alrededor de `preliz.maxent`."
+
+#: cf2ab30ae8b045afbc55d3561d880271 of pymc_extras.prior.Prior.constrain
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 77da88d1cbaf47d8b584bf192971741b of pymc_extras.prior.Prior.constrain:8
+msgid "**lower** : :class:`python:float`"
+msgstr "**inferior** : :class:`python:float`"
+
+#: 4b81146185724d66b059ca072250775b 95de84eb14ff45e99e4f939352c2b6ca of
+#: pymc_extras.prior.Prior.constrain:7 pymc_extras.prior.Prior.constrain:10
+msgid "python:float"
+msgstr "python:float"
+
+#: 27e1e9a89b3849a1b72aa531996d328a of pymc_extras.prior.Prior.constrain:9
+msgid "The lower bound."
+msgstr "El límite inferior."
+
+#: f0902184fbe942319c5ebdd305eefe02 of pymc_extras.prior.Prior.constrain:11
+msgid "**upper** : :class:`python:float`"
+msgstr "**superior** : :class:`python:float`"
+
+#: e35c8833d5fc4359abb4126683e94fc5 of pymc_extras.prior.Prior.constrain:12
+msgid "The upper bound."
+msgstr "El límite superior."
+
+#: 77c9ab1bbc654d1a9fd2b97426e3942e of pymc_extras.prior.Prior.constrain:14
+msgid "**mass: float = 0.95**"
+msgstr "**masa: float = 0.95**"
+
+#: d4e19365b262492e9193c862b81f0b91 of pymc_extras.prior.Prior.constrain:15
+msgid "The mass of the distribution to keep within the bounds."
+msgstr ""
+"La masa de la distribución que se debe mantener dentro de los límites."
+
+#: 27fb388c2d6648148f3cd7b2baf6efed of pymc_extras.prior.Prior.constrain:17
+msgid "**kwargs** : :class:`python:dict`"
+msgstr "**kwargs** : :class:`python:dict`"
+
+#: 2222bed7b3f74a0db248ac0a8671ce8d of pymc_extras.prior.Prior.constrain:16
+msgid "python:dict"
+msgstr "python:dict"
+
+#: bff92c0d6c6e4aaca19bafadd6911927 of pymc_extras.prior.Prior.constrain:18
+msgid "Additional arguments to pass to `pz.maxent`."
+msgstr "Argumentos adicionales para pasar a `pz.maxent`."
+
+#: 4988327863c34dd8960bd61511b05896 of pymc_extras.prior.Prior.constrain
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 8f8647c8b67c412cab43671a0b89a20b of pymc_extras.prior.Prior.constrain:24
+msgid ":obj:`Prior`"
+msgstr ":obj:`Prior`"
+
+#: e587a91e7ff44ade8fc3033374c0525a of pymc_extras.prior.Prior.constrain:25
+msgid "The maximum entropy prior with a mass constrained to the given bounds."
+msgstr ""
+"El prior de máxima entropía con una masa restringida a los límites dados."
+
+#: 10d2f2dcfaa840beab8eb431a0f03e65 of pymc_extras.prior.Prior.constrain:37
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: a64b5d9e46f74c99beae90cbf435e06b of pymc_extras.prior.Prior.constrain:38
+#, python-format
+msgid ""
+"Create a Beta distribution that is constrained to have 95% of the mass "
+"between 0.5 and 0.8."
+msgstr ""
+"Cree una distribución Beta que esté restringida a tener el 95% de la masa "
+"entre 0.5 y 0.8."
+
+#: e6c473adda4c4636a6c0f66cc0fa417d of pymc_extras.prior.Prior.constrain:47
+#, python-format
+msgid ""
+"Create a Beta distribution with mean 0.6, that is constrained to have 95% of"
+" the mass between 0.5 and 0.8."
+msgstr ""
+"Cree una distribución Beta con una media de 0.6, que esté restringida a "
+"tener el 95% de la masa entre 0.5 y 0.8."

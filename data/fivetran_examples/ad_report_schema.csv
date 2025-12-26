@@ -1,0 +1,17 @@
+source_relation,date_day,platform,account_id,account_name,campaign_id,campaign_name,ad_group_id,ad_group_name,ad_id,ad_name,clicks,impressions,spend,conversions,conversions_value
+google_ads.daily,2025-07-10,Google Ads,ACC001,Acme Corp,CAM101,Back to School,AG201,Search - Brand,AD301,Brand Text Ad,140,5000,105.00,12,300.00
+google_ads.daily,2025-07-10,Google Ads,ACC001,Acme Corp,CAM101,Back to School,AG202,Search - Generic,AD302,Generic Text Ad,95,3800,80.75,6,150.00
+facebook_ads.daily,2025-07-10,Facebook Ads,ACC002,Globex Inc,CAM102,Summer Sale,AG203,Carousel Ads,AD303,Carousel Creative 1,320,16000,224.00,20,450.00
+facebook_ads.daily,2025-07-10,Facebook Ads,ACC002,Globex Inc,CAM102,Summer Sale,AG204,Video Ads,AD304,Video Creative 1,210,14000,157.50,14,315.00
+tiktok_ads.daily,2025-07-10,TikTok Ads,ACC003,Umbrella LLC,CAM201,Awareness Push,AG301,In-Feed,AD401,TopView 15s,180,12000,135.00,9,180.00
+tiktok_ads.daily,2025-07-10,TikTok Ads,ACC003,Umbrella LLC,CAM201,Awareness Push,AG301,In-Feed,AD402,Spark Post,135,9000,94.50,7,140.00
+google_ads.daily,2025-07-11,Google Ads,ACC001,Acme Corp,CAM101,Back to School,AG201,Search - Brand,AD301,Brand Text Ad,150,5200,112.50,13,325.00
+google_ads.daily,2025-07-11,Google Ads,ACC001,Acme Corp,CAM101,Back to School,AG202,Search - Generic,AD302,Generic Text Ad,100,4000,85.00,7,175.00
+facebook_ads.daily,2025-07-11,Facebook Ads,ACC002,Globex Inc,CAM102,Summer Sale,AG203,Carousel Ads,AD303,Carousel Creative 1,330,16500,231.00,21,472.50
+facebook_ads.daily,2025-07-11,Facebook Ads,ACC002,Globex Inc,CAM102,Summer Sale,AG204,Video Ads,AD304,Video Creative 1,220,14500,165.00,15,337.50
+tiktok_ads.daily,2025-07-11,TikTok Ads,ACC003,Umbrella LLC,CAM201,Awareness Push,AG301,In-Feed,AD401,TopView 15s,190,12500,142.50,10,200.00
+tiktok_ads.daily,2025-07-11,TikTok Ads,ACC003,Umbrella LLC,CAM201,Awareness Push,AG301,In-Feed,AD402,Spark Post,143,9500,100.10,8,160.00
+google_ads.daily,2025-07-12,Google Ads,ACC001,Acme Corp,CAM101,Back to School,AG201,Search - Brand,AD301,Brand Text Ad,155,5400,116.25,14,350.00
+google_ads.daily,2025-07-12,Google Ads,ACC001,Acme Corp,CAM101,Back to School,AG202,Search - Generic,AD302,Generic Text Ad,103,4100,87.55,7,175.00
+facebook_ads.daily,2025-07-12,Facebook Ads,ACC002,Globex Inc,CAM102,Summer Sale,AG203,Carousel Ads,AD303,Carousel Creative 1,340,17000,238.00,22,495.00
+facebook_ads.daily,2025-07-12,Facebook Ads,ACC002,Globex Inc,CAM102,Summer Sale,AG204,Video Ads,AD304,Video Creative 1,230,15000,172.50,16,360.00

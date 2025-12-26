@@ -684,7 +684,7 @@ def plot_curve(
 
     .. plot::
         :include-source: True
-        :context: reset
+        :context: close-figs
 
         fig, axes = plot_curve(
             curve,

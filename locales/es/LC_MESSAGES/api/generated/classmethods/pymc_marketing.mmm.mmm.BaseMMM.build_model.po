@@ -1,0 +1,117 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.mmm.BaseMMM.build_model.rst:2
+#: e7da609fa5b241a2a8428597cb6a84c4
+msgid "BaseMMM.build\\_model"
+msgstr "BaseMMM.build\\_model"
+
+#: 32679ae017654e95be0cbfa8519a8526 of
+#: pymc_marketing.mmm.mmm.BaseMMM.build_model:2
+msgid "Build a probabilistic model using PyMC for marketing mix modeling."
+msgstr ""
+"Construya un modelo probabilístico utilizando PyMC para el modelado de "
+"mezcla de marketing."
+
+#: adcdb0d9b8324a039f86e67b60810e8d of
+#: pymc_marketing.mmm.mmm.BaseMMM.build_model:4
+msgid ""
+"The model incorporates channels, control variables, and Fourier components, "
+"applying adstock and saturation transformations to the channel data. The "
+"final model is constructed with multiple factors contributing to the "
+"response variable."
+msgstr ""
+"El modelo incorpora canales, variables de control y componentes de Fourier, "
+"aplicando transformaciones de adstock y saturación a los datos del canal. El"
+" modelo final se construye con múltiples factores que contribuyen a la "
+"variable de respuesta."
+
+#: 8d59c8f763614a3bacf83bc354967574 of
+#: pymc_marketing.mmm.mmm.BaseMMM.build_model
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: c6edc99e6e6a4acb8134e8b26b7823c6 of
+#: pymc_marketing.mmm.mmm.BaseMMM.build_model:10
+msgid "**X** : :obj:`pd.DataFrame`"
+msgstr "**X** : :obj:`pd.DataFrame`"
+
+#: 58d6d31019ce498f9be241ac2917aa6a of
+#: pymc_marketing.mmm.mmm.BaseMMM.build_model:9
+msgid "pd.DataFrame"
+msgstr "pd.DataFrame"
+
+#: 7bce76b8f3bc4939a2121893c35d0c29 of
+#: pymc_marketing.mmm.mmm.BaseMMM.build_model:11
+msgid ""
+"The input data for the model, which should include columns for channels, "
+"control variables (if applicable), and Fourier components (if applicable)."
+msgstr ""
+"Los datos de entrada para el modelo, que deben incluir columnas para "
+"canales, variables de control (si corresponde) y componentes de Fourier (si "
+"corresponde)."
+
+#: 6ee74cf5b51c48d6a9ae76aa7c8d8e25 of
+#: pymc_marketing.mmm.mmm.BaseMMM.build_model:14
+msgid ""
+"**y** : :obj:`Union`\\[:obj:`pd.Series`, :obj:`np.ndarray <numpy.ndarray>`]"
+msgstr ""
+"**y** : :obj:`Union`\\[:obj:`pd.Series`, :obj:`np.ndarray <numpy.ndarray>`]"
+
+#: 21e12b56954e4ba19a74436ad1eb886c of
+#: pymc_marketing.mmm.mmm.BaseMMM.build_model:13
+msgid "Union[pd.Series, np.ndarray]"
+msgstr "Unión[pd.Series, np.ndarray]"
+
+#: 467a2ed51ae44c469a089e39bf51f416 of
+#: pymc_marketing.mmm.mmm.BaseMMM.build_model:15
+msgid "The target/response variable for the modeling."
+msgstr "La variable objetivo/respuesta para el modelado."
+
+#: 70862f9bccf84294a8fda0b103047649 of
+#: pymc_marketing.mmm.mmm.BaseMMM.build_model:17
+msgid "**\\*\\*kwargs** : :class:`python:dict`"
+msgstr "**\\*\\*kwargs** : :class:`python:dict`"
+
+#: 104ec3869dde452c8c41c3611e810f68 of
+#: pymc_marketing.mmm.mmm.BaseMMM.build_model:16
+msgid "python:dict"
+msgstr "python:dict"
+
+#: 031a9b7240b64653a521f39dc0ca0fda of
+#: pymc_marketing.mmm.mmm.BaseMMM.build_model:18
+msgid ""
+"Additional keyword arguments that might be required by underlying methods or"
+" utilities."
+msgstr ""
+"Argumentos de palabra clave adicionales que podrían ser requeridos por los "
+"métodos o utilidades subyacentes."
+
+#: c9b309de0f0143b0a3091b1cf53c0a05 of
+#: pymc_marketing.mmm.mmm.BaseMMM.build_model:33
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: 6e32c2de96a246be9383262daf72a015 of
+#: pymc_marketing.mmm.mmm.BaseMMM.build_model:34
+msgid "Initialize model with custom configuration"
+msgstr "Inicializar el modelo con una configuración personalizada"

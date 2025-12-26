@@ -1,0 +1,145 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_recency_frequency.rst:2
+#: 5b13a658b2d94fbbafc6dae2ee6b74e9
+msgid "BetaGeoBetaBinomModel.distribution\\_new\\_customer\\_recency\\_frequency"
+msgstr "BetaGeoBetaBinomModel.distribución\\_nueva\\_frecuencia\\_recencia\\_cliente"
+
+#: 237bf17154ea4b07a567b0fc62843d3e of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_recency_frequency:2
+msgid "BG/BB process representing purchases across the customer population."
+msgstr ""
+"Proceso BG/BB que representa las compras a través de la población de "
+"clientes."
+
+#: 5c4967fc46d74e8ba15769ddfe1dd86c of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_recency_frequency:4
+msgid ""
+"This is the distribution of purchase frequencies given 'T' observation "
+"periods for each customer."
+msgstr ""
+"Esta es la distribución de frecuencias de compra dadas 'T' periodos de "
+"observación para cada cliente."
+
+#: dfd7401165e444d9ae7ecbe3bd913670 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_recency_frequency
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 1ff2e8899de5429aa1d69e131ea7b14e of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_recency_frequency:8
+msgid "**data** : :obj:`~pandas.DataFrame`, optional"
+msgstr "**datos** : :obj:`~pandas.DataFrame`, opcional"
+
+#: 8c87773835d14cb9a2bc250ba3ffb240 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_recency_frequency:7
+msgid "DataFrame, optional"
+msgstr "DataFrame, opcional"
+
+#: 755054d3511e4f5b86bc5e38f00c2541 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_recency_frequency:9
+msgid "DataFrame containing the following columns:"
+msgstr "DataFrame que contiene las siguientes columnas:"
+
+#: c20cb11ea2a242c49ab9a6fedeb6dc31 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_recency_frequency:11
+msgid "`customer_id`: Unique customer identifier"
+msgstr "`customer_id`: Identificador único del cliente"
+
+#: 99c81bb9b3b748479bb49625ee7653dc of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_recency_frequency:12
+msgid "`T`: Total purchase opportunities."
+msgstr "T: Oportunidades de compra totales."
+
+#: 8689765fecf143f8a197c58e45d6c0f3 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_recency_frequency:14
+msgid "If not provided, the method will use the fit dataset."
+msgstr ""
+"Si no se proporciona, el método utilizará el conjunto de datos de ajuste."
+
+#: 71c841566eca4a3c88bddd04d7004667 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_recency_frequency:16
+msgid "**T** : :term:`numpy:array_like`, optional"
+msgstr "**T** : :term:`numpy:array_like`, opcional"
+
+#: 52147c11e1cd422dae0b6a3b8384120e of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_recency_frequency:15
+msgid "numpy:array_like, optional"
+msgstr "numpy:similar a un array, opcional"
+
+#: 1a52d8db5feb4230b6128a41cdc75470 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_recency_frequency:17
+msgid ""
+"Total purchase opportunities. If not provided, T values from fit dataset "
+"will be used. Not required if `data` Dataframe contains a `T` column."
+msgstr ""
+"Oportunidades de compra totales. Si no se proporciona, se utilizarán los "
+"valores de T del conjunto de datos de ajuste. No es necesario si el "
+"DataFrame `data` contiene una columna `T`."
+
+#: b8ccb181a6f04ab7ac184fbf078a5461 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_recency_frequency:20
+msgid "**random_seed** : :obj:`~numpy.random.RandomState`, optional"
+msgstr "**random_seed** : :obj:`~numpy.random.RandomState`, opcional"
+
+#: 923057ca50c9451284f9a2a10b7ec389 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_recency_frequency:19
+msgid "RandomState, optional"
+msgstr "RandomState, opcional"
+
+#: ff3d1adea2784e0db37a54f78f362d10 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_recency_frequency:21
+msgid "Random state to use for sampling."
+msgstr "Estado aleatorio a utilizar para el muestreo."
+
+#: 0f67ac7447c249beb14db06467ebfd05 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_recency_frequency:23
+msgid "**n_samples** : :class:`python:int`, optional"
+msgstr "**n_samples** : :class:`python:int`, opcional"
+
+#: 85f17b4eeb524f0ca406146d95255fac of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_recency_frequency:22
+msgid "python:int, optional"
+msgstr "python:int, opcional"
+
+#: 7c091c21c2454056a912436ec6c095ce of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_recency_frequency:24
+msgid "Number of samples to generate. Defaults to 1."
+msgstr "Número de muestras a generar. Por defecto es 1."
+
+#: 83e1b16d055640e48550b3889fb32fc6 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_recency_frequency
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: bc3ec497ad09465c90306bce0f79fde5 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_recency_frequency:30
+msgid ":obj:`~xarray.Dataset`"
+msgstr ":obj:`~xarray.Dataset`"
+
+#: 455de213bdae4fdb8d12627ce10c98a6 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.distribution_new_customer_recency_frequency:31
+msgid "Dataset containing the posterior samples for the customer population."
+msgstr ""
+"Conjunto de datos que contiene las muestras posteriores para la población de"
+" clientes."

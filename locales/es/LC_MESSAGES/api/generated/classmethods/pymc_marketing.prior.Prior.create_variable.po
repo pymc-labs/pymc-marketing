@@ -1,0 +1,79 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.prior.Prior.create_variable.rst:2
+#: b7d37756b1e8489d9f075d39473f9ba9
+msgid "Prior.create\\_variable"
+msgstr "Prior.crear\\_variable"
+
+#: e446c8902c834489a23b4eda048e22d6 of
+#: pymc_extras.prior.Prior.create_variable:2
+msgid "Create a PyMC variable from the prior."
+msgstr "Cree una variable de PyMC a partir del previo."
+
+#: d4c7aff3a85542c192062532a8d785a8 of
+#: pymc_extras.prior.Prior.create_variable:4
+msgid "Must be used in a PyMC model context."
+msgstr "Debe ser utilizado en el contexto de un modelo PyMC."
+
+#: 50c0f3a6b902422788656f9b3de044d1 of pymc_extras.prior.Prior.create_variable
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 4a26c3c1c84444ef8b4df3e9d42b3d10 of
+#: pymc_extras.prior.Prior.create_variable:8
+msgid "**name** : :class:`python:str`"
+msgstr "**nombre** : :class:`python:str`"
+
+#: fa431f2672d54e41b2f64b241feed3a4 of
+#: pymc_extras.prior.Prior.create_variable:7
+msgid "python:str"
+msgstr "python:str"
+
+#: d881d826b86e4f94936c3b6dee6c068e of
+#: pymc_extras.prior.Prior.create_variable:9
+msgid "The name of the variable."
+msgstr "El nombre de la variable."
+
+#: a0d2f84d9d71424db806401cdefa18ae of pymc_extras.prior.Prior.create_variable
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: ecd620d964c94c7680146ad6c462735a of
+#: pymc_extras.prior.Prior.create_variable:15
+msgid ":obj:`pt.TensorVariable`"
+msgstr ":obj:`pt.TensorVariable`"
+
+#: 105170fcfb0941efb2ca9f448c963aaf of
+#: pymc_extras.prior.Prior.create_variable:16
+msgid "The PyMC variable."
+msgstr "La variable PyMC."
+
+#: 1340894abab54855af0e9e2720ef1436 of
+#: pymc_extras.prior.Prior.create_variable:28
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: 863ca5364f044db9bb8d232420a04221 of
+#: pymc_extras.prior.Prior.create_variable:29
+msgid "Create a hierarchical normal variable in larger PyMC model."
+msgstr "Cree una variable normal jerárquica en un modelo PyMC más grande."

@@ -1,0 +1,802 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:10003
+#: d2b6b5183bfe4b658cbd8b7197f49f54
+msgid "Understanding your MMM: Sensitivity Analysis and Marginal Effects"
+msgstr "Entendiendo su MMM: Análisis de Sensibilidad y Efectos Marginales"
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:10005
+#: a021818cd54d4dbcb985ae60066fcab3
+msgid ""
+"Extracting insights to drive business decisions is a primary goal of any "
+"MMM. PyMC-Marketing already offers a powerful suite of tools for this, "
+"including:"
+msgstr ""
+"Extraer información para impulsar decisiones comerciales es un objetivo "
+"principal de cualquier MMM. PyMC-Marketing ya ofrece un conjunto potente de "
+"herramientas para esto, que incluye:"
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:10007
+#: b128ef4a596444a882974339b4674295
+msgid ""
+"Driver contributions: Understanding how much each channel or factor is "
+"contributing to the outcome."
+msgstr ""
+"Contribuciones de los controladores: Comprender cuánto está contribuyendo "
+"cada canal o factor al resultado."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:10008
+#: 72f97c82a5e043bdbc45c0cd8efc2e4a
+msgid ""
+"Return on Ad Spend (ROAS): Quantifying the financial return of your media "
+"investments."
+msgstr ""
+"Retorno de la Inversión en Publicidad (ROAS): Cuantificando el retorno "
+"financiero de sus inversiones en medios."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:10009
+#: 6945c201b9ea4a1fa0f2883302c4a1f4
+msgid ""
+"Saturation curves: Visualizing how the impact of media spend changes at "
+"different spend levels (e.g., diminishing returns)."
+msgstr ""
+"Curvas de saturación: Visualizando cómo el impacto del gasto en medios "
+"cambia a diferentes niveles de gasto (por ejemplo, rendimientos "
+"decrecientes)."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:10011
+#: b44a9dc1fc944351a3afdf096af0e1e4
+msgid ""
+"However, in many real-world cases, we want to go beyond these summaries. "
+"Marketers and analysts frequently ask:"
+msgstr ""
+"Sin embargo, en muchos casos del mundo real, queremos ir más allá de estos "
+"resúmenes. Los especialistas en marketing y los analistas preguntan con "
+"frecuencia:"
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:10013
+#: 8a9cbf98bf4940b4b2d5a842caf21264
+#, python-format
+msgid "\"What would have happened if we had spent 10% less on media last month?\""
+msgstr ""
+"¿Qué habría pasado si hubiéramos gastado un 10% menos en medios el mes "
+"pasado?"
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:10014
+#: 34275cbb777f4b9787c1e15003025aae
+msgid ""
+"\"What would the effect of lowering the free shipping threshold by $5 have "
+"been?\""
+msgstr ""
+"¿Cuál habría sido el efecto de reducir el umbral de envío gratuito en $5?"
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:10015
+#: c87bfed81bcb4b03957d48024de58058
+msgid ""
+"\"Are we still getting good incremental returns at current spend levels, or "
+"have we hit diminishing returns?\""
+msgstr ""
+"¿Seguimos obteniendo buenos rendimientos incrementales con los niveles de "
+"gasto actuales, o hemos alcanzado rendimientos decrecientes?"
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:10017
+#: 8690dc6baed54258bac628789f039073
+msgid ""
+"These questions focus on hypothetical scenarios of what would have happened "
+"under different conditions. As such, they are a clear form of **[sensitivity"
+" analysis](https://en.wikipedia.org/wiki/Sensitivity_analysis)**. Given that"
+" we focus on _retrospective_ predictions, these questions are \"Step 3\" on "
+"Pearl's causal ladder (see the [MMMs and Pearl's ladder of causal "
+"inference](https://www.pymc-"
+"marketing.io/en/stable/notebooks/mmm/mmm_counterfactuals.html) docs). The "
+"basic idea is that we can use our model (and what it has learned from the "
+"data) to simulate how the outcome would have changes under various "
+"peterbations of the driver variables."
+msgstr ""
+"Estas preguntas se centran en escenarios hipotéticos de lo que habría "
+"sucedido bajo diferentes condiciones. Como tal, son una forma clara de "
+"**[análisis de "
+"sensibilidad](https://en.wikipedia.org/wiki/Sensitivity_analysis)**. Dado "
+"que nos enfocamos en predicciones _retrospectivas_, estas preguntas son "
+"\"Paso 3\" en la escalera causal de Pearl (consulte la documentación sobre "
+"[MMMs y la escalera de inferencia causal de Pearl](https://www.pymc-"
+"marketing.io/en/stable/notebooks/mmm/mmm_counterfactuals.html)). La idea "
+"básica es que podemos usar nuestro modelo (y lo que ha aprendido de los "
+"datos) para simular cómo habría cambiado el resultado bajo varias "
+"perturbaciones de las variables impulsoras."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:10019
+#: 984081ddfbd444de86c0a88e07c046fd
+#, python-format
+msgid ""
+"Rather than just considering a single peterbation (e.g., \"what if we had "
+"spent 10% less on a given media channel\"), sensitivity analysis allows us "
+"to explore a range of scenarios. So instead we could evaluate our "
+"predictions given a **sweep** of possible peterbations. For example, \"what "
+"if we had spent [0.5, 0.75, 1.0, 1.25, 2.0] times as much on a given media "
+"channel?\""
+msgstr ""
+"En lugar de considerar una sola perturbación (por ejemplo, \"¿qué pasaría si"
+" hubiéramos gastado un 10% menos en un canal de medios determinado?\"), el "
+"análisis de sensibilidad nos permite explorar una gama de escenarios. Así "
+"que, en su lugar, podríamos evaluar nuestras predicciones dado un "
+"**barrido** de posibles perturbaciones. Por ejemplo, \"¿qué pasaría si "
+"hubiéramos gastado [0.5, 0.75, 1.0, 1.25, 2.0] veces más en un canal de "
+"medios determinado?\""
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:10021
+#: 72e2934fd4a347fe87c0569fe86a2044
+msgid "We introduce a flexible tool that allows you to:"
+msgstr "Le presentamos una herramienta flexible que le permite:"
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:10023
+#: 4be24adea60d4210923c7818db4a53cc
+msgid ""
+"Perform counterfactual sweeps across a range of predictor values (e.g., "
+"scaling media spend up/down or adjusting business levers like pricing)."
+msgstr ""
+"Realice barridos contrafactuales a través de una variedad de valores "
+"predictivos (por ejemplo, aumentando/disminuyendo el gasto en medios o "
+"ajustando palancas comerciales como los precios)."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:10024
+#: b436a196fc894f9c84a8419f6a2ebc36
+msgid "Visualize both the total expected impact of these interventions."
+msgstr "Visualice tanto el impacto total esperado de estas intervenciones."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:10025
+#: 4e1f906313274678a44f2c96c53bc2a8
+msgid ""
+"Compute marginal effects—showing the instantaneous rate of change in the "
+"outcome as you adjust a predictor."
+msgstr ""
+"Calcular efectos marginales—mostrando la tasa de cambio instantánea en el "
+"resultado a medida que ajusta un predictor."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:10027
+#: c67917375e794d7c876744bfad372003
+msgid ""
+"This approach complements the built-in PyMC-Marketing tools by providing "
+"scenario-based insights that help you answer \"what if?\" questions with "
+"precision and clarity."
+msgstr ""
+"Este enfoque complementa las herramientas integradas de PyMC-Marketing al "
+"proporcionar información basada en escenarios que le ayuda a responder "
+"preguntas de \"¿qué pasaría si?\" con precisión y claridad."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:20002
+#: 2d29958eeccb4c3dbca71998d6738953
+msgid "Setting the scene with an example dataset"
+msgstr "Estableciendo el escenario con un conjunto de datos de ejemplo"
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:30002
+#: 348ff7cc237b47d486265f1c6b2743a4
+msgid ""
+"In this example, we model weekly sales for a direct-to-consumer (DTC) brand "
+"that invests in influencer marketing while also adjusting its free shipping "
+"policy to drive conversions."
+msgstr ""
+"En este ejemplo, modelamos las ventas semanales para una marca de venta "
+"directa al consumidor (DTC) que invierte en marketing de influencers "
+"mientras también ajusta su política de envío gratuito para impulsar las "
+"conversiones."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:30004
+#: 637729dc4a6944b2a66fe87019ebeee1
+msgid ""
+"Our media variable is **Influencer Spend**, which typically exhibits non-"
+"linear effects due to factors like audience saturation and delayed impact, "
+"making it a good candidate for adstock and saturation transformations."
+msgstr ""
+"Nuestra variable de medios es **Gasto en Influencers**, que típicamente "
+"presenta efectos no lineales debido a factores como la saturación de la "
+"audiencia y el impacto retrasado, lo que la convierte en una buena candidata"
+" para transformaciones de adstock y saturación."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:30006
+#: 538cc279cc594e8d8f28039ba36270f5
+msgid ""
+"As a control variable, we include the **Free Shipping Threshold** — the "
+"minimum order value required for customers to qualify for free shipping. "
+"This is a fully controllable business lever and is expected to have a more "
+"linear relationship with sales: lowering the threshold generally increases "
+"conversion rates in a predictable way."
+msgstr ""
+"Como variable de control, incluimos el **Umbral de Envío Gratis** — el valor"
+" mínimo de pedido requerido para que los clientes califiquen para el envío "
+"gratis. Este es un factor empresarial completamente controlable y se espera "
+"que tenga una relación más lineal con las ventas: reducir el umbral "
+"generalmente aumenta las tasas de conversión de manera predecible."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:30008
+#: 10727b43dcab452292905f0cdfb4080b
+msgid ""
+"By examining the marginal effects of media spend and shipping policy, we can"
+" provide actionable insights into how each lever contributes to overall "
+"performance."
+msgstr ""
+"Al examinar los efectos marginales del gasto en medios y la política de "
+"envío, podemos proporcionar información práctica sobre cómo cada palanca "
+"contribuye al rendimiento general."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:50002
+#: f529e4ba7846420d82dd5af8306eabde
+msgid "So our causal MMM will look like this:"
+msgstr "Así que nuestro MMM causal se verá así:"
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:70002
+#: 4e432694ac46463d86f80b6435ba2cdc
+msgid "Why Marginal Effects Matter: going beyond raw media curves"
+msgstr ""
+"Por qué importan los efectos marginales: yendo más allá de las curvas de "
+"medios brutos"
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:70004
+#: 54dec7f397ab43fb8ce522d6ef5b7f32
+msgid ""
+"In Media Mix Models (MMM), we're often interested in understanding how each "
+"marketing input (like advertising spend) drives business outcomes. A common "
+"way to explore this is by looking at the inferred response curves, such as "
+"the saturation curve for media spend. These curves show how total sales "
+"respond to increasing investment, accounting for effects like diminishing "
+"returns and adstock."
+msgstr ""
+"En los Modelos de Mezcla de Medios (MMM), a menudo estamos interesados en "
+"comprender cómo cada insumo de marketing (como el gasto en publicidad) "
+"impulsa los resultados comerciales. Una forma común de explorar esto es "
+"observando las curvas de respuesta inferidas, como la curva de saturación "
+"para el gasto en medios. Estas curvas muestran cómo las ventas totales "
+"responden a un aumento en la inversión, teniendo en cuenta efectos como los "
+"rendimientos decrecientes y el adstock."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:70006
+#: 959c13c7da334bbc91f82354bef3af88
+msgid ""
+"But while these plots are useful, they can be misleading or incomplete when "
+"used in isolation."
+msgstr ""
+"Pero aunque estos gráficos son útiles, pueden ser engañosos o incompletos "
+"cuando se utilizan de forma aislada."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:70008
+#: db9eacf937dd4948929735559936f922
+msgid ""
+"The reason? Response curves tell you the absolute level of impact across "
+"different spend amounts, but they don’t directly tell you the incremental "
+"impact of a small change in spend at any given point. This distinction is "
+"crucial. For example:"
+msgstr ""
+"La razón es la siguiente: las curvas de respuesta te indican el nivel "
+"absoluto de impacto en diferentes cantidades de gasto, pero no te dicen "
+"directamente el impacto incremental de un pequeño cambio en el gasto en un "
+"momento dado. Esta distinción es crucial. Por ejemplo:"
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:70010
+#: d5692cd4ce9742dab5bc7e49dd8529cb
+msgid ""
+"A saturation curve might look steep at low spend levels and flatten out at "
+"higher spend—but the exact slope at a specific point (e.g., \\$50,000 per "
+"week) tells you the real-world payoff of spending an extra \\$1,000 right "
+"now."
+msgstr ""
+"Una curva de saturación puede parecer empinada en niveles de gasto bajos y "
+"aplanarse en niveles de gasto más altos, pero la pendiente exacta en un "
+"punto específico (por ejemplo, \\$50,000 por semana) te indica el "
+"rendimiento real de gastar un extra de \\$1,000 en este momento."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:70011
+#: 489c6be111ef45f2847da3e0a6e25d8c
+msgid ""
+"In cases where multiple inputs are at play (like media spend and pricing "
+"changes), response curves for one variable don't show you how interactions "
+"or current levels of other variables might affect its marginal impact."
+msgstr ""
+"En casos donde múltiples entradas están en juego (como el gasto en medios y "
+"los cambios de precios), las curvas de respuesta para una variable no "
+"muestran cómo las interacciones o los niveles actuales de otras variables "
+"podrían afectar su impacto marginal."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:70013
+#: 3274b41e9406484da7c8172b15edc58a
+msgid ""
+"Marginal effects zero in on this slope—the instantaneous rate of change. "
+"They answer questions like:"
+msgstr ""
+"Los efectos marginales se centran en esta pendiente: la tasa de cambio "
+"instantánea. Responden a preguntas como:"
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:70015
+#: fefb676865a34a56bcaaae52071bcf28
+msgid ""
+"How much additional sales do I gain if I increase influencer spend by 10% "
+"next week?"
+msgstr ""
+"¿Cuánto aumento en ventas adicionales obtengo si incremento el gasto en "
+"influencers en un 10% la próxima semana?"
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:70016
+#: d188a98b27bf41feabab82de13893de9
+msgid ""
+"What's the expected lift if I lower the free shipping threshold by \\$5 "
+"right now?"
+msgstr ""
+"¿Cuál es el aumento esperado si reduzco el umbral de envío gratuito en \\$5 "
+"ahora mismo?"
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:70018
+#: c5133a4841834a3eb9ffa69d382ff612
+msgid ""
+"These insights are only accessible through marginal effects because they "
+"reflect the dynamic, context-sensitive responsiveness of the model:"
+msgstr ""
+"Estos conocimientos solo son accesibles a través de efectos marginales "
+"porque reflejan la capacidad de respuesta dinámica y sensible al contexto "
+"del modelo:"
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:70020
+#: 5ed4a155530247baa6122fdf8a0dde3d
+msgid ""
+"For media inputs with non-linear transformations (like adstock + "
+"saturation), marginal effects show how effectiveness varies across the spend"
+" range—revealing whether you're still in the high-ROI zone or have hit "
+"diminishing returns."
+msgstr ""
+"Para las entradas de medios con transformaciones no lineales (como adstock +"
+" saturación), los efectos marginales muestran cómo varía la efectividad a lo"
+" largo del rango de gasto, revelando si aún te encuentras en la zona de alto"
+" ROI o si has alcanzado rendimientos decrecientes."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:70021
+#: bd37474af1e8473595ddd5448dfa8783
+msgid ""
+"For controllable non-media levers (like pricing or shipping policies), "
+"marginal effects provide precise, actionable estimates for how tweaks to "
+"these levers impact outcomes—even if their overall relationship is more "
+"linear."
+msgstr ""
+"Para palancas no mediáticas controlables (como políticas de precios o de "
+"envío), los efectos marginales proporcionan estimaciones precisas y "
+"accionables sobre cómo los ajustes a estas palancas impactan los resultados,"
+" incluso si su relación general es más lineal."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:70023
+#: f65249b2ab2a4259ae0980b9e0eb5a23
+msgid ""
+"In other words, while a response curve is like a map of the terrain, "
+"marginal effects tell you whether it's worth climbing that next hill. They "
+"enable surgical precision in decision-making, ensuring that marketers don't "
+"just see where their efforts sit on a curve—but understand whether pushing "
+"harder in a particular direction is still worthwhile."
+msgstr ""
+"En otras palabras, mientras que una curva de respuesta es como un mapa del "
+"terreno, los efectos marginales te indican si vale la pena escalar esa "
+"próxima colina. Permiten una precisión quirúrgica en la toma de decisiones, "
+"asegurando que los mercadólogos no solo vean dónde se sitúan sus esfuerzos "
+"en una curva, sino que comprendan si seguir presionando en una dirección "
+"particular sigue siendo valioso."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:70025
+#: 8998eaf31fe0473491bf2bfe1cfb65b3
+msgid ""
+"By incorporating marginal effects into MMM outputs, we move from a static "
+"understanding of media performance to a dynamic, context-aware view that "
+"directly informs resource allocation and strategic adjustments."
+msgstr ""
+"Al incorporar efectos marginales en los resultados de MMM, pasamos de una "
+"comprensión estática del rendimiento de los medios a una visión dinámica y "
+"consciente del contexto que informa directamente sobre la asignación de "
+"recursos y los ajustes estratégicos."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:80002
+#: 2aadbaea00a24adfb6e289bb1868e2d9
+msgid "Generate simulated data"
+msgstr "Generar datos simulados"
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:100002
+#: 94669c6adc18428ea266703c3733420c
+msgid "And here are the first 5 rows of the synthetic dataset:"
+msgstr "Y aquí están las primeras 5 filas del conjunto de datos sintético:"
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:120002
+#: 3df2de1e26ad419c8d9116e937c9a08e
+msgid "And we can plot the data to get a better sense for the data:"
+msgstr ""
+"Y podemos graficar los datos para tener una mejor comprensión de la "
+"información:"
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:140002
+#: 36efdc4d820c44c1afbc92cdb7c0d831
+msgid "Build and fit the MMM"
+msgstr "Construya y ajuste el MMM"
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:160002
+#: d8db157857494c2f91ef90b72772f30d
+msgid "Sensitivity analysis and marginal effects"
+msgstr "Análisis de sensibilidad y efectos marginales"
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:170002
+#: ad42eb5ae0034226bcd552c8708ffe74
+msgid "A multiplicative sweep on influencer spend"
+msgstr "Un barrido multiplicativo sobre el gasto en influencers"
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:190002
+#: 259182b7a46e4c718028468eb8f9c402
+msgid ""
+"The code above saves its results into a new group in the `mmm.idata` called "
+"`sensitivity_analysis`. You can explore it below:"
+msgstr ""
+"El código anterior guarda sus resultados en un nuevo grupo en el `mmm.idata`"
+" llamado `sensitivity_analysis`. Puedes explorarlo a continuación:"
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:210002
+#: 99a2304baaec4194b4c1b874e2914d1b
+msgid ""
+"And of course, you can plot the results! To demonstrate some of the plotting"
+" options we'll plot using the default y-axis scale of absolute sales as well"
+" as on a percentage change scale."
+msgstr ""
+"Y, por supuesto, ¡puede graficar los resultados! Para demostrar algunas de "
+"las opciones de graficado, utilizaremos la escala del eje y predeterminada "
+"de ventas absolutas, así como una escala de cambio porcentual."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:230002
+#: b8f62f100dc048f1a7a173e6bbfb0a7f
+msgid ""
+"The figure above shows the total expected uplift (it can be positive or "
+"negative) for the outcome variable as a function of the sweep values "
+"provided. In this case, we used a multiplicative sweep, so the curve is "
+"showing how the total outcome would vary if we multiply up (sweep values > "
+"1) or down (sweep values < 1) the influencer spend by the set of values we "
+"asked for."
+msgstr ""
+"La figura anterior muestra el aumento total esperado (puede ser positivo o "
+"negativo) para la variable de resultado como una función de los valores de "
+"barrido proporcionados. En este caso, utilizamos un barrido multiplicativo, "
+"por lo que la curva muestra cómo variaría el resultado total si "
+"multiplicamos hacia arriba (valores de barrido > 1) o hacia abajo (valores "
+"de barrido < 1) el gasto en influenciadores por el conjunto de valores que "
+"solicitamos."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:230004
+#: cac44b2bf6ad454e8a7c019ebea6d379
+msgid ""
+"Intuitively, if we multiply the influence spend by 1.0 then on average we "
+"expect no change. If we scale the spend down then we expect negative uplift "
+"(i.e., lower sales) and if we scale the spend up then we expect positive "
+"uplift (i.e., higher sales). The fact that the curve is curved (not linear) "
+"is primarily the result of the saturation function on the influencer spend "
+"variable."
+msgstr ""
+"Intuitivamente, si multiplicamos el gasto en influencia por 1.0, entonces, "
+"en promedio, no esperamos ningún cambio. Si reducimos el gasto, entonces "
+"esperamos un aumento negativo (es decir, menores ventas) y si aumentamos el "
+"gasto, entonces esperamos un aumento positivo (es decir, mayores ventas). El"
+" hecho de que la curva sea curva (no lineal) es principalmente el resultado "
+"de la función de saturación en la variable de gasto en influenciadores."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:240002
+#: 90a2f8bd3d4f461680c2bc38e07b111f
+msgid "We can also plot the corresponding marginal effects as below:"
+msgstr ""
+"También podemos trazar los efectos marginales correspondientes como se "
+"muestra a continuación:"
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:260002
+#: 83435a346db04205ac719afbfd495241
+msgid ""
+"This plot shows the instantaneous rate of change in the outcome variable as "
+"we adjust the influencer spend. The y-axis represents the marginal effect, "
+"which tells us how much additional sales we expect for a small increase in "
+"influencer spend at each point along the sweep values."
+msgstr ""
+"Este gráfico muestra la tasa de cambio instantánea en la variable de "
+"resultado a medida que ajustamos el gasto en influencers. El eje y "
+"representa el efecto marginal, que nos indica cuánto aumento adicional en "
+"ventas esperamos por un pequeño incremento en el gasto en influencers en "
+"cada punto a lo largo de los valores de barrido."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:260004
+#: 1490dc16f6bc4d47b797f5cabdf332b7
+msgid ""
+"We can see that the highest marginal effects occur on the left side of the "
+"plot where we the influence spend is zero or very low. The highest "
+"incremental/marginal effects are obtained when we go from no spend to some "
+"spend. As we would expect from the previous plot, we still get incremental "
+"returns at the current spend levels (multiplicative change of 1.0), and are "
+"quite far away from totally saturating this channel - the marginal spend "
+"doesn't reduce to near zero even if we consider a 2x increase in spend."
+msgstr ""
+"Podemos ver que los efectos marginales más altos ocurren en el lado "
+"izquierdo del gráfico, donde la influencia del gasto es cero o muy baja. Los"
+" efectos incrementales/marginales más altos se obtienen cuando pasamos de no"
+" gastar a gastar algo. Como esperaríamos del gráfico anterior, todavía "
+"obtenemos retornos incrementales en los niveles actuales de gasto (cambio "
+"multiplicativo de 1.0), y estamos bastante lejos de saturar completamente "
+"este canal; el gasto marginal no se reduce a cerca de cero incluso si "
+"consideramos un aumento del gasto de 2x."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:270002
+#: 0e2ada6b839e41e28691595ac39906bf
+msgid "An absolute sweep on influencer spend"
+msgstr "Un control absoluto sobre el gasto en influencers"
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:270004
+#: 850a907f2a21493bbd0fc3a9873a9a93
+msgid ""
+"The sensitivity analysis we conducted above involved a _multiplicative "
+"sweep_ of the influencer spend variable, meaning we varied it by multiplying"
+" it by a set of values. However, we can also conduct a _absolute sweep_. "
+"Here, we set all historical values of the influencer spend variable to fixed"
+" values (given in the `sweep_values` argument) and then compute the expected"
+" outcome and marginal effects."
+msgstr ""
+"El análisis de sensibilidad que realizamos anteriormente involucró un "
+"_barrido multiplicativo_ de la variable de gasto de influencers, lo que "
+"significa que la variamos multiplicándola por un conjunto de valores. Sin "
+"embargo, también podemos realizar un _barrido absoluto_. Aquí, establecemos "
+"todos los valores históricos de la variable de gasto de influencers en "
+"valores fijos (dados en el argumento `sweep_values`) y luego calculamos el "
+"resultado esperado y los efectos marginales."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:300002
+#: 9e56c43b97be4179aaa3a4c8901cbe50
+msgid ""
+"The results of the absolute sweep are comparable to (but not the same as) "
+"the multiplicative sweep. They key difference in what we are doing is that "
+"we overwrite the historical influencer spend values with a constant spend "
+"value (one value for each point in the sweep). This means we are not "
+"considering a 'realistic' scenario where spend fluctuates over time, but "
+"rather a hypothetical scenario where we set the spend to a fixed value for "
+"all weeks in the dataset."
+msgstr ""
+"Los resultados del barrido absoluto son comparables a (pero no iguales a) "
+"los del barrido multiplicativo. La diferencia clave en lo que estamos "
+"haciendo es que sobrescribimos los valores de gasto de influenciadores "
+"históricos con un valor de gasto constante (un valor para cada punto en el "
+"barrido). Esto significa que no estamos considerando un escenario 'realista'"
+" donde el gasto fluctúa a lo largo del tiempo, sino más bien un escenario "
+"hipotético donde establecemos el gasto a un valor fijo para todas las "
+"semanas en el conjunto de datos."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:300004
+#: 5c2e824e6327409db88da233a2b0fc24
+msgid ""
+"We can see the change in the plots as well. The top plot is similar to, but "
+"not exactly the same as the saturation curve of influencer spend. Notice "
+"that there is a certain fixed spend level where the uplift is about zero. "
+"This is interesting - we can interpret this as saying that the total sales "
+"in the actual scenario would also have been about the same if we had spent "
+"that amount (constantly over time) on influencer marketing."
+msgstr ""
+"Podemos ver el cambio en los gráficos también. El gráfico superior es "
+"similar a, pero no exactamente igual a la curva de saturación del gasto en "
+"influencers. Observe que hay un cierto nivel de gasto fijo donde el aumento "
+"es aproximadamente cero. Esto es interesante: podemos interpretar esto como "
+"que las ventas totales en el escenario actual también habrían sido "
+"aproximadamente las mismas si hubiéramos gastado esa cantidad "
+"(constantemente a lo largo del tiempo) en marketing de influencers."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:300006
+#: 6a5585b084f24982aa7831815d870dc4
+msgid ""
+"The top plot nicely shows the saturating quality of the saturation function,"
+" and the bottom plot shows that as we approach saturation, the marginal "
+"effects drop to near zero."
+msgstr ""
+"El gráfico superior muestra claramente la calidad de saturación de la "
+"función de saturación, y el gráfico inferior muestra que a medida que nos "
+"acercamos a la saturación, los efectos marginales caen a casi cero."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:310002
+#: dd51364ec3894225bead052498960e05
+msgid "An additive sweep on influencer spend"
+msgstr "Un barrido aditivo sobre el gasto en influencers"
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:310004
+#: cad4326dd36e42d99ffdf7ecdefdf4b6
+msgid ""
+"We can also consider a sweep of additive changes to the influencer spend "
+"variable. This means we adjust the historical values of the influencer spend"
+" by adding a fixed amount (given in the `sweep_values` argument) and then "
+"compute the expected outcome and marginal effects."
+msgstr ""
+"También podemos considerar un barrido de cambios aditivos en la variable de "
+"gasto de influencers. Esto significa que ajustamos los valores históricos "
+"del gasto de influencers añadiendo una cantidad fija (dada en el argumento "
+"`sweep_values`) y luego calculamos el resultado esperado y los efectos "
+"marginales."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:310007
+#: 0ed8326a925d413ea3dd951e6a0197f0
+msgid ""
+"Note that care needs to be taken with an additive sweep. It would be easy to"
+" apply a negative peterbation which then actually results in negative spend "
+"values which have no meaningful interpretation. So it is worthwhile "
+"exploring the actual spend values before deciding on the sweep values to be "
+"used."
+msgstr ""
+"Tenga en cuenta que se debe tener cuidado con un barrido aditivo. Sería "
+"fácil aplicar una perturbación negativa que luego resulte en valores de "
+"gasto negativos que no tienen una interpretación significativa. Por lo "
+"tanto, vale la pena explorar los valores de gasto reales antes de decidir "
+"sobre los valores de barrido que se utilizarán."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:310009
+#: ae0039ddedfe4afca154f79c7e7d3d15
+msgid ""
+"In our case, the minimum spend values is \\$0, so we will not considervalues"
+" in the sweep."
+msgstr ""
+"En nuestro caso, el valor mínimo de gasto es \\$0, por lo que no "
+"consideraremos valores en la barrida."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:320002
+#: a03c7a049d6e49c7b46c9086b3dfcde3
+msgid "\\displaystyle 0.00495420682926662"
+msgstr "\\displaystyle 0.00495420682926662"
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:350002
+#: 93a93f1fc33a48ebaca016e972dc3873
+msgid ""
+"These plots show the expected uplift and marginal effects. We get a similar "
+"general pattern of results - if we consider scenarios where we had spent "
+"progressively more, then we would get positive uplift, but as we reach a "
+"certain level of spend, the advertising channel saturates and the marginal "
+"effects drop to near zero."
+msgstr ""
+"Estos gráficos muestran el aumento esperado y los efectos marginales. "
+"Obtenemos un patrón general de resultados similar: si consideramos "
+"escenarios en los que hemos gastado progresivamente más, obtendríamos un "
+"aumento positivo, pero a medida que alcanzamos un cierto nivel de gasto, el "
+"canal publicitario se satura y los efectos marginales caen cerca de cero."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:360002
+#: a50e6b1ee1eb46a3b6f3e755a12831b5
+msgid "Sensitivity analysis on the free shipping threshold"
+msgstr "Análisis de sensibilidad sobre el umbral de envío gratuito"
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:360004
+#: d4b49257c1b2459fa274ab449ff3526c
+msgid ""
+"We've had a thorough look at the influencer spend variable and we've got "
+"some interesting insights into how it affects the outcome (sales) under "
+"different counterfactual scenarios."
+msgstr ""
+"Hemos examinado detenidamente la variable de gasto en influencers y hemos "
+"obtenido algunas ideas interesantes sobre cómo afecta el resultado (ventas) "
+"en diferentes escenarios contrafactuales."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:360006
+#: ed30004fbc654345af282dece3db4074
+msgid ""
+"But we can also do the same for the free shipping threshold driver. The "
+"reason why this is interesting in our example is because this driver is "
+"assumed to have linear effects on the outcome, with no saturation or adstock"
+" function applied."
+msgstr ""
+"Pero también podemos hacer lo mismo para el controlador del umbral de envío "
+"gratuito. La razón por la que esto es interesante en nuestro ejemplo es "
+"porque se asume que este controlador tiene efectos lineales en el resultado,"
+" sin que se aplique ninguna función de saturación o adstock."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:360008
+#: 190dc9f88b8e4669a83ae1028e04d13a
+msgid ""
+"We won't exhaustively run through all the different sweeps we can do, but we"
+" will just demonstrate an absolute sweep."
+msgstr ""
+"No vamos a repasar exhaustivamente todos los diferentes barridos que podemos"
+" realizar, pero solo demostraremos un barrido absoluto."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:390002
+#: 7462517043464f2aad8cdb0e327c3e74
+msgid ""
+"We can see the linear nature of the effects of the free shipping threshold "
+"on the outcome variable. The expected uplift is positive when we lower the "
+"threshold (people buy more when shipping is free), and the marginal effects "
+"are constant across the sweep values. This is because we assumed a linear "
+"relationship between the free shipping threshold and sales, so the marginal "
+"effect does not change as we adjust the threshold. The constant negative "
+"value is equal to the change in uplift as we increase the shipping threshold"
+" by \\$1."
+msgstr ""
+"Podemos observar la naturaleza lineal de los efectos del umbral de envío "
+"gratuito en la variable de resultado. El aumento esperado es positivo cuando"
+" disminuimos el umbral (las personas compran más cuando el envío es "
+"gratuito), y los efectos marginales son constantes a lo largo de los valores"
+" de barrido. Esto se debe a que asumimos una relación lineal entre el umbral"
+" de envío gratuito y las ventas, por lo que el efecto marginal no cambia a "
+"medida que ajustamos el umbral. El valor negativo constante es igual al "
+"cambio en el aumento a medida que incrementamos el umbral de envío en \\$1."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:390004
+#: 0b844fcf4ee14f25a8b2daa9ea8e40ee
+msgid ""
+"We can verify this by changing the sweep step size and seeing that we get "
+"identical marginal effects estimates (albeit with numerical estimation "
+"error)."
+msgstr ""
+"Podemos verificar esto cambiando el tamaño del paso de barrido y observando "
+"que obtenemos estimaciones de efectos marginales idénticas (aunque con error"
+" de estimación numérica)."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:420003
+#: cfedb25e9cc7492db547f5bbb4fcf20d
+msgid ""
+"**Why should I be interested in a straight line and a flat line?** These are"
+" the kinds of plots that you can run through to get a sense check of whether"
+" the model is behaving as expected."
+msgstr ""
+"**¿Por qué debería interesarme en una línea recta y una línea plana?** Estos"
+" son los tipos de gráficos que puede utilizar para verificar si el modelo se"
+" comporta como se esperaba."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:420005
+#: 0868c24d221249d6a07813fd416b78dc
+msgid ""
+"Maybe you (or a client) realises that a negative linear relationship between"
+" shipping threshold and sales is too simplistic. This can then drive model "
+"iteration and improvement - you could explore alternative functional forms "
+"for example."
+msgstr ""
+"Quizás usted (o un cliente) se da cuenta de que una relación lineal negativa"
+" entre el umbral de envío y las ventas es demasiado simplista. Esto puede "
+"impulsar la iteración y mejora del modelo; por ejemplo, podría explorar "
+"formas funcionales alternativas."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:430002
+#: f786ae55cccc4ddc940466bdf052905f
+msgid "Summary"
+msgstr "Resumen"
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:430004
+#: 20bcdb48dea04ae796abf2685964a0a4
+msgid ""
+"We've introduced a simple but powerful tool for probing deeper into your MMM"
+" results. You can explore a sweep of perterbations to one or more driver "
+"variables and compute the expected outcomes and marginal effects for each "
+"scenario. You can consider different forms of peterbation, here we've shown "
+"multiplicative, absolute and additive sweeps."
+msgstr ""
+"Hemos introducido una herramienta simple pero poderosa para profundizar en "
+"sus resultados de MMM. Puede explorar una serie de perturbaciones en una o "
+"más variables de control y calcular los resultados esperados y los efectos "
+"marginales para cada escenario. Puede considerar diferentes formas de "
+"perturbación; aquí hemos mostrado barridos multiplicativos, absolutos y "
+"aditivos."
+
+#: ../source/notebooks/mmm/mmm_sensitivity_analysis.ipynb:430006
+#: 6f345df97e5b407e81d97bfcb6e53cd6
+msgid ""
+"This allows you to answer \"what if\" questions with precision and clarity, "
+"providing actionable insights into how different levers affect your business"
+" outcomes. You can produce simple and interpretable plots that you can use "
+"to communicate how the model works and get sense-checks on the model's "
+"behaviour and assumptions."
+msgstr ""
+"Esto le permite responder preguntas de \"qué pasaría si\" con precisión y "
+"claridad, proporcionando información útil sobre cómo diferentes palancas "
+"afectan los resultados de su negocio. Puede producir gráficos simples e "
+"interpretables que puede utilizar para comunicar cómo funciona el modelo y "
+"obtener verificaciones de sentido sobre el comportamiento y las suposiciones"
+" del modelo."

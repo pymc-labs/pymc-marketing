@@ -1,0 +1,115 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis.run_sweep.rst:2
+#: b46274acff624c638de21accaeff2dfe
+msgid "SensitivityAnalysis.run\\_sweep"
+msgstr "SensitivityAnalysis.ejecutar\\_barrido"
+
+#: 529789194216414d9f8fa39512d9b23d of
+#: pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis.run_sweep:2
+msgid ""
+"Run the model's predict function over the sweep grid and store results."
+msgstr ""
+"Ejecute la función de predicción del modelo sobre la cuadrícula de barrido y"
+" almacene los resultados."
+
+#: a227e1893d874037b59e83f06fe87b14 of
+#: pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis.run_sweep
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: a62cff533bbf4df8839fa7a00e382a70 of
+#: pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis.run_sweep:7
+msgid "**var_names** : :class:`python:list`\\[:class:`python:str`]"
+msgstr "**var_names** : :class:`python:list`\\[:class:`python:str`]"
+
+#: c436d502acd94e60890c18f007e297fe of
+#: pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis.run_sweep:6
+msgid "python:list[python:str]"
+msgstr "python:list[python:str]"
+
+#: d32347bf89614f4a80a2d50a0d7ee37e of
+#: pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis.run_sweep:8
+msgid "List of variable names to intervene on."
+msgstr "Lista de nombres de variables para intervenir."
+
+#: fb0815167b9d48609f0d159f2aae2f1d of
+#: pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis.run_sweep:10
+msgid "**sweep_values** : :obj:`np.ndarray <numpy.ndarray>`"
+msgstr "**sweep_values** : :obj:`np.ndarray <numpy.ndarray>`"
+
+#: 06316848bc1c4cb9b8e94e2a3f432d01 of
+#: pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis.run_sweep:9
+msgid "np.ndarray"
+msgstr "np.ndarray"
+
+#: 9e2675320d354b1d9b36ad1aa02ceae6 of
+#: pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis.run_sweep:11
+msgid "Array of sweep values."
+msgstr "Array de valores de barrido."
+
+#: 6b765d87ec804da4ad82785b375c7c33 of
+#: pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis.run_sweep:13
+msgid ""
+"**sweep_type** : :obj:`Literal`\\[\"multiplicative\", \"additive\", "
+"\"absolute\"], optional"
+msgstr ""
+"**sweep_type** : :obj:`Literal`\\[\"multiplicativo\", \"aditivo\", "
+"\"absoluto\"], opcional"
+
+#: f8a9a4ea47564845a2cd9956e7d82fb5 of
+#: pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis.run_sweep:12
+msgid "Literal[\"multiplicative\", \"additive\", \"absolute\"], optional"
+msgstr "Literal[\"multiplicativo\", \"aditivo\", \"absoluto\"], opcional"
+
+#: 46c3f1f44a08497189ec8c2e0da95b34 of
+#: pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis.run_sweep:14
+msgid ""
+"Type of intervention to apply, by default \"multiplicative\". - "
+"'multiplicative': Multiply the original predictor values by each sweep "
+"value. - 'additive': Add each sweep value to the original predictor values. "
+"- 'absolute': Set the predictor values directly to each sweep value "
+"(ignoring original values)."
+msgstr ""
+"Tipo de intervención a aplicar, por defecto \"multiplicativa\". - "
+"'multiplicativa': Multiplicar los valores originales de los predictores por "
+"cada valor de barrido. - 'aditiva': Sumar cada valor de barrido a los "
+"valores originales de los predictores. - 'absoluta': Establecer los valores "
+"de los predictores directamente a cada valor de barrido (ignorando los "
+"valores originales)."
+
+#: 700b95daa6d14ead8d54c7ee6bca4a0c of
+#: pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis.run_sweep
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 8086b7e5c00f4d1f89cad994e6f429e4 of
+#: pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis.run_sweep:23
+msgid ":obj:`xr.Dataset`"
+msgstr ":obj:`xr.Dataset`"
+
+#: 39237a7bdeba4517a704eb6300aa6bcd of
+#: pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis.run_sweep:24
+msgid "Dataset containing the sensitivity analysis results."
+msgstr ""
+"Conjunto de datos que contiene los resultados del análisis de sensibilidad."

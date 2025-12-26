@@ -1,0 +1,478 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:10002 bce85aeff6bc466a97c47362247bac86
+msgid "BG/NBD Model"
+msgstr "Modelo BG/NBD"
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:10004 5cd2601af49a46238fe480cc79805613
+msgid ""
+"In this notebook we show how to fit a BG/NBD model in PyMC-Marketing. We "
+"compare the results with the "
+"[`lifetimes`](https://github.com/CamDavidsonPilon/lifetimes) package (no "
+"longer maintained). The model is presented in the paper: Fader, P. S., "
+"Hardie, B. G., & Lee, K. L. (2005). [“Counting your customers” the easy way:"
+" An alternative to the Pareto/NBD model. Marketing science, 24(2), "
+"275-284.](http://www.brucehardie.com/papers/bgnbd_2004-04-20.pdf)"
+msgstr ""
+"En este cuaderno mostramos cómo ajustar un modelo BG/NBD en PyMC-Marketing. "
+"Comparamos los resultados con el paquete "
+"[`lifetimes`](https://github.com/CamDavidsonPilon/lifetimes) (ya no "
+"mantenido). El modelo se presenta en el artículo: Fader, P. S., Hardie, B. "
+"G., & Lee, K. L. (2005). [“Contando a tus clientes” de manera sencilla: Una "
+"alternativa al modelo Pareto/NBD. Marketing science, 24(2), "
+"275-284.](http://www.brucehardie.com/papers/bgnbd_2004-04-20.pdf)"
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:20002 81e54f0c87f04b76ab6540ce1f010f29
+msgid "Prepare Notebook"
+msgstr "Preparar Notebook"
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:40002 9f4eb0eef60946eca6e1de4ac2c55377
+msgid "Read Data"
+msgstr "Leer datos"
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:40004 d407ad0d90614c96be57d451a7b13cc0
+msgid ""
+"We use the `CDNOW` dataset (see lifetimes [quick-"
+"start](https://lifetimes.readthedocs.io/en/latest/Quickstart.html))."
+msgstr ""
+"Utilizamos el conjunto de datos `CDNOW` (ver el [inicio "
+"rápido](https://lifetimes.readthedocs.io/en/latest/Quickstart.html) de "
+"lifetimes)."
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:60002 a41501e043bf42b5862f449c4e4996c5
+msgid "Recall from the `lifetimes` documentation the following definitions:"
+msgstr ""
+"Recuerde de la documentación de `lifetimes` las siguientes definiciones:"
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:60004 e1cb063aaaf94a9e99e1fba14e131d6b
+msgid ""
+"`frequency` represents the number of repeat purchases the customer has made."
+" This means that it’s one less than the total number of purchases. This is "
+"actually slightly wrong. It’s the count of time periods the customer had a "
+"purchase in. So if using days as units, then it’s the count of days the "
+"customer had a purchase on."
+msgstr ""
+"`frequency` representa el número de compras repetidas que ha realizado el "
+"cliente. Esto significa que es uno menos que el número total de compras. En "
+"realidad, esto es ligeramente incorrecto. Es el conteo de los períodos de "
+"tiempo en los que el cliente realizó una compra. Así que, si se utilizan "
+"días como unidades, entonces es el conteo de días en los que el cliente "
+"realizó una compra."
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:60005 677bacdfb3d245c98630b10f7e3f4e5f
+msgid ""
+"`T` represents the age of the customer in whatever time units chosen "
+"(weekly, in the above dataset). This is equal to the duration between a "
+"customer’s first purchase and the end of the period under study."
+msgstr ""
+"`T` representa la edad del cliente en las unidades de tiempo elegidas "
+"(semanalmente, en el conjunto de datos anterior). Esto es igual a la "
+"duración entre la primera compra de un cliente y el final del período bajo "
+"estudio."
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:60006 082360315b764f94b0c1f42a7e048f23
+msgid ""
+"`recency` represents the age of the customer when they made their most "
+"recent purchases. This is equal to the duration between a customer’s first "
+"purchase and their latest purchase. (Thus if they have made only 1 purchase,"
+" the recency is 0.)"
+msgstr ""
+"`recency` representa la antigüedad del cliente en el momento de sus compras "
+"más recientes. Esto es igual a la duración entre la primera compra de un "
+"cliente y su última compra. (Por lo tanto, si solo ha realizado 1 compra, la"
+" recency es 0.)"
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:70003 bd07e23e7576413cbdc8a656b8da1a66
+msgid ""
+"We rename the index column to `customer_id` as this is required by the model"
+msgstr ""
+"Renombramos la columna del índice a `customer_id`, ya que esto es requerido "
+"por el modelo."
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:90002 9bd3dc2f7d1b4640a815fcbe313c446a
+msgid "Model Specification"
+msgstr "Especificación del Modelo"
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:90004 19e9d3c004694de8b248abe99930bead
+msgid ""
+"The BG/NBD model is a probabilistic model that describes the buying behavior"
+" of a customer in the non-contractual setting. It is based on the following "
+"assumptions for each customer:"
+msgstr ""
+"El modelo BG/NBD es un modelo probabilístico que describe el comportamiento "
+"de compra de un cliente en un entorno no contractual. Se basa en las "
+"siguientes suposiciones para cada cliente:"
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:90006 7ccc4b08978c4e3aa042c601b11d8a07
+msgid "Frequency Process"
+msgstr "Proceso de Frecuencia"
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:90008 2a15d9a80d3240afb207a36402ff335a
+msgid ""
+"While active, the time between transactions is distributed exponential with "
+"transaction rate, i.e.,"
+msgstr ""
+"Mientras está activo, el tiempo entre transacciones se distribuye de manera "
+"exponencial con la tasa de transacciones, es decir,"
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:90010 3c07447d3d2c4cb6a1acf4afac1bb389
+#, python-brace-format
+msgid ""
+"f(t_{j}|t_{j-1}; \\lambda) = \\lambda \\exp(-\\lambda (t_{j} - t_{j - 1})), "
+"\\quad t_{j} \\geq t_{j - 1} \\geq 0"
+msgstr ""
+"f(t_{j}|t_{j-1}; \\lambda) = \\lambda \\exp(-\\lambda (t_{j} - t_{j - 1})), "
+"\\quad t_{j} \\geq t_{j - 1} \\geq 0"
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:90012 e2ff56261959439e9b72f1427bbaba64
+msgid "Heterogeneity in $\\lambda$ follows a gamma distribution with pdf"
+msgstr "La heterogeneidad en $\\lambda$ sigue una distribución gamma con pdf"
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:90014 f95b3d3d24be40a4972d7f66770b675a
+msgid ""
+"f(\\lambda|r, \\alpha) = \\frac{\\alpha^{r}\\lambda^{r - 1}\\exp(-\\lambda "
+"\\alpha)}{\\Gamma(r)}, \\quad \\lambda  > 0"
+msgstr ""
+"f(\\lambda|r, \\alpha) = \\frac{\\alpha^{r}\\lambda^{r - 1}\\exp(-\\lambda "
+"\\alpha)}{\\Gamma(r)}, \\quad \\lambda  > 0"
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:90016 53577dfe6d744388b32304033e0d5cdf
+msgid "Dropout Process"
+msgstr "Proceso de abandono"
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:90018 698d5a396818438582ba7b3b6c154570
+msgid ""
+"After any transaction, a customer becomes inactive with probability $p$."
+msgstr ""
+"Después de cualquier transacción, un cliente se vuelve inactivo con una "
+"probabilidad de $p$."
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:90020 501194f6b6dc47468ac74a8f17495148
+msgid "Heterogeneity in $p$ follows a beta distribution with pdf"
+msgstr "La heterogeneidad en $p$ sigue una distribución beta con pdf"
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:90022 4897085c39b54815b4e7da0a45fbcdfd
+#, python-brace-format
+msgid ""
+"f(p|a, b) = \\frac{\\Gamma(a + b)}{\\Gamma(a) \\Gamma(b)} p^{a - 1}(1 - "
+"p)^{b - 1}, \\quad 0 \\leq p \\leq 1"
+msgstr ""
+"f(p|a, b) = \\frac{\\Gamma(a + b)}{\\Gamma(a) \\Gamma(b)} p^{a - 1}(1 - "
+"p)^{b - 1}, \\quad 0 \\leq p \\leq 1"
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:90024 20cf2b45c61d4f3586a4b3287233d8b4
+msgid ""
+"The transaction rate $\\lambda$ and the dropout probability $p$ vary "
+"independently across customers."
+msgstr ""
+"La tasa de transacción $\\lambda$ y la probabilidad de abandono $p$ varían "
+"de manera independiente entre los clientes."
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:90026 ac4d31f0eba745f7956d6765020e71a6
+msgid ""
+"Instead of estimating $\\lambda$ and $p$ for each specific customer, we do "
+"it for a randomly chosen customer, i.e. we work with the expected values of "
+"the parameters. Hence, we are interesting in finding the posterior "
+"distribution of the parameters $r$, $\\alpha$, $a$, and $b$."
+msgstr ""
+"En lugar de estimar $\\lambda$ y $p$ para cada cliente específico, lo "
+"hacemos para un cliente elegido al azar, es decir, trabajamos con los "
+"valores esperados de los parámetros. Por lo tanto, estamos interesados en "
+"encontrar la distribución posterior de los parámetros $r$, $\\alpha$, $a$ y "
+"$b$."
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:100002
+#: a32342df07684bc293a43bd6fb6eb50b
+msgid "Model Fitting"
+msgstr "Ajuste del Modelo"
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:100004
+#: 86da330a9add4e50a9be4bdd1c327488
+msgid ""
+"Estimating such parameters is very easy in PyMC-Marketing. We instantiate "
+"the model in a similar way:"
+msgstr ""
+"Estimar tales parámetros es muy fácil en PyMC-Marketing. Instanciamos el "
+"modelo de manera similar:"
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:120002
+#: 1d0124ae57f146139b3f3194c7736702
+msgid "And *build* the model to see the model configuration:"
+msgstr "Y *construya* el modelo para ver la configuración del modelo:"
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:140002
+#: f6992f4d02e34cbf8565ece485b9a725
+msgid ""
+"Notice the additional `phi_dropout` and `kappa_dropout` priors. These were "
+"added to the default configuration to improve performance, but can be "
+"omitted when specifying a custom `model_config` with `a` and `b`."
+msgstr ""
+"Observe los priors adicionales `phi_dropout` y `kappa_dropout`. Estos se "
+"añadieron a la configuración predeterminada para mejorar el rendimiento, "
+"pero se pueden omitir al especificar una `model_config` personalizada con "
+"`a` y `b`."
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:140004
+#: 1c8fed99351e42b9b4328da9f9e2f19b
+msgid "The specified model structure can also be visualized:"
+msgstr "La estructura del modelo especificado también se puede visualizar:"
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:160002
+#: d191a2d1b22b405a88c84ba863b1ea93
+msgid ""
+"We can now fit the model. The default sampler in PyMC-Marketing is the No-U-"
+"Turn Sampler (NUTS). We use the default $4$ chains and $1000$ draws per "
+"chain."
+msgstr ""
+"Ahora podemos ajustar el modelo. El muestreador predeterminado en PyMC-"
+"Marketing es el Muestreador No-U-Turn (NUTS). Utilizamos las $4$ cadenas "
+"predeterminadas y $1000$ muestras por cadena."
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:170003
+#: 8765cd477f324aa194934c2b9d9f186b
+msgid ""
+"It is not necessary to build the model before fitting it. We can fit the "
+"model directly."
+msgstr ""
+"No es necesario construir el modelo antes de ajustarlo. Podemos ajustar el "
+"modelo directamente."
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:200002
+#: 885429a9be714858ab6fea77ea01cf46
+msgid "We can look into the summary table:"
+msgstr "Podemos consultar la tabla de resumen:"
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:220002
+#: e96ffd26fcd14d95855dce38fd58808c
+msgid ""
+"We see that the `r_hat` values are close to $1$, which indicates "
+"convergence."
+msgstr ""
+"Vemos que los valores de `r_hat` están cerca de $1$, lo que indica "
+"convergencia."
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:220004
+#: 23310c43852b437b937f262710e5aa73
+msgid ""
+"We can also plot posterior distributions of the parameters and the rank "
+"plots:"
+msgstr ""
+"También podemos trazar distribuciones posteriores de los parámetros y los "
+"gráficos de rango:"
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:240002
+#: ca42958d85404517bd97b28c73c12178
+msgid "Using MAP fit"
+msgstr "Usando el ajuste MAP"
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:240004
+#: d36a11b1c2c64d4e9b4fe7e0a5d17f5a
+msgid ""
+"CLV models such as `BetaGeoModel`, can provide the maximum a posteriori "
+"estimates using a numerical optimizer (`L-BFGS-B` from `scipy.optimize`) "
+"under the hood."
+msgstr ""
+"Los modelos de CLV, como `BetaGeoModel`, pueden proporcionar las "
+"estimaciones máximas a posteriori utilizando un optimizador numérico "
+"(`L-BFGS-B` de `scipy.optimize`) en segundo plano."
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:270002
+#: 7009bdbfee80462cb8715711c4b8deef
+msgid "This time we get point estimates for the parameters."
+msgstr "Esta vez obtenemos estimaciones puntuales para los parámetros."
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:290002
+#: cc827c4c84584f6394daf3c84a071364
+msgid "Comparing with the `lifetimes` package"
+msgstr "Comparando con el paquete `lifetimes`"
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:290004
+#: 314a244c8d534ed9b180a2187fc8f126
+msgid ""
+"For the sake of comparison, let's fit the model using the `lifetimes` "
+"package."
+msgstr ""
+"Para fines de comparación, ajustemos el modelo utilizando el paquete "
+"`lifetimes`."
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:320002
+#: 46519ff62ecc4c23819a260c704b9e7d
+msgid ""
+"The `r` and `alpha` purchase rate parameters are quite similar for all three"
+" models, but the `a` and `b` dropout parameters are better approximated with"
+" the default parameters when fitted with MCMC."
+msgstr ""
+"Los parámetros de tasa de compra `r` y `alpha` son bastante similares para "
+"los tres modelos, pero los parámetros de abandono `a` y `b` se aproximan "
+"mejor con los parámetros predeterminados cuando se ajustan con MCMC."
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:330002
+#: 24317f5cf4914ad4bb0a5f8fad2f52f1
+msgid "Prior and Posterior Predictive Checks"
+msgstr "Comprobaciones Predictivas Anteriores y Posteriores"
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:330003
+#: 5c7c8a3fa1b94dc39bfc0b9caa391cdd
+msgid ""
+"PPCs allow us to check the efficacy of our priors, and the peformance of the"
+" fitted posteriors."
+msgstr ""
+"Los PPCs nos permiten verificar la eficacia de nuestras distribuciones a "
+"priori y el rendimiento de los posteriors ajustados."
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:330005
+#: ff85e4ef6488407f9d00548451e7ecdf
+msgid ""
+"Let's see how the model performs in a *prior* predictive check, where we "
+"sample from the default priors before fitting the model:"
+msgstr ""
+"Veamos cómo se desempeña el modelo en un chequeo predictivo *previo*, donde "
+"muestreamos de las distribuciones a priori predeterminadas antes de ajustar "
+"el modelo:"
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:360002
+#: 713c1f03db53450a8ac78477f6e38cfd
+msgid "Some Applications"
+msgstr "Algunas Aplicaciones"
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:360004
+#: debf97086e0e4ef99cc8f905de37f39b
+msgid ""
+"Now that you have fitted the model, we can use it to make predictions. For "
+"example, we can predict the expected probability of a customer being alive "
+"as a function of time (steps). Here is a snippet of code to do that:"
+msgstr ""
+"Ahora que ha ajustado el modelo, podemos utilizarlo para hacer predicciones."
+" Por ejemplo, podemos predecir la probabilidad esperada de que un cliente "
+"esté vivo en función del tiempo (pasos). Aquí hay un fragmento de código "
+"para hacerlo:"
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:370002
+#: 97b9c538b19843de9f223e9aade73504
+msgid "Expected Number of Purchases"
+msgstr "Número Esperado de Compras"
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:380002
+#: 8a3f074f4ddc4fc5a47918452625f176
+msgid "Let us take a sample of users:"
+msgstr "Tomemos una muestra de usuarios:"
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:400002
+#: fbc5120c7eaa4557b7d6d2cea8bfd868
+msgid ""
+"Observe that the last two customers are *frequent buyers* as compared to the"
+" others."
+msgstr ""
+"Observe que los últimos dos clientes son *compradores frecuentes* en "
+"comparación con los demás."
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:420002
+#: 54b69357185144fc8e5f1f753d4b8511
+msgid ""
+"We can plot the expected number of purchases for the next $90$ periods:"
+msgstr ""
+"Podemos trazar el número esperado de compras para los próximos $90$ "
+"períodos:"
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:440002
+#: bad9d7935e2e4375b425f7c3e76555eb
+msgid ""
+"Note that the *frequent buyers* are expected to make more purchases in the "
+"future."
+msgstr ""
+"Tenga en cuenta que se espera que los *compradores frecuentes* realicen más "
+"compras en el futuro."
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:450002
+#: 2969074037954aec87f266ba11aa02b4
+msgid "Probability of a Customer Being Alive"
+msgstr "Probabilidad de que un Cliente esté Vivo"
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:450004
+#: 6f0f3f67a8c64c7fbb6a29d414a09872
+msgid ""
+"We now look into the probability of a customer being alive for the next $90$"
+" periods:"
+msgstr ""
+"Ahora examinamos la probabilidad de que un cliente esté vivo durante los "
+"próximos $90$ períodos:"
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:480003
+#: 1030f256df474165be2a63e8116afcbc
+msgid "Here are some general remarks:"
+msgstr "Aquí hay algunas observaciones generales:"
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:480004
+#: 443c5c76c88c456387edd9970895f8fc
+msgid "**These plots assume no future purchases.**"
+msgstr "**Estos gráficos suponen que no habrá compras futuras.**"
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:480005
+#: db96fe7e52cb4a3784198d8e0a01b704
+msgid ""
+"The decay probability is not the same as it depends in the purchase history "
+"of the customer."
+msgstr ""
+"La probabilidad de descomposición no es la misma, ya que depende del "
+"historial de compras del cliente."
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:480006
+#: e4af31485bdd4fc8a73335a7b78648e0
+msgid ""
+"The probability of being alive is always decreasing as we are assuming there"
+" is no change in the other parameters."
+msgstr ""
+"La probabilidad de estar vivo siempre está disminuyendo, ya que asumimos que"
+" no hay cambios en los otros parámetros."
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:480007
+#: 607d9bb27b424af9b8d338cd57294b6b
+msgid "These probabilities are always non-negative, as expected."
+msgstr "Estas probabilidades son siempre no negativas, como se esperaba."
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:480011
+#: 52591c0876aa457582c5b010ba1b870e
+msgid ""
+"For the frequent buyers, the probability of being alive drops very fast as "
+"we are assuming no future purchases. It is very important to keep this in "
+"mind when interpreting the results."
+msgstr ""
+"Para los compradores frecuentes, la probabilidad de estar vivos disminuye "
+"muy rápidamente ya que asumimos que no habrá compras futuras. Es muy "
+"importante tener esto en cuenta al interpretar los resultados."
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:490002
+#: a6d8525ffc824c30b0cdc519218c5b90
+msgid "Probability of a Customer Making Zero Purchases in a time range"
+msgstr ""
+"Probabilidad de que un cliente no realice ninguna compra en un rango de "
+"tiempo"
+
+#: ../source/notebooks/clv/bg_nbd.ipynb:490004
+#: 89787fdfa4e54aef897324f084e15242
+msgid ""
+"We now look into the probability of a customer making 0 purchases between "
+"now, and the next $t$ periods between 0 and 30."
+msgstr ""
+"Ahora analizamos la probabilidad de que un cliente realice 0 compras entre "
+"ahora y los próximos $t$ períodos, que van de 0 a 30."

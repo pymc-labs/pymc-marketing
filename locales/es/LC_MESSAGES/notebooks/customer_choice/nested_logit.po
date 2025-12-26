@@ -1,0 +1,400 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-20 21:01+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/customer_choice/nested_logit.ipynb:10002
+#: 0eb0a37a14034435b7a9a8f4a88c9e14
+msgid "Nested Logit and Non-Proportional Patterns of Substitution"
+msgstr "Logit anidado y patrones de sustitución no proporcionales"
+
+#: ../source/notebooks/customer_choice/nested_logit.ipynb:40002
+#: 1b27aca5583949cdba4b66295a7eb474
+#, fuzzy
+msgid ""
+"We've seen in the other example notebook for consumer choice how the "
+"Multinomial Logit model suffers from the IIA limitation that leads to "
+"implausible counterfactual inferences regarding market behaviour. If you "
+"haven't read that one, we advise you read it before continuing. We will now "
+"show how the nested logit model specification avoids this property by adding"
+" more explicit structure to the choice scenarios that are modelled."
+msgstr ""
+"Hemos visto cómo el modelo de Logit Multinomial sufre de la limitación IIA "
+"que conduce a inferencias contrafactuales implausibles sobre el "
+"comportamiento del mercado. Mostraremos cómo la especificación del modelo de"
+" logit anidado evita esta propiedad al agregar una estructura más explícita "
+"a los escenarios de elección que se modelan."
+
+#: ../source/notebooks/customer_choice/nested_logit.ipynb:40004
+#: f0ae1b305f9d4de997d3aa99704a25fb
+msgid ""
+"In this notebook we will re-use the same heating choice data set seen in the"
+" Multinomial Logit example and apply a few different specifications of a "
+"nested logit model."
+msgstr ""
+"En este cuaderno reutilizaremos el mismo conjunto de datos de elección de "
+"calefacción visto en el ejemplo de Logit Multinomial y aplicaremos algunas "
+"especificaciones diferentes de un modelo de logit anidado."
+
+#: ../source/notebooks/customer_choice/nested_logit.ipynb:60002
+#: 2817628af4704dcfbc159bee4166ef3b
+msgid "Single Layer Nesting"
+msgstr "Anidamiento de Capa Única"
+
+#: ../source/notebooks/customer_choice/nested_logit.ipynb:60004
+#: 1ecf3dcc810d48b4956f075d07ceef29
+msgid ""
+"The important addition gained through the nested logit specification is the "
+"ability to specify \"nests\" of products in this way we can partition the "
+"market into \"natural\" groups of competing products ensuring that there is "
+"an inherent bias in the model towards a selective pattern of preference. As "
+"before we specify the models using formulas, but now we also add a nesting "
+"structure."
+msgstr ""
+"La importante adición obtenida a través de la especificación de logit "
+"anidado es la capacidad de especificar \"nidos\" de productos; de esta "
+"manera, podemos dividir el mercado en grupos \"naturales\" de productos en "
+"competencia, asegurando que haya un sesgo inherente en el modelo hacia un "
+"patrón selectivo de preferencia. Como antes, especificamos los modelos "
+"utilizando fórmulas, pero ahora también añadimos una estructura de "
+"anidamiento."
+
+#: ../source/notebooks/customer_choice/nested_logit.ipynb:80002
+#: 3e97547eeadc4bff9f744aef1490266e
+msgid ""
+"We will dwell a bit on the manner in which these nests are specified and "
+"why. The nested logit model partitions the choice set into nests of "
+"alternatives that share common unobserved attributes (i.e., are more similar"
+" to each other). It computes the overall probability of choosing an "
+"alternative as the product of (1) The probability of choosing a nest "
+"(marginal probability), and (2) the probability of choosing an alternative "
+"within that nest (conditional probability, given that nest). In our case we "
+"want to isolate the probability of choosing a central heatings system and a "
+"room based heating system."
+msgstr ""
+"Nos detendremos un poco en la manera en que se especifican estos nidos y por"
+" qué. El modelo logit anidado divide el conjunto de opciones en nidos de "
+"alternativas que comparten atributos no observados comunes (es decir, son "
+"más similares entre sí). Calcula la probabilidad total de elegir una "
+"alternativa como el producto de (1) la probabilidad de elegir un nido "
+"(probabilidad marginal), y (2) la probabilidad de elegir una alternativa "
+"dentro de ese nido (probabilidad condicional, dado ese nido). En nuestro "
+"caso, queremos aislar la probabilidad de elegir un sistema de calefacción "
+"central y un sistema de calefacción por habitación."
+
+#: ../source/notebooks/customer_choice/nested_logit.ipynb:90002
+#: 4378710917d7499c929db180938d0cbe
+msgid ""
+"Each of the alternatives `alt` is indexed to a nest. So that we can "
+"determine (§) the marginal probability of choosing `room` or `central` and "
+"(2) conditional probability of choosing `ec` given that you have chosen "
+"`central`. Our utilities are decomposed into contributions from "
+"fixed_covariates and alternative specific covariates:"
+msgstr ""
+"Cada una de las alternativas `alt` está indexada a un nido. De modo que "
+"podemos determinar (§) la probabilidad marginal de elegir `room` o `central`"
+" y (2) la probabilidad condicional de elegir `ec` dado que ha elegido "
+"`central`. Nuestras utilidades se descomponen en contribuciones de "
+"fixed_covariates y covariables específicas de la alternativa:"
+
+#: ../source/notebooks/customer_choice/nested_logit.ipynb:90004
+#: f982e65db87c4d80b0e93a74b43b33a7
+msgid " U = Y + W + \\epsilon "
+msgstr "U = Y + W + \\epsilon"
+
+#: ../source/notebooks/customer_choice/nested_logit.ipynb:90006
+#: f0baaf72c63a493db0db97d4c6110ae5
+msgid ""
+"and the probabilities are derived from these decomposed utilitiies in the "
+"following manner."
+msgstr ""
+"y las probabilidades se derivan de estas utilidades descompuestas de la "
+"siguiente manera."
+
+#: ../source/notebooks/customer_choice/nested_logit.ipynb:90008
+#: f5d2638effb94322bbb46dd81dd3e5a0
+#, python-brace-format
+msgid ""
+" P(i) = P(\\text{choose nest B}) \\cdot P(\\text{choose i} | \\text{ i} \\in"
+" \\text{B}) "
+msgstr ""
+"P(i) = P(\\text{choose nest B}) \\cdot P(\\text{choose i} | \\text{ i} \\in "
+"\\text{B})"
+
+#: ../source/notebooks/customer_choice/nested_logit.ipynb:90010
+#: f2a0bcca5ed14e0a86fedf9668ef7313
+msgid "where"
+msgstr "donde"
+
+#: ../source/notebooks/customer_choice/nested_logit.ipynb:90012
+#: dc9883a963ad4882baeba0b7bb533f17
+msgid ""
+" P(\\text{choose nest B}) = \\dfrac{e^{W + "
+"\\lambda_{k}I_{k}}}{\\sum_{l=1}^{K} e^{W + \\lambda_{l}I_{l}}} "
+msgstr ""
+"P(\\text{choose nest B}) = \\dfrac{e^{W + "
+"\\lambda_{k}I_{k}}}{\\sum_{l=1}^{K} e^{W + \\lambda_{l}I_{l}}}"
+
+#: ../source/notebooks/customer_choice/nested_logit.ipynb:90014
+#: b43fb3a5fede40419eba9269a0a33311
+msgid "and"
+msgstr "y"
+
+#: ../source/notebooks/customer_choice/nested_logit.ipynb:90016
+#: 37769c93e84041f2bf7471c6dfa9a2b3
+msgid ""
+" P(\\text{choose i} | \\text{ i} \\in \\text{B}) = \\dfrac{e^{Y_{i} / "
+"\\lambda_{k}}}{\\sum_{j \\in B_{k}} e^{Y_{j} / \\lambda_{k}}} "
+msgstr ""
+"P(\\text{choose i} | \\text{ i} \\in \\text{B}) = \\dfrac{e^{Y_{i} / "
+"\\lambda_{k}}}{\\sum_{j \\in B_{k}} e^{Y_{j} / \\lambda_{k}}}"
+
+#: ../source/notebooks/customer_choice/nested_logit.ipynb:90018
+#: 86694eb285074aa48d327d8ae708a511
+#, python-brace-format
+msgid "while the inclusive term $I_{k}$ is:"
+msgstr "mientras que el término inclusivo $I_{k}$ es:"
+
+#: ../source/notebooks/customer_choice/nested_logit.ipynb:90020
+#: f00ba35ca1b3491a8037de14694152ff
+msgid ""
+" I_{k} = ln \\sum_{j \\in B_{k}}  e^{Y_{j} / \\lambda_{k}} \\text{ and } "
+"\\lambda_{k} \\sim Beta(1, 1) "
+msgstr ""
+"I_{k} = ln \\sum_{j \\in B_{k}} e^{Y_{j} / \\lambda_{k}} \\text{ and } "
+"\\lambda_{k} \\sim Beta(1, 1)"
+
+#: ../source/notebooks/customer_choice/nested_logit.ipynb:90022
+#: 639d60b3c07d43c8900d8f16704f5aec
+#, python-brace-format
+msgid ""
+"such that $I_{k}$ is used to \"aggregate\" utilities within a nest a "
+"\"bubble up\" their contribution to decision through the product of the "
+"marginal and conditional probabilities. More extensive details of this "
+"mathematical formulation can be found in Kenneth Train's \"Discrete Choice "
+"Methods with Simulation\"."
+msgstr ""
+"de tal manera que $I_{k}$ se utiliza para \"agregar\" utilidades dentro de "
+"un nido y \"elevar\" su contribución a la decisión a través del producto de "
+"las probabilidades marginales y condicionales. Detalles más extensos de esta"
+" formulación matemática se pueden encontrar en \"Discrete Choice Methods "
+"with Simulation\" de Kenneth Train."
+
+#: ../source/notebooks/customer_choice/nested_logit.ipynb:110002
+#: 19dd91760d014cdb8e55d889e7075df5
+msgid ""
+"The model structure is quite a bit more complicated now than the simpler "
+"multinomial logit as we need to calculate the marginal and conditional "
+"probabilities within each of the nests seperately and then \"bubble up\" the"
+" probabilies as a product over the branching nests. These probabilities are "
+"deterministic functions of the summed utilities and are then fed into our "
+"categorical likelihood to calibrate our parameters against the observed "
+"data."
+msgstr ""
+"La estructura del modelo es considerablemente más complicada ahora que el "
+"logit multinomial más simple, ya que necesitamos calcular las probabilidades"
+" marginales y condicionales dentro de cada uno de los nidos por separado y "
+"luego \"elevar\" las probabilidades como un producto sobre los nidos "
+"ramificados. Estas probabilidades son funciones deterministas de las "
+"utilidades sumadas y luego se introducen en nuestra verosimilitud categórica"
+" para calibrar nuestros parámetros en función de los datos observados."
+
+#: ../source/notebooks/customer_choice/nested_logit.ipynb:130002
+#: b738a35361f4421ba5b2bf02c6837d55
+msgid ""
+"But again we are able to derive parameter estimates for the drivers of "
+"consumer choice and consult the model implications is in a standard Bayesian"
+" model."
+msgstr ""
+"Pero nuevamente podemos derivar estimaciones de parámetros para los factores"
+" que influyen en la elección del consumidor y consultar las implicaciones "
+"del modelo en un modelo bayesiano estándar."
+
+#: ../source/notebooks/customer_choice/nested_logit.ipynb:150002
+#: 2eb7fd2c9be74fcfb382872dd5ca29fd
+msgid ""
+"Here we see additionally lambda parameters for each of the nests. These "
+"terms measure how strongly correlated the unobserved utility components are "
+"for alternatives within the same nest. Closer to 0 indicates a high "
+"correlation, substitution happens mostly within the nest. Whereas a value "
+"closer to 1 implies lower within nest correlation suggesting IIA "
+"approximately holds within the nest. The options available for structuring a"
+" market can be quite extensive. As we might have \"nests within nests\" "
+"where the conditional probabilities flow through successive choices within "
+"segments of the market."
+msgstr ""
+"Aquí vemos además los parámetros lambda para cada uno de los nidos. Estos "
+"términos miden cuán fuertemente correlacionados están los componentes de "
+"utilidad no observados para las alternativas dentro del mismo nido. Un valor"
+" más cercano a 0 indica una alta correlación, la sustitución ocurre "
+"principalmente dentro del nido. Mientras que un valor más cercano a 1 "
+"implica una menor correlación dentro del nido, sugiriendo que la IIA se "
+"mantiene aproximadamente dentro del nido. Las opciones disponibles para "
+"estructurar un mercado pueden ser bastante extensas. Como podríamos tener "
+"\"nidos dentro de nidos\" donde las probabilidades condicionales fluyen a "
+"través de elecciones sucesivas dentro de segmentos del mercado."
+
+#: ../source/notebooks/customer_choice/nested_logit.ipynb:160002
+#: 59433186d4074c89854101249f0f1a57
+msgid "Two Layer Nesting"
+msgstr "Dos capas de anidación"
+
+#: ../source/notebooks/customer_choice/nested_logit.ipynb:160004
+#: 5e527bc0ab81421bb06112b291de6237
+msgid ""
+"In this PyMC marketing implementation we allow for the specification of a "
+"two-layer nesting representing succesive choices over a root nest and then "
+"nests within the child nests."
+msgstr ""
+"En esta implementación de marketing de PyMC, permitimos la especificación de"
+" un anidamiento de dos capas que representa elecciones sucesivas sobre un "
+"nido raíz y luego nidos dentro de los nidos hijos."
+
+#: ../source/notebooks/customer_choice/nested_logit.ipynb:210002
+#: 1b0a9ae6815241eda64b4605598de23e
+msgid ""
+"Again the parameter estimates seem to be recovered sensibly on the beta "
+"coefficients, but the question remains as to whether this additional nesting"
+" structure will help support plausible counterfactual reasoning. Note how "
+"the model struggles to identify the the intercept terms and places weight on"
+msgstr ""
+"Nuevamente, las estimaciones de los parámetros parecen recuperarse de manera"
+" sensata en los coeficientes beta, pero la pregunta sigue siendo si esta "
+"estructura de anidamiento adicional ayudará a respaldar un razonamiento "
+"contrafactual plausible. Observe cómo el modelo tiene dificultades para "
+"identificar los términos de intercepción y coloca peso en"
+
+#: ../source/notebooks/customer_choice/nested_logit.ipynb:230002
+#: 69a47e0c32504b83b7ce3504d50371ac
+msgid ""
+"Both models seem to recover posterior predictive distributions well, but "
+"vary slightly in the estimate parameters. Let's check the counterfactual "
+"inferences."
+msgstr ""
+"Ambos modelos parecen recuperar bien las distribuciones predictivas "
+"posteriores, pero varían ligeramente en los parámetros estimados. "
+"Verifiquemos las inferencias contrafactuales."
+
+#: ../source/notebooks/customer_choice/nested_logit.ipynb:240002
+#: ee90dd035c074a138475c7b62065dc98
+msgid "Making Interventions in Structured Markets"
+msgstr "Realizando intervenciones en mercados estructurados"
+
+#: ../source/notebooks/customer_choice/nested_logit.ipynb:260002
+#: 4f30886244a541b3b692ec1a7ce957d7
+msgid ""
+"Here we can see that both nesting structures recover non-proportional "
+"patterns of product substitution. We have elided the IIA feature of the "
+"multinomial logit and can continue to assess whether or not the behaviour "
+"implications of these utility theory makes sense."
+msgstr ""
+"Aquí podemos ver que ambas estructuras de anidamiento recuperan patrones de "
+"sustitución de productos no proporcionales. Hemos elidido la característica "
+"IIA del logit multinomial y podemos continuar evaluando si las implicaciones"
+" de comportamiento de esta teoría de la utilidad tienen sentido."
+
+#: ../source/notebooks/customer_choice/nested_logit.ipynb:290002
+#: f6d50517fb7e4cc28e21d7bbb803844a
+msgid "Visualising the Substitution Patterns"
+msgstr "Visualizando los Patrones de Sustitución"
+
+#: ../source/notebooks/customer_choice/nested_logit.ipynb:320002
+#: 942d6c49fdcd4db79edb58355ed5c85a
+msgid ""
+"We can additionally test counterfactuals about the removal of products from "
+"the market."
+msgstr ""
+"También podemos probar contrafactuales sobre la eliminación de productos del"
+" mercado."
+
+#: ../source/notebooks/customer_choice/nested_logit.ipynb:340002
+#: da539e1adfa8494fa041018687cbaf72
+msgid "A Different Market"
+msgstr "Un Mercado Diferente"
+
+#: ../source/notebooks/customer_choice/nested_logit.ipynb:340004
+#: 1ef5b342a6ee421984e4a79759bbb9f1
+msgid ""
+"Let's now briefly look at a different market that highlights a limitation of"
+" the nested logit model."
+msgstr ""
+"Veamos ahora brevemente un mercado diferente que destaca una limitación del "
+"modelo logit anidado."
+
+#: ../source/notebooks/customer_choice/nested_logit.ipynb:400002
+#: ee131f21aee94eb5af84a37585595e3a
+msgid ""
+"This model suggests plausibly that price increases have a strongly negative "
+"effect of the purchase probability of crackers. However, we should note that"
+" we're ignoring information when we use the nested logit in this context. "
+"The data set records multiple purchasing decisions for each individual and "
+"by failing to model this fact we lose insight into individual heterogeneity "
+"in their responses to price shifts. To gain more insight into this aspect of"
+" the purchasing decisions of individuals we might augment our model with "
+"hierarchical components or switch to alternative Mixed logit model."
+msgstr ""
+"Este modelo sugiere de manera plausible que los aumentos de precio tienen un"
+" efecto negativamente fuerte en la probabilidad de compra de galletas. Sin "
+"embargo, debemos señalar que estamos ignorando información al utilizar el "
+"logit anidado en este contexto. El conjunto de datos registra múltiples "
+"decisiones de compra para cada individuo y, al no modelar este hecho, "
+"perdemos información sobre la heterogeneidad individual en sus respuestas a "
+"los cambios de precio. Para obtener más información sobre este aspecto de "
+"las decisiones de compra de los individuos, podríamos aumentar nuestro "
+"modelo con componentes jerárquicos o cambiar a un modelo logit mixto "
+"alternativo."
+
+#: ../source/notebooks/customer_choice/nested_logit.ipynb:410002
+#: 1f7b2bd4a89648b49b10bfbfbb068514
+msgid "Choosing a Market Structure"
+msgstr "Eligiendo una Estructura de Mercado"
+
+#: ../source/notebooks/customer_choice/nested_logit.ipynb:410004
+#: 94cda564abe74fdfbd3b70fb90095357
+msgid ""
+"Causal inference is hard and predicting the counterfactual actions of agents"
+" in a competitive market is very hard. There is no guarantee that a nested "
+"logit model will accurately represent the choice of any particular agent, "
+"but you can be hopeful that it highlights expected patterns of choice when "
+"the nesting structure reflects the natural segmentation of a market. Nests "
+"should group alternatives that share unobserved similarities, ideally driven"
+" by a transparent theory of the market structure. Well-specified nests "
+"should show stronger substitution within nests than across nests, and you "
+"can inspect the substitution patterns as above. Ideally you can always try "
+"and hold out some test data to evaluate the implications of your fitted "
+"model. Discrete choice models are causal inference models and their "
+"structural specification should support generalisable inference across "
+"future and counterfactual situations."
+msgstr ""
+"La inferencia causal es difícil y predecir las acciones contrafactuales de "
+"los agentes en un mercado competitivo es muy complicado. No hay garantía de "
+"que un modelo logit anidado represente con precisión la elección de un "
+"agente en particular, pero se puede tener la esperanza de que resalte "
+"patrones de elección esperados cuando la estructura de anidamiento refleja "
+"la segmentación natural de un mercado. Los nidos deberían agrupar "
+"alternativas que compartan similitudes no observadas, idealmente impulsadas "
+"por una teoría transparente de la estructura del mercado. Los nidos bien "
+"especificados deberían mostrar una mayor sustitución dentro de los nidos que"
+" entre nidos, y se pueden inspeccionar los patrones de sustitución como se "
+"mencionó anteriormente. Idealmente, siempre se puede intentar reservar "
+"algunos datos de prueba para evaluar las implicaciones de su modelo "
+"ajustado. Los modelos de elección discreta son modelos de inferencia causal "
+"y su especificación estructural debería respaldar inferencias generalizables"
+" en situaciones futuras y contrafactuales."

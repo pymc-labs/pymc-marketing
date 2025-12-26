@@ -1,0 +1,178 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.rst:2
+#: 57972369c92245c29ddc123cfe4a30a6
+msgid "adstock"
+msgstr "adstock"
+
+#: 78c1bb4e3f9d469393c745247348612b of pymc_marketing.mmm.components.adstock:1
+msgid "Adstock transformations for MMM."
+msgstr "Transformaciones de Adstock para MMM."
+
+#: e4eddad344d042e3a013b1182b85738c of pymc_marketing.mmm.components.adstock:3
+msgid ""
+"Each of these transformations is a subclass of "
+":class:`pymc_marketing.mmm.components.adstock.AdstockTransformation` and "
+"defines a function that takes a time series and returns the adstocked "
+"version of it. The parameters of the function are the parameters of the "
+"adstock transformation."
+msgstr ""
+"Cada una de estas transformaciones es una subclase de "
+":class:`pymc_marketing.mmm.components.adstock.AdstockTransformation` y "
+"define una función que toma una serie temporal y devuelve la versión "
+"adstocked de la misma. Los parámetros de la función son los parámetros de la"
+" transformación adstock."
+
+#: 5d213f9b42314fc1b2581135a301d611 of
+#: pymc_marketing.mmm.components.adstock:10
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: 3a90839de1ea46f188b6c5e7c52f97e7 of
+#: pymc_marketing.mmm.components.adstock:11
+msgid "Create a new adstock transformation:"
+msgstr "Crear una nueva transformación de adstock:"
+
+#: 18b7b6824bed452d83eaff64ab782f11 of
+#: pymc_marketing.mmm.components.adstock:27
+msgid "Plot the default priors for an adstock transformation:"
+msgstr ""
+"Grafique las priors predeterminadas para una transformación de adstock:"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.rst:13
+#: 4501e96642a34b6da5ba2b97c0227376
+msgid "Functions"
+msgstr "Funciones"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.rst:23:<autosummary>:1
+#: 1aff0fa7531e44559d7953fbd6761416
+msgid ""
+":py:obj:`adstock_from_dict "
+"<pymc_marketing.mmm.components.adstock.adstock_from_dict>`\\ \\(data\\)"
+msgstr ""
+":py:obj:`adstock_from_dict "
+"<pymc_marketing.mmm.components.adstock.adstock_from_dict>`\\ \\(datos\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.rst:23:<autosummary>:1
+#: 7b7b024700f94513a331e69a6be0e8a9
+msgid "Create an adstock transformation from a dictionary."
+msgstr "Cree una transformación de adstock a partir de un diccionario."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.rst:25
+#: 5f18166ec50a4787bb88dbbd0c721cee
+msgid "Classes"
+msgstr "Clases"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.rst:46:<autosummary>:1
+#: fe2a0c7ea71443c5bd52f17f0d5f0cfd
+msgid ""
+":py:obj:`AdstockTransformation "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation>`\\ "
+"\\(\\[l\\_max\\, normalize\\, ...\\]\\)"
+msgstr ""
+":py:obj:`AdstockTransformation "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation>`\\ "
+"\\(\\[l\\_max\\, normalizar\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.rst:46:<autosummary>:1
+#: c110826ea6b94ca992ab66ea4f60398d
+msgid "Subclass for all adstock functions."
+msgstr "Subclase para todas las funciones de adstock."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.rst:46:<autosummary>:1
+#: 6bab2673d9a440efb8082ee02862102a
+msgid ""
+":py:obj:`DelayedAdstock "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock>`\\ \\(\\[l\\_max\\, "
+"normalize\\, mode\\, ...\\]\\)"
+msgstr ""
+":py:obj:`DelayedAdstock "
+"<pymc_marketing.mmm.components.adstock.DelayedAdstock>`\\ \\(\\[l\\_max\\, "
+"normalizar\\, modo\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.rst:46:<autosummary>:1
+#: c7c534d76e304ff3a7e53a19beb69d38
+msgid "Wrapper around delayed adstock function."
+msgstr "Envoltura alrededor de la función de adstock retrasado."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.rst:46:<autosummary>:1
+#: 6c8b96c9f7ed4496b13436b03ffada37
+msgid ""
+":py:obj:`GeometricAdstock "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock>`\\ \\(\\[l\\_max\\,"
+" normalize\\, mode\\, ...\\]\\)"
+msgstr ""
+":py:obj:`GeometricAdstock "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock>`\\ \\(\\[l\\_max\\,"
+" normalizar\\, modo\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.rst:46:<autosummary>:1
+#: 8488a322c74f4fd08b19df018b5dfdd8
+msgid "Wrapper around geometric adstock function."
+msgstr "Envoltura alrededor de la función adstock geométrica."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.rst:46:<autosummary>:1
+#: 9194eeae92df4d54aab797a302b91ad2
+msgid ""
+":py:obj:`NoAdstock <pymc_marketing.mmm.components.adstock.NoAdstock>`\\ "
+"\\(\\[l\\_max\\, normalize\\, mode\\, priors\\, ...\\]\\)"
+msgstr ""
+":py:obj:`NoAdstock <pymc_marketing.mmm.components.adstock.NoAdstock>`\\ "
+"\\(\\[l\\_max\\, normalizar\\, modo\\, priors\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.rst:46:<autosummary>:1
+#: 8d632e8a42f54cee81ccfe7e680bfaf7
+msgid "Wrapper around no adstock transformation."
+msgstr "Envoltura alrededor de la transformación sin adstock."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.rst:46:<autosummary>:1
+#: ba9e9ea8911a45ee8d4d50607ab74d6c
+msgid ""
+":py:obj:`WeibullCDFAdstock "
+"<pymc_marketing.mmm.components.adstock.WeibullCDFAdstock>`\\ "
+"\\(\\[l\\_max\\, normalize\\, mode\\, ...\\]\\)"
+msgstr ""
+":py:obj:`WeibullCDFAdstock "
+"<pymc_marketing.mmm.components.adstock.WeibullCDFAdstock>`\\ "
+"\\(\\[l\\_max\\, normalizar\\, modo\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.rst:46:<autosummary>:1
+#: 691ea18c0fb54c798ac2bc950662a720
+msgid "Wrapper around weibull adstock with CDF function."
+msgstr "Envoltura alrededor del adstock de Weibull con función CDF."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.rst:46:<autosummary>:1
+#: 49fdb333fe39416c94c682fcc4fc62e0
+msgid ""
+":py:obj:`WeibullPDFAdstock "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock>`\\ "
+"\\(\\[l\\_max\\, normalize\\, mode\\, ...\\]\\)"
+msgstr ""
+":py:obj:`WeibullPDFAdstock "
+"<pymc_marketing.mmm.components.adstock.WeibullPDFAdstock>`\\ "
+"\\(\\[l\\_max\\, normalizar\\, modo\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.rst:46:<autosummary>:1
+#: cbd91ab776bb4434accc4821c54fcd4e
+msgid "Wrapper around weibull adstock with PDF function."
+msgstr "Envoltorio alrededor del adstock de Weibull con función PDF."

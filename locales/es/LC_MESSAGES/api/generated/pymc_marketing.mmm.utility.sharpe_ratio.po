@@ -1,0 +1,120 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.utility.sharpe_ratio.rst:2
+#: 71f103903f8640ce9d60982c0c9d7114
+msgid "sharpe\\_ratio"
+msgstr "sharpe\\_ratio"
+
+#: 9cdd344caa81479ea14847ea5fb0ad7a of
+#: pymc_marketing.mmm.utility.sharpe_ratio:2
+msgid "Calculate the Sharpe Ratio."
+msgstr "Calcule el Ratio de Sharpe."
+
+#: 2296a74428054bc89ad2a385204b20a9 of
+#: pymc_marketing.mmm.utility.sharpe_ratio:4
+msgid ""
+"The Sharpe Ratio assesses the risk-adjusted return of an investment by "
+"comparing the excess return over the risk-free rate to the standard "
+"deviation of returns."
+msgstr ""
+"El Ratio de Sharpe evalúa el rendimiento ajustado al riesgo de una inversión"
+" al comparar el rendimiento en exceso sobre la tasa libre de riesgo con la "
+"desviación estándar de los rendimientos."
+
+#: bf6be9e559324591af836e2af15d2373 of
+#: pymc_marketing.mmm.utility.sharpe_ratio:7
+msgid "The Sharpe Ratio is calculated as:"
+msgstr "El Ratio de Sharpe se calcula como:"
+
+#: 43eafb4d158d4939b3467fdd7ee0a894 of
+#: pymc_marketing.mmm.utility.sharpe_ratio:9
+msgid ""
+"Sharpe\\ Ratio = \\frac{\\mathbb{E}[R - R_f]}{\\sigma}\n"
+"\n"
+msgstr "Sharpe\\ Ratio = \\frac{\\mathbb{E}[R - R_f]}{\\sigma}"
+
+#: c369c427b7df4e96b82f496a84d0cb2f of
+#: pymc_marketing.mmm.utility.sharpe_ratio:12
+msgid "where:"
+msgstr "donde:"
+
+#: f61a4f23e4d5431185327b260a533ada of
+#: pymc_marketing.mmm.utility.sharpe_ratio:13
+#, python-brace-format
+msgid ":math:`\\mathbb{E}[R - R_f]` is the mean of excess returns."
+msgstr ":math:`\\mathbb{E}[R - R_f]` es la media de los rendimientos en exceso."
+
+#: 4b1c879c77724e4387bf03d7669d2372 of
+#: pymc_marketing.mmm.utility.sharpe_ratio:14
+msgid ":math:`\\sigma` is the standard deviation of the excess returns."
+msgstr ""
+":math:`\\sigma` es la desviación estándar de los rendimientos en exceso."
+
+#: 3893b780aa5941298543a27e4210fd76 of pymc_marketing.mmm.utility.sharpe_ratio
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 6496970270814ea488a4a252aded4f04 of
+#: pymc_marketing.mmm.utility.sharpe_ratio:18
+msgid "**risk_free_rate** : :class:`python:float`, optional"
+msgstr "**tasa_libre_de_riesgo** : :class:`python:float`, opcional"
+
+#: dfa0079f79eb418095e255cf34c04579 of
+#: pymc_marketing.mmm.utility.sharpe_ratio:17
+msgid "python:float, optional"
+msgstr "python:float, opcional"
+
+#: ea9d8da7e2454fa1965f05e92999d6ed of
+#: pymc_marketing.mmm.utility.sharpe_ratio:19
+msgid "Risk-free rate of return (default is 0.0)."
+msgstr "Tasa de retorno libre de riesgo (el valor predeterminado es 0.0)."
+
+#: 20e3170ac1f6480bb76eaf70848d579c of pymc_marketing.mmm.utility.sharpe_ratio
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: dfe44c2a18ee41eb989941497c5e912a of
+#: pymc_marketing.mmm.utility.sharpe_ratio:25
+msgid ":obj:`UtilityFunctionType`"
+msgstr ":obj:`UtilityFunctionType`"
+
+#: 6ab2e5d670ee4f679c5dd0640d68a284 of
+#: pymc_marketing.mmm.utility.sharpe_ratio:26
+msgid "A function that calculates the Sharpe Ratio given samples and budgets."
+msgstr ""
+"Una función que calcula el Ratio de Sharpe dado muestras y presupuestos."
+
+#: 4e1405d4840849a9ba9f222cc8cc647e of
+#: pymc_marketing.mmm.utility.sharpe_ratio:37
+msgid "References"
+msgstr "Referencias"
+
+#: 262506904fc5443fbfe9572cc859f270 of
+#: pymc_marketing.mmm.utility.sharpe_ratio:38
+msgid "Sharpe, W.F. (1966). Mutual Fund Performance."
+msgstr "Sharpe, W.F. (1966). Rendimiento de Fondos Mutuos."
+
+#: f766fd79e72b4682a63474955cb5763a of
+#: pymc_marketing.mmm.utility.sharpe_ratio:42
+msgid "[R659b7c2b5b58-1]_"
+msgstr "[R659b7c2b5b58-1]_"

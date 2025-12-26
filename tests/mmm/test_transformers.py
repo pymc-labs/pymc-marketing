@@ -26,6 +26,7 @@ from pymc_marketing.mmm.transformers import (
     TanhSaturationParameters,
     WeibullType,
     batched_convolution,
+    binomial_adstock,
     delayed_adstock,
     geometric_adstock,
     hill_function,
@@ -104,7 +105,7 @@ def test_batched_convolution(convolution_inputs, convolution_axis, mode):
 
 
 def test_batched_convolution_invalid_mode(convolution_inputs, convolution_axis):
-    x, w, x_val, w_val = convolution_inputs
+    x, w, _, _ = convolution_inputs
     invalid_mode = "InvalidMode"
     with pytest.raises(ValueError):
         batched_convolution(x, w, convolution_axis, invalid_mode)
@@ -129,7 +130,27 @@ class TestsAdstockTransformers:
     def test_geometric_adstock_x_zero(self, mode):
         x = np.zeros(shape=(100))
         y = geometric_adstock(x=x, alpha=0.2, mode=mode)
-        np.testing.assert_array_equal(x=x, y=y.eval())
+        np.testing.assert_array_equal(actual=x, desired=y.eval())
+
+    @pytest.mark.parametrize(
+        "x, alpha, l_max",
+        [
+            (np.ones(shape=(100)), 0.3, 10),
+            (np.ones(shape=(100)), 0.7, 100),
+            (np.zeros(shape=(100)), 0.2, 5),
+            (np.ones(shape=(100)), 0.5, 7),
+            (np.linspace(start=0.0, stop=1.0, num=50), 0.8, 3),
+            (np.linspace(start=0.0, stop=1.0, num=50), 0.8, 50),
+        ],
+    )
+    def test_binomial_adstock(self, x, alpha, l_max):
+        y = binomial_adstock(x=x, alpha=alpha, l_max=l_max)
+        y_np = y.eval()
+        w1 = (1 - 1 / (l_max + 1)) ** (1 / alpha - 1)
+        w2 = (1 - 2 / (l_max + 1)) ** (1 / alpha - 1)
+        np.testing.assert_almost_equal(y_np[0], x[0])
+        np.testing.assert_almost_equal(y_np[1], x[1] + w1 * x[0])
+        np.testing.assert_almost_equal(y_np[2], x[2] + w1 * x[1] + w2 * x[0])
 
     @pytest.mark.parametrize(
         "x, alpha, l_max",
@@ -180,7 +201,7 @@ class TestsAdstockTransformers:
     def test_delayed_adstock_x_zero(self):
         x = np.zeros(shape=(100))
         y = delayed_adstock(x=x, alpha=0.2, theta=2, l_max=4)
-        np.testing.assert_array_equal(x=x, y=y.eval())
+        np.testing.assert_array_equal(actual=x, desired=y.eval())
 
     @pytest.mark.parametrize(
         argnames="mode",
@@ -327,13 +348,13 @@ class TestSaturationTransformers:
     def test_logistic_saturation_lam_zero(self):
         x = np.ones(shape=(100))
         y = logistic_saturation(x=x, lam=0.0)
-        np.testing.assert_array_equal(x=np.zeros(shape=(100)), y=y.eval())
+        np.testing.assert_array_equal(actual=np.zeros(shape=(100)), desired=y.eval())
 
     def test_logistic_saturation_lam_one(self):
         x = np.ones(shape=(100))
         y = logistic_saturation(x=x, lam=1.0)
         np.testing.assert_array_equal(
-            x=((1 - np.e ** (-1)) / (1 + np.e ** (-1))) * x, y=y.eval()
+            actual=((1 - np.e ** (-1)) / (1 + np.e ** (-1))) * x, desired=y.eval()
         )
 
     @pytest.mark.parametrize(
@@ -410,7 +431,7 @@ class TestSaturationTransformers:
     def test_tanh_saturation_inverse(self, x, b, c):
         y = tanh_saturation(x=x, b=b, c=c)
         y_inv = (b * c) * pt.arctanh(y / b)
-        np.testing.assert_array_almost_equal(x=x, y=y_inv.eval(), decimal=6)
+        np.testing.assert_array_almost_equal(actual=x, desired=y_inv.eval(), decimal=6)
 
     @pytest.mark.parametrize(
         "x, x0, gain, r",
@@ -442,7 +463,7 @@ class TestSaturationTransformers:
         b = (gain * x0) / r
         c = r / (gain * pt.arctanh(r))
         y_inv = (b * c) * pt.arctanh(y / b)
-        np.testing.assert_array_almost_equal(x=x, y=y_inv.eval(), decimal=6)
+        np.testing.assert_array_almost_equal(actual=x, desired=y_inv.eval(), decimal=6)
 
     @pytest.mark.parametrize(
         "x, b, c",
@@ -461,11 +482,13 @@ class TestSaturationTransformers:
         y2 = tanh_saturation_baselined(x, *param_x0).eval()
         y3 = tanh_saturation_baselined(x, *param_x1).eval()
         y4 = tanh_saturation(x, *param_classic1).eval()
-        np.testing.assert_allclose(y1, y2)
-        np.testing.assert_allclose(y2, y3)
-        np.testing.assert_allclose(y3, y4)
-        np.testing.assert_allclose(param_classic1.b.eval(), b)
-        np.testing.assert_allclose(param_classic1.c.eval(), c, rtol=1e-06)
+        # Use consistent tolerances for all comparisons to account for
+        # accumulated floating-point errors in round-trip transformations
+        np.testing.assert_allclose(y1, y2, rtol=1e-6)
+        np.testing.assert_allclose(y2, y3, rtol=1e-6)
+        np.testing.assert_allclose(y3, y4, rtol=1e-6)
+        np.testing.assert_allclose(param_classic1.b.eval(), b, rtol=1e-6)
+        np.testing.assert_allclose(param_classic1.c.eval(), c, rtol=1e-6)
 
     @pytest.mark.parametrize(
         "x, alpha, lam, expected",

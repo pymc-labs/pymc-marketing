@@ -1,0 +1,162 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases.rst:2
+#: 3ad83e7dd7584e93ae1455e6bc264b17
+msgid "BetaGeoBetaBinomModel.expected\\_purchases"
+msgstr "BetaGeoBetaBinomModel.p compras esperadas"
+
+#: 58a8eb5a86ce4ee682473d7f412c127c of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases:2
+msgid "Predict expected number of future purchases."
+msgstr "Predecir el número esperado de compras futuras."
+
+#: 28f9811b45f443efbefe9ee67a67cee1 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases:4
+msgid ""
+"Given *recency*, *frequency*, and *T* for an individual customer, this "
+"method estimates the expected number of future purchases across *future_t* "
+"time periods."
+msgstr ""
+"Dada la *recencia*, la *frecuencia* y *T* para un cliente individual, este "
+"método estima el número esperado de futuras compras a lo largo de *future_t*"
+" períodos de tiempo."
+
+#: 7d84b6d7c3e04d7083f92978020a065c of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases:7
+msgid ""
+"Adapted from equation (13) in Bruce Hardie's notes [R067e70a5a093-1]_, and "
+"`lifetimes` library: "
+"https://github.com/CamDavidsonPilon/lifetimes/blob/master/lifetimes/fitters/beta_geo_beta_binom_fitter.py#L179"
+msgstr ""
+"Adaptado de la ecuación (13) en las notas de Bruce Hardie "
+"[R067e70a5a093-1]_, y la biblioteca `lifetimes`: "
+"https://github.com/CamDavidsonPilon/lifetimes/blob/master/lifetimes/fitters/beta_geo_beta_binom_fitter.py#L179"
+
+#: bfa48c417bec4065bf44f63bd7a2a6f1 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: c987a6ea35fb44e58a929008924d8070 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases:12
+msgid "**data** : :obj:`~pandas.DataFrame`, optional"
+msgstr "**datos** : :obj:`~pandas.DataFrame`, opcional"
+
+#: 0ba7a1f4c8484fb49243d14710bc9ea8 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases:11
+msgid "DataFrame, optional"
+msgstr "DataFrame, opcional"
+
+#: 8c3fb194ed1543ffba44e287f97b237f of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases:15
+msgid "**Dataframe containing the following columns:**"
+msgstr "**Dataframe que contiene las siguientes columnas:**"
+
+#: 384f380fe7d54e26be2cdeb780b158f1 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases:18
+msgid "**\\* `customer_id`: Unique customer identifier**"
+msgstr "**\\* `customer_id`: Identificador único del cliente**"
+
+#: 91a4c579a0a74c8e9ffeed0ca7ea1f17 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases:21
+msgid "**\\* `frequency`: Number of repeat purchases**"
+msgstr "**\\* `frecuencia`: Número de compras repetidas**"
+
+#: e938efe284de4e1f9544c6a5486ca174 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases:24
+msgid ""
+"**\\* `recency`: Purchase opportunities between the first and the last "
+"purchase**"
+msgstr ""
+"**\\* `recency`: Oportunidades de compra entre la primera y la última "
+"compra**"
+
+#: a30793fafca3463eaeadb5e7c3d87624 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases:27
+msgid "**\\* `T`: Total purchase opportunities.**"
+msgstr "**\\* `T`: Oportunidades de compra totales.**"
+
+#: 01bf04d3f2604fa8927f1e10cd6b126d of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases:28
+msgid ""
+"Model assumptions require *T >= recency* and all customers share the same "
+"value for *T."
+msgstr ""
+"Las suposiciones del modelo requieren *T >= actualidad* y todos los clientes"
+" comparten el mismo valor para *T."
+
+#: 9ef9eb5a6424463b98a43beef9bf4227 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases:30
+msgid "**\\* `future_t`: Optional column for *future_t* parametrization.**"
+msgstr ""
+"**\\* `future_t`: Columna opcional para la parametrización de *future_t*.**"
+
+#: 70a595abd7794e2594528cf7be60ba64 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases:33
+msgid ""
+"**If not provided, predictions will be ran with data used to fit model.**"
+msgstr ""
+"**Si no se proporciona, las predicciones se realizarán con los datos "
+"utilizados para ajustar el modelo.**"
+
+#: a183d4d4782e4118b07b4f139fbc4ac4 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases:36
+msgid "**future_t** : :term:`numpy:array_like`"
+msgstr "**future_t** : :term:`numpy:array_like`"
+
+#: 4bda4c5a36bf4d088afdbfd993475a83 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases:35
+msgid "numpy:array_like"
+msgstr "numpy:similar_a_array"
+
+#: 6b04748efbf2475da1e95fbc3234efb8 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases:37
+msgid ""
+"Number of time periods to predict expected purchases. Not required if `data`"
+" Dataframe contains a *future_t* column."
+msgstr ""
+"Número de períodos de tiempo para predecir las compras esperadas. No es "
+"necesario si el DataFrame `data` contiene una columna *future_t*."
+
+#: acd3dbf36b884e41987ac17ef2dd32b5 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases:52
+msgid "References"
+msgstr "Referencias"
+
+#: 1b52ae32eddb496da91cc09502083615 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases:53
+msgid ""
+"Peter Fader, Bruce Hardie, and Jen Shang. \"Customer-Base Analysis in a "
+"Discrete-Time Noncontractual Setting\". Marketing Science, Vol. 29, No. 6 "
+"(Nov-Dec, 2010), pp. 1086-1108. "
+"https://www.brucehardie.com/papers/020/fader_et_al_mksc_10.pdf"
+msgstr ""
+"Peter Fader, Bruce Hardie y Jen Shang. \"Análisis de la Base de Clientes en "
+"un Entorno No Contractual de Tiempo Discreto\". Marketing Science, Vol. 29, "
+"No. 6 (Nov-Dic, 2010), pp. 1086-1108. "
+"https://www.brucehardie.com/papers/020/fader_et_al_mksc_10.pdf"
+
+#: 2126d815577c4b05b0f774dd080c6408 of
+#: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases:60
+msgid "[R067e70a5a093-1]_"
+msgstr "[R067e70a5a093-1]_"

@@ -1,0 +1,52 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.rst:2
+#: 298e0a447a574ad587b0d920a7bd6ded
+msgid "beta\\_geo\\_beta\\_binom"
+msgstr "beta\\_geo\\_beta\\_binom"
+
+#: 6e2c5dbee2bc4518aae0e6fb33fa209c of
+#: pymc_marketing.clv.models.beta_geo_beta_binom:1
+msgid "Beta-Geometric/Beta-Binomial Model."
+msgstr "Modelo Beta-Geométrico/Beta-Binomial."
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.rst:17
+#: a6371ad0a87c4fab9f454d48ba562288
+msgid "Classes"
+msgstr "Clases"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.rst:23:<autosummary>:1
+#: 894336b488074c508b721aee8a099493
+msgid ""
+":py:obj:`BetaGeoBetaBinomModel "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel>`\\ "
+"\\(data\\, \\*\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`BetaGeoBetaBinomModel "
+"<pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel>`\\ "
+"\\(datos\\, \\*\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.rst:23:<autosummary>:1
+#: 2948a000cefa46798359002c9dc8a096
+msgid "Beta-Geometric/Beta-Binomial Model (BG/BB)."
+msgstr "Modelo Beta-Geométrico/Beta-Binomial (BG/BB)."

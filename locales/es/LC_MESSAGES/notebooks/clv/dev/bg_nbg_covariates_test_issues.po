@@ -1,0 +1,160 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/clv/dev/bg_nbg_covariates_test_issues.ipynb:10002
+#: 9481db972fe34e94a41a83735fb8bf2c
+msgid "BG/NBD Model with covariates: Issues with parameter a, b recovery"
+msgstr ""
+"Modelo BG/NBD con covariables: Problemas con la recuperación de los "
+"parámetros a, b"
+
+#: ../source/notebooks/clv/dev/bg_nbg_covariates_test_issues.ipynb:20002
+#: 8cd82d30ce2044b2ba7a28fbe98a48eb
+msgid "Imports"
+msgstr "Importaciones"
+
+#: ../source/notebooks/clv/dev/bg_nbg_covariates_test_issues.ipynb:40002
+#: f918f8b0e18b412fa5b1a371a3a3168e
+msgid "Replicate the test"
+msgstr "Replicar la prueba"
+
+#: ../source/notebooks/clv/dev/bg_nbg_covariates_test_issues.ipynb:50002
+#: 65afe788f9de4409b90a7f246d2b75b9
+msgid "Read the data"
+msgstr "Leer los datos"
+
+#: ../source/notebooks/clv/dev/bg_nbg_covariates_test_issues.ipynb:70002
+#: a165541612414525a0521c5f596291fb
+msgid "Set artificial covariates"
+msgstr "Establecer covariables artificiales"
+
+#: ../source/notebooks/clv/dev/bg_nbg_covariates_test_issues.ipynb:90002
+#: cc5ce96ed04f4f7e857857cd23e77321
+msgid "Set the config"
+msgstr "Establecer la configuración"
+
+#: ../source/notebooks/clv/dev/bg_nbg_covariates_test_issues.ipynb:120002
+#: f79aad8a126d400bb10c800031217c65
+msgid "Mock fit"
+msgstr "Ajuste simulado"
+
+#: ../source/notebooks/clv/dev/bg_nbg_covariates_test_issues.ipynb:150002
+#: 6aad2f71932c4921ad2ed375d4f92847
+msgid "Set test data"
+msgstr "Establecer datos de prueba"
+
+#: ../source/notebooks/clv/dev/bg_nbg_covariates_test_issues.ipynb:170002
+#: 6159627dc73249c0a5e970dc016a2c7d
+msgid "Sampling Distributions"
+msgstr "Distribuciones de muestreo"
+
+#: ../source/notebooks/clv/dev/bg_nbg_covariates_test_issues.ipynb:180002
+#: d4768057b51d46ff8bf81204680e46ce
+msgid "Sample with zero covariates"
+msgstr "Muestra sin covariables"
+
+#: ../source/notebooks/clv/dev/bg_nbg_covariates_test_issues.ipynb:210002
+#: d12977b416f24afcbed3f11bc4f54738
+msgid "Sample with covariates"
+msgstr "Muestra con covariables"
+
+#: ../source/notebooks/clv/dev/bg_nbg_covariates_test_issues.ipynb:240002
+#: 4279b8b1fb2d477cbf3c48ea855a25b3
+msgid "Combine both and inspect the distributions"
+msgstr "Combina ambos y examina las distribuciones."
+
+#: ../source/notebooks/clv/dev/bg_nbg_covariates_test_issues.ipynb:290002
+#: 6f2683744abc45b586104d9311e4c1e9
+msgid "Dropout is the problematic assertion"
+msgstr "La deserción es la afirmación problemática."
+
+#: ../source/notebooks/clv/dev/bg_nbg_covariates_test_issues.ipynb:290004
+#: ef081e39471c4906af2871d33427660a
+msgid ""
+"The introduction of covariates is not changing the value of the droput "
+"probability. We will investigate this below."
+msgstr ""
+"La introducción de covariables no está cambiando el valor de la probabilidad"
+" de abandono. Investigaremos esto a continuación."
+
+#: ../source/notebooks/clv/dev/bg_nbg_covariates_test_issues.ipynb:340002
+#: 3d2b671ca06340f29675b2e20bc4b7d9
+msgid "The Beta distribution, and the dropout covariate"
+msgstr "La distribución Beta y la covariable de abandono"
+
+#: ../source/notebooks/clv/dev/bg_nbg_covariates_test_issues.ipynb:360002
+#: 48f87c8d35c14a378a6e4fb6670bdf98
+msgid "alpha (a) = beta (b)"
+msgstr "alpha (a) = beta (b)"
+
+#: ../source/notebooks/clv/dev/bg_nbg_covariates_test_issues.ipynb:380002
+#: bda7a611594d4b7aa6c82bdecc185da2
+msgid "Whenever a = b, the Beta distribution is simetrical with E[X] = 0.5."
+msgstr "Siempre que a = b, la distribución Beta es simétrica con E[X] = 0.5."
+
+#: ../source/notebooks/clv/dev/bg_nbg_covariates_test_issues.ipynb:380004
+#: 920ea37dd2e242f597f35b226e570c65
+msgid ""
+"This has implications, on the expected values of our *\"dropout\"* variable."
+" Introducing covariates only narrows our distribution"
+msgstr ""
+"Esto tiene implicaciones sobre los valores esperados de nuestra variable "
+"*\"dropout\"*. Introducir covariables solo estrecha nuestra distribución."
+
+#: ../source/notebooks/clv/dev/bg_nbg_covariates_test_issues.ipynb:390002
+#: 1390bee58c4b417dafa1755c74c500a8
+msgid "alpha (a) > beta (b)"
+msgstr "alpha (a) > beta (b)"
+
+#: ../source/notebooks/clv/dev/bg_nbg_covariates_test_issues.ipynb:410002
+#: e934012fdd2941b2855a81228f69e143
+msgid "We have E[X] > 0.5"
+msgstr "Tenemos E[X] > 0.5"
+
+#: ../source/notebooks/clv/dev/bg_nbg_covariates_test_issues.ipynb:430002
+#: 48b2bc8d77e149b68168b942c4d9f11d
+msgid "We have E[X] < 0.5"
+msgstr "Tenemos E[X] < 0.5"
+
+#: ../source/notebooks/clv/dev/bg_nbg_covariates_test_issues.ipynb:440002
+#: 6535bbeab1fb400389e0629040e304f0
+msgid "Contrast with ParetoNBD"
+msgstr "Contraste con ParetoNBD"
+
+#: ../source/notebooks/clv/dev/bg_nbg_covariates_test_issues.ipynb:440004
+#: e1c9c0e619df40a989a0e483a89bbf01
+msgid "The ParetoNBD used Gamma for the dropout process,"
+msgstr "El ParetoNBD utilizó Gamma para el proceso de abandono,"
+
+#: ../source/notebooks/clv/dev/bg_nbg_covariates_test_issues.ipynb:460002
+#: b29f36f18c4541149ca1af16ce8343c3
+msgid ""
+"Here we have E[X] monotonically increasing. The presence of covariates "
+"increases dropout probability"
+msgstr ""
+"Aquí tenemos E[X] que aumenta monótonamente. La presencia de covariables "
+"incrementa la probabilidad de abandono."
+
+#: ../source/notebooks/clv/dev/bg_nbg_covariates_test_issues.ipynb:470002
+#: 5f40f816a99140e8a73d1fc5b726b7a2
+msgid "We should change out assertion to:"
+msgstr "Deberíamos cambiar nuestra afirmación a:"

@@ -1,0 +1,438 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:2
+#: d1095cfcfacd484ead0a6c01c68dce99
+msgid "ModelBuilder"
+msgstr "ModelBuilder"
+
+#: f8939fe264904fa3bd668989dcf70c69 of
+#: pymc_marketing.model_builder.ModelBuilder:2
+msgid "Base class for building PyMC-Marketing models."
+msgstr "Clase base para construir modelos de PyMC-Marketing."
+
+#: b8232ae294164407898f002956671802 of
+#: pymc_marketing.model_builder.ModelBuilder:4
+msgid "Child classes must implement the following methods:"
+msgstr "Las clases hijas deben implementar los siguientes métodos:"
+
+#: 8ffc53cfcf71449b8e684a38aeb27528 of
+#: pymc_marketing.model_builder.ModelBuilder:6
+msgid ""
+"default_model_config: Returns a dictionary for default model configuration."
+msgstr ""
+"default_model_config: Devuelve un diccionario para la configuración del "
+"modelo predeterminado."
+
+#: 3493d61d36f54f518f4283ef20000532 of
+#: pymc_marketing.model_builder.ModelBuilder:7
+msgid ""
+"default_sampler_config: Returns a dictionary for default sampler "
+"configuration."
+msgstr ""
+"default_sampler_config: Devuelve un diccionario para la configuración del "
+"muestreador predeterminado."
+
+#: f5ade2532558442d85f44d6c25067043 of
+#: pymc_marketing.model_builder.ModelBuilder:8
+msgid ""
+"build_model: Builds the model based on the provided data and model "
+"configuration."
+msgstr ""
+"build_model: Construye el modelo basado en los datos proporcionados y la "
+"configuración del modelo."
+
+#: df48ccbbdeb2407fa71de92b5cf93c2a of
+#: pymc_marketing.model_builder.ModelBuilder:9
+msgid ""
+"build_from_idata: Builds the model from an InferenceData object. Needed for "
+"loading models."
+msgstr ""
+"build_from_idata: Construye el modelo a partir de un objeto InferenceData. "
+"Necesario para cargar modelos."
+
+#: c23e0ef14f574d869b9affc57c47ed93 of
+#: pymc_marketing.model_builder.ModelBuilder:10
+msgid ""
+"fit: Fits the model based on the provided data and sampler configurations."
+msgstr ""
+"ajustar: Ajusta el modelo según los datos proporcionados y las "
+"configuraciones del muestreador."
+
+#: b2719505ed984404b1f0f8a1708bd036 of
+#: pymc_marketing.model_builder.ModelBuilder:11
+msgid ""
+"attrs_to_init_kwargs: Override to add additional init keyword arguments."
+msgstr ""
+"attrs_to_init_kwargs: Sobrescribir para agregar argumentos de palabra clave "
+"de inicialización adicionales."
+
+#: 61200ba9e7af47f6ae705823f592ae79 of
+#: pymc_marketing.model_builder.ModelBuilder:12
+msgid "_serializable_model_config: Needed for saving and loading the model."
+msgstr ""
+"_serializable_model_config: Necesario para guardar y cargar el modelo."
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:12
+#: da13c4f0c6194596884d021174c30877
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:34:<autosummary>:1
+#: d3cd3f642e02455eb17cde43abda006e
+msgid ""
+":py:obj:`ModelBuilder.__init__ "
+"<pymc_marketing.model_builder.ModelBuilder.__init__>`\\ "
+"\\(\\[model\\_config\\, ...\\]\\)"
+msgstr ""
+":py:obj:`ModelBuilder.__init__ "
+"<pymc_marketing.model_builder.ModelBuilder.__init__>`\\ "
+"\\(\\[model\\_config\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:34:<autosummary>:1
+#: 18d7e212ca554c80ae021744c72bef1c
+msgid ""
+"Initialize model configuration and sampler configuration for the model."
+msgstr ""
+"Inicializar la configuración del modelo y la configuración del muestreador "
+"para el modelo."
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:34:<autosummary>:1
+#: f26816c09e684337aec816f2cc5ba372
+msgid ""
+":py:obj:`ModelBuilder.attrs_to_init_kwargs "
+"<pymc_marketing.model_builder.ModelBuilder.attrs_to_init_kwargs>`\\ "
+"\\(attrs\\)"
+msgstr ""
+":py:obj:`ModelBuilder.attrs_to_init_kwargs "
+"<pymc_marketing.model_builder.ModelBuilder.attrs_to_init_kwargs>`\\ "
+"\\(attrs\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:34:<autosummary>:1
+#: 831917873e9f4267915b7acd62a62eb0
+msgid ""
+"Convert the model configuration and sampler configuration from the "
+"attributes to keyword arguments."
+msgstr ""
+"Convierte la configuración del modelo y la configuración del muestreador de "
+"los atributos a argumentos de palabra clave."
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:34:<autosummary>:1
+#: e75661caea68404f8b576b166bf2a3de
+msgid ""
+":py:obj:`ModelBuilder.build_from_idata "
+"<pymc_marketing.model_builder.ModelBuilder.build_from_idata>`\\ \\(idata\\)"
+msgstr ""
+":py:obj:`ModelBuilder.build_from_idata "
+"<pymc_marketing.model_builder.ModelBuilder.build_from_idata>`\\ \\(idata\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:34:<autosummary>:1
+#: a32e1c38c66d4a1185a84e270493b868
+msgid "Build the model from the InferenceData object."
+msgstr "Construya el modelo a partir del objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:34:<autosummary>:1
+#: 320bc525cbd74bc0b232cc63c859d7a6
+msgid ""
+":py:obj:`ModelBuilder.build_model "
+"<pymc_marketing.model_builder.ModelBuilder.build_model>`\\ "
+"\\(\\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`ModelBuilder.build_model "
+"<pymc_marketing.model_builder.ModelBuilder.build_model>`\\ "
+"\\(\\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:34:<autosummary>:1
+#: 2269b14e9e364b5082a5298b2c3973cf
+msgid ""
+"Create an instance of `pm.Model` based on provided data and model_config."
+msgstr ""
+"Cree una instancia de `pm.Model` basada en los datos proporcionados y en "
+"model_config."
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:34:<autosummary>:1
+#: 1a55ee2ee8d941bf89bcde57d0da153f
+msgid ""
+":py:obj:`ModelBuilder.create_idata_attrs "
+"<pymc_marketing.model_builder.ModelBuilder.create_idata_attrs>`\\ \\(\\)"
+msgstr ""
+":py:obj:`ModelBuilder.create_idata_attrs "
+"<pymc_marketing.model_builder.ModelBuilder.create_idata_attrs>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:34:<autosummary>:1
+#: 1558d76159f34ecf893e75f942f4c89d
+msgid "Create attributes for the inference data."
+msgstr "Cree atributos para los datos de inferencia."
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:34:<autosummary>:1
+#: 6581471707c34ec5925395af84c678e6
+msgid ""
+":py:obj:`ModelBuilder.fit <pymc_marketing.model_builder.ModelBuilder.fit>`\\"
+" \\(\\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`ModelBuilder.fit <pymc_marketing.model_builder.ModelBuilder.fit>`\\"
+" \\(\\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:34:<autosummary>:1
+#: b46d2d87c6884871a765c49a89eac96f
+msgid "Fit a model using the data passed as a parameter."
+msgstr "Ajuste un modelo utilizando los datos pasados como parámetro."
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:34:<autosummary>:1
+#: 13f9ec25c80647ee87ba0db6bece71fd
+msgid ""
+":py:obj:`ModelBuilder.graphviz "
+"<pymc_marketing.model_builder.ModelBuilder.graphviz>`\\ \\(\\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`ModelBuilder.graphviz "
+"<pymc_marketing.model_builder.ModelBuilder.graphviz>`\\ \\(\\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:34:<autosummary>:1
+#: 22d996e2c7fc468995e07883440b8271
+msgid "Get the graphviz representation of the model."
+msgstr "Obtenga la representación graphviz del modelo."
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:34:<autosummary>:1
+#: 5014bfe438934aadbb57664f0f7c4f66
+msgid ""
+":py:obj:`ModelBuilder.idata_to_init_kwargs "
+"<pymc_marketing.model_builder.ModelBuilder.idata_to_init_kwargs>`\\ "
+"\\(idata\\)"
+msgstr ""
+":py:obj:`ModelBuilder.idata_to_init_kwargs "
+"<pymc_marketing.model_builder.ModelBuilder.idata_to_init_kwargs>`\\ "
+"\\(idata\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:34:<autosummary>:1
+#: ce612c3dc3624fe6a29d596150f9281c
+msgid ""
+"Create  the model configuration and sampler configuration from the "
+"InferenceData to keyword arguments."
+msgstr ""
+"Cree la configuración del modelo y la configuración del muestreador a partir"
+" de InferenceData a argumentos de palabra clave."
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:34:<autosummary>:1
+#: 3ca1626fef9248bb81bb72f3d40205be
+msgid ""
+":py:obj:`ModelBuilder.load "
+"<pymc_marketing.model_builder.ModelBuilder.load>`\\ \\(fname\\[\\, "
+"check\\]\\)"
+msgstr ""
+":py:obj:`ModelBuilder.load "
+"<pymc_marketing.model_builder.ModelBuilder.load>`\\ \\(fname\\[\\, "
+"check\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:34:<autosummary>:1
+#: c3f8f53b7742423f90c3664564377f69
+msgid "Create a ModelBuilder instance from a file."
+msgstr "Cree una instancia de ModelBuilder a partir de un archivo."
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:34:<autosummary>:1
+#: 8febdd5cd36b4450af51030a5cd6acf7
+msgid ""
+":py:obj:`ModelBuilder.load_from_idata "
+"<pymc_marketing.model_builder.ModelBuilder.load_from_idata>`\\ "
+"\\(idata\\[\\, check\\]\\)"
+msgstr ""
+":py:obj:`ModelBuilder.load_from_idata "
+"<pymc_marketing.model_builder.ModelBuilder.load_from_idata>`\\ "
+"\\(idata\\[\\, verificar\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:34:<autosummary>:1
+#: a70925f333094c0b933b6ac0f933e99b
+msgid "Create a ModelBuilder instance from an InferenceData object."
+msgstr ""
+"Cree una instancia de ModelBuilder a partir de un objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:34:<autosummary>:1
+#: 419e35fe803840e5a18fbf028bb97a19
+msgid ""
+":py:obj:`ModelBuilder.save "
+"<pymc_marketing.model_builder.ModelBuilder.save>`\\ \\(fname\\, "
+"\\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`ModelBuilder.save "
+"<pymc_marketing.model_builder.ModelBuilder.save>`\\ \\(fname\\, "
+"\\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:34:<autosummary>:1
+#: 3740d8d19043424e90545202df069ba5
+msgid "Save the model's inference data to a file."
+msgstr "Guarde los datos de inferencia del modelo en un archivo."
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:34:<autosummary>:1
+#: 0155a460c2814658a5d2444416f4019c
+msgid ""
+":py:obj:`ModelBuilder.set_idata_attrs "
+"<pymc_marketing.model_builder.ModelBuilder.set_idata_attrs>`\\ "
+"\\(\\[idata\\]\\)"
+msgstr ""
+":py:obj:`ModelBuilder.set_idata_attrs "
+"<pymc_marketing.model_builder.ModelBuilder.set_idata_attrs>`\\ "
+"\\(\\[idata\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:34:<autosummary>:1
+#: 94a97a0a3fd343e1a3acb2cbaf81537c
+msgid "Set attributes on an InferenceData object."
+msgstr "Establecer atributos en un objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:34:<autosummary>:1
+#: ccfe58a1d2b744fda77a0caa7236e24c
+msgid ""
+":py:obj:`ModelBuilder.table "
+"<pymc_marketing.model_builder.ModelBuilder.table>`\\ "
+"\\(\\*\\*model\\_table\\_kwargs\\)"
+msgstr ""
+":py:obj:`ModelBuilder.table "
+"<pymc_marketing.model_builder.ModelBuilder.table>`\\ "
+"\\(\\*\\*model\\_table\\_kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:34:<autosummary>:1
+#: 6695be96e2434892925c9fdd2d64e446
+msgid "Get the summary table of the model."
+msgstr "Obtenga la tabla resumen del modelo."
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:36
+#: 252b5e20f0d244c1bf3b8c88ca433a31
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:51:<autosummary>:1
+#: 17a804a8698b42c4811332fd1d7bfe0f
+msgid ""
+":py:obj:`default_model_config "
+"<pymc_marketing.model_builder.ModelBuilder.default_model_config>`\\"
+msgstr ""
+":py:obj:`default_model_config "
+"<pymc_marketing.model_builder.ModelBuilder.default_model_config>`"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:51:<autosummary>:1
+#: 6056531f26bf40f9a8dd385fe9f2dc77
+msgid "Return a class default configuration dictionary."
+msgstr "Devuelve un diccionario de configuración predeterminado de la clase."
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:51:<autosummary>:1
+#: 21cb165f57294c4393727c6dbdae82fd
+msgid ""
+":py:obj:`default_sampler_config "
+"<pymc_marketing.model_builder.ModelBuilder.default_sampler_config>`\\"
+msgstr ""
+":py:obj:`default_sampler_config "
+"<pymc_marketing.model_builder.ModelBuilder.default_sampler_config>`"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:51:<autosummary>:1
+#: 43f1baacdc5245c19969a73e96bf9a98
+msgid "Return a class default sampler configuration dictionary."
+msgstr ""
+"Devuelve un diccionario de configuración del muestreador predeterminado de "
+"la clase."
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:51:<autosummary>:1
+#: fc734efc9c2b43489eae12f92aba0457
+msgid ""
+":py:obj:`fit_result "
+"<pymc_marketing.model_builder.ModelBuilder.fit_result>`\\"
+msgstr ""
+":py:obj:`fit_result <pymc_marketing.model_builder.ModelBuilder.fit_result>`"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:51:<autosummary>:1
+#: 394a4494dd094aa0bfdd7a988ea1680a
+msgid "Get the posterior fit_result."
+msgstr "Obtenga el resultado de ajuste posterior fit_result."
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:51:<autosummary>:1
+#: c199e11b2ebf4e349067f974981742eb
+msgid ":py:obj:`id <pymc_marketing.model_builder.ModelBuilder.id>`\\"
+msgstr ":py:obj:`id <pymc_marketing.model_builder.ModelBuilder.id>`"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:51:<autosummary>:1
+#: d4ac160ed0704fa09ae10cc1fb8814c0
+msgid "Generate a unique hash value for the model."
+msgstr "Generar un valor hash único para el modelo."
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:51:<autosummary>:1
+#: c06a486143fb4e318b3a6512a1131684
+msgid ""
+":py:obj:`posterior <pymc_marketing.model_builder.ModelBuilder.posterior>`\\"
+msgstr ""
+":py:obj:`posterior <pymc_marketing.model_builder.ModelBuilder.posterior>`"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:51:<autosummary>:1
+#: f64592f204594a759cb6dc11beacc1ca
+msgid ""
+":py:obj:`posterior_predictive "
+"<pymc_marketing.model_builder.ModelBuilder.posterior_predictive>`\\"
+msgstr ""
+":py:obj:`posterior_predictive "
+"<pymc_marketing.model_builder.ModelBuilder.posterior_predictive>`"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:51:<autosummary>:1
+#: e1a5a779503749e0bff099ccc5b6d7a6
+msgid ""
+":py:obj:`predictions "
+"<pymc_marketing.model_builder.ModelBuilder.predictions>`\\"
+msgstr ""
+":py:obj:`predicciones "
+"<pymc_marketing.model_builder.ModelBuilder.predictions>`\\"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:51:<autosummary>:1
+#: 6b281b3dfaa84116b7f2c2ad1e615a32
+msgid ":py:obj:`prior <pymc_marketing.model_builder.ModelBuilder.prior>`\\"
+msgstr ":py:obj:`prior <pymc_marketing.model_builder.ModelBuilder.prior>`"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:51:<autosummary>:1
+#: 311d768698a8488ab7c44fa7405b95a6
+msgid ""
+":py:obj:`prior_predictive "
+"<pymc_marketing.model_builder.ModelBuilder.prior_predictive>`\\"
+msgstr ""
+":py:obj:`prior_predictive "
+"<pymc_marketing.model_builder.ModelBuilder.prior_predictive>`"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:51:<autosummary>:1
+#: 4f76a760ab8c49c5a8b04e9e8320a60b
+msgid ":py:obj:`version <pymc_marketing.model_builder.ModelBuilder.version>`\\"
+msgstr ":py:obj:`versión <pymc_marketing.model_builder.ModelBuilder.version>`\\"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:51:<autosummary>:1
+#: 6ec64bd1962146e2b522e935cd47845a
+msgid ":py:obj:`idata <pymc_marketing.model_builder.ModelBuilder.idata>`\\"
+msgstr ":py:obj:`idata <pymc_marketing.model_builder.ModelBuilder.idata>`"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:51:<autosummary>:1
+#: 07621f8989d74e21b044148141505f04
+msgid ""
+":py:obj:`sampler_config "
+"<pymc_marketing.model_builder.ModelBuilder.sampler_config>`\\"
+msgstr ""
+":py:obj:`sampler_config "
+"<pymc_marketing.model_builder.ModelBuilder.sampler_config>`"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelBuilder.rst:51:<autosummary>:1
+#: d92681c54f734f1b920cc97d06e31516
+msgid ""
+":py:obj:`model_config "
+"<pymc_marketing.model_builder.ModelBuilder.model_config>`\\"
+msgstr ""
+":py:obj:`model_config "
+"<pymc_marketing.model_builder.ModelBuilder.model_config>`"

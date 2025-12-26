@@ -1,0 +1,42 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.transformers.WeibullType.rfind.rst:2
+#: bc28d1c3f01243d4b8f05486320b149b
+msgid "WeibullType.rfind"
+msgstr "WeibullType.rfind"
+
+#: 1738f37482f6428e888bcef3ae3b1d69 of
+#: pymc_marketing.mmm.transformers.WeibullType.rfind:2
+msgid ""
+"Return the highest index in S where substring sub is found, such that sub is"
+" contained within S[start:end].  Optional arguments start and end are "
+"interpreted as in slice notation."
+msgstr ""
+"Devuelve el índice más alto en S donde se encuentra la subcadena sub, de "
+"modo que sub esté contenida dentro de S[start:end]. Los argumentos "
+"opcionales start y end se interpretan como en la notación de corte."
+
+#: ca7acb570f0e4c7686c945a4f1b63b09 of
+#: pymc_marketing.mmm.transformers.WeibullType.rfind:6
+msgid "Return -1 on failure."
+msgstr "Devuelve -1 en caso de fallo."

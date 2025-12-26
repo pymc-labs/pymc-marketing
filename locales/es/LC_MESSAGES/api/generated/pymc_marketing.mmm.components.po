@@ -1,0 +1,73 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.rst:2
+#: 0ea02bdaa5a540e784a492aced872047
+msgid "components"
+msgstr "componentes"
+
+#: 1b6af3bcecdc405f8dd5b1283923cad7 of pymc_marketing.mmm.components:1
+msgid "Components for media transformation in the MMM model."
+msgstr "Componentes para la transformación de medios en el modelo MMM."
+
+#: 71433203545d43d8816f7acc64b1d96c of pymc_marketing.mmm.components:4
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: 1ce2b3b6a78746b6a83627a1821b010f of pymc_marketing.mmm.components:5
+msgid "Use custom transformations for media in the MMM model:"
+msgstr "Utilice transformaciones personalizadas para medios en el modelo MMM:"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.rst:25
+#: e4ed3fd9a23b4633a39c54f544517508
+msgid "Modules"
+msgstr "Módulos"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.rst:33:<autosummary>:1
+#: ddaab03eb03b4d9bae4e5ab8cc43a2d1
+msgid ":py:obj:`adstock <pymc_marketing.mmm.components.adstock>`\\"
+msgstr ":py:obj:`adstock <pymc_marketing.mmm.components.adstock>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.rst:33:<autosummary>:1
+#: 3da5be9452944001adcca3a54a0f3481
+msgid "Adstock transformations for MMM."
+msgstr "Transformaciones de Adstock para MMM."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.rst:33:<autosummary>:1
+#: 781dad67f6624b72974ae1fd91939c1d
+msgid ":py:obj:`base <pymc_marketing.mmm.components.base>`\\"
+msgstr ":py:obj:`base <pymc_marketing.mmm.components.base>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.rst:33:<autosummary>:1
+#: 28ad0eba721e40b98802f280edf419ff
+msgid "Base class for adstock and saturation functions used in MMM."
+msgstr "Clase base para funciones de adstock y saturación utilizadas en MMM."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.rst:33:<autosummary>:1
+#: 1c359292cc4c441a8df3420463504b19
+msgid ":py:obj:`saturation <pymc_marketing.mmm.components.saturation>`\\"
+msgstr ":py:obj:`saturación <pymc_marketing.mmm.components.saturación>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.rst:33:<autosummary>:1
+#: bc8ca38feab74b879a58b183d07c70de
+msgid "Saturation transformations for the MMM model."
+msgstr "Transformaciones de saturación para el modelo MMM."

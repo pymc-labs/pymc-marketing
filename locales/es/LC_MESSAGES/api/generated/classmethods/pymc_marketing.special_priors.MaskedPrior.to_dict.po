@@ -1,0 +1,47 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.special_priors.MaskedPrior.to_dict.rst:2
+#: c1ce7d0018344f4cad654884590f9a00
+msgid "MaskedPrior.to\\_dict"
+msgstr "MaskedPrior.to\\_dict"
+
+#: f538bceee3454f5bb687ef583b3baf15 of
+#: pymc_marketing.special_priors.MaskedPrior.to_dict:2
+msgid "Serialize MaskedPrior to a JSON-serializable dictionary."
+msgstr ""
+"Serializar MaskedPrior a un diccionario que se puede serializar en JSON."
+
+#: 84b0c7dca0a940d6bbe72978de2dfd64 of
+#: pymc_marketing.special_priors.MaskedPrior.to_dict
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 2ddbc7db53344f8cbd07979c9fdf1533 of
+#: pymc_marketing.special_priors.MaskedPrior.to_dict:10
+msgid ":class:`python:dict`"
+msgstr ":class:`python:dict`"
+
+#: a63cc39a2e1b4609b71b28715c7b3019 of
+#: pymc_marketing.special_priors.MaskedPrior.to_dict:11
+msgid "Dictionary containing the prior, mask, and active_dim."
+msgstr "Diccionario que contiene el anterior, la máscara y active_dim."

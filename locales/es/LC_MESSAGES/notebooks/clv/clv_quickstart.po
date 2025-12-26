@@ -1,0 +1,795 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-20 21:01+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:10003
+#: dda6b01dd7494d37b61b53cb5b98cf01
+msgid "CLV Quickstart"
+msgstr "CLV Inicio Rápido"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:20002
+#: 27796c8ce5bc45af865bec8de19cd762
+msgid ""
+"Customer Lifetime Value (CLV) is the measure of a customer's contribution "
+"over time to a business. This metric is used to inform spending levels on "
+"new customer acquisition, retention, and other marketing and sales efforts, "
+"so reliable estimation is essential."
+msgstr ""
+"El Valor del Tiempo de Vida del Cliente (CLV) es la medida de la "
+"contribución de un cliente a un negocio a lo largo del tiempo. Esta métrica "
+"se utiliza para informar los niveles de gasto en la adquisición de nuevos "
+"clientes, la retención y otros esfuerzos de marketing y ventas, por lo que "
+"una estimación fiable es esencial."
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:20004
+#: 00dfa67c2cb942949c21072503c75deb
+msgid ""
+"PyMC-Marketing provides tools to segment customers on their past behavior "
+"(see [RFM Segmentation](https://www.pymc-"
+"marketing.io/en/stable/api/generated/pymc_marketing.clv.utils.rfm_segments.html#pymc_marketing.clv.utils.rfm_segments))"
+" as well as the following Buy Till You Die (BTYD) probabilistic models to "
+"predict future behavior:"
+msgstr ""
+"PyMC-Marketing proporciona herramientas para segmentar a los clientes según "
+"su comportamiento pasado (ver [Segmentación RFM](https://www.pymc-"
+"marketing.io/en/stable/api/generated/pymc_marketing.clv.utils.rfm_segments.html#pymc_marketing.clv.utils.rfm_segments))"
+" así como los siguientes modelos probabilísticos Buy Till You Die (BTYD) "
+"para predecir el comportamiento futuro:"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:20006
+#: e3062f2a114840589d9d07ecc006cafb
+msgid ""
+"**[BG/NBD model](https://pymc-"
+"marketing.readthedocs.io/en/stable/notebooks/clv/bg_nbd.html)** for "
+"continuous time, non-contractual modeling"
+msgstr ""
+"**[Modelo BG/NBD](https://pymc-"
+"marketing.readthedocs.io/en/stable/notebooks/clv/bg_nbd.html)** para "
+"modelado en tiempo continuo y no contractual"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:20007
+#: 0c92b371198248049f6ca7a5732d430f
+msgid ""
+"**[Pareto/NBD model](https://pymc-"
+"marketing.readthedocs.io/en/stable/notebooks/clv/pareto_nbd.html)** for "
+"continuous time, non-contractual modeling with covariates"
+msgstr ""
+"**[Modelo Pareto/NBD](https://pymc-"
+"marketing.readthedocs.io/en/stable/notebooks/clv/pareto_nbd.html)** para "
+"modelado en tiempo continuo, no contractual, con covariables"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:20008
+#: 90f8b0e1dae345c28080ff07a5dcc8e3
+#, fuzzy
+msgid ""
+"**[Shifted BG model](https://www.pymc-"
+"marketing.io/en/stable/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.html)**"
+" for discrete time, contractual modeling"
+msgstr ""
+"**[Modelo BG/BB](https://www.pymc-"
+"marketing.io/en/latest/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.html)**"
+" para modelado contractual en tiempo discreto"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:20009
+#: 90f8b0e1dae345c28080ff07a5dcc8e3
+#, fuzzy
+msgid ""
+"**[BG/BB model](https://www.pymc-"
+"marketing.io/en/stable/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.html)**"
+" for discrete time, contractual modeling"
+msgstr ""
+"**[Modelo BG/BB](https://www.pymc-"
+"marketing.io/en/latest/api/generated/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.html)**"
+" para modelado contractual en tiempo discreto"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:20010
+#: cc1e0e81c13f4eb6914dd42f90a7ae3b
+msgid ""
+"**Exponential Gamma model** for discrete time, contractual modeling (coming "
+"soon)"
+msgstr ""
+"**Modelo Gamma Exponencial** para tiempo discreto, modelado contractual "
+"(próximamente)"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:20011
+#: 07017916c4f34d3dbc498af0226219ac
+msgid ""
+"**[Gamma-Gamma model](https://pymc-"
+"marketing.readthedocs.io/en/stable/notebooks/clv/gamma_gamma.html)** for "
+"expected monetary value"
+msgstr ""
+"**[Modelo Gamma-Gamma](https://pymc-"
+"marketing.readthedocs.io/en/stable/notebooks/clv/gamma_gamma.html)** para el"
+" valor monetario esperado"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:20012
+#: 17fd6f01fe594c6ea4198b0ef80127f4
+msgid ""
+"**[Modified BG/NBD model](https://pymc-"
+"marketing.readthedocs.io/en/stable/notebooks/clv/mbg_nbd.html)**, similar to"
+" the BG/NBD model, but assumes non-repeat customers are still active."
+msgstr ""
+"**[Modelo BG/NBD modificado](https://pymc-"
+"marketing.readthedocs.io/en/stable/notebooks/clv/mbg_nbd.html)**, similar al"
+" modelo BG/NBD, pero asume que los clientes no recurrentes aún están "
+"activos."
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:20014
+#: a2b63fe6b2b04badb9cf6f43078434a6
+msgid ""
+"This table contains a breakdown of the four BTYD modeling domains, and "
+"examples for each:"
+msgstr ""
+"Esta tabla contiene un desglose de los cuatro dominios de modelado BTYD y "
+"ejemplos para cada uno:"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb
+#: 9fdf06ae19ac4b698bc02edb38fdbc57
+msgid "**Non-contractual**"
+msgstr "**No contractual**"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb
+#: 47d44744cbd8457a8692f4ff5529ba42
+msgid "**Contractual**"
+msgstr "**Contractual**"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb
+#: f96d62d3d48343b68345159efd9984c7
+msgid "**Continuous**"
+msgstr "**Continuo**"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb
+#: f251a4e8637244e7865330f541944449
+msgid "online purchases"
+msgstr "compras en línea"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb
+#: 733f1a2325e649b5a729bc110446508d
+msgid "ad conversion time"
+msgstr "tiempo de conversión de anuncios"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb
+#: b165f86b6c4d4b068cd7f0f5b04e89a9
+msgid "**Discrete**"
+msgstr "**Discreto**"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb
+#: 70d750aedcfe4dc99a5738b81e25a460
+msgid "concerts & sports events"
+msgstr "conciertos y eventos deportivos"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb
+#: 35bdae0fca4a4fb6a33999c07bffab4b
+msgid "recurring subscriptions"
+msgstr "suscripciones recurrentes"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:20021
+#: e23326c8ecd742c9bd2f04d27c8e8f8e
+msgid ""
+"In this notebook we will demonstrate how to estimate future purchasing "
+"activity and CLV with the CDNOW dataset, a popular benchmarking dataset in "
+"CLV and BTYD research. Data is available "
+"[here](https://www.brucehardie.com/datasets/), with additional details "
+"[here](https://www.brucehardie.com/notes/026/)."
+msgstr ""
+"En este cuaderno, demostraremos cómo estimar la actividad de compra futura y"
+" el CLV con el conjunto de datos de CDNOW, un conjunto de datos de "
+"referencia popular en la investigación de CLV y BTYD. Los datos están "
+"disponibles {aquí}, con detalles adicionales {aquí}."
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:50002
+#: 7070a7cfd8d743cfa6310af7074a90ca
+msgid "1.1 Data Requirements"
+msgstr "1.1 Requisitos de Datos"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:60002
+#: d756596aa72d433d9734b8774c341b1a
+msgid "For all models, the following nomenclature is used:"
+msgstr "Para todos los modelos, se utiliza la siguiente nomenclatura:"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:60004
+#: 653eea7be23d40e7a1f2d6d021b7be06
+msgid "`customer_id` represents a unique identifier for each customer."
+msgstr "`customer_id` representa un identificador único para cada cliente."
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:60005
+#: a58bce7520f34d67ac3c9b4df2aa122a
+msgid ""
+"`frequency` represents the number of _repeat_ purchases that a customer has "
+"made, i.e. one less than the total number of purchases."
+msgstr ""
+"`frequency` representa el número de compras _repetidas_ que un cliente ha "
+"realizado, es decir, uno menos que el total de compras."
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:60006
+#: cbb9fbb8df764cac8df752855465b619
+msgid ""
+"`T` represents a customer's \"age\", i.e. the duration between a customer's "
+"first purchase and the end of the period of study. In this example notebook,"
+" the units of time are in weeks."
+msgstr ""
+"`T` representa la \"edad\" de un cliente, es decir, la duración entre la "
+"primera compra de un cliente y el final del período de estudio. En este "
+"cuaderno de ejemplo, las unidades de tiempo están en semanas."
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:60007
+#: c41386fa7e234e109291ba3b42d258d9
+msgid ""
+"`recency` represents the time period when a customer made their most recent "
+"purchase. This is equal to the duration between a customer’s first and last "
+"purchase. If a customer has made only 1 purchase, their recency is 0."
+msgstr ""
+"`recency` representa el período de tiempo en el que un cliente realizó su "
+"compra más reciente. Esto es igual a la duración entre la primera y la "
+"última compra de un cliente. Si un cliente ha realizado solo 1 compra, su "
+"recency es 0."
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:60008
+#: e70a94e44ca441a98dd52a47cc4403c6
+msgid ""
+"`monetary_value` represents the average value of a given customer’s repeat "
+"purchases. Customers who have only made a single purchase have monetary "
+"values of zero."
+msgstr ""
+"`monetary_value` representa el valor promedio de las compras repetidas de un"
+" cliente dado. Los clientes que solo han realizado una única compra tienen "
+"valores monetarios de cero."
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:60010
+#: 565042029123417f94cf26372fdc7c14
+msgid ""
+"The `rfm_summary` function can be used to preprocess raw transaction data "
+"for modeling:"
+msgstr ""
+"La función `rfm_summary` se puede utilizar para preprocesar datos de "
+"transacciones en bruto para la modelización:"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:90002
+#: de03ea8946c343db96ef9816ad84d35e
+msgid ""
+"It is important to note these definitions differ from that used in RFM "
+"segmentation, where the first purchase is included, `T` is not used, and "
+"`recency` is the number of time periods since a customer's most recent "
+"purchase."
+msgstr ""
+"Es importante señalar que estas definiciones difieren de las utilizadas en "
+"la segmentación RFM, donde se incluye la primera compra, no se utiliza `T`, "
+"y `recencia` es el número de períodos de tiempo desde la compra más reciente"
+" de un cliente."
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:90004
+#: 6be81c53678a4ade83bc0cb5ad378464
+msgid ""
+"To visualize data in RFM format, we can plot the recency and T of the "
+"customers with the `plot_customer_exposure` function. We see a large chunk "
+"(>60%) of customers haven't made another purchase in a while."
+msgstr ""
+"Para visualizar datos en formato RFM, podemos trazar la recencia y T de los "
+"clientes con la función `plot_customer_exposure`. Observamos que un gran "
+"porcentaje (>60%) de los clientes no ha realizado otra compra en un tiempo."
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:110002
+#: 8a6bab43992d49f5b0199ec4d2a4bfde
+msgid "Predicting Future Purchasing Behavior with the BG/NBD Model"
+msgstr "Predicción del Comportamiento de Compra Futuro con el Modelo BG/NBD"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:110004
+#: 8b7a09064c8643858e7d81c2a9001512
+msgid ""
+"This dataset is an example of continuous time, noncontractual transactions "
+"because it comprises purchases from an online music store. PyMC-Marketing "
+"provides several models for this use case:"
+msgstr ""
+"Este conjunto de datos es un ejemplo de transacciones no contractuales en "
+"tiempo continuo, ya que comprende compras de una tienda de música en línea. "
+"PyMC-Marketing ofrece varios modelos para este caso de uso:"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:110006
+#: 53b556217b774ae1b48fed2ba6d7bf9f
+msgid ""
+"[Beta-Geometric/Negative Binomial Distribution (BG/NBD)](https://pymc-"
+"marketing.readthedocs.io/en/stable/notebooks/clv/bg_nbd.html)"
+msgstr ""
+"[Distribución Beta-Geométrica/Binomial Negativa (BG/NBD)](https://pymc-"
+"marketing.readthedocs.io/en/stable/notebooks/clv/bg_nbd.html)"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:110007
+#: 408a57366ad643c68e4190a9b6cb6601
+msgid ""
+"[Pareto/Negative Binomial Distribution (Pareto/NBD)](https://pymc-"
+"marketing.readthedocs.io/en/stable/notebooks/clv/pareto_nbd.html)"
+msgstr ""
+"[Pareto/Distribución Binomial Negativa (Pareto/NBD)](https://pymc-"
+"marketing.readthedocs.io/en/stable/notebooks/clv/pareto_nbd.html)"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:110008
+#: f3b961cd5f0a480a9e8ce654f04eaf49
+msgid ""
+"[Modified Beta-Geometric/Negative Binomial Distribution "
+"(MBG/NBD)](https://pymc-"
+"marketing.readthedocs.io/en/stable/notebooks/clv/mbg_nbd.html)"
+msgstr ""
+"[Distribución Beta-Geométrica/Binomial Negativa Modificada "
+"(MBG/NBD)](https://pymc-"
+"marketing.readthedocs.io/en/stable/notebooks/clv/mbg_nbd.html)"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:110010
+#: 7962fbc9f40f4eb3bbf685a7cf0373c1
+msgid ""
+"We will be using the BG/NBD model in this notebook because it works well for"
+" basic use cases. For more comprehensive modeling, the Pareto/NBD and "
+"MBG/NBD models have expanded functionality and fewer limitations."
+msgstr ""
+"Usaremos el modelo BG/NBD en este cuaderno porque funciona bien para casos "
+"de uso básicos. Para un modelado más completo, los modelos Pareto/NBD y "
+"MBG/NBD tienen una funcionalidad ampliada y menos limitaciones."
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:110012
+#: bb8884a04a6e42e9930b8e0689721777
+msgid "Let's take a look at the underlying structure of the BG/NBD model:"
+msgstr "Veamos la estructura subyacente del modelo BG/NBD:"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:130002
+#: 17c8c79ffcb5430599de0ab476af60a2
+msgid ""
+"The default priors for the `r` and `alpha` purchase rate parameters follow a"
+" HalfFlat distribution, which is an uninformative positive distribution. The"
+" `a` and `b` dropout parameters are pooled with the hierarchical "
+"`kappa_dropout` and `phi_dropout` priors for improved performance."
+msgstr ""
+"Los priors predeterminados para los parámetros de tasa de compra `r` y "
+"`alpha` siguen una distribución HalfFlat, que es una distribución positiva "
+"no informativa. Los parámetros de abandono `a` y `b` se agrupan con los "
+"priors jerárquicos `kappa_dropout` y `phi_dropout` para mejorar el "
+"rendimiento."
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:130004
+#: 4e714a88dc5e44a2aec5abef7e8bf25d
+msgid ""
+"More informative priors can be specified in a custom model configuration by "
+"passing a dictionary with keys for prior names, and values as distributions "
+"defined with the `Prior` class in PyMC-Marketing."
+msgstr ""
+"Se pueden especificar priors más informativos en una configuración de modelo"
+" personalizada pasando un diccionario con claves para los nombres de los "
+"priors y valores como distribuciones definidas con la clase `Prior` en PyMC-"
+"Marketing."
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:170002
+#: 4a5db2f2ffa24511a235de4e4b168589
+msgid "Having specified the model, we can now fit it."
+msgstr "Habiendo especificado el modelo, ahora podemos ajustarlo."
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:180002
+#: 3a98806338fe43ebb3fe5659a94c70bc
+msgid "Model Fitting with MAP"
+msgstr "Ajuste de Modelo con MAP"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:180003
+#: f6e0552b21c64e5b819d3b2467f33469
+msgid ""
+"By default, `fit` generates full Bayesian posteriors via "
+"[MCMC](https://en.wikipedia.org/wiki/Markov_chain_Monte_Carlo) sampling. For"
+" extremely large datasets where uncertainty estimates are not needed and/or "
+"MCMC is too slow, [maximum a "
+"posteriori](https://en.wikipedia.org/wiki/Maximum_a_posteriori_estimation) "
+"can be used to estimate point estimates for model parameters."
+msgstr ""
+"Por defecto, `fit` genera posteriors bayesianos completos a través del "
+"muestreo de [MCMC](https://en.wikipedia.org/wiki/Markov_chain_Monte_Carlo). "
+"Para conjuntos de datos extremadamente grandes donde no se necesitan "
+"estimaciones de incertidumbre y/o MCMC es demasiado lento, se puede utilizar"
+" [máximo a "
+"posteriori](https://en.wikipedia.org/wiki/Maximum_a_posteriori_estimation) "
+"para estimar estimaciones puntuales de los parámetros del modelo."
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:180005
+#: 74573ffb729e4b29a70811f3954fdf15
+msgid ""
+"Use `rfm_train_test_split` for train/test splits. Here we are training on 52"
+" weeks of data, and withholding the remaining 26 weeks for testing:"
+msgstr ""
+"Utilice `rfm_train_test_split` para dividir en entrenamiento/prueba. Aquí "
+"estamos entrenando con 52 semanas de datos y reteniendo las 26 semanas "
+"restantes para las pruebas:"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:200002
+#: c72326e07259464a83c305227ee5c16d
+msgid ""
+"Note any customers who made their first purchase during the testing period "
+"will be excluded. Use `rfm_summary` to retain all customers for the final "
+"model."
+msgstr ""
+"Tenga en cuenta que cualquier cliente que haya realizado su primera compra "
+"durante el período de prueba será excluido. Utilice `rfm_summary` para "
+"retener a todos los clientes para el modelo final."
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:220002
+#: 791b1cf3b72e4a0ca0dfec97e03b6515
+msgid ""
+"Let's evaluate model performance by tracking predictions against historical "
+"purchases."
+msgstr ""
+"Evaluemos el rendimiento del modelo al rastrear las predicciones en "
+"comparación con las compras históricas."
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:240002
+#: 76e578a46a654f5ab234b58d7194fbaa
+msgid ""
+"Looks like MAP is over-predicting the number of purchases during the testing"
+" period, and these predictions also don't have any uncertainty estimates."
+msgstr ""
+"Parece que MAP está sobreestimando el número de compras durante el período "
+"de prueba, y estas predicciones tampoco tienen estimaciones de "
+"incertidumbre."
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:250002
+#: 0e1c27a6fd8843e99b4fef72979ceac6
+msgid "Model Fitting with MCMC"
+msgstr "Ajuste de Modelo con MCMC"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:250003
+#: 86995524915d477a902a405aab3bce02
+msgid ""
+"MCMC sampling is recommended to illustrate uncertainty in parameter "
+"estimates and create credibility intervals around predictions."
+msgstr ""
+"Se recomienda el muestreo MCMC para ilustrar la incertidumbre en las "
+"estimaciones de parámetros y crear intervalos de credibilidad en torno a las"
+" predicciones."
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:270002
+#: 7fe8de37b74e4b07beea0fd0b603cb96
+msgid ""
+"We can use [ArviZ](https://python.arviz.org/en/stable/), a Python library "
+"tailored to produce visualizations for Bayesian models, to plot the "
+"posterior distribution of each parameter."
+msgstr ""
+"Podemos utilizar [ArviZ](https://python.arviz.org/en/stable/), una "
+"biblioteca de Python diseñada para producir visualizaciones de modelos "
+"bayesianos, para trazar la distribución posterior de cada parámetro."
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:290002
+#: 87545c6a5b83436cabc08c7c88f950b9
+msgid "1.2.1. Visualizing Predictions over Time"
+msgstr "1.2.1. Visualizando Predicciones a lo Largo del Tiempo"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:300002
+#: b465aecb72e5440b91b897bf78be601c
+msgid ""
+"Looking at the time plots again, we can see results track much more closely "
+"when fit with MCMC:"
+msgstr ""
+"Al observar nuevamente los gráficos de tiempo, podemos ver que los "
+"resultados se ajustan mucho más de cerca cuando se utilizan MCMC:"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:320002
+#: 81a56f5c54434f0ca648376936bad7af
+msgid "Purchases can be plotting cumulatively as well as incrementally:"
+msgstr ""
+"Las compras pueden ser trazadas de manera acumulativa así como incremental:"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:340002
+#: 1ad3e0704e784e4dbd37ea4ec8d04213
+msgid "Note how the model is able to respond to trend changes over time."
+msgstr ""
+"Observe cómo el modelo es capaz de responder a los cambios de tendencia a lo"
+" largo del tiempo."
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:350002
+#: 1eb4c0060c8b408e97bfc71b84fa408c
+msgid "Visualizing Prediction Matrices"
+msgstr "Visualizando Matrices de Predicción"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:370002
+#: 73bbc1759a344ef1a83557661482c758
+msgid ""
+"We can see our best customers have been active for over 60 weeks and have "
+"made over 20 purchases (bottom-right). Note the “tail” sweeping up towards "
+"the upper-left corner - these customers are infrequent and/or may not have "
+"purchased recently. What is the probability they are still active?"
+msgstr ""
+"Podemos ver que nuestros mejores clientes han estado activos durante más de "
+"60 semanas y han realizado más de 20 compras (esquina inferior derecha). "
+"Observe la \"cola\" que se eleva hacia la esquina superior izquierda; estos "
+"clientes son poco frecuentes y/o pueden no haber comprado recientemente. "
+"¿Cuál es la probabilidad de que sigan activos?"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:390002
+#: cd523d20e5e348a8b5efbd252aec7638
+msgid ""
+"Note that all non-repeat customers have an alive probability of 1, which is "
+"one of the quirks of `BetaGeoModel`. In many use cases this is still a valid"
+" assumption, but if non-repeat customers are a key focus in your use case, "
+"you may want to try `ParetoNBDModel` instead."
+msgstr ""
+"Tenga en cuenta que todos los clientes no recurrentes tienen una "
+"probabilidad de vida de 1, lo cual es una de las peculiaridades de "
+"`BetaGeoModel`. En muchos casos de uso, esta sigue siendo una suposición "
+"válida, pero si los clientes no recurrentes son un enfoque clave en su caso "
+"de uso, puede que desee probar `ParetoNBDModel` en su lugar."
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:390004
+#: 550c12c219e64b85b48ecc21da709e07
+msgid ""
+"Looking at the probability alive matrix, we can infer that customers who "
+"have made fewer purchases are less likely to return, and may be worth "
+"targeting for retention."
+msgstr ""
+"Al observar la matriz de probabilidad de permanencia, podemos inferir que "
+"los clientes que han realizado menos compras tienen menos probabilidades de "
+"regresar, y puede ser conveniente enfocarse en ellos para la retención."
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:400002
+#: 21a3d3dd711f4e8e8457bad8f304ae53
+msgid "Ranking customers from best to worst"
+msgstr "Clasificando a los clientes de mejor a peor"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:410002
+#: 15a991db5ded46bcb00fbd6ec889595a
+msgid ""
+"Having fit the model, we can ask what is the expected number of purchases "
+"for our customers over the next 10 time periods. Let's look at the four more"
+" promising customers."
+msgstr ""
+"Habiendo ajustado el modelo, podemos preguntar cuál es el número esperado de"
+" compras para nuestros clientes durante los próximos 10 períodos de tiempo. "
+"Veamos a los cuatro clientes más prometedores."
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:430002
+#: bcff4418f85242af8286376663233024
+msgid "We can also plot credibility intervals for the expected purchases:"
+msgstr ""
+"También podemos trazar intervalos de credibilidad para las compras "
+"esperadas:"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:450002
+#: 2a4d2873ceda4704a403b9dccd299575
+msgid "Predicting purchase behavior of a new customer"
+msgstr "Predicción del comportamiento de compra de un nuevo cliente"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:450004
+#: 3f168d5fe7214633995042f74549a35a
+msgid ""
+"We can use the fitted model to predict the number of purchases for a fresh "
+"new customer."
+msgstr ""
+"Podemos utilizar el modelo ajustado para predecir el número de compras de un"
+" nuevo cliente."
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:470002
+#: 71a7b8cd7ece443ba388dca50f5b08f1
+msgid "Customer Probability Histories"
+msgstr "Historiales de Probabilidad de Clientes"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:480002
+#: 068c012a9825411ca2bd3c861337bfea
+msgid ""
+"Given a customer transaction history, we can calculate their historical "
+"probability of being alive, according to our trained model."
+msgstr ""
+"Dada la historia de transacciones de un cliente, podemos calcular su "
+"probabilidad histórica de estar vivo, según nuestro modelo entrenado."
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:480004
+#: 428615e7e96441a380184f9dded8f041
+msgid ""
+"Let look at active customer 1516 and assess the change in probability that "
+"the user will ever return if they do no other purchases in the next 9 time "
+"periods."
+msgstr ""
+"Veamos al cliente activo 1516 y evaluemos el cambio en la probabilidad de "
+"que el usuario regrese alguna vez si no realiza ninguna otra compra en los "
+"próximos 9 períodos de tiempo."
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:530002
+#: 9223da97260e42cf809ef29a5e2f9571
+msgid ""
+"We can see that, if no purchases are being made in the next 9 weeks, the "
+"model has low confidence that the costumer will ever return. What if they "
+"had done one purchase in between?"
+msgstr ""
+"Podemos ver que, si no se realizan compras en las próximas 9 semanas, el "
+"modelo tiene baja confianza en que el cliente regrese alguna vez. ¿Qué "
+"pasaría si hubieran realizado una compra en el intermedio?"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:570002
+#: 4acd917964d94e65949875688345891b
+msgid ""
+"From the plot above, say that customer 1516 makes a purchase at week 73.5, "
+"just over 6 weeks after they have made their last recorded purchase. We can "
+"see that the probability of the customer returning quickly goes back up!"
+msgstr ""
+"Del gráfico anterior, se puede decir que el cliente 1516 realiza una compra "
+"en la semana 73.5, poco más de 6 semanas después de haber realizado su "
+"última compra registrada. ¡Podemos ver que la probabilidad de que el cliente"
+" regrese rápidamente vuelve a aumentar!"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:580002
+#: b736a7a5e6294ef9b242bfbd4e1b3fc8
+msgid "Estimating Customer Lifetime Value Using the Gamma-Gamma Model"
+msgstr ""
+"Estimando el Valor de Vida del Cliente Utilizando el Modelo Gamma-Gamma"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:590002
+#: 9b1711a282b045e387ea0669e3b0eb48
+msgid ""
+"Until now we’ve focused mainly on transaction frequencies and probabilities,"
+" but to estimate economic value we can use the Gamma-Gamma model."
+msgstr ""
+"Hasta ahora nos hemos centrado principalmente en las frecuencias y "
+"probabilidades de transacción, pero para estimar el valor económico podemos "
+"utilizar el modelo Gamma-Gamma."
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:590004
+#: 47a63b8e275a4994ae2ee6471e2a3a6f
+msgid ""
+"The Gamma-Gamma model assumes at least 1 repeat transaction has been "
+"observed per customer. As such we filter out those with zero repeat "
+"purchases."
+msgstr ""
+"El modelo Gamma-Gamma asume que se ha observado al menos 1 transacción "
+"repetida por cliente. Por lo tanto, filtramos aquellos con cero compras "
+"repetidas."
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:610002
+#: b33c61731a414a0eb4a6891242852e46
+msgid ""
+"If computing the monetary value from your own data, note that it is the "
+"*mean* of a given customer’s value, *not* the sum. `monetary_value` can be "
+"used to represent profit, or revenue, or any value as long as it is "
+"consistently calculated for each customer."
+msgstr ""
+"Si está calculando el valor monetario a partir de sus propios datos, tenga "
+"en cuenta que es la *media* del valor de un cliente dado, *no* la suma. "
+"`monetary_value` se puede utilizar para representar ganancias, ingresos o "
+"cualquier valor siempre que se calcule de manera consistente para cada "
+"cliente."
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:610004
+#: 4648ddda42e245408fdb628a08c580f1
+msgid ""
+"The Gamma-Gamma model relies upon the important assumption there is no "
+"relationship between the monetary value and the purchase frequency. In "
+"practice we need to check whether the Pearson correlation is less than 0.3:"
+msgstr ""
+"El modelo Gamma-Gamma se basa en la importante suposición de que no existe "
+"relación entre el valor monetario y la frecuencia de compra. En la práctica,"
+" necesitamos verificar si la correlación de Pearson es menor que 0.3:"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:630002
+#: 3d921a4ab6bc42a8bf08599862dbb319
+msgid ""
+"Transaction frequencies and monetary values are uncorrelated; we can now fit"
+" our Gamma-Gamma model to predict average spend and expected lifetime values"
+" of our customers"
+msgstr ""
+"Las frecuencias de transacción y los valores monetarios no están "
+"correlacionados; ahora podemos ajustar nuestro modelo Gamma-Gamma para "
+"predecir el gasto promedio y los valores de vida esperados de nuestros "
+"clientes."
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:640002
+#: 0df72a558db044f68f8cd50403221bbc
+msgid ""
+"The Gamma-Gamma model takes in a 'data' parameter, a pandas DataFrame with 3"
+" columns representing Customer ID, average spend of repeat purchases, and "
+"number of repeat purchase for that customer. As with the BG/NBD model, these"
+" parameters are given HalfFlat priors which can be too diffuse for small "
+"datasets. For this example, we will use the default priors, but other priors"
+" can be specified just like with the BG/NBD example above."
+msgstr ""
+"El modelo Gamma-Gamma recibe un parámetro 'data', un DataFrame de pandas con"
+" 3 columnas que representan el ID del cliente, el gasto promedio de compras "
+"repetidas y el número de compras repetidas para ese cliente. Al igual que "
+"con el modelo BG/NBD, estos parámetros se les asignan priors HalfFlat, que "
+"pueden ser demasiado difusos para conjuntos de datos pequeños. Para este "
+"ejemplo, utilizaremos los priors predeterminados, pero se pueden especificar"
+" otros priors de la misma manera que en el ejemplo de BG/NBD mencionado "
+"anteriormente."
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:690002
+#: ce99f0f829234f6c9ca2aadd07eaedc2
+msgid "Predicting spend value of customers"
+msgstr "Predicción del valor de gasto de los clientes"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:700002
+#: c926ce9cd24444dc95f94e0564a4ecde
+msgid ""
+"Having fit our model, we can now use it to predict the conditional, expected"
+" average lifetime value of our customers, including those with zero repeat "
+"purchases."
+msgstr ""
+"Habiendo ajustado nuestro modelo, ahora podemos utilizarlo para predecir el "
+"valor promedio de vida condicional esperado de nuestros clientes, incluidos "
+"aquellos con cero compras repetidas."
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:740002
+#: ee30e44cc6444622934b9c78682b3728
+msgid ""
+"We can also look at the average expected mean spend across all customers"
+msgstr ""
+"También podemos analizar el gasto medio esperado promedio entre todos los "
+"clientes."
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:770002
+#: 31275843f053460887b8d9a4bf4012f7
+msgid "Predicting spend value of a new customer"
+msgstr "Predicción del valor de gasto de un nuevo cliente"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:790002
+#: 63241b9996c348b382b6ef6f748b9c2f
+msgid "Estimating CLV"
+msgstr "Estimando el CLV"
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:800002
+#: 8d12ebe7dfd545e1b19ad2ac3b862211
+msgid ""
+"Finally, we can combine the GG with the BG/NBD model to obtain an estimate "
+"of the customer lifetime value. This relies on the [discounted cash "
+"flow](https://en.wikipedia.org/wiki/Discounted_cash_flow) model, adjusting "
+"for cost of capital."
+msgstr ""
+"Finalmente, podemos combinar el GG con el modelo BG/NBD para obtener una "
+"estimación del valor de vida del cliente. Esto se basa en el modelo de "
+"[flujo de caja "
+"descontado](https://es.wikipedia.org/wiki/Flujo_de_caja_descontado), "
+"ajustando por el costo de capital."
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:800004
+#: 81db3a31816b4823b91c720cccb43bae
+msgid ""
+"If computational issues are encountered, use the `thin_fit_result` method "
+"prior to estimating CLV."
+msgstr ""
+"Si se encuentran problemas computacionales, utilice el método "
+"`thin_fit_result` antes de estimar el CLV."
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:850002
+#: da49e4c4419d4f88ba1833013972fe1f
+msgid ""
+"According to our models, customer[6] has a much higher expected CLV. There "
+"is also a large variability in this estimate that arises solely from "
+"uncertainty in the parameters of the BG/NBD and GG models."
+msgstr ""
+"Según nuestros modelos, el cliente[6] tiene un CLV esperado mucho más alto. "
+"También hay una gran variabilidad en esta estimación que surge únicamente de"
+" la incertidumbre en los parámetros de los modelos BG/NBD y GG."
+
+#: ../source/notebooks/clv/clv_quickstart.ipynb:850004
+#: 5a667b715dd0485f8a63635ceed1f345
+msgid ""
+"In general, these models tend to induce a strong correlation between "
+"expected CLV and uncertainty. This modelling of uncertainty can be very "
+"useful when making marketing decisions."
+msgstr ""
+"En general, estos modelos tienden a inducir una fuerte correlación entre el "
+"CLV esperado y la incertidumbre. Este modelado de la incertidumbre puede ser"
+" muy útil al tomar decisiones de marketing."
+
+#~ msgid ""
+#~ "**[Shifted BG model](https://pymc-"
+#~ "marketing.readthedocs.io/en/stable/notebooks/clv/sBG.html)** for discrete "
+#~ "time, contractual modeling"
+#~ msgstr ""
+#~ "**[Modelo BG desplazado](https://pymc-"
+#~ "marketing.readthedocs.io/en/stable/notebooks/clv/sBG.html)** para modelado "
+#~ "contractual en tiempo discreto"

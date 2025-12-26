@@ -1,0 +1,76 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.fourier.WeeklyFourier.sample_prior.rst:2
+#: 1cdac0a00d0f49b8909c032b6b29bed4
+msgid "WeeklyFourier.sample\\_prior"
+msgstr "WeeklyFourier.muestra\\_previa"
+
+#: f9a4ba1d1f2448de922dcc524f2eacec of
+#: pymc_marketing.mmm.fourier.FourierBase.sample_prior:2
+msgid "Sample the prior distributions."
+msgstr "Muestree las distribuciones previas."
+
+#: da3db9be07ee4039b8276d7ed200ecdf of
+#: pymc_marketing.mmm.fourier.FourierBase.sample_prior
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 223ad86f0222483e8498d33a386f1acc of
+#: pymc_marketing.mmm.fourier.FourierBase.sample_prior:7
+msgid "**coords** : :class:`python:dict`, optional"
+msgstr "**coords** : :class:`python:dict`, opcional"
+
+#: c8ceadc62aa24e4faf4ac4167d4b9950 of
+#: pymc_marketing.mmm.fourier.FourierBase.sample_prior:6
+msgid "python:dict, optional"
+msgstr "python:dict, opcional"
+
+#: 869e4204fa18449a8f5c8652f24671d6 of
+#: pymc_marketing.mmm.fourier.FourierBase.sample_prior:8
+msgid "Coordinates for the prior distribution, by default None"
+msgstr "Coordenadas para la distribución previa, por defecto None"
+
+#: 308081bfe0b34a21ac13c103fc5028a9 of
+#: pymc_marketing.mmm.fourier.FourierBase.sample_prior:10
+msgid "**kwargs**"
+msgstr "**kwargs**"
+
+#: d4a903f8c6e345d1b9ec0ddd71bd7520 of
+#: pymc_marketing.mmm.fourier.FourierBase.sample_prior:11
+msgid "Additional keywords for sample_prior_predictive"
+msgstr "Palabras clave adicionales para sample_prior_predictive"
+
+#: 4badad3cd9c94353a27b05c9ba3cdf0e of
+#: pymc_marketing.mmm.fourier.FourierBase.sample_prior
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 63711feaff3a4f80be2f93531973c3c9 of
+#: pymc_marketing.mmm.fourier.FourierBase.sample_prior:17
+msgid ":obj:`xr.Dataset`"
+msgstr ":obj:`xr.Dataset`"
+
+#: d325fdf825704942ae74da2c73bb265a of
+#: pymc_marketing.mmm.fourier.FourierBase.sample_prior:18
+msgid "Prior distribution."
+msgstr "Distribución previa."

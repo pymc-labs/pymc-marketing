@@ -1,0 +1,164 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer.rst:2
+#: 922df49afc1544eb93e18456a17e49d2
+msgid "ParetoNBDModel.distribution\\_new\\_customer"
+msgstr "ParetoNBDModel.distribución\\_nuevo\\_cliente"
+
+#: 91e6f28f325d40c591869bc89086a506 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer:2
+msgid ""
+"Compute posterior predictive samples of dropout, purchase rate and "
+"frequency/recency of new customers."
+msgstr ""
+"Calcule muestras predictivas posteriores de abandono, tasa de compra y "
+"frecuencia/recencia de nuevos clientes."
+
+#: 815a37864e034cfd84ea33f6cbd17718 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer:4
+msgid ""
+"In a model with covariates, if `data` is not specified, the dataset used for"
+" fitting will be used and a prediction will be computed for a *new customer*"
+" with each set of covariates. *This is not a conditional prediction for "
+"observed customers!*"
+msgstr ""
+"En un modelo con covariables, si `data` no está especificado, se utilizará "
+"el conjunto de datos empleado para el ajuste y se calculará una predicción "
+"para un *nuevo cliente* con cada conjunto de covariables. *¡Esta no es una "
+"predicción condicional para clientes observados!*"
+
+#: 30e7313367ad412780d3825bf3ab883f of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 576a336b29af4a22bdcf0b6773b9c260 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer:10
+msgid "**data** : :obj:`~pandas.DataFrame`, :obj:`Optional`"
+msgstr "**datos** : :obj:`~pandas.DataFrame`, :obj:`Opcional`"
+
+#: 0ad5f281f9674c6a8a20271f3a5a57a2 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer:9
+msgid "DataFrame, Optional"
+msgstr "DataFrame, Opcional"
+
+#: 8a1eeace0a3440ca8f8f07d687228b83 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer:11
+msgid "DataFrame containing the following columns:"
+msgstr "DataFrame que contiene las siguientes columnas:"
+
+#: 3196ed1a8c314c7081a0c57be51e6e99 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer:13
+msgid "`customer_id`: Unique customer identifier"
+msgstr "`customer_id`: Identificador único del cliente"
+
+#: 748d5ab9d6084604832e9bc387b1454f of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer:14
+msgid ""
+"`T`: Time between the first purchase and the end of the observation period"
+msgstr ""
+"T: Tiempo entre la primera compra y el final del período de observación"
+
+#: 11b628408fb14bfebc93e549fa70de78 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer:15
+msgid "All covariate columns specified when model was initialized."
+msgstr ""
+"Todas las columnas de covariables especificadas cuando se inicializó el "
+"modelo."
+
+#: a09830e007054d3d8676fafebc1481e1 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer:17
+msgid "If not provided, predictions will be ran with data used to fit model."
+msgstr ""
+"Si no se proporciona, las predicciones se realizarán con los datos "
+"utilizados para ajustar el modelo."
+
+#: 05ed37d0f62f4eecb5cf0b01a57e2e69 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer:19
+msgid "**T** : :term:`numpy:array_like`, optional"
+msgstr "**T** : :term:`numpy:array_like`, opcional"
+
+#: 6d56fff8ff5a41ffbafa2245717c15c2 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer:18
+msgid "numpy:array_like, optional"
+msgstr "numpy:similar a un arreglo, opcional"
+
+#: 4fbb73ef3cd0475badc49b72e48c254d of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer:20
+msgid ""
+"time between the first purchase and the end of the observation period. Not "
+"needed if `data` parameter is provided with a `T` column."
+msgstr ""
+"tiempo entre la primera compra y el final del período de observación. No es "
+"necesario si se proporciona el parámetro `data` con una columna `T`."
+
+#: 71444c80aaea4c0f894b591620cf6135 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer:23
+msgid "**random_seed** : :obj:`~numpy.random.RandomState`, optional"
+msgstr "**semilla_aleatoria** : :obj:`~numpy.random.RandomState`, opcional"
+
+#: 34165c0f3d6d458d87c73f3f54ae43a5 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer:22
+msgid "RandomState, optional"
+msgstr "RandomState, opcional"
+
+#: 8db23dffd8ff46e8ad7a701d1e892867 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer:24
+msgid "Random state to use for sampling."
+msgstr "Estado aleatorio a utilizar para el muestreo."
+
+#: 8acbdaf9225f45ce89edb80d599b6313 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer:26
+msgid ""
+"**var_names** : :term:`python:sequence` of :class:`python:str`, optional"
+msgstr ""
+"**var_names** : :term:`python:sequence` de :class:`python:str`, opcional"
+
+#: 7761d34589de4f41877b4761f818ddcc of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer:25
+msgid "python:sequence of python:str, optional"
+msgstr "python:secuencia de python:str, opcional"
+
+#: dd9b05ad32f44eda8dfa62b3a444d818 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer:27
+msgid ""
+"Names of the variables to sample from. Defaults to [\"dropout\", "
+"\"purchase_rate\", \"recency_frequency\"]."
+msgstr ""
+"Nombres de las variables de las que muestrear. Por defecto es [\"dropout\", "
+"\"purchase_rate\", \"recency_frequency\"]."
+
+#: 311a68a87d4c4898946509830c82f3f1 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer:29
+msgid "**n_samples** : :class:`python:int`, optional"
+msgstr "**n_samples** : :class:`python:int`, opcional"
+
+#: ad78a193b965450dac6304c66f0d2e13 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer:28
+msgid "python:int, optional"
+msgstr "python:int, opcional"
+
+#: 6a46b79003f94c4cb654ce88136e92bc of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer:30
+msgid "Number of samples to generate. Defaults to 1000"
+msgstr "Número de muestras a generar. Por defecto es 1000."

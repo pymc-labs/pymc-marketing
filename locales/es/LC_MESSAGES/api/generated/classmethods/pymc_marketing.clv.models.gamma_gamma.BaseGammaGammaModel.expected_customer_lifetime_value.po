@@ -1,0 +1,197 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_lifetime_value.rst:2
+#: d98d56392f0d4e2283454c4ec980c141
+msgid "BaseGammaGammaModel.expected\\_customer\\_lifetime\\_value"
+msgstr "BaseGammaGammaModel.valor\\_de\\_vida\\_útil\\_del\\_cliente\\_esperado"
+
+#: b488addc5e334732906594413e1db27b of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_lifetime_value:2
+msgid ""
+"Compute the average lifetime value for a group of one or more customers."
+msgstr ""
+"Calcule el valor promedio de vida para un grupo de uno o más clientes."
+
+#: 151bf89a8cc9412fbb64f50963dc6630 of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_lifetime_value:4
+msgid ""
+"In addition, it applies a discount rate for net present value estimations."
+msgstr ""
+"Además, aplica una tasa de descuento para las estimaciones del valor "
+"presente neto."
+
+#: 79806241355f489ab7f90b66f6c17941 of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_lifetime_value:6
+msgid ""
+"Note `future_t` is measured in months regardless of `time_unit` specified."
+msgstr ""
+"Nota que `future_t` se mide en meses independientemente de la `time_unit` "
+"especificada."
+
+#: 6ab92b8fe55c4cadb965c01a1c0bb41f of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_lifetime_value:8
+msgid ""
+"Adapted from lifetimes package "
+"https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/gamma_gamma_fitter.py#L246"
+msgstr ""
+"Adaptado del paquete lifetimes "
+"https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/gamma_gamma_fitter.py#L246"
+
+#: fee904782e744d478bdc65c0be79bc04 of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_lifetime_value
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: e7bb084584a44e9cab350b77aca448c7 of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_lifetime_value:13
+msgid "**transaction_model** : :obj:`~CLVModel`"
+msgstr "**transaction_model** : :obj:`~CLVModel`"
+
+#: ba6bc1c69b09408bb7a8013b54ead632 of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_lifetime_value:12
+msgid "CLVModel"
+msgstr "CLVModel"
+
+#: fbe307d98a634881b308f261c0514a3f of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_lifetime_value:14
+msgid ""
+"Predictive model for future transactions. `BetaGeoModel` and "
+"`ParetoNBDModel` are currently supported."
+msgstr ""
+"Modelo predictivo para transacciones futuras. `BetaGeoModel` y "
+"`ParetoNBDModel` son actualmente compatibles."
+
+#: 903411cf409247248d4659febe54e089 of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_lifetime_value:16
+msgid "**data** : :obj:`~pandas.DataFrame`"
+msgstr "**datos** : :obj:`~pandas.DataFrame`"
+
+#: c176b1d5aa0642e8af710dfd1d01ba1d of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_lifetime_value:15
+msgid "DataFrame"
+msgstr "DataFrame"
+
+#: 6901ed44b7144fe69192cee4f5d4b3a6 of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_lifetime_value:17
+msgid "DataFrame containing the following columns:"
+msgstr "DataFrame que contiene las siguientes columnas:"
+
+#: 44f489e13a624b1e9c21ea6d800d835d of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_lifetime_value:19
+msgid "`customer_id`: Unique customer identifier"
+msgstr "`customer_id`: Identificador único del cliente"
+
+#: 3030e7085f2f4cccac147e6126c109cd of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_lifetime_value:20
+msgid "`frequency`: Number of repeat purchases observed for each customer"
+msgstr "`frequency`: Número de compras repetidas observadas para cada cliente"
+
+#: 115ebd5071744ff0b734cab80fc07b09 of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_lifetime_value:21
+msgid "`recency`: Time between the first and the last purchase"
+msgstr "`recency`: Tiempo entre la primera y la última compra"
+
+#: f17673290c9743f6a765b075b678c48e of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_lifetime_value:22
+msgid ""
+"`T`: Time between the first purchase and the end of the observation period"
+msgstr ""
+"T: Tiempo entre la primera compra y el final del período de observación"
+
+#: 98dcffdfc4bb4db29f8e62bbc83e6f42 of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_lifetime_value:23
+msgid ""
+"`monetary_value`: Mean spend values of repeat purchases for each customer"
+msgstr ""
+"`monetary_value`: Valores de gasto medio de compras repetidas para cada "
+"cliente"
+
+#: 90e744aadaa64963aa6d24fb479e29e4 of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_lifetime_value:25
+msgid "**future_t** : :class:`python:int`, optional"
+msgstr "**future_t** : :class:`python:int`, opcional"
+
+#: fbb3dd31e09b4215a88087d0ce2a954f of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_lifetime_value:24
+msgid "python:int, optional"
+msgstr "python:int, opcional"
+
+#: 7bca295ec2df41f18ae3d408cb634810 of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_lifetime_value:26
+msgid "The lifetime expected for the user in months. Default: 12"
+msgstr ""
+"La duración esperada de la vida útil para el usuario en meses. "
+"Predeterminado: 12"
+
+#: 4cd74308958f4d3d875d1ddfd2597b10 of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_lifetime_value:28
+msgid "**discount_rate** : :class:`python:float`, optional"
+msgstr "**tasa_de_descuento** : :class:`python:float`, opcional"
+
+#: 00efa8e8f5014246b75ac2b37404bdac of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_lifetime_value:27
+msgid "python:float, optional"
+msgstr "python:float, opcional"
+
+#: 6e9a7ff3647e4f5393e7cc42b2f6375b of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_lifetime_value:29
+msgid "The monthly adjusted discount rate. Default: 0.00"
+msgstr "La tasa de descuento ajustada mensual. Predeterminado: 0.00"
+
+#: 3c0d7cb7155042a794129a70cfc3dca5 of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_lifetime_value:31
+msgid "**time_unit** : :class:`python:str`, optional"
+msgstr "**unidad_de_tiempo** : :class:`python:str`, opcional"
+
+#: c823e524df0646f8a9ae9162723677a2 of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_lifetime_value:30
+msgid "python:str, optional"
+msgstr "python:str, opcional"
+
+#: 89a9f991025f4da7b4c185eddf403508 of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_lifetime_value:32
+msgid ""
+"Unit of time of the purchase history. Defaults to \"D\" for daily. Other "
+"options are \"W\" (weekly), \"M\" (monthly), and \"H\" (hourly). Example: If"
+" your dataset contains information about weekly purchases, you should use "
+"\"W\"."
+msgstr ""
+"Unidad de tiempo del historial de compras. Por defecto es \"D\" para diario."
+" Otras opciones son \"W\" (semanal), \"M\" (mensual) y \"H\" (horario). "
+"Ejemplo: Si su conjunto de datos contiene información sobre compras "
+"semanales, debe usar \"W\"."
+
+#: 094b980ce4db45d590c71c2421c036ee of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_lifetime_value
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 84e420c03dff40099adc6949fa605528 of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_lifetime_value:41
+msgid ":obj:`xarray`"
+msgstr ":obj:`xarray`"
+
+#: 2dbc4a46cdd44db8b2755cffd16af174 of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_lifetime_value:42
+msgid "DataArray containing estimated customer lifetime values"
+msgstr "DataArray que contiene los valores de vida estimados de los clientes"

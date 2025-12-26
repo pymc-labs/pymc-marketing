@@ -1,0 +1,954 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:2
+#: b91279b313154200b23de3d1baca11d7
+msgid "NestedLogit"
+msgstr "NestedLogit"
+
+#: 840bb4ffbf39439691da028fbe5106a2 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:2
+msgid "Nested Logit class."
+msgstr "Clase Nested Logit."
+
+#: f35f792a7f104fd1a704008ce83d9342 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:4
+msgid ""
+"Class to perform a nested logit analysis with the specific intent of "
+"determining the product attribute effects on consumer preference. The "
+"implementation here is drawn from a discussion in Kenneth Train's book "
+"\"Discrete Choice Methods with Simulation\" Second Edition from 2009. Useful"
+" discussion of the model can also be found in Paez & Boisjoly's book "
+"\"Discrete Choice Analysis with R\" from 2022."
+msgstr ""
+"Clase para realizar un análisis de logit anidado con la intención específica"
+" de determinar los efectos de los atributos del producto en la preferencia "
+"del consumidor. La implementación aquí se basa en una discusión en el libro "
+"de Kenneth Train \"Discrete Choice Methods with Simulation\" Segunda Edición"
+" de 2009. Una discusión útil sobre el modelo también se puede encontrar en "
+"el libro de Paez y Boisjoly \"Discrete Choice Analysis with R\" de 2022."
+
+#: b49050e4877e49329507e0336bd81437 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 2d8e8599063445e7b17d5e05ec47638c of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:15
+msgid "**choice_df** : :obj:`pd.DataFrame`"
+msgstr "**choice_df** : :obj:`pd.DataFrame`"
+
+#: 6afba7c830184649a24b06b21f4668a5 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:14
+msgid "pd.DataFrame"
+msgstr "pd.DataFrame"
+
+#: bae729ff34a744f4ac3fcdf3fe2d3d49 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:16
+msgid ""
+"A wide DataFrame where each row is a choice scenario. Product-specific "
+"attributes are stored in columns, and the dependent variable identifies the "
+"chosen product."
+msgstr ""
+"Un DataFrame amplio donde cada fila es un escenario de elección. Los "
+"atributos específicos del producto se almacenan en columnas, y la variable "
+"dependiente identifica el producto elegido."
+
+#: e0fd1f8ff87b44db833438394921f8cf of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:20
+msgid ""
+"**utility_equations** : :class:`python:list` of :obj:`formula` "
+":obj:`strings`"
+msgstr ""
+"**utility_equations** : :class:`python:list` de :obj:`formula` "
+":obj:`strings`"
+
+#: e2f2a6e9d6594312a9264c4536dab30f of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:19
+msgid "python:list of formula strings"
+msgstr "python:lista de cadenas de fórmulas"
+
+#: 1649b8b36cd541f39ecec8f3423adce7 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:21
+msgid ""
+"A list of formulas specifying how to model the utility of each product "
+"alternative. The formulas should be in Wilkinson style notation and allow "
+"the target product to be specified as as a function of the alternative "
+"specific attributes and the individual specific attributes: target_product ~"
+" target_attribute1 + target_attribute2 | individual_attribute"
+msgstr ""
+"Una lista de fórmulas que especifican cómo modelar la utilidad de cada "
+"alternativa de producto. Las fórmulas deben estar en notación de estilo "
+"Wilkinson y permitir que el producto objetivo se especifique como una "
+"función de los atributos específicos de la alternativa y los atributos "
+"específicos del individuo: target_product ~ target_attribute1 + "
+"target_attribute2 | individual_attribute"
+
+#: 1dad0dbc4d814148847424c640641b5c of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:28
+msgid "**depvar** : :class:`python:str`"
+msgstr "**depvar** : :class:`python:str`"
+
+#: f1ba7f935b6c491f88ede89c490d7be1 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:27
+msgid "python:str"
+msgstr "python:str"
+
+#: d5c983be0ae14cc9b45bdf9ffbe55ced of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:29
+msgid "The name of the dependent variable in the choice_df."
+msgstr "El nombre de la variable dependiente en el choice_df."
+
+#: 12eeb525a4d646ea9ccb3f9fdeda2e7b of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:31
+msgid "**covariates** : :class:`python:list` of :class:`python:str`"
+msgstr "**covariables** : :class:`python:list` de :class:`python:str`"
+
+#: 94d3236328a248918fa2f15a3f0c36da of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:30
+msgid "python:list of python:str"
+msgstr "python:lista de python:str"
+
+#: 6e8f4697c22548ec91d5d3fd329b5cc2 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:32
+msgid "Covariate names (e.g., ['X1', 'X2'])"
+msgstr "Nombres de covariables (por ejemplo, ['X1', 'X2'])"
+
+#: 4c310a49cf264b829d209056e5c4c915 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:34
+msgid "**nested_structure: dict**"
+msgstr "**estructura_anidada: dict**"
+
+#: 114cf2290f8d4e1e94b3e8cf1b77493d of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:35
+msgid "Dictionary to specify how to nest the choices between products"
+msgstr "Diccionario para especificar cómo anidar las opciones entre productos"
+
+#: bb58b5571b4f45489ae23b0bea8b6302 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:37
+msgid "**model_config** : :class:`python:dict`, optional"
+msgstr "**model_config** : :class:`python:dict`, opcional"
+
+#: 1f7bde9ee57f42feb277ced5ad53ee60 39927cd8b6384cb8b4077e8811373604 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:36
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:39
+msgid "python:dict, optional"
+msgstr "python:dict, opcional"
+
+#: 28f026750b3141e89d43fc552649d9ef of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:38
+msgid "Model configuration. If None, the default config is used."
+msgstr ""
+"Configuración del modelo. Si es None, se utiliza la configuración "
+"predeterminada."
+
+#: 8100754329044e34b30d050afa5dece1 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:40
+msgid "**sampler_config** : :class:`python:dict`, optional"
+msgstr "**sampler_config** : :class:`python:dict`, opcional"
+
+#: a8ea598b4a494f5aa8edaed7f967d4d1 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:41
+msgid "Sampler configuration. If None, the default config is used."
+msgstr ""
+"Configuración del muestreador. Si es None, se utiliza la configuración "
+"predeterminada."
+
+#: 593eca4037a34910a32ea21ecb9b13f5 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:54
+msgid "Notes"
+msgstr "Notas"
+
+#: f44e0816635641d088d7093b438b1777 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:56
+msgid "Example:"
+msgstr "Ejemplo:"
+
+#: 74489bc5a7534b43a4bb9b56efd9e46d of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:57
+msgid "The format of `choice_df`:"
+msgstr "El formato de `choice_df`:"
+
+#: 87532e3c72174e3daccd31436edead60 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:60
+msgid "Depvar"
+msgstr "Depvar"
+
+#: 307e6baee2b04a02bf68976cb1fae892 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:60
+msgid "alt_1_X1"
+msgstr "alt_1_X1"
+
+#: d4ff2b098aa5416390ac521bb4de0a2c of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:60
+msgid "alt_1_X2"
+msgstr "alt_1_X2"
+
+#: 7c73eca7ca4c4502b46c41aba166129f of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:60
+msgid "alt_2_X1"
+msgstr "alt_2_X1"
+
+#: 0e27bdc877184fd8ae440421e269ae93 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:60
+msgid "alt_2_X2"
+msgstr "alt_2_X2"
+
+#: 53e93e8f88ae4a388f9e4a0f54259680 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:62
+msgid "alt_1"
+msgstr "alt_1"
+
+#: b6cbb61231ae4f3486a2a7e6689cbce7 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:62
+msgid "2.4"
+msgstr "2.4"
+
+#: fe67a81a7cff4ddf8c431d2cf13747dd of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:62
+msgid "4.5"
+msgstr "4.5"
+
+#: 544e5eb772ff4360b648b85dd7865bd9 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:62
+msgid "5.4"
+msgstr "5.4"
+
+#: 568501374d3d4aea886eb67de4917354 d9965ceec3304ca8bc6a24bcf149da61 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:62
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:64
+msgid "6.7"
+msgstr "6.7"
+
+#: 27771a9d55624ae7a8a7eaf5233b4844 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:64
+msgid "alt_2"
+msgstr "alt_2"
+
+#: ae0d3e198aa34db1a1153ee0296b07fe of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:64
+msgid "3.5"
+msgstr "3.5"
+
+#: c4a5c40f0186449195cf50c19be42ad6 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:64
+msgid "2.3"
+msgstr "2.3"
+
+#: f1f75c79a5464afb9771ca4fb86222d0 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:64
+msgid "8.9"
+msgstr "8.9"
+
+#: 2a0b7493484e427fb57eb30ab6df487b of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:67
+msgid "Example `utility_equations` list:"
+msgstr "Ejemplo de lista `utility_equations`:"
+
+#: bdbd71b14ae54082ae36c28821005782 of
+#: pymc_marketing.customer_choice.nested_logit.NestedLogit:75
+msgid "Example nesting structure:"
+msgstr "Ejemplo de estructura de anidamiento:"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:12
+#: 55971cf410e84b3b933b12134b5b9446
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: 4d91fdaa0950417a9b51a64018e136de
+msgid ""
+":py:obj:`NestedLogit.__init__ "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.__init__>`\\ "
+"\\(choice\\_df\\, ...\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`NestedLogit.__init__ "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.__init__>`\\ "
+"\\(choice\\_df\\, ...\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: bae3066c70cd42b28f6fd4a7ad7bb670
+msgid ""
+"Initialize model configuration and sampler configuration for the model."
+msgstr ""
+"Inicializar la configuración del modelo y la configuración del muestreador "
+"para el modelo."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: 54ea39d596924b4caf6a46e83bcc9807
+msgid ""
+":py:obj:`NestedLogit.apply_intervention "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.apply_intervention>`\\"
+" \\(new\\_choice\\_df\\)"
+msgstr ""
+":py:obj:`NestedLogit.apply_intervention "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.apply_intervention>`\\"
+" \\(nuevo\\_choice\\_df\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: b670027b5ae7401c81a945fd36fe8112
+msgid "Apply one of two types of intervention."
+msgstr "Aplique uno de los dos tipos de intervención."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: c4fe11e9a72c4eb99c0e6d8daac4d01b
+msgid ""
+":py:obj:`NestedLogit.approximate_fit "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.approximate_fit>`\\"
+" \\(X\\[\\, y\\, ...\\]\\)"
+msgstr ""
+":py:obj:`NestedLogit.approximate_fit "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.approximate_fit>`\\"
+" \\(X\\[\\, y\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: 276b1b6905ac4f648c74b7b858780afa
+msgid "Fit a model using Variational Inference and return InferenceData."
+msgstr ""
+"Ajuste un modelo utilizando Inferencia Variacional y devuelva InferenceData."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: 67f24c59d6f94a9d87c58fe4b536f0ce
+msgid ""
+":py:obj:`NestedLogit.attrs_to_init_kwargs "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.attrs_to_init_kwargs>`\\"
+" \\(attrs\\)"
+msgstr ""
+":py:obj:`NestedLogit.attrs_to_init_kwargs "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.attrs_to_init_kwargs>`\\"
+" \\(attrs\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: 8b9a8363a4944ba5ab754fd87b5af014
+msgid ""
+"Convert the model configuration and sampler configuration from the "
+"attributes to keyword arguments."
+msgstr ""
+"Convierte la configuración del modelo y la configuración del muestreador de "
+"los atributos a argumentos de palabra clave."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: b0c207bededb43cf83c3a384ead2905e
+msgid ""
+":py:obj:`NestedLogit.build_from_idata "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.build_from_idata>`\\"
+" \\(idata\\)"
+msgstr ""
+":py:obj:`NestedLogit.build_from_idata "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.build_from_idata>`\\"
+" \\(idata\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: f4025f4ec8814de6a37774d831b98fe1
+msgid "Build model from the InferenceData object."
+msgstr "Construir el modelo a partir del objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: 6bb82b103d2544068562711d15749c3c
+msgid ""
+":py:obj:`NestedLogit.build_model "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.build_model>`\\ "
+"\\(X\\, y\\, \\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`NestedLogit.build_model "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.build_model>`\\ "
+"\\(X\\, y\\, \\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: 7fef2af86de04547a79b5efd1456b299
+msgid "Do not use, required by parent class."
+msgstr "No utilizar, requerido por la clase padre."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: 0e5ca41c93494285a100a78b847c278d
+msgid ""
+":py:obj:`NestedLogit.calculate_share_change "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.calculate_share_change>`\\"
+" \\(idata\\, ...\\)"
+msgstr ""
+":py:obj:`NestedLogit.calculate_share_change "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.calculate_share_change>`\\"
+" \\(idata\\, ...\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: b44b1c9e850c40cc9b68f9f83b36ad3e
+msgid "Calculate difference in market share due to market intervention."
+msgstr ""
+"Calcular la diferencia en la cuota de mercado debido a la intervención en el"
+" mercado."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: 70a1d26d7752411aa1c8ba0b2ae95e31
+msgid ""
+":py:obj:`NestedLogit.create_fit_data "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.create_fit_data>`\\"
+" \\(X\\, y\\)"
+msgstr ""
+":py:obj:`NestedLogit.create_fit_data "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.create_fit_data>`\\"
+" \\(X\\, y\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: 07acea06fdb541dd85209b89702efc19
+msgid "Create the fit_data group based on the input data."
+msgstr "Cree el grupo fit_data basado en los datos de entrada."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: b02e9b7992c2413ca79f0f0a8ce9eb29
+msgid ""
+":py:obj:`NestedLogit.create_idata_attrs "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.create_idata_attrs>`\\"
+" \\(\\)"
+msgstr ""
+":py:obj:`NestedLogit.create_idata_attrs "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.create_idata_attrs>`\\"
+" \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: 66168af12da64f2db0c10b05c6b2f0dc
+msgid "Create the attributes for the InferenceData object."
+msgstr "Cree los atributos para el objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: 59ca7405c91644cb92e4ea592710f884
+msgid ""
+":py:obj:`NestedLogit.fit "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.fit>`\\ "
+"\\(extend\\_idata\\, kwargs\\)"
+msgstr ""
+":py:obj:`NestedLogit.fit "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.fit>`\\ "
+"\\(extend\\_idata\\, kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: f83f8f52a38b4d4493bcb79dfb3bb520
+msgid "Fit Nested Logit Model."
+msgstr "Ajustar el modelo de logit anidado."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: 2db72700c345486daf032a5dcfec0c58
+msgid ""
+":py:obj:`NestedLogit.graphviz "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.graphviz>`\\ "
+"\\(\\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`NestedLogit.graphviz "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.graphviz>`\\ "
+"\\(\\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: d880dafba27d4661bd693855be1ba115
+msgid "Get the graphviz representation of the model."
+msgstr "Obtenga la representación graphviz del modelo."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: 224cc826dcba4ccda63be2ef1b1a1458
+msgid ""
+":py:obj:`NestedLogit.idata_to_init_kwargs "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.idata_to_init_kwargs>`\\"
+" \\(idata\\)"
+msgstr ""
+":py:obj:`NestedLogit.idata_to_init_kwargs "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.idata_to_init_kwargs>`\\"
+" \\(idata\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: d09891254dc44acebcd2ee3595226d62
+msgid ""
+"Create  the model configuration and sampler configuration from the "
+"InferenceData to keyword arguments."
+msgstr ""
+"Cree la configuración del modelo y la configuración del muestreador a partir"
+" de InferenceData como argumentos de palabra clave."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: c336b142389340d78113093d8eae233d
+msgid ""
+":py:obj:`NestedLogit.load "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.load>`\\ "
+"\\(fname\\[\\, check\\]\\)"
+msgstr ""
+":py:obj:`NestedLogit.load "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.load>`\\ "
+"\\(fname\\[\\, check\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: b03aedf99cbd45deaf602ced394bce8a
+msgid "Create a ModelBuilder instance from a file."
+msgstr "Cree una instancia de ModelBuilder a partir de un archivo."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: 01872d5a92474352857d4fea1189f703
+msgid ""
+":py:obj:`NestedLogit.load_from_idata "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.load_from_idata>`\\"
+" \\(idata\\[\\, check\\]\\)"
+msgstr ""
+":py:obj:`NestedLogit.load_from_idata "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.load_from_idata>`\\"
+" \\(idata\\[\\, check\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: 9bdf1e7d6eb64dba9024d639b50b6503
+msgid "Create a ModelBuilder instance from an InferenceData object."
+msgstr ""
+"Cree una instancia de ModelBuilder a partir de un objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: 6a3986d5e4814ebb8d57874f62e8d47b
+msgid ""
+":py:obj:`NestedLogit.make_P_nest "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.make_P_nest>`\\ "
+"\\(U\\, W\\, betas\\_fixed\\, ...\\)"
+msgstr ""
+":py:obj:`NestedLogit.make_P_nest "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.make_P_nest>`\\ "
+"\\(U\\, W\\, betas\\_fijos\\, ...\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: 1b6f69aa5f1e4eb09615f9de72976339
+msgid "Calculate the probability of choosing a nest."
+msgstr "Calcule la probabilidad de elegir un nido."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: d3af60e2ebda4cf9aa2e26f5249d7550
+msgid ""
+":py:obj:`NestedLogit.make_exp_nest "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest>`\\ "
+"\\(U\\, W\\, betas\\_fixed\\, ...\\)"
+msgstr ""
+":py:obj:`NestedLogit.make_exp_nest "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.make_exp_nest>`\\ "
+"\\(U\\, W\\, betas\\_fijos\\, ...\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: ae43d879fa0b46e4828af66f78a42e4a
+msgid "Calculate within-nest probabilities for nested logit models."
+msgstr ""
+"Calcular las probabilidades dentro del nido para modelos logit anidados."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: fa7e350caa084c23a5ce43a2e5ddb6ed
+msgid ""
+":py:obj:`NestedLogit.make_model "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.make_model>`\\ "
+"\\(X\\, W\\, y\\)"
+msgstr ""
+":py:obj:`NestedLogit.make_model "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.make_model>`\\ "
+"\\(X\\, W\\, y\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: 492e683b4b324edaa24314017ecfdaf5
+msgid "Build Model."
+msgstr "Construir modelo."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: 8b464170eb834c8cb6d431a93319eccc
+msgid ""
+":py:obj:`NestedLogit.parse_formula "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.parse_formula>`\\ "
+"\\(df\\, formula\\, depvar\\)"
+msgstr ""
+":py:obj:`NestedLogit.parse_formula "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.parse_formula>`\\ "
+"\\(df\\, fórmula\\, var_dep\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: 2cda8c75abff4722b3981745ba3bf558
+msgid "Parse the three-part structure of a formula specification."
+msgstr ""
+"Analice la estructura de tres partes de una especificación de fórmula."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: ff4b3d4cee1740c88bf554ff13b1add9
+msgid ""
+":py:obj:`NestedLogit.plot_change "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.plot_change>`\\ "
+"\\(change\\_df\\[\\, title\\, ...\\]\\)"
+msgstr ""
+":py:obj:`NestedLogit.plot_change "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.plot_change>`\\ "
+"\\(change\\_df\\[\\, título\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: e8b717640b7c45dbabcca6dcdd205516
+msgid "Plot change induced by a market intervention."
+msgstr "Cambio de trama inducido por una intervención en el mercado."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: ffede78d29464aae96341013fce05f2b
+msgid ""
+":py:obj:`NestedLogit.post_sample_model_transformation "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.post_sample_model_transformation>`\\"
+" \\(\\)"
+msgstr ""
+":py:obj:`NestedLogit.post_sample_model_transformation "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.post_sample_model_transformation>`\\"
+" \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: 66455e01d8ac4501b1ab8cd81b65e418
+msgid "Perform transformation on the model after sampling."
+msgstr "Realice la transformación en el modelo después de muestrear."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: 16b93f2b178743eb9e3911c9d8abe2ab
+msgid ""
+":py:obj:`NestedLogit.predict "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.predict>`\\ "
+"\\(\\[X\\, extend\\_idata\\]\\)"
+msgstr ""
+":py:obj:`NestedLogit.predict "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.predict>`\\ "
+"\\(\\[X\\, extend\\_idata\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: 823d553b3cf6460699f9b754b07ce3b0
+msgid ""
+"Use a model to predict on unseen data and return point prediction of all the"
+" samples."
+msgstr ""
+"Utilice un modelo para predecir sobre datos no vistos y devuelva la "
+"predicción puntual de todas las muestras."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: 7d703abfc4824bdc9bacf3f3dbd118ea
+msgid ""
+":py:obj:`NestedLogit.predict_posterior "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.predict_posterior>`\\"
+" \\(\\[X\\, ...\\]\\)"
+msgstr ""
+":py:obj:`NestedLogit.predict_posterior "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.predict_posterior>`\\"
+" \\(\\[X\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: f56327d0969241c8898db62ec70b32cc
+msgid "Generate posterior predictive samples on unseen data."
+msgstr "Generar muestras predictivas posteriores en datos no vistos."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: 4c0572d4764f4082afd1ce1717e0c10c
+msgid ""
+":py:obj:`NestedLogit.predict_proba "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.predict_proba>`\\ "
+"\\(\\[X\\, extend\\_idata\\, ...\\]\\)"
+msgstr ""
+":py:obj:`NestedLogit.predict_proba "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.predict_proba>`\\ "
+"\\(\\[X\\, extend\\_idata\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: e745151b32c44b249a39fb4ecc07f889
+msgid ""
+"Alias for `predict_posterior`, for consistency with scikit-learn "
+"probabilistic estimators."
+msgstr ""
+"Alias para `predict_posterior`, por coherencia con los estimadores "
+"probabilísticos de scikit-learn."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: 56281fe8825c4c3fb43b5361a098ed3b
+msgid ""
+":py:obj:`NestedLogit.prepare_X_matrix "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.prepare_X_matrix>`\\"
+" \\(df\\, ...\\)"
+msgstr ""
+":py:obj:`NestedLogit.prepare_X_matrix "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.prepare_X_matrix>`\\"
+" \\(df\\, ...\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: 825b3608433740d997d9af151c4aa01c
+msgid "Prepare the X matrix for the utility equations."
+msgstr "Prepare la matriz X para las ecuaciones de utilidad."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: fde60427f0304f70a5ddcf4b3e54095b
+msgid ""
+":py:obj:`NestedLogit.preprocess_model_data "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.preprocess_model_data>`\\"
+" \\(choice\\_df\\, ...\\)"
+msgstr ""
+":py:obj:`NestedLogit.preprocess_model_data "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.preprocess_model_data>`\\"
+" \\(choice\\_df\\, ...\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: a39c32e4fc6a4c83a022a20a9530f6bf
+msgid ""
+"Pre-process the model initiation inputs into a format that can be used by "
+"the PyMC model."
+msgstr ""
+"Preprocesar las entradas de iniciación del modelo en un formato que pueda "
+"ser utilizado por el modelo PyMC."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: 0f2fb175ddf0486e9d4aa3cf2eaf2a90
+msgid ""
+":py:obj:`NestedLogit.sample "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.sample>`\\ "
+"\\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`NestedLogit.sample "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.sample>`\\ "
+"\\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: d57cc518a33743cda765d13381b5bc05
+msgid "Sample all the things."
+msgstr "Muestrea todas las cosas."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: 96451ed6b7d34408a2efbe7cfcd33d19
+msgid ""
+":py:obj:`NestedLogit.sample_posterior_predictive "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.sample_posterior_predictive>`\\"
+" \\(...\\)"
+msgstr ""
+":py:obj:`NestedLogit.sample_posterior_predictive "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.sample_posterior_predictive>`\\"
+" \\(...\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: 3f5280c261464a7083016353ba336b67
+msgid "Sample Posterior Predictive Distribution."
+msgstr "Distribución Predictiva Posterior de Muestra."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: e6cc711852304df49ded8035824bb5db
+msgid ""
+":py:obj:`NestedLogit.sample_prior_predictive "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.sample_prior_predictive>`\\"
+" \\(...\\)"
+msgstr ""
+":py:obj:`NestedLogit.sample_prior_predictive "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.sample_prior_predictive>`\\"
+" \\(...\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: 37140990bd444dd292a41b062bfb8a6b
+msgid "Sample Prior Predictive Distribution."
+msgstr "Distribución Predictiva Anterior de Muestra."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: b6cc8cf12f1448e7813d72339d294058
+msgid ""
+":py:obj:`NestedLogit.save "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.save>`\\ "
+"\\(fname\\, \\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`NestedLogit.save "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.save>`\\ "
+"\\(fname\\, \\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: 73b244292a494a6899acef76f236d30f
+msgid "Save the model's inference data to a file."
+msgstr "Guarde los datos de inferencia del modelo en un archivo."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: 023488311322481b94def9c0711f92a1
+msgid ""
+":py:obj:`NestedLogit.set_idata_attrs "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.set_idata_attrs>`\\"
+" \\(\\[idata\\]\\)"
+msgstr ""
+":py:obj:`NestedLogit.set_idata_attrs "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.set_idata_attrs>`\\"
+" \\(\\[idata\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: 18c84c024fed4b4984f15fac1c6a9402
+msgid "Set attributes on an InferenceData object."
+msgstr "Establecer atributos en un objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: e9d7b4ac7fb84424b4fa6ed86b187ff4
+msgid ""
+":py:obj:`NestedLogit.table "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.table>`\\ "
+"\\(\\*\\*model\\_table\\_kwargs\\)"
+msgstr ""
+":py:obj:`NestedLogit.table "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.table>`\\ "
+"\\(\\*\\*model\\_table\\_kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
+#: 04cc1736fb63443c8565215b652a806b
+msgid "Get the summary table of the model."
+msgstr "Obtenga la tabla resumen del modelo."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:54
+#: 6a2886aa38bf40818bf294c69090dba7
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:70:<autosummary>:1
+#: d69ce96568d84604b8f19bc4bf2a6a81
+msgid ""
+":py:obj:`default_model_config "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.default_model_config>`\\"
+msgstr ""
+":py:obj:`default_model_config "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.default_model_config>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:70:<autosummary>:1
+#: a1443fc1bb33470483cd7252d69712a4
+msgid "Default model configuration."
+msgstr "Configuración de modelo predeterminada."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:70:<autosummary>:1
+#: 8d734e1570354559899f177de7fb0f5a
+msgid ""
+":py:obj:`default_sampler_config "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.default_sampler_config>`\\"
+msgstr ""
+":py:obj:`default_sampler_config "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.default_sampler_config>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:70:<autosummary>:1
+#: 27d010a19dc344189c7147f14a425d23
+msgid "Default sampler configuration."
+msgstr "Configuración de muestreador predeterminada."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:70:<autosummary>:1
+#: 33e87997b2274c7185479236c80186f8
+msgid ""
+":py:obj:`fit_result "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.fit_result>`\\"
+msgstr ""
+":py:obj:`fit_result "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.fit_result>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:70:<autosummary>:1
+#: 8dd1a326e40440f49771a2cd452aa17a
+msgid "Get the posterior fit_result."
+msgstr "Obtenga el resultado de ajuste posterior fit_result."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:70:<autosummary>:1
+#: ea3b2abb22f64cb9b0288a2d2741eb3b
+msgid ""
+":py:obj:`id <pymc_marketing.customer_choice.nested_logit.NestedLogit.id>`\\"
+msgstr ""
+":py:obj:`id <pymc_marketing.customer_choice.nested_logit.NestedLogit.id>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:70:<autosummary>:1
+#: b2d70e152b0a45b0878a0b215eb6f464
+msgid "Generate a unique hash value for the model."
+msgstr "Generar un valor hash único para el modelo."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:70:<autosummary>:1
+#: 57fec32f834640e78a4ebdc2c7a180ec
+msgid ""
+":py:obj:`output_var "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.output_var>`\\"
+msgstr ""
+":py:obj:`output_var "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.output_var>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:70:<autosummary>:1
+#: 9a519532a0514246a4a010f7e1479637
+msgid "The output variable of the model."
+msgstr "La variable de salida del modelo."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:70:<autosummary>:1
+#: 6e5f3d0d465a48ccb1136df7460dc2bf
+msgid ""
+":py:obj:`posterior "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.posterior>`\\"
+msgstr ""
+":py:obj:`posterior "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.posterior>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:70:<autosummary>:1
+#: a2dcdb3aa36542a1b32120c3fd69a4d2
+msgid ""
+":py:obj:`posterior_predictive "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.posterior_predictive>`\\"
+msgstr ""
+":py:obj:`posterior_predictive "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.posterior_predictive>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:70:<autosummary>:1
+#: 203c50aa51d048d2b4c58dd5c18d5b2b
+msgid ""
+":py:obj:`predictions "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.predictions>`\\"
+msgstr ""
+":py:obj:`predicciones "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.predictions>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:70:<autosummary>:1
+#: 32f68f3462f24eb398a403e6e6b34bd6
+msgid ""
+":py:obj:`prior "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.prior>`\\"
+msgstr ""
+":py:obj:`prior "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.prior>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:70:<autosummary>:1
+#: 5c1a561881344e5ba160401a421d2463
+msgid ""
+":py:obj:`prior_predictive "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.prior_predictive>`\\"
+msgstr ""
+":py:obj:`prior_predictive "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.prior_predictive>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:70:<autosummary>:1
+#: 276372876f0f44cfafcc66e22d639b3c
+msgid ""
+":py:obj:`version "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.version>`\\"
+msgstr ""
+":py:obj:`versión "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.version>`\\"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:70:<autosummary>:1
+#: 7583cf815fc54f908fe2c9d4804b24e5
+msgid ""
+":py:obj:`idata "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.idata>`\\"
+msgstr ""
+":py:obj:`idata "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.idata>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:70:<autosummary>:1
+#: d2aaee22a33d429fb134e64de89a6bdc
+msgid ""
+":py:obj:`sampler_config "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.sampler_config>`\\"
+msgstr ""
+":py:obj:`sampler_config "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.sampler_config>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:70:<autosummary>:1
+#: ce95ce4317164fd6aa98cccb634bb692
+msgid ""
+":py:obj:`model_config "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.model_config>`\\"
+msgstr ""
+":py:obj:`model_config "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit.model_config>`"

@@ -1,0 +1,76 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.metrics.nrmse.rst:2
+#: 4e82b4b6c44243fb80329758369c08fe
+msgid "nrmse"
+msgstr "nrmse"
+
+#: 2168a1e0ba124dfeaf305fd4408f88ce of pymc_marketing.metrics.nrmse:2
+msgid "Calculate the Normalized Root Mean Square Error (NRMSE)."
+msgstr "Calcule el Error Cuadrático Medio Normalizado (NRMSE)."
+
+#: cdf3374941954dd0a90f135cc961d00a of pymc_marketing.metrics.nrmse:4
+msgid ""
+"Normalization allows for comparison across different data sets and "
+"methodologies. NRMSE is one of the key metrics used in Robyn MMMs."
+msgstr ""
+"La normalización permite la comparación entre diferentes conjuntos de datos "
+"y metodologías. NRMSE es una de las métricas clave utilizadas en los MMM de "
+"Robyn."
+
+#: f4431bd880c5433dbaef55e07091c1f4 of pymc_marketing.metrics.nrmse
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: d7ee22b4a4074888aecc168742e7cb71 of pymc_marketing.metrics.nrmse:9
+msgid "**y_true** : :obj:`np.ndarray <numpy.ndarray>`"
+msgstr "**y_true** : :obj:`np.ndarray <numpy.ndarray>`"
+
+#: 11444b9450b14f198231005024c8cc64 ac6ea4eb36d941dfbeb61f4782f907d7 of
+#: pymc_marketing.metrics.nrmse:8 pymc_marketing.metrics.nrmse:11
+msgid "np.ndarray"
+msgstr "np.ndarray"
+
+#: 8ca828a75610422c8658b31bb35e5f7c of pymc_marketing.metrics.nrmse:10
+msgid "True values for target metric"
+msgstr "Valores verdaderos para la métrica objetivo"
+
+#: 7078475bb83c40ea88ead4bdd6852d01 of pymc_marketing.metrics.nrmse:12
+msgid "**y_pred** : :obj:`np.ndarray <numpy.ndarray>`"
+msgstr "**y_pred** : :obj:`np.ndarray <numpy.ndarray>`"
+
+#: c727d8de2933492e9f6b03cfae233028 of pymc_marketing.metrics.nrmse:13
+msgid "Predicted values for target metric"
+msgstr "Valores predichos para la métrica objetivo"
+
+#: e296f945204e4ab196ae8bc86021a5b6 of pymc_marketing.metrics.nrmse
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 3e885c67890e4976b537c82d0184a2b9 of pymc_marketing.metrics.nrmse:19
+msgid ":class:`python:float`"
+msgstr ":class:`python:float`"
+
+#: 3b6927d2e0e5467fb5a4d8874e498f54 of pymc_marketing.metrics.nrmse:20
+msgid "Normalized root mean square error."
+msgstr "Error cuadrático medio normalizado."

@@ -1,0 +1,98 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.mmm.MMM.validate.rst:2
+#: 57075e7310544f5f91853cc425e6e1ff
+msgid "MMM.validate"
+msgstr "MMM.validar"
+
+#: ae728672c3b8415dabc7a835d917ccaa of
+#: pymc_marketing.mmm.base.MMMModelBuilder.validate:2
+msgid "Validate the input data based on the specified target type."
+msgstr "Valide los datos de entrada según el tipo de destino especificado."
+
+#: 2ddddd5923e0489f82513b50fcee2ee0 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.validate:4
+msgid ""
+"This function loops over the validation methods specified for the target "
+"type and applies them to the input data."
+msgstr ""
+"Esta función itera sobre los métodos de validación especificados para el "
+"tipo objetivo y los aplica a los datos de entrada."
+
+#: b803a383c0c548d1bc557dd64625fcda of
+#: pymc_marketing.mmm.base.MMMModelBuilder.validate
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 1ff644ac873341339e5722752c351dab of
+#: pymc_marketing.mmm.base.MMMModelBuilder.validate:9
+msgid "**target** : :class:`python:str`"
+msgstr "**objetivo** : :class:`python:str`"
+
+#: d08fc8c6b9bb4063816319b74d342829 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.validate:8
+msgid "python:str"
+msgstr "python:str"
+
+#: 6a893a4a58dc490c9ed6ec57e22c2cd3 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.validate:10
+msgid ""
+"The type of target to be validated. Expected values are \"X\" for features "
+"and \"y\" for the target variable."
+msgstr ""
+"El tipo de objetivo que debe ser validado. Los valores esperados son \"X\" "
+"para características y \"y\" para la variable objetivo."
+
+#: 85d8ace022cd4df0be6ee23eb23559d5 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.validate:13
+msgid ""
+"**data** : :obj:`Union`\\[:obj:`pd.DataFrame`, :obj:`pd.Series`, "
+":obj:`np.ndarray <numpy.ndarray>`]"
+msgstr ""
+"**datos** : :obj:`Union`\\[:obj:`pd.DataFrame`, :obj:`pd.Series`, "
+":obj:`np.ndarray <numpy.ndarray>`]"
+
+#: 8d14e99bd93a46349fa5caf0194ea8d1 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.validate:12
+msgid "Union[pd.DataFrame, pd.Series, np.ndarray]"
+msgstr "Unión[pd.DataFrame, pd.Series, np.ndarray]"
+
+#: 7fd222cbcc504ccd91793b24425f594d of
+#: pymc_marketing.mmm.base.MMMModelBuilder.validate:14
+msgid "The input data to be validated."
+msgstr "Los datos de entrada que deben ser validados."
+
+#: 2940b00b1c4b41ee94923ab310d20ed3 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.validate
+msgid "Raises"
+msgstr "Aumentos"
+
+#: 09959f3ea5124a8980c2c1d9ac5375eb of
+#: pymc_marketing.mmm.base.MMMModelBuilder.validate:24
+msgid ":obj:`ValueError`"
+msgstr ":obj:`ValueError`"
+
+#: 38331af06f9e47dbae7da3f6eeb176d5 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.validate:25
+msgid "If the target type is not \"X\" or \"y\", a ValueError will be raised."
+msgstr "Si el tipo de destino no es \"X\" o \"y\", se generará un ValueError."

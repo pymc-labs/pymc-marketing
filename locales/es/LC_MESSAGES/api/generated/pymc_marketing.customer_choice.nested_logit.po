@@ -1,0 +1,52 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.rst:2
+#: 442dec132ef240dda272a0ae8f722def
+msgid "nested\\_logit"
+msgstr "nested\\_logit"
+
+#: 833c7a1c81d44653b6b6cd6db2214797 of
+#: pymc_marketing.customer_choice.nested_logit:1
+msgid "Nested Logit for Product Preference Analysis."
+msgstr "Logit anidado para el análisis de preferencia de productos."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.rst:17
+#: 1341a351faa042ed8636c3c7e2d898c4
+msgid "Classes"
+msgstr "Clases"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.rst:23:<autosummary>:1
+#: 6acd8c3aa6a34b768b9b43ce9a6dbf03
+msgid ""
+":py:obj:`NestedLogit "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit>`\\ "
+"\\(choice\\_df\\, utility\\_equations\\, ...\\)"
+msgstr ""
+":py:obj:`NestedLogit "
+"<pymc_marketing.customer_choice.nested_logit.NestedLogit>`\\ "
+"\\(choice\\_df\\, utility\\_equations\\, ...\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.rst:23:<autosummary>:1
+#: 75c981ca94f849ad832d693982c79940
+msgid "Nested Logit class."
+msgstr "Clase de Logit Anidado."

@@ -1,0 +1,46 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.media_transformation.MediaTransformation.to_dict.rst:2
+#: 8c36ece67fb846ee89a84833476b9367
+msgid "MediaTransformation.to\\_dict"
+msgstr "MediaTransformation.to\\_dict"
+
+#: 0b345454e05c4b2eaa96b2fc5b1fdd24 of
+#: pymc_marketing.mmm.media_transformation.MediaTransformation.to_dict:2
+msgid "Convert the media transformation to a dictionary."
+msgstr "Convierte la transformación de medios a un diccionario."
+
+#: d9576a5acc2e4ea7803db39b37ab13fe of
+#: pymc_marketing.mmm.media_transformation.MediaTransformation.to_dict
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 68250f31e95548a490211bfac33cf34e of
+#: pymc_marketing.mmm.media_transformation.MediaTransformation.to_dict:10
+msgid ":class:`python:dict`"
+msgstr ":class:`python:dict`"
+
+#: 3a7440d125e640209d44c22306aaa3e5 of
+#: pymc_marketing.mmm.media_transformation.MediaTransformation.to_dict:11
+msgid "The media transformation as a dictionary."
+msgstr "La transformación de los medios como un diccionario."

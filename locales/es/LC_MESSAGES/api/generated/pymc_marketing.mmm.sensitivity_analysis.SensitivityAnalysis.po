@@ -1,0 +1,112 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis.rst:2
+#: 243a0541fdca46baa789675712307e4c
+msgid "SensitivityAnalysis"
+msgstr "Análisis de Sensibilidad"
+
+#: 94561dfa637c4a3486b74562e07e79f2 of
+#: pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis:2
+msgid ""
+"SensitivityAnalysis class is used to perform counterfactual analysis on "
+"MMM's."
+msgstr ""
+"La clase SensitivityAnalysis se utiliza para realizar análisis "
+"contrafactuales en los MMM."
+
+#: ../source/api/generated/pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis.rst:12
+#: 6d21289072f4479a8a5456710cc33230
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis.rst:20:<autosummary>:1
+#: 56d3cbcfaebd4a20974bce9ba03dfe88
+msgid ""
+":py:obj:`SensitivityAnalysis.__init__ "
+"<pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis.__init__>`\\ "
+"\\(mmm\\)"
+msgstr ""
+":py:obj:`SensitivityAnalysis.__init__ "
+"<pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis.__init__>`\\ "
+"\\(mmm\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis.rst:20:<autosummary>:1
+#: b5c87a13650548159fbfb6e2ea4abe5c
+msgid ""
+"Initialize the SensitivityAnalysis with a reference to the MMM instance."
+msgstr ""
+"Inicialice el SensitivityAnalysis con una referencia a la instancia de MMM."
+
+#: ../source/api/generated/pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis.rst:20:<autosummary>:1
+#: 880d67a24e13408fbbfb65112375632b
+msgid ""
+":py:obj:`SensitivityAnalysis.compute_marginal_effects "
+"<pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis.compute_marginal_effects>`\\"
+" \\(...\\)"
+msgstr ""
+":py:obj:`SensitivityAnalysis.compute_marginal_effects "
+"<pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis.compute_marginal_effects>`\\"
+" \\(...\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis.rst:20:<autosummary>:1
+#: f540317c64d147d3abddc4b62c50b5cc
+msgid ""
+"Compute marginal effects via finite differences from the sweep results."
+msgstr ""
+"Calcule los efectos marginales mediante diferencias finitas a partir de los "
+"resultados de la barrida."
+
+#: ../source/api/generated/pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis.rst:20:<autosummary>:1
+#: 5e558d04fa0640edb2e3345b2395efff
+msgid ""
+":py:obj:`SensitivityAnalysis.create_intervention "
+"<pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis.create_intervention>`\\"
+" \\(...\\)"
+msgstr ""
+":py:obj:`SensitivityAnalysis.create_intervention "
+"<pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis.create_intervention>`\\"
+" \\(...\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis.rst:20:<autosummary>:1
+#: d2fb3fa7a16743519e63d963473a1b12
+msgid "Apply the intervention to the predictors."
+msgstr "Aplique la intervención a los predictores."
+
+#: ../source/api/generated/pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis.rst:20:<autosummary>:1
+#: cfb4de4b21e145218f5b492b0afd7296
+msgid ""
+":py:obj:`SensitivityAnalysis.run_sweep "
+"<pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis.run_sweep>`\\ "
+"\\(var\\_names\\, ...\\)"
+msgstr ""
+":py:obj:`SensitivityAnalysis.run_sweep "
+"<pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis.run_sweep>`\\ "
+"\\(var\\_names\\, ...\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.sensitivity_analysis.SensitivityAnalysis.rst:20:<autosummary>:1
+#: 2dc5b3ea24a3477e902328e6ad9efcb7
+msgid ""
+"Run the model's predict function over the sweep grid and store results."
+msgstr ""
+"Ejecute la función de predicción del modelo sobre la cuadrícula de barrido y"
+" almacene los resultados."

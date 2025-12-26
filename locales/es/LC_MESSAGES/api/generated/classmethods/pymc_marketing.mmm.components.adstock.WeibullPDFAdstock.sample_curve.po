@@ -1,0 +1,82 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.components.adstock.WeibullPDFAdstock.sample_curve.rst:2
+#: 96c666cab06d4fe5a196816608327e58
+msgid "WeibullPDFAdstock.sample\\_curve"
+msgstr "WeibullPDFAdstock.curva\\_de\\_muestra"
+
+#: c6e79c61b26a4d238e0137e114bd3c1f of
+#: pymc_marketing.mmm.components.adstock.AdstockTransformation.sample_curve:2
+msgid "Sample the adstock transformation given parameters."
+msgstr "Muestre la transformación de adstock dados los parámetros."
+
+#: 27d4f861e6fd405ca791964a8c805b50 of
+#: pymc_marketing.mmm.components.adstock.AdstockTransformation.sample_curve
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 4435286d7e2c438b9dfe3b1d911ec8d2 of
+#: pymc_marketing.mmm.components.adstock.AdstockTransformation.sample_curve:7
+msgid "**parameters** : :obj:`xr.Dataset`"
+msgstr "**parámetros** : :obj:`xr.Dataset`"
+
+#: 860946a5a13e41129fe51f591a7d0164 of
+#: pymc_marketing.mmm.components.adstock.AdstockTransformation.sample_curve:6
+msgid "xr.Dataset"
+msgstr "xr.ConjuntoDeDatos"
+
+#: f521487ef1774fcfa3b092c56a23111e of
+#: pymc_marketing.mmm.components.adstock.AdstockTransformation.sample_curve:8
+msgid "Dataset with parameter values."
+msgstr "Conjunto de datos con valores de parámetros."
+
+#: 841318a92d99409b9eaa9281e14ddddf of
+#: pymc_marketing.mmm.components.adstock.AdstockTransformation.sample_curve:10
+msgid "**amount** : :class:`python:float`, optional"
+msgstr "**cantidad** : :class:`python:float`, opcional"
+
+#: 3ef56591f5c04654b5857e94559ea744 of
+#: pymc_marketing.mmm.components.adstock.AdstockTransformation.sample_curve:9
+msgid "python:float, optional"
+msgstr "python:float, opcional"
+
+#: f1c3491d9b2a485bb963cd77ba3f05ad of
+#: pymc_marketing.mmm.components.adstock.AdstockTransformation.sample_curve:11
+msgid "Amount to apply the adstock transformation to, by default 1.0."
+msgstr ""
+"Cantidad a la que se aplicará la transformación de adstock, por defecto 1.0."
+
+#: 4f021e5d10de42eb87b58a101e022b1c of
+#: pymc_marketing.mmm.components.adstock.AdstockTransformation.sample_curve
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: a829f1ff2bf2451189bfac432be4cc76 of
+#: pymc_marketing.mmm.components.adstock.AdstockTransformation.sample_curve:17
+msgid ":obj:`xr.DataArray`"
+msgstr ":obj:`xr.DataArray`"
+
+#: 64b84a06f2074ced8057f60a9e25dd7f of
+#: pymc_marketing.mmm.components.adstock.AdstockTransformation.sample_curve:18
+msgid "Adstocked version of the amount."
+msgstr "Versión adstocked de la cantidad."

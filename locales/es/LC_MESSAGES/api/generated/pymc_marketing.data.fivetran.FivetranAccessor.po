@@ -1,0 +1,82 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.data.fivetran.FivetranAccessor.rst:2
+#: 9987a4a87b944a3f8211a68cae4b8e4b
+msgid "FivetranAccessor"
+msgstr "FivetranAccessor"
+
+#: cac1b1851d2f4b829639df5c706ccdde of
+#: pymc_marketing.data.fivetran.FivetranAccessor:2
+msgid "Accessor for Fivetran data processing functions."
+msgstr "Accesor para las funciones de procesamiento de datos de Fivetran."
+
+#: ../source/api/generated/pymc_marketing.data.fivetran.FivetranAccessor.rst:12
+#: 1442003014ce454a863effd2d1e87f31
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.data.fivetran.FivetranAccessor.rst:19:<autosummary>:1
+#: 38d5ef148bb744e7bf842e218dc2e593
+msgid ""
+":py:obj:`FivetranAccessor.__init__ "
+"<pymc_marketing.data.fivetran.FivetranAccessor.__init__>`\\ \\(obj\\)"
+msgstr ""
+":py:obj:`FivetranAccessor.__init__ "
+"<pymc_marketing.data.fivetran.FivetranAccessor.__init__>`\\ \\(obj\\)"
+
+#: ../source/api/generated/pymc_marketing.data.fivetran.FivetranAccessor.rst:19:<autosummary>:1
+#: 5b88d6fdbe4b438085141a69179fe2cb
+msgid ""
+":py:obj:`FivetranAccessor.process_ad_reporting "
+"<pymc_marketing.data.fivetran.FivetranAccessor.process_ad_reporting>`\\ "
+"\\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`FivetranAccessor.process_ad_reporting "
+"<pymc_marketing.data.fivetran.FivetranAccessor.process_ad_reporting>`\\ "
+"\\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.data.fivetran.FivetranAccessor.rst:19:<autosummary>:1
+#: f6e18055b0774894a227f7d32cb800c4
+msgid "Process Fivetran Ad Reporting tables into wide, model-ready features."
+msgstr ""
+"Procesar las tablas de informes de Fivetran en características amplias y "
+"listas para el modelo."
+
+#: ../source/api/generated/pymc_marketing.data.fivetran.FivetranAccessor.rst:19:<autosummary>:1
+#: 6e393523f8814c328ff7b4ab5862b630
+msgid ""
+":py:obj:`FivetranAccessor.process_shopify_unique_orders "
+"<pymc_marketing.data.fivetran.FivetranAccessor.process_shopify_unique_orders>`\\"
+" \\(\\*\\)"
+msgstr ""
+":py:obj:`FivetranAccessor.process_shopify_unique_orders "
+"<pymc_marketing.data.fivetran.FivetranAccessor.process_shopify_unique_orders>`\\"
+" \\(\\*\\)"
+
+#: ../source/api/generated/pymc_marketing.data.fivetran.FivetranAccessor.rst:19:<autosummary>:1
+#: 30564fa3293340cc86235b30479c75f2
+msgid ""
+"Compute daily unique order counts from a (pre-filtered) Shopify dataset."
+msgstr ""
+"Calcule el conteo diario de pedidos únicos a partir de un conjunto de datos "
+"de Shopify (pre-filtrado)."

@@ -1,0 +1,69 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.rst:2
+#: c2191e37d1e146188fa676292990ebfa
+msgid "linear\\_trend"
+msgstr "tendencia\\_lineal"
+
+#: 6c4391ee17b047799d1085e926c2d1aa of pymc_marketing.mmm.linear_trend:1
+msgid "Linear trend using change points."
+msgstr "Tendencia lineal utilizando puntos de cambio."
+
+#: d99d535e5af0421faf72081d86495dcf of pymc_marketing.mmm.linear_trend:4
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: 687266b974854e1799c538b6c9a2d56b of pymc_marketing.mmm.linear_trend:5
+msgid "Define a linear trend with 8 changepoints:"
+msgstr "Defina una tendencia lineal con 8 puntos de cambio:"
+
+#: 1028abe430e24d10b0f8de48e7372f25 of pymc_marketing.mmm.linear_trend:13
+msgid "Sample the prior for the trend parameters and curve:"
+msgstr "Muestree el anterior para los parámetros de tendencia y la curva:"
+
+#: 77b4644dd1a047c4b6b3b7d391f1ca79 of pymc_marketing.mmm.linear_trend:25
+msgid "Plot the curve samples:"
+msgstr "Trazar las muestras de la curva:"
+
+#: 4db20a5f13494f00a09b3914d940c52f of pymc_marketing.mmm.linear_trend:37
+msgid "LinearTrend prior"
+msgstr "TendenciaLineal anterior"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.rst:17
+#: 6387c258913947c793b4f919275449a4
+msgid "Classes"
+msgstr "Clases"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.rst:23:<autosummary>:1
+#: 32c7ff21704449bdb5cf764a8936a52d
+msgid ""
+":py:obj:`LinearTrend <pymc_marketing.mmm.linear_trend.LinearTrend>`\\ "
+"\\(\\*\\*data\\)"
+msgstr ""
+":py:obj:`LinearTrend <pymc_marketing.mmm.linear_trend.LinearTrend>`\\ "
+"\\(\\*\\*datos\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.rst:23:<autosummary>:1
+#: f3277f4cbf0a43b2982a72b8227a8bb4
+msgid "LinearTrend class."
+msgstr "Clase LinearTrend."

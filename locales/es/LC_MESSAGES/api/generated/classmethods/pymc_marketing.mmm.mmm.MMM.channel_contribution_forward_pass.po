@@ -1,0 +1,98 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.mmm.MMM.channel_contribution_forward_pass.rst:2
+#: 6f04f6b756784ad6aae7e3bdc2f5eae3
+msgid "MMM.channel\\_contribution\\_forward\\_pass"
+msgstr "MMM.contribución\\_canal\\_pase\\_adelante"
+
+#: 992d57aebeee4796b58d1e9baa6a6eb1 of
+#: pymc_marketing.mmm.mmm.MMM.channel_contribution_forward_pass:2
+msgid ""
+"Evaluate the channel contribution for a given channel data and a fitted "
+"model, ie. the forward pass."
+msgstr ""
+"Evalúe la contribución del canal para unos datos de canal dados y un modelo "
+"ajustado, es decir, la pasada hacia adelante."
+
+#: 62f0caa5327c4b9a96193a3b58d60d1a of
+#: pymc_marketing.mmm.mmm.MMM.channel_contribution_forward_pass:4
+msgid ""
+"We return the contribution in the original scale of the target variable."
+msgstr ""
+"Devolvemos la contribución en la escala original de la variable objetivo."
+
+#: 8fa40a39669d4565819748f7d3afd244 of
+#: pymc_marketing.mmm.mmm.MMM.channel_contribution_forward_pass
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: a1e4e7d84b884367ae3f650b50d01cfa of
+#: pymc_marketing.mmm.mmm.MMM.channel_contribution_forward_pass:8
+msgid "**channel_data** : :term:`numpy:array_like`"
+msgstr "**channel_data** : :term:`numpy:array_like`"
+
+#: 16225bc797854582a60330dbf571e788 of
+#: pymc_marketing.mmm.mmm.MMM.channel_contribution_forward_pass:7
+msgid "numpy:array_like"
+msgstr "numpy:similar_a_array"
+
+#: 4c72a5dec0844d789ab87a912361428a of
+#: pymc_marketing.mmm.mmm.MMM.channel_contribution_forward_pass:9
+msgid "Input channel data. Result of all the preprocessing steps."
+msgstr ""
+"Datos del canal de entrada. Resultado de todos los pasos de "
+"preprocesamiento."
+
+#: f414a2d04570418d925c74e5908a9b9a of
+#: pymc_marketing.mmm.mmm.MMM.channel_contribution_forward_pass:11
+msgid ""
+"**disable_logger_stdout** : :ref:`bool <python:bltin-boolean-values>`, "
+"optional"
+msgstr ""
+"**disable_logger_stdout** : :ref:`bool <python:bltin-boolean-values>`, "
+"opcional"
+
+#: cf6c220aa024449f94189b57a42ab314 of
+#: pymc_marketing.mmm.mmm.MMM.channel_contribution_forward_pass:10
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: 233ff001d4234a43a1fa00f1d40b9504 of
+#: pymc_marketing.mmm.mmm.MMM.channel_contribution_forward_pass:12
+msgid "If True, suppress logger output to stdout"
+msgstr "Si es verdadero, suprimir la salida del registrador a stdout."
+
+#: de55c2dad4e440d68d3b901239f8721d of
+#: pymc_marketing.mmm.mmm.MMM.channel_contribution_forward_pass
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 603c8aa15d61465394a57ddc6c780197 of
+#: pymc_marketing.mmm.mmm.MMM.channel_contribution_forward_pass:18
+msgid ":term:`numpy:array_like`"
+msgstr ":term:`numpy:array_like`"
+
+#: a0585e48187e406da990df08618e9027 of
+#: pymc_marketing.mmm.mmm.MMM.channel_contribution_forward_pass:19
+msgid "Transformed channel data."
+msgstr "Datos del canal transformados."

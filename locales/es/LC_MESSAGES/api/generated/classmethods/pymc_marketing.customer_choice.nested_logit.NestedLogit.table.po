@@ -1,0 +1,61 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.customer_choice.nested_logit.NestedLogit.table.rst:2
+#: bb54f916f2d9429fb26b883894d59892
+msgid "NestedLogit.table"
+msgstr "NestedLogit.tabla"
+
+#: b6942d5b5718461faab8b0ae3826ba84 of
+#: pymc_marketing.model_builder.ModelBuilder.table:2
+msgid "Get the summary table of the model."
+msgstr "Obtenga la tabla resumen del modelo."
+
+#: 76663fc688c8479480b345f794f81766 of
+#: pymc_marketing.model_builder.ModelBuilder.table
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 85385d03f2474bc287b6d251a59fdf6e of
+#: pymc_marketing.model_builder.ModelBuilder.table:7
+msgid "**\\*\\*model_table_kwargs**"
+msgstr "**\\*\\*model_table_kwargs**"
+
+#: 82eead9ec58449c0b97cd67ffa619361 of
+#: pymc_marketing.model_builder.ModelBuilder.table:8
+msgid "Keyword arguments for the `model_table` function"
+msgstr "Argumentos de palabra clave para la función `model_table`"
+
+#: 76b48db0bbef46149e8aedacf62a6a28 of
+#: pymc_marketing.model_builder.ModelBuilder.table
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 9bf809c40a754bc5a303ad47b488a599 of
+#: pymc_marketing.model_builder.ModelBuilder.table:14
+msgid ":obj:`rich.table.Table`"
+msgstr ":obj:`rich.table.Table`"
+
+#: a31b598f6f8b4e6e92ba1bc097ed68aa of
+#: pymc_marketing.model_builder.ModelBuilder.table:15
+msgid "A rich table containing the summary of the model."
+msgstr "Una tabla rica que contiene el resumen del modelo."

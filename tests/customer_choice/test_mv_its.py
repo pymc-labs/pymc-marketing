@@ -19,6 +19,7 @@ import pandas as pd
 import pytest
 from matplotlib import pyplot as plt
 from matplotlib.axes import Axes
+from pymc_extras.prior import Prior
 from xarray import DataArray
 
 from pymc_marketing.customer_choice import (
@@ -26,7 +27,8 @@ from pymc_marketing.customer_choice import (
     generate_saturated_data,
     generate_unsaturated_data,
 )
-from pymc_marketing.prior import Prior
+from pymc_marketing.mmm.additive_effect import FourierEffect
+from pymc_marketing.mmm.fourier import YearlyFourier
 
 seed = sum(map(ord, "CustomerChoice"))
 rng = np.random.default_rng(seed)
@@ -202,7 +204,7 @@ def test_distribution_checks_wrong_market_distribution() -> None:
         "market_distribution": Prior("HalfNormal"),
     }
 
-    match = "market_distribution must be a Dirichlet distribution"
+    match = r"market_distribution must be a Dirichlet distribution"
     with pytest.raises(ValueError, match=match):
         MVITS(existing_sales=["competitor", "own"], model_config=priors)
 
@@ -283,6 +285,46 @@ def test_inform_default_prior_raises(priors, match, saturated_data) -> None:
 
 def test_calculate_counterfactual_raises() -> None:
     model = MVITS(existing_sales=["competitor", "own"])
-    match = "Call the 'fit' method first."
+    match = r"Call the 'fit' method first."
     with pytest.raises(RuntimeError, match=match):
         model.calculate_counterfactual()
+
+
+def test_support_for_mu_effects(saturated_data, mock_pymc_sample) -> None:
+    model = MVITS(existing_sales=["competitor", "own"])
+
+    n_order = 5
+    fourier = YearlyFourier(
+        n_order=n_order,
+        prior=Prior(
+            "Laplace",
+            mu=0,
+            b=1,
+            dims=("fourier", "existing_product"),
+        ),
+    )
+    effect = FourierEffect(fourier=fourier, date_dim_name="time")
+
+    model.mu_effects.append(effect)
+    model.sample(
+        saturated_data.loc[:, ["competitor", "own"]],
+        saturated_data["new"],
+        random_seed=rng,
+        sample_prior_predictive_kwargs={"samples": 10},
+    )
+
+    n_time = len(saturated_data)
+    n_existing_products = 2
+    posterior_size = {"chain": 1, "draw": 10}
+
+    assert model.posterior["fourier_contribution"].sizes == {
+        **posterior_size,
+        "time": n_time,
+        "existing_product": n_existing_products,
+    }
+    assert model.posterior["fourier_beta"].sizes == {
+        **posterior_size,
+        "fourier": n_order * 2,
+        "existing_product": n_existing_products,
+    }
+    assert model.posterior["fourier"].sizes == {"fourier": n_order * 2}

@@ -1,0 +1,226 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.prior.Prior.rst:2
+#: ffd44187584c47e5a9c92d15362a4292
+msgid "Prior"
+msgstr "Previo"
+
+#: 25edf0b2dfd74f8dbf1bd8e34b671435 of pymc_marketing.prior.Prior:2
+msgid "Backwards-compatible wrapper for the Prior class."
+msgstr "Envoltura compatible hacia atrás para la clase Prior."
+
+#: ../source/api/generated/pymc_marketing.prior.Prior.rst:12
+#: 570d7ad4cdd24cfebb58808bd7aca39c
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.prior.Prior.rst:30:<autosummary>:1
+#: eba12abd141446ea85a5c427e5fcf5da
+msgid ""
+":py:obj:`Prior.__init__ <pymc_marketing.prior.Prior.__init__>`\\ "
+"\\(\\*args\\, \\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`Prior.__init__ <pymc_marketing.prior.Prior.__init__>`\\ "
+"\\(\\*args\\, \\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.prior.Prior.rst:30:<autosummary>:1
+#: bf5cb643ab204ce69be5809edb4ff40c
+msgid "Initialize the Prior class with the given arguments."
+msgstr "Inicialice la clase Prior con los argumentos proporcionados."
+
+#: ../source/api/generated/pymc_marketing.prior.Prior.rst:30:<autosummary>:1
+#: c53de6ac57364f54aad0cd8d53467737
+msgid ""
+":py:obj:`Prior.constrain <pymc_marketing.prior.Prior.constrain>`\\ "
+"\\(lower\\, upper\\[\\, mass\\, kwargs\\]\\)"
+msgstr ""
+":py:obj:`Prior.constrain <pymc_marketing.prior.Prior.constrain>`\\ "
+"\\(inferior\\, superior\\[\\, masa\\, kwargs\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.prior.Prior.rst:30:<autosummary>:1
+#: c52a47a9913a409f91f0ff99d7f26101
+msgid ""
+"Create a new prior with a given mass constrained within the given bounds."
+msgstr ""
+"Cree un nuevo prior con una masa dada restringida dentro de los límites "
+"establecidos."
+
+#: ../source/api/generated/pymc_marketing.prior.Prior.rst:30:<autosummary>:1
+#: 4c67ef8b72d14df48c7c2b9f87532e98
+msgid ""
+":py:obj:`Prior.create_likelihood_variable "
+"<pymc_marketing.prior.Prior.create_likelihood_variable>`\\ \\(name\\, mu\\, "
+"...\\)"
+msgstr ""
+":py:obj:`Prior.create_likelihood_variable "
+"<pymc_marketing.prior.Prior.create_likelihood_variable>`\\ \\(nombre\\, "
+"mu\\, ...\\)"
+
+#: ../source/api/generated/pymc_marketing.prior.Prior.rst:30:<autosummary>:1
+#: 408880815b5a4da497c038f1389b86b0
+msgid "Create a likelihood variable from the prior."
+msgstr "Cree una variable de verosimilitud a partir de la anterior."
+
+#: ../source/api/generated/pymc_marketing.prior.Prior.rst:30:<autosummary>:1
+#: b90d307645e0495f88eb08d3d7e7814a
+msgid ""
+":py:obj:`Prior.create_variable "
+"<pymc_marketing.prior.Prior.create_variable>`\\ \\(name\\)"
+msgstr ""
+":py:obj:`Prior.create_variable "
+"<pymc_marketing.prior.Prior.create_variable>`\\ \\(nombre\\)"
+
+#: ../source/api/generated/pymc_marketing.prior.Prior.rst:30:<autosummary>:1
+#: 8a61077b36644744ac981f1b9458d7c0
+msgid "Create a PyMC variable from the prior."
+msgstr "Cree una variable de PyMC a partir del previo."
+
+#: ../source/api/generated/pymc_marketing.prior.Prior.rst:30:<autosummary>:1
+#: fec123ae54544e4394362232c64154d8
+msgid ":py:obj:`Prior.deepcopy <pymc_marketing.prior.Prior.deepcopy>`\\ \\(\\)"
+msgstr ":py:obj:`Prior.deepcopy <pymc_marketing.prior.Prior.deepcopy>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.prior.Prior.rst:30:<autosummary>:1
+#: f280973081824dc9934a138687fc0b8e
+msgid "Return a deep copy of the prior."
+msgstr "Devuelve una copia profunda del anterior."
+
+#: ../source/api/generated/pymc_marketing.prior.Prior.rst:30:<autosummary>:1
+#: 07d12d59a08f47569f29d720bffac6dc
+msgid ""
+":py:obj:`Prior.from_dict <pymc_marketing.prior.Prior.from_dict>`\\ "
+"\\(data\\)"
+msgstr ""
+":py:obj:`Prior.from_dict <pymc_marketing.prior.Prior.from_dict>`\\ "
+"\\(datos\\)"
+
+#: ../source/api/generated/pymc_marketing.prior.Prior.rst:30:<autosummary>:1
+#: 05acf51154504ab5ac5063b15415cd7c
+msgid "Create a Prior from the dictionary format."
+msgstr "Cree un Prior a partir del formato del diccionario."
+
+#: ../source/api/generated/pymc_marketing.prior.Prior.rst:30:<autosummary>:1
+#: 30ec3d95cea8401f8c4d1f08da22e75e
+msgid ""
+":py:obj:`Prior.sample_prior <pymc_marketing.prior.Prior.sample_prior>`\\ "
+"\\(\\[coords\\, name\\]\\)"
+msgstr ""
+":py:obj:`Prior.sample_prior <pymc_marketing.prior.Prior.sample_prior>`\\ "
+"\\(\\[coords\\, name\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.prior.Prior.rst:30:<autosummary>:1
+#: 906daf5be5754a4dbdb9cfab29e260d0
+msgid "Sample the prior distribution for the variable."
+msgstr "Muestre la distribución previa para la variable."
+
+#: ../source/api/generated/pymc_marketing.prior.Prior.rst:30:<autosummary>:1
+#: 247c052d60c34905a571289b641a4937
+msgid ":py:obj:`Prior.to_dict <pymc_marketing.prior.Prior.to_dict>`\\ \\(\\)"
+msgstr ":py:obj:`Prior.to_dict <pymc_marketing.prior.Prior.to_dict>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.prior.Prior.rst:30:<autosummary>:1
+#: 38014f91cc934c9c96a518c43562fbdd
+msgid "Convert the prior to dictionary format."
+msgstr "Convierte lo anterior al formato de diccionario."
+
+#: ../source/api/generated/pymc_marketing.prior.Prior.rst:30:<autosummary>:1
+#: 7f8ff007a7b64ff2bdc4660a9effcaa5
+msgid ":py:obj:`Prior.to_graph <pymc_marketing.prior.Prior.to_graph>`\\ \\(\\)"
+msgstr ":py:obj:`Prior.to_graph <pymc_marketing.prior.Prior.to_graph>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.prior.Prior.rst:30:<autosummary>:1
+#: da0a878fee9f41fdaa587aa135217b85
+msgid "Generate a graph of the variables."
+msgstr "Generar un gráfico de las variables."
+
+#: ../source/api/generated/pymc_marketing.prior.Prior.rst:32
+#: 47bcaaca1bf5483faa646ae7ad0eebe4
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.prior.Prior.rst:41:<autosummary>:1
+#: e23a4594345346288fdb9d223722cee6
+msgid ":py:obj:`dims <pymc_marketing.prior.Prior.dims>`\\"
+msgstr ":py:obj:`dims <pymc_marketing.prior.Prior.dims>`"
+
+#: ../source/api/generated/pymc_marketing.prior.Prior.rst:41:<autosummary>:1
+#: e733e3806c3c4710bf2bb32434ccb7f6
+msgid "The dimensions of the variable."
+msgstr "Las dimensiones de la variable."
+
+#: ../source/api/generated/pymc_marketing.prior.Prior.rst:41:<autosummary>:1
+#: ee747b29dbbf487d99db221210b27af7
+msgid ":py:obj:`distribution <pymc_marketing.prior.Prior.distribution>`\\"
+msgstr ":py:obj:`distribución <pymc_marketing.prior.Prior.distribución>`\\"
+
+#: ../source/api/generated/pymc_marketing.prior.Prior.rst:41:<autosummary>:1
+#: 7cbeda7726944b5eb877b45ce3117bd3
+msgid "The name of the PyMC distribution."
+msgstr "El nombre de la distribución de PyMC."
+
+#: ../source/api/generated/pymc_marketing.prior.Prior.rst:41:<autosummary>:1
+#: 8b06b02105cc49c188c9eb30984b3c11
+msgid ""
+":py:obj:`non_centered_distributions "
+"<pymc_marketing.prior.Prior.non_centered_distributions>`\\"
+msgstr ""
+":py:obj:`distribuciones_no_centradas "
+"<pymc_marketing.prior.Prior.distribuciones_no_centradas>`\\"
+
+#: ../source/api/generated/pymc_marketing.prior.Prior.rst:41:<autosummary>:1
+#: bf8c1b126863449782c2609ed63a96ec
+msgid ":py:obj:`preliz <pymc_marketing.prior.Prior.preliz>`\\"
+msgstr ":py:obj:`preliz <pymc_marketing.prior.Prior.preliz>`\\"
+
+#: ../source/api/generated/pymc_marketing.prior.Prior.rst:41:<autosummary>:1
+#: 86bec3f293664ecd90fe17828923e766
+msgid "Create an equivalent preliz distribution."
+msgstr "Cree una distribución de preliz equivalente."
+
+#: ../source/api/generated/pymc_marketing.prior.Prior.rst:41:<autosummary>:1
+#: 626005a6e3164120b1ddea67e918efdd
+msgid ":py:obj:`transform <pymc_marketing.prior.Prior.transform>`\\"
+msgstr ":py:obj:`transform <pymc_marketing.prior.Prior.transform>`"
+
+#: ../source/api/generated/pymc_marketing.prior.Prior.rst:41:<autosummary>:1
+#: 9616094aab454b708ef10b48dbb7408d
+msgid ""
+"The name of the transform to apply to the variable after it is created."
+msgstr ""
+"El nombre de la transformación que se aplicará a la variable después de que "
+"se haya creado."
+
+#: ../source/api/generated/pymc_marketing.prior.Prior.rst:41:<autosummary>:1
+#: c01ab3de2e4c410db152299eeb37d964
+msgid ""
+":py:obj:`pymc_distribution <pymc_marketing.prior.Prior.pymc_distribution>`\\"
+msgstr ""
+":py:obj:`pymc_distribution <pymc_marketing.prior.Prior.pymc_distribution>`"
+
+#: ../source/api/generated/pymc_marketing.prior.Prior.rst:41:<autosummary>:1
+#: 8e16408b448c47ac941a01f32d427df6
+msgid ""
+":py:obj:`pytensor_transform "
+"<pymc_marketing.prior.Prior.pytensor_transform>`\\"
+msgstr ""
+":py:obj:`pytensor_transform <pymc_marketing.prior.Prior.pytensor_transform>`"

@@ -1,0 +1,62 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.hsgp.PeriodicCovFunc.encode.rst:2
+#: e28909742c7a481fa735de0adc833daa
+msgid "PeriodicCovFunc.encode"
+msgstr "PeriodicCovFunc.codificar"
+
+#: 010077cd0aad478c9d0f94088bf12138 of
+#: pymc_marketing.mmm.hsgp.PeriodicCovFunc.encode:2
+msgid "Encode the string using the codec registered for encoding."
+msgstr ""
+"Codifique la cadena utilizando el códec registrado para la codificación."
+
+#: cd55d1868b3e41849f2c38846f04e6fb of
+#: pymc_marketing.mmm.hsgp.PeriodicCovFunc.encode:4
+msgid "encoding"
+msgstr "codificación"
+
+#: 38eae1d0ba74439eaec3d5b6128964b0 of
+#: pymc_marketing.mmm.hsgp.PeriodicCovFunc.encode:5
+msgid "The encoding in which to encode the string."
+msgstr "La codificación en la que se debe codificar la cadena."
+
+#: 7e4cded7ce9f4667984e40d496ce4a4d of
+#: pymc_marketing.mmm.hsgp.PeriodicCovFunc.encode:6
+msgid "errors"
+msgstr "errores"
+
+#: 7dee98920af148e79604436bad801981 of
+#: pymc_marketing.mmm.hsgp.PeriodicCovFunc.encode:7
+msgid ""
+"The error handling scheme to use for encoding errors. The default is "
+"'strict' meaning that encoding errors raise a UnicodeEncodeError.  Other "
+"possible values are 'ignore', 'replace' and 'xmlcharrefreplace' as well as "
+"any other name registered with codecs.register_error that can handle "
+"UnicodeEncodeErrors."
+msgstr ""
+"El esquema de manejo de errores a utilizar para errores de codificación. El "
+"valor predeterminado es 'strict', lo que significa que los errores de "
+"codificación generan un UnicodeEncodeError. Otros valores posibles son "
+"'ignore', 'replace' y 'xmlcharrefreplace', así como cualquier otro nombre "
+"registrado con codecs.register_error que pueda manejar UnicodeEncodeErrors."

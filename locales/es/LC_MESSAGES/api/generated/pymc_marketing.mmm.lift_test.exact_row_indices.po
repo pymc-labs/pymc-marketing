@@ -1,0 +1,144 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.exact_row_indices.rst:2
+#: 4fdb0ef6c4cf4a3b8b659b2442a1e72c
+msgid "exact\\_row\\_indices"
+msgstr "exact\\_row\\_indices"
+
+#: 3787fdacf9c04727b1f5e3964db90260 of
+#: pymc_marketing.mmm.lift_test.exact_row_indices:2
+msgid "Get indices in the model for each row in the DataFrame."
+msgstr "Obtenga índices en el modelo para cada fila en el DataFrame."
+
+#: 76d929cf96b14d2eb527c0c9ac68241a of
+#: pymc_marketing.mmm.lift_test.exact_row_indices:4
+msgid ""
+"Assumes any column in the DataFrame is a coordinate in the model with the "
+"same name."
+msgstr ""
+"Asume que cualquier columna en el DataFrame es una coordenada en el modelo "
+"con el mismo nombre."
+
+#: 3e318772e26848bc926dbab12eb20d1f of
+#: pymc_marketing.mmm.lift_test.exact_row_indices:7
+msgid ""
+"If the DataFrame has columns that are not in the model, it will raise an "
+"error."
+msgstr ""
+"Si el DataFrame tiene columnas que no están en el modelo, se generará un "
+"error."
+
+#: 74bbd7ad97cc4d90b2f4e52fffe44d6e of
+#: pymc_marketing.mmm.lift_test.exact_row_indices
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: e5a0c9bb9a7847e2af2f35a63c646440 of
+#: pymc_marketing.mmm.lift_test.exact_row_indices:12
+msgid "**df** : :obj:`pd.DataFrame`"
+msgstr "**df** : :obj:`pd.DataFrame`"
+
+#: da597a210c8a491a9514f4bc11ff70ac of
+#: pymc_marketing.mmm.lift_test.exact_row_indices:11
+msgid "pd.DataFrame"
+msgstr "pd.DataFrame"
+
+#: d7e7765b27ba48a3901f3f7eb489f6eb of
+#: pymc_marketing.mmm.lift_test.exact_row_indices:13
+msgid "DataFrame with coordinates combinations."
+msgstr "DataFrame con combinaciones de coordenadas."
+
+#: 77b7820332e34c139c7fa65ae0bb1345 of
+#: pymc_marketing.mmm.lift_test.exact_row_indices:15
+msgid "**model** : :obj:`pm.Model`"
+msgstr "**modelo** : :obj:`pm.Model`"
+
+#: 44213b807f324d3bb832cd563ee4b84c of
+#: pymc_marketing.mmm.lift_test.exact_row_indices:14
+msgid "pm.Model"
+msgstr "pm.Model"
+
+#: cd8160c9e78549cea94ea06c60c7495d of
+#: pymc_marketing.mmm.lift_test.exact_row_indices:16
+msgid "PyMC model with all the coordinates in the DataFrame."
+msgstr "Modelo PyMC con todas las coordenadas en el DataFrame."
+
+#: 49a3af2ce0e04718a2f62fc2febd31f2 of
+#: pymc_marketing.mmm.lift_test.exact_row_indices
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 7dd8d3154cbc43e098b719f1a21c2003 of
+#: pymc_marketing.mmm.lift_test.exact_row_indices:22
+msgid ""
+":class:`python:dict`\\[:class:`python:str`, :obj:`np.ndarray "
+"<numpy.ndarray>`]"
+msgstr ""
+":class:`python:dict`\\[:class:`python:str`, :obj:`np.ndarray "
+"<numpy.ndarray>`]"
+
+#: 0cf84ddf794b4746a30d9edce5403965 of
+#: pymc_marketing.mmm.lift_test.exact_row_indices:23
+msgid "Dictionary of indices for the lift test results in the model."
+msgstr ""
+"Diccionario de índices para los resultados de las pruebas de elevación en el"
+" modelo."
+
+#: 35a4c41829b54ffe99762d535601a628 of
+#: pymc_marketing.mmm.lift_test.exact_row_indices
+msgid "Raises"
+msgstr "Aumentos"
+
+#: 3c8d8243c19c483493764f53d7c6992c of
+#: pymc_marketing.mmm.lift_test.exact_row_indices:30
+msgid ":obj:`UnalignedValuesError`"
+msgstr ":obj:`UnalignedValuesError`"
+
+#: ef14116f1c6045ca9f3d79337491f975 of
+#: pymc_marketing.mmm.lift_test.exact_row_indices:31
+msgid ""
+"If some values are not aligned. This means that some values in the DataFrame"
+" are not in the model."
+msgstr ""
+"Si algunos valores no están alineados. Esto significa que algunos valores en"
+" el DataFrame no están en el modelo."
+
+#: ae472cd16e53425c86a342f162f238b6 of
+#: pymc_marketing.mmm.lift_test.exact_row_indices:34
+msgid ":obj:`KeyError`"
+msgstr ":obj:`KeyError`"
+
+#: 39956d5112014a88bfdec6f505c1dec6 of
+#: pymc_marketing.mmm.lift_test.exact_row_indices:35
+msgid "If some coordinates in the DataFrame are not in the model."
+msgstr "Si algunas coordenadas en el DataFrame no están en el modelo."
+
+#: 18b598b8d5c74143aac759d966155965 of
+#: pymc_marketing.mmm.lift_test.exact_row_indices:43
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: f9e85578844f43bda3039e737cd301bd of
+#: pymc_marketing.mmm.lift_test.exact_row_indices:44
+msgid "Get the indices from a DataFrame and model:"
+msgstr "Obtenga los índices de un DataFrame y modelo:"

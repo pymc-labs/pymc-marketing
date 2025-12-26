@@ -20,11 +20,11 @@ import pymc as pm
 import pytest
 import xarray as xr
 from lifetimes.fitters.beta_geo_fitter import BetaGeoFitter
+from pymc_extras.prior import Prior
 
 from pymc_marketing.clv.distributions import BetaGeoNBD
 from pymc_marketing.clv.models.beta_geo import BetaGeoModel
-from pymc_marketing.prior import Prior
-from tests.conftest import create_mock_fit, mock_sample, set_model_fit
+from tests.clv.conftest import create_mock_fit, mock_sample, set_model_fit
 
 
 class TestBetaGeoModel:
@@ -142,22 +142,34 @@ class TestBetaGeoModel:
     def test_missing_cols(self):
         data_invalid = self.data.drop(columns="customer_id")
 
-        with pytest.raises(ValueError, match="Required column customer_id missing"):
+        with pytest.raises(
+            ValueError,
+            match=r"The following required columns are missing from the input data: \['customer_id'\]",
+        ):
             BetaGeoModel(data=data_invalid)
 
         data_invalid = self.data.drop(columns="frequency")
 
-        with pytest.raises(ValueError, match="Required column frequency missing"):
+        with pytest.raises(
+            ValueError,
+            match=r"The following required columns are missing from the input data: \['frequency'\]",
+        ):
             BetaGeoModel(data=data_invalid)
 
         data_invalid = self.data.drop(columns="recency")
 
-        with pytest.raises(ValueError, match="Required column recency missing"):
+        with pytest.raises(
+            ValueError,
+            match=r"The following required columns are missing from the input data: \['recency'\]",
+        ):
             BetaGeoModel(data=data_invalid)
 
         data_invalid = self.data.drop(columns="T")
 
-        with pytest.raises(ValueError, match="Required column T missing"):
+        with pytest.raises(
+            ValueError,
+            match=r"The following required columns are missing from the input data: \['T'\]",
+        ):
             BetaGeoModel(data=data_invalid)
 
     def test_customer_id_duplicate(self):
@@ -171,7 +183,7 @@ class TestBetaGeoModel:
         )
 
         with pytest.raises(
-            ValueError, match="Column customer_id has duplicate entries"
+            ValueError, match=r"Column customer_id has duplicate entries"
         ):
             BetaGeoModel(
                 data=data,
@@ -229,7 +241,7 @@ class TestBetaGeoModel:
             map_idata.posterior = map_idata.posterior.isel(
                 chain=slice(None, 1), draw=slice(None, 1)
             )
-            model = self.model._build_with_idata(map_idata)
+            model = self.model.build_from_idata(map_idata)
             # We expect 1000 draws to be sampled with MAP
             expected_shape = (1, 1000)
             expected_pop_dims = (1, 1000, dim_T, 2)
@@ -328,7 +340,7 @@ class TestBetaGeoModel:
 
     def test_fit_result_without_fit(self, mocker, model_config):
         model = BetaGeoModel(data=self.data, model_config=model_config)
-        with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
+        with pytest.raises(RuntimeError, match=r"The model hasn't been fit yet"):
             model.fit_result
 
         mocker.patch("pymc.sample", mock_sample)

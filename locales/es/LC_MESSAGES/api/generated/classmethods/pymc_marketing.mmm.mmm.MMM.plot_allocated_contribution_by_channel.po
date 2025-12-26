@@ -1,0 +1,138 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.mmm.MMM.plot_allocated_contribution_by_channel.rst:2
+#: a5546fc9b02f4007bcfb8158c054ec7e
+msgid "MMM.plot\\_allocated\\_contribution\\_by\\_channel"
+msgstr "MMM.trazar\\_contribución\\_asignada\\_por\\_canal"
+
+#: cce4e8738b76452884510050ea55eba0 of
+#: pymc_marketing.mmm.mmm.MMM.plot_allocated_contribution_by_channel:2
+msgid "Plot the allocated contribution by channel with uncertainty intervals."
+msgstr ""
+"Trace la contribución asignada por canal con intervalos de incertidumbre."
+
+#: bd3c9752f0cd4d47a25aca9a2c50b949 of
+#: pymc_marketing.mmm.mmm.MMM.plot_allocated_contribution_by_channel:4
+msgid ""
+"This function visualizes the mean allocated contributions by channel along "
+"with the uncertainty intervals defined by the lower and upper quantiles. The"
+" contributions can be plotted on the original scale or the transformed "
+"scale."
+msgstr ""
+"Esta función visualiza las contribuciones medias asignadas por canal junto "
+"con los intervalos de incertidumbre definidos por los cuartiles inferior y "
+"superior. Las contribuciones se pueden representar en la escala original o "
+"en la escala transformada."
+
+#: 58149be1b39c461db7c7928583cca014 of
+#: pymc_marketing.mmm.mmm.MMM.plot_allocated_contribution_by_channel
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: d73bbe3e72cd4f55a36a7c6e841d38db of
+#: pymc_marketing.mmm.mmm.MMM.plot_allocated_contribution_by_channel:10
+msgid "**samples** : :obj:`Dataset`"
+msgstr "**muestras** : :obj:`Conjunto de datos`"
+
+#: 10c27dbae7004cbc94260bf88b08b6ca of
+#: pymc_marketing.mmm.mmm.MMM.plot_allocated_contribution_by_channel:9
+msgid "Dataset"
+msgstr "Conjunto de datos"
+
+#: 0eec3841476840a7a40f3f98310c7d52 of
+#: pymc_marketing.mmm.mmm.MMM.plot_allocated_contribution_by_channel:11
+msgid "The dataset containing the samples of channel contributions."
+msgstr ""
+"El conjunto de datos que contiene las muestras de las contribuciones del "
+"canal."
+
+#: 18885de7cd454a069b33b0a5a7fea5e5 of
+#: pymc_marketing.mmm.mmm.MMM.plot_allocated_contribution_by_channel:13
+msgid "**lower_quantile** : :class:`python:float`, optional"
+msgstr "**lower_quantile** : :class:`python:float`, opcional"
+
+#: 44ea8902b9a24af28be278684bedc420 be046d202c664e64b0b12290da5e1509 of
+#: pymc_marketing.mmm.mmm.MMM.plot_allocated_contribution_by_channel:12
+#: pymc_marketing.mmm.mmm.MMM.plot_allocated_contribution_by_channel:15
+msgid "python:float, optional"
+msgstr "python:float, opcional"
+
+#: c09a1bfb0c7e46be94d5c2ce4bbbc374 of
+#: pymc_marketing.mmm.mmm.MMM.plot_allocated_contribution_by_channel:14
+msgid "The lower quantile for the uncertainty interval. Default is 0.025."
+msgstr ""
+"El cuartil inferior para el intervalo de incertidumbre. El valor "
+"predeterminado es 0.025."
+
+#: cfdc8ae34c674c4195a5786a93430a2b of
+#: pymc_marketing.mmm.mmm.MMM.plot_allocated_contribution_by_channel:16
+msgid "**upper_quantile** : :class:`python:float`, optional"
+msgstr "**cuartil_superior** : :class:`python:float`, opcional"
+
+#: d96e16b4d8de43ec8cb24f5ec929856e of
+#: pymc_marketing.mmm.mmm.MMM.plot_allocated_contribution_by_channel:17
+msgid "The upper quantile for the uncertainty interval. Default is 0.975."
+msgstr ""
+"El cuartil superior para el intervalo de incertidumbre. El valor "
+"predeterminado es 0.975."
+
+#: 6c76e2f7336b4995bd9c0a66c8a574bd of
+#: pymc_marketing.mmm.mmm.MMM.plot_allocated_contribution_by_channel:19
+msgid ""
+"**original_scale** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+"**original_scale** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: c85a4c2cff6a483d9a098b1bea813480 of
+#: pymc_marketing.mmm.mmm.MMM.plot_allocated_contribution_by_channel:18
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: d064ef0cd7d843aeb4c23bd5b8e26ac0 of
+#: pymc_marketing.mmm.mmm.MMM.plot_allocated_contribution_by_channel:20
+msgid ""
+"If True, the contributions are plotted on the original scale. Default is "
+"True."
+msgstr ""
+"Si es verdadero, las contribuciones se representan en la escala original. El"
+" valor predeterminado es verdadero."
+
+#: fdad0ffc8086480cb442e15782fe753c of
+#: pymc_marketing.mmm.mmm.MMM.plot_allocated_contribution_by_channel
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 6f7ce1373eaa43d9bef2b3a2d2e8f14f of
+#: pymc_marketing.mmm.mmm.MMM.plot_allocated_contribution_by_channel:26
+msgid "**fig** : :obj:`matplotlib.figure.Figure`"
+msgstr "**fig** : :obj:`matplotlib.figure.Figure`"
+
+#: ec7b3ad45b2443409435e229a1c37d33 of
+#: pymc_marketing.mmm.mmm.MMM.plot_allocated_contribution_by_channel:25
+msgid "matplotlib.figure.Figure"
+msgstr "matplotlib.figure.Figure"
+
+#: 1848c3db55e345459fd27607d0db1055 of
+#: pymc_marketing.mmm.mmm.MMM.plot_allocated_contribution_by_channel:27
+msgid "The matplotlib figure object containing the plot."
+msgstr "El objeto figura de matplotlib que contiene la gráfica."

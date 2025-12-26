@@ -1,0 +1,36 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/getting_started/quickstart/customer_choice/index.md:1
+#: 1aa090612b7e4b5c8677902816d81481
+msgid "Customer Choice Quickstart"
+msgstr "Inicio Rápido de Elección del Cliente"
+
+#: ../source/getting_started/quickstart/customer_choice/index.md:41
+#: 1a391936e049442b936b5f51d0030755
+#, python-brace-format
+msgid ""
+"See the {ref}`gallery` section for more information about using the customer"
+" choice module."
+msgstr ""
+"Consulte la sección {ref}`gallery` para obtener más información sobre el uso"
+" del módulo de elección del cliente."

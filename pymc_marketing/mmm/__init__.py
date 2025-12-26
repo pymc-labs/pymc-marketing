@@ -17,6 +17,7 @@ from pymc_marketing.mmm import base, mmm, preprocessing, validating
 from pymc_marketing.mmm.base import BaseValidateMMM, MMMModelBuilder
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
+    BinomialAdstock,
     DelayedAdstock,
     GeometricAdstock,
     NoAdstock,
@@ -62,6 +63,12 @@ from pymc_marketing.mmm.preprocessing import (
     preprocessing_method_X,
     preprocessing_method_y,
 )
+from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
+from pymc_marketing.mmm.time_slice_cross_validation import (
+    TimeSliceCrossValidationResult,
+    TimeSliceCrossValidator,
+)
+from pymc_marketing.mmm.types import MMMBuilder
 from pymc_marketing.mmm.validating import validation_method_X, validation_method_y
 
 __all__ = [
@@ -69,6 +76,7 @@ __all__ = [
     "MMM",
     "AdstockTransformation",
     "BaseValidateMMM",
+    "BinomialAdstock",
     "CovFunc",
     "DelayedAdstock",
     "FancyLinearRegression",
@@ -79,6 +87,7 @@ __all__ = [
     "InverseScaledLogisticSaturation",
     "LinearTrend",
     "LogisticSaturation",
+    "MMMBuilder",
     "MMMModelBuilder",
     "MediaConfig",
     "MediaConfigList",
@@ -90,9 +99,12 @@ __all__ = [
     "PeriodicCovFunc",
     "RootSaturation",
     "SaturationTransformation",
+    "SensitivityAnalysis",
     "SoftPlusHSGP",
     "TanhSaturation",
     "TanhSaturationBaselined",
+    "TimeSliceCrossValidationResult",
+    "TimeSliceCrossValidator",
     "WeeklyFourier",
     "WeibullCDFAdstock",
     "WeibullPDFAdstock",

@@ -1,0 +1,60 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.customer_choice.mv_its.MVITS.calculate_counterfactual.rst:2
+#: d7d6a8482c0e4629b08d08ce546e0789
+msgid "MVITS.calculate\\_counterfactual"
+msgstr "MVITS.calcular\\_contrafactual"
+
+#: 728f615975aa4b5f9cf3c590f3166720 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.calculate_counterfactual:2
+msgid ""
+"Calculate the counterfactual scenario of never releasing the new product."
+msgstr ""
+"Calcule el escenario contrafactual de nunca haber lanzado el nuevo producto."
+
+#: 1490578bf1694670bea610c8f3c5db2e of
+#: pymc_marketing.customer_choice.mv_its.MVITS.calculate_counterfactual:4
+msgid "Extends the InferenceData object"
+msgstr "Extiende el objeto InferenceData"
+
+#: 9b92b8445d3c4cbc9c7a9bedbcf98ef7 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.calculate_counterfactual
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 2a4eea75f7f04271a4e0603db800b497 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.calculate_counterfactual:8
+msgid ""
+"**random_seed** : :obj:`np.random.Generator` | :class:`python:int`, optional"
+msgstr ""
+"**random_seed** : :obj:`np.random.Generator` | :class:`python:int`, opcional"
+
+#: 8f7f8b329c6745d7ad4d7fda2db9899f of
+#: pymc_marketing.customer_choice.mv_its.MVITS.calculate_counterfactual:7
+msgid "np.random.Generator | python:int, optional"
+msgstr "np.random.Generator | python:int, opcional"
+
+#: 988697048b894a0fa93c6b805b16e0ce of
+#: pymc_marketing.customer_choice.mv_its.MVITS.calculate_counterfactual:9
+msgid "The random seed for the sampling."
+msgstr "La semilla aleatoria para la muestreo."

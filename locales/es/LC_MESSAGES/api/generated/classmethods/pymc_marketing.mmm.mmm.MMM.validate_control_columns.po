@@ -1,0 +1,65 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.mmm.MMM.validate_control_columns.rst:2
+#: 7ff3781cb49345458020bc92de4f9673
+msgid "MMM.validate\\_control\\_columns"
+msgstr "MMM.validar_columnas_de_control"
+
+#: 12679829ff184d9ca131276a08a81fb8 of
+#: pymc_marketing.mmm.validating.ValidateControlColumns.validate_control_columns:2
+msgid "Validate the control columns."
+msgstr "Valide las columnas de control."
+
+#: bd27555b44c64ae2b1f6b1276c98ffb6 of
+#: pymc_marketing.mmm.validating.ValidateControlColumns.validate_control_columns
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 206633afd6d94931b245fb6deb00c691 of
+#: pymc_marketing.mmm.validating.ValidateControlColumns.validate_control_columns:7
+msgid "**data** : :obj:`pd.DataFrame`"
+msgstr "**datos** : :obj:`pd.DataFrame`"
+
+#: eb6a444ef9ea40ccbf04f07127b75fe4 of
+#: pymc_marketing.mmm.validating.ValidateControlColumns.validate_control_columns:6
+msgid "pd.DataFrame"
+msgstr "pd.DataFrame"
+
+#: 7849c32699664a3a9e31893a1b290967 of
+#: pymc_marketing.mmm.validating.ValidateControlColumns.validate_control_columns:8
+msgid "The data to validate."
+msgstr "Los datos a validar."
+
+#: 8896187dffd647d8bbbe5a10b98c99f3 of
+#: pymc_marketing.mmm.validating.ValidateControlColumns.validate_control_columns
+msgid "Raises"
+msgstr "Aumentos"
+
+#: 8b8f335fc36c443cbbe9f1a4771cc1d7 of
+#: pymc_marketing.mmm.validating.ValidateControlColumns.validate_control_columns:18
+msgid ""
+"ValueError: :obj:`If` :obj:`the` :obj:`control` :obj:`columns` :obj:`are` "
+":obj:`not` valid."
+msgstr ""
+"ValueError: :obj:`Si` :obj:`las` :obj:`columnas` :obj:`de` :obj:`control` "
+":obj:`no` :obj:`son` :obj:`válidas`."

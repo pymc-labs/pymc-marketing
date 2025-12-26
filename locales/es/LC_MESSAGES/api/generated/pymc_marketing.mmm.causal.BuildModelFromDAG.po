@@ -1,0 +1,269 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.BuildModelFromDAG.rst:2
+#: 970225021e0d46b69d33cbd5833a6de1
+msgid "BuildModelFromDAG"
+msgstr "ConstruirModeloDesdeDAG"
+
+#: 7707c52f279f48ecaf1f52f0fbc5ae95 of
+#: pymc_marketing.mmm.causal.BuildModelFromDAG:2
+msgid ""
+"Build a PyMC probabilistic model directly from a Causal DAG and a tabular "
+"dataset."
+msgstr ""
+"Construya un modelo probabilístico de PyMC directamente a partir de un DAG "
+"causal y un conjunto de datos tabular."
+
+#: 481a5f9ea21e4bd49785dbcfdd96eb1e of
+#: pymc_marketing.mmm.causal.BuildModelFromDAG:4
+msgid ""
+"The class interprets a Directed Acyclic Graph (DAG) where each node is a "
+"column in the provided `df`. For every edge ``A -> B`` it creates a slope "
+"prior for the contribution of ``A`` into the mean of ``B``. Each node "
+"receives a likelihood prior. Dims and coords are used to align and index "
+"observed data via ``pm.Data`` and xarray."
+msgstr ""
+"La clase interpreta un Grafo Dirigido Acíclico (DAG) donde cada nodo es una "
+"columna en el `df` proporcionado. Para cada arista ``A -> B`` crea un prior "
+"de pendiente para la contribución de ``A`` en la media de ``B``. Cada nodo "
+"recibe un prior de verosimilitud. Dims y coords se utilizan para alinear e "
+"indexar los datos observados a través de ``pm.Data`` y xarray."
+
+#: f2520ac8a87548c2944f46484b17146c of
+#: pymc_marketing.mmm.causal.BuildModelFromDAG
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 1dc3a10b960d4fc49aaace29e0d46ac2 of
+#: pymc_marketing.mmm.causal.BuildModelFromDAG:12
+msgid "**dag** : :class:`python:str`"
+msgstr "**dag** : :class:`python:str`"
+
+#: 865d54716200405faf60270b0a8dd8ac b081807faac14b3b8ff9aae510a3ab65 of
+#: pymc_marketing.mmm.causal.BuildModelFromDAG:11
+#: pymc_marketing.mmm.causal.BuildModelFromDAG:19
+msgid "python:str"
+msgstr "python:str"
+
+#: 1d9de6e8d6c84cec9a8d6fb4c9db5cc9 of
+#: pymc_marketing.mmm.causal.BuildModelFromDAG:13
+#, python-brace-format
+msgid ""
+"DAG in DOT format (e.g. ``digraph { A -> B; B -> C; }``) or as a simple "
+"comma/newline separated list of edges (e.g. ``\"A->B, B->C\"``)."
+msgstr ""
+"DAG en formato DOT (por ejemplo, ``digraph { A -> B; B -> C; }``) o como una"
+" lista simple de aristas separadas por comas/nuevas líneas (por ejemplo, "
+"``\"A->B, B->C\"``)."
+
+#: 809ac0e75cb34bedaf3b6def5ff1344c of
+#: pymc_marketing.mmm.causal.BuildModelFromDAG:16
+msgid "**df** : :obj:`pandas.DataFrame`"
+msgstr "**df** : :obj:`pandas.DataFrame`"
+
+#: b3b71e9e18584254856f85e5c62b9d39 of
+#: pymc_marketing.mmm.causal.BuildModelFromDAG:15
+msgid "pandas.DataFrame"
+msgstr "pandas.DataFrame"
+
+#: 301f08fa8f8a44c2b26e2c591aeb05a2 of
+#: pymc_marketing.mmm.causal.BuildModelFromDAG:17
+msgid ""
+"DataFrame that contains a column for every node present in the DAG and all "
+"columns named by the provided ``dims``."
+msgstr ""
+"DataFrame que contiene una columna para cada nodo presente en el DAG y todas"
+" las columnas nombradas por los ``dims`` proporcionados."
+
+#: 553f9fb1bb264a3e865acf866dfabc94 of
+#: pymc_marketing.mmm.causal.BuildModelFromDAG:20
+msgid "**target** : :class:`python:str`"
+msgstr "**objetivo** : :class:`python:str`"
+
+#: 589547c1bc194c72b3a1f628126f31ff of
+#: pymc_marketing.mmm.causal.BuildModelFromDAG:21
+msgid ""
+"Name of the target node present in both the DAG and ``df``. This is not used"
+" to restrict modeling but is validated to exist in the DAG."
+msgstr ""
+"Nombre del nodo objetivo presente tanto en el DAG como en ``df``. Esto no se"
+" utiliza para restringir la modelización, pero se valida para que exista en "
+"el DAG."
+
+#: b9003d5379994d3cac4ef087643255f0 of
+#: pymc_marketing.mmm.causal.BuildModelFromDAG:24
+msgid "**dims** : :class:`python:tuple`\\[:class:`python:str`, ...]"
+msgstr "**dims** : :class:`python:tuple`\\[:class:`python:str`, ...]"
+
+#: 50ef519123704aa1b12b75c817b7907e of
+#: pymc_marketing.mmm.causal.BuildModelFromDAG:23
+msgid "python:tuple[python:str, ...]"
+msgstr "python:tuple[python:str, ...]"
+
+#: 43c89b4ba384412d8a1d32b8bfe7c0d3 of
+#: pymc_marketing.mmm.causal.BuildModelFromDAG:25
+msgid ""
+"Dims for the observed variables and likelihoods (e.g. ``(\"date\", "
+"\"channel\")``)."
+msgstr ""
+"Dimensiones para las variables observadas y las probabilidades (por ejemplo,"
+" ``(\"date\", \"channel\")``)."
+
+#: 24ccbda89b654ea4ae7f2855ea43bfc8 of
+#: pymc_marketing.mmm.causal.BuildModelFromDAG:27
+msgid "**coords** : :class:`python:dict`"
+msgstr "**coords** : :class:`python:dict`"
+
+#: 8fb0c48472a64dfd95285b1ab1b5b6d5 of
+#: pymc_marketing.mmm.causal.BuildModelFromDAG:26
+msgid "python:dict"
+msgstr "python:dict"
+
+#: 149dd4468bff4061aaa39e38fc6d6d0d of
+#: pymc_marketing.mmm.causal.BuildModelFromDAG:28
+msgid ""
+"Mapping from dim names to coordinate values. All coord keys must exist as "
+"columns in ``df`` and will be used to pivot the data to match dims."
+msgstr ""
+"Mapeo de nombres de dimensiones a valores de coordenadas. Todas las claves "
+"de coordenadas deben existir como columnas en ``df`` y se utilizarán para "
+"pivotar los datos para que coincidan con las dimensiones."
+
+#: c001896771b546a087d56139f1508220 of
+#: pymc_marketing.mmm.causal.BuildModelFromDAG:31
+msgid "**model_config** : :class:`python:dict`, optional"
+msgstr "**model_config** : :class:`python:dict`, opcional"
+
+#: e847a9796ef646a998ba0bcb354d0b61 of
+#: pymc_marketing.mmm.causal.BuildModelFromDAG:30
+msgid "python:dict, optional"
+msgstr "python:dict, opcional"
+
+#: ec629a14b1c548abbe779309b9b2dd44 of
+#: pymc_marketing.mmm.causal.BuildModelFromDAG:32
+msgid ""
+"Optional configuration with priors for keys ``\"intercept\"``, ``\"slope\"``"
+" and ``\"likelihood\"``. Values should be ``pymc_extras.prior.Prior`` "
+"instances. Missing keys fall back to :pyattr:`default_model_config`."
+msgstr ""
+"Configuración opcional con priors para las claves ``\"intercept\"``, "
+"``\"slope\"`` y ``\"likelihood\"``. Los valores deben ser instancias de "
+"``pymc_extras.prior.Prior``. Las claves faltantes se revertirán a "
+":pyattr:`default_model_config`."
+
+#: 9603c949cc9b4033abc851a43f68bdf3 of
+#: pymc_marketing.mmm.causal.BuildModelFromDAG:49
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: f08ad43fe1164e1e82dac48c1d9edcf7 of
+#: pymc_marketing.mmm.causal.BuildModelFromDAG:50
+msgid "Minimal example using DOT format:"
+msgstr "Ejemplo mínimo utilizando el formato DOT:"
+
+#: ced994da57cb4632a9dd561ce9839673 of
+#: pymc_marketing.mmm.causal.BuildModelFromDAG:77
+msgid "Edge-list format and custom likelihood prior:"
+msgstr "Formato de lista de aristas y prior de verosimilitud personalizado:"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.BuildModelFromDAG.rst:12
+#: 4b5444aec7d740d8beb233d7234111c4
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.BuildModelFromDAG.rst:25:<autosummary>:1
+#: a9bf2e69810545e0a0c21d1245a0523f
+msgid ""
+":py:obj:`BuildModelFromDAG.__init__ "
+"<pymc_marketing.mmm.causal.BuildModelFromDAG.__init__>`\\ \\(\\*\\[\\, "
+"dag\\, df\\, ...\\]\\)"
+msgstr ""
+":py:obj:`BuildModelFromDAG.__init__ "
+"<pymc_marketing.mmm.causal.BuildModelFromDAG.__init__>`\\ \\(\\*\\[\\, "
+"dag\\, df\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.BuildModelFromDAG.rst:25:<autosummary>:1
+#: 5de0c386ebaf4b56b7c48669198fd3d8
+msgid ""
+":py:obj:`BuildModelFromDAG.build "
+"<pymc_marketing.mmm.causal.BuildModelFromDAG.build>`\\ \\(\\)"
+msgstr ""
+":py:obj:`BuildModelFromDAG.build "
+"<pymc_marketing.mmm.causal.BuildModelFromDAG.build>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.BuildModelFromDAG.rst:25:<autosummary>:1
+#: ff6afc8f68e14b989d742e73aab298d9
+msgid "Construct and return the PyMC model implied by the DAG and data."
+msgstr "Construya y devuelva el modelo PyMC implícito en el DAG y los datos."
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.BuildModelFromDAG.rst:25:<autosummary>:1
+#: 384fabd292f34332ba1ca4df1f12e55f
+msgid ""
+":py:obj:`BuildModelFromDAG.dag_graph "
+"<pymc_marketing.mmm.causal.BuildModelFromDAG.dag_graph>`\\ \\(\\)"
+msgstr ""
+":py:obj:`BuildModelFromDAG.dag_graph "
+"<pymc_marketing.mmm.causal.BuildModelFromDAG.dag_graph>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.BuildModelFromDAG.rst:25:<autosummary>:1
+#: adf40ac990f444f0a2c6aaf2d743466b
+msgid "Return a copy of the parsed DAG as a NetworkX directed graph."
+msgstr ""
+"Devuelve una copia del DAG analizado como un grafo dirigido de NetworkX."
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.BuildModelFromDAG.rst:25:<autosummary>:1
+#: 597b59ef80b24afab8ca30a35c78a0d8
+msgid ""
+":py:obj:`BuildModelFromDAG.model_graph "
+"<pymc_marketing.mmm.causal.BuildModelFromDAG.model_graph>`\\ \\(\\)"
+msgstr ""
+":py:obj:`BuildModelFromDAG.model_graph "
+"<pymc_marketing.mmm.causal.BuildModelFromDAG.model_graph>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.BuildModelFromDAG.rst:25:<autosummary>:1
+#: 388bc96ba01d4c2c9549ce01c8bbf8c9
+msgid "Return a Graphviz visualization of the built PyMC model."
+msgstr "Devuelve una visualización de Graphviz del modelo PyMC construido."
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.BuildModelFromDAG.rst:27
+#: 6d9296f5b13843258d866fa2e09395c0
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.BuildModelFromDAG.rst:30:<autosummary>:1
+#: 68e7e485132a485f979b3474e7456473
+msgid ""
+":py:obj:`default_model_config "
+"<pymc_marketing.mmm.causal.BuildModelFromDAG.default_model_config>`\\"
+msgstr ""
+":py:obj:`default_model_config "
+"<pymc_marketing.mmm.causal.BuildModelFromDAG.default_model_config>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.BuildModelFromDAG.rst:30:<autosummary>:1
+#: ac4ae3725e6d4ba1881d86e12ec25c0f
+msgid ""
+"Default priors for intercepts, slopes and likelihood using "
+"``pymc_extras.Prior``."
+msgstr ""
+"Priors predeterminados para interceptos, pendientes y verosimilitud "
+"utilizando ``pymc_extras.Prior``."

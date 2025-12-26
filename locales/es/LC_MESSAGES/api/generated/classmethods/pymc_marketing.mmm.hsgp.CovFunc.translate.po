@@ -1,0 +1,60 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.hsgp.CovFunc.translate.rst:2
+#: 91a2251a82904429902e832baf63ae9e
+msgid "CovFunc.translate"
+msgstr "CovFunc.traducir"
+
+#: a5fd0a90d6414e27a3bf2127dbc4734e of
+#: pymc_marketing.mmm.hsgp.CovFunc.translate:2
+msgid ""
+"Replace each character in the string using the given translation table."
+msgstr ""
+"Reemplace cada carácter en la cadena utilizando la tabla de traducción "
+"proporcionada."
+
+#: bf10ace2d3f34f90a2de3355c9f74c3a of
+#: pymc_marketing.mmm.hsgp.CovFunc.translate:4
+msgid "table"
+msgstr "tabla"
+
+#: b511fe247fb44d6ebfdcfa5c54bc1e48 of
+#: pymc_marketing.mmm.hsgp.CovFunc.translate:5
+msgid ""
+"Translation table, which must be a mapping of Unicode ordinals to Unicode "
+"ordinals, strings, or None."
+msgstr ""
+"Tabla de traducción, que debe ser un mapeo de ordinales Unicode a ordinales "
+"Unicode, cadenas o None."
+
+#: 2db3ef1ecaac4dd9ade879610339570a of
+#: pymc_marketing.mmm.hsgp.CovFunc.translate:8
+msgid ""
+"The table must implement lookup/indexing via __getitem__, for instance a "
+"dictionary or list.  If this operation raises LookupError, the character is "
+"left untouched.  Characters mapped to None are deleted."
+msgstr ""
+"La tabla debe implementar la búsqueda/indexación a través de __getitem__, "
+"por ejemplo, un diccionario o una lista. Si esta operación genera un "
+"LookupError, el carácter se deja sin cambios. Los caracteres mapeados a None"
+" se eliminan."

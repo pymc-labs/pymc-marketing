@@ -1,0 +1,51 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.rst:2
+#: f898b497534448199d5736d072d792a3
+msgid "pareto\\_nbd"
+msgstr "pareto\\_nbd"
+
+#: ed81b95c7ddc4e3884e10fd72628fcef of pymc_marketing.clv.models.pareto_nbd:1
+msgid "Pareto NBD Model."
+msgstr "Modelo NBD de Pareto."
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.rst:17
+#: 5b8abbd6b0d34b8fab38de2d1e8878f5
+msgid "Classes"
+msgstr "Clases"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.rst:23:<autosummary>:1
+#: 0e8f9f2499a9416ea5391d7fe9474b5a
+msgid ""
+":py:obj:`ParetoNBDModel "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel>`\\ \\(data\\, "
+"\\*\\[\\, model\\_config\\, ...\\]\\)"
+msgstr ""
+":py:obj:`ParetoNBDModel "
+"<pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel>`\\ \\(datos\\, "
+"\\*\\[\\, configuración\\_del\\_modelo\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.rst:23:<autosummary>:1
+#: 75b3d249cae344048fb89888a5ee23e9
+msgid "Pareto Negative Binomial Model (Pareto/NBD)."
+msgstr "Modelo Binomial Negativo de Pareto (Pareto/NBD)."

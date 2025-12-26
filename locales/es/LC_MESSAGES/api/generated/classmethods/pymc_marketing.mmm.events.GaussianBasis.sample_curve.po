@@ -1,0 +1,87 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.events.GaussianBasis.sample_curve.rst:2
+#: 356e386a3f0b4ea5ae5bcda01412c709
+msgid "GaussianBasis.sample\\_curve"
+msgstr "GaussianBasis.muestra\\_curva"
+
+#: 79f98cf73b5f4fdda021bc7e21f18005 of
+#: pymc_marketing.mmm.events.Basis.sample_curve:2
+msgid "Sample the curve of the saturation transformation given parameters."
+msgstr ""
+"Muestre la curva de la transformación de saturación dados los parámetros."
+
+#: 1173d26063a24fe39e88cc15836fa9ca of
+#: pymc_marketing.mmm.events.Basis.sample_curve
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: c210b23bb69d4b1486834051f675b956 of
+#: pymc_marketing.mmm.events.Basis.sample_curve:7
+msgid "**parameters** : :obj:`xr.Dataset`"
+msgstr "**parámetros** : :obj:`xr.Dataset`"
+
+#: 7455b4eec22242478e2b300f1958ff11 of
+#: pymc_marketing.mmm.events.Basis.sample_curve:6
+msgid "xr.Dataset"
+msgstr "xr.ConjuntoDeDatos"
+
+#: d0a331e936f14efbb8adaf79c20f0f1c of
+#: pymc_marketing.mmm.events.Basis.sample_curve:8
+msgid "Dataset with the parameters of the saturation transformation."
+msgstr ""
+"Conjunto de datos con los parámetros de la transformación de saturación."
+
+#: c5f661a579244c34b100d4b925607bf5 of
+#: pymc_marketing.mmm.events.Basis.sample_curve:10
+msgid "**days** : :class:`python:int`"
+msgstr "**días** : :class:`python:int`"
+
+#: d2622129e83e4b9da53e10cd9748ecfe of
+#: pymc_marketing.mmm.events.Basis.sample_curve:9
+msgid "python:int"
+msgstr "python:int"
+
+#: 8378952cae574192911db220c694262d of
+#: pymc_marketing.mmm.events.Basis.sample_curve:11
+msgid ""
+"Number of days around basis. Default is 14 days or two weeks before and "
+"after the basis for a total of 28 days."
+msgstr ""
+"Número de días alrededor de la base. El valor predeterminado es de 14 días o"
+" dos semanas antes y después de la base, para un total de 28 días."
+
+#: 569f20bd513f40209dc48479e5ccaf75 of
+#: pymc_marketing.mmm.events.Basis.sample_curve
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: abc61d6c8e5547b6bd3eb7660a94a6f4 of
+#: pymc_marketing.mmm.events.Basis.sample_curve:18
+msgid ":obj:`xr.DataArray`"
+msgstr ":obj:`xr.DataArray`"
+
+#: a4b357b1d4424592af19b4c9931f5261 of
+#: pymc_marketing.mmm.events.Basis.sample_curve:19
+msgid "Curve of the saturation transformation."
+msgstr "Curva de la transformación de saturación."

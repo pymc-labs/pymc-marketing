@@ -1,0 +1,78 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.basic.CLVModel.__init__.rst:2
+#: 44f15855010a4198a3850ed2986e69b6
+msgid "CLVModel.\\_\\_init\\_\\_"
+msgstr "CLVModel.\\_\\_init\\_\\_"
+
+#: 0f5910dcd87b4fb2aed99ae390483b98 of
+#: pymc_marketing.clv.models.basic.CLVModel.__init__:2
+msgid ""
+"Initialize model configuration and sampler configuration for the model."
+msgstr ""
+"Inicializar la configuración del modelo y la configuración del muestreador "
+"para el modelo."
+
+#: 82f158ab5d5e47f5a327458519e389b6 of
+#: pymc_marketing.clv.models.basic.CLVModel.__init__
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: e5f62fe692244a458b3eb72ba78c44fa of
+#: pymc_marketing.clv.models.basic.CLVModel.__init__:7
+msgid "**model_config** : :obj:`Dictionary`, optional"
+msgstr "**model_config** : :obj:`Diccionario`, opcional"
+
+#: 456f789a90cf4ca39e2acf859285ee83 63a243d0e68e464d9738a4e8e894a87e of
+#: pymc_marketing.clv.models.basic.CLVModel.__init__:6
+#: pymc_marketing.clv.models.basic.CLVModel.__init__:10
+msgid "Dictionary, optional"
+msgstr "Diccionario, opcional"
+
+#: a29cc15a09794a31adf7e4728b1d0065 of
+#: pymc_marketing.clv.models.basic.CLVModel.__init__:8
+msgid ""
+"dictionary of parameters that initialise model configuration. Class-default "
+"defined by the user default_model_config method."
+msgstr ""
+"diccionario de parámetros que inicializan la configuración del modelo. Clase"
+" predeterminada definida por el método default_model_config del usuario."
+
+#: 85e1e64e3fb1442eb6cc6f65585a4a05 of
+#: pymc_marketing.clv.models.basic.CLVModel.__init__:11
+msgid "**sampler_config** : :obj:`Dictionary`, optional"
+msgstr "**sampler_config** : :obj:`Diccionario`, opcional"
+
+#: 41c2dfd97efe4ffcb9493f80dc53a278 of
+#: pymc_marketing.clv.models.basic.CLVModel.__init__:12
+msgid ""
+"dictionary of parameters that initialise sampler configuration. Class-"
+"default defined by the user default_sampler_config method."
+msgstr ""
+"diccionario de parámetros que inicializan la configuración del muestreador. "
+"Clase por defecto definida por el método default_sampler_config del usuario."
+
+#: 82efeb24269e43329b2057ce349b499c of
+#: pymc_marketing.clv.models.basic.CLVModel.__init__:28
+msgid "Examples"
+msgstr "Ejemplos"

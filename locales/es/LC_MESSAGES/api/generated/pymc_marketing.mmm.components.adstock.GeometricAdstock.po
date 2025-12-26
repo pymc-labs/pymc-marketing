@@ -1,0 +1,325 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.GeometricAdstock.rst:2
+#: 256574a19316499c862fbcfc0a3864bf
+msgid "GeometricAdstock"
+msgstr "GeometricAdstock"
+
+#: 708913da08af49e2a1c7652b275cbf7c of
+#: pymc_marketing.mmm.components.adstock.GeometricAdstock:2
+msgid "Wrapper around geometric adstock function."
+msgstr "Envoltura alrededor de la función adstock geométrica."
+
+#: ba0fe4f139b0471ca04d20dc95bf677e of
+#: pymc_marketing.mmm.components.adstock.GeometricAdstock:4
+msgid ""
+"For more information, see "
+":func:`pymc_marketing.mmm.transformers.geometric_adstock`."
+msgstr ""
+"Para más información, consulte "
+":func:`pymc_marketing.mmm.transformers.geometric_adstock`."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.GeometricAdstock.rst:7
+#: f5cda2def59d4089aaa63fddc575d06f
+msgid ""
+"(:download:`Source code "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-adstock-GeometricAdstock-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-adstock-GeometricAdstock-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-adstock-GeometricAdstock-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-adstock-GeometricAdstock-1.pdf>`)"
+msgstr ""
+"(:download:`Código fuente "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-adstock-GeometricAdstock-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-adstock-GeometricAdstock-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-adstock-GeometricAdstock-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"components-adstock-GeometricAdstock-1.pdf>`)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.GeometricAdstock.rst:12
+#: a974fa0a5d904b8d9fe91d1a8478cf5d
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.GeometricAdstock.rst:32:<autosummary>:1
+#: 88f170db5e1e4570acd40a138974771f
+msgid ""
+":py:obj:`GeometricAdstock.__init__ "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock.__init__>`\\ "
+"\\(\\[l\\_max\\, ...\\]\\)"
+msgstr ""
+":py:obj:`GeometricAdstock.__init__ "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock.__init__>`\\ "
+"\\(\\[l\\_max\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.GeometricAdstock.rst:32:<autosummary>:1
+#: 7f85288027314484aaec6c586b884a0b
+msgid ""
+":py:obj:`GeometricAdstock.apply "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock.apply>`\\ \\(x\\[\\,"
+" dims\\, idx\\]\\)"
+msgstr ""
+":py:obj:`GeometricAdstock.apply "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock.apply>`\\ \\(x\\[\\,"
+" dims\\, idx\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.GeometricAdstock.rst:32:<autosummary>:1
+#: 0eaa742078a54c1f95519bbf1bcd27e7
+msgid "Call within a model context."
+msgstr "Llamar dentro de un contexto de modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.GeometricAdstock.rst:32:<autosummary>:1
+#: c2de3849b566477dabee1d68f8a0ed5a
+msgid ""
+":py:obj:`GeometricAdstock.function "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock.function>`\\ \\(x\\,"
+" alpha\\)"
+msgstr ""
+":py:obj:`GeometricAdstock.function "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock.function>`\\ \\(x\\,"
+" alpha\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.GeometricAdstock.rst:32:<autosummary>:1
+#: f785baf82b22466bb5ecbe7d0b3a273b
+msgid "Geometric adstock function."
+msgstr "Función de adstock geométrico."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.GeometricAdstock.rst:32:<autosummary>:1
+#: 906bbcc1969545558876818d496b734a
+msgid ""
+":py:obj:`GeometricAdstock.plot_curve "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock.plot_curve>`\\ "
+"\\(curve\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`GeometricAdstock.plot_curve "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock.plot_curve>`\\ "
+"\\(curva\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.GeometricAdstock.rst:32:<autosummary>:1
+#: 9da24e6fb1704d448466edbfebd20c5d
+msgid "Plot curve HDI and samples."
+msgstr "Trazar curva HDI y muestras."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.GeometricAdstock.rst:32:<autosummary>:1
+#: 47ced95e697143f6be7a1b71d7eaf678
+msgid ""
+":py:obj:`GeometricAdstock.plot_curve_hdi "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock.plot_curve_hdi>`\\ "
+"\\(curve\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`GeometricAdstock.plot_curve_hdi "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock.plot_curve_hdi>`\\ "
+"\\(curva\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.GeometricAdstock.rst:32:<autosummary>:1
+#: afab61c1bdb64c3092e842fc1abc5afc
+msgid "Plot the HDI of the curve."
+msgstr "Trace el IDH de la curva."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.GeometricAdstock.rst:32:<autosummary>:1
+#: 093af6cf846a4224be6ddb72174db606
+msgid ""
+":py:obj:`GeometricAdstock.plot_curve_samples "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock.plot_curve_samples>`\\"
+" \\(curve\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`GeometricAdstock.plot_curve_samples "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock.plot_curve_samples>`\\"
+" \\(curve\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.GeometricAdstock.rst:32:<autosummary>:1
+#: 9e4333d44ad74ddaaf06278b75b20e0e
+msgid "Plot samples from the curve."
+msgstr "Trazar muestras de la curva."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.GeometricAdstock.rst:32:<autosummary>:1
+#: e15699bb660c44aeb835472e90718b41
+msgid ""
+":py:obj:`GeometricAdstock.sample_curve "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock.sample_curve>`\\ "
+"\\(parameters\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`GeometricAdstock.sample_curve "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock.sample_curve>`\\ "
+"\\(parameters\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.GeometricAdstock.rst:32:<autosummary>:1
+#: d9885b17ac224a88a6470cf6c951cfe3
+msgid "Sample the adstock transformation given parameters."
+msgstr "Muestre la transformación de adstock dados los parámetros."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.GeometricAdstock.rst:32:<autosummary>:1
+#: 072601e0711f4d5690543af0d812a43d
+msgid ""
+":py:obj:`GeometricAdstock.sample_prior "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock.sample_prior>`\\ "
+"\\(\\[coords\\]\\)"
+msgstr ""
+":py:obj:`GeometricAdstock.sample_prior "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock.sample_prior>`\\ "
+"\\(\\[coords\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.GeometricAdstock.rst:32:<autosummary>:1
+#: 4a44ac4141fd4d46bb4cc01ee707fcfb
+msgid "Sample the priors for the transformation."
+msgstr "Muestree las distribuciones previas para la transformación."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.GeometricAdstock.rst:32:<autosummary>:1
+#: 7cf7694d32a24241aa1cc757034d5081
+msgid ""
+":py:obj:`GeometricAdstock.set_dims_for_all_priors "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock.set_dims_for_all_priors>`\\"
+" \\(dims\\)"
+msgstr ""
+":py:obj:`GeometricAdstock.set_dims_for_all_priors "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock.set_dims_for_all_priors>`\\"
+" \\(dims\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.GeometricAdstock.rst:32:<autosummary>:1
+#: c845364e50cc42b5a51c95b1afa2f09d
+msgid "Set the dims for all priors."
+msgstr "Establezca las dimensiones para todos los priors."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.GeometricAdstock.rst:32:<autosummary>:1
+#: b3adc74d6e654e9883aff77a382b5648
+msgid ""
+":py:obj:`GeometricAdstock.to_dict "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock.to_dict>`\\ \\(\\)"
+msgstr ""
+":py:obj:`GeometricAdstock.to_dict "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock.to_dict>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.GeometricAdstock.rst:32:<autosummary>:1
+#: ae7fd05d88e24e4fb7f1e3e5a8f515f8
+msgid "Convert the adstock transformation to a dictionary."
+msgstr "Convierte la transformación de adstock a un diccionario."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.GeometricAdstock.rst:32:<autosummary>:1
+#: 3896b35ef43940d3a1f178dbb84007f8
+msgid ""
+":py:obj:`GeometricAdstock.update_priors "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock.update_priors>`\\ "
+"\\(priors\\)"
+msgstr ""
+":py:obj:`GeometricAdstock.update_priors "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock.update_priors>`\\ "
+"\\(priors\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.GeometricAdstock.rst:32:<autosummary>:1
+#: 7c0089b40c9e49c6b28d9446ca9522dd
+msgid "Update the priors for a function after initialization."
+msgstr "Actualiza los priors para una función después de la inicialización."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.GeometricAdstock.rst:34
+#: 391ab687a5164c65b8f440391fa84b92
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.GeometricAdstock.rst:43:<autosummary>:1
+#: c638244fb0dd4671a4667b91090cf89e
+msgid ""
+":py:obj:`combined_dims "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock.combined_dims>`\\"
+msgstr ""
+":py:obj:`combined_dims "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock.combined_dims>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.GeometricAdstock.rst:43:<autosummary>:1
+#: 0ead0abf264b4f8e907e900856e28008
+msgid "Get the combined dims for all the parameters."
+msgstr "Obtenga las dimensiones combinadas para todos los parámetros."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.GeometricAdstock.rst:43:<autosummary>:1
+#: 9392289cbbf749c9905a224da0edfb2b
+msgid ""
+":py:obj:`default_priors "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock.default_priors>`\\"
+msgstr ""
+":py:obj:`default_priors "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock.default_priors>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.GeometricAdstock.rst:43:<autosummary>:1
+#: 7ad6f3d7a02548809a8ee85731ec8901
+msgid ""
+":py:obj:`function_priors "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock.function_priors>`\\"
+msgstr ""
+":py:obj:`function_priors "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock.function_priors>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.GeometricAdstock.rst:43:<autosummary>:1
+#: 3e3f14ce859c4eff8627f9f23da3f20b
+msgid "Get the priors for the function."
+msgstr "Obtenga los priors para la función."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.GeometricAdstock.rst:43:<autosummary>:1
+#: bfcd008a8cfc420990c1be974a1c14bc
+msgid ""
+":py:obj:`lookup_name "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock.lookup_name>`\\"
+msgstr ""
+":py:obj:`lookup_name "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock.lookup_name>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.GeometricAdstock.rst:43:<autosummary>:1
+#: 02c94d2de56f4089ac9b7c79c6cb1821
+msgid ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock.model_config>`\\"
+msgstr ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock.model_config>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.GeometricAdstock.rst:43:<autosummary>:1
+#: c9d9ac873dd8451db7f00cb2f4e15a58
+msgid "Mapping from variable name to prior for the model."
+msgstr "Mapeo del nombre de la variable a la prior para el modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.GeometricAdstock.rst:43:<autosummary>:1
+#: 49511ad963084e5cb7db4eed5a244d75
+msgid ""
+":py:obj:`prefix "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock.prefix>`\\"
+msgstr ""
+":py:obj:`prefix "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock.prefix>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.GeometricAdstock.rst:43:<autosummary>:1
+#: 47b8d6a970d247bd9abccf7d18f07e8a
+msgid ""
+":py:obj:`variable_mapping "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock.variable_mapping>`\\"
+msgstr ""
+":py:obj:`variable_mapping "
+"<pymc_marketing.mmm.components.adstock.GeometricAdstock.variable_mapping>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.GeometricAdstock.rst:43:<autosummary>:1
+#: d5d8da7c67e2442eb922903d5d5af46c
+msgid "Mapping from parameter name to variable name in the model."
+msgstr "Mapeo del nombre del parámetro al nombre de la variable en el modelo."

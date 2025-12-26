@@ -1,0 +1,135 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.logistic_saturation.rst:2
+#: b02c5687399a4b0d93676537fe7f14cf
+msgid "logistic\\_saturation"
+msgstr "saturación\\_logística"
+
+#: 404b060db53c4076aae8bb7624070f93 of
+#: pymc_marketing.mmm.transformers.logistic_saturation:2
+msgid "Logistic saturation transformation."
+msgstr "Transformación de saturación logística."
+
+#: e15565f85c1a411b9e4eafbfcfc5df79 of
+#: pymc_marketing.mmm.transformers.logistic_saturation:4
+msgid ""
+"f(x) = \\frac{1 - e^{-\\lambda x}}{1 + e^{-\\lambda x}}\n"
+"\n"
+msgstr "f(x) = \\frac{1 - e^{-\\lambda x}}{1 + e^{-\\lambda x}}"
+
+#: 7f9f391da32b47abbb08dedcf39d1798 of
+#: pymc_marketing.mmm.transformers.logistic_saturation:7
+#, python-brace-format
+msgid ""
+"The logistic saturation function reaches the half-saturation point at "
+":math:`x = \\frac{ln(3)}{\\lambda}`. This means the half-saturation point is"
+" approximately :math:`1/\\lambda`. If you want to set a prior on the exact "
+"half-saturation point, you can use the inverse_scaled_logistic_saturation "
+"function, available in this package."
+msgstr ""
+"La función de saturación logística alcanza el punto de media saturación en "
+":math:`x = \\frac{ln(3)}{\\lambda}`. Esto significa que el punto de media "
+"saturación es aproximadamente :math:`1/\\lambda`. Si desea establecer un "
+"previo sobre el punto exacto de media saturación, puede utilizar la función "
+"inverse_scaled_logistic_saturation, disponible en este paquete."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.logistic_saturation.rst:7
+#: 62af63227cb04b17b996d5e72221251f
+msgid ""
+"(:download:`Source code "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-logistic_saturation-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-logistic_saturation-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-logistic_saturation-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-logistic_saturation-1.pdf>`)"
+msgstr ""
+"(:download:`Código fuente "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-logistic_saturation-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-logistic_saturation-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-logistic_saturation-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-logistic_saturation-1.pdf>`)"
+
+#: ab51ff35847a465a8a2618c5ee34e284 of
+#: pymc_marketing.mmm.transformers.logistic_saturation
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: b82406129c204a0795c0b2396602833b of
+#: pymc_marketing.mmm.transformers.logistic_saturation:36
+msgid "**x** : :obj:`tensor`"
+msgstr "**x** : :obj:`tensor`"
+
+#: 628f11feeaf2458bb00d3aed50da0ffc of
+#: pymc_marketing.mmm.transformers.logistic_saturation:35
+msgid "tensor"
+msgstr "tensor"
+
+#: 00aaec60cc0d4bda9ca5fb2b5e4e4c82 of
+#: pymc_marketing.mmm.transformers.logistic_saturation:37
+msgid "Input tensor."
+msgstr "Tensor de entrada."
+
+#: d8ac573d2c96405f9ebf4ad14e31cafa of
+#: pymc_marketing.mmm.transformers.logistic_saturation:39
+msgid ""
+"**lam** : :class:`python:float` or :term:`numpy:array_like`, optional, "
+":obj:`by` default 0.5"
+msgstr ""
+"**lam** : :class:`python:float` o :term:`numpy:array_like`, opcional, "
+":obj:`by` por defecto 0.5"
+
+#: db942edeeb33459babfcc03235440297 of
+#: pymc_marketing.mmm.transformers.logistic_saturation:38
+msgid "python:float or numpy:array_like, optional, by default 0.5"
+msgstr "python:float o numpy:array_like, opcional, por defecto 0.5"
+
+#: 0087ca1e0b1e42a29e0fbf1b48a85b34 of
+#: pymc_marketing.mmm.transformers.logistic_saturation:40
+msgid ""
+"Represents the efficiency of the channel. Larger values represent a more "
+"efficient channel."
+msgstr ""
+"Representa la eficiencia del canal. Los valores más grandes representan un "
+"canal más eficiente."
+
+#: b7a1c3efc752409da5c0a97025e3d680 of
+#: pymc_marketing.mmm.transformers.logistic_saturation
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 34dc5bace7a74528a70dd734e919041d of
+#: pymc_marketing.mmm.transformers.logistic_saturation:47
+msgid ":obj:`tensor`"
+msgstr ":obj:`tensor`"
+
+#: 5bf3edf9d8a2492f97c7e315b6de31ec of
+#: pymc_marketing.mmm.transformers.logistic_saturation:48
+msgid "Transformed tensor."
+msgstr "Tensor transformado."

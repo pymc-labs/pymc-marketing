@@ -1,0 +1,336 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.SaturationTransformation.rst:2
+#: b9fbc893513d4f30ad516a8a896c434f
+msgid "SaturationTransformation"
+msgstr "Transformación de Saturación"
+
+#: 0aaaed951c0f4c70ae4d01480b26d041 of
+#: pymc_marketing.mmm.components.saturation.SaturationTransformation:2
+msgid "Subclass for all saturation transformations."
+msgstr "Subclase para todas las transformaciones de saturación."
+
+#: 00b2df09782642e69ac18d6cce55420c of
+#: pymc_marketing.mmm.components.saturation.SaturationTransformation:4
+msgid ""
+"In order to use a custom saturation transformation, subclass and define:"
+msgstr ""
+"Para utilizar una transformación de saturación personalizada, subclase y "
+"define:"
+
+#: 628b734ce3b64b2787b34d614939517f of
+#: pymc_marketing.mmm.components.saturation.SaturationTransformation:6
+msgid "`function`: function to take x to contributions"
+msgstr "función: función para llevar x a contribuciones"
+
+#: b2e0f3ffdf874b84ae42aff59b5f3561 of
+#: pymc_marketing.mmm.components.saturation.SaturationTransformation:7
+msgid "`default_priors`: default distributions for each parameter in function"
+msgstr ""
+"`default_priors`: distribuciones predeterminadas para cada parámetro en la "
+"función"
+
+#: 28b8947e3ef14159b68b95b1b9b2db59 of
+#: pymc_marketing.mmm.components.saturation.SaturationTransformation:9
+msgid ""
+"By subclassing from this method, lift test integration will come for free!"
+msgstr ""
+"Al heredar de este método, ¡la integración de pruebas de elevación vendrá de"
+" forma gratuita!"
+
+#: 07013335f58e43c49f27943ffc7ab03f of
+#: pymc_marketing.mmm.components.saturation.SaturationTransformation:25
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: 76dfa6ade7b041d492eb6aa5c788f5c9 of
+#: pymc_marketing.mmm.components.saturation.SaturationTransformation:26
+msgid "Make a non-saturating saturation transformation"
+msgstr "Realice una transformación de saturación no saturante"
+
+#: c9650e5ba2374bd8913df8285ba48ad8 of
+#: pymc_marketing.mmm.components.saturation.SaturationTransformation:41
+msgid ""
+"Make use of plotting capabilities to understand the transformation and its "
+"priors"
+msgstr ""
+"Haga uso de las capacidades de representación gráfica para comprender la "
+"transformación y sus priors."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.SaturationTransformation.rst:12
+#: f8d2ea8dd0d34510bd16e55af48bdf9f
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.SaturationTransformation.rst:31:<autosummary>:1
+#: ea2f59952b1b44448503435e826ab7be
+msgid ""
+":py:obj:`SaturationTransformation.__init__ "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation.__init__>`\\"
+" \\(\\[priors\\, ...\\]\\)"
+msgstr ""
+":py:obj:`SaturationTransformation.__init__ "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation.__init__>`\\"
+" \\(\\[priors\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.SaturationTransformation.rst:31:<autosummary>:1
+#: 459b7c053cd1406095f45d2f2304ace0
+msgid ""
+":py:obj:`SaturationTransformation.apply "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation.apply>`\\"
+" \\(x\\[\\, dims\\, idx\\]\\)"
+msgstr ""
+":py:obj:`SaturationTransformation.apply "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation.apply>`\\"
+" \\(x\\[\\, dims\\, idx\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.SaturationTransformation.rst:31:<autosummary>:1
+#: cc606a2978b447bf91ab788365befa28
+msgid "Call within a model context."
+msgstr "Llamar dentro de un contexto de modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.SaturationTransformation.rst:31:<autosummary>:1
+#: 00c2a934904a4650a6d2b3de5365b7dd
+msgid ""
+":py:obj:`SaturationTransformation.plot_curve "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation.plot_curve>`\\"
+" \\(curve\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`SaturationTransformation.plot_curve "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation.plot_curve>`\\"
+" \\(curva\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.SaturationTransformation.rst:31:<autosummary>:1
+#: a5654d636383482d849a1c9b924fe91f
+msgid "Plot curve HDI and samples."
+msgstr "Trazar curva HDI y muestras."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.SaturationTransformation.rst:31:<autosummary>:1
+#: f960f1f5fe864211b4242f84d322d214
+msgid ""
+":py:obj:`SaturationTransformation.plot_curve_hdi "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation.plot_curve_hdi>`\\"
+" \\(curve\\)"
+msgstr ""
+":py:obj:`SaturationTransformation.plot_curve_hdi "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation.plot_curve_hdi>`\\"
+" \\(curva\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.SaturationTransformation.rst:31:<autosummary>:1
+#: ef796575ffcb4691bd082a95b9c3163e
+msgid "Plot the HDI of the curve."
+msgstr "Trace el IDH de la curva."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.SaturationTransformation.rst:31:<autosummary>:1
+#: c0e93a4cd3c644a8beaac588f84f2e0d
+msgid ""
+":py:obj:`SaturationTransformation.plot_curve_samples "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation.plot_curve_samples>`\\"
+" \\(curve\\)"
+msgstr ""
+":py:obj:`SaturationTransformation.plot_curve_samples "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation.plot_curve_samples>`\\"
+" \\(curva\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.SaturationTransformation.rst:31:<autosummary>:1
+#: 0f0b2c49675043508a9d3e620905d906
+msgid "Plot samples from the curve."
+msgstr "Trazar muestras de la curva."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.SaturationTransformation.rst:31:<autosummary>:1
+#: 7985ea7d43bc4e9587ea08aa8304efd5
+msgid ""
+":py:obj:`SaturationTransformation.sample_curve "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation.sample_curve>`\\"
+" \\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`SaturationTransformation.sample_curve "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation.sample_curve>`\\"
+" \\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.SaturationTransformation.rst:31:<autosummary>:1
+#: 066a928e56e04d1d9443dfb0b9b17283
+msgid "Sample the curve of the saturation transformation given parameters."
+msgstr ""
+"Muestre la curva de la transformación de saturación dadas las parámetros."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.SaturationTransformation.rst:31:<autosummary>:1
+#: e043e796d58e4f4281efd6d174c7e06e
+msgid ""
+":py:obj:`SaturationTransformation.sample_prior "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation.sample_prior>`\\"
+" \\(\\[coords\\]\\)"
+msgstr ""
+":py:obj:`SaturationTransformation.sample_prior "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation.sample_prior>`\\"
+" \\(\\[coords\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.SaturationTransformation.rst:31:<autosummary>:1
+#: 14bac58649514e3db533f63517bcb7f8
+msgid "Sample the priors for the transformation."
+msgstr "Muestree las distribuciones previas para la transformación."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.SaturationTransformation.rst:31:<autosummary>:1
+#: 456d62a184e641d88eb8b068bc123641
+msgid ""
+":py:obj:`SaturationTransformation.set_dims_for_all_priors "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation.set_dims_for_all_priors>`\\"
+" \\(dims\\)"
+msgstr ""
+":py:obj:`SaturationTransformation.set_dims_for_all_priors "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation.set_dims_for_all_priors>`\\"
+" \\(dims\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.SaturationTransformation.rst:31:<autosummary>:1
+#: ffc260e327d648e081d7ffd84da7f7a0
+msgid "Set the dims for all priors."
+msgstr "Establezca las dimensiones para todos los antecedentes."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.SaturationTransformation.rst:31:<autosummary>:1
+#: ccf99eda2eb94c518bca84d5776564c1
+msgid ""
+":py:obj:`SaturationTransformation.to_dict "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation.to_dict>`\\"
+" \\(\\)"
+msgstr ""
+":py:obj:`SaturationTransformation.to_dict "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation.to_dict>`\\"
+" \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.SaturationTransformation.rst:31:<autosummary>:1
+#: cbe825785f964cc6917662e2bd137ae1
+msgid "Convert the transformation to a dictionary."
+msgstr "Convierte la transformación a un diccionario."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.SaturationTransformation.rst:31:<autosummary>:1
+#: 1a87f42a4e764b5193d67f9cd7cf67f9
+msgid ""
+":py:obj:`SaturationTransformation.update_priors "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation.update_priors>`\\"
+" \\(priors\\)"
+msgstr ""
+":py:obj:`SaturationTransformation.update_priors "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation.update_priors>`\\"
+" \\(priors\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.SaturationTransformation.rst:31:<autosummary>:1
+#: acc22259e5f64cb6a47942be1d17add9
+msgid "Update the priors for a function after initialization."
+msgstr "Actualice los priors para una función después de la inicialización."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.SaturationTransformation.rst:33
+#: 21548c8d3a6841d3b6d10ecbe81fbfe3
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.SaturationTransformation.rst:43:<autosummary>:1
+#: 9c09ed51148f46cdb79ee67a0dbd32b2
+msgid ""
+":py:obj:`combined_dims "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation.combined_dims>`\\"
+msgstr ""
+":py:obj:`combined_dims "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation.combined_dims>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.SaturationTransformation.rst:43:<autosummary>:1
+#: a10d2fbc4dc845e2a3b41a91d47f6c17
+msgid "Get the combined dims for all the parameters."
+msgstr "Obtenga las dimensiones combinadas para todos los parámetros."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.SaturationTransformation.rst:43:<autosummary>:1
+#: d16f88a3a2eb44b888285efc9e9a804a
+msgid ""
+":py:obj:`function_priors "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation.function_priors>`\\"
+msgstr ""
+":py:obj:`function_priors "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation.function_priors>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.SaturationTransformation.rst:43:<autosummary>:1
+#: f2918a818b784e13998c95d58fda775c
+msgid "Get the priors for the function."
+msgstr "Obtenga los antecedentes para la función."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.SaturationTransformation.rst:43:<autosummary>:1
+#: 3241d28ae2d941d4b7ecb50a8a094160
+msgid ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation.model_config>`\\"
+msgstr ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation.model_config>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.SaturationTransformation.rst:43:<autosummary>:1
+#: c6ce82e2130b49aa876e2341d9c76aec
+msgid "Mapping from variable name to prior for the model."
+msgstr "Mapeo del nombre de la variable a la prior para el modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.SaturationTransformation.rst:43:<autosummary>:1
+#: 3bf82564c52e4bf3aa698bce164d1639
+msgid ""
+":py:obj:`prefix "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation.prefix>`\\"
+msgstr ""
+":py:obj:`prefijo "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation.prefix>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.SaturationTransformation.rst:43:<autosummary>:1
+#: f1047e0f40604124b22c7d39cafb25bc
+msgid ""
+":py:obj:`variable_mapping "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation.variable_mapping>`\\"
+msgstr ""
+":py:obj:`variable_mapping "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation.variable_mapping>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.SaturationTransformation.rst:43:<autosummary>:1
+#: 9e6700d232454a33bf1fa511f819a5ae
+msgid "Mapping from parameter name to variable name in the model."
+msgstr "Mapeo del nombre del parámetro al nombre de la variable en el modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.SaturationTransformation.rst:43:<autosummary>:1
+#: 8b387e4bd81b4509ab9082bb45e6fdb0
+msgid ""
+":py:obj:`default_priors "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation.default_priors>`\\"
+msgstr ""
+":py:obj:`default_priors "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation.default_priors>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.SaturationTransformation.rst:43:<autosummary>:1
+#: bf067427829c484d8302a6f511087b72
+msgid ""
+":py:obj:`function "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation.function>`\\"
+msgstr ""
+":py:obj:`function "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation.function>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.saturation.SaturationTransformation.rst:43:<autosummary>:1
+#: 0fe7e2ab249f4fd091d692d720802da4
+msgid ""
+":py:obj:`lookup_name "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation.lookup_name>`\\"
+msgstr ""
+":py:obj:`lookup_name "
+"<pymc_marketing.mmm.components.saturation.SaturationTransformation.lookup_name>`"

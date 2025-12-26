@@ -1,0 +1,1876 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:10002
+#: 3c3b2e9a1f70404cab88cff632bb6db7
+msgid ""
+"Introduction to Understanding Causal Relationships in Media Mix Modeling"
+msgstr ""
+"Introducción a la comprensión de las relaciones causales en el modelado de "
+"mezcla de medios"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:10004
+#: d011d258685b42c5b013e6cd7a69721d
+msgid ""
+"Causal identification is about figuring out if we can prove a cause-and-"
+"effect relationship using the data we have and our assumptions. This process"
+" helps us establish clear links between different factors instead of looking"
+" at their correlations. It is essential when working with observational "
+"data, which can be affected by hidden factors and biases that make it hard "
+"to see true causal relationships."
+msgstr ""
+"La identificación causal consiste en determinar si podemos probar una "
+"relación de causa y efecto utilizando los datos que tenemos y nuestras "
+"suposiciones. Este proceso nos ayuda a establecer vínculos claros entre "
+"diferentes factores en lugar de centrarnos en sus correlaciones. Es esencial"
+" al trabajar con datos observacionales, que pueden verse afectados por "
+"factores ocultos y sesgos que dificultan la identificación de verdaderas "
+"relaciones causales."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:10006
+#: f1869d70c0e74885a15a32e3a9b13d90
+msgid ""
+"Note: Inspired by the notebook from [Bridging Causal Thinking and Media Mix "
+"Models: Carlos Trujillo & Ben "
+"Vincent](https://colab.research.google.com/drive/1r5pi9Lh_A6h_CKQFEjyn-7iykL8x-X_H#scrollTo=DRFEJyK1VCi3)."
+msgstr ""
+"Nota: Inspirado en el cuaderno de [Bridging Causal Thinking and Media Mix "
+"Models: Carlos Trujillo & Ben "
+"Vincent](https://colab.research.google.com/drive/1r5pi9Lh_A6h_CKQFEjyn-7iykL8x-X_H#scrollTo=DRFEJyK1VCi3)."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:10008
+#: 66bcf5f86db047308e27bd88b14d405e
+msgid "Why Is Understanding Causal Relationships Important in Regressions?"
+msgstr ""
+"¿Por qué es importante entender las relaciones causales en las regresiones?"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:10010
+#: 3cd70c372337466c939308b873a474a1
+msgid ""
+"In regression models, we often aim to estimate how one or more factors "
+"affect an outcome. However, if we don't consider causality carefully, our "
+"estimates can be biased due to:"
+msgstr ""
+"En los modelos de regresión, a menudo buscamos estimar cómo uno o más "
+"factores afectan un resultado. Sin embargo, si no consideramos la causalidad"
+" con cuidado, nuestras estimaciones pueden estar sesgadas debido a:"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:10012
+#: 34fd666c74fe48aca7a3164d12a1c627
+msgid ""
+"**Confounding Bias**: This happens when a hidden factor influences both the "
+"predictor and the outcome, leading to misleading connections."
+msgstr ""
+"**Sesgo confuso**: Esto ocurre cuando un factor oculto influye tanto en el "
+"predictor como en el resultado, lo que lleva a conexiones engañosas."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:10013
+#: 6b26b1d464f84ecf938c3890b5de3b96
+msgid ""
+"**Selection Bias**: When we use non-random samples, this can distort the "
+"estimated relationships."
+msgstr ""
+"**Sesgo de Selección**: Cuando utilizamos muestras no aleatorias, esto puede"
+" distorsionar las relaciones estimadas."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:10014
+#: f2ff313038834bc387b288272c301686
+msgid ""
+"**Overcontrol**: Adjusting for variables that are influenced by the "
+"treatment can lead to incorrect estimates of causal effects."
+msgstr ""
+"**Sobrecontrol**: Ajustar las variables que son influenciadas por el "
+"tratamiento puede llevar a estimaciones incorrectas de los efectos causales."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:10016
+#: 0405e9bda63d42b686ce2a76d89fc4b4
+msgid ""
+"Causal identification helps us adjust the right variables in the regression "
+"to isolate the true effect by addressing confounders and avoiding "
+"unnecessary adjustments. Without it, we can run into several problems:"
+msgstr ""
+"La identificación causal nos ayuda a ajustar las variables adecuadas en la "
+"regresión para aislar el verdadero efecto al abordar los factores de "
+"confusión y evitar ajustes innecesarios. Sin ella, podemos enfrentar varios "
+"problemas:"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:10018
+#: 29e335a6116d402fa4caa9a52f990173
+msgid ""
+"**Bias in Estimates**: Our understanding of effect size and direction might "
+"be wrong, which can lead to poor decisions."
+msgstr ""
+"**Sesgo en las estimaciones**: Nuestra comprensión del tamaño y la dirección"
+" del efecto puede ser incorrecta, lo que puede llevar a decisiones "
+"equivocadas."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:10019
+#: 00dfab1667d0471ba8881e21de35a6ed
+msgid ""
+"**Spurious Correlations**: We might misinterpret coincidental relationships "
+"as causal."
+msgstr ""
+"**Correlaciones Espurias**: Podríamos malinterpretar relaciones coincidentes"
+" como causales."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:10020
+#: 7fde755a2a754eca81f6924234d7158b
+msgid ""
+"**Inefficient Models**: Including irrelevant variables or missing important "
+"confounders can weaken the model’s accuracy and clarity."
+msgstr ""
+"**Modelos Ineficientes**: Incluir variables irrelevantes o faltar variables "
+"de confusión importantes puede debilitar la precisión y claridad del modelo."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:10022
+#: 238a5ae818bc44f982b8b839451f646c
+msgid ""
+"In media mix modeling (MMM), where businesses allocate budgets across "
+"different channels to maximize returns, these issues can lead to poor "
+"resource allocation, wasted money, or misattributing success to ineffective "
+"strategies."
+msgstr ""
+"En la modelización de mezcla de medios (MMM), donde las empresas asignan "
+"presupuestos a diferentes canales para maximizar los retornos, estos "
+"problemas pueden llevar a una mala asignación de recursos, dinero "
+"desperdiciado o a atribuir erróneamente el éxito a estrategias ineficaces."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:10024
+#: 0b4425fc18544d96a05673a2585066f8
+msgid "Key Concepts in This Notebook"
+msgstr "Conceptos clave en este cuaderno"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:10026
+#: 23172bae6dea45b1a00deaaf44a1bfcc
+msgid "This notebook covers key ideas in causal inference, including:"
+msgstr "Este cuaderno abarca ideas clave en la inferencia causal, incluyendo:"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:10028
+#: 1af82860a5424f0aa21bd625818ba51e
+msgid ""
+"**Causal Directed Acyclic Graphs (DAGs)**: These are visual tools that show "
+"the assumed causal relationships in the data."
+msgstr ""
+"**Grafos Acíclicos Dirigidos Causales (DAGs)**: Estas son herramientas "
+"visuales que muestran las relaciones causales asumidas en los datos."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:10029
+#: fc3323e665cc4822939556aa17557eb4
+msgid ""
+"**Backdoor Criterion**: This rule helps identify which variables block paths"
+" that create misleading connections between the treatment and outcome."
+msgstr ""
+"**Criterio de Puerta Trasera**: Esta regla ayuda a identificar qué variables"
+" bloquean los caminos que crean conexiones engañosas entre el tratamiento y "
+"el resultado."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:10030
+#: 5fc2ddc702434c7cbdd35a633c71ead9
+msgid ""
+"**Minimal Adjustment Set**: This is the smallest group of factors needed to "
+"meet the backdoor criterion, ensuring accurate causal estimates."
+msgstr ""
+"**Conjunto de Ajuste Mínimo**: Este es el grupo más pequeño de factores "
+"necesarios para cumplir con el criterio de puerta trasera, asegurando "
+"estimaciones causales precisas."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:10032
+#: acb8e28f92e14945a2a3d954aa46c318
+msgid ""
+"These tools help us understand causal inference more clearly and give us "
+"solid guidelines for choosing variables in media mix models."
+msgstr ""
+"Estas herramientas nos ayudan a comprender la inferencia causal de manera "
+"más clara y nos brindan pautas sólidas para elegir variables en modelos de "
+"mezcla de medios."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:10034
+#: f16bd037ee284792b3089cf8ef00ed54
+msgid ""
+"By the end of this notebook, you will learn how to use `pymc-marketing` "
+"alongside causal thinking principles for effective media mix modeling."
+msgstr ""
+"Al final de este cuaderno, aprenderá a utilizar `pymc-marketing` junto con "
+"los principios del pensamiento causal para un modelado efectivo de la mezcla"
+" de medios."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:10036
+#: 9debd282a43c47298bc43d6fdde4494a
+msgid "Let’s start by importing the necessary libraries!"
+msgstr "¡Comencemos importando las bibliotecas necesarias!"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:60002
+#: 3a779c8e654240a5be5cbf67cb3fa359
+msgid "Business problem"
+msgstr "Problema empresarial"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:60004
+#: 705c55e16cb84980bf55e3e012186073
+msgid ""
+"Imagine you run a retail company that advertises its products. You've been "
+"in business for a while and have noticed steady sales growth. During "
+"holidays, sales increase even more. However, you're not the only one "
+"advertising; a competitor is also promoting their products, likely with "
+"discounts or special offers."
+msgstr ""
+"Imagina que diriges una empresa minorista que publicita sus productos. Has "
+"estado en el negocio durante un tiempo y has notado un crecimiento constante"
+" en las ventas. Durante las festividades, las ventas aumentan aún más. Sin "
+"embargo, no eres el único que publicita; un competidor también está "
+"promoviendo sus productos, probablemente con descuentos u ofertas "
+"especiales."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:60006
+#: 35cab566c71c409d9466255ddd7a50a1
+msgid "Let's explore how different factors relate to each other:"
+msgstr "Exploremos cómo se relacionan entre sí diferentes factores:"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:60008
+#: a1daa6cd5bf64df58db8fbbe361ac2ee
+msgid ""
+"**Christmas (C)**: The holiday season boosts consumer interest, leading to "
+"more ad views (X1 and X2) and directly increasing your sales (T)."
+msgstr ""
+"**Navidad (C)**: La temporada navideña incrementa el interés del consumidor,"
+" lo que lleva a más visualizaciones de anuncios (X1 y X2) y aumenta "
+"directamente sus ventas (T)."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:60009
+#: 3ccec839603a4d07842b3d6f8fa00fcb
+msgid "**Marketing Channels (X1, X2)**:"
+msgstr "**Canales de Marketing (X1, X2)**:"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:60010
+#: ae1d778ac43f4506a2a96d9d771737b6
+msgid "**X1**: Social media ads, like those on Facebook or TikTok."
+msgstr "**X1**: Anuncios en redes sociales, como los de Facebook o TikTok."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:60011
+#: 41b12b18ab61497dba817077794372a4
+msgid ""
+"**X2**: Search engine ads, which can enhance the impact of social media ads "
+"(these channels work well together)."
+msgstr ""
+"**X2**: Anuncios en motores de búsqueda, que pueden aumentar el impacto de "
+"los anuncios en redes sociales (estos canales funcionan bien juntos)."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:60012
+#: 2b611cccf17648d5b4cefe16c03b0ac7
+msgid "**Target (T)**: Your goal is to maximize sales revenue."
+msgstr "**Objetivo (T)**: Su meta es maximizar los ingresos por ventas."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:60013
+#: 11f5cafc78dd4d1b9bfed977cc284c04
+msgid "**Unseen Factors**:"
+msgstr "**Factores no visibles**:"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:60014
+#: 5b991ab60eff4940ab7c2645bb2db3f6
+msgid ""
+"**Competitor Offers (I)**: Your competitor may run aggressive holiday "
+"discounts, which could lessen the impact of your search ads (X2) and reduce "
+"your sales (T)."
+msgstr ""
+"**Ofertas de Competidores (I)**: Su competidor puede ofrecer descuentos "
+"agresivos durante las festividades, lo que podría disminuir el impacto de "
+"sus anuncios de búsqueda (X2) y reducir sus ventas (T)."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:60015
+#: 41ac17a5ea2244ec908a163b367c292d
+msgid ""
+"**Market Growth (G)**: Economic growth during the holiday season might boost"
+" sales (T) regardless of your advertising efforts."
+msgstr ""
+"**Crecimiento del Mercado (G)**: El crecimiento económico durante la "
+"temporada navideña podría impulsar las ventas (T) independientemente de sus "
+"esfuerzos publicitarios."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:60017
+#: 3f05387c7b384b9a90cb5ea89f8aa65c
+msgid "Visualizing Relationships with a DAG"
+msgstr "Visualizando relaciones con un DAG"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:60019
+#: c6628f64230d486d85011484bcb36177
+msgid "We can illustrate these ideas using a Directed Acyclic Graph (DAG)."
+msgstr ""
+"Podemos ilustrar estas ideas utilizando un Grafo Acíclico Dirigido (DAG)."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:80002
+#: 62593bfe4ac04c22b21a47b0ac416e15
+msgid "Observed Factors:"
+msgstr "Factores observados:"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:80003
+#: 59c13f931866462c8a5ad4b398895415
+msgid ""
+"**Marketing Impressions X1 and X2**: Two channels (search ads and social "
+"ads) that can affect sales (T). They can also impact each other."
+msgstr ""
+"**Impresiones de Marketing X1 y X2**: Dos canales (anuncios de búsqueda y "
+"anuncios en redes sociales) que pueden afectar las ventas (T). También "
+"pueden influirse mutuamente."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:80004
+#: 55a9dc50e024436a905c42099282a053
+msgid ""
+"**Target (T)**: The key metric you want to improve, like sales revenue."
+msgstr ""
+"**Objetivo (T)**: La métrica clave que desea mejorar, como los ingresos por "
+"ventas."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:80006
+#: 4bf6284e1ab3443391e26949b6d79461
+msgid "Unseen Factors (Dashed Elements):"
+msgstr "Factores no visibles (Elementos discontinuos):"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:80007
+#: cbedd673b2874e889190562e0bdb5a89
+msgid ""
+"**Christmas (C)**: A seasonal event that influences both marketing "
+"impressions (X1, X2) and sales (T)."
+msgstr ""
+"**Navidad (C)**: Un evento estacional que influye tanto en las impresiones "
+"de marketing (X1, X2) como en las ventas (T)."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:80008
+#: db1e1855f8b349f492be1b576c199ff6
+msgid ""
+"**Competitor Offers (I)**: Actions by competitors, such as discounts, which "
+"can influence marketing channels and sales."
+msgstr ""
+"**Ofertas de Competidores (I)**: Acciones de los competidores, como "
+"descuentos, que pueden influir en los canales de marketing y en las ventas."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:80009
+#: 0f391c01f13749f4ad2967d9a2d2c12c
+msgid "**Market Growth (G)**: Broader economic trends that affect sales."
+msgstr ""
+"**Crecimiento del Mercado (G)**: Tendencias económicas más amplias que "
+"afectan las ventas."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:80011
+#: 08d57e2b3510458297d6ace79d21c163
+msgid ""
+"Note: Dashed elements are not possible to intervene, on the other hand, "
+"solid elements are possible to intervene."
+msgstr ""
+"Nota: Los elementos en línea discontinua no se pueden intervenir, mientras "
+"que los elementos en línea continua sí se pueden intervenir."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:80013
+#: 75b7250f0e1944e59455b205c96e1b46
+msgid "Key Relationships:"
+msgstr "Relaciones Clave:"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:80014
+#: 2e9f7f2443e4451c89d050436688e1b6
+msgid ""
+"Christmas (C) boosts both marketing impressions (X1, X2) and directly "
+"increases sales (T) during the holiday season."
+msgstr ""
+"La Navidad (C) impulsa tanto las impresiones de marketing (X1, X2) como "
+"aumenta directamente las ventas (T) durante la temporada navideña."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:80015
+#: 8d59f862440647208487e8e408861379
+msgid ""
+"Marketing impressions (X1, X2) affect sales (T) through your advertising "
+"efforts. X1 can help X2 (e.g., social ads support search ads)."
+msgstr ""
+"Las impresiones de marketing (X1, X2) afectan las ventas (T) a través de sus"
+" esfuerzos publicitarios. X1 puede ayudar a X2 (por ejemplo, los anuncios en"
+" redes sociales apoyan a los anuncios de búsqueda)."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:80016
+#: 4d899886a90940b48a4d92490a4ab341
+msgid ""
+"Competitor Offers (I) and Market Growth (G) impact the marketing channels "
+"and sales, which can confuse the understanding of cause and effect."
+msgstr ""
+"Las Ofertas de Competidores (I) y el Crecimiento del Mercado (G) impactan "
+"los canales de marketing y las ventas, lo que puede confundir la comprensión"
+" de causa y efecto."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:80018
+#: ed9a3f6a586a4f3288938cd3bc3720c1
+msgid ""
+"We now need to define how these relationships work and create a model to "
+"generate data that reflects these assumptions. This way, we can see how well"
+" we can identify causal relationships using the data we gather."
+msgstr ""
+"Ahora necesitamos definir cómo funcionan estas relaciones y crear un modelo "
+"para generar datos que reflejen estas suposiciones. De esta manera, podemos "
+"ver qué tan bien podemos identificar relaciones causales utilizando los "
+"datos que recopilamos."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:100002
+#: a780e7724eb94dd7b7f928546902b1ff
+msgid ""
+"We set a date range between January 2022 and November 2024, at a daily "
+"frequency."
+msgstr ""
+"Establecimos un rango de fechas entre enero de 2022 y noviembre de 2024, con"
+" una frecuencia diaria."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:100004
+#: 9cd354c6944a48b4b6e13ce572c7ad74
+msgid "Generating the Market Growth (Trend)"
+msgstr "Generando el Crecimiento del Mercado (Tendencia)"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:100005
+#: f33730cc48e04de2afc2fe4e20f71734
+msgid ""
+"Next, we generate the data for **market growth**. We assume the market "
+"growth follows a power-law trend, meaning that growth accelerates over time "
+"rather than remaining constant. This can be mathematically defined as:"
+msgstr ""
+"A continuación, generamos los datos para **el crecimiento del mercado**. "
+"Asumimos que el crecimiento del mercado sigue una tendencia de ley de "
+"potencias, lo que significa que el crecimiento se acelera con el tiempo en "
+"lugar de permanecer constante. Esto se puede definir matemáticamente como:"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:100007
+#: 6d27103eadc746abb37636ffc280ce97
+msgid ""
+"\n"
+"MG_{t} = (t + \\text{baseline})^{\\text{exponent}} - 1\n"
+msgstr "MG_{t} = (t + \\text{baseline})^{\\text{exponent}} - 1"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:100011
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:120012
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:140010
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:220012
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:580030
+#: 45d4071522444991a9cb2b0dfb4fa6cd 6ffb769ea6ef4c94ba9b665caf1cc229
+#: 96d5cc31ca1f404e9e32b63dc6d253da b7321374e23541ca8f72dbbac09bd421
+#: f71d139db9b64ac1a5dd7ee29290f321
+msgid "Where:"
+msgstr "Dónde:"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:100012
+#: dcb3aea42ccf4ba09ed95775e42746ae
+msgid ""
+"$t$: The time index, representing days since the start of the date range."
+msgstr ""
+"$t$: El índice de tiempo, que representa los días desde el inicio del rango "
+"de fechas."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:100013
+#: 6bac8e5fa91e4db2b2a31ba01af8c93f
+#, python-brace-format
+msgid ""
+"$baseline$: A constant added to $t$ to shift the starting point of the "
+"trend. This value affects the initial level of market growth. The starting "
+"value of the function will be $(baseline)^{exponent} - 1$, not 0."
+msgstr ""
+"$baseline$: Una constante añadida a $t$ para desplazar el punto de inicio de"
+" la tendencia. Este valor afecta el nivel inicial del crecimiento del "
+"mercado. El valor inicial de la función será $(baseline)^{exponent} - 1$, no"
+" 0."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:100014
+#: 5d93302b241448ecb27f2e42f8d5ede1
+msgid ""
+"$exponent$: The power to which the time index is raised, determining the "
+"rate at which the trend accelerates over time."
+msgstr ""
+"$exponent$: La potencia a la que se eleva el índice de tiempo, determinando "
+"la tasa a la que la tendencia se acelera con el tiempo."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:120002
+#: c7bbfb71b59f4ca88a7120d84ff10dce
+msgid "Generating the Holiday Effect"
+msgstr "Generando el Efecto Vacacional"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:120004
+#: 624b411341444e64bc85010a333e2bb2
+msgid ""
+"In this section, we simulate the effect of holidays on the market growth "
+"trend. Certain holidays, like Christmas, can have a significant impact on "
+"consumer behavior, leading to seasonal spikes in sales. To capture these "
+"effects, we introduce a holiday signal based on Gaussian (normal) "
+"distributions centered around specific holiday dates."
+msgstr ""
+"En esta sección, simulamos el efecto de las festividades en la tendencia de "
+"crecimiento del mercado. Ciertas festividades, como la Navidad, pueden tener"
+" un impacto significativo en el comportamiento del consumidor, lo que lleva "
+"a picos estacionales en las ventas. Para capturar estos efectos, "
+"introducimos una señal de festividad basada en distribuciones gaussianas "
+"(normales) centradas en fechas específicas de festividades."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:120006
+#: 88d11c86dff44efbb4be49eb5935dab9
+msgid "The function used to model the holiday effect is defined as follows:"
+msgstr ""
+"La función utilizada para modelar el efecto de las vacaciones se define de "
+"la siguiente manera:"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:120008
+#: 25e4ec16b3b54d15b2c6210f02e2781e
+#, python-brace-format
+msgid ""
+"\n"
+"H_{t} = \\exp\\left(-0.5 \\left(\\frac{\\Delta t}{\\sigma}\\right)^2\\right)\n"
+msgstr "H_{t} = \\exp\\left(-0.5 \\left(\\frac{\\Delta t}{\\sigma}\\right)^2\\right)"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:120013
+#: f16e1976c06f47d095f2d53c5e909e78
+msgid ""
+"$\\Delta t$ is the time difference (in days) between the current date and "
+"the holiday date."
+msgstr ""
+"$\\Delta t$ es la diferencia de tiempo (en días) entre la fecha actual y la "
+"fecha de la festividad."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:120014
+#: 7043e36050354a2cb27e5438a6952166
+msgid ""
+"$\\sigma$ is the standard deviation that controls the spread of the effect "
+"around the holiday date."
+msgstr ""
+"$\\sigma$ es la desviación estándar que controla la dispersión del efecto "
+"alrededor de la fecha de la festividad."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:120016
+#: 9b840fa54c914dd688d6d1f682b19e45
+msgid ""
+"For each holiday, we calculate the holiday signal across the date range and "
+"add a **holiday contribution** by scaling the signal with a holiday-specific"
+" coefficient. This approach models seasonal holiday spikes using Gaussian "
+"functions, which capture the transient increase in market activity around "
+"holidays, and their respective decay over time."
+msgstr ""
+"Para cada festividad, calculamos la señal de la festividad a lo largo del "
+"rango de fechas y añadimos una **contribución de festividad** escalando la "
+"señal con un coeficiente específico de la festividad. Este enfoque modela "
+"los picos estacionales de las festividades utilizando funciones gaussianas, "
+"que capturan el aumento transitorio en la actividad del mercado alrededor de"
+" las festividades y su respectivo decaimiento a lo largo del tiempo."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:140002
+#: d222602cbcb543dc8d7a04abe402eef5
+msgid "Modeling Competitor Offers"
+msgstr "Modelando Ofertas de Competidores"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:140004
+#: 25f05d706d0348b8a52d1e80e7022498
+msgid "To simulate the impact of competitor offers on market growth."
+msgstr ""
+"Para simular el impacto de las ofertas de los competidores en el crecimiento"
+" del mercado."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:140006
+#: 27333fc87221449e84e82a2efa448060
+#, python-brace-format
+msgid ""
+"\n"
+"C_{t} = -A \\cdot \\cos(\\omega \\cdot t) + C\n"
+msgstr "C_{t} = -A \\cdot \\cos(\\omega \\cdot t) + C"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:140011
+#: 07d0b3624e0a48908dabf4166cda84c4
+msgid ""
+"$A$: The **amplitude** of the oscillation, representing the maximum "
+"deviation from the center. In this context, it controls the intensity of the"
+" competitor offers."
+msgstr ""
+"$A$: La **amplitud** de la oscilación, que representa la desviación máxima "
+"del centro. En este contexto, controla la intensidad de las ofertas de los "
+"competidores."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:140012
+#: 5b7fffd4b1a34bc28dc9ab0a0ffe8d10
+msgid ""
+"$C$: The **center of oscillation**, setting the average level around which "
+"competitor offers fluctuate."
+msgstr ""
+"$C$: El **centro de oscilación**, que establece el nivel promedio alrededor "
+"del cual fluctúan las ofertas de los competidores."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:140013
+#: c403c2efdc5c411db2dd54e2babfdcb5
+msgid ""
+"$\\omega$: The **angular frequency**, which determines the frequency of the "
+"oscillations. It’s calculated as: $\\omega = \\frac{\\pi}{\\frac{n}{2}}$ "
+"where $n$ is the total number of data points. This ensures a complete cycle "
+"within the specified range."
+msgstr ""
+"$\\omega$: La **frecuencia angular**, que determina la frecuencia de las "
+"oscilaciones. Se calcula como: $\\omega = \\frac{\\pi}{\\frac{n}{2}}$ donde "
+"$n$ es el número total de puntos de datos. Esto asegura un ciclo completo "
+"dentro del rango especificado."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:160002
+#: 70e3d1c8d273472d8413cd5374204dc7
+msgid ""
+"With this form, we simulate a world where competitors offers increase during"
+" the initial days of the year, and then decrease towards the end of the "
+"year."
+msgstr ""
+"Con este formulario, simulamos un mundo donde las ofertas de los "
+"competidores aumentan durante los primeros días del año y luego disminuyen "
+"hacia el final del año."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:160004
+#: 4219f4e7e0814486983064f1573fa925
+msgid "Modeling Marketing Channels"
+msgstr "Modelando Canales de Marketing"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:160006
+#: 56d194f3aea041fca23ccbe81ef23084
+msgid ""
+"In this section, we simulate two marketing channels, $x1$ and $x2$, which "
+"represent different advertising channels (e.g., Search ads and Social media "
+"campaigns). Each channel's behavior is influenced by random variability and "
+"confounding effects from seasonal holidays and competitor actions. Here’s "
+"how we model each channel mathematically:"
+msgstr ""
+"En esta sección, simulamos dos canales de marketing, $x1$ y $x2$, que "
+"representan diferentes canales publicitarios (por ejemplo, anuncios de "
+"búsqueda y campañas en redes sociales). El comportamiento de cada canal está"
+" influenciado por la variabilidad aleatoria y los efectos confusos de las "
+"festividades estacionales y las acciones de los competidores. Así es como "
+"modelamos cada canal matemáticamente:"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:160008
+#: 758f32029a704b72b5ce3881d6ac9223
+msgid ""
+"**Channel $x1$**: As mentioned before, we generate $x1$ which is affected by"
+" the holiday signal, we could define it as:"
+msgstr ""
+"**Canal $x1$**: Como se mencionó anteriormente, generamos $x1$ que se ve "
+"afectado por la señal de vacaciones, podríamos definirlo como:"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:160011
+#: fa1cc7da514a48f598bd00382be800b6
+#, python-brace-format
+msgid ""
+"\n"
+"I_{x1_t} = S_{x1_t} + H_{t} \\times \\alpha_{x1}\n"
+msgstr "I_{x1_t} = S_{x1_t} + H_{t} \\times \\alpha_{x1}"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:160015
+#: 7ff75f20b66a430abc982eb29a8b4387
+msgid ""
+"**Channel $x2$**: On the other hand, we generate $x2$ which is affected by "
+"the holiday signal, the influence of $x1$ and the competitor offers. We "
+"could define it as:"
+msgstr ""
+"**Canal $x2$**: Por otro lado, generamos $x2$ que se ve afectado por la "
+"señal de vacaciones, la influencia de $x1$ y las ofertas de los "
+"competidores. Podríamos definirlo como:"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:160018
+#: 3cbedfc36be345ff9c66daef47d24ed8
+#, python-brace-format
+msgid ""
+"\n"
+"I_{x2_t} = S_{x2_t} + H_{t} \\times \\alpha_{x2} + (I_{x1_t} \\times \\alpha_{x1_x2}) + (C_{t} \\times \\alpha_{x2})\n"
+msgstr ""
+"I_{x2_t} = S_{x2_t} + H_{t} \\times \\alpha_{x2} + (I_{x1_t} \\times "
+"\\alpha_{x1_x2}) + (C_{t} \\times \\alpha_{x2})"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:160022
+#: c8abd2a052384fff9b2d0cde2f9624e2
+msgid "Interpretation"
+msgstr "Interpretación"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:160024
+#: f26400d09a1d48ef9a425f1806e60d75
+msgid ""
+"These equations allow us to capture the complex dynamics influencing each "
+"marketing channel:"
+msgstr ""
+"Estas ecuaciones nos permiten capturar la dinámica compleja que influye en "
+"cada canal de marketing:"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:160025
+#: 422b0365fd27440eb211a3e4e99a3a5e
+msgid ""
+"**Holiday Effects** increase channel activity around specific dates, "
+"simulating seasonal spikes."
+msgstr ""
+"**Efectos de Vacaciones** aumentan la actividad del canal alrededor de "
+"fechas específicas, simulando picos estacionales."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:160026
+#: a458ffd133cb4970a30b6a9151b847ac
+msgid ""
+"**Cross-channel Influences** introduce interdependencies, modeling how one "
+"channel's success can amplify another’s."
+msgstr ""
+"**Influencias entre canales** introducen interdependencias, modelando cómo "
+"el éxito de un canal puede amplificar el de otro."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:160027
+#: 88aabd0530ae4901bd00544c37237a34
+msgid ""
+"**Competitor Effects** introduce fluctuations due to external factors, "
+"showing how competitive pressure can decrease engagement or effectiveness."
+msgstr ""
+"**Efectos de la competencia** introducen fluctuaciones debido a factores "
+"externos, mostrando cómo la presión competitiva puede disminuir el "
+"compromiso o la efectividad."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:160029
+#: 57ea2abbea1a44a6a7e881900599567b
+msgid ""
+"This approach reflects real-world conditions, where marketing channels are "
+"not isolated but affected by seasonal trends, competitor actions, and "
+"synergies across different channels."
+msgstr ""
+"Este enfoque refleja las condiciones del mundo real, donde los canales de "
+"marketing no están aislados, sino que se ven afectados por tendencias "
+"estacionales, acciones de los competidores y sinergias entre diferentes "
+"canales."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:190002
+#: c721c58759ca417f9385f446f5964c0d
+msgid ""
+"The two generated signals wil represent the \"impressions\" of the two "
+"marketing channels. Basically, we are simulating the exposure that we would "
+"observe from a media platform, reported after we run a campaign."
+msgstr ""
+"Las dos señales generadas representarán las \"impresiones\" de los dos "
+"canales de marketing. Básicamente, estamos simulando la exposición que "
+"observaríamos de una plataforma de medios, reportada después de ejecutar una"
+" campaña."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:190004
+#: 19b309d70dbc4a4ab7991febffa87d26
+msgid ""
+"The level of exposure doesn't impact our sales in a linear way, so we need "
+"to apply a transformation to account for that. We'll use a geometric adstock"
+" transformation, which is a common technique in marketing mix modeling to "
+"account for the adstock/lagging effect, and a michaelis-menten saturation to"
+" account for the diminishing returns effect."
+msgstr ""
+"El nivel de exposición no impacta nuestras ventas de manera lineal, por lo "
+"que necesitamos aplicar una transformación para tenerlo en cuenta. "
+"Utilizaremos una transformación de adstock geométrico, que es una técnica "
+"común en la modelización de mezcla de marketing para considerar el efecto de"
+" adstock/retraso, y una saturación de michaelis-menten para tener en cuenta "
+"el efecto de rendimientos decrecientes."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:190006
+#: e2e4a9924d4d4015972ad66881665863
+msgid ""
+"Similar as the [initial example in pymc-"
+"marketing](https://docs.pymc.io/notebooks/mmm/mmm_initial_example.html)."
+msgstr ""
+"Similar al [ejemplo inicial en pymc-"
+"marketing](https://docs.pymc.io/notebooks/mmm/mmm_initial_example.html)."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:220002
+#: bef5a7eec8774391a7a38d2879edff28
+msgid "Defining the Sales (Target)"
+msgstr "Definiendo las Ventas (Objetivo)"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:220004
+#: 3168c469f8f3459fb1c881f1d8e78bc1
+msgid ""
+"Finally, we define the sales or revenue (target) variable, which is affected"
+" by the market growth, the competitor offers, the holiday contributions, the"
+" saturated media costs and a noise term."
+msgstr ""
+"Finalmente, definimos la variable de ventas o ingresos (objetivo), que se ve"
+" afectada por el crecimiento del mercado, las ofertas de los competidores, "
+"las contribuciones de las festividades, los costos de medios saturados y un "
+"término de ruido."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:220006
+#: de15ad9e745e4412b7aaed2246b31618
+msgid "The variable, $y$, is defined as follows:"
+msgstr "La variable, $y$, se define de la siguiente manera:"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:220008
+#: f3191a3d25f34c2693706185ffd55235
+#, python-brace-format
+msgid ""
+"\n"
+"y_{t} = Intercept + f(MG_{t}) - f(C_{t}) + f(H_{t}) + m(I_{x1_t}) + m(I_{x2_t}) + \\epsilon\n"
+msgstr ""
+"y_{t} = Intercepto + f(MG_{t}) - f(C_{t}) + f(H_{t}) + m(I_{x1_t}) + "
+"m(I_{x2_t}) + \\epsilon"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:220013
+#: d1e8bd52491c4531ad7f7510cfe993b6
+msgid ""
+"**Intercept**: A baseline level of sales, set to 1.5, representing the base "
+"sales level in the absence of other effects."
+msgstr ""
+"**Intercepto**: Un nivel base de ventas, establecido en 1.5, que representa "
+"el nivel base de ventas en ausencia de otros efectos."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:220014
+#: 05e558f7d48e417aa8aae983c5d4a2af
+msgid ""
+"**Market Growth**: Represents the underlying trend in sales due to long-term"
+" growth, with an implicit coefficient of 1, adding a steady upward "
+"influence."
+msgstr ""
+"**Crecimiento del Mercado**: Representa la tendencia subyacente en las "
+"ventas debido al crecimiento a largo plazo, con un coeficiente implícito de "
+"1, añadiendo una influencia ascendente constante."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:220015
+#: 2dedf059af034eb58d802cc50b16c05a
+msgid ""
+"**Competitor Offers**: Directly reduces sales, with an implicit coefficient "
+"of -1, simulating the negative impact of competitor actions on the target "
+"variable."
+msgstr ""
+"**Ofertas de Competidores**: Reduce directamente las ventas, con un "
+"coeficiente implícito de -1, simulando el impacto negativo de las acciones "
+"de los competidores en la variable objetivo."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:220016
+#: 44300c63186149e8992d8592b090e624
+msgid ""
+"**Holiday Contributions**: Adds sales spikes around holiday periods, "
+"capturing the seasonal increase in consumer demand."
+msgstr ""
+"**Contribuciones Festivas**: Añade picos de ventas durante los períodos "
+"festivos, capturando el aumento estacional en la demanda del consumidor."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:220017
+#: 52a4ff19ca2d490bb348cc0dea41ec18
+#, python-brace-format
+msgid ""
+"**$m(Impressions_{x1_t})$ and $m(Impressions_{x2_t})$**: Represent the "
+"**saturated adstock** values for the marketing channels $x1$ and $x2$."
+msgstr ""
+"**$m(Impressions_{x1_t})$ y $m(Impressions_{x2_t})$**: Representan los "
+"valores de **adstock saturado** para los canales de marketing $x1$ y $x2$."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:220018
+#: 377bc336ad5243d8a5da4daa4b5c8a42
+msgid ""
+"**Noise $\\epsilon$**: A small random error term, drawn from a normal "
+"distribution with mean 0 and standard deviation 0.08, to account for "
+"unexplained variability in sales."
+msgstr ""
+"**Ruido $\\epsilon$**: Un pequeño término de error aleatorio, extraído de "
+"una distribución normal con media 0 y desviación estándar 0.08, para tener "
+"en cuenta la variabilidad no explicada en las ventas."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:250002
+#: 05f7a94bd80845b8a64042bbc82a59ff
+msgid "Let’s recap what we’ve done so far:"
+msgstr "Hagamos un resumen de lo que hemos hecho hasta ahora:"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:250004
+#: ce2dce8d257a4061aa2a7b770f883513
+msgid ""
+"We created a hypothesis about how things in the world interact and how those"
+" interactions are connected."
+msgstr ""
+"Creamos una hipótesis sobre cómo interactúan las cosas en el mundo y cómo "
+"están conectadas esas interacciones."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:250005
+#: 9053ec9be2f94a3088c1fed1de5cd19d
+msgid ""
+"We turned our hypothesis into a mathematical model that reflects these "
+"connections."
+msgstr ""
+"Convertimos nuestra hipótesis en un modelo matemático que refleja estas "
+"conexiones."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:250006
+#: c56fe0f69f794bf389517c870a060d3b
+msgid "We generated data that fits with our hypothesis."
+msgstr "Generamos datos que se ajustan a nuestra hipótesis."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:250007
+#: e19f86bc9dc74642aea49395b411532f
+msgid "Now we are ready to find the model that best explains our data."
+msgstr ""
+"Ahora estamos listos para encontrar el modelo que mejor explique nuestros "
+"datos."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:250009
+#: 9f924f80bf8447a097c6928cdd2f63f1
+msgid ""
+"In Bayesian terms, we call this the data generating process, which "
+"corresponds to the structural causal model in causal terms."
+msgstr ""
+"En términos bayesianos, llamamos a esto el proceso generador de datos, que "
+"corresponde al modelo causal estructural en términos causales."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:250011
+#: fc881fec7886402892d850793b5acdf8
+msgid ""
+"All models we write in PyMC are structural causal models. Even if we don’t "
+"aim for a causal interpretation, our model still seeks to explain a specific"
+" data generating process."
+msgstr ""
+"Todos los modelos que escribimos en PyMC son modelos causales estructurales."
+" Incluso si no buscamos una interpretación causal, nuestro modelo aún busca "
+"explicar un proceso específico de generación de datos."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:250013
+#: 5d655acbc76045c6a39a835e130cb7a5
+msgid ""
+"Recognizing this is crucial because it shapes our decisions when building "
+"the model and choosing which variables to include. After our previous work, "
+"we should have a good idea of which variables are most important in "
+"explaining sales. However, if we forget what we discussed earlier, we won't "
+"know how to start building the model."
+msgstr ""
+"Reconocer esto es crucial porque influye en nuestras decisiones al construir"
+" el modelo y elegir qué variables incluir. Después de nuestro trabajo "
+"anterior, deberíamos tener una buena idea de cuáles son las variables más "
+"importantes para explicar las ventas. Sin embargo, si olvidamos lo que "
+"discutimos anteriormente, no sabremos cómo empezar a construir el modelo."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:250015
+#: 7e6af0a978d44da7abce72e9d3711a14
+msgid "The Real Challenge"
+msgstr "El verdadero desafío"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:250017
+#: d61be8dbea4240b5bd57789ceab6c3c0
+msgid ""
+"In real life, we don't know the actual data generating process; we only have"
+" observed data. Often, we receive a dataset like the one shown below."
+msgstr ""
+"En la vida real, no conocemos el proceso real que genera los datos; solo "
+"tenemos datos observados. A menudo, recibimos un conjunto de datos como el "
+"que se muestra a continuación."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:270002
+#: c217d897566f49e0a5a607f638189dd2
+msgid ""
+"If we have PyMC installed, the simplest approach would be to include all our"
+" variables in a model and run it. This is like using any model available on "
+"the market, checking correlations, and selecting the most relevant "
+"variables. This method essentially means, “Let’s control for everything that"
+" might relate to sales.”"
+msgstr ""
+"Si tenemos PyMC instalado, el enfoque más simple sería incluir todas "
+"nuestras variables en un modelo y ejecutarlo. Esto es similar a utilizar "
+"cualquier modelo disponible en el mercado, verificando correlaciones y "
+"seleccionando las variables más relevantes. Este método significa "
+"esencialmente: \"Controlaremos todo lo que pueda relacionarse con las "
+"ventas.\""
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:270004
+#: ffae18fcde3c45c5b32342df52d82ae3
+msgid ""
+"Note: This approach is not bad, but it misses using valuable information and"
+" prior knowledge about the business and its inner relationships."
+msgstr ""
+"Nota: Este enfoque no es malo, pero no utiliza información valiosa y "
+"conocimientos previos sobre el negocio y sus relaciones internas."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:270006
+#: a82d7ad0ff314f12a32a247d57be91c9
+msgid ""
+"We can separate the target variable from the potential factors that "
+"influence it. Then, we can begin training our initial correlation-based "
+"model."
+msgstr ""
+"Podemos separar la variable objetivo de los factores potenciales que la "
+"influyen. Luego, podemos comenzar a entrenar nuestro modelo inicial basado "
+"en correlaciones."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:310002
+#: b33fad0c8bdc4afa8ff26ecc549eaaba
+msgid ""
+"With the small lines of code above, our media mix model is set up, and we "
+"can now start training it."
+msgstr ""
+"Con las pequeñas líneas de código anteriores, nuestro modelo de mezcla de "
+"medios está configurado y ahora podemos comenzar a entrenarlo."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:330002
+#: baf0db31f4d34ebfaf3e6826c5d2eae8
+msgid ""
+"Since PyMC is structural, we can show our model as a directed acyclic graph "
+"(DAG). This graph helps us see how the parameters and variables relate to "
+"each other and understand our decisions in the modeling process."
+msgstr ""
+"Dado que PyMC es estructural, podemos representar nuestro modelo como un "
+"grafo acíclico dirigido (DAG). Este grafo nos ayuda a ver cómo se relacionan"
+" los parámetros y las variables entre sí y a comprender nuestras decisiones "
+"en el proceso de modelado."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:330004
+#: ce70a210758748f1ac6a17890f6c104b
+msgid ""
+"We can use the `model_to_graphviz` function to create this visual "
+"representation."
+msgstr ""
+"Podemos utilizar la función `model_to_graphviz` para crear esta "
+"representación visual."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:350002
+#: 8b1af41717d54be89c1942a69163ab05
+msgid ""
+"Our DAG is quite simple. It includes our channels, which have two "
+"dimensions: date and channel. It also has an intercept variable that "
+"captures baseline sales or revenue, which are factors outside of our "
+"control, and a term to reflect random variance."
+msgstr ""
+"Nuestro DAG es bastante simple. Incluye nuestros canales, que tienen dos "
+"dimensiones: fecha y canal. También tiene una variable de intercepción que "
+"captura las ventas o ingresos base, que son factores fuera de nuestro "
+"control, y un término para reflejar la variación aleatoria."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:350004
+#: 0ca98057b5fa415f8ad3557e9f08fdde
+msgid ""
+"In simpler terms, we can express the underlying function of this media mix "
+"model as:"
+msgstr ""
+"En términos más simples, podemos expresar la función subyacente de este "
+"modelo de mezcla de medios como:"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:350006
+#: 3dd87b6348994859ba9cce5b36addb98
+msgid ""
+"\n"
+"\\begin{aligned}\n"
+"\\mu & = \\beta_0 \\cdot \\text{baseline} +\n"
+" m(\\text{x1}, \\theta_{\\text{x1}}) +\n"
+" m(\\text{x2}, \\theta_{\\text{x2}})\n"
+"\\end{aligned}\n"
+msgstr ""
+"\\begin{aligned}\n"
+"\\mu & = \\beta_0 \\cdot \\text{baseline} +\n"
+" m(\\text{x1}, \\theta_{\\text{x1}}) +\n"
+" m(\\text{x2}, \\theta_{\\text{x2}})\n"
+"\\end{aligned}"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:350014
+#: 06fca4dee5734ea5ad94c27b914c6304
+msgid "Here:"
+msgstr "Aquí:"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:350015
+#: 60f08a008a224db0b0746278c111e447
+msgid ""
+"$\\mu$ represents the predicted outcome variable (like sales or revenue) "
+"based on the combined effects of our input variables."
+msgstr ""
+"$\\mu$ representa la variable de resultado predicha (como ventas o ingresos)"
+" basada en los efectos combinados de nuestras variables de entrada."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:350016
+#: ad9495bd421f431f88aba51b73c0e9c4
+msgid "$\\beta_0$ is the coefficient for the baseline variable."
+msgstr "$\\beta_0$ es el coeficiente para la variable base."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:350017
+#: 642d660b97534e2f825f21222402047d
+msgid ""
+"$m(\\text{x1}, \\theta_{\\text{x1}})$ and $m(\\text{x2}, "
+"\\theta_{\\text{x2}})$ are non-linear transformations of $x1$ and $x2$ that "
+"capture their varying impacts."
+msgstr ""
+"$m(\\text{x1}, \\theta_{\\text{x1}})$ y $m(\\text{x2}, "
+"\\theta_{\\text{x2}})$ son transformaciones no lineales de $x1$ y $x2$ que "
+"capturan sus impactos variables."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:350019
+#: 93156314dad845b98751769202270f99
+msgid ""
+"Based on this, we think this function will help us understand the impact of "
+"$x1$ and $x2$. Thus, we can outline the causal DAG we believe is correct."
+msgstr ""
+"Basado en esto, creemos que esta función nos ayudará a entender el impacto "
+"de $x1$ y $x2$. Así, podemos esbozar el DAG causal que creemos que es "
+"correcto."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:370002
+#: 54ce152a6b0a47d68771a822cb65021c
+msgid "How can we infer this DAG from our current model?"
+msgstr "¿Cómo podemos inferir este DAG de nuestro modelo actual?"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:370004
+#: 61ef60c3d8624143bb9036e15023ec9f
+msgid ""
+"During the development of our model, we established a specific structure and"
+" flow for our data. We concluded that the impacts of our channels operate "
+"independently of each other. Moreover, we determined that if any component "
+"of our ecosystem is missing, its influence will be accounted for by the "
+"baseline term due to this equation. As you can see, even by adopting this "
+"basic model, we are making significant assumptions."
+msgstr ""
+"Durante el desarrollo de nuestro modelo, establecimos una estructura y un "
+"flujo específicos para nuestros datos. Concluimos que los impactos de "
+"nuestros canales operan de manera independiente entre sí. Además, "
+"determinamos que si falta algún componente de nuestro ecosistema, su "
+"influencia será contabilizada por el término base debido a esta ecuación. "
+"Como puede ver, incluso al adoptar este modelo básico, estamos haciendo "
+"suposiciones significativas."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:370006
+#: 67e8993afe5e4112b4ae3adb2680c300
+msgid ""
+"On one hand, you are assuming that the impact is not linear by applying "
+"these transformations, and you are suggesting that the impact is positive "
+"and that there may be a maximum delay of a certain number of days."
+msgstr ""
+"Por un lado, usted está asumiendo que el impacto no es lineal al aplicar "
+"estas transformaciones, y está sugiriendo que el impacto es positivo y que "
+"puede haber un retraso máximo de un cierto número de días."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:370008
+#: f777fa8a0f254332bf8e240041dfda3d
+msgid ""
+"You've even defined the direction of your relationships. By defining these "
+"relationships and assuming no direct causal connections between our "
+"variables, we can conclude that, if the nature of their relationship is "
+"accurately represented by the provided equation, then by controlling the "
+"relevant channels, we could uncover their true effects."
+msgstr ""
+"Incluso has definido la dirección de tus relaciones. Al definir estas "
+"relaciones y asumir que no hay conexiones causales directas entre nuestras "
+"variables, podemos concluir que, si la naturaleza de su relación está "
+"representada con precisión por la ecuación proporcionada, entonces al "
+"controlar los canales relevantes, podríamos descubrir sus verdaderos "
+"efectos."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:370010
+#: dee486b7fb3649a98b967285a308f350
+msgid ""
+"This leads us to which causal DAG we assume is correct, based on our "
+"previous assumptions. If you recognize this process, congratulations! You've"
+" created a generative model or Structural Causal Model, with a Structural "
+"Causal Equation, using PyMC-marketing."
+msgstr ""
+"Esto nos lleva a cuál DAG causal asumimos que es correcto, basado en "
+"nuestras suposiciones anteriores. Si reconoces este proceso, "
+"¡felicitaciones! Has creado un modelo generativo o Modelo Causal "
+"Estructural, con una Ecuación Causal Estructural, utilizando PyMC-marketing."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:370012
+#: f245e99cca834c66872e0062d94b55e2
+msgid ""
+"Note: As you can see, based on our assumptions and the variables we "
+"included, we can backtrack and infer the causal DAG we are inherently "
+"assuming. This backtracking process can be using and formalize on causal "
+"discovery algorithms to automatically infer the several causal DAGs based on"
+" how our regression model and their estimates respond to the data."
+msgstr ""
+"Nota: Como puede ver, basándonos en nuestras suposiciones y las variables "
+"que incluimos, podemos retroceder e inferir el DAG causal que estamos "
+"asumiendo inherentemente. Este proceso de retroceso puede ser utilizado y "
+"formalizado en algoritmos de descubrimiento causal para inferir "
+"automáticamente los varios DAG causales en función de cómo nuestro modelo de"
+" regresión y sus estimaciones responden a los datos."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:370014
+#: 44d1ee048d9d46c587a48bc7ab2f3797
+msgid ""
+"However, this Causal DAG does not depict the true Causal DAG. Since our PyMC"
+" model is structural and causal, we must ask: *What happens if I create a "
+"model with a different causal structure than the real one?*"
+msgstr ""
+"Sin embargo, este DAG causal no representa el verdadero DAG causal. Dado que"
+" nuestro modelo PyMC es estructural y causal, debemos preguntar: *¿Qué "
+"sucede si creo un modelo con una estructura causal diferente a la real?*"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:380002
+#: c70b77159afe405abae9ebd42f0e5449
+msgid "\\displaystyle 1"
+msgstr "\\displaystyle 1"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:390002
+#: 7b854b5d3f9a4cb0a631b502437bb632
+msgid ""
+"Because all PyMC models are generative models, they are able to \"talk\" "
+"about the causal relationships that are present in the data generating "
+"process. If we have a model that is not consistent with the true causal "
+"relationships, the model will fail during the exploration of the parameter "
+"space."
+msgstr ""
+"Porque todos los modelos de PyMC son modelos generativos, son capaces de "
+"\"hablar\" sobre las relaciones causales que están presentes en el proceso "
+"de generación de datos. Si tenemos un modelo que no es consistente con las "
+"verdaderas relaciones causales, el modelo fallará durante la exploración del"
+" espacio de parámetros."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:390004
+#: c3392651238d4d5e995be4484dc0869f
+msgid ""
+"For example, if you assume that variable  A  causes variable  B  (i.e.,  A "
+"-> B ), but in reality,  B  causes  A  or they are confounded by an "
+"unobserved variable, your model’s structure misrepresents the actual "
+"relationships. This misalignment creates inconsistencies between the model "
+"and the data, resulting in a posterior distribution that is challenging for "
+"the sampler to explore. The posterior may exhibit pathological features such"
+" as multimodality, strong correlations between parameters, or regions of "
+"high curvature."
+msgstr ""
+"Por ejemplo, si asume que la variable A causa la variable B (es decir, A -> "
+"B), pero en realidad, B causa A o están confundidas por una variable no "
+"observada, la estructura de su modelo representa incorrectamente las "
+"relaciones reales. Este desajuste crea inconsistencias entre el modelo y los"
+" datos, lo que resulta en una distribución posterior que es difícil de "
+"explorar para el muestreador. La posterior puede exhibir características "
+"patológicas como multimodalidad, fuertes correlaciones entre parámetros o "
+"regiones de alta curvatura."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:390006
+#: 82784d601df24558a0fbcaea5c006269
+msgid ""
+"A model like this will get divergencies, because these occur when the "
+"numerical integrator used in Hamiltonian Monte Carlo (HMC) cannot accurately"
+" simulate the trajectory through the parameter space, often due to steep "
+"gradients or discontinuities in the posterior. If you think about it, "
+"incorrect causal assumptions may force the sampler into incompatible regions"
+" of the parameter space, causing the numerical integration to fail."
+msgstr ""
+"Un modelo como este presentará divergencias, porque estas ocurren cuando el "
+"integrador numérico utilizado en el muestreo de Monte Carlo Hamiltoniano "
+"(HMC) no puede simular con precisión la trayectoria a través del espacio de "
+"parámetros, a menudo debido a gradientes pronunciados o discontinuidades en "
+"el posterior. Si lo piensas, suposiciones causales incorrectas pueden forzar"
+" al muestreador a entrar en regiones incompatibles del espacio de "
+"parámetros, lo que provoca que la integración numérica falle."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:390008
+#: 1cf50e99f2b34e6b84d6dda969d3965e
+msgid ""
+"When we evaluate time series generative models, particulary bayesian models,"
+" we should always evaluate models with additional metrics on top of the pure"
+" fit metrics, such as divergences, rhat, ess, etc."
+msgstr ""
+"Cuando evaluamos modelos generativos de series temporales, particularmente "
+"modelos bayesianos, siempre debemos evaluar los modelos con métricas "
+"adicionales además de las métricas de ajuste puro, como divergencias, rhat, "
+"ess, etc."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:390011
+#: e59820d54f4f4d55ac3916a3cd6940d8
+msgid "Lets observe the fit of our current model 👀"
+msgstr "Observemos el ajuste de nuestro modelo actual 👀"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:410002
+#: 3ef9745843d544be8fb193f1743efa87
+msgid ""
+"Great, our model looks amazing! At first glance, our model evaluation "
+"appears quite satisfactory. The $R^2$ value is decent, and the uncertainty "
+"in the credible intervals is manageable."
+msgstr ""
+"Genial, ¡nuestro modelo se ve increíble! A primera vista, la evaluación de "
+"nuestro modelo parece bastante satisfactoria. El valor de $R^2$ es decente y"
+" la incertidumbre en los intervalos creíbles es manejable."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:410004
+#: 4eeeec3a8b6d44879a5e8cd323de476a
+msgid ""
+"However, the pressing question remains: are we truly capturing the "
+"underlying causal signals?"
+msgstr ""
+"Sin embargo, la pregunta apremiante sigue siendo: ¿estamos realmente "
+"capturando las señales causales subyacentes?"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:430002
+#: 70af49c651f44f5996d6ccaa69ee635e
+msgid ""
+"Our model struggles to accurately capture the true causal effect of media "
+"variables, suggesting it may be misspecified."
+msgstr ""
+"Nuestro modelo tiene dificultades para capturar con precisión el verdadero "
+"efecto causal de las variables mediáticas, lo que sugiere que puede estar "
+"mal especificado."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:430004
+#: 08e27bc4edce4441a7e067d49265b976
+msgid ""
+"In this context, although we can use the true model to compare the actual "
+"effects with the model's recovered effects, real-life situations often lack "
+"this clarity. Therefore, we need methods to identify and compare the "
+"recovered effects with the true ones."
+msgstr ""
+"En este contexto, aunque podemos utilizar el modelo verdadero para comparar "
+"los efectos reales con los efectos recuperados del modelo, las situaciones "
+"de la vida real a menudo carecen de esta claridad. Por lo tanto, necesitamos"
+" métodos para identificar y comparar los efectos recuperados con los "
+"verdaderos."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:430006
+#: 1571419fced84ed6856a0a5a529665df
+msgid ""
+"This is where **CausalPy** is useful. It enables the creation of quasi-"
+"experiments to determine the causal impact of media variables, allowing for "
+"comparison between our model's results and those from these experiments. You"
+" can learn more about [CausalPy "
+"here](https://causalpy.readthedocs.io/en/stable/)."
+msgstr ""
+"Este es el lugar donde **CausalPy** resulta útil. Permite la creación de "
+"cuasi-experimentos para determinar el impacto causal de las variables "
+"mediáticas, lo que permite la comparación entre los resultados de nuestro "
+"modelo y los de estos experimentos. Puede aprender más sobre [CausalPy "
+"aquí](https://causalpy.readthedocs.io/en/stable/)."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:430008
+#: 9d2a6a0d5c6d4c148d09fd248e2e4a07
+msgid "Utilizing Causal Identification"
+msgstr "Utilizando la Identificación Causal"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:430009
+#: 4a8b93fbb89c4691b3332a688ef77eba
+msgid ""
+"Instead of randomly adding variables to our regression, we should use a "
+"causal framework to build our model. A language which help us to translate "
+"our ideas and hypothesis into a graphical representation which we can "
+"interrogate. Doing so, we can understant if we are overlooking an important "
+"variable."
+msgstr ""
+"En lugar de agregar variables al azar a nuestra regresión, deberíamos "
+"utilizar un marco causal para construir nuestro modelo. Un lenguaje que nos "
+"ayude a traducir nuestras ideas e hipótesis en una representación gráfica "
+"que podamos interrogar. Al hacerlo, podemos entender si estamos pasando por "
+"alto una variable importante."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:460002
+#: e52ab3a5822a4b8394f0e20b194ed7eb
+msgid ""
+"We’ve added a new column called `outcome_node` for our target variable and "
+"defined the `dag` parameter as a representation of the causal Directed "
+"Acyclic Graph (DAG). We included `holiday_signal` as a control variable in "
+"our model because it significantly influences the target variable and may "
+"have been missed before. After ran that, we received a warning that channel "
+"columns are being treated as default treatment variables, indicating they "
+"are our focus for estimating the true causal impact (default behavior)."
+msgstr ""
+"Hemos añadido una nueva columna llamada `outcome_node` para nuestra variable"
+" objetivo y definido el parámetro `dag` como una representación del Grafo "
+"Acíclico Dirigido (DAG) causal. Incluimos `holiday_signal` como una variable"
+" de control en nuestro modelo porque influye significativamente en la "
+"variable objetivo y puede haber sido pasada por alto anteriormente. Después "
+"de ejecutar eso, recibimos una advertencia de que las columnas de canal se "
+"están tratando como variables de tratamiento por defecto, lo que indica que "
+"son nuestro enfoque para estimar el verdadero impacto causal (comportamiento"
+" por defecto)."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:460004
+#: 736d3492fbd64a6ea956a997dfe4d58d
+msgid ""
+"Now, we can examine the adjustment set of variables needed to reveal the "
+"true causal effect of our treatment variables."
+msgstr ""
+"Ahora, podemos examinar el conjunto de variables de ajuste necesarias para "
+"revelar el verdadero efecto causal de nuestras variables de tratamiento."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:480002
+#: f0a1784b5fb542ee9ed754889f17e1ce
+msgid ""
+"Great, we got a new piece of important information. We are missing the "
+"`holiday_signal` variable in the adjustment set, meaning, to find the true "
+"causal effect of `x1` and `x2`, we don’t need to control for "
+"`holiday_signal`. So, why we could not recover the true causal effect of "
+"`x1` and `x2` before? Perhaps the specified DAG was not true, meaning its "
+"possible that the relationship between `x1` and `x2` is confounded by the "
+"`holiday_signal` variable?"
+msgstr ""
+"Excelente, hemos obtenido una nueva pieza de información importante. Nos "
+"falta la variable `holiday_signal` en el conjunto de ajustes, lo que "
+"significa que, para encontrar el verdadero efecto causal de `x1` y `x2`, no "
+"necesitamos controlar por `holiday_signal`. Entonces, ¿por qué no pudimos "
+"recuperar el verdadero efecto causal de `x1` y `x2` antes? Quizás el DAG "
+"especificado no era verdadero, lo que significa que es posible que la "
+"relación entre `x1` y `x2` esté confundida por la variable `holiday_signal`?"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:480004
+#: 0bef069562bc42488e5fda1167380288
+msgid "Lets see if this is the case."
+msgstr "Veamos si este es el caso."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:500002
+#: 2cccd2bad6264d3288e3467fd0d78af6
+msgid ""
+"Now, with a new adjustment set, we see that if we do not control for "
+"`holiday_signal`, we cannot identify the true causal effect of `x1` and `x2`"
+" since they are influenced by this variable. This looks more close to what "
+"happened before, after compare the true contribution of `x1` and `x2` with "
+"the recovered contribution."
+msgstr ""
+"Ahora, con un nuevo conjunto de ajustes, vemos que si no controlamos por "
+"`holiday_signal`, no podemos identificar el verdadero efecto causal de `x1` "
+"y `x2`, ya que están influenciados por esta variable. Esto se asemeja más a "
+"lo que ocurrió antes, después de comparar la verdadera contribución de `x1` "
+"y `x2` con la contribución recuperada."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:500004
+#: 5dc0d337c2fe41568fecd00ede734ec7
+msgid ""
+"Note: We define this adjustment set using the `CausalGraphModel` class. We "
+"rely on `dowhy` to help us identify the adjustment set. You can learn more "
+"about `dowhy` [here](https://www.pywhy.org/dowhy/v0.9.1/)."
+msgstr ""
+"Nota: Definimos este conjunto de ajuste utilizando la clase "
+"`CausalGraphModel`. Dependemos de `dowhy` para ayudarnos a identificar el "
+"conjunto de ajuste. Puede aprender más sobre `dowhy` "
+"[aquí](https://www.pywhy.org/dowhy/v0.9.1/)."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:500006
+#: bbf732ca2a9142ce9724409d99ca681d
+msgid ""
+"We use the `backdoor` criterion to choose the adjustment set. This means we "
+"look for variables that, when we control for them, block all the backdoor "
+"paths between `x1` and `x2`. These paths can create false links between the "
+"treatment and outcome variables. If we don’t address these paths, our causal"
+" estimates may be off. To understand the causal effect accurately, we need "
+"to block these paths by adjusting for the confounding variables. You can "
+"read more about the backdoor criterion in Aleksander Molak's book "
+"[here](https://www.amazon.com/Causal-Inference-Discovery-Python-"
+"learning/dp/1804612987)."
+msgstr ""
+"Utilizamos el criterio `backdoor` para elegir el conjunto de ajuste. Esto "
+"significa que buscamos variables que, al controlarlas, bloquean todos los "
+"caminos de retroceso entre `x1` y `x2`. Estos caminos pueden crear vínculos "
+"falsos entre las variables de tratamiento y resultado. Si no abordamos estos"
+" caminos, nuestras estimaciones causales pueden estar equivocadas. Para "
+"entender el efecto causal con precisión, necesitamos bloquear estos caminos "
+"ajustando las variables de confusión. Puede leer más sobre el criterio "
+"backdoor en el libro de Aleksander Molak "
+"[aquí](https://www.amazon.com/Causal-Inference-Discovery-Python-"
+"learning/dp/1804612987)."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:500008
+#: a260179c53b94721bb4cd6587927b982
+msgid ""
+"Now, let’s say we create a new variable called `holiday_signal` to control "
+"for the holiday effect. Adding this variable to our dataset should help us "
+"find the true causal effect of `x1` and `x2`, right?"
+msgstr ""
+"Ahora, digamos que creamos una nueva variable llamada `holiday_signal` para "
+"controlar el efecto de las festividades. Agregar esta variable a nuestro "
+"conjunto de datos debería ayudarnos a encontrar el verdadero efecto causal "
+"de `x1` y `x2`, ¿verdad?"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:540002
+#: 51a683e47c4341468a3410fe7233b11c
+msgid ""
+"We got even more divergencies 🤪, whats happening here? Everything is worse? "
+"Even if we added a new variable to control for the `holiday_signal`? This "
+"looks weird, because we are adding a variable that should help us to "
+"identify the true causal effect of `x1` and `x2`."
+msgstr ""
+"Tenemos aún más divergencias 🤪, ¿qué está sucediendo aquí? ¿Todo está peor? "
+"¿Incluso si añadimos una nueva variable para controlar el `holiday_signal`? "
+"Esto se ve extraño, porque estamos añadiendo una variable que debería "
+"ayudarnos a identificar el verdadero efecto causal de `x1` y `x2`."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:540004
+#: ecc27deb73d044eba9e1c02fd057cfdc
+msgid "Lets see the fit of our model 👀"
+msgstr "Veamos el ajuste de nuestro modelo 👀"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:560002
+#: 24540083c9d740cb98d52cbe880cb6de
+msgid ""
+"Somehow $R^2$ is higher than before, could be this a good signal? Maybe are "
+"we recovering the true causal effect of `x1` and `x2`?"
+msgstr ""
+"De alguna manera, $R^2$ es más alto que antes, ¿podría ser esto una buena "
+"señal? ¿Quizás estamos recuperando el verdadero efecto causal de `x1` y "
+"`x2`?"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:580002
+#: f4c31809b7374109a2bbe2aed35f6674
+msgid ""
+"At this point, we might feel like we have lost everything. It may seem that "
+"some kind of bad luck is affecting our data. Or, we could have an unknown "
+"factor that is influencing our marketing results without our notice."
+msgstr ""
+"En este punto, podríamos sentir que hemos perdido todo. Puede parecer que "
+"algún tipo de mala suerte está afectando nuestros datos. O, podríamos tener "
+"un factor desconocido que está influyendo en nuestros resultados de "
+"marketing sin que nos demos cuenta."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:580004
+#: ab2fec1face448239dee758c4bdda715
+msgid ""
+"After some reflection, we can consider that our competitors’ actions, like "
+"their offers and discounts, could be impacting our marketing results. In "
+"other words, when our competitors spend more on marketing, they can take "
+"away some of our potential incremental sales. Even if we spend the same "
+"amount to get exposure, aggressive competitor offers can pull customers away"
+" from us as they buy other products instead."
+msgstr ""
+"Después de una reflexión, podemos considerar que las acciones de nuestros "
+"competidores, como sus ofertas y descuentos, podrían estar impactando "
+"nuestros resultados de marketing. En otras palabras, cuando nuestros "
+"competidores gastan más en marketing, pueden llevarse algunas de nuestras "
+"posibles ventas incrementales. Incluso si gastamos la misma cantidad para "
+"obtener exposición, las ofertas agresivas de los competidores pueden desviar"
+" a los clientes de nosotros mientras compran otros productos en su lugar."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:580006
+#: 9cf0a694767d42aeb1842017fee7d983
+msgid ""
+"Will this affect all our channels the same way? Probably not. Our "
+"competitors may not impact our brand awareness, but they likely influence "
+"our customers’ consideration. We might think that $x2$ is more affected by "
+"our competitors than $x1$. This is because $x2$ is closer to the purchase "
+"decision, while $x1$ relates more to brand exposure."
+msgstr ""
+"¿Afectará esto a todos nuestros canales de la misma manera? Probablemente "
+"no. Nuestros competidores pueden no impactar nuestra notoriedad de marca, "
+"pero probablemente influyen en la consideración de nuestros clientes. "
+"Podríamos pensar que $x2$ está más afectado por nuestros competidores que "
+"$x1$. Esto se debe a que $x2$ está más cerca de la decisión de compra, "
+"mientras que $x1$ se relaciona más con la exposición de la marca."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:580008
+#: 1b6a343dc34449ad853b428306e3a0d7
+msgid ""
+"This suggests that ‘competitor_offers’ might be an unseen factor affecting "
+"$x2$ but not $x1$. Formally, this means we could express $x2$ as a function "
+"of ‘competitor_offers’ while $x1$ would not include this factor."
+msgstr ""
+"Esto sugiere que ‘competitor_offers’ podría ser un factor no visible que "
+"afecta a $x2$ pero no a $x1$. Formalmente, esto significa que podríamos "
+"expresar $x2$ como una función de ‘competitor_offers’ mientras que $x1$ no "
+"incluiría este factor."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:580010
+#: c64eb9381f5444d79ecc87baa39e0f70
+#, python-brace-format
+msgid ""
+"\n"
+"x2 = f(competitor\\_offers) + f(x1) + f(Spend_{x2}) + f(holiday\\_signal) + \\epsilon\n"
+msgstr ""
+"x2 = f(ofertas\\_competidor) + f(x1) + f(Gasto_{x2}) + f(señal\\_vacacional)"
+" + \\epsilon"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:580014
+#: 64be01b3aae8440d990cf2b6503eeeba
+#, python-brace-format
+msgid ""
+"\n"
+"x1 = f(Spend_{x1}) + f(holiday\\_signal) + \\epsilon\n"
+msgstr "x1 = f(Gastar_{x1}) + f(señal\\_vacacional) + \\epsilon"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:580018
+#: caf5c0b1d9864754bc00bf106701b361
+msgid ""
+"This is a good approach for building our model. However, we need to add "
+"‘competitor_offers’ to our model, and we currently have no data on our "
+"competitors, so we need to think creatively."
+msgstr ""
+"Este es un buen enfoque para construir nuestro modelo. Sin embargo, "
+"necesitamos añadir ‘competitor_offers’ a nuestro modelo, y actualmente no "
+"tenemos datos sobre nuestros competidores, por lo que necesitamos pensar de "
+"manera creativa."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:580020
+#: 879b56f31a24458e866bee4623b5ce43
+msgid "Using Gaussian Process to Model Competitor Offers"
+msgstr "Uso de Procesos Gaussianos para Modelar Ofertas de Competidores"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:580022
+#: 373cd837f2ce4aec842b254d98f78922
+msgid ""
+"Since we do not directly observe competitor activities like offers or "
+"discounts, we can treat ‘competitor_offers’ as a **hidden variable**. This "
+"means we will not measure it directly but will infer its behavior based on "
+"its impact on other variables in our model. A **Gaussian Process (GP)** can "
+"help us model this hidden factor, as it is flexible enough to reflect the "
+"data's underlying patterns."
+msgstr ""
+"Dado que no observamos directamente las actividades de los competidores, "
+"como ofertas o descuentos, podemos tratar ‘competitor_offers’ como una "
+"**variable oculta**. Esto significa que no la mediremos directamente, sino "
+"que inferiremos su comportamiento en función de su impacto en otras "
+"variables de nuestro modelo. Un **Proceso Gaussiano (GP)** puede ayudarnos a"
+" modelar este factor oculto, ya que es lo suficientemente flexible para "
+"reflejar los patrones subyacentes de los datos."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:580024
+#: da26d66267c4436cb6be71e7ef352fae
+msgid "A Gaussian Process can be expressed as:"
+msgstr "Un Proceso Gaussiano puede expresarse como:"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:580026
+#: 9aa5914978b043c5a383588da3991c52
+#, python-brace-format
+msgid ""
+"\n"
+"f(t) \\sim \\mathcal{GP}(m(t), k(t, t'))\n"
+msgstr "f(t) \\sim \\mathcal{GP}(m(t), k(t, t'))"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:580031
+#: da3f7f3d958f4ea7ba5163f27ccd76fe
+msgid ""
+"$f(t)$: The hidden function representing ‘competitor_offers’ over time."
+msgstr ""
+"$f(t)$: La función oculta que representa ‘competitor_offers’ a lo largo del "
+"tiempo."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:580032
+#: acf2f8ced4b3492bba3c80cd34e42d48
+msgid ""
+"$m(t)$: The mean function, often set to 0 unless we have prior knowledge of "
+"a specific trend."
+msgstr ""
+"$m(t)$: La función media, a menudo establecida en 0 a menos que tengamos "
+"conocimiento previo de una tendencia específica."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:580033
+#: c84e3dcf5e8c4cd4b21a27ee6d519b5b
+msgid ""
+"$k(t, t')$: The covariance function (or kernel), which determines the "
+"smoothness and structure of $f(t)$."
+msgstr ""
+"$k(t, t')$: La función de covarianza (o núcleo), que determina la suavidad y"
+" la estructura de $f(t)$."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:580035
+#: 9486be2ab11547db804b737bae6f9ba4
+msgid ""
+"PyMC-Marketing includes Gaussian Processes, using a **Hilbert Space Gaussian"
+" Process (HSGP) approximation** to make calculations more manageable. This "
+"allows us to approximate the hidden function $f(t)$ efficiently."
+msgstr ""
+"PyMC-Marketing incluye Procesos Gaussianos, utilizando una **aproximación de"
+" Proceso Gaussiano en Espacio de Hilbert (HSGP)** para hacer que los "
+"cálculos sean más manejables. Esto nos permite aproximar la función oculta "
+"$f(t)$ de manera eficiente."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:580037
+#: 24489ea10ce24661a3fe6df397fd5ef4
+msgid "Why Use a Gaussian Process?"
+msgstr "¿Por qué utilizar un proceso gaussiano?"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:580039
+#: 3b1dded4a9924052909b9dcd99be0bc4
+msgid ""
+"Reveal the hidden structure of ‘competitor_offers’ and other unobserved "
+"variables based on its connections to $x2$ and other observed variables."
+msgstr ""
+"Revele la estructura oculta de ‘competitor_offers’ y otras variables no "
+"observadas basadas en sus conexiones con $x2$ y otras variables observadas."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:580040
+#: ade457887587499e99bcc013de59c24e
+msgid ""
+"Capture non-linear, varying effects that may arise from unseen competitor "
+"activities."
+msgstr ""
+"Capture efectos no lineales y variables que pueden surgir de actividades de "
+"competidores no visibles."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:580042
+#: 00b998b7549840debfd535f99fd8c908
+msgid "Now let's see how we can implement this in PyMC-Marketing!"
+msgstr "Ahora veamos cómo podemos implementar esto en PyMC-Marketing."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:600002
+#: ec9ef4b2a1a543c2bcbce0fd010753e8
+msgid ""
+"Let’s delve into the output. First, it’s important to note that our "
+"adjustment set clearly indicates the need to control for both "
+"**competitors** and **holidays** to accurately estimate our variables. This "
+"implies that the variables in our regressions should include those factors "
+"along with our treatment variables. Since we lack any observed variables in "
+"the data to account for competitors, we set the parameter "
+"`time_varying_intercept` to `True` so that our model can accommodate the "
+"unobserved confounder."
+msgstr ""
+"Profundicemos en la salida. Primero, es importante señalar que nuestro "
+"conjunto de ajustes indica claramente la necesidad de controlar tanto por "
+"**competidores** como por **días festivos** para estimar con precisión "
+"nuestras variables. Esto implica que las variables en nuestras regresiones "
+"deben incluir esos factores junto con nuestras variables de tratamiento. "
+"Dado que no contamos con ninguna variable observada en los datos para tener "
+"en cuenta a los competidores, establecemos el parámetro "
+"`time_varying_intercept` en `True` para que nuestro modelo pueda acomodar el"
+" confusor no observado."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:600004
+#: 612cb42c57734bb398b96a2a97c744c4
+msgid "Now, let’s take a look at how well our model fits."
+msgstr "Ahora, echemos un vistazo a qué tan bien se ajusta nuestro modelo."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:630002
+#: 6bbfcee8c7bd4b1db79fa9724383c93d
+msgid "\\displaystyle 0"
+msgstr "\\displaystyle 0"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:640002
+#: a3e0061dd7194d3a9ca27a1562701ae4
+msgid ""
+"Great compared to the previous models, we don't have any divergencies, as we"
+" discussed before thats a good signal 🔥."
+msgstr ""
+"Excelente en comparación con los modelos anteriores, no tenemos ninguna "
+"divergencia, como discutimos antes, eso es una buena señal 🔥."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:640004
+#: 6a5cd576980f4e839623ef83f0ac0f84
+msgid ""
+"Lets observe the recovered effect of our treatment variables ($x1$ and $x2$)"
+" and as usual the not so causal model fit 👀"
+msgstr ""
+"Observemos el efecto recuperado de nuestras variables de tratamiento ($x1$ y"
+" $x2$) y, como de costumbre, el ajuste del modelo que no es tan causal 👀"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:670002
+#: e380ef2f1f0442efb88983705d1d79c1
+msgid ""
+"Great news! 🎉 Our model is nailing it when it comes to figuring out the "
+"actual impact of our treatment variables. We managed to take into account "
+"both the unseen confounders and the things we can see, like holidays."
+msgstr ""
+"¡Grandes noticias! 🎉 Nuestro modelo está logrando un excelente desempeño al "
+"determinar el impacto real de nuestras variables de tratamiento. Hemos "
+"conseguido tener en cuenta tanto los factores de confusión no visibles como "
+"las cosas que podemos ver, como los días festivos."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:670004
+#: f541cb57f63044269bdbc555a9840c66
+msgid ""
+"You might have noticed we have variables like market growth that aren’t in "
+"the data—what's going on with that? Before diving in, let’s observe the "
+"time-varying intercept."
+msgstr ""
+"Es posible que haya notado que tenemos variables como el crecimiento del "
+"mercado que no están en los datos—¿qué está sucediendo con eso? Antes de "
+"profundizar, observemos el intercepto variable en el tiempo."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:690002
+#: 0fea6c1081ae4e039b683853a3d96240
+msgid ""
+"This intercept is really good at picking up on that unobserved confounder "
+"and the effect of market growth. Essentially, the Gaussian process is smart "
+"enough to guess all those hidden variables affecting our outcome."
+msgstr ""
+"Este intercepto es realmente bueno para captar ese confusor no observado y "
+"el efecto del crecimiento del mercado. Esencialmente, el proceso gaussiano "
+"es lo suficientemente inteligente como para adivinar todas esas variables "
+"ocultas que afectan nuestro resultado."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:690004
+#: da90db9f93f04589921080df9aac3759
+msgid ""
+"Since we have a solid grasp of our context, we can identify which variables "
+"our Gaussian process is figuring out. This insight helps us fine-tune our "
+"model. On the flip side, if we didn’t understand our world well, the "
+"Gaussian process might be inferring the wrong variables, leading to "
+"incorrect conclusions. That’s why it’s crucial to really understand our "
+"causal ecosystem, the world around us, and how our causal relationships are "
+"structured. Every choice and assumption we make with our models can "
+"complicate things, impacting the accuracy of our results."
+msgstr ""
+"Dado que tenemos una comprensión sólida de nuestro contexto, podemos "
+"identificar qué variables está determinando nuestro proceso gaussiano. Esta "
+"información nos ayuda a ajustar nuestro modelo. Por otro lado, si no "
+"entendemos bien nuestro mundo, el proceso gaussiano podría estar inferiendo "
+"las variables incorrectas, lo que llevaría a conclusiones erróneas. Por eso "
+"es crucial entender realmente nuestro ecosistema causal, el mundo que nos "
+"rodea y cómo están estructuradas nuestras relaciones causales. Cada elección"
+" y suposición que hacemos con nuestros modelos puede complicar las cosas, "
+"impactando la precisión de nuestros resultados."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:690006
+#: c2469724874b4065a752b1400b5b1c85
+msgid ""
+"We shouldn’t complicate our model without a solid reason. Adding new "
+"variables or Gaussian processes should be carefully considered! It’s "
+"essential to grasp the consequences of our choices and the assumptions we "
+"adopt once we make them. Using causal identification techniques can help us "
+"figure out which control variables to include, guiding us in the causal "
+"discovery journey."
+msgstr ""
+"No deberíamos complicar nuestro modelo sin una razón sólida. ¡Agregar nuevas"
+" variables o procesos gaussianos debe ser considerado con cuidado! Es "
+"esencial comprender las consecuencias de nuestras elecciones y las "
+"suposiciones que adoptamos una vez que las hacemos. Utilizar técnicas de "
+"identificación causal puede ayudarnos a determinar qué variables de control "
+"incluir, guiándonos en el viaje de descubrimiento causal."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:690008
+#: 1b66b7f5024f4418b408e6e63da1fc7e
+msgid "Wrap-Up"
+msgstr "Resumen"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:690010
+#: 6f757632f6f640bfb0188b57bb0aa785
+msgid ""
+"In this notebook, we explored how to use causal discovery methods to spot "
+"unobserved confounders and how to use adjustment sets for including control "
+"variables. We also looked at how Gaussian processes can help us model these "
+"hidden confounders, particularly through the time-varying intercept."
+msgstr ""
+"En este cuaderno, exploramos cómo utilizar métodos de descubrimiento causal "
+"para identificar confusores no observados y cómo emplear conjuntos de ajuste"
+" para incluir variables de control. También analizamos cómo los procesos "
+"gaussianos pueden ayudarnos a modelar estos confusores ocultos, "
+"particularmente a través del intercepto variable en el tiempo."
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:690012
+#: b8475701bae743af88b17cfa8db95f18
+msgid "Now it’s your turn—go ahead and start building your own models!"
+msgstr ""
+"Ahora es tu turno: ¡adelante y comienza a construir tus propios modelos!"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:690014
+#: 09e7830153cb4315be0751ecd8d190fe
+msgid "References"
+msgstr "Referencias"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:690016
+#: 38a1ed874abb4a86b0e2359da8f43280
+msgid "[DoWhy](https://github.com/microsoft/dowhy)"
+msgstr "[DoWhy](https://github.com/microsoft/dowhy)"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:690017
+#: c047f54984ff4921bff7ef97489e9c1e
+msgid "[CausalPy](https://causalpy.readthedocs.io/en/stable/)"
+msgstr "[CausalPy](https://causalpy.readthedocs.io/en/stable/)"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:690018
+#: 780dfcf41dd44d008e1439c4fe4324f5
+msgid ""
+"[Aleksander Molak - Causal Discovery](https://www.amazon.com/Causal-"
+"Inference-Discovery-Python-learning/dp/1804612987)"
+msgstr ""
+"[Aleksander Molak - Descubrimiento Causal](https://www.amazon.com/Causal-"
+"Inference-Discovery-Python-learning/dp/1804612987)"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:690019
+#: 1dd04a0200df4344bcc7b1d8ac55dc6d
+msgid ""
+"[Judea Pearl - The book of why](https://www.amazon.com/Book-Why-Science-"
+"Cause-Effect/dp/046509760X)"
+msgstr ""
+"[Judea Pearl - El libro de por qué](https://www.amazon.com/Book-Why-Science-"
+"Cause-Effect/dp/046509760X)"
+
+#: ../source/notebooks/mmm/mmm_causal_identification.ipynb:690020
+#: 5be88a6fd3054fbd8f53afc8e9fe4f29
+msgid ""
+"[Bridging Causal Thinking and Media Mix Models: Carlos Trujillo & Ben "
+"Vincent](https://colab.research.google.com/drive/1r5pi9Lh_A6h_CKQFEjyn-7iykL8x-X_H#scrollTo=DRFEJyK1VCi3)"
+msgstr ""
+"[Conectando el Pensamiento Causal y los Modelos de Mezcla de Medios: Carlos "
+"Trujillo & Ben "
+"Vincent](https://colab.research.google.com/drive/1r5pi9Lh_A6h_CKQFEjyn-7iykL8x-X_H#scrollTo=DRFEJyK1VCi3)"

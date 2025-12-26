@@ -1,0 +1,238 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-21 09:54+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/gallery/gallery.md:2 7c631ee182334c0c92e176ca44101ae4
+msgid "Example Gallery"
+msgstr "Galería de Ejemplo"
+
+#: ../source/gallery/gallery.md:8 962f01064e3d48a981f135bdbaf0a63d
+msgid "Introduction"
+msgstr "Introducción"
+
+#: ../source/gallery/gallery.md:10 79a20623ec7f4f538376c590b8e675f2
+msgid ""
+"Welcome to the PyMC-Marketing example gallery! This gallery provides visual "
+"navigation to all of our example notebooks to help you quickly find the "
+"techniques and models relevant to your marketing analytics needs."
+msgstr ""
+"Bienvenido a la galería de ejemplos de PyMC-Marketing! Esta galería "
+"proporciona navegación visual a todos nuestros cuadernos de ejemplo para "
+"ayudarte a encontrar rápidamente las técnicas y modelos relevantes para tus "
+"necesidades de análisis de marketing."
+
+#: ../source/gallery/gallery.md:12 21e2a485ff67439ba21667efd6240b70
+msgid "Marketing Mix Models (MMM)"
+msgstr "Modelos de Mezcla de Marketing (MMM)"
+
+#: ../source/gallery/gallery.md:14 593509aa87df441a8a11247a6425b531
+msgid "Fundamentals"
+msgstr "Fundamentos"
+
+#: ../source/gallery/gallery.md:19 887ba244be694867ab373283b82bb2ca
+msgid "MMM Quickstart Guide"
+msgstr "Guía rápida de MMM"
+
+#: ../source/gallery/gallery.md:24 9f2d716667034e1fb1de4e2809d1f3b3
+msgid "MMM Example: Extensive Introduction Notebook"
+msgstr "MMM Ejemplo: Cuaderno de Introducción Extensa"
+
+#: ../source/gallery/gallery.md:29 194a6cba772241b3bbc34911b5373074
+msgid "Beyond MMMs: adding GAMs or anything else to your model."
+msgstr "Más allá de los MMM: añadiendo GAM o cualquier otra cosa a tu modelo."
+
+#: ../source/gallery/gallery.md:34 948368d6aab542c1815ce39ad0052b5f
+msgid "MMM Multidimensional Example Notebook (e.g. Geo-MMM)"
+msgstr "MMM Cuaderno de Ejemplo Multidimensional (por ejemplo, Geo-MMM)"
+
+#: ../source/gallery/gallery.md:39 b623083dc3d94790b70238aa972caa2e
+msgid "Build MMM from YAML Configuration"
+msgstr "Construir MMM a partir de la configuración YAML"
+
+#: ../source/gallery/gallery.md:44 7ed78c76daa24facb21e0d339afba42e
+msgid "Sensitivity Analysis and Marginal Effects"
+msgstr "Análisis de sensibilidad y efectos marginales"
+
+#: ../source/gallery/gallery.md:50 05897427bba6442aa8df53a415654157
+#, fuzzy
+msgid "Custom models"
+msgstr "Modelos de Elección del Cliente"
+
+#: ../source/gallery/gallery.md:54 108a02743be24b10b158349feed78a24
+msgid "Custom Models with MMM components"
+msgstr "Modelos personalizados con componentes MMM"
+
+#: ../source/gallery/gallery.md:60 0e325b4876674d608fdecbb77fac875a
+msgid "Data Connectors"
+msgstr "Conectores de Datos"
+
+#: ../source/gallery/gallery.md:65 ff16ac1d85b74afba55b2e9627003fb1
+msgid "MMM Fivetran Connectors"
+msgstr "MMM Conectores de Fivetran"
+
+#: ../source/gallery/gallery.md:71 d8879976061947cabcbabc7dfe69f8ed
+msgid "Budget Allocation"
+msgstr "Asignación de Presupuesto"
+
+#: ../source/gallery/gallery.md:76 0e1a8f3f1b5a4f3087e1b8ee8da11524
+msgid "Budget Allocation Example"
+msgstr "Ejemplo de Asignación de Presupuesto"
+
+#: ../source/gallery/gallery.md:81 b41ee72b31744d739da222cb5218e001
+msgid "Budget Allocation and Risk Assessment"
+msgstr "Asignación de Presupuesto y Evaluación de Riesgos"
+
+#: ../source/gallery/gallery.md:86 96fb78f09afc44c4aca771ff69c6483e
+msgid "Multi-Objective Optimization"
+msgstr "Multi-Objective Optimization"
+
+#: ../source/gallery/gallery.md:92 2c5ee96b2d6f48a9945781de4d4e5ebd
+msgid "Lift Test Calibration"
+msgstr "Calibración de Prueba de Elevación"
+
+#: ../source/gallery/gallery.md:97 3dc7db5124794a17ace8fb2029b2395f
+msgid "Introduction to Lift Test Calibration"
+msgstr "Introducción a la Calibración de Pruebas de Elevación"
+
+#: ../source/gallery/gallery.md:102 8f292d61e1ad4a48bc7b76857f760995
+msgid "Case Study: Unobserved Confounders, ROAS and Lift Tests"
+msgstr ""
+"Estudio de Caso: Confusores No Observados, ROAS y Pruebas de Incremento"
+
+#: ../source/gallery/gallery.md:108 fbee470b6fb6411dbbcf1589a9bf2a3a
+msgid "Time-Varying Parameters"
+msgstr "Parámetros que varían con el tiempo"
+
+#: ../source/gallery/gallery.md:113 b63e5d3db0eb4e72b2a08f49120b9300
+msgid "MMM with time-varying media baseline"
+msgstr "MMM con línea base de medios variable en el tiempo"
+
+#: ../source/gallery/gallery.md:118 5534c7302e124280b9fd8ca3aef56e0e
+msgid "MMM with time-varying parameters"
+msgstr "MMM con parámetros que varían con el tiempo"
+
+#: ../source/gallery/gallery.md:124 3de958634b714c8ba850af1d44509288
+msgid "Model Evaluation"
+msgstr "Evaluación del Modelo"
+
+#: ../source/gallery/gallery.md:129 e5c0b7fe619b44998a8858d996782603
+msgid "Cross-Validation"
+msgstr "Validación cruzada"
+
+#: ../source/gallery/gallery.md:134 d39fcb1ae88542a5ad0c8ddd8f10ffd4
+msgid "Metrics and Model Evaluation"
+msgstr "Métricas y Evaluación del Modelo"
+
+#: ../source/gallery/gallery.md:140 f95e1ebafff240ce9643ab5d0c6f2ae5
+msgid "Causal Inference"
+msgstr "Inferencia Causal"
+
+#: ../source/gallery/gallery.md:145 fc22ec2ad28443b5a90c7e5a2123d387
+msgid "Causal Identification"
+msgstr "Identificación Causal"
+
+#: ../source/gallery/gallery.md:150 d77165fa710c4f42802d37369d56e1e3
+msgid "MMMs and Pearl's ladder of causal inference"
+msgstr "MMMs y la escalera de inferencia causal de Pearl"
+
+#: ../source/gallery/gallery.md:155 b4b8d255164642d989fbb836eee5ef17
+msgid "Upper-funnel causal approach"
+msgstr "Upper-funnel causal approach"
+
+#: ../source/gallery/gallery.md:162 fef62973b5eb47f891a1c05de5793477
+msgid "Case Studies"
+msgstr "Estudios de Caso"
+
+#: ../source/gallery/gallery.md:167 7c5b73e8ee8340d1b38ebf28399eac6c
+msgid "MMM End-to-End Case Study"
+msgstr "MMM Estudio de Caso de Extremo a Extremo"
+
+#: ../source/gallery/gallery.md:173 8292077d497b43eba7feafd6cb06c2fb
+msgid "Customer Lifetime Value (CLV) Models"
+msgstr "Modelos de Valor del Tiempo de Vida del Cliente (CLV)"
+
+#: ../source/gallery/gallery.md:178 efc8468983734b35bc83435e5b1587d8
+msgid "CLV Quickstart"
+msgstr "CLV Guía Rápida"
+
+#: ../source/gallery/gallery.md:183 b83c0e39c7a54b68a95464453d422e05
+msgid "BG/NBD Model"
+msgstr "Modelo BG/NBD"
+
+#: ../source/gallery/gallery.md:188 14d06c8570fb4fe9bbe8b17106a9e269
+msgid "MBG/NBD Model"
+msgstr "Modelo MBG/NBD"
+
+#: ../source/gallery/gallery.md:193 e531361a86a84a98982cddfdd11f17ce
+msgid "Pareto/NBD Model"
+msgstr "Modelo Pareto/NBD"
+
+#: ../source/gallery/gallery.md:198 ac07a5af28c44633b8567cf7989a8769
+msgid "Gamma-Gamma Model"
+msgstr "Modelo Gamma-Gamma"
+
+#: ../source/gallery/gallery.md:203 ebd1263e214f49829ebee1d9a7d0fb0f
+msgid "sBG Model"
+msgstr "Modelo sBG"
+
+#: ../source/gallery/gallery.md:209 05897427bba6442aa8df53a415654157
+msgid "Customer Choice Models"
+msgstr "Modelos de Elección del Cliente"
+
+#: ../source/gallery/gallery.md:214 7482954ec11f40b5a11ad452bd310ae9
+msgid "MV-ITS Saturated"
+msgstr "MV-ITS Saturado"
+
+#: ../source/gallery/gallery.md:219 5cac2d1b3e7c439ba7cd176fe4bc4f2b
+msgid "MV-ITS Unsaturated"
+msgstr "MV-ITS No saturado"
+
+#: ../source/gallery/gallery.md:224 e6b5177530fa47abb3992b7f73ea2446
+msgid "Multinomial Logit Discrete Choice"
+msgstr "Logit Multinomial de Elección Discreta"
+
+#: ../source/gallery/gallery.md:229 24b5c370a236403abb5edef69778444b
+msgid "Nested Logit Discrete Choice"
+msgstr "Logit Anidado de Elección Discreta"
+
+#: ../source/gallery/gallery.md:235 1283f8d3d4424ebda85fac2d72a224b7
+msgid "Bass Diffusion Model"
+msgstr "Modelo de Difusión de Bass"
+
+#: ../source/gallery/gallery.md:240 e0f41d93b2454531ae4f8384856ba147
+msgid "Bass Diffusion Model Example"
+msgstr "Ejemplo de Modelo de Difusión de Bass"
+
+#: ../source/gallery/gallery.md:246 637a6402134e4a2b9c19a07e202f1272
+msgid "General Tutorials"
+msgstr "Tutoriales Generales"
+
+#: ../source/gallery/gallery.md:251 720002d201ac493490334ea8b2d3fd85
+msgid "Model Configuration"
+msgstr "Configuración del Modelo"
+
+#: ../source/gallery/gallery.md:256 e58485e3ef314393a03d1c08793e6073
+msgid "Prior Predictive Checks"
+msgstr "Comprobaciones Predictivas Previas"
+
+#: ../source/gallery/gallery.md:261 0e544396188b4f1b954aa1bb633a56d6
+msgid "NUTS Samplers"
+msgstr "Muestras de NUTS"

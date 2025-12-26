@@ -26,7 +26,7 @@ Create a new adstock transformation:
 .. code-block:: python
 
     from pymc_marketing.mmm import AdstockTransformation
-    from pymc_marketing.prior import Prior
+    from pymc_extras.prior import Prior
 
 
     class MyAdstock(AdstockTransformation):
@@ -59,8 +59,9 @@ import numpy as np
 import pytensor.tensor as pt
 import xarray as xr
 from pydantic import Field, validate_call
+from pymc_extras.deserialize import deserialize, register_deserialization
+from pymc_extras.prior import Prior
 
-from pymc_marketing.deserialize import deserialize, register_deserialization
 from pymc_marketing.mmm.components.base import (
     SupportedPrior,
     Transformation,
@@ -69,11 +70,11 @@ from pymc_marketing.mmm.components.base import (
 from pymc_marketing.mmm.transformers import (
     ConvMode,
     WeibullType,
+    binomial_adstock,
     delayed_adstock,
     geometric_adstock,
     weibull_adstock,
 )
-from pymc_marketing.prior import Prior
 
 ADSTOCK_TRANSFORMATIONS: dict[str, type[AdstockTransformation]] = {}
 
@@ -171,6 +172,39 @@ class AdstockTransformation(Transformation, metaclass=AdstockRegistrationMeta): 
             x=x,
             coords=coords,
         )
+
+
+class BinomialAdstock(AdstockTransformation):
+    """Wrapper around the binomial adstock function.
+
+    For more information, see :func:`pymc_marketing.mmm.transformers.binomial_adstock`.
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from pymc_marketing.mmm import BinomialAdstock
+
+        rng = np.random.default_rng(0)
+
+        adstock = BinomialAdstock(l_max=10)
+        prior = adstock.sample_prior(random_seed=rng)
+        curve = adstock.sample_curve(prior)
+        adstock.plot_curve(curve, random_seed=rng)
+        plt.show()
+
+    """
+
+    lookup_name = "binomial"
+
+    def function(self, x, alpha):
+        """Binomial adstock function."""
+        return binomial_adstock(
+            x, alpha=alpha, l_max=self.l_max, normalize=self.normalize, mode=self.mode
+        )
+
+    default_priors = {"alpha": Prior("Beta", alpha=1, beta=3)}
 
 
 class GeometricAdstock(AdstockTransformation):

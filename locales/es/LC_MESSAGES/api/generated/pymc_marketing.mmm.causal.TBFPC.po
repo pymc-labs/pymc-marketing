@@ -1,0 +1,293 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-20 21:01+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBFPC.rst:2
+#: 47a88be193624ffb914b73ddd4a7162b
+msgid "TBFPC"
+msgstr "TBFPC"
+
+#: 107e2fd13148480a87692e27aa3b1ec3 of pymc_marketing.mmm.causal.TBFPC:2
+msgid "Target-first Bayes Factor PC (TBF-PC) causal discovery algorithm."
+msgstr ""
+"Algoritmo de descubrimiento causal del Factor Bayesiano de primer objetivo "
+"PC (TBF-PC)."
+
+#: c77264d465994c6185f7a8ed1e5ea324 of pymc_marketing.mmm.causal.TBFPC:4
+msgid ""
+"This algorithm is a target-oriented variant of the Peter–Clark (PC) "
+"algorithm, using Bayes factors (via ΔBIC approximation) as the conditional "
+"independence test."
+msgstr ""
+"Este algoritmo es una variante orientada a objetivos del algoritmo de "
+"Peter–Clark (PC), utilizando factores de Bayes (a través de la aproximación "
+"ΔBIC) como la prueba de independencia condicional."
+
+#: 9ad7fa95d7e34250bae78aecc7b62051 of pymc_marketing.mmm.causal.TBFPC:7
+msgid "For each conditional independence test of the form"
+msgstr "Para cada prueba de independencia condicional de la forma"
+
+#: 77e3a222ffed4273b3e4e903e5189cd9 of pymc_marketing.mmm.causal.TBFPC:9
+#, python-brace-format
+msgid ""
+"H_0 : Y \\perp X \\mid S\n"
+"\\quad \\text{vs.} \\quad\n"
+"H_1 : Y \\not\\!\\perp X \\mid S"
+msgstr ""
+"H_0 : Y \\perp X \\mid S  \n"
+"\\quad \\text{vs.} \\quad  \n"
+"H_1 : Y \\not\\!\\perp X \\mid S"
+
+#: 2c58f96d789e4195a1af837fd4cf5a07 of pymc_marketing.mmm.causal.TBFPC:15
+msgid "we compare two linear models:"
+msgstr "comparamos dos modelos lineales:"
+
+#: 86d745275009463c8249154392b15447 of pymc_marketing.mmm.causal.TBFPC:17
+msgid ""
+"M_0 : Y \\sim S\n"
+"\\\\\n"
+"M_1 : Y \\sim S + X"
+msgstr ""
+"M_0 : Y \\sim S\n"
+"\\\\\n"
+"M_1 : Y \\sim S + X"
+
+#: e6ac5a8063714269bd2e665704a8f579 of pymc_marketing.mmm.causal.TBFPC:23
+msgid "where :math:`S` is a conditioning set of variables."
+msgstr "donde :math:`S` es un conjunto de variables de condicionamiento."
+
+#: 957d38c7d29346aaa31f11e530be9c33 of pymc_marketing.mmm.causal.TBFPC:25
+msgid "The Bayesian Information Criterion (BIC) is defined as"
+msgstr "El Criterio de Información Bayesiano (BIC) se define como"
+
+#: 88c506c9bc164e23afd625a0cf78850d of pymc_marketing.mmm.causal.TBFPC:27
+msgid ""
+"\\mathrm{BIC}(M) = n \\log\\!\\left(\\frac{\\mathrm{RSS}}{n}\\right)\n"
+"                  + k \\log(n),"
+msgstr ""
+"\\mathrm{BIC}(M) = n \\log\\!\\left(\\frac{\\mathrm{RSS}}{n}\\right)\n"
+"                  + k \\log(n),"
+
+#: 7e30b6fed88f41abadd63dedcff66387 of pymc_marketing.mmm.causal.TBFPC:32
+#, python-brace-format
+msgid ""
+"with residual sum of squares :math:`\\mathrm{RSS}`, sample size :math:`n`, "
+"and number of parameters :math:`k`."
+msgstr ""
+"con la suma residual de cuadrados :math:`\\mathrm{RSS}`, tamaño de muestra "
+":math:`n`, y número de parámetros :math:`k`."
+
+#: 9b094d0bd7ac46a4a991bb3065db4623 of pymc_marketing.mmm.causal.TBFPC:35
+msgid "The Bayes factor is approximated by"
+msgstr "El factor de Bayes se aproxima a"
+
+#: 5a073b060fb74df580a104dbac61fe34 of pymc_marketing.mmm.causal.TBFPC:37
+#, python-brace-format
+msgid ""
+"\\log \\mathrm{BF}_{10} \\approx -\\tfrac{1}{2}\n"
+"\\left[ \\mathrm{BIC}(M_1) - \\mathrm{BIC}(M_0) \\right]."
+msgstr ""
+"\\log \\mathrm{BF}_{10} \\approx -\\tfrac{1}{2}\n"
+"\\left[ \\mathrm{BIC}(M_1) - \\mathrm{BIC}(M_0) \\right]."
+
+#: d57676a38ae8423780ea525a3a16467f of pymc_marketing.mmm.causal.TBFPC:42
+#, python-brace-format
+msgid ""
+"Independence is declared if :math:`\\mathrm{BF}_{10} < \\tau`, where "
+":math:`\\tau` is set via the ``bf_thresh`` parameter."
+msgstr ""
+"La independencia se declara si :math:`\\mathrm{BF}_{10} < \\tau`, donde "
+":math:`\\tau` se establece a través del parámetro ``bf_thresh``."
+
+#: 3e4c06a379a34c55b9add27c3cc4dae5 of pymc_marketing.mmm.causal.TBFPC:58
+msgid "References"
+msgstr "Referencias"
+
+#: 951652c7f00549e987091564b48326bb of pymc_marketing.mmm.causal.TBFPC:59
+msgid ""
+"Spirtes, Glymour, Scheines (2000). *Causation, Prediction, and Search*. MIT "
+"Press. [PC algorithm]"
+msgstr ""
+"Spirtes, Glymour, Scheines (2000). *Causación, Predicción y Búsqueda*. MIT "
+"Press. [algoritmo PC]"
+
+#: 39ad5539489e42bcbe1cfa1338791b68 of pymc_marketing.mmm.causal.TBFPC:60
+msgid ""
+"Spirtes & Glymour (1991). \"An Algorithm for Fast Recovery of Sparse Causal "
+"Graphs.\""
+msgstr ""
+"Spirtes y Glymour (1991). \"Un algoritmo para la recuperación rápida de "
+"gráficos causales dispersos.\""
+
+#: 730810b4bbf04f64b438f40ff7712b4c of pymc_marketing.mmm.causal.TBFPC:61
+msgid "Kass, R. & Raftery, A. (1995). \"Bayes Factors.\""
+msgstr "Kass, R. y Raftery, A. (1995). \"Factores de Bayes.\""
+
+#: 1e60ebbac54f4a88ad216ef8060b74f2 of pymc_marketing.mmm.causal.TBFPC:68
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: 4a61f0058fe34f269f9c0f7c92da7443 of pymc_marketing.mmm.causal.TBFPC:69
+msgid "**1. Basic usage with full conditioning set**"
+msgstr "**1. Uso básico con conjunto de condiciones completo**"
+
+#: 01ef5588c0104d69bbf881751c49a281 of pymc_marketing.mmm.causal.TBFPC:93
+msgid "**2. Using forbidden edges**"
+msgstr "**2. Uso de bordes prohibidos**"
+
+#: dd449d7a9a844a86a3b8840964788dea of pymc_marketing.mmm.causal.TBFPC:95
+msgid ""
+"You can specify edges that must *not* be tested or included (prior knowledge"
+" about the domain)."
+msgstr ""
+"Puede especificar los bordes que *no* deben ser probados o incluidos "
+"(conocimiento previo sobre el dominio)."
+
+#: 99cee02b277342a49e596eb0aead071a of pymc_marketing.mmm.causal.TBFPC:108
+msgid "**3. Conservative rule**"
+msgstr "**3. Gobierno conservador**"
+
+#: 9cc5cd375c97457aa95700b2cb198873 of pymc_marketing.mmm.causal.TBFPC:110
+msgid ""
+"Keeps driver → target edges if **any conditioning set** shows dependence."
+msgstr ""
+"Mantiene los bordes del conductor → objetivo si **cualquier conjunto de "
+"condicionamiento** muestra dependencia."
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBFPC.rst:12
+#: a8d92aa077ab4b358f4a30a37ab5a6e6
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBFPC.rst:24:<autosummary>:1
+#: 650e13fbb5a545bdb2a1b35496b6c469
+msgid ""
+":py:obj:`TBFPC.__init__ <pymc_marketing.mmm.causal.TBFPC.__init__>`\\ "
+"\\(target\\, \\*\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`TBFPC.__init__ <pymc_marketing.mmm.causal.TBFPC.__init__>`\\ "
+"\\(objetivo\\, \\*\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBFPC.rst:24:<autosummary>:1
+#: 21842888484141e5a105bb5bfbfa28f2
+msgid "Create a new TBFPC causal discovery model."
+msgstr "Cree un nuevo modelo de descubrimiento causal TBFPC."
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBFPC.rst:24:<autosummary>:1
+#: 49e59328746b42c28b56a394f6c3c1d7
+msgid ""
+":py:obj:`TBFPC.fit <pymc_marketing.mmm.causal.TBFPC.fit>`\\ \\(df\\, "
+"drivers\\)"
+msgstr ""
+":py:obj:`TBFPC.fit <pymc_marketing.mmm.causal.TBFPC.fit>`\\ \\(df\\, "
+"controladores\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBFPC.rst:24:<autosummary>:1
+#: 11c9c474b02045b9a15f9230e3d3656f
+msgid "Fit the TBFPC procedure to the supplied dataframe."
+msgstr "Ajuste el procedimiento TBFPC al dataframe proporcionado."
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBFPC.rst:24:<autosummary>:1
+#: cd95733c04f84598aa38a273906c6151
+#, fuzzy
+msgid ""
+":py:obj:`TBFPC.get_all_cdags_from_cpdag "
+"<pymc_marketing.mmm.causal.TBFPC.get_all_cdags_from_cpdag>`\\ "
+"\\(\\[dot\\_cpdag\\]\\)"
+msgstr ""
+":py:obj:`TBFPC.get_directed_edges "
+"<pymc_marketing.mmm.causal.TBFPC.get_directed_edges>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBFPC.rst:24:<autosummary>:1
+#: 53d2238fa51a478bbe8c8b46f83812f8
+msgid ""
+"Enumerate all acyclic orientations (consistent extensions) of the CPDAG."
+msgstr ""
+"Enumere todas las orientaciones acíclicas (extensiones consistentes) del "
+"CPDAG."
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBFPC.rst:24:<autosummary>:1
+#: e53debdf91324fc8850f9117e0cdab33
+msgid ""
+":py:obj:`TBFPC.get_directed_edges "
+"<pymc_marketing.mmm.causal.TBFPC.get_directed_edges>`\\ \\(\\)"
+msgstr ""
+":py:obj:`TBFPC.get_directed_edges "
+"<pymc_marketing.mmm.causal.TBFPC.get_directed_edges>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBFPC.rst:24:<autosummary>:1
+#: c999ea2565864dc6a5f447f50da21544
+msgid "Return directed edges learned by the algorithm."
+msgstr "Devolver los bordes dirigidos aprendidos por el algoritmo."
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBFPC.rst:24:<autosummary>:1
+#: 44fbfd1e42894d3d820d6da09c0d5ba7
+msgid ""
+":py:obj:`TBFPC.get_test_results "
+"<pymc_marketing.mmm.causal.TBFPC.get_test_results>`\\ \\(x\\, y\\)"
+msgstr ""
+":py:obj:`TBFPC.get_test_results "
+"<pymc_marketing.mmm.causal.TBFPC.get_test_results>`\\ \\(x\\, y\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBFPC.rst:24:<autosummary>:1
+#: fa1a306a39ee41f88488734b59f9a0f8
+msgid "Return ΔBIC diagnostics for the unordered pair ``(x, y)``."
+msgstr "Devuelva los diagnósticos ΔBIC para el par no ordenado ``(x, y)``."
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBFPC.rst:24:<autosummary>:1
+#: cd95733c04f84598aa38a273906c6151
+msgid ""
+":py:obj:`TBFPC.get_undirected_edges "
+"<pymc_marketing.mmm.causal.TBFPC.get_undirected_edges>`\\ \\(\\)"
+msgstr ""
+":py:obj:`TBFPC.get_undirected_edges "
+"<pymc_marketing.mmm.causal.TBFPC.get_undirected_edges>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBFPC.rst:24:<autosummary>:1
+#: 6fb6d734033541319f68a2a907b6371d
+msgid "Return undirected edges remaining after orientation."
+msgstr ""
+"Devolver los bordes no dirigidos que quedan después de la orientación."
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBFPC.rst:24:<autosummary>:1
+#: ded6757400224194b8a3b8387ba9c86d
+msgid ":py:obj:`TBFPC.summary <pymc_marketing.mmm.causal.TBFPC.summary>`\\ \\(\\)"
+msgstr ":py:obj:`TBFPC.summary <pymc_marketing.mmm.causal.TBFPC.summary>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBFPC.rst:24:<autosummary>:1
+#: 11514c92ea61457fb8d3678218592ca8
+msgid "Render a text summary of the learned graph and test count."
+msgstr ""
+"Renderizar un resumen de texto del gráfico aprendido y el conteo de pruebas."
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBFPC.rst:24:<autosummary>:1
+#: 7ab3bf1d2e69494c8ad8d5539c792697
+msgid ""
+":py:obj:`TBFPC.to_digraph <pymc_marketing.mmm.causal.TBFPC.to_digraph>`\\ "
+"\\(\\)"
+msgstr ""
+":py:obj:`TBFPC.to_digraph <pymc_marketing.mmm.causal.TBFPC.to_digraph>`\\ "
+"\\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.causal.TBFPC.rst:24:<autosummary>:1
+#: 8399dc2ec11f4bf4b25dc5b9ea81160f
+msgid "Return the learned graph encoded in DOT format."
+msgstr "Devuelva el grafo aprendido codificado en formato DOT."

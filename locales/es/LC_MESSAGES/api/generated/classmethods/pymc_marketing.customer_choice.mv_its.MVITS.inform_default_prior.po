@@ -1,0 +1,90 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.customer_choice.mv_its.MVITS.inform_default_prior.rst:2
+#: da35ca6a14fb4b2197ee2f6fbdb3ea1b
+msgid "MVITS.inform\\_default\\_prior"
+msgstr "MVITS.inform\\_default\\_prior"
+
+#: 8643dcdd9fed48739c4490f8c44f146f of
+#: pymc_marketing.customer_choice.mv_its.MVITS.inform_default_prior:2
+msgid "Inform the default prior based on the data."
+msgstr "Informar la prioridad predeterminada basada en los datos."
+
+#: 1ac39a0c76714fdc81d7ec3ea4d30ce5 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.inform_default_prior:4
+msgid "This only works with the default prior."
+msgstr "Esto solo funciona con el prior predeterminado."
+
+#: 41c711faa106480eae9ba02441aba707 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.inform_default_prior
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 596a28272fcd4d419347a5e8057314eb of
+#: pymc_marketing.customer_choice.mv_its.MVITS.inform_default_prior:8
+msgid "**data** : :obj:`pd.DataFrame`"
+msgstr "**datos** : :obj:`pd.DataFrame`"
+
+#: d76c1218f58b48f89ea339d26a1326d3 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.inform_default_prior:7
+msgid "pd.DataFrame"
+msgstr "pd.DataFrame"
+
+#: d6d5fc77c88445b6b4dbb904a92c4037 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.inform_default_prior:9
+msgid ""
+"The DataFrame to inform the default prior. This should be the data before "
+"the treatment."
+msgstr ""
+"El DataFrame para informar la prior predeterminada. Estos deberían ser los "
+"datos antes del tratamiento."
+
+#: 91db8dd46d4341d59c99405e50199d17 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.inform_default_prior
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 7805872a28704f799098f6f78a241d6d of
+#: pymc_marketing.customer_choice.mv_its.MVITS.inform_default_prior:16
+msgid ":obj:`Self`"
+msgstr ":obj:`Self`"
+
+#: 47abd65f957f494a90572b10ee21ac55 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.inform_default_prior:17
+msgid "The model instance."
+msgstr "La instancia del modelo."
+
+#: fecc5e21d8574c5ea3ac0c3a80cf5883 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.inform_default_prior:29
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: 27d7ecebccdb4f79a11cadb6f6d90575 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.inform_default_prior:30
+msgid "Use the data before the treatment to inform the prior."
+msgstr "Utilice los datos antes del tratamiento para informar el previo."
+
+#: 93fc46567cab4d10947e99b52ae57237 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.inform_default_prior:37
+msgid "Check the model configuration"
+msgstr "Verifique la configuración del modelo"

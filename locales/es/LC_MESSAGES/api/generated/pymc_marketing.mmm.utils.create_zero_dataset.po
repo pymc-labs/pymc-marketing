@@ -1,0 +1,75 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.utils.create_zero_dataset.rst:2
+#: a332627adc7149318a8f413630154fce
+msgid "create\\_zero\\_dataset"
+msgstr "crear\\_conjunto\\_de\\_datos\\_cero"
+
+#: 8c5c26fea273425e818190ee03bc4429 of
+#: pymc_marketing.mmm.utils.create_zero_dataset:2
+msgid ""
+"Create a DataFrame for future prediction, with zeros (or supplied "
+"constants)."
+msgstr ""
+"Cree un DataFrame para predicciones futuras, con ceros (o constantes "
+"suministradas)."
+
+#: 9e425cc4542242efa8abb783b447f15e of
+#: pymc_marketing.mmm.utils.create_zero_dataset:4
+msgid ""
+"Creates a DataFrame with dates from start_date to end_date and all model "
+"dimensions, filling channel and control columns with zeros or with values "
+"from channel_xr if provided."
+msgstr ""
+"Crea un DataFrame con fechas desde {start_date} hasta {end_date} y todas las"
+" dimensiones del modelo, llenando las columnas de canal y control con ceros "
+"o con valores de {channel_xr} si se proporcionan."
+
+#: 2b5eaa6097de445d978c74b2bae2baf7 of
+#: pymc_marketing.mmm.utils.create_zero_dataset:7
+msgid "If *channel_xr* is provided it must"
+msgstr "Si se proporciona *channel_xr*, debe"
+
+#: 02383363f3ae48bb8b2cb8279a1cdc41 of
+#: pymc_marketing.mmm.utils.create_zero_dataset:9
+msgid "have data variables that are a subset of ``model.channel_columns``"
+msgstr ""
+"tiene variables de datos que son un subconjunto de ``model.channel_columns``"
+
+#: 7c6c3b6b78b34cc88679e9bf0ceaf1a5 of
+#: pymc_marketing.mmm.utils.create_zero_dataset:10
+msgid ""
+"be indexed *only* by the dimensions in ``model.dims`` (no date dimension)"
+msgstr ""
+"ser indexado *solo* por las dimensiones en ``model.dims`` (sin dimensión de "
+"fecha)"
+
+#: 11ee8aea2d9e4969995f4aa939946844 of
+#: pymc_marketing.mmm.utils.create_zero_dataset:12
+msgid ""
+"The values in *channel_xr* are copied verbatim to the corresponding channel "
+"columns and broadcast across every date in ``start_date … end_date``."
+msgstr ""
+"Los valores en *channel_xr* se copian textualmente a las columnas de canal "
+"correspondientes y se transmiten a través de cada fecha en ``start_date … "
+"end_date``."

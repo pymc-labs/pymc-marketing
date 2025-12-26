@@ -1,0 +1,133 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.evaluation.summarize_metric_distributions.rst:2
+#: ed72ab924c174ab1bd551e806b0f0ce1
+msgid "summarize\\_metric\\_distributions"
+msgstr "resumir\\_distribuciones\\_métricas"
+
+#: 2c83d8ff910c4015b6056e17598d4661 of
+#: pymc_marketing.mmm.evaluation.summarize_metric_distributions:2
+msgid "Summarize metric distributions with point estimates and HDIs."
+msgstr "Resume las distribuciones métricas con estimaciones puntuales e IDHs."
+
+#: 84370126e1ea44778a25ac544a12f47b of
+#: pymc_marketing.mmm.evaluation.summarize_metric_distributions
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 19732d0d7fe8446c8c0beb694aad2519 of
+#: pymc_marketing.mmm.evaluation.summarize_metric_distributions:7
+msgid ""
+"**metric_distributions** : :class:`python:dict` of :class:`python:str` "
+":obj:`to` :obj:`npt.NDArray`"
+msgstr ""
+"**distribuciones_métricas** : :class:`python:dict` de :class:`python:str` "
+":obj:`a` :obj:`npt.NDArray`"
+
+#: c599a04c8a07430a8057b0a4115065b3 of
+#: pymc_marketing.mmm.evaluation.summarize_metric_distributions:6
+msgid "python:dict of python:str to npt.NDArray"
+msgstr "python:diccionario de python:str a npt.NDArray"
+
+#: 17632bd7bce547fca3a48e92f349f460 of
+#: pymc_marketing.mmm.evaluation.summarize_metric_distributions:8
+msgid ""
+"Dictionary of metric distributions as returned by "
+"calculate_metric_distributions."
+msgstr ""
+"Diccionario de distribuciones métricas devuelto por "
+"calculate_metric_distributions."
+
+#: ee5b72e10613429e98ef53263f079de7 of
+#: pymc_marketing.mmm.evaluation.summarize_metric_distributions:10
+msgid "**hdi_prob** : :class:`python:float`, optional"
+msgstr "**hdi_prob** : :class:`python:float`, opcional"
+
+#: e2361f2d2cce4fea8cf6e1bb88b47f94 of
+#: pymc_marketing.mmm.evaluation.summarize_metric_distributions:9
+msgid "python:float, optional"
+msgstr "python:flotante, opcional"
+
+#: 850415bb41f94304bdc30a24cebfcd2a of
+#: pymc_marketing.mmm.evaluation.summarize_metric_distributions:11
+msgid ""
+"The probability mass of the highest density interval. Defaults to 0.94."
+msgstr ""
+"La masa de probabilidad del intervalo de mayor densidad. Por defecto es "
+"0.94."
+
+#: 261a5d6fc0ad4d04a9f805510493ad74 of
+#: pymc_marketing.mmm.evaluation.summarize_metric_distributions
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: e333e5b0d9f84ba5848fd8628ce617c9 of
+#: pymc_marketing.mmm.evaluation.summarize_metric_distributions:17
+msgid ""
+":class:`python:dict` of :class:`python:str` :obj:`to` :class:`python:dict`"
+msgstr ""
+":class:`python:dict` de :class:`python:str` :obj:`a` :class:`python:dict`"
+
+#: 31523c301e1f47659cae524becb51bb9 of
+#: pymc_marketing.mmm.evaluation.summarize_metric_distributions:18
+msgid ""
+"A dictionary containing summary statistics for each metric. List of summary "
+"statistics calculated for each metric:"
+msgstr ""
+"Un diccionario que contiene estadísticas resumidas para cada métrica. Lista "
+"de estadísticas resumidas calculadas para cada métrica:"
+
+#: e5032ee62ff246f6a73c12450d6dda95 of
+#: pymc_marketing.mmm.evaluation.summarize_metric_distributions:20
+msgid "`mean`: Mean of the metric distribution."
+msgstr "`mean`: Media de la distribución de la métrica."
+
+#: 24b0d113526c483fb7fd8dacff4db672 of
+#: pymc_marketing.mmm.evaluation.summarize_metric_distributions:21
+msgid "`median`: Median of the metric distribution."
+msgstr "`median`: Mediana de la distribución de la métrica."
+
+#: 199eacd9a874410e8e7b3bfe2cc3b1af of
+#: pymc_marketing.mmm.evaluation.summarize_metric_distributions:22
+msgid "`std`: Standard deviation of the metric distribution."
+msgstr "`std`: Desviación estándar de la distribución de la métrica."
+
+#: 6f71555e6e74499997c2758570f2a18f of
+#: pymc_marketing.mmm.evaluation.summarize_metric_distributions:23
+msgid "`min`: Minimum value of the metric distribution."
+msgstr "`min`: Valor mínimo de la distribución métrica."
+
+#: 59bf78baf04c4d9d90bba589d059ab4c of
+#: pymc_marketing.mmm.evaluation.summarize_metric_distributions:24
+msgid "`max`: Maximum value of the metric distribution."
+msgstr "`max`: Valor máximo de la distribución métrica."
+
+#: 07e59ac299f34d369a9f01de1acee5af of
+#: pymc_marketing.mmm.evaluation.summarize_metric_distributions:25
+msgid "`hdi_lower`: Lower bound of the Highest Density Interval."
+msgstr "`hdi_lower`: Límite inferior del Intervalo de Mayor Densidad."
+
+#: 6427dd231d3244acac0ab18aeaa37a16 of
+#: pymc_marketing.mmm.evaluation.summarize_metric_distributions:26
+msgid "`hdi_upper`: Upper bound of the Highest Density Interval."
+msgstr "`hdi_upper`: Límite superior del Intervalo de Mayor Densidad."
