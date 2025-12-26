@@ -820,7 +820,7 @@ class NestedLogit(ModelBuilder):
         samples: int = 500,
         extend_idata: bool = True,
         **kwargs,
-    ):
+    ) -> az.InferenceData:
         """
         Sample from prior predictive distribution.
 
@@ -979,7 +979,7 @@ class NestedLogit(ModelBuilder):
         choice_df: pd.DataFrame | None = None,
         extend_idata: bool = True,
         **kwargs,
-    ):
+    ) -> az.InferenceData:
         """
         Sample from posterior predictive distribution.
 

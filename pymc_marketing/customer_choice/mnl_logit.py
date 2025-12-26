@@ -625,7 +625,7 @@ class MNLogit(ModelBuilder):
         choice_df: pd.DataFrame | None = None,
         extend_idata: bool = True,
         **kwargs,
-    ):
+    ) -> az.InferenceData:
         """
         Sample from posterior predictive distribution.
 
