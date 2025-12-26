@@ -1201,7 +1201,11 @@ class MixedLogit(ModelBuilder):
             )
 
         if extend_idata:
-            assert self.idata is not None
+            if self.idata is None:
+                raise RuntimeError(
+                    "self.idata must be initialized before extending with "
+                    "posterior predictive samples."
+                )
             self.idata.extend(post_pred, join="right")
 
         return post_pred
