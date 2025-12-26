@@ -14,7 +14,8 @@
 """Mixed Logit for Product Preference Analysis with Random Coefficients."""
 
 import json
-from typing import Any, Self
+import warnings
+from typing import Self
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -23,16 +24,14 @@ import pandas as pd
 import patsy
 import pymc as pm
 import pytensor.tensor as pt
+import xarray as xr
 from pymc.util import RandomState
-import warnings
 from pymc_extras.prior import Prior
 from pytensor.tensor.variable import TensorVariable
-import xarray as xr
 
-from pymc_marketing.version import __version__
-from pymc_marketing.model_builder import ModelBuilder
+from pymc_marketing.model_builder import ModelBuilder, create_sample_kwargs
 from pymc_marketing.model_config import parse_model_config
-from pymc_marketing.model_builder import create_sample_kwargs
+from pymc_marketing.version import __version__
 
 HDI_ALPHA = 0.5
 
