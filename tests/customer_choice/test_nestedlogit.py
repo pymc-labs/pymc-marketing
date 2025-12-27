@@ -231,6 +231,8 @@ def test_sample(nstL, sample_df, utility_eqs, mock_pymc_sample):
     nstL.sample_posterior_predictive(choice_df=sample_df, extend_idata=True)
     assert isinstance(nstL.idata, az.InferenceData)
 
+    nstL.fit(choice_df=sample_df, utility_equations=utility_eqs)
+
     with pytest.raises(RuntimeError, 
                        match=r"self.idata must be initialized before extending"):
         nstL.idata = None

@@ -654,17 +654,16 @@ class MNLogit(ModelBuilder):
                     data_dict["F"] = new_F
                 pm.set_data(data_dict)
 
+        if self.idata is None:
+            raise RuntimeError(
+                "self.idata must be initialized before extending"
+            )
         with self.model:
             post_pred = pm.sample_posterior_predictive(
                 self.idata, var_names=["likelihood", "p"], **kwargs
             )
 
         if extend_idata:
-            if self.idata is None:
-                raise RuntimeError(
-                    "self.idata must be initialized before extending with "
-                    "posterior predictive samples."
-                )
             self.idata.extend(post_pred, join="right")
 
         return post_pred
