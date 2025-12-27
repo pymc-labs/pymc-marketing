@@ -218,14 +218,14 @@ def test_sample(nstL, sample_df, utility_eqs, mock_pymc_sample):
         samples=5,
         extend_idata=True,
     )
-    assert 'prior_predictive' in nstL.idata
+    assert "prior_predictive" in nstL.idata
     nstL.sample()
     assert hasattr(nstL, "idata")
 
     nstL.sample_posterior_predictive(
         extend_idata=False,
     )
-    assert 'posterior_predictive' in nstL.idata
+    assert "posterior_predictive" in nstL.idata
     assert "fit_data" in nstL.idata
 
     nstL.sample_posterior_predictive(choice_df=sample_df, extend_idata=True)
@@ -233,13 +233,14 @@ def test_sample(nstL, sample_df, utility_eqs, mock_pymc_sample):
 
     nstL.fit(choice_df=sample_df, utility_equations=utility_eqs)
 
-    with pytest.raises(RuntimeError, 
-                       match=r"self.idata must be initialized before extending"):
+    with pytest.raises(
+        RuntimeError, match=r"self.idata must be initialized before extending"
+    ):
         nstL.idata = None
         nstL.sample_posterior_predictive(
-        extend_idata=True,
+            extend_idata=True,
         )
-    
+
 
 def test_counterfactual(
     nstL, sample_df, utility_eqs, new_utility_eqs, mock_pymc_sample

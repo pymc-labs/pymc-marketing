@@ -157,14 +157,14 @@ def test_sample(mnl, mock_pymc_sample):
     X, F, y = mnl.preprocess_model_data(mnl.choice_df, mnl.utility_equations)
     _ = mnl.make_model(X, F, y)
     mnl.sample()
-    assert 'prior_predictive' in mnl.idata
+    assert "prior_predictive" in mnl.idata
     mnl.sample()
     assert hasattr(mnl, "idata")
 
     mnl.sample_posterior_predictive(
         extend_idata=False,
     )
-    assert 'posterior_predictive' in mnl.idata
+    assert "posterior_predictive" in mnl.idata
     assert "fit_data" in mnl.idata
 
     mnl.sample_posterior_predictive(choice_df=mnl.choice_df, extend_idata=True)
@@ -172,14 +172,13 @@ def test_sample(mnl, mock_pymc_sample):
 
     mnl.fit(choice_df=mnl.choice_df, utility_equations=mnl.utility_equations)
 
-    with pytest.raises(RuntimeError, 
-                       match=r"self.idata must be initialized before extending"):
+    with pytest.raises(
+        RuntimeError, match=r"self.idata must be initialized before extending"
+    ):
         mnl.idata = None
         mnl.sample_posterior_predictive(
-        extend_idata=True,
+            extend_idata=True,
         )
-
-
 
 
 def test_counterfactual(mnl, mock_pymc_sample):
