@@ -583,43 +583,6 @@ class NestedLogit(ModelBuilder):
         lambdas_nests = pm.math.clip(lambdas_nests, 0.05, 1.0)
         return lambdas_nests
 
-    def make_wtp(self, betas, price_index=None):
-        """Optionally compute willingness-to-pay (WTP) estimates.
-
-        WTP represents how much of the price attribute individuals are willing
-        to trade for one unit increase in each non-price attribute.
-
-        Parameters
-        ----------
-        betas : TensorVariable
-            Coefficient vector for alternative-specific covariates
-        price_index : int, optional
-            Index of the price/cost coefficient in betas. If None, WTP is not computed.
-
-        Returns
-        -------
-        wtp : TensorVariable or None
-            WTP for each non-price attribute, or None if price_index not specified
-
-        Notes
-        -----
-        WTP is calculated as: WTP_k = -β_k / β_price
-        where β_price is typically negative (higher price → lower utility)
-        and β_k is the coefficient for attribute k.
-
-        The negative sign ensures WTP is positive for desirable attributes.
-        """
-        if price_index is None:
-            return None
-
-        # WTP = -β_attribute / β_price
-        # Negative sign because price coefficient is typically negative
-        wtp = pm.Deterministic(
-            "wtp", -betas / betas[price_index], dims="alt_covariates"
-        )
-
-        return wtp
-
     def calc_conditional_prob(
         self, U, lambdas, nest_idx, nest_name, nest_indices, alphas_nest=None
     ):
@@ -1005,20 +968,19 @@ class NestedLogit(ModelBuilder):
             with self.model:
                 data_dict = {"X": new_X, "y": new_y}
                 if new_F is not None and len(new_F) > 0:
-                    data_dict["F"] = new_F
+                    data_dict["W"] = new_F
                 pm.set_data(data_dict)
 
+        if self.idata is None:
+            raise RuntimeError(
+                "self.idata must be initialized before extending"
+                )
         with self.model:
             post_pred = pm.sample_posterior_predictive(
                 self.idata, var_names=["likelihood", "p"], **kwargs
             )
 
         if extend_idata:
-            if self.idata is None:
-                raise RuntimeError(
-                    "self.idata must be initialized before extending with "
-                    "posterior predictive samples."
-                )
             self.idata.extend(post_pred, join="right")
 
         return post_pred

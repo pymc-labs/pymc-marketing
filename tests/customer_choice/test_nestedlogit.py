@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
+import arviz as az
 
 from pymc_marketing.customer_choice.nested_logit import NestedLogit
 
@@ -213,9 +214,30 @@ def test_build_model_2layer_raises_error(nstL2_invalid, sample_df, utility_eqs):
 def test_sample(nstL, sample_df, utility_eqs, mock_pymc_sample):
     X, F, y = nstL.preprocess_model_data(sample_df, utility_eqs)
     _ = nstL.make_model(X, F, y)
+    nstL.sample_prior_predictive(
+        samples=5,
+        extend_idata=True,
+    )
+    assert 'prior_predictive' in nstL.idata
     nstL.sample()
     assert hasattr(nstL, "idata")
 
+    nstL.sample_posterior_predictive(
+        extend_idata=False,
+    )
+    assert 'posterior_predictive' in nstL.idata
+    assert "fit_data" in nstL.idata
+
+    nstL.sample_posterior_predictive(choice_df=sample_df, extend_idata=True)
+    assert isinstance(nstL.idata, az.InferenceData)
+
+    with pytest.raises(RuntimeError, 
+                       match=r"self.idata must be initialized before extending"):
+        nstL.idata = None
+        nstL.sample_posterior_predictive(
+        extend_idata=True,
+        )
+    
 
 def test_counterfactual(
     nstL, sample_df, utility_eqs, new_utility_eqs, mock_pymc_sample
