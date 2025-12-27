@@ -1,0 +1,172 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.multidimensional.MMM.fit.rst:2
+#: 6c9be84159274a6085579ea4965a69af
+msgid "MMM.fit"
+msgstr "MMM.fit"
+
+#: 786fe2d357fa4d4ea4f78bcdc0713bd0 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.fit:2
+msgid "Fit a model using the data passed as a parameter."
+msgstr "Ajuste un modelo utilizando los datos pasados como parámetro."
+
+#: 6741062a1e044d79ab2b9f17e2d836dd of
+#: pymc_marketing.model_builder.RegressionModelBuilder.fit:4
+msgid "Sets attrs to inference data of the model."
+msgstr "Establece los atributos a los datos de inferencia del modelo."
+
+#: 770662f6ea234d3ba51808b30dacc603 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.fit
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 72632899f2b04cf381d06fb635fa1347 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.fit:8
+msgid ""
+"**X** : :term:`numpy:array_like` | :obj:`array <numpy.ndarray>`, "
+":obj:`shape` (:obj:`n_obs`, :obj:`n_features`)"
+msgstr ""
+"**X** : :term:`numpy:array_like` | :obj:`array <numpy.ndarray>`, "
+":obj:`shape` (:obj:`n_obs`, :obj:`n_features`)"
+
+#: ef1da11de536449babfb884ad6cfac7e of
+#: pymc_marketing.model_builder.RegressionModelBuilder.fit:7
+msgid "numpy:array_like | array, shape (n_obs, n_features)"
+msgstr "numpy:array_like | arreglo, forma (n_obs, n_features)"
+
+#: c991854f56654359b30f300db0593d1c of
+#: pymc_marketing.model_builder.RegressionModelBuilder.fit:9
+msgid ""
+"The training input samples. If scikit-learn is available, array-like, "
+"otherwise array."
+msgstr ""
+"Las muestras de entrada de entrenamiento. Si scikit-learn está disponible, "
+"tipo array, de lo contrario, array."
+
+#: b52ec38107e84a588b91a473880163ce of
+#: pymc_marketing.model_builder.RegressionModelBuilder.fit:11
+msgid ""
+"**y** : :term:`numpy:array_like` | :obj:`array <numpy.ndarray>`, "
+":obj:`shape` (n_obs,)"
+msgstr ""
+"**y** : :term:`numpy:array_like` | :obj:`array <numpy.ndarray>`, "
+":obj:`shape` (n_obs,)"
+
+#: 982c99f57e0d473884ed7236657796d1 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.fit:10
+msgid "numpy:array_like | array, shape (n_obs,)"
+msgstr "numpy:array_like | array, forma (n_obs,)"
+
+#: 42c6182063304b668ae2e12c1d12baca of
+#: pymc_marketing.model_builder.RegressionModelBuilder.fit:12
+msgid ""
+"The target values (real numbers). If scikit-learn is available, array-like, "
+"otherwise array."
+msgstr ""
+"Los valores objetivo (números reales). Si scikit-learn está disponible, tipo"
+" array, de lo contrario, array."
+
+#: 9bb4ba000cde47cdadb8e555460ecfb0 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.fit:14
+msgid "**progressbar** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+"**barra de progreso** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 0751fe9986bd4e409743b99d47baff8a of
+#: pymc_marketing.model_builder.RegressionModelBuilder.fit:13
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: ad7d7d0b081e496a99f2ac008eeec61a of
+#: pymc_marketing.model_builder.RegressionModelBuilder.fit:15
+msgid ""
+"Specifies whether the fit progress bar should be displayed. Defaults to "
+"True."
+msgstr ""
+"Especifica si se debe mostrar la barra de progreso de ajuste. Por defecto es"
+" True."
+
+#: 477902ec18284508b10c8d6a3ade456f of
+#: pymc_marketing.model_builder.RegressionModelBuilder.fit:17
+msgid ""
+"**random_seed** : :obj:`Optional`\\[:obj:`RandomState "
+"<numpy.random.RandomState>`]"
+msgstr ""
+"**random_seed** : :obj:`Opcional`\\[:obj:`RandomState "
+"<numpy.random.RandomState>`]"
+
+#: 2b4739b92bbf4f34acd0c7e30676fbf1 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.fit:16
+msgid "Optional[RandomState]"
+msgstr "Opcional[RandomState]"
+
+#: 362bf8f0f6d5482d94236b4605b45788 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.fit:18
+msgid ""
+"Provides sampler with initial random seed for obtaining reproducible "
+"samples."
+msgstr ""
+"Proporciona al muestreador una semilla aleatoria inicial para obtener "
+"muestras reproducibles."
+
+#: 53662c48bed14d5997abe4ce19a5a6b0 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.fit:20
+msgid "**\\*\\*kwargs** : :obj:`Any`"
+msgstr "**\\*\\*kwargs** : :obj:`Cualquiera`"
+
+#: eb0cefdc9f5e4e099ba922fd7efcd877 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.fit:19
+msgid "Any"
+msgstr "Cualquiera"
+
+#: f77ea4899f9c4b9c82a01d108502737e of
+#: pymc_marketing.model_builder.RegressionModelBuilder.fit:21
+msgid "Custom sampler settings can be provided in form of keyword arguments."
+msgstr ""
+"Se pueden proporcionar configuraciones personalizadas del muestreador en "
+"forma de argumentos de palabra clave."
+
+#: 4cb135dbadf947ea950b1cc51b781216 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.fit
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: b577b38774964ea6b3ee6de49c3d5072 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.fit:27
+msgid "**self** : :obj:`az.InferenceData`"
+msgstr "**self** : :obj:`az.InferenceData`"
+
+#: 1670ed655eec423bbaf83bd9ee3d38c8 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.fit:26
+msgid "az.InferenceData"
+msgstr "az.InferenceData"
+
+#: 0c03148b65ea4cc5b09d9d18d64e4e27 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.fit:28
+msgid "Returns inference data of the fitted model."
+msgstr "Devuelve los datos de inferencia del modelo ajustado."
+
+#: 4cd8dbfd9eb94f819109ba0c757f7a6b of
+#: pymc_marketing.model_builder.RegressionModelBuilder.fit:40
+msgid "Examples"
+msgstr "Ejemplos"

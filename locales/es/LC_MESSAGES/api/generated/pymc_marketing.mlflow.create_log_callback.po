@@ -1,0 +1,152 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mlflow.create_log_callback.rst:2
+#: 0bdfcb23d49f43d5be94a24a06cf1168
+msgid "create\\_log\\_callback"
+msgstr "crear\\_registro\\_callback"
+
+#: 3d458f28d13d417e8a3c5ae5c956798f of
+#: pymc_marketing.mlflow.create_log_callback:2
+msgid ""
+"Create callback function to log sample stats and parameter values to MLflow "
+"during sampling."
+msgstr ""
+"Cree una función de devolución de llamada para registrar estadísticas de "
+"muestra y valores de parámetros en MLflow durante el muestreo."
+
+#: 44e69962c7064ff39f1dce472bb47a6e of
+#: pymc_marketing.mlflow.create_log_callback:4
+msgid "This callback only works for the \"pymc\" sampler."
+msgstr "Esta devolución de llamada solo funciona para el muestreador \"pymc\"."
+
+#: 31b4a667759449c1af9fd749be8c9809 of
+#: pymc_marketing.mlflow.create_log_callback
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: e96923819af64a03888286410dda6fe6 of
+#: pymc_marketing.mlflow.create_log_callback:8
+msgid "**stats** : :class:`python:list` of :class:`python:str`, optional"
+msgstr ""
+"**estadísticas** : :class:`python:list` de :class:`python:str`, opcional"
+
+#: 8546e5156d00406c8edc3ceb4331488b bb69833511f64e0b94a3b636f37ae911 of
+#: pymc_marketing.mlflow.create_log_callback:7
+#: pymc_marketing.mlflow.create_log_callback:10
+msgid "python:list of python:str, optional"
+msgstr "python:lista de python:str, opcional"
+
+#: 097eec046d694e6190bfee15724eba29 of
+#: pymc_marketing.mlflow.create_log_callback:9
+msgid "List of sample statistics to log from the Draw"
+msgstr "Lista de estadísticas de muestra para registrar del Sorteo"
+
+#: 0afa146371f54dd8a6dce008fdc7a857 of
+#: pymc_marketing.mlflow.create_log_callback:11
+msgid "**parameters** : :class:`python:list` of :class:`python:str`, optional"
+msgstr ""
+"**parámetros** : :class:`python:list` de :class:`python:str`, opcional"
+
+#: 85c472610b414b2aa1d825a4bbfdb803 of
+#: pymc_marketing.mlflow.create_log_callback:12
+msgid "List of parameters to log from the Draw"
+msgstr "Lista de parámetros para registrar desde el Draw"
+
+#: e5739366c87c4daf9c171af250636be9 of
+#: pymc_marketing.mlflow.create_log_callback:14
+msgid ""
+"**exclude_tuning** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+"**exclude_tuning** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: f21d1b2d8d7045a7833525364833f951 of
+#: pymc_marketing.mlflow.create_log_callback:13
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: 409bfc3b8e0b41cebf48fc2d97f2efa0 of
+#: pymc_marketing.mlflow.create_log_callback:15
+msgid "Whether to exclude tuning steps from logging. Defaults to True."
+msgstr ""
+"Si se deben excluir los pasos de ajuste del registro. Por defecto es True."
+
+#: e7b669f43b8b48898139447a5313ab04 of
+#: pymc_marketing.mlflow.create_log_callback:17
+msgid "**take_every** : :class:`python:int`, optional"
+msgstr "**take_every** : :class:`python:int`, opcional"
+
+#: badc0e507cfa4d3d989c358d6f6a8923 of
+#: pymc_marketing.mlflow.create_log_callback:16
+msgid "python:int, optional"
+msgstr "python:int, opcional"
+
+#: 6c24bdadffee4d7b8b860f81129b9867 of
+#: pymc_marketing.mlflow.create_log_callback:18
+msgid "Specifies the interval at which to log values. Defaults to 100."
+msgstr ""
+"Especifica el intervalo en el que se registran los valores. Por defecto es "
+"100."
+
+#: 203535403b02499ebf5dd0ed96217bff of
+#: pymc_marketing.mlflow.create_log_callback
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: f3aeb52e92e54b4cb9306b522b7fae22 of
+#: pymc_marketing.mlflow.create_log_callback:24
+msgid "**callback** : :obj:`Callable`"
+msgstr "**callback** : :obj:`Callable`"
+
+#: 2316096172f549f1baac144e5b157eb1 of
+#: pymc_marketing.mlflow.create_log_callback:23
+msgid "Callable"
+msgstr "Llamable"
+
+#: 6c69f6d39d204232953a617ef4bbd9b9 of
+#: pymc_marketing.mlflow.create_log_callback:25
+msgid ""
+"The callback function to log sample stats and parameter values to MLflow "
+"during sampling"
+msgstr ""
+"La función de devolución de llamada para registrar estadísticas de muestra y"
+" valores de parámetros en MLflow durante el muestreo."
+
+#: 740cce917a634766ab1f7373ff8a1256 of
+#: pymc_marketing.mlflow.create_log_callback:37
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: a7ecce3485f0450f9b8bd149a13b15de of
+#: pymc_marketing.mlflow.create_log_callback:38
+msgid "Create example model:"
+msgstr "Crear modelo de ejemplo:"
+
+#: af64aad19085481cbd185a2e4cbbfbd9 of
+#: pymc_marketing.mlflow.create_log_callback:49
+msgid "Log off divergences and logp every 100th draw:"
+msgstr "Registrar divergencias y registrar cada 100ª extracción:"
+
+#: 8c99b9b9643b4d578b7d473915feac4f of
+#: pymc_marketing.mlflow.create_log_callback:67
+msgid "Log the parameters `mu` and `sigma_log__` every 100th draw:"
+msgstr "Registre los parámetros `mu` y `sigma_log__` cada 100ª extracción:"

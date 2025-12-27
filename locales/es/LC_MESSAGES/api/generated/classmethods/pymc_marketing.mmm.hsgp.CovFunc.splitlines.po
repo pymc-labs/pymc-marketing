@@ -1,0 +1,42 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.hsgp.CovFunc.splitlines.rst:2
+#: 594b992e40a34c759eb74a4d2d544948
+msgid "CovFunc.splitlines"
+msgstr "CovFunc.dividir_lineas"
+
+#: a7553cd89de94c78a9b46fd70e3f2830 of
+#: pymc_marketing.mmm.hsgp.CovFunc.splitlines:2
+msgid "Return a list of the lines in the string, breaking at line boundaries."
+msgstr ""
+"Devuelve una lista de las líneas en la cadena, rompiendo en los límites de "
+"línea."
+
+#: bfb412ff713c4411b36de1a8efefbdf9 of
+#: pymc_marketing.mmm.hsgp.CovFunc.splitlines:4
+msgid ""
+"Line breaks are not included in the resulting list unless keepends is given "
+"and true."
+msgstr ""
+"Los saltos de línea no se incluyen en la lista resultante a menos que se "
+"indique keepends y se establezca en verdadero."

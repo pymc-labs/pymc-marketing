@@ -1,0 +1,65 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.mmm.BaseMMM.validate_channel_columns.rst:2
+#: a6b109d7be934e76bb1698a97e3fa00f
+msgid "BaseMMM.validate\\_channel\\_columns"
+msgstr "BaseMMM.validar_columnas_de_canal"
+
+#: 3fa56f07ebc148b6b21518c891e59443 of
+#: pymc_marketing.mmm.validating.ValidateChannelColumns.validate_channel_columns:2
+msgid "Validate the channel columns."
+msgstr "Valide las columnas del canal."
+
+#: bded57eb49d244dc9f6f6715deda25db of
+#: pymc_marketing.mmm.validating.ValidateChannelColumns.validate_channel_columns
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: cfd5d0ad160c4188b8a6d06c9893ec4e of
+#: pymc_marketing.mmm.validating.ValidateChannelColumns.validate_channel_columns:7
+msgid "**data** : :obj:`pd.DataFrame`"
+msgstr "**datos** : :obj:`pd.DataFrame`"
+
+#: d13c140ebf2f4eda9cabcfe98bdf9939 of
+#: pymc_marketing.mmm.validating.ValidateChannelColumns.validate_channel_columns:6
+msgid "pd.DataFrame"
+msgstr "pd.DataFrame"
+
+#: 1ae0524e4a994163b9e648251d2fbb15 of
+#: pymc_marketing.mmm.validating.ValidateChannelColumns.validate_channel_columns:8
+msgid "The data to validate."
+msgstr "Los datos a validar."
+
+#: a89e8d5b3fb3474283a9cd0fd6e7bf0d of
+#: pymc_marketing.mmm.validating.ValidateChannelColumns.validate_channel_columns
+msgid "Raises"
+msgstr "Aumentos"
+
+#: ca47947f64a64204b70acebddd52fb6f of
+#: pymc_marketing.mmm.validating.ValidateChannelColumns.validate_channel_columns:18
+msgid ""
+"ValueError: :obj:`If` :obj:`the` :obj:`channel` :obj:`columns` :obj:`are` "
+":obj:`not` valid."
+msgstr ""
+"ValueError: :obj:`Si` :obj:`las` :obj:`columnas` :obj:`del` :obj:`canal` "
+":obj:`no` :obj:`son` :obj:`válidas`."

@@ -15,7 +15,6 @@
 Tests for the YAML builder module in pymc_marketing.mmm.builders.yaml.
 """
 
-import warnings
 from pathlib import Path
 
 import pandas as pd
@@ -23,10 +22,10 @@ import pytest
 import xarray as xr
 import yaml
 
-with warnings.catch_warnings():
-    warnings.simplefilter("ignore", FutureWarning)
-    from pymc_marketing.mmm.builders.yaml import build_mmm_from_yaml
-
+from pymc_marketing.mmm.builders.yaml import (
+    _apply_and_validate_calibration_steps,
+    build_mmm_from_yaml,
+)
 from pymc_marketing.model_config import ModelConfigError
 
 
@@ -50,11 +49,25 @@ def get_yaml_files():
         for file in config_dir.glob("*.yml")
         if "wrong_" not in file.name
         and "multi_dimensional_example_model.yml" not in file.name
+        and "multi_dimensional_fivetran.yml" not in file.name
     ]
 
 
+@pytest.mark.parametrize(
+    "model_kwargs",
+    [
+        None,
+        {
+            "adstock": {
+                "class": "pymc_marketing.mmm.components.adstock.GeometricAdstock",
+                "kwargs": {"l_max": 28},
+            }
+        },
+        {"time_varying_intercept": False},
+    ],
+)
 @pytest.mark.parametrize("config_path", get_yaml_files())
-def test_build_mmm_from_yaml(config_path, X_data, y_data):
+def test_build_mmm_from_yaml(config_path, X_data, y_data, model_kwargs):
     """Test that build_mmm_from_yaml can create models from all config files."""
     # Load YAML to check if effects are defined
     with open(config_path) as file:
@@ -62,9 +75,7 @@ def test_build_mmm_from_yaml(config_path, X_data, y_data):
 
     # Build model from YAML
     model = build_mmm_from_yaml(
-        config_path=config_path,
-        X=X_data,
-        y=y_data.squeeze(),
+        config_path=config_path, X=X_data, y=y_data.squeeze(), model_kwargs=model_kwargs
     )
 
     # Check that model was created successfully
@@ -87,13 +98,28 @@ def test_build_mmm_from_yaml(config_path, X_data, y_data):
     # Verify that the result is an xarray dataset
     assert isinstance(prior_predictive, xr.Dataset)
 
+    if model_kwargs:
+        # assert that model_kwargs are reflected in the model
+        for key, value in model_kwargs.items():
+            attr = getattr(model, key, None)
+            if isinstance(value, dict) and "class" in value and "kwargs" in value:
+                # Check class name
+                expected_class_name = value["class"].split(".")[-1]
+                assert attr.__class__.__name__ == expected_class_name
+                # Check only the specified kwargs
+                for k, v in value["kwargs"].items():
+                    assert hasattr(attr, k), f"{key} missing attribute {k}"
+                    assert getattr(attr, k) == v, f"{key}.{k}={getattr(attr, k)} != {v}"
+            else:
+                assert attr == value
+
 
 def test_wrong_adstock_class():
     """Test that a model with a wrong adstock class fails appropriately."""
     wrong_config_path = Path("tests/mmm/builders/config_files/wrong_adstock_class.yml")
 
     # Should fail with AttributeError for the non-existent adstock class
-    with pytest.raises(AttributeError, match=".*NonExistentAdstock.*"):
+    with pytest.raises(AttributeError, match=r".*NonExistentAdstock.*"):
         build_mmm_from_yaml(wrong_config_path)
 
     # Verify the config file has the expected wrong class
@@ -145,3 +171,108 @@ def test_wrong_parameter_type():
     cfg = yaml.safe_load(wrong_config_path.read_text())
     model_config = cfg["model"]["kwargs"]["model_config"]
     assert model_config["likelihood"]["kwargs"]["sigma"] == "wrong_value_type"
+
+
+@pytest.fixture
+def dummy_mmm():
+    class DummyMMM:
+        def __init__(self) -> None:
+            self.called_with = None
+
+        def good(self, **kwargs) -> None:
+            self.called_with = kwargs
+
+        def add_lift_test_measurements(self, **kwargs) -> None:
+            self.called_with = kwargs
+
+    return DummyMMM()
+
+
+@pytest.fixture
+def failing_mmm(dummy_mmm):
+    class FailingMMM(type(dummy_mmm)):
+        def failing(self, **kwargs) -> None:  # type: ignore[override]
+            raise ValueError("boom")
+
+    failing = FailingMMM()
+    failing.good = dummy_mmm.good  # type: ignore[attr-defined]
+    failing.add_lift_test_measurements = dummy_mmm.add_lift_test_measurements  # type: ignore[attr-defined]
+    return failing
+
+
+def test_apply_and_validate_calibration_steps_success(dummy_mmm, tmp_path):
+    cfg = {
+        "calibration": [
+            {
+                "good": {
+                    "df": {
+                        "class": "pandas.DataFrame",
+                        "kwargs": {"data": {"a": [1]}},
+                    }
+                }
+            }
+        ]
+    }
+
+    _apply_and_validate_calibration_steps(dummy_mmm, cfg, tmp_path)
+
+    assert isinstance(dummy_mmm.called_with["df"], pd.DataFrame)
+
+
+def test_apply_calibration_non_list(dummy_mmm, tmp_path):
+    cfg = {"calibration": "not-a-list"}
+
+    with pytest.raises(TypeError, match="must be a list"):
+        _apply_and_validate_calibration_steps(dummy_mmm, cfg, tmp_path)
+
+
+def test_apply_calibration_step_not_mapping(dummy_mmm, tmp_path):
+    cfg = {"calibration": ["not-mapping"]}
+
+    with pytest.raises(TypeError, match="must be a mapping"):
+        _apply_and_validate_calibration_steps(dummy_mmm, cfg, tmp_path)
+
+
+def test_apply_calibration_step_multiple_methods(dummy_mmm, tmp_path):
+    cfg = {"calibration": [{"good": {}, "other": {}}]}
+
+    with pytest.raises(ValueError, match="single method"):
+        _apply_and_validate_calibration_steps(dummy_mmm, cfg, tmp_path)
+
+
+def test_apply_calibration_missing_method(dummy_mmm, tmp_path):
+    cfg = {"calibration": [{"missing": {}}]}
+
+    with pytest.raises(AttributeError, match="has no calibration method 'missing'"):
+        _apply_and_validate_calibration_steps(dummy_mmm, cfg, tmp_path)
+
+
+def test_apply_calibration_not_callable(dummy_mmm, tmp_path):
+    dummy_mmm.not_callable = 123  # type: ignore[attr-defined]
+    cfg = {"calibration": [{"not_callable": {}}]}
+
+    with pytest.raises(TypeError, match="not callable"):
+        _apply_and_validate_calibration_steps(dummy_mmm, cfg, tmp_path)
+
+
+def test_apply_calibration_params_not_mapping(dummy_mmm, tmp_path):
+    cfg = {"calibration": [{"good": "invalid"}]}
+
+    with pytest.raises(TypeError, match="must be a mapping"):
+        _apply_and_validate_calibration_steps(dummy_mmm, cfg, tmp_path)
+
+
+def test_apply_calibration_dist_disallowed(dummy_mmm, tmp_path):
+    cfg = {"calibration": [{"add_lift_test_measurements": {"dist": "Gamma"}}]}
+
+    with pytest.raises(ValueError, match="`dist` parameter"):
+        _apply_and_validate_calibration_steps(dummy_mmm, cfg, tmp_path)
+
+
+def test_apply_calibration_propagates_failure(failing_mmm, tmp_path):
+    cfg = {"calibration": [{"failing": {}}]}
+
+    with pytest.raises(
+        RuntimeError, match="Failed to apply calibration step 'failing'"
+    ):
+        _apply_and_validate_calibration_steps(failing_mmm, cfg, tmp_path)

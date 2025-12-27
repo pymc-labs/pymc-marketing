@@ -1,0 +1,42 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.hsgp.PeriodicCovFunc.removesuffix.rst:2
+#: 0ce463606c2240158724fda288b5ab05
+msgid "PeriodicCovFunc.removesuffix"
+msgstr "PeriodicCovFunc.quitar_sufijo"
+
+#: fcf851cbbd18402c8e2ff88b0c328aa3 of
+#: pymc_marketing.mmm.hsgp.PeriodicCovFunc.removesuffix:2
+msgid "Return a str with the given suffix string removed if present."
+msgstr "Devuelve una cadena con el sufijo dado eliminado si está presente."
+
+#: 6cff3ddaa37d45529c95431cdc0daacb of
+#: pymc_marketing.mmm.hsgp.PeriodicCovFunc.removesuffix:4
+msgid ""
+"If the string ends with the suffix string and that suffix is not empty, "
+"return string[:-len(suffix)]. Otherwise, return a copy of the original "
+"string."
+msgstr ""
+"Si la cadena termina con el sufijo y ese sufijo no está vacío, devuelve "
+"string[:-len(suffix)]. De lo contrario, devuelve una copia de la cadena "
+"original."

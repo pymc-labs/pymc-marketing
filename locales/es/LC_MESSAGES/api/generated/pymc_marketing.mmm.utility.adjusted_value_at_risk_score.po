@@ -1,0 +1,152 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.utility.adjusted_value_at_risk_score.rst:2
+#: c96f2e3808b24c65b8c577e57fed2f3f
+msgid "adjusted\\_value\\_at\\_risk\\_score"
+msgstr "puntuación\\_ajustada\\_de\\_valor\\_en\\_riesgo"
+
+#: 8521d503e38e42baacc30c2f4d207ed6 of
+#: pymc_marketing.mmm.utility.adjusted_value_at_risk_score:2
+msgid "Calculate adjusted Value at Risk (AVaR) score."
+msgstr "Calcular la puntuación de Valor en Riesgo Ajustado (AVaR)."
+
+#: b54677ada5ae4d89b1b367441110805a of
+#: pymc_marketing.mmm.utility.adjusted_value_at_risk_score:4
+msgid ""
+"The adjusted Value at Risk (AVaR) score is a risk-adjusted metric that "
+"combines the mean and Value at Risk (VaR) based on a risk aversion "
+"parameter. It provides a single metric that accounts for both return and "
+"risk preferences."
+msgstr ""
+"El puntaje de Valor en Riesgo Ajustado (AVaR) es una métrica ajustada al "
+"riesgo que combina la media y el Valor en Riesgo (VaR) basado en un "
+"parámetro de aversión al riesgo. Proporciona una única métrica que tiene en "
+"cuenta tanto las preferencias de retorno como las de riesgo."
+
+#: da782f930de5455a9ca94f345416e086 of
+#: pymc_marketing.mmm.utility.adjusted_value_at_risk_score:8
+msgid "The score is calculated as:"
+msgstr "La puntuación se calcula como:"
+
+#: 9118a183a1574deab8fdf54af42bb539 of
+#: pymc_marketing.mmm.utility.adjusted_value_at_risk_score:10
+msgid ""
+"AVaR\\ Score = (1 - \\alpha) \\cdot \\mu + \\alpha \\cdot VaR\n"
+"\n"
+msgstr "AVaR\\ Score = (1 - \\alpha) \\cdot \\mu + \\alpha \\cdot VaR"
+
+#: 8dc04ff7c6d942139d3e71c933656f81 of
+#: pymc_marketing.mmm.utility.adjusted_value_at_risk_score:13
+msgid "where:"
+msgstr "donde:"
+
+#: afbfa498a38a4455a76a0d73d439f4ae of
+#: pymc_marketing.mmm.utility.adjusted_value_at_risk_score:14
+msgid ":math:`\\mu` is the mean of the sample returns."
+msgstr ":math:`\\mu` es la media de los retornos de la muestra."
+
+#: 57e00942da384e57b5838e32cfd17172 of
+#: pymc_marketing.mmm.utility.adjusted_value_at_risk_score:15
+msgid ":math:`VaR` is the Value at Risk at the specified confidence level."
+msgstr ":math:`VaR` es el Valor en Riesgo al nivel de confianza especificado."
+
+#: 5ed0117c6e58438fa44c9870e1c523b4 of
+#: pymc_marketing.mmm.utility.adjusted_value_at_risk_score:16
+msgid ":math:`\\alpha` is the risk aversion parameter."
+msgstr ":math:`\\alpha` es el parámetro de aversión al riesgo."
+
+#: aa24d810c57b4a189a7e5ecbbcae6501 of
+#: pymc_marketing.mmm.utility.adjusted_value_at_risk_score
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: da07dc4cf04b40b1bdd7fdcd91e0ab98 of
+#: pymc_marketing.mmm.utility.adjusted_value_at_risk_score:20
+msgid "**confidence_level** : :class:`python:float`, optional"
+msgstr "**nivel_de_confianza** : :class:`python:float`, opcional"
+
+#: 2dcff1fc9dd64c6185f68aeb7793b7fc 6e53b5ab0d434b9a8f5c47c27b665a1e of
+#: pymc_marketing.mmm.utility.adjusted_value_at_risk_score:19
+#: pymc_marketing.mmm.utility.adjusted_value_at_risk_score:23
+msgid "python:float, optional"
+msgstr "python:flotante, opcional"
+
+#: e2cdd942ea4046c2b7db3c1af5813f92 of
+#: pymc_marketing.mmm.utility.adjusted_value_at_risk_score:21
+msgid ""
+"Confidence level for VaR (e.g., 0.95 for 95% VaR). Confidence level must be "
+"between 0 and 1."
+msgstr ""
+"Nivel de confianza para VaR (por ejemplo, 0.95 para VaR del 95%). El nivel "
+"de confianza debe estar entre 0 y 1."
+
+#: 387f8bd1b34e45ff874c0c308bb733da of
+#: pymc_marketing.mmm.utility.adjusted_value_at_risk_score:24
+msgid "**risk_aversion** : :class:`python:float`, optional"
+msgstr "**aversión_al_riesgo** : :class:`python:float`, opcional"
+
+#: 5b3bf45c053344a78c726fb5b923c747 of
+#: pymc_marketing.mmm.utility.adjusted_value_at_risk_score:25
+msgid ""
+"Risk aversion parameter (0 = low risk aversion, 1 = high risk aversion)."
+msgstr ""
+"Parámetro de aversión al riesgo (0 = baja aversión al riesgo, 1 = alta "
+"aversión al riesgo)."
+
+#: 14b35de4734a4a948148c6e79423029b of
+#: pymc_marketing.mmm.utility.adjusted_value_at_risk_score
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 9a4d1575c98d4824bc8f8e409343c1de of
+#: pymc_marketing.mmm.utility.adjusted_value_at_risk_score:31
+msgid ":obj:`UtilityFunctionType`"
+msgstr ":obj:`UtilityFunctionType`"
+
+#: 832de68cbc3c497595ee9cffc179023c of
+#: pymc_marketing.mmm.utility.adjusted_value_at_risk_score:32
+msgid ""
+"A function that calculates the adjusted Value at Risk score given samples "
+"and budgets."
+msgstr ""
+"Una función que calcula el puntaje de Valor en Riesgo ajustado dado muestras"
+" y presupuestos."
+
+#: 9e41cdddb894416e969d4b5068c4e454 of
+#: pymc_marketing.mmm.utility.adjusted_value_at_risk_score
+msgid "Raises"
+msgstr "Aumentos"
+
+#: f07fb1460c7f4c5b86dbb4ca9819aa79 of
+#: pymc_marketing.mmm.utility.adjusted_value_at_risk_score:39
+msgid ":obj:`ValueError`"
+msgstr ":obj:`ValueError`"
+
+#: a4636672f991452bb8e3e50333b259b5 of
+#: pymc_marketing.mmm.utility.adjusted_value_at_risk_score:40
+msgid ""
+"If the risk aversion parameter is not between 0 and 1. If confidence_level "
+"is not between 0 and 1."
+msgstr ""
+"Si el parámetro de aversión al riesgo no está entre 0 y 1. Si "
+"confidence_level no está entre 0 y 1."

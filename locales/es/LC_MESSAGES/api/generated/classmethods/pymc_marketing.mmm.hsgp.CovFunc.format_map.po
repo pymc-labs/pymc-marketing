@@ -1,0 +1,36 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.hsgp.CovFunc.format_map.rst:2
+#: ccce432f75b54bd0ba2707167180a34a
+msgid "CovFunc.format\\_map"
+msgstr "CovFunc.formato_mapa"
+
+#: 548fc8298e574435b60b608f347fa136 of
+#: pymc_marketing.mmm.hsgp.CovFunc.format_map:2
+#, python-brace-format
+msgid ""
+"Return a formatted version of S, using substitutions from mapping. The "
+"substitutions are identified by braces ('{' and '}')."
+msgstr ""
+"Devuelve una versión formateada de S, utilizando las sustituciones del "
+"mapeo. Las sustituciones se identifican por llaves ('{' and '}')."

@@ -1,0 +1,72 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.fit.rst:2
+#: 54c334764db140cf98a2f94f96a3621b
+msgid "BetaGeoBetaBinomModel.fit"
+msgstr "BetaGeoBetaBinomModel.ajustar"
+
+#: 8630d7529ee346cabac2bb7e0d14e4f3 of
+#: pymc_marketing.clv.models.basic.CLVModel.fit:2
+msgid "Infer model posterior."
+msgstr "Inferir la posterior del modelo."
+
+#: b114eae442334d7bad2e13eb9c52fcf2 of
+#: pymc_marketing.clv.models.basic.CLVModel.fit
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 1d638bfbbb8940e1bfe6fa7473a7987f of
+#: pymc_marketing.clv.models.basic.CLVModel.fit:7
+msgid "**method: str**"
+msgstr "**método: str**"
+
+#: 1fc20f9381ea4407b1d93a86c2608862 of
+#: pymc_marketing.clv.models.basic.CLVModel.fit:8
+msgid ""
+"Method used to fit the model. Options are: - \"mcmc\": Samples from the "
+"posterior via `pymc.sample` (default) - \"map\": Finds maximum a posteriori "
+"via `pymc.find_MAP` - \"demz\": Samples from the posterior via `pymc.sample`"
+" using DEMetropolisZ - \"advi\": Samples from the posterior via "
+"`pymc.fit(method=\"advi\")` and `pymc.sample` - \"fullrank_advi\": Samples "
+"from the posterior via `pymc.fit(method=\"fullrank_advi\")` and "
+"`pymc.sample`"
+msgstr ""
+"Método utilizado para ajustar el modelo. Las opciones son: - \"mcmc\": "
+"Muestras de la posterior a través de `pymc.sample` (predeterminado) - "
+"\"map\": Encuentra el máximo a posteriori a través de `pymc.find_MAP` - "
+"\"demz\": Muestras de la posterior a través de `pymc.sample` utilizando "
+"DEMetropolisZ - \"advi\": Muestras de la posterior a través de "
+"`pymc.fit(method=\"advi\")` y `pymc.sample` - \"fullrank_advi\": Muestras de"
+" la posterior a través de `pymc.fit(method=\"fullrank_advi\")` y "
+"`pymc.sample`"
+
+#: e0091fccf3964beeb10093dab810f761 of
+#: pymc_marketing.clv.models.basic.CLVModel.fit:15
+msgid "**kwargs:**"
+msgstr "**kwargs:**"
+
+#: b62ccfd2f85f4b6e9d634b4e48f54930 of
+#: pymc_marketing.clv.models.basic.CLVModel.fit:16
+msgid "Other keyword arguments passed to the underlying PyMC routines"
+msgstr ""
+"Otros argumentos de palabra clave pasados a las rutinas subyacentes de PyMC"

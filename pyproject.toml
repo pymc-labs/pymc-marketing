@@ -35,11 +35,13 @@ dependencies = [
     "pytensor>=2.31.3",
     "scikit-learn>=1.1.1",
     "seaborn>=0.12.2",
+    "tqdm",
     "xarray>=2024.1.0",
     "xarray-einstats>=0.5.1",
     "pyprojroot",
     "pymc-extras>=0.4.0",
     "preliz>=0.20.0",
+    "pyyaml",
 ]
 
 [project.optional-dependencies]
@@ -52,7 +54,7 @@ docs = [
     "ipywidgets",
     "labs-sphinx-theme",
     "lifetimes",
-    "myst-nb<=1.0.0",
+    "myst-nb>=1.1.2",
     "myst-parser",
     "numba",
     "numpydoc",
@@ -78,7 +80,7 @@ test = [
     "blackjax",
     "nutpie",
     "numpyro",
-    "jax<0.7.0", # related to https://github.com/pyro-ppl/numpyro/issues/2051
+    "jax",
     "graphviz>=0.20.1",
     "lifetimes==0.11.3",
     "papermill",
@@ -151,7 +153,7 @@ ignore = [
     "D",
     "S101", # Use of assert
 ]
-"scripts/*" = ["D"]
+"scripts/*" = ["D", "E402"]
 
 [tool.ruff.lint.pycodestyle]
 max-line-length = 120
@@ -176,7 +178,6 @@ testpaths = "tests"
 
 [tool.mypy]
 files = "pymc_marketing/*.py"
-plugins = "numpy.typing.mypy_plugin"
 exclude = "build|dist|docs|examples|tests|setup.py"
 
 [tool.mypy-matplotlib]

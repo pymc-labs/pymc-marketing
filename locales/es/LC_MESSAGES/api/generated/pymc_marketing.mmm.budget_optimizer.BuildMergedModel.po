@@ -1,0 +1,320 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BuildMergedModel.rst:2
+#: 1a8b60dda6074bbea8a887581fc6b2e6
+msgid "BuildMergedModel"
+msgstr "ConstruirModeloFusionado"
+
+#: f4b71dccbe0f4f31ba90715e381286a2 of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:2
+msgid "Merge multiple optimizer-compatible models into a single model."
+msgstr ""
+"Fusionar múltiples modelos compatibles con el optimizador en un solo modelo."
+
+#: 199c0a5a816143d99b4f0e9518b78250 of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:4
+msgid ""
+"This wrapper combines several optimizer-compatible MMM wrappers by: - "
+"Merging their posterior `InferenceData` with per-model prefixes - Optionally"
+" thinning posterior draws via ``use_every_n_draw`` - Exposing a persistent "
+"merged PyMC ``Model`` for optimization through"
+msgstr ""
+"Este envoltorio combina varios envoltorios MMM compatibles con optimizadores"
+" al: - Fusionar sus `InferenceData` posteriores con prefijos por modelo - "
+"Opcionalmente reducir las muestras posteriores a través de "
+"``use_every_n_draw`` - Exponer un ``Model`` de PyMC fusionado y persistente "
+"para optimización a través de"
+
+#: fee74b0f771a4253934c83543ac86f29 of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:8
+msgid ""
+"``_set_predictors_for_optimization`` and a dynamic ``model`` property for "
+"inspection when needed"
+msgstr ""
+"``_set_predictors_for_optimization`` y una propiedad ``model`` dinámica para"
+" inspección cuando sea necesario"
+
+#: a4b78eb85fb44b57b47e9c5f2773ec1b of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 94d5345eb30f478a91dc52e0543aa540 cd3fe6b15ec74fea82785d3ad6be33d0 of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:13
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:35
+msgid ""
+"**models** : :class:`python:list`\\[:obj:`OptimizerCompatibleModelWrapper`]"
+msgstr ""
+"**modelos** : :class:`python:list`\\[:obj:`OptimizerCompatibleModelWrapper`]"
+
+#: 053f0b81547a4dfcbd93abb43c4b918d 9876a0b9ab7d4c059f7db1eceb7f5aae of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:12
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:34
+msgid "python:list[OptimizerCompatibleModelWrapper]"
+msgstr "python:list[OptimizerCompatibleModelWrapper]"
+
+#: 29d213b984fa4b3c917955dbf6599fa2 of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:14
+msgid ""
+"A list of wrappers that each expose ``idata`` and "
+"``_set_predictors_for_optimization(num_periods: int) -> Model``."
+msgstr ""
+"Una lista de envoltorios que cada uno expone ``idata`` y "
+"``_set_predictors_for_optimization(num_periods: int) -> Model``."
+
+#: 2a694ced2b2242dc9653ae8b65154eb1 of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:17
+msgid ""
+"**prefixes** : :class:`python:list`\\[:class:`python:str`] | "
+":data:`python:None`, optional"
+msgstr ""
+"**prefijos** : :class:`python:list`\\[:class:`python:str`] | "
+":data:`python:None`, opcional"
+
+#: 4762d6e4446d44288e945ae5d6d2c81f of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:16
+msgid "python:list[python:str] | python:None, optional"
+msgstr "python:list[python:str] | python:None, opcional"
+
+#: 92949b65bb99491b85ffad2c6dd0bd90 of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:18
+msgid ""
+"Per-model prefixes used when merging. If ``None``, defaults to "
+"``[\"model1\", \"model2\", ...]`` with one prefix per model."
+msgstr ""
+"Prefijos por modelo utilizados al fusionar. Si ``None``, se utiliza por "
+"defecto ``[\"model1\", \"model2\", ...]`` con un prefijo por modelo."
+
+#: bb160aa02a2448298a1c03365b1066d6 of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:21
+msgid ""
+"**merge_on** : :class:`python:str` | :data:`python:None`, optional, default "
+"\"channel_data\""
+msgstr ""
+"**merge_on** : :class:`python:str` | :data:`python:None`, opcional, por "
+"defecto \"channel_data\""
+
+#: 4d7d66c7c56a4a1b8a3e134e48ed27b1 of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:20
+msgid "python:str | python:None, optional, default \"channel_data\""
+msgstr "python:str | python:None, opcional, predeterminado \"channel_data\""
+
+#: 515247e37e48441d8a1e404111f05b46 of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:22
+msgid ""
+"Name of a variable expected to be present in all models and that should "
+"remain unprefixed and be used for aligning/merging dims (e.g., "
+"``\"channel_data\"``). If ``None``, no variable is treated as shared and all"
+" variables/dims are prefixed."
+msgstr ""
+"Nombre de una variable que se espera que esté presente en todos los modelos "
+"y que debe permanecer sin prefijo y ser utilizada para alinear/combinar "
+"dimensiones (por ejemplo, ``\"channel_data\"``). Si es ``None``, ninguna "
+"variable se trata como compartida y todas las variables/dimensiones tienen "
+"prefijo."
+
+#: 8d4bab8d7f38458ca7763036e93835f3 of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:27
+msgid "**use_every_n_draw** : :class:`python:int`, optional, default 1"
+msgstr ""
+"**use_every_n_draw** : :class:`python:int`, opcional, valor por defecto 1"
+
+#: 00ca231b29aa4b46afd87a732ec45c4e of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:26
+msgid "python:int, optional, default 1"
+msgstr "python:int, opcional, predeterminado 1"
+
+#: fac7b8ea27064c17b73e0addee6ca581 of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:28
+msgid "Thinning factor applied when merging idatas. Keeps every n-th draw."
+msgstr ""
+"Factor de adelgazamiento aplicado al fusionar idatas. Mantiene cada n-ésimo "
+"sorteo."
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BuildMergedModel.rst:24
+#: 60d2e68482e3476b98199435dacb603c 7058e26718ae4262ad4841bbf20095b6 of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel
+msgid "Attributes"
+msgstr "Atributos"
+
+#: f4e5642188774b80baeeb1a6c3689ca1 of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:32
+msgid "**prefixes** : :class:`python:list`\\[:class:`python:str`]"
+msgstr "**prefijos** : :class:`python:list`\\[:class:`python:str`]"
+
+#: 09c8a541a276492d9e0565bae6e073b3 of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:31
+msgid "python:list[python:str]"
+msgstr "python:list[python:str]"
+
+#: 3c5b443d688f4901ba61186b6b3931a9 of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:33
+msgid "The final list of prefixes used for each model."
+msgstr "La lista final de prefijos utilizados para cada modelo."
+
+#: 26fc655f535e4d4eb085ef5ef887d75a of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:36
+msgid "The provided list of wrappers."
+msgstr "La lista de envolturas proporcionada."
+
+#: 1ff2647dd2104df8b9a51d6fa0171e52 of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:38
+msgid "**num_models** : :class:`python:int`"
+msgstr "**num_models** : :class:`python:int`"
+
+#: 2a06e6c652c54d5c9b9af514324360f3 of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:37
+msgid "python:int"
+msgstr "python:int"
+
+#: eb317dfbd4254081864ba286c6d27512 of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:39
+msgid "Number of models being merged."
+msgstr "Número de modelos que se están fusionando."
+
+#: 6845fd2e1eee4a1a952048c38ebc7009 of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:41
+msgid "**num_periods** : :class:`python:int` | :data:`python:None`"
+msgstr "**num_periods** : :class:`python:int` | :data:`python:None`"
+
+#: 0010738b34f8402d8a0eadcfc5326518 of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:40
+msgid "python:int | python:None"
+msgstr "python:int | python:None"
+
+#: c524bd2f124e4d33958ff260d3673f6e of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:42
+msgid ""
+"Number of forecast periods inferred from the primary model (if available)."
+msgstr ""
+"Número de períodos de pronóstico inferidos del modelo primario (si está "
+"disponible)."
+
+#: 80c82cfdf6fa46aca2499cc6d4c006cd of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:44
+msgid "**idata** : :obj:`arviz.InferenceData`"
+msgstr "**idata** : :obj:`arviz.InferenceData`"
+
+#: 5774ba310bc64e47ba415aaa9acaeca6 of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:43
+msgid "arviz.InferenceData"
+msgstr "arviz.InferenceData"
+
+#: 6af784b0d3a543bb8134d2725fcb4f14 of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:45
+msgid "The merged and prefixed posterior (and data) container."
+msgstr "El contenedor posterior (y de datos) fusionado y prefijado."
+
+#: 5802d77f62f24e3398e7be9c34a712d0 of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:47
+msgid "**adstock** : :obj:`Any`"
+msgstr "**adstock** : :obj:`Cualquiera`"
+
+#: 9ef176819b3e47488bb9709050d1da0a of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:46
+msgid "Any"
+msgstr "Cualquiera"
+
+#: b695b82305054c1fa3834968ab53085b of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:48
+msgid "Carried over from the primary model when available."
+msgstr "Transferido del modelo principal cuando está disponible."
+
+#: cdcbbfa4407a48a1b332a30e32ee09ef of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:50
+msgid ":obj:`model <model>` : :obj:`pymc.Model`"
+msgstr ":obj:`modelo <model>` : :obj:`pymc.Model`"
+
+#: e4891d72e3734d7e921cae61a7f039dd of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:49
+msgid "pymc.Model"
+msgstr "pymc.Model"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BuildMergedModel.rst:29:<autosummary>:1
+#: 07f9a41179eb406ab495b76b9b045565 9c624ba917bd48369bbb1e0f8e1fe3d1 of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:51
+msgid "Return the merged PyMC model."
+msgstr "Devuelve el modelo PyMC combinado."
+
+#: 2afec25867304c3b8b03a3c1ac54125a of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:65
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: 91ef59d877524f3c9cf2a9a6f8dc806b of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:66
+msgid "Merge three multidimensional MMMs into a single optimizer model:"
+msgstr ""
+"Fusionar tres MMM multidimensionales en un único modelo de optimización:"
+
+#: e31971440e2d4b50839c957394f54a1d of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:103
+msgid "Single model: auto-prefix and thin draws:"
+msgstr "Modelo único: auto-prefijo y tiradas delgadas:"
+
+#: b3f92499946b4a888e26a426a01e471f of
+#: pymc_marketing.mmm.budget_optimizer.BuildMergedModel:117
+msgid "Merge everything with prefixes (no shared variable retained):"
+msgstr "Fusionar todo con prefijos (sin variable compartida retenida):"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BuildMergedModel.rst:12
+#: 5a180c2cc87148cf9dc5a2059bf852c2
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BuildMergedModel.rst:22:<autosummary>:1
+#: 4518ac67a7be4284a3ea75537b57b3d3
+msgid ""
+":py:obj:`BuildMergedModel.__init__ "
+"<pymc_marketing.mmm.budget_optimizer.BuildMergedModel.__init__>`\\ "
+"\\(models\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`BuildMergedModel.__init__ "
+"<pymc_marketing.mmm.budget_optimizer.BuildMergedModel.__init__>`\\ "
+"\\(models\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BuildMergedModel.rst:29:<autosummary>:1
+#: a7d79c24875b4e0b9edb7ddd44a6f21f
+msgid ""
+":py:obj:`model "
+"<pymc_marketing.mmm.budget_optimizer.BuildMergedModel.model>`\\"
+msgstr ""
+":py:obj:`modelo "
+"<pymc_marketing.mmm.budget_optimizer.BuildMergedModel.model>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BuildMergedModel.rst:29:<autosummary>:1
+#: a8247761df86479e9fe68adb39d31f31
+msgid ""
+":py:obj:`adstock "
+"<pymc_marketing.mmm.budget_optimizer.BuildMergedModel.adstock>`\\"
+msgstr ""
+":py:obj:`adstock "
+"<pymc_marketing.mmm.budget_optimizer.BuildMergedModel.adstock>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BuildMergedModel.rst:29:<autosummary>:1
+#: 2739c3c8cca848f7822298ae69bc1e69
+msgid ""
+":py:obj:`idata "
+"<pymc_marketing.mmm.budget_optimizer.BuildMergedModel.idata>`\\"
+msgstr ""
+":py:obj:`idata <pymc_marketing.mmm.budget_optimizer.BuildMergedModel.idata>`"

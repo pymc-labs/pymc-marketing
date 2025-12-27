@@ -1,0 +1,153 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.utility.conditional_value_at_risk.rst:2
+#: 61aab16f9b9a4636b805eef3c555cb34
+msgid "conditional\\_value\\_at\\_risk"
+msgstr "valor\\_condicional\\_en\\_riesgo"
+
+#: 33ee0585489b4e6f81d0e0c8a6b66b29 of
+#: pymc_marketing.mmm.utility.conditional_value_at_risk:2
+msgid ""
+"Calculate the Conditional Value at Risk (CVaR) at a specified confidence "
+"level."
+msgstr ""
+"Calcule el Valor en Riesgo Condicional (CVaR) a un nivel de confianza "
+"especificado."
+
+#: 8b8f74e6e2c84798babeb0abb21e6290 of
+#: pymc_marketing.mmm.utility.conditional_value_at_risk:4
+msgid ""
+"CVaR, also known as Expected Shortfall, measures the average loss exceeding "
+"the VaR at a given confidence level, providing insight into the tail risk of"
+" the distribution."
+msgstr ""
+"CVaR, también conocido como Pérdida Esperada, mide la pérdida promedio que "
+"excede el VaR a un nivel de confianza dado, proporcionando información sobre"
+" el riesgo de cola de la distribución."
+
+#: 7ebf19f8c9a74236adaf633578dcbb18 of
+#: pymc_marketing.mmm.utility.conditional_value_at_risk:7
+msgid "The Conditional Value at Risk (CVaR) is calculated as:"
+msgstr "El Valor en Riesgo Condicional (CVaR) se calcula como:"
+
+#: d0351e0c722c473da9ee93c3f6c31f1a of
+#: pymc_marketing.mmm.utility.conditional_value_at_risk:9
+#, python-brace-format
+msgid ""
+"CVaR = \\mathbb{E}[X \\mid X \\leq VaR]\n"
+"\n"
+msgstr "CVaR = \\mathbb{E}[X \\mid X \\leq VaR]"
+
+#: 21a63438f21e4c5b9deb513f696292de of
+#: pymc_marketing.mmm.utility.conditional_value_at_risk:12
+msgid ""
+"where :math:`X` represents the loss distribution, and :math:`VaR` is the "
+"Value at Risk at the specified confidence level. CVaR provides a more "
+"comprehensive view of the risk associated with extreme losses beyond the "
+"VaR."
+msgstr ""
+"donde :math:`X` representa la distribución de pérdidas, y :math:`VaR` es el "
+"Valor en Riesgo en el nivel de confianza especificado. CVaR proporciona una "
+"visión más completa del riesgo asociado con pérdidas extremas más allá del "
+"VaR."
+
+#: 7e70ac2790b54f45bbc9997ae0a46d2f of
+#: pymc_marketing.mmm.utility.conditional_value_at_risk
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 15e385bc721e4b87931033b08f359748 of
+#: pymc_marketing.mmm.utility.conditional_value_at_risk:18
+msgid "**confidence_level** : :class:`python:float`, optional"
+msgstr "**nivel_de_confianza** : :class:`python:float`, opcional"
+
+#: b6d3f7fa443147538ad6458368ad5dbc of
+#: pymc_marketing.mmm.utility.conditional_value_at_risk:17
+msgid "python:float, optional"
+msgstr "python:flotante, opcional"
+
+#: c8e8b515057d4dc8850ceada80315ebb of
+#: pymc_marketing.mmm.utility.conditional_value_at_risk:19
+msgid ""
+"Confidence level for CVaR (default is 0.95). Confidence level must be "
+"between 0 and 1."
+msgstr ""
+"Nivel de confianza para CVaR (el valor predeterminado es 0.95). El nivel de "
+"confianza debe estar entre 0 y 1."
+
+#: 86c8b787b5bb48b5a39014ca543e02b2 of
+#: pymc_marketing.mmm.utility.conditional_value_at_risk
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 410950bd243a4b03ae3509934d4b67b8 of
+#: pymc_marketing.mmm.utility.conditional_value_at_risk:26
+msgid ":obj:`UtilityFunctionType`"
+msgstr ":obj:`UtilityFunctionType`"
+
+#: b72db46b600046409c78f9c5bbdf1ce0 of
+#: pymc_marketing.mmm.utility.conditional_value_at_risk:27
+msgid ""
+"A function that calculates the CVaR value at the specified confidence level "
+"given samples and budgets."
+msgstr ""
+"Una función que calcula el valor de CVaR en el nivel de confianza "
+"especificado dado muestras y presupuestos."
+
+#: df5cdcdf5572465e8eb384ad320d9799 of
+#: pymc_marketing.mmm.utility.conditional_value_at_risk
+msgid "Raises"
+msgstr "Aumentos"
+
+#: bd9590f880f940f98b0708042844ab3c of
+#: pymc_marketing.mmm.utility.conditional_value_at_risk:34
+msgid ":obj:`ValueError`"
+msgstr ":obj:`ValueError`"
+
+#: 102d5895772c4f2a9ee000f094c64082 of
+#: pymc_marketing.mmm.utility.conditional_value_at_risk:35
+msgid ""
+"If confidence_level is not between 0 and 1. If no samples fall below the VaR"
+" threshold."
+msgstr ""
+"Si el nivel_de_confianza no está entre 0 y 1. Si no hay muestras que caigan "
+"por debajo del umbral de VaR."
+
+#: 54a0776517ca4dc3b24af7a5f4c9ba26 of
+#: pymc_marketing.mmm.utility.conditional_value_at_risk:43
+msgid "References"
+msgstr "Referencias"
+
+#: 0ad914c9eafc46dea06b610ae07b87af of
+#: pymc_marketing.mmm.utility.conditional_value_at_risk:44
+msgid ""
+"Rockafellar, R.T., & Uryasev, S. (2000). Optimization of Conditional Value-"
+"at-Risk."
+msgstr ""
+"Rockafellar, R.T., y Uryasev, S. (2000). Optimización del Valor en Riesgo "
+"Condicional."
+
+#: 2af2e5e0dd5441d9a02fb5d1e2176048 of
+#: pymc_marketing.mmm.utility.conditional_value_at_risk:48
+msgid "[R89af9bb56195-1]_"
+msgstr "[R89af9bb56195-1]_"

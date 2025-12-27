@@ -1,0 +1,216 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_predictive.rst:2
+#: 8148170589544812bccf59895602eb12
+msgid "MMMModelBuilder.plot\\_prior\\_predictive"
+msgstr "MMMModelBuilder.plot\\_prior\\_predictive"
+
+#: 0e69fd585d814a4cad65569611eb0360 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_predictive:2
+msgid "Plot the prior predictive distribution from the model fit."
+msgstr ""
+"Trace la distribución predictiva previa a partir del ajuste del modelo."
+
+#: ce4c437e68c04e9ea6a934453a350d60 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_predictive:4
+msgid ""
+"This function creates a visualization of the model's prior predictive "
+"distribution, allowing for comparison with observed data. It can include "
+"highest density intervals (HDI), mean predictions, and a gradient "
+"representation of the full distribution."
+msgstr ""
+"Esta función crea una visualización de la distribución predictiva previa del"
+" modelo, permitiendo la comparación con los datos observados. Puede incluir "
+"intervalos de densidad más alta (HDI), predicciones medias y una "
+"representación en gradiente de la distribución completa."
+
+#: 1edea1b731af4e2aae4ee5498cced663 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_predictive
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 5c19af5e721d4c38942f4267e0f1c7a3 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_predictive:10
+msgid ""
+"**original_scale** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+"**original_scale** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 00939054bb8648d29b222a9ff2ad78cd 5c385ad8ee794d6bbcaf39b91eb81e92
+#: eea74e8e387e4239bc719c4e14cf5c65 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_predictive:9
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_predictive:16
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_predictive:19
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: 56e497b48bbc4db09580f7c0b21ee8ba of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_predictive:11
+msgid ""
+"If True, plot in the original scale of the target variable. If False, plot "
+"in the transformed scale used for modeling. Default is False."
+msgstr ""
+"Si es verdadero, grafique en la escala original de la variable objetivo. Si "
+"es falso, grafique en la escala transformada utilizada para el modelado. El "
+"valor predeterminado es falso."
+
+#: a7f621f9c8504ee8a5ccc9d86ac59d24 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_predictive:14
+msgid "**hdi_list** : :class:`python:list` of :class:`python:float`, optional"
+msgstr ""
+"**hdi_list** : :class:`python:list` de :class:`python:float`, opcional"
+
+#: c3fa346438e749b4885c44011efa5b3c of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_predictive:13
+msgid "python:list of python:float, optional"
+msgstr "python:lista de python:float, opcional"
+
+#: cedc3e7179034b18bb8813fc6ff2d435 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_predictive:15
+msgid ""
+"List of HDI levels to plot. Default is [0.94] Provide an empty list to omit "
+"plotting the HDI."
+msgstr ""
+"Lista de niveles de IDH para graficar. El valor predeterminado es [0.94]. "
+"Proporcione una lista vacía para omitir la representación gráfica del IDH."
+
+#: a3d9ab3badef488096d8af90197b9bad of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_predictive:17
+msgid "**add_mean** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr "**add_mean** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 4438a8aa8a9f4dff89214c19dc72ad27 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_predictive:18
+msgid "If True, add the mean prediction to the plot. Default is True."
+msgstr ""
+"Si es verdadero, añade la predicción media al gráfico. El valor "
+"predeterminado es verdadero."
+
+#: 3e0aebcbf02c40ef97fdf1715821ec01 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_predictive:20
+msgid "**add_gradient** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+"**add_gradient** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 3f01b84a6852433d9c4b2141d3151be0 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_predictive:21
+msgid ""
+"If True, add a gradient representation of the full posterior distribution. "
+"Default is False."
+msgstr ""
+"Si es verdadero, añade una representación en gradiente de la distribución "
+"posterior completa. El valor predeterminado es falso."
+
+#: 1f2025b95652496db12ddf6fbdea0381 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_predictive:23
+msgid "**ax** : :obj:`plt.Axes`, optional"
+msgstr "**ax** : :obj:`plt.Axes`, opcional"
+
+#: 0e8f2a4e8db8474984899c791731a131 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_predictive:22
+msgid "plt.Axes, optional"
+msgstr "plt.Axes, opcional"
+
+#: ce7fa20b14524d039f7969f0bf792c97 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_predictive:24
+msgid ""
+"A matplotlib Axes object to plot on. If None, a new figure and axes will be "
+"created."
+msgstr ""
+"Un objeto Axes de matplotlib en el que trazar. Si es None, se creará una "
+"nueva figura y ejes."
+
+#: 279224cc97564c529ac54bdc6fc2a7de of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_predictive:26
+msgid "**\\*\\*plt_kwargs** : :class:`python:dict`"
+msgstr "**\\*\\*plt_kwargs** : :class:`python:dict`"
+
+#: f4ec75a6a3fa480a846a5a5891d421cb of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_predictive:25
+msgid "python:dict"
+msgstr "python:dict"
+
+#: 15d3b0d6bb34449a93c99bb771f96b39 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_predictive:27
+msgid ""
+"Additional keyword arguments to pass to plt.subplots() when creating a new "
+"figure."
+msgstr ""
+"Argumentos adicionales de palabras clave para pasar a plt.subplots() al "
+"crear una nueva figura."
+
+#: fcbd10854d8f408e82b237d16045dd6a of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_predictive
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 612afbac2cc64da5998357052ed1920e of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_predictive:33
+msgid ":obj:`plt.Figure`"
+msgstr ":obj:`plt.Figure`"
+
+#: 950a1db6546348179468b332a002a6ed of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_predictive:34
+msgid "The matplotlib Figure object containing the plot."
+msgstr "El objeto Figure de matplotlib que contiene la gráfica."
+
+#: 09a72eb276c44ab2878523c1ef1d1b5e of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_predictive
+msgid "Raises"
+msgstr "Aumentos"
+
+#: afa87f9f646648b297f89d0ffccdd050 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_predictive:41
+msgid ":obj:`ValueError`"
+msgstr ":obj:`ValueError`"
+
+#: 95cbfe9827954374a9ce96001737ecb8 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_predictive:42
+msgid ""
+"If the length of the target variable doesn't match the length of the date "
+"column in the posterior predictive data."
+msgstr ""
+"Si la longitud de la variable objetivo no coincide con la longitud de la "
+"columna de fecha en los datos predictivos posteriores."
+
+#: 11f9a159893e4ee0bf320f0a593e7962 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_predictive:49
+msgid "Notes"
+msgstr "Notas"
+
+#: 672001e479ad44699393e79ab3a5ec1a of
+#: pymc_marketing.mmm.base.MMMModelBuilder.plot_prior_predictive:50
+#, python-format
+msgid ""
+"This function visualizes the model's predictions against the observed data. "
+"The observed data is always plotted as a black line. Depending on the "
+"parameters, it can also show: - HDI (Highest Density Intervals) at 94% and "
+"50% levels - Mean prediction line - Gradient representation of the full "
+"posterior distribution"
+msgstr ""
+"Esta función visualiza las predicciones del modelo en comparación con los "
+"datos observados. Los datos observados siempre se representan como una línea"
+" negra. Dependiendo de los parámetros, también puede mostrar: - HDI "
+"(Intervalos de Mayor Densidad) en niveles del 94% y 50% - Línea de "
+"predicción media - Representación del gradiente de la distribución posterior"
+" completa"

@@ -1,0 +1,85 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-13 11:28+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.fourier.MonthlyFourier.model_copy.rst:2
+#: 634cad9be62545988967d0cb56db2fa5
+msgid "MonthlyFourier.model\\_copy"
+msgstr "MonthlyFourier.modelo\\_copia"
+
+#: 5f6ace6524114c2fb3196c60717fed4e of pydantic.main.BaseModel.model_copy:2
+msgid "!!! abstract \"Usage Documentation\""
+msgstr "!!! abstract \"Documentación de Uso\""
+
+#: 13c5f275f01e49249855663b123da2a2 of pydantic.main.BaseModel.model_copy:3
+msgid "[`model_copy`](../concepts/models.md#model-copy)"
+msgstr "[`model_copy`](../concepts/models.md#model-copy)"
+
+#: 6314534cf13e4b7592ae4434dc87fdee of pydantic.main.BaseModel.model_copy:5
+msgid "Returns a copy of the model."
+msgstr "Devuelve una copia del modelo."
+
+#: f592604ebfdc43629b0d8cb2cf7242ea of pydantic.main.BaseModel.model_copy:7
+msgid "!!! note"
+msgstr "!!! nota"
+
+#: 66b648e1508c4dbd8449024dbf6b5926 of pydantic.main.BaseModel.model_copy:8
+msgid ""
+"The underlying instance's [`__dict__`][object.__dict__] attribute is copied."
+" This might have unexpected side effects if you store anything in it, on top"
+" of the model fields (e.g. the value of [cached "
+"properties][functools.cached_property])."
+msgstr ""
+"El atributo [`__dict__`][object.__dict__] de la instancia subyacente se "
+"copia. Esto podría tener efectos secundarios inesperados si almacena algo en"
+" él, además de los campos del modelo (por ejemplo, el valor de [propiedades "
+"en caché][functools.cached_property])."
+
+#: 921d0cab86b24270a95e1271cfb0f97c of pydantic.main.BaseModel.model_copy:12
+msgid "Args:"
+msgstr "Args:"
+
+#: 2fde4dfbe271486eadeab5d58b543db6 of pydantic.main.BaseModel.model_copy:13
+msgid ""
+"update: Values to change/add in the new model. Note: the data is not "
+"validated"
+msgstr ""
+"actualizar: Valores a cambiar/agregar en el nuevo modelo. Nota: los datos no"
+" están validados."
+
+#: a12d03d40e1b49f68be557f97f6ecf8d of pydantic.main.BaseModel.model_copy:14
+msgid "before creating the new model. You should trust this data."
+msgstr "antes de crear el nuevo modelo. Debería confiar en estos datos."
+
+#: da2510a1b4a945e49f52b953ecfb6761 of pydantic.main.BaseModel.model_copy:15
+msgid "deep: Set to `True` to make a deep copy of the model."
+msgstr "deep: Establezca en `True` para hacer una copia profunda del modelo."
+
+#: 23cf227d779346ccb95d0b8542c0034a of pydantic.main.BaseModel.model_copy:17
+msgid "Returns:"
+msgstr "Devoluciones:"
+
+#: 6f7937d8ac3942aab15c50cabc678822 of pydantic.main.BaseModel.model_copy:18
+msgid "New model instance."
+msgstr "Nueva instancia de modelo."
+
+#~ msgid "[`model_copy`](../concepts/serialization.md#model_copy)"
+#~ msgstr "[`model_copy`](../concepts/serialization.md#model_copy)"

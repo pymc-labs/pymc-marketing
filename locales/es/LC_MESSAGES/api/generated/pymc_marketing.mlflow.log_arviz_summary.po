@@ -1,0 +1,104 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mlflow.log_arviz_summary.rst:2
+#: df68d40b2c0543f5a65d8bcd02a58673
+msgid "log\\_arviz\\_summary"
+msgstr "log\\_arviz\\_summary"
+
+#: 656cedc4063d41c88148361c9730988a of
+#: pymc_marketing.mlflow.log_arviz_summary:2
+msgid "Log the ArviZ summary as an artifact on MLflow."
+msgstr "Registra el resumen de ArviZ como un artefacto en MLflow."
+
+#: d98f8ba158a24891a62f8c88a38d8fe0 of
+#: pymc_marketing.mlflow.log_arviz_summary:4
+msgid "Automatically removes the file after logging."
+msgstr "Elimina automáticamente el archivo después de registrar."
+
+#: 07f2e5fe7cc3452cb8cbb588ab3f8cd5 of pymc_marketing.mlflow.log_arviz_summary
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 3ad6fa9bc11c4bdc963a0a9d61bd5a30 of
+#: pymc_marketing.mlflow.log_arviz_summary:8
+msgid "**idata** : :obj:`az.InferenceData`"
+msgstr "**idata** : :obj:`az.InferenceData`"
+
+#: 4adbbd55c9494d04a98693ed22a7989c of
+#: pymc_marketing.mlflow.log_arviz_summary:7
+msgid "az.InferenceData"
+msgstr "az.InferenceData"
+
+#: cbccb78dbc69405d890f2dcef4b92b7d of
+#: pymc_marketing.mlflow.log_arviz_summary:9
+msgid "The InferenceData object returned by the sampling method."
+msgstr "El objeto InferenceData devuelto por el método de muestreo."
+
+#: 59dc5cfaeeab4e0cbf4498d9163e276d of
+#: pymc_marketing.mlflow.log_arviz_summary:11
+msgid "**path** : :class:`python:str` | :obj:`Path`"
+msgstr "**ruta** : :class:`python:str` | :obj:`Ruta`"
+
+#: 26c423d88b88421eb7d53420acd20fc8 of
+#: pymc_marketing.mlflow.log_arviz_summary:10
+msgid "python:str | Path"
+msgstr "python:str | Ruta"
+
+#: 09d5a844fcd648b38ee4b43b9a3c7579 of
+#: pymc_marketing.mlflow.log_arviz_summary:12
+msgid "The path to save the summary as HTML."
+msgstr "La ruta para guardar el resumen como HTML."
+
+#: 1db60f8069a0421a9d008ee2741efe1f of
+#: pymc_marketing.mlflow.log_arviz_summary:14
+msgid "**var_names** : :class:`python:list`\\[:class:`python:str`], optional"
+msgstr "**var_names** : :class:`python:list`\\[:class:`python:str`], opcional"
+
+#: 1b0f089d9ca947088a9e06edde39ecbc of
+#: pymc_marketing.mlflow.log_arviz_summary:13
+msgid "python:list[python:str], optional"
+msgstr "python:list[python:str], opcional"
+
+#: b5117eb19fa74275862c9cb5a28f5f0d of
+#: pymc_marketing.mlflow.log_arviz_summary:15
+msgid ""
+"The names of the variables to include in the summary. Default is all the "
+"variables in the InferenceData object."
+msgstr ""
+"Los nombres de las variables que se incluirán en el resumen. El valor "
+"predeterminado son todas las variables en el objeto InferenceData."
+
+#: a201d5bcd13943aebc3cfd3209a53f7a of
+#: pymc_marketing.mlflow.log_arviz_summary:18
+msgid "**summary_kwargs** : :class:`python:dict`"
+msgstr "**summary_kwargs** : :class:`python:dict`"
+
+#: 6af2d267c8464bff9096caf3af1239bd of
+#: pymc_marketing.mlflow.log_arviz_summary:17
+msgid "python:dict"
+msgstr "python:dict"
+
+#: 686d660dd2f749fe9157ab19a7cd2d79 of
+#: pymc_marketing.mlflow.log_arviz_summary:19
+msgid "Additional keyword arguments to pass to `az.summary`."
+msgstr "Argumentos adicionales de palabras clave para pasar a `az.summary`."

@@ -1,0 +1,638 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:2
+#: ad22552148ce4d0d988d7b1996857e1f
+msgid "HSGPKwargs"
+msgstr "HSGPKwargs"
+
+#: c511248961274444a3e333f67d455c74 of pymc_marketing.hsgp_kwargs.HSGPKwargs:2
+msgid "HSGP keyword arguments for the time-varying prior."
+msgstr "Argumentos clave HSGP para el prior variable en el tiempo."
+
+#: 5b1a7b9f930241c1a91544472d8d83f9 of pymc_marketing.hsgp_kwargs.HSGPKwargs:4
+msgid ""
+"See [R011749b1059b-1]_ and [R011749b1059b-2]_ for the theoretical background"
+" on the Hilbert Space Gaussian Process (HSGP). See , [R011749b1059b-6]_ for "
+"a practical guide through the method using code examples. See the "
+":class:`~pymc.gp.HSGP` class for more information on the Hilbert Space "
+"Gaussian Process in PyMC. We also recommend the following resources for a "
+"more practical introduction to HSGP: [R011749b1059b-3]_, [R011749b1059b-4]_,"
+" [R011749b1059b-5]_."
+msgstr ""
+"Vea [R011749b1059b-1]_ y [R011749b1059b-2]_ para el contexto teórico sobre "
+"el Proceso Gaussiano en Espacio de Hilbert (HSGP). Vea, [R011749b1059b-6]_ "
+"para una guía práctica del método utilizando ejemplos de código. Consulte la"
+" clase :class:`~pymc.gp.HSGP` para obtener más información sobre el Proceso "
+"Gaussiano en Espacio de Hilbert en PyMC. También recomendamos los siguientes"
+" recursos para una introducción más práctica al HSGP: [R011749b1059b-3]_, "
+"[R011749b1059b-4]_, [R011749b1059b-5]_."
+
+#: f45f10c178024fca93229425772c3cd2 of pymc_marketing.hsgp_kwargs.HSGPKwargs
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: a9b0cad5d534415a8421beb41a4224f9 of
+#: pymc_marketing.hsgp_kwargs.HSGPKwargs:11
+msgid "**m** : :class:`python:int`"
+msgstr "**m** : :class:`python:int`"
+
+#: ecb3c16e71a44b6481f7da9a3a6bb289 of
+#: pymc_marketing.hsgp_kwargs.HSGPKwargs:10
+msgid "python:int"
+msgstr "python:int"
+
+#: 54bd8fbdfa72426e94df3b06725ab93d of
+#: pymc_marketing.hsgp_kwargs.HSGPKwargs:12
+msgid "Number of basis functions. Default is 200."
+msgstr "Número de funciones base. El valor predeterminado es 200."
+
+#: d204c3e610484c1093096752548f6619 of
+#: pymc_marketing.hsgp_kwargs.HSGPKwargs:14
+msgid "**L** : :class:`python:float`, optional"
+msgstr "**L** : :class:`python:float`, opcional"
+
+#: 9581c0649aa940978550d4c19af6258a of
+#: pymc_marketing.hsgp_kwargs.HSGPKwargs:13
+msgid "python:float, optional"
+msgstr "python:flotante, opcional"
+
+#: 4a88b28d70a648e8b570ef2d8c6b30dd of
+#: pymc_marketing.hsgp_kwargs.HSGPKwargs:15
+msgid ""
+"Extent of basis functions. Set this to reflect the expected range of in+out-"
+"of-sample data (considering that time-indices are zero-centered).Default is "
+"`X_mid * 2` (identical to `c=2` in HSGP). By default it is None."
+msgstr ""
+"Extensión de las funciones base. Establezca esto para reflejar el rango "
+"esperado de datos dentro y fuera de la muestra (considerando que los índices"
+" de tiempo están centrados en cero). El valor predeterminado es `X_mid * 2` "
+"(idéntico a `c=2` en HSGP). Por defecto, es None."
+
+#: 3f584ddbc0e146cbb80af79d4e2bad0b of
+#: pymc_marketing.hsgp_kwargs.HSGPKwargs:19
+msgid "**eta_lam** : :class:`python:float`"
+msgstr "**eta_lam** : :class:`python:float`"
+
+#: 06cbc157df354d6ba1321a83a95f6559 39842e14a7d44f9a829c554d137e28a5
+#: 7d6fa41f64194911b35b60fffe9d072d of
+#: pymc_marketing.hsgp_kwargs.HSGPKwargs:18
+#: pymc_marketing.hsgp_kwargs.HSGPKwargs:21
+#: pymc_marketing.hsgp_kwargs.HSGPKwargs:24
+msgid "python:float"
+msgstr "python:float"
+
+#: 7e4e54fff9db4f2a941aee627786ecce of
+#: pymc_marketing.hsgp_kwargs.HSGPKwargs:20
+msgid "Exponential prior for the variance. Default is 1."
+msgstr "Prior exponencial para la varianza. El valor predeterminado es 1."
+
+#: d2f9ed57d047492f8432eaa11a7005b0 of
+#: pymc_marketing.hsgp_kwargs.HSGPKwargs:22
+msgid "**ls_mu** : :class:`python:float`"
+msgstr "**ls_mu** : :class:`python:float`"
+
+#: 930ea43a95b2497cbf93bb1e4a46917c of
+#: pymc_marketing.hsgp_kwargs.HSGPKwargs:23
+msgid "Mean of the inverse gamma prior for the lengthscale. Default is 5."
+msgstr ""
+"Media de la prior gamma inversa para la escala de longitud. El valor "
+"predeterminado es 5."
+
+#: d28d6289b2174ecc99b0cf172bc895ac of
+#: pymc_marketing.hsgp_kwargs.HSGPKwargs:25
+msgid "**ls_sigma** : :class:`python:float`"
+msgstr "**ls_sigma** : :class:`python:float`"
+
+#: 3536ac55f0c54f0faa8ab668eb86bb3a of
+#: pymc_marketing.hsgp_kwargs.HSGPKwargs:26
+msgid ""
+"Standard deviation of the inverse gamma prior for the lengthscale. Default "
+"is 5."
+msgstr ""
+"Desviación estándar de la prior gamma inversa para la escala de longitud. El"
+" valor predeterminado es 5."
+
+#: 73cba0efdf08430f9d73fe597c2d8a70 of
+#: pymc_marketing.hsgp_kwargs.HSGPKwargs:28
+msgid "**cov_func** : :obj:`~pymc.gp.cov.Covariance`, optional"
+msgstr "**cov_func** : :obj:`~pymc.gp.cov.Covariance`, opcional"
+
+#: dde8d37f87404bd1afac15464c488b47 of
+#: pymc_marketing.hsgp_kwargs.HSGPKwargs:27
+msgid "Covariance, optional"
+msgstr "Covarianza, opcional"
+
+#: f3a856b6998944b3a045c69f3083a8ea of
+#: pymc_marketing.hsgp_kwargs.HSGPKwargs:29
+msgid "Gaussian process Covariance function. By default it is None."
+msgstr "Función de covarianza del proceso gaussiano. Por defecto, es None."
+
+#: ee2d6a6b36c44df198f90048411f3b24 of
+#: pymc_marketing.hsgp_kwargs.HSGPKwargs:43
+msgid "References"
+msgstr "Referencias"
+
+#: f2cf0173774a4452be7d5eed4e4519ae of
+#: pymc_marketing.hsgp_kwargs.HSGPKwargs:44
+msgid ""
+"Solin, A., Sarkka, S. (2019) Hilbert Space Methods for Reduced-Rank Gaussian"
+" Process Regression."
+msgstr ""
+"Solin, A., Sarkka, S. (2019) Métodos de Espacio de Hilbert para la Regresión"
+" de Procesos Gaussianos de Rango Reducido."
+
+#: f98e12fff9c2437a978a4b420d89b6ad of
+#: pymc_marketing.hsgp_kwargs.HSGPKwargs:45
+msgid ""
+"Ruitort-Mayol, G., and Anderson, M., and Solin, A., and Vehtari, A. (2022). "
+"Practical Hilbert Space Approximate Bayesian Gaussian Processes for "
+"Probabilistic Programming."
+msgstr ""
+"Ruitort-Mayol, G., Anderson, M., Solin, A., y Vehtari, A. (2022). Procesos "
+"Gaussianos Bayesianos Aproximados en Espacios de Hilbert Prácticos para "
+"Programación Probabilística."
+
+#: dd39115f9ea94606a9cfb224084ea2b6 of
+#: pymc_marketing.hsgp_kwargs.HSGPKwargs:46
+msgid ""
+"PyMC Example Gallery: `\"Gaussian Processes: HSGP Reference & First Steps\" "
+"<https://www.pymc.io/projects/examples/en/latest/gaussian_processes/HSGP-"
+"Basic.html>`_."
+msgstr ""
+"Galería de Ejemplos de PyMC: `\"Procesos Gaussianos: Referencia HSGP y "
+"Primeros Pasos\" "
+"<https://www.pymc.io/projects/examples/en/latest/gaussian_processes/HSGP-"
+"Basic.html>`_."
+
+#: fe349c249903482eae4aa3c9d273a00f of
+#: pymc_marketing.hsgp_kwargs.HSGPKwargs:47
+msgid ""
+"PyMC Example Gallery: `\"Gaussian Processes: HSGP Advanced Usage\" "
+"<https://www.pymc.io/projects/examples/en/latest/gaussian_processes/HSGP-"
+"Advanced.html>`_."
+msgstr ""
+"Galería de Ejemplos de PyMC: `\"Procesos Gaussianos: Uso Avanzado de HSGP\" "
+"<https://www.pymc.io/projects/examples/en/latest/gaussian_processes/HSGP-"
+"Advanced.html>`_."
+
+#: 49a4c679bd144fcd9ac44f508e11cf99 of
+#: pymc_marketing.hsgp_kwargs.HSGPKwargs:48
+msgid ""
+"PyMC Example Gallery: `\"Baby Births Modelling with HSGPs\" "
+"<https://www.pymc.io/projects/examples/en/latest/gaussian_processes/GP-"
+"Births.html>`_."
+msgstr ""
+"Galería de Ejemplos de PyMC: `\"Modelado de Nacimientos de Bebés con HSGPs\""
+" <https://www.pymc.io/projects/examples/en/latest/gaussian_processes/GP-"
+"Births.html>`_."
+
+#: b9fef59ec1de494bbe861130750d9cd2 of
+#: pymc_marketing.hsgp_kwargs.HSGPKwargs:49
+msgid ""
+"Orduz, J. `\"A Conceptual and Practical Introduction to Hilbert Space GPs "
+"Approximation Methods\" <https://juanitorduz.github.io/hsgp_intro/>`_."
+msgstr ""
+"Orduz, J. `\"Una introducción conceptual y práctica a los métodos de "
+"aproximación de GP en espacios de Hilbert\" "
+"<https://juanitorduz.github.io/hsgp_intro/>`_."
+
+#: 104901956dff40969da84e6864573426 of
+#: pymc_marketing.hsgp_kwargs.HSGPKwargs:53
+msgid ""
+"[R011749b1059b-1]_, [R011749b1059b-2]_, [R011749b1059b-3]_, "
+"[R011749b1059b-4]_, [R011749b1059b-5]_, [R011749b1059b-6]_"
+msgstr ""
+"[R011749b1059b-1]_, [R011749b1059b-2]_, [R011749b1059b-3]_, "
+"[R011749b1059b-4]_, [R011749b1059b-5]_, [R011749b1059b-6]_"
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:12
+#: d438948f514b43bbb14e4da703982765
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:45:<autosummary>:1
+#: 75d8a4f440ba4e9eb98dc0e1a4940778
+msgid ""
+":py:obj:`HSGPKwargs.__init__ "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.__init__>`\\ \\(\\*\\*data\\)"
+msgstr ""
+":py:obj:`HSGPKwargs.__init__ "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.__init__>`\\ \\(\\*\\*data\\)"
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:45:<autosummary>:1
+#: 9452559adecf4297b6bf9c91a6116791
+msgid ""
+"Create a new model by parsing and validating input data from keyword "
+"arguments."
+msgstr ""
+"Cree un nuevo modelo analizando y validando los datos de entrada de los "
+"argumentos de palabras clave."
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:45:<autosummary>:1
+#: 11ec55ff05fa4d4cbaaab9583edd690f
+msgid ""
+":py:obj:`HSGPKwargs.construct "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.construct>`\\ "
+"\\(\\[\\_fields\\_set\\]\\)"
+msgstr ""
+":py:obj:`HSGPKwargs.construct "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.construct>`\\ "
+"\\(\\[\\_fields\\_set\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:45:<autosummary>:1
+#: e91a10a1713740018716ea9bd699f8e4
+msgid ""
+":py:obj:`HSGPKwargs.copy <pymc_marketing.hsgp_kwargs.HSGPKwargs.copy>`\\ "
+"\\(\\*\\[\\, include\\, exclude\\, ...\\]\\)"
+msgstr ""
+":py:obj:`HSGPKwargs.copy <pymc_marketing.hsgp_kwargs.HSGPKwargs.copy>`\\ "
+"\\(\\*\\[\\, incluir\\, excluir\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:45:<autosummary>:1
+#: 9d19f4930e374dfd9ed49af5a611e386
+msgid "Returns a copy of the model."
+msgstr "Devuelve una copia del modelo."
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:45:<autosummary>:1
+#: c314ae625e744d079ba0e8ee5dadadcc
+msgid ""
+":py:obj:`HSGPKwargs.dict <pymc_marketing.hsgp_kwargs.HSGPKwargs.dict>`\\ "
+"\\(\\*\\[\\, include\\, exclude\\, ...\\]\\)"
+msgstr ""
+":py:obj:`HSGPKwargs.dict <pymc_marketing.hsgp_kwargs.HSGPKwargs.dict>`\\ "
+"\\(\\*\\[\\, incluir\\, excluir\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:45:<autosummary>:1
+#: 93515aa3529347adaffd3eddf7599a43
+msgid ""
+":py:obj:`HSGPKwargs.from_orm "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.from_orm>`\\ \\(obj\\)"
+msgstr ""
+":py:obj:`HSGPKwargs.from_orm "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.from_orm>`\\ \\(obj\\)"
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:45:<autosummary>:1
+#: b177214ad45e4fab8e504e8aab7a8993
+msgid ""
+":py:obj:`HSGPKwargs.json <pymc_marketing.hsgp_kwargs.HSGPKwargs.json>`\\ "
+"\\(\\*\\[\\, include\\, exclude\\, ...\\]\\)"
+msgstr ""
+":py:obj:`HSGPKwargs.json <pymc_marketing.hsgp_kwargs.HSGPKwargs.json>`\\ "
+"\\(\\*\\[\\, incluir\\, excluir\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:45:<autosummary>:1
+#: 3c9e13e8a3254886982dd2002b39d971
+msgid ""
+":py:obj:`HSGPKwargs.model_construct "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.model_construct>`\\ "
+"\\(\\[\\_fields\\_set\\]\\)"
+msgstr ""
+":py:obj:`HSGPKwargs.model_construct "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.model_construct>`\\ "
+"\\(\\[\\_fields\\_set\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:45:<autosummary>:1
+#: 4c4b22d60585454f815750b089d8e396
+msgid "Creates a new instance of the `Model` class with validated data."
+msgstr "Crea una nueva instancia de la clase `Model` con datos validados."
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:45:<autosummary>:1
+#: 63dd9c6a4370429ea2b963b178693ee5
+msgid ""
+":py:obj:`HSGPKwargs.model_copy "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.model_copy>`\\ \\(\\*\\[\\, update\\,"
+" deep\\]\\)"
+msgstr ""
+":py:obj:`HSGPKwargs.model_copy "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.model_copy>`\\ \\(\\*\\[\\, "
+"actualizar\\, profundo\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:45:<autosummary>:1
+#: 66941a6c700c479693bce9ae93e2f317 96f3b9769c0441d494058ffe02384f69
+#: 994e6237c7c04adc8b865824c4fdb8a6 f83d8b9e4baf4e359b09fab14d7a8497
+msgid "!!! abstract \"Usage Documentation\""
+msgstr "!!! abstract \"Documentación de Uso\""
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:45:<autosummary>:1
+#: e40869e36cce4736839804884ddbf3b2
+msgid ""
+":py:obj:`HSGPKwargs.model_dump "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.model_dump>`\\ \\(\\*\\[\\, mode\\, "
+"include\\, ...\\]\\)"
+msgstr ""
+":py:obj:`HSGPKwargs.model_dump "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.model_dump>`\\ \\(\\*\\[\\, modo\\, "
+"incluir\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:45:<autosummary>:1
+#: 4140112f1c2740f389f0f76fd0d1b240
+msgid ""
+":py:obj:`HSGPKwargs.model_dump_json "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.model_dump_json>`\\ \\(\\*\\[\\, "
+"indent\\, ...\\]\\)"
+msgstr ""
+":py:obj:`HSGPKwargs.model_dump_json "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.model_dump_json>`\\ \\(\\*\\[\\, "
+"indent\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:45:<autosummary>:1
+#: febdb4479fb941ed9d143f6f5893185c
+msgid ""
+":py:obj:`HSGPKwargs.model_json_schema "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.model_json_schema>`\\ "
+"\\(\\[by\\_alias\\, ...\\]\\)"
+msgstr ""
+":py:obj:`HSGPKwargs.model_json_schema "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.model_json_schema>`\\ "
+"\\(\\[por\\_alias\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:45:<autosummary>:1
+#: 3fa8c610d78e473eb8295e7e1942654b
+msgid "Generates a JSON schema for a model class."
+msgstr "Genera un esquema JSON para una clase de modelo."
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:45:<autosummary>:1
+#: 12217c9087014de598e13df693038e5f
+msgid ""
+":py:obj:`HSGPKwargs.model_parametrized_name "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.model_parametrized_name>`\\ "
+"\\(params\\)"
+msgstr ""
+":py:obj:`HSGPKwargs.model_parametrized_name "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.model_parametrized_name>`\\ (params)"
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:45:<autosummary>:1
+#: 6e21c319ab2a4fed8e5543432dfc08a3
+msgid "Compute the class name for parametrizations of generic classes."
+msgstr ""
+"Calcule el nombre de la clase para parametrizaciones de clases genéricas."
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:45:<autosummary>:1
+#: 1c34dcfb75c9408da1555b549d2d199f
+msgid ""
+":py:obj:`HSGPKwargs.model_post_init "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.model_post_init>`\\ \\(context\\, "
+"\\/\\)"
+msgstr ""
+":py:obj:`HSGPKwargs.model_post_init "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.model_post_init>`\\ \\(context\\, "
+"\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:45:<autosummary>:1
+#: 7b892ccf6bc340809938a3dd66e1a638
+msgid ""
+"Override this method to perform additional initialization after `__init__` "
+"and `model_construct`."
+msgstr ""
+"Sobrescriba este método para realizar una inicialización adicional después "
+"de `__init__` y `model_construct`."
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:45:<autosummary>:1
+#: 76759a48ffdc42f6aed7516f17f51784
+msgid ""
+":py:obj:`HSGPKwargs.model_rebuild "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.model_rebuild>`\\ \\(\\*\\[\\, "
+"force\\, ...\\]\\)"
+msgstr ""
+":py:obj:`HSGPKwargs.model_rebuild "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.model_rebuild>`\\ \\(\\*\\[\\, "
+"fuerza\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:45:<autosummary>:1
+#: b51ec99b398848d38b575d67a6065145
+msgid "Try to rebuild the pydantic-core schema for the model."
+msgstr "Intente reconstruir el esquema de pydantic-core para el modelo."
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:45:<autosummary>:1
+#: e0bfd2a325634348b6bf83df5952c4d4
+msgid ""
+":py:obj:`HSGPKwargs.model_validate "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.model_validate>`\\ \\(obj\\, "
+"\\*\\[\\, strict\\, ...\\]\\)"
+msgstr ""
+":py:obj:`HSGPKwargs.model_validate "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.model_validate>`\\ \\(obj\\, "
+"\\*\\[\\, estricto\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:45:<autosummary>:1
+#: 079275ac0d1c4ebca8f13f5cf1b71a50
+msgid "Validate a pydantic model instance."
+msgstr "Valide una instancia de modelo pydantic."
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:45:<autosummary>:1
+#: 4f7bd47aacf840c8a7803eb2f6ccafe1
+msgid ""
+":py:obj:`HSGPKwargs.model_validate_json "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.model_validate_json>`\\ "
+"\\(json\\_data\\, \\*\\)"
+msgstr ""
+":py:obj:`HSGPKwargs.model_validate_json "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.model_validate_json>`\\ "
+"(json\\_data\\, \\*)"
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:45:<autosummary>:1
+#: da62862e8bea4300a5ff0aaf41a05dc6
+msgid ""
+":py:obj:`HSGPKwargs.model_validate_strings "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.model_validate_strings>`\\ \\(obj\\, "
+"\\*\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`HSGPKwargs.model_validate_strings "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.model_validate_strings>`\\ \\(obj\\, "
+"\\*\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:45:<autosummary>:1
+#: c7dbc3471f034e03922c3d3eb0eef01e
+msgid "Validate the given object with string data against the Pydantic model."
+msgstr ""
+"Valide el objeto dado con datos de cadena contra el modelo de Pydantic."
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:45:<autosummary>:1
+#: 81b0284a50024c92b928a29621af11d4
+msgid ""
+":py:obj:`HSGPKwargs.parse_file "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.parse_file>`\\ \\(path\\, \\*\\[\\, "
+"...\\]\\)"
+msgstr ""
+":py:obj:`HSGPKwargs.parse_file "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.parse_file>`\\ \\(ruta\\, \\*\\[\\, "
+"...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:45:<autosummary>:1
+#: d056eb31366148b8b3741e6d99a36077
+msgid ""
+":py:obj:`HSGPKwargs.parse_obj "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.parse_obj>`\\ \\(obj\\)"
+msgstr ""
+":py:obj:`HSGPKwargs.parse_obj "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.parse_obj>`\\ \\(obj\\)"
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:45:<autosummary>:1
+#: 8ae39bed4d4f4288937838f003d136c9
+msgid ""
+":py:obj:`HSGPKwargs.parse_raw "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.parse_raw>`\\ \\(b\\, \\*\\[\\, "
+"content\\_type\\, ...\\]\\)"
+msgstr ""
+":py:obj:`HSGPKwargs.parse_raw "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.parse_raw>`\\ \\(b\\, \\*\\[\\, "
+"tipo\\_de\\_contenido\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:45:<autosummary>:1
+#: e9ce08bfd9c24ff7bae382c927d05f79
+msgid ""
+":py:obj:`HSGPKwargs.schema <pymc_marketing.hsgp_kwargs.HSGPKwargs.schema>`\\"
+" \\(\\[by\\_alias\\, ref\\_template\\]\\)"
+msgstr ""
+":py:obj:`HSGPKwargs.schema <pymc_marketing.hsgp_kwargs.HSGPKwargs.schema>`\\"
+" \\(\\[por\\_alias\\, ref\\_template\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:45:<autosummary>:1
+#: 25c2fff1985547858b78a5daa2fd4bf9
+msgid ""
+":py:obj:`HSGPKwargs.schema_json "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.schema_json>`\\ \\(\\*\\[\\, "
+"by\\_alias\\, ...\\]\\)"
+msgstr ""
+":py:obj:`HSGPKwargs.schema_json "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.schema_json>`\\ \\(\\*\\[\\, "
+"by\\_alias\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:45:<autosummary>:1
+#: 766b814005194a6cb848ac41f597894c
+msgid ""
+":py:obj:`HSGPKwargs.update_forward_refs "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.update_forward_refs>`\\ "
+"\\(\\*\\*localns\\)"
+msgstr ""
+":py:obj:`HSGPKwargs.update_forward_refs "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.update_forward_refs>`\\ "
+"\\(\\*\\*localns\\)"
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:45:<autosummary>:1
+#: 461c174a55cf4f26a8b37d03b9dd3f6e
+msgid ""
+":py:obj:`HSGPKwargs.validate "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.validate>`\\ \\(value\\)"
+msgstr ""
+":py:obj:`HSGPKwargs.validate "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.validate>`\\ \\(valor\\)"
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:47
+#: ca07da75961e4c64923a30623025a029
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:60:<autosummary>:1
+#: 3d266526e5a34c0c807cea4addc68c4a
+msgid ""
+":py:obj:`model_computed_fields "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.model_computed_fields>`\\"
+msgstr ""
+":py:obj:`model_computed_fields "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.model_computed_fields>`"
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:60:<autosummary>:1
+#: 7542ff25032649c2844aa44dce0647aa
+msgid ""
+":py:obj:`model_config "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.model_config>`\\"
+msgstr ""
+":py:obj:`model_config <pymc_marketing.hsgp_kwargs.HSGPKwargs.model_config>`"
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:60:<autosummary>:1
+#: f94ddbd3931447f1bb70ecb78a4b7ba7
+msgid ""
+"Configuration for the model, should be a dictionary conforming to "
+"[`ConfigDict`][pydantic.config.ConfigDict]."
+msgstr ""
+"Configuración para el modelo, debe ser un diccionario que cumpla con "
+"[`ConfigDict`][pydantic.config.ConfigDict]."
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:60:<autosummary>:1
+#: d8e9afd59bb84f71bfb9bf0d1c0bbed3
+msgid ""
+":py:obj:`model_extra <pymc_marketing.hsgp_kwargs.HSGPKwargs.model_extra>`\\"
+msgstr ""
+":py:obj:`model_extra <pymc_marketing.hsgp_kwargs.HSGPKwargs.model_extra>`"
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:60:<autosummary>:1
+#: 411554da2ddc4a30b7d2c65dd28ce3c2
+msgid "Get extra fields set during validation."
+msgstr "Obtener campos adicionales establecidos durante la validación."
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:60:<autosummary>:1
+#: bd1ed92585694eadb54d620eaa04ef11
+msgid ""
+":py:obj:`model_fields "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.model_fields>`\\"
+msgstr ""
+":py:obj:`model_fields <pymc_marketing.hsgp_kwargs.HSGPKwargs.model_fields>`"
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:60:<autosummary>:1
+#: 3cca5b9af39c4f508bc5375b9f9d3a4e
+msgid ""
+":py:obj:`model_fields_set "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.model_fields_set>`\\"
+msgstr ""
+":py:obj:`model_fields_set "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs.model_fields_set>`"
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:60:<autosummary>:1
+#: ea1b176f169549ddb18d105e0b35066a
+msgid ""
+"Returns the set of fields that have been explicitly set on this model "
+"instance."
+msgstr ""
+"Devuelve el conjunto de campos que han sido establecidos explícitamente en "
+"esta instancia del modelo."
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:60:<autosummary>:1
+#: 8a6c6cf0f2a8445d8f2eb3f7b969d952
+msgid ":py:obj:`m <pymc_marketing.hsgp_kwargs.HSGPKwargs.m>`\\"
+msgstr ":py:obj:`m <pymc_marketing.hsgp_kwargs.HSGPKwargs.m>`\\"
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:60:<autosummary>:1
+#: f10221a70c7c4b6e8ab5cd04c1191fd5
+msgid ":py:obj:`L <pymc_marketing.hsgp_kwargs.HSGPKwargs.L>`\\"
+msgstr ":py:obj:`L <pymc_marketing.hsgp_kwargs.HSGPKwargs.L>`\\"
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:60:<autosummary>:1
+#: be77959525ee4e66820a76abafd46a89
+msgid ":py:obj:`eta_lam <pymc_marketing.hsgp_kwargs.HSGPKwargs.eta_lam>`\\"
+msgstr ":py:obj:`eta_lam <pymc_marketing.hsgp_kwargs.HSGPKwargs.eta_lam>`"
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:60:<autosummary>:1
+#: 95b5a7fa1d5740c7b4104d5adc409829
+msgid ":py:obj:`ls_mu <pymc_marketing.hsgp_kwargs.HSGPKwargs.ls_mu>`\\"
+msgstr ":py:obj:`ls_mu <pymc_marketing.hsgp_kwargs.HSGPKwargs.ls_mu>`"
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:60:<autosummary>:1
+#: 3008d18ac8644efb8b0b25374c23f77b
+msgid ":py:obj:`ls_sigma <pymc_marketing.hsgp_kwargs.HSGPKwargs.ls_sigma>`\\"
+msgstr ":py:obj:`ls_sigma <pymc_marketing.hsgp_kwargs.HSGPKwargs.ls_sigma>`"
+
+#: ../source/api/generated/pymc_marketing.hsgp_kwargs.HSGPKwargs.rst:60:<autosummary>:1
+#: d71ea48f5b2f43159a0bb763090a6e3e
+msgid ":py:obj:`cov_func <pymc_marketing.hsgp_kwargs.HSGPKwargs.cov_func>`\\"
+msgstr ":py:obj:`cov_func <pymc_marketing.hsgp_kwargs.HSGPKwargs.cov_func>`"

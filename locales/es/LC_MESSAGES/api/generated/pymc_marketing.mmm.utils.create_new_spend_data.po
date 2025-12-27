@@ -1,0 +1,134 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.utils.create_new_spend_data.rst:2
+#: cc7c0473523b48df94d46aaee1ff524a
+msgid "create\\_new\\_spend\\_data"
+msgstr "crear_nuevos_datos_de_gasto"
+
+#: 2153a6932f0c4517bf1472b1c7ffc30d of
+#: pymc_marketing.mmm.utils.create_new_spend_data:2
+msgid "Create new spend data for the channel forward pass."
+msgstr "Cree nuevos datos de gasto para el canal de pase hacia adelante."
+
+#: 6dafc8e6d96a4d4196bc51fafeb1023c of
+#: pymc_marketing.mmm.utils.create_new_spend_data:4
+msgid "Spends must be the same length as the number of channels."
+msgstr "Los gastos deben tener la misma longitud que el número de canales."
+
+#: ../source/api/generated/pymc_marketing.mmm.utils.create_new_spend_data.rst:7
+#: d73e5e1c75864d688cb2353a2ea30c23
+msgid ""
+"(:download:`Source code "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-utils-"
+"create_new_spend_data-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-utils-"
+"create_new_spend_data-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-utils-"
+"create_new_spend_data-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-utils-"
+"create_new_spend_data-1.pdf>`)"
+msgstr ""
+"(:download:`Código fuente "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-utils-"
+"create_new_spend_data-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-utils-"
+"create_new_spend_data-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-utils-"
+"create_new_spend_data-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-utils-"
+"create_new_spend_data-1.pdf>`)"
+
+#: 84c168cbffbc4f6a84bfbe92f4d90a84 of
+#: pymc_marketing.mmm.utils.create_new_spend_data
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 070e7e90f1bb4575b8efe62fe5ffaf31 of
+#: pymc_marketing.mmm.utils.create_new_spend_data:43
+msgid "**spend** : :obj:`np.ndarray <numpy.ndarray>`"
+msgstr "**gastar** : :obj:`np.ndarray <numpy.ndarray>`"
+
+#: 880f5dcb80ea4413b6d245f89572e261 of
+#: pymc_marketing.mmm.utils.create_new_spend_data:42
+msgid "np.ndarray"
+msgstr "np.ndarray"
+
+#: e78da7430a2c463c9d6bfec75dd4aac1 of
+#: pymc_marketing.mmm.utils.create_new_spend_data:44
+msgid "The spend data for the channels."
+msgstr "Los datos de gasto para los canales."
+
+#: cb271a2a1b9b4218b7981a4e799ce534 of
+#: pymc_marketing.mmm.utils.create_new_spend_data:46
+msgid "**adstock_max_lag** : :class:`python:int`"
+msgstr "**adstock_max_lag** : :class:`python:int`"
+
+#: d35ef83be3254cd78b5c970141a3dd5e of
+#: pymc_marketing.mmm.utils.create_new_spend_data:45
+msgid "python:int"
+msgstr "python:int"
+
+#: 67853100c3e545aabf064a6d2e304459 of
+#: pymc_marketing.mmm.utils.create_new_spend_data:47
+msgid "The maximum lag for the adstock transformation."
+msgstr "El retraso máximo para la transformación de adstock."
+
+#: fdbe52851cb94800892bdfd3640a628a of
+#: pymc_marketing.mmm.utils.create_new_spend_data:49
+msgid "**one_time: bool, optional**"
+msgstr "**una_vez: bool, opcional**"
+
+#: 362dd6e6c616422bb5f3fe595c53e551 of
+#: pymc_marketing.mmm.utils.create_new_spend_data:50
+msgid "If the spend is one-time, by default True."
+msgstr "Si el gasto es único, por defecto es Verdadero."
+
+#: 0cdb6c47206b4e15b1001a2d9490155e of
+#: pymc_marketing.mmm.utils.create_new_spend_data:52
+msgid "**spend_leading_up** : :obj:`np.ndarray <numpy.ndarray>`, optional"
+msgstr "**spend_leading_up** : :obj:`np.ndarray <numpy.ndarray>`, opcional"
+
+#: f2a42b0727ed45f48d39d0c20dbafb28 of
+#: pymc_marketing.mmm.utils.create_new_spend_data:51
+msgid "np.ndarray, optional"
+msgstr "np.ndarray, opcional"
+
+#: 5bca4e42322d41ee81dc18ff19dda055 of
+#: pymc_marketing.mmm.utils.create_new_spend_data:53
+msgid "The spend leading up to the first observation, by default None or 0."
+msgstr "El gasto previo a la primera observación, por defecto None o 0."
+
+#: 484bfedb59574fd29365949e3159523d of
+#: pymc_marketing.mmm.utils.create_new_spend_data
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: c8a99daafff24bbbb9cf0e97effef037 of
+#: pymc_marketing.mmm.utils.create_new_spend_data:59
+msgid ":obj:`np.ndarray <numpy.ndarray>`"
+msgstr ":obj:`np.ndarray <numpy.ndarray>`"
+
+#: f4b0ff6c2215411cabca63b73bba9d6a of
+#: pymc_marketing.mmm.utils.create_new_spend_data:60
+msgid "The new spend data for the channel forward pass."
+msgstr "Los nuevos datos de gasto para el canal de pase hacia adelante."

@@ -92,7 +92,7 @@ This module provides event transformations for use in Marketing Mix Models.
 
 """
 
-from typing import cast
+from typing import Literal, cast
 
 import numpy as np
 import numpy.typing as npt
@@ -118,7 +118,7 @@ BASIS_TRANSFORMATIONS: dict = {}
 BasisMeta = create_registration_meta(BASIS_TRANSFORMATIONS)
 
 
-class Basis(Transformation, metaclass=BasisMeta):  # type: ignore[misc]
+class Basis(Transformation, metaclass=BasisMeta):  # type: ignore[metaclass]
     """Basis transformation associated with an event model."""
 
     prefix: str = "basis"
@@ -261,10 +261,189 @@ class GaussianBasis(Basis):
 
     def function(self, x: pt.TensorLike, sigma: pt.TensorLike) -> TensorVariable:
         """Gaussian bump function."""
-        return pm.math.exp(-0.5 * (x / sigma) ** 2)
+        rv = pm.Normal.dist(mu=0.0, sigma=sigma)
+        out = pm.math.exp(pm.logp(rv, x))
+        return out
 
     default_priors = {
         "sigma": Prior("Gamma", mu=7, sigma=1),
+    }
+
+
+class HalfGaussianBasis(Basis):
+    R"""One-sided Gaussian basis transformation.
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        from pymc_marketing.mmm.events import HalfGaussianBasis
+        from pymc_extras.prior import Prior
+        half_gaussian = HalfGaussianBasis(
+            priors={
+                "sigma": Prior("Gamma", mu=[3, 4], sigma=1, dims="event"),
+            }
+        )
+        coords = {"event": ["PyData-Berlin", "PyCon-Finland"]}
+        prior = half_gaussian.sample_prior(coords=coords)
+        curve = half_gaussian.sample_curve(prior)
+        fig, axes = half_gaussian.plot_curve(
+            curve, subplot_kwargs={"figsize": (6, 3), "sharey": True}
+        )
+        for ax in axes:
+            ax.set_xlabel("")
+        plt.show()
+
+    Parameters
+    ----------
+    mode : Literal["after", "before"]
+        Whether the basis is located before or after the event.
+    include_event : bool
+        Whether to include the event days in the basis.
+    priors : dict[str, Prior]
+        Prior for the sigma parameter.
+    prefix : str
+        Prefix for the parameter names.
+    """
+
+    lookup_name = "half_gaussian"
+
+    def __init__(
+        self,
+        mode: Literal["after", "before"] = "after",
+        include_event: bool = True,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.mode = mode
+        self.include_event = include_event
+
+    def function(self, x: pt.TensorLike, sigma: pt.TensorLike) -> TensorVariable:
+        """One-sided Gaussian bump function."""
+        rv = pm.Normal.dist(mu=0.0, sigma=sigma)
+        out = pm.math.exp(pm.logp(rv, x))
+        # Sign determines if the zeroing happens after or before the event.
+        sign = 1 if self.mode == "after" else -1
+        # Build boolean mask(s) in x's shape and broadcast to out's shape.
+        pre_mask = sign * x < 0
+        if not self.include_event:
+            pre_mask = pm.math.or_(pre_mask, sign * x == 0)
+
+        # Ensure mask matches output shape for elementwise switch
+        pre_mask = pt.broadcast_to(pre_mask, out.shape)
+
+        return pt.switch(pre_mask, 0, out)
+
+    def to_dict(self) -> dict:
+        """Convert the half Gaussian basis to a dictionary."""
+        return {
+            **super().to_dict(),
+            "mode": self.mode,
+            "include_event": self.include_event,
+        }
+
+    default_priors = {
+        "sigma": Prior("Gamma", mu=7, sigma=1),
+    }
+
+
+class AsymmetricGaussianBasis(Basis):
+    R"""Asymmetric Gaussian bump basis transformation.
+
+    Allows different widths (sigma_before, sigma_after) and amplitudes (a_after)
+    after the event.
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        from pymc_marketing.mmm.events import AsymmetricGaussianBasis
+        from pymc_extras.prior import Prior
+        asy_gaussian = AsymmetricGaussianBasis(
+            priors={
+                "sigma_before": Prior("Gamma", mu=[3, 4], sigma=1, dims="event"),
+                "a_after": Prior("Normal", mu=[-.75, .5], sigma=.2, dims="event"),
+            }
+        )
+        coords = {"event": ["PyData-Berlin", "PyCon-Finland"]}
+        prior = asy_gaussian.sample_prior(coords=coords)
+        curve = asy_gaussian.sample_curve(prior)
+        fig, axes = asy_gaussian.plot_curve(
+            curve, subplot_kwargs={"figsize": (6, 3), "sharey": True}
+        )
+        for ax in axes:
+            ax.set_xlabel("")
+        plt.show()
+
+    Parameters
+    ----------
+    event_in : Literal["before", "after", "exclude"]
+        Whether to include the event in the before or after part of the basis,
+        or leave it out entirely. Default is "after".
+    priors : dict[str, Prior]
+        Prior for the sigma_before, sigma_after, a_before, and a_after parameters.
+    prefix : str
+        Prefix for the parameters.
+    """
+
+    lookup_name = "asymmetric_gaussian"
+
+    def __init__(
+        self,
+        event_in: Literal["before", "after", "exclude"] = "after",
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.event_in = event_in
+
+    def function(
+        self,
+        x: pt.TensorLike,
+        sigma_before: pt.TensorLike,
+        sigma_after: pt.TensorLike,
+        a_after: pt.TensorLike,
+    ) -> pt.TensorVariable:
+        """Asymmetric Gaussian bump function."""
+        match self.event_in:
+            case "before":
+                indicator_before = pt.cast(x <= 0, "float32")
+                indicator_after = pt.cast(x > 0, "float32")
+            case "after":
+                indicator_before = pt.cast(x < 0, "float32")
+                indicator_after = pt.cast(x >= 0, "float32")
+            case "exclude":
+                indicator_before = pt.cast(x < 0, "float32")
+                indicator_after = pt.cast(x > 0, "float32")
+            case _:
+                raise ValueError(f"Invalid event_in: {self.event_in}")
+
+        rv_before = pm.Normal.dist(mu=0.0, sigma=sigma_before)
+        rv_after = pm.Normal.dist(mu=0.0, sigma=sigma_after)
+
+        y_before = pt.switch(
+            indicator_before,
+            pm.math.exp(pm.logp(rv_before, x)),
+            0,
+        )
+        y_after = pt.switch(
+            indicator_after,
+            pm.math.exp(pm.logp(rv_after, x)) * a_after,
+            0,
+        )
+
+        return y_before + y_after
+
+    def to_dict(self) -> dict:
+        """Convert the asymmetric Gaussian basis to a dictionary."""
+        return {
+            **super().to_dict(),
+            "event_in": self.event_in,
+        }
+
+    default_priors = {
+        "sigma_before": Prior("Gamma", mu=3, sigma=1),
+        "sigma_after": Prior("Gamma", mu=7, sigma=2),
+        "a_after": Prior("Normal", mu=1, sigma=0.5),
     }
 
 

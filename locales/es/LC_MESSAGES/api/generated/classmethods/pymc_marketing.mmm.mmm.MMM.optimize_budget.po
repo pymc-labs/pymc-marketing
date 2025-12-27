@@ -1,0 +1,301 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.mmm.MMM.optimize_budget.rst:2
+#: 487d1a80cd8c42489cf602575e39234a
+msgid "MMM.optimize\\_budget"
+msgstr "MMM.optimizar\\_presupuesto"
+
+#: 868af97e75ed4f05a2d8cc71a8794131 of
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget:2
+msgid ""
+"Optimize the given budget based on the specified utility function over a "
+"specified time period."
+msgstr ""
+"Optimice el presupuesto dado en función de la función de utilidad "
+"especificada durante un período de tiempo determinado."
+
+#: ab03457775ac4669accdd9faf8ea99f1 of
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget:4
+msgid ""
+"This function optimizes the allocation of a given budget across different "
+"channels to maximize the response, considering adstock and saturation "
+"effects. It scales the budget and budget bounds, performs the optimization, "
+"and generates a synthetic dataset for posterior predictive sampling."
+msgstr ""
+"Esta función optimiza la asignación de un presupuesto dado entre diferentes "
+"canales para maximizar la respuesta, considerando los efectos de adstock y "
+"saturación. Escala el presupuesto y los límites del presupuesto, realiza la "
+"optimización y genera un conjunto de datos sintético para el muestreo "
+"predictivo posterior."
+
+#: d052bbd5a3a946f28ea60779da12a72c of
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget:10
+msgid ""
+"The function first scales the budget and budget bounds using the maximum "
+"scale of the channel transformer. It then uses the `BudgetOptimizer` to "
+"allocate the budget, and creates a synthetic dataset based on the optimal "
+"allocation. Finally, it performs posterior predictive sampling on the "
+"synthetic dataset."
+msgstr ""
+"La función primero escala el presupuesto y los límites del presupuesto "
+"utilizando la escala máxima del transformador de canal. Luego utiliza el "
+"`BudgetOptimizer` para asignar el presupuesto y crea un conjunto de datos "
+"sintético basado en la asignación óptima. Finalmente, realiza un muestreo "
+"predictivo posterior sobre el conjunto de datos sintético."
+
+#: 6e6b366e55bf424598d30a0b95785372 of
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget:15
+msgid ""
+"**Important**: When generating the posterior predicive distribution for the "
+"target with the optimized budget, we are setting the control variables to "
+"zero! This is done because in many situations we do not have all the control"
+" variables in the future (e.g. outlier control, special events)."
+msgstr ""
+"**Importante**: Al generar la distribución predictiva posterior para el "
+"objetivo con el presupuesto optimizado, ¡estamos estableciendo las variables"
+" de control en cero! Esto se hace porque en muchas situaciones no tenemos "
+"todas las variables de control en el futuro (por ejemplo, control de valores"
+" atípicos, eventos especiales)."
+
+#: 1def88b901bd44179e798b1ae6d05a3a of
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 5d9cb6378b9040eb979f0a34ce62e754 of
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget:22
+msgid "**budget** : :class:`python:float` or :class:`python:int`"
+msgstr "**presupuesto** : :class:`python:float` o :class:`python:int`"
+
+#: 7fcf26af0ce9499b935d67c322e551f0 of
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget:21
+msgid "python:float or python:int"
+msgstr "python:float o python:int"
+
+#: c8dd352e3b9d45a28c51816e4a108394 of
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget:23
+msgid "The total budget to be allocated."
+msgstr "El presupuesto total a ser asignado."
+
+#: e059e70a68b74d37bfe2e0448db2e44c of
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget:25
+msgid "**num_periods** : :class:`python:int`"
+msgstr "**num_periods** : :class:`python:int`"
+
+#: 8ea9d79a5059480d85605f66a2bed9eb of
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget:24
+msgid "python:int"
+msgstr "python:int"
+
+#: 585e8351b7174b55a221b4efd55f9bd6 of
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget:26
+msgid "The number of time units over which the budget is to be allocated."
+msgstr ""
+"El número de unidades de tiempo sobre las cuales se debe asignar el "
+"presupuesto."
+
+#: ad31e4c7288646d381bebd37f9d84ae3 of
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget:28
+msgid ""
+"**budget_bounds** : :obj:`DataArrayr` or "
+":class:`python:dict`\\[:class:`python:str`, "
+":class:`python:tuple`\\[:class:`python:float`, :class:`python:float`]], "
+"optional"
+msgstr ""
+"**budget_bounds** : :obj:`DataArrayr` o "
+":class:`python:dict`\\[:class:`python:str`, "
+":class:`python:tuple`\\[:class:`python:float`, :class:`python:float`]], "
+"opcional"
+
+#: ea6db15ea7884fac9a6c3e9ca505ab1c of
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget:27
+msgid ""
+"DataArrayr or python:dict[python:str, python:tuple[python:float, "
+"python:float]], optional"
+msgstr ""
+"DataArrayr o python:dict[python:str, python:tuple[python:float, "
+"python:float]], opcional"
+
+#: 839c6ce093c444a18d7a44a5c897dd60 of
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget:29
+msgid ""
+"An xarray DataArary or dictionary specifying the lower and upper bounds for "
+"the budget allocation for each channel. If None, no bounds are applied."
+msgstr ""
+"Un xarray DataArray o diccionario que especifica los límites inferiores y "
+"superiores para la asignación del presupuesto para cada canal. Si es None, "
+"no se aplican límites."
+
+#: d5e33d96a2c34077ae2eb1eea342b52e of
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget:32
+msgid "**response_variable** : :class:`python:str`, optional"
+msgstr "**response_variable** : :class:`python:str`, opcional"
+
+#: c82e16dc63364842a944e0ae4e91b990 of
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget:31
+msgid "python:str, optional"
+msgstr "python:str, opcional"
+
+#: b5c6e9c4cbbd4845bbd01e6a20cb41ed of
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget:33
+msgid "The response variable to optimize. Default is \"total_contribution\"."
+msgstr ""
+"La variable de respuesta a optimizar. El valor predeterminado es "
+"\"total_contribution\"."
+
+#: a02d4ff805794195be9b0fe43fa0eeef of
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget:35
+msgid "**utility_function** : :obj:`UtilityFunctionType`, optional"
+msgstr "**utility_function** : :obj:`UtilityFunctionType`, opcional"
+
+#: cc34f7974f9142368a351d4ad52a192b of
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget:34
+msgid "UtilityFunctionType, optional"
+msgstr "TipoDeFunciónUtilidad, opcional"
+
+#: 3b18401399014f75842c41d2f66bfed3 of
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget:36
+msgid ""
+"The utility function to maximize. Default is the mean of the response "
+"distribution."
+msgstr ""
+"La función de utilidad a maximizar. El valor predeterminado es la media de "
+"la distribución de respuestas."
+
+#: 1fe15dc9e45f47f68dfae5e6cbfb0840 of
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget:38
+msgid ""
+"**custom_constraints** : "
+":class:`python:list`\\[:class:`python:dict`\\[:class:`python:str`, "
+":obj:`Any`]], optional"
+msgstr ""
+"**custom_constraints** : "
+":class:`python:list`\\[:class:`python:dict`\\[:class:`python:str`, "
+":obj:`Any`]], opcional"
+
+#: b3243e44f1c341b0b9a0822176ff3861 of
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget:37
+msgid "python:list[python:dict[python:str, Any]], optional"
+msgstr "python:list[python:dict[python:str, Any]], opcional"
+
+#: dc8e383c5eda4b3c8fc9ffdb9fb61c32 of
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget:39
+#, python-brace-format
+msgid ""
+"Custom constraints for the optimization. If None, no custom constraints are "
+"applied. Format: "
+"[{\"key\":...,\"constraint_fun\":...,\"constraint_type\":...}]"
+msgstr ""
+"Restricciones personalizadas para la optimización. Si es None, no se aplican"
+" restricciones personalizadas. Formato: "
+"[{\"key\":...,\"constraint_fun\":...,\"constraint_type\":...}]"
+
+#: 43d34d1fea0f4c15aa784cc8d4f774a5 of
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget:42
+msgid ""
+"**default_constraints** : :ref:`bool <python:bltin-boolean-values>`, "
+"optional"
+msgstr ""
+"**default_constraints** : :ref:`bool <python:bltin-boolean-values>`, "
+"opcional"
+
+#: 218e64d3efde4ae1a8423284d8350075 34f03993d7b14826b07a96370b6e038a of
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget:41
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget:44
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: 25a29ce1f22a448c8553204c0c628d80 of
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget:43
+msgid ""
+"Whether to add the default sum constraint to the optimizer. Default is True."
+msgstr ""
+"Si se debe agregar la restricción de suma predeterminada al optimizador. El "
+"valor predeterminado es True."
+
+#: 8db226d4133c4aaaab4aba112d4178f5 of
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget:45
+msgid "**callback** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr "**callback** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: f21905dc07f2472fa31e628c31f2edd9 of
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget:46
+msgid ""
+"Whether to return callback information tracking optimization progress. When "
+"True, returns a third element containing a list of dictionaries with "
+"optimization information at each iteration. Default is False for backward "
+"compatibility."
+msgstr ""
+"Si se debe devolver información de seguimiento de la optimización del "
+"progreso de la devolución de llamada. Cuando es Verdadero, devuelve un "
+"tercer elemento que contiene una lista de diccionarios con información de "
+"optimización en cada iteración. El valor predeterminado es Falso para "
+"mantener la compatibilidad hacia atrás."
+
+#: ae96f7b962ab41efa10694df0219c938 of
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget:50
+msgid "**\\*\\*minimize_kwargs**"
+msgstr "**\\*\\*minimize_kwargs**"
+
+#: addae2fca4454db3998693df8d0a0e75 of
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget:51
+msgid "Additional arguments to pass to the `BudgetOptimizer`."
+msgstr "Argumentos adicionales para pasar al `BudgetOptimizer`."
+
+#: 43573b50c4be42339284314779efe760 of
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 3a784bcd501f42948dd8c37a596bf826 of
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget:57
+msgid ":obj:`az.InferenceData`"
+msgstr ":obj:`az.InferenceData`"
+
+#: 0e130c3ea71f4397a9eab94098d8f5d5 of
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget:58
+msgid "The posterior predictive samples generated from the synthetic dataset."
+msgstr ""
+"Las muestras predictivas posteriores generadas a partir del conjunto de "
+"datos sintético."
+
+#: 51d199a1055a42838e7f6d8a4aabb367 of
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget
+msgid "Raises"
+msgstr "Aumentos"
+
+#: 9db11c49ecee4c719d0e7c221dc8fc04 baa67feb203e4c4e9e4108f71cc053a9 of
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget:65
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget:68
+msgid ":obj:`ValueError`"
+msgstr ":obj:`ValueError`"
+
+#: 3d6567b000ba4120927ea1e412d0890e of
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget:66
+msgid "If the time granularity is not supported."
+msgstr "Si la granularidad del tiempo no es compatible."
+
+#: f0136fe5ef9940e3baefc6b19e5107c1 of
+#: pymc_marketing.mmm.mmm.MMM.optimize_budget:69
+msgid "If the noise level is not a float."
+msgstr "Si el nivel de ruido no es un número decimal."

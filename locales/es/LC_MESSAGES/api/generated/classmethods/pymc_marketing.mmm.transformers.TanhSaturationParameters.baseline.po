@@ -1,0 +1,66 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.transformers.TanhSaturationParameters.baseline.rst:2
+#: 605c5805405642f0ab1ecd97cb8edfcd
+msgid "TanhSaturationParameters.baseline"
+msgstr "TanhSaturationParameters.baseline"
+
+#: f64440443b0042028d335faafbd27b12 of
+#: pymc_marketing.mmm.transformers.TanhSaturationParameters.baseline:2
+msgid "Change the parameterization to baselined at :math:`x_0`."
+msgstr "Cambia la parametrización a la línea base en :math:`x_0`."
+
+#: 54d43cc5692446899082174ceebacb0a of
+#: pymc_marketing.mmm.transformers.TanhSaturationParameters.baseline
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: c0a7ee1d395f4312b004b639a54239f8 of
+#: pymc_marketing.mmm.transformers.TanhSaturationParameters.baseline:7
+msgid "**x0** : :obj:`pt.TensorLike`"
+msgstr "**x0** : :obj:`pt.TensorLike`"
+
+#: 6bbe36c7791243a3898a3ec444151bb8 of
+#: pymc_marketing.mmm.transformers.TanhSaturationParameters.baseline:6
+msgid "pt.TensorLike"
+msgstr "pt.TensorComo"
+
+#: 3d4a2e245cd34a9ca496d6c09ce4c252 of
+#: pymc_marketing.mmm.transformers.TanhSaturationParameters.baseline:8
+msgid "Baseline spend."
+msgstr "Gasto base."
+
+#: 2274aa8a71524e72a12401af27b6fa34 of
+#: pymc_marketing.mmm.transformers.TanhSaturationParameters.baseline
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 0c4a0ec732744b51a3b79fdc992a3f95 of
+#: pymc_marketing.mmm.transformers.TanhSaturationParameters.baseline:14
+msgid ":obj:`TanhSaturationBaselinedParameters`"
+msgstr ":obj:`TanhSaturationBaselinedParameters`"
+
+#: 3c410c897c9b485bb38f7d0f26934999 of
+#: pymc_marketing.mmm.transformers.TanhSaturationParameters.baseline:15
+msgid "Baselined parameters."
+msgstr "Parámetros de referencia."

@@ -1,0 +1,74 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.OptimizerCompatibleModelWrapper.rst:2
+#: 5bdf80481ae843ea9ea599c6f882424c
+msgid "OptimizerCompatibleModelWrapper"
+msgstr "OptimizerCompatibleModelWrapper"
+
+#: 45b6610a140d4577a25b0cd27856e8c2 of
+#: pymc_marketing.mmm.budget_optimizer.OptimizerCompatibleModelWrapper:2
+msgid ""
+"Protocol for marketing mix model wrappers compatible with the "
+"BudgetOptimizer."
+msgstr ""
+"Protocolo para envolturas del modelo de mezcla de marketing compatibles con "
+"el BudgetOptimizer."
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.OptimizerCompatibleModelWrapper.rst:12
+#: 30158816455249d2ba055200588d3161
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.OptimizerCompatibleModelWrapper.rst:22:<autosummary>:1
+#: 9b3c05f1857f4cd6b07441e79f23c4a8
+msgid ""
+":py:obj:`OptimizerCompatibleModelWrapper.__init__ "
+"<pymc_marketing.mmm.budget_optimizer.OptimizerCompatibleModelWrapper.__init__>`\\"
+" \\(...\\)"
+msgstr ""
+":py:obj:`OptimizerCompatibleModelWrapper.__init__ "
+"<pymc_marketing.mmm.budget_optimizer.OptimizerCompatibleModelWrapper.__init__>`\\"
+" \\(...\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.OptimizerCompatibleModelWrapper.rst:24
+#: db5adf8f5b6b4c749066b0fb7ea33432
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.OptimizerCompatibleModelWrapper.rst:28:<autosummary>:1
+#: 58154f9dd6e84528a9960e4e3db6e2c6
+msgid ""
+":py:obj:`adstock "
+"<pymc_marketing.mmm.budget_optimizer.OptimizerCompatibleModelWrapper.adstock>`\\"
+msgstr ""
+":py:obj:`adstock "
+"<pymc_marketing.mmm.budget_optimizer.OptimizerCompatibleModelWrapper.adstock>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.OptimizerCompatibleModelWrapper.rst:28:<autosummary>:1
+#: e69b38ff5f714832a7c4cba5b1da2c1c
+msgid ""
+":py:obj:`idata "
+"<pymc_marketing.mmm.budget_optimizer.OptimizerCompatibleModelWrapper.idata>`\\"
+msgstr ""
+":py:obj:`idata "
+"<pymc_marketing.mmm.budget_optimizer.OptimizerCompatibleModelWrapper.idata>`"

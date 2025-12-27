@@ -1,0 +1,100 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.expected_customer_spend.rst:2
+#: 0c87b74e22bc45ff9f32ab66f6bdd3a9
+msgid "GammaGammaModelIndividual.expected\\_customer\\_spend"
+msgstr "GammaGammaModelIndividual.gasto\\_esperado\\_del\\_cliente"
+
+#: 5ceca60309304da1a041d09d1c1ce0aa of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_spend:2
+msgid "Compute the expected future mean spend value per customer."
+msgstr "Calcule el valor medio de gasto futuro esperado por cliente."
+
+#: ec51f0fa7fe04e67b20fa08ec3da8bb5 of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_spend:4
+msgid "The computations are based on Eq 5 from [1], p.3."
+msgstr "Los cálculos se basan en la Ec. 5 de [1], p.3."
+
+#: 0d19cba64c934c4b9edfab28c3e5881f of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_spend:6
+msgid ""
+"Adapted from: "
+"https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/lifetimes/fitters/gamma_gamma_fitter.py#L117"
+msgstr ""
+"Adaptado de: "
+"https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/lifetimes/fitters/gamma_gamma_fitter.py#L117"
+
+#: e3b8c48df3b247ab88b0108152796311 of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_spend:8
+msgid "data"
+msgstr "datos"
+
+#: 23c2b30ed83d48eb9ad8add17a1c8467 of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_spend:-1
+msgid "~pandas.DataFrame"
+msgstr "~pandas.DataFrame"
+
+#: b4fb7c6a20114088a684af5e14253902 of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_spend:9
+msgid "DataFrame containing the following columns:"
+msgstr "DataFrame que contiene las siguientes columnas:"
+
+#: c6608b867c5746889e26b28b02dfd3e5 of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_spend:11
+msgid "`customer_id`: Unique customer identifier"
+msgstr "`customer_id`: Identificador único del cliente"
+
+#: aa6cfa6e9e874380bc38d2b15e09783f of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_spend:12
+msgid "`frequency`: Number of transactions observed for each customer"
+msgstr "`frequency`: Número de transacciones observadas para cada cliente"
+
+#: ddfd7c7fa9de40b1b92b88716e916fac of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_spend:13
+msgid ""
+"`monetary_value`: Mean transaction value of repeat purchases for each "
+"customer"
+msgstr ""
+"`monetary_value`: Valor medio de transacción de compras repetidas para cada "
+"cliente"
+
+#: 137c3f1bbf934c3eb74bee1a2d304abe of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_spend:28
+msgid "References"
+msgstr "Referencias"
+
+#: e82e764113bf44fb92a6908708c3e8cf of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_spend:29
+msgid ""
+"Fader, P. S., & Hardie, B. G. (2013). \"The Gamma-Gamma model of monetary "
+"value\". February, 2, 1-9. "
+"https://www.brucehardie.com/notes/025/gamma_gamma.pdf"
+msgstr ""
+"Fader, P. S., y Hardie, B. G. (2013). \"El modelo Gamma-Gamma del valor "
+"monetario\". Febrero, 2, 1-9. "
+"https://www.brucehardie.com/notes/025/gamma_gamma.pdf"
+
+#: 77c3e3f067ad4f02919abf7bd6d462df of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_spend:34
+msgid "[R012da1240cac-1]_"
+msgstr "[R012da1240cac-1]_"

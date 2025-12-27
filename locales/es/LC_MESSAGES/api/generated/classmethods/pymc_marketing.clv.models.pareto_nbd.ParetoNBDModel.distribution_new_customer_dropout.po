@@ -1,0 +1,117 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer_dropout.rst:2
+#: b43e499549084f45a4502291f4a9ea1a
+msgid "ParetoNBDModel.distribution\\_new\\_customer\\_dropout"
+msgstr "ParetoNBDModel.distribución\\_nueva\\_pérdida\\_de\\_clientes"
+
+#: 2c41fcd2d50d4fdd8c68423fbe36474d of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer_dropout:2
+msgid ""
+"Sample from the Gamma distribution representing dropout times for new "
+"customers."
+msgstr ""
+"Muestra de la distribución Gamma que representa los tiempos de abandono para"
+" nuevos clientes."
+
+#: b9855a68e679411d96db18cd1d93978e of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer_dropout:4
+msgid ""
+"This is the duration of time a new customer is active before churning, or "
+"dropping out."
+msgstr ""
+"Esta es la duración de tiempo que un nuevo cliente está activo antes de "
+"abandonar o darse de baja."
+
+#: 1bb2b90ec3604c59ba7c4189dae639ca of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer_dropout
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 6da55c8853064a9e947eca0abe6aaf6f of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer_dropout:8
+msgid "**data** : :obj:`~pandas.DataFrame`, optional"
+msgstr "**datos** : :obj:`~pandas.DataFrame`, opcional"
+
+#: 097031c934774dccbed06a8607bff72c of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer_dropout:7
+msgid "DataFrame, optional"
+msgstr "DataFrame, opcional"
+
+#: 13579045f4d54ff0ba492a9c9e8be8d3 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer_dropout:9
+msgid "DataFrame containing the following columns:"
+msgstr "DataFrame que contiene las siguientes columnas:"
+
+#: 10f3e6b550cf4db98bb41ccc4c04c413 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer_dropout:11
+msgid "`customer_id`: Unique customer identifier"
+msgstr "`customer_id`: Identificador único del cliente"
+
+#: cf112c4361c843e5a25cba2174255d6b of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer_dropout:12
+msgid "All covariate columns specified when model was initialized."
+msgstr ""
+"Todas las columnas de covariables especificadas cuando se inicializó el "
+"modelo."
+
+#: 1476375c56744fe1a6e67779ef3fe451 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer_dropout:14
+msgid "If not provided, predictions will be ran with data used to fit model."
+msgstr ""
+"Si no se proporciona, las predicciones se realizarán con los datos "
+"utilizados para ajustar el modelo."
+
+#: 04b2a69d10134b13a4a8cf9ed36f0b3b of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer_dropout:16
+msgid "**random_seed** : :obj:`~numpy.random.RandomState`, optional"
+msgstr "**semilla_aleatoria** : :obj:`~numpy.random.RandomState`, opcional"
+
+#: 7c9a2c514efd423baf366d9eaac4962b of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer_dropout:15
+msgid "RandomState, optional"
+msgstr "RandomState, opcional"
+
+#: fbda995fcb964bdf9de95aa7f91e63fa of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer_dropout:17
+msgid "Random state to use for sampling."
+msgstr "Estado aleatorio a utilizar para el muestreo."
+
+#: c3c7ff2a37194e3aa470f6769debaa2f of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer_dropout
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: f1e69050ff7b40a7b125d584e771aacc of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer_dropout:23
+msgid ":obj:`~xarray.Dataset`"
+msgstr ":obj:`~xarray.Dataset`"
+
+#: d4dca6b6d7904fdeaf6a3f87afcd1a5b of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer_dropout:24
+msgid ""
+"Dataset containing the posterior samples for the population-level dropout "
+"rate."
+msgstr ""
+"Conjunto de datos que contiene las muestras posteriores para la tasa de "
+"abandono a nivel poblacional."

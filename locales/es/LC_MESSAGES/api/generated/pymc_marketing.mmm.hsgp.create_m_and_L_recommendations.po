@@ -1,0 +1,127 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.create_m_and_L_recommendations.rst:2
+#: 162e550bfcb24b7f9c3122ccc792cab6
+msgid "create\\_m\\_and\\_L\\_recommendations"
+msgstr "crear_recomendaciones_m_y_L"
+
+#: 6151ababa18c4aee99cc7565479eb061 of
+#: pymc_marketing.mmm.hsgp.create_m_and_L_recommendations:2
+msgid ""
+"Create recommendations for the number of basis functions based on the data."
+msgstr ""
+"Cree recomendaciones para el número de funciones base en función de los "
+"datos."
+
+#: fa245936e70d4355ae625abb2eabde8a of
+#: pymc_marketing.mmm.hsgp.create_m_and_L_recommendations
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 993e7694734b4d09b156b9bc1f91ce13 of
+#: pymc_marketing.mmm.hsgp.create_m_and_L_recommendations:7
+msgid "**X** : :obj:`np.ndarray <numpy.ndarray>`"
+msgstr "**X** : :obj:`np.ndarray <numpy.ndarray>`"
+
+#: 4cb44c8733c047c381c1056afed1689f of
+#: pymc_marketing.mmm.hsgp.create_m_and_L_recommendations:6
+msgid "np.ndarray"
+msgstr "np.ndarray"
+
+#: 532ac0f263504d51a457da2554337671 of
+#: pymc_marketing.mmm.hsgp.create_m_and_L_recommendations:8
+msgid "The data."
+msgstr "Los datos."
+
+#: bfc778f0e865482e9b794f4010123623 of
+#: pymc_marketing.mmm.hsgp.create_m_and_L_recommendations:10
+msgid "**X_mid** : :class:`python:float`"
+msgstr "**X_mid** : :class:`python:float`"
+
+#: 1fbdee657602480186af52bdc9b83fa2 278d803bfb534de7a3da518154986787 of
+#: pymc_marketing.mmm.hsgp.create_m_and_L_recommendations:9
+#: pymc_marketing.mmm.hsgp.create_m_and_L_recommendations:12
+msgid "python:float"
+msgstr "python:float"
+
+#: 0e764b0a68c34a248772c9bc485e2514 of
+#: pymc_marketing.mmm.hsgp.create_m_and_L_recommendations:11
+msgid "The mean of the data."
+msgstr "La media de los datos."
+
+#: bab7a64c100044e88139b825873fa715 of
+#: pymc_marketing.mmm.hsgp.create_m_and_L_recommendations:13
+msgid "**ls_lower** : :class:`python:float`"
+msgstr "**ls_lower** : :class:`python:float`"
+
+#: 98042d8da1bf4463b544bf2a8d20caa5 of
+#: pymc_marketing.mmm.hsgp.create_m_and_L_recommendations:14
+msgid "Lower bound for the lengthscale. Default is 1.0."
+msgstr ""
+"Límite inferior para la escala de longitud. El valor predeterminado es 1.0."
+
+#: d933a92358044e799f450d8452c6eaf1 of
+#: pymc_marketing.mmm.hsgp.create_m_and_L_recommendations:16
+msgid "**ls_upper** : :class:`python:float`, optional"
+msgstr "**ls_upper** : :class:`python:float`, opcional"
+
+#: f63c3271cdc54e6cadfc8f51114d01d9 of
+#: pymc_marketing.mmm.hsgp.create_m_and_L_recommendations:15
+msgid "python:float, optional"
+msgstr "python:float, opcional"
+
+#: a0bd088173cd414d8bb81002df7243ef of
+#: pymc_marketing.mmm.hsgp.create_m_and_L_recommendations:17
+msgid "Upper bound for the lengthscale. Default is None."
+msgstr ""
+"Límite superior para la escala de longitud. El valor predeterminado es None."
+
+#: a07d54aeb37048a3a25212847f20e093 of
+#: pymc_marketing.mmm.hsgp.create_m_and_L_recommendations:19
+msgid "**cov_func** : :obj:`CovFunc`"
+msgstr "**cov_func** : :obj:`CovFunc`"
+
+#: 1790e2012b61405a9a83993b5b391e7d of
+#: pymc_marketing.mmm.hsgp.create_m_and_L_recommendations:18
+msgid "CovFunc"
+msgstr "CovFunc"
+
+#: 477c6919d96343b7a6c6f1e55c13baa5 of
+#: pymc_marketing.mmm.hsgp.create_m_and_L_recommendations:20
+msgid "The covariance function. Default is CovFunc.ExpQuad."
+msgstr "La función de covarianza. El valor predeterminado es CovFunc.ExpQuad."
+
+#: 0a81db03477a406daf7eea9147531cae of
+#: pymc_marketing.mmm.hsgp.create_m_and_L_recommendations
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: f242d8e5d0884628a5da51c3149e0e15 of
+#: pymc_marketing.mmm.hsgp.create_m_and_L_recommendations:26
+msgid ":class:`python:tuple`\\[:class:`python:int`, :class:`python:float`]"
+msgstr ":class:`python:tuple`\\[:class:`python:int`, :class:`python:float`]"
+
+#: 4370957ec59348588be46dbcce6f45cd of
+#: pymc_marketing.mmm.hsgp.create_m_and_L_recommendations:27
+msgid "The number of basis functions and the boundary of the approximation."
+msgstr "El número de funciones base y el límite de la aproximación."

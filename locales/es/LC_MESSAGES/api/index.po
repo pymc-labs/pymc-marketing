@@ -1,0 +1,167 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/index.md:1 0e4ad92c5b8d4b8793b6d94328b29f9d
+msgid "API"
+msgstr "API"
+
+#: ../source/api/index.md:3 1895e697fd55475f96b20c4fbef98fde
+msgid "Modules"
+msgstr "Módulos"
+
+#: ../source/api/index.md:25:<autosummary>:1 fb9251e3cb954579bfe15f940e0d8fb4
+msgid ":py:obj:`bass <pymc_marketing.bass>`\\"
+msgstr ":py:obj:`bass <pymc_marketing.bass>`\\"
+
+#: ../source/api/index.md:25:<autosummary>:1 4eaaa0c6a2894d6d99d58c5fb3b84354
+msgid "Bass model."
+msgstr "Modelo Bass."
+
+#: ../source/api/index.md:25:<autosummary>:1 710e6dd80a884046bf1fe128263d18a7
+msgid ":py:obj:`clv <pymc_marketing.clv>`\\"
+msgstr ":py:obj:`clv <pymc_marketing.clv>`\\"
+
+#: ../source/api/index.md:25:<autosummary>:1 4a44f097b3e84efd97c6e717fcda15fb
+msgid "CLV models and utilities."
+msgstr "Modelos y utilidades de CLV."
+
+#: ../source/api/index.md:25:<autosummary>:1 57e00b13c82142049cd81f82087808ac
+msgid ":py:obj:`customer_choice <pymc_marketing.customer_choice>`\\"
+msgstr ":py:obj:`customer_choice <pymc_marketing.customer_choice>`"
+
+#: ../source/api/index.md:25:<autosummary>:1 fee4f4715cb746fd8be2b2cca0729687
+msgid "Customer Choice module."
+msgstr "Módulo de Elección del Cliente."
+
+#: ../source/api/index.md:25:<autosummary>:1 e2e6cf49766740f3b050b13f8069c05d
+msgid ":py:obj:`data <pymc_marketing.data>`\\"
+msgstr ":py:obj:`data <pymc_marketing.data>`\\"
+
+#: ../source/api/index.md:25:<autosummary>:1 b02b4c75a1de46f28501b473ebc18e9a
+msgid "Data adaptors for PyMC-Marketing."
+msgstr "Adaptadores de datos para PyMC-Marketing."
+
+#: ../source/api/index.md:25:<autosummary>:1 1279aec9ae2049e0ab496328e3e65423
+msgid ":py:obj:`deserialize <pymc_marketing.deserialize>`\\"
+msgstr ":py:obj:`deserializar <pymc_marketing.deserialize>`"
+
+#: ../source/api/index.md:25:<autosummary>:1 3372db3b168e4d8d994caabcdfacb9b3
+msgid "Deserialize into a PyMC-Marketing object."
+msgstr "Deserializar en un objeto PyMC-Marketing."
+
+#: ../source/api/index.md:25:<autosummary>:1 3e0c2ae531024065adafdb8ecd0d4979
+msgid ":py:obj:`hsgp_kwargs <pymc_marketing.hsgp_kwargs>`\\"
+msgstr ":py:obj:`hsgp_kwargs <pymc_marketing.hsgp_kwargs>`"
+
+#: ../source/api/index.md:25:<autosummary>:1 9b28cf7531484b4ba0714f3ef5c380aa
+msgid ""
+"Class to store and validate keyword argument for the Hilbert Space Gaussian "
+"Process (HSGP) components."
+msgstr ""
+"Clase para almacenar y validar el argumento de palabra clave para los "
+"componentes del Proceso Gaussiano del Espacio de Hilbert (HSGP)."
+
+#: ../source/api/index.md:25:<autosummary>:1 03a1c7c4a5ce427bb5806b97918d8928
+msgid ":py:obj:`metrics <pymc_marketing.metrics>`\\"
+msgstr ":py:obj:`métricas <pymc_marketing.metrics>`\\"
+
+#: ../source/api/index.md:25:<autosummary>:1 fbfacbf08cf14f8ab702669a9283a67c
+msgid "Evaluation Metrics."
+msgstr "Métricas de Evaluación."
+
+#: ../source/api/index.md:25:<autosummary>:1 7f5eb35aa2dd4f069bfe412770035b55
+msgid ":py:obj:`mlflow <pymc_marketing.mlflow>`\\"
+msgstr ":py:obj:`mlflow <pymc_marketing.mlflow>`\\"
+
+#: ../source/api/index.md:25:<autosummary>:1 5c69f2aa42474b339346bf48e8c55bb4
+msgid "MLflow logging utilities for PyMC models."
+msgstr "Utilidades de registro de MLflow para modelos de PyMC."
+
+#: ../source/api/index.md:25:<autosummary>:1 c27fbafcb333415385d8d52b0ccd451a
+msgid ":py:obj:`mmm <pymc_marketing.mmm>`\\"
+msgstr ":py:obj:`mmm <pymc_marketing.mmm>`\\"
+
+#: ../source/api/index.md:25:<autosummary>:1 24c1e4d0f6a94b1e863c5fbfade4d57e
+msgid "Marketing Mix Models (MMM)."
+msgstr "Modelos de Mezcla de Marketing (MMM)."
+
+#: ../source/api/index.md:25:<autosummary>:1 68784eccb5d64164a779b958ff0e04d7
+msgid ":py:obj:`model_builder <pymc_marketing.model_builder>`\\"
+msgstr ":py:obj:`model_builder <pymc_marketing.model_builder>`\\"
+
+#: ../source/api/index.md:25:<autosummary>:1 5f002ce13b494f11812e9091dfab4dd1
+msgid ""
+"Base classes containing primitives and high-level API for model building, "
+"fitting, saving, and loading."
+msgstr ""
+"Clases base que contienen primitivas y una API de alto nivel para la "
+"construcción, ajuste, guardado y carga de modelos."
+
+#: ../source/api/index.md:25:<autosummary>:1 baf4e82ebf03476395d43b821d98ffdb
+msgid ":py:obj:`model_config <pymc_marketing.model_config>`\\"
+msgstr ":py:obj:`model_config <pymc_marketing.model_config>`"
+
+#: ../source/api/index.md:25:<autosummary>:1 c361d10da564462981fa12627a977c29
+msgid "Model configuration utilities."
+msgstr "Utilidades de configuración del modelo."
+
+#: ../source/api/index.md:25:<autosummary>:1 de90cfe7c86442658830c9baffd6f802
+msgid ":py:obj:`model_graph <pymc_marketing.model_graph>`\\"
+msgstr ":py:obj:`model_graph <pymc_marketing.model_graph>`"
+
+#: ../source/api/index.md:25:<autosummary>:1 4bd0975535f4408a9f5033bf908ef085
+msgid "Functions to manipulate PyMC models as graphs."
+msgstr "Funciones para manipular modelos de PyMC como gráficos."
+
+#: ../source/api/index.md:25:<autosummary>:1 b136c895ba944abd895b425f1547b32b
+msgid ":py:obj:`plot <pymc_marketing.plot>`\\"
+msgstr ":py:obj:`plot <pymc_marketing.plot>`\\"
+
+#: ../source/api/index.md:25:<autosummary>:1 b89f2ae8cbe548eda031b233b6e87d86
+msgid "Plot distributions stored in xarray.DataArray across coordinates."
+msgstr ""
+"Trazar distribuciones almacenadas en xarray.DataArray a través de las "
+"coordenadas."
+
+#: ../source/api/index.md:25:<autosummary>:1 ebbe47e572604a55a3742b387e387a06
+msgid ":py:obj:`prior <pymc_marketing.prior>`\\"
+msgstr ":py:obj:`prior <pymc_marketing.prior>`"
+
+#: ../source/api/index.md:25:<autosummary>:1 23bbc4f32cdd49c4880adb02fabd58df
+msgid "Class that represents a prior distribution."
+msgstr "Clase que representa una distribución previa."
+
+#: ../source/api/index.md:25:<autosummary>:1 e97dd6e68e6c4e98a31343cea98a08b7
+msgid ":py:obj:`special_priors <pymc_marketing.special_priors>`\\"
+msgstr ":py:obj:`special_priors <pymc_marketing.special_priors>`\\"
+
+#: ../source/api/index.md:25:<autosummary>:1 50a9d0820c804aa29f4f0150e10be8d4
+msgid "Specialized priors that behave like the Prior class."
+msgstr "Priors especializados que se comportan como la clase Prior."
+
+#: ../source/api/index.md:25:<autosummary>:1 56ef43f0a77046c2adedd63ea17e8a1d
+msgid ":py:obj:`utils <pymc_marketing.utils>`\\"
+msgstr ":py:obj:`utils <pymc_marketing.utils>`\\"
+
+#: ../source/api/index.md:25:<autosummary>:1 d8a1e7b10e92430cb6338dcf75ddc2f9
+msgid "Utility functions for PyMC-Marketing."
+msgstr "Funciones utilitarias para PyMC-Marketing."

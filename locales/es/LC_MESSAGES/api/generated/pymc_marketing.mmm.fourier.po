@@ -1,0 +1,217 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.rst:2
+#: 008ebd456d1f44509998aa5e773fb191
+msgid "fourier"
+msgstr "fourier"
+
+#: 251dceb875b34d2eb4e1ccf9234e3de1 of pymc_marketing.mmm.fourier:1
+msgid "Fourier seasonality transformations."
+msgstr "Transformaciones de estacionalidad de Fourier."
+
+#: 152f757daead4773b6c5d9c42dee2b25 of pymc_marketing.mmm.fourier:3
+msgid ""
+"This modules provides Fourier seasonality transformations for use in "
+"Marketing Mix Models. The Fourier seasonality is a set of sine and cosine "
+"functions that can be used to model periodic patterns in the data."
+msgstr ""
+"Este módulo proporciona transformaciones de estacionalidad de Fourier para "
+"su uso en Modelos de Mezcla de Marketing. La estacionalidad de Fourier es un"
+" conjunto de funciones seno y coseno que se pueden utilizar para modelar "
+"patrones periódicos en los datos."
+
+#: 2d55ca1150c54a94b2c54dd0506a960c of pymc_marketing.mmm.fourier:7
+msgid "There are two types of Fourier seasonality transformations available:"
+msgstr ""
+"Hay dos tipos de transformaciones de estacionalidad de Fourier disponibles:"
+
+#: 9b1c395a0dac4c848fad8503aa1f20ae of pymc_marketing.mmm.fourier:9
+msgid "Yearly Fourier: A yearly seasonality with a period of 365.25 days"
+msgstr ""
+"Fourier Anual: Una estacionalidad anual con un período de 365.25 días."
+
+#: f38047a6cf0749bca918d43c799372b8 of pymc_marketing.mmm.fourier:10
+msgid ""
+"Monthly Fourier: A monthly seasonality with a period of 365.25 / 12 days"
+msgstr ""
+"Mensual de Fourier: Una estacionalidad mensual con un período de 365.25 / 12"
+" días"
+
+#: 96ce6682945e439eb32520be1ce80c9a of pymc_marketing.mmm.fourier:11
+msgid "Weekly Fourier: A weekly seasonality with a period of 7 days"
+msgstr "Fourier Semanal: Una estacionalidad semanal con un período de 7 días"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.rst:7
+#: f9e74ff0b5b647efb602ae3365e659d3
+msgid ""
+"(:download:`Source code "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"fourier-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"fourier-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"fourier-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"fourier-1.pdf>`)"
+msgstr ""
+"(:download:`Código fuente "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"fourier-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"fourier-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"fourier-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"fourier-1.pdf>`)"
+
+#: 8970d0a8af654f749094b0599d6b170d of pymc_marketing.mmm.fourier:39
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: 0985fa8b45604f7aa43fbf8e835af17a of pymc_marketing.mmm.fourier:40
+msgid "Use yearly fourier seasonality for custom Marketing Mix Model."
+msgstr ""
+"Utilice la estacionalidad de Fourier anual para el modelo de mezcla de "
+"marketing personalizado."
+
+#: 014267d6ca0442b8ae6d0785438991fd of pymc_marketing.mmm.fourier:58
+msgid "Plot the prior fourier seasonality trend."
+msgstr "Trazar la tendencia de estacionalidad de Fourier previa."
+
+#: fd6f90dd27ef4dd5afa5129980d7167c of pymc_marketing.mmm.fourier:69
+msgid "Change the prior distribution of the fourier seasonality."
+msgstr "Cambia la distribución previa de la estacionalidad de Fourier."
+
+#: 91f24a518aa14e73a0565fd0e276dcd8 of pymc_marketing.mmm.fourier:79
+msgid "Even make it hierarchical..."
+msgstr "Incluso hacerlo jerárquico..."
+
+#: 815e1ea4e53e4b31bbf8a610c8a80bd4 of pymc_marketing.mmm.fourier:95
+msgid "All the plotting will still work! Just pass any coords."
+msgstr ""
+"¡Toda la representación gráfica seguirá funcionando! Simplemente pasa "
+"cualquier coordenada."
+
+#: 4872bf3f5f2f4ba4a05efdbdf1f3d841 of pymc_marketing.mmm.fourier:107
+msgid ""
+"Out of sample predictions with fourier seasonality by changing the day of "
+"year used in the model."
+msgstr ""
+"Predicciones fuera de muestra con estacionalidad de Fourier al cambiar el "
+"día del año utilizado en el modelo."
+
+#: d3c0fdf2039e41f2a1d4761f786e9094 of pymc_marketing.mmm.fourier:155
+msgid "Use yearly and monthly fourier seasonality together."
+msgstr "Utilice la estacionalidad de Fourier anual y mensual juntas."
+
+#: 8fc2d64fad584d149033a390a1643697 of pymc_marketing.mmm.fourier:157
+msgid ""
+"By default, the prefix of the fourier seasonality is set to \"fourier\". "
+"However, the prefix can be changed upon initialization in order to avoid "
+"variable name conflicts."
+msgstr ""
+"Por defecto, el prefijo de la estacionalidad de Fourier se establece en "
+"\"fourier\". Sin embargo, el prefijo se puede cambiar durante la "
+"inicialización para evitar conflictos en los nombres de las variables."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.rst:13
+#: 0a8e9009af2d4dc78a70e3e05655fac2
+msgid "Functions"
+msgstr "Funciones"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.rst:23:<autosummary>:1
+#: c7c15d8997104774a16b8335fffc676f
+msgid ""
+":py:obj:`generate_fourier_modes "
+"<pymc_marketing.mmm.fourier.generate_fourier_modes>`\\ \\(periods\\, "
+"n\\_order\\)"
+msgstr ""
+":py:obj:`generate_fourier_modes "
+"<pymc_marketing.mmm.fourier.generate_fourier_modes>`\\ \\(periodos\\, "
+"n\\_orden\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.rst:23:<autosummary>:1
+#: 7603852199884619bed649c029ca3de1
+msgid "Create fourier modes for a given period."
+msgstr "Crear modos de Fourier para un período dado."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.rst:25
+#: 3f287d5c0ea5496ca1c67bd6c00d1566
+msgid "Classes"
+msgstr "Clases"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.rst:40:<autosummary>:1
+#: d74a5adae8b845c195e73cca6ef74c73
+msgid ""
+":py:obj:`FourierBase <pymc_marketing.mmm.fourier.FourierBase>`\\ "
+"\\(\\*\\*data\\)"
+msgstr ""
+":py:obj:`FourierBase <pymc_marketing.mmm.fourier.FourierBase>`\\ "
+"\\(\\*\\*data\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.rst:40:<autosummary>:1
+#: 8595ce727bba464492f37cf2a1ca61c3
+msgid "Base class for Fourier seasonality transformations."
+msgstr "Clase base para transformaciones de estacionalidad de Fourier."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.rst:40:<autosummary>:1
+#: 71eac965e20242dbb730997a7da90be2
+msgid ""
+":py:obj:`MonthlyFourier <pymc_marketing.mmm.fourier.MonthlyFourier>`\\ "
+"\\(\\*\\*data\\)"
+msgstr ""
+":py:obj:`MonthlyFourier <pymc_marketing.mmm.fourier.MonthlyFourier>`\\ "
+"\\(\\*\\*data\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.rst:40:<autosummary>:1
+#: 37cdc6ef00cb401f8eed201948dc2476
+msgid "Monthly fourier seasonality."
+msgstr "Estacionalidad mensual de Fourier."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.rst:40:<autosummary>:1
+#: 5033c3a4d2cc483ca8822e39c480e201
+msgid ""
+":py:obj:`WeeklyFourier <pymc_marketing.mmm.fourier.WeeklyFourier>`\\ "
+"\\(\\*\\*data\\)"
+msgstr ""
+":py:obj:`WeeklyFourier <pymc_marketing.mmm.fourier.WeeklyFourier>`\\ "
+"\\(\\*\\*data\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.rst:40:<autosummary>:1
+#: 1db0b91b3fe646f9a21c659675292341
+msgid "Weekly fourier seasonality."
+msgstr "Estacionalidad semanal de Fourier."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.rst:40:<autosummary>:1
+#: 972e121597734e3898b97d495380935e
+msgid ""
+":py:obj:`YearlyFourier <pymc_marketing.mmm.fourier.YearlyFourier>`\\ "
+"\\(\\*\\*data\\)"
+msgstr ""
+":py:obj:`YearlyFourier <pymc_marketing.mmm.fourier.YearlyFourier>`\\ "
+"\\(\\*\\*data\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.rst:40:<autosummary>:1
+#: a978c373b2de450b8a66d52f56555284
+msgid "Yearly fourier seasonality."
+msgstr "Estacionalidad de Fourier anual."

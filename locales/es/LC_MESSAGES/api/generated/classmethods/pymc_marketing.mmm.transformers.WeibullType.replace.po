@@ -1,0 +1,56 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.transformers.WeibullType.replace.rst:2
+#: 756d384505d14d34a0201aacef2905fb
+msgid "WeibullType.replace"
+msgstr "WeibullType.reemplazar"
+
+#: 01590fb4783c4ad58c44dad2f9116a73 of
+#: pymc_marketing.mmm.transformers.WeibullType.replace:2
+msgid "Return a copy with all occurrences of substring old replaced by new."
+msgstr ""
+"Devuelve una copia con todas las ocurrencias de la subcadena old "
+"reemplazadas por new."
+
+#: 5e22d9e2fbbc49ae898672981613bb7a of
+#: pymc_marketing.mmm.transformers.WeibullType.replace:4
+msgid "count"
+msgstr "conteo"
+
+#: 438735607ec441ae96d73f2b01f341f2 of
+#: pymc_marketing.mmm.transformers.WeibullType.replace:5
+msgid ""
+"Maximum number of occurrences to replace. -1 (the default value) means "
+"replace all occurrences."
+msgstr ""
+"Número máximo de ocurrencias a reemplazar. -1 (el valor predeterminado) "
+"significa reemplazar todas las ocurrencias."
+
+#: df1a6e0eeff94ed49ee0c4e0db6124be of
+#: pymc_marketing.mmm.transformers.WeibullType.replace:8
+msgid ""
+"If the optional argument count is given, only the first count occurrences "
+"are replaced."
+msgstr ""
+"Si se proporciona el argumento opcional count, solo se reemplazan las "
+"primeras count ocurrencias."

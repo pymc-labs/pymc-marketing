@@ -1,0 +1,214 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.plot.MMMPlotSuite.budget_allocation.rst:2
+#: 03358f57f8e54283ad6e214f14259acb
+msgid "MMMPlotSuite.budget\\_allocation"
+msgstr "MMMPlotSuite.asignación\\_presupuestaria"
+
+#: 43e4dca28b00422e88b45ad7481285a4 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.budget_allocation:2
+msgid "Plot the budget allocation and channel contributions."
+msgstr "Trace la asignación del presupuesto y las contribuciones del canal."
+
+#: 8642198bbc0e4c96ac668b2cd0729f5c of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.budget_allocation:4
+msgid ""
+"Creates a bar chart comparing allocated spend and channel contributions for "
+"each channel. If additional dimensions besides 'channel' are present, "
+"creates a subplot for each combination of these dimensions."
+msgstr ""
+"Crea un gráfico de barras que compara el gasto asignado y las contribuciones"
+" de canal para cada canal. Si hay dimensiones adicionales además de 'canal',"
+" crea un subgráfico para cada combinación de estas dimensiones."
+
+#: ada4705ceaed4e6b95df8250ed0764ff of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.budget_allocation
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: f7c71ee710134208bc85946766228817 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.budget_allocation:10
+msgid "**samples** : :obj:`xr.Dataset`"
+msgstr "**muestras** : :obj:`xr.Dataset`"
+
+#: 8c5059b28e334636ba5f5f315d70838c of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.budget_allocation:9
+msgid "xr.Dataset"
+msgstr "xr.ConjuntoDeDatos"
+
+#: f8ce9193eed54d46b8a65b883aa65d21 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.budget_allocation:11
+msgid ""
+"The dataset containing the channel contributions and allocation values. "
+"Expected to have 'channel_contribution' and 'allocation' variables."
+msgstr ""
+"El conjunto de datos que contiene las contribuciones del canal y los valores"
+" de asignación. Se espera que tenga las variables 'channel_contribution' y "
+"'allocation'."
+
+#: 417bdad19aa34fefa53ec3fc71b99a8f of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.budget_allocation:14
+msgid "**scale_factor** : :class:`python:float`, optional"
+msgstr "**factor_de_escala** : :class:`python:float`, opcional"
+
+#: e83348fb00bb4b8c8d02897490efd091 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.budget_allocation:13
+msgid "python:float, optional"
+msgstr "python:flotante, opcional"
+
+#: f2efb73c7503415e8fe9ee37bca2f312 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.budget_allocation:15
+msgid ""
+"Scale factor to convert to original scale, if original_scale=True. If None "
+"and original_scale=True, assumes scale_factor=1."
+msgstr ""
+"Factor de escala para convertir a la escala original, si "
+"original_scale=True. Si es None y original_scale=True, asume scale_factor=1."
+
+#: 24fd44a3fa124f8a9513bbea293e37b8 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.budget_allocation:18
+msgid ""
+"**figsize** : :class:`python:tuple`\\[:class:`python:float`, "
+":class:`python:float`], optional"
+msgstr ""
+"**figsize** : :class:`python:tuple`\\[:class:`python:float`, "
+":class:`python:float`], opcional"
+
+#: 80f4df87c6fb4d319db48d27508ca766 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.budget_allocation:17
+msgid "python:tuple[python:float, python:float], optional"
+msgstr "python:tuple[python:float, python:float], opcional"
+
+#: d048e9c7fe5a475ba3c460d55a9acc6e of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.budget_allocation:19
+msgid "The size of the figure to be created. Default is (12, 6)."
+msgstr "El tamaño de la figura a crear. El valor predeterminado es (12, 6)."
+
+#: 4edb5bb6807f4c518a5c5cd02248d3c5 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.budget_allocation:21
+msgid "**ax** : :obj:`plt.Axes`, optional"
+msgstr "**ax** : :obj:`plt.Axes`, opcional"
+
+#: b8a01fbeab444674813f30a44c186f3f of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.budget_allocation:20
+msgid "plt.Axes, optional"
+msgstr "plt.Axes, opcional"
+
+#: ff652919d0304eeaa263b196f31d364e of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.budget_allocation:22
+msgid ""
+"The axis to plot on. If None, a new figure and axis will be created. Only "
+"used when no extra dimensions are present."
+msgstr ""
+"El eje en el que trazar. Si es None, se creará una nueva figura y eje. Solo "
+"se utiliza cuando no hay dimensiones adicionales presentes."
+
+#: b3dacb8b2c1943568bfaaff79d7e734e of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.budget_allocation:25
+msgid ""
+"**original_scale** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+"**original_scale** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 33a3323a48494c6ca737ecb5f2c13238 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.budget_allocation:24
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: a6b8d13a20924cbda732da217149e6d7 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.budget_allocation:26
+msgid ""
+"A boolean flag to determine if the values should be plotted in their "
+"original scale. Default is True."
+msgstr ""
+"Una bandera booleano para determinar si los valores deben ser representados "
+"en su escala original. El valor predeterminado es True."
+
+#: 0d02f8df3d7743a58abb6497ff18da3a of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.budget_allocation:29
+msgid ""
+"**dims** : :class:`python:dict`\\[:class:`python:str`, :class:`python:str` |"
+" :class:`python:int` | :class:`python:list`], optional"
+msgstr ""
+"**dims** : :class:`python:dict`\\[:class:`python:str`, :class:`python:str` |"
+" :class:`python:int` | :class:`python:list`], opcional"
+
+#: e185e8d8b75f4fa9b77af98a21480e6d of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.budget_allocation:28
+msgid ""
+"python:dict[python:str, python:str | python:int | python:list], optional"
+msgstr ""
+"python:dict[python:str, python:str | python:int | python:list], opcional"
+
+#: 976f45bc0de54e679aeafc9c9dda4303 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.budget_allocation:30
+#, python-brace-format
+msgid ""
+"Dimension filters to apply. Example: {\"country\": [\"US\", \"UK\"], "
+"\"user_type\": \"new\"}. If provided, only the selected slice(s) will be "
+"plotted."
+msgstr ""
+"Filtros de dimensión a aplicar. Ejemplo: {\"country\": [\"US\", \"UK\"], "
+"\"user_type\": \"new\"}. Si se proporciona, solo se trazará la(s) "
+"porción(es) seleccionada(s)."
+
+#: cf81c65404b04337b7fa9ea63c06465c of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.budget_allocation
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 6d80f5395d89498aa951c5d85e01a79f of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.budget_allocation:37
+msgid "**fig** : :obj:`matplotlib.figure.Figure`"
+msgstr "**fig** : :obj:`matplotlib.figure.Figure`"
+
+#: 88b9d0822da14988b666889cdf2547ba of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.budget_allocation:36
+msgid "matplotlib.figure.Figure"
+msgstr "matplotlib.figure.Figure"
+
+#: 54360c47777a4cb8a09f422582b6a765 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.budget_allocation:38
+msgid "The Figure object containing the plot."
+msgstr "El objeto Figure que contiene el gráfico."
+
+#: 8398f15ed2884eb9bfad57b8d6f70aa0 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.budget_allocation:40
+msgid ""
+"**axes** : :obj:`matplotlib.axes.Axes` or :obj:`numpy.ndarray` of "
+":obj:`matplotlib.axes.Axes`"
+msgstr ""
+"**ejes** : :obj:`matplotlib.axes.Axes` o :obj:`numpy.ndarray` de "
+":obj:`matplotlib.axes.Axes`"
+
+#: f6893916e6b84615b8b8780fd3c12cad of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.budget_allocation:39
+msgid "matplotlib.axes.Axes or numpy.ndarray of matplotlib.axes.Axes"
+msgstr "matplotlib.axes.Axes o numpy.ndarray de matplotlib.axes.Axes"
+
+#: 3bcc019eda884dccbb8fa98397ce84b3 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.budget_allocation:41
+msgid "The Axes object with the plot, or array of Axes for multiple subplots."
+msgstr ""
+"El objeto Axes con el gráfico, o un array de Axes para múltiples "
+"subgráficas."

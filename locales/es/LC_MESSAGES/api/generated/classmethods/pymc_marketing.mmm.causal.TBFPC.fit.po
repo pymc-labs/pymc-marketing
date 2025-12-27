@@ -1,0 +1,81 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.TBFPC.fit.rst:2
+#: a57b8fdb7b4a42c2beff85cd4b317c6c
+msgid "TBFPC.fit"
+msgstr "TBFPC.fit"
+
+#: a8367dabf81d4f0896efcc52c0cecff3 of pymc_marketing.mmm.causal.TBFPC.fit:2
+msgid "Fit the TBFPC procedure to the supplied dataframe."
+msgstr "Ajuste el procedimiento TBFPC al dataframe proporcionado."
+
+#: d871b76b012e4dc09be0aacc65cf9ab3 of pymc_marketing.mmm.causal.TBFPC.fit
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 5758a96713f84c3e9238f5b2d2a62a8e of pymc_marketing.mmm.causal.TBFPC.fit:7
+msgid "**df** : :obj:`pandas.DataFrame`"
+msgstr "**df** : :obj:`pandas.DataFrame`"
+
+#: 4138ee06471e467e83eeaa667d21a374 of pymc_marketing.mmm.causal.TBFPC.fit:6
+msgid "pandas.DataFrame"
+msgstr "pandas.DataFrame"
+
+#: b4af0860c51948dfabeb9db3d88666a4 of pymc_marketing.mmm.causal.TBFPC.fit:8
+msgid "Dataset containing the target column and every candidate driver."
+msgstr ""
+"Conjunto de datos que contiene la columna objetivo y cada controlador "
+"candidato."
+
+#: 9e3a703691694fa9ab8f34e4cba7091a of pymc_marketing.mmm.causal.TBFPC.fit:10
+msgid "**drivers** : :obj:`Sequence`\\[:class:`python:str`]"
+msgstr "**controladores** : :obj:`Secuencia`\\[:class:`python:str`]"
+
+#: 48f5503fbeef408989c493ff0f1d7992 of pymc_marketing.mmm.causal.TBFPC.fit:9
+msgid "Sequence[python:str]"
+msgstr "Secuencia[python:str]"
+
+#: 4dc4ecc027cc476c8a425a70ddf534ce of pymc_marketing.mmm.causal.TBFPC.fit:11
+msgid "Iterable of column names to treat as potential drivers of the target."
+msgstr ""
+"Iterable de nombres de columnas a tratar como posibles impulsores del "
+"objetivo."
+
+#: cf83974ad2a346f3a1e439cb8d502d6c of pymc_marketing.mmm.causal.TBFPC.fit
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 3487572f8dcb4b108c6e3960c1ce83ef of pymc_marketing.mmm.causal.TBFPC.fit:18
+msgid ":obj:`TBFPC`"
+msgstr ":obj:`TBFPC`"
+
+#: 92aa1422652545d493fdedfaa1404e0d of pymc_marketing.mmm.causal.TBFPC.fit:19
+msgid ""
+"The fitted instance (``self``) with internal adjacency structures populated."
+msgstr ""
+"La instancia ajustada (``self``) con estructuras de adyacencia internas "
+"pobladas."
+
+#: 1a6eba60c5aa4d1081b6c5a6bfb4a8f9 of pymc_marketing.mmm.causal.TBFPC.fit:32
+msgid "Examples"
+msgstr "Ejemplos"

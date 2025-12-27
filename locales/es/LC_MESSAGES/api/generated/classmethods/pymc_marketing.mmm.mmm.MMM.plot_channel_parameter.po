@@ -1,0 +1,104 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.mmm.MMM.plot_channel_parameter.rst:2
+#: 557032a7a3474f7d981edaf07cdf959c
+msgid "MMM.plot\\_channel\\_parameter"
+msgstr "MMM.plot\\_channel\\_parameter"
+
+#: 9e0248ff86054abfb21c53c3c4b6683d of
+#: pymc_marketing.mmm.mmm.MMM.plot_channel_parameter:2
+msgid ""
+"Plot the posterior distribution of a specific parameter for each channel."
+msgstr ""
+"Trace la distribución posterior de un parámetro específico para cada canal."
+
+#: cd5b35b2f40246758105406e10124c0b of
+#: pymc_marketing.mmm.mmm.MMM.plot_channel_parameter
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: bc92c3db3ef34ff8bcacdc63365b4d17 of
+#: pymc_marketing.mmm.mmm.MMM.plot_channel_parameter:7
+msgid "**param_name** : :class:`python:str`"
+msgstr "**param_name** : :class:`python:str`"
+
+#: 39a254f8e2ea4a9d86cdbe4fd6c7a73a of
+#: pymc_marketing.mmm.mmm.MMM.plot_channel_parameter:6
+msgid "python:str"
+msgstr "python:str"
+
+#: ecc1a52290c3479e86e0ecbfaaca74ce of
+#: pymc_marketing.mmm.mmm.MMM.plot_channel_parameter:8
+msgid "The name of the parameter to plot."
+msgstr "El nombre del parámetro a graficar."
+
+#: 9441e7cb43014859a2ac186cc5b98855 of
+#: pymc_marketing.mmm.mmm.MMM.plot_channel_parameter:10
+msgid "**\\*\\*plt_kwargs** : :obj:`Any`"
+msgstr "**\\*\\*plt_kwargs** : :obj:`Cualquiera`"
+
+#: defdc511e98748c6841ceea96234a077 of
+#: pymc_marketing.mmm.mmm.MMM.plot_channel_parameter:9
+msgid "Any"
+msgstr "Cualquiera"
+
+#: 2dbdd8e8c0524d788e8262887fd737d4 of
+#: pymc_marketing.mmm.mmm.MMM.plot_channel_parameter:11
+msgid "Additional keyword arguments to pass to the `plt.subplots` function."
+msgstr ""
+"Argumentos adicionales de palabras clave para pasar a la función "
+"`plt.subplots`."
+
+#: 0d70260489ad415b8e56f4535bf51423 of
+#: pymc_marketing.mmm.mmm.MMM.plot_channel_parameter
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: f4f18203ab354f958545a66c36d44bfc of
+#: pymc_marketing.mmm.mmm.MMM.plot_channel_parameter:17
+msgid ":obj:`plt.Figure`"
+msgstr ":obj:`plt.Figure`"
+
+#: c99f1afe6cb24017a2896ecc964720d8 of
+#: pymc_marketing.mmm.mmm.MMM.plot_channel_parameter:18
+msgid "The matplotlib Figure object containing the plot."
+msgstr "El objeto Figure de matplotlib que contiene la gráfica."
+
+#: ccb3d0f48ec6417b85b1a964eb8dafca of
+#: pymc_marketing.mmm.mmm.MMM.plot_channel_parameter
+msgid "Raises"
+msgstr "Aumentos"
+
+#: 0ff424b169e549f98fe85c9e2ff7d3e2 of
+#: pymc_marketing.mmm.mmm.MMM.plot_channel_parameter:25
+msgid ":obj:`ValueError`"
+msgstr ":obj:`ValueError`"
+
+#: 55a6a8653ec14d2893a199fab04e685f of
+#: pymc_marketing.mmm.mmm.MMM.plot_channel_parameter:26
+msgid ""
+"If the specified parameter name is invalid or not found in the model "
+"saturation or adstock function."
+msgstr ""
+"Si el nombre del parámetro especificado es inválido o no se encuentra en la "
+"función de saturación o adstock del modelo."

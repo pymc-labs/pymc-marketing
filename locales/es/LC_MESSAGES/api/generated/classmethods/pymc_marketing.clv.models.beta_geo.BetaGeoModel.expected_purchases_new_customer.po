@@ -1,0 +1,88 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_purchases_new_customer.rst:2
+#: ea855b8ed70542b0971560186a1af75c
+msgid "BetaGeoModel.expected\\_purchases\\_new\\_customer"
+msgstr "BetaGeoModel.expected\\_purchases\\_new\\_customer"
+
+#: 2583eb8973f746479b97dafb6aa948dd of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_purchases_new_customer:2
+msgid ""
+"Compute the expected number of purchases for a new customer across *t* time "
+"periods."
+msgstr ""
+"Calcule el número esperado de compras para un nuevo cliente a lo largo de "
+"*t* períodos de tiempo."
+
+#: ef79f65f90a04056aea7d2528d8dd15c of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_purchases_new_customer:4
+msgid ""
+"Adapted from equation (9) in [R53a3f7142a27-1]_, and `lifetimes` library: "
+"https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/beta_geo_fitter.py#L328"
+msgstr ""
+"Adaptado de la ecuación (9) en [R53a3f7142a27-1]_, y la biblioteca "
+"`lifetimes`: "
+"https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/beta_geo_fitter.py#L328"
+
+#: 21f384f1088d48089a2cbb012ef27ee4 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_purchases_new_customer
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: ada5ff9ac1554fa1b59f3b9f7774a993 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_purchases_new_customer:9
+msgid "**t** : :term:`numpy:array_like`"
+msgstr "**t** : :term:`numpy:array_like`"
+
+#: 71309c40aa1b41a4860de9db5af02379 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_purchases_new_customer:8
+msgid "numpy:array_like"
+msgstr "numpy:similar_a_array"
+
+#: 1fc1a521deba4fb19ee7babb14b1bd4d of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_purchases_new_customer:10
+msgid "Number of time periods over which to estimate purchases."
+msgstr "Número de períodos de tiempo sobre los cuales estimar las compras."
+
+#: 8cea702d1a164e36bcb4da3923026160 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_purchases_new_customer:24
+msgid "References"
+msgstr "Referencias"
+
+#: e09af8f9636f4b68b72c5ba4b8785f13 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_purchases_new_customer:25
+msgid ""
+"Fader, Peter S., Bruce G.S. Hardie, and Ka Lok Lee (2005a), \"Counting Your "
+"Customers the Easy Way: An Alternative to the Pareto/NBD Model,\" Marketing "
+"Science, 24 (2), 275-84. "
+"http://www.brucehardie.com/notes/021/palive_for_BGNBD.pdf"
+msgstr ""
+"Fader, Peter S., Bruce G.S. Hardie y Ka Lok Lee (2005a), \"Contando a sus "
+"clientes de la manera fácil: Una alternativa al modelo Pareto/NBD,\" "
+"Marketing Science, 24 (2), 275-84. "
+"http://www.brucehardie.com/notes/021/palive_for_BGNBD.pdf"
+
+#: bb7716f096a64e1f86ae297b36e00226 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_purchases_new_customer:32
+msgid "[R53a3f7142a27-1]_"
+msgstr "[R53a3f7142a27-1]_"

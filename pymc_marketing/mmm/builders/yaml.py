@@ -24,7 +24,7 @@ from typing import Any
 import pandas as pd
 import yaml  # type: ignore
 
-from pymc_marketing.mmm.builders.factories import build
+from pymc_marketing.mmm.builders.factories import build, resolve
 from pymc_marketing.mmm.multidimensional import MMM
 from pymc_marketing.utils import from_netcdf
 
@@ -43,11 +43,69 @@ def _load_df(path: str | Path) -> pd.DataFrame:
     raise ValueError(f"Unrecognised tabular format: {path}")
 
 
+def _apply_and_validate_calibration_steps(
+    model: MMM, cfg: Mapping[str, Any], base_dir: Path
+) -> None:
+    calibration_specs = cfg.get("calibration", [])
+    if not calibration_specs:
+        return
+
+    if not isinstance(calibration_specs, list):
+        raise TypeError("`calibration` section must be a list of steps.")
+
+    for step in calibration_specs:
+        if not isinstance(step, Mapping):
+            raise TypeError(
+                "Each calibration step must be a mapping of method to parameters."
+            )
+        if len(step) != 1:
+            raise ValueError(
+                "Calibration steps must map a single method to its parameters."
+            )
+
+        method_name, raw_params = next(iter(step.items()))
+
+        if not hasattr(model, method_name):
+            raise AttributeError(f"MMM has no calibration method '{method_name}'.")
+
+        method = getattr(model, method_name)
+        if not callable(method):
+            raise TypeError(f"Attribute '{method_name}' is not callable on MMM.")
+
+        if raw_params is not None and not isinstance(raw_params, Mapping):
+            raise TypeError(
+                f"Calibration parameters for '{method_name}' must be a mapping, got {type(raw_params).__name__}."
+            )
+
+        if (
+            method_name == "add_lift_test_measurements"
+            and raw_params
+            and "dist" in raw_params
+        ):
+            raise ValueError(
+                "`dist` parameter for 'add_lift_test_measurements' is not supported via YAML configuration yet."
+            )
+
+        resolved_kwargs = (
+            {key: resolve(value) for key, value in raw_params.items()}
+            if raw_params is not None
+            else {}
+        )
+
+        try:
+            method(**resolved_kwargs)
+        except Exception as err:  # pragma: no cover - re-raise with context
+            raise RuntimeError(
+                f"Failed to apply calibration step '{method_name}' from YAML configuration: \n {err}"
+            ) from err
+
+
 def build_mmm_from_yaml(
     config_path: str | Path,
     *,
     X: pd.DataFrame | None = None,
     y: pd.DataFrame | pd.Series | None = None,
+    model_kwargs: dict | None = None,
 ) -> MMM:
     """
     Build an MMM model from *config_path*.
@@ -70,15 +128,21 @@ def build_mmm_from_yaml(
     y : pandas.DataFrame | pandas.Series, optional
         Pre-loaded target vector.  If omitted, the loader tries to read it
         from a path in the YAML under `data.y_path`.
+    model_kwargs : dict, optional
+        Additional keyword arguments for the model.
+        They override any defaults specified in the YAML config.
 
     Returns
     -------
     model : MMM
     """
-    cfg: Mapping[str, Any] = yaml.safe_load(Path(config_path).read_text())
+    config_path = Path(config_path)
+    cfg: Mapping[str, Any] = yaml.safe_load(config_path.read_text())
 
     # 1 ─────────────────────────────────── shell (no effects yet)
-    model_config = cfg["model"]["kwargs"]  # Get model kwargs
+    # Merge model_kwargs into cfg["model"]["kwargs"], with model_kwargs taking precedence
+    model_config = {**cfg["model"].get("kwargs", {}), **(model_kwargs or {})}
+    cfg["model"]["kwargs"] = model_config
 
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -101,7 +165,7 @@ def build_mmm_from_yaml(
         date_col_in_X = date_column in X.columns
 
         if date_column in X.columns:
-            X[date_column] = pd.to_datetime(X[date_column])
+            X.loc[:, date_column] = pd.to_datetime(X[date_column])
 
         if not date_col_in_X:
             raise ValueError(
@@ -122,7 +186,10 @@ def build_mmm_from_yaml(
     if original_scale_vars:
         model.add_original_scale_contribution_variable(var=original_scale_vars)
 
-    # 6 ──────────────────────────────────────────── attach inference data
+    # 6 ──────────────────────────────────────────── apply calibration steps (if any)
+    _apply_and_validate_calibration_steps(model, cfg, config_path.parent)
+
+    # 7 ──────────────────────────────────────────── attach inference data
     if (idata_fp := cfg.get("idata_path")) is not None:
         idata_path = Path(idata_fp)
         if os.path.exists(idata_path):

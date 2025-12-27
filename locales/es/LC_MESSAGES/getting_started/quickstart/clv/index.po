@@ -1,0 +1,55 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/getting_started/quickstart/clv/index.md:1
+#: 916ba6da7a7d4d40beb8813363c36cf8
+msgid "CLV Quickstart"
+msgstr "CLV Guía Rápida"
+
+#: ../source/getting_started/quickstart/clv/index.md:3
+#: 49ccae8d975b47ada3707c570225edae
+msgid ""
+"We can choose from a variety of models, depending on the type of data and "
+"business nature. Let us look into a simple example with the Beta-Geo/NBD "
+"model for non-contractual continuous data."
+msgstr ""
+"Podemos elegir entre una variedad de modelos, dependiendo del tipo de datos "
+"y la naturaleza del negocio. Analicemos un ejemplo simple con el modelo "
+"Beta-Geo/NBD para datos continuos no contractuales."
+
+#: ../source/getting_started/quickstart/clv/index.md:21
+#: c6bc32fb022c4f53a82e0d829a6ee220
+msgid ""
+"Once fitted, we can use the model to predict the number of future purchases "
+"for known customers, the probability that they are still alive, and get "
+"various visualizations plotted."
+msgstr ""
+"Una vez ajustado, podemos utilizar el modelo para predecir el número de "
+"compras futuras para clientes conocidos, la probabilidad de que aún estén "
+"vivos y obtener varias visualizaciones graficadas."
+
+#: ../source/getting_started/quickstart/clv/index.md:23
+#: 935d328124784cb687481395fab2538d
+#, python-brace-format
+msgid "See the {ref}`gallery` section for more on this."
+msgstr ""
+"Vea la sección {ref}`gallery` para obtener más información sobre esto."

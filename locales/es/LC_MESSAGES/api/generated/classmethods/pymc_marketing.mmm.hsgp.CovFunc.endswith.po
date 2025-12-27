@@ -1,0 +1,38 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.hsgp.CovFunc.endswith.rst:2
+#: 54f5acbe815146b3adfc1cde386eb037
+msgid "CovFunc.endswith"
+msgstr "CovFunc.finaliza"
+
+#: 39179719ef034e2baec15678f92a8236 of
+#: pymc_marketing.mmm.hsgp.CovFunc.endswith:2
+msgid ""
+"Return True if S ends with the specified suffix, False otherwise. With "
+"optional start, test S beginning at that position. With optional end, stop "
+"comparing S at that position. suffix can also be a tuple of strings to try."
+msgstr ""
+"Devuelve True si S termina con el sufijo especificado, False en caso "
+"contrario. Con un inicio opcional, prueba S comenzando en esa posición. Con "
+"un final opcional, deja de comparar S en esa posición. suffix también puede "
+"ser una tupla de cadenas a probar."

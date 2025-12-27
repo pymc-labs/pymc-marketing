@@ -1,0 +1,88 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.fourier.YearlyFourier.model_parametrized_name.rst:2
+#: 50c730847c0f438fbcde30f83e1d0420
+msgid "YearlyFourier.model\\_parametrized\\_name"
+msgstr "YearlyFourier.model\\_parametrized\\_name"
+
+#: d12e2d2a63124e36b98611ae267c248f of
+#: pydantic.main.BaseModel.model_parametrized_name:2
+msgid "Compute the class name for parametrizations of generic classes."
+msgstr ""
+"Calcule el nombre de la clase para parametrizaciones de clases genéricas."
+
+#: 7e3d3c14b7b44d7b9e685b34658ae120 of
+#: pydantic.main.BaseModel.model_parametrized_name:4
+msgid ""
+"This method can be overridden to achieve a custom naming scheme for generic "
+"BaseModels."
+msgstr ""
+"Este método puede ser anulado para lograr un esquema de nomenclatura "
+"personalizado para los BaseModels genéricos."
+
+#: 0ec0b3734b6b4af2b6427257eb1533e9 of
+#: pydantic.main.BaseModel.model_parametrized_name:6
+msgid "Args:"
+msgstr "Args:"
+
+#: f311d40b0ef94614a0d633c5d64e4951 of
+#: pydantic.main.BaseModel.model_parametrized_name:7
+msgid "params: Tuple of types of the class. Given a generic class"
+msgstr "params: Tupla de tipos de la clase. Dada una clase genérica"
+
+#: a726c08d3f104f6ea6386eb40d7108d2 of
+#: pydantic.main.BaseModel.model_parametrized_name:8
+msgid ""
+"`Model` with 2 type variables and a concrete model `Model[str, int]`, the "
+"value `(str, int)` would be passed to `params`."
+msgstr ""
+"`Modelo` con 2 variables de tipo y un modelo concreto `Modelo[str, int]`, el"
+" valor `(str, int)` se pasaría a `params`."
+
+#: fde96e1e669f4f4ebf3e5f9e929ebc2e of
+#: pydantic.main.BaseModel.model_parametrized_name:11
+msgid "Returns:"
+msgstr "Devoluciones:"
+
+#: 0c62c55a8d724125ab92beb0f5330057 of
+#: pydantic.main.BaseModel.model_parametrized_name:12
+msgid ""
+"String representing the new class where `params` are passed to `cls` as type"
+" variables."
+msgstr ""
+"Cadena que representa la nueva clase donde `params` se pasan a `cls` como "
+"variables de tipo."
+
+#: bd67727614f94ae198e0e1b0203a2414 of
+#: pydantic.main.BaseModel.model_parametrized_name:14
+msgid "Raises:"
+msgstr "Aumentos:"
+
+#: 0f9e135fda1e40deaf71730a6232e713 of
+#: pydantic.main.BaseModel.model_parametrized_name:15
+msgid ""
+"TypeError: Raised when trying to generate concrete names for non-generic "
+"models."
+msgstr ""
+"TypeError: Se genera al intentar crear nombres concretos para modelos no "
+"genéricos."

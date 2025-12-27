@@ -1,0 +1,56 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.graphviz.rst:2
+#: 9e22e6d201ce4b25924cdc98083d0cfb
+msgid "BetaGeoBetaBinomModel.graphviz"
+msgstr "BetaGeoBetaBinomModel.graphviz"
+
+#: d787ee299e0b43b79816e378a3ac74e8 of
+#: pymc_marketing.model_builder.ModelBuilder.graphviz:2
+msgid "Get the graphviz representation of the model."
+msgstr "Obtenga la representación graphviz del modelo."
+
+#: 3176ea8a68c5441fb83bc8f075008dca of
+#: pymc_marketing.model_builder.ModelBuilder.graphviz
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 391149854b0d4102a780e92bf6bce94c of
+#: pymc_marketing.model_builder.ModelBuilder.graphviz:7
+msgid "**\\*\\*kwargs**"
+msgstr "**\\*\\*kwargs**"
+
+#: 8848ad8eaa0f499c8f41463c7e5f4277 of
+#: pymc_marketing.model_builder.ModelBuilder.graphviz:8
+msgid "Keyword arguments for the `pm.model_to_graphviz` function"
+msgstr "Argumentos de palabra clave para la función `pm.model_to_graphviz`"
+
+#: 4063978edab84ae0a8a43bb92ed144da of
+#: pymc_marketing.model_builder.ModelBuilder.graphviz
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: c3515564f3c14001b9b86f46c2ab5db3 of
+#: pymc_marketing.model_builder.ModelBuilder.graphviz:14
+msgid ":obj:`graphviz.Digraph`"
+msgstr ":obj:`graphviz.Digraph`"

@@ -1,0 +1,49 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.distribution_new_customer_churn_time.rst:2
+#: 12414e1abb9d40fab9c4e50fbc6cf404
+msgid "ShiftedBetaGeoModelIndividual.distribution\\_new\\_customer\\_churn\\_time"
+msgstr ""
+"ShiftedBetaGeoModelIndividual.distribución\\_nuevo\\_cliente\\_tiempo\\_de\\_deserción"
+
+#: 4ca7d61849444498b78ca1b8d1e77ea3 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.distribution_new_customer_churn_time:2
+msgid "Sample distribution of churn time for new customers."
+msgstr ""
+"Distribución de muestra del tiempo de cancelación para nuevos clientes."
+
+#: e86a48c0e6b543ba8ab28dba5fa9f7e3 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.distribution_new_customer_churn_time:4
+msgid ""
+"The draws represent the number of periods into the future after which a "
+"customer cancels their contract."
+msgstr ""
+"Los sorteos representan el número de períodos en el futuro después de los "
+"cuales un cliente cancela su contrato."
+
+#: 69824681d6d6465c9087824f4ae1666c of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.distribution_new_customer_churn_time:7
+msgid "Use `n > 1` to simulate multiple identically distributed users."
+msgstr ""
+"Utilice `n > 1` para simular múltiples usuarios distribuidos de manera "
+"idéntica."

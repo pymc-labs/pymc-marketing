@@ -1,0 +1,314 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.AdstockTransformation.rst:2
+#: 94f409c6da81453b8c6b7aafcf184a61
+msgid "AdstockTransformation"
+msgstr "TransformaciónAdstock"
+
+#: fb9322fe53ba4b2e8788b905257d770c of
+#: pymc_marketing.mmm.components.adstock.AdstockTransformation:2
+msgid "Subclass for all adstock functions."
+msgstr "Subclase para todas las funciones de adstock."
+
+#: 8485be68b8e9499c9b1b315b72518e69 of
+#: pymc_marketing.mmm.components.adstock.AdstockTransformation:4
+msgid ""
+"In order to use a custom saturation function, inherit from this class and "
+"define:"
+msgstr ""
+"Para utilizar una función de saturación personalizada, herede de esta clase "
+"y defina:"
+
+#: 20f5826f8e4f4b7899a2fed41b9ef588 of
+#: pymc_marketing.mmm.components.adstock.AdstockTransformation:6
+msgid "`function`: a function that takes x to adstock x"
+msgstr "`función`: una función que lleva x a adstock x"
+
+#: 4329d350c8364d1db1f2869d59f97944 of
+#: pymc_marketing.mmm.components.adstock.AdstockTransformation:7
+msgid ""
+"`default_priors`: dictionary with priors for every parameter in function"
+msgstr ""
+"`default_priors`: diccionario con priors para cada parámetro en la función"
+
+#: 3b6f34d87bb14e8aa189b0be372157a8 of
+#: pymc_marketing.mmm.components.adstock.AdstockTransformation:9
+msgid "Consider the predefined subclasses as examples."
+msgstr "Considere las subclases predefinidas como ejemplos."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.AdstockTransformation.rst:12
+#: 7868811258aa49cea28906f4c3805039
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.AdstockTransformation.rst:31:<autosummary>:1
+#: 1f6216a88f5f4e1fbe2fac1add67c87e
+msgid ""
+":py:obj:`AdstockTransformation.__init__ "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation.__init__>`\\ "
+"\\(\\[l\\_max\\, ...\\]\\)"
+msgstr ""
+":py:obj:`AdstockTransformation.__init__ "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation.__init__>`\\ "
+"\\(\\[l\\_max\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.AdstockTransformation.rst:31:<autosummary>:1
+#: ae5a2f3e1d4b44309d21414531bf8add
+msgid ""
+":py:obj:`AdstockTransformation.apply "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation.apply>`\\ "
+"\\(x\\[\\, dims\\, idx\\]\\)"
+msgstr ""
+":py:obj:`AdstockTransformation.apply "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation.apply>`\\ "
+"\\(x\\[\\, dims\\, idx\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.AdstockTransformation.rst:31:<autosummary>:1
+#: 5c77db30ba4844d1acb822d603b46040
+msgid "Call within a model context."
+msgstr "Llamar dentro de un contexto de modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.AdstockTransformation.rst:31:<autosummary>:1
+#: 17d41fca62ec40179130e7e9d16705af
+msgid ""
+":py:obj:`AdstockTransformation.plot_curve "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation.plot_curve>`\\ "
+"\\(curve\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`AdstockTransformation.plot_curve "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation.plot_curve>`\\ "
+"\\(curva\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.AdstockTransformation.rst:31:<autosummary>:1
+#: 99cfc5050f8f4712a8100a0683accc38
+msgid "Plot curve HDI and samples."
+msgstr "Trazar la curva del IDH y las muestras."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.AdstockTransformation.rst:31:<autosummary>:1
+#: c5ab1dc96cdb45d496ba99dd2371ce71
+msgid ""
+":py:obj:`AdstockTransformation.plot_curve_hdi "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation.plot_curve_hdi>`\\"
+" \\(curve\\)"
+msgstr ""
+":py:obj:`AdstockTransformation.plot_curve_hdi "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation.plot_curve_hdi>`\\"
+" \\(curva\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.AdstockTransformation.rst:31:<autosummary>:1
+#: 9a7edf476557462c8b744af2f167e77a
+msgid "Plot the HDI of the curve."
+msgstr "Trace el IDH de la curva."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.AdstockTransformation.rst:31:<autosummary>:1
+#: f1b77b6ea62d41b1a0b74cdf7196f989
+msgid ""
+":py:obj:`AdstockTransformation.plot_curve_samples "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation.plot_curve_samples>`\\"
+" \\(curve\\)"
+msgstr ""
+":py:obj:`AdstockTransformation.plot_curve_samples "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation.plot_curve_samples>`\\"
+" \\(curva\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.AdstockTransformation.rst:31:<autosummary>:1
+#: ef291440ea454a11bf622826e99a9468
+msgid "Plot samples from the curve."
+msgstr "Trazar muestras de la curva."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.AdstockTransformation.rst:31:<autosummary>:1
+#: a80cec86d932475182f57f4094daeeb4
+msgid ""
+":py:obj:`AdstockTransformation.sample_curve "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation.sample_curve>`\\"
+" \\(parameters\\)"
+msgstr ""
+":py:obj:`AdstockTransformation.sample_curve "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation.sample_curve>`\\"
+" (parámetros)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.AdstockTransformation.rst:31:<autosummary>:1
+#: e9c8d86d80cb4496942308a08fced3fa
+msgid "Sample the adstock transformation given parameters."
+msgstr "Muestre la transformación de adstock dados los parámetros."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.AdstockTransformation.rst:31:<autosummary>:1
+#: b1ff501cd01f4f68ae0abbe10dff5450
+msgid ""
+":py:obj:`AdstockTransformation.sample_prior "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation.sample_prior>`\\"
+" \\(\\[coords\\]\\)"
+msgstr ""
+":py:obj:`AdstockTransformation.sample_prior "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation.sample_prior>`\\"
+" \\(\\[coords\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.AdstockTransformation.rst:31:<autosummary>:1
+#: f179b2ac4a0141a9807df80115d312e0
+msgid "Sample the priors for the transformation."
+msgstr "Muestre las distribuciones a priori para la transformación."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.AdstockTransformation.rst:31:<autosummary>:1
+#: b91c28e2f2624ab086cf80eb9e72d167
+msgid ""
+":py:obj:`AdstockTransformation.set_dims_for_all_priors "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation.set_dims_for_all_priors>`\\"
+" \\(dims\\)"
+msgstr ""
+":py:obj:`AdstockTransformation.set_dims_for_all_priors "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation.set_dims_for_all_priors>`\\"
+" \\(dims\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.AdstockTransformation.rst:31:<autosummary>:1
+#: f6b6045e478f48afb0f112269c971e97
+msgid "Set the dims for all priors."
+msgstr "Establezca las dimensiones para todos los antecedentes."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.AdstockTransformation.rst:31:<autosummary>:1
+#: b85279d9f39243a0a0f5d8e39380c5d0
+msgid ""
+":py:obj:`AdstockTransformation.to_dict "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation.to_dict>`\\ "
+"\\(\\)"
+msgstr ""
+":py:obj:`AdstockTransformation.to_dict "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation.to_dict>`\\ "
+"\\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.AdstockTransformation.rst:31:<autosummary>:1
+#: 37171147022f44a3947541d1e21b3cee
+msgid "Convert the adstock transformation to a dictionary."
+msgstr "Convierte la transformación de adstock a un diccionario."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.AdstockTransformation.rst:31:<autosummary>:1
+#: 2329390d5e7c48ee97bf8433a75f863c
+msgid ""
+":py:obj:`AdstockTransformation.update_priors "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation.update_priors>`\\"
+" \\(priors\\)"
+msgstr ""
+":py:obj:`AdstockTransformation.update_priors "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation.update_priors>`\\"
+" \\(priors\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.AdstockTransformation.rst:31:<autosummary>:1
+#: 4f3b222e8dd34d7c8c09ee6645aedf44
+msgid "Update the priors for a function after initialization."
+msgstr "Actualice los priors para una función después de la inicialización."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.AdstockTransformation.rst:33
+#: 796355764e714e8088ec9f79a98771b1
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.AdstockTransformation.rst:43:<autosummary>:1
+#: 9f91cbe4d0644d8fa32bb6539084c48f
+msgid ""
+":py:obj:`combined_dims "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation.combined_dims>`\\"
+msgstr ""
+":py:obj:`combined_dims "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation.combined_dims>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.AdstockTransformation.rst:43:<autosummary>:1
+#: 6f1d60d5403a495aa92ba46643716905
+msgid "Get the combined dims for all the parameters."
+msgstr "Obtenga las dimensiones combinadas para todos los parámetros."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.AdstockTransformation.rst:43:<autosummary>:1
+#: b90c5e0c7b23442b9dc13822c70a61f1
+msgid ""
+":py:obj:`function_priors "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation.function_priors>`\\"
+msgstr ""
+":py:obj:`function_priors "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation.function_priors>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.AdstockTransformation.rst:43:<autosummary>:1
+#: 352488a94bca4af1899920421285350b
+msgid "Get the priors for the function."
+msgstr "Obtenga los priors para la función."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.AdstockTransformation.rst:43:<autosummary>:1
+#: 3b2bd58019fb4cf3a141d8432e286e6e
+msgid ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation.model_config>`\\"
+msgstr ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation.model_config>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.AdstockTransformation.rst:43:<autosummary>:1
+#: 6e7954c1254f4cf3a84d652fdc9e95cd
+msgid "Mapping from variable name to prior for the model."
+msgstr "Mapeo del nombre de la variable a la prior para el modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.AdstockTransformation.rst:43:<autosummary>:1
+#: 9fadbda5499e48c282ecef39f744d969
+msgid ""
+":py:obj:`prefix "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation.prefix>`\\"
+msgstr ""
+":py:obj:`prefijo "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation.prefix>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.AdstockTransformation.rst:43:<autosummary>:1
+#: 7e67ba6d262c41dba941d9a26541f876
+msgid ""
+":py:obj:`variable_mapping "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation.variable_mapping>`\\"
+msgstr ""
+":py:obj:`variable_mapping "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation.variable_mapping>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.AdstockTransformation.rst:43:<autosummary>:1
+#: 171555d67fbb484c9be891cb6b0a94ec
+msgid "Mapping from parameter name to variable name in the model."
+msgstr "Mapeo del nombre del parámetro al nombre de la variable en el modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.AdstockTransformation.rst:43:<autosummary>:1
+#: 413028205d764cc88a674a6ec0af45d5
+msgid ""
+":py:obj:`lookup_name "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation.lookup_name>`\\"
+msgstr ""
+":py:obj:`lookup_name "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation.lookup_name>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.AdstockTransformation.rst:43:<autosummary>:1
+#: 22afc3eec9f044439068db99a4ad23ef
+msgid ""
+":py:obj:`default_priors "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation.default_priors>`\\"
+msgstr ""
+":py:obj:`default_priors "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation.default_priors>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.components.adstock.AdstockTransformation.rst:43:<autosummary>:1
+#: d13fed9da19f417ba317cd171896d6d0
+msgid ""
+":py:obj:`function "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation.function>`\\"
+msgstr ""
+":py:obj:`function "
+"<pymc_marketing.mmm.components.adstock.AdstockTransformation.function>`"

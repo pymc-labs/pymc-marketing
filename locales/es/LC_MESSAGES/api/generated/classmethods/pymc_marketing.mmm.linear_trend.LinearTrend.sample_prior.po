@@ -1,0 +1,78 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.linear_trend.LinearTrend.sample_prior.rst:2
+#: 949da70ad0be4203a8b58f26d253c510
+msgid "LinearTrend.sample\\_prior"
+msgstr "LinearTrend.muestra\\_previa"
+
+#: e8212350c4e64f778a98ecd65ca2e4a8 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.sample_prior:2
+msgid "Sample the prior for the parameters used in the trend."
+msgstr "Muestre el anterior para los parámetros utilizados en la tendencia."
+
+#: a3d4b41a8c5f4d56b1cb5c43be034291 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.sample_prior
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 7173dd576cb64c5fa88f29fa4b97756d of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.sample_prior:7
+msgid "**coords** : :class:`python:dict`, optional"
+msgstr "**coords** : :class:`python:dict`, opcional"
+
+#: 0a28ec7b4be446c99f7e55369e1c573f 997d4bcaba7140778574d051c8933542 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.sample_prior:6
+#: pymc_marketing.mmm.linear_trend.LinearTrend.sample_prior:9
+msgid "python:dict, optional"
+msgstr "python:dict, opcional"
+
+#: 48097dda43bd4dc1820c8c8b70b49557 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.sample_prior:8
+msgid "Coordinates in the priors, by default includes the changepoints."
+msgstr "Las coordenadas en los priors, por defecto incluyen los changepoints."
+
+#: f56bc6f5e66d41ed8b9ea13a4796e490 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.sample_prior:10
+msgid "**sample_prior_predictive_kwargs** : :class:`python:dict`, optional"
+msgstr "**sample_prior_predictive_kwargs** : :class:`python:dict`, opcional"
+
+#: 7a962bcb5deb4368b588ec148519ce11 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.sample_prior:11
+msgid "Keyword arguments for the `pm.sample_prior_predictive` function."
+msgstr ""
+"Argumentos de palabras clave para la función `pm.sample_prior_predictive`."
+
+#: e4f4ed5147104e1f9b95edee8b6fa648 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.sample_prior
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: f743f43256104ee4a49b40b89d2bcd00 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.sample_prior:17
+msgid ":obj:`xr.Dataset`"
+msgstr ":obj:`xr.Dataset`"
+
+#: a13a0a8360b84168a7f0c9cfef89b85c of
+#: pymc_marketing.mmm.linear_trend.LinearTrend.sample_prior:18
+msgid "Dataset with the prior samples."
+msgstr "Conjunto de datos con las muestras anteriores."

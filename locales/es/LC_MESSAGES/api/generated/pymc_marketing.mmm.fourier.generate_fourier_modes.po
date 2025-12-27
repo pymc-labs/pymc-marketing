@@ -1,0 +1,81 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.generate_fourier_modes.rst:2
+#: 393cb79637ec4005899e6fa28f1fab27
+msgid "generate\\_fourier\\_modes"
+msgstr "generar_modos_fourier"
+
+#: 967955699c4342e38667d8e61e3f079a of
+#: pymc_marketing.mmm.fourier.generate_fourier_modes:2
+msgid "Create fourier modes for a given period."
+msgstr "Crear modos de Fourier para un período dado."
+
+#: d31ed44e8e5d438fab3d0387c8a294d7 of
+#: pymc_marketing.mmm.fourier.generate_fourier_modes
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: f9e5f4b0a91247c999c5e899c884579a of
+#: pymc_marketing.mmm.fourier.generate_fourier_modes:7
+msgid "**periods** : :obj:`pt.TensorLike`"
+msgstr "**periodos** : :obj:`pt.TensorLike`"
+
+#: 259758e919c141a29620583837758340 of
+#: pymc_marketing.mmm.fourier.generate_fourier_modes:6
+msgid "pt.TensorLike"
+msgstr "pt.TensorComo"
+
+#: 99104bc463054270a56c27769d301e09 of
+#: pymc_marketing.mmm.fourier.generate_fourier_modes:8
+msgid "Periods to generate fourier modes for."
+msgstr "Períodos para generar modos de Fourier."
+
+#: 63fe0dadf5304b53ab8fed7dd7f56b99 of
+#: pymc_marketing.mmm.fourier.generate_fourier_modes:10
+msgid "**n_order** : :class:`python:int`"
+msgstr "**n_order** : :class:`python:int`"
+
+#: 2a6384eba2244cb286ecb9e299a059e9 of
+#: pymc_marketing.mmm.fourier.generate_fourier_modes:9
+msgid "python:int"
+msgstr "python:int"
+
+#: bc6836e732c04382bce4b6f9be4f67df of
+#: pymc_marketing.mmm.fourier.generate_fourier_modes:11
+msgid "Number of fourier modes to generate."
+msgstr "Número de modos de Fourier a generar."
+
+#: 12bd3eacffdf4291956b27073329c716 of
+#: pymc_marketing.mmm.fourier.generate_fourier_modes
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: ffaf8f92585e4da0a5f347677194d790 of
+#: pymc_marketing.mmm.fourier.generate_fourier_modes:17
+msgid ":obj:`pt.TensorVariable`"
+msgstr ":obj:`pt.TensorVariable`"
+
+#: 64ee28fbfb0343f5beceb1b3f6708c1b of
+#: pymc_marketing.mmm.fourier.generate_fourier_modes:18
+msgid "Fourier modes."
+msgstr "Modos de Fourier."

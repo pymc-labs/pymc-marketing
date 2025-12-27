@@ -1,0 +1,31 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.constraints.build_default_sum_constraint.rst:2
+#: 8ce9fde4deba40d0a9460bf62302f4d8
+msgid "build\\_default\\_sum\\_constraint"
+msgstr "build\\_default\\_sum\\_constraint"
+
+#: b2f43d4a87e14e2fb9d3dd6bb3568ce9 of
+#: pymc_marketing.mmm.constraints.build_default_sum_constraint:2
+msgid "Return a Constraint enforcing sum(budgets) == total_budget."
+msgstr "Devuelve una restricción que impone sum(budgets) == total_budget."

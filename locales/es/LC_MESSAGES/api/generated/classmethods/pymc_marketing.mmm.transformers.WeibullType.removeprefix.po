@@ -1,0 +1,40 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.transformers.WeibullType.removeprefix.rst:2
+#: 14062f62d8a0440c8cb6d9591ee25a6c
+msgid "WeibullType.removeprefix"
+msgstr "WeibullType.eliminarprefijo"
+
+#: 7eb52edac9fa42d290e6823b8655c02a of
+#: pymc_marketing.mmm.transformers.WeibullType.removeprefix:2
+msgid "Return a str with the given prefix string removed if present."
+msgstr "Devuelve una cadena con el prefijo dado eliminado si está presente."
+
+#: bf9a2f00b0b04538b30a537e059e30d1 of
+#: pymc_marketing.mmm.transformers.WeibullType.removeprefix:4
+msgid ""
+"If the string starts with the prefix string, return string[len(prefix):]. "
+"Otherwise, return a copy of the original string."
+msgstr ""
+"Si la cadena comienza con el prefijo, devuelve string[len(prefix):]. De lo "
+"contrario, devuelve una copia de la cadena original."

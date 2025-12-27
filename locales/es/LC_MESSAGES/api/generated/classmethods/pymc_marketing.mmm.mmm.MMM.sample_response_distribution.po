@@ -1,0 +1,128 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.mmm.MMM.sample_response_distribution.rst:2
+#: 0ef0dcf274df4a33bc7e5f33d0ea6856
+msgid "MMM.sample\\_response\\_distribution"
+msgstr "MMM.muestra\\_distribución\\_respuesta"
+
+#: ff85602703d0410b9f70b7f019068f1e of
+#: pymc_marketing.mmm.mmm.MMM.sample_response_distribution:2
+msgid ""
+"Generate synthetic dataset and sample posterior predictive based on "
+"allocation."
+msgstr ""
+"Generar un conjunto de datos sintético y muestrear la predicción posterior "
+"basada en la asignación."
+
+#: 9a5c3d4a65504dfbb67d6a5916f7e0f2 of
+#: pymc_marketing.mmm.mmm.MMM.sample_response_distribution
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 06ee46429c2f40b18bde5c59fb8e49cd of
+#: pymc_marketing.mmm.mmm.MMM.sample_response_distribution:7
+msgid ""
+"**allocation_strategy** : :obj:`DataArray` or "
+":class:`python:dict`\\[:class:`python:str`, :class:`python:float`]"
+msgstr ""
+"**estrategia_de_asignación** : :obj:`DataArray` o "
+":class:`python:dict`\\[:class:`python:str`, :class:`python:float`]"
+
+#: 6fe1bd3d5a5941248249f07ceba3f113 of
+#: pymc_marketing.mmm.mmm.MMM.sample_response_distribution:6
+msgid "DataArray or python:dict[python:str, python:float]"
+msgstr "DataArray o python:dict[python:str, python:float]"
+
+#: ad5393c142cb4003a644aa3afa7d034f of
+#: pymc_marketing.mmm.mmm.MMM.sample_response_distribution:8
+msgid "The allocation strategy for the channels."
+msgstr "La estrategia de asignación para los canales."
+
+#: a5b0a2cffb41442095ce28539d30b0af of
+#: pymc_marketing.mmm.mmm.MMM.sample_response_distribution:10
+msgid ""
+"**time_granularity** : :obj:`Literal`\\[\"daily\", \"weekly\", \"monthly\", "
+"\"quarterly\", \"yearly\"]"
+msgstr ""
+"**time_granularity** : :obj:`Literal`\\[\"diario\", \"semanal\", "
+"\"mensual\", \"trimestral\", \"anual\"]"
+
+#: 0ccc137b0fe642738460276dfd290a4f of
+#: pymc_marketing.mmm.mmm.MMM.sample_response_distribution:9
+msgid "Literal[\"daily\", \"weekly\", \"monthly\", \"quarterly\", \"yearly\"]"
+msgstr "Literal[\"diario\", \"semanal\", \"mensual\", \"trimestral\", \"anual\"]"
+
+#: 9c29df7bd0674d5e80cd5cffc84b8937 of
+#: pymc_marketing.mmm.mmm.MMM.sample_response_distribution:11
+msgid ""
+"The granularity of the time units (e.g., 'daily', 'weekly', 'monthly')."
+msgstr ""
+"La granularidad de las unidades de tiempo (por ejemplo, 'diario', 'semanal',"
+" 'mensual')."
+
+#: 2fa28a840afd44e9a8aa418fd8f59297 of
+#: pymc_marketing.mmm.mmm.MMM.sample_response_distribution:13
+msgid "**num_periods** : :class:`python:int`"
+msgstr "**num_periods** : :class:`python:int`"
+
+#: 2e7a429463ae4e198eaf27f87236fa9b of
+#: pymc_marketing.mmm.mmm.MMM.sample_response_distribution:12
+msgid "python:int"
+msgstr "python:int"
+
+#: 0b84c0e00c904cc4b0b2be20fef61c18 of
+#: pymc_marketing.mmm.mmm.MMM.sample_response_distribution:14
+msgid "The number of time periods for prediction."
+msgstr "El número de períodos de tiempo para la predicción."
+
+#: 3c1d93f1db9e4cb1b3ae8fb318c82724 of
+#: pymc_marketing.mmm.mmm.MMM.sample_response_distribution:16
+msgid "**noise_level** : :class:`python:float`"
+msgstr "**nivel_de_ruido** : :class:`python:float`"
+
+#: 32877518b7e347c5b10f550140e841c6 of
+#: pymc_marketing.mmm.mmm.MMM.sample_response_distribution:15
+msgid "python:float"
+msgstr "python:float"
+
+#: 3589fc8ea9db4859b732b2c6ea8fed67 of
+#: pymc_marketing.mmm.mmm.MMM.sample_response_distribution:17
+msgid "The level of noise to add to the synthetic data."
+msgstr "El nivel de ruido a añadir a los datos sintéticos."
+
+#: 8b529c0d595e42af8fd82fc3208c12a6 of
+#: pymc_marketing.mmm.mmm.MMM.sample_response_distribution
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: f97e2734dd6f42c696119edca137815a of
+#: pymc_marketing.mmm.mmm.MMM.sample_response_distribution:23
+msgid ":obj:`az.InferenceData`"
+msgstr ":obj:`az.InferenceData`"
+
+#: 64f217a57dc44c7ca86434e7389088b1 of
+#: pymc_marketing.mmm.mmm.MMM.sample_response_distribution:24
+msgid "The posterior predictive samples based on the synthetic dataset."
+msgstr ""
+"Las muestras predictivas posteriores basadas en el conjunto de datos "
+"sintético."

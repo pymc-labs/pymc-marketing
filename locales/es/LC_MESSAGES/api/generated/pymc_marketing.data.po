@@ -1,0 +1,45 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.data.rst:2
+#: 52f295b7f91946a8a29c66d536994729
+msgid "data"
+msgstr "datos"
+
+#: 86f6018b511f470fb1b708b7d8fdb4ad of pymc_marketing.data:1
+msgid "Data adaptors for PyMC-Marketing."
+msgstr "Adaptadores de datos para PyMC-Marketing."
+
+#: ../source/api/generated/pymc_marketing.data.rst:25
+#: 6f8885e73f6441b1b61ce49d4826ceef
+msgid "Modules"
+msgstr "Módulos"
+
+#: ../source/api/generated/pymc_marketing.data.rst:31:<autosummary>:1
+#: 7aa3d492d7344e94b3571b41efdcb6a4
+msgid ":py:obj:`fivetran <pymc_marketing.data.fivetran>`\\"
+msgstr ":py:obj:`fivetran <pymc_marketing.data.fivetran>`\\"
+
+#: ../source/api/generated/pymc_marketing.data.rst:31:<autosummary>:1
+#: b767e605f0b64245ac5058a4206c5fd8
+msgid "Fivetran data processing functions."
+msgstr "Funciones de procesamiento de datos de Fivetran."

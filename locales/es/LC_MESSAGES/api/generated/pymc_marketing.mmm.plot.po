@@ -1,0 +1,124 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.plot.rst:2
+#: 1a91799b10864ea99ecba629d6cafcc3
+msgid "plot"
+msgstr "trama"
+
+#: f3635206c61741d7bed9d2ccd7226929 of pymc_marketing.mmm.plot:1
+msgid "MMM related plotting class."
+msgstr "Clase de trazado relacionada con MMM."
+
+#: ce3b57f431e44ac98928aae9d9d3df5e of pymc_marketing.mmm.plot:4
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: 447a52843e944c5b9813897dcb1267ef of pymc_marketing.mmm.plot:5
+msgid "Quickstart with MMM:"
+msgstr "Inicio rápido con MMM:"
+
+#: f6ece2d471e14f6ba0e04c2244f6aa51 of pymc_marketing.mmm.plot:45
+msgid "Wrap a custom PyMC model"
+msgstr "Envuelva un modelo PyMC personalizado"
+
+#: e1982ae5b08d46dda60b603722d8dea0 of pymc_marketing.mmm.plot:47
+msgid "Requirements"
+msgstr "Requisitos"
+
+#: c8350df10fea4e81932b10849206653f of pymc_marketing.mmm.plot:49
+msgid ""
+"posterior_predictive plots: an `az.InferenceData` with a "
+"`posterior_predictive` group containing the variable(s) you want to plot "
+"with a `date` coordinate."
+msgstr ""
+"gráficas predictivas posteriores: un `az.InferenceData` con un grupo "
+"`posterior_predictive` que contiene la(s) variable(s) que desea graficar con"
+" una coordenada `date`."
+
+#: 11ed58234b9d48c9b4a834077873f097 of pymc_marketing.mmm.plot:51
+msgid ""
+"contributions_over_time plots: a `posterior` group with time‑series "
+"variables (with `date`)."
+msgstr ""
+"contribuciones_a_lo_largo_del_tiempo gráficos: un grupo `posterior` con "
+"variables de series temporales (con `fecha`)."
+
+#: 852143f712ca49e8b311d2b5c9950e57 of pymc_marketing.mmm.plot:52
+msgid ""
+"saturation plots: a `constant_data` dataset with variables: - "
+"`channel_data`: dims include `(\"date\", \"channel\", ...)` - "
+"`channel_scale`: dims include `(\"channel\", ...)` - `target_scale`: scalar "
+"or broadcastable to the curve dims and a `posterior` variable named "
+"`channel_contribution` (or `channel_contribution_original_scale` if plotting"
+" `original_scale=True`)."
+msgstr ""
+"gráficos de saturación: un conjunto de datos `constant_data` con variables: "
+"- `channel_data`: las dimensiones incluyen `(\"fecha\", \"canal\", ...)` - "
+"`channel_scale`: las dimensiones incluyen `(\"canal\", ...)` - "
+"`target_scale`: escalar o transmisible a las dimensiones de la curva y una "
+"variable `posterior` llamada `channel_contribution` (o "
+"`channel_contribution_original_scale` si se grafica `original_scale=True`)."
+
+#: 7c2b230b600345ae9ca0982e40174c2a of pymc_marketing.mmm.plot:81
+msgid "Custom contributions_over_time"
+msgstr "Contribuciones personalizadas_a_lo_largo_del_tiempo"
+
+#: 1244df20e656475d95443075f36e6592 of pymc_marketing.mmm.plot:103
+msgid "Saturation plots with a custom model"
+msgstr "Gráficos de saturación con un modelo personalizado"
+
+#: cb068e5bf95a499badff854b2aa53623 of pymc_marketing.mmm.plot:152
+msgid "Notes"
+msgstr "Notas"
+
+#: 55be71b821584b67b19dc9b10c46b0c2 of pymc_marketing.mmm.plot:153
+msgid ""
+"`MMM` exposes this suite via the `mmm.plot` property, which internally "
+"passes the model's `idata` into `MMMPlotSuite`."
+msgstr ""
+"`MMM` expone esta suite a través de la propiedad `mmm.plot`, que "
+"internamente pasa el `idata` del modelo a `MMMPlotSuite`."
+
+#: 80de829591aa4bbbb3f52f72aaf0a1ba of pymc_marketing.mmm.plot:155
+msgid ""
+"Any PyMC model can use `MMMPlotSuite` directly if its `InferenceData` "
+"contains the needed groups/variables described above."
+msgstr ""
+"Cualquier modelo de PyMC puede utilizar `MMMPlotSuite` directamente si su "
+"`InferenceData` contiene los grupos/variables necesarios descritos "
+"anteriormente."
+
+#: ../source/api/generated/pymc_marketing.mmm.plot.rst:17
+#: 94d39e336878417ba8dd78d52b8dff16
+msgid "Classes"
+msgstr "Clases"
+
+#: ../source/api/generated/pymc_marketing.mmm.plot.rst:23:<autosummary>:1
+#: d61a3b09b75d4af48a6530359f070738
+msgid ":py:obj:`MMMPlotSuite <pymc_marketing.mmm.plot.MMMPlotSuite>`\\ \\(idata\\)"
+msgstr ":py:obj:`MMMPlotSuite <pymc_marketing.mmm.plot.MMMPlotSuite>`\\ \\(idata\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.plot.rst:23:<autosummary>:1
+#: ccd9073008be4c45853b6d7d761351bc
+msgid "Media Mix Model Plot Suite."
+msgstr "Suite de Gráficos del Modelo de Mezcla de Medios."

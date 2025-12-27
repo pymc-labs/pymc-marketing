@@ -1,0 +1,66 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.mmm.MMM.max_abs_scale_channel_data.rst:2
+#: 658fbb8492ee4e8db7174a6a0e263f3a
+msgid "MMM.max\\_abs\\_scale\\_channel\\_data"
+msgstr "MMM.max\\_abs\\_scale\\_channel\\_data"
+
+#: 614180cafea44a68b84717d53ab51c5a of
+#: pymc_marketing.mmm.preprocessing.MaxAbsScaleChannels.max_abs_scale_channel_data:2
+msgid "MaxAbsScaler for the channel data."
+msgstr "MaxAbsScaler para los datos del canal."
+
+#: 6906d5bb2dd04a4e82d66d08b8244d8d of
+#: pymc_marketing.mmm.preprocessing.MaxAbsScaleChannels.max_abs_scale_channel_data
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 8a3a6c2cfc894b04ab3e49b4412dfb3d of
+#: pymc_marketing.mmm.preprocessing.MaxAbsScaleChannels.max_abs_scale_channel_data:7
+msgid "**data** : :obj:`pd.DataFrame`"
+msgstr "**datos** : :obj:`pd.DataFrame`"
+
+#: fea65e1710be4f5a9e6ffaadd0d9cf95 of
+#: pymc_marketing.mmm.preprocessing.MaxAbsScaleChannels.max_abs_scale_channel_data:6
+msgid "pd.DataFrame"
+msgstr "pd.DataFrame"
+
+#: 48995a60bac44d218b7db7ff0bf5b7b2 of
+#: pymc_marketing.mmm.preprocessing.MaxAbsScaleChannels.max_abs_scale_channel_data:8
+msgid "The channel data to scale."
+msgstr "Los datos del canal para escalar."
+
+#: 4c90456fada440df93ad9db1d6084c78 of
+#: pymc_marketing.mmm.preprocessing.MaxAbsScaleChannels.max_abs_scale_channel_data
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 6da3e2f580fe4d079fdbc5aec6dd8177 of
+#: pymc_marketing.mmm.preprocessing.MaxAbsScaleChannels.max_abs_scale_channel_data:14
+msgid ":obj:`pd.DataFrame`"
+msgstr ":obj:`pd.DataFrame`"
+
+#: 3149fdffa5814a0e9706fb0b73950319 of
+#: pymc_marketing.mmm.preprocessing.MaxAbsScaleChannels.max_abs_scale_channel_data:15
+msgid "The scaled channel data."
+msgstr "Los datos del canal escalado."

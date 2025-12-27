@@ -1,0 +1,203 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.prior.rst:2
+#: e115a10457224dfa8058af77d13bd1b3
+msgid "prior"
+msgstr "anterior"
+
+#: b3f5500150a54a4aabdc23a05c98eaa7 of pymc_marketing.prior:1
+msgid "Class that represents a prior distribution."
+msgstr "Clase que representa una distribución a priori."
+
+#: deafe7c63ea848e4989abf6fee0ab37a of pymc_marketing.prior:3
+msgid ""
+"The `Prior` class is a wrapper around PyMC distributions that allows the "
+"user to create outside of the PyMC model."
+msgstr ""
+"La clase `Prior` es un contenedor para las distribuciones de PyMC que "
+"permite al usuario crear fuera del modelo de PyMC."
+
+#: 4adfd7ec733d49d8b40dbe2d44e0f68a of pymc_marketing.prior:8
+msgid "This module has been deprecated and is moved to `pymc_extras.prior`."
+msgstr ""
+"Este módulo ha sido desaprobado y se ha trasladado a `pymc_extras.prior`."
+
+#: 4742853ceb254411a401b82567a426b8 of pymc_marketing.prior:10
+msgid ""
+"This is the alternative to using the dictionaries in PyMC-Marketing models."
+msgstr ""
+"Esta es la alternativa a utilizar los diccionarios en los modelos de PyMC-"
+"Marketing."
+
+#: e1b057f0254e43968eba4fcd1f8781f2 of pymc_marketing.prior:13
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: fa5d7ae82b544d968a04c5a9213c48f9 of pymc_marketing.prior:14
+msgid "Create a normal prior."
+msgstr "Cree un prior normal."
+
+#: c1c50a75a7364cd5bf659f5dc33ce7d4 of pymc_marketing.prior:22
+msgid ""
+"Create a hierarchical normal prior by using distributions for the parameters"
+" and specifying the dims."
+msgstr ""
+"Cree un prior normal jerárquico utilizando distribuciones para los "
+"parámetros y especificando las dimensiones."
+
+#: 1f65523aac8c4e5d9dc0c1a8cfeb9a35 of pymc_marketing.prior:34
+msgid ""
+"Create a non-centered hierarchical normal prior with the `centered` "
+"parameter."
+msgstr ""
+"Cree un prior normal jerárquico no centrado con el parámetro `centered`."
+
+#: 1f95cdf96e074ed6808701662a733fd9 of pymc_marketing.prior:47
+msgid ""
+"Create a hierarchical beta prior by using Beta distribution, distributions "
+"for the parameters, and specifying the dims."
+msgstr ""
+"Cree un prior beta jerárquico utilizando la distribución Beta, "
+"distribuciones para los parámetros y especificando las dimensiones."
+
+#: 92fd8dbf84eb490baa1aaae89ba3c3d1 of pymc_marketing.prior:59
+msgid ""
+"Create a transformed hierarchical normal prior by using the `transform` "
+"parameter. Here the \"sigmoid\" transformation comes from `pm.math`."
+msgstr ""
+"Cree un prior normal jerárquico transformado utilizando el parámetro "
+"`transform`. Aquí la transformación \"sigmoide\" proviene de `pm.math`."
+
+#: 383cba23833548439c5fccbdef144e51 of pymc_marketing.prior:72
+msgid ""
+"Create a prior with a custom transform function by registering it with "
+"`register_tensor_transform`."
+msgstr ""
+"Cree un previo con una función de transformación personalizada registrándola"
+" con `register_tensor_transform`."
+
+#: ../source/api/generated/pymc_marketing.prior.rst:13
+#: 9b1ee824dbef4d7bbd46f5459c4b847d
+msgid "Functions"
+msgstr "Funciones"
+
+#: ../source/api/generated/pymc_marketing.prior.rst:26:<autosummary>:1
+#: 6e03895ad85e4924879eb257925a95bc
+msgid ""
+":py:obj:`deserialize_alternative_prior "
+"<pymc_marketing.prior.deserialize_alternative_prior>`\\ \\(data\\)"
+msgstr ""
+":py:obj:`deserialize_alternative_prior "
+"<pymc_marketing.prior.deserialize_alternative_prior>`\\ \\(datos\\)"
+
+#: ../source/api/generated/pymc_marketing.prior.rst:26:<autosummary>:1
+#: 1b5b54c57fe741e19f4c212a1c294a8b
+msgid ""
+"Alternative deserializer that recursively handles all nested parameters."
+msgstr ""
+"Deserializador alternativo que maneja recursivamente todos los parámetros "
+"anidados."
+
+#: ../source/api/generated/pymc_marketing.prior.rst:26:<autosummary>:1
+#: fb523b680df74790831310819d77c356
+msgid ""
+":py:obj:`is_alternative_prior <pymc_marketing.prior.is_alternative_prior>`\\"
+" \\(data\\)"
+msgstr ""
+":py:obj:`is_alternative_prior <pymc_marketing.prior.is_alternative_prior>`\\"
+" \\(datos\\)"
+
+#: ../source/api/generated/pymc_marketing.prior.rst:26:<autosummary>:1
+#: 02991c7514264b68aa4004e139ed8891
+msgid ""
+"Check if the data is a dictionary representing a Prior (alternative check)."
+msgstr ""
+"Verifique si los datos son un diccionario que representa un Prior "
+"(verificación alternativa)."
+
+#: ../source/api/generated/pymc_marketing.prior.rst:26:<autosummary>:1
+#: 773885679c4740b89ef4b0b838240d34
+msgid ""
+":py:obj:`warn_class_deprecation "
+"<pymc_marketing.prior.warn_class_deprecation>`\\ \\(func\\)"
+msgstr ""
+":py:obj:`warn_class_deprecation "
+"<pymc_marketing.prior.warn_class_deprecation>`\\ \\(func\\)"
+
+#: ../source/api/generated/pymc_marketing.prior.rst:26:<autosummary>:1
+#: fd9547e4be874c798412d697abe440bf
+msgid "Warn about the deprecation of this module."
+msgstr "Advertir sobre la descontinuación de este módulo."
+
+#: ../source/api/generated/pymc_marketing.prior.rst:26:<autosummary>:1
+#: 3eaa2f61ea034ee9b51c519aaafbb27b
+msgid ""
+":py:obj:`warn_function_deprecation "
+"<pymc_marketing.prior.warn_function_deprecation>`\\ \\(func\\)"
+msgstr ""
+":py:obj:`warn_function_deprecation "
+"<pymc_marketing.prior.warn_function_deprecation>`\\ \\(func\\)"
+
+#: ../source/api/generated/pymc_marketing.prior.rst:26:<autosummary>:1
+#: f9b9cf6969a34058be2ea530d4dbb38a
+msgid "Warn about the deprecation of this function."
+msgstr "Advertir sobre la descontinuación de esta función."
+
+#: ../source/api/generated/pymc_marketing.prior.rst:28
+#: 495877c74b69494cb46d1df6562927bc
+msgid "Classes"
+msgstr "Clases"
+
+#: ../source/api/generated/pymc_marketing.prior.rst:40:<autosummary>:1
+#: 72b4f5fa860a487ba37ad4269ccbdf49
+msgid ""
+":py:obj:`Censored <pymc_marketing.prior.Censored>`\\ \\(distribution\\[\\, "
+"lower\\, upper\\]\\)"
+msgstr ""
+":py:obj:`Censurado <pymc_marketing.prior.Censurado>`\\ \\(distribución\\[\\,"
+" inferior\\, superior\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.prior.rst:40:<autosummary>:1
+#: c21a92d426624e5f9178f468316a6a26
+msgid "Backwards-compatible wrapper for the CensoredPrior class."
+msgstr "Wrapper compatible hacia atrás para la clase CensoredPrior."
+
+#: ../source/api/generated/pymc_marketing.prior.rst:40:<autosummary>:1
+#: 49decdbdff4d4d51b76ef65ea12e3fcd
+msgid ":py:obj:`Prior <pymc_marketing.prior.Prior>`\\ \\(\\*args\\, \\*\\*kwargs\\)"
+msgstr ":py:obj:`Prior <pymc_marketing.prior.Prior>`\\ \\(\\*args\\, \\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.prior.rst:40:<autosummary>:1
+#: 9f267f8f9ef943a59c0ee8b113d938c2
+msgid "Backwards-compatible wrapper for the Prior class."
+msgstr "Envoltura compatible hacia atrás para la clase Prior."
+
+#: ../source/api/generated/pymc_marketing.prior.rst:40:<autosummary>:1
+#: 852e5a9e7caa4220ba3db776d95a7770
+msgid ":py:obj:`Scaled <pymc_marketing.prior.Scaled>`\\ \\(\\*args\\, \\*\\*kwargs\\)"
+msgstr ":py:obj:`Scaled <pymc_marketing.prior.Scaled>`\\ \\(\\*args\\, \\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.prior.rst:40:<autosummary>:1
+#: b4416a53067d4f98b7ef285dcc8e3404
+msgid "Backwards-compatible wrapper for the ScaledPrior class."
+msgstr "Envoltura compatible hacia atrás para la clase ScaledPrior."

@@ -1,0 +1,131 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.clv.plotting.rst:2
+#: 8d4c283a305b4d2296fc97d7faf6817a
+msgid "plotting"
+msgstr "trazado"
+
+#: ad21be2f9aa94eb39ad6d72d770981e3 of pymc_marketing.clv.plotting:1
+msgid "Plotting functions for the CLV module."
+msgstr "Funciones de trazado para el módulo CLV."
+
+#: ../source/api/generated/pymc_marketing.clv.plotting.rst:13
+#: 903bde852a2e46eb98cd1a3b8500e5de
+msgid "Functions"
+msgstr "Funciones"
+
+#: ../source/api/generated/pymc_marketing.clv.plotting.rst:22:<autosummary>:1
+#: 629995fb5c254516b10fbc8d0a590af2
+msgid ""
+":py:obj:`plot_customer_exposure "
+"<pymc_marketing.clv.plotting.plot_customer_exposure>`\\ \\(df\\[\\, "
+"linewidth\\, ...\\]\\)"
+msgstr ""
+":py:obj:`plot_customer_exposure "
+"<pymc_marketing.clv.plotting.plot_customer_exposure>`\\ \\(df\\[\\, "
+"linewidth\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.plotting.rst:22:<autosummary>:1
+#: 945c856693734f9e99517f6077adf862
+msgid "Plot the recency and T of DataFrame of customers."
+msgstr "Trazar la recencia y T del DataFrame de clientes."
+
+#: ../source/api/generated/pymc_marketing.clv.plotting.rst:22:<autosummary>:1
+#: 26fc10fb5d0041aa826e312ecd7b4e73
+msgid ""
+":py:obj:`plot_expected_purchases_over_time "
+"<pymc_marketing.clv.plotting.plot_expected_purchases_over_time>`\\ "
+"\\(model\\, ...\\)"
+msgstr ""
+":py:obj:`plot_expected_purchases_over_time "
+"<pymc_marketing.clv.plotting.plot_expected_purchases_over_time>`\\ "
+"\\(modelo\\, ...\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.plotting.rst:22:<autosummary>:1
+#: 9664069e84374d73b7f9ed43b8597d59
+msgid ""
+"Plot actual and expected purchases over time for a fitted ``BetaGeoModel`` "
+"or ``ParetoNBDModel``."
+msgstr ""
+"Grafique las compras reales y esperadas a lo largo del tiempo para un "
+"``BetaGeoModel`` o ``ParetoNBDModel`` ajustado."
+
+#: ../source/api/generated/pymc_marketing.clv.plotting.rst:22:<autosummary>:1
+#: 41a45eed03974f9a9dcd262f5da90265
+msgid ""
+":py:obj:`plot_expected_purchases_ppc "
+"<pymc_marketing.clv.plotting.plot_expected_purchases_ppc>`\\ \\(model\\[\\, "
+"ppc\\, ...\\]\\)"
+msgstr ""
+":py:obj:`plot_expected_purchases_ppc "
+"<pymc_marketing.clv.plotting.plot_expected_purchases_ppc>`\\ \\(modelo\\[\\,"
+" ppc\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.plotting.rst:22:<autosummary>:1
+#: c0b009c91a4e427b86803275249004e8
+msgid ""
+"Plot a prior or posterior predictive check for the customer purchase "
+"frequency distribution."
+msgstr ""
+"Trace un chequeo predictivo previo o posterior para la distribución de "
+"frecuencia de compras del cliente."
+
+#: ../source/api/generated/pymc_marketing.clv.plotting.rst:22:<autosummary>:1
+#: af872a653ec6483ebe0ab6cab02cdd0c
+msgid ""
+":py:obj:`plot_frequency_recency_matrix "
+"<pymc_marketing.clv.plotting.plot_frequency_recency_matrix>`\\ "
+"\\(model\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`plot_frequency_recency_matrix "
+"<pymc_marketing.clv.plotting.plot_frequency_recency_matrix>`\\ "
+"\\(modelo\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.plotting.rst:22:<autosummary>:1
+#: 0645a3d320534346b4a5dfd9744ed2a6
+msgid ""
+"Plot expected purchases in *future_t* time periods as a heatmap based on "
+"customer population *frequency* and *recency*."
+msgstr ""
+"Representar las compras esperadas en *future_t* períodos de tiempo como un "
+"mapa de calor basado en la población de clientes *frequency* y *recency*."
+
+#: ../source/api/generated/pymc_marketing.clv.plotting.rst:22:<autosummary>:1
+#: c09a59ae882847b685f0914600dff1fd
+msgid ""
+":py:obj:`plot_probability_alive_matrix "
+"<pymc_marketing.clv.plotting.plot_probability_alive_matrix>`\\ "
+"\\(model\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`plot_probability_alive_matrix "
+"<pymc_marketing.clv.plotting.plot_probability_alive_matrix>`\\ "
+"\\(modelo\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.plotting.rst:22:<autosummary>:1
+#: e196c3131ec243d1b12a36a099137165
+msgid ""
+"Plot probability alive matrix as a heatmap based on customer population "
+"*frequency* and *recency*."
+msgstr ""
+"Trazar la matriz de probabilidad de supervivencia como un mapa de calor "
+"basado en la *frecuencia* y *recencia* de la población de clientes."

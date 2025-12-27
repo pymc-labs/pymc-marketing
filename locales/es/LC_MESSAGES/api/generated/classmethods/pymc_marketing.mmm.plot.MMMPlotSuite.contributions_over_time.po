@@ -1,0 +1,161 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.plot.MMMPlotSuite.contributions_over_time.rst:2
+#: 029f863daf85461c9960d5e8d0f2e01e
+msgid "MMMPlotSuite.contributions\\_over\\_time"
+msgstr "MMMPlotSuite.contributions\\_over\\_time"
+
+#: da8c732499a04e8391bc878b29afb22a of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.contributions_over_time:2
+msgid "Plot the time-series contributions for each variable in `var`."
+msgstr ""
+"Trace las contribuciones de la serie temporal para cada variable en `var`."
+
+#: 1bb59e131c7c4aa4bf989e7550ad9af7 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.contributions_over_time:4
+msgid ""
+"showing the median and the credible interval (default 85%). Creates one "
+"subplot per combination of non-(chain/draw/date) dimensions and places all "
+"variables on the same subplot."
+msgstr ""
+"mostrando la mediana y el intervalo creíble (predeterminado 85%). Crea un "
+"subplot por cada combinación de dimensiones que no son (cadena/sorteo/fecha)"
+" y coloca todas las variables en el mismo subplot."
+
+#: a373ff3c021b4514a41594a32758f5b3 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.contributions_over_time
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 0e54b8b2ea724a42bd3faa2054034a7a of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.contributions_over_time:10
+msgid "**var** : :class:`python:list` of :class:`python:str`"
+msgstr "**var** : :class:`python:list` de :class:`python:str`"
+
+#: cf595251919d4775b5d7e958a60ef1a0 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.contributions_over_time:9
+msgid "python:list of python:str"
+msgstr "python:lista de python:str"
+
+#: 01b335d27dc143dcb3a923bf991f858f of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.contributions_over_time:11
+msgid "A list of variable names to plot from the posterior."
+msgstr "Una lista de nombres de variables para graficar desde el posterior."
+
+#: 040b7ea4354e434f9c5553b0a27f9ca1 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.contributions_over_time:13
+msgid "**hdi_prob: float, optional**"
+msgstr "**hdi_prob: flotante, opcional**"
+
+#: 7d2d26d9be7b4068aa36a03e68397c90 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.contributions_over_time:14
+msgid ""
+"The probability mass of the highest density interval to be displayed. "
+"Default is 0.85."
+msgstr ""
+"La masa de probabilidad del intervalo de mayor densidad que se mostrará. El "
+"valor predeterminado es 0.85."
+
+#: 47110b21e0554640833c325d040dc18d of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.contributions_over_time:16
+msgid ""
+"**dims** : :class:`python:dict`\\[:class:`python:str`, :class:`python:str` |"
+" :class:`python:int` | :class:`python:list`], optional"
+msgstr ""
+"**dims** : :class:`python:dict`\\[:class:`python:str`, :class:`python:str` |"
+" :class:`python:int` | :class:`python:list`], opcional"
+
+#: 53e0dcb7b8094c959eaeef171c3ef32e of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.contributions_over_time:15
+msgid ""
+"python:dict[python:str, python:str | python:int | python:list], optional"
+msgstr ""
+"python:dict[python:str, python:str | python:int | python:list], opcional"
+
+#: 2cf7a3267e3143c292591a5ed5c8988e of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.contributions_over_time:17
+#, python-brace-format
+msgid ""
+"Dimension filters to apply. Example: {\"country\": [\"US\", \"UK\"], "
+"\"user_type\": \"new\"}. If provided, only the selected slice(s) will be "
+"plotted."
+msgstr ""
+"Filtros de dimensión a aplicar. Ejemplo: {\"country\": [\"US\", \"UK\"], "
+"\"user_type\": \"new\"}. Si se proporciona, solo se trazará(n) la(s) "
+"porción(es) seleccionada(s)."
+
+#: 7546937aa1914eef9090ea0fefd4d0f8 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.contributions_over_time
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 265003daa4ae4370bc40b0620094c747 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.contributions_over_time:24
+msgid "**fig** : :obj:`matplotlib.figure.Figure`"
+msgstr "**fig** : :obj:`matplotlib.figure.Figure`"
+
+#: 5a0938335dcc4dae9f8087d7c0c19574 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.contributions_over_time:23
+msgid "matplotlib.figure.Figure"
+msgstr "matplotlib.figure.Figure"
+
+#: fc784526a49e4edfbf288066d469516f of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.contributions_over_time:25
+msgid "The Figure object containing the subplots."
+msgstr "El objeto Figura que contiene los subgráficos."
+
+#: b591d3e74dc449a6aaf360b41ff09229 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.contributions_over_time:27
+msgid ""
+"**axes** : :obj:`np.ndarray <numpy.ndarray>` of :obj:`matplotlib.axes.Axes`"
+msgstr ""
+"**ejes** : :obj:`np.ndarray <numpy.ndarray>` de :obj:`matplotlib.axes.Axes`"
+
+#: a28e0185e5bd4949b4960efcaeca290f of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.contributions_over_time:26
+msgid "np.ndarray of matplotlib.axes.Axes"
+msgstr "np.ndarray de matplotlib.axes.Axes"
+
+#: ce2b1310db0e4290af626ab2c6731bca of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.contributions_over_time:28
+msgid "Array of Axes objects corresponding to each subplot row."
+msgstr "Array de objetos Axes que corresponden a cada fila de subgráficos."
+
+#: da7488b3f82b4a99a8a6b64b076a9c41 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.contributions_over_time
+msgid "Raises"
+msgstr "Aumentos"
+
+#: 0484dd52a9e24db4a7af8f9bac6cf0bc of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.contributions_over_time:35
+msgid ":obj:`ValueError`"
+msgstr ":obj:`ValueError`"
+
+#: a37b0b6fa4244864b78bb7e97ef132b1 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.contributions_over_time:36
+msgid ""
+"If `hdi_prob` is not between 0 and 1, instructing the user to provide a "
+"valid value."
+msgstr ""
+"Si `hdi_prob` no está entre 0 y 1, instruya al usuario para que proporcione "
+"un valor válido."

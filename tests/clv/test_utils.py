@@ -32,7 +32,7 @@ from pymc_marketing.clv.utils import (
     rfm_train_test_split,
     to_xarray,
 )
-from tests.conftest import set_model_fit
+from tests.clv.conftest import set_model_fit
 
 
 def test_to_xarray():
@@ -124,7 +124,7 @@ class TestCustomerLifetimeValue:
     def test_missing_col(self, fitted_bg, test_summary_data):
         data_invalid = test_summary_data.drop(columns="future_spend")
 
-        with pytest.raises(ValueError, match="Required column future_spend missing"):
+        with pytest.raises(ValueError, match=r"Required column future_spend missing"):
             customer_lifetime_value(
                 transaction_model=fitted_bg,
                 data=data_invalid,
@@ -213,12 +213,12 @@ class TestCustomerLifetimeValue:
 
         # Copy model with thinned chain/draw as would be obtained from MAP
         if transaction_model_map:
-            transaction_model = transaction_model._build_with_idata(
+            transaction_model = transaction_model.build_from_idata(
                 transaction_model.idata.sel(chain=slice(0, 1), draw=slice(0, 1))
             )
 
         if gg_map:
-            fitted_gg = fitted_gg._build_with_idata(
+            fitted_gg = fitted_gg.build_from_idata(
                 fitted_gg.idata.sel(chain=slice(0, 1), draw=slice(0, 1))
             )
             # create future_spend column from fitted gg
@@ -837,7 +837,7 @@ class TestRFM:
 
         with pytest.warns(
             UserWarning,
-            match="RFM score will not exceed 2 for f_quartile. Specify a custom segment_config",
+            match=r"RFM score will not exceed 2 for f_quartile. Specify a custom segment_config",
         ):
             rfm_segments(
                 repetitive_data,

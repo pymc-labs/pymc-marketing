@@ -1,0 +1,109 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.rst:2
+#: b7bd217f7b3241beb3ff3a5d0792fe08
+msgid "MultiDimensionalBudgetOptimizerWrapper"
+msgstr "MultiDimensionalBudgetOptimizerWrapper"
+
+#: b571e87a75ea4d9e974bb415d152d19a of
+#: pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper:2
+msgid "Wrapper for the BudgetOptimizer to handle multi-dimensional model."
+msgstr ""
+"Envoltorio para el BudgetOptimizer para manejar un modelo multidimensional."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.rst:12
+#: 62a5cc8832f44a7da1460c559ae8e996
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.rst:24:<autosummary>:1
+#: 0a1dce55f1f844adb2917e919d556fff
+msgid ""
+":py:obj:`MultiDimensionalBudgetOptimizerWrapper.__init__ "
+"<pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.__init__>`\\"
+" \\(...\\)"
+msgstr ""
+":py:obj:`MultiDimensionalBudgetOptimizerWrapper.__init__ "
+"<pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.__init__>`\\"
+" \\(...\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.rst:24:<autosummary>:1
+#: ff1cccd07b0f4042bdc5e3afc6dc43dc
+msgid ""
+":py:obj:`MultiDimensionalBudgetOptimizerWrapper.optimize_budget "
+"<pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget>`\\"
+" \\(budget\\)"
+msgstr ""
+":py:obj:`MultiDimensionalBudgetOptimizerWrapper.optimize_budget "
+"<pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.optimize_budget>`\\"
+" \\(presupuesto\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.rst:24:<autosummary>:1
+#: eb79e114739b4a99aacca5fcffa7b751
+msgid "Optimize the budget allocation for the model."
+msgstr "Optimice la asignación del presupuesto para el modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.rst:24:<autosummary>:1
+#: 8ea209e986924413bd83dd8d6df72c36
+msgid ""
+":py:obj:`MultiDimensionalBudgetOptimizerWrapper.sample_response_distribution"
+" "
+"<pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.sample_response_distribution>`\\"
+" \\(...\\)"
+msgstr ""
+":py:obj:`MultiDimensionalBudgetOptimizerWrapper.sample_response_distribution"
+" "
+"<pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.sample_response_distribution>`\\"
+" \\(...\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.rst:24:<autosummary>:1
+#: 24138747666046649c5c2c65a7b02d74
+msgid ""
+"Generate synthetic dataset and sample posterior predictive based on "
+"allocation."
+msgstr ""
+"Generar un conjunto de datos sintético y muestrear la predicción posterior "
+"basada en la asignación."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.rst:26
+#: 861858e7fce0417cbbf19383d08376ee
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.rst:30:<autosummary>:1
+#: 60aaca1ac74d49b0b4501d72d9c11d7b
+msgid ""
+":py:obj:`adstock "
+"<pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.adstock>`\\"
+msgstr ""
+":py:obj:`adstock "
+"<pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.adstock>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.rst:30:<autosummary>:1
+#: fed91a05af634b718b11e02bbcaff53a
+msgid ""
+":py:obj:`idata "
+"<pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.idata>`\\"
+msgstr ""
+":py:obj:`idata "
+"<pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper.idata>`"

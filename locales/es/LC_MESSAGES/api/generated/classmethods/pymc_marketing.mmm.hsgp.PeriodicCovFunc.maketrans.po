@@ -1,0 +1,50 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.hsgp.PeriodicCovFunc.maketrans.rst:2
+#: 039d008793b94741a8c1c07119ccd44b
+msgid "PeriodicCovFunc.maketrans"
+msgstr "PeriodicCovFunc.maketrans"
+
+#: be1c54ee9db64710b797f8b8dff767e6 of
+#: pymc_marketing.mmm.hsgp.PeriodicCovFunc.maketrans:2
+msgid "Return a translation table usable for str.translate()."
+msgstr "Devuelva una tabla de traducción utilizable para str.translate()."
+
+#: 5b378b3ca270490599836a1dd2322aee of
+#: pymc_marketing.mmm.hsgp.PeriodicCovFunc.maketrans:4
+msgid ""
+"If there is only one argument, it must be a dictionary mapping Unicode "
+"ordinals (integers) or characters to Unicode ordinals, strings or None. "
+"Character keys will be then converted to ordinals. If there are two "
+"arguments, they must be strings of equal length, and in the resulting "
+"dictionary, each character in x will be mapped to the character at the same "
+"position in y. If there is a third argument, it must be a string, whose "
+"characters will be mapped to None in the result."
+msgstr ""
+"Si hay solo un argumento, debe ser un diccionario que mapee ordinales "
+"Unicode (enteros) o caracteres a ordinales Unicode, cadenas o None. Las "
+"claves de carácter se convertirán entonces en ordinales. Si hay dos "
+"argumentos, deben ser cadenas de igual longitud, y en el diccionario "
+"resultante, cada carácter en x se mapeará al carácter en la misma posición "
+"en y. Si hay un tercer argumento, debe ser una cadena, cuyos caracteres se "
+"mapearán a None en el resultado."

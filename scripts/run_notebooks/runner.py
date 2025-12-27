@@ -1,4 +1,52 @@
-"""Script to run all notebooks in the docs/source/notebooks directory."""
+"""Script to run all notebooks in the docs/source/notebooks directory.
+
+Examples
+--------
+Run all the notebooks in the documentation:
+
+```terminal
+python scripts/run_notebooks/runner.py
+```
+
+Run all the notebooks in docs/mmm and docs/clv:
+
+```terminal
+python scripts/run_notebooks/runner.py --notebooks mmm clv
+```
+
+Run all notebooks except those in docs/mmm and docs/clv:
+
+```terminal
+python scripts/run_notebooks/runner.py --exclude-dirs mmm clv
+```
+
+Run notebooks from index 2 to 5 (3rd to 5th notebook) in notebooks/mmm directory:
+
+```terminal
+python scripts/run_notebooks/runner.py --notebooks mmm --start-idx 2 --end-idx 5
+```
+
+"""
+
+# Monkey-patch nbclient to handle display_id=None for widget updates.
+# This fixes an issue where ipywidgets/tqdm progress bars cause
+# "assert display_id is not None" errors in nbclient.
+import nbclient.client
+
+_original_output = nbclient.client.NotebookClient.output
+
+
+def _patched_output(self, outs, msg, display_id, cell_index):
+    """Patched output method that catches assertion errors from widget updates."""
+    try:
+        return _original_output(self, outs, msg, display_id, cell_index)
+    except AssertionError:
+        # Silently skip messages that cause display_id assertion errors
+        # (typically from ipywidgets/tqdm progress bar updates)
+        return None
+
+
+nbclient.client.NotebookClient.output = _patched_output
 
 import argparse
 import logging
@@ -35,7 +83,19 @@ def generate_random_id() -> str:
     return str(uuid4())
 
 
+def clear_cell_outputs(cells: list) -> None:
+    """Clear all outputs from cells to avoid widget state issues with nbclient."""
+    for cell in cells:
+        if cell.get("cell_type") == "code":
+            cell["outputs"] = []
+            cell["execution_count"] = None
+
+
 def inject_pymc_sample_mock_code(cells: list) -> None:
+    # Clear outputs first to avoid nbclient display_id assertion errors
+    # caused by saved widget state from ipywidgets/tqdm progress bars
+    clear_cell_outputs(cells)
+
     cells.insert(
         0,
         NotebookNode(
@@ -105,7 +165,43 @@ def parse_args():
         type=str,
         help="List of notebooks to run. If not provided, all notebooks will be run.",
     )
+    parser.add_argument(
+        "--exclude-dirs",
+        nargs="+",
+        type=str,
+        help="List of directories to exclude (e.g., mmm clv)",
+    )
+    parser.add_argument(
+        "--start-idx",
+        type=int,
+        default=0,
+        help="Index of the notebook to start from (inclusive).",
+    )
+    parser.add_argument(
+        "--end-idx",
+        type=int,
+        default=None,
+        help="Index of the notebook to end at (exclusive).",
+    )
+    parser.add_argument(
+        "--parallel/no-parallel",
+        dest="parallel",
+        action="store_true",
+        default=False,
+    )
     return parser.parse_args()
+
+
+def expand_directories(notebooks):
+    expanded = []
+    for notebook in notebooks:
+        path = NOTEBOOKS_PATH / notebook
+        if path.is_dir():
+            logging.info(f"Expanding directory: {path}")
+            expanded.extend(path.glob("*.ipynb"))
+        else:
+            expanded.append(notebook)
+    return expanded
 
 
 if __name__ == "__main__":
@@ -115,12 +211,39 @@ if __name__ == "__main__":
     if args.notebooks:
         notebooks_to_run = [Path(notebook) for notebook in args.notebooks]
 
+    notebooks_to_run = expand_directories(notebooks_to_run)
+
+    if args.exclude_dirs:
+        exclude_set = set(args.exclude_dirs)
+        notebooks_to_run = [
+            nb for nb in notebooks_to_run if nb.parent.name not in exclude_set
+        ]
+
+    notebooks_to_run = sorted(notebooks_to_run)
+
+    notebooks_to_run = notebooks_to_run[args.start_idx : args.end_idx]
+
+    def parallel_run():
+        return Parallel(n_jobs=-1)(
+            delayed(run_notebook)(**run_params)
+            for run_params in run_parameters(notebooks_to_run)
+        )
+
+    def sequential_run():
+        return [
+            run_notebook(**run_params)
+            for run_params in run_parameters(notebooks_to_run)
+        ]
+
+    run = parallel_run if args.parallel else sequential_run
+
     setup_logging()
     logging.info("Starting notebook runner")
     logging.info(f"Notebooks to run: {notebooks_to_run}")
-    Parallel(n_jobs=-1)(
-        delayed(run_notebook)(**run_params)
-        for run_params in run_parameters(notebooks_to_run)
-    )
+    results = run()
+    del results
+    import gc
+
+    gc.collect()
 
     logging.info("Notebooks run successfully!")

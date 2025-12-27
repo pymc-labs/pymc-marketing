@@ -1,0 +1,130 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_probability_no_purchase.rst:2
+#: 5d3ae778766643069813d2654977a046
+msgid "BetaGeoModel.expected\\_probability\\_no\\_purchase"
+msgstr "BetaGeoModel.probabilidad\\_esperada\\_sin\\_compra"
+
+#: 0f49efdffe9848f98fa42a6cb832b5ec of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_probability_no_purchase:2
+msgid ""
+"Compute the probability a customer with history frequency, recency, and T "
+"will have 0 purchases in the period (T, T+t]."
+msgstr ""
+"Calcule la probabilidad de que un cliente con frecuencia, recencia y T en su"
+" historial tenga 0 compras en el período (T, T+t]."
+
+#: 434e9bd17639481f8e18df885cf3ccde of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_probability_no_purchase:5
+msgid "The data parameter is only required for out-of-sample customers."
+msgstr ""
+"El parámetro de datos solo es necesario para clientes fuera de muestra."
+
+#: 2301ee2db5f84dcf9e233d95a3357e52 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_probability_no_purchase:7
+msgid ""
+"Adapted from Section 5.3, Equation 34 in Bruce Hardie's notes "
+"[R966cef91d3c2-1]_."
+msgstr ""
+"Adaptado de la Sección 5.3, Ecuación 34 en las notas de Bruce Hardie "
+"[R966cef91d3c2-1]_."
+
+#: 0b34d0af08f44085bfb93dee3a978b46 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_probability_no_purchase
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: e55abdaba76b4a78a185597e34d6ac10 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_probability_no_purchase:11
+msgid "**data**"
+msgstr "**datos**"
+
+#: e028d526891943f5a1b51d674754a7e5 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_probability_no_purchase:10
+msgid "*pandas.DataFrame"
+msgstr "*pandas.DataFrame"
+
+#: 4a539e96166544cf8fa7bb5291d5d45b of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_probability_no_purchase:12
+msgid "Optional dataframe containing the following columns:"
+msgstr "Dataframe opcional que contiene las siguientes columnas:"
+
+#: 23a784e160644f28a851517ffbea05be of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_probability_no_purchase:14
+msgid "`customer_id`: Unique customer identifier"
+msgstr "`customer_id`: Identificador único del cliente"
+
+#: deaabbd96da0420b93f176e2fb3f2886 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_probability_no_purchase:15
+msgid "`frequency`: Number of repeat purchases"
+msgstr "`frequency`: Número de compras repetidas"
+
+#: 802a374eb0014feb9f7d16c47a8da228 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_probability_no_purchase:16
+msgid "`recency`: Time between the first and the last purchase"
+msgstr "`recency`: Tiempo entre la primera y la última compra"
+
+#: 345b8232ae684aebb700726f7dfd9dc2 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_probability_no_purchase:17
+msgid ""
+"`T`: Time between first purchase and end of observation period, model "
+"assumptions require T >= recency"
+msgstr ""
+"T: Tiempo entre la primera compra y el final del período de observación, las"
+" suposiciones del modelo requieren T >= recencia"
+
+#: 6f226f1124ec4181a75495d0748654c8 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_probability_no_purchase:19
+msgid "**t** : :class:`python:int`"
+msgstr "**t** : :class:`python:int`"
+
+#: 4cab430db7234eada4d372a86e612ebc of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_probability_no_purchase:18
+msgid "python:int"
+msgstr "python:int"
+
+#: d55e8e0d7d0f4c4db77924f699568b5b of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_probability_no_purchase:20
+msgid "Days after T which defines the range (T, T+t]."
+msgstr "Días después de T que define el rango (T, T+t]."
+
+#: d5cbbf3264f14a2d8c72609a79e905a1 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_probability_no_purchase:34
+msgid "References"
+msgstr "Referencias"
+
+#: 397204fac55449feaa77589aaa9a609c of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_probability_no_purchase:35
+msgid ""
+"Fader, P. S. & Hardie, B. G. (2019) \"A Step-by-Step Derivation of the "
+"BG/NBD Model.\" "
+"https://www.brucehardie.com/notes/039/bgnbd_derivation__2019-11-06.pdf"
+msgstr ""
+"Fader, P. S. y Hardie, B. G. (2019) \"Una derivación paso a paso del modelo "
+"BG/NBD.\" "
+"https://www.brucehardie.com/notes/039/bgnbd_derivation__2019-11-06.pdf"
+
+#: 654da2cf164348dc8fa3b5fe1014a553 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_probability_no_purchase:40
+msgid "[R966cef91d3c2-1]_"
+msgstr "[R966cef91d3c2-1]_"

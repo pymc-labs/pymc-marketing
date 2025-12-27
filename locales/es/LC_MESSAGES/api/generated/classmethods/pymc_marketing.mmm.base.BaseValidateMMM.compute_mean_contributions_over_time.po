@@ -1,0 +1,78 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.base.BaseValidateMMM.compute_mean_contributions_over_time.rst:2
+#: c3f2f0934ef24a69903cf2f93e3a6b48
+msgid "BaseValidateMMM.compute\\_mean\\_contributions\\_over\\_time"
+msgstr "BaseValidateMMM.calcular\\_contribuciones\\_medias\\_a\\_lo\\_largo\\_del\\_tiempo"
+
+#: 913ffda4406d4f01b13adb5164f39ecb of
+#: pymc_marketing.mmm.base.MMMModelBuilder.compute_mean_contributions_over_time:2
+msgid "Get the contributions of each channel over time."
+msgstr "Obtenga las contribuciones de cada canal a lo largo del tiempo."
+
+#: 04d3065e3ab0427eb6b177d61b6ced10 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.compute_mean_contributions_over_time
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: dbacc6d1233a48e295d0ad285367f54b of
+#: pymc_marketing.mmm.base.MMMModelBuilder.compute_mean_contributions_over_time:7
+msgid ""
+"**original_scale** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+"**original_scale** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 1ca464191a3641968afbb5ed08be4393 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.compute_mean_contributions_over_time:6
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: cd6258d505bd4411bfd8eb58c35e17ae of
+#: pymc_marketing.mmm.base.MMMModelBuilder.compute_mean_contributions_over_time:8
+msgid ""
+"Whether to return the contributions in the original scale of the target "
+"variable. If False, the contributions are returned in the scale of the "
+"transformed target variable. Defaults to False."
+msgstr ""
+"Si se deben devolver las contribuciones en la escala original de la variable"
+" objetivo. Si es False, las contribuciones se devuelven en la escala de la "
+"variable objetivo transformada. Por defecto es False."
+
+#: 9a4443b410134bcfab028441f1718e88 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.compute_mean_contributions_over_time
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 49bf827eb5f04529960a2896931cf8ca of
+#: pymc_marketing.mmm.base.MMMModelBuilder.compute_mean_contributions_over_time:16
+msgid ":obj:`pd.DataFrame`"
+msgstr ":obj:`pd.DataFrame`"
+
+#: 21c8055b022f486fa5c0034495227aad of
+#: pymc_marketing.mmm.base.MMMModelBuilder.compute_mean_contributions_over_time:17
+msgid ""
+"A dataframe with the mean contributions of each channel and control "
+"variables over time."
+msgstr ""
+"Un dataframe con las contribuciones medias de cada canal y las variables de "
+"control a lo largo del tiempo."

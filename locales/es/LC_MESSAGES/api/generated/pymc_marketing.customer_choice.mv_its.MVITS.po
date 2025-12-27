@@ -1,0 +1,763 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:2
+#: 07666255a4d64038aa4a575f618d66fb
+msgid "MVITS"
+msgstr "MVITS"
+
+#: a0660e70c4384b93830921228492049a of
+#: pymc_marketing.customer_choice.mv_its.MVITS:2
+msgid "Multivariate Interrupted Time Series class."
+msgstr "Clase de Series de Tiempo Interrumpidas Multivariadas."
+
+#: eafcbdf6fdcb417ea0f15b505b7df08c of
+#: pymc_marketing.customer_choice.mv_its.MVITS:4
+msgid ""
+"Class to perform a multivariate interrupted time series analysis with the "
+"specific intent of determining where the sales of a new product came from."
+msgstr ""
+"Clase para realizar un análisis de series temporales interrumpidas "
+"multivariadas con la intención específica de determinar de dónde provienen "
+"las ventas de un nuevo producto."
+
+#: 76d643e854d94e8aa70d0fd8d9e03fb3 of
+#: pymc_marketing.customer_choice.mv_its.MVITS
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 1771c3306ac04410ae4a6ac0f0b163a5 of
+#: pymc_marketing.customer_choice.mv_its.MVITS:9
+msgid "**existing_sales** : :class:`python:list` of :class:`python:str`"
+msgstr "**existing_sales** : :class:`python:list` de :class:`python:str`"
+
+#: 5cea100efb7a4a689286e5f7504f6dd3 of
+#: pymc_marketing.customer_choice.mv_its.MVITS:8
+msgid "python:list of python:str"
+msgstr "python:lista de python:str"
+
+#: 00f9f5154aa44e80b8344a7fb7754ef8 of
+#: pymc_marketing.customer_choice.mv_its.MVITS:10
+msgid "The names of the existing products."
+msgstr "Los nombres de los productos existentes."
+
+#: 9920531e964f43869b50eaa4f628198a of
+#: pymc_marketing.customer_choice.mv_its.MVITS:12
+msgid ""
+"**saturated_market** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+"**mercado_saturado** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 67eca00043794989860cf2869beb992b of
+#: pymc_marketing.customer_choice.mv_its.MVITS:11
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: f378bfb83c1b46d3859ca22221672030 of
+#: pymc_marketing.customer_choice.mv_its.MVITS:13
+msgid ""
+"Whether the market is saturated or not. If True, the sum of the beta's will "
+"be 1. Else, the sum of the beta's will be less than 1 with the remaining "
+"sales attributed to the new product."
+msgstr ""
+"Si el mercado está saturado o no. Si es verdadero, la suma de los beta será "
+"1. De lo contrario, la suma de los beta será menor que 1, con las ventas "
+"restantes atribuidas al nuevo producto."
+
+#: a3ed2f0589b6493e9f1a4474482b7aa7 of
+#: pymc_marketing.customer_choice.mv_its.MVITS:17
+msgid "**model_config** : :class:`python:dict`, optional"
+msgstr "**model_config** : :class:`python:dict`, opcional"
+
+#: 2d5a4592367d45568bd1d8175362e9ff e232de82e1aa47b8a7b2ca5d68276618 of
+#: pymc_marketing.customer_choice.mv_its.MVITS:16
+#: pymc_marketing.customer_choice.mv_its.MVITS:19
+msgid "python:dict, optional"
+msgstr "python:dict, opcional"
+
+#: 6fe884d0e35b438994200be7ad5f184d of
+#: pymc_marketing.customer_choice.mv_its.MVITS:18
+msgid ""
+"The model configuration. If None, the default model configuration will be "
+"used."
+msgstr ""
+"La configuración del modelo. Si es None, se utilizará la configuración de "
+"modelo predeterminada."
+
+#: 58c97ef162d34166ab6b6ce4ce379f78 of
+#: pymc_marketing.customer_choice.mv_its.MVITS:20
+msgid "**sampler_config** : :class:`python:dict`, optional"
+msgstr "**sampler_config** : :class:`python:dict`, opcional"
+
+#: c1a89da51fbc4a8d8e456790f71c21db of
+#: pymc_marketing.customer_choice.mv_its.MVITS:21
+msgid ""
+"The sampler configuration. If None, the default sampler configuration will "
+"be used."
+msgstr ""
+"La configuración del muestreador. Si es None, se utilizará la configuración "
+"de muestreador predeterminada."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:12
+#: 5d9a8bdc27c94b3a925556c4a86e1343
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: a373b3fe7abc4df4b851227c3db98f6c
+msgid ""
+":py:obj:`MVITS.__init__ "
+"<pymc_marketing.customer_choice.mv_its.MVITS.__init__>`\\ "
+"\\(existing\\_sales\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`MVITS.__init__ "
+"<pymc_marketing.customer_choice.mv_its.MVITS.__init__>`\\ "
+"\\(ventas\\_existentes\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: beb4e731158e441697db379a043ac442
+msgid ""
+"Initialize model configuration and sampler configuration for the model."
+msgstr ""
+"Inicializar la configuración del modelo y la configuración del muestreador "
+"para el modelo."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: 18eaebdd85c24138938d19346e1c3158
+msgid ""
+":py:obj:`MVITS.approximate_fit "
+"<pymc_marketing.customer_choice.mv_its.MVITS.approximate_fit>`\\ \\(X\\[\\, "
+"y\\, progressbar\\, ...\\]\\)"
+msgstr ""
+":py:obj:`MVITS.approximate_fit "
+"<pymc_marketing.customer_choice.mv_its.MVITS.approximate_fit>`\\ \\(X\\[\\, "
+"y\\, progressbar\\, ...\\]"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: 9ca5fbb9142b4677ad3e59c880d9b623
+msgid "Fit a model using Variational Inference and return InferenceData."
+msgstr ""
+"Ajuste un modelo utilizando Inferencia Variacional y devuelva InferenceData."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: 1120b599ffb04ee4bfbb7cb7900b0ec1
+msgid ""
+":py:obj:`MVITS.attrs_to_init_kwargs "
+"<pymc_marketing.customer_choice.mv_its.MVITS.attrs_to_init_kwargs>`\\ "
+"\\(attrs\\)"
+msgstr ""
+":py:obj:`MVITS.attrs_to_init_kwargs "
+"<pymc_marketing.customer_choice.mv_its.MVITS.attrs_to_init_kwargs>`\\ "
+"(attrs)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: b365d6358d6d41e88848ac19a5ff990d
+msgid ""
+"Convert the attributes of the InferenceData object to the __init__ kwargs."
+msgstr ""
+"Convierte los atributos del objeto InferenceData a los kwargs de __init__."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: 9240799a35d5415196e9f15ad6c7fdbf
+msgid ""
+":py:obj:`MVITS.build_from_idata "
+"<pymc_marketing.customer_choice.mv_its.MVITS.build_from_idata>`\\ "
+"\\(idata\\)"
+msgstr ""
+":py:obj:`MVITS.build_from_idata "
+"<pymc_marketing.customer_choice.mv_its.MVITS.build_from_idata>`\\ "
+"\\(idata\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: afd9d2fbda7a4caea9c782e88f80f121
+msgid "Build model from the InferenceData object."
+msgstr "Construir el modelo a partir del objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: 9b422d2422ed4251b6ecdb64f3b8f911
+msgid ""
+":py:obj:`MVITS.build_model "
+"<pymc_marketing.customer_choice.mv_its.MVITS.build_model>`\\ \\(X\\, y\\, "
+"\\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`MVITS.build_model "
+"<pymc_marketing.customer_choice.mv_its.MVITS.build_model>`\\ \\(X\\, y\\, "
+"\\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: b9fa815548064198b86daccbe6f6b12d
+msgid ""
+"Build a PyMC model for a multivariate interrupted time series analysis."
+msgstr ""
+"Construya un modelo PyMC para un análisis de series temporales interrumpidas"
+" multivariadas."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: 1ac125f434a24b74a20e0e402662a566
+msgid ""
+":py:obj:`MVITS.calculate_counterfactual "
+"<pymc_marketing.customer_choice.mv_its.MVITS.calculate_counterfactual>`\\ "
+"\\(\\[random\\_seed\\]\\)"
+msgstr ""
+":py:obj:`MVITS.calculate_counterfactual "
+"<pymc_marketing.customer_choice.mv_its.MVITS.calculate_counterfactual>`\\ "
+"\\(\\[random\\_seed\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: ca8a7a6f128349c38aa802589b673048
+msgid ""
+"Calculate the counterfactual scenario of never releasing the new product."
+msgstr ""
+"Calcule el escenario contrafactual de nunca haber lanzado el nuevo producto."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: 2e7227fdedc444108f88f0101639bff1
+msgid ""
+":py:obj:`MVITS.causal_impact "
+"<pymc_marketing.customer_choice.mv_its.MVITS.causal_impact>`\\ "
+"\\(\\[variable\\]\\)"
+msgstr ""
+":py:obj:`MVITS.causal_impact "
+"<pymc_marketing.customer_choice.mv_its.MVITS.causal_impact>`\\ "
+"\\(\\[variable\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: bbf9a19507ae414eac1cec3ba9db6648
+msgid ""
+"Calculate the causal impact of the new product on the existing products."
+msgstr ""
+"Calcule el impacto causal del nuevo producto en los productos existentes."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: c737e419d12d4bc38e7b1aad503a84a8
+msgid ""
+":py:obj:`MVITS.create_fit_data "
+"<pymc_marketing.customer_choice.mv_its.MVITS.create_fit_data>`\\ \\(X\\, "
+"y\\)"
+msgstr ""
+":py:obj:`MVITS.create_fit_data "
+"<pymc_marketing.customer_choice.mv_its.MVITS.create_fit_data>`\\ \\(X\\, "
+"y\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: 0f28200e1fbd4c6fa2d5d88a2614d9e5
+msgid "Create the fit_data group based on the input data."
+msgstr "Cree el grupo fit_data basado en los datos de entrada."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: 7f7f3f8768564b8b920fcd831b3e705d
+msgid ""
+":py:obj:`MVITS.create_idata_attrs "
+"<pymc_marketing.customer_choice.mv_its.MVITS.create_idata_attrs>`\\ \\(\\)"
+msgstr ""
+":py:obj:`MVITS.create_idata_attrs "
+"<pymc_marketing.customer_choice.mv_its.MVITS.create_idata_attrs>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: 3024029d046542a0be3d1053f66dadcc
+msgid "Create the attributes for the InferenceData object."
+msgstr "Cree los atributos para el objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: aae4f93f08034feca8e455b3d2c7ce61
+msgid ""
+":py:obj:`MVITS.fit <pymc_marketing.customer_choice.mv_its.MVITS.fit>`\\ "
+"\\(X\\[\\, y\\, progressbar\\, random\\_seed\\]\\)"
+msgstr ""
+":py:obj:`MVITS.fit <pymc_marketing.customer_choice.mv_its.MVITS.fit>`\\ "
+"\\(X\\[\\, y\\, barra_de_progreso\\, semilla_aleatoria\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: 216300689b84467caa67232df635512c
+msgid "Fit a model using the data passed as a parameter."
+msgstr "Ajuste un modelo utilizando los datos pasados como parámetro."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: f9f63b6e6f5949dea8daa3f647b1405f
+msgid ""
+":py:obj:`MVITS.graphviz "
+"<pymc_marketing.customer_choice.mv_its.MVITS.graphviz>`\\ \\(\\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`MVITS.graphviz "
+"<pymc_marketing.customer_choice.mv_its.MVITS.graphviz>`\\ \\(\\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: a2e543adb2654490930cee486d23b765
+msgid "Get the graphviz representation of the model."
+msgstr "Obtenga la representación graphviz del modelo."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: b30d93f757954be09fd953919b26aaa5
+msgid ""
+":py:obj:`MVITS.idata_to_init_kwargs "
+"<pymc_marketing.customer_choice.mv_its.MVITS.idata_to_init_kwargs>`\\ "
+"\\(idata\\)"
+msgstr ""
+":py:obj:`MVITS.idata_to_init_kwargs "
+"<pymc_marketing.customer_choice.mv_its.MVITS.idata_to_init_kwargs>`\\ "
+"\\(idata\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: fb34679819674b11a8aff8f3196386af
+msgid ""
+"Create  the model configuration and sampler configuration from the "
+"InferenceData to keyword arguments."
+msgstr ""
+"Cree la configuración del modelo y la configuración del muestreador a partir"
+" de InferenceData a argumentos de palabras clave."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: ec0a0d19c14f4b93b69884a3851b635f
+msgid ""
+":py:obj:`MVITS.inform_default_prior "
+"<pymc_marketing.customer_choice.mv_its.MVITS.inform_default_prior>`\\ "
+"\\(data\\)"
+msgstr ""
+":py:obj:`MVITS.inform_default_prior "
+"<pymc_marketing.customer_choice.mv_its.MVITS.inform_default_prior>`\\ "
+"\\(datos\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: e84954d7f96f4b308e8b848e2bed9282
+msgid "Inform the default prior based on the data."
+msgstr "Informar la predicción predeterminada basada en los datos."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: 5716f6897e0341808794f49e02fe0ce1
+msgid ""
+":py:obj:`MVITS.load <pymc_marketing.customer_choice.mv_its.MVITS.load>`\\ "
+"\\(fname\\[\\, check\\]\\)"
+msgstr ""
+":py:obj:`MVITS.load <pymc_marketing.customer_choice.mv_its.MVITS.load>`\\ "
+"\\(fname\\[\\, check\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: 2697c3dc65fd4a828485b0333c2262e0
+msgid "Create a ModelBuilder instance from a file."
+msgstr "Cree una instancia de ModelBuilder a partir de un archivo."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: 6772f201b83543dfa060b2d4e70fd74e
+msgid ""
+":py:obj:`MVITS.load_from_idata "
+"<pymc_marketing.customer_choice.mv_its.MVITS.load_from_idata>`\\ "
+"\\(idata\\[\\, check\\]\\)"
+msgstr ""
+":py:obj:`MVITS.load_from_idata "
+"<pymc_marketing.customer_choice.mv_its.MVITS.load_from_idata>`\\ "
+"\\(idata\\[\\, check\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: de599e836a834ef28edfedee50931497
+msgid "Create a ModelBuilder instance from an InferenceData object."
+msgstr ""
+"Cree una instancia de ModelBuilder a partir de un objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: 2395aea54b6c47b5826de3e4047c1362
+msgid ""
+":py:obj:`MVITS.plot_causal_impact_market_share "
+"<pymc_marketing.customer_choice.mv_its.MVITS.plot_causal_impact_market_share>`\\"
+" \\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`MVITS.plot_causal_impact_market_share "
+"<pymc_marketing.customer_choice.mv_its.MVITS.plot_causal_impact_market_share>`\\"
+" \\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: cb3739ab69934646b93b3870564db21a
+msgid ""
+"Plot the inferred causal impact of the new product on the existing products."
+msgstr ""
+"Trace el impacto causal inferido del nuevo producto sobre los productos "
+"existentes."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: f2bc1b73cc154458aec75f53e0378997
+msgid ""
+":py:obj:`MVITS.plot_causal_impact_sales "
+"<pymc_marketing.customer_choice.mv_its.MVITS.plot_causal_impact_sales>`\\ "
+"\\(\\[variable\\, ax\\]\\)"
+msgstr ""
+":py:obj:`MVITS.plot_causal_impact_sales "
+"<pymc_marketing.customer_choice.mv_its.MVITS.plot_causal_impact_sales>`\\ "
+"\\(\\[variable\\, ax\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: 5531de290aa844739dfbf0528e902d65
+msgid "Plot causal impact of sales."
+msgstr "Trazar el impacto causal de las ventas."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: c4ccd7492d8340cdaeaa0ad0f720162f
+msgid ""
+":py:obj:`MVITS.plot_counterfactual "
+"<pymc_marketing.customer_choice.mv_its.MVITS.plot_counterfactual>`\\ "
+"\\(\\[variable\\, ...\\]\\)"
+msgstr ""
+":py:obj:`MVITS.plot_counterfactual "
+"<pymc_marketing.customer_choice.mv_its.MVITS.plot_counterfactual>`\\ "
+"\\(\\[variable\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: 14a7deef0447487d8bff876219509b5d
+msgid "Plot counterfactual scenario."
+msgstr "Trazar un escenario contrafactual."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: c5ae8b04547a4f468c28bc26456422d2
+msgid ""
+":py:obj:`MVITS.plot_data "
+"<pymc_marketing.customer_choice.mv_its.MVITS.plot_data>`\\ "
+"\\(\\[plot\\_total\\_sales\\, ax\\]\\)"
+msgstr ""
+":py:obj:`MVITS.plot_data "
+"<pymc_marketing.customer_choice.mv_its.MVITS.plot_data>`\\ "
+"\\(\\[plot\\_total\\_sales\\, ax\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: a707d3ceee204b29b30c7efadb26667e
+msgid "Plot the observed data."
+msgstr "Trace los datos observados."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: 192d4f9f81d146fd9ad076f61e7f0dca
+msgid ""
+":py:obj:`MVITS.plot_fit "
+"<pymc_marketing.customer_choice.mv_its.MVITS.plot_fit>`\\ \\(\\[variable\\, "
+"plot\\_total\\_sales\\, ax\\]\\)"
+msgstr ""
+":py:obj:`MVITS.plot_fit "
+"<pymc_marketing.customer_choice.mv_its.MVITS.plot_fit>`\\ \\(\\[variable\\, "
+"plot\\_total\\_sales\\, ax\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: 927c0bdd6ba7441d9ee5ad8353ad69a6
+msgid "Plot the model fit (posterior predictive) of the existing products."
+msgstr ""
+"Trace el ajuste del modelo (predictivo posterior) de los productos "
+"existentes."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: 8f09ccc30d8942f68ffbacf30025c6d3
+msgid ""
+":py:obj:`MVITS.post_sample_model_transformation "
+"<pymc_marketing.customer_choice.mv_its.MVITS.post_sample_model_transformation>`\\"
+" \\(\\)"
+msgstr ""
+":py:obj:`MVITS.post_sample_model_transformation "
+"<pymc_marketing.customer_choice.mv_its.MVITS.post_sample_model_transformation>`\\"
+" \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: 6c981db7859b4953a90e8adcc6299c02
+msgid "Perform transformation on the model after sampling."
+msgstr "Realice la transformación en el modelo después de muestrear."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: fcb52138ba1c418da4fb8320f02aa8bf
+msgid ""
+":py:obj:`MVITS.predict "
+"<pymc_marketing.customer_choice.mv_its.MVITS.predict>`\\ \\(\\[X\\, "
+"extend\\_idata\\]\\)"
+msgstr ""
+":py:obj:`MVITS.predict "
+"<pymc_marketing.customer_choice.mv_its.MVITS.predict>`\\ \\(\\[X\\, "
+"extend\\_idata\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: 365141a3ee3f4b55b6a7dfe73bdcffb2
+msgid ""
+"Use a model to predict on unseen data and return point prediction of all the"
+" samples."
+msgstr ""
+"Utilice un modelo para predecir en datos no vistos y devuelva la predicción "
+"puntual de todas las muestras."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: 12c27141a9ed400cb834853e0218a475
+msgid ""
+":py:obj:`MVITS.predict_posterior "
+"<pymc_marketing.customer_choice.mv_its.MVITS.predict_posterior>`\\ "
+"\\(\\[X\\, extend\\_idata\\, ...\\]\\)"
+msgstr ""
+":py:obj:`MVITS.predict_posterior "
+"<pymc_marketing.customer_choice.mv_its.MVITS.predict_posterior>`\\ "
+"\\(\\[X\\, extend\\_idata\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: 082f009e4a884267a49b2bb48add18dd
+msgid "Generate posterior predictive samples on unseen data."
+msgstr "Generar muestras predictivas posteriores en datos no vistos."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: 71e8c9df1c5c4ed59ebe1a8e14b1ff55
+msgid ""
+":py:obj:`MVITS.predict_proba "
+"<pymc_marketing.customer_choice.mv_its.MVITS.predict_proba>`\\ \\(\\[X\\, "
+"extend\\_idata\\, combined\\]\\)"
+msgstr ""
+":py:obj:`MVITS.predict_proba "
+"<pymc_marketing.customer_choice.mv_its.MVITS.predict_proba>`\\ \\(\\[X\\, "
+"extend\\_idata\\, combined\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: 5150d707d43343759edbfdf5d7dcfa72
+msgid ""
+"Alias for `predict_posterior`, for consistency with scikit-learn "
+"probabilistic estimators."
+msgstr ""
+"Alias para `predict_posterior`, por consistencia con los estimadores "
+"probabilísticos de scikit-learn."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: 47af944d4ba44b0fb8b3b796e911ce68
+msgid ""
+":py:obj:`MVITS.sample "
+"<pymc_marketing.customer_choice.mv_its.MVITS.sample>`\\ \\(X\\, y\\[\\, "
+"random\\_seed\\, ...\\]\\)"
+msgstr ""
+":py:obj:`MVITS.sample "
+"<pymc_marketing.customer_choice.mv_its.MVITS.sample>`\\ \\(X\\, y\\[\\, "
+"random\\_seed\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: df0a7e07752f4bdfb11ec406e2e545ec
+msgid "Sample all the things."
+msgstr "Muestrea todas las cosas."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: dcf8ebac8ae94504955f655231a4265a
+msgid ""
+":py:obj:`MVITS.sample_posterior_predictive "
+"<pymc_marketing.customer_choice.mv_its.MVITS.sample_posterior_predictive>`\\"
+" \\(\\[X\\, ...\\]\\)"
+msgstr ""
+":py:obj:`MVITS.sample_posterior_predictive "
+"<pymc_marketing.customer_choice.mv_its.MVITS.sample_posterior_predictive>`\\"
+" \\(\\[X\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: 36a10beeef4340c18b44b53431c4f884
+msgid "Sample from the model's posterior predictive distribution."
+msgstr "Muestra de la distribución predictiva posterior del modelo."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: 4f793124956b4c51aa6125fabdaede35
+msgid ""
+":py:obj:`MVITS.sample_prior_predictive "
+"<pymc_marketing.customer_choice.mv_its.MVITS.sample_prior_predictive>`\\ "
+"\\(\\[X\\, y\\, ...\\]\\)"
+msgstr ""
+":py:obj:`MVITS.sample_prior_predictive "
+"<pymc_marketing.customer_choice.mv_its.MVITS.sample_prior_predictive>`\\ "
+"\\(\\[X\\, y\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: 620cbd915f6e4dcfb3f4facd87af50b5
+msgid "Sample from the model's prior predictive distribution."
+msgstr "Muestra de la distribución predictiva previa del modelo."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: 6acf3a58125d45ca8040693fee7cb1dd
+msgid ""
+":py:obj:`MVITS.save <pymc_marketing.customer_choice.mv_its.MVITS.save>`\\ "
+"\\(fname\\, \\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`MVITS.save <pymc_marketing.customer_choice.mv_its.MVITS.save>`\\ "
+"\\(fname\\, \\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: ab63b9ebdd404e1c855c5335e128d725
+msgid "Save the model's inference data to a file."
+msgstr "Guarde los datos de inferencia del modelo en un archivo."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: 5f9196b1e5494459a92f517c288db862
+msgid ""
+":py:obj:`MVITS.set_idata_attrs "
+"<pymc_marketing.customer_choice.mv_its.MVITS.set_idata_attrs>`\\ "
+"\\(\\[idata\\]\\)"
+msgstr ""
+":py:obj:`MVITS.set_idata_attrs "
+"<pymc_marketing.customer_choice.mv_its.MVITS.set_idata_attrs>`\\ "
+"\\(\\[idata\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: 28dda4b747164443b5c6c6abda5ea0c7
+msgid "Set attributes on an InferenceData object."
+msgstr "Establecer atributos en un objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: bb80790ed0414bdb94fcb8b653e435a5
+msgid ""
+":py:obj:`MVITS.table <pymc_marketing.customer_choice.mv_its.MVITS.table>`\\ "
+"\\(\\*\\*model\\_table\\_kwargs\\)"
+msgstr ""
+":py:obj:`MVITS.table <pymc_marketing.customer_choice.mv_its.MVITS.table>`\\ "
+"\\(\\*\\*model\\_table\\_kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:51:<autosummary>:1
+#: 178b7b5bcf1a46a2be4f5edc4dc4dc7c
+msgid "Get the summary table of the model."
+msgstr "Obtenga la tabla resumen del modelo."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:53
+#: 551b86d5872c4021a26e7b5f79e73765
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:69:<autosummary>:1
+#: 1ca294ba1c744b7d824cdbedb6913304
+msgid ""
+":py:obj:`default_model_config "
+"<pymc_marketing.customer_choice.mv_its.MVITS.default_model_config>`\\"
+msgstr ""
+":py:obj:`default_model_config "
+"<pymc_marketing.customer_choice.mv_its.MVITS.default_model_config>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:69:<autosummary>:1
+#: d47e8ab83d994730854a3310b7e5be67
+msgid "Default model configuration."
+msgstr "Configuración del modelo predeterminada."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:69:<autosummary>:1
+#: d8eafb4fb6cd40a3b8a4d63e58a2d641
+msgid ""
+":py:obj:`default_sampler_config "
+"<pymc_marketing.customer_choice.mv_its.MVITS.default_sampler_config>`\\"
+msgstr ""
+":py:obj:`default_sampler_config "
+"<pymc_marketing.customer_choice.mv_its.MVITS.default_sampler_config>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:69:<autosummary>:1
+#: bee92941bccd477a91c36705b5e9544d
+msgid "Default sampler configuration."
+msgstr "Configuración de muestreador predeterminada."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:69:<autosummary>:1
+#: 2f269d3bac514d879f7a8ff3e0369931
+msgid ""
+":py:obj:`fit_result "
+"<pymc_marketing.customer_choice.mv_its.MVITS.fit_result>`\\"
+msgstr ""
+":py:obj:`fit_result "
+"<pymc_marketing.customer_choice.mv_its.MVITS.fit_result>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:69:<autosummary>:1
+#: 64dd6138fe144b30a5468e662905e9d6
+msgid "Get the posterior fit_result."
+msgstr "Obtenga el resultado de ajuste posterior fit_result."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:69:<autosummary>:1
+#: fb3052c7b36947e39f7ee837e05d468e
+msgid ":py:obj:`id <pymc_marketing.customer_choice.mv_its.MVITS.id>`\\"
+msgstr ":py:obj:`id <pymc_marketing.customer_choice.mv_its.MVITS.id>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:69:<autosummary>:1
+#: eba6014e3bf04595853979840d5c0b18
+msgid "Generate a unique hash value for the model."
+msgstr "Generar un valor hash único para el modelo."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:69:<autosummary>:1
+#: fa3aa60ecb7b47289ec1536f191cc64f
+msgid ""
+":py:obj:`output_var "
+"<pymc_marketing.customer_choice.mv_its.MVITS.output_var>`\\"
+msgstr ""
+":py:obj:`output_var "
+"<pymc_marketing.customer_choice.mv_its.MVITS.output_var>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:69:<autosummary>:1
+#: 806ca17dbc084dce868c5a34e7a9ac81
+msgid "The output variable of the model."
+msgstr "La variable de salida del modelo."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:69:<autosummary>:1
+#: bd6ea97e0826499c844f3ac1cbb3e78a
+msgid ""
+":py:obj:`posterior "
+"<pymc_marketing.customer_choice.mv_its.MVITS.posterior>`\\"
+msgstr ""
+":py:obj:`posterior <pymc_marketing.customer_choice.mv_its.MVITS.posterior>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:69:<autosummary>:1
+#: ce21bc67e2eb4d45b56eafa3f9984ed8
+msgid ""
+":py:obj:`posterior_predictive "
+"<pymc_marketing.customer_choice.mv_its.MVITS.posterior_predictive>`\\"
+msgstr ""
+":py:obj:`posterior_predictive "
+"<pymc_marketing.customer_choice.mv_its.MVITS.posterior_predictive>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:69:<autosummary>:1
+#: 62ff4914ef9b4c788583ce43257b8d49
+msgid ""
+":py:obj:`predictions "
+"<pymc_marketing.customer_choice.mv_its.MVITS.predictions>`\\"
+msgstr ""
+":py:obj:`predicciones "
+"<pymc_marketing.customer_choice.mv_its.MVITS.predictions>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:69:<autosummary>:1
+#: 6516720a1b804597a021a9e68ee6bddd
+msgid ":py:obj:`prior <pymc_marketing.customer_choice.mv_its.MVITS.prior>`\\"
+msgstr ":py:obj:`prior <pymc_marketing.customer_choice.mv_its.MVITS.prior>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:69:<autosummary>:1
+#: 61be7391a7b04c04893e3eab321c70d0
+msgid ""
+":py:obj:`prior_predictive "
+"<pymc_marketing.customer_choice.mv_its.MVITS.prior_predictive>`\\"
+msgstr ""
+":py:obj:`prior_predictive "
+"<pymc_marketing.customer_choice.mv_its.MVITS.prior_predictive>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:69:<autosummary>:1
+#: f079a9c4de0e45c8a73a307a0757a3ad
+msgid ""
+":py:obj:`version <pymc_marketing.customer_choice.mv_its.MVITS.version>`\\"
+msgstr ""
+":py:obj:`versión <pymc_marketing.customer_choice.mv_its.MVITS.versión>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:69:<autosummary>:1
+#: 013e198dda4745eeb4c2a26aae04bed4
+msgid ":py:obj:`idata <pymc_marketing.customer_choice.mv_its.MVITS.idata>`\\"
+msgstr ":py:obj:`idata <pymc_marketing.customer_choice.mv_its.MVITS.idata>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:69:<autosummary>:1
+#: 60ebef649f5c4fdeb800a3f9f426b4d9
+msgid ""
+":py:obj:`sampler_config "
+"<pymc_marketing.customer_choice.mv_its.MVITS.sampler_config>`\\"
+msgstr ""
+":py:obj:`sampler_config "
+"<pymc_marketing.customer_choice.mv_its.MVITS.sampler_config>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.mv_its.MVITS.rst:69:<autosummary>:1
+#: 3401ab9cc15c4dfba762d9ac5798214d
+msgid ""
+":py:obj:`model_config "
+"<pymc_marketing.customer_choice.mv_its.MVITS.model_config>`\\"
+msgstr ""
+":py:obj:`model_config "
+"<pymc_marketing.customer_choice.mv_its.MVITS.model_config>`"

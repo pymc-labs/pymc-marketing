@@ -1,0 +1,225 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions.rst:2
+#: 434de66f2b4e4edab0299761346c1b36
+msgid "MMM.plot\\_new\\_spend\\_contributions"
+msgstr "MMM.plot\\_new\\_spend\\_contributions"
+
+#: 9739a9facf964cab84052c38cc831624 of
+#: pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions:2
+msgid "Plot the upcoming sales for a given spend amount."
+msgstr "Grafique las ventas futuras para una cantidad de gasto dada."
+
+#: 0701dc3650224a7ba5ac1825e962a119 of
+#: pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions:4
+msgid ""
+"Calls the new_spend_contributions method and plots the results. For more "
+"control over the plot, use new_spend_contributions directly."
+msgstr ""
+"Llama al método new_spend_contributions y traza los resultados. Para tener "
+"más control sobre la gráfica, utiliza new_spend_contributions directamente."
+
+#: f2a40a16bb0d47f297d60c8aa24cf02a of
+#: pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 67c1e369dbfe46e5b8f968d87a0505ac of
+#: pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions:9
+msgid "**spend_amount** : :class:`python:float`"
+msgstr "**gastar_monto** : :class:`python:float`"
+
+#: 2cfd880795c042fba338ea08c77287e8 of
+#: pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions:8
+msgid "python:float"
+msgstr "python:float"
+
+#: 2df5568b4b7749828026f170614cb86b of
+#: pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions:10
+msgid "The amount of spend for each channel"
+msgstr "La cantidad de gasto para cada canal"
+
+#: d1d470cd11124a46b0816aef36fc3883 of
+#: pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions:12
+msgid "**one_time** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr "**una_vez** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 0f2904917f8b44a7a9a0c1eab9b5953d 4410c09ef7a1406a998e76fb7860c6f1
+#: 77243c12d8e440b3be69785511349d5b of
+#: pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions:11
+#: pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions:30
+#: pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions:33
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: aff2aa91b3ee4abaa5251cbb7db4e145 of
+#: pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions:13
+msgid ""
+"Whether the spend are one time (at start of period) or constant (over "
+"period), by default True (one time)"
+msgstr ""
+"Ya sea que el gasto sea único (al inicio del período) o constante (durante "
+"el período), por defecto es Verdadero (único)"
+
+#: ebe16a7cd1d04c27bcc2df9518195d2a of
+#: pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions:15
+msgid "**lower** : :class:`python:float`, optional"
+msgstr "**inferior** : :class:`python:float`, opcional"
+
+#: 698a0e2d27934cb2a1d8439f8f44d7ed ece5c0e346a14e349e91af029f4cdedc of
+#: pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions:14
+#: pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions:17
+msgid "python:float, optional"
+msgstr "python:float, opcional"
+
+#: e387d22fe2a14c48aa36ef158189b343 of
+#: pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions:16
+msgid "The lower quantile for the confidence interval, by default 0.025"
+msgstr "El cuartil inferior para el intervalo de confianza, por defecto 0.025"
+
+#: 6dd0d0a0153842e2b30c9ea7f38576be of
+#: pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions:18
+msgid "**upper** : :class:`python:float`, optional"
+msgstr "**superior** : :class:`python:float`, opcional"
+
+#: 67b22f008b694181ac774c8b8236704b of
+#: pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions:19
+msgid "The upper quantile for the confidence interval, by default 0.975"
+msgstr "El cuartil superior para el intervalo de confianza, por defecto 0.975"
+
+#: aee0584785b64fdf8a875092735047be of
+#: pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions:21
+msgid "**ylabel** : :class:`python:str`, optional"
+msgstr "**ylabel** : :class:`python:str`, opcional"
+
+#: f710c9e33f3c43f99cf94de1f2fadba2 of
+#: pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions:20
+msgid "python:str, optional"
+msgstr "python:str, opcional"
+
+#: 1b0fd43de044465ea2fbdfc253dc225d of
+#: pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions:22
+msgid "The label for the y-axis, by default \"Sales\""
+msgstr "La etiqueta para el eje y, por defecto \"Ventas\""
+
+#: 83403cba7659486b9479a940059d8429 of
+#: pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions:24
+msgid "**idx** : :obj:`slice`, optional"
+msgstr "**idx** : :obj:`slice`, opcional"
+
+#: 29e24276ee7a4e55b75d54c6efcaed78 of
+#: pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions:23
+msgid "slice, optional"
+msgstr "rebanada, opcional"
+
+#: f90a9208fd454328933e171632c83141 of
+#: pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions:25
+msgid ""
+"The index slice of days to plot, by default None or only the positive days. "
+"More specifically, slice(0, None, None)"
+msgstr ""
+"El índice de días a graficar, por defecto None o solo los días positivos. "
+"Más específicamente, slice(0, None, None)"
+
+#: 649ad67624de43c19c0dbfb1dd0ccada of
+#: pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions:28
+msgid "**channels** : :obj:`List`\\[:class:`python:str`], optional"
+msgstr "**canales** : :obj:`Lista`\\[:class:`python:str`], opcional"
+
+#: 8d8f0376e602494ab63d792b26008732 of
+#: pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions:27
+msgid "List[python:str], optional"
+msgstr "Lista[python:str], opcional"
+
+#: a2e6d5da499d441c851deb42dfa0be77 of
+#: pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions:29
+msgid "The channels to plot, by default None or all channels"
+msgstr "Los canales a graficar, por defecto None o todos los canales"
+
+#: ceba5f6e8f9246fc8714531f41b32827 of
+#: pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions:31
+msgid "**prior** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr "**anterior** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 3adf3c892aa3483c825431daab152474 of
+#: pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions:32
+msgid "Whether to use the prior or posterior, by default False (posterior)"
+msgstr "Si utilizar el anterior o el posterior, por defecto Falso (posterior)"
+
+#: b32be5d1fd8e47caaddb4a264c29ee08 of
+#: pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions:34
+msgid ""
+"**original_scale** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+"**original_scale** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: e78eac00c2ab449dbf6257e7bd468c52 of
+#: pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions:35
+msgid ""
+"Whether to plot in the original scale of the target variable, by default "
+"True"
+msgstr ""
+"Si se debe graficar en la escala original de la variable objetivo, por "
+"defecto Verdadero"
+
+#: 907e480b6fda4ae5aad822197c8b3206 of
+#: pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions:37
+msgid "**ax** : :obj:`plt.Axes`, optional"
+msgstr "**ax** : :obj:`plt.Axes`, opcional"
+
+#: dc63bddb2fae4784aaa1b00bf1da27df of
+#: pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions:36
+msgid "plt.Axes, optional"
+msgstr "plt.Axes, opcional"
+
+#: d92650d9095a4514b497ce1eee702a86 of
+#: pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions:38
+msgid "The axes to plot on, by default None or current axes"
+msgstr "Los ejes en los que trazar, por defecto None o los ejes actuales."
+
+#: c75c293f8b8a4290b5883495431a20a6 of
+#: pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions:40
+msgid "**\\*\\*sample_posterior_predictive_kwargs**"
+msgstr "**\\*\\*sample_posterior_predictive_kwargs**"
+
+#: e78db1813bbc44f5bd4d65a17ea0aa3b of
+#: pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions:41
+msgid "Additional keyword arguments passed to pm.sample_posterior_predictive"
+msgstr ""
+"Argumentos adicionales de palabras clave pasados a "
+"pm.sample_posterior_predictive"
+
+#: 27ab3429f56c4545882da034c58963e1 of
+#: pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 77541bfd94e349928ad0fcf3a4519487 of
+#: pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions:47
+msgid ":obj:`plt.Axes`"
+msgstr ":obj:`plt.Axes`"
+
+#: 78dd6cd9ea404e53abd1ab826aa73777 of
+#: pymc_marketing.mmm.mmm.MMM.plot_new_spend_contributions:48
+msgid "The plot of upcoming sales for the given spend amount"
+msgstr "La representación de las ventas futuras para el monto de gasto dado"

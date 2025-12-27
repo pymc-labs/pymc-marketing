@@ -1,0 +1,155 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.mmm.MMM.sample_posterior_predictive.rst:2
+#: 8af57b6bf7c340ee99509dc982b7670b
+msgid "MMM.sample\\_posterior\\_predictive"
+msgstr "MMM.muestra\\_predictiva\\_posterior"
+
+#: 79d4645e150e4ddbad46c6da33b0f3c7 of
+#: pymc_marketing.mmm.mmm.MMM.sample_posterior_predictive:2
+msgid "Sample from the model's posterior predictive distribution."
+msgstr "Muestra de la distribución predictiva posterior del modelo."
+
+#: 4210baecfb4440599d126419d0183c37 of
+#: pymc_marketing.mmm.mmm.MMM.sample_posterior_predictive
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 00bbe14fdc67474cb6c7672e08d2e933 of
+#: pymc_marketing.mmm.mmm.MMM.sample_posterior_predictive:7
+msgid ""
+"**X** : :obj:`array <numpy.ndarray>`, :obj:`shape` (:obj:`n_pred`, "
+":obj:`n_features`)"
+msgstr ""
+"**X** : :obj:`array <numpy.ndarray>`, :obj:`shape` (:obj:`n_pred`, "
+":obj:`n_features`)"
+
+#: 8e3f0cff93f64bc5b0494f3b37d5deb8 of
+#: pymc_marketing.mmm.mmm.MMM.sample_posterior_predictive:6
+msgid "array, shape (n_pred, n_features)"
+msgstr "array, forma (n_pred, n_features)"
+
+#: 23bcf8e7a7994bfa9be93b6b69ae058c of
+#: pymc_marketing.mmm.mmm.MMM.sample_posterior_predictive:8
+msgid "The input data used for prediction."
+msgstr "Los datos de entrada utilizados para la predicción."
+
+#: 4b9644b0dd8744439616938feb6ff83e of
+#: pymc_marketing.mmm.mmm.MMM.sample_posterior_predictive:10
+msgid "**extend_idata** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+"**extend_idata** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: fed36ff79cca4a039ef4f6bf924aa2f6 of
+#: pymc_marketing.mmm.mmm.MMM.sample_posterior_predictive:9
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: 6eeb31e75cae4643be9cb0eaf50869dd of
+#: pymc_marketing.mmm.mmm.MMM.sample_posterior_predictive:11
+msgid ""
+"Boolean determining whether the predictions should be added to inference "
+"data object. Defaults to True."
+msgstr ""
+"Booleano que determina si las predicciones deben ser añadidas al objeto de "
+"datos de inferencia. Por defecto es True."
+
+#: b7bce2b5dc2246d4bc923f2558603ff6 of
+#: pymc_marketing.mmm.mmm.MMM.sample_posterior_predictive:13
+msgid "**combined: bool, optional**"
+msgstr "**combinado: bool, opcional**"
+
+#: 5cb8578db49b4eb8b0ba64bf9f58ec67 of
+#: pymc_marketing.mmm.mmm.MMM.sample_posterior_predictive:14
+msgid ""
+"Combine chain and draw dims into sample. Won't work if a dim named sample "
+"already exists. Defaults to True."
+msgstr ""
+"Combina la cadena y las dimensiones de dibujo en la muestra. No funcionará "
+"si ya existe una dimensión llamada muestra. Por defecto es Verdadero."
+
+#: 2240447b8a2048e78d4811c6787a554f of
+#: pymc_marketing.mmm.mmm.MMM.sample_posterior_predictive:16
+msgid "**include_last_observations: bool, optional**"
+msgstr "**incluir_últimas_observaciones: bool, opcional**"
+
+#: 9888cae49082410c86c54f9330778b09 of
+#: pymc_marketing.mmm.mmm.MMM.sample_posterior_predictive:17
+msgid ""
+"Boolean determining whether to include the last observations of the training"
+" data in order to carry over costs with the adstock transformation. Assumes "
+"that X are the next predictions following the training data.Defaults to "
+"False."
+msgstr ""
+"Boolean que determina si se deben incluir las últimas observaciones de los "
+"datos de entrenamiento para llevar los costos con la transformación adstock."
+" Asume que X son las siguientes predicciones que siguen a los datos de "
+"entrenamiento. Por defecto es False."
+
+#: 8fd5f042066d4ef0bb6702403562e223 of
+#: pymc_marketing.mmm.mmm.MMM.sample_posterior_predictive:21
+msgid "**original_scale: bool, optional**"
+msgstr "**original_scale: bool, opcional**"
+
+#: 798fd214e4b1401e88533377351d93aa of
+#: pymc_marketing.mmm.mmm.MMM.sample_posterior_predictive:22
+msgid ""
+"Boolean determining whether to return the predictions in the original scale "
+"of the target variable. Defaults to True."
+msgstr ""
+"Boolean que determina si se deben devolver las predicciones en la escala "
+"original de la variable objetivo. Por defecto es True."
+
+#: 0820e737d0954fbfa06d639ecb30111d of
+#: pymc_marketing.mmm.mmm.MMM.sample_posterior_predictive:25
+msgid "**\\*\\*sample_posterior_predictive_kwargs**"
+msgstr "**\\*\\*sample_posterior_predictive_kwargs**"
+
+#: 68d0553c202048679970e2d8f31246e3 of
+#: pymc_marketing.mmm.mmm.MMM.sample_posterior_predictive:26
+msgid "Additional arguments to pass to pymc.sample_posterior_predictive"
+msgstr "Argumentos adicionales para pasar a pymc.sample_posterior_predictive"
+
+#: d83398c6290e48179e70f3059a890286 of
+#: pymc_marketing.mmm.mmm.MMM.sample_posterior_predictive
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: bb7f9b16322a4e9eb4194d6bbcdd5b9a of
+#: pymc_marketing.mmm.mmm.MMM.sample_posterior_predictive:32
+msgid ""
+"**posterior_predictive_samples** : :obj:`DataArray`, :obj:`shape` "
+"(:obj:`n_pred`, :obj:`samples`)"
+msgstr ""
+"**posterior_predictive_samples** : :obj:`DataArray`, :obj:`shape` "
+"(:obj:`n_pred`, :obj:`samples`)"
+
+#: 2fc69784800a4901bb513ae96fdcdd93 of
+#: pymc_marketing.mmm.mmm.MMM.sample_posterior_predictive:31
+msgid "DataArray, shape (n_pred, samples)"
+msgstr "DataArray, forma (n_pred, muestras)"
+
+#: d1e1c5623f2a4f60accd233717f3e7a9 of
+#: pymc_marketing.mmm.mmm.MMM.sample_posterior_predictive:33
+msgid "Posterior predictive samples for each input X"
+msgstr "Muestras predictivas posteriores para cada entrada X"

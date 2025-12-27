@@ -1,0 +1,88 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.customer_choice.mv_its.MVITS.plot_data.rst:2
+#: a7e1f8241877448abfeed485b9d0980b
+msgid "MVITS.plot\\_data"
+msgstr "MVITS.plot\\_data"
+
+#: fe63cc278efd428ebb37be87616c8781 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_data:2
+msgid "Plot the observed data."
+msgstr "Trace los datos observados."
+
+#: 1ea24e8c69d04581a07793a4adc804df of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_data:4
+msgid "Wrapper around the plot_product function."
+msgstr "Envoltura alrededor de la función plot_product."
+
+#: 954ff673455c439fa06dee683dad66d3 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_data
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 7d122737d3a74cc79331ad0ed0d2bc19 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_data:8
+msgid ""
+"**plot_total_sales** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+"**plot_total_sales** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 97c6f68c74334df2b436a6d4e52b4d30 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_data:7
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: 8c6186be26b84c1f91a5aa2803c6c341 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_data:9
+msgid "Whether to plot the total sales or not."
+msgstr "Si se debe graficar las ventas totales o no."
+
+#: a0a9b6408ab5471a8316f9222099ca39 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_data:11
+msgid "**ax** : :obj:`plt.Axes`, optional"
+msgstr "**ax** : :obj:`plt.Axes`, opcional"
+
+#: a7baebee0e0344c59a2467cb2dde165f of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_data:10
+msgid "plt.Axes, optional"
+msgstr "plt.Axes, opcional"
+
+#: c2a41e229afd456eb88e50bd5acddc70 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_data:12
+msgid "The matplotlib axes."
+msgstr "Los ejes de matplotlib."
+
+#: 32c96176a91f4d9b97904603ce88ae1f of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_data
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 4f7f2fa628c54b4c854c2c5a39dd1c90 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_data:18
+msgid ":obj:`plt.Axes`"
+msgstr ":obj:`plt.Axes`"
+
+#: b941652dd6aa4b07af9b2e87367b50d1 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.plot_data:19
+msgid "The new or modified matplotlib axes."
+msgstr "Los nuevos ejes de matplotlib o los ejes modificados."

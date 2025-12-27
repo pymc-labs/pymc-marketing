@@ -1,0 +1,56 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.model_builder.ModelBuilder.fit.rst:2
+#: 9c24960b2df64ed1929a193c25525c5d
+msgid "ModelBuilder.fit"
+msgstr "ModelBuilder.fit"
+
+#: ff6b065334f74a73a1339694571c9e1b of
+#: pymc_marketing.model_builder.ModelBuilder.fit:2
+msgid "Fit a model using the data passed as a parameter."
+msgstr "Ajuste un modelo utilizando los datos pasados como parámetro."
+
+#: 7baae2f0fcbd446cba97d81f59a6d830 of
+#: pymc_marketing.model_builder.ModelBuilder.fit:4
+msgid "Sets attrs to inference data of the model."
+msgstr "Establece attrs a los datos de inferencia del modelo."
+
+#: 886e62320d534a88b8cf990b56a878c7 of
+#: pymc_marketing.model_builder.ModelBuilder.fit
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 863d4b1d6aa7403e9456723f2c390e14 of
+#: pymc_marketing.model_builder.ModelBuilder.fit:11
+msgid "**self** : :obj:`az.InferenceData`"
+msgstr "**self** : :obj:`az.InferenceData`"
+
+#: 6e6d2826dd674436957d876d68e6e9d4 of
+#: pymc_marketing.model_builder.ModelBuilder.fit:10
+msgid "az.InferenceData"
+msgstr "az.InferenceData"
+
+#: a0807d73369346d1a75db6c254ff3b1c of
+#: pymc_marketing.model_builder.ModelBuilder.fit:12
+msgid "Returns inference data of the fitted model."
+msgstr "Devuelve los datos de inferencia del modelo ajustado."

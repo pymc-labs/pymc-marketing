@@ -1,0 +1,115 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-21 12:22+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_residual_lifetime.rst:2
+#: 6aeab6d03e404e8a89ffa3a34765e6e0
+msgid "ShiftedBetaGeoModel.expected\\_residual\\_lifetime"
+msgstr "ShiftedBetaGeoModel.expected\\_residual\\_lifetime"
+
+#: 8cab0248dd574ae8a73b73a4dc90fada of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_residual_lifetime:2
+#, fuzzy
+msgid "Compute expected residual lifetime of each customer."
+msgstr ""
+"msgid: Compute expected residual lifetime of customers by cohort.  \n"
+"msgstr: Calcule la vida residual esperada de los clientes por cohorte."
+
+#: afa88ffc14e24642a65915ccdb49afdc of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_residual_lifetime:4
+#, fuzzy
+msgid ""
+"This is the expected number of periods a customer will remain active after "
+"the current time period, subject to a discount rate for net present value "
+"(NPV) calculations. It is recommended to set a discount rate > 0 to avoid "
+"infinite lifetime estimates."
+msgstr ""
+"msgid: This is the expected number of periods a customer will remain active after the current time period, given a discount rate. If no discount rate is provided, infinite lifetime estimates may be returned.  \n"
+"msgstr: Este es el número esperado de períodos en los que un cliente permanecerá activo después del período de tiempo actual, dado un tipo de descuento. Si no se proporciona un tipo de descuento, se pueden devolver estimaciones de vida infinita."
+
+#: 086326ccb19e43ca857911fb15610f36 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_residual_lifetime:8
+msgid "Adapted from equation (6) in [R2e9259e9c988-1]_."
+msgstr "Adaptado de la ecuación (6) en [R2e9259e9c988-1]_."
+
+#: ef64f7327e154ddba3eaa8cf315b2478 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_residual_lifetime
+msgid "Parameters"
+msgstr "Parameters"
+
+#: a8620bfda9314bf28f95c2ac9ad21384 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_residual_lifetime:12
+msgid "**discount_rate** : :class:`python:float`"
+msgstr "**discount_rate** : :class:`python:float`"
+
+#: 5dafc977cb0a431da35d1fd703769a83 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_residual_lifetime:11
+msgid "python:float"
+msgstr "python:float"
+
+#: 0a241ac89a49457c95f8919bfa3bb7f6 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_residual_lifetime:13
+msgid "Discount rate to apply for net present value estimations."
+msgstr ""
+"Tasa de descuento a aplicar para las estimaciones del valor presente neto."
+
+#: fe0555b068dd4974908e7b73ee02e361 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_residual_lifetime:15
+msgid "**data** : :obj:`~pandas.DataFrame`"
+msgstr "**data** : :obj:`~pandas.DataFrame`"
+
+#: f2c478fa696c43b19cc7507af8d5903b of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_residual_lifetime:14
+msgid "DataFrame"
+msgstr "DataFrame"
+
+#: bec6db54a90a4d1e8cb713ac6565bb61 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_residual_lifetime:16
+msgid ""
+"Optional dataframe containing the following columns: * `customer_id`: Unique"
+" customer identifier * `T`: Number of time periods customer has been active "
+"* `cohort`: Customer cohort label"
+msgstr ""
+"Dataframe opcional que contiene las siguientes columnas: * `customer_id`: "
+"Identificador único del cliente * `T`: Número de períodos de tiempo en los "
+"que el cliente ha estado activo * `cohort`: Etiqueta de cohorte del cliente"
+
+#: 07eec2ecf9354e10933e23bfb37399a7 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_residual_lifetime:33
+msgid "References"
+msgstr "References"
+
+#: 470c15c380f74981a68c8f008e1d95b1 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_residual_lifetime:34
+#, fuzzy
+msgid ""
+"Fader, P. S., & Hardie, B. G. (2010). \"Customer-Base Valuation in a "
+"Contractual Setting: The Perils of Ignoring Heterogeneity\". Marketing "
+"Science, 29(1), 85-93. https://faculty.wharton.upenn.edu/wp-"
+"content/uploads/2012/04/Fader_hardie_contractual_mksc_10.pdf"
+msgstr ""
+"msgid: Fader, P. S., & Hardie, B. G. (2010). Customer-Base Valuation in a Contractual Setting: The Perils of Ignoring Heterogeneity. Marketing Science, 29(1), 85-93. https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_contractual_mksc_10.pdf  \n"
+"msgstr: Fader, P. S., & Hardie, B. G. (2010). Valoración de la Base de Clientes en un Entorno Contractual: Los Peligros de Ignorar la Heterogeneidad. Marketing Science, 29(1), 85-93. https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_contractual_mksc_10.pdf"
+
+#: f8a6ae344c994387979563f84b07bf10 of
+#: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModel.expected_residual_lifetime:40
+msgid "[R2e9259e9c988-1]_"
+msgstr "[R2e9259e9c988-1]_"

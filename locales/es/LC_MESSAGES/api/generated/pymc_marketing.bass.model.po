@@ -1,0 +1,288 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.bass.model.rst:2
+#: 3b33ba95c389495eaa0635a8bd095f43
+msgid "model"
+msgstr "modelo"
+
+#: ccb141a2d3bc431586836fd5280d7f90 of pymc_marketing.bass.model:1
+msgid "Bass diffusion model for product adoption."
+msgstr "Modelo de difusión de Bass para la adopción de productos."
+
+#: 1b17329e839245c8b8d57edea761294c of pymc_marketing.bass.model:3
+msgid "Adapted from Wiki: https://en.wikipedia.org/wiki/Bass_diffusion_model"
+msgstr ""
+"Adaptado de Wiki: "
+"https://es.wikipedia.org/wiki/Modelo_de_difusi%C3%B3n_de_Bass"
+
+#: 23520d3a8fbc491d9e31fe14dbff9867 of pymc_marketing.bass.model:5
+msgid ""
+"The Bass diffusion model, developed by Frank Bass in 1969, is a mathematical"
+" model that describes the process of how new products get adopted in a "
+"population over time. It is widely used in marketing, forecasting, and "
+"innovation studies to predict the adoption rates of new products and "
+"technologies."
+msgstr ""
+"El modelo de difusión de Bass, desarrollado por Frank Bass en 1969, es un "
+"modelo matemático que describe el proceso de cómo los nuevos productos son "
+"adoptados en una población a lo largo del tiempo. Se utiliza ampliamente en "
+"marketing, pronósticos y estudios de innovación para predecir las tasas de "
+"adopción de nuevos productos y tecnologías."
+
+#: 2bb998aea6f040c49a5b366d7044ed3b of pymc_marketing.bass.model:11
+msgid "Mathematical Formulation"
+msgstr "Formulación Matemática"
+
+#: b72005f77f29465b9a4848add9635b07 of pymc_marketing.bass.model:12
+msgid ""
+"The model is based on a differential equation that describes the rate of "
+"adoption:"
+msgstr ""
+"El modelo se basa en una ecuación diferencial que describe la tasa de "
+"adopción:"
+
+#: 43c969b7aafc4c9486d7b1c55e993d34 of pymc_marketing.bass.model:14
+#, python-brace-format
+msgid "\\frac{f(t)}{1-F(t)} = p + q F(t)"
+msgstr "\\frac{f(t)}{1-F(t)} = p + q F(t)"
+
+#: 195fff413532497a9d6f8e43a0f96a0a of pymc_marketing.bass.model:18
+msgid "Where:"
+msgstr "Dónde:"
+
+#: 66dcf9492ab0470883e0b51a5cb69a02 of pymc_marketing.bass.model:20
+msgid ""
+":math:`F(t)` is the installed base fraction (cumulative proportion of "
+"adopters)"
+msgstr ""
+":math:`F(t)` es la fracción de base instalada (proporción acumulativa de "
+"adoptantes)"
+
+#: 41cf2ab939ac48739ba48596b1509581 of pymc_marketing.bass.model:21
+msgid ""
+":math:`f(t)` is the rate of change of the installed base fraction "
+"(:math:`f(t) = F'(t)`)"
+msgstr ""
+":math:`f(t)` es la tasa de cambio de la fracción de la base instalada "
+"(:math:`f(t) = F'(t)`)"
+
+#: c70237b7bf4a42b98c8e9ebc721ed3ce of pymc_marketing.bass.model:22
+msgid ":math:`p` is the coefficient of innovation or external influence"
+msgstr ":math:`p` es el coeficiente de innovación o influencia externa"
+
+#: dbe34c1755e24ace8f42f9faaab8dc42 of pymc_marketing.bass.model:23
+msgid ":math:`q` is the coefficient of imitation or internal influence"
+msgstr ":math:`q` es el coeficiente de imitación o influencia interna"
+
+#: bdac646999e24027b655fd14326db50f of pymc_marketing.bass.model:25
+msgid "The solution to this equation gives the adoption curve:"
+msgstr "La solución a esta ecuación proporciona la curva de adopción:"
+
+#: c67dd615cf594069b582637ba93aa5d5 of pymc_marketing.bass.model:27
+msgid "F(t) = \\frac{1 - e^{-(p+q)t}}{1 + (\\frac{q}{p})e^{-(p+q)t}}"
+msgstr "F(t) = \\frac{1 - e^{-(p+q)t}}{1 + (\\frac{q}{p})e^{-(p+q)t}}"
+
+#: 4215434249f2403e86edda81aa478b9d of pymc_marketing.bass.model:31
+msgid "The adoption rate at time t is given by:"
+msgstr "La tasa de adopción en el tiempo t se da por:"
+
+#: 5dd880328aeb40328d691f67949d691d of pymc_marketing.bass.model:33
+msgid "f(t) = (p + q F(t))(1 - F(t))"
+msgstr "f(t) = (p + q F(t))(1 - F(t))"
+
+#: bb861634d76a4043ad7b472e2a4e6fc6 of pymc_marketing.bass.model:38
+msgid "Key Parameters"
+msgstr "Parámetros clave"
+
+#: c9ea6c2f34f94c41b776d4b9767d3f3b of pymc_marketing.bass.model:39
+msgid "The model has three main parameters:"
+msgstr "El modelo tiene tres parámetros principales:"
+
+#: 3a1c3c7fad3846749471f3dec5e1825b of pymc_marketing.bass.model:41
+msgid ":math:`m`: Market potential (total number of eventual adopters)"
+msgstr ":math:`m`: Potencial de mercado (número total de posibles adoptantes)"
+
+#: 590432ad67084ba0b2ba707e9365947d of pymc_marketing.bass.model:42
+msgid ""
+":math:`p`: Coefficient of innovation (external influence) - typically "
+"0.01-0.03"
+msgstr ""
+":math:`p`: Coeficiente de innovación (influencia externa) - típicamente "
+"0.01-0.03"
+
+#: b03e408c35494979963216854f9b9979 of pymc_marketing.bass.model:43
+msgid ""
+":math:`q`: Coefficient of imitation (internal influence) - typically 0.3-0.5"
+msgstr ""
+":math:`q`: Coeficiente de imitación (influencia interna) - típicamente "
+"0.3-0.5"
+
+#: 4d15290ff9e943feb4ee941ab400a7d1 of pymc_marketing.bass.model:46
+msgid "Parameter Interpretation"
+msgstr "Interpretación de Parámetros"
+
+#: 775be0259e9d4e7ea018af476f596376 of pymc_marketing.bass.model:47
+msgid ""
+"A higher :math:`p` value indicates stronger external influence (advertising,"
+" marketing)"
+msgstr ""
+"Un valor de :math:`p` más alto indica una influencia externa más fuerte "
+"(publicidad, marketing)"
+
+#: 7265569e1e624d46af58ccb73279e94d of pymc_marketing.bass.model:48
+msgid ""
+"A higher :math:`q` value indicates stronger internal influence (word-of-"
+"mouth, social interactions)"
+msgstr ""
+"Un valor de :math:`q` más alto indica una influencia interna más fuerte "
+"(boca a boca, interacciones sociales)"
+
+#: 817c369d53464cf9a7c22948c8dcbae4 of pymc_marketing.bass.model:49
+msgid ""
+"The ratio :math:`q/p` indicates the relative strength of internal vs. "
+"external influences"
+msgstr ""
+"La relación :math:`q/p` indica la fuerza relativa de las influencias "
+"internas frente a las externas."
+
+#: fa93bc5330e44abfa46a8db170e5f81b of pymc_marketing.bass.model:50
+#, python-brace-format
+msgid "The peak of adoption occurs at time :math:`t^* = \\frac{\\ln(q/p)}{p+q}`"
+msgstr ""
+"El pico de adopción ocurre en el tiempo :math:`t^* = \\frac{\\ln(q/p)}{p+q}`"
+
+#: 32853563d66c4c1ea1873153a5ffdfa6 of pymc_marketing.bass.model:53
+msgid "Applications"
+msgstr "Aplicaciones"
+
+#: 2f8ac69af70c49878e5c94e51eb80506 of pymc_marketing.bass.model:54
+msgid ""
+"The Bass model has been applied to forecast the adoption of various products"
+" and technologies:"
+msgstr ""
+"El modelo Bass se ha aplicado para predecir la adopción de diversos "
+"productos y tecnologías:"
+
+#: 3f220fda13724c478f599ed16d1ac427 of pymc_marketing.bass.model:56
+msgid "Consumer durables (TVs, refrigerators)"
+msgstr "Bienes de consumo duraderos (televisores, refrigeradores)"
+
+#: e4ae6558dfb34e3d9e4248632ea21e74 of pymc_marketing.bass.model:57
+msgid "Technology products (smartphones, software)"
+msgstr "Productos tecnológicos (smartphones, software)"
+
+#: 44cea1649ac346019b79ee0d0474788e of pymc_marketing.bass.model:58
+msgid "Pharmaceutical products"
+msgstr "Productos farmacéuticos"
+
+#: 0adea38998de4a8bac274672c653cd37 of pymc_marketing.bass.model:59
+msgid "Entertainment products"
+msgstr "Productos de entretenimiento"
+
+#: 0c2b85bb53b74e7495c0137f876a730b of pymc_marketing.bass.model:60
+msgid "Services and subscriptions"
+msgstr "Servicios y suscripciones"
+
+#: b0779eea90c24931b20306a3157e7a5c of pymc_marketing.bass.model:62
+msgid ""
+"This implementation provides a Bayesian version of the Bass model using "
+"PyMC, allowing for: - Uncertainty quantification through prior distributions"
+" - Hierarchical modeling for multiple products/markets - Extension to "
+"incorporate additional factors"
+msgstr ""
+"Esta implementación proporciona una versión bayesiana del modelo de Bass "
+"utilizando PyMC, lo que permite: - Cuantificación de la incertidumbre a "
+"través de distribuciones a priori - Modelado jerárquico para múltiples "
+"productos/mercados - Extensión para incorporar factores adicionales"
+
+#: 2f6b185bf830438bb509b5cd6e495320 of pymc_marketing.bass.model:68
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: ec0e19d379f14e1d9378a316fe22773d of pymc_marketing.bass.model:69
+msgid "Create a basic Bass model for multiple products:"
+msgstr "Cree un modelo Bass básico para múltiples productos:"
+
+#: ../source/api/generated/pymc_marketing.bass.model.rst:7
+#: 77013b39b483431492cc9514794394ff
+msgid ""
+"(:download:`Source code "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-bass-"
+"model-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-bass-"
+"model-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-bass-"
+"model-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-bass-"
+"model-1.pdf>`)"
+msgstr ""
+"(:descargar:`Código fuente "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-bass-"
+"model-1.py>`, :descargar:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-bass-"
+"model-1.png>`, :descargar:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-bass-"
+"model-1.hires.png>`, :descargar:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-bass-"
+"model-1.pdf>`)"
+
+#: ../source/api/generated/pymc_marketing.bass.model.rst:13
+#: df1db9bd2e0b4aff9529f7f95bd8ff47
+msgid "Functions"
+msgstr "Funciones"
+
+#: ../source/api/generated/pymc_marketing.bass.model.rst:20:<autosummary>:1
+#: b02e96841b124978a41493989f8de8c6
+msgid ":py:obj:`F <pymc_marketing.bass.model.F>`\\ \\(p\\, q\\, t\\)"
+msgstr ":py:obj:`F <pymc_marketing.bass.model.F>`\\ \\(p\\, q\\, t\\)"
+
+#: ../source/api/generated/pymc_marketing.bass.model.rst:20:<autosummary>:1
+#: b55fc6d141f04d39a3a7488ac9c98089
+msgid "Installed base fraction (cumulative adoption proportion)."
+msgstr "Fracción de base instalada (proporción de adopción acumulativa)."
+
+#: ../source/api/generated/pymc_marketing.bass.model.rst:20:<autosummary>:1
+#: c890879bbd84412eac271ccc7fcecaba
+msgid ""
+":py:obj:`create_bass_model <pymc_marketing.bass.model.create_bass_model>`\\ "
+"\\(t\\, observed\\, priors\\, coords\\)"
+msgstr ""
+":py:obj:`create_bass_model <pymc_marketing.bass.model.create_bass_model>`\\ "
+"\\(t\\, observados\\, priors\\, coords\\)"
+
+#: ../source/api/generated/pymc_marketing.bass.model.rst:20:<autosummary>:1
+#: 095764d7fe224497822850bec177bb23
+msgid "Define a Bass diffusion model for product adoption forecasting."
+msgstr ""
+"Defina un modelo de difusión de Bass para la previsión de la adopción de "
+"productos."
+
+#: ../source/api/generated/pymc_marketing.bass.model.rst:20:<autosummary>:1
+#: 69f0b9550bf94dfeb9c20dff5f6164ec
+msgid ":py:obj:`f <pymc_marketing.bass.model.f>`\\ \\(p\\, q\\, t\\)"
+msgstr ":py:obj:`f <pymc_marketing.bass.model.f>`\\ \\(p\\, q\\, t\\)"
+
+#: ../source/api/generated/pymc_marketing.bass.model.rst:20:<autosummary>:1
+#: e680092c48e74cd0972f3b7582b7e0b6
+msgid "Installed base fraction rate of change (adoption rate)."
+msgstr "Tasa de cambio de la fracción de base instalada (tasa de adopción)."

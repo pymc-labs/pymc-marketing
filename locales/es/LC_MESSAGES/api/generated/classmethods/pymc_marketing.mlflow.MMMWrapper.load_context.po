@@ -1,0 +1,70 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mlflow.MMMWrapper.load_context.rst:2
+#: 2c15e80551724d43854f3edcb4b75b7c
+msgid "MMMWrapper.load\\_context"
+msgstr "MMMWrapper.cargar\\_contexto"
+
+#: b0db816269b5496ca2539910d1c5b0e7
+#: mlflow.pyfunc.model.PythonModel.load_context:2 of
+msgid ""
+"Loads artifacts from the specified :class:`~PythonModelContext` that can be "
+"used by :func:`~PythonModel.predict` when evaluating inputs. When loading an"
+" MLflow model with :func:`~load_model`, this method is called as soon as the"
+" :class:`~PythonModel` is constructed."
+msgstr ""
+"Carga artefactos del :class:`~PythonModelContext` especificado que pueden "
+"ser utilizados por :func:`~PythonModel.predict` al evaluar entradas. Al "
+"cargar un modelo de MLflow con :func:`~load_model`, este método se llama tan"
+" pronto como se construye la :class:`~PythonModel`."
+
+#: 3b5dcd26cf214934a55d9c77c438a3d7
+#: mlflow.pyfunc.model.PythonModel.load_context:7 of
+msgid ""
+"The same :class:`~PythonModelContext` will also be available during calls to"
+" :func:`~PythonModel.predict`, but it may be more efficient to override this"
+" method and load artifacts from the context at model load time."
+msgstr ""
+"El mismo :class:`~PythonModelContext` también estará disponible durante las "
+"llamadas a :func:`~PythonModel.predict`, pero puede ser más eficiente anular"
+" este método y cargar artefactos desde el contexto en el momento de carga "
+"del modelo."
+
+#: e345441073254839ad128423d50aca65
+#: mlflow.pyfunc.model.PythonModel.load_context:11 of
+msgid "Args:"
+msgstr "Args:"
+
+#: 233b0e94084346049650e50c966efe7e
+#: mlflow.pyfunc.model.PythonModel.load_context:12 of
+msgid ""
+"context: A :class:`~PythonModelContext` instance containing artifacts that "
+"the model"
+msgstr ""
+"contexto: Una instancia de :class:`~PythonModelContext` que contiene "
+"artefactos que el modelo"
+
+#: 27df02c20215460390eefe7bdff1ee79
+#: mlflow.pyfunc.model.PythonModel.load_context:13 of
+msgid "can use to perform inference."
+msgstr "puede usar para realizar inferencias."

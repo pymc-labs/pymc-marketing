@@ -1,0 +1,81 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.fourier.MonthlyFourier.copy.rst:2
+#: 5057713ff8d74373a3fcadcb4d468332
+msgid "MonthlyFourier.copy"
+msgstr "MonthlyFourier.copiar"
+
+#: bc4d8d88f55a466f83704cf99b7c5cc2 of pydantic.main.BaseModel.copy:2
+msgid "Returns a copy of the model."
+msgstr "Devuelve una copia del modelo."
+
+#: 730c872d4f554b908143e1dbf6311286 of pydantic.main.BaseModel.copy:4
+msgid "!!! warning \"Deprecated\""
+msgstr "!!! advertencia \"Obsoleto\""
+
+#: e34edef7ad0d48a081364234a01e2cc3 of pydantic.main.BaseModel.copy:5
+msgid "This method is now deprecated; use `model_copy` instead."
+msgstr "Este método está ahora obsoleto; utilice `model_copy` en su lugar."
+
+#: 7c4ca2992f93418ba2ac42322e282e63 of pydantic.main.BaseModel.copy:7
+msgid "If you need `include` or `exclude`, use:"
+msgstr "Si necesita `include` o `exclude`, utilice:"
+
+#: 15793e94ac524407b633a669e5e7f39f of pydantic.main.BaseModel.copy:9
+msgid ""
+"```python {test=\"skip\" lint=\"skip\"} data = "
+"self.model_dump(include=include, exclude=exclude, round_trip=True) data = "
+"{**data, **(update or {})} copied = self.model_validate(data) ```"
+msgstr ""
+"data = self.model_dump(include=include, exclude=exclude, round_trip=True) "
+"data = {**data, **(update or {})} copied = self.model_validate(data)"
+
+#: 78739aca5e8b4daf8576cf8175c777eb of pydantic.main.BaseModel.copy:15
+msgid "Args:"
+msgstr "Args:"
+
+#: 467f26d690e04397bfc30fe17484da2e of pydantic.main.BaseModel.copy:16
+msgid ""
+"include: Optional set or mapping specifying which fields to include in the "
+"copied model. exclude: Optional set or mapping specifying which fields to "
+"exclude in the copied model. update: Optional dictionary of field-value "
+"pairs to override field values in the copied model. deep: If True, the "
+"values of fields that are Pydantic models will be deep-copied."
+msgstr ""
+"include: Conjunto o mapeo opcional que especifica qué campos incluir en el "
+"modelo copiado. exclude: Conjunto o mapeo opcional que especifica qué campos"
+" excluir en el modelo copiado. update: Diccionario opcional de pares campo-"
+"valor para sobrescribir los valores de los campos en el modelo copiado. "
+"deep: Si es True, los valores de los campos que son modelos Pydantic se "
+"copiarán en profundidad."
+
+#: 9317fa6239a9492b9084c1491b741412 of pydantic.main.BaseModel.copy:21
+msgid "Returns:"
+msgstr "Devoluciones:"
+
+#: dda6b4ae6dc34263ac5ba148a6e840f1 of pydantic.main.BaseModel.copy:22
+msgid ""
+"A copy of the model with included, excluded and updated fields as specified."
+msgstr ""
+"Una copia del modelo con los campos incluidos, excluidos y actualizados "
+"según lo especificado."

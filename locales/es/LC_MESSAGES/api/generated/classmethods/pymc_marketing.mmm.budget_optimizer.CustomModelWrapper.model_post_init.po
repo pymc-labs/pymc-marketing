@@ -1,0 +1,54 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-21 09:54+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.budget_optimizer.CustomModelWrapper.model_post_init.rst:2
+#: b1a4d1644dfc47aba4c6ded75c397d37
+msgid "CustomModelWrapper.model\\_post\\_init"
+msgstr "CustomModelWrapper.model\\_post\\_init"
+
+#: 399106e9e5c548cd8fd4f24a10598339 of
+#: pydantic._internal._model_construction.init_private_attributes:2
+msgid ""
+"This function is meant to behave like a BaseModel method to initialise "
+"private attributes."
+msgstr ""
+"Esta función está destinada a comportarse como un método de BaseModel para "
+"inicializar atributos privados."
+
+#: 590ffd39519a483694c63bb90e8cca87 of
+#: pydantic._internal._model_construction.init_private_attributes:4
+msgid ""
+"It takes context as an argument since that's what pydantic-core passes when "
+"calling it."
+msgstr ""
+"Toma el contexto como un argumento, ya que eso es lo que pydantic-core pasa "
+"al llamarlo."
+
+#: 7609adef7b7740c4b4146d0b98f73810 of
+#: pydantic._internal._model_construction.init_private_attributes:6
+msgid "Args:"
+msgstr "Args:"
+
+#: fad70483a6314e7d9f61a6cc98b484a5 of
+#: pydantic._internal._model_construction.init_private_attributes:7
+msgid "self: The BaseModel instance. context: The context."
+msgstr "self: La instancia de BaseModel. context: El contexto."

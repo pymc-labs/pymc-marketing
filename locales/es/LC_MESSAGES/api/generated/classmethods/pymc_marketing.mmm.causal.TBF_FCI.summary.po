@@ -1,0 +1,57 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-13 11:28+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.TBF_FCI.summary.rst:2
+#: f35596ae0a034570aa12d8b82edb47e7
+msgid "TBF\\_FCI.summary"
+msgstr "TBF\\_FCI.summary"
+
+#: 6afcd0f742b74479a66b0ae36c27595f of
+#: pymc_marketing.mmm.causal.TBF_FCI.summary:2
+msgid "Return a human-readable summary of edges and test count."
+msgstr ""
+"Devuelva un resumen legible por humanos de los bordes y el conteo de "
+"pruebas."
+
+#: 1fee124660d848d9bc33e43a27160b4b of
+#: pymc_marketing.mmm.causal.TBF_FCI.summary
+msgid "Returns"
+msgstr "Returns"
+
+#: e745286124b842e491d32222b8de9364 of
+#: pymc_marketing.mmm.causal.TBF_FCI.summary:10
+msgid ":class:`python:str`"
+msgstr ":class:`python:str`"
+
+#: 17dc49b4b1a043cf854d35b694fad4be of
+#: pymc_marketing.mmm.causal.TBF_FCI.summary:11
+msgid ""
+"Multiline description of directed edges, undirected edges, and the number of"
+" conditional independence tests executed."
+msgstr ""
+"Descripción multilineal de los bordes dirigidos, bordes no dirigidos y el "
+"número de pruebas de independencia condicional ejecutadas."
+
+#: cd66bfecab764315828323a2bdf2f6c2 of
+#: pymc_marketing.mmm.causal.TBF_FCI.summary:24
+msgid "Examples"
+msgstr "Examples"

@@ -1,0 +1,43 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.transformers.ConvMode.isascii.rst:2
+#: 4bf7c084e62d4bd291e82822eaaf9c5f
+msgid "ConvMode.isascii"
+msgstr "ConvMode.isascii"
+
+#: 0ae1a52f848543e395e30b6424f0ef95 of
+#: pymc_marketing.mmm.transformers.ConvMode.isascii:2
+msgid ""
+"Return True if all characters in the string are ASCII, False otherwise."
+msgstr ""
+"Devuelve True si todos los caracteres en la cadena son ASCII, False en caso "
+"contrario."
+
+#: d807bd3afa6d44b18b89817c41311ae2 of
+#: pymc_marketing.mmm.transformers.ConvMode.isascii:4
+msgid ""
+"ASCII characters have code points in the range U+0000-U+007F. Empty string "
+"is ASCII too."
+msgstr ""
+"Los caracteres ASCII tienen puntos de código en el rango U+0000-U+007F. La "
+"cadena vacía también es ASCII."

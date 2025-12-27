@@ -1,0 +1,711 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:2
+#: 4d678c7cf08646d49f715fb6408e0291
+msgid "WeeklyFourier"
+msgstr "WeeklyFourier"
+
+#: 346d0598499847669d0ea10559371507 of
+#: pymc_marketing.mmm.fourier.WeeklyFourier:2
+msgid "Weekly fourier seasonality."
+msgstr "Estacionalidad semanal de Fourier."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:7
+#: f3171a92cce542df803800a913289085
+msgid ""
+"(:download:`Source code "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-fourier-"
+"WeeklyFourier-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-fourier-"
+"WeeklyFourier-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-fourier-"
+"WeeklyFourier-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-fourier-"
+"WeeklyFourier-1.pdf>`)"
+msgstr ""
+"(:download:`Código fuente "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-fourier-"
+"WeeklyFourier-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-fourier-"
+"WeeklyFourier-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-fourier-"
+"WeeklyFourier-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-fourier-"
+"WeeklyFourier-1.pdf>`)"
+
+#: d954183ebe58414eb3505040c374d727 of
+#: pymc_marketing.mmm.fourier.WeeklyFourier:30
+msgid "n_order"
+msgstr "n_order"
+
+#: 74b4467887094af7aaf40a22f4fb7fa4 of
+#: pymc_marketing.mmm.fourier.WeeklyFourier:-1
+msgid "int"
+msgstr "int"
+
+#: feea929a6a1b4470b7c6773bd9f88ca6 of
+#: pymc_marketing.mmm.fourier.WeeklyFourier:31
+msgid "Number of fourier modes to use."
+msgstr "Número de modos de Fourier a utilizar."
+
+#: 245b620d1ed54fbda92787d16c6be957 of
+#: pymc_marketing.mmm.fourier.WeeklyFourier:32
+msgid "prefix"
+msgstr "prefijo"
+
+#: 55d30295214c4f7fb02f64d581e5e80c 789ffa65b0974b77add34a8d96a6d80b
+#: a5b46854e5d546c8a15c17537b325ca0 of
+#: pymc_marketing.mmm.fourier.WeeklyFourier:-1
+msgid "str, optional"
+msgstr "str, opcional"
+
+#: 114d0a7a1e444b089088608b4bd4ec0e of
+#: pymc_marketing.mmm.fourier.WeeklyFourier:33
+msgid ""
+"Alternative prefix for the fourier seasonality, by default None or "
+"\"fourier\""
+msgstr ""
+"Prefijo alternativo para la estacionalidad de Fourier, por defecto Ninguno o"
+" \"fourier\""
+
+#: 74d27b20fdb94d90b04bfbd41ac96d10 of
+#: pymc_marketing.mmm.fourier.WeeklyFourier:35
+msgid "prior"
+msgstr "anterior"
+
+#: e049b6175e4c403981bb843e994569bd of
+#: pymc_marketing.mmm.fourier.WeeklyFourier:-1
+msgid "Prior | VariableFactory, optional"
+msgstr "Prior | VariableFactory, opcional"
+
+#: 7bb192b06a4a44c38e4d8b05ad5ecfb0 of
+#: pymc_marketing.mmm.fourier.WeeklyFourier:36
+msgid ""
+"Prior distribution or VariableFactory for the fourier seasonality beta "
+"parameters, by default `Prior(\"Laplace\", mu=0, b=1)`"
+msgstr ""
+"Distribución previa o VariableFactory para los parámetros beta de la "
+"estacionalidad de Fourier, por defecto `Prior(\"Laplace\", mu=0, b=1)`"
+
+#: f188037ba614478e995ee3ebb8a08fc3 of
+#: pymc_marketing.mmm.fourier.WeeklyFourier:38
+msgid "name"
+msgstr "nombre"
+
+#: 03fb513565a54095ac0b502280c43d49 5ecd47f9725e49d2ace091fc2447bc9e of
+#: pymc_marketing.mmm.fourier.WeeklyFourier:39
+#: pymc_marketing.mmm.fourier.WeeklyFourier:41
+msgid ""
+"Name of the variable that multiplies the fourier modes, by default None"
+msgstr ""
+"Nombre de la variable que multiplica los modos de Fourier, por defecto None"
+
+#: 9bcf3af3a4ce4c598d2c3b558e3efb76 of
+#: pymc_marketing.mmm.fourier.WeeklyFourier:40
+msgid "variable_name"
+msgstr "nombre_variable"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:12
+#: 18d752dc3de64b10abccc9157eb3cbb0
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: e959ba38cae14d4b931b2adb42c24a5b
+msgid ""
+":py:obj:`WeeklyFourier.__init__ "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.__init__>`\\ \\(\\*\\*data\\)"
+msgstr ""
+":py:obj:`WeeklyFourier.__init__ "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.__init__>`\\ \\(\\*\\*data\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 264a696ead0344dfb3b7de035481b907
+msgid ""
+"Create a new model by parsing and validating input data from keyword "
+"arguments."
+msgstr ""
+"Cree un nuevo modelo analizando y validando los datos de entrada de los "
+"argumentos de palabras clave."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: da6a267265994d06a59d03078a33fea3
+msgid ""
+":py:obj:`WeeklyFourier.apply "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.apply>`\\ \\(dayofperiod\\[\\, "
+"...\\]\\)"
+msgstr ""
+":py:obj:`WeeklyFourier.apply "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.apply>`\\ \\(dayofperiod\\[\\, "
+"...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: bd19486549e24818b352ef640c7ec868
+msgid "Apply fourier seasonality to day of year."
+msgstr "Aplicar la estacionalidad de Fourier al día del año."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 5c32946d25024d768cf4bb0e5eb6276e
+msgid ""
+":py:obj:`WeeklyFourier.construct "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.construct>`\\ "
+"\\(\\[\\_fields\\_set\\]\\)"
+msgstr ""
+":py:obj:`WeeklyFourier.construct "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.construct>`\\ "
+"\\(\\[\\_fields\\_set\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 90090999624644fb8c963d1a569be844
+msgid ""
+":py:obj:`WeeklyFourier.copy "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.copy>`\\ \\(\\*\\[\\, include\\, "
+"exclude\\, ...\\]\\)"
+msgstr ""
+":py:obj:`WeeklyFourier.copy "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.copy>`\\ \\(\\*\\[\\, incluir\\, "
+"excluir\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 3aa408d3db7e470e8cbc7e9009d328ae
+msgid "Returns a copy of the model."
+msgstr "Devuelve una copia del modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: fd191a275daf41dba9dff9eaf572b45d
+msgid ""
+":py:obj:`WeeklyFourier.dict "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.dict>`\\ \\(\\*\\[\\, include\\, "
+"exclude\\, ...\\]\\)"
+msgstr ""
+":py:obj:`WeeklyFourier.dict "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.dict>`\\ \\(\\*\\[\\, incluir\\, "
+"excluir\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 129a305a62654680b4899e3bb9de2280
+msgid ""
+":py:obj:`WeeklyFourier.from_dict "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.from_dict>`\\ \\(data\\)"
+msgstr ""
+":py:obj:`WeeklyFourier.from_dict "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.from_dict>`\\ \\(datos\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 74911dbf14884807b2fcdee75953eb5d
+msgid "Deserialize the Fourier seasonality."
+msgstr "Deserializar la estacionalidad de Fourier."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: f48f591c612348b8be0fa124612067da
+msgid ""
+":py:obj:`WeeklyFourier.from_orm "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.from_orm>`\\ \\(obj\\)"
+msgstr ""
+":py:obj:`WeeklyFourier.from_orm "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.from_orm>`\\ \\(obj\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 202d777ae59845878436a5fff21ff93f
+msgid ""
+":py:obj:`WeeklyFourier.get_default_start_date "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.get_default_start_date>`\\ "
+"\\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`WeeklyFourier.get_default_start_date "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.get_default_start_date>`\\ "
+"\\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 1b3e5a76e675496bb16b3244e15c95a4
+msgid "Get the start date for the Fourier curve."
+msgstr "Obtenga la fecha de inicio para la curva de Fourier."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 85318f82ea0e476bbb733d8cbaf74042
+msgid ""
+":py:obj:`WeeklyFourier.json "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.json>`\\ \\(\\*\\[\\, include\\, "
+"exclude\\, ...\\]\\)"
+msgstr ""
+":py:obj:`WeeklyFourier.json "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.json>`\\ \\(\\*\\[\\, incluir\\, "
+"excluir\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 45db66593aa944598121cc99924bf82f
+msgid ""
+":py:obj:`WeeklyFourier.model_construct "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.model_construct>`\\ "
+"\\(\\[\\_fields\\_set\\]\\)"
+msgstr ""
+":py:obj:`WeeklyFourier.model_construct "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.model_construct>`\\ "
+"\\(\\[\\_fields\\_set\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 6d8a42b72ef04553a5e9e68f1114e34c
+msgid "Creates a new instance of the `Model` class with validated data."
+msgstr "Crea una nueva instancia de la clase `Model` con datos validados."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: d20cd75b4da54639b9e7d4b69d59c767
+msgid ""
+":py:obj:`WeeklyFourier.model_copy "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.model_copy>`\\ \\(\\*\\[\\, "
+"update\\, deep\\]\\)"
+msgstr ""
+":py:obj:`WeeklyFourier.model_copy "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.model_copy>`\\ \\(\\*\\[\\, "
+"actualizar\\, profundo\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 148a1028a24846d3ab56c164e6053fb8 173f98a52f1f4e30892c6e925323198e
+#: 461dfe9a745a48ec94096541c49d666e 5cd71502359c4bfda7ab580235342b40
+msgid "!!! abstract \"Usage Documentation\""
+msgstr "!!! abstract \"Documentación de Uso\""
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 858ae8b260ef4c24b3bfe225aca2f7d6
+msgid ""
+":py:obj:`WeeklyFourier.model_dump "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.model_dump>`\\ \\(\\*\\[\\, "
+"mode\\, include\\, ...\\]\\)"
+msgstr ""
+":py:obj:`WeeklyFourier.model_dump "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.model_dump>`\\ \\(\\*\\[\\, "
+"modo\\, incluir\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 805578439b0b4bc792d9ed6875428295
+msgid ""
+":py:obj:`WeeklyFourier.model_dump_json "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.model_dump_json>`\\ \\(\\*\\[\\, "
+"indent\\, ...\\]\\)"
+msgstr ""
+":py:obj:`WeeklyFourier.model_dump_json "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.model_dump_json>`\\ \\(\\*\\[\\, "
+"indent\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 680c857196f349d3a6039d04f1308324
+msgid ""
+":py:obj:`WeeklyFourier.model_json_schema "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.model_json_schema>`\\ "
+"\\(\\[by\\_alias\\, ...\\]\\)"
+msgstr ""
+":py:obj:`WeeklyFourier.model_json_schema "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.model_json_schema>`\\ "
+"\\(\\[por\\_alias\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: a34bbc79dbad46f9b4b7b0cdfb8fc893
+msgid "Generates a JSON schema for a model class."
+msgstr "Genera un esquema JSON para una clase de modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 525733c86af94a489eba87621c9d6dcd
+msgid ""
+":py:obj:`WeeklyFourier.model_parametrized_name "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.model_parametrized_name>`\\ "
+"\\(params\\)"
+msgstr ""
+":py:obj:`WeeklyFourier.model_parametrized_name "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.model_parametrized_name>`\\ "
+"\\(params\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 37934f9c368d429f9da9528d71e7ca16
+msgid "Compute the class name for parametrizations of generic classes."
+msgstr ""
+"Calcule el nombre de la clase para parametrizaciones de clases genéricas."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: f9f1d1a6f35c48debfd32bda7c8d6f73
+msgid ""
+":py:obj:`WeeklyFourier.model_post_init "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.model_post_init>`\\ \\(...\\)"
+msgstr ""
+":py:obj:`WeeklyFourier.model_post_init "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.model_post_init>`\\ \\(...\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 6bf289c4216d4292bfcf6689e4810d0b
+msgid "Model post initialization for a Pydantic model."
+msgstr "Inicialización del modelo posterior para un modelo Pydantic."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 12954b55fdb44b9bb2b214562d7298e5
+msgid ""
+":py:obj:`WeeklyFourier.model_rebuild "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.model_rebuild>`\\ \\(\\*\\[\\, "
+"force\\, ...\\]\\)"
+msgstr ""
+":py:obj:`WeeklyFourier.model_rebuild "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.model_rebuild>`\\ \\(\\*\\[\\, "
+"forzar\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 2e00f08738e144c1af482cadbe928b62
+msgid "Try to rebuild the pydantic-core schema for the model."
+msgstr "Intente reconstruir el esquema de pydantic-core para el modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 1958a6bf15f04de4af3cee3741e0d133
+msgid ""
+":py:obj:`WeeklyFourier.model_validate "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.model_validate>`\\ \\(obj\\, "
+"\\*\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`WeeklyFourier.model_validate "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.model_validate>`\\ \\(obj\\, "
+"\\*\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 8ddbfe929dde4b879aa6b41252f8c462
+msgid "Validate a pydantic model instance."
+msgstr "Valide una instancia de modelo pydantic."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 3a0790c5741f4170b26a3de7c6dc7f80
+msgid ""
+":py:obj:`WeeklyFourier.model_validate_json "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.model_validate_json>`\\ "
+"\\(json\\_data\\, \\*\\)"
+msgstr ""
+":py:obj:`WeeklyFourier.model_validate_json "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.model_validate_json>`\\ "
+"\\(json\\_data\\, \\*\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 3ccf54a9a1d541d9a7340d7d478df0a2
+msgid ""
+":py:obj:`WeeklyFourier.model_validate_strings "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.model_validate_strings>`\\ "
+"\\(obj\\, \\*\\)"
+msgstr ""
+":py:obj:`WeeklyFourier.model_validate_strings "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.model_validate_strings>`\\ "
+"\\(obj\\, \\*\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: bc56e8cbeb7941a0accba87aa42f639d
+msgid "Validate the given object with string data against the Pydantic model."
+msgstr ""
+"Valide el objeto dado con datos de cadena contra el modelo de Pydantic."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 0ee83d335aeb4bb1bf4798045b8d4411
+msgid ""
+":py:obj:`WeeklyFourier.parse_file "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.parse_file>`\\ \\(path\\, "
+"\\*\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`WeeklyFourier.parse_file "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.parse_file>`\\ \\(ruta\\, "
+"\\*\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 63f0727448474787a599f20f689af199
+msgid ""
+":py:obj:`WeeklyFourier.parse_obj "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.parse_obj>`\\ \\(obj\\)"
+msgstr ""
+":py:obj:`WeeklyFourier.parse_obj "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.parse_obj>`\\ \\(obj\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 9a0aece05ed24575b1fdb6fb2adda51a
+msgid ""
+":py:obj:`WeeklyFourier.parse_raw "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.parse_raw>`\\ \\(b\\, \\*\\[\\, "
+"...\\]\\)"
+msgstr ""
+":py:obj:`WeeklyFourier.parse_raw "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.parse_raw>`\\ \\(b\\, \\*\\[\\, "
+"...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 8347518db2354a018d7517aac02fc5d5
+msgid ""
+":py:obj:`WeeklyFourier.plot_curve "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.plot_curve>`\\ \\(curve\\[\\, "
+"n\\_samples\\, ...\\]\\)"
+msgstr ""
+":py:obj:`WeeklyFourier.plot_curve "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.plot_curve>`\\ \\(curve\\[\\, "
+"n\\_samples\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 6579135a8b4d4d2ea0c242097806eb58
+msgid "Plot the seasonality for one full period."
+msgstr "Trace la estacionalidad para un período completo."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 2cdfa07aac454f339d13bf46ef822ca0
+msgid ""
+":py:obj:`WeeklyFourier.plot_curve_hdi "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.plot_curve_hdi>`\\ \\(curve\\[\\, "
+"...\\]\\)"
+msgstr ""
+":py:obj:`WeeklyFourier.plot_curve_hdi "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.plot_curve_hdi>`\\ \\(curve\\[\\, "
+"...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 1a226d9228fd433e98efd0efc9547953
+msgid "Plot full period of the fourier seasonality."
+msgstr "Trazar el período completo de la estacionalidad de Fourier."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 7452b578ea314114be989c1be4c918e9
+msgid ""
+":py:obj:`WeeklyFourier.plot_curve_samples "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.plot_curve_samples>`\\ "
+"\\(curve\\[\\, n\\, ...\\]\\)"
+msgstr ""
+":py:obj:`WeeklyFourier.plot_curve_samples "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.plot_curve_samples>`\\ "
+"\\(curva\\[\\, n\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 935ea6c1bf414d0fae57dfb3ecc493d8
+msgid "Plot samples from the curve."
+msgstr "Trazar muestras de la curva."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 794a08eb78b6483aa76357075b091fcc
+msgid ""
+":py:obj:`WeeklyFourier.sample_curve "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.sample_curve>`\\ "
+"\\(parameters\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`WeeklyFourier.sample_curve "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.sample_curve>`\\ "
+"\\(parámetros\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 562f9c85670e453593d95c4a48352e84
+msgid "Create full period of the Fourier seasonality."
+msgstr "Crear el período completo de la estacionalidad de Fourier."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: d4b26e9f37e64e8ea004eb621e43812a
+msgid ""
+":py:obj:`WeeklyFourier.sample_prior "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.sample_prior>`\\ "
+"\\(\\[coords\\]\\)"
+msgstr ""
+":py:obj:`WeeklyFourier.sample_prior "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.sample_prior>`\\ "
+"\\(\\[coords\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 385b703e55ba4862b3e458d1ac7a3aec
+msgid "Sample the prior distributions."
+msgstr "Muestree las distribuciones anteriores."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: febf61096b8d4ad1b1c11ad3caf3dcf3
+msgid ""
+":py:obj:`WeeklyFourier.schema "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.schema>`\\ \\(\\[by\\_alias\\, "
+"ref\\_template\\]\\)"
+msgstr ""
+":py:obj:`WeeklyFourier.schema "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.schema>`\\ \\(\\[por\\_alias\\, "
+"ref\\_template\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 5dd88db2d07540228a34d111d8762783
+msgid ""
+":py:obj:`WeeklyFourier.schema_json "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.schema_json>`\\ \\(\\*\\[\\, "
+"by\\_alias\\, ...\\]\\)"
+msgstr ""
+":py:obj:`WeeklyFourier.schema_json "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.schema_json>`\\ \\(\\*\\[\\, "
+"por\\_alias\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 257faa8e7079497e9c732ca7ae697377
+msgid ""
+":py:obj:`WeeklyFourier.serialize_prior "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.serialize_prior>`\\ \\(\\)"
+msgstr ""
+":py:obj:`WeeklyFourier.serialize_prior "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.serialize_prior>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 37e1310ba8894f79ba367c19d37f3780
+msgid "Serialize the prior distribution."
+msgstr "Serializar la distribución previa."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: a8106e76075b4dd6baeca3bb6748c475
+msgid ""
+":py:obj:`WeeklyFourier.to_dict "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.to_dict>`\\ \\(\\)"
+msgstr ""
+":py:obj:`WeeklyFourier.to_dict "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.to_dict>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: c5d37b3f24ee4d33b996e453d1d7be00
+msgid "Serialize the Fourier seasonality."
+msgstr "Serializar la estacionalidad de Fourier."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: 12d5cc4d7e714a1f8897dcb3b8cfc02a
+msgid ""
+":py:obj:`WeeklyFourier.update_forward_refs "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.update_forward_refs>`\\ "
+"\\(\\*\\*localns\\)"
+msgstr ""
+":py:obj:`WeeklyFourier.update_forward_refs "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.update_forward_refs>`\\ "
+"\\(\\*\\*localns\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:55:<autosummary>:1
+#: f1ea622aae4444f8bd65e052cb3cbbfb
+msgid ""
+":py:obj:`WeeklyFourier.validate "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.validate>`\\ \\(value\\)"
+msgstr ""
+":py:obj:`WeeklyFourier.validate "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.validate>`\\ \\(valor\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:57
+#: c1103e2568f24c218df346227bf698c2
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:70:<autosummary>:1
+#: fc2a76e848304e4fafe1e8904479a3d5
+msgid ""
+":py:obj:`model_computed_fields "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.model_computed_fields>`\\"
+msgstr ""
+":py:obj:`model_computed_fields "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.model_computed_fields>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:70:<autosummary>:1
+#: c97938a4cb3c4100aec9b26727ef5121
+msgid ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.model_config>`\\"
+msgstr ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.model_config>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:70:<autosummary>:1
+#: d19b6f2b6bb742c0852993328892ef98
+msgid ""
+"Configuration for the model, should be a dictionary conforming to "
+"[`ConfigDict`][pydantic.config.ConfigDict]."
+msgstr ""
+"Configuración para el modelo, debe ser un diccionario que cumpla con "
+"[`ConfigDict`][pydantic.config.ConfigDict]."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:70:<autosummary>:1
+#: 53f1fa8771a34f85b5f3aca11228efad
+msgid ""
+":py:obj:`model_extra "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.model_extra>`\\"
+msgstr ""
+":py:obj:`model_extra <pymc_marketing.mmm.fourier.WeeklyFourier.model_extra>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:70:<autosummary>:1
+#: 21401ea2e94345b3b655eadbfb57326b
+msgid "Get extra fields set during validation."
+msgstr "Obtener campos adicionales establecidos durante la validación."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:70:<autosummary>:1
+#: daeb7983e346464f952cc268882f4fa9
+msgid ""
+":py:obj:`model_fields "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.model_fields>`\\"
+msgstr ""
+":py:obj:`model_fields "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.model_fields>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:70:<autosummary>:1
+#: b4093267322e4b25aa60d9ace3ca4a58
+msgid ""
+":py:obj:`model_fields_set "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.model_fields_set>`\\"
+msgstr ""
+":py:obj:`model_fields_set "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.model_fields_set>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:70:<autosummary>:1
+#: 0a263506aa454ac48c19fa431dd24d7c
+msgid ""
+"Returns the set of fields that have been explicitly set on this model "
+"instance."
+msgstr ""
+"Devuelve el conjunto de campos que han sido establecidos explícitamente en "
+"esta instancia del modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:70:<autosummary>:1
+#: 710127676ce94d6fb909d551549452a6
+msgid ":py:obj:`nodes <pymc_marketing.mmm.fourier.WeeklyFourier.nodes>`\\"
+msgstr ":py:obj:`nodes <pymc_marketing.mmm.fourier.WeeklyFourier.nodes>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:70:<autosummary>:1
+#: 787b564e9ded4de49817409121f99da3
+msgid "Fourier node names for model coordinates."
+msgstr "Nombres de nodos de Fourier para coordenadas del modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:70:<autosummary>:1
+#: e7ac8fce4e4f4e668890f59f453e77eb
+msgid ""
+":py:obj:`days_in_period "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.days_in_period>`\\"
+msgstr ""
+":py:obj:`días_en_período "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.días_en_período>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:70:<autosummary>:1
+#: 6d704cfa7b7e476cb93d567574160013
+msgid ":py:obj:`n_order <pymc_marketing.mmm.fourier.WeeklyFourier.n_order>`\\"
+msgstr ":py:obj:`n_order <pymc_marketing.mmm.fourier.WeeklyFourier.n_order>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:70:<autosummary>:1
+#: 435255bf9f734d8d90018667b58ea74d
+msgid ":py:obj:`prefix <pymc_marketing.mmm.fourier.WeeklyFourier.prefix>`\\"
+msgstr ":py:obj:`prefix <pymc_marketing.mmm.fourier.WeeklyFourier.prefix>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:70:<autosummary>:1
+#: 01cec4e0b7834b5888e08b51d136b0fc
+msgid ":py:obj:`prior <pymc_marketing.mmm.fourier.WeeklyFourier.prior>`\\"
+msgstr ":py:obj:`prior <pymc_marketing.mmm.fourier.WeeklyFourier.prior>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.fourier.WeeklyFourier.rst:70:<autosummary>:1
+#: 74f28f77edef4c0091c30b67ba2b3fd5
+msgid ""
+":py:obj:`variable_name "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.variable_name>`\\"
+msgstr ""
+":py:obj:`variable_name "
+"<pymc_marketing.mmm.fourier.WeeklyFourier.variable_name>`\\"

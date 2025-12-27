@@ -1,0 +1,132 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.mmm.MMM.plot_direct_contribution_curves.rst:2
+#: c6f23723f95f4d30be67665e647c8c8c
+msgid "MMM.plot\\_direct\\_contribution\\_curves"
+msgstr "MMM.plot\\_direct\\_contribution\\_curves"
+
+#: f14d7498c8e94f66b916fdc74a5c2fce of
+#: pymc_marketing.mmm.mmm.MMM.plot_direct_contribution_curves:2
+msgid "Plot the direct contribution curves for each marketing channel."
+msgstr ""
+"Trace las curvas de contribución directa para cada canal de marketing."
+
+#: ff5a743687674fc7a4147376a9a4deb0 of
+#: pymc_marketing.mmm.mmm.MMM.plot_direct_contribution_curves:4
+msgid ""
+"The term \"direct\" refers to the fact that we plot costs vs immediate "
+"returns and we do not take into account the lagged effects of the channels "
+"e.g. adstock transformations."
+msgstr ""
+"El término \"directo\" se refiere al hecho de que trazamos costos frente a "
+"retornos inmediatos y no tomamos en cuenta los efectos rezagados de los "
+"canales, por ejemplo, las transformaciones de adstock."
+
+#: 7438edd8497d4b529558b4385e3984bb of
+#: pymc_marketing.mmm.mmm.MMM.plot_direct_contribution_curves
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 7f8ff1fc64db4bbbaba610825f8acb13 of
+#: pymc_marketing.mmm.mmm.MMM.plot_direct_contribution_curves:9
+msgid "**show_fit** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr "**show_fit** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 782eb3634af04c0082c4328bc52e32ac d8627f3dfe95484abf6601b272357369 of
+#: pymc_marketing.mmm.mmm.MMM.plot_direct_contribution_curves:8
+#: pymc_marketing.mmm.mmm.MMM.plot_direct_contribution_curves:17
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: 1ef0db37e34d48949d19bb0724f06e4b of
+#: pymc_marketing.mmm.mmm.MMM.plot_direct_contribution_curves:10
+msgid "If True, the function will also plot the curve fit. Defaults to False."
+msgstr ""
+"Si es verdadero, la función también trazará el ajuste de la curva. Por "
+"defecto es falso."
+
+#: 6340173a752e4d548b06b031eb4ad0d7 of
+#: pymc_marketing.mmm.mmm.MMM.plot_direct_contribution_curves:12
+msgid "**xlim_max** : :class:`python:int`, optional"
+msgstr "**xlim_max** : :class:`python:int`, opcional"
+
+#: ac1fce3224c44374bcff8aca1b99cf2e of
+#: pymc_marketing.mmm.mmm.MMM.plot_direct_contribution_curves:11
+msgid "python:int, optional"
+msgstr "python:int, opcional"
+
+#: bc5983eb8e514408be79a643aeca053c of
+#: pymc_marketing.mmm.mmm.MMM.plot_direct_contribution_curves:13
+msgid ""
+"The maximum value to be plot on the X-axis. If not provided, the maximum "
+"value in the data will be used."
+msgstr ""
+"El valor máximo a representar en el eje X. Si no se proporciona, se "
+"utilizará el valor máximo en los datos."
+
+#: c61cf90b7fe747f1a83c557b8af37eae of
+#: pymc_marketing.mmm.mmm.MMM.plot_direct_contribution_curves:15
+msgid "**channels** : :obj:`List`\\[:class:`python:str`], optional"
+msgstr "**canales** : :obj:`Lista`\\[:class:`python:str`], opcional"
+
+#: 07ac18b091a843dc8b9b2235c8066d4d of
+#: pymc_marketing.mmm.mmm.MMM.plot_direct_contribution_curves:14
+msgid "List[python:str], optional"
+msgstr "Lista[python:str], opcional"
+
+#: 6ee59721c0394860935dde37c0686412 of
+#: pymc_marketing.mmm.mmm.MMM.plot_direct_contribution_curves:16
+msgid ""
+"A list of channels to plot. If not provided, all channels will be plotted."
+msgstr ""
+"Una lista de canales para graficar. Si no se proporciona, se graficarán "
+"todos los canales."
+
+#: d73edb217921401d85da0a98c78b8526 of
+#: pymc_marketing.mmm.mmm.MMM.plot_direct_contribution_curves:18
+msgid "**same_axes** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr "**same_axes** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: bdd1aa13926243a3a5c13dc019d0b62f of
+#: pymc_marketing.mmm.mmm.MMM.plot_direct_contribution_curves:19
+msgid ""
+"If True, all channels will be plotted on the same axes. Defaults to False."
+msgstr ""
+"Si es verdadero, todos los canales se graficarán en los mismos ejes. Por "
+"defecto es falso."
+
+#: 7110118c9bdb4ffaa9136be4291cd8fa of
+#: pymc_marketing.mmm.mmm.MMM.plot_direct_contribution_curves
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 60f9e30946ba48e7b30b0c6f4b6fc5ea of
+#: pymc_marketing.mmm.mmm.MMM.plot_direct_contribution_curves:25
+msgid ":obj:`plt.Figure`"
+msgstr ":obj:`plt.Figure`"
+
+#: 18b5bfad134b413d9aa554eaad1eb5bd of
+#: pymc_marketing.mmm.mmm.MMM.plot_direct_contribution_curves:26
+msgid "A matplotlib Figure object with the direct contribution curves."
+msgstr ""
+"Un objeto Figure de matplotlib con las curvas de contribución directa."

@@ -1,0 +1,1474 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-21 09:54+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:10003
+#: 380d1f7848404884b5a5a249000c3495
+msgid "Measuring Upper-Funnel Impact with PyMC‑Marketing"
+msgstr ""
+"Midiendo el impacto en la parte superior del embudo con PyMC‑Marketing"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:10005
+#: 5c1f6547cbc6482d9b9644c95ab21d9e
+msgid ""
+"This notebook is a practical, end-to-end walkthrough for quantifying the "
+"impact of **upper-funnel channels** on a downstream business outcome using "
+"**Bayesian Marketing Mix Modeling (MMM)**. We will combine a causal DAG, a "
+"transparent data-generating process, and a PyMC-Marketing implementation "
+"that respects time dynamics (adstock) and nonlinear response (saturation). "
+"The emphasis is on **causal reasoning first**, modeling second."
+msgstr ""
+"Este cuaderno es una guía práctica y completa para cuantificar el impacto de"
+" los **canales de embudo superior** en un resultado comercial posterior "
+"utilizando **Modelado de Mezcla de Marketing Bayesiano (MMM)**. Combinaremos"
+" un DAG causal, un proceso generador de datos transparente y una "
+"implementación de PyMC-Marketing que respeta las dinámicas temporales "
+"(adstock) y la respuesta no lineal (saturación). El énfasis está en **el "
+"razonamiento causal primero**, el modelado segundo."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:10007
+#: bb5932626fff47ed9b3933ac63b7f889
+msgid "What you’ll build (at a glance)"
+msgstr "Lo que construirás (a simple vista)"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:10009
+#: b83a05539d34446dbf1734893f3a1750
+msgid ""
+"A **PyMC-Marketing MMM** with **Geometric Adstock** and **Michaelis–Menten**"
+" saturation for the outcome."
+msgstr ""
+"Un **PyMC-Marketing MMM** con **Adstock Geométrico** y saturación "
+"**Michaelis–Menten** para el resultado."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:10010
+#: 09924cee6a2744cdaff2c546703fb10b
+msgid ""
+"A **mediator model** that links upper-funnel activity to downstream "
+"exposure."
+msgstr ""
+"Un **modelo de mediador** que vincula la actividad de la parte superior del "
+"embudo con la exposición posterior."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:10011
+#: 3b0776ed6fdf4fba807ea690ab6fca3c
+msgid ""
+"A **simulation-based effect estimator** that converts “what-if” changes in "
+"the upper funnel into outcome deltas, with uncertainty."
+msgstr ""
+"Un **estimador de efectos basado en simulaciones** que convierte los cambios"
+" de \"qué pasaría si\" en la parte superior del embudo en deltas de "
+"resultados, con incertidumbre."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:10013
+#: a017ac4254d946d09ff6d9de9ca4aade
+msgid "Why this matters"
+msgstr "Por qué esto es importante"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:10015
+#: 5c7f4a003ae24ddc8006878e9657ae43
+msgid ""
+"Upper-funnel signals rarely act instantaneously or directly to our target "
+"variable. Treating them as simple features in a single regression collapses "
+"mediation, ignores carryover, and obscures the operating point where "
+"marginal returns live. A causal-first MMM clarifies **where** effects "
+"originate."
+msgstr ""
+"Las señales de embudo superior rara vez actúan de manera instantánea o "
+"directa sobre nuestra variable objetivo. Tratarles como características "
+"simples en una única regresión colapsa la mediación, ignora el arrastre y "
+"oscurece el punto operativo donde residen los rendimientos marginales. Un "
+"MMM causal-prioritario aclara **dónde** se originan los efectos."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:10017
+#: 97a98fa685674e7cade54e6947ce62e4
+msgid "Who this is for"
+msgstr "Para quién es esto"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:10019
+#: 7696ef51854e4802ba671ad2cf7eec9d
+msgid ""
+"Analysts and data scientists who need a **defensible** way to attribute "
+"upper-funnel investments to outcomes, and who are comfortable with Bayesian "
+"inference, time-series structure, and basic causal diagrams."
+msgstr ""
+"Analistas y científicos de datos que necesitan una forma **defendible** de "
+"atribuir inversiones en la parte superior del embudo a resultados, y que se "
+"sienten cómodos con la inferencia bayesiana, la estructura de series "
+"temporales y diagramas causales básicos."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:10021
+#: 9ccef8b02b4b4de3aa01e3ec64027251
+msgid ""
+"By the end, you’ll have a repeatable template for answering the “eternal "
+"question” of upper-funnel measurement—not by asking MMM to do everything, "
+"but by **aligning MMM with your causal understanding of the marketing "
+"system**."
+msgstr ""
+"Al final, tendrás una plantilla repetible para responder a la “pregunta "
+"eterna” de la medición en la parte superior del embudo, no pidiendo a MMM "
+"que lo haga todo, sino **alineando MMM con tu comprensión causal del sistema"
+" de marketing**."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:10023
+#: aef841a3c8b046bab5322fcd40e454c9
+msgid "What this notebook covers"
+msgstr "Lo que cubre este cuaderno"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:10025
+#: 9065729b79f3434db89da649df547338
+msgid ""
+"**Framing the problem:** Why upper-funnel measurement is hard and how naive "
+"regressions misattribute lift."
+msgstr ""
+"**Enmarcando el problema:** Por qué la medición en la parte superior del "
+"embudo es difícil y cómo las regresiones ingenuas atribuyen erróneamente el "
+"aumento."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:10026
+#: 03d62b8a33dd40fe86a8da7b4867434e
+msgid ""
+"**Causal scaffold:** A minimal DAG that separates **drivers**, "
+"**mediators**, and **outcomes**, clarifying what the *total* effect means."
+msgstr ""
+"**Andamiaje causal:** Un DAG mínimo que separa **conductores**, "
+"**mediadores** y **resultados**, aclarando lo que significa el *efecto "
+"total*."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:10027
+#: 0d1754790db5481f8862232e4e09c749
+msgid ""
+"**Dynamic response modeling:** How **adstock** (carryover) and "
+"**saturation** (diminishing returns) shape observable performance."
+msgstr ""
+"**Modelado de respuesta dinámica:** Cómo el **adstock** (arrastre) y la "
+"**saturación** (rendimientos decrecientes) moldean el rendimiento "
+"observable."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:10028
+#: d9cb3f0f95284434a80a9af79e4302f2
+msgid "**Two-block estimation strategy:**"
+msgstr "**Two-block estimation strategy:**"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:10029
+#: a8b024bd7f4340f19be3d96cd594316a
+msgid ""
+"A mediator block to translate upper-funnel shifts into lower-funnel "
+"impressions."
+msgstr ""
+"Un bloque de mediador para traducir los cambios en la parte superior del "
+"embudo en impresiones en la parte inferior del embudo."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:10030
+#: d8219b198d7040a8af3510b32d5e3284
+msgid "An outcome block to map those impressions into business impact."
+msgstr ""
+"Un bloque de resultados para traducir esas impresiones en impacto "
+"empresarial."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:10031
+#: e818d0a578ff47729b3a0d8f2e4623aa
+msgid ""
+"**Counterfactual thinking:** Turning interventions on upper-funnel channels "
+"into predicted changes in the outcome (g-computation)."
+msgstr ""
+"**Pensamiento contrafactual:** Convertir intervenciones en canales de embudo"
+" superior en cambios predichos en el resultado (g-cálculo)."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:10032
+#: b536ff2beebf4796b12c3de224ba9313
+msgid ""
+"**Model checking:** Posterior predictive checks and sanity tests that "
+"prevent self-deception."
+msgstr ""
+"**Verificación de modelos:** Comprobaciones predictivas posteriores y "
+"pruebas de cordura que previenen la autoengaño."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:10033
+#: 543097fdfc1c420c92d3ff1444086e21
+msgid ""
+"**Reporting effects:** Impulse responses, cumulative lift, and state-"
+"dependent elasticities that decision-makers can use."
+msgstr ""
+"**Efectos de informes:** Respuestas al impulso, aumento acumulativo y "
+"elasticidades dependientes del estado que los tomadores de decisiones pueden"
+" utilizar."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:10036
+#: 21df21884ead48f093ba33e52688435c
+msgid "Business Challenge: Untangling Upper → Mid → Lower Funnel Effects"
+msgstr "Business Challenge: Untangling Upper → Mid → Lower Funnel Effects"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:10038
+#: 93db084ef66f4ff7845ad15fb88ff37a
+msgid ""
+"A consumer brand invests heavily in awareness (video, influencers, PR). "
+"Leadership sees short-term sales plateauing and asks: *“Are our upper-funnel"
+" dollars doing anything?”* Standard dashboards show weak contemporaneous "
+"relations, and channel teams argue that “it all pays back later.” We need a "
+"defensible way to quantify how **upper-funnel exposure** propagates through "
+"**mid-funnel engagement** to **lower-funnel conversions**—without relying on"
+" feelings or opinions only."
+msgstr ""
+"Una marca de consumo invierte fuertemente en la concienciación (video, "
+"influencers, relaciones públicas). La dirección observa que las ventas a "
+"corto plazo se estancan y pregunta: *“¿Están nuestros dólares de la parte "
+"superior del embudo haciendo algo?”* Los paneles de control estándar "
+"muestran relaciones contemporáneas débiles, y los equipos de canal "
+"argumentan que “todo se recupera más tarde.” Necesitamos una forma "
+"defendible de cuantificar cómo **la exposición en la parte superior del "
+"embudo** se propaga a través del **compromiso en la parte media del embudo**"
+" hasta las **conversiones en la parte inferior del embudo**—sin depender "
+"únicamente de sentimientos u opiniones."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:10040
+#: 8a6272fb4368423cb55497bb09f41278
+msgid ""
+"We start by sketching the world we believe we operate in: a small causal "
+"story that will guide every modeling decision that follows."
+msgstr ""
+"Comenzamos esbozando el mundo en el que creemos que operamos: una pequeña "
+"historia causal que guiará cada decisión de modelado que siga."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:30002
+#: 93ee849905bf4978b91910f7c276b20e
+msgid "The Ecosystem based on the Causal DAG"
+msgstr "El ecosistema basado en el DAG causal"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:30004
+#: 8d2d63358dbf4360965c707ec93422b9
+msgid "The previous DAG shows three types of effects on it."
+msgstr "El DAG anterior muestra tres tipos de efectos sobre él."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:30006
+#: da81ae9b395a4e79a780f4310db93d27
+msgid ""
+"$X1$ **Upper funnel (Awareness impressions):**   Broad reach media (e.g., "
+"online video, display, influencer bursts). Drives *latent consideration* and"
+" brand memory, not immediate purchases."
+msgstr ""
+"$X1$ **Parte superior del embudo (Impresiones de conocimiento):** Medios de "
+"amplio alcance (por ejemplo, video en línea, display, ráfagas de "
+"influencers). Genera *consideración latente* y memoria de marca, no compras "
+"inmediatas."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:30009
+#: 8a863662812e43ca81bd8b5005d7a6f2
+msgid "$X2$ & $X3$ **Mid funnel (Consideration touchpoints):**"
+msgstr "$X2$ & $X3$ **Mid funnel (Consideration touchpoints):**"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:30010
+#: 6ec935dd160b4dc0a453eef67e563592
+msgid "$X2$: Social media impressions / site landings (people start looking)."
+msgstr ""
+"$X2$: Social media impressions / site landings (people start looking)."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:30011
+#: 7f6cd9562cf4491dbb0371425c5cc4ba
+msgid ""
+"$X3$: Remarketing impressions (people re-engage after a first touch).   "
+"These are **mediators**—they translate awareness into actionable intent."
+msgstr ""
+"$X3$: Impresiones de remarketing (personas que vuelven a involucrarse "
+"después de un primer contacto). Estos son **mediadores**—traducen la "
+"conciencia en una intención accionable."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:30014
+#: 82c9487834e34de9a5a824245ea14bd3
+msgid ""
+"$X4$ **Lower funnel (High-intent exposures):**   Brand search. These are the"
+" **proximal drivers** of the commercial outcome."
+msgstr ""
+"$X4$ **Embudo inferior (Exposiciones de alta intención):** Búsqueda de "
+"marca. Estos son los **impulsores proximales** del resultado comercial."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:30017
+#: f5b7aca98929461a9bbf535b7ab58ad2
+msgid ""
+"*U1*, *U4* **Exogenous shocks:**   Competitor moves, Budgets allocated to "
+"teams, or market dynamics changes can perturb each node separately."
+msgstr ""
+"*U1*, *U4* **Choques exógenos:**   Los movimientos de los competidores, los "
+"presupuestos asignados a los equipos o los cambios en la dinámica del "
+"mercado pueden perturbar cada nodo por separado."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:30020
+#: 8c32766a3e6a4a35be36355f83ebfcc9
+msgid ""
+"Traditional MMMs often toss all channels into one regression and look for a "
+"global fit. For upper funnel channels, that approach can:"
+msgstr ""
+"Los MMM tradicionales a menudo combinan todos los canales en una sola "
+"regresión y buscan un ajuste global. Para los canales de la parte superior "
+"del embudo, ese enfoque puede:"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:30021
+#: 9153f33c1c95457da5526bb3bf7355fd
+msgid "**Under-credit X1** (because its effect is indirect and delayed)"
+msgstr "**Subcrédito X1** (porque su efecto es indirecto y retrasado)"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:30022
+#: 081913a919de4f118b28c8d38842945e
+msgid "**Overfit to X4** (because it is nearest to the outcome)"
+msgstr "**Sobreajustar a X4** (porque es el más cercano al resultado)"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:30024
+#: da68b8ff5f634788809fabbaa51b7b3d
+msgid "The Business Questions"
+msgstr "Las Preguntas Empresariales"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:30026
+#: a9912fa67db44a1499fe02d892f2b7e3
+msgid ""
+"**Q1.** How much does a marginal change in *awareness* (X1) ultimately shift"
+" the outcome, via the funnel?"
+msgstr ""
+"**Q1.** ¿Cuánto cambia un cambio marginal en *conciencia* (X1) el resultado,"
+" a través del embudo?"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:30027
+#: fc251b4a3c1a4d9c9844655d294b51ef
+msgid ""
+"**Q2.** Where are we on the **response curve** (are we close to saturation)?"
+msgstr ""
+"**Q2.** ¿Dónde estamos en la **curva de respuesta** (¿estamos cerca de la "
+"saturación)?"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:30028
+#: d47bedb3db8d40d893ef99db996ec8c0
+msgid ""
+"**Q3.** What is the expected **cumulative lift** from a planned upper-funnel"
+" flight?"
+msgstr ""
+"**Q3.** ¿Cuál es el **incremento acumulado** esperado de una campaña "
+"planificada en la parte superior del embudo?"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:30030
+#: 88b5866bdb374e4fad1a00c37af34fa4
+msgid ""
+"Nevertheless solve those business questions will not be easy if you don't "
+"know anything about causality, as soon you will learn."
+msgstr ""
+"Nevertheless solve those business questions will not be easy if you don't "
+"know anything about causality, as soon you will learn."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:30032
+#: 40a907076c9d4b0690adc0178959835f
+msgid "Imports"
+msgstr "Imports"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:30034
+#: e9c94facde21483e95b206a33b431bc0
+msgid ""
+"We’ll work with PyMC-Marketing for MMM components, ArviZ for diagnostics, "
+"and Pytensor to keep our simulator honest."
+msgstr ""
+"Trabajaremos con PyMC-Marketing para los componentes de MMM, ArviZ para "
+"diagnósticos y Pytensor para mantener nuestro simulador honesto."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:50002
+#: 84c34a9a984440dc950f8f3130f57bed
+msgid "Notebook settings"
+msgstr "Notebook settings"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:50003
+#: 408bec498cc04c5fa94c32d6c511ff2b
+msgid ""
+"To keep figures consistent and runs reproducible, we lock a seed and a "
+"plotting style."
+msgstr ""
+"Para mantener las cifras consistentes y las ejecuciones reproducibles, "
+"bloqueamos una semilla y un estilo de trazado."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:70002
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:70008
+#: daf41e3522e740e6b806e60c2c93bc0d fa23e825cdaf4e9b92f786ff1e093daf
+msgid "Data generation process"
+msgstr "Data generation process"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:70004
+#: 4ca4a27ab51f49cf840d7bde0176745b
+msgid ""
+"Based on the previous DAG, we'll start to simulate data using pytensor, "
+"during the simulation we'll need to state how the precise relationships "
+"(arrows between nodes) are represented and as consequence understand by the "
+"model."
+msgstr ""
+"Basado en el DAG anterior, comenzaremos a simular datos utilizando pytensor;"
+" durante la simulación necesitaremos indicar cómo se representan las "
+"relaciones precisas (flechas entre nodos) y, como consecuencia, entenderlas "
+"por el modelo."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:70006
+#: faea5468fd01455a95186cc06e1205e9
+msgid ""
+"Here, we'll assume a fully additive model, and will understand the "
+"interactions between channels as additive models as well, by consequence the"
+" structural causal equation to build will be:"
+msgstr ""
+"Aquí, asumiremos un modelo completamente aditivo y entenderemos las "
+"interacciones entre canales como modelos aditivos también; por consecuencia,"
+" la ecuación causal estructural que se construirá será:"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:70010
+#: a4a5ba8c63294b83af17e39ca4a12d8d
+msgid ""
+"Based on the previous DAG, we'll simulate data in `pytensor`. We make the "
+"relationships **additive** at each node and allow **nonlinear response** "
+"only in the final mapping from lower-funnel exposure to outcome. Time is "
+"indexed by $t=1,\\dots,T$."
+msgstr ""
+"Basado en el DAG anterior, simularemos datos en `pytensor`. Hacemos que las "
+"relaciones sean **aditivas** en cada nodo y permitimos una **respuesta no "
+"lineal** solo en el mapeo final de la exposición de embudo inferior al "
+"resultado. El tiempo está indexado por $t=1,\\dots,T$."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:70012
+#: 38e3e8b733fd470d8608465599f5c131
+msgid "Structural causal equations"
+msgstr "Structural causal equations"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:70014
+#: 3676ea8212364e5480a3a85b4b3b2aa0
+msgid ""
+"Let $X_1$ (upper funnel), $X_2,X_3$ (mid funnel), $X_4$ (lower funnel), and "
+"$Y$ (business outcome). Exogenous shocks $U_j$ enter additively."
+msgstr ""
+"Let $X_1$ (upper funnel), $X_2,X_3$ (mid funnel), $X_4$ (lower funnel), and "
+"$Y$ (business outcome). Exogenous shocks $U_j$ enter additively."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:70016
+#: 7aa6faaca1fc4bd58480fea0509f89c3
+#, python-brace-format
+msgid ""
+"\n"
+"\\begin{aligned}\n"
+"X_{1,t} &= \\mu_{1,t} +  \\beta_{0}\\ E_t \\\\\n"
+"X_{2,t} &= \\mu_{2,t} + \\beta_{12}\\,X_{1,t} \\\\\n"
+"X_{3,t} &= \\mu_{3,t} + \\beta_{13}\\,X_{1,t} \\\\\n"
+"X_{4,t} &= \\mu_{4,t} + \\beta_{24}\\,X_{2,t} + \\beta_{34}\\,X_{3,t}\n"
+"\\end{aligned}\n"
+msgstr ""
+"\n"
+"\\begin{aligned}\n"
+"X_{1,t} &= \\mu_{1,t} +  \\beta_{0}\\ E_t \\\\\n"
+"X_{2,t} &= \\mu_{2,t} + \\beta_{12}\\,X_{1,t} \\\\\n"
+"X_{3,t} &= \\mu_{3,t} + \\beta_{13}\\,X_{1,t} \\\\\n"
+"X_{4,t} &= \\mu_{4,t} + \\beta_{24}\\,X_{2,t} + \\beta_{34}\\,X_{3,t}\n"
+"\\end{aligned}\n"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:70025
+#: 445f2ff54541497ea4590a41d2562836
+#, python-brace-format
+msgid ""
+"$\\mu_{j,t}$ are the exogenous components of the impressions (e.g: those "
+"changes not dependent on other nodes)."
+msgstr ""
+"$\\mu_{j,t}$ son los componentes exógenos de las impresiones (por ejemplo: "
+"aquellos cambios que no dependen de otros nodos)."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:70027
+#: 52d95e87e58244dbb048c9d921955fcf
+msgid "Outcome variable"
+msgstr "Outcome variable"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:70029
+#: 720669327da14739af1adabb339b4ef0
+msgid ""
+"Let $f(\\cdot)$ denote the nonlinear response function (e.g., Geometric "
+"Adstock, Michaelis–Menten). The outcome combines transformed lower-funnel "
+"pressure with additive controls:"
+msgstr ""
+"Sea $f(\\cdot)$ la función de respuesta no lineal (por ejemplo, Geometric "
+"Adstock, Michaelis–Menten). El resultado combina la presión transformada del"
+" embudo inferior con controles aditivos:"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:70031
+#: 88b71bbb40dd4c72978cae929f327e0e
+#, python-brace-format
+msgid ""
+"\n"
+"Y_t \\;=\\; f\\!\\big(X_{4_t};\\,\\theta\\big) \\;+\\; \\text{Trend}_t \\;+\\; \\text{Events}_t \\;+\\; \\varepsilon_t,\n"
+msgstr ""
+"\n"
+"Y_t \\;=\\; f\\!\\big(X_{4_t};\\,\\theta\\big) \\;+\\; \\text{Trend}_t \\;+\\; \\text{Events}_t \\;+\\; \\varepsilon_t,\n"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:70035
+#: 64134d7ef4c6460e9de2a8d3b6410355
+#, python-brace-format
+msgid "$\\text{Trend}_t$: smooth baseline evolution."
+msgstr "$\\text{Trend}_t$: smooth baseline evolution."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:70036
+#: c59eb4ed2e544d81b3899f35c85b915f
+#, python-brace-format
+msgid "$\\text{Events}_t$: superposition of localized event basis functions."
+msgstr ""
+"$\\text{Events}_t$: superposición de funciones base de eventos localizados."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:70037
+#: 07f252bf16584ef0b853d4258d8e2f97
+msgid ""
+"$\\theta$: parameters of the nonlinear response function (e.g., "
+"saturation/adstock)."
+msgstr ""
+"$\\theta$: parámetros de la función de respuesta no lineal (por ejemplo, "
+"saturación/adstock)."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:70039
+#: 69525d4f900f44928fffde1c2e97846a
+msgid ""
+"**Summary:** We assume additive structure at each node, linear mediation "
+"$X_1\\!\\to\\!(X_2,X_3)\\!\\to\\!X_4$, dynamic carryover on $X_4$ via "
+"adstock, and a nonlinear mapping $f$ from adstocked exposure to $Y$, plus "
+"additive trend/events and noise."
+msgstr ""
+"**Resumen:** Asumimos una estructura aditiva en cada nodo, mediación lineal "
+"$X_1\\!\\to\\!(X_2,X_3)\\!\\to\\!X_4$, transferencia dinámica en $X_4$ a "
+"través de adstock, y un mapeo no lineal $f$ de la exposición adstocked a "
+"$Y$, además de una tendencia/eventos aditivos y ruido."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:80002
+#: beae3242d6a246718c4451e2098a8888
+msgid ""
+"Our story unfolds day by day; we create a daily timeline with a few simple "
+"calendar features."
+msgstr ""
+"Nuestra historia se desarrolla día a día; creamos una línea de tiempo diaria"
+" con algunas características de calendario simples."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:100002
+#: 21b0418d3b124f84ab5b8ad6d50b59ef
+msgid ""
+"Using Pytensor, we can symbolically represent the causal Directed Acyclic "
+"Graph (DAG) in an abstract way before diving into any actual computation. "
+"This framework allows us to clearly define the relationships that our data "
+"generation process must adhere to. Pytensor simplifies this task and enables"
+" us to visualize the resulting graphical model—though it’s a computational "
+"DAG rather than a causal one—helping us to confirm that the entire process "
+"aligns with our expectations."
+msgstr ""
+"Usando Pytensor, podemos representar simbólicamente el Grafo Acíclico "
+"Dirigido (DAG) causal de manera abstracta antes de sumergirnos en cualquier "
+"cálculo real. Este marco nos permite definir claramente las relaciones a las"
+" que debe adherirse nuestro proceso de generación de datos. Pytensor "
+"simplifica esta tarea y nos permite visualizar el modelo gráfico "
+"resultante—aunque se trata de un DAG computacional en lugar de uno "
+"causal—ayudándonos a confirmar que todo el proceso se alinea con nuestras "
+"expectativas."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:120002
+#: 951134be87c94d3a99f90469f70d0ddd
+msgid ""
+"Take a quick glance at the computational graph so we don’t fool ourselves: "
+"the ingredients combine exactly as intended. Next, we write down how "
+"awareness spills into consideration and then into high‑intent exposures. "
+"These links are simple—by design—so we can focus on the causal path rather "
+"than curve fitting."
+msgstr ""
+"Echemos un vistazo rápido al gráfico computacional para no engañarnos: los "
+"ingredientes se combinan exactamente como se pretende. A continuación, "
+"anotamos cómo la conciencia se transforma en consideración y luego en "
+"exposiciones de alta intención. Estos vínculos son simples—por diseño—para "
+"que podamos centrarnos en la ruta causal en lugar de ajustar curvas."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:140002
+#: eb6d027525284fd583464443724dff7c
+msgid "Creating the data for our symbolic place holders."
+msgstr "Creando los datos para nuestros marcadores de posición simbólicos."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:140004
+#: 97f0a33fa4c0463aa63e44927d860fa8
+msgid ""
+"First, we kick-off filling in the values for our event and trend variables. "
+"Then we craft a gently rising baseline, sprinkle in Gaussian event pulses, "
+"and add a whisper of noise."
+msgstr ""
+"Primero, comenzamos a llenar los valores para nuestras variables de evento y"
+" tendencia. Luego, creamos una línea base que sube suavemente, añadimos "
+"pulsos de evento gaussianos y agregamos un susurro de ruido."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:160002
+#: 63034380dae94d469b4076df36a2315a
+msgid "We plot the pieces before we mix them."
+msgstr "Colocamos las piezas antes de mezclarlas."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:180002
+#: 0a9f7c2edd4744fda5405e4562b953e1
+msgid ""
+"We'll simulate our media variables (e.g: Impressions) as random walks. "
+"Upper, mid, and lower‑funnel exposures don’t typically jump randomly; they "
+"meander around a consistent value. A bounded random walk captures that "
+"inertia."
+msgstr ""
+"Simularemos nuestras variables de medios (por ejemplo: Impresiones) como "
+"caminatas aleatorias. Las exposiciones en la parte superior, media e "
+"inferior del embudo no suelen saltar aleatoriamente; se deslizan alrededor "
+"de un valor consistente. Una caminata aleatoria acotada captura esa inercia."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:200002
+#: 955cc1f0b0ab4473be55699f98dc23a9
+msgid ""
+"We let each stream wander within bounds and take a first look at the "
+"behavior."
+msgstr ""
+"Dejamos que cada flujo deambule dentro de los límites y eche un primer "
+"vistazo al comportamiento."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:220002
+#: 3b16f67ed5d04cea959233025a8dd9d8
+msgid ""
+"Now, we need to define the strength of the relationships, those will be the "
+"betas of every variable over the other. Doing so, we can create all missing "
+"nodes."
+msgstr ""
+"Ahora, necesitamos definir la fuerza de las relaciones, esas serán las betas"
+" de cada variable sobre las otras. Al hacerlo, podemos crear todos los nodos"
+" que faltan."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:240002
+#: c31d29fb66be48a190d0ba7353a92587
+msgid ""
+"Only `X4` reaches the outcome in our story. That’s where we add memory "
+"(adstock) and diminishing returns (saturation)."
+msgstr ""
+"Solo `X4` alcanza el resultado en nuestra historia. Ahí es donde añadimos "
+"memoria (adstock) y rendimientos decrecientes (saturación)."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:270002
+#: 115af5a346424d0abfd22a3980788c6b
+msgid "With everything in place, we can evaluate the target variable."
+msgstr "Con todo en su lugar, podemos evaluar la variable objetivo."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:290002
+#: d7a43a6925554880b6ba4350bcdd48d2
+msgid ""
+"We package our story into a single pandas dataframe with features, controls,"
+" and the outcome."
+msgstr ""
+"Empacamos nuestra historia en un único dataframe de pandas con "
+"características, controles y el resultado."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:310002
+#: a9ca61ac96a849cf9825590d98f2b8e9
+msgid "Train & Test split"
+msgstr "Train & Test split"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:310004
+#: dad25bc0e16f474091303317afe053a7
+msgid ""
+"We keep a holdout to test whether our counterfactual story travels beyond "
+"the training window."
+msgstr ""
+"Mantenemos un grupo de retención para probar si nuestra historia "
+"contrafactual se extiende más allá de la ventana de entrenamiento."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:330002
+#: 861b61da345e4c48996ba865e6fef183
+msgid "All-in causal MMM"
+msgstr "MMM causal todo en uno"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:330004
+#: 3cd0d294da1542eaa34e5c32ca1359c0
+msgid ""
+"**What this is.** A single MMM with *all* channels modeled as if they "
+"directly affect $Y$. Each channel uses Geometric Adstock + Michaelis–Menten "
+"saturation; the likelihood is censored Normal. This strategy is very common,"
+" basically reflecting the put-it-all-into-the-blender approach."
+msgstr ""
+"**Qué es esto.** Un único MMM con *todos* los canales modelados como si "
+"afectaran directamente a $Y$. Cada canal utiliza Adstock Geométrico + "
+"saturación de Michaelis–Menten; la probabilidad es Normal censurada. Esta "
+"estrategia es muy común, reflejando básicamente el enfoque de mezclarlo todo"
+" en la licuadora."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:350002
+#: a2a8cb55fd244500925d7630923ce9b4
+msgid "Model configuration"
+msgstr "Model configuration"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:350004
+#: 0e33c4993f994cadb9e4562b3b71ea45
+msgid ""
+"We can define the model priors for every part, saturation and adstock as "
+"usual for pymc-marketing models."
+msgstr ""
+"Podemos definir los priors del modelo para cada parte, saturación y adstock "
+"como es habitual en los modelos de pymc-marketing."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:370002
+#: 0e4937ecc5fc40d7b15fdb4f40fa7925
+msgid ""
+"Doing the same, we can define the Prior for the likelihood. We set a "
+"censored Normal likelihood (no negatives) and sampling defaults that behave "
+"well in practice."
+msgstr ""
+"Haciendo lo mismo, podemos definir el Prior para la verosimilitud. "
+"Establecemos una verosimilitud Normal censurada (sin negativos) y valores "
+"predeterminados de muestreo que se comportan bien en la práctica."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:390002
+#: 020be4db8b774a8eb569afeec72d84d4
+msgid ""
+"With the config ready, we build the all‑in model and draw from its "
+"posterior."
+msgstr ""
+"Con la configuración lista, construimos el modelo integral y extraemos de su"
+" posterior."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:410002
+#: 84f2db6ea72c433bbd44130aee1e080d
+msgid "Fit model"
+msgstr "Fit model"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:410004
+#: 5ce1cdae1cf447caa15c313a9555dcd6
+msgid ""
+"We also generate posterior predictions to peek at in‑sample recover effects."
+msgstr ""
+"También generamos predicciones posteriores para vislumbrar los efectos de "
+"recuperación en la muestra."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:430002
+#: f7a985f6706b43da911267104a68f3f3
+msgid ""
+"Oh! We can see the model already is getting troubles exploring the parameter"
+" space and diverging."
+msgstr ""
+"Oh! Podemos ver que el modelo ya está teniendo problemas para explorar el "
+"espacio de parámetros y está divergiendo."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:430004
+#: e28fa3f81f264722917adc388efaf5bd
+msgid ""
+"Nevertheless, let's go directly to the question: **Can the model recover the"
+" true contribution if we were not spending anything at all in X1?**"
+msgstr ""
+"Sin embargo, vayamos directamente a la pregunta: **¿Puede el modelo "
+"recuperar la verdadera contribución si no estuviéramos gastando nada en "
+"X1?**"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:430006
+#: 4ffd59ba5d924f73846951e2f30cd38e
+msgid ""
+"We can use the `plot.contributions_over_time` and get the contribution "
+"output to find out. If the blender was enough, it would recover the true "
+"`X1` contribution. Let's check."
+msgstr ""
+"Podemos utilizar `plot.contributions_over_time` y obtener la salida de "
+"contribuciones para averiguarlo. Si el mezclador fue suficiente, recuperaría"
+" la verdadera contribución `X1`. Verifiquemos."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:450002
+#: d3a02c4beaf047bfa36978f648771ef7
+msgid ""
+"This is great, but we need to get the real contribution if x1 (We can "
+"compute it from our pytensor graph, assuming it was zero and taking that "
+"from target)."
+msgstr ""
+"Esto es genial, pero necesitamos obtener la contribución real si x1 (Podemos"
+" calcularlo a partir de nuestro gráfico de pytensor, asumiendo que era cero "
+"y tomando eso del objetivo)."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:470002
+#: 5b99f5c5607746b188487b154bf6b181
+msgid "Now that we have both, we can compare."
+msgstr "Ahora que tenemos ambos, podemos comparar."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490002
+#: b56daa776618414a95049744f51699e3
+msgid ""
+"As expected, put-it-all-in-the blender overestimates the upper funnel "
+"effects. But why the naïve approach fails?"
+msgstr ""
+"Como era de esperar, poner-todo-en-la-licuadora sobreestima los efectos del "
+"embudo superior. Pero, ¿por qué falla el enfoque ingenuo?"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490004
+#: 5ce5a7bfba01455b8e55567361ddcc83
+msgid "Learning about regression assumptions"
+msgstr "Learning about regression assumptions"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490006
+#: bc6ed8e0caf741d593226a8ffb6ecae2
+msgid ""
+"When we fit a model including all variables ($X_1, X_2, X_3, X_4, Y$), we "
+"observed that the coefficient linking $X_1$ to $Y$ was **too large**. This "
+"happens because the model does not respect the **causal structure** defined "
+"by our structural equations."
+msgstr ""
+"Cuando ajustamos un modelo que incluye todas las variables ($X_1, X_2, X_3, "
+"X_4, Y$), observamos que el coeficiente que vincula $X_1$ con $Y$ era "
+"**demasiado grande**. Esto sucede porque el modelo no respeta la "
+"**estructura causal** definida por nuestras ecuaciones estructurales."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490008
+#: 5e63c33f5c66432daada2100d3c62ffb
+msgid "The true causal mechanism"
+msgstr "El verdadero mecanismo causal"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490010
+#: 4c8f20e73f64476cb5e1ccc9a1879351
+msgid ""
+"In our data-generating process, $X_1$ does **not** directly affect $Y$. Its "
+"influence passes entirely through the sequence:"
+msgstr ""
+"En nuestro proceso de generación de datos, $X_1$ **no** afecta directamente "
+"a $Y$. Su influencia pasa completamente a través de la secuencia:"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490012
+#: 63d3f24ce98f4972b70789def6e78122
+msgid ""
+"\n"
+"X_1 \\to (X_2, X_3) \\to X_4 \\to Y\n"
+msgstr "X_1 \\to (X_2, X_3) \\to X_4 \\to Y"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490016
+#: 6b1a400790d84b22a269a2a21981d437
+msgid ""
+"Each link adds its contribution, and the final step ($X_4 \\to Y$) can be "
+"**nonlinear** (for example, showing saturation or adstock effects)."
+msgstr ""
+"Cada enlace añade su contribución, y el paso final ($X_4 \\to Y$) puede ser "
+"**no lineal** (por ejemplo, mostrando efectos de saturación o adstock)."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490018
+#: fa0adac22a474a01a8199fba00f6ce4a
+msgid ""
+"The real total effect of $X_1$ on $Y$ depends on how much $X_1$ changes "
+"$X_4$ and how sensitive $Y$ is to $X_4$. Symbolically,"
+msgstr ""
+"El efecto total real de $X_1$ sobre $Y$ depende de cuánto $X_1$ cambie $X_4$"
+" y de cuán sensible sea $Y$ a $X_4$. Simbólicamente,"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490020
+#: dc18e93ffb6a47508621ff03fec368cc
+#, python-brace-format
+msgid ""
+"\n"
+"\\text{Total effect of } X_1 \\text{ on } Y\n"
+"\\;\\propto\\;\n"
+"\\text{(effect of } X_1 \\text{ on } X_4)\\;\n"
+"\\times\\;\n"
+"\\text{(sensitivity of } Y \\text{ to } X_4).\n"
+msgstr ""
+"\\text{Total effect of } X_1 \\text{ on } Y \\;\\propto\\; \\text{(effect of"
+" } X_1 \\text{ on } X_4)\\; \\times\\; \\text{(sensitivity of } Y \\text{ to"
+" } X_4)."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490028
+#: 3476615ebac84f64a2e6f4361e923a96
+msgid ""
+"A regression that includes both $X_1$ and $X_4$ as predictors of $Y$ breaks "
+"the logic of the causal graph. Because a standard regression implicitly "
+"assumes that each predictor explains variation in $Y$ **conditional on the "
+"others**, not respecting causal direction. Mathematically, the estimated "
+"coefficients $(\\hat\\beta_1, \\hat\\beta_4)$ in"
+msgstr ""
+"Una regresión que incluye tanto $X_1$ como $X_4$ como predictores de $Y$ "
+"rompe la lógica del gráfico causal. Porque una regresión estándar asume "
+"implícitamente que cada predictor explica la variación en $Y$ **condicional "
+"a los otros**, sin respetar la dirección causal. Matemáticamente, los "
+"coeficientes estimados $(\\hat\\beta_1, \\hat\\beta_4)$ en"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490030
+#: 85d027e455ea40cb9db426b38f624adc
+#, python-brace-format
+msgid ""
+"\n"
+"Y_t = \\alpha + \\hat\\beta_1 X_{1,t} + \\hat\\beta_4 X_{4,t} + \\varepsilon_t\n"
+msgstr ""
+"\n"
+"Y_t = \\alpha + \\hat\\beta_1 X_{1,t} + \\hat\\beta_4 X_{4,t} + \\varepsilon_t\n"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490034
+#: 0ed6b73192614939a2d5951702b2dc4e
+msgid ""
+"come from minimizing the joint residual variance, i.e., solving the **normal"
+" equations**:"
+msgstr ""
+"proviene de minimizar la varianza residual conjunta, es decir, resolver las "
+"**ecuaciones normales**:"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490036
+#: 28f457a7d2cd4ec2904fbf56e90fcdf6
+#, python-brace-format
+msgid ""
+"\n"
+"\\begin{cases}\n"
+"\\mathbb{E}[X_1 (Y - \\alpha - \\hat\\beta_1 X_1 - \\hat\\beta_4 X_4)] = 0 \\\\\n"
+"\\mathbb{E}[X_4 (Y - \\alpha - \\hat\\beta_1 X_1 - \\hat\\beta_4 X_4)] = 0\n"
+"\\end{cases}\n"
+msgstr ""
+"\n"
+"\\begin{cases}\n"
+"\\mathbb{E}[X_1 (Y - \\alpha - \\hat\\beta_1 X_1 - \\hat\\beta_4 X_4)] = 0 \\\\\n"
+"\\mathbb{E}[X_4 (Y - \\alpha - \\hat\\beta_1 X_1 - \\hat\\beta_4 X_4)] = 0\n"
+"\\end{cases}\n"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490043
+#: b62958e6d9264961bad6778721d376cc
+#, python-brace-format
+msgid ""
+"These equations depend not only on the relation between each $X_j$ and $Y$, "
+"but also on the **covariance between the predictors** "
+"$\\operatorname{Cov}(X_1,X_4)$. Hence, the regression is influenced by "
+"**pairwise correlations** among the covariates themselves!"
+msgstr ""
+"Estas ecuaciones dependen no solo de la relación entre cada $X_j$ y $Y$, "
+"sino también de la **covarianza entre los predictores** "
+"$\\operatorname{Cov}(X_1,X_4)$. Por lo tanto, la regresión está influenciada"
+" por **correlaciones por pares** entre las covariables mismas."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490045
+#: 6f1c7ff6466142ffbdcc08a67e754619
+msgid ""
+"Because $X_1$ and $X_4$ are strongly correlated (due to the causal chain "
+"$X_1 \\to X_4$), and because $Y$ responds **nonlinearly or dynamically** to "
+"$X_4$, the regression cannot represent the true relationship $Y = f(X_4)$. "
+"The residuals of this misspecification correlate with $X_1$, and part of the"
+" nonlinear structure of $f(X_4)$ is then falsely attributed to $X_1$."
+msgstr ""
+"Porque $X_1$ y $X_4$ están fuertemente correlacionados (debido a la cadena "
+"causal $X_1 \\to X_4$), y porque $Y$ responde **no lineal o dinámicamente** "
+"a $X_4$, la regresión no puede representar la verdadera relación $Y = "
+"f(X_4)$. Los residuos de esta especificación incorrecta se correlacionan con"
+" $X_1$, y parte de la estructura no lineal de $f(X_4)$ se atribuye "
+"erróneamente a $X_1$."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490047
+#: 3cc88d442b83498e81c02a38b4590b4b
+msgid "In effect:"
+msgstr "En efecto:"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490049
+#: a53cc6ae4c344b649a595d9ec8fb461e
+msgid "$X_4$ is a **mediator** of $X_1$’s effect."
+msgstr "$X_4$ es un **mediador** del efecto de $X_1$."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490050
+#: a0084dd9c1244312995790a3d32d0dd7
+msgid "Conditioning on $X_4$ **blocks** the true pathway from $X_1$ to $Y$."
+msgstr ""
+"Condicionar sobre $X_4$ **bloquea** el verdadero camino de $X_1$ a $Y$."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490051
+#: 272f20266ca74e089932ef5877fc8c05
+msgid ""
+"Because the regression also balances correlations among predictors, any "
+"**nonlinear or lagged pattern** in $Y$ that depends on $X_4$ but is not "
+"modeled correctly gets **redistributed** among correlated predictors — "
+"primarily $X_1$."
+msgstr ""
+"Debido a que la regresión también equilibra las correlaciones entre los "
+"predictores, cualquier **patrón no lineal o rezagado** en $Y$ que dependa de"
+" $X_4$ pero que no esté modelado correctamente se **redistribuye** entre los"
+" predictores correlacionados, principalmente $X_1$."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490054
+#: 378186b98e4040f1a9d818362524ba6e
+msgid ""
+"**Mathematical intuition:**   The regression coefficient of $X_1$ is "
+"proportional to the **partial covariance**"
+msgstr ""
+"**Intuición matemática:**   El coeficiente de regresión de $X_1$ es "
+"proporcional a la **covarianza parcial**"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490057
+#: 1e87b0a832994f09961c683567e1b276
+#, python-brace-format
+msgid ""
+"\n"
+"\\hat\\beta_1 \\;\\propto\\; \\operatorname{Cov}\\!\\big(X_1,\\,Y \\mid X_4\\big),\n"
+msgstr ""
+"\n"
+"\\hat\\beta_1 \\;\\propto\\; \\operatorname{Cov}\\!\\big(X_1,\\,Y \\mid X_4\\big),\n"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490061
+#: 3702169a459840b8859d9fd17d639719
+#, python-brace-format
+msgid ""
+"and since $Y$ depends nonlinearly on $X_4$ while $X_1$ and $X_4$ are "
+"collinear, $\\operatorname{Cov}(X_1,\\,Y \\mid X_4)$ remains positive even "
+"if the true direct effect $X_1\\!\\to\\!Y$ is zero. This creates the "
+"illusion of a large direct influence of $X_1$."
+msgstr ""
+"y dado que $Y$ depende de manera no lineal de $X_4$ mientras que $X_1$ y "
+"$X_4$ son colineales, $\\operatorname{Cov}(X_1,\\,Y \\mid X_4)$ permanece "
+"positivo incluso si el verdadero efecto directo $X_1\\!\\to\\!Y$ es cero. "
+"Esto crea la ilusión de una gran influencia directa de $X_1$."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490064
+#: 02789fea4a3d43c9ad6f1b747548fc47
+msgid "The backdoor criterion"
+msgstr "El criterio de puerta trasera"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490066
+#: 7cff910d40b5474c9f9bcaf98c592f96
+msgid ""
+"All above logic is frame under the **backdoor criterion** which tells us "
+"which variables we must (and must not) adjust for to estimate a causal "
+"effect correctly."
+msgstr ""
+"Toda la lógica anterior se enmarca bajo el **criterio de puerta trasera** "
+"que nos indica qué variables debemos (y no debemos) ajustar para estimar "
+"correctamente un efecto causal."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490068
+#: a8faa782bbcb4d3dacdd1de69b38f9ff
+msgid "What it means?"
+msgstr "What it means?"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490070
+#: c87258bf90a64e13b88688e71a259973
+msgid ""
+"A set of variables $Z$ satisfies the backdoor criterion for the effect of "
+"$X$ on $Y$ if:"
+msgstr ""
+"Un conjunto de variables $Z$ satisface el criterio de puerta trasera para el"
+" efecto de $X$ sobre $Y$ si:"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490072
+#: d26626e0373b4c5cb7537e49550ffdb3
+msgid ""
+"None of the variables in $Z$ are **effects of $X$** (they must not lie "
+"downstream)."
+msgstr ""
+"Ninguna de las variables en $Z$ son **efectos de $X$** (no deben estar en la"
+" parte posterior)."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490073
+#: b662dc668a744269a587cdaee6b7f860
+msgid ""
+"Once we control for $Z$, there are **no unblocked paths** that start with an"
+" arrow *into* $X$ (these are “backdoor paths” representing confounding)."
+msgstr ""
+"Una vez que controlamos por $Z$, no hay **caminos desbloqueados** que "
+"comiencen con una flecha *hacia* $X$ (estos son \"caminos de puerta "
+"trasera\" que representan confusión)."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490075
+#: c83cd01b4d8a49d29804f1d6864968f1
+msgid ""
+"If these two conditions hold, we can identify the causal effect of $X$ on "
+"$Y$ by comparing units with different $X$ values **but the same $Z$**."
+msgstr ""
+"Si se cumplen estas dos condiciones, podemos identificar el efecto causal de"
+" $X$ sobre $Y$ comparando unidades con diferentes valores de $X$ **pero el "
+"mismo $Z$**."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490077
+#: ebfc605151394c0494f619310b1a3e53
+msgid "In our case"
+msgstr "En nuestro caso"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490079
+#: 4a9272f5ac764d2a89bc827963de125e
+msgid "To estimate the causal effect of $X_1$ on $Y$:"
+msgstr "Para estimar el efecto causal de $X_1$ sobre $Y$:"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490081
+#: 4abe113ac27748cf9d5f477e3a2a8a6d
+#, python-brace-format
+msgid ""
+"We **should adjust** for background factors that affect both $X_1$ and $Y$ "
+"(for example, $\\mathrm{Trend}_t$ or $\\mathrm{Events}_t$)."
+msgstr ""
+"Debemos **ajustar** los factores de fondo que afectan tanto a $X_1$ como a "
+"$Y$ (por ejemplo, $\\mathrm{Trend}_t$ o $\\mathrm{Events}_t$)."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490082
+#: c555a36cf68142d7817bf5f6d9a46fcc
+msgid ""
+"We **should not adjust** for mediators such as $X_2$, $X_3$, or $X_4$, "
+"because these are **effects** of $X_1$."
+msgstr ""
+"No **debemos ajustar** por mediadores como $X_2$, $X_3$ o $X_4$, porque "
+"estos son **efectos** de $X_1$."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490084
+#: 8238ef837c464b03a1c84b7d7b43e776
+msgid "Mathematically, the causal effect can be expressed as:"
+msgstr "Matemáticamente, el efecto causal puede expresarse como:"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490086
+#: 5a9d245d19a441ba92b40ccfe8b304a8
+#, python-brace-format
+msgid ""
+"\n"
+"\\mathbb{E}[Y_t \\mid \\mathrm{do}(X_{1,t}=x)]\n"
+"= \\int \\mathbb{E}[Y_t \\mid X_{1,t}=x, Z_t=z]\\, dP(z),\n"
+msgstr ""
+"\n"
+"\\mathbb{E}[Y_t \\mid \\mathrm{do}(X_{1,t}=x)]\n"
+"= \\int \\mathbb{E}[Y_t \\mid X_{1,t}=x, Z_t=z]\\, dP(z),\n"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490091
+#: b87b4474aaa14fccae3cf8a67c2eb9f0
+msgid ""
+"where $Z_t$ contains only the valid backdoor variables (common causes, not "
+"descendants)."
+msgstr ""
+"donde $Z_t$ contiene únicamente las variables de puerta trasera válidas "
+"(causas comunes, no descendientes)."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490093
+#: 2b09d6e121ec4906aa827f8e96560b5c
+msgid ""
+"In this case, this will imply to estimate the effect of $X4$ on $Y$. Then we"
+" could estimate the effect of $X1$ on $X4$ and get the propagation of the "
+"effect of $X1$ on $Y$ after."
+msgstr ""
+"En este caso, esto implicará estimar el efecto de $X4$ en $Y$. Luego "
+"podríamos estimar el efecto de $X1$ en $X4$ y obtener la propagación del "
+"efecto de $X1$ en $Y$ después."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490095
+#: 54720810188f444b88e4607a45eeddf8
+msgid "Mediator model"
+msgstr "Mediator model"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490097
+#: 42082c8a281647218142cbadb057cc9b
+msgid ""
+"Let's think once more on our dag, $X1$ is the upper funnel channel. $X4$ is "
+"the lower funnel channel. $Y$ is the outcome. This means that $X1$ does not "
+"have a direct effect on $Y$, but it does have an indirect effect through "
+"$X4$. This means, $X4$ mediates the effect of $X1$ on $Y$."
+msgstr ""
+"Pensemos una vez más en nuestro diagrama, $X1$ es el canal superior del "
+"embudo. $X4$ es el canal inferior del embudo. $Y$ es el resultado. Esto "
+"significa que $X1$ no tiene un efecto directo sobre $Y$, pero sí tiene un "
+"efecto indirecto a través de $X4$. Esto significa que $X4$ media el efecto "
+"de $X1$ sobre $Y$."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:490099
+#: 4c052677c5af40d28760bf17beff583d
+msgid ""
+"*The minimal adjustment set based on backdoor paths dictates* that we need "
+"to estimate the effect of $X4$ on $Y$ easily, a simple linear or nonlinear "
+"model would be enough. $Y ~ f(\\theta, X4) + \\epsilon$ because $X4$ will "
+"block all backdoor paths for the rest of variables."
+msgstr ""
+"*El conjunto de ajuste mínimo basado en caminos de puerta trasera dicta* que"
+" necesitamos estimar el efecto de $X4$ en $Y$ fácilmente, un modelo lineal o"
+" no lineal simple sería suficiente. $Y ~ f(\\theta, X4) + \\epsilon$ porque "
+"$X4$ bloqueará todos los caminos de puerta trasera para el resto de las "
+"variables."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:510002
+#: 6850191314f44c88923880f995010e77
+msgid ""
+"Lets see if we can recover the true contribution of $X4$ on $Y$. This will "
+"be the most essential step to recover the true contribution of $X1$ on $Y$ "
+"after. Here, just as before, we can take our pytensor graph and evaluate it "
+"with the values of $X4$ and get the true contribution."
+msgstr ""
+"Veamos si podemos recuperar la verdadera contribución de $X4$ en $Y$. Este "
+"será el paso más esencial para recuperar la verdadera contribución de $X1$ "
+"en $Y$ después. Aquí, al igual que antes, podemos tomar nuestro gráfico de "
+"pytensor y evaluarlo con los valores de $X4$ y obtener la verdadera "
+"contribución."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:530002
+#: 1f112fab4e07438b8e16bd4233d933c7
+msgid ""
+"If this outcome block is faithful, its contributions should trace the "
+"simulated truth."
+msgstr ""
+"Si este bloque de resultado es fiel, sus contribuciones deberían seguir la "
+"verdad simulada."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:550002
+#: 5b82396b15ec47af8a6e3620313a7a92
+msgid ""
+"Great, we can observe that the true value was recovered. Now we can move "
+"forward and estimate the effect of $(X_1)$ on $(X_4)$. This is the second "
+"essential step before quantifying the contribution of $(X_1)$ to $(Y)$."
+msgstr ""
+"Excelente, podemos observar que se recuperó el valor verdadero. Ahora "
+"podemos avanzar y estimar el efecto de $(X_1)$ en $(X_4)$. Este es el "
+"segundo paso esencial antes de cuantificar la contribución de $(X_1)$ a "
+"$(Y)$."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:550004
+#: 622eb6a391c64cf69aa19383b4a127df
+msgid ""
+"Now, in real life you don't know the true structural form which generates "
+"your data, here I'm taking two choices."
+msgstr ""
+"Ahora, en la vida real no conoces la verdadera forma estructural que genera "
+"tus datos, aquí estoy tomando dos elecciones."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:550006
+#: 5b8bc4f16b9940a2be69c1d3aceafd51
+msgid "**Modeling choices.**"
+msgstr "**Modeling choices.**"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:550007
+#: 84922c14da2941dbaefc69f7223a3e8c
+msgid ""
+"I temporarily remove adstock and saturation so the $(X_1 \\to X_4)$ relation"
+" is linear."
+msgstr ""
+"Elimino temporalmente el adstock y la saturación para que la relación $(X_1 "
+"\\to X_4)$ sea lineal."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:550008
+#: 75d9e8d28cb54571bd666679275cbc07
+#, python-brace-format
+msgid ""
+"I avoid a levels-on-levels regression like $(X_{4,t} = \\beta\\,X_{1,t} + "
+"\\varepsilon_t)$."
+msgstr ""
+"Evito una regresión de niveles sobre niveles como $(X_{4,t} = "
+"\\beta\\,X_{1,t} + \\varepsilon_t)$."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:550010
+#: c35b92e9256b4623a90375bc284ef8c7
+msgid ""
+"This could be translate to *I don't think effect of $x1$ saturates or "
+"adstock before impact $x4$*."
+msgstr ""
+"Esto podría traducirse como *No creo que el efecto de $x1$ se sature o se "
+"acumule antes del impacto $x4$*."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:550012
+#: b1ce7ee7ffe34e4cb2ab4b30898562f0
+msgid "Let's build this model to see if we can recover the true value."
+msgstr ""
+"Construyamos este modelo para ver si podemos recuperar el valor verdadero."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:570003
+#: fdce5cf41bf34d7d9c2e371bb5c40ba1
+#, python-brace-format
+msgid ""
+"**Why to build a model using the difference between variables?** If "
+"$(X_{1,t})$ and $(X_{4,t})$ are $(I(1))$ and *not* cointegrated, the "
+"residual from $(X_{4,t} - \\beta X_{1,t})$ remains $(I(1))$. OLS in levels "
+"yields invalid inference and a drifting $(\\hat\\beta)$. First-differencing "
+"removes unit roots and yields a stationary relation:"
+msgstr ""
+"**¿Por qué construir un modelo utilizando la diferencia entre variables?** "
+"Si $(X_{1,t})$ y $(X_{4,t})$ son $(I(1))$ y *no* están cointegrados, el "
+"residuo de $(X_{4,t} - \\beta X_{1,t})$ permanece $(I(1))$. OLS en niveles "
+"produce inferencias inválidas y un $(\\hat\\beta)$ que se desvía. La "
+"diferenciación primera elimina raíces unitarias y produce una relación "
+"estacionaria:"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:570006
+#: 084a930d73414877a66ebdde8d082e8f
+#, python-brace-format
+msgid ""
+"\n"
+"\\Delta X_{4,t} = \\alpha + \\beta\\,\\Delta X_{1,t} + \\eta_t,\n"
+msgstr ""
+"\n"
+"\\Delta X_{4,t} = \\alpha + \\beta\\,\\Delta X_{1,t} + \\eta_t,\n"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:570010
+#: 5bc17eb7e7c54b3fa8983b54634cb5d7
+msgid ""
+"where $(\\eta_t)$ is $(I(0))$. Under standard exogeneity of innovations, OLS"
+" consistently estimates the **total instantaneous effect** $(\\beta)$ of "
+"$(X_1)$ on $(X_4)$. In practice, $\\alpha \\neq 0$ because drifts in the "
+"level processes translate into a nonzero mean in differences."
+msgstr ""
+"donde $(\\eta_t)$ es $(I(0))$. Bajo la exogeneidad estándar de las "
+"innovaciones, OLS estima consistentemente el **efecto instantáneo total** "
+"$(\\beta)$ de $(X_1)$ sobre $(X_4)$. En la práctica, $\\alpha eq 0$ porque "
+"las derivadas en los procesos de nivel se traducen en una media no nula en "
+"las diferencias."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:570013
+#: c9710313e75e49f28b6f1033bc48bc55
+#, python-brace-format
+msgid ""
+"We can plot the posterior distribution of the beta to see if the true value "
+"was recovered. Because the data generation process is linear, we can "
+"calculate the true coefficient of $x1$ over $x4$ doing ( $\\beta_{1,2} * "
+"\\beta_{2,4} * \\beta_{1,3} * \\beta_{3,4}$ )"
+msgstr ""
+"Podemos trazar la distribución posterior del beta para ver si se recuperó el"
+" valor verdadero. Dado que el proceso de generación de datos es lineal, "
+"podemos calcular el coeficiente verdadero de $x1$ sobre $x4$ haciendo ( "
+"$\\beta_{1,2} * \\beta_{2,4} * \\beta_{1,3} * \\beta_{3,4}$ )"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:590002
+#: 3d8a140e50c24b49872f34f1c22ec5b9
+msgid ""
+"The posterior settles near the ground truth—which is what we’d hope if our "
+"story is coherent. Now, what? Armed with the mediated beta, we translate "
+"awareness into downstream pressure over time, in‑sample and beyond."
+msgstr ""
+"El posterior se establece cerca de la verdad fundamental, que es lo que "
+"esperaríamos si nuestra historia es coherente. Ahora, ¿qué? Armados con la "
+"beta mediada, traducimos la conciencia en presión descendente a lo largo del"
+" tiempo, dentro de la muestra y más allá."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:590004
+#: 566b7dac4ff245c2aaa5e0bfd569a39c
+msgid ""
+"Let's create the xarray with proper broadcasting for chain, draw, date "
+"dimensions."
+msgstr ""
+"Creemos el xarray con la difusión adecuada para las dimensiones de cadena, "
+"dibujo y fecha."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:610002
+#: 1e8838ba909e4cc786426afa3358a2c7
+msgid ""
+"Now, we got the estimated contribution of $X1$ on $X4$. Let's plot against "
+"the true contribution of $X1$ on $X4$."
+msgstr ""
+"Ahora, tenemos la contribución estimada de $X1$ sobre $X4$. Vamos a graficar"
+" en comparación con la verdadera contribución de $X1$ sobre $X4$."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:630002
+#: c538bc14243c424a891b7d8b931ad058
+msgid ""
+"Great, we can see that the estimated contribution is very close to the true "
+"contribution in the in-sample period. We can do the same for the out-of-"
+"sample period, and using the out of sample period, we can check if we "
+"recovered the causal effect of $X1$ on $Y$."
+msgstr ""
+"Excelente, podemos ver que la contribución estimada está muy cerca de la "
+"verdadera contribución en el período de muestra. Podemos hacer lo mismo para"
+" el período fuera de muestra, y utilizando el período fuera de muestra, "
+"podemos verificar si recuperamos el efecto causal de $X1$ sobre $Y$."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:650002
+#: fec6becf40a245e99dfe0d249543eabb
+msgid ""
+"This estimations tell us how much $X1$ is contributing to $X4$ in the out-"
+"of-sample period. If we want to ask the causal question, we need a "
+"counterfactual: What would $X4$ have been if awareness had gone to zero? We "
+"can do this by taking the original value of $X4$ and subtracting the "
+"estimated contribution of $X1$ on $X4$."
+msgstr ""
+"Estas estimaciones nos indican cuánto está contribuyendo $X1$ a $X4$ en el "
+"período fuera de muestra. Si queremos plantear la pregunta causal, "
+"necesitamos un contrafactual: ¿Qué habría sido $X4$ si la concienciación "
+"hubiera llegado a cero? Podemos hacer esto tomando el valor original de $X4$"
+" y restando la contribución estimada de $X1$ sobre $X4$."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:670002
+#: 078fdbb78e9246a8b4a928df6ab9d405
+msgid ""
+"We send that counterfactual $X_4$ under $do(X_1=0)$ through the outcome "
+"model to obtain $Y$ under $do(X_1=0)$ as consequence. Then the causal effect"
+" will be $Y|do(X_1=1) - Y|do(X_1=0)$."
+msgstr ""
+"Enviamos ese contrafactual $X_4$ bajo $do(X_1=0)$ a través del modelo de "
+"resultados para obtener $Y$ bajo $do(X_1=0)$ como consecuencia. Entonces, el"
+" efecto causal será $Y|do(X_1=1) - Y|do(X_1=0)$."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:670004
+#: 4012da01143147e8b1ec555bb908e499
+msgid ""
+"We'll compute the true influence of $X_1$ on $Y$ by our true pytensor graph,"
+" and finally, we'll compare the recovered effect with the true effect."
+msgstr ""
+"Calcularemos la verdadera influencia de $X_1$ sobre $Y$ mediante nuestro "
+"verdadero gráfico de pytensor y, finalmente, compararemos el efecto "
+"recuperado con el efecto verdadero."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:700002
+#: ef5a1bae67f743e3be13026d837d126b
+msgid "Let's plot the recovered effect against the true effect, side‑by‑side."
+msgstr ""
+"Vamos a trazar el efecto recuperado frente al efecto verdadero, uno al lado "
+"del otro."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:720002
+#: 8c4f975942b94af290bc7cdb5e816fde
+msgid ""
+"This is great, we can see that the recovered effect is very close to the "
+"true effect in the in-sample period. We can do the same for the out-of-"
+"sample period, and using the out of sample period, we observe the causal "
+"effect of $X1$ on $Y$ was properly recovered."
+msgstr ""
+"Esto es excelente, podemos ver que el efecto recuperado está muy cerca del "
+"efecto verdadero en el período de muestra. Podemos hacer lo mismo para el "
+"período fuera de muestra, y utilizando el período fuera de muestra, "
+"observamos que el efecto causal de $X1$ sobre $Y$ fue correctamente "
+"recuperado."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:720004
+#: 1da29cf91c9641f58ef52c8451a785b6
+msgid "Conclusion"
+msgstr "Conclusion"
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:720006
+#: 69f226a22c834af8af83cdb6d10d0f5d
+msgid ""
+"In this tutorial we showed that it is possible to recover high‑level, "
+"upper‑funnel impacts even when the observed target is a lower‑funnel KPI. By"
+" explicitly modeling mediation and then propagating that signal through the "
+"outcome model, we captured the causal contribution of upper‑funnel activity "
+"from low‑level targets."
+msgstr ""
+"En este tutorial mostramos que es posible recuperar impactos de alto nivel y"
+" de embudo superior incluso cuando el objetivo observado es un KPI de embudo"
+" inferior. Al modelar explícitamente la mediación y luego propagar esa señal"
+" a través del modelo de resultados, capturamos la contribución causal de la "
+"actividad de embudo superior a partir de objetivos de bajo nivel."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:720008
+#: 78790c2b032f4383a5f1aaea26e7225e
+msgid ""
+"**Estimate mediated effect**: quantify the link from awareness to a "
+"downstream mediator and recover its contribution."
+msgstr ""
+"**Efecto mediado estimado**: cuantificar el vínculo desde la conciencia "
+"hasta un mediador posterior y recuperar su contribución."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:720009
+#: 3cb91924ccca4cff81739d77bf0c732e
+msgid ""
+"**Propagate to outcomes**: translate the mediated effect into expected "
+"pressure on the final target via the MMM."
+msgstr ""
+"**Propagar a resultados**: traducir el efecto mediado en la presión esperada"
+" sobre el objetivo final a través del MMM."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:720010
+#: bebde62290e940748d62922fc9ac5305
+msgid ""
+"**Causal counterfactuals**: compare against do‑operator counterfactuals to "
+"measure upper‑funnel lift credibly."
+msgstr ""
+"**Contrafactuales causales**: comparar con contrafactuales del operador do "
+"para medir de manera creíble el aumento en la parte superior del embudo."
+
+#: ../source/notebooks/mmm/mmm_upper_funnel_causal_approach.ipynb:720012
+#: 08e02b30dec04ff5a72f4c9919e67efd
+msgid ""
+"This makes upper‑funnel value measurable alongside performance channels, "
+"improving attribution, forecasting, and budget decisions while keeping the "
+"model grounded in causal structure."
+msgstr ""
+"Esto hace que el valor del embudo superior sea medible junto con los canales"
+" de rendimiento, mejorando la atribución, la previsión y las decisiones "
+"presupuestarias, mientras mantiene el modelo fundamentado en una estructura "
+"causal."
+
+#~ msgid "\\displaystyle 1.01822976076498"
+#~ msgstr "\\displaystyle 1.01822976076498"

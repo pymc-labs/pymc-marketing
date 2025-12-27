@@ -1,0 +1,697 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:2
+#: 34a0d989f81c480484c2ac769c845a05
+msgid "HSGPPeriodic"
+msgstr "HSGPPeriódico"
+
+#: 51764b95889b4acaa4612df2115f7db9 of pymc_marketing.mmm.hsgp.HSGPPeriodic:2
+msgid "HSGP component for periodic data."
+msgstr "Componente HSGP para datos periódicos."
+
+#: c5044c15f89d4d6a8957f50d3939526b of pymc_marketing.mmm.hsgp.HSGPPeriodic:19
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: b19804209c3a4f999ff1813ccb930b7a of pymc_marketing.mmm.hsgp.HSGPPeriodic:20
+msgid "HSGPPeriodic with default configuration:"
+msgstr "HSGPPeriódico con configuración predeterminada:"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:48
+#: c905bb22270f4db6808a35a91f5835db
+msgid ""
+"(:download:`Source code "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGPPeriodic-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGPPeriodic-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGPPeriodic-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGPPeriodic-1.pdf>`)"
+msgstr ""
+"(:descargar:`Código fuente "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGPPeriodic-1.py>`, :descargar:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGPPeriodic-1.png>`, :descargar:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGPPeriodic-1.hires.png>`, :descargar:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGPPeriodic-1.pdf>`)"
+
+#: 9dc4c3b7a9a84d30bdc3ffb4f1dd594a of pymc_marketing.mmm.hsgp.HSGPPeriodic:67
+msgid "HSGPPeriodic with link function via `transform` argument"
+msgstr ""
+"HSGPPeriódico con función de enlace a través del argumento `transform`"
+
+#: 8842bfe59e57402dbcb98f29d25e57b2 of pymc_marketing.mmm.hsgp.HSGPPeriodic:71
+msgid ""
+"The `transform` parameter must be registered or from either "
+"`pytensor.tensor` or `pymc.math` namespaces. See the "
+":func:`pymc_extras.prior.register_tensor_transform`"
+msgstr ""
+"El parámetro `transform` debe estar registrado o ser de los espacios de "
+"nombres `pytensor.tensor` o `pymc.math`. Consulte la "
+":func:`pymc_extras.prior.register_tensor_transform`"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:49
+#: ec48951514754fc683f9ee7089575332
+msgid ""
+"(:download:`Source code "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGPPeriodic-2.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGPPeriodic-2.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGPPeriodic-2.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGPPeriodic-2.pdf>`)"
+msgstr ""
+"(:descargar:`Código fuente "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGPPeriodic-2.py>`, :descargar:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGPPeriodic-2.png>`, :descargar:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGPPeriodic-2.hires.png>`, :descargar:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGPPeriodic-2.pdf>`)"
+
+#: 8d4dfa5de4ce4c3a8e0a87ee5c925959 of
+#: pymc_marketing.mmm.hsgp.HSGPPeriodic:120
+msgid "Demeaned basis for HSGPPeriodic"
+msgstr "Base menospreciada para HSGPPeriodic"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:42
+#: c649b3b370fd48a8be23e28022454e99
+msgid ""
+"(:download:`Source code "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGPPeriodic-3.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGPPeriodic-3.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGPPeriodic-3.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGPPeriodic-3.pdf>`)"
+msgstr ""
+"(:descargar:`Código fuente "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGPPeriodic-3.py>`, :descargar:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGPPeriodic-3.png>`, :descargar:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGPPeriodic-3.hires.png>`, :descargar:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGPPeriodic-3.pdf>`)"
+
+#: 7fdaaf9469d54ac7a430346bf35b7165 of
+#: pymc_marketing.mmm.hsgp.HSGPPeriodic:161
+msgid "Higher dimensional HSGPPeriodic with periodic data"
+msgstr "HSGPPeriódico de dimensiones superiores con datos periódicos"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52
+#: aacd41af74a041fdb29c25fb2966d7a0
+msgid ""
+"(:download:`Source code "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGPPeriodic-4.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGPPeriodic-4.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGPPeriodic-4.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGPPeriodic-4.pdf>`)"
+msgstr ""
+"(:descargar:`Código fuente "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGPPeriodic-4.py>`, :descargar:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGPPeriodic-4.png>`, :descargar:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGPPeriodic-4.hires.png>`, :descargar:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-hsgp-"
+"HSGPPeriodic-4.pdf>`)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:12
+#: 8838c4fb026d4bd9a6d14c8725262a21
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: 011fd6b1958549d7bef4f386a2ce91c5
+msgid ""
+":py:obj:`HSGPPeriodic.__init__ "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.__init__>`\\ \\(\\*\\*data\\)"
+msgstr ""
+":py:obj:`HSGPPeriodic.__init__ "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.__init__>`\\ \\(\\*\\*data\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: 93f664a4779d4d748e0dc54c45b528d7
+msgid ""
+"Create a new model by parsing and validating input data from keyword "
+"arguments."
+msgstr ""
+"Cree un nuevo modelo analizando y validando los datos de entrada de los "
+"argumentos de palabra clave."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: 8a3701eb514441e08e4a4e96e9f043f9
+msgid ""
+":py:obj:`HSGPPeriodic.construct "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.construct>`\\ "
+"\\(\\[\\_fields\\_set\\]\\)"
+msgstr ""
+":py:obj:`HSGPPeriodic.construct "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.construct>`\\ "
+"\\(\\[\\_fields\\_set\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: a54387039d334b9985404ec6022e14f8
+msgid ""
+":py:obj:`HSGPPeriodic.copy <pymc_marketing.mmm.hsgp.HSGPPeriodic.copy>`\\ "
+"\\(\\*\\[\\, include\\, exclude\\, ...\\]\\)"
+msgstr ""
+":py:obj:`HSGPPeriodic.copy <pymc_marketing.mmm.hsgp.HSGPPeriodic.copy>`\\ "
+"\\(\\*\\[\\, incluir\\, excluir\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: b51e1d1063f84dcd9b1020d55abf522a
+msgid "Returns a copy of the model."
+msgstr "Devuelve una copia del modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: 6b2eb1d3535843b880e302ef7b00857f
+msgid ""
+":py:obj:`HSGPPeriodic.create_variable "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.create_variable>`\\ \\(name\\)"
+msgstr ""
+":py:obj:`HSGPPeriodic.create_variable "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.create_variable>`\\ \\(nombre\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: 3f24fbf098aa4ab3b16361167b3fa56a
+msgid "Create HSGP variable."
+msgstr "Crear variable HSGP."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: 9546c90137804882920f0024b30c208b
+msgid ""
+":py:obj:`HSGPPeriodic.deterministics_to_replace "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.deterministics_to_replace>`\\ "
+"\\(name\\)"
+msgstr ""
+":py:obj:`HSGPPeriodic.deterministics_to_replace "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.deterministics_to_replace>`\\ %(name)s"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: 10ce543b4eaa4ee6b151390096cb1b9b
+msgid ""
+"Name of the Deterministic variables that are replaced with pm.Flat for out-"
+"of-sample."
+msgstr ""
+"Nombre de las variables determinísticas que se reemplazan con pm.Flat para "
+"fuera de muestra."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: d48d534b139a4d66ace928168243d6e1
+msgid ""
+":py:obj:`HSGPPeriodic.dict <pymc_marketing.mmm.hsgp.HSGPPeriodic.dict>`\\ "
+"\\(\\*\\[\\, include\\, exclude\\, ...\\]\\)"
+msgstr ""
+":py:obj:`HSGPPeriodic.dict <pymc_marketing.mmm.hsgp.HSGPPeriodic.dict>`\\ "
+"\\(\\*\\[\\, incluir\\, excluir\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: 9ff8c138c8054636a9c20ddc38b98359
+msgid ""
+":py:obj:`HSGPPeriodic.from_dict "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.from_dict>`\\ \\(data\\)"
+msgstr ""
+":py:obj:`HSGPPeriodic.from_dict "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.from_dict>`\\ \\(datos\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: 685cc8b7adf04f67b9bf22dff469c522
+msgid "Create an object from a dictionary."
+msgstr "Cree un objeto a partir de un diccionario."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: faf6e5ccabe742db8c3158ee6bb7b6b5
+msgid ""
+":py:obj:`HSGPPeriodic.from_orm "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.from_orm>`\\ \\(obj\\)"
+msgstr ""
+":py:obj:`HSGPPeriodic.from_orm "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.from_orm>`\\ \\(obj\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: cc1acb6fbbc84de3ad336622ff98c598
+msgid ""
+":py:obj:`HSGPPeriodic.json <pymc_marketing.mmm.hsgp.HSGPPeriodic.json>`\\ "
+"\\(\\*\\[\\, include\\, exclude\\, ...\\]\\)"
+msgstr ""
+":py:obj:`HSGPPeriodic.json <pymc_marketing.mmm.hsgp.HSGPPeriodic.json>`\\ "
+"\\(\\*\\[\\, incluir\\, excluir\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: 1e5d8620ac2e45ecbf7cd073a4c1b680
+msgid ""
+":py:obj:`HSGPPeriodic.model_construct "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.model_construct>`\\ "
+"\\(\\[\\_fields\\_set\\]\\)"
+msgstr ""
+":py:obj:`HSGPPeriodic.model_construct "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.model_construct>`\\ "
+"\\(\\[\\_fields\\_set\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: 7280a91b9703433ba9c562186eeb97be
+msgid "Creates a new instance of the `Model` class with validated data."
+msgstr "Crea una nueva instancia de la clase `Model` con datos validados."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: 82845bc94e8d41e3aa4e9b58a2f6738a
+msgid ""
+":py:obj:`HSGPPeriodic.model_copy "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.model_copy>`\\ \\(\\*\\[\\, update\\, "
+"deep\\]\\)"
+msgstr ""
+":py:obj:`HSGPPeriodic.model_copy "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.model_copy>`\\ \\(\\*\\[\\, "
+"actualizar\\, profundo\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: 49a1b9a2330946eeb9d6bb324419916f 5219862b98c54f9ba1cd25c179ed85cb
+#: ee995c205a444110b81963a11bbfc730 fa487d5b6b3843d99f22f5bf924b0b09
+msgid "!!! abstract \"Usage Documentation\""
+msgstr "!!! abstract \"Documentación de Uso\""
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: 7f1c0eb7cc134203af1a8dd14ac069bc
+msgid ""
+":py:obj:`HSGPPeriodic.model_dump "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.model_dump>`\\ \\(\\*\\[\\, mode\\, "
+"include\\, ...\\]\\)"
+msgstr ""
+":py:obj:`HSGPPeriodic.model_dump "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.model_dump>`\\ \\(\\*\\[\\, modo\\, "
+"incluir\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: ee4d02f9d86e4756827e7de17618d807
+msgid ""
+":py:obj:`HSGPPeriodic.model_dump_json "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.model_dump_json>`\\ \\(\\*\\[\\, "
+"indent\\, ...\\]\\)"
+msgstr ""
+":py:obj:`HSGPPeriodic.model_dump_json "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.model_dump_json>`\\ \\(\\*\\[\\, "
+"indent\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: f112761a1e9e4584861b8cb22e0aa231
+msgid ""
+":py:obj:`HSGPPeriodic.model_json_schema "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.model_json_schema>`\\ "
+"\\(\\[by\\_alias\\, ...\\]\\)"
+msgstr ""
+":py:obj:`HSGPPeriodic.model_json_schema "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.model_json_schema>`\\ "
+"\\(\\[por\\_alias\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: 0982011818814e3f8a6aec4846f8cbb4
+msgid "Generates a JSON schema for a model class."
+msgstr "Genera un esquema JSON para una clase de modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: 94b1239fbbdf409ab30c2a3c7bb46d21
+msgid ""
+":py:obj:`HSGPPeriodic.model_parametrized_name "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.model_parametrized_name>`\\ "
+"\\(params\\)"
+msgstr ""
+":py:obj:`HSGPPeriodic.model_parametrized_name "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.model_parametrized_name>`\\ "
+"\\(params\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: 5bae2f4f1588406ba69d3a4689f3797e
+msgid "Compute the class name for parametrizations of generic classes."
+msgstr ""
+"Calcule el nombre de la clase para parametrizaciones de clases genéricas."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: 1966c57450f64d0889863cd672909911
+msgid ""
+":py:obj:`HSGPPeriodic.model_post_init "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.model_post_init>`\\ \\(context\\, "
+"\\/\\)"
+msgstr ""
+":py:obj:`HSGPPeriodic.model_post_init "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.model_post_init>`\\ \\(context\\, "
+"\\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: 6c5ad0426e4e49899940d52e525d99f8
+msgid ""
+"Override this method to perform additional initialization after `__init__` "
+"and `model_construct`."
+msgstr ""
+"Sobrescriba este método para realizar una inicialización adicional después "
+"de `__init__` y `model_construct`."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: 9719dcc481484ab2b6e3522563abeb33
+msgid ""
+":py:obj:`HSGPPeriodic.model_rebuild "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.model_rebuild>`\\ \\(\\*\\[\\, "
+"force\\, ...\\]\\)"
+msgstr ""
+":py:obj:`HSGPPeriodic.model_rebuild "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.model_rebuild>`\\ \\(\\*\\[\\, "
+"forzar\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: 92a488933b214f9590cad2070e221b41
+msgid "Try to rebuild the pydantic-core schema for the model."
+msgstr "Intente reconstruir el esquema de pydantic-core para el modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: df14cc0236b441068fbb0ddba99f909d
+msgid ""
+":py:obj:`HSGPPeriodic.model_validate "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.model_validate>`\\ \\(obj\\, \\*\\[\\,"
+" ...\\]\\)"
+msgstr ""
+":py:obj:`HSGPPeriodic.model_validate "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.model_validate>`\\ \\(obj\\, \\*\\[\\,"
+" ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: 8a9a9171a99141db8b8f9b3549d2feec
+msgid "Validate a pydantic model instance."
+msgstr "Valide una instancia de modelo pydantic."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: 47319a9b50754468a9b34eeceaa86eeb
+msgid ""
+":py:obj:`HSGPPeriodic.model_validate_json "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.model_validate_json>`\\ "
+"\\(json\\_data\\, \\*\\)"
+msgstr ""
+":py:obj:`HSGPPeriodic.model_validate_json "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.model_validate_json>`\\ "
+"\\(json\\_data\\, \\*\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: 279357a2ddca4db898ac151af80e1536
+msgid ""
+":py:obj:`HSGPPeriodic.model_validate_strings "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.model_validate_strings>`\\ \\(obj\\, "
+"\\*\\)"
+msgstr ""
+":py:obj:`HSGPPeriodic.model_validate_strings "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.model_validate_strings>`\\ \\(obj\\, "
+"\\*\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: 87d9b6a628e04723afd6df8b4d6fa591
+msgid "Validate the given object with string data against the Pydantic model."
+msgstr ""
+"Valide el objeto dado con datos de cadena contra el modelo de Pydantic."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: 091c2f00dbe84905985ba232cf662e5c
+msgid ""
+":py:obj:`HSGPPeriodic.parse_file "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.parse_file>`\\ \\(path\\, \\*\\[\\, "
+"...\\]\\)"
+msgstr ""
+":py:obj:`HSGPPeriodic.parse_file "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.parse_file>`\\ \\(ruta\\, \\*\\[\\, "
+"...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: 1439b23a2ef74bc68c83f0bf45d64b9b
+msgid ""
+":py:obj:`HSGPPeriodic.parse_obj "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.parse_obj>`\\ \\(obj\\)"
+msgstr ""
+":py:obj:`HSGPPeriodic.parse_obj "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.parse_obj>`\\ \\(obj\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: 15d448efdd654f709586ae51d323401b
+msgid ""
+":py:obj:`HSGPPeriodic.parse_raw "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.parse_raw>`\\ \\(b\\, \\*\\[\\, "
+"content\\_type\\, ...\\]\\)"
+msgstr ""
+":py:obj:`HSGPPeriodic.parse_raw "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.parse_raw>`\\ \\(b\\, \\*\\[\\, "
+"tipo\\_de\\_contenido\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: fa4d534e70714566a0941b3f97ecce25
+msgid ""
+":py:obj:`HSGPPeriodic.plot_curve "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.plot_curve>`\\ \\(curve\\[\\, "
+"n\\_samples\\, ...\\]\\)"
+msgstr ""
+":py:obj:`HSGPPeriodic.plot_curve "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.plot_curve>`\\ \\(curva\\[\\, "
+"n\\_muestras\\, ...\\]"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: 3b4c0ce68b28466ca75a34cd74b721cf
+msgid "Plot the curve."
+msgstr "Dibuje la curva."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: 5297cff8e9c04927a22406b428b3e361
+msgid ""
+":py:obj:`HSGPPeriodic.register_data "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.register_data>`\\ \\(X\\)"
+msgstr ""
+":py:obj:`HSGPPeriodic.register_data "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.register_data>`\\ \\(X\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: 1eea1d1af2a84b95939567c979f57589
+msgid "Register the data to be used in the model."
+msgstr "Registre los datos que se utilizarán en el modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: 655dde9b8c354d5db2b90e35d75e37d1
+msgid ""
+":py:obj:`HSGPPeriodic.sample_prior "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.sample_prior>`\\ \\(\\[coords\\]\\)"
+msgstr ""
+":py:obj:`HSGPPeriodic.sample_prior "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.sample_prior>`\\ \\(\\[coords\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: 9c37ccff42d4409da22d686edf41c559
+msgid "Sample from the prior distribution."
+msgstr "Muestra de la distribución previa."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: e8d8177dba864a4383793cbef9477c7d
+msgid ""
+":py:obj:`HSGPPeriodic.schema "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.schema>`\\ \\(\\[by\\_alias\\, "
+"ref\\_template\\]\\)"
+msgstr ""
+":py:obj:`HSGPPeriodic.schema "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.schema>`\\ \\(\\[por\\_alias\\, "
+"ref\\_plantilla\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: 5ed1d9ba40ea417bbb460d64ca4641c3
+msgid ""
+":py:obj:`HSGPPeriodic.schema_json "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.schema_json>`\\ \\(\\*\\[\\, "
+"by\\_alias\\, ...\\]\\)"
+msgstr ""
+":py:obj:`HSGPPeriodic.schema_json "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.schema_json>`\\ \\(\\*\\[\\, "
+"por\\_alias\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: 77c2cf8cbb9c434ca37570f60c15e8e5
+msgid ""
+":py:obj:`HSGPPeriodic.to_dict "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.to_dict>`\\ \\(\\)"
+msgstr ""
+":py:obj:`HSGPPeriodic.to_dict "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.to_dict>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: 89fb07beed07485fa5fef370ae9952e7
+msgid "Convert the object to a dictionary."
+msgstr "Convierte el objeto a un diccionario."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: f99810975d0f43c2ab1b435039e94edc
+msgid ""
+":py:obj:`HSGPPeriodic.update_forward_refs "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.update_forward_refs>`\\ "
+"\\(\\*\\*localns\\)"
+msgstr ""
+":py:obj:`HSGPPeriodic.update_forward_refs "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.update_forward_refs>`\\ "
+"\\(\\*\\*localns\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
+#: 3607465c4ec4471c818100580b5a15a7
+msgid ""
+":py:obj:`HSGPPeriodic.validate "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.validate>`\\ \\(value\\)"
+msgstr ""
+":py:obj:`HSGPPeriodic.validate "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.validate>`\\ \\(valor\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:54
+#: 4ffb0d1ac2ef4eadb56e9b01a2319fd8
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:71:<autosummary>:1
+#: aa5a496029224e31ac2a06e43a26d3ab
+msgid ""
+":py:obj:`model_computed_fields "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.model_computed_fields>`\\"
+msgstr ""
+":py:obj:`model_computed_fields "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.model_computed_fields>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:71:<autosummary>:1
+#: 7fab8762db6c47ae90fae9e05428414d
+msgid ""
+":py:obj:`model_config <pymc_marketing.mmm.hsgp.HSGPPeriodic.model_config>`\\"
+msgstr ""
+":py:obj:`model_config <pymc_marketing.mmm.hsgp.HSGPPeriodic.model_config>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:71:<autosummary>:1
+#: 866e26acd82049ae875abdecfcdbd953
+msgid ""
+"Configuration for the model, should be a dictionary conforming to "
+"[`ConfigDict`][pydantic.config.ConfigDict]."
+msgstr ""
+"Configuración para el modelo, debe ser un diccionario que cumpla con "
+"[`ConfigDict`][pydantic.config.ConfigDict]."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:71:<autosummary>:1
+#: 599e0b7b9ca44929bc19cfff1692eccf
+msgid ""
+":py:obj:`model_extra <pymc_marketing.mmm.hsgp.HSGPPeriodic.model_extra>`\\"
+msgstr ""
+":py:obj:`model_extra <pymc_marketing.mmm.hsgp.HSGPPeriodic.model_extra>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:71:<autosummary>:1
+#: dbcdf15be1d549ccb0a291612a686827
+msgid "Get extra fields set during validation."
+msgstr "Obtener campos adicionales establecidos durante la validación."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:71:<autosummary>:1
+#: d1333b2facdb48fcb591557782622093
+msgid ""
+":py:obj:`model_fields <pymc_marketing.mmm.hsgp.HSGPPeriodic.model_fields>`\\"
+msgstr ""
+":py:obj:`model_fields <pymc_marketing.mmm.hsgp.HSGPPeriodic.model_fields>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:71:<autosummary>:1
+#: ca6f3053b5654abb80f58d00f4b348fc
+msgid ""
+":py:obj:`model_fields_set "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.model_fields_set>`\\"
+msgstr ""
+":py:obj:`model_fields_set "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.model_fields_set>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:71:<autosummary>:1
+#: c62fbba294c942c2aedd0d977ba7667e
+msgid ""
+"Returns the set of fields that have been explicitly set on this model "
+"instance."
+msgstr ""
+"Devuelve el conjunto de campos que han sido establecidos explícitamente en "
+"esta instancia del modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:71:<autosummary>:1
+#: 81daf62718f1452d8574c45933e5b3dd
+msgid ":py:obj:`ls <pymc_marketing.mmm.hsgp.HSGPPeriodic.ls>`\\"
+msgstr ":py:obj:`ls <pymc_marketing.mmm.hsgp.HSGPPeriodic.ls>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:71:<autosummary>:1
+#: b9c63a5323d64766b8a28ed0ab8a460d
+msgid ":py:obj:`scale <pymc_marketing.mmm.hsgp.HSGPPeriodic.scale>`\\"
+msgstr ":py:obj:`escala <pymc_marketing.mmm.hsgp.HSGPPeriodic.scale>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:71:<autosummary>:1
+#: c367112179c9485e9af0d804a9706d75
+msgid ":py:obj:`cov_func <pymc_marketing.mmm.hsgp.HSGPPeriodic.cov_func>`\\"
+msgstr ":py:obj:`cov_func <pymc_marketing.mmm.hsgp.HSGPPeriodic.cov_func>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:71:<autosummary>:1
+#: a2dbf9dd69d347f884ce0b7953b2aaa0
+msgid ":py:obj:`period <pymc_marketing.mmm.hsgp.HSGPPeriodic.period>`\\"
+msgstr ":py:obj:`periodo <pymc_marketing.mmm.hsgp.HSGPPeriodic.period>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:71:<autosummary>:1
+#: cd997dd1f1e04a7f884f055353fd9fb6
+msgid ":py:obj:`m <pymc_marketing.mmm.hsgp.HSGPPeriodic.m>`\\"
+msgstr ":py:obj:`m <pymc_marketing.mmm.hsgp.HSGPPeriodic.m>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:71:<autosummary>:1
+#: a91c5150db834f31993717ea09f3d7c9
+msgid ":py:obj:`X <pymc_marketing.mmm.hsgp.HSGPPeriodic.X>`\\"
+msgstr ":py:obj:`X <pymc_marketing.mmm.hsgp.HSGPPeriodic.X>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:71:<autosummary>:1
+#: b8a0566cef8440bc82663a994d6d6745
+msgid ":py:obj:`X_mid <pymc_marketing.mmm.hsgp.HSGPPeriodic.X_mid>`\\"
+msgstr ":py:obj:`X_mid <pymc_marketing.mmm.hsgp.HSGPPeriodic.X_mid>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:71:<autosummary>:1
+#: 44f9212f7bff4080b3e4404e90bb8aab
+msgid ":py:obj:`dims <pymc_marketing.mmm.hsgp.HSGPPeriodic.dims>`\\"
+msgstr ":py:obj:`dims <pymc_marketing.mmm.hsgp.HSGPPeriodic.dims>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:71:<autosummary>:1
+#: 7f81eda0f774419c9f1e91d478269701
+msgid ":py:obj:`transform <pymc_marketing.mmm.hsgp.HSGPPeriodic.transform>`\\"
+msgstr ":py:obj:`transform <pymc_marketing.mmm.hsgp.HSGPPeriodic.transform>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:71:<autosummary>:1
+#: bdd0e6df153d44fab5ceab18856d6912
+msgid ""
+":py:obj:`demeaned_basis "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.demeaned_basis>`\\"
+msgstr ""
+":py:obj:`base_demeanada "
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.base_demeanada>`"

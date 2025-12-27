@@ -89,7 +89,7 @@ Create a basic Bass model for multiple products:
     import pandas as pd
     import pymc as pm
 
-    from pymc_marketing.bass.model import create_bass_model
+    from pymc_marketing.bass import create_bass_model, BassPriors
     from pymc_marketing.plot import plot_curve
     from pymc_extras.prior import Prior
 
@@ -102,7 +102,7 @@ Create a basic Bass model for multiple products:
     coords = {"T": t, "product": ["A", "B", "C"]}
 
     # Define priors
-    priors = {
+    priors: BassPriors = {
         "m": Prior("DiracDelta", c=10_000),  # Market potential
         "p": Prior("Beta", alpha=13.85, beta=692.43, dims="product"),  # Innovation coefficient
         "q": Prior("Beta", alpha=36.2, beta=54.4),  # Imitation coefficient
@@ -125,7 +125,7 @@ Create a basic Bass model for multiple products:
 
 """
 
-from typing import Any
+from typing import Any, TypedDict
 
 import pymc as pm
 import pytensor.tensor as pt
@@ -216,10 +216,19 @@ def f(
     )
 
 
+class BassPriors(TypedDict):
+    """Priors for the Bass diffusion model."""
+
+    m: Prior | Censored | VariableFactory
+    p: Prior | Censored | VariableFactory
+    q: Prior | Censored | VariableFactory
+    likelihood: Prior | Censored
+
+
 def create_bass_model(
     t: pt.TensorLike,
     observed: pt.TensorLike | None,
-    priors: dict[str, Prior | Censored | VariableFactory],
+    priors: BassPriors,
     coords: dict[str, Any],
 ) -> Model:
     r"""Define a Bass diffusion model for product adoption forecasting.
@@ -246,7 +255,7 @@ def create_bass_model(
     observed : pt.TensorLike | None
         Observed adoption data at each time point. If None, only
         prior predictive sampling is possible.
-    priors : dict[str, Prior | Censored | VariableFactory]
+    priors : BassPriors
         Dictionary containing priors for:
         - 'm': Market potential prior
         - 'p': Innovation coefficient prior

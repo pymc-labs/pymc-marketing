@@ -1,0 +1,234 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.hsgp.SoftPlusHSGP.plot_curve.rst:2
+#: 6f4461fd750b49ec9db5d0045e16fc2d
+msgid "SoftPlusHSGP.plot\\_curve"
+msgstr "SoftPlusHSGP.plot\\_curve"
+
+#: 7acb90b01c924ca790b3cffc914a0e56 of
+#: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:2
+msgid "Plot the curve."
+msgstr "Dibuje la curva."
+
+#: 3383b499ec0246fe91b9c0c68c9259a2 of
+#: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: c445222df2ff44e6bbf796c724395fcc of
+#: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:7
+msgid "**curve** : :obj:`xr.DataArray`"
+msgstr "**curva** : :obj:`xr.DataArray`"
+
+#: 2888ce67270347c697e5467faf404c43 of
+#: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:6
+msgid "xr.DataArray"
+msgstr "xr.DataArray"
+
+#: 5f0b0d4f4c304f079b191439162a5045 of
+#: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:8
+msgid "Curve to plot"
+msgstr "Curva a graficar"
+
+#: 223b20729e374cc399f037fc9abdf565 of
+#: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:10
+msgid "**n_samples** : :class:`python:int`, optional"
+msgstr "**n_samples** : :class:`python:int`, opcional"
+
+#: 435584cbc4ca417386f933d0f0423e85 of
+#: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:9
+msgid "python:int, optional"
+msgstr "python:int, opcional"
+
+#: 5c1dff18fdfe44a1a7f7ed4559ff07da of
+#: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:11
+msgid "Number of samples"
+msgstr "Número de muestras"
+
+#: 4b2dbf6c15854b6db8ffe192a5acffa4 of
+#: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:13
+msgid ""
+"**hdi_probs** : :class:`python:float` | "
+":class:`python:list`\\[:class:`python:float`], optional"
+msgstr ""
+"**hdi_probs** : :class:`python:float` | "
+":class:`python:list`\\[:class:`python:float`], opcional"
+
+#: ddf094460339492a991c563c2cde1bae of
+#: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:12
+msgid "python:float | python:list[python:float], optional"
+msgstr "python:float | python:list[python:float], opcional"
+
+#: 22af24ab3d814649b648d60595236120 of
+#: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:14
+msgid ""
+"HDI probabilities. Defaults to None which uses arviz default for "
+"stats.ci_prob which is 94%"
+msgstr ""
+"Probabilidades de HDI. Por defecto es None, lo que utiliza el valor "
+"predeterminado de arviz para stats.ci_prob, que es del 94%."
+
+#: 0388c8e7b3ca473f93c3e1b3be3490fb of
+#: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:17
+msgid ""
+"**random_seed** : :class:`python:int` | :obj:`random` :obj:`number` "
+":term:`python:generator`, optional"
+msgstr ""
+"**random_seed** : :class:`python:int` | :obj:`random` :obj:`número` "
+":term:`python:generador`, opcional"
+
+#: 7662f1f05e064111925610f2e912b88a of
+#: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:16
+msgid "python:int | random number python:generator, optional"
+msgstr "python:int | número aleatorio python:generador, opcional"
+
+#: 93ddbde5d6c24ea7b87b4d1e8be90b49 of
+#: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:18
+msgid "Random number generator. Defaults to None"
+msgstr "Generador de números aleatorios. Por defecto es None."
+
+#: c0a1d15f9804452f9ffa6e977296c39e of
+#: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:20
+msgid "**subplot_kwargs** : :class:`python:dict`, optional"
+msgstr "**subplot_kwargs** : :class:`python:dict`, opcional"
+
+#: 829f11d451a041ea9ed9716083bb202e 8ca40c3939af4f7d874ef42d620aa9ff
+#: af39cfedd5a44376b8a7361e54352f37 of
+#: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:19
+#: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:22
+#: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:25
+msgid "python:dict, optional"
+msgstr "python:dict, opcional"
+
+#: 49831f638cab4f5e9c301e85ca3bad30 of
+#: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:21
+msgid "Additional kwargs to while creating the fig and axes"
+msgstr "kwargs adicionales al crear la figura y los ejes"
+
+#: bfd57da3cd7d401aab18c764672f4f2d of
+#: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:23
+msgid "**sample_kwargs** : :class:`python:dict`, optional"
+msgstr "**sample_kwargs** : :class:`python:dict`, opcional"
+
+#: bfe8bdbf67144ac79ad79361a8708c23 of
+#: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:24
+msgid "Kwargs for the :func:`plot_samples` function"
+msgstr "Kwargs para la función :func:`plot_samples`"
+
+#: 09ca36964a39467c84c61c637baa8e4e of
+#: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:26
+msgid "**hdi_kwargs** : :class:`python:dict`, optional"
+msgstr "**hdi_kwargs** : :class:`python:dict`, opcional"
+
+#: e32f0fe1b4d44879b83a381c44f539ea of
+#: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:27
+msgid "Kwargs for the :func:`plot_hdi` function"
+msgstr "Kwargs para la función :func:`plot_hdi`"
+
+#: 238a15c0b8964b37a475ecfc18666d1c of
+#: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:29
+msgid "**same_axes** : :ref:`bool <python:bltin-boolean-values>`"
+msgstr "**same_axes** : :ref:`bool <python:bltin-boolean-values>`"
+
+#: f6f3cb6227844581ac6892737de9a819 of
+#: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:28
+msgid "bool"
+msgstr "bool"
+
+#: bdaf3b97681d4eaa861c30c8da326454 of
+#: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:30
+msgid "If all of the plots are on the same axis"
+msgstr "Si todos los gráficos están en el mismo eje"
+
+#: d0f081f489e14ad3825c89c9adf30cde of
+#: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:32
+msgid "**colors** : :obj:`Iterable`\\[:class:`python:str`], optional"
+msgstr "**colores** : :obj:`Iterable`\\[:class:`python:str`], opcional"
+
+#: 7fae33356e4845b58d7f6aee0af54672 of
+#: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:31
+msgid "Iterable[python:str], optional"
+msgstr "Iterable[python:str], opcional"
+
+#: 83fcc14a18644ff4b061bfa9e29839dc of
+#: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:33
+msgid "Colors for the plots"
+msgstr "Colores para los gráficos"
+
+#: 5933e2f18f7f4d8abb0f97ce04a239f2 of
+#: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:35
+msgid "**legend** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr "**leyenda** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: d65f78d3360a41bd82cc4bb532dc9647 of
+#: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:34
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: 22b9f3b15501477d97e38b4392391e4e of
+#: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:36
+msgid "If to include a legend. Defaults to True if same_axes"
+msgstr "Si se incluye una leyenda. Por defecto es True si same_axes"
+
+#: f885c8f97e8f4c7b8b1f68a6cc5f9ef7 of
+#: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:38
+msgid ""
+"**sel_to_string** : :obj:`Callable`\\[[:obj:`Selection`], "
+":class:`python:str`], optional"
+msgstr ""
+"**sel_to_string** : :obj:`Callable`\\[[:obj:`Selection`], "
+":class:`python:str`], opcional"
+
+#: 0c1c9a47c4054a9fb86f766258916873 of
+#: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:37
+msgid "Callable[[Selection], python:str], optional"
+msgstr "Callable[[Selección], python:str], opcional"
+
+#: 70d810d115584c768f9d47edc929733d of
+#: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:39
+#, python-brace-format
+msgid ""
+"Function to convert selection to a string. Defaults to \", "
+"\".join(f\"{key}={value}\" for key, value in sel.items())"
+msgstr ""
+"Función para convertir la selección en una cadena. Por defecto, se utiliza "
+"\", \".join(f\"{key}={value}\" para clave, valor en sel.items())"
+
+#: 3445975e64724e148834258e5bcedc0c of
+#: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 0bd4d44a6f7346c0bc39b7248dfbf4ee of
+#: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:46
+msgid ""
+":class:`python:tuple`\\[:obj:`plt.Figure`, "
+":obj:`npt.NDArray`\\[:obj:`plt.Axes`]]"
+msgstr ""
+":class:`python:tuple`\\[:obj:`plt.Figure`, "
+":obj:`npt.NDArray`\\[:obj:`plt.Axes`]]"
+
+#: aabfec25c6df4755b518fd297cb5bf92 of
+#: pymc_marketing.mmm.hsgp.HSGPBase.plot_curve:47
+msgid "Figure and the axes"
+msgstr "Figura y los ejes"

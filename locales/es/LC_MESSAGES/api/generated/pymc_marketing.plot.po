@@ -1,0 +1,202 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.plot.rst:2
+#: 6e0e1bb2d8dd465794bda3bc2850af86
+msgid "plot"
+msgstr "trama"
+
+#: 6716f8e9b9c54217a12b080d0784792e of pymc_marketing.plot:1
+msgid "Plot distributions stored in xarray.DataArray across coordinates."
+msgstr ""
+"Trazar distribuciones almacenadas en xarray.DataArray a través de "
+"coordenadas."
+
+#: 555191f3b08a41d69926da7a1ae7ea3d of pymc_marketing.plot:3
+msgid "Used to plot the prior and posterior of the various MMM components."
+msgstr ""
+"Utilizado para trazar el anterior y el posterior de los diversos componentes"
+" de MMM."
+
+#: f707f048debe4f2593415885b9fbe715 of pymc_marketing.plot:5
+msgid "See the :func:`plot_curve` function for more information."
+msgstr "Consulte la función :func:`plot_curve` para obtener más información."
+
+#: ../source/api/generated/pymc_marketing.plot.rst:13
+#: 2a26c6149621480388455b91477d15d8
+msgid "Functions"
+msgstr "Funciones"
+
+#: ../source/api/generated/pymc_marketing.plot.rst:28:<autosummary>:1
+#: c55068d53de64e499a6c89b853cf8a48
+msgid ""
+":py:obj:`create_legend_handles "
+"<pymc_marketing.plot.create_legend_handles>`\\ \\(colors\\[\\, alpha\\, "
+"line\\, ...\\]\\)"
+msgstr ""
+":py:obj:`create_legend_handles "
+"<pymc_marketing.plot.create_legend_handles>`\\ \\(colores\\[\\, alfa\\, "
+"línea\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.plot.rst:28:<autosummary>:1
+#: b52966fa86704403bf8f2eb1aa990474
+msgid "Create the legend handles for the given colors."
+msgstr "Cree los controladores de leyenda para los colores dados."
+
+#: ../source/api/generated/pymc_marketing.plot.rst:28:<autosummary>:1
+#: 595b716778b5414b9763827bb28e4068
+msgid ""
+":py:obj:`drop_scalar_coords <pymc_marketing.plot.drop_scalar_coords>`\\ "
+"\\(curve\\)"
+msgstr ""
+":py:obj:`drop_scalar_coords <pymc_marketing.plot.drop_scalar_coords>`\\ "
+"\\(curva\\)"
+
+#: ../source/api/generated/pymc_marketing.plot.rst:28:<autosummary>:1
+#: 0de22c3863564898a8eeea635c5d34cd
+msgid "Remove scalar coordinates from an xarray DataArray."
+msgstr "Eliminar coordenadas escalares de un DataArray de xarray."
+
+#: ../source/api/generated/pymc_marketing.plot.rst:28:<autosummary>:1
+#: d2c7b5d5004f4d5184da318794a1d8aa
+msgid ""
+":py:obj:`generate_colors <pymc_marketing.plot.generate_colors>`\\ \\(n\\[\\,"
+" start\\]\\)"
+msgstr ""
+":py:obj:`generate_colors <pymc_marketing.plot.generate_colors>`\\ \\(n\\[\\,"
+" inicio\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.plot.rst:28:<autosummary>:1
+#: 93c7330796fc4250a3a581f8a9aa9b55
+msgid "Generate list of colors."
+msgstr "Generar lista de colores."
+
+#: ../source/api/generated/pymc_marketing.plot.rst:28:<autosummary>:1
+#: 9291e228c2de47bfb6d9f48e8058e5b3
+msgid ""
+":py:obj:`get_plot_coords <pymc_marketing.plot.get_plot_coords>`\\ "
+"\\(coords\\, non\\_grid\\_names\\)"
+msgstr ""
+":py:obj:`get_plot_coords <pymc_marketing.plot.get_plot_coords>`\\ "
+"\\(coords\\, non\\_grid\\_names\\)"
+
+#: ../source/api/generated/pymc_marketing.plot.rst:28:<autosummary>:1
+#: bfbc055f9f324f4b96554dd9eee96d5c
+msgid "Get the plot coordinates."
+msgstr "Obtenga las coordenadas del gráfico."
+
+#: ../source/api/generated/pymc_marketing.plot.rst:28:<autosummary>:1
+#: 67ca8e8b6b7744a59250aa1455ae9a89
+msgid ""
+":py:obj:`get_total_coord_size <pymc_marketing.plot.get_total_coord_size>`\\ "
+"\\(coords\\)"
+msgstr ""
+":py:obj:`get_total_coord_size <pymc_marketing.plot.get_total_coord_size>`\\ "
+"\\(coords\\)"
+
+#: ../source/api/generated/pymc_marketing.plot.rst:28:<autosummary>:1
+#: a4d89adcce2f4d66bb631532e3256a1c
+msgid "Get the total size of the coordinates."
+msgstr "Obtenga el tamaño total de las coordenadas."
+
+#: ../source/api/generated/pymc_marketing.plot.rst:28:<autosummary>:1
+#: cb6f52dd3d5a474a879ff2c5da966d8f
+msgid ""
+":py:obj:`plot_curve <pymc_marketing.plot.plot_curve>`\\ \\(curve\\, "
+"non\\_grid\\_names\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`plot_curve <pymc_marketing.plot.plot_curve>`\\ \\(curva\\, "
+"nombres\\_no\\_de\\_rejilla\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.plot.rst:28:<autosummary>:1
+#: 0bd11c19803a4c9ca33cac8e247d7e40
+msgid "Plot HDI with samples of the curve across coords."
+msgstr "Trazar el IDH con muestras de la curva a través de las coordenadas."
+
+#: ../source/api/generated/pymc_marketing.plot.rst:28:<autosummary>:1
+#: 96797d21fb9440d7a8c834639de3bd1d
+msgid ""
+":py:obj:`plot_hdi <pymc_marketing.plot.plot_hdi>`\\ \\(curve\\, "
+"non\\_grid\\_names\\[\\, hdi\\_prob\\, ...\\]\\)"
+msgstr ""
+":py:obj:`plot_hdi <pymc_marketing.plot.plot_hdi>`\\ \\(curva\\, "
+"nombres\\_no\\_de\\_rejilla\\[\\, hdi\\_prob\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.plot.rst:28:<autosummary>:1
+#: b363e3adfe8d4a51ad8af62a634d9291
+msgid "Plot hdi of the curve across coords."
+msgstr "Trazar el hdi de la curva a través de las coordenadas."
+
+#: ../source/api/generated/pymc_marketing.plot.rst:28:<autosummary>:1
+#: f8b1c2d8d6a5431fa2853871954c06a8
+msgid ""
+":py:obj:`plot_samples <pymc_marketing.plot.plot_samples>`\\ \\(curve\\, "
+"non\\_grid\\_names\\[\\, n\\, ...\\]\\)"
+msgstr ""
+":py:obj:`plot_samples <pymc_marketing.plot.plot_samples>`\\ \\(curva\\, "
+"non\\_grid\\_names\\[\\, n\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.plot.rst:28:<autosummary>:1
+#: 6888f2e442664bf8bfb4bf37a0981e57
+msgid "Plot n samples of the curve across coords."
+msgstr "Trazar n muestras de la curva a través de coords."
+
+#: ../source/api/generated/pymc_marketing.plot.rst:28:<autosummary>:1
+#: 967cbc7f77e94e45b597e8e5d02f6dde
+msgid ""
+":py:obj:`random_samples <pymc_marketing.plot.random_samples>`\\ \\(rng\\, "
+"n\\, n\\_chains\\, n\\_draws\\)"
+msgstr ""
+":py:obj:`random_samples <pymc_marketing.plot.random_samples>`\\ \\(rng\\, "
+"n\\, n\\_chains\\, n\\_draws\\)"
+
+#: ../source/api/generated/pymc_marketing.plot.rst:28:<autosummary>:1
+#: d91819c8b4b246049d771d159aac6674
+msgid "Generate random samples from the chains and draws."
+msgstr "Generar muestras aleatorias de las cadenas y extracciones."
+
+#: ../source/api/generated/pymc_marketing.plot.rst:28:<autosummary>:1
+#: 49408866c562476a918784cd771ef13b
+msgid ":py:obj:`selections <pymc_marketing.plot.selections>`\\ \\(coords\\)"
+msgstr ":py:obj:`selections <pymc_marketing.plot.selections>`\\ \\(coords\\)"
+
+#: ../source/api/generated/pymc_marketing.plot.rst:28:<autosummary>:1
+#: 227f1972a52a48829f6583e9dd8cc97e
+msgid "Create generator of selections."
+msgstr "Crear generador de selecciones."
+
+#: ../source/api/generated/pymc_marketing.plot.rst:28:<autosummary>:1
+#: 63dbd322beb148cfb8b17397481d43e3
+msgid ""
+":py:obj:`set_subplot_kwargs_defaults "
+"<pymc_marketing.plot.set_subplot_kwargs_defaults>`\\ \\(subplot\\_kwargs\\, "
+"...\\)"
+msgstr ""
+":py:obj:`set_subplot_kwargs_defaults "
+"<pymc_marketing.plot.set_subplot_kwargs_defaults>`\\ \\(subplot\\_kwargs\\, "
+"...\\)"
+
+#: ../source/api/generated/pymc_marketing.plot.rst:28:<autosummary>:1
+#: 1d2194e9bd774f2c84fd6792432cecb4
+msgid "Set the defaults for the subplot kwargs."
+msgstr ""
+"Establezca los valores predeterminados para los argumentos de la subgráfica."

@@ -1,0 +1,132 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.media_transformation.MediaConfigList.rst:2
+#: 8d26f1342ad64a59a344a86ff34dbf26
+msgid "MediaConfigList"
+msgstr "MediaConfigList"
+
+#: 11946ce9c8684c128ea027fbd4ab66fa of
+#: pymc_marketing.mmm.media_transformation.MediaConfigList:2
+msgid "Wrapper for a list of media configurations to apply to media data."
+msgstr ""
+"Envoltura para una lista de configuraciones de medios que se aplicarán a los"
+" datos de medios."
+
+#: 8b2ba35c8417478c9249258f62343acc of
+#: pymc_marketing.mmm.media_transformation.MediaConfigList
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: acceec8bb3bf44cb830c8e83f712f540 of
+#: pymc_marketing.mmm.media_transformation.MediaConfigList:7
+msgid "**media_configs** : :class:`python:list`\\[:obj:`MediaConfig`]"
+msgstr "**media_configs** : :class:`python:list`\\[:obj:`MediaConfig`]"
+
+#: 36fe76139f044f099959612863b642a5 of
+#: pymc_marketing.mmm.media_transformation.MediaConfigList:6
+msgid "python:list[MediaConfig]"
+msgstr "python:list[MediaConfig]"
+
+#: 490720a012644f24826ce6232b571a7b of
+#: pymc_marketing.mmm.media_transformation.MediaConfigList:8
+msgid "The media configurations to apply to the media data."
+msgstr "Las configuraciones de medios que se aplicarán a los datos de medios."
+
+#: 41dc583bc37c45d0a5741d409084c5e0 of
+#: pymc_marketing.mmm.media_transformation.MediaConfigList:23
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: 3391ccfc3724460aa9311cc2ce603e60 of
+#: pymc_marketing.mmm.media_transformation.MediaConfigList:24
+msgid ""
+"Different order of media transformations for online and offline media "
+"channels:"
+msgstr ""
+"Diferente orden de transformaciones de medios para canales de medios en "
+"línea y fuera de línea:"
+
+#: ../source/api/generated/pymc_marketing.mmm.media_transformation.MediaConfigList.rst:12
+#: 393b8041c9664cf7b2f8eaf3cbe11c65
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.media_transformation.MediaConfigList.rst:24:<autosummary>:1
+#: 251164e4438b4783a2b65749f93134d6
+msgid ""
+":py:obj:`MediaConfigList.__init__ "
+"<pymc_marketing.mmm.media_transformation.MediaConfigList.__init__>`\\ "
+"\\(media\\_configs\\)"
+msgstr ""
+":py:obj:`MediaConfigList.__init__ "
+"<pymc_marketing.mmm.media_transformation.MediaConfigList.__init__>`\\ "
+"\\(media\\_configs\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.media_transformation.MediaConfigList.rst:24:<autosummary>:1
+#: 0bcd15cc27e94a859744d0f063c1bcba
+msgid ""
+":py:obj:`MediaConfigList.from_dict "
+"<pymc_marketing.mmm.media_transformation.MediaConfigList.from_dict>`\\ "
+"\\(data\\)"
+msgstr ""
+":py:obj:`MediaConfigList.from_dict "
+"<pymc_marketing.mmm.media_transformation.MediaConfigList.from_dict>`\\ "
+"\\(datos\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.media_transformation.MediaConfigList.rst:24:<autosummary>:1
+#: b1d2e646886643ed8ce08016d27ab982
+msgid "Create a media configuration list from a dictionary."
+msgstr "Cree una lista de configuración de medios a partir de un diccionario."
+
+#: ../source/api/generated/pymc_marketing.mmm.media_transformation.MediaConfigList.rst:24:<autosummary>:1
+#: 682a640598544408aba8631104166d9d
+msgid ""
+":py:obj:`MediaConfigList.to_dict "
+"<pymc_marketing.mmm.media_transformation.MediaConfigList.to_dict>`\\ \\(\\)"
+msgstr ""
+":py:obj:`MediaConfigList.to_dict "
+"<pymc_marketing.mmm.media_transformation.MediaConfigList.to_dict>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.media_transformation.MediaConfigList.rst:24:<autosummary>:1
+#: d51d6a71b86148a384bef337d7746052
+msgid "Convert the media configuration list to a dictionary."
+msgstr "Convierte la lista de configuración de medios en un diccionario."
+
+#: ../source/api/generated/pymc_marketing.mmm.media_transformation.MediaConfigList.rst:26
+#: f24383a003fd4a9cba8b41dc2192bed5
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mmm.media_transformation.MediaConfigList.rst:29:<autosummary>:1
+#: aa852a6ea94840dca487c66730e6a4d5
+msgid ""
+":py:obj:`media_values "
+"<pymc_marketing.mmm.media_transformation.MediaConfigList.media_values>`\\"
+msgstr ""
+":py:obj:`media_values "
+"<pymc_marketing.mmm.media_transformation.MediaConfigList.media_values>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.media_transformation.MediaConfigList.rst:29:<autosummary>:1
+#: 587b728d506842dd98e4d135c780e9ad
+msgid "Get the media values from the media configurations."
+msgstr "Obtenga los valores de los medios de las configuraciones de medios."

@@ -1,0 +1,355 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/customer_choice/mv_its_unsaturated.ipynb:10002
+#: fc2f5bb97bb74ebc98e0c730fe82f2c1
+msgid "Multivariate ITS model for unsaturated markets"
+msgstr "Modelo ITS multivariado para mercados no saturados"
+
+#: ../source/notebooks/customer_choice/mv_its_unsaturated.ipynb:10004
+#: 6f66d1656b8c4c749746ba554a918d5d
+msgid ""
+"This notebook showcases how to use the Multivariate Interrupted Time Series "
+"(MVITS) model to estimate where new product sales came from in the case of "
+"an unsaturated market. That is, when a new product can lead to (some) "
+"reductions in sales of existing products, but some of the new product sales "
+"are in the form of growing the market."
+msgstr ""
+"Este cuaderno muestra cómo utilizar el modelo de Series de Tiempo "
+"Interrumpidas Multivariadas (MVITS) para estimar de dónde provienen las "
+"ventas de nuevos productos en el caso de un mercado no saturado. Es decir, "
+"cuando un nuevo producto puede provocar (algunas) reducciones en las ventas "
+"de productos existentes, pero algunas de las ventas del nuevo producto se "
+"dan en forma de crecimiento del mercado."
+
+#: ../source/notebooks/customer_choice/mv_its_unsaturated.ipynb:10006
+#: da131e227bda4e05978ce0811c73298d
+msgid ""
+"We will also see a scenario like this which the MVITS model is (at least "
+"currently) not able to handle. It is important to be aware of the "
+"limitations of the model and whether your dataset fits the assumptions of "
+"the model."
+msgstr ""
+"También veremos un escenario como este que el modelo MVITS no puede manejar "
+"(al menos actualmente). Es importante ser consciente de las limitaciones del"
+" modelo y de si su conjunto de datos se ajusta a las suposiciones del "
+"modelo."
+
+#: ../source/notebooks/customer_choice/mv_its_unsaturated.ipynb:20002
+#: e7b6c2e85c884fd7835646b6c21e53d2
+msgid "Notebook setup"
+msgstr "Configuración del cuaderno"
+
+#: ../source/notebooks/customer_choice/mv_its_unsaturated.ipynb:40002
+#: b4a94781c5db4e56a6424558fdd7f78d
+msgid "An unsaturated market example"
+msgstr "Un ejemplo de mercado no saturado"
+
+#: ../source/notebooks/customer_choice/mv_its_unsaturated.ipynb:40004
+#: 1e5d804f4ff14164aed9ae9b396921c0
+msgid ""
+"Let's explore a situation where a new product is released, and it sells "
+"reasonably well. _Some_ of those new product sales are coming from existing "
+"products, but _some_ are coming from new customers."
+msgstr ""
+"Exploremos una situación en la que se lanza un nuevo producto y se vende "
+"razonablemente bien. _Algunas_ de esas ventas del nuevo producto provienen "
+"de productos existentes, pero _algunas_ provienen de nuevos clientes."
+
+#: ../source/notebooks/customer_choice/mv_its_unsaturated.ipynb:40006
+#: 2fbcb69730174cfca61b81affe34cac9
+msgid ""
+"So the total sales increase, but importantly, those additional sales are "
+"directed to the new product. This is likely a pretty common scenario in the "
+"real world. A new product is released and perhaps it is far better than "
+"existing products. So if it sells 1000 units, then some of those sales will "
+"be 'taken' from sales of existing products, but the new product is so good "
+"that it attracts new customers that would not have purchased any of the "
+"existing products. This could happen if the new product falls below a "
+"psychologically significant price point, or is associated with new "
+"marketing, or simply has a new feature that attracts new customers."
+msgstr ""
+"Así que el aumento total de ventas, pero lo importante es que esas ventas "
+"adicionales se dirigen al nuevo producto. Este es probablemente un escenario"
+" bastante común en el mundo real. Se lanza un nuevo producto y quizás sea "
+"mucho mejor que los productos existentes. Así que si se venden 1000 "
+"unidades, algunas de esas ventas serán 'tomadas' de las ventas de productos "
+"existentes, pero el nuevo producto es tan bueno que atrae a nuevos clientes "
+"que no habrían comprado ninguno de los productos existentes. Esto podría "
+"suceder si el nuevo producto cae por debajo de un punto de precio "
+"psicológicamente significativo, o si está asociado con un nuevo marketing, o"
+" simplemente tiene una nueva característica que atrae a nuevos clientes."
+
+#: ../source/notebooks/customer_choice/mv_its_unsaturated.ipynb:60002
+#: 6300b62d7a384da4a7e5b5a9c5165903
+msgid "So the key properties of this example are:"
+msgstr "Las propiedades clave de este ejemplo son:"
+
+#: ../source/notebooks/customer_choice/mv_its_unsaturated.ipynb:60003
+#: 52dfa5b07474408699f4437acebd6837
+msgid "The total sales increase when the new product is released."
+msgstr ""
+"El aumento total de ventas se produce cuando se lanza el nuevo producto."
+
+#: ../source/notebooks/customer_choice/mv_its_unsaturated.ipynb:60004
+#: ec1e42987b5042f2ae834ab2a95ebc6d
+msgid ""
+"Some of the new product sales come from existing products. We can tell this "
+"because a) the existing products' sales decrease, and b) the new product's "
+"sales are greater than the decrease in existing products' sales."
+msgstr ""
+"Algunas de las ventas del nuevo producto provienen de productos existentes. "
+"Podemos deducir esto porque a) las ventas de los productos existentes "
+"disminuyen, y b) las ventas del nuevo producto son mayores que la "
+"disminución en las ventas de los productos existentes."
+
+#: ../source/notebooks/customer_choice/mv_its_unsaturated.ipynb:60005
+#: 1c08d9aa48674c7f83795bd519f094f2
+msgid ""
+"The absolute sales numbers for existing products decrease. This is one of "
+"the key assumptions of the MVITS model."
+msgstr ""
+"Los números de ventas absolutos de los productos existentes disminuyen. Esta"
+" es una de las suposiciones clave del modelo MVITS."
+
+#: ../source/notebooks/customer_choice/mv_its_unsaturated.ipynb:120002
+#: bb15493cfa984e81a80e911cd96b3154
+msgid ""
+"We can see that the model does a reasonable job of accounting for the data "
+"in that it capures the pre-introduction sales levels and the reduction in "
+"sales at the point the new product is introduced."
+msgstr ""
+"Podemos ver que el modelo hace un trabajo razonable al tener en cuenta los "
+"datos, ya que captura los niveles de ventas previos a la introducción y la "
+"reducción en las ventas en el momento en que se introduce el nuevo producto."
+
+#: ../source/notebooks/customer_choice/mv_its_unsaturated.ipynb:140002
+#: 4e7f797b03ff4e2e92aace872a51a434
+msgid ""
+"The counterfactual plot also looks good. The model estimates the "
+"counterfactual sales of the existing products would have continued as they "
+"were from before the new product was introduced."
+msgstr ""
+"El gráfico contrafactual también se ve bien. El modelo estima que las ventas"
+" contrafactuales de los productos existentes habrían continuado como estaban"
+" antes de la introducción del nuevo producto."
+
+#: ../source/notebooks/customer_choice/mv_its_unsaturated.ipynb:160002
+#: e486686df230412b9e67983e38ec5edf
+msgid ""
+"The model shows that introduction of the new product caused a decline in the"
+" sales of existing products."
+msgstr ""
+"El modelo muestra que la introducción del nuevo producto causó una "
+"disminución en las ventas de los productos existentes."
+
+#: ../source/notebooks/customer_choice/mv_its_unsaturated.ipynb:180002
+#: e4636406a8644e79b0fdc616f797583b
+msgid "And looking at the $\\beta$ parameters, we can see:"
+msgstr "Y al observar los parámetros $\\beta$, podemos ver:"
+
+#: ../source/notebooks/customer_choice/mv_its_unsaturated.ipynb:180003
+#: eea1f732fd0c4c699c4b13cefa8428e0
+#, python-format
+msgid ""
+"`beta_all[competitor]` shows that about 33% of the new product sales are "
+"incremental, in that they are taken from competitor sales."
+msgstr ""
+"`beta_all[competitor]` muestra que aproximadamente el 33% de las ventas del "
+"nuevo producto son incrementales, en el sentido de que se toman de las "
+"ventas de los competidores."
+
+#: ../source/notebooks/customer_choice/mv_its_unsaturated.ipynb:180004
+#: 05701e72e678424f98e13bedee1b68df
+#, python-format
+msgid ""
+"`beta_all[own]` shows that about 27% of the new product sales are "
+"cannibalisations, in that they are taken from your own companies existing "
+"product sales."
+msgstr ""
+"`beta_all[own]` muestra que aproximadamente el 27% de las ventas del nuevo "
+"producto son canibalizaciones, en el sentido de que se toman de las ventas "
+"de productos existentes de su propia empresa."
+
+#: ../source/notebooks/customer_choice/mv_its_unsaturated.ipynb:180005
+#: dcf8b4b3f5ee4b4a9aa0514f44bb4671
+#, python-format
+msgid ""
+"`beta_all[new]` shows that about 40% of the new product sales are from "
+"growing the market."
+msgstr ""
+"`beta_all[new]` muestra que aproximadamente el 40% de las ventas del nuevo "
+"producto provienen del crecimiento del mercado."
+
+#: ../source/notebooks/customer_choice/mv_its_unsaturated.ipynb:200002
+#: a04cb90179194e7a9ea116b14c45f4a0
+msgid "Beta variables"
+msgstr "Variables beta"
+
+#: ../source/notebooks/customer_choice/mv_its_unsaturated.ipynb:200005
+#: 4e310943629049afbbce5e96bc0c5a71
+msgid ""
+"When we model unsaturated markets using the `saturated_market=False` kwarg "
+"in the MVITS model, we need to use the `beta_all` variable, not the `beta` "
+"variable."
+msgstr ""
+"Cuando modelamos mercados no saturados utilizando el argumento "
+"`saturated_market=False` en el modelo MVITS, necesitamos usar la variable "
+"`beta_all`, no la variable `beta`."
+
+#: ../source/notebooks/customer_choice/mv_its_unsaturated.ipynb:210002
+#: 8bfec8e09b3e4f89a38a4bfc50a40403
+msgid "Limits to the MVITS model"
+msgstr "Límites del modelo MVITS"
+
+#: ../source/notebooks/customer_choice/mv_its_unsaturated.ipynb:210004
+#: 70ca132a7253405e8c02810b63174cd9
+msgid ""
+"In this section we will explore a scenario which the MVITS is incapable of "
+"modeling, at least in its current form. Namely, it cannot deal with "
+"situations where the sales of existing products _increase_ after the "
+"introduction of the new product. This is because the MVITS model assumes "
+"that the sales of existing products are constant over time, and that the new"
+" product only affects the sales of the existing products negatively."
+msgstr ""
+"En esta sección exploraremos un escenario que el MVITS es incapaz de "
+"modelar, al menos en su forma actual. Es decir, no puede manejar situaciones"
+" en las que las ventas de productos existentes _aumentan_ después de la "
+"introducción del nuevo producto. Esto se debe a que el modelo MVITS asume "
+"que las ventas de los productos existentes son constantes a lo largo del "
+"tiempo y que el nuevo producto solo afecta negativamente las ventas de los "
+"productos existentes."
+
+#: ../source/notebooks/customer_choice/mv_its_unsaturated.ipynb:220002
+#: 2ff41f32538f4f84ad92b4a8bbab4f49
+msgid "Warning"
+msgstr "Advertencia"
+
+#: ../source/notebooks/customer_choice/mv_its_unsaturated.ipynb:220005
+#: 63a7837af5554665a0e550cd0431d3b3
+msgid ""
+"This section is meant to demonstrate a data scenario that the MVITS is _not_"
+" capable of modeling well. At least, not in its current form."
+msgstr ""
+"Esta sección tiene como objetivo demostrar un escenario de datos que el "
+"MVITS _no_ es capaz de modelar bien. Al menos, no en su forma actual."
+
+#: ../source/notebooks/customer_choice/mv_its_unsaturated.ipynb:240002
+#: 48d5aba077934fa2b3e945ebd431356b
+msgid "In this scenario:"
+msgstr "En este escenario:"
+
+#: ../source/notebooks/customer_choice/mv_its_unsaturated.ipynb:240003
+#: 24c2bb0cf9654169b65be2cc648a185c
+msgid ""
+"The market share of competitor products starts at 70% and reduces to 65% "
+"when the new product is introduced."
+msgstr ""
+"La cuota de mercado de los productos de la competencia comienza en 70% y se "
+"reduce a 65% cuando se introduce el nuevo producto."
+
+#: ../source/notebooks/customer_choice/mv_its_unsaturated.ipynb:240004
+#: bc7ab304a73f4f5499856d4ca7e6ec15
+msgid ""
+"The market share of our own company products starts at 30% and reduces to "
+"25% when the new product is introduced."
+msgstr ""
+"La cuota de mercado de nuestros propios productos comienza en un 30% y se "
+"reduce al 25% cuando se introduce el nuevo producto."
+
+#: ../source/notebooks/customer_choice/mv_its_unsaturated.ipynb:240005
+#: 2d025a7c18304a5ea75e6c7fa3f5bf32
+msgid "The new product gains 10% market share when it is introduced."
+msgstr ""
+"El nuevo producto gana un 10% de cuota de mercado cuando se introduce."
+
+#: ../source/notebooks/customer_choice/mv_its_unsaturated.ipynb:240006
+#: c30b0c3830f5409cbb0c3a31b069265e
+msgid ""
+"However, the introduction of the new product also increases the total size "
+"of the market from 1000 to 1400 units on average."
+msgstr ""
+"Sin embargo, la introducción del nuevo producto también aumenta el tamaño "
+"total del mercado de 1000 a 1400 unidades en promedio."
+
+#: ../source/notebooks/customer_choice/mv_its_unsaturated.ipynb:240007
+#: c4f6647922344279bac7019961bbab4d
+msgid ""
+"This means that while the market shares of the existing products are "
+"reduced, their sales actually increase."
+msgstr ""
+"Esto significa que, aunque las cuotas de mercado de los productos existentes"
+" se reducen, sus ventas en realidad aumentan."
+
+#: ../source/notebooks/customer_choice/mv_its_unsaturated.ipynb:240009
+#: 99e2e3ff684a44438faa66318debfd2e
+msgid ""
+"It is this increase in sales numbers that the MV-ITS model (as currently "
+"implemented) cannot handle."
+msgstr ""
+"Es este aumento en los números de ventas que el modelo MV-ITS (tal como está"
+" implementado actualmente) no puede manejar."
+
+#: ../source/notebooks/customer_choice/mv_its_unsaturated.ipynb:290002
+#: 1cad1ce5a8d14d41808e01c2e2130561
+msgid "Let's explore how this fails."
+msgstr "Exploremos cómo esto falla."
+
+#: ../source/notebooks/customer_choice/mv_its_unsaturated.ipynb:290004
+#: 310679672dad4362be50e5b0fe52d621
+msgid ""
+"First, we can see that the model does not do a good job of accounting for "
+"the data. The posterior predictive checks show that the model is not "
+"accurately capturing the sales data prior to the new product introduction."
+msgstr ""
+"Primero, podemos ver que el modelo no hace un buen trabajo al contabilizar "
+"los datos. Las verificaciones predictivas posteriores muestran que el modelo"
+" no está capturando con precisión los datos de ventas antes de la "
+"introducción del nuevo producto."
+
+#: ../source/notebooks/customer_choice/mv_its_unsaturated.ipynb:310002
+#: d59b2a322fe84dadafea556123e1f85a
+msgid ""
+"Equally, the counterfactual predictions are poor in that they do not "
+"represent what we'd expect to see. Namely, we'd expect the relatively "
+"constant sales numbers to continue on as they were after the new product was"
+" introduced."
+msgstr ""
+"Igualmente, las predicciones contrafactuales son deficientes en el sentido "
+"de que no representan lo que esperaríamos ver. Es decir, esperaríamos que "
+"los números de ventas relativamente constantes continuaran como estaban "
+"después de la introducción del nuevo producto."
+
+#: ../source/notebooks/customer_choice/mv_its_unsaturated.ipynb:330002
+#: 4eb860b75a674e75bdfdc76ad284625e
+msgid ""
+"If we examine the parameters (in the unsaturated market case we examine "
+"`beta_all`, not `beta`) we can see that the model attributes a near zero "
+"reduction in the existing competitor and own company products. There is no "
+"reduction of course, the sales numbers actually _increased_ despite the "
+"market share decreasing."
+msgstr ""
+"Si examinamos los parámetros (en el caso del mercado no saturado examinamos "
+"`beta_all`, no `beta`), podemos ver que el modelo atribuye una reducción "
+"casi nula en los productos de la empresa competidora existente y de la "
+"propia empresa. No hay reducción, por supuesto, los números de ventas en "
+"realidad _aumentaron_ a pesar de que la cuota de mercado disminuyó."

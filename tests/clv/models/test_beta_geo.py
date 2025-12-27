@@ -24,7 +24,7 @@ from pymc_extras.prior import Prior
 
 from pymc_marketing.clv.distributions import BetaGeoNBD
 from pymc_marketing.clv.models.beta_geo import BetaGeoModel
-from tests.conftest import create_mock_fit, mock_sample, set_model_fit
+from tests.clv.conftest import create_mock_fit, mock_sample, set_model_fit
 
 
 class TestBetaGeoModel:
@@ -183,7 +183,7 @@ class TestBetaGeoModel:
         )
 
         with pytest.raises(
-            ValueError, match="Column customer_id has duplicate entries"
+            ValueError, match=r"Column customer_id has duplicate entries"
         ):
             BetaGeoModel(
                 data=data,
@@ -241,7 +241,7 @@ class TestBetaGeoModel:
             map_idata.posterior = map_idata.posterior.isel(
                 chain=slice(None, 1), draw=slice(None, 1)
             )
-            model = self.model._build_with_idata(map_idata)
+            model = self.model.build_from_idata(map_idata)
             # We expect 1000 draws to be sampled with MAP
             expected_shape = (1, 1000)
             expected_pop_dims = (1, 1000, dim_T, 2)
@@ -340,7 +340,7 @@ class TestBetaGeoModel:
 
     def test_fit_result_without_fit(self, mocker, model_config):
         model = BetaGeoModel(data=self.data, model_config=model_config)
-        with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
+        with pytest.raises(RuntimeError, match=r"The model hasn't been fit yet"):
             model.fit_result
 
         mocker.patch("pymc.sample", mock_sample)

@@ -1,0 +1,148 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.events.HalfGaussianBasis.plot_curve_samples.rst:2
+#: ad4f1b24e9e946429c62ede9e962a850
+msgid "HalfGaussianBasis.plot\\_curve\\_samples"
+msgstr "HalfGaussianBasis.plot\\_curve\\_samples"
+
+#: 738775c2c3964920934fb05de11da4fa of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_samples:2
+msgid "Plot samples from the curve."
+msgstr "Trazar muestras de la curva."
+
+#: e4ebaa32e24d4fe8834bc7e31ab898af of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_samples
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: aa4593c8c5354d4bb3bf4af0c547d6a2 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_samples:7
+msgid "**curve** : :obj:`xr.DataArray`"
+msgstr "**curva** : :obj:`xr.DataArray`"
+
+#: 9b743b5317e3471f913c4e0a8b78f3db of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_samples:6
+msgid "xr.DataArray"
+msgstr "xr.DataArray"
+
+#: 0b8e7a82c52a4077b4eb07513f168d8b of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_samples:8
+msgid "The curve to plot."
+msgstr "La curva a graficar."
+
+#: a3300403e087432d82de5d9e890e5614 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_samples:10
+msgid "**n** : :class:`python:int`, optional"
+msgstr "**n** : :class:`python:int`, opcional"
+
+#: 92e7799bfc11494aaedfb03538d15fe3 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_samples:9
+msgid "python:int, optional"
+msgstr "python:int, opcional"
+
+#: 183d399d1bb946f99b8dbd34c418df8a of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_samples:11
+msgid "The number of samples to plot. Defaults to 10."
+msgstr "El número de muestras a graficar. Por defecto es 10."
+
+#: 409a699ef7244257b6aae1072e984b6b of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_samples:13
+msgid "**rng** : :obj:`np.random.Generator`, optional"
+msgstr "**rng** : :obj:`np.random.Generator`, opcional"
+
+#: 2f9030e19538437baeda15500bf269dd of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_samples:12
+msgid "np.random.Generator, optional"
+msgstr "np.random.Generator, opcional"
+
+#: f8ef4de63ce74fd58067df68c2f78cec of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_samples:14
+msgid "The random number generator to use. Defaults to None."
+msgstr "El generador de números aleatorios a utilizar. Por defecto es None."
+
+#: f5f0bcfd1df8424d9207451f9ea5689c of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_samples:16
+msgid "**plot_kwargs** : :class:`python:dict`, optional"
+msgstr "**plot_kwargs** : :class:`python:dict`, opcional"
+
+#: 88e6780e866048da84d2986aaa30d336 8c5b89caa8d449caaefa064df9812b70 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_samples:15
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_samples:18
+msgid "python:dict, optional"
+msgstr "python:dict, opcional"
+
+#: 2783094b60614013ad34d236b3e143a8 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_samples:17
+msgid "Keyword arguments for the DataFrame plot function. Defaults to None."
+msgstr ""
+"Argumentos de palabras clave para la función de gráfico del DataFrame. Por "
+"defecto es None."
+
+#: 9fdc03f8b74a450d884fdb5bba1527da of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_samples:19
+msgid "**subplot_kwargs** : :class:`python:dict`, optional"
+msgstr "**subplot_kwargs** : :class:`python:dict`, opcional"
+
+#: f6d5ea49a5eb4abc8083d8be000412b4 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_samples:20
+msgid "Keyword arguments for plt.subplots"
+msgstr "Argumentos de palabras clave para plt.subplots"
+
+#: 02c095562d724202ad1865489428abc7 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_samples:22
+msgid "**axes** : :obj:`npt.NDArray`\\[:obj:`plt.Axes`], optional"
+msgstr "**ejes** : :obj:`npt.NDArray`\\[:obj:`plt.Axes`], opcional"
+
+#: b97a1683081447c4905dd3f75910f178 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_samples:21
+msgid "npt.NDArray[plt.Axes], optional"
+msgstr "npt.NDArray[plt.Axes], opcional"
+
+#: 59f69d6a7da442f18f70ae03973c0f22 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_samples:23
+msgid "The exact axes to plot on. Overrides any subplot_kwargs"
+msgstr "Los ejes exactos para trazar. Anula cualquier subplot_kwargs."
+
+#: e15920789ab146e08433ca0c8d6067b8 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_samples
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 3596e61ed7aa44e7b607a9ab70819cb2 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_samples:29
+msgid ""
+":class:`python:tuple`\\[:obj:`plt.Figure`, "
+":obj:`npt.NDArray`\\[:obj:`plt.Axes`]]"
+msgstr ""
+":class:`python:tuple`\\[:obj:`plt.Figure`, "
+":obj:`npt.NDArray`\\[:obj:`plt.Axes`]]"
+
+#: 98241013bea447e4abfd004aa07a6759 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_samples:32
+msgid ":obj:`plt.Axes`"
+msgstr ":obj:`plt.Axes`"
+
+#: f50faf00c56f480cae676954cd46eed8 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve_samples:33
+msgid "The axes with the plot."
+msgstr "Los ejes con el gráfico."

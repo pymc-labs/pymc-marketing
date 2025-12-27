@@ -1,0 +1,317 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.clv.utils.rfm_train_test_split.rst:2
+#: aa66a910d6dc46fa82493d745b47e392
+msgid "rfm\\_train\\_test\\_split"
+msgstr "rfm\\_train\\_test\\_split"
+
+#: 52071980ec34456a8ae6616f68ad97f6 of
+#: pymc_marketing.clv.utils.rfm_train_test_split:2
+msgid ""
+"Summarize transaction data and split into training and tests datasets for "
+"CLV modeling."
+msgstr ""
+"Resuma los datos de transacciones y divídalos en conjuntos de datos de "
+"entrenamiento y prueba para el modelado de CLV."
+
+#: 19a3e16acf42474eb912ca9c705b3e30 of
+#: pymc_marketing.clv.utils.rfm_train_test_split:4
+msgid ""
+"This can also be used to evaluate the impact of a time-based intervention "
+"like a marketing campaign."
+msgstr ""
+"Esto también se puede utilizar para evaluar el impacto de una intervención "
+"basada en el tiempo, como una campaña de marketing."
+
+#: 2f778d36785244a785ff6b2c5adb52ed of
+#: pymc_marketing.clv.utils.rfm_train_test_split:6
+msgid "This transforms a DataFrame of transaction data of the form:"
+msgstr "Esto transforma un DataFrame de datos de transacciones de la forma:"
+
+#: 748a4a9b53cc4db5aa3d9f26ccf5c75e of
+#: pymc_marketing.clv.utils.rfm_train_test_split:7
+msgid "*customer_id, datetime [, monetary_value]*"
+msgstr "*customer_id, fecha y hora [, valor_monetario]*"
+
+#: 50f8a5ac2aa04f70af0bfe1df824883f of
+#: pymc_marketing.clv.utils.rfm_train_test_split:8
+msgid "to a DataFrame of the form:"
+msgstr "a un DataFrame de la forma:"
+
+#: 66da4033ceee490aa803c7dd65dd8f11 of
+#: pymc_marketing.clv.utils.rfm_train_test_split:9
+msgid ""
+"*customer_id, frequency, recency, T [, monetary_value], test_frequency [, "
+"test_monetary_value], test_T*"
+msgstr ""
+"*customer_id, frecuencia, recencia, T [, valor_monetario], frecuencia_prueba"
+" [, valor_monetario_prueba], test_T*"
+
+#: 876b17ad45c04b8f90e0455ba0aa3659 of
+#: pymc_marketing.clv.utils.rfm_train_test_split:11
+msgid ""
+"Note this function will exclude new customers whose first transactions "
+"occurred during the test period."
+msgstr ""
+"Tenga en cuenta que esta función excluirá a los nuevos clientes cuyas "
+"primeras transacciones ocurrieron durante el período de prueba."
+
+#: efc0221dafaa407b9c5319484dbff808 of
+#: pymc_marketing.clv.utils.rfm_train_test_split:13
+msgid ""
+"Adapted from lifetimes package "
+"https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/utils.py#L27"
+msgstr ""
+"Adaptado del paquete lifetimes "
+"https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/utils.py#L27"
+
+#: 8c7f1e13516246e88f70b42f86bd4e6b of
+#: pymc_marketing.clv.utils.rfm_train_test_split
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: b09eecc5e7bc4726ab95be66041587d2 of
+#: pymc_marketing.clv.utils.rfm_train_test_split:18
+msgid "**transactions** : :obj:`~pandas.DataFrame`"
+msgstr "**transacciones** : :obj:`~pandas.DataFrame`"
+
+#: e412be6fdffb449bbfbf03c6342f8b38 of
+#: pymc_marketing.clv.utils.rfm_train_test_split:17
+msgid "DataFrame"
+msgstr "DataFrame"
+
+#: cc408f35926940d4981ca9f2e0300501 of
+#: pymc_marketing.clv.utils.rfm_train_test_split:19
+msgid "A Pandas DataFrame containing *customer_id_col* and *datetime_col*."
+msgstr ""
+"Un DataFrame de Pandas que contiene *customer_id_col* y *datetime_col*."
+
+#: 6079e92dead443a68f582a0b0ac3e111 of
+#: pymc_marketing.clv.utils.rfm_train_test_split:21
+msgid "**customer_id_col** : :class:`python:str`"
+msgstr "**customer_id_col** : :class:`python:str`"
+
+#: 13a2404a450f40318d33afa3275a4186 ab421d3b775943a9a7477ecd67fb084c of
+#: pymc_marketing.clv.utils.rfm_train_test_split:20
+#: pymc_marketing.clv.utils.rfm_train_test_split:23
+msgid "python:str"
+msgstr "python:str"
+
+#: 780a52f38d6349b29cdcbb81b12cc356 of
+#: pymc_marketing.clv.utils.rfm_train_test_split:22
+msgid "Column in the *transactions* DataFrame denoting the customer_id."
+msgstr "Columna en el DataFrame *transactions* que denota el customer_id."
+
+#: 1bd1be288c4640bf8c69a2d5201a6274 of
+#: pymc_marketing.clv.utils.rfm_train_test_split:24
+msgid "**datetime_col** :  :class:`python:str`"
+msgstr "**datetime_col** :  :class:`python:str`"
+
+#: 3fe0346585ad4badbfca09d39a6f19b3 of
+#: pymc_marketing.clv.utils.rfm_train_test_split:25
+msgid ""
+"Column in the *transactions* DataFrame denoting datetimes purchases were "
+"made."
+msgstr ""
+"Columna en el DataFrame de *transacciones* que denota las fechas y horas en "
+"las que se realizaron las compras."
+
+#: 84623617a0c54129b6751f622ac92a07 of
+#: pymc_marketing.clv.utils.rfm_train_test_split:27
+msgid ""
+"**train_period_end** : :obj:`Union`\\[:class:`python:str`, "
+":obj:`pandas.Period`, :obj:`datetime`], optional"
+msgstr ""
+"**train_period_end** : :obj:`Union`\\[:class:`python:str`, "
+":obj:`pandas.Period`, :obj:`datetime`], opcional"
+
+#: 8e34288df54941529287394885dec1fc c25bff130103459bbcfddea163b9c4d4 of
+#: pymc_marketing.clv.utils.rfm_train_test_split:26
+#: pymc_marketing.clv.utils.rfm_train_test_split:30
+msgid "Union[python:str, pandas.Period, datetime], optional"
+msgstr "Unión[python:str, pandas.Period, datetime], opcional"
+
+#: f35b6cc65cd947798ee41d6c34f1aa60 of
+#: pymc_marketing.clv.utils.rfm_train_test_split:28
+msgid ""
+"A string or datetime to denote the final time period for the training data. "
+"Events after this time period are used for the test data."
+msgstr ""
+"Una cadena o fecha y hora para denotar el período de tiempo final para los "
+"datos de entrenamiento. Los eventos después de este período de tiempo se "
+"utilizan para los datos de prueba."
+
+#: 6d1479023634406fb19beefa67d22d22 of
+#: pymc_marketing.clv.utils.rfm_train_test_split:31
+msgid ""
+"**test_period_end** : :obj:`Union`\\[:class:`python:str`, "
+":obj:`pandas.Period`, :obj:`datetime`], optional"
+msgstr ""
+"**test_period_end** : :obj:`Union`\\[:class:`python:str`, "
+":obj:`pandas.Period`, :obj:`datetime`], opcional"
+
+#: 0b541919e01347a2ab023617fa66b542 of
+#: pymc_marketing.clv.utils.rfm_train_test_split:32
+msgid ""
+"A string or datetime to denote the final time period of the study. Events "
+"after this date are truncated. If not given, defaults to the max of "
+"*datetime_col*."
+msgstr ""
+"Una cadena o fecha y hora para denotar el período final del estudio. Los "
+"eventos después de esta fecha se truncarán. Si no se proporciona, se "
+"establece por defecto en el máximo de *datetime_col*."
+
+#: dda2f6db2e8b4e7da2aec10f189920b6 of
+#: pymc_marketing.clv.utils.rfm_train_test_split:35
+msgid "**time_unit** : :class:`python:str`, optional"
+msgstr "**unidad_tiempo** : :class:`python:str`, opcional"
+
+#: 2e52dfeafb964a3ebe063bf603c9ad7a 4ad89fd734024594bf8a8444b9b0685e
+#: 522faf85b9e743db86896178d5502d06 of
+#: pymc_marketing.clv.utils.rfm_train_test_split:34
+#: pymc_marketing.clv.utils.rfm_train_test_split:43
+#: pymc_marketing.clv.utils.rfm_train_test_split:46
+msgid "python:str, optional"
+msgstr "python:str, opcional"
+
+#: 591a7e7750d64bf994d6c4237d54fbba of
+#: pymc_marketing.clv.utils.rfm_train_test_split:36
+msgid ""
+"Time granularity for study. Default: 'D' for days. Possible values listed "
+"here: https://numpy.org/devdocs/reference/arrays.datetime.html#datetime-"
+"units"
+msgstr ""
+"Granularidad de tiempo para el estudio. Predeterminado: 'D' para días. Los "
+"valores posibles se enumeran aquí: "
+"https://numpy.org/devdocs/reference/arrays.datetime.html#datetime-units"
+
+#: 0fc8a8cce50f40c499616093d5d77067 of
+#: pymc_marketing.clv.utils.rfm_train_test_split:40
+msgid "**time_scaler** : :class:`python:int`, optional"
+msgstr "**time_scaler** : :class:`python:int`, opcional"
+
+#: 672c46b9ac0a4dda93ebc2e0cbd2b25c of
+#: pymc_marketing.clv.utils.rfm_train_test_split:39
+msgid "python:int, optional"
+msgstr "python:int, opcional"
+
+#: ff154a80e07d4bf8b85cf99764ac28b3 of
+#: pymc_marketing.clv.utils.rfm_train_test_split:41
+msgid ""
+"Default: 1. Scales *recency* & *T* to a different time granularity. This is "
+"useful for datasets spanning many years, and running predictions in "
+"different time scales."
+msgstr ""
+"Predeterminado: 1. Escala *recencia* y *T* a una granularidad temporal "
+"diferente. Esto es útil para conjuntos de datos que abarcan muchos años y "
+"para realizar predicciones en diferentes escalas de tiempo."
+
+#: d45b565cbbbf4e16b5a4083492d1d786 of
+#: pymc_marketing.clv.utils.rfm_train_test_split:44
+msgid "**datetime_format** : :class:`python:str`, optional"
+msgstr "**datetime_format** : :class:`python:str`, opcional"
+
+#: ff81cea495f24945927b3a7e78008749 of
+#: pymc_marketing.clv.utils.rfm_train_test_split:45
+msgid ""
+"A string that represents the timestamp format. Useful if Pandas doesn't "
+"recognize the provided format."
+msgstr ""
+"Una cadena que representa el formato de la marca de tiempo. Útil si Pandas "
+"no reconoce el formato proporcionado."
+
+#: e4410198108a4a1f9d6d9d984e13945a of
+#: pymc_marketing.clv.utils.rfm_train_test_split:47
+msgid "**monetary_value_col** : :class:`python:str`, optional"
+msgstr "**monetary_value_col** : :class:`python:str`, opcional"
+
+#: 8423e30673c9430d9c7cfcb8d3394c57 of
+#: pymc_marketing.clv.utils.rfm_train_test_split:48
+msgid ""
+"Column in the *transactions* DataFrame that denotes the monetary value of "
+"the transaction. Optional; only needed for spend estimation models like the "
+"Gamma-Gamma model."
+msgstr ""
+"Columna en el DataFrame de *transacciones* que denota el valor monetario de "
+"la transacción. Opcional; solo se necesita para modelos de estimación de "
+"gastos como el modelo Gamma-Gamma."
+
+#: 2550a90cbb324d4b89c5bd42b5bf686b of
+#: pymc_marketing.clv.utils.rfm_train_test_split:51
+msgid ""
+"**include_first_transaction** : :ref:`bool <python:bltin-boolean-values>`, "
+"optional"
+msgstr ""
+"**include_first_transaction** : :ref:`bool <python:bltin-boolean-values>`, "
+"opcional"
+
+#: 2ce48f5fbd744797b68a4dc2a102de64 63e8790d5d30417485d5325c54bfd0a8 of
+#: pymc_marketing.clv.utils.rfm_train_test_split:50
+#: pymc_marketing.clv.utils.rfm_train_test_split:55
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: d50207fa12164b739ceade16cda036a2 of
+#: pymc_marketing.clv.utils.rfm_train_test_split:52
+msgid ""
+"Default: *False* For predictive CLV modeling, this should be *False*. Set to"
+" *True* if performing RFM segmentation."
+msgstr ""
+"Predeterminado: *Falso* Para el modelado predictivo de CLV, esto debe ser "
+"*Falso*. Establezca en *Verdadero* si está realizando segmentación RFM."
+
+#: aeb2b04e6e6d4bd9a80ad8b315205e92 of
+#: pymc_marketing.clv.utils.rfm_train_test_split:56
+msgid ""
+"**sort_transactions** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+"**sort_transactions** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: b5f74daf5a8d43c7b7fd799c32ba007d of
+#: pymc_marketing.clv.utils.rfm_train_test_split:57
+msgid ""
+"Default: *True* If raw data is already sorted in chronological order, set to"
+" *False* to improve computational efficiency."
+msgstr ""
+"Predeterminado: *Verdadero* Si los datos sin procesar ya están ordenados en "
+"orden cronológico, establezca en *Falso* para mejorar la eficiencia "
+"computacional."
+
+#: e02a1dca2bc5487d8f7d605dd3a8f8cf of
+#: pymc_marketing.clv.utils.rfm_train_test_split
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: a188a67221a34e639cdc0231e332ba17 of
+#: pymc_marketing.clv.utils.rfm_train_test_split:64
+msgid ":obj:`DataFrame`"
+msgstr ":obj:`DataFrame`"
+
+#: 9c2d47670fb14ed792f53342578708fa of
+#: pymc_marketing.clv.utils.rfm_train_test_split:65
+msgid ""
+"Dataframe containing summarized RFM data, and test columns for *frequency*, "
+"*T*, and *monetary_value* if specified"
+msgstr ""
+"Dataframe que contiene datos RFM resumidos y columnas de prueba para "
+"*frecuencia*, *T* y *valor_monetario* si se especifican."

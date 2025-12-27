@@ -1,0 +1,134 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/guide/benefits/why_bayesian.md:1 80401ab3c36142028c9c1807a45e8738
+msgid "Why Bayesian?"
+msgstr "¿Por qué Bayesiano?"
+
+#: ../source/guide/benefits/why_bayesian.md:3 c7c46e2b2f7c439da137bbb39ee81710
+msgid ""
+"Data such as customer transactions and advertising expenditure can be low "
+"resolution (e.g. monthly), contain measurement errors, and have missing "
+"values. This kind of noisy data environment can be a challenge for "
+"traditional methods that rely solely upon data to draw their conclusions."
+msgstr ""
+"Los datos como las transacciones de los clientes y el gasto en publicidad "
+"pueden tener baja granularidad (por ejemplo, mensual), contener errores de "
+"medición y tener valores faltantes. Este tipo de entorno de datos ruidosos "
+"puede ser un desafío para los métodos tradicionales que se basan únicamente "
+"en los datos para sacar sus conclusiones."
+
+#: ../source/guide/benefits/why_bayesian.md:5 9f3b4c2be42a4bb994e120a8a4d84b0a
+msgid ""
+"Bayesian approaches allow your team’s valuable domain expertise to be "
+"incorporated in the modelling process in the form of Bayesian prior beliefs."
+" This can make a massive difference - especially when data are noisy and "
+"uncertain. Rather than your model contorting itself in strange ways to best "
+"fit complex and noisy data, Bayesian priors can keep your model right, "
+"leading to much more sensible insights that fit with your domain expertise."
+msgstr ""
+"Los enfoques bayesianos permiten que la valiosa experiencia en el dominio de"
+" su equipo se incorpore en el proceso de modelado en forma de creencias "
+"previas bayesianas. Esto puede hacer una gran diferencia, especialmente "
+"cuando los datos son ruidosos e inciertos. En lugar de que su modelo se "
+"contorsione de maneras extrañas para ajustarse mejor a datos complejos y "
+"ruidosos, las creencias previas bayesianas pueden mantener su modelo en el "
+"camino correcto, lo que lleva a percepciones mucho más sensatas que se "
+"alinean con su experiencia en el dominio."
+
+#: ../source/guide/benefits/why_bayesian.md:7 45355d0b60b744a381a1063eba4096d7
+msgid ""
+"Frequentist approaches can require two or more years worth of historical "
+"data. Bayesian methods can work with very short-run data, meaning you don't "
+"have to wait a long time collecting data before getting insights. The "
+"certainty in your estimates will grow as your dataset increases."
+msgstr ""
+"Los enfoques frecuentistas pueden requerir dos o más años de datos "
+"históricos. Los métodos bayesianos pueden trabajar con datos de muy corto "
+"plazo, lo que significa que no tienes que esperar mucho tiempo recolectando "
+"datos antes de obtener información. La certeza en tus estimaciones crecerá a"
+" medida que tu conjunto de datos aumente."
+
+#: ../source/guide/benefits/why_bayesian.md:9 72e0956229044b5f8a322ba7430db77b
+msgid ""
+"Bayesian approaches excel at modelling hierarchical or nested data. This is "
+"particularly useful if you have just launched a new product, or operate in a"
+" new region, or are dealing with a new cohort or demographic of customers "
+"and don’t have many observations. Bayesian hierarchical models allow "
+"information learnt about some categories to intelligently inform you about "
+"novel categories."
+msgstr ""
+"Los enfoques bayesianos destacan en la modelización de datos jerárquicos o "
+"anidados. Esto es particularmente útil si acabas de lanzar un nuevo "
+"producto, o si operas en una nueva región, o si estás tratando con una nueva"
+" cohorte o demografía de clientes y no tienes muchas observaciones. Los "
+"modelos jerárquicos bayesianos permiten que la información aprendida sobre "
+"algunas categorías te informe de manera inteligente sobre categorías "
+"novedosas."
+
+#: ../source/guide/benefits/why_bayesian.md:11
+#: d8bc1383d7f043e99fdfacbbe9af6415
+msgid ""
+"Bayesian methods provide *the* way to make decisions under uncertainty. This"
+" enables you to generate and predict future scenarios - knowing how certain "
+"or not you are of those predictions. You can run optimisation processes to "
+"decide what actions to take in the future, fully taking uncertainty into "
+"account. This helps manage your risk."
+msgstr ""
+"Los métodos bayesianos proporcionan *la* manera de tomar decisiones bajo "
+"incertidumbre. Esto te permite generar y predecir escenarios futuros, "
+"sabiendo cuán seguro o no estás de esas predicciones. Puedes ejecutar "
+"procesos de optimización para decidir qué acciones tomar en el futuro, "
+"teniendo en cuenta completamente la incertidumbre. Esto ayuda a gestionar tu"
+" riesgo."
+
+#: ../source/guide/benefits/why_bayesian.md:13
+#: 1e3193e290c14e9ba7a1f29ed3b35ab9
+msgid "Find out more"
+msgstr "Descubre más"
+
+#: ../source/guide/benefits/why_bayesian.md:14
+#: e3c3adbff95f48198edd117e806480cf
+msgid ""
+"To find out more, click through the video thumbnail below to watch the talk "
+"[Solving Real-World Business Problems with Bayesian "
+"Modeling](https://www.youtube.com/watch?v=twpZhNqVExc) by Thomas Wiecki, "
+"recorded at PyData London 2022."
+msgstr ""
+"Para obtener más información, haz clic en la miniatura del video a "
+"continuación para ver la charla [Solving Real-World Business Problems with "
+"Bayesian Modeling](https://www.youtube.com/watch?v=twpZhNqVExc) de Thomas "
+"Wiecki, grabada en PyData London 2022."
+
+#: ../source/guide/benefits/why_bayesian.md:16
+#: 17856884c2534deab6e9dd4914d6556a
+msgid ""
+"[![Youtube video thumbnail "
+"image](https://img.youtube.com/vi/twpZhNqVExc/maxresdefault.jpg)](https://www.youtube.com/watch?v=twpZhNqVExc)"
+msgstr ""
+"[![Imagen en miniatura del video de "
+"Youtube](https://img.youtube.com/vi/twpZhNqVExc/maxresdefault.jpg)](https://www.youtube.com/watch?v=twpZhNqVExc)"
+
+#: ../source/guide/benefits/why_bayesian.md:16
+#: 097f05e67fee4e03a383c9c5c3753f39
+msgid "Youtube video thumbnail image"
+msgstr "Imagen en miniatura del video de Youtube"

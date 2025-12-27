@@ -25,13 +25,13 @@ import pymc as pm
 import pytensor.tensor as pt
 from pymc_extras.prior import Prior
 
-from pymc_marketing.model_builder import ModelBuilder
+from pymc_marketing.model_builder import RegressionModelBuilder
 from pymc_marketing.model_config import parse_model_config
 
 HDI_ALPHA = 0.5
 
 
-class MNLogit(ModelBuilder):
+class MNLogit(RegressionModelBuilder):
     """
     Multinomial Logit class.
 
@@ -82,11 +82,13 @@ class MNLogit(ModelBuilder):
 
     Example `utility_equations` list:
 
-    >>> utility_equations = [
-    ...     "alt_1 ~ X1_alt1 + X2_alt1 | income",
-    ...     "alt_2 ~ X1_alt2 + X2_alt2 | income",
-    ...     "alt_3 ~ X1_alt3 + X2_alt3 | income",
-    ... ]
+    .. code-block:: python
+
+        utility_equations = [
+            "alt_1 ~ X1_alt1 + X2_alt1 | income",
+            "alt_2 ~ X1_alt2 + X2_alt2 | income",
+            "alt_3 ~ X1_alt3 + X2_alt3 | income",
+        ]
 
     """
 
@@ -371,7 +373,7 @@ class MNLogit(ModelBuilder):
 
         return attrs
 
-    def sample_prior_predictive(self, extend_idata, kwargs):
+    def sample_prior_predictive(self, extend_idata, **kwargs):
         """Sample Prior Predictive Distribution."""
         with self.model:  # sample with new input data
             prior_pred: az.InferenceData = pm.sample_prior_predictive(500, **kwargs)
@@ -383,7 +385,7 @@ class MNLogit(ModelBuilder):
             else:
                 self.idata = prior_pred
 
-    def fit(self, extend_idata, kwargs):
+    def fit(self, extend_idata, **kwargs):
         """Fit Nested Logit Model."""
         if extend_idata:
             with self.model:
@@ -392,7 +394,7 @@ class MNLogit(ModelBuilder):
             with self.model:
                 self.idata = pm.sample(**kwargs)
 
-    def sample_posterior_predictive(self, extend_idata, kwargs):
+    def sample_posterior_predictive(self, extend_idata, **kwargs):
         """Sample Posterior Predictive Distribution."""
         if extend_idata:
             with self.model:
@@ -446,11 +448,11 @@ class MNLogit(ModelBuilder):
             self.model = model
 
         self.sample_prior_predictive(
-            extend_idata=True, kwargs=sample_prior_predictive_kwargs
+            extend_idata=True, **sample_prior_predictive_kwargs
         )
-        self.fit(extend_idata=True, kwargs=fit_kwargs)
+        self.fit(extend_idata=True, **fit_kwargs)
         self.sample_posterior_predictive(
-            extend_idata=True, kwargs=sample_posterior_predictive_kwargs
+            extend_idata=True, **sample_posterior_predictive_kwargs
         )
         return self
 

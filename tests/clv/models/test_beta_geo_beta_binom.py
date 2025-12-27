@@ -25,7 +25,7 @@ from pymc_extras.prior import Prior
 
 from pymc_marketing.clv.distributions import BetaGeoBetaBinom
 from pymc_marketing.clv.models import BetaGeoBetaBinomModel
-from tests.conftest import create_mock_fit, mock_sample
+from tests.clv.conftest import create_mock_fit, mock_sample
 
 
 class TestBetaGeoBetaBinomModel:
@@ -208,7 +208,7 @@ class TestBetaGeoBetaBinomModel:
 
     def test_customer_id_duplicate(self):
         with pytest.raises(
-            ValueError, match="Column customer_id has duplicate entries"
+            ValueError, match=r"Column customer_id has duplicate entries"
         ):
             data = pd.DataFrame(
                 {
@@ -224,7 +224,7 @@ class TestBetaGeoBetaBinomModel:
             )
 
     def test_T_homogeneity(self):
-        with pytest.raises(ValueError, match="Column T has non-homogeneous entries"):
+        with pytest.raises(ValueError, match=r"Column T has non-homogeneous entries"):
             data = pd.DataFrame(
                 {
                     "customer_id": np.asarray([1, 2]),
@@ -312,7 +312,7 @@ class TestBetaGeoBetaBinomModel:
 
     def test_fit_result_without_fit(self, mocker, model_config):
         model = BetaGeoBetaBinomModel(data=self.pred_data, model_config=model_config)
-        with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
+        with pytest.raises(RuntimeError, match=r"The model hasn't been fit yet"):
             model.fit_result
 
         mocker.patch("pymc.sample", mock_sample)

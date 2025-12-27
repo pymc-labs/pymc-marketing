@@ -1,0 +1,301 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:10003
+#: 3bac9a999adb4a849758d373940928b9
+msgid "Model Evaluation in PyMC-Marketing"
+msgstr "Evaluación del Modelo en PyMC-Marketing"
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:10005
+#: 3dd44499148d47a1aa86ad5e39f3cf77
+msgid ""
+"This notebook demonstrates how to evaluate Marketing Mix Models using PyMC-"
+"Marketing's evaluation metrics and functions. We'll cover:"
+msgstr ""
+"Este cuaderno demuestra cómo evaluar Modelos de Mezcla de Marketing "
+"utilizando las métricas y funciones de evaluación de PyMC-Marketing. "
+"Cubriremos:"
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:10007
+#: d4afa82b57374b6688fcba90ed9aa31d
+msgid "Standard evaluation metrics (RMSE, MAE, MAPE)"
+msgstr "Métricas de evaluación estándar (RMSE, MAE, MAPE)"
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:10008
+#: 94733efbf082473ebc7b70a601b59008
+msgid "Normalized metrics (NRMSE, NMAE)"
+msgstr "Métricas normalizadas (NRMSE, NMAE)"
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:10009
+#: f821f83f953b410d89521d8c8aa95c83
+msgid ""
+"Calculating and visualizing metric distributions and summaries of those "
+"distributions"
+msgstr ""
+"Calculando y visualizando distribuciones métricas y resúmenes de esas "
+"distribuciones"
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:10010
+#: fb3583ffc62240de98fee4ceccb57ea0
+msgid "Creating evaluation plots (prior vs posterior plots)"
+msgstr "Creando gráficos de evaluación (gráficos de prior vs posterior)"
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:10012
+#: d0d804ed0bc8413db217587bf5c90096
+msgid "First, let's import the necessary libraries:"
+msgstr "Primero, importemos las bibliotecas necesarias:"
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:40002
+#: aff56975eec04d5ebf5ccce0166c5ed0
+msgid "Setting up a Demo Model"
+msgstr "Configurando un Modelo de Demostración"
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:40004
+#: ac332c23790c4b749ca4ad4cbcad7d7b
+msgid "Let's first create a simple MMM model using the example dataset:"
+msgstr ""
+"Primero, creemos un modelo MMM simple utilizando el conjunto de datos de "
+"ejemplo:"
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:60002
+#: df324c1e718a4d33a876be2fd325e9c6
+msgid "Understanding the Evaluation Metrics"
+msgstr "Comprendiendo las Métricas de Evaluación"
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:60004
+#: cdac810b8e494bcf8b73661700626fd3
+msgid "PyMC-Marketing provides several metrics for evaluating your models:"
+msgstr "PyMC-Marketing proporciona varias métricas para evaluar sus modelos:"
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:60006
+#: 8cb08ce1c73949e1af78f82f07d51df9
+msgid "Standard metrics from scikit-learn:"
+msgstr "Métricas estándar de scikit-learn:"
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:60007
+#: 1cbe00dccddf4681966441dc7409686e
+msgid "RMSE (Root Mean Squared Error)"
+msgstr "RMSE (Error Cuadrático Medio)"
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:60008
+#: c4a626fbbd4e4fcf98439bb562e649ae
+msgid "MAE (Mean Absolute Error)"
+msgstr "MAE (Error Absoluto Medio)"
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:60009
+#: 63a0ce939154438ab14160f9cae43d52
+msgid "MAPE (Mean Absolute Percentage Error)"
+msgstr "MAPE (Error Porcentual Absoluto Medio)"
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:60011
+#: fdb4436613d5430c8820162e0d8dc0d4
+msgid "Bayesian R-Squared (from `arviz.az.r2_score`)"
+msgstr "R-Cuadrado Bayesiano (de `arviz.az.r2_score`)"
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:60013
+#: 1efb95801f754ee9a0fcc23819cec6e5
+msgid "Normalized metrics:"
+msgstr "Métricas normalizadas:"
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:60014
+#: ca8a67b53cca40e5939537d91f29ef45
+msgid "NRMSE (Normalized Root Mean Squared Error), such as is used by Robyn"
+msgstr "NRMSE (Error Cuadrático Medio Normalizado), tal como lo utiliza Robyn"
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:60015
+#: 0c66337f00d04f41a3db3dd9c789aad2
+msgid "NMAE (Normalized Mean Absolute Error)"
+msgstr "NMAE (Error Absoluto Medio Normalizado)"
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:60017
+#: 79bf11dc8e944d448274ff75fdf494f1
+msgid "Let's calculate these metrics for our model:"
+msgstr "Calculemos estas métricas para nuestro modelo:"
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:80002
+#: 2cdd41112a484e15bae8bf6101d98dc1
+msgid ""
+"`compute_summary_metrics` actually combines the steps of two other "
+"functions:"
+msgstr ""
+"`compute_summary_metrics` en realidad combina los pasos de dos otras "
+"funciones:"
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:80004
+#: d38555df12b143269ecd88d5a7a58220
+msgid "`calculate_metric_distributions`"
+msgstr "calcular_distribuciones_métricas"
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:80005
+#: ac7d88849fe84120b4618100e4861bbc
+msgid "`summarize_metric_distributions`"
+msgstr "resumir_distribuciones_métricas"
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:80007
+#: f67650e326d64edebd53d7651a1071d9
+msgid ""
+"The metric distributions (unsummarised) can sometimes be useful on their "
+"own, e.g. if you'd like to visualise the distribution of a metric."
+msgstr ""
+"Las distribuciones métricas (no resumidas) pueden ser útiles por sí solas en"
+" ocasiones, por ejemplo, si desea visualizar la distribución de una métrica."
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:110002
+#: d64b19e7014c4bad84f37618f0c6c534
+msgid "Understanding Metric Distributions in Bayesian Models"
+msgstr "Comprendiendo las Distribuciones Métricas en Modelos Bayesianos"
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:110004
+#: 7260fd3a0cee48fb8befe630ea1b0505
+msgid ""
+"In Bayesian modeling, we tend to work with distributions rather than point "
+"estimates. This is particularly important for model evaluation metrics "
+"because:"
+msgstr ""
+"En el modelado bayesiano, tendemos a trabajar con distribuciones en lugar de"
+" estimaciones puntuales. Esto es particularmente importante para las "
+"métricas de evaluación del modelo porque:"
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:110006
+#: b13f3408c74c44b496b6348c406a1b11
+msgid ""
+"**E[f(x)] is not guaranteed to be f(E[x])**: This means calculating metrics "
+"on mean predictions can give different (and potentially misleading) results "
+"compared to calculating the distribution of metrics across posterior "
+"samples."
+msgstr ""
+"**E[f(x)] no garantiza ser f(E[x])**: Esto significa que calcular métricas "
+"sobre predicciones medias puede dar resultados diferentes (y potencialmente "
+"engañosos) en comparación con calcular la distribución de métricas a través "
+"de muestras posteriores."
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:110008
+#: 4692d953f0d940bab25157061141358a
+msgid ""
+"**Uncertainty Quantification**: Having distributions of metrics allows us to"
+" understand the uncertainty in our model's performance."
+msgstr ""
+"**Cuantificación de la Incertidumbre**: Tener distribuciones de métricas nos"
+" permite comprender la incertidumbre en el rendimiento de nuestro modelo."
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:110010
+#: 6697549ef3f841b4a583a3b3a5fe3e56
+msgid "Let's demonstrate this with an example:"
+msgstr "Demostremos esto con un ejemplo:"
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:130002
+#: e740d30c952643028fa33cd877ae20e9
+msgid "Comparing Prior vs Posterior Distributions"
+msgstr "Comparando distribuciones a priori vs a posteriori"
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:130004
+#: da157a4ac0a5424b90205060a8da8482
+msgid ""
+"We can also visualize how our prior beliefs compare to the posterior "
+"distributions using the `plot_prior_vs_posterior` method:"
+msgstr ""
+"También podemos visualizar cómo nuestras creencias previas se comparan con "
+"las distribuciones posteriores utilizando el método "
+"`plot_prior_vs_posterior`:"
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:150002
+#: 20e15a34a5c74b4695258e6e989cab3a
+msgid "These visualizations help us understand:"
+msgstr "Estas visualizaciones nos ayudan a entender:"
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:150004
+#: f78f5db1768f4742a5871ef902ec3334
+msgid ""
+"How much we learned from the data (difference between prior and posterior)"
+msgstr ""
+"Cuánto aprendimos de los datos (diferencia entre el anterior y el posterior)"
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:150005
+#: 237a9aba75a143159e66b8db75d12ada
+msgid ""
+"The uncertainty in our parameter estimates (width of the distributions)"
+msgstr ""
+"La incertidumbre en nuestras estimaciones de parámetros (ancho de las "
+"distribuciones)"
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:150006
+#: a6c98bfc31064f0f88bc76a3aefcd7a6
+msgid ""
+"Whether our priors were reasonable (by comparing prior and posterior ranges)"
+msgstr ""
+"Si nuestros priors eran razonables (comparando los rangos previos y "
+"posteriores)"
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:150008
+#: 2282006d928747fabcce539a282ffa49
+msgid ""
+"The `plot_prior_vs_posterior` method allows us to sort channels either "
+"alphabetically or by the magnitude of change from prior to posterior, "
+"helping identify which channels had the strongest updates from the data."
+msgstr ""
+"El método `plot_prior_vs_posterior` nos permite ordenar los canales ya sea "
+"alfabéticamente o por la magnitud del cambio de previo a posterior, ayudando"
+" a identificar cuáles canales tuvieron las actualizaciones más fuertes a "
+"partir de los datos."
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:160002
+#: ff5c23c636994db38722ac265fa420f9
+msgid "Conclusion"
+msgstr "Conclusión"
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:160004
+#: f940d61d0ad0482a8071f5f85ad102b7
+msgid "In this notebook, we've demonstrated how to:"
+msgstr "En este cuaderno, hemos demostrado cómo:"
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:160006
+#: 1b59e579ad8e4d6bb2c667ab90ba7db4
+msgid ""
+"Calculate various evaluation metrics for your MMM including normalized "
+"versions (NRMSE, NMAE), as both summaries and distributions"
+msgstr ""
+"Calcule diversas métricas de evaluación para su MMM, incluyendo versiones "
+"normalizadas (NRMSE, NMAE), tanto como resúmenes como distribuciones."
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:160007
+#: 9a0bbc1ee7a84c47a851cf9f55db7a88
+msgid "Visualize metric distributions for a chosen evaluation metric"
+msgstr ""
+"Visualice las distribuciones de métricas para una métrica de evaluación "
+"elegida."
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:160008
+#: f97cd7a7d779455f97d9b6ae460f33fd
+msgid "Compare prior vs posterior distributions for different metrics"
+msgstr ""
+"Comparar las distribuciones anteriores y posteriores para diferentes "
+"métricas"
+
+#: ../source/notebooks/mmm/mmm_evaluation.ipynb:160010
+#: 304eb6bba06a4dbfaba34c5d85f0aba5
+msgid ""
+"These tools help us understand model performance and uncertainty in our "
+"predictions, which is crucial for making informed marketing decisions."
+msgstr ""
+"Estas herramientas nos ayudan a comprender el rendimiento del modelo y la "
+"incertidumbre en nuestras predicciones, lo cual es crucial para tomar "
+"decisiones de marketing informadas."

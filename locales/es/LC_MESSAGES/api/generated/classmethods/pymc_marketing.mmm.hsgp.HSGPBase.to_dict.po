@@ -1,0 +1,46 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.hsgp.HSGPBase.to_dict.rst:2
+#: cdca7d8df80d4beaa195610fc299a13b
+msgid "HSGPBase.to\\_dict"
+msgstr "HSGPBase.to\\_dict"
+
+#: 82e3726ba9a7421485591b1d45348a01 of
+#: pymc_marketing.mmm.hsgp.HSGPBase.to_dict:2
+msgid "Convert the object to a dictionary."
+msgstr "Convierte el objeto a un diccionario."
+
+#: 7cb08297feff4c8e8b67900db6652aa5 of
+#: pymc_marketing.mmm.hsgp.HSGPBase.to_dict
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 1408bf7c56ac40a5b4652f34f40dee0c of
+#: pymc_marketing.mmm.hsgp.HSGPBase.to_dict:10
+msgid ":class:`python:dict`"
+msgstr ":class:`python:dict`"
+
+#: 71414edc796341a5a5404ee85bef737c of
+#: pymc_marketing.mmm.hsgp.HSGPBase.to_dict:11
+msgid "The object as a dictionary."
+msgstr "El objeto como un diccionario."

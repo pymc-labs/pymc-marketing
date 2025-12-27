@@ -1,0 +1,127 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.mmm.MMM.plot_channel_contribution_grid.rst:2
+#: 88248398a8b8400fb058c3a505e9c980
+msgid "MMM.plot\\_channel\\_contribution\\_grid"
+msgstr "MMM.plot\\_channel\\_contribution\\_grid"
+
+#: 1801971d11654bfd86acd8da0d4a751f of
+#: pymc_marketing.mmm.mmm.MMM.plot_channel_contribution_grid:2
+msgid ""
+"Plot a grid of scaled channel contributions for a given grid of share "
+"values."
+msgstr ""
+"Trazar una cuadrícula de contribuciones de canal escaladas para una "
+"cuadrícula dada de valores de acciones."
+
+#: 468657648b5742ccb81acbd13a651945 of
+#: pymc_marketing.mmm.mmm.MMM.plot_channel_contribution_grid
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 51496e987f5d4bddb95902277f991a9b of
+#: pymc_marketing.mmm.mmm.MMM.plot_channel_contribution_grid:7
+msgid "**start** : :class:`python:float`"
+msgstr "**inicio** : :class:`python:float`"
+
+#: 68d8e36aac154e38ba39b25400f442d0 d5a72f6d5a1d49a1b2a5be724baa84ea of
+#: pymc_marketing.mmm.mmm.MMM.plot_channel_contribution_grid:6
+#: pymc_marketing.mmm.mmm.MMM.plot_channel_contribution_grid:9
+msgid "python:float"
+msgstr "python:float"
+
+#: 5e627a7a8ca34eb791d3ba0a6d545c57 of
+#: pymc_marketing.mmm.mmm.MMM.plot_channel_contribution_grid:8
+msgid "Start of the grid. It must be equal or greater than 0."
+msgstr "Inicio de la cuadrícula. Debe ser igual o mayor que 0."
+
+#: 2f8d79dba0df49029fd236867ef182d1 of
+#: pymc_marketing.mmm.mmm.MMM.plot_channel_contribution_grid:10
+msgid "**stop** : :class:`python:float`"
+msgstr "**detener** : :class:`python:float`"
+
+#: 68faee2d9d1245c3aa2805bea8a264de of
+#: pymc_marketing.mmm.mmm.MMM.plot_channel_contribution_grid:11
+msgid "End of the grid. It must be greater than start."
+msgstr "Fin de la cuadrícula. Debe ser mayor que el inicio."
+
+#: c3873eb0fba5411e8664e90045b6f037 of
+#: pymc_marketing.mmm.mmm.MMM.plot_channel_contribution_grid:13
+msgid "**num** : :class:`python:int`"
+msgstr "**num** : :class:`python:int`"
+
+#: 607f4e2a869c4c2c8e181b0e92fd8015 of
+#: pymc_marketing.mmm.mmm.MMM.plot_channel_contribution_grid:12
+msgid "python:int"
+msgstr "python:int"
+
+#: c9d3dc798a234b5ab1c9d942d9b0a129 of
+#: pymc_marketing.mmm.mmm.MMM.plot_channel_contribution_grid:14
+msgid "Number of points in the grid."
+msgstr "Número de puntos en la cuadrícula."
+
+#: e14fa10b6281425c93bfe9d6aa59c619 of
+#: pymc_marketing.mmm.mmm.MMM.plot_channel_contribution_grid:16
+msgid ""
+"**absolute_xrange** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+"**absolute_xrange** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 1e6603a9ed8848e0984e19a8fcfcdd74 of
+#: pymc_marketing.mmm.mmm.MMM.plot_channel_contribution_grid:15
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: c8bf3b62f9e0446f9fb915394b268034 of
+#: pymc_marketing.mmm.mmm.MMM.plot_channel_contribution_grid:17
+msgid ""
+"If True, the x-axis is in absolute values (input units), otherwise it is in "
+"relative percentage values, by default False."
+msgstr ""
+"Si es verdadero, el eje x está en valores absolutos (unidades de entrada), "
+"de lo contrario está en valores porcentuales relativos, por defecto falso."
+
+#: 0eabf67484134e5e87e9f533682aa4e9 of
+#: pymc_marketing.mmm.mmm.MMM.plot_channel_contribution_grid:20
+msgid "**\\*\\*plt_kwargs**"
+msgstr "**\\*\\*plt_kwargs**"
+
+#: d3b4260c1d294bc99bd7c3effef2da4d of
+#: pymc_marketing.mmm.mmm.MMM.plot_channel_contribution_grid:21
+msgid "Keyword arguments to pass to `plt.subplots()`"
+msgstr "Argumentos de palabras clave para pasar a `plt.subplots()`"
+
+#: 4d3f50fe76a243bfb913a88413503734 of
+#: pymc_marketing.mmm.mmm.MMM.plot_channel_contribution_grid
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: c1457698faa54dc6aec8f9cb6e40c2c5 of
+#: pymc_marketing.mmm.mmm.MMM.plot_channel_contribution_grid:27
+msgid ":obj:`plt.Figure`"
+msgstr ":obj:`plt.Figure`"
+
+#: 55f371ace1e049399222e3c7a385233f of
+#: pymc_marketing.mmm.mmm.MMM.plot_channel_contribution_grid:28
+msgid "Plot of grid of channel contributions."
+msgstr "Gráfico de la cuadrícula de contribuciones del canal."

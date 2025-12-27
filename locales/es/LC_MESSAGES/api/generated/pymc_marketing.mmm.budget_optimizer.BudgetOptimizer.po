@@ -1,0 +1,760 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:2
+#: 024478663b4148a1b0e4f3113afe975d
+msgid "BudgetOptimizer"
+msgstr "BudgetOptimizer"
+
+#: 41d6a013c4084c4f8f745bd19101d416 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer:2
+msgid "A class for optimizing budget allocation in a marketing mix model."
+msgstr ""
+"Una clase para optimizar la asignación de presupuesto en un modelo de mezcla"
+" de marketing."
+
+#: 0619d73582074ec18e43e511d37d107f of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer:4
+msgid ""
+"The goal of this optimization is to maximize the total expected response by "
+"allocating the given budget across different marketing channels. The "
+"optimization is performed using the Sequential Least Squares Quadratic "
+"Programming (SLSQP) method, which is a gradient-based optimization algorithm"
+" suitable for solving constrained optimization problems."
+msgstr ""
+"El objetivo de esta optimización es maximizar la respuesta total esperada al"
+" asignar el presupuesto dado entre diferentes canales de marketing. La "
+"optimización se realiza utilizando el método de Programación Cuadrática de "
+"Mínimos Cuadrados Secuenciales (SLSQP), que es un algoritmo de optimización "
+"basado en gradientes adecuado para resolver problemas de optimización con "
+"restricciones."
+
+#: 6c70963673cd48dab5ca59488b9de602 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer:10
+msgid ""
+"For more information on the SLSQP algorithm, refer to the documentation: "
+"https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html"
+msgstr ""
+"Para más información sobre el algoritmo SLSQP, consulte la documentación: "
+"https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.minimize.html"
+
+#: 97fea7f3a0a24a0692b07c6e7598adb1 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 3ec5153c732a41abb66c1a94e2383db7 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer:15
+msgid "**num_periods** : :class:`python:int`"
+msgstr "**num_periods** : :class:`python:int`"
+
+#: 27c3435343884342a8105dabe6249fbf of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer:14
+msgid "python:int"
+msgstr "python:int"
+
+#: 062b97f2b77846beb7559a2f8634475b of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer:16
+msgid ""
+"Number of time units at the desired time granularity to allocate budget for."
+msgstr ""
+"Número de unidades de tiempo en la granularidad de tiempo deseada para "
+"asignar presupuesto."
+
+#: af41489c4e134019970e472da6ea8678 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer:18
+msgid "**model** : :obj:`MMMModel`"
+msgstr "**modelo** : :obj:`MMMModel`"
+
+#: f6843e5a673342da993d02e88d412906 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer:17
+msgid "MMMModel"
+msgstr "MMMModelo"
+
+#: a47476330f7c4c39ba68230f167a1d18 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer:19
+msgid "The marketing mix model to optimize."
+msgstr "El modelo de mezcla de marketing para optimizar."
+
+#: 1b29c8b25fa6400fb91a7cee73aff6a2 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer:21
+msgid "**response_variable** : :class:`python:str`, optional"
+msgstr "**response_variable** : :class:`python:str`, opcional"
+
+#: ea91c1f6851b46b5afe4e180b25ba83c of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer:20
+msgid "python:str, optional"
+msgstr "python:str, opcional"
+
+#: 21badde61b5342d4b9de19ca624c2164 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer:22
+msgid "The response variable to optimize. Default is \"total_contribution\"."
+msgstr ""
+"La variable de respuesta a optimizar. El valor predeterminado es "
+"\"total_contribution\"."
+
+#: 01c65410a8114a638e96a3b7a00b5ac7 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer:24
+msgid "**utility_function** : :obj:`UtilityFunctionType`, optional"
+msgstr "**utility_function** : :obj:`UtilityFunctionType`, opcional"
+
+#: 87a7c700af804a6499a4da327ec18b11 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer:23
+msgid "UtilityFunctionType, optional"
+msgstr "TipoDeFunciónUtilidad, opcional"
+
+#: 75ca2394482d4e1885462d7479710473 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer:25
+msgid ""
+"The utility function to maximize. Default is the mean of the response "
+"distribution."
+msgstr ""
+"La función de utilidad a maximizar. El valor predeterminado es la media de "
+"la distribución de respuestas."
+
+#: 144b42b576664734a0c3799db642ebfb of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer:27
+msgid "**budgets_to_optimize** : :obj:`xarray.DataArray`, optional"
+msgstr "**presupuestos_a_optimizar** : :obj:`xarray.DataArray`, opcional"
+
+#: 3e8f4c27a68340f1853e776ec2cf9c5c 8cc5c0a5db5b42e1ac59270e05bfaaa1 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer:26
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer:35
+msgid "xarray.DataArray, optional"
+msgstr "xarray.DataArray, opcional"
+
+#: f120c586a934406484ecc32ead978cf3 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer:28
+msgid ""
+"Mask defining a subset of budgets to optimize. Non-optimized budgets remain "
+"fixed at 0."
+msgstr ""
+"Máscara que define un subconjunto de presupuestos a optimizar. Los "
+"presupuestos no optimizados permanecen fijos en 0."
+
+#: 06fecc225c7147a6830979c1458953da of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer:30
+msgid "**custom_constraints** : :obj:`Sequence`\\[:obj:`Constraint`], optional"
+msgstr ""
+"**custom_constraints** : :obj:`Secuencia`\\[:obj:`Restricción`], opcional"
+
+#: 5f83dc91593e4567bad40d2aeaaba484 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer:29
+msgid "Sequence[Constraint], optional"
+msgstr "Secuencia[Restricción], opcional"
+
+#: 061dcbe305b84233ab5cc16d06c10a03 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer:31
+msgid "Custom constraints for the optimizer."
+msgstr "Restricciones personalizadas para el optimizador."
+
+#: 0f3bea9b6a514cd8ba6315211718b5e2 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer:33
+msgid ""
+"**default_constraints** : :ref:`bool <python:bltin-boolean-values>`, "
+"optional"
+msgstr ""
+"**default_constraints** : :ref:`bool <python:bltin-boolean-values>`, "
+"opcional"
+
+#: 4d6c927bb916464bad51320ada8c7ed2 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer:32
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: 4379271dac644a63b4d23e40b79308cc of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer:34
+msgid ""
+"Whether to add a default sum constraint on the total budget. Default is "
+"True."
+msgstr ""
+"Si se debe agregar una restricción de suma predeterminada sobre el "
+"presupuesto total. El valor predeterminado es True."
+
+#: 0274669ae4da4b138eaaa500ad417638 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer:36
+msgid ""
+"**budget_distribution_over_period** : :obj:`xarray.DataArray`, optional"
+msgstr ""
+"**distribución_presupuestaria_a_lo_largo_del_período** : "
+":obj:`xarray.DataArray`, opcional"
+
+#: 072448b1e32a4e5ca535323715ead883 of
+#: pymc_marketing.mmm.budget_optimizer.BudgetOptimizer:37
+msgid ""
+"Distribution factors for budget allocation over time. Should have dims "
+"(\"date\", *budget_dims) where date dimension has length num_periods. Values"
+" along date dimension should sum to 1 for each combination of other "
+"dimensions. If None, budget is distributed evenly across periods."
+msgstr ""
+"Factores de distribución para la asignación del presupuesto a lo largo del "
+"tiempo. Debe tener dimensiones (\"fecha\", *budget_dims) donde la dimensión "
+"de fecha tiene una longitud de num_periods. Los valores a lo largo de la "
+"dimensión de fecha deben sumar 1 para cada combinación de las otras "
+"dimensiones. Si es None, el presupuesto se distribuye de manera uniforme "
+"entre los períodos."
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:12
+#: db65ccf97374468b9af347f609a1475c
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: d71e3f04cc674b93b36d633de11f10a5
+msgid ""
+":py:obj:`BudgetOptimizer.__init__ "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.__init__>`\\ "
+"\\(\\*\\*data\\)"
+msgstr ""
+":py:obj:`BudgetOptimizer.__init__ "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.__init__>`\\ "
+"\\(\\*\\*data\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: a1a16342f36d40ad8b4422db6e6c0257
+msgid ""
+"Create a new model by parsing and validating input data from keyword "
+"arguments."
+msgstr ""
+"Cree un nuevo modelo analizando y validando los datos de entrada de los "
+"argumentos de palabras clave."
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: fcd3058f19e543b583194a8cda98b814
+msgid ""
+":py:obj:`BudgetOptimizer.allocate_budget "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget>`\\ "
+"\\(total\\_budget\\)"
+msgstr ""
+":py:obj:`BudgetOptimizer.allocate_budget "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget>`\\ "
+"\\(presupuesto\\_total\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: 256e3ac8e5624d2eac8cae85808754c9
+msgid ""
+"Allocate the budget based on `total_budget`, optional `budget_bounds`, and "
+"custom constraints."
+msgstr ""
+"Asigne el presupuesto basado en `total_budget`, `budget_bounds` opcionales y"
+" restricciones personalizadas."
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: 79dcd16ae08446099f4b0e1e5d3b2038
+msgid ""
+":py:obj:`BudgetOptimizer.construct "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.construct>`\\ "
+"\\(\\[\\_fields\\_set\\]\\)"
+msgstr ""
+":py:obj:`BudgetOptimizer.construct "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.construct>`\\ "
+"\\(\\[\\_fields\\_set\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: a320c419821b4006b73bb7b1fa61b4b8
+msgid ""
+":py:obj:`BudgetOptimizer.copy "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.copy>`\\ \\(\\*\\[\\, "
+"include\\, exclude\\, ...\\]\\)"
+msgstr ""
+":py:obj:`BudgetOptimizer.copy "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.copy>`\\ \\(\\*\\[\\, "
+"incluir\\, excluir\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: 39350abdb8014fb69b5a47c668722cef
+msgid "Returns a copy of the model."
+msgstr "Devuelve una copia del modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: ff254fbef82a4d528141e0160afb25f7
+msgid ""
+":py:obj:`BudgetOptimizer.dict "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.dict>`\\ \\(\\*\\[\\, "
+"include\\, exclude\\, ...\\]\\)"
+msgstr ""
+":py:obj:`BudgetOptimizer.dict "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.dict>`\\ \\(\\*\\[\\, "
+"incluir\\, excluir\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: 2d66411dee404d488979ffdfaf48dfc2
+msgid ""
+":py:obj:`BudgetOptimizer.extract_response_distribution "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.extract_response_distribution>`\\"
+" \\(...\\)"
+msgstr ""
+":py:obj:`BudgetOptimizer.extract_response_distribution "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.extract_response_distribution>`\\"
+" \\(...\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: 57156814f4e14fc1b35be305375b3d5f
+msgid ""
+"Extract the response distribution graph, conditioned on posterior "
+"parameters."
+msgstr ""
+"Extraiga el gráfico de distribución de respuestas, condicionado a los "
+"parámetros posteriores."
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: d6ff67b1a97742d7a38c846064458503
+msgid ""
+":py:obj:`BudgetOptimizer.from_orm "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.from_orm>`\\ \\(obj\\)"
+msgstr ""
+":py:obj:`BudgetOptimizer.from_orm "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.from_orm>`\\ \\(obj\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: c05bdc37b0dc46bbbf0bebe9511bcde8
+msgid ""
+":py:obj:`BudgetOptimizer.json "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.json>`\\ \\(\\*\\[\\, "
+"include\\, exclude\\, ...\\]\\)"
+msgstr ""
+":py:obj:`BudgetOptimizer.json "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.json>`\\ \\(\\*\\[\\, "
+"incluir\\, excluir\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: 490cc08afcad466c88841233927c17f7
+msgid ""
+":py:obj:`BudgetOptimizer.model_construct "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.model_construct>`\\ "
+"\\(\\[\\_fields\\_set\\]\\)"
+msgstr ""
+":py:obj:`BudgetOptimizer.model_construct "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.model_construct>`\\ "
+"\\(\\[\\_fields\\_set\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: 234f67579cb648f2bab32d9576ed1c22
+msgid "Creates a new instance of the `Model` class with validated data."
+msgstr "Crea una nueva instancia de la clase `Model` con datos validados."
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: 9fe846e77202405783b46a4cfdcf11a3
+msgid ""
+":py:obj:`BudgetOptimizer.model_copy "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.model_copy>`\\ "
+"\\(\\*\\[\\, update\\, deep\\]\\)"
+msgstr ""
+":py:obj:`BudgetOptimizer.model_copy "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.model_copy>`\\ "
+"\\(\\*\\[\\, actualizar\\, profundo\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: 2c7dec2b028d4c508e65be68b216d295 588e05a8c75d4ed298898e827249956d
+#: 5c9f9340bf174ee4b880eeb2d7a0c8c1 fc23575963d24588b4387ca9b8a1e504
+msgid "!!! abstract \"Usage Documentation\""
+msgstr "!!! abstract \"Documentación de Uso\""
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: b3f56d7c914d4907b047dad82a880a57
+msgid ""
+":py:obj:`BudgetOptimizer.model_dump "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.model_dump>`\\ "
+"\\(\\*\\[\\, mode\\, ...\\]\\)"
+msgstr ""
+":py:obj:`BudgetOptimizer.model_dump "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.model_dump>`\\ "
+"\\(\\*\\[\\, modo\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: 64cd318851c244d8b3b2df941b610b6d
+msgid ""
+":py:obj:`BudgetOptimizer.model_dump_json "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.model_dump_json>`\\ "
+"\\(\\*\\[\\, indent\\, ...\\]\\)"
+msgstr ""
+":py:obj:`BudgetOptimizer.model_dump_json "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.model_dump_json>`\\ "
+"\\(\\*\\[\\, indent\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: bcda2e285803449c9ca1e89deea55b81
+msgid ""
+":py:obj:`BudgetOptimizer.model_json_schema "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.model_json_schema>`\\ "
+"\\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`BudgetOptimizer.model_json_schema "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.model_json_schema>`\\ "
+"\\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: 8258c167e5cc498b87b08485d5217045
+msgid "Generates a JSON schema for a model class."
+msgstr "Genera un esquema JSON para una clase de modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: 8fda12873f3f438b9cc783316aaf9e68
+msgid ""
+":py:obj:`BudgetOptimizer.model_parametrized_name "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.model_parametrized_name>`\\"
+" \\(params\\)"
+msgstr ""
+":py:obj:`BudgetOptimizer.model_parametrized_name "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.model_parametrized_name>`\\"
+" \\(params\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: ba4d7a288fc441698a344cdf9dd8c5ba
+msgid "Compute the class name for parametrizations of generic classes."
+msgstr ""
+"Calcule el nombre de la clase para las parametrizaciones de clases "
+"genéricas."
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: 7f943c6940314655b562fc81a887e2a8
+msgid ""
+":py:obj:`BudgetOptimizer.model_post_init "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.model_post_init>`\\ "
+"\\(context\\, \\/\\)"
+msgstr ""
+":py:obj:`BudgetOptimizer.model_post_init "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.model_post_init>`\\ "
+"\\(context\\, \\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: 8e0af66e7fdf45f78970df2445a2e310
+msgid ""
+"Override this method to perform additional initialization after `__init__` "
+"and `model_construct`."
+msgstr ""
+"Sobrescriba este método para realizar una inicialización adicional después "
+"de `__init__` y `model_construct`."
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: b92206d23a094146898e00e9872e2ac8
+msgid ""
+":py:obj:`BudgetOptimizer.model_rebuild "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.model_rebuild>`\\ "
+"\\(\\*\\[\\, force\\, ...\\]\\)"
+msgstr ""
+":py:obj:`BudgetOptimizer.model_rebuild "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.model_rebuild>`\\ "
+"\\(\\*\\[\\, forzar\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: f272625112344c6ba18e5de90ea9e050
+msgid "Try to rebuild the pydantic-core schema for the model."
+msgstr "Intente reconstruir el esquema de pydantic-core para el modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: bea303d413304684b4fcda600979a78e
+msgid ""
+":py:obj:`BudgetOptimizer.model_validate "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.model_validate>`\\ "
+"\\(obj\\, \\*\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`BudgetOptimizer.model_validate "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.model_validate>`\\ "
+"\\(obj\\, \\*\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: f40510caa1ba4999bfdff9115333d0c7
+msgid "Validate a pydantic model instance."
+msgstr "Valide una instancia del modelo pydantic."
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: 5945a64df8dc4c969e587b567c0695df
+msgid ""
+":py:obj:`BudgetOptimizer.model_validate_json "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.model_validate_json>`\\"
+" \\(json\\_data\\, \\*\\)"
+msgstr ""
+":py:obj:`BudgetOptimizer.model_validate_json "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.model_validate_json>`\\"
+" \\(json\\_data\\, \\*\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: fd4c9fab8636466cae762fcd8f58428b
+msgid ""
+":py:obj:`BudgetOptimizer.model_validate_strings "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.model_validate_strings>`\\"
+" \\(obj\\, \\*\\)"
+msgstr ""
+":py:obj:`BudgetOptimizer.model_validate_strings "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.model_validate_strings>`\\"
+" \\(obj\\, \\*\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: 2967fcb44c4d477da6f7403681486222
+msgid "Validate the given object with string data against the Pydantic model."
+msgstr ""
+"Valide el objeto dado con datos de cadena contra el modelo de Pydantic."
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: 723d0fa964cf47f0aa964db2e3b24abd
+msgid ""
+":py:obj:`BudgetOptimizer.parse_file "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.parse_file>`\\ "
+"\\(path\\, \\*\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`BudgetOptimizer.parse_file "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.parse_file>`\\ "
+"\\(ruta\\, \\*\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: 165575d126fb4f83b70ad159107d7c4b
+msgid ""
+":py:obj:`BudgetOptimizer.parse_obj "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.parse_obj>`\\ \\(obj\\)"
+msgstr ""
+":py:obj:`BudgetOptimizer.parse_obj "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.parse_obj>`\\ \\(obj\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: f53e48fc7dc245978904d303756b55a8
+msgid ""
+":py:obj:`BudgetOptimizer.parse_raw "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.parse_raw>`\\ \\(b\\, "
+"\\*\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`BudgetOptimizer.parse_raw "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.parse_raw>`\\ \\(b\\, "
+"\\*\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: c1ddedf01d9047ce8b2c513f256fa651
+msgid ""
+":py:obj:`BudgetOptimizer.schema "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.schema>`\\ "
+"\\(\\[by\\_alias\\, ref\\_template\\]\\)"
+msgstr ""
+":py:obj:`BudgetOptimizer.schema "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.schema>`\\ "
+"\\(\\[por\\_alias\\, ref\\_template\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: 8cde1bdfb00e4cab90f15d549fbcefbc
+msgid ""
+":py:obj:`BudgetOptimizer.schema_json "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.schema_json>`\\ "
+"\\(\\*\\[\\, by\\_alias\\, ...\\]\\)"
+msgstr ""
+":py:obj:`BudgetOptimizer.schema_json "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.schema_json>`\\ "
+"\\(\\*\\[\\, por\\_alias\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: 9c897a97b1924addba2458bf7283f1fc
+msgid ""
+":py:obj:`BudgetOptimizer.set_constraints "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.set_constraints>`\\ "
+"\\(constraints\\)"
+msgstr ""
+":py:obj:`BudgetOptimizer.set_constraints "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.set_constraints>`\\ "
+"\\(restricciones\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: b1ba94aaa592440c90f6a3479c16fe47
+msgid "Set constraints for the optimizer."
+msgstr "Establecer restricciones para el optimizador."
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: 7ddcfb707a3b49af89be8647fafd0510
+msgid ""
+":py:obj:`BudgetOptimizer.update_forward_refs "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.update_forward_refs>`\\"
+" \\(\\*\\*localns\\)"
+msgstr ""
+":py:obj:`BudgetOptimizer.update_forward_refs "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.update_forward_refs>`\\"
+" \\(\\*\\*localns\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:48:<autosummary>:1
+#: 140efe2b2e6448b083dbf6c8705e7ba3
+msgid ""
+":py:obj:`BudgetOptimizer.validate "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.validate>`\\ "
+"\\(value\\)"
+msgstr ""
+":py:obj:`BudgetOptimizer.validate "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.validate>`\\ "
+"\\(valor\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:50
+#: 603cd0a949e54cb392638fc73fd511c5
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:67:<autosummary>:1
+#: 61de1b6b7d814c9c8f4739930a0c34c6
+msgid ""
+":py:obj:`DEFAULT_MINIMIZE_KWARGS "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.DEFAULT_MINIMIZE_KWARGS>`\\"
+msgstr ""
+":py:obj:`DEFAULT_MINIMIZE_KWARGS "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.DEFAULT_MINIMIZE_KWARGS>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:67:<autosummary>:1
+#: 064245f64efb4509be757fa6d1f1768d
+msgid ""
+":py:obj:`model_computed_fields "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.model_computed_fields>`\\"
+msgstr ""
+":py:obj:`model_computed_fields "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.model_computed_fields>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:67:<autosummary>:1
+#: eb3a8785f2174bf898966cbdd5f93876
+msgid ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.model_config>`\\"
+msgstr ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.model_config>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:67:<autosummary>:1
+#: c5506d6644944506a1daac51612a66de
+msgid ""
+"Configuration for the model, should be a dictionary conforming to "
+"[`ConfigDict`][pydantic.config.ConfigDict]."
+msgstr ""
+"Configuración para el modelo, debe ser un diccionario que cumpla con "
+"[`ConfigDict`][pydantic.config.ConfigDict]."
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:67:<autosummary>:1
+#: c6e4ea6c25954f489ba0ff523dfcaf04
+msgid ""
+":py:obj:`model_extra "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.model_extra>`\\"
+msgstr ""
+":py:obj:`model_extra "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.model_extra>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:67:<autosummary>:1
+#: bc1f880038904790b8468105dfeabe19
+msgid "Get extra fields set during validation."
+msgstr "Obtener campos adicionales establecidos durante la validación."
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:67:<autosummary>:1
+#: 5178b66430424652af1ad15ad485d556
+msgid ""
+":py:obj:`model_fields "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.model_fields>`\\"
+msgstr ""
+":py:obj:`model_fields "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.model_fields>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:67:<autosummary>:1
+#: 2bc7417aed3a486a9e726da519af71ed
+msgid ""
+":py:obj:`model_fields_set "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.model_fields_set>`\\"
+msgstr ""
+":py:obj:`model_fields_set "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.model_fields_set>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:67:<autosummary>:1
+#: 3c2a217067034fca99710619508840e5
+msgid ""
+"Returns the set of fields that have been explicitly set on this model "
+"instance."
+msgstr ""
+"Devuelve el conjunto de campos que han sido establecidos explícitamente en "
+"esta instancia del modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:67:<autosummary>:1
+#: d847764c634f4661a49c02db1a11fe8d
+msgid ""
+":py:obj:`num_periods "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.num_periods>`\\"
+msgstr ""
+":py:obj:`num_periods "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.num_periods>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:67:<autosummary>:1
+#: e99c36110d55479faddf49c2c5da0879
+msgid ""
+":py:obj:`mmm_model "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.mmm_model>`\\"
+msgstr ""
+":py:obj:`mmm_model "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.mmm_model>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:67:<autosummary>:1
+#: f32172548fc147459da99256afdd4e93
+msgid ""
+":py:obj:`response_variable "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.response_variable>`\\"
+msgstr ""
+":py:obj:`response_variable "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.response_variable>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:67:<autosummary>:1
+#: d5b97e0087f64e2d809ff867e3fcbfef
+msgid ""
+":py:obj:`utility_function "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.utility_function>`\\"
+msgstr ""
+":py:obj:`utility_function "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.utility_function>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:67:<autosummary>:1
+#: 1252a3e2d71443f698e1cd5dc2991940
+msgid ""
+":py:obj:`budgets_to_optimize "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.budgets_to_optimize>`\\"
+msgstr ""
+":py:obj:`presupuestos_a_optimizar "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.presupuestos_a_optimizar>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:67:<autosummary>:1
+#: 111594465c8245fcb8d9a5f8679246c0
+msgid ""
+":py:obj:`custom_constraints "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.custom_constraints>`\\"
+msgstr ""
+":py:obj:`custom_constraints "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.custom_constraints>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:67:<autosummary>:1
+#: 2ae0f176f5ee4d3ca47bae2f4857b005
+msgid ""
+":py:obj:`default_constraints "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.default_constraints>`\\"
+msgstr ""
+":py:obj:`default_constraints "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.default_constraints>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:67:<autosummary>:1
+#: 3ac31e376b5347e8b6c441cf1074904f
+msgid ""
+":py:obj:`budget_distribution_over_period "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.budget_distribution_over_period>`\\"
+msgstr ""
+":py:obj:`distribución_del_presupuesto_a_lo_largo_del_período "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.budget_distribution_over_period>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.rst:67:<autosummary>:1
+#: 5484490a72b64ca7a8511565999e0b67
+msgid ""
+":py:obj:`compile_kwargs "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.compile_kwargs>`\\"
+msgstr ""
+":py:obj:`compile_kwargs "
+"<pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.compile_kwargs>`"

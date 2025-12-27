@@ -1,0 +1,173 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.mmm.MMM.new_spend_contributions.rst:2
+#: c2a17d834a92460aa3b70cb7d3b6ab53
+msgid "MMM.new\\_spend\\_contributions"
+msgstr "MMM.nuevas\\_contribuciones\\_de\\_gasto"
+
+#: 3db46d2ed8e241fc96197b63d6889174 of
+#: pymc_marketing.mmm.mmm.MMM.new_spend_contributions:2
+msgid "Return the upcoming contributions for a given spend."
+msgstr "Devuelva las contribuciones próximas para un gasto dado."
+
+#: c9f2a976c8be4fdf88c3ff0e4904370a of
+#: pymc_marketing.mmm.mmm.MMM.new_spend_contributions:4
+msgid ""
+"The spend can be one time or constant over the period. The spend leading up "
+"to the period can also be specified in order account for the lagged effect "
+"of the spend."
+msgstr ""
+"El gasto puede ser único o constante durante el período. El gasto previo al "
+"período también se puede especificar para tener en cuenta el efecto rezagado"
+" del gasto."
+
+#: 6cb51415de3e4265a44761b67d44833a of
+#: pymc_marketing.mmm.mmm.MMM.new_spend_contributions
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: c5f39bf154ea4de5a9d2908c3733e255 of
+#: pymc_marketing.mmm.mmm.MMM.new_spend_contributions:9
+msgid "**spend** : :obj:`np.ndarray <numpy.ndarray>`, optional"
+msgstr "**gastar** : :obj:`np.ndarray <numpy.ndarray>`, opcional"
+
+#: 4bff33f3ffdf449eaaa64b4631f5d5c2 of
+#: pymc_marketing.mmm.mmm.MMM.new_spend_contributions:8
+msgid "np.ndarray, optional"
+msgstr "np.ndarray, opcional"
+
+#: edddea5e3b394ad58c81ad999d0037a7 of
+#: pymc_marketing.mmm.mmm.MMM.new_spend_contributions:10
+msgid ""
+"Array of spend for each channel. If None, the average spend for each channel"
+" is used, by default None."
+msgstr ""
+"Array de gasto para cada canal. Si es None, se utiliza el gasto promedio "
+"para cada canal, por defecto None."
+
+#: 9b7a5024c5a3407887c8ab0c745e9a55 of
+#: pymc_marketing.mmm.mmm.MMM.new_spend_contributions:12
+msgid "**one_time** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr "**una_vez** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 1479f09d8a2947629dd6855d88aa0218 ce5f88cadd6246ddb3e86b5fef3f2c1b of
+#: pymc_marketing.mmm.mmm.MMM.new_spend_contributions:11
+#: pymc_marketing.mmm.mmm.MMM.new_spend_contributions:21
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: 6c2a1e3faecd4aeaba48a09d7863192a of
+#: pymc_marketing.mmm.mmm.MMM.new_spend_contributions:13
+msgid ""
+"Whether the spends for each channel are only at the start of the period. If "
+"True, all spends after the initial spend are zero. If False, all spends "
+"after the initial spend are the same as the initial spend. By default True."
+msgstr ""
+"Si los gastos para cada canal son solo al inicio del período. Si es "
+"Verdadero, todos los gastos después del gasto inicial son cero. Si es Falso,"
+" todos los gastos después del gasto inicial son iguales al gasto inicial. "
+"Por defecto, es Verdadero."
+
+#: ef9d7350214e467788e7c1ff4c92d38e of
+#: pymc_marketing.mmm.mmm.MMM.new_spend_contributions:18
+msgid "**spend_leading_up** : :obj:`np.array`, optional"
+msgstr "**gastar_previo** : :obj:`np.array`, opcional"
+
+#: 3c8cda1ccf5442f3841424a6ae23739d of
+#: pymc_marketing.mmm.mmm.MMM.new_spend_contributions:17
+msgid "np.array, optional"
+msgstr "np.array, opcional"
+
+#: 786a121460574a93b85e1d3c8090ff36 of
+#: pymc_marketing.mmm.mmm.MMM.new_spend_contributions:19
+msgid ""
+"Array of spend for each channel leading up to the spend, by default None or "
+"0 for each channel. Use this parameter to account for the lagged effect of "
+"the spend."
+msgstr ""
+"Array de gasto para cada canal que conduce al gasto, por defecto None o 0 "
+"para cada canal. Utilice este parámetro para tener en cuenta el efecto "
+"rezagado del gasto."
+
+#: ea12f038a6be4a1daa25544f2cf69579 of
+#: pymc_marketing.mmm.mmm.MMM.new_spend_contributions:22
+msgid "**prior** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr "**anterior** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 4dcaaf465b954cbb9890e944168a743e of
+#: pymc_marketing.mmm.mmm.MMM.new_spend_contributions:23
+msgid "Whether to use the prior or posterior, by default False (posterior)"
+msgstr "Si utilizar el anterior o el posterior, por defecto Falso (posterior)"
+
+#: 31b93bfc7e824af48dfacd12a2134386 of
+#: pymc_marketing.mmm.mmm.MMM.new_spend_contributions:25
+msgid "**\\*\\*sample_posterior_predictive_kwargs**"
+msgstr "**\\*\\*sample_posterior_predictive_kwargs**"
+
+#: c0b8ace6f46a4ef2bca14d3121a6f174 of
+#: pymc_marketing.mmm.mmm.MMM.new_spend_contributions:26
+msgid "Additional keyword arguments passed to pm.sample_posterior_predictive"
+msgstr ""
+"Argumentos adicionales de palabras clave pasados a "
+"pm.sample_posterior_predictive"
+
+#: 60cf47c1638b4fdda80bf65191ec17b7 of
+#: pymc_marketing.mmm.mmm.MMM.new_spend_contributions
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 664896db5b2142b59907116a52fc059b of
+#: pymc_marketing.mmm.mmm.MMM.new_spend_contributions:32
+msgid ":obj:`DataArray`"
+msgstr ":obj:`DataArray`"
+
+#: a82bd166873a4f1ea900934ed0e828fa of
+#: pymc_marketing.mmm.mmm.MMM.new_spend_contributions:33
+msgid "Upcoming contributions for each channel"
+msgstr "Contribuciones próximas para cada canal"
+
+#: 8e80ce98447a4a6cbdaa8130cf0a2aec of
+#: pymc_marketing.mmm.mmm.MMM.new_spend_contributions:45
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: 41bd5782f10f4a56988a87ed56b46ea6 of
+#: pymc_marketing.mmm.mmm.MMM.new_spend_contributions:46
+msgid "Channel contributions from 1 unit on each channel only once."
+msgstr "Contribuciones de canal de 1 unidad en cada canal solo una vez."
+
+#: bcaf1dceb89e4e6d95039f47d70241d4 of
+#: pymc_marketing.mmm.mmm.MMM.new_spend_contributions:54
+msgid ""
+"Channel contributions from continuously spending 1 unit on each channel."
+msgstr ""
+"Contribuciones del canal al gastar continuamente 1 unidad en cada canal."
+
+#: 1200e4caa26e450ab708d5e8bfb19d14 of
+#: pymc_marketing.mmm.mmm.MMM.new_spend_contributions:64
+msgid ""
+"Channel contributions from 1 unit on each channel only once but with 1 unit "
+"leading up to the spend."
+msgstr ""
+"Contribuciones de canal de 1 unidad en cada canal solo una vez, pero con 1 "
+"unidad que precede al gasto."

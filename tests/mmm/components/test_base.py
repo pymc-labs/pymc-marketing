@@ -11,6 +11,8 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+from unittest.mock import Mock
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pymc as pm
@@ -18,7 +20,7 @@ import pytensor.tensor as pt
 import pytest
 import xarray as xr
 from pymc_extras.prior import Prior, VariableFactory
-from pytensor.tensor import TensorVariable
+from pytensor.tensor import TensorVariable, scalar
 
 from pymc_marketing.mmm.components.base import (
     DuplicatedTransformationError,
@@ -35,7 +37,7 @@ def test_new_transformation_missing_prefix() -> None:
     class NewTransformation(Transformation):
         pass
 
-    with pytest.raises(NotImplementedError, match="prefix must be implemented"):
+    with pytest.raises(NotImplementedError, match=r"prefix must be implemented"):
         NewTransformation()
 
 
@@ -43,7 +45,9 @@ def test_new_transformation_missing_default_priors() -> None:
     class NewTransformation(Transformation):
         prefix = "new"
 
-    with pytest.raises(NotImplementedError, match="default_priors must be implemented"):
+    with pytest.raises(
+        NotImplementedError, match=r"default_priors must be implemented"
+    ):
         NewTransformation()
 
 
@@ -52,7 +56,7 @@ def test_new_transformation_missing_function() -> None:
         prefix = "new"
         default_priors = {}
 
-    with pytest.raises(NotImplementedError, match="function must be implemented"):
+    with pytest.raises(NotImplementedError, match=r"function must be implemented"):
         NewTransformation()
 
 
@@ -62,7 +66,7 @@ def test_new_transformation_missing_lookup_name() -> None:
         default_priors = {}
         function = lambda x: x  # noqa: E731
 
-    with pytest.raises(NotImplementedError, match="lookup_name must be implemented"):
+    with pytest.raises(NotImplementedError, match=r"lookup_name must be implemented"):
         NewTransformation()
 
 
@@ -127,7 +131,7 @@ def test_new_transformation_missing_priors() -> None:
         function = method_like_function
         default_priors = {"a": "dummy"}
 
-    with pytest.raises(ParameterPriorException, match="Missing default prior: {'b'}"):
+    with pytest.raises(ParameterPriorException, match=r"Missing default prior: {'b'}"):
         NewTransformation()
 
 
@@ -139,7 +143,7 @@ def test_new_transformation_missing_parameter() -> None:
         default_priors = {"b": "dummy"}
 
     with pytest.raises(
-        ParameterPriorException, match="Missing function parameter: {'b'}"
+        ParameterPriorException, match=r"Missing function parameter: {'b'}"
     ):
         NewTransformation()
 
@@ -175,7 +179,7 @@ def test_new_transformation_function_priors(new_transformation) -> None:
 
 def test_new_transformation_priors_at_init(new_transformation_class) -> None:
     new_prior = {"a": {"dist": "HalfNormal", "kwargs": {"sigma": 2}}}
-    with pytest.warns(DeprecationWarning, match="a is automatically converted"):
+    with pytest.warns(DeprecationWarning, match=r"a is automatically converted"):
         new_transformation = new_transformation_class(priors=new_prior)
     assert new_transformation.function_priors == {
         "a": Prior("HalfNormal", sigma=2),
@@ -204,7 +208,7 @@ def test_new_transformation_access_function(new_transformation) -> None:
 
 
 def test_new_transformation_apply_outside_model(new_transformation) -> None:
-    with pytest.raises(TypeError, match="on context stack"):
+    with pytest.raises(TypeError, match=r"on context stack"):
         new_transformation.apply(1)
 
 
@@ -227,7 +231,7 @@ def test_new_transform_update_priors(new_transformation) -> None:
 
 
 def test_new_transformation_warning_no_priors_updated(new_transformation) -> None:
-    with pytest.warns(UserWarning, match="No priors were updated"):
+    with pytest.warns(UserWarning, match=r"No priors were updated"):
         new_transformation.update_priors({"new_c": Prior("HalfNormal")})
 
 
@@ -616,3 +620,47 @@ def test_apply_idx_more_dims(new_transformation_class) -> None:
         Y.eval(),
         expected.eval(),
     )
+
+
+class DummyTransformation(Transformation):
+    @staticmethod
+    def function(data, x):
+        return data + x
+
+    prefix = "dummy"
+    lookup_name = "dummy"
+    default_priors = {"x": Prior("Normal", mu=0, sigma=1)}
+
+
+mock_variable_factory = Mock(spec=VariableFactory)
+
+
+@pytest.mark.parametrize(
+    "prior_value",
+    [
+        Prior("Normal", mu=0, sigma=1),
+        0.5,
+        scalar("x"),
+        mock_variable_factory,
+        [0.1, 0.2, 0.3],
+        np.array([0.1, 0.2, 0.3], dtype=float),
+    ],
+)
+def test_transformation_accepts_supported_priors(prior_value):
+    priors = {"x": prior_value}
+    tfm = DummyTransformation(priors=priors)
+
+    actual = tfm.function_priors["x"]
+
+    # Compare array-likes properly
+    if isinstance(prior_value, list | np.ndarray):
+        assert np.array_equal(actual, prior_value)
+    else:
+        assert actual == prior_value
+
+
+def test_exposed_priors_property() -> None:
+    dist = Prior("Laplace", mu=0, b=1)
+    priors = {"x": dist}
+    tfm = DummyTransformation(priors=priors)
+    assert tfm.priors == {"x": dist}
