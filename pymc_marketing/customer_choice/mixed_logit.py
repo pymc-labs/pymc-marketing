@@ -1192,8 +1192,11 @@ class MixedLogit(ModelBuilder):
             with self.model:
                 data_dict = {"X": new_X, "y": new_y}
                 if new_F is not None and len(new_F) > 0:
-                    data_dict["F"] = new_F
+                    data_dict["W"] = new_F
                 pm.set_data(data_dict)
+
+        if self.idata is None:
+            raise RuntimeError("self.idata must be initialized before extending")
 
         with self.model:
             post_pred = pm.sample_posterior_predictive(
@@ -1201,11 +1204,6 @@ class MixedLogit(ModelBuilder):
             )
 
         if extend_idata:
-            if self.idata is None:
-                raise RuntimeError(
-                    "self.idata must be initialized before extending with "
-                    "posterior predictive samples."
-                )
             self.idata.extend(post_pred, join="right")
 
         return post_pred

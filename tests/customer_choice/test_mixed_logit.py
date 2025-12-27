@@ -13,6 +13,7 @@
 #   limitations under the License.
 
 
+import arviz as az
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -865,6 +866,25 @@ def test_sample(mxl, sample_df, utility_eqs_basic, mock_pymc_sample):
     _ = mxl.make_model(X, F, y)
     mxl.sample()
     assert hasattr(mxl, "idata")
+
+    mxl.sample_posterior_predictive(
+        extend_idata=False,
+    )
+    assert "posterior_predictive" in mxl.idata
+    assert "fit_data" in mxl.idata
+
+    mxl.sample_posterior_predictive(choice_df=sample_df, extend_idata=True)
+    assert isinstance(mxl.idata, az.InferenceData)
+
+    mxl.fit(choice_df=sample_df, utility_equations=utility_eqs_basic)
+
+    with pytest.raises(
+        RuntimeError, match=r"self.idata must be initialized before extending"
+    ):
+        mxl.idata = None
+        mxl.sample_posterior_predictive(
+            extend_idata=True,
+        )
 
 
 def test_sample_panel(mxl_panel, sample_df_panel, utility_eqs_basic, mock_pymc_sample):
