@@ -20,7 +20,8 @@ import pytensor.tensor as pt
 import pytest
 import xarray as xr
 from pymc_extras.prior import Prior, VariableFactory
-from pytensor.tensor import TensorVariable, scalar
+from pytensor.tensor import scalar
+from pytensor.tensor.variable import TensorVariable
 
 from pymc_marketing.mmm.components.base import (
     DuplicatedTransformationError,
