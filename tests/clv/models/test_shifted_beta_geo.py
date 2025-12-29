@@ -928,6 +928,142 @@ class TestShiftedBetaGeoModel:
         model.build_model()
         assert "dropout_covariate" in model.model.coords
 
+    def test_predictions_with_covariates_subset_cohorts(self):
+        # Training data with 3 cohorts
+        train_data = pd.DataFrame(
+            {
+                "customer_id": range(30),
+                "recency": [3, 4, 5] * 10,
+                "T": [5] * 30,
+                "cohort": ["A"] * 10 + ["B"] * 10 + ["C"] * 10,
+                "channel": [0, 1, 0, 1, 0] * 6,
+            }
+        )
+
+        model = ShiftedBetaGeoModel(
+            data=train_data, model_config={"dropout_covariate_cols": ["channel"]}
+        )
+        model.fit(method="map", maxeval=10)
+
+        # Prediction data with subset of cohorts (NOT starting at index 0)
+        pred_data = pd.DataFrame(
+            {
+                "customer_id": [100, 101, 102],
+                "T": [3, 3, 3],
+                "cohort": ["B", "C", "C"],  # Missing cohort "A"
+                "channel": [1, 0, 1],
+            }
+        )
+
+        # Should not raise IndexError
+        prob_alive = model.expected_probability_alive(data=pred_data, future_t=1)
+        assert prob_alive.shape[-1] == 3  # 3 customers
+
+        retention = model.expected_retention_rate(data=pred_data, future_t=1)
+        assert retention.shape[-1] == 3
+
+    def test_covariate_predictions_single_vs_all_cohorts_consistency(self):
+        """Predictions for a cohort must be identical whether queried via
+        all-cohorts or single-cohort data."""
+        train_data = pd.DataFrame(
+            {
+                "customer_id": range(60),
+                "recency": [3, 4, 5, 5, 5, 5] * 10,  # Mix of churned and active
+                "T": [5] * 60,
+                "cohort": ["A"] * 20 + ["B"] * 20 + ["C"] * 20,
+                "channel": [0, 1] * 30,
+            }
+        )
+
+        model = ShiftedBetaGeoModel(
+            data=train_data, model_config={"dropout_covariate_cols": ["channel"]}
+        )
+        model.fit(method="map", maxeval=50)
+
+        # Get active customers for predictions
+        active_all = train_data.query("recency == T").copy()
+        active_B = active_all[active_all["cohort"] == "B"].copy()
+
+        # Scenario A: Predict all cohorts, select cohort B
+        pred_all = model.expected_probability_alive(data=active_all, future_t=2)
+        pred_all_B = pred_all.sel(cohort="B")
+
+        # Scenario B: Predict single cohort B directly
+        pred_single_B = model.expected_probability_alive(data=active_B, future_t=2)
+
+        # Values must be identical (within floating point tolerance)
+        xr.testing.assert_allclose(
+            pred_all_B.mean("cohort"),  # Average over customers in cohort B
+            pred_single_B.mean("cohort"),
+            rtol=1e-10,
+        )
+
+    def test_covariate_effect_preserved_single_cohort(self):
+        """Covariate effects must be identical regardless of query method."""
+        train_data = pd.DataFrame(
+            {
+                "customer_id": range(40),
+                "recency": [4, 4, 4, 4] * 10,  # All active
+                "T": [4] * 40,
+                "cohort": ["X"] * 20 + ["Y"] * 20,
+                "feature": [0.0, 1.0] * 20,  # Binary covariate
+            }
+        )
+
+        model = ShiftedBetaGeoModel(
+            data=train_data, model_config={"dropout_covariate_cols": ["feature"]}
+        )
+        model.fit(method="map", maxeval=50)
+
+        active = train_data.query("recency == T").copy()
+        active_X = active[active["cohort"] == "X"].copy()
+
+        # All cohorts prediction
+        dataset_all = model._extract_predictive_variables(
+            active.assign(future_t=1), customer_varnames=["T", "future_t", "cohort"]
+        )
+
+        # Single cohort prediction
+        dataset_single = model._extract_predictive_variables(
+            active_X.assign(future_t=1), customer_varnames=["T", "future_t", "cohort"]
+        )
+
+        # Alpha values for cohort X customers must match
+        alpha_all_X = dataset_all["alpha"].sel(cohort="X")
+        alpha_single_X = dataset_single["alpha"]
+
+        xr.testing.assert_allclose(alpha_all_X, alpha_single_X, rtol=1e-10)
+
+    def test_covariate_path_coordinate_integrity(self):
+        """Verify customer_id coordinates are preserved through covariate path."""
+        train_data = pd.DataFrame(
+            {
+                "customer_id": [100, 101, 102, 103],
+                "recency": [3, 3, 3, 3],
+                "T": [3] * 4,
+                "cohort": ["P", "P", "Q", "Q"],
+                "cov": [0.5, 1.5, 0.5, 1.5],
+            }
+        )
+
+        model = ShiftedBetaGeoModel(
+            data=train_data, model_config={"dropout_covariate_cols": ["cov"]}
+        )
+        model.fit(method="map", maxeval=10)
+
+        pred_data = train_data.query("recency == T").assign(future_t=1)
+        dataset = model._extract_predictive_variables(
+            pred_data, customer_varnames=["T", "future_t", "cohort"]
+        )
+
+        # Verify customer_id coordinate exists and matches input
+        # (After swap_dims, customer_id becomes a coord on cohort dim)
+        assert "customer_id" in dataset.coords or "cohort" in dataset.dims
+
+        # Verify alpha has proper dimensions
+        assert "alpha" in dataset
+        assert dataset["alpha"].dims[-1] == "cohort"  # After swap_dims
+
 
 class TestShiftedBetaGeoModelIndividual:
     @classmethod

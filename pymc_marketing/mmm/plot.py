@@ -48,11 +48,23 @@ Quickstart with MMM:
     # Posterior predictive time series
     _ = mmm.plot.posterior_predictive(var="y", hdi_prob=0.9)
 
+    # Residuals over time (true - predicted)
+    _ = mmm.plot.residuals_over_time(hdi_prob=[0.94, 0.50])
+
+    # Residuals posterior distribution
+    _ = mmm.plot.residuals_posterior_distribution(aggregation="mean")
+
     # Posterior contributions over time (e.g., channel_contribution)
     _ = mmm.plot.contributions_over_time(var=["channel_contribution"], hdi_prob=0.9)
 
+    # Posterior distribution of parameters (e.g., saturation parameter by channel)
+    _ = mmm.plot.posterior_distribution(var="lam", plot_dim="channel")
+
     # Channel saturation scatter plot (scaled space by default)
     _ = mmm.plot.saturation_scatterplot(original_scale=False)
+
+    # Channel contribution share forest plot
+    _ = mmm.plot.channel_contribution_share_hdi(hdi_prob=0.94)
 
 Wrap a custom PyMC model
 --------
@@ -61,6 +73,8 @@ Requirements
 
 - posterior_predictive plots: an `az.InferenceData` with a `posterior_predictive` group
   containing the variable(s) you want to plot with a `date` coordinate.
+- residuals plots: a `posterior_predictive` group with `y_original_scale` variable (with `date`)
+  and a `constant_data` group with `target_data` variable.
 - contributions_over_time plots: a `posterior` group with time‑series variables (with `date`).
 - saturation plots: a `constant_data` dataset with variables:
   - `channel_data`: dims include `("date", "channel", ...)`
@@ -174,11 +188,16 @@ import itertools
 import arviz as az
 import arviz_plots as azp
 import numpy as np
+import pandas as pd
+import seaborn as sns
 import xarray as xr
 from arviz_base.labels import DimCoordLabeller, NoVarLabeller, mix_labellers
 from arviz_plots import PlotCollection
 
 from pymc_marketing.mmm.config import mmm_plot_config
+
+from pymc_marketing.metrics import crps
+from pymc_marketing.mmm.utils import build_contributions
 
 __all__ = ["MMMPlotSuite"]
 
@@ -499,6 +518,428 @@ class MMMPlotSuite:
         )
         return pc
 
+    def prior_predictive(
+        self,
+        var: str | None = None,
+        idata: xr.Dataset | None = None,
+        hdi_prob: float = 0.85,
+    ) -> tuple[Figure, NDArray[Axes]]:
+        """Plot time series from the posterior predictive distribution.
+
+        By default, if both `var` and `idata` are not provided, uses
+        `self.idata.posterior_predictive` and defaults the variable to `"y"`.
+
+        Parameters
+        ----------
+        var : str, optional
+            The variable name to plot. Default is "y" if not provided.
+        idata : xarray.Dataset, optional
+            The posterior predictive dataset to plot. If not provided, tries to
+            use `self.idata.posterior_predictive`.
+        hdi_prob: float, optional
+            The probability mass of the highest density interval to be displayed. Default is 0.85.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The Figure object containing the subplots.
+        axes : np.ndarray of matplotlib.axes.Axes
+            Array of Axes objects corresponding to each subplot row.
+
+        Raises
+        ------
+        ValueError
+            If no `idata` is provided and `self.idata.posterior_predictive` does
+            not exist, instructing the user to run `MMM.sample_posterior_predictive()`.
+            If `hdi_prob` is not between 0 and 1, instructing the user to provide a valid value.
+        """
+        if not 0 < hdi_prob < 1:
+            raise ValueError("HDI probability must be between 0 and 1.")
+        # 1. Retrieve or validate posterior_predictive data
+        pp_data = self._get_prior_predictive_data(idata)
+
+        # 2. Determine variable to plot
+        if var is None:
+            var = "y"
+        main_var = var
+
+        # 3. Identify additional dims & get all combos
+        ignored_dims = {"chain", "draw", "date", "sample"}
+        additional_dims, dim_combinations = self._get_additional_dim_combinations(
+            data=pp_data, variable=main_var, ignored_dims=ignored_dims
+        )
+
+        # 4. Prepare subplots
+        fig, axes = self._init_subplots(n_subplots=len(dim_combinations), ncols=1)
+
+        # 5. Loop over dimension combinations
+        for row_idx, combo in enumerate(dim_combinations):
+            ax = axes[row_idx][0]
+
+            # Build indexers
+            indexers = (
+                dict(zip(additional_dims, combo, strict=False))
+                if additional_dims
+                else {}
+            )
+
+            # 6. Plot the requested variable
+            if var not in pp_data:
+                raise ValueError(
+                    f"Variable '{var}' not in the posterior_predictive dataset."
+                )
+
+            data = pp_data[var].sel(**indexers)
+            # Sum leftover dims, stack chain+draw if needed
+            data = self._reduce_and_stack(data, ignored_dims)
+            ax = self._add_median_and_hdi(ax, data, var, hdi_prob=hdi_prob)
+
+            # 7. Subplot title & labels
+            title = self._build_subplot_title(
+                dims=additional_dims,
+                combo=combo,
+                fallback_title="Posterior Predictive Time Series",
+            )
+            ax.set_title(title)
+            ax.set_xlabel("Date")
+            ax.set_ylabel("Posterior Predictive")
+            ax.legend(loc="best")
+
+        return fig, axes
+
+    def _compute_residuals(self) -> xr.DataArray:
+        """Compute residuals (errors) as target - predictions.
+
+        Returns
+        -------
+        xr.DataArray
+            Residuals with name "residuals" and dimensions including chain, draw, date,
+            and any additional model dimensions.
+
+        Raises
+        ------
+        ValueError
+            If `y_original_scale` is not in posterior_predictive.
+            If `target_data` is not in constant_data.
+        """
+        # Check for required data
+        pp_data = self._get_posterior_predictive_data(None)
+
+        if "y_original_scale" not in pp_data:
+            raise ValueError(
+                "Variable 'y_original_scale' not found in posterior_predictive. "
+                "This plot requires predictions in the original scale. "
+                "Make sure to sample posterior_predictive after fitting the model."
+            )
+
+        if (
+            not hasattr(self.idata, "constant_data")  # type: ignore
+            or self.idata.constant_data is None  # type: ignore
+            or "target_data" not in self.idata.constant_data  # type: ignore
+        ):
+            raise ValueError(
+                "Variable 'target_data' not found in constant_data. "
+                "This plot requires the target data to be stored in idata."
+            )
+
+        # Compute residuals
+        target_data = self.idata.constant_data.target_data  # type: ignore
+        predictions = pp_data["y_original_scale"]
+        residuals = target_data - predictions
+        residuals.name = "residuals"
+
+        return residuals
+
+    def residuals_over_time(
+        self,
+        hdi_prob: list[float] | None = None,
+    ) -> tuple[Figure, NDArray[Axes]]:
+        """Plot residuals over time by taking the difference between true values and predicted.
+
+        Computes residuals = true values - predicted using target data from constant_data
+        and predictions from posterior_predictive. Works with any model dimensionality.
+
+        Parameters
+        ----------
+        hdi_prob : list of float, optional
+            List of HDI probability masses to display. Default is [0.94].
+            Each probability must be between 0 and 1. Multiple HDI bands will be
+            plotted with decreasing transparency for wider bands.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The Figure object containing the subplots.
+        axes : np.ndarray of matplotlib.axes.Axes
+            Array of Axes objects corresponding to each subplot row.
+
+        Raises
+        ------
+        ValueError
+            If `y_original_scale` is not in posterior_predictive, instructing
+            the user that this plot requires the original scale predictions.
+            If `target_data` is not in constant_data.
+            If any HDI probability is not between 0 and 1.
+
+        Examples
+        --------
+        Plot residuals over time with default 94% HDI:
+
+        .. code-block:: python
+
+            mmm.plot.residuals_over_time()
+
+        Plot residuals with multiple HDI bands:
+
+        .. code-block:: python
+
+            mmm.plot.residuals_over_time(hdi_prob=[0.94, 0.50])
+        """
+        # 1. Validate and set defaults
+        if hdi_prob is None:
+            hdi_prob = [0.94]
+
+        for prob in hdi_prob:
+            if not 0 < prob < 1:
+                raise ValueError(
+                    f"All HDI probabilities must be between 0 and 1, got {prob}."
+                )
+
+        # Sort probabilities in descending order (wider bands first)
+        hdi_prob = sorted(hdi_prob, reverse=True)
+
+        # 2. Compute residuals
+        residuals = self._compute_residuals()
+        pp_data = self._get_posterior_predictive_data(None)
+
+        # 3. Identify additional dims & get all combos
+        ignored_dims = {"chain", "draw", "date", "sample"}
+        additional_dims, dim_combinations = self._get_additional_dim_combinations(
+            data=pp_data, variable="y_original_scale", ignored_dims=ignored_dims
+        )
+
+        # 4. Prepare subplots
+        fig, axes = self._init_subplots(n_subplots=len(dim_combinations), ncols=1)
+
+        # 5. Loop over dimension combinations
+        for row_idx, combo in enumerate(dim_combinations):
+            ax = axes[row_idx][0]
+
+            # Build indexers
+            indexers = (
+                dict(zip(additional_dims, combo, strict=False))
+                if additional_dims
+                else {}
+            )
+
+            # Select residuals for this combination
+            residuals_subset = residuals.sel(**indexers)
+            # Sum leftover dims, stack chain+draw if needed
+            residuals_subset = self._reduce_and_stack(residuals_subset, ignored_dims)
+
+            # Get date coordinate
+            if "date" not in residuals_subset.dims:
+                raise ValueError(
+                    "Expected 'date' dimension in residuals, but none found."
+                )
+            dates = residuals_subset.coords["date"].values
+
+            # 6. Plot HDI bands (wider bands first with lighter alpha)
+            alphas = [0.2 + i * 0.2 for i in range(len(hdi_prob))]
+            for prob, alpha in zip(hdi_prob, alphas, strict=True):
+                residuals_hdi = az.hdi(
+                    residuals_subset,
+                    hdi_prob=prob,
+                    input_core_dims=[["sample"]]
+                    if "sample" in residuals_subset.dims
+                    else None,
+                )
+
+                ax.fill_between(
+                    dates,
+                    residuals_hdi["residuals"].sel(hdi="lower"),
+                    residuals_hdi["residuals"].sel(hdi="higher"),
+                    color="C3",
+                    alpha=alpha,
+                    label=f"${100 * prob:.0f}\\%$ HDI",
+                )
+
+            # 7. Plot mean residual line
+            mean_residuals = residuals_subset.mean(
+                dim="sample" if "sample" in residuals_subset.dims else ("chain", "draw")
+            )
+            ax.plot(
+                dates,
+                mean_residuals.to_numpy(),
+                color="C3",
+                label="Residuals Mean",
+            )
+
+            # 8. Plot zero reference line
+            ax.axhline(y=0.0, linestyle="--", color="black", label="zero")
+
+            # 9. Subplot title & labels
+            title = self._build_subplot_title(
+                dims=additional_dims,
+                combo=combo,
+                fallback_title="Residuals Over Time",
+            )
+            ax.set_title(title)
+            ax.set_xlabel("date")
+            ax.set_ylabel("true - predictions")
+            ax.legend(loc="best")
+
+        return fig, axes
+
+    def residuals_posterior_distribution(
+        self,
+        quantiles: list[float] | None = None,
+        aggregation: str | None = None,
+    ) -> tuple[Figure, NDArray[Axes]]:
+        """Plot the posterior distribution of residuals.
+
+        Displays the distribution of residuals (true - predicted) across all time points
+        and dimensions. Users can choose to aggregate across dimensions using mean or sum.
+
+        Parameters
+        ----------
+        quantiles : list of float, optional
+            Quantiles to display on the distribution plot. Default is [0.25, 0.5, 0.75].
+            Each value must be between 0 and 1.
+        aggregation : str, optional
+            How to aggregate residuals across non-chain/draw dimensions.
+            Options: "mean", "sum", or None (default).
+            - "mean": Average residuals across date and other dimensions
+            - "sum": Sum residuals across date and other dimensions
+            - None: Plot distribution for each dimension combination separately
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The Figure object containing the subplots.
+        axes : np.ndarray of matplotlib.axes.Axes
+            Array of Axes objects corresponding to each subplot.
+
+        Raises
+        ------
+        ValueError
+            If `y_original_scale` is not in posterior_predictive.
+            If `target_data` is not in constant_data.
+            If any quantile is not between 0 and 1.
+            If aggregation is not one of "mean", "sum", or None.
+
+        Examples
+        --------
+        Plot residuals distribution with default quantiles:
+
+        .. code-block:: python
+
+            mmm.plot.residuals_posterior_distribution()
+
+        Plot with custom quantiles and aggregation:
+
+        .. code-block:: python
+
+            mmm.plot.residuals_posterior_distribution(
+                quantiles=[0.05, 0.5, 0.95], aggregation="mean"
+            )
+        """
+        # 1. Validate and set defaults
+        if quantiles is None:
+            quantiles = [0.25, 0.5, 0.75]
+
+        for q in quantiles:
+            if not 0 <= q <= 1:
+                raise ValueError(f"All quantiles must be between 0 and 1, got {q}.")
+
+        if aggregation not in [None, "mean", "sum"]:
+            raise ValueError(
+                f"aggregation must be one of 'mean', 'sum', or None, got {aggregation!r}."
+            )
+
+        # 2. Compute residuals
+        residuals = self._compute_residuals()
+        pp_data = self._get_posterior_predictive_data(None)
+
+        # 3. Handle aggregation
+        if aggregation is not None:
+            # Aggregate across all dimensions except chain and draw
+            dims_to_agg = [d for d in residuals.dims if d not in ("chain", "draw")]
+            if aggregation == "mean":
+                residuals_agg = residuals.mean(dim=dims_to_agg)
+            else:  # aggregation == "sum"
+                residuals_agg = residuals.sum(dim=dims_to_agg)
+
+            # Create single plot
+            fig, ax = plt.subplots(figsize=(8, 6))
+            az.plot_dist(
+                residuals_agg,
+                quantiles=quantiles,
+                color="C3",
+                fill_kwargs={"alpha": 0.7},
+                ax=ax,
+            )
+            ax.axvline(x=0, color="black", linestyle="--", linewidth=1, label="zero")
+            ax.legend()
+            ax.set_title(f"Residuals Posterior Distribution ({aggregation})")
+            ax.set_xlabel("Residuals")
+
+            # Return as array for consistency
+            axes = np.array([[ax]])
+            return fig, axes
+
+        # 4. Without aggregation: plot for each dimension combination
+        ignored_dims = {"chain", "draw", "date", "sample"}
+        additional_dims, dim_combinations = self._get_additional_dim_combinations(
+            data=pp_data, variable="y_original_scale", ignored_dims=ignored_dims
+        )
+
+        # 5. Prepare subplots
+        fig, axes = self._init_subplots(n_subplots=len(dim_combinations), ncols=1)
+
+        # 6. Loop over dimension combinations
+        for row_idx, combo in enumerate(dim_combinations):
+            ax = axes[row_idx][0]
+
+            # Build indexers
+            indexers = (
+                dict(zip(additional_dims, combo, strict=False))
+                if additional_dims
+                else {}
+            )
+
+            # Select residuals for this combination and flatten over date
+            residuals_subset = residuals.sel(**indexers)
+            # Flatten date dimension for distribution plot
+            if "date" in residuals_subset.dims:
+                residuals_flat = residuals_subset.stack(
+                    all_samples=("chain", "draw", "date")
+                )
+            else:
+                residuals_flat = residuals_subset.stack(all_samples=("chain", "draw"))
+
+            # Plot distribution
+            az.plot_dist(
+                residuals_flat,
+                quantiles=quantiles,
+                color="C3",
+                fill_kwargs={"alpha": 0.7},
+                ax=ax,
+            )
+            ax.axvline(x=0, color="black", linestyle="--", linewidth=1, label="zero")
+            ax.legend()
+
+            # Subplot title & labels
+            title = self._build_subplot_title(
+                dims=additional_dims,
+                combo=combo,
+                fallback_title="Residuals Posterior Distribution",
+            )
+            ax.set_title(title)
+            ax.set_xlabel("Residuals")
+
+        return fig, axes
+
     def contributions_over_time(
         self,
         var: list[str],
@@ -709,7 +1150,7 @@ class MMMPlotSuite:
 
         return pc
 
-    def saturation_scatterplot(
+    def posterior_distribution(
         self,
         original_scale: bool = False,
         constant_data: xr.Dataset | None = None,

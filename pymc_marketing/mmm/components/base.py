@@ -214,7 +214,12 @@ class Transformation:
         """Get the priors for the function."""
         return self._function_priors
 
-    @function_priors.setter
+    @property
+    def priors(self) -> dict[str, SupportedPrior]:
+        """Get the priors for the function."""
+        return self.function_priors
+
+    @function_priors.setter  # type: ignore
     def function_priors(self, priors: dict[str, Any | Prior] | None) -> None:
         priors = priors or {}
 
