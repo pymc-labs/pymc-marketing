@@ -175,7 +175,7 @@ class MixedLogit(ModelBuilder):
         )
 
         # Control function parameters (for price endogeneity)
-        gamma = Prior("Normal", mu=0, sigma=5, dims="alts")
+        gamma = Prior("Normal", mu=0, sigma=5, dims=("instruments", "alts"))
         lambda_cf = Prior("Normal", mu=0, sigma=1, dims="alts")
         sigma_eta = Prior("HalfNormal", sigma=1)
 
@@ -491,6 +491,11 @@ class MixedLogit(ModelBuilder):
             "obs": range(len(df)),
             "individuals": range(n_individuals),
         }
+
+        if self.instrumental_vars is not None:
+            instruments = self.instrumental_vars["X_instruments"].shape[1]
+            n_inst_per_alt = instruments // len(alternatives)
+            coords["instruments"] = [f"inst_{i}" for i in range(n_inst_per_alt)]
 
         return coords
 
@@ -815,6 +820,7 @@ class MixedLogit(ModelBuilder):
 
         X_inst_data = pm.Data("X_instruments", X_instruments)
         y_price_data = pm.Data("y_price", y_price)
+        n_inst_per_alt = X_instruments.shape[1] // n_alts  # 8 / 4 = 2
 
         sigma_eta = self.model_config["sigma_eta"].create_variable("sigma_eta")
 
@@ -823,10 +829,10 @@ class MixedLogit(ModelBuilder):
             gamma = self.model_config["gamma"].create_variable("gamma")
             gamma_0 = pm.Normal("gamma_0", 0, 10, shape=n_alts)  # Price intercepts
             gamma_0 = pt.set_subtensor(gamma_0[-1], 0)  # Reference alt intercept = 0
-            mu_P = gamma_0 + (X_inst_data * gamma)  # Broadcasting: (n_obs, n_alts)
+            X_inst = X_inst_data.reshape((n_obs, n_alts, n_inst_per_alt))  # (N, J, K)
+            mu_P = gamma_0 + pt.sum(X_inst * gamma.T, axis=2)  # (N, J)
         else:
-            n_instruments = X_instruments.shape[1]
-            gamma = pm.Normal("gamma", 0.0, 5.0, shape=(n_instruments, n_alts))
+            gamma = self.model_config["gamma"].create_variable("gamma")
             gamma_0 = pm.Normal("gamma_0", 0, 10, shape=n_alts)  # Price intercepts
             gamma_0 = pt.set_subtensor(gamma_0[-1], 0)  # Reference alt intercept = 0
             mu_P = gamma_0 + pt.dot(X_inst_data, gamma)

@@ -645,6 +645,38 @@ class TestMakeControlFunction:
             assert "lambda_cf" in model.named_vars
             assert "price_error" in model.named_vars
 
+    def test_make_control_function_with_one_instrument(
+        self, sample_df, utility_eqs_basic, covariates_list
+    ):
+        """Test control function with instrumental variables."""
+        # Create mock instrumental variables
+        n_obs = len(sample_df)
+        X_instruments = np.random.randn(n_obs, 1)
+        y_price = np.random.randn(n_obs, 3)
+
+        mxl_with_iv = MixedLogit(
+            sample_df,
+            utility_eqs_basic,
+            "choice",
+            covariates_list,
+            instrumental_vars={
+                "X_instruments": X_instruments,
+                "y_price": y_price,
+                "diagonal": True,
+            },
+        )
+
+        X, _F, _y = mxl_with_iv.preprocess_model_data(sample_df, utility_eqs_basic)
+        n_obs, n_alts = X.shape[0], X.shape[1]
+
+        with pm.Model(coords=mxl_with_iv.coords) as model:
+            _ = mxl_with_iv.make_control_function(n_obs, n_alts)
+
+            # Should create control function variables
+            assert "gamma" in model.named_vars
+            assert "lambda_cf" in model.named_vars
+            assert "price_error" in model.named_vars
+
 
 class TestMakeUtility:
     """Tests for make_utility() method."""
