@@ -187,17 +187,18 @@ import itertools
 
 import arviz as az
 import arviz_plots as azp
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import xarray as xr
 from arviz_base.labels import DimCoordLabeller, NoVarLabeller, mix_labellers
 from arviz_plots import PlotCollection
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
+from numpy.typing import NDArray
 
 from pymc_marketing.mmm.config import mmm_plot_config
-
-from pymc_marketing.metrics import crps
-from pymc_marketing.mmm.utils import build_contributions
 
 __all__ = ["MMMPlotSuite"]
 
@@ -259,6 +260,109 @@ class MMMPlotSuite:
                 "an external 'idata' argument."
             )
         return self.idata.posterior_predictive  # type: ignore
+
+    def _get_prior_predictive_data(
+        self,
+        idata: xr.Dataset | None,
+    ) -> xr.Dataset:
+        """Retrieve the prior_predictive group from either provided or self.idata."""
+        if idata is not None:
+            return idata
+
+        # Otherwise, check if self.idata has prior_predictive
+        if (
+            not hasattr(self.idata, "prior_predictive")  # type: ignore
+            or self.idata.prior_predictive is None  # type: ignore
+        ):
+            raise ValueError(
+                "No prior_predictive data found in 'self.idata'. "
+                "Please run 'MMM.sample_prior_predictive()' or provide "
+                "an external 'idata' argument."
+            )
+        return self.idata.prior_predictive  # type: ignore
+
+    def _init_subplots(
+        self,
+        n_subplots: int,
+        ncols: int = 1,
+        width_per_col: float = 10.0,
+        height_per_row: float = 4.0,
+    ) -> tuple[Figure, NDArray[Axes]]:
+        """Initialize a grid of subplots.
+
+        Parameters
+        ----------
+        n_subplots : int
+            Number of rows (if ncols=1) or total subplots.
+        ncols : int
+            Number of columns in the subplot grid.
+        width_per_col : float
+            Width (in inches) for each column of subplots.
+        height_per_row : float
+            Height (in inches) for each row of subplots.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The created Figure object.
+        axes : np.ndarray of matplotlib.axes.Axes
+            2D array of axes of shape (n_subplots, ncols).
+        """
+        fig, axes = plt.subplots(
+            nrows=n_subplots,
+            ncols=ncols,
+            figsize=(width_per_col * ncols, height_per_row * n_subplots),
+            squeeze=False,
+        )
+        return fig, axes
+
+    def _build_subplot_title(
+        self,
+        dims: list[str],
+        combo: tuple,
+        fallback_title: str = "Time Series",
+    ) -> str:
+        """Build a subplot title string from dimension names and their values."""
+        if dims:
+            title_parts = [f"{d}={v}" for d, v in zip(dims, combo, strict=False)]
+            return ", ".join(title_parts)
+        return fallback_title
+
+    def _reduce_and_stack(
+        self, data: xr.DataArray, dims_to_ignore: set[str] | None = None
+    ) -> xr.DataArray:
+        """Sum over leftover dims and stack chain+draw into sample if present."""
+        if dims_to_ignore is None:
+            dims_to_ignore = {"date", "chain", "draw", "sample"}
+
+        leftover_dims = [d for d in data.dims if d not in dims_to_ignore]
+        if leftover_dims:
+            data = data.sum(dim=leftover_dims)
+
+        # Combine chain+draw into 'sample' if both exist
+        if "chain" in data.dims and "draw" in data.dims:
+            data = data.stack(sample=("chain", "draw"))
+
+        return data
+
+    def _add_median_and_hdi(
+        self, ax: Axes, data: xr.DataArray, var: str, hdi_prob: float = 0.85
+    ) -> Axes:
+        """Add median and HDI to the given axis."""
+        median = data.median(dim="sample") if "sample" in data.dims else data.median()
+        hdi = az.hdi(
+            data,
+            hdi_prob=hdi_prob,
+            input_core_dims=[["sample"]] if "sample" in data.dims else None,
+        )
+
+        if "date" not in data.dims:
+            raise ValueError(f"Expected 'date' dimension in {var}, but none found.")
+        dates = data.coords["date"].values
+        # Add median and HDI to the plot
+        ax.plot(dates, median, label=var, alpha=0.9)
+        ax.fill_between(dates, hdi[var][..., 0], hdi[var][..., 1], alpha=0.2)
+        return ax
 
     def _validate_dims(
         self,
@@ -355,6 +459,7 @@ class MMMPlotSuite:
         var: str | None = None,
         idata: xr.Dataset | None = None,
         hdi_prob: float = 0.85,
+        plot_collection: PlotCollection | None = None,
         backend: str | None = None,
     ) -> PlotCollection:
         """Plot posterior predictive distributions over time.
@@ -377,6 +482,10 @@ class MMMPlotSuite:
             - Comparing different model fits side-by-side
         hdi_prob : float, default 0.85
             Probability mass for HDI interval (between 0 and 1).
+        plot_collection : PlotCollection, optional
+            Existing PlotCollection to add plots to. If None, creates a new one.
+            This allows building composite visualizations by calling multiple
+            plot methods on the same PlotCollection.
         backend : str, optional
             Plotting backend to use. Options: "matplotlib", "plotly", "bokeh".
             If None, uses global config via mmm_plot_config["plot.backend"].
@@ -479,15 +588,18 @@ class MMMPlotSuite:
         )
 
         # 4. Prepare subplots
-        pc = azp.PlotCollection.wrap(
-            pp_data[main_var].to_dataset(),
-            cols=additional_dims,
-            col_wrap=1,
-            figure_kwargs={
-                "sharex": True,
-            },
-            backend=backend,
-        )
+        if plot_collection is None:
+            pc = azp.PlotCollection.wrap(
+                pp_data[main_var].to_dataset(),
+                cols=additional_dims,
+                col_wrap=1,
+                figure_kwargs={
+                    "sharex": True,
+                },
+                backend=backend,
+            )
+        else:
+            pc = plot_collection
 
         # plot hdi
         hdi = pp_data.azstats.hdi(hdi_prob)
@@ -946,6 +1058,7 @@ class MMMPlotSuite:
         data: xr.Dataset | None = None,
         hdi_prob: float = 0.85,
         dims: dict[str, str | int | list] | None = None,
+        plot_collection: PlotCollection | None = None,
         backend: str | None = None,
     ) -> PlotCollection:
         """Plot time-series contributions for specified variables.
@@ -975,6 +1088,10 @@ class MMMPlotSuite:
             - List of values: {"country": ["US", "UK"]}
 
             If provided, only the selected slice(s) will be plotted.
+        plot_collection : PlotCollection, optional
+            Existing PlotCollection to add plots to. If None, creates a new one.
+            This allows building composite visualizations by calling multiple
+            plot methods on the same PlotCollection.
         backend : str, optional
             Plotting backend to use. Options: "matplotlib", "plotly", "bokeh".
             If None, uses global config via mmm_plot_config["plot.backend"].
@@ -1110,15 +1227,18 @@ class MMMPlotSuite:
         )
 
         # 4. Prepare subplots
-        pc = azp.PlotCollection.wrap(
-            da,
-            cols=additional_dims,
-            col_wrap=1,
-            figure_kwargs={
-                "sharex": True,
-            },
-            backend=backend,
-        )
+        if plot_collection is None:
+            pc = azp.PlotCollection.wrap(
+                da,
+                cols=additional_dims,
+                col_wrap=1,
+                figure_kwargs={
+                    "sharex": True,
+                },
+                backend=backend,
+            )
+        else:
+            pc = plot_collection
 
         # plot hdi
         hdi = da.azstats.hdi(hdi_prob)
@@ -1152,10 +1272,197 @@ class MMMPlotSuite:
 
     def posterior_distribution(
         self,
+        var: str,
+        plot_dim: str = "channel",
+        orient: str = "h",
+        dims: dict[str, str | int | list] | None = None,
+        figsize: tuple[float, float] = (10, 6),
+    ) -> tuple[Figure, NDArray[Axes]]:
+        """Plot the posterior distribution of a variable across a specified dimension.
+
+        Creates violin plots showing the posterior distribution of a parameter for each
+        value in the specified dimension (e.g., each channel). If additional dimensions
+        are present, creates a subplot for each combination.
+
+        Parameters
+        ----------
+        var : str
+            The name of the variable to plot from posterior.
+        plot_dim : str, optional
+            The dimension to plot distributions over. Default is "channel".
+            This dimension will be used as the categorical axis for the violin plots.
+        orient : str, optional
+            Orientation of the plot. Either "h" (horizontal) or "v" (vertical).
+            Default is "h".
+        dims : dict[str, str | int | list], optional
+            Dimension filters to apply. Example: {"geo": "US", "channel": ["TV", "Radio"]}.
+            If provided, only the selected slice(s) will be plotted.
+        figsize : tuple[float, float], optional
+            The size of each subplot. Default is (10, 6).
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The Figure object containing the subplots.
+        axes : np.ndarray of matplotlib.axes.Axes
+            Array of Axes objects corresponding to each subplot.
+
+        Raises
+        ------
+        ValueError
+            If `var` is not found in the posterior.
+            If `plot_dim` is not a dimension of the variable.
+            If no posterior data is found in idata.
+
+        Examples
+        --------
+        Plot posterior distribution of a saturation parameter:
+
+        .. code-block:: python
+
+            mmm.plot.posterior_distribution(var="lam", plot_dim="channel")
+
+        Plot with dimension filtering:
+
+        .. code-block:: python
+
+            mmm.plot.posterior_distribution(
+                var="lam", plot_dim="channel", dims={"geo": "US"}
+            )
+
+        Plot vertical orientation:
+
+        .. code-block:: python
+
+            mmm.plot.posterior_distribution(var="alpha", plot_dim="channel", orient="v")
+        """
+        if not hasattr(self.idata, "posterior"):
+            raise ValueError(
+                "No posterior data found in 'self.idata'. "
+                "Please ensure 'self.idata' contains a 'posterior' group."
+            )
+
+        if var not in self.idata.posterior:
+            raise ValueError(
+                f"Variable '{var}' not found in posterior. "
+                f"Available variables: {list(self.idata.posterior.data_vars)}"
+            )
+
+        var_data = self.idata.posterior[var]
+
+        if plot_dim not in var_data.dims:
+            raise ValueError(
+                f"Dimension '{plot_dim}' not found in variable '{var}'. "
+                f"Available dimensions: {list(var_data.dims)}"
+            )
+
+        all_dims = list(var_data.dims)
+
+        # Validate dims parameter
+        if dims:
+            self._validate_dims(dims=dims, all_dims=all_dims)
+        else:
+            self._validate_dims({}, all_dims)
+
+        # Build all combinations for dims with lists
+        dims_keys, dims_combos = self._dim_list_handler(dims)
+
+        # Identify additional dimensions (beyond chain, draw, and plot_dim)
+        ignored_dims = {"chain", "draw", plot_dim}
+        additional_dims = [
+            d for d in all_dims if d not in ignored_dims and d not in (dims or {})
+        ]
+
+        # Get combinations for remaining dims
+        if additional_dims:
+            additional_coords = [
+                self.idata.posterior.coords[dim].values for dim in additional_dims
+            ]
+            additional_combos = list(itertools.product(*additional_coords))
+        else:
+            additional_combos = [()]
+
+        # Total combinations for subplots
+        total_combos = list(itertools.product(dims_combos, additional_combos))
+        n_subplots = len(total_combos)
+
+        # Create subplots
+        fig, axes = self._init_subplots(
+            n_subplots=n_subplots,
+            ncols=1,
+            width_per_col=figsize[0],
+            height_per_row=figsize[1],
+        )
+
+        for row_idx, (dims_combo, addl_combo) in enumerate(total_combos):
+            ax = axes[row_idx][0]
+
+            # Build indexers
+            indexers = (
+                dict(zip(additional_dims, addl_combo, strict=False))
+                if additional_dims
+                else {}
+            )
+
+            if dims:
+                # For dims with lists, use the current value from dims_combo
+                for i, k in enumerate(dims_keys):
+                    indexers[k] = dims_combo[i]
+                # For dims with single values, use as is
+                for k, v in (dims or {}).items():
+                    if k not in dims_keys:
+                        indexers[k] = v
+
+            # Select data for this subplot
+            subset = var_data.sel(**indexers)
+
+            # Extract samples and convert to DataFrame
+            # Stack chain and draw into sample dimension
+            if "chain" in subset.dims and "draw" in subset.dims:
+                subset = subset.stack(sample=("chain", "draw"))
+
+            # Get plot_dim values for labeling
+            plot_dim_values = subset.coords[plot_dim].values
+
+            # Convert to DataFrame for seaborn
+            # Transpose so that plot_dim values are columns
+            samples_df = pd.DataFrame(
+                data=subset.values.T,
+                columns=plot_dim_values,
+            )
+
+            # Create violin plot
+            sns.violinplot(data=samples_df, orient=orient, ax=ax)
+
+            # Build subplot title
+            title_dims = (list(dims.keys()) if dims else []) + additional_dims
+            title_combo = tuple(indexers[k] for k in title_dims)
+            title = self._build_subplot_title(
+                dims=title_dims,
+                combo=title_combo,
+                fallback_title=f"Posterior Distribution: {var}",
+            )
+
+            ax.set_title(title)
+
+            if orient == "h":
+                ax.set_xlabel(var)
+                ax.set_ylabel(plot_dim)
+            else:
+                ax.set_xlabel(plot_dim)
+                ax.set_ylabel(var)
+
+        fig.tight_layout()
+        return fig, axes
+
+    def saturation_scatterplot(
+        self,
         original_scale: bool = False,
         constant_data: xr.Dataset | None = None,
         posterior_data: xr.Dataset | None = None,
         dims: dict[str, str | int | list] | None = None,
+        colors: list[str] | None = None,
+        plot_collection: PlotCollection | None = None,
         backend: str | None = None,
     ) -> PlotCollection:
         """Plot saturation scatter plot showing channel spend vs contributions.
@@ -1194,6 +1501,14 @@ class MMMPlotSuite:
             - {"geo": ["US", "UK"]} - Multiple values
 
             If provided, only the selected slice(s) will be plotted.
+        colors : list of str, optional
+            List of colors for each channel, in the same order as the channel
+            dimension. If None, uses the default color cycle.
+            Examples: ["#1f77b4", "#ff7f0e", "#2ca02c"]
+        plot_collection : PlotCollection, optional
+            Existing PlotCollection to add plots to. If None, creates a new one.
+            This allows building composite visualizations by calling multiple
+            plot methods on the same PlotCollection.
         backend : str, optional
             Plotting backend to use. Options: "matplotlib", "plotly", "bokeh".
             If None, uses global config via mmm_plot_config["plot.backend"].
@@ -1227,7 +1542,9 @@ class MMMPlotSuite:
         Breaking changes from legacy implementation:
 
         - Returns PlotCollection instead of (Figure, Axes)
-        - Lost **kwargs for matplotlib customization (use backend-specific methods)
+        - Lost ``width_per_col`` / ``height_per_row`` kwargs for figure sizing.
+          For matplotlib, resize after creation:
+          ``pc.viz["chart"].item().figure.set_size_inches(12, 8)``
         - Different grid layout algorithm
 
         Examples
@@ -1270,6 +1587,15 @@ class MMMPlotSuite:
             custom_posterior = xr.Dataset(...)
             pc = mmm.plot.saturation_scatterplot(
                 constant_data=custom_constant, posterior_data=custom_posterior
+            )
+            pc.show()
+
+        Use custom colors for each channel:
+
+        .. code-block:: python
+
+            pc = mmm.plot.saturation_scatterplot(
+                colors=["#1f77b4", "#ff7f0e", "#2ca02c"]
             )
             pc.show()
         """
@@ -1334,13 +1660,21 @@ class MMMPlotSuite:
                     channel_data = channel_data.sel({dim_name: dim_value})
                     channel_contrib = channel_contrib.sel({dim_name: dim_value})
 
-        pc = azp.PlotCollection.grid(
-            channel_contrib.mean(dim=["chain", "draw"]).to_dataset(),
-            cols=additional_dims,
-            rows=["channel"],
-            aes={"color": ["channel"]},
-            backend=backend,
-        )
+        # Build color kwargs: if colors provided, map channel to custom colors
+        color_kwargs = {"color": {"channel": colors}} if colors is not None else {}
+
+        if plot_collection is None:
+            pc = azp.PlotCollection.grid(
+                channel_contrib.mean(dim=["chain", "draw"]).to_dataset(),
+                cols=additional_dims,
+                rows=["channel"],
+                aes={"color": ["channel"]},
+                backend=backend,
+                **color_kwargs,
+            )
+        else:
+            pc = plot_collection
+
         pc.map(
             azp.visuals.scatter_xy,
             x=channel_data,
@@ -1368,6 +1702,8 @@ class MMMPlotSuite:
         hdi_probs: float | list[float] | None = None,
         random_seed: np.random.Generator | None = None,
         dims: dict[str, str | int | list] | None = None,
+        colors: list[str] | None = None,
+        plot_collection: PlotCollection | None = None,
         backend: str | None = None,
     ) -> PlotCollection:
         """Overlay saturation scatter plots with posterior predictive curves and HDI bands.
@@ -1411,6 +1747,14 @@ class MMMPlotSuite:
             - {"geo": ["US", "UK"]}
 
             If provided, only the selected slice(s) will be plotted.
+        colors : list of str, optional
+            List of colors for each channel, in the same order as the channel
+            dimension. If None, uses the default color cycle.
+            Examples: ["#1f77b4", "#ff7f0e", "#2ca02c"]
+        plot_collection : PlotCollection, optional
+            Existing PlotCollection to add plots to. If None, creates a new one.
+            This allows building composite visualizations by calling multiple
+            plot methods on the same PlotCollection.
         backend : str, optional
             Plotting backend to use. Options: "matplotlib", "plotly", "bokeh".
             If None, uses global config via mmm_plot_config["plot.backend"].
@@ -1440,7 +1784,7 @@ class MMMPlotSuite:
         Breaking changes from legacy implementation:
 
         - Returns PlotCollection instead of (Figure, Axes)
-        - Lost colors, subplot_kwargs, rc_params parameters
+        - Lost subplot_kwargs, rc_params parameters
         - Different HDI calculation (uses arviz_plots instead of custom)
 
         Examples
@@ -1540,6 +1884,8 @@ class MMMPlotSuite:
             constant_data=constant_data,
             posterior_data=posterior_data,
             dims=dims,
+            colors=colors,
+            plot_collection=plot_collection,
             backend=backend,
         )
 
@@ -1755,6 +2101,7 @@ class MMMPlotSuite:
         self,
         samples: xr.Dataset,
         hdi_prob: float = 0.85,
+        plot_collection: PlotCollection | None = None,
         backend: str | None = None,
     ) -> PlotCollection:
         """Plot channel contributions over time from budget allocation optimization.
@@ -1779,6 +2126,10 @@ class MMMPlotSuite:
             Typically obtained from: ``mmm.allocate_budget_to_maximize_response(...)``
         hdi_prob : float, default 0.85
             Probability mass for HDI interval (between 0 and 1).
+        plot_collection : PlotCollection, optional
+            Existing PlotCollection to add plots to. If None, creates a new one.
+            This allows building composite visualizations by calling multiple
+            plot methods on the same PlotCollection.
         backend : str | None, optional
             Backend to use for plotting. If None, uses global backend configuration.
 
@@ -1877,16 +2228,19 @@ class MMMPlotSuite:
         ignored_dims = {"channel", "date", "sample"}
         extra_dims = [dim for dim in all_dims if dim not in ignored_dims]
 
-        pc = azp.PlotCollection.wrap(
-            samples[channel_contrib_var].to_dataset(),
-            cols=extra_dims,
-            aes={"color": ["channel"]},
-            col_wrap=1,
-            figure_kwargs={
-                "sharex": True,
-            },
-            backend=backend,
-        )
+        if plot_collection is None:
+            pc = azp.PlotCollection.wrap(
+                samples[channel_contrib_var].to_dataset(),
+                cols=extra_dims,
+                aes={"color": ["channel"]},
+                col_wrap=1,
+                figure_kwargs={
+                    "sharex": True,
+                },
+                backend=backend,
+            )
+        else:
+            pc = plot_collection
 
         # plot hdi
         hdi = samples[channel_contrib_var].azstats.hdi(hdi_prob, dim="sample")
@@ -1924,6 +2278,7 @@ class MMMPlotSuite:
         data: xr.DataArray | xr.Dataset,
         hdi_prob: float = 0.94,
         aggregation: dict[str, tuple[str, ...] | list[str]] | None = None,
+        plot_collection: PlotCollection | None = None,
         backend: str | None = None,
     ) -> PlotCollection:
         """Private helper for plotting sensitivity analysis results.
@@ -1950,6 +2305,9 @@ class MMMPlotSuite:
             Aggregations to apply before plotting.
             Keys are operations ("sum", "mean", "median"), values are dimension tuples.
             Example: {"sum": ("channel",)} sums over the channel dimension.
+        plot_collection : PlotCollection, optional
+            Existing PlotCollection to add plots to. If None, creates a new one.
+            Allows building on existing visualizations.
         backend : str | None, optional
             Backend to use for plotting. If None, uses global backend configuration.
 
@@ -2021,15 +2379,18 @@ class MMMPlotSuite:
         # Determine plotting dimensions (excluding sample & sweep)
         plot_dims = set(x.dims) - {"sample", "sweep"}
 
-        pc = azp.PlotCollection.wrap(
-            x.to_dataset(),
-            cols=plot_dims,
-            col_wrap=2,
-            figure_kwargs={
-                "sharex": True,
-            },
-            backend=backend,
-        )
+        if plot_collection is None:
+            pc = azp.PlotCollection.wrap(
+                x.to_dataset(),
+                cols=plot_dims,
+                col_wrap=2,
+                figure_kwargs={
+                    "sharex": True,
+                },
+                backend=backend,
+            )
+        else:
+            pc = plot_collection
 
         # plot hdi
         hdi = x.azstats.hdi(hdi_prob, dim="sample")
@@ -2062,6 +2423,7 @@ class MMMPlotSuite:
         data: xr.DataArray | xr.Dataset | None = None,
         hdi_prob: float = 0.94,
         aggregation: dict[str, tuple[str, ...] | list[str]] | None = None,
+        plot_collection: PlotCollection | None = None,
         backend: str | None = None,
     ) -> PlotCollection:
         """Plot sensitivity analysis results showing response to input changes.
@@ -2091,6 +2453,9 @@ class MMMPlotSuite:
             Values: tuple of dimension names
 
             Example: ``{"sum": ("channel",)}`` sums over channels before plotting.
+        plot_collection : PlotCollection, optional
+            Existing PlotCollection to add plots to. If None, creates a new one.
+            Allows building on existing visualizations.
         backend : str | None, optional
             Backend to use for plotting. If None, uses global backend configuration.
 
@@ -2176,7 +2541,11 @@ class MMMPlotSuite:
         )
 
         pc = self._sensitivity_analysis_plot(
-            data=data, hdi_prob=hdi_prob, aggregation=aggregation, backend=backend
+            data=data,
+            hdi_prob=hdi_prob,
+            aggregation=aggregation,
+            plot_collection=plot_collection,
+            backend=backend,
         )
         pc.map(azp.visuals.labelled_y, text="Contribution")
         return pc
@@ -2186,6 +2555,7 @@ class MMMPlotSuite:
         data: xr.DataArray | xr.Dataset | None = None,
         hdi_prob: float = 0.94,
         aggregation: dict[str, tuple[str, ...] | list[str]] | None = None,
+        plot_collection: PlotCollection | None = None,
         backend: str | None = None,
     ) -> PlotCollection:
         """Plot uplift curves showing percentage change relative to baseline.
@@ -2215,6 +2585,9 @@ class MMMPlotSuite:
             Values: tuple of dimension names
 
             Example: ``{"sum": ("channel",)}`` sums over channels before plotting.
+        plot_collection : PlotCollection, optional
+            Existing PlotCollection to add plots to. If None, creates a new one.
+            Allows building on existing visualizations.
         backend : str | None, optional
             Backend to use for plotting. If None, uses global backend configuration.
 
@@ -2331,6 +2704,7 @@ class MMMPlotSuite:
             data=data,
             hdi_prob=hdi_prob,
             aggregation=aggregation,
+            plot_collection=plot_collection,
             backend=backend,
         )
         pc.map(azp.visuals.labelled_y, text="Uplift (%)")
@@ -2341,6 +2715,7 @@ class MMMPlotSuite:
         data: xr.DataArray | xr.Dataset | None = None,
         hdi_prob: float = 0.94,
         aggregation: dict[str, tuple[str, ...] | list[str]] | None = None,
+        plot_collection: PlotCollection | None = None,
         backend: str | None = None,
     ) -> PlotCollection:
         """Plot marginal effects showing absolute rate of change.
@@ -2370,6 +2745,9 @@ class MMMPlotSuite:
             Values: tuple of dimension names
 
             Example: ``{"sum": ("channel",)}`` sums over channels before plotting.
+        plot_collection : PlotCollection, optional
+            Existing PlotCollection to add plots to. If None, creates a new one.
+            Allows building on existing visualizations.
         backend : str | None, optional
             Backend to use for plotting. If None, uses global backend configuration.
 
@@ -2490,6 +2868,7 @@ class MMMPlotSuite:
             data=data,
             hdi_prob=hdi_prob,
             aggregation=aggregation,
+            plot_collection=plot_collection,
             backend=backend,
         )
         pc.map(azp.visuals.labelled_y, text="Marginal Effect")
