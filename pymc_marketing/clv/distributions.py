@@ -24,6 +24,7 @@ from pymc.distributions.shape_utils import rv_size_is_none
 from pytensor import scan
 from pytensor.graph import vectorize_graph
 from pytensor.tensor.random.op import RandomVariable
+import warnings
 
 __all__ = [
     "BetaGeoBetaBinom",
@@ -103,6 +104,10 @@ class ContNonContract(PositiveContinuous):
 
     rv_op = continuous_non_contractual
 
+    def __new__(cls, name, *args, **kwargs):
+        warnings.warn("The class ContNonContract is deprecated and will be removed in v1.0", DeprecationWarning, stacklevel=2)
+        return super().__new__(cls, name, *args, **kwargs)
+    
     @classmethod
     def dist(cls, lam, p, T, **kwargs):
         """Get the distribution from the parameters."""
@@ -215,6 +220,10 @@ class ContContract(PositiveContinuous):
 
     rv_op = continuous_contractual
 
+    def __new__(cls, name, *args, **kwargs):
+        warnings.warn("The class ContContract is deprecated and will be removed in v1.0", DeprecationWarning, stacklevel=2)
+        return super().__new__(cls, name, *args, **kwargs)
+    
     @classmethod
     def dist(cls, lam, p, T, **kwargs):
         """Get the distribution from the parameters."""
