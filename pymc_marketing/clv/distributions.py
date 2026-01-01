@@ -105,7 +105,7 @@ class ContNonContract(PositiveContinuous):
     rv_op = continuous_non_contractual
 
     def __new__(cls, name, *args, **kwargs):
-        """Throw a deprecation warning"""
+        """Throw a deprecation warning."""
         warnings.warn(
             "The class ContNonContract is deprecated and will be removed in v1.0",
             DeprecationWarning,
@@ -116,6 +116,11 @@ class ContNonContract(PositiveContinuous):
     @classmethod
     def dist(cls, lam, p, T, **kwargs):
         """Get the distribution from the parameters."""
+        warnings.warn(
+            "The class ContContract is deprecated and will be removed in v1.0",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return super().dist([lam, p, T], **kwargs)
 
     def logp(value, lam, p, T):
@@ -226,7 +231,7 @@ class ContContract(PositiveContinuous):
     rv_op = continuous_contractual
 
     def __new__(cls, name, *args, **kwargs):
-        """Throw a deprecation warning"""
+        """Throw a deprecation warning."""
         warnings.warn(
             "The class ContContract is deprecated and will be removed in v1.0",
             DeprecationWarning,
@@ -237,6 +242,11 @@ class ContContract(PositiveContinuous):
     @classmethod
     def dist(cls, lam, p, T, **kwargs):
         """Get the distribution from the parameters."""
+        warnings.warn(
+            "The class ContContract is deprecated and will be removed in v1.0",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return super().dist([lam, p, T], **kwargs)
 
     def logp(value, lam, p, T):
