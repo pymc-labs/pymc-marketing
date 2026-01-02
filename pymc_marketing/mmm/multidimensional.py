@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -1263,7 +1263,7 @@ class MMM(RegressionModelBuilder):
             )
             target_data_scaled.name = "target_scaled"
             target_data_scaled.dims = ("date", *self.dims)
-            ## TODO: Find a better way to save it or access it in the pytensor graph.
+            # TODO: Find a better way to save it or access it in the pytensor graph.
             self.target_data_scaled = target_data_scaled
 
             for mu_effect in self.mu_effects:

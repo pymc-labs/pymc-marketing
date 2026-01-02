@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
 #   limitations under the License.
 """Distributions for the CLV module."""
 
+import warnings
 from functools import reduce
 
 import numpy as np
@@ -106,6 +107,11 @@ class ContNonContract(PositiveContinuous):
     @classmethod
     def dist(cls, lam, p, T, **kwargs):
         """Get the distribution from the parameters."""
+        warnings.warn(
+            "The class ContNonContract has been deprecated and will be removed in v1.0",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return super().dist([lam, p, T], **kwargs)
 
     def logp(value, lam, p, T):
@@ -218,6 +224,11 @@ class ContContract(PositiveContinuous):
     @classmethod
     def dist(cls, lam, p, T, **kwargs):
         """Get the distribution from the parameters."""
+        warnings.warn(
+            "The class ContContract has been deprecated and will be removed in v1.0",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return super().dist([lam, p, T], **kwargs)
 
     def logp(value, lam, p, T):

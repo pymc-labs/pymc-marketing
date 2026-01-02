@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -2519,7 +2519,7 @@ class MMM(
         # Extract samples
         group = (
             "predictions"
-            if sample_posterior_predictive_kwargs.get("predictions", False)
+            if sample_posterior_predictive_kwargs.get("predictions")
             else "posterior_predictive"
         )
         posterior_predictive_samples = az.extract(post_pred, group, combined=combined)

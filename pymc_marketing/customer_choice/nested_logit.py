@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -638,7 +638,7 @@ class NestedLogit(RegressionModelBuilder):
         """
         nest_indices = self.nest_indices
         conditional_probs = {}
-        ## Collect All Exp Inclusive Value terms per nest
+        # Collect All Exp Inclusive Value terms per nest
         for n in nest_indices[level].keys():
             exp_W_nest, P_y_given_nest = self.make_exp_nest(
                 U, W, betas_fixed, lambdas_nests, n, level
@@ -646,7 +646,7 @@ class NestedLogit(RegressionModelBuilder):
             exp_W_nest = pm.math.sum(exp_W_nest, axis=1)
             conditional_probs[n] = {"exp": exp_W_nest, "P_y_given": P_y_given_nest}
 
-        ## Sum the exp inclusive value terms as normalising constanT
+        # Sum the exp inclusive value terms as normalising constanT
         denom = pm.Deterministic(
             f"denom_{level}",
             pm.math.sum(
@@ -654,7 +654,7 @@ class NestedLogit(RegressionModelBuilder):
                 axis=0,
             ),
         )
-        ## Calculate the nest probability
+        # Calculate the nest probability
         nest_probs = {}
         for n in nest_indices[level].keys():
             P_nest = pm.Deterministic(
@@ -700,13 +700,13 @@ class NestedLogit(RegressionModelBuilder):
             u = alphas + pm.math.dot(X_data, betas)
             U = pm.Deterministic("U", u, dims=("obs", "alts"))
 
-            ## Mid Level
+            # Mid Level
             if "mid" in nest_indices.keys():
                 cond_prob_m, nest_prob_m = self.make_P_nest(
                     U, W, betas_fixed, lambdas_nests, "mid"
                 )
 
-                ## Construct Paths Bottom -> Up
+                # Construct Paths Bottom -> Up
                 child_nests = {}
                 path_prods_m: dict[str, list] = {}
                 ordered = [
@@ -736,7 +736,7 @@ class NestedLogit(RegressionModelBuilder):
             else:
                 child_nests = {}
 
-            ## Top Level
+            # Top Level
             cond_prob_t, nest_prob_t = self.make_P_nest(
                 U, W, betas_fixed, lambdas_nests, "top"
             )

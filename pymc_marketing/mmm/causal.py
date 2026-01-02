@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -476,7 +476,7 @@ class BuildModelFromDAG:
                 for parent in parents:
                     slope_name = f"{parent.lower()}:{node.lower()}"
                     slope_rv = self.model_config["slope"].create_variable(slope_name)
-                    slope_rvs[(parent, node)] = slope_rv
+                    slope_rvs[parent, node] = slope_rv
                     mu_expr += slope_rv * data_containers[parent]
                 intercept_rv = self.model_config["intercept"].create_variable(
                     f"{node.lower()}_intercept"
@@ -893,7 +893,7 @@ class TBFPC:
             self._adj_undirected.discard(self._key(u, v))
             self._adj_directed.discard((v, u))
             self._adj_directed.add((u, v))
-            self.test_results[(u, v, EMPTY_CONDITION_SET)] = {
+            self.test_results[u, v, EMPTY_CONDITION_SET] = {
                 "bic0": float("nan"),
                 "bic1": float("nan"),
                 "delta_bic": float("nan"),
@@ -968,7 +968,7 @@ class TBFPC:
         if self._has_forbidden(x, y):
             return True
         if self._is_required(x, y) or self._is_required(y, x):
-            self.test_results[(x, y, frozenset(cond))] = TestResult(
+            self.test_results[x, y, frozenset(cond)] = TestResult(
                 bic0=float("nan"),
                 bic1=float("nan"),
                 delta_bic=float("nan"),
@@ -1006,7 +1006,7 @@ class TBFPC:
             "independent": independence,
             "conditioning_set": list(cond),
         }
-        self.test_results[(x, y, frozenset(cond))] = result
+        self.test_results[x, y, frozenset(cond)] = result
 
         return independence
 
