@@ -117,7 +117,7 @@ class ContNonContract(PositiveContinuous):
     def dist(cls, lam, p, T, **kwargs):
         """Get the distribution from the parameters."""
         warnings.warn(
-            "The class ContContract is deprecated and will be removed in v1.0",
+            "The class ContNonContract is deprecated and will be removed in v1.0",
             DeprecationWarning,
             stacklevel=2,
         )
