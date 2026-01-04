@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -156,16 +156,15 @@ def test_adstock_from_dict_without_priors(
     }
 
 
-class AnotherNewTransformation(AdstockTransformation):
-    lookup_name: str = "another_new_transformation"
-    default_priors = {}
-
-    def function(self, x):
-        return x
-
-
 @pytest.mark.parametrize("deserialize_func", [adstock_from_dict, deserialize])
 def test_automatic_register_adstock_transformation(deserialize_func) -> None:
+    class AnotherNewTransformation(AdstockTransformation):
+        lookup_name: str = "another_new_transformation"
+        default_priors = {}
+
+        def function(self, x):
+            return x
+
     data = {
         "lookup_name": "another_new_transformation",
         "l_max": 10,
@@ -177,6 +176,8 @@ def test_automatic_register_adstock_transformation(deserialize_func) -> None:
     assert adstock == AnotherNewTransformation(
         l_max=10, mode=ConvMode.Before, normalize=False, priors={}
     )
+
+    ADSTOCK_TRANSFORMATIONS.pop("another_new_transformation")
 
 
 def test_repr() -> None:
@@ -251,3 +252,5 @@ def test_deserialize_new_transformation() -> None:
     instance = deserialize(data)
     assert isinstance(instance, NewAdstock)
     assert instance.l_max == 10
+
+    ADSTOCK_TRANSFORMATIONS.pop("new_adstock")
