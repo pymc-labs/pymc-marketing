@@ -16,6 +16,8 @@ authors:
   - name: Juan Orduz
     orcid:
     affiliation: 1
+  - name: Colt Allen
+    orcid:
   - name: Carlos Trujillo
     orcid:
     affiliation: 1
