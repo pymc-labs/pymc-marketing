@@ -64,57 +64,27 @@ Core dependencies include PyMC (≥5.0), NumPy, Pandas, ArviZ [@arviz2019], and 
 
 # Key Features
 
-**Media Mix Modeling**: Multiple adstock functions, saturation curves, time-varying parameters via HSGP [@solin2020hilbert], and experimental calibration for causal inference.
+PyMC-Marketing provides four distinct modules addressing comprehensive marketing analytics:
 
-**Customer Analytics**: BTYD models [@fader2020customer], Bass diffusion [@bass1969new], and discrete choice [@train2009discrete] with hierarchical extensions and individual-level uncertainty.
+**1. Media Mix Modeling (MMM)**: Multiple adstock functions, saturation curves, time-varying parameters via HSGP [@solin2020hilbert], and experimental calibration for causal inference.
 
-**Production Ready**: MLflow [@zaharia2018mlflow] integration, Docker containerization, multiple MCMC backends, and comprehensive diagnostics via ArviZ.
+**2. Customer Lifetime Value (CLV)**: BTYD models [@fader2020customer] including BG/NBD, Pareto/NBD, and Gamma-Gamma frameworks with hierarchical extensions and individual-level uncertainty.
 
-# Example Usage
+**3. Bass Diffusion Models**: Product adoption forecasting [@bass1969new] with flexible parameterization for innovation and imitation effects across multiple products.
 
-```python
-import pandas as pd
-from pymc_marketing.mmm import MMM, GeometricAdstock, LogisticSaturation
-from pymc_marketing.paths import data_dir
+**4. Customer Choice Models**: Discrete choice analysis [@train2009discrete] based on random utility theory, including multinomial logit and multivariate interrupted time series models.
 
-# Load example dataset
-data = pd.read_csv(data_dir / "mmm_example.csv")
+**Production Ready**: All modules feature MLflow [@zaharia2018mlflow] integration, Docker containerization, multiple MCMC backends, and comprehensive diagnostics via ArviZ.
 
-# Configure MMM with transformations
-mmm = MMM(
-    adstock=GeometricAdstock(l_max=8),
-    saturation=LogisticSaturation(),
-    date_column="date_week",
-    channel_columns=["x1", "x2"],
-    control_columns=["event_1", "event_2", "t"],
-    yearly_seasonality=2,
-)
+# Key Advantages
 
-# Fit model and add lift test calibration
-X = data.drop("y", axis=1)
-y = data["y"]
-mmm.fit(X, y)
-
-# Add experimental calibration
-mmm.add_lift_test_measurements(pd.DataFrame([
-    {"channel": "x1", "x": 0.5, "delta_x": 0.2,
-     "delta_y": 0.1, "sigma": 0.05}
-]))
-
-# Optimize budget allocation
-result = mmm.optimize_budget(
-    budget=1000,
-    time_periods=52,
-    budget_bounds={"x1": (0, 500), "x2": (0, 500)}
-)
-```
-
-This demonstrates key advantages: uncertainty quantification through posteriors, experimental calibration anchoring observational models to causal ground truth, and flexible budget optimization with business constraints.
+PyMC-Marketing provides uncertainty quantification through full posterior distributions, experimental calibration anchoring observational models to causal ground truth, and flexible budget optimization with business constraints. The scikit-learn compatible API ensures seamless integration into existing data science workflows. Comprehensive tutorials and example notebooks demonstrating all model types are available in the online documentation at https://www.pymc-marketing.io/en/stable/, including translations in Spanish.
 
 # Community Guidelines
 
 - **Issues**: Report bugs and feature requests on [GitHub](https://github.com/pymc-labs/pymc-marketing/issues)
 - **Discussions**: Join community discussions on [GitHub Discussions](https://github.com/pymc-labs/pymc-marketing/discussions)
+- **Documentation**: Comprehensive guides and tutorials available at [pymc-marketing.io](https://www.pymc-marketing.io/en/stable/)
 - **Contributing**: See [CONTRIBUTING.md](https://github.com/pymc-labs/pymc-marketing/blob/main/CONTRIBUTING.md) for development guidelines
 - **Support**: Professional consulting available through [PyMC Labs](https://www.pymc-labs.com)
 
