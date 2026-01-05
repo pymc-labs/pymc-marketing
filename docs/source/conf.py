@@ -162,7 +162,8 @@ def linkcode_resolve(domain, info):
         filename = fallback_source()
     else:
         try:
-            filename = f"pymc_marketing/{find_source(obj)}#L%d-L%d"
+            path, start_line, end_line = find_source(obj)
+            filename = f"pymc_marketing/{path}#L{start_line}-L{end_line}"
         except Exception:
             try:
                 filename = obj.__module__.replace(".", "/") + ".py"
@@ -187,7 +188,7 @@ notfound_urls_prefix = "/en/latest/"
 ogp_site_url = "https://www.pymc-marketing.io/en/stable/"
 ogp_canonical_url = "https://www.pymc-marketing.io/en/stable/"
 ogp_image = "https://www.pymc-marketing.io/en/stable/_images/marketing-logo-light.jpg"
-ogp_ogp_enable_meta_description = False
+ogp_enable_meta_description = False
 
 
 # sitemap extension configuration
