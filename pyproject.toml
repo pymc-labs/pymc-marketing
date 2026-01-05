@@ -50,7 +50,7 @@ docs = [
     "graphviz",
     "ipython!=8.7.0",
     "ipywidgets",
-    "labs-sphinx-theme @ git+https://github.com/pymc-labs/labs-sphinx-theme@v016_update",
+    "labs-sphinx-theme",
     "lifetimes",
     "myst-nb>=1.1.2",
     "myst-parser",
@@ -100,9 +100,6 @@ exclude = ["docs"]
 
 [tool.hatch.version]
 path = "pymc_marketing/version.py"
-
-[tool.hatch.metadata]
-allow-direct-references = true
 
 # <https://github.com/hynek/hatch-fancy-pypi-readme>
 [tool.hatch.metadata.hooks.fancy-pypi-readme]
