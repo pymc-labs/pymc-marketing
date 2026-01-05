@@ -19,7 +19,14 @@ To run the app, you need a Python environment with **Python 3.11 or newer**.
 3. **Launch the App:**
     streamlit run Visualise_Priors.py
 
-*(Note: I simplified the paths because the README is already inside the `mmm-explainer` folder, so instructions like `pip install -r requirements.txt` assume the user is in that folder).*
+### How to update the PR
+
+After you save the file with the text above, run these commands in your VS Code terminal to update the Pull Request:
+
+```powershell
+git add streamlit/mmm-explainer/README.md
+git commit -m "docs: remove accidental text and fix formatting"
+git push
 
 #### 3. Submit the changes (The Pull Request)
 Are you familiar with how to push these changes to GitHub and open a Pull Request?
