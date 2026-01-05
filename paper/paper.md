@@ -68,7 +68,7 @@ PyMC-Marketing provides four distinct modules addressing comprehensive marketing
 
 # Key Advantages
 
-PyMC-Marketing provides uncertainty quantification through full posterior distributions, experimental calibration anchoring observational models to causal ground truth, and flexible budget optimization with business constraints. The scikit-learn compatible API ensures seamless integration into existing data science workflows. The library has been successfully deployed by companies including HelloFresh and Bolt for production marketing analytics. Comprehensive tutorials, example notebooks, and video resources are available in the online documentation at https://www.pymc-marketing.io/en/stable/, with community support from over 80 contributors and translations in Spanish.
+PyMC-Marketing provides uncertainty quantification through full posterior distributions, experimental calibration anchoring observational models to causal ground truth, and flexible budget optimization with business constraints. The scikit-learn compatible API ensures seamless integration into existing data science workflows. The library has been successfully deployed by companies including HelloFresh and Bolt for production marketing analytics. Comprehensive tutorials, example notebooks, and video resources are available in the online documentation at https://www.pymc-marketing.io/en/stable/, with community support from over 70 contributors and translations in Spanish.
 
 # Community Guidelines
 
@@ -80,7 +80,7 @@ PyMC-Marketing provides uncertainty quantification through full posterior distri
 
 # Funding
 
-PyMC-Marketing is a community-driven project built primarily through volunteer contributions from over 60 developers. Some contributions by PyMC Labs affiliates have received partial funding.
+PyMC-Marketing is a community-driven project built primarily through volunteer contributions from over 70 developers. Some contributions by PyMC Labs affiliates have received partial funding.
 
 # Acknowledgments
 
