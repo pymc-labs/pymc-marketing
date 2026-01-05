@@ -3,8 +3,29 @@
 ## Overview
 
 This Streamlit application is designed to provide a dynamic and interactive visualization of key Marketing Mix Modeling (MMM) concepts, including adstock, saturation, and the use of Bayesian priors. It aims to help marketers, data scientists, and anyone interested in understanding MMM more deeply. Through this application, users can explore how different parameters affect adstock, saturation, and Bayesian priors.
-You may wish to run the app locally too - rather than relying on the [deployment](https://pymc-marketing-app.streamlit.app/).
-In this case, you would just need to install the requirements.txt within the streamlit folder and do `streamlit run Visualise_Priors.py`
+## Run Locally
+
+You may wish to run the app locally rather than relying on the [deployment](https://pymc-marketing-app.streamlit.app/).
+
+To run the app, you need a Python environment with **Python 3.11 or newer**.
+
+1. **Set up the environment:**
+   Create a new environment (or ensure your existing one uses Python 3.11+).
+   ```bash
+   conda create -c conda-forge -n marketing_stream python=3.11 pymc-marketing
+   conda activate marketing_stream
+2. **Install App Dependencies:** 
+    The Streamlit app requires extra libraries (like streamlit and plotly) that are not in the main package.
+3. **Launch the App:**
+    streamlit run Visualise_Priors.py
+
+*(Note: I simplified the paths because the README is already inside the `mmm-explainer` folder, so instructions like `pip install -r requirements.txt` assume the user is in that folder).*
+
+#### 3. Submit the changes (The Pull Request)
+Are you familiar with how to push these changes to GitHub and open a Pull Request?
+
+**If "Yes":** Go ahead and push your changes!
+**If "No" or "Not sure":** Let me know, and I will walk you through the `git add`, `git commit`, and `git push` commands.
 
 ## Features
 
