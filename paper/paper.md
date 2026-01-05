@@ -64,7 +64,7 @@ PyMC-Marketing provides four distinct modules addressing comprehensive marketing
 
 **4. Customer Choice Models**: Discrete choice analysis [@train2009discrete] based on random utility theory, including multinomial logit and multivariate interrupted time series models.
 
-**Production Ready**: All modules feature MLflow [@zaharia2018mlflow] integration, Docker containerization, multiple MCMC backends (NumPyro [@bingham2019pyro], Nutpie), variational inference (ADVI), MAP estimation, data connectors (e.g., Fivetran), and comprehensive diagnostics via ArviZ.
+**Production Ready**: All modules feature MLflow [@zaharia2018mlflow] integration, Docker containerization, multiple MCMC backends (NumPyro [@bingham2019pyro], Nutpie [@Seyboldt_nutpie]), variational inference (ADVI), MAP estimation, data connectors (e.g., Fivetran), and comprehensive diagnostics via ArviZ.
 
 # Key Advantages
 
