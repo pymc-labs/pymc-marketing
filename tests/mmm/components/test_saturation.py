@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@ from inspect import signature
 
 import numpy as np
 import pymc as pm
-import pytensor.tensor as pt
 import pytest
 import xarray as xr
 from pydantic import ValidationError
@@ -25,18 +24,13 @@ from pymc_extras.deserialize import (
     register_deserialization,
 )
 from pymc_extras.prior import Prior
+from pytensor.tensor.variable import TensorVariable
 
-from pymc_marketing.mmm import (
-    HillSaturation,
-    HillSaturationSigmoid,
-    InverseScaledLogisticSaturation,
+from pymc_marketing.mmm.components.saturation import (
+    SATURATION_TRANSFORMATIONS,
     LogisticSaturation,
     MichaelisMentenSaturation,
-    NoSaturation,
-    RootSaturation,
     SaturationTransformation,
-    TanhSaturation,
-    TanhSaturationBaselined,
     saturation_from_dict,
 )
 
@@ -48,20 +42,9 @@ def model() -> pm.Model:
 
 
 def saturation_functions():
-    transformations = [
-        LogisticSaturation(),
-        InverseScaledLogisticSaturation(),
-        TanhSaturation(),
-        TanhSaturationBaselined(),
-        MichaelisMentenSaturation(),
-        HillSaturation(),
-        HillSaturationSigmoid(),
-        RootSaturation(),
-        NoSaturation(),
-    ]
     return [
-        pytest.param(transformation, id=transformation.lookup_name)
-        for transformation in transformations
+        pytest.param(saturation(), id=name)
+        for name, saturation in SATURATION_TRANSFORMATIONS.items()
     ]
 
 
@@ -72,15 +55,20 @@ def saturation_functions():
 @pytest.mark.parametrize(
     "x, dims",
     [
-        (np.linspace(0, 1, 100), None),
-        (np.ones((100, 3)), "channel"),
+        pytest.param(np.linspace(0, 1, 100), None, id="vector"),
+        pytest.param(np.ones((100, 3)), "channel", id="matrix"),
     ],
 )
-def test_apply_method(model, saturation, x, dims) -> None:
+def test_apply_method(
+    model,
+    saturation: SaturationTransformation,
+    x,
+    dims,
+) -> None:
     with model:
         y = saturation.apply(x, dims=dims)
 
-    assert isinstance(y, pt.TensorVariable)
+    assert isinstance(y, TensorVariable)
     assert y.eval().shape == x.shape
 
 
@@ -88,7 +76,7 @@ def test_apply_method(model, saturation, x, dims) -> None:
     "saturation",
     saturation_functions(),
 )
-def test_default_prefix(saturation) -> None:
+def test_default_prefix(saturation: SaturationTransformation) -> None:
     assert saturation.prefix == "saturation"
     for value in saturation.variable_mapping.values():
         assert value.startswith("saturation_")
@@ -98,7 +86,9 @@ def test_default_prefix(saturation) -> None:
     "saturation",
     saturation_functions(),
 )
-def test_support_for_lift_test_integrations(saturation) -> None:
+def test_support_for_lift_test_integrations(
+    saturation: SaturationTransformation,
+) -> None:
     function_parameters = signature(saturation.function).parameters
 
     for key in saturation.variable_mapping.keys():
@@ -109,7 +99,7 @@ def test_support_for_lift_test_integrations(saturation) -> None:
 
 
 @pytest.mark.parametrize("saturation", saturation_functions())
-def test_sample_curve(saturation) -> None:
+def test_sample_curve(saturation: SaturationTransformation) -> None:
     prior = saturation.sample_prior()
     assert isinstance(prior, xr.Dataset)
     curve = saturation.sample_curve(prior)
@@ -120,7 +110,10 @@ def test_sample_curve(saturation) -> None:
 
 @pytest.mark.parametrize("saturation", saturation_functions())
 @pytest.mark.parametrize("num_points", [50, 200, 1000])
-def test_sample_curve_num_points(saturation, num_points) -> None:
+def test_sample_curve_num_points(
+    saturation: SaturationTransformation,
+    num_points,
+) -> None:
     """Test that num_points parameter controls the number of points in the curve."""
     prior = saturation.sample_prior()
     curve = saturation.sample_curve(prior, num_points=num_points)
@@ -330,3 +323,5 @@ def test_deserialize_new_transformation() -> None:
 
     instance = deserialize(data)
     assert isinstance(instance, NewSaturation)
+
+    SATURATION_TRANSFORMATIONS.pop("new_saturation")
