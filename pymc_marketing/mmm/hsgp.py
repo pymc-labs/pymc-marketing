@@ -29,7 +29,7 @@ from matplotlib.figure import Figure
 from pydantic import BaseModel, Field, InstanceOf, model_validator, validate_call
 from pymc.distributions.shape_utils import Dims
 from pymc_extras.deserialize import register_deserialization
-from pymc_extras.prior import Prior, _get_transform, create_dim_handler
+from pymc_extras.prior import Prior, VariableFactory, _get_transform, create_dim_handler
 from pytensor.tensor import TensorLike
 from pytensor.tensor.variable import TensorVariable
 
@@ -719,8 +719,12 @@ class HSGP(HSGPBase):
 
     """
 
-    ls: InstanceOf[Prior] | float = Field(..., description="Prior for the lengthscales")
-    eta: InstanceOf[Prior] | float = Field(..., description="Prior for the variance")
+    ls: InstanceOf[VariableFactory] | float = Field(
+        ..., description="Prior for the lengthscales"
+    )
+    eta: InstanceOf[VariableFactory] | float = Field(
+        ..., description="Prior for the variance"
+    )
     L: float = Field(..., gt=0, description="Extent of basis functions")
     centered: bool = Field(False, description="Whether the model is centered or not")
     drop_first: bool = Field(
@@ -730,7 +734,7 @@ class HSGP(HSGPBase):
 
     @model_validator(mode="after")
     def _ls_is_scalar_prior(self) -> Self:
-        if not isinstance(self.ls, Prior):
+        if not isinstance(self.ls, VariableFactory):
             return self
 
         if self.ls.dims != ():
@@ -740,7 +744,7 @@ class HSGP(HSGPBase):
 
     @model_validator(mode="after")
     def _eta_is_scalar_prior(self) -> Self:
-        if not isinstance(self.eta, Prior):
+        if not isinstance(self.eta, VariableFactory):
             return self
 
         if self.eta.dims != ():
@@ -1144,8 +1148,12 @@ class HSGPPeriodic(HSGPBase):
 
     """
 
-    ls: InstanceOf[Prior] | float = Field(..., description="Prior for the lengthscale")
-    scale: InstanceOf[Prior] | float = Field(..., description="Prior for the scale")
+    ls: InstanceOf[VariableFactory] | float = Field(
+        ..., description="Prior for the lengthscale"
+    )
+    scale: InstanceOf[VariableFactory] | float = Field(
+        ..., description="Prior for the scale"
+    )
     cov_func: PeriodicCovFunc = Field(
         PeriodicCovFunc.Periodic,
         description="The covariance function",
@@ -1154,7 +1162,7 @@ class HSGPPeriodic(HSGPBase):
 
     @model_validator(mode="after")
     def _ls_is_scalar_prior(self) -> Self:
-        if not isinstance(self.ls, Prior):
+        if not isinstance(self.ls, VariableFactory):
             return self
 
         if self.ls.dims != ():
@@ -1164,7 +1172,7 @@ class HSGPPeriodic(HSGPBase):
 
     @model_validator(mode="after")
     def _scale_is_scalar_prior(self) -> Self:
-        if not isinstance(self.scale, Prior):
+        if not isinstance(self.scale, VariableFactory):
             return self
 
         if self.scale.dims != ():
