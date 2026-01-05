@@ -28,8 +28,8 @@ authors:
   - name: Benjamin T. Vincent
     orcid:
     affiliation: 1
-  - name: Thomas Wiecki
-    orcid:
+  - name: Thomas V. Wiecki
+    orcid: "0009-0000-6015-101X"
     affiliation: 1
 affiliations:
  - name: PyMC Labs
