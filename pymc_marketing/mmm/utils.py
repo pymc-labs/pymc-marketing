@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -178,11 +178,57 @@ def create_new_spend_data(
     )
 
 
+def _convert_frequency_to_timedelta(periods: int, freq: str) -> pd.Timedelta:
+    """Convert frequency string and periods to Timedelta.
+
+    Parameters
+    ----------
+    periods : int
+        Number of periods
+    freq : str
+        Frequency string (e.g., 'D', 'W', 'M', 'Y')
+
+    Returns
+    -------
+    pd.Timedelta
+        The timedelta representation
+    """
+    # Extract base frequency (e.g., 'W' from 'W-MON')
+    base_freq = freq[0] if len(freq) > 1 else freq
+
+    # Direct mapping for supported frequencies
+    if base_freq == "D":
+        return pd.Timedelta(days=periods)
+    elif base_freq == "W":
+        return pd.Timedelta(weeks=periods)
+    elif base_freq == "M":
+        # Approximate months as 30 days
+        return pd.Timedelta(days=periods * 30)
+    elif base_freq == "Y":
+        # Approximate years as 365 days
+        return pd.Timedelta(days=periods * 365)
+    elif base_freq == "H":
+        return pd.Timedelta(hours=periods)
+    elif base_freq == "T":
+        return pd.Timedelta(minutes=periods)
+    elif base_freq == "S":
+        return pd.Timedelta(seconds=periods)
+    else:
+        # Default to weeks if frequency not recognized
+        warnings.warn(
+            f"Unrecognized frequency '{freq}'. Defaulting to weeks.",
+            UserWarning,
+            stacklevel=2,
+        )
+        return pd.Timedelta(weeks=periods)
+
+
 def create_zero_dataset(
     model: Any,
     start_date: str | pd.Timestamp,
     end_date: str | pd.Timestamp,
     channel_xr: xr.Dataset | xr.DataArray | None = None,
+    include_carryover: bool = True,
 ) -> pd.DataFrame:
     """Create a DataFrame for future prediction, with zeros (or supplied constants).
 
@@ -231,6 +277,19 @@ def create_zero_dataset(
         inferred_freq = "W"
 
     # ---- 2. Build the full Cartesian product of dates X dims -------------------
+    if include_carryover:
+        # if start_date are not timestamps, convert them to timestamps
+        if not isinstance(start_date, pd.Timestamp):
+            start_date = pd.Timestamp(start_date)
+        if not isinstance(end_date, pd.Timestamp):
+            end_date = pd.Timestamp(end_date)
+
+        # Add the adstock lag to the end date
+        if hasattr(model.adstock, "l_max"):
+            end_date += _convert_frequency_to_timedelta(
+                model.adstock.l_max, inferred_freq
+            )
+
     new_dates = pd.date_range(
         start=start_date, end=end_date, freq=inferred_freq, name=date_col
     )
@@ -290,26 +349,41 @@ def create_zero_dataset(
         if date_col in channel_xr.dims:
             raise ValueError("`channel_xr` must NOT include the date dimension.")
 
-        # --- 4.3 Convert to DataFrame & merge ----------------------------------
-        channel_df = channel_xr.to_dataframe().reset_index()
+        # --- 4.3 Inject constants ----------------------------------------------
+        # Special-case: when there are NO dims (e.g., only channel dimension in the
+        # allocation which was pivoted into variables), xarray can't create an index
+        # for to_dataframe(). In this scenario, simply broadcast scalar values
+        # across all rows.
+        if len(channel_xr.dims) == 0:
+            for ch in channel_cols:
+                if ch in channel_xr.data_vars:
+                    # assign scalar value across all rows
+                    try:
+                        pred_df[ch] = channel_xr[ch].item()
+                    except Exception:
+                        pred_df[ch] = channel_xr[ch].values
+        else:
+            # Convert to DataFrame & merge when dims are present
+            channel_df = channel_xr.to_dataframe().reset_index()
 
-        # Left-join on every dimension; suffix prevents collisions during merge
-        pred_df = pred_df.merge(
-            channel_df,
-            on=dim_cols,
-            how="left",
-            suffixes=("", "_chan"),
-        )
+            # Left-join on every dimension; suffix prevents collisions during merge
+            pred_df = pred_df.merge(
+                channel_df,
+                on=dim_cols,
+                how="left",
+                suffixes=("", "_chan"),
+            )
 
         # --- 4.4 Copy merged values into official channel columns --------------
-        for ch in channel_cols:
-            chan_col = f"{ch}_chan"
-            if chan_col in pred_df.columns:
-                pred_df[ch] = pred_df[chan_col]
-                pred_df.drop(columns=chan_col, inplace=True)
+        if len(channel_xr.dims) != 0:
+            for ch in channel_cols:
+                chan_col = f"{ch}_chan"
+                if chan_col in pred_df.columns:
+                    pred_df[ch] = pred_df[chan_col]
+                    pred_df.drop(columns=chan_col, inplace=True)
 
-        # Replace any remaining NaNs introduced by the merge
-        pred_df[channel_cols] = pred_df[channel_cols].fillna(0.0)
+            # Replace any remaining NaNs introduced by the merge
+            pred_df[channel_cols] = pred_df[channel_cols].fillna(0.0)
 
     # ---- 5. Bring in any “other” columns from the training data ----------------
     other_cols = [
@@ -367,7 +441,7 @@ def add_noise_to_channel_allocation(
     rng = np.random.default_rng(seed)
 
     # Per-channel scale (1-D ndarray), shape (n_channels,)
-    scale = (rel_std * df[channels].mean()).to_numpy()
+    scale: np.ndarray = (rel_std * df[channels].mean()).to_numpy()
 
     # Draw all required noise in one call, shape (n_rows, n_channels)
     noise = rng.normal(loc=0.0, scale=scale, size=(len(df), len(channels)))
@@ -375,6 +449,10 @@ def add_noise_to_channel_allocation(
     # Create the noisy copy
     noisy_df = df.copy()
     noisy_df[channels] += noise
+
+    # Override channels with zero spend, we don't want to add noise to those ones
+    zero_spend_mask = df[channels] == 0
+    noisy_df[zero_spend_mask] = 0.0
 
     # Ensure no negative spends
     noisy_df[channels] = noisy_df[channels].clip(lower=0.0)
@@ -388,3 +466,184 @@ def create_index(
 ) -> tuple[int | slice, ...]:
     """Create an index to take the first dimension of a tensor based on the provided dimensions."""
     return tuple(slice(None) if dim in take else 0 for dim in dims)
+
+
+def build_contributions(
+    idata,
+    var: list[str] | tuple[str, ...],
+    agg: str | Callable = "mean",
+    *,
+    agg_dims: list[str] | tuple[str, ...] | None = None,
+    index_dims: list[str] | tuple[str, ...] | None = None,
+    expand_dims: list[str] | tuple[str, ...] | None = None,
+    cast_regular_to_category: bool = True,
+) -> pd.DataFrame:
+    """Build a wide contributions DataFrame from idata.posterior variables.
+
+    This function extracts contribution variables from the posterior,
+    aggregates them across sampling dimensions, and returns a wide DataFrame
+    with automatic dimension detection and handling.
+
+    Parameters
+    ----------
+    idata : az.InferenceData-like
+        Must have `.posterior` attribute containing the contribution variables.
+    var : list or tuple of str
+        Posterior variable names to include (e.g., contribution variables).
+    agg : str or callable, default "mean"
+        xarray reduction method applied over `agg_dims` for each variable.
+        Can be "mean", "median", "sum", or any callable reduction function.
+    agg_dims : list or tuple of str, optional
+        Sampling dimensions to reduce over. If None, defaults to
+        ("chain", "draw") but only includes dimensions that exist.
+    index_dims : list or tuple of str, optional
+        Dimensions to preserve as index-like columns. If None, defaults
+        to ("date",) but only includes dimensions that exist.
+    expand_dims : list or tuple of str, optional
+        Dimensions whose coordinates should become separate wide columns.
+        If None, defaults to ("channel", "control"). Only one such dimension
+        is expected per variable.
+    cast_regular_to_category : bool, default True
+        Whether to cast non-index regular dimensions to pandas 'category' dtype.
+
+    Returns
+    -------
+    pd.DataFrame
+        Wide DataFrame with columns for:
+        - Index dimensions (e.g., date)
+        - Regular dimensions (e.g., geo, product)
+        - One column per label in each expand dimension (e.g., channel__C1, control__x1)
+        - Single columns for scalar variables (e.g., intercept)
+
+    Raises
+    ------
+    ValueError
+        If none of the requested variables are present in idata.posterior.
+
+    Examples
+    --------
+    Build contributions DataFrame with default settings:
+
+    .. code-block:: python
+
+        df = build_contributions(
+            idata=mmm.idata,
+            var=[
+                "intercept_contribution_original_scale",
+                "channel_contribution_original_scale",
+                "control_contribution_original_scale",
+            ],
+        )
+
+    Use median aggregation instead of mean:
+
+    .. code-block:: python
+
+        df = build_contributions(
+            idata=mmm.idata,
+            var=["channel_contribution"],
+            agg="median",
+        )
+
+    """
+    # Set defaults for dimension handling
+    if agg_dims is None:
+        agg_dims = ("chain", "draw")
+    if index_dims is None:
+        index_dims = ("date",)
+    if expand_dims is None:
+        expand_dims = ("channel", "control")
+
+    # Select and validate variables
+    present = [v for v in var if v in idata.posterior]
+    if not present:
+        raise ValueError(
+            f"None of the requested variables {var} are present in idata.posterior."
+        )
+
+    def _reduce(da: xr.DataArray) -> xr.DataArray:
+        """Reduce DataArray over aggregation dimensions."""
+        dims = tuple(d for d in agg_dims if d in da.dims)
+        if not dims:
+            return da
+        if isinstance(agg, str):
+            return getattr(da, agg)(dim=dims)
+        return da.reduce(agg, dim=dims)
+
+    # Reduce each variable
+    reduced = {v: _reduce(idata.posterior[v]) for v in present}
+
+    # Discover union of "regular" dims and their coords
+    special = set(expand_dims) | set(agg_dims) | {"variable"}
+    all_dims = set().union(*(set(da.dims) for da in reduced.values()))
+    regular_dims = [d for d in all_dims if d not in special]
+
+    # Collect union coordinates (keep index_dims order first)
+    coord_unions = {}
+    for d in set(regular_dims) | set(index_dims):
+        idxs = [
+            pd.Index(da.coords[d].to_pandas())
+            for da in reduced.values()
+            if d in da.dims
+        ]
+        if not idxs:
+            continue
+        u = idxs[0]
+        for idx in idxs[1:]:
+            u = u.union(idx)
+        coord_unions[d] = u
+
+    # Create template grid for broadcasting
+    template = xr.DataArray(0)
+    for d, idx in coord_unions.items():
+        template = template.expand_dims({d: idx})
+
+    # Expand variables with channel/control dimension, broadcast others
+    datasets = []
+    for name, da in reduced.items():
+        da_b = xr.broadcast(da, template)[0] if template.dims else da
+
+        # Detect expand dimension (at most one expected per variable)
+        exp_dim = next((d for d in expand_dims if d in da_b.dims), None)
+        if exp_dim is not None:
+            # Convert to dataset with wide columns: "<exp_dim>__<label>"
+            ds = da_b.to_dataset(dim=exp_dim)
+            ds = ds.rename({v: f"{exp_dim}__{v}" for v in ds.data_vars})
+            datasets.append(ds)
+        else:
+            # Single column variable; use a concise name if possible
+            short = (
+                "intercept"
+                if "intercept" in name
+                else "yearly_seasonality"
+                if "yearly" in name and "season" in name
+                else name
+            )
+            datasets.append(da_b.to_dataset(name=short))
+
+    # Merge all datasets
+    ds_all = (
+        xr.merge(datasets, compat="override", join="outer")
+        if len(datasets) > 1
+        else datasets[0]
+    )
+
+    # Stable column order: index_dims first, then other regular dims
+    ordered_dims = [d for d in index_dims if d in ds_all.dims] + [
+        d for d in regular_dims if d not in index_dims and d in ds_all.dims
+    ]
+
+    df = ds_all.to_dataframe().reset_index()
+
+    # Cast non-index regular dims to category (memory & modeling friendly)
+    if cast_regular_to_category:
+        for d in ordered_dims:
+            if d not in index_dims and d in df:
+                df[d] = df[d].astype("category")
+
+    # Sort for readability
+    sort_cols = [c for c in ordered_dims if c in df.columns]
+    if sort_cols:
+        df = df.sort_values(sort_cols, kind="stable")
+
+    return df

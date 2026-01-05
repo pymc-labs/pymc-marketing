@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ rng: np.random.Generator = np.random.default_rng(seed=42)
 EXPECTED_RESULTS = {
     "avg_response": 5.5,
     "tail_dist": 4.5,
-    "mean_tight_score": 3.25,
+    "mean_tight_score": 0.591,
     "var_95": 1.45,
     "cvar_95": 1.0,
     "sharpe": 1.81327,
@@ -196,7 +196,7 @@ def test_tail_distance(mean1, std1, mean2, std2, expected_order):
             60,
             0.1,
             "higher_mean",
-        ),  # With low alpha, higher mean should dominate
+        ),  # With low alpha, lower std still dominates due to normalization
     ],
 )
 def test_compare_mean_tightness_score(
@@ -215,14 +215,17 @@ def test_compare_mean_tightness_score(
     score1 = mean_tightness_score_func(samples1, None).eval()
     score2 = mean_tightness_score_func(samples2, None).eval()
 
-    # Assertions based on observed behavior: higher mean should dominate in both cases
+    # Assertions based on actual behavior of the normalized formula
+    # With the normalized mean tightness score, lower std tends to dominate
+    # because the score gets closer to 1 with less tail distance
     if expected_relation == "higher_mean":
-        assert score2 > score1, (
-            f"Expected score for mean={mean2} to be higher, but got {score2} <= {score1}"
+        # Even with low alpha, lower std distribution scores higher due to normalization
+        assert score1 > score2, (
+            f"Expected score for std={std1} to be higher due to normalization, but got {score1} <= {score2}"
         )
     elif expected_relation == "lower_std":
         assert score1 > score2, (
-            f"Expected score for std={std1} to be lower, but got {score1} <= {score2}"
+            f"Expected score for std={std1} to be higher, but got {score1} <= {score2}"
         )
 
 
@@ -308,7 +311,7 @@ def test_covariance_matrix_matches_numpy(data):
 )
 def test_compute_quantile(data):
     if data.size == 0:
-        with pytest.raises(Exception, match=".*"):
+        with pytest.raises(Exception, match=r".*"):
             _compute_quantile(pt.as_tensor_variable(data), 0.95).eval()
     else:
         pytensor_quantile = _compute_quantile(pt.as_tensor_variable(data), 0.95).eval()
@@ -393,7 +396,7 @@ def test_general_functions(samples, budgets, func):
 )
 def test_value_at_risk_invalid_confidence_level(confidence_level, test_data):
     samples, budgets = test_data
-    with pytest.raises(ValueError, match="Confidence level must be between 0 and 1."):
+    with pytest.raises(ValueError, match=r"Confidence level must be between 0 and 1."):
         value_at_risk(confidence_level)(samples, budgets).eval()
 
 
@@ -408,7 +411,7 @@ def test_conditional_value_at_risk_invalid_confidence_level(
     confidence_level, test_data
 ):
     samples, budgets = test_data
-    with pytest.raises(ValueError, match="Confidence level must be between 0 and 1."):
+    with pytest.raises(ValueError, match=r"Confidence level must be between 0 and 1."):
         conditional_value_at_risk(confidence_level)(samples, budgets).eval()
 
 
@@ -421,7 +424,7 @@ def test_conditional_value_at_risk_invalid_confidence_level(
 )
 def test_tail_distance_invalid_confidence_level(confidence_level, test_data):
     samples, budgets = test_data
-    with pytest.raises(ValueError, match="Confidence level must be between 0 and 1."):
+    with pytest.raises(ValueError, match=r"Confidence level must be between 0 and 1."):
         tail_distance(confidence_level)(samples, budgets).eval()
 
 
@@ -434,7 +437,7 @@ def test_tail_distance_invalid_confidence_level(confidence_level, test_data):
 )
 def test_mean_tightness_score_invalid_confidence_level(confidence_level, test_data):
     samples, budgets = test_data
-    with pytest.raises(ValueError, match="Confidence level must be between 0 and 1."):
+    with pytest.raises(ValueError, match=r"Confidence level must be between 0 and 1."):
         mean_tightness_score(alpha=0.5, confidence_level=confidence_level)(
             samples, budgets
         ).eval()
@@ -451,7 +454,7 @@ def test_adjusted_value_at_risk_score_invalid_confidence_level(
     confidence_level, test_data
 ):
     samples, budgets = test_data
-    with pytest.raises(ValueError, match="Confidence level must be between 0 and 1."):
+    with pytest.raises(ValueError, match=r"Confidence level must be between 0 and 1."):
         adjusted_value_at_risk_score(
             confidence_level=confidence_level, risk_aversion=0.8
         )(samples, budgets).eval()
@@ -467,7 +470,7 @@ def test_adjusted_value_at_risk_score_invalid_confidence_level(
 def test_adjusted_value_at_risk_score_invalid_risk_aversion(risk_aversion, test_data):
     samples, budgets = test_data
     with pytest.raises(
-        ValueError, match="Risk aversion parameter must be between 0 and 1."
+        ValueError, match=r"Risk aversion parameter must be between 0 and 1."
     ):
         adjusted_value_at_risk_score(
             confidence_level=0.95, risk_aversion=risk_aversion

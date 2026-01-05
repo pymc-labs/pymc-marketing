@@ -1,0 +1,195 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.michaelis_menten.rst:2
+#: d736c0bf47b749bcbb62b99506ace5e4
+msgid "michaelis\\_menten"
+msgstr "michaelis\\_menten"
+
+#: 1a06084f48bb4bd4a4ff0c454e8a2ebe of
+#: pymc_marketing.mmm.transformers.michaelis_menten:2
+msgid ""
+"Evaluate the Michaelis-Menten function for given values of x, alpha, and "
+"lambda."
+msgstr ""
+"Evalúe la función de Michaelis-Menten para los valores dados de x, alpha y "
+"lambda."
+
+#: 30d6dd6cee724a59a0c12441a024f3cf of
+#: pymc_marketing.mmm.transformers.michaelis_menten:4
+#, python-brace-format
+msgid ""
+"\\alpha \\cdot \\frac{x}{\\lambda + x}\n"
+"\n"
+msgstr "\\alpha \\cdot \\frac{x}{\\lambda + x}"
+
+#: e21a4baa0c4e49f5900e61d588a8b1c2 of
+#: pymc_marketing.mmm.transformers.michaelis_menten:7
+msgid "where:"
+msgstr "donde:"
+
+#: 2a5a22d31b644d468f53cc4b8467f4b7 of
+#: pymc_marketing.mmm.transformers.michaelis_menten:8
+msgid ":math:`x`: Channel spend."
+msgstr ":math:`x`: Gasto del canal."
+
+#: dda83beacd2a490fa14b9711dd7abbf7 of
+#: pymc_marketing.mmm.transformers.michaelis_menten:9
+msgid ":math:`\\alpha`: Maximum contribution."
+msgstr ":math:`\\alpha`: Contribución máxima."
+
+#: 082d79e220b74d6c94c579acb08fc42e of
+#: pymc_marketing.mmm.transformers.michaelis_menten:10
+msgid ":math:`\\lambda` (k): The half-saturation point."
+msgstr ":math:`\\lambda` (k): El punto de media saturación."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.michaelis_menten.rst:7
+#: c4e46cc049fe41a8b1b8516776bce1ff
+msgid ""
+"(:download:`Source code "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-michaelis_menten-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-michaelis_menten-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-michaelis_menten-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-michaelis_menten-1.pdf>`)"
+msgstr ""
+"(:download:`Código fuente "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-michaelis_menten-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-michaelis_menten-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-michaelis_menten-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-michaelis_menten-1.pdf>`)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.michaelis_menten.rst:7
+#: 026e36bb88874333ad2a16b933782668
+msgid ""
+"(:download:`Source code "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-michaelis_menten-2.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-michaelis_menten-2_00_00.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-michaelis_menten-2_00_00.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-michaelis_menten-2_00_00.pdf>`)"
+msgstr ""
+"(:download:`Código fuente "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-michaelis_menten-2.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-michaelis_menten-2_00_00.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-michaelis_menten-2_00_00.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-michaelis_menten-2_00_00.pdf>`)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.michaelis_menten.rst:34
+#: 9c28611c31224c5f90e3c34fb72e4bf4
+msgid ""
+"(:download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-michaelis_menten-2_01_00.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-michaelis_menten-2_01_00.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-michaelis_menten-2_01_00.pdf>`)"
+msgstr ""
+"(:descargar:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-michaelis_menten-2_01_00.png>`, :descargar:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-michaelis_menten-2_01_00.hires.png>`, :descargar:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-michaelis_menten-2_01_00.pdf>`)"
+
+#: 88d85a98c6e24ac1afae3621a39d343b of
+#: pymc_marketing.mmm.transformers.michaelis_menten
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 369a75e53a8c4a76b2052f3e117deedd of
+#: pymc_marketing.mmm.transformers.michaelis_menten:65
+msgid "**x** : :class:`python:float`"
+msgstr "**x** : :class:`python:float`"
+
+#: 11bec27dfd574890a8e30fe982b9f263 131e1782ec1e471f9efae69b0d4dae0c
+#: 178594bdfe434a02ababe2527e596b4d of
+#: pymc_marketing.mmm.transformers.michaelis_menten:64
+#: pymc_marketing.mmm.transformers.michaelis_menten:67
+#: pymc_marketing.mmm.transformers.michaelis_menten:72
+msgid "python:float"
+msgstr "python:float"
+
+#: 4106275822234566911f66a7ee97e0e0 of
+#: pymc_marketing.mmm.transformers.michaelis_menten:66
+msgid "The spent on a channel."
+msgstr "El gasto en un canal."
+
+#: 405a2e605bc6408f9665d30026957548 of
+#: pymc_marketing.mmm.transformers.michaelis_menten:68
+msgid "**alpha** : :class:`python:float`"
+msgstr "**alpha** : :class:`python:float`"
+
+#: 4f5f594c57f34071ac55a6ca45cc3bd4 of
+#: pymc_marketing.mmm.transformers.michaelis_menten:69
+msgid ""
+"The saturation point. It represents the maximium number of customers that "
+"could be acquired through this channel at any point time. Must be non-"
+"negative."
+msgstr ""
+"El punto de saturación. Representa el número máximo de clientes que se "
+"podrían adquirir a través de este canal en cualquier momento. Debe ser no "
+"negativo."
+
+#: d62b9f925ef04233a5ae8f6f85847d23 of
+#: pymc_marketing.mmm.transformers.michaelis_menten:73
+msgid "**lam** : :class:`python:float`"
+msgstr "**lam** : :class:`python:float`"
+
+#: 011d24da6cb9426db04cb28fa2bea452 of
+#: pymc_marketing.mmm.transformers.michaelis_menten:74
+msgid ""
+"The half-saturation point. Larger values represent less efficient channels."
+msgstr ""
+"El punto de media saturación. Valores más grandes representan canales menos "
+"eficientes."
+
+#: 96f8c4b556a04f1eaad1cb9c1403ff09 of
+#: pymc_marketing.mmm.transformers.michaelis_menten
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 5a829091c7324959a90c5093b9d60379 of
+#: pymc_marketing.mmm.transformers.michaelis_menten:80
+msgid ":class:`python:float`"
+msgstr ":class:`python:float`"
+
+#: 560056a424c64208b92631eeb6a7e567 of
+#: pymc_marketing.mmm.transformers.michaelis_menten:81
+msgid "The value of the Michaelis-Menten function given the parameters."
+msgstr "El valor de la función de Michaelis-Menten dado los parámetros."

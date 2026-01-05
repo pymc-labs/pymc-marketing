@@ -1,0 +1,46 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.components.saturation.LogisticSaturation.to_dict.rst:2
+#: b8d66f8529ba4cf9b50588b71cbccb01
+msgid "LogisticSaturation.to\\_dict"
+msgstr "LogisticSaturation.to\\_dict"
+
+#: 0a21496c556c4601999bfb4da5ddecb4 of
+#: pymc_marketing.mmm.components.base.Transformation.to_dict:2
+msgid "Convert the transformation to a dictionary."
+msgstr "Convierte la transformación en un diccionario."
+
+#: 24a5a3407b2546559003c4533199833c of
+#: pymc_marketing.mmm.components.base.Transformation.to_dict
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 88b673f407d943c880637ed1509e51c4 of
+#: pymc_marketing.mmm.components.base.Transformation.to_dict:10
+msgid ":class:`python:dict`"
+msgstr ":class:`python:dict`"
+
+#: 13569cb87a614b14bc20f2b13d6c1feb of
+#: pymc_marketing.mmm.components.base.Transformation.to_dict:11
+msgid "The dictionary defining the transformation."
+msgstr "El diccionario que define la transformación."

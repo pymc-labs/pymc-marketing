@@ -1,0 +1,31 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.components.adstock.AdstockTransformation.to_dict.rst:2
+#: 25a67ef002ff44a5ba6128938cac8bb6
+msgid "AdstockTransformation.to\\_dict"
+msgstr "AdstockTransformation.to\\_dict"
+
+#: 58cd78bf4a74471680a44763c04a4e30 of
+#: pymc_marketing.mmm.components.adstock.AdstockTransformation.to_dict:2
+msgid "Convert the adstock transformation to a dictionary."
+msgstr "Convierte la transformación de adstock a un diccionario."

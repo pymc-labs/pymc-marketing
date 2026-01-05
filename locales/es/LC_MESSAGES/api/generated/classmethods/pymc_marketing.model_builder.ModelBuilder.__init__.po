@@ -1,0 +1,79 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.model_builder.ModelBuilder.__init__.rst:2
+#: fd39c3bbd6e54d019cf279280d6085ba
+msgid "ModelBuilder.\\_\\_init\\_\\_"
+msgstr "ModelBuilder.\\_\\_init\\_\\_"
+
+#: 5bb08311f2f5481c985749b7a1cf8906 of
+#: pymc_marketing.model_builder.ModelBuilder.__init__:2
+msgid ""
+"Initialize model configuration and sampler configuration for the model."
+msgstr ""
+"Inicializar la configuración del modelo y la configuración del muestreador "
+"para el modelo."
+
+#: 5dee4d7a136e4903bad355bfd0d3dd19 of
+#: pymc_marketing.model_builder.ModelBuilder.__init__
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: a30ed3d48a164590877f56c1ad4a57b2 of
+#: pymc_marketing.model_builder.ModelBuilder.__init__:7
+msgid "**model_config** : :obj:`Dictionary`, optional"
+msgstr "**model_config** : :obj:`Diccionario`, opcional"
+
+#: c25c8650b7af46bab03d32982d037452 f78caad2d1214db09bb9355a296cbfb8 of
+#: pymc_marketing.model_builder.ModelBuilder.__init__:6
+#: pymc_marketing.model_builder.ModelBuilder.__init__:10
+msgid "Dictionary, optional"
+msgstr "Diccionario, opcional"
+
+#: e1a82251ce3b4aa9ab50e005fe13fde2 of
+#: pymc_marketing.model_builder.ModelBuilder.__init__:8
+msgid ""
+"dictionary of parameters that initialise model configuration. Class-default "
+"defined by the user default_model_config method."
+msgstr ""
+"diccionario de parámetros que inicializan la configuración del modelo. Clase"
+" predeterminada definida por el método default_model_config del usuario."
+
+#: a87ea553bbf84b31baf9930e4f97becf of
+#: pymc_marketing.model_builder.ModelBuilder.__init__:11
+msgid "**sampler_config** : :obj:`Dictionary`, optional"
+msgstr "**sampler_config** : :obj:`Diccionario`, opcional"
+
+#: 49f87479d6314a838bd2261fbf92b427 of
+#: pymc_marketing.model_builder.ModelBuilder.__init__:12
+msgid ""
+"dictionary of parameters that initialise sampler configuration. Class-"
+"default defined by the user default_sampler_config method."
+msgstr ""
+"diccionario de parámetros que inicializan la configuración del muestreador. "
+"Clase predeterminada definida por el método default_sampler_config del "
+"usuario."
+
+#: e6d848bd60d04295b1d1420a7a0c8642 of
+#: pymc_marketing.model_builder.ModelBuilder.__init__:28
+msgid "Examples"
+msgstr "Ejemplos"

@@ -1,0 +1,117 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer_purchase_rate.rst:2
+#: abbdf0a9b88240e69f114ba7fc1f9459
+msgid "ParetoNBDModel.distribution\\_new\\_customer\\_purchase\\_rate"
+msgstr "ParetoNBDModel.tasa\\_de\\_compra\\_de\\_nuevos\\_clientes"
+
+#: 83b0f751573b45f3ae707a7d1b250bc1 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer_purchase_rate:2
+msgid ""
+"Sample from the Gamma distribution representing purchase rates for new "
+"customers."
+msgstr ""
+"Muestra de la distribución Gamma que representa las tasas de compra para "
+"nuevos clientes."
+
+#: 582bcc2b14f74b74983c98a28a3af6ed of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer_purchase_rate:4
+msgid ""
+"This is the purchase rate for a new customer and determines the time between"
+" purchases for any new customer."
+msgstr ""
+"Esta es la tasa de compra para un nuevo cliente y determina el tiempo entre "
+"compras para cualquier nuevo cliente."
+
+#: cbf980a367544c4a88d9f9ba1be5a0ae of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer_purchase_rate
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 1c814b4d52eb4380a0a8b8783eee5649 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer_purchase_rate:9
+msgid "**data** : :obj:`~pandas.DataFrame`, optional"
+msgstr "**datos** : :obj:`~pandas.DataFrame`, opcional"
+
+#: bf8ae1b3117144c09530bd798a00c847 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer_purchase_rate:8
+msgid "DataFrame, optional"
+msgstr "DataFrame, opcional"
+
+#: 217bc6539e8341eb9a901daa590c7623 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer_purchase_rate:10
+msgid "DataFrame containing the following columns:"
+msgstr "DataFrame que contiene las siguientes columnas:"
+
+#: 7337563f8c4e47a8830412e9bbcb481d of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer_purchase_rate:12
+msgid "`customer_id`: Unique customer identifier"
+msgstr "`customer_id`: Identificador único del cliente"
+
+#: 9d187935f2e646d49a2cdc13b0d90506 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer_purchase_rate:13
+msgid "All covariate columns specified when model was initialized."
+msgstr ""
+"Todas las columnas de covariables especificadas cuando se inicializó el "
+"modelo."
+
+#: 1636080f89ba4df08d2ba3a359b94ec9 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer_purchase_rate:15
+msgid "If not provided, predictions will be ran with data used to fit model."
+msgstr ""
+"Si no se proporciona, las predicciones se realizarán con los datos "
+"utilizados para ajustar el modelo."
+
+#: 4ccca94cf61149648dde2c0c8869759d of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer_purchase_rate:17
+msgid "**random_seed** : :obj:`~numpy.random.RandomState`, optional"
+msgstr "**random_seed** : :obj:`~numpy.random.RandomState`, opcional"
+
+#: 8f7445c5ae1d491cabab966455b76a96 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer_purchase_rate:16
+msgid "RandomState, optional"
+msgstr "RandomState, opcional"
+
+#: 01377cf0ce0f47038d9053902c8c780a of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer_purchase_rate:18
+msgid "Random state to use for sampling."
+msgstr "Estado aleatorio a utilizar para muestreo."
+
+#: 39ef0aadba0d420b8d402246b0d9e769 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer_purchase_rate
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: d128621e0fe44b34861c40768a6b8404 of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer_purchase_rate:24
+msgid ":obj:`~xarray.Dataset`"
+msgstr ":obj:`~xarray.Dataset`"
+
+#: a66c0b2d6cab42d5a200ebd25aa0618c of
+#: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.distribution_new_customer_purchase_rate:25
+msgid ""
+"Dataset containing the posterior samples for the population-level purchase "
+"rate."
+msgstr ""
+"Conjunto de datos que contiene las muestras posteriores para la tasa de "
+"compra a nivel poblacional."

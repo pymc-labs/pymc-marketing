@@ -1,0 +1,182 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.batched_convolution.rst:2
+#: 6eed8f79defa4cf9a6ef24b0c235ac7d
+msgid "batched\\_convolution"
+msgstr "convolución\\_por_lotes"
+
+#: 5f5ceea8571d43e683b70e35c807a1d5 of
+#: pymc_marketing.mmm.transformers.batched_convolution:2
+msgid ""
+"Apply a 1D convolution in a vectorized way across multiple batch dimensions."
+msgstr ""
+"Aplique una convolución 1D de manera vectorizada a través de múltiples "
+"dimensiones de lote."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.batched_convolution.rst:7
+#: 147debe9c4b24fbab90c847242eb12f9
+msgid ""
+"(:download:`Source code "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-batched_convolution-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-batched_convolution-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-batched_convolution-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-batched_convolution-1.pdf>`)"
+msgstr ""
+"(:download:`Código fuente "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-batched_convolution-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-batched_convolution-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-batched_convolution-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-batched_convolution-1.pdf>`)"
+
+#: c79d514cd8994084bd529ebc47590d81 of
+#: pymc_marketing.mmm.transformers.batched_convolution
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 472392de6b8b4a3493fd2bee83f46a6b of
+#: pymc_marketing.mmm.transformers.batched_convolution:30
+msgid "**x** : :term:`tensor_like`"
+msgstr "**x** : :term:`tensor_like`"
+
+#: 0085c582e3044757a5f5aab85d38b33d 90277c25e3734cd4a8bd021c7df69caf
+#: fb03b50f7332409a9b49ad328003b9fa of
+#: pymc_marketing.mmm.transformers.batched_convolution:29
+#: pymc_marketing.mmm.transformers.batched_convolution:32
+#: pymc_marketing.mmm.transformers.batched_convolution:53
+msgid "tensor_like"
+msgstr "tensor_like"
+
+#: 7fae2cc7681d40cfb252fdf6c3b468f9 of
+#: pymc_marketing.mmm.transformers.batched_convolution:31
+msgid "The array to convolve."
+msgstr "El arreglo a convolucionar."
+
+#: 506cd67142bf477d8da8090dd01ea693 of
+#: pymc_marketing.mmm.transformers.batched_convolution:33
+msgid "**w** : :term:`tensor_like`"
+msgstr "**w** : :term:`tensor_like`"
+
+#: d4268793efcc45aea2986124fb1d8bff of
+#: pymc_marketing.mmm.transformers.batched_convolution:34
+msgid ""
+"The weight of the convolution. The last axis of ``w`` determines the number "
+"of steps to use in the convolution."
+msgstr ""
+"El peso de la convolución. El último eje de ``w`` determina el número de "
+"pasos a utilizar en la convolución."
+
+#: 7d6c3bb3cbda41c78ddcb0ae7a3615ab of
+#: pymc_marketing.mmm.transformers.batched_convolution:37
+msgid "**axis** : :class:`python:int`"
+msgstr "**eje** : :class:`python:int`"
+
+#: cacd461297574298815a3a63a594018e of
+#: pymc_marketing.mmm.transformers.batched_convolution:36
+msgid "python:int"
+msgstr "python:int"
+
+#: e1441a5a2be64d61aa6ed7640f4fc3a8 of
+#: pymc_marketing.mmm.transformers.batched_convolution:38
+msgid "The axis of ``x`` along witch to apply the convolution"
+msgstr "El eje de ``x`` a lo largo del cual aplicar la convolución"
+
+#: 2d3538926fd9463287fa4364beb6db26 of
+#: pymc_marketing.mmm.transformers.batched_convolution:40
+msgid "**mode** : :obj:`ConvMode`, optional"
+msgstr "**modo** : :obj:`ConvMode`, opcional"
+
+#: 1277295c99a34c65a1a621b7fc62714b of
+#: pymc_marketing.mmm.transformers.batched_convolution:39
+msgid "ConvMode, optional"
+msgstr "ConvMode, opcional"
+
+#: c5f3c4207a1e4690a4a3603215a153e8 of
+#: pymc_marketing.mmm.transformers.batched_convolution:41
+msgid ""
+"The convolution mode determines how the convolution is applied at the "
+"boundaries of the input signal, denoted as \"x.\" The default mode is "
+"ConvMode.After."
+msgstr ""
+"El modo de convolución determina cómo se aplica la convolución en los "
+"límites de la señal de entrada, denotada como \"x.\" El modo predeterminado "
+"es ConvMode.After."
+
+#: 3c05875596bb4d3cb9f06211debd5ef8 of
+#: pymc_marketing.mmm.transformers.batched_convolution:44
+msgid ""
+"ConvMode.After: Applies the convolution with the \"Adstock\" effect, "
+"resulting in a trailing decay effect."
+msgstr ""
+"ConvMode.After: Aplica la convolución con el efecto \"Adstock\", resultando "
+"en un efecto de decaimiento en el tiempo."
+
+#: 77af3664d5084a27aaab7285e81654e5 of
+#: pymc_marketing.mmm.transformers.batched_convolution:45
+msgid ""
+"ConvMode.Before: Applies the convolution with the \"Excitement\" effect, "
+"creating a leading effect similar to the wow factor."
+msgstr ""
+"ConvMode.Before: Aplica la convolución con el efecto \"Excitement\", creando"
+" un efecto de liderazgo similar al factor sorpresa."
+
+#: 2e8b219601f94bf78f1dbd9f90ead683 of
+#: pymc_marketing.mmm.transformers.batched_convolution:47
+msgid ""
+"ConvMode.Overlap: Applies the convolution with both \"Pull-Forward\" and "
+"\"Pull-Backward\" effects, where the effect overlaps with both preceding and"
+" succeeding elements."
+msgstr ""
+"ConvMode.Overlap: Aplica la convolución con efectos de \"Pull-Forward\" y "
+"\"Pull-Backward\", donde el efecto se superpone con los elementos "
+"precedentes y sucesivos."
+
+#: 68087ce6d5284998bde0cd47bcdb58a5 of
+#: pymc_marketing.mmm.transformers.batched_convolution
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 549897b23de4478b8d98dedc078d132f of
+#: pymc_marketing.mmm.transformers.batched_convolution:54
+msgid "**y** : :term:`tensor_like`"
+msgstr "**y** : :term:`tensor_like`"
+
+#: e99c7e44639f48ad8c5a4d0eb001e460 of
+#: pymc_marketing.mmm.transformers.batched_convolution:55
+msgid ""
+"The result of convolving ``x`` with ``w`` along the desired axis. The shape "
+"of the result will match the shape of ``x`` up to broadcasting with ``w``. "
+"The convolved axis will show the results of left padding zeros to ``x`` "
+"while applying the convolutions."
+msgstr ""
+"El resultado de convolucionar ``x`` con ``w`` a lo largo del eje deseado. La"
+" forma del resultado coincidirá con la forma de ``x`` hasta la difusión con "
+"``w``. El eje convolucionado mostrará los resultados de agregar ceros a la "
+"izquierda a ``x`` mientras se aplican las convoluciones."

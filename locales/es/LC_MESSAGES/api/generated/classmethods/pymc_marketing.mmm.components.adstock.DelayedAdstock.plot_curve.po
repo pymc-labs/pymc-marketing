@@ -1,0 +1,239 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.components.adstock.DelayedAdstock.plot_curve.rst:2
+#: 48cf483fb3624b4ba126bee731cb0a5a
+msgid "DelayedAdstock.plot\\_curve"
+msgstr "DelayedAdstock.plot\\_curve"
+
+#: ff24ad91cd454f68aa8c194d6259a777 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve:2
+msgid "Plot curve HDI and samples."
+msgstr "Trazar curva HDI y muestras."
+
+#: eeb30e998bd2456f9edb49d5dee5913e of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 718db61c6a714214839ba28debdd532f of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve:7
+msgid "**curve** : :obj:`xr.DataArray`"
+msgstr "**curva** : :obj:`xr.DataArray`"
+
+#: 3cce93b69cb34d45b8d89aedbd935e18 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve:6
+msgid "xr.DataArray"
+msgstr "xr.DataArray"
+
+#: 159adf96ed794f1f966aac9b56dbbb1c of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve:8
+msgid "The curve to plot."
+msgstr "La curva a graficar."
+
+#: 9f02305d91b14bb78040c740c9f98ee7 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve:10
+msgid "**n_samples** : :class:`python:int`, optional"
+msgstr "**n_samples** : :class:`python:int`, opcional"
+
+#: 7f11d1164e304365a5306e55c4b35e42 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve:9
+msgid "python:int, optional"
+msgstr "python:int, opcional"
+
+#: 43f9a24c70524c7fa1b7a85fe051ffe6 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve:11
+msgid "Number of samples"
+msgstr "Número de muestras"
+
+#: 752b49cd54d44418921de66597bad643 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve:13
+msgid ""
+"**hdi_probs** : :class:`python:float` | "
+":class:`python:list`\\[:class:`python:float`], optional"
+msgstr ""
+"**hdi_probs** : :class:`python:float` | "
+":class:`python:list`\\[:class:`python:float`], opcional"
+
+#: f011e62a34e44965ab34482a606b3da5 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve:12
+msgid "python:float | python:list[python:float], optional"
+msgstr "python:float | python:list[python:float], opcional"
+
+#: 84312629232e40eaae43e9f7f399ab04 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve:14
+msgid ""
+"HDI probabilities. Defaults to None which uses arviz default for "
+"stats.ci_prob which is 94%"
+msgstr ""
+"Probabilidades de HDI. Por defecto es None, lo que utiliza el valor "
+"predeterminado de arviz para stats.ci_prob, que es del 94%."
+
+#: 43acff1010d444b2a039e400ed6a65b0 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve:17
+msgid ""
+"**random_seed** : :class:`python:int` | :obj:`random` :obj:`number` "
+":term:`python:generator`, optional"
+msgstr ""
+"**random_seed** : :class:`python:int` | :obj:`random` :obj:`número` "
+":term:`python:generador`, opcional"
+
+#: 43c34b3ff4164c5fa790e14e141445f0 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve:16
+msgid "python:int | random number python:generator, optional"
+msgstr "python:int | número aleatorio python:generador, opcional"
+
+#: b32197145ac34e39984fa4519c34453e of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve:18
+msgid "Random number generator. Defaults to None"
+msgstr "Generador de números aleatorios. Por defecto es None."
+
+#: f7279bc387d34297a5b926d2cc5c2b2c of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve:20
+msgid "**subplot_kwargs** : :class:`python:dict`, optional"
+msgstr "**subplot_kwargs** : :class:`python:dict`, opcional"
+
+#: 42ec7029c6ff4c60b52e2a4c615c31f5 9c529e02cc6f4bd6ba32277bab54e47d
+#: 9e515b1e470741ab8d4fc07756c9a7ca of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve:19
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve:22
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve:25
+msgid "python:dict, optional"
+msgstr "python:dict, opcional"
+
+#: a018a1d979f241f68ba83b4f7d3e960c of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve:21
+msgid "Keyword arguments for plt.subplots"
+msgstr "Argumentos de palabras clave para plt.subplots"
+
+#: 97eefdc7709c4c7dbaf30095dbf77dc8 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve:23
+msgid "**sample_kwargs** : :class:`python:dict`, optional"
+msgstr "**sample_kwargs** : :class:`python:dict`, opcional"
+
+#: 8d3a043627954e459f27b7ed13db2526 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve:24
+msgid ""
+"Keyword arguments for the plot_curve_sample function. Defaults to None."
+msgstr ""
+"Argumentos de palabras clave para la función plot_curve_sample. Por defecto "
+"es None."
+
+#: f2154f5637714d4eac40baf1816a9998 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve:26
+msgid "**hdi_kwargs** : :class:`python:dict`, optional"
+msgstr "**hdi_kwargs** : :class:`python:dict`, opcional"
+
+#: 9cb9798e453b41f69c9a353f04334c48 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve:27
+msgid "Keyword arguments for the plot_curve_hdi function. Defaults to None."
+msgstr ""
+"Argumentos de palabras clave para la función plot_curve_hdi. Por defecto es "
+"None."
+
+#: 14b8453f53b841268722822a337203de of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve:29
+msgid "**axes** : :obj:`npt.NDArray`\\[:obj:`plt.Axes`], optional"
+msgstr "**ejes** : :obj:`npt.NDArray`\\[:obj:`plt.Axes`], opcional"
+
+#: 3ae656831edc4418b54dbdc773fe0359 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve:28
+msgid "npt.NDArray[plt.Axes], optional"
+msgstr "npt.NDArray[plt.Axes], opcional"
+
+#: 89a365be81b7414aaecfa8219c5e19a8 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve:30
+msgid "The exact axes to plot on. Overrides any subplot_kwargs"
+msgstr "Los ejes exactos para trazar. Anula cualquier subplot_kwargs."
+
+#: a33e1dd301b64144812d520b35fa67e7 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve:32
+msgid "**same_axes** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr "**same_axes** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 3102a355f244401c8e4305bdd20787a7 78994a78d14d46d08d754735d739cc9f of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve:31
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve:37
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: 2f431db1bf804fc3abd3a550a40b20a8 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve:33
+msgid "If the axes should be the same for all plots. Defaults to False."
+msgstr ""
+"Si los ejes deben ser los mismos para todos los gráficos. Por defecto es "
+"False."
+
+#: ff2d64f86319487e9c52603e6260b95f of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve:35
+msgid "**colors** : :obj:`Iterable`\\[:class:`python:str`], optional"
+msgstr "**colores** : :obj:`Iterable`\\[:class:`python:str`], opcional"
+
+#: 2856ec216b1f4a4da6d14ea7fe4c9764 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve:34
+msgid "Iterable[python:str], optional"
+msgstr "Iterable[python:str], opcional"
+
+#: e4d94ae80a524274a2c5e52e7f8aa848 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve:36
+msgid "The colors to use for the plot. Defaults to None."
+msgstr "Los colores a utilizar para el gráfico. Por defecto es None."
+
+#: ee9d47f7ab8a407687ebab1da411082e of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve:38
+msgid "**legend** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr "**leyenda** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: c306409638074945a4e1fff21b93aafb of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve:39
+msgid "If the legend should be shown. Defaults to None."
+msgstr "Si se debe mostrar la leyenda. Por defecto es None."
+
+#: 3f19208f8ebb4869a0e42beebb0900e4 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve:41
+msgid "**sel_to_string** : :obj:`SelToString`, optional"
+msgstr "**sel_to_string** : :obj:`SelToString`, opcional"
+
+#: 2617da8516c14f7f9bdecdb0ab458852 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve:40
+msgid "SelToString, optional"
+msgstr "SelToString, opcional"
+
+#: b024beca4d0d4579b33140de48ffacf5 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve:42
+msgid "The function to convert the selection to a string. Defaults to None."
+msgstr ""
+"La función para convertir la selección a una cadena. Por defecto es None."
+
+#: 09c2699861924549a3f6ba25f769c2ef of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 0f28d0905c1b4b2685eae0aa303a1f40 of
+#: pymc_marketing.mmm.components.base.Transformation.plot_curve:48
+msgid ""
+":class:`python:tuple`\\[:obj:`plt.Figure`, "
+":obj:`npt.NDArray`\\[:obj:`plt.Axes`]]"
+msgstr ""
+":class:`python:tuple`\\[:obj:`plt.Figure`, "
+":obj:`npt.NDArray`\\[:obj:`plt.Axes`]]"

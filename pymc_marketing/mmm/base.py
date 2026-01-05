@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -45,14 +45,14 @@ from pymc_marketing.mmm.validating import (
     ValidateDateColumn,
     ValidateTargetColumn,
 )
-from pymc_marketing.model_builder import ModelBuilder
+from pymc_marketing.model_builder import RegressionModelBuilder
 
 __all__ = ["BaseValidateMMM", "MMMModelBuilder"]
 
 from pydantic import Field, validate_call
 
 
-class MMMModelBuilder(ModelBuilder):
+class MMMModelBuilder(RegressionModelBuilder):
     """Base class for Marketing Mix Models (MMM)."""
 
     model: pm.Model
@@ -243,8 +243,10 @@ class MMMModelBuilder(ModelBuilder):
 
         Example
         -------
-        >>> data = pd.DataFrame({"x1": [1, 2, 3], "y": [4, 5, 6]})
-        >>> self.preprocess("X", data)
+        .. code-block:: python
+
+            data = pd.DataFrame({"x1": [1, 2, 3], "y": [4, 5, 6]})
+            self.preprocess("X", data)
 
         """
         data_cp = data.copy()
@@ -286,12 +288,25 @@ class MMMModelBuilder(ModelBuilder):
                 f"Make sure the model has been fitted and the {group} has been sampled!"
             ) from e
 
-        if original_scale:
+        has_been_scaled = (
+            hasattr(self, "_posterior_predictive_samples_original_scale")
+            and self._posterior_predictive_samples_original_scale
+        )
+
+        if original_scale and not has_been_scaled:
             group_data = apply_sklearn_transformer_across_dim(
                 data=group_data,
                 func=self.get_target_transformer().inverse_transform,
                 dim_name="date",
             )
+
+        if not original_scale and has_been_scaled:
+            group_data = apply_sklearn_transformer_across_dim(
+                data=group_data,
+                func=self.get_target_transformer().transform,
+                dim_name="date",
+            )
+
         return group_data
 
     def _get_prior_predictive_data(self, original_scale: bool = False) -> Dataset:
@@ -705,16 +720,13 @@ class MMMModelBuilder(ModelBuilder):
                 "Make sure the model has been fitted and the posterior_predictive has been sampled!"
             ) from e
 
-        target_array = np.asarray(
-            transform_1d_array(self.get_target_transformer().transform, self.y)
-        )
-
-        if len(target_array) != len(posterior_predictive_data.date):
-            raise ValueError(
-                "The length of the target variable doesn't match the length of the date column. "
-                "If you are computing out-of-sample errors, please overwrite `self.y` with the "
-                "corresponding (non-transformed) target variable."
+        target_array = (
+            np.asarray(self.y)
+            if original_scale
+            else np.asarray(
+                transform_1d_array(self.get_target_transformer().transform, self.y)
             )
+        )
 
         target = (
             pd.Series(target_array, index=self.posterior_predictive.date)
@@ -722,20 +734,29 @@ class MMMModelBuilder(ModelBuilder):
             .to_xarray()
         )
 
-        errors = (
+        if original_scale:
+            # If posterior predictive data is not in original scale, transform it:
+            if not hasattr(self, "_posterior_predictive_samples_original_scale"):
+                posterior_predictive_data = apply_sklearn_transformer_across_dim(
+                    data=posterior_predictive_data,
+                    func=self.get_target_transformer().inverse_transform,
+                    dim_name="date",
+                )
+        else:
+            # If posterior predictive data is in original scale, transform it back
+            # to the scaled space:
+            if hasattr(self, "_posterior_predictive_samples_original_scale"):
+                posterior_predictive_data = apply_sklearn_transformer_across_dim(
+                    data=posterior_predictive_data,
+                    func=self.get_target_transformer().transform,
+                    dim_name="date",
+                )
+
+        return (
             (target - posterior_predictive_data)[self.output_var]
             .rename("errors")
             .transpose(..., "date")
         )
-
-        if original_scale:
-            return apply_sklearn_transformer_across_dim(
-                data=errors,
-                func=self.get_target_transformer().inverse_transform,
-                dim_name="date",
-            )
-
-        return errors
 
     def plot_errors(
         self, original_scale: bool = False, ax: plt.Axes = None, **plt_kwargs: Any

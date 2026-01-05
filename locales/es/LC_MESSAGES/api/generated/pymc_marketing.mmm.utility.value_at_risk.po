@@ -1,0 +1,154 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.utility.value_at_risk.rst:2
+#: 3d8cbf68643645b6ba211b231a78606a
+msgid "value\\_at\\_risk"
+msgstr "valor\\_en\\_riesgo"
+
+#: 042dbfa4995e4f79af9cbaeaaf07849a of
+#: pymc_marketing.mmm.utility.value_at_risk:2
+msgid "Calculate the Value at Risk (VaR) at a specified confidence level."
+msgstr ""
+"Calcule el Valor en Riesgo (VaR) a un nivel de confianza especificado."
+
+#: 3e7c57aa49ff4b339954502c69ca1b4d of
+#: pymc_marketing.mmm.utility.value_at_risk:4
+msgid ""
+"VaR estimates the potential loss in value of an asset or portfolio over a "
+"defined period for a given confidence interval. It is a standard measure "
+"used in risk management to assess the risk of loss on a specific portfolio "
+"of financial assets."
+msgstr ""
+"VaR estima la pérdida potencial en valor de un activo o cartera durante un "
+"período definido para un intervalo de confianza dado. Es una medida estándar"
+" utilizada en la gestión de riesgos para evaluar el riesgo de pérdida en una"
+" cartera específica de activos financieros."
+
+#: b85c0a6f2b17478cb881224ce66adc46 of
+#: pymc_marketing.mmm.utility.value_at_risk:8
+msgid "The Value at Risk (VaR) is calculated as:"
+msgstr "El Valor en Riesgo (VaR) se calcula como:"
+
+#: e72e08caf43a4da3976d3e0637ad20a3 of
+#: pymc_marketing.mmm.utility.value_at_risk:10
+#, python-brace-format
+msgid ""
+"VaR = \\mu - Q_{(1 - \\alpha)}\n"
+"\n"
+msgstr "VaR = \\mu - Q_{(1 - \\alpha)}"
+
+#: 6d2e9c89e8f24480a5efed87df9169bf of
+#: pymc_marketing.mmm.utility.value_at_risk:13
+msgid "where:"
+msgstr "donde:"
+
+#: bdcfa7e69607452599d8035076bd5ac4 of
+#: pymc_marketing.mmm.utility.value_at_risk:14
+msgid ":math:`\\mu` is the mean of the sample returns."
+msgstr ":math:`\\mu` es la media de los retornos de la muestra."
+
+#: 7cc5d3f1c664464791498da5c6f8e569 of
+#: pymc_marketing.mmm.utility.value_at_risk:15
+#, python-brace-format
+msgid ""
+":math:`Q_{(1 - \\alpha)}` is the quantile at the specified confidence level."
+msgstr ""
+":math:`Q_{(1 - \\alpha)}` es el cuantil en el nivel de confianza "
+"especificado."
+
+#: 8e683e1a0db343aa81b9379ae1f426f1 of
+#: pymc_marketing.mmm.utility.value_at_risk
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 2999aaf4d6e749fca3052670132943dc of
+#: pymc_marketing.mmm.utility.value_at_risk:19
+msgid "**confidence_level** : :class:`python:float`, optional"
+msgstr "**nivel_de_confianza** : :class:`python:float`, opcional"
+
+#: 678c8922db864b7382dc7a61c85e02b5 of
+#: pymc_marketing.mmm.utility.value_at_risk:18
+msgid "python:float, optional"
+msgstr "python:float, opcional"
+
+#: 6433f68217b54892a770a9566adf0449 of
+#: pymc_marketing.mmm.utility.value_at_risk:20
+msgid ""
+"Confidence level for VaR (default is 0.95). Confidence level must be between"
+" 0 and 1."
+msgstr ""
+"Nivel de confianza para VaR (el valor predeterminado es 0.95). El nivel de "
+"confianza debe estar entre 0 y 1."
+
+#: abb1413cfce04c6cb262fcc3184d3b36 of
+#: pymc_marketing.mmm.utility.value_at_risk
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 3ef9d240dea24e369c1f411c268e3c52 of
+#: pymc_marketing.mmm.utility.value_at_risk:27
+msgid ":obj:`UtilityFunctionType`"
+msgstr ":obj:`UtilityFunctionType`"
+
+#: 5758a50d5ccd4fffb249e347cd24e9b5 of
+#: pymc_marketing.mmm.utility.value_at_risk:28
+msgid ""
+"A function that calculates the VaR value at the specified confidence level "
+"given samples and budgets."
+msgstr ""
+"Una función que calcula el valor VaR al nivel de confianza especificado dado"
+" muestras y presupuestos."
+
+#: 56da8989b1b24ad1bb27f0c31fbdd227 of
+#: pymc_marketing.mmm.utility.value_at_risk
+msgid "Raises"
+msgstr "Aumentos"
+
+#: c1a071a24c01454f84e6231d69ab84b4 of
+#: pymc_marketing.mmm.utility.value_at_risk:35
+msgid ":obj:`ValueError`"
+msgstr ":obj:`ValueError`"
+
+#: 94e2f7964fe5440e8c7bd48090497313 of
+#: pymc_marketing.mmm.utility.value_at_risk:36
+msgid "If confidence_level is not between 0 and 1."
+msgstr "Si el confidence_level no está entre 0 y 1."
+
+#: 033099fc112a48d586c0c862387ba268 of
+#: pymc_marketing.mmm.utility.value_at_risk:43
+msgid "References"
+msgstr "Referencias"
+
+#: 05a213cb47d5427eb5004f86c1ceabb3 of
+#: pymc_marketing.mmm.utility.value_at_risk:44
+msgid ""
+"Jorion, P. (2006). Value at Risk: The New Benchmark for Managing Financial "
+"Risk."
+msgstr ""
+"Jorion, P. (2006). Valor en Riesgo: El Nuevo Referente para la Gestión del "
+"Riesgo Financiero."
+
+#: e6c24636ea904af8ba22c0af2522171d of
+#: pymc_marketing.mmm.utility.value_at_risk:48
+msgid "[R24f0d8faff5c-1]_"
+msgstr "[R24f0d8faff5c-1]_"

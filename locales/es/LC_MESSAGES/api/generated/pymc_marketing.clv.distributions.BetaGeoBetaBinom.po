@@ -1,0 +1,169 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.BetaGeoBetaBinom.rst:2
+#: 9c6d75e0cb574e479ac94cf1ae9ffd2c
+msgid "BetaGeoBetaBinom"
+msgstr "BetaGeoBetaBinom"
+
+#: 8ec2a874b81943808565165de54d08b9 of
+#: pymc_marketing.clv.distributions.BetaGeoBetaBinom:2
+msgid ""
+"Population-level distribution class for a discrete, non-contractual, Beta-"
+"Geometric/Beta-Binomial process."
+msgstr ""
+"Clase de distribución a nivel poblacional para un proceso discreto, no "
+"contractual, Beta-Geométrico/Beta-Binomial."
+
+#: d78ac651a9d547e781cd70c53dfa5053 of
+#: pymc_marketing.clv.distributions.BetaGeoBetaBinom:4
+msgid "It is based on equation(5) from Fader, et al. in [R99c99d561b4e-1]_."
+msgstr "Se basa en la ecuación(5) de Fader, et al. en [R99c99d561b4e-1]_."
+
+#: 43047c38ea92441192e06ebc89fd62b3 of
+#: pymc_marketing.clv.distributions.BetaGeoBetaBinom:6
+#, python-brace-format
+msgid ""
+"\\mathbb{L}(\\alpha, \\beta, \\gamma, \\delta  | x, t_x, n) &=\n"
+"\\frac{B(\\alpha+x,\\beta+n-x)}{B(\\alpha,\\beta)}\n"
+"\\frac{B(\\gamma,\\delta+n)}{B(\\gamma,\\delta)} \\\\\n"
+"&+ \\sum_{i=0}^{n-t_x-1}\\frac{B(\\alpha+x,\\beta+t_x-x+i)}{B(\\alpha,\\beta)} \\\\\n"
+"&\\cdot \\frac{B(\\gamma+1,\\delta+t_x+i)}{B(\\gamma,\\delta)}"
+msgstr ""
+"\\mathbb{L}(\\alpha, \\beta, \\gamma, \\delta  | x, t_x, n) &=\n"
+"\\frac{B(\\alpha+x,\\beta+n-x)}{B(\\alpha,\\beta)}\n"
+"\\frac{B(\\gamma,\\delta+n)}{B(\\gamma,\\delta)} \\\\\n"
+"&+ \\sum_{i=0}^{n-t_x-1}\\frac{B(\\alpha+x,\\beta+t_x-x+i)}{B(\\alpha,\\beta)} \\\\\n"
+"&\\cdot \\frac{B(\\gamma+1,\\delta+t_x+i)}{B(\\alpha+x,\\beta+n-x)}0"
+
+#: 8637bb3377064552a128ff13cb4989f2 of
+#: pymc_marketing.clv.distributions.BetaGeoBetaBinom:15
+msgid "Support"
+msgstr "Soporte"
+
+#: 07fc3b7793c24acc8b5c5c12f432e293 of
+#: pymc_marketing.clv.distributions.BetaGeoBetaBinom:15
+msgid ":math:`t_j >= 0` for :math:`j = 1, \\dots,x`"
+msgstr ":math:`t_j >= 0` para :math:`j = 1, \\dots,x`"
+
+#: 795530aaa4504e7a82dcad028f951ebc of
+#: pymc_marketing.clv.distributions.BetaGeoBetaBinom:16
+msgid "Mean"
+msgstr "Media"
+
+#: dd6b7881c522403089f2a043d7722fb3 of
+#: pymc_marketing.clv.distributions.BetaGeoBetaBinom:16
+msgid ""
+":math:`\\mathbb{E}[X(n) | \\alpha, \\beta, \\gamma, \\delta] =  "
+"(\\frac{\\alpha}{\\alpha+\\beta})(\\frac{\\delta}{\\gamma-1}) "
+"\\cdot{1-\\frac{\\Gamma(\\gamma+\\delta)}{\\Gamma(\\gamma+\\delta+n)}\\frac{\\Gamma(1+\\delta+n)}{\\Gamma(1+"
+" \\delta)}}`"
+msgstr ""
+":math:`\\mathbb{E}[X(n) | \\alpha, \\beta, \\gamma, \\delta] =  "
+"(\\frac{\\alpha}{\\alpha+\\beta})(\\frac{\\delta}{\\gamma-1}) "
+"\\cdot{1-\\frac{\\Gamma(\\gamma+\\delta)}{\\Gamma(\\gamma+\\delta+n)}\\frac{\\Gamma(1+\\delta+n)}{\\Gamma(1+"
+" \\delta)}}`"
+
+#: 0b385e5d0aff486f8d8cbaac2261d477 of
+#: pymc_marketing.clv.distributions.BetaGeoBetaBinom:32
+msgid "References"
+msgstr "Referencias"
+
+#: 946545ee5b664f5598693a4a994870e2 of
+#: pymc_marketing.clv.distributions.BetaGeoBetaBinom:33
+msgid ""
+"Fader, Peter S., Bruce G.S. Hardie, and Jen Shang (2010), \"Customer-Base "
+"Analysis in a Discrete-Time Noncontractual Setting,\" Marketing Science, 29 "
+"(6), 1086-1108. "
+"https://www.brucehardie.com/papers/020/fader_et_al_mksc_10.pdf"
+msgstr ""
+"Fader, Peter S., Bruce G.S. Hardie y Jen Shang (2010), \"Análisis de la Base"
+" de Clientes en un Entorno No Contractual de Tiempo Discreto,\" Marketing "
+"Science, 29 (6), 1086-1108. "
+"https://www.brucehardie.com/papers/020/fader_et_al_mksc_10.pdf"
+
+#: 9d358e3bd6754bceb5c478311850bdcb of
+#: pymc_marketing.clv.distributions.BetaGeoBetaBinom:39
+msgid "[R99c99d561b4e-1]_"
+msgstr "[R99c99d561b4e-1]_"
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.BetaGeoBetaBinom.rst:12
+#: 35850b2ae0764c10856893b24dbc5654
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.BetaGeoBetaBinom.rst:24:<autosummary>:1
+#: 51aae21698f34949bb7e40ff6c4326db
+msgid ""
+":py:obj:`BetaGeoBetaBinom.__init__ "
+"<pymc_marketing.clv.distributions.BetaGeoBetaBinom.__init__>`\\ "
+"\\(\\*args\\, \\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`BetaGeoBetaBinom.__init__ "
+"<pymc_marketing.clv.distributions.BetaGeoBetaBinom.__init__>`\\ "
+"\\(\\*args\\, \\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.BetaGeoBetaBinom.rst:24:<autosummary>:1
+#: 4c9696767fb34f2eb2d051ea53d42918
+msgid ""
+":py:obj:`BetaGeoBetaBinom.dist "
+"<pymc_marketing.clv.distributions.BetaGeoBetaBinom.dist>`\\ \\(alpha\\, "
+"beta\\, gamma\\, ...\\)"
+msgstr ""
+":py:obj:`BetaGeoBetaBinom.dist "
+"<pymc_marketing.clv.distributions.BetaGeoBetaBinom.dist>`\\ \\(alpha\\, "
+"beta\\, gamma\\, ...\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.BetaGeoBetaBinom.rst:24:<autosummary>:1
+#: a1a20498e01e4cc88ad8cd48bb9c8def
+msgid "Get the distribution from the parameters."
+msgstr "Obtenga la distribución de los parámetros."
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.BetaGeoBetaBinom.rst:24:<autosummary>:1
+#: f76478ea346d43539ea9de8a24c9009b
+msgid ""
+":py:obj:`BetaGeoBetaBinom.logp "
+"<pymc_marketing.clv.distributions.BetaGeoBetaBinom.logp>`\\ \\(alpha\\, "
+"beta\\, gamma\\, ...\\)"
+msgstr ""
+":py:obj:`BetaGeoBetaBinom.logp "
+"<pymc_marketing.clv.distributions.BetaGeoBetaBinom.logp>`\\ \\(alpha\\, "
+"beta\\, gamma\\, ...\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.BetaGeoBetaBinom.rst:24:<autosummary>:1
+#: 76aae5bde7ac4c0287f88616ee74d9ee
+msgid "Log-likelihood of the distribution."
+msgstr "Log-verosimilitud de la distribución."
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.BetaGeoBetaBinom.rst:26
+#: 47078bcf285a41a99ad60804233926d0
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.clv.distributions.BetaGeoBetaBinom.rst:29:<autosummary>:1
+#: f6c25c2b99d44160a0693dd9c52535c1
+msgid ""
+":py:obj:`rv_op <pymc_marketing.clv.distributions.BetaGeoBetaBinom.rv_op>`\\ "
+"\\(alpha\\, beta\\, gamma\\, delta\\, T\\[\\, size\\]\\)"
+msgstr ""
+":py:obj:`rv_op <pymc_marketing.clv.distributions.BetaGeoBetaBinom.rv_op>`\\ "
+"\\(alpha\\, beta\\, gamma\\, delta\\, T\\[\\, tamaño\\]\\)"

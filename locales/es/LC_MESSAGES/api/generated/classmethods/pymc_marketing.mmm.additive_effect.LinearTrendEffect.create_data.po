@@ -1,0 +1,51 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.additive_effect.LinearTrendEffect.create_data.rst:2
+#: edc35938b285469db072a05393b96f64
+msgid "LinearTrendEffect.create\\_data"
+msgstr "LinearTrendEffect.crear_datos"
+
+#: 64a1b296fe8a4bf18629b4c89999d61a of
+#: pymc_marketing.mmm.additive_effect.LinearTrendEffect.create_data:2
+msgid "Create the required data in the model."
+msgstr "Cree los datos requeridos en el modelo."
+
+#: a42885f15cce4fa68ef08482ecad6f7d of
+#: pymc_marketing.mmm.additive_effect.LinearTrendEffect.create_data
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 8446893ecfa6448eb4f2c1e96996bcea of
+#: pymc_marketing.mmm.additive_effect.LinearTrendEffect.create_data:7
+msgid "**mmm** : :obj:`MMM`"
+msgstr "**mmm** : :obj:`MMM`"
+
+#: b10bbfcaf6d44a509615149117af2fea of
+#: pymc_marketing.mmm.additive_effect.LinearTrendEffect.create_data:6
+msgid "MMM"
+msgstr "MMM"
+
+#: 7bd80298920c48ea8b1165107812bef4 of
+#: pymc_marketing.mmm.additive_effect.LinearTrendEffect.create_data:8
+msgid "The MMM model instance."
+msgstr "La instancia del modelo MMM."

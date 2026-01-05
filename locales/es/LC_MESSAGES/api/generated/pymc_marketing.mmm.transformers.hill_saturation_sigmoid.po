@@ -1,0 +1,237 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.hill_saturation_sigmoid.rst:2
+#: 266c7f1af9a943e2aa17eabb15fa24ca
+msgid "hill\\_saturation\\_sigmoid"
+msgstr "hill\\_saturation\\_sigmoid"
+
+#: b9834ab7d38148e5a24c57d703a4ae4e of
+#: pymc_marketing.mmm.transformers.hill_saturation_sigmoid:2
+msgid "Hill Saturation Sigmoid Function."
+msgstr "Función sigmoide de saturación de colina."
+
+#: cc86c527ad0f4bc49f8aff6f1d00a3d2 of
+#: pymc_marketing.mmm.transformers.hill_saturation_sigmoid:4
+msgid ""
+"f(x) = \\frac{\\sigma}{1 + e^{-\\beta(x - \\lambda)}} - \\frac{\\sigma}{1 + e^{\\beta\\lambda}}\n"
+"\n"
+msgstr ""
+"f(x) = \\frac{\\sigma}{1 + e^{-\\beta(x - \\lambda)}} - \\frac{\\sigma}{1 + "
+"e^{\\beta\\lambda}}"
+
+#: a3ed840a6f95441a8bf59cbebfab8eaf of
+#: pymc_marketing.mmm.transformers.hill_saturation_sigmoid:7
+msgid "where:"
+msgstr "donde:"
+
+#: 68dad7a9834a4184970a0e67367c2e57 of
+#: pymc_marketing.mmm.transformers.hill_saturation_sigmoid:8
+msgid ":math:`\\sigma` is the upper asymptote"
+msgstr ":math:`\\sigma` es la asíntota superior"
+
+#: a30881c2c7414b6ab7264f927694a59d of
+#: pymc_marketing.mmm.transformers.hill_saturation_sigmoid:9
+msgid ":math:`\\beta` is the slope parameter"
+msgstr ":math:`\\beta` es el parámetro de pendiente"
+
+#: 7c723251dbde483a8edfcdbe32d0988c of
+#: pymc_marketing.mmm.transformers.hill_saturation_sigmoid:10
+msgid ":math:`\\lambda` is the transition point on the X-axis"
+msgstr ":math:`\\lambda` es el punto de transición en el eje X."
+
+#: a023e8eff48446f6a6760cfd5c01397d of
+#: pymc_marketing.mmm.transformers.hill_saturation_sigmoid:11
+msgid ":math:`x` is the independent variable"
+msgstr ":math:`x` es la variable independiente"
+
+#: 8f7eba63f5a1476da30a02f1d8c4acde of
+#: pymc_marketing.mmm.transformers.hill_saturation_sigmoid:13
+msgid ""
+"This function computes the Hill sigmoidal response curve, which is commonly "
+"used to describe the saturation effect in biological systems. The curve is "
+"characterized by its sigmoidal shape, representing a gradual transition from"
+" a low, nearly zero level to a high plateau, the maximum value the function "
+"will approach as the independent variable grows large. In this "
+"implementation, we add an offset to the sigmoid function to ensure that the "
+"function always passes through the origin as we expect zero spend to result "
+"in zero contribution."
+msgstr ""
+"Esta función calcula la curva de respuesta sigmoidal de Hill, que se utiliza"
+" comúnmente para describir el efecto de saturación en sistemas biológicos. "
+"La curva se caracteriza por su forma sigmoidal, que representa una "
+"transición gradual de un nivel bajo, casi cero, a un alto plateau, el valor "
+"máximo al que la función se acercará a medida que la variable independiente "
+"crezca. En esta implementación, añadimos un desplazamiento a la función "
+"sigmoidal para asegurar que la función siempre pase por el origen, ya que "
+"esperamos que un gasto de cero resulte en una contribución de cero."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.hill_saturation_sigmoid.rst:7
+#: 18a4e912b26d4ac5bb75de23cda8da9a
+msgid ""
+"(:download:`Source code "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-hill_saturation_sigmoid-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-hill_saturation_sigmoid-1_00_00.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-hill_saturation_sigmoid-1_00_00.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-hill_saturation_sigmoid-1_00_00.pdf>`)"
+msgstr ""
+"(:download:`Código fuente "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-hill_saturation_sigmoid-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-hill_saturation_sigmoid-1_00_00.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-hill_saturation_sigmoid-1_00_00.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-hill_saturation_sigmoid-1_00_00.pdf>`)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.hill_saturation_sigmoid.rst:34
+#: 34c8d6567fcf4d06ae06beada02f7dee
+msgid ""
+"(:download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-hill_saturation_sigmoid-1_01_00.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-hill_saturation_sigmoid-1_01_00.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-hill_saturation_sigmoid-1_01_00.pdf>`)"
+msgstr ""
+"(:descargar:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-hill_saturation_sigmoid-1_01_00.png>`, :descargar:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-hill_saturation_sigmoid-1_01_00.hires.png>`, :descargar:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-hill_saturation_sigmoid-1_01_00.pdf>`)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.hill_saturation_sigmoid.rst:61
+#: 3eb24d5f32394b34a19283beebd0924b
+msgid ""
+"(:download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-hill_saturation_sigmoid-1_02_00.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-hill_saturation_sigmoid-1_02_00.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-hill_saturation_sigmoid-1_02_00.pdf>`)"
+msgstr ""
+"(:download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-hill_saturation_sigmoid-1_02_00.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-hill_saturation_sigmoid-1_02_00.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-hill_saturation_sigmoid-1_02_00.pdf>`)"
+
+#: bcc5e5f71b664d20a6b8844c2e349d8f of
+#: pymc_marketing.mmm.transformers.hill_saturation_sigmoid
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 7d03cd0b76cd484da951e9258d391d4b of
+#: pymc_marketing.mmm.transformers.hill_saturation_sigmoid:70
+msgid "**x** : :class:`python:float` or :term:`numpy:array_like`"
+msgstr "**x** : :class:`python:float` o :term:`numpy:array_like`"
+
+#: 6e1968d83b784c058f6112ddc4f5e85f of
+#: pymc_marketing.mmm.transformers.hill_saturation_sigmoid:69
+msgid "python:float or numpy:array_like"
+msgstr "python:float o numpy:array_like"
+
+#: a71f8bf010a6454197f220c433f0e820 of
+#: pymc_marketing.mmm.transformers.hill_saturation_sigmoid:71
+msgid ""
+"The independent variable, typically representing the concentration of a "
+"substrate or the intensity of a stimulus."
+msgstr ""
+"La variable independiente, que típicamente representa la concentración de un"
+" sustrato o la intensidad de un estímulo."
+
+#: f6212ee981724b6c938fd60785863bf5 of
+#: pymc_marketing.mmm.transformers.hill_saturation_sigmoid:74
+msgid "**sigma** : :class:`python:float`"
+msgstr "**sigma** : :class:`python:float`"
+
+#: a157a7a8d12d4a14946827678383ed4d d669cab81bd7441ab894ce800295ed0e
+#: f704638a01f94d27beed047bc7d640d0 of
+#: pymc_marketing.mmm.transformers.hill_saturation_sigmoid:73
+#: pymc_marketing.mmm.transformers.hill_saturation_sigmoid:77
+#: pymc_marketing.mmm.transformers.hill_saturation_sigmoid:80
+msgid "python:float"
+msgstr "python:float"
+
+#: fc3c3343cc2043ff99d56916bf115718 of
+#: pymc_marketing.mmm.transformers.hill_saturation_sigmoid:75
+msgid ""
+"The upper asymptote of the curve, representing the approximate maximum value"
+" the function will approach as x grows large. The true maximum value is at "
+"`sigma * (1 - 1 / (1 + exp(beta * lam)))`"
+msgstr ""
+"La asíntota superior de la curva representa el valor máximo aproximado al "
+"que la función se acercará a medida que x crezca. El verdadero valor máximo "
+"se encuentra en `sigma * (1 - 1 / (1 + exp(beta * lam)))`"
+
+#: 09faa10ee9c64358a865ef55f6d67e10 of
+#: pymc_marketing.mmm.transformers.hill_saturation_sigmoid:78
+msgid "**beta** : :class:`python:float`"
+msgstr "**beta** : :class:`python:float`"
+
+#: 8c152b7cd2e44dc78d02973583df57ea of
+#: pymc_marketing.mmm.transformers.hill_saturation_sigmoid:79
+msgid "The slope parameter, determining the steepness of the curve."
+msgstr "El parámetro de pendiente, que determina la inclinación de la curva."
+
+#: 92c060c254c7479daec17d1351e4a292 of
+#: pymc_marketing.mmm.transformers.hill_saturation_sigmoid:81
+msgid "**lam** : :class:`python:float`"
+msgstr "**lam** : :class:`python:float`"
+
+#: 609823c425de47d8867f3f2db1087ce9 of
+#: pymc_marketing.mmm.transformers.hill_saturation_sigmoid:82
+msgid ""
+"The x-value of the midpoint where the curve transitions from exponential "
+"growth to saturation."
+msgstr ""
+"El valor x del punto medio donde la curva transiciona de crecimiento "
+"exponencial a saturación."
+
+#: 247be9cf067a4e06a7b44f00b0944a63 of
+#: pymc_marketing.mmm.transformers.hill_saturation_sigmoid
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: ec2028c9830e4c908efb23e75627c5eb of
+#: pymc_marketing.mmm.transformers.hill_saturation_sigmoid:89
+msgid ":class:`python:float` or :term:`numpy:array_like`"
+msgstr ":class:`python:float` o :term:`numpy:array_like`"
+
+#: ab873e5372b24d1eaa1ae8881662bc32 of
+#: pymc_marketing.mmm.transformers.hill_saturation_sigmoid:90
+msgid ""
+"The value of the Hill saturation sigmoid function for each input value of x."
+msgstr ""
+"El valor de la función sigmoide de saturación de Hill para cada valor de "
+"entrada de x."

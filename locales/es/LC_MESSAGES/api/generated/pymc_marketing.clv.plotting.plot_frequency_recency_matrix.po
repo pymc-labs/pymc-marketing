@@ -1,0 +1,149 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.clv.plotting.plot_frequency_recency_matrix.rst:2
+#: d6ade6a3984e4a3fbc3e5470134120b3
+msgid "plot\\_frequency\\_recency\\_matrix"
+msgstr "matriz\\_frecuencia\\_recencia\\_trama"
+
+#: b43038c4afe84ec5ab011918883159d9 of
+#: pymc_marketing.clv.plotting.plot_frequency_recency_matrix:2
+msgid ""
+"Plot expected purchases in *future_t* time periods as a heatmap based on "
+"customer population *frequency* and *recency*."
+msgstr ""
+"Representar las compras esperadas en *future_t* períodos de tiempo como un "
+"mapa de calor basado en la *frecuencia* y la *recencia* de la población de "
+"clientes."
+
+#: e221fa92001b4e258dcd0acdb81dd06a of
+#: pymc_marketing.clv.plotting.plot_frequency_recency_matrix
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 9a1a2ec586fd4b1fa7d5d4730565ffaa of
+#: pymc_marketing.clv.plotting.plot_frequency_recency_matrix:7
+msgid "**model: CLV model**"
+msgstr "**modelo: modelo CLV**"
+
+#: 8cc2525ae0be410388102e888604c66c of
+#: pymc_marketing.clv.plotting.plot_frequency_recency_matrix:8
+msgid "A fitted CLV model."
+msgstr "Un modelo CLV ajustado."
+
+#: 2143117ade944dfeaf7e1b1be1ca55b6 of
+#: pymc_marketing.clv.plotting.plot_frequency_recency_matrix:10
+msgid "**future_t: float, optional**"
+msgstr "**future_t: flotante, opcional**"
+
+#: 7cfe9c90f69a4238897efab7a1e38da1 of
+#: pymc_marketing.clv.plotting.plot_frequency_recency_matrix:11
+msgid "Future time periods over which to run predictions."
+msgstr "Períodos de tiempo futuros sobre los cuales realizar predicciones."
+
+#: 0470cec068c2465b9a18e6ffbf3df0a9 of
+#: pymc_marketing.clv.plotting.plot_frequency_recency_matrix:13
+msgid "**max_frequency: int, optional**"
+msgstr "**max_frequency: int, opcional**"
+
+#: 5adc3b1cb06743ec9b6aec03634cb302 of
+#: pymc_marketing.clv.plotting.plot_frequency_recency_matrix:14
+msgid "The maximum *frequency* to plot. Defaults to max observed *frequency*."
+msgstr ""
+"La *frecuencia* máxima a graficar. Por defecto, se establece en la "
+"*frecuencia* máxima observada."
+
+#: 11e0ce5ecb6d473e914c7798c411a67c of
+#: pymc_marketing.clv.plotting.plot_frequency_recency_matrix:16
+msgid "**max_recency: int, optional**"
+msgstr "**max_recency: int, opcional**"
+
+#: 2766800c98fc464eb6254387e59156e9 of
+#: pymc_marketing.clv.plotting.plot_frequency_recency_matrix:17
+msgid ""
+"The maximum *recency* to plot. This also determines the age of the customer."
+" Defaults to max observed *recency*."
+msgstr ""
+"La *recencia* máxima a trazar. Esto también determina la antigüedad del "
+"cliente. Por defecto, se establece en la *recencia* máxima observada."
+
+#: 485ef3dd12fa4cbf88bc24ed42e64e19 of
+#: pymc_marketing.clv.plotting.plot_frequency_recency_matrix:19
+msgid "**title: str, optional**"
+msgstr "**título: str, opcional**"
+
+#: 7e7ccfe13159430fb226f4d5a96c3c21 of
+#: pymc_marketing.clv.plotting.plot_frequency_recency_matrix:20
+msgid "Figure title"
+msgstr "Título de la figura"
+
+#: 17ead39decb6449d8548ee9e5e81c981 of
+#: pymc_marketing.clv.plotting.plot_frequency_recency_matrix:22
+msgid "**xlabel: str, optional**"
+msgstr "**xlabel: str, opcional**"
+
+#: c977fbee8e1e43689776455fa6470bdc of
+#: pymc_marketing.clv.plotting.plot_frequency_recency_matrix:23
+msgid "Figure xlabel"
+msgstr "Etiqueta de figura"
+
+#: ad4af50dcc8b431aa23a0e479511af7f of
+#: pymc_marketing.clv.plotting.plot_frequency_recency_matrix:25
+msgid "**ylabel: str, optional**"
+msgstr "**ylabel: str, opcional**"
+
+#: 3ce84bf255de4b5485150b2f6c2b670b of
+#: pymc_marketing.clv.plotting.plot_frequency_recency_matrix:26
+msgid "Figure ylabel"
+msgstr "Etiqueta del eje y"
+
+#: 3c98794353a5469eb0a87ff10b8e29fd of
+#: pymc_marketing.clv.plotting.plot_frequency_recency_matrix:28
+msgid "**ax: plt.Axes, optional**"
+msgstr "**ax: plt.Axes, opcional**"
+
+#: 5c645e935bc54deca8ae34101e27c323 of
+#: pymc_marketing.clv.plotting.plot_frequency_recency_matrix:29
+msgid "A matplotlib axes instance. Creates new axes instance by default."
+msgstr ""
+"Una instancia de ejes de matplotlib. Crea una nueva instancia de ejes por "
+"defecto."
+
+#: af153946d6c1477095285b9d679a83dc of
+#: pymc_marketing.clv.plotting.plot_frequency_recency_matrix:31
+msgid "**kwargs**"
+msgstr "**kwargs**"
+
+#: 8618904648da4afea6e715cd05a3659d of
+#: pymc_marketing.clv.plotting.plot_frequency_recency_matrix:32
+msgid "Passed into the matplotlib.imshow command."
+msgstr "Pasado al comando matplotlib.imshow."
+
+#: 3587ee2eae504d32a87e9a3a73970f8d of
+#: pymc_marketing.clv.plotting.plot_frequency_recency_matrix
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 2ab3f8b1db93433582042b3b079d237d of
+#: pymc_marketing.clv.plotting.plot_frequency_recency_matrix:38
+msgid "axes: :obj:`matplotlib.AxesSubplot`"
+msgstr "ejes: :obj:`matplotlib.AxesSubplot`"

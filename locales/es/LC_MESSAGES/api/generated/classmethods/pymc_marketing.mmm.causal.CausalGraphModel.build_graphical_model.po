@@ -1,0 +1,98 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.CausalGraphModel.build_graphical_model.rst:2
+#: e835fecb772d48afb58c53bc9720f0ce
+msgid "CausalGraphModel.build\\_graphical\\_model"
+msgstr "CausalGraphModel.construir\\_modelo\\_gráfico"
+
+#: 2e428431da5340699c9c8ea5655b44a5 of
+#: pymc_marketing.mmm.causal.CausalGraphModel.build_graphical_model:2
+msgid "Create a CausalGraphModel from a string representation of a graph."
+msgstr ""
+"Cree un CausalGraphModel a partir de una representación en cadena de un "
+"grafo."
+
+#: 2c63062e30df48c9a4154c780b9ee1d5 of
+#: pymc_marketing.mmm.causal.CausalGraphModel.build_graphical_model
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 16758f3ffa224c609968bc06849deaac of
+#: pymc_marketing.mmm.causal.CausalGraphModel.build_graphical_model:7
+msgid "**graph** : :class:`python:str`"
+msgstr "**gráfico** : :class:`python:str`"
+
+#: 4c6aa54311b44bae8de273011214c9a5 c66f303b112247ca8d081d1d22f475ff of
+#: pymc_marketing.mmm.causal.CausalGraphModel.build_graphical_model:6
+#: pymc_marketing.mmm.causal.CausalGraphModel.build_graphical_model:12
+msgid "python:str"
+msgstr "python:str"
+
+#: 54a62637dccc48ecb155870de8c37131 of
+#: pymc_marketing.mmm.causal.CausalGraphModel.build_graphical_model:8
+msgid "A string representation of the graph (e.g., String in DOT format)."
+msgstr ""
+"Una representación en cadena del grafo (por ejemplo, cadena en formato DOT)."
+
+#: 42ee5e147e4f4ee685ee6037f419c2ad of
+#: pymc_marketing.mmm.causal.CausalGraphModel.build_graphical_model:10
+msgid "**treatment** : :class:`python:list`\\[:class:`python:str`]"
+msgstr "**tratamiento** : :class:`python:list`\\[:class:`python:str`]"
+
+#: ffb7ac0ba9db4db9b178319eab440ac5 of
+#: pymc_marketing.mmm.causal.CausalGraphModel.build_graphical_model:9
+msgid "python:list[python:str]"
+msgstr "python:list[python:str]"
+
+#: 9f3a4d35d2654707a3bbe7e042abe892 of
+#: pymc_marketing.mmm.causal.CausalGraphModel.build_graphical_model:11
+msgid "A list of treatment variable names."
+msgstr "Una lista de nombres de variables de tratamiento."
+
+#: 62f0e9a52e8145258a169d25c369e8e5 of
+#: pymc_marketing.mmm.causal.CausalGraphModel.build_graphical_model:13
+msgid "**outcome** : :class:`python:str`"
+msgstr "**resultado** : :class:`python:str`"
+
+#: cec0921980bb4f829d2d1bc878332089 of
+#: pymc_marketing.mmm.causal.CausalGraphModel.build_graphical_model:14
+msgid "The outcome variable name."
+msgstr "El nombre de la variable de resultado."
+
+#: 72bc83900f2b4d4cb31f2444c5e6b66f of
+#: pymc_marketing.mmm.causal.CausalGraphModel.build_graphical_model
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 5f38cdffbc2a4adab66c72db3eadeb31 of
+#: pymc_marketing.mmm.causal.CausalGraphModel.build_graphical_model:20
+msgid ":obj:`CausalGraphModel`"
+msgstr ":obj:`CausalGraphModel`"
+
+#: 6b4bfa2ce53c49c4a469b69d25684bf8 of
+#: pymc_marketing.mmm.causal.CausalGraphModel.build_graphical_model:21
+msgid ""
+"An instance of CausalGraphModel constructed from the given graph string."
+msgstr ""
+"Una instancia de CausalGraphModel construida a partir de la cadena de "
+"gráfico dada."

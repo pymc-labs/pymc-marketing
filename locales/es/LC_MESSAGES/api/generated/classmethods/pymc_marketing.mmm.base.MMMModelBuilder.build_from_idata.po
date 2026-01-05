@@ -1,0 +1,69 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.base.MMMModelBuilder.build_from_idata.rst:2
+#: ece7b39c8f90455cbd167016ed0203e5
+msgid "MMMModelBuilder.build\\_from\\_idata"
+msgstr "MMMModelBuilder.build\\_from\\_idata"
+
+#: c840d8521b464b2586690c04cd628f22 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.build_from_idata:2
+msgid "Build model from the InferenceData object."
+msgstr "Construir un modelo a partir del objeto InferenceData."
+
+#: f45d964d0cfc486eb1f4302c2f76a26d of
+#: pymc_marketing.model_builder.RegressionModelBuilder.build_from_idata:4
+msgid ""
+"This is part of the :func:`load` method. See :func:`load` for more larger "
+"context."
+msgstr ""
+"Esto es parte del método :func:`load`. Consulte :func:`load` para obtener un"
+" contexto más amplio."
+
+#: 3d36a633870040808a8027f80f927f5a of
+#: pymc_marketing.model_builder.RegressionModelBuilder.build_from_idata:6
+msgid ""
+"Usually a wrapper around the :func:`build_model` method unless the model has"
+" some additional steps to be built."
+msgstr ""
+"Normalmente es un envoltorio alrededor del método :func:`build_model` a "
+"menos que el modelo tenga algunos pasos adicionales para ser construido."
+
+#: fef622d0f0f4436e83d6f139becdef3a of
+#: pymc_marketing.model_builder.RegressionModelBuilder.build_from_idata
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 4961a4e436a14b088202f04e89479a0d of
+#: pymc_marketing.model_builder.RegressionModelBuilder.build_from_idata:11
+msgid "**idata** : :obj:`az.InferenceData`"
+msgstr "**idata** : :obj:`az.InferenceData`"
+
+#: 8c550b8b391349cda6310adf171804c6 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.build_from_idata:10
+msgid "az.InferenceData"
+msgstr "az.InferenceData"
+
+#: 7540076013ac41388e7016df52f2d117 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.build_from_idata:12
+msgid "The InferenceData object to build the model from."
+msgstr "El objeto InferenceData para construir el modelo a partir de."

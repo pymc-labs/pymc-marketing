@@ -1,0 +1,79 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.special_priors.rst:2
+#: 9064e278c7a846f7af8fac134bcd67c9
+msgid "special\\_priors"
+msgstr "prioridades\\_especiales"
+
+#: f8fc0761af5c460884acadb0b58ce2b8 of pymc_marketing.special_priors:1
+msgid "Specialized priors that behave like the Prior class."
+msgstr "Priors especializados que se comportan como la clase Prior."
+
+#: 05b65a8afa8f4e9d83ece0829c75bb6c of pymc_marketing.special_priors:3
+msgid ""
+"The Prior class has certain design constraints that prevent it from covering"
+" all cases. So this module contains a collection of priors that do not "
+"inherit from the Prior class but have many of the same methods."
+msgstr ""
+"La clase Prior tiene ciertas restricciones de diseño que impiden que cubra "
+"todos los casos. Por lo tanto, este módulo contiene una colección de priors "
+"que no heredan de la clase Prior pero tienen muchos de los mismos métodos."
+
+#: ../source/api/generated/pymc_marketing.special_priors.rst:17
+#: 37af12022fee481da2334ca48e019a60
+msgid "Classes"
+msgstr "Clases"
+
+#: ../source/api/generated/pymc_marketing.special_priors.rst:26:<autosummary>:1
+#: e60efb20b313427c83d63da2846edc4a
+msgid ""
+":py:obj:`LogNormalPrior <pymc_marketing.special_priors.LogNormalPrior>`\\ "
+"\\(\\[dims\\, centered\\]\\)"
+msgstr ""
+":py:obj:`LogNormalPrior <pymc_marketing.special_priors.LogNormalPrior>`\\ "
+"\\(\\[dims\\, centrado\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.special_priors.rst:26:<autosummary>:1
+#: 6348e6afc81c4258a1705d2391578c82
+msgid "Lognormal prior parameterized by positive-scale mean and std."
+msgstr ""
+"Parámetro lognormal priorizado por la media de escala positiva y la "
+"desviación estándar."
+
+#: ../source/api/generated/pymc_marketing.special_priors.rst:26:<autosummary>:1
+#: 8916a0b1928c440ca9d759e3f3d579ce
+msgid ""
+":py:obj:`MaskedPrior <pymc_marketing.special_priors.MaskedPrior>`\\ "
+"\\(prior\\, mask\\[\\, active\\_dim\\]\\)"
+msgstr ""
+":py:obj:`MaskedPrior <pymc_marketing.special_priors.MaskedPrior>`\\ "
+"\\(prior\\, máscara\\[\\, dim\\_activa\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.special_priors.rst:26:<autosummary>:1
+#: c21a33d7602e427393981d089964ed70
+msgid ""
+"Create variables from a prior over only the active entries of a boolean "
+"mask."
+msgstr ""
+"Cree variables a partir de una prior solo sobre las entradas activas de una "
+"máscara booleana."

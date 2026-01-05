@@ -1,0 +1,117 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/getting_started/installation/index.md:1
+#: aac6fcb2b91442388bd78ca5487c6aec
+msgid "Installing PyMC-Marketing"
+msgstr "Instalando PyMC-Marketing"
+
+#: ../source/getting_started/installation/index.md:3
+#: 6487a9f897e048e9b50cedd8d32d3e3d
+msgid "PyMC-Marketing requires **Python 3.10 or greater**."
+msgstr "PyMC-Marketing requiere **Python 3.10 o superior**."
+
+#: ../source/getting_started/installation/index.md:5
+#: c3974edd45de4176bcbc68b9ebb74656
+msgid ""
+"Install and activate an environment (e.g. `marketing_env`) with the `pymc-"
+"marketing` package from [conda-forge](https://conda-forge.org). It may look "
+"something like the following:"
+msgstr ""
+"Instale y active un entorno (por ejemplo, `marketing_env`) con el paquete "
+"`pymc-marketing` de [conda-forge](https://conda-forge.org). Puede parecerse "
+"a lo siguiente:"
+
+#: ../source/getting_started/installation/index.md:12
+#: 3b0be5a14f6548f79b5330f11dca04c4
+msgid "You can also install the development version of PyMC-Marketing with:"
+msgstr ""
+"También puede instalar la versión de desarrollo de PyMC-Marketing con:"
+
+#: ../source/getting_started/installation/index.md:18
+#: 3965fc37344e43a2a7a6584b74582945
+msgid ""
+"Next, we you can create a new Jupyter notebook with either JupyterLab or VS "
+"Code."
+msgstr ""
+"A continuación, puede crear un nuevo cuaderno de Jupyter con JupyterLab o VS"
+" Code."
+
+#: ../source/getting_started/installation/index.md:20
+#: d4782316183343e58c0636e8e304c526
+msgid "JupyterLab Notebook"
+msgstr "JupyterLab Notebook"
+
+#: ../source/getting_started/installation/index.md:22
+#: ../source/getting_started/installation/index.md:31
+#: ce830115ce264824958b6110895b9d0e e8203b9e2e6a40f3bede0ea22f265d04
+msgid ""
+"After installing the `pymc-marketing` package (see above), run the following"
+" with `marketing_env` activated:"
+msgstr ""
+"Después de instalar el paquete `pymc-marketing` (ver arriba), ejecute lo "
+"siguiente con `marketing_env` activado:"
+
+#: ../source/getting_started/installation/index.md:29
+#: 7034116b806245ffbdb2eaa1cb3ffc24
+msgid "VS Code Notebook"
+msgstr "Cuaderno de VS Code"
+
+#: ../source/getting_started/installation/index.md:37
+#: 7624ad9393fb4c94ab84c658005cceb0
+msgid ""
+"Start VS Code and ensure that the \"Jupyter\" extension is installed. Press "
+"Ctrl + Shift + P and type \"Python: Select Interpreter\". Ensure that "
+"`marketing_env` is selected. Press Ctrl + Shift + P and type \"Create: New "
+"Jupyter Notebook\"."
+msgstr ""
+"Inicie VS Code y asegúrese de que la extensión \"Jupyter\" esté instalada. "
+"Presione Ctrl + Shift + P y escriba \"Python: Seleccionar Intérprete\". "
+"Asegúrese de que `marketing_env` esté seleccionado. Presione Ctrl + Shift + "
+"P y escriba \"Crear: Nuevo Cuaderno Jupyter\"."
+
+#: ../source/getting_started/installation/index.md:39
+#: ca9eda49a97343fdafa14ac7ba9c00df
+msgid "Installation for developers"
+msgstr "Instalación para desarrolladores"
+
+#: ../source/getting_started/installation/index.md:41
+#: 31cde38f15454501a09a89a8e3388177
+msgid ""
+"If you are a developer of pymc-marketing, or want to start contributing, "
+"[refer to the contributing guide](https://github.com/pymc-labs/pymc-"
+"marketing/blob/main/CONTRIBUTING.md) to get started."
+msgstr ""
+"Si usted es un desarrollador de pymc-marketing, o desea comenzar a "
+"contribuir, [consulte la guía de contribución](https://github.com/pymc-"
+"labs/pymc-marketing/blob/main/CONTRIBUTING.md) para comenzar."
+
+#: ../source/getting_started/installation/index.md:43
+#: 12a9c5a35f104991bef2a4c72015b356
+msgid ""
+"See the official [PyMC installation "
+"guide](https://www.pymc.io/projects/docs/en/latest/installation.html) if "
+"more detail is needed."
+msgstr ""
+"Consulte la [guía de instalación oficial de "
+"PyMC](https://www.pymc.io/projects/docs/en/latest/installation.html) si se "
+"necesita más detalle."

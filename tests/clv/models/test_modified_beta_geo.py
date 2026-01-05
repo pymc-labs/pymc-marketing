@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -20,10 +20,10 @@ import pymc as pm
 import pytest
 import xarray as xr
 from lifetimes.fitters.modified_beta_geo_fitter import ModifiedBetaGeoFitter
+from pymc_extras.prior import Prior
 
 from pymc_marketing.clv.models.modified_beta_geo import ModifiedBetaGeoModel
-from pymc_marketing.prior import Prior
-from tests.conftest import create_mock_fit, mock_sample, set_model_fit
+from tests.clv.conftest import create_mock_fit, mock_sample, set_model_fit
 
 
 class TestModifiedBetaGeoModel:
@@ -145,13 +145,14 @@ class TestModifiedBetaGeoModel:
         data_invalid = self.data.drop(columns=missing_column)
 
         with pytest.raises(
-            ValueError, match=f"Required column {missing_column} missing"
+            ValueError,
+            match=rf"The following required columns are missing from the input data: \['{missing_column}'\]",
         ):
             ModifiedBetaGeoModel(data=data_invalid)
 
     def test_customer_id_duplicate(self):
         with pytest.raises(
-            ValueError, match="Column customer_id has duplicate entries"
+            ValueError, match=r"Column customer_id has duplicate entries"
         ):
             data = pd.DataFrame(
                 {
@@ -238,7 +239,7 @@ class TestModifiedBetaGeoModel:
 
     def test_fit_result_without_fit(self, mocker, model_config):
         model = ModifiedBetaGeoModel(data=self.data, model_config=model_config)
-        with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
+        with pytest.raises(RuntimeError, match=r"The model hasn't been fit yet"):
             model.fit_result
 
         mocker.patch("pymc.sample", mock_sample)
@@ -282,7 +283,7 @@ class TestModifiedBetaGeoModel:
 
         with pytest.raises(
             NotImplementedError,
-            match="The MBG/NBD model does not support this method.",
+            match=r"The MBG/NBD model does not support this method.",
         ):
             mbg_model.expected_probability_no_purchase(t=test_t, data=data)
 

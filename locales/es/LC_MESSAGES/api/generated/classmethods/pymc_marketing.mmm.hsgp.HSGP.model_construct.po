@@ -1,0 +1,109 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.hsgp.HSGP.model_construct.rst:2
+#: e0027a52dee44beab99491c003990eb6
+msgid "HSGP.model\\_construct"
+msgstr "HSGP.model\\_construct"
+
+#: 42acc308d7fa4132a2c5f156998138e6 of
+#: pydantic.main.BaseModel.model_construct:2
+msgid "Creates a new instance of the `Model` class with validated data."
+msgstr "Crea una nueva instancia de la clase `Model` con datos validados."
+
+#: d474a33af02b4b00b2e1f7c1f4e6dcb5 of
+#: pydantic.main.BaseModel.model_construct:4
+msgid ""
+"Creates a new model setting `__dict__` and `__pydantic_fields_set__` from "
+"trusted or pre-validated data. Default values are respected, but no other "
+"validation is performed."
+msgstr ""
+"Crea un nuevo modelo configurando `__dict__` y `__pydantic_fields_set__` a "
+"partir de datos confiables o prevalidados. Se respetan los valores "
+"predeterminados, pero no se realiza ninguna otra validación."
+
+#: 2cdb369c869443f8b680ce0bea91d2e0 of
+#: pydantic.main.BaseModel.model_construct:7
+msgid "!!! note"
+msgstr "!!! nota"
+
+#: cc52aff649ce41cbb548738d50698f64 of
+#: pydantic.main.BaseModel.model_construct:8
+msgid ""
+"`model_construct()` generally respects the `model_config.extra` setting on "
+"the provided model. That is, if `model_config.extra == 'allow'`, then all "
+"extra passed values are added to the model instance's `__dict__` and "
+"`__pydantic_extra__` fields. If `model_config.extra == 'ignore'` (the "
+"default), then all extra passed values are ignored. Because no validation is"
+" performed with a call to `model_construct()`, having `model_config.extra =="
+" 'forbid'` does not result in an error if extra values are passed, but they "
+"will be ignored."
+msgstr ""
+"`model_construct()` generalmente respeta la configuración "
+"`model_config.extra` en el modelo proporcionado. Es decir, si "
+"`model_config.extra == 'allow'`, entonces todos los valores adicionales "
+"pasados se añaden a los campos `__dict__` y `__pydantic_extra__` de la "
+"instancia del modelo. Si `model_config.extra == 'ignore'` (el valor "
+"predeterminado), entonces todos los valores adicionales pasados son "
+"ignorados. Debido a que no se realiza ninguna validación con una llamada a "
+"`model_construct()`, tener `model_config.extra == 'forbid'` no resulta en un"
+" error si se pasan valores adicionales, pero serán ignorados."
+
+#: 34b45f1a8b1d482dbf6caf3b398ba5b8 of
+#: pydantic.main.BaseModel.model_construct:14
+msgid "Args:"
+msgstr "Args:"
+
+#: 8fe75825b9b44066958c91f957c5b87c of
+#: pydantic.main.BaseModel.model_construct:15
+msgid ""
+"_fields_set: A set of field names that were originally explicitly set during"
+" instantiation. If provided,"
+msgstr ""
+"_fields_set: Un conjunto de nombres de campo que se establecieron "
+"explícitamente durante la instanciación. Si se proporciona,"
+
+#: bbe7307c5f324ba094d2a0adb5ce92e5 of
+#: pydantic.main.BaseModel.model_construct:16
+msgid ""
+"this is directly used for the "
+"[`model_fields_set`][pydantic.BaseModel.model_fields_set] attribute. "
+"Otherwise, the field names from the `values` argument will be used."
+msgstr ""
+"esto se utiliza directamente para el atributo "
+"[`model_fields_set`][pydantic.BaseModel.model_fields_set]. De lo contrario, "
+"se utilizarán los nombres de campo del argumento `values`."
+
+#: b64ddd0f33f3471cbaaf454831a402af of
+#: pydantic.main.BaseModel.model_construct:18
+msgid "values: Trusted or pre-validated data dictionary."
+msgstr "valores: Diccionario de datos confiables o prevalidado."
+
+#: 197db3542ae945a2969b41bd047492d8 of
+#: pydantic.main.BaseModel.model_construct:20
+msgid "Returns:"
+msgstr "Devoluciones:"
+
+#: eb75456aa2e7406ebd7acbaf61f3b8bb of
+#: pydantic.main.BaseModel.model_construct:21
+msgid "A new instance of the `Model` class with validated data."
+msgstr "Una nueva instancia de la clase `Model` con datos validados."

@@ -1,0 +1,114 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.model_builder.create_sample_kwargs.rst:2
+#: 682f7ce7bdce431b9aec904e12682ac2
+msgid "create\\_sample\\_kwargs"
+msgstr "create\\_sample\\_kwargs"
+
+#: 7686c454078b415db677ba8b907d036a of
+#: pymc_marketing.model_builder.create_sample_kwargs:2
+msgid "Create the dictionary of keyword arguments for `pm.sample`."
+msgstr "Cree el diccionario de argumentos clave para `pm.sample`."
+
+#: 485b8f9eb8d84ad6b5f4788247acc0dd of
+#: pymc_marketing.model_builder.create_sample_kwargs
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: eade3af7d4884791a9b16370e27d47a7 of
+#: pymc_marketing.model_builder.create_sample_kwargs:7
+msgid "**sampler_config** : :class:`python:dict`"
+msgstr "**sampler_config** : :class:`python:dict`"
+
+#: 0bffde1caeea4b48ab4f94fa9e25f01b of
+#: pymc_marketing.model_builder.create_sample_kwargs:6
+msgid "python:dict"
+msgstr "python:dict"
+
+#: 71afada243f2476d93a6eead0c820488 of
+#: pymc_marketing.model_builder.create_sample_kwargs:8
+msgid "The configuration dictionary for the sampler."
+msgstr "El diccionario de configuración para el muestreador."
+
+#: ca6cf59920b142579928ba8884712713 of
+#: pymc_marketing.model_builder.create_sample_kwargs:10
+msgid "**progressbar** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+"**barra de progreso** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: c0772eaa1d654d8bb050af09725c78df of
+#: pymc_marketing.model_builder.create_sample_kwargs:9
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: b4db65c323c64cdcacb0b0bc0ed6aea4 of
+#: pymc_marketing.model_builder.create_sample_kwargs:11
+msgid "Whether to show the progress bar during sampling. Defaults to True."
+msgstr ""
+"Si se debe mostrar la barra de progreso durante la muestreo. Por defecto es "
+"True."
+
+#: 1ef7b419cb8548f2a741b96d99b65e1b of
+#: pymc_marketing.model_builder.create_sample_kwargs:13
+msgid "**random_seed** : :obj:`RandomState <numpy.random.RandomState>`"
+msgstr "**random_seed** : :obj:`RandomState <numpy.random.RandomState>`"
+
+#: 88b09c0940be4e6cb7d1ce1b9ee35d9a of
+#: pymc_marketing.model_builder.create_sample_kwargs:12
+msgid "RandomState"
+msgstr "EstadoAleatorio"
+
+#: 7f674041f910411c847a0692bebe8d3f of
+#: pymc_marketing.model_builder.create_sample_kwargs:14
+msgid "The random seed for the sampler."
+msgstr "La semilla aleatoria para el muestreador."
+
+#: 0c258fb2b812417fb02d663b598224b6 of
+#: pymc_marketing.model_builder.create_sample_kwargs:16
+msgid "**\\*\\*kwargs** : :obj:`Any`"
+msgstr "**\\*\\*kwargs** : :obj:`Cualquiera`"
+
+#: 225340bb8f6f4a1fbb35434b8de851ff of
+#: pymc_marketing.model_builder.create_sample_kwargs:15
+msgid "Any"
+msgstr "Cualquiera"
+
+#: 82a525d191df49a5a4d94d47cba50ce5 of
+#: pymc_marketing.model_builder.create_sample_kwargs:17
+msgid "Additional keyword arguments to pass to the sampler."
+msgstr "Argumentos adicionales de palabras clave para pasar al muestreador."
+
+#: 81be339461e04ed0b640536b36db5f20 of
+#: pymc_marketing.model_builder.create_sample_kwargs
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 6933e5a1418d4262900fdd22eb1ee140 of
+#: pymc_marketing.model_builder.create_sample_kwargs:23
+msgid ":class:`python:dict`"
+msgstr ":class:`python:dict`"
+
+#: 834b323f0a3d498c8a0001f29db1ea58 of
+#: pymc_marketing.model_builder.create_sample_kwargs:24
+msgid "The dictionary of keyword arguments for `pm.sample`."
+msgstr "El diccionario de argumentos clave para `pm.sample`."

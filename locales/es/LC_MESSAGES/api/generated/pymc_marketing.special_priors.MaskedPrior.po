@@ -1,0 +1,229 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.special_priors.MaskedPrior.rst:2
+#: 907d80a6d7734161a64c8c7db3c45672
+msgid "MaskedPrior"
+msgstr "MaskedPrior"
+
+#: f3a1217b9f554fa9b1d0487498ee7814 of
+#: pymc_marketing.special_priors.MaskedPrior:2
+msgid ""
+"Create variables from a prior over only the active entries of a boolean "
+"mask."
+msgstr ""
+"Cree variables a partir de un anterior solo sobre las entradas activas de "
+"una máscara booleana."
+
+#: 54ef6f45acaf4ccbbc0854c849051cfd of
+#: pymc_marketing.special_priors.MaskedPrior:5
+msgid "This class is experimental and its API may change in future versions."
+msgstr ""
+"Esta clase es experimental y su API puede cambiar en versiones futuras."
+
+#: eeddc24e2853443385f36acba84f1caf of
+#: pymc_marketing.special_priors.MaskedPrior
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 9f69e2825e35452f9925e0d5978ab85f of
+#: pymc_marketing.special_priors.MaskedPrior:9
+msgid "**prior** : :obj:`Prior`"
+msgstr "**previo** : :obj:`Previo`"
+
+#: 48566aacb21b41cb82ff5b4d5a5ed419 of
+#: pymc_marketing.special_priors.MaskedPrior:8
+msgid "Prior"
+msgstr "Previo"
+
+#: a801f890b887417bb18eaf91406a3147 of
+#: pymc_marketing.special_priors.MaskedPrior:10
+msgid ""
+"Base prior whose variable is defined over `prior.dims`. Internally, the "
+"variable is created only for the active entries given by `mask` and then "
+"expanded back to the full shape with zeros at inactive positions."
+msgstr ""
+"Base previa cuya variable está definida sobre `prior.dims`. Internamente, la"
+" variable se crea solo para las entradas activas dadas por `mask` y luego se"
+" expande de nuevo a la forma completa con ceros en las posiciones inactivas."
+
+#: 5b98449e5d604c8ea244a0fcb05ab72c of
+#: pymc_marketing.special_priors.MaskedPrior:14
+msgid "**mask** : :obj:`xarray.DataArray`"
+msgstr "**máscara** : :obj:`xarray.DataArray`"
+
+#: 137d2a9ce3194753b5074101dec478d1 of
+#: pymc_marketing.special_priors.MaskedPrior:13
+msgid "xarray.DataArray"
+msgstr "xarray.DataArray"
+
+#: eb7c7a2da8794fc8bdb9daa38484bc5a of
+#: pymc_marketing.special_priors.MaskedPrior:15
+msgid ""
+"Boolean array with the same dims and shape as `prior.dims` marking active "
+"(True) and inactive (False) entries."
+msgstr ""
+"Array booleano con las mismas dimensiones y forma que `prior.dims` marcando "
+"entradas activas (True) e inactivas (False)."
+
+#: 434c362aa1f949439694f7bc59e97fb7 of
+#: pymc_marketing.special_priors.MaskedPrior:18
+msgid "**active_dim** : :class:`python:str`, optional"
+msgstr "**active_dim** : :class:`python:str`, opcional"
+
+#: 0125926dd5ff402da0669242cdcd1512 of
+#: pymc_marketing.special_priors.MaskedPrior:17
+msgid "python:str, optional"
+msgstr "python:str, opcional"
+
+#: b327199595fc4a3c805a10ae722ae463 of
+#: pymc_marketing.special_priors.MaskedPrior:19
+msgid ""
+"Name of the coordinate indexing the active subset. If not provided, a name "
+"is generated as ``\"non_null_dims:<dim1>_<dim2>_...\"``. If an existing "
+"coordinate with the same name has a different length, a suffix with the "
+"active length is appended."
+msgstr ""
+"Nombre de la coordenada que indexa el subconjunto activo. Si no se "
+"proporciona, se genera un nombre como "
+"``\"non_null_dims:<dim1>_<dim2>_...\"``. Si una coordenada existente con el "
+"mismo nombre tiene una longitud diferente, se añade un sufijo con la "
+"longitud activa."
+
+#: 340d4328fe0144879fa5f54bdc3136ec of
+#: pymc_marketing.special_priors.MaskedPrior:37
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: d25c053fe3c54432bb9a0f6e23f05251 of
+#: pymc_marketing.special_priors.MaskedPrior:38
+msgid "Simple 1D masking."
+msgstr "Enmascaramiento 1D simple."
+
+#: c83802a6aac449a29d37bb6ab8906b09 of
+#: pymc_marketing.special_priors.MaskedPrior:59
+msgid "Nested parameter priors with dims remapped to the active subset."
+msgstr ""
+"Parámetros anidados previos con dimensiones reasignadas al subconjunto "
+"activo."
+
+#: 1edb0b86b7f24f73a430e5b3e28aca75 of
+#: pymc_marketing.special_priors.MaskedPrior:85
+msgid "All entries masked (returns deterministic zeros with original dims)."
+msgstr ""
+"Todas las entradas enmascaradas (devuelve ceros deterministas con las "
+"dimensiones originales)."
+
+#: 7f7281deea314facbc97c43cb02d6167 of
+#: pymc_marketing.special_priors.MaskedPrior:106
+msgid "Apply over a saturation function priors:"
+msgstr "Aplicar sobre una función de saturación priors:"
+
+#: 0b447faa131d406f8cf4aaab339ad67e of
+#: pymc_marketing.special_priors.MaskedPrior:154
+msgid ""
+"Masked likelihood over an arbitrary subset of entries (2D example over "
+"(date, country)):"
+msgstr ""
+"Probabilidad enmascarada sobre un subconjunto arbitrario de entradas "
+"(ejemplo 2D sobre (fecha, país)):"
+
+#: ../source/api/generated/pymc_marketing.special_priors.MaskedPrior.rst:12
+#: 4e170b1c00bf48cb9c8d3ebe95f64c44
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.special_priors.MaskedPrior.rst:21:<autosummary>:1
+#: 81b9de5072d844bcbee7923254715241
+msgid ""
+":py:obj:`MaskedPrior.__init__ "
+"<pymc_marketing.special_priors.MaskedPrior.__init__>`\\ \\(prior\\, "
+"mask\\[\\, active\\_dim\\]\\)"
+msgstr ""
+":py:obj:`MaskedPrior.__init__ "
+"<pymc_marketing.special_priors.MaskedPrior.__init__>`\\ \\(prior\\, "
+"máscara\\[\\, dim\\_activa\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.special_priors.MaskedPrior.rst:21:<autosummary>:1
+#: cf8468bdec9b4dc5b1e7fefc33a4b9c6
+msgid ""
+":py:obj:`MaskedPrior.create_likelihood_variable "
+"<pymc_marketing.special_priors.MaskedPrior.create_likelihood_variable>`\\ "
+"\\(name\\, ...\\)"
+msgstr ""
+":py:obj:`MaskedPrior.create_likelihood_variable "
+"<pymc_marketing.special_priors.MaskedPrior.create_likelihood_variable>`\\ "
+"\\(nombre\\, ...\\)"
+
+#: ../source/api/generated/pymc_marketing.special_priors.MaskedPrior.rst:21:<autosummary>:1
+#: ba62f01ae5f3420bb982da2b2a18fde1
+msgid ""
+"Create an observed variable over the active subset and expand to full dims."
+msgstr ""
+"Cree una variable observada sobre el subconjunto activo y expanda a "
+"dimensiones completas."
+
+#: ../source/api/generated/pymc_marketing.special_priors.MaskedPrior.rst:21:<autosummary>:1
+#: 4f081964134c4287ac06ea869fd2f62d
+msgid ""
+":py:obj:`MaskedPrior.create_variable "
+"<pymc_marketing.special_priors.MaskedPrior.create_variable>`\\ \\(name\\)"
+msgstr ""
+":py:obj:`MaskedPrior.create_variable "
+"<pymc_marketing.special_priors.MaskedPrior.create_variable>`\\ \\(nombre\\)"
+
+#: ../source/api/generated/pymc_marketing.special_priors.MaskedPrior.rst:21:<autosummary>:1
+#: 4c5e13644f8147e7a02654fa5c95bb2b
+msgid ""
+"Create a deterministic variable with full dims using the active subset."
+msgstr ""
+"Cree una variable determinista con dimensiones completas utilizando el "
+"subconjunto activo."
+
+#: ../source/api/generated/pymc_marketing.special_priors.MaskedPrior.rst:21:<autosummary>:1
+#: 79ec8222b8f44117aeec739ce74fc3ea
+msgid ""
+":py:obj:`MaskedPrior.from_dict "
+"<pymc_marketing.special_priors.MaskedPrior.from_dict>`\\ \\(data\\)"
+msgstr ""
+":py:obj:`MaskedPrior.from_dict "
+"<pymc_marketing.special_priors.MaskedPrior.from_dict>`\\ \\(datos\\)"
+
+#: ../source/api/generated/pymc_marketing.special_priors.MaskedPrior.rst:21:<autosummary>:1
+#: 13aac2a49a5b4c9d9ab4f40fb4a505c7
+msgid "Deserialize MaskedPrior from dictionary created by ``to_dict``."
+msgstr "Deserializar MaskedPrior del diccionario creado por ``to_dict``."
+
+#: ../source/api/generated/pymc_marketing.special_priors.MaskedPrior.rst:21:<autosummary>:1
+#: 1a985832127f4923861d187f234c20b6
+msgid ""
+":py:obj:`MaskedPrior.to_dict "
+"<pymc_marketing.special_priors.MaskedPrior.to_dict>`\\ \\(\\)"
+msgstr ""
+":py:obj:`MaskedPrior.to_dict "
+"<pymc_marketing.special_priors.MaskedPrior.to_dict>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.special_priors.MaskedPrior.rst:21:<autosummary>:1
+#: 46c8bfdd05a447778adc3af6def2a6d7
+msgid "Serialize MaskedPrior to a JSON-serializable dictionary."
+msgstr ""
+"Serializar MaskedPrior a un diccionario que se puede serializar en JSON."

@@ -1,0 +1,51 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.TBFPC.to_digraph.rst:2
+#: e72ec4a616d54bd797c38e4bc791939e
+msgid "TBFPC.to\\_digraph"
+msgstr "TBFPC.to\\_digraph"
+
+#: 1260b60eb3694488a2c13ff3e9a65aa7 of
+#: pymc_marketing.mmm.causal.TBFPC.to_digraph:2
+msgid "Return the learned graph encoded in DOT format."
+msgstr "Devuelva el grafo aprendido codificado en formato DOT."
+
+#: 151ac0b9a1fe4c94ab2c5357cc90686e of
+#: pymc_marketing.mmm.causal.TBFPC.to_digraph
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: e8006cec397c46fb8241375cbcdd781f of
+#: pymc_marketing.mmm.causal.TBFPC.to_digraph:10
+msgid ":class:`python:str`"
+msgstr ":class:`python:str`"
+
+#: 50b517256fb6410886acf73f0353ce2a of
+#: pymc_marketing.mmm.causal.TBFPC.to_digraph:11
+msgid "DOT string compatible with Graphviz rendering utilities."
+msgstr "Cadena DOT compatible con utilidades de renderizado Graphviz."
+
+#: a13f13deca044560b44350aec7c2cbd9 of
+#: pymc_marketing.mmm.causal.TBFPC.to_digraph:23
+msgid "Examples"
+msgstr "Ejemplos"

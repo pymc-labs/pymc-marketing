@@ -1,0 +1,77 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.hsgp.HSGPBase.sample_prior.rst:2
+#: 9a552f8ce2584557892bd7610780933e
+msgid "HSGPBase.sample\\_prior"
+msgstr "HSGPBase.muestra\\_previa"
+
+#: 6baa2ec36fc647e8923a42ee175997ca of
+#: pymc_marketing.mmm.hsgp.HSGPBase.sample_prior:2
+msgid "Sample from the prior distribution."
+msgstr "Muestra de la distribución previa."
+
+#: 59a593cbce294b3c862ad386dcb8288a of
+#: pymc_marketing.mmm.hsgp.HSGPBase.sample_prior
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: c4a21474abf44e378adea285e591844f of
+#: pymc_marketing.mmm.hsgp.HSGPBase.sample_prior:7
+msgid "**coords** : :class:`python:dict`, optional"
+msgstr "**coords** : :class:`python:dict`, opcional"
+
+#: 3e4ee223b746426ba29d2a026423a049 of
+#: pymc_marketing.mmm.hsgp.HSGPBase.sample_prior:6
+msgid "python:dict, optional"
+msgstr "python:dict, opcional"
+
+#: b60aea0715cc456393da0a78140da6c7 of
+#: pymc_marketing.mmm.hsgp.HSGPBase.sample_prior:8
+msgid "The coordinates for the prior. By default it is None."
+msgstr "Las coordenadas para el anterior. Por defecto, es None."
+
+#: 0305503d566c4ffd87790e6f6b917044 of
+#: pymc_marketing.mmm.hsgp.HSGPBase.sample_prior:10
+msgid "**sample_prior_predictive_kwargs**"
+msgstr "**sample_prior_predictive_kwargs**"
+
+#: 5f84cf6c5a5d4a219deb0305739f5300 of
+#: pymc_marketing.mmm.hsgp.HSGPBase.sample_prior:11
+msgid "Additional keyword arguments for `pm.sample_prior_predictive`."
+msgstr ""
+"Argumentos adicionales de palabras clave para `pm.sample_prior_predictive`."
+
+#: 1d0bc1e4ebea446c9c72e485c28ad1bf of
+#: pymc_marketing.mmm.hsgp.HSGPBase.sample_prior
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: d46899505b2740818e388ca07e618746 of
+#: pymc_marketing.mmm.hsgp.HSGPBase.sample_prior:17
+msgid ":obj:`xr.Dataset`"
+msgstr ":obj:`xr.Dataset`"
+
+#: f37f30fb01b642b2a189fb604d62b8a6 of
+#: pymc_marketing.mmm.hsgp.HSGPBase.sample_prior:18
+msgid "The prior distribution."
+msgstr "La distribución previa."

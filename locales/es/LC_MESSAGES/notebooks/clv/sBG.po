@@ -1,0 +1,221 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/clv/sBG.ipynb:10002 cd95ab837f6740ae885d67089f4335ad
+msgid "Shifted Beta Geometric model with individual customer data"
+msgstr "Modelo geométrico beta desplazado con datos individuales de clientes"
+
+#: ../source/notebooks/clv/sBG.ipynb:20002 3f6d3ba810f1410e81b4ac9b30d39af7
+msgid "In this notebook we replicate the main results and figures from"
+msgstr "En este cuaderno replicamos los principales resultados y figuras de"
+
+#: ../source/notebooks/clv/sBG.ipynb:20004 e3298b13996945b3b4d3d6491012451d
+msgid ""
+"Fader, P. S., & Hardie, B. G. (2007). How to project customer retention. "
+"Journal of Interactive Marketing, 21(1), 76-90. "
+"https://journals.sagepub.com/doi/pdf/10.1002/dir.20074"
+msgstr ""
+"Fader, P. S., & Hardie, B. G. (2007). Cómo proyectar la retención de "
+"clientes. Journal of Interactive Marketing, 21(1), 76-90. "
+"https://journals.sagepub.com/doi/pdf/10.1002/dir.20074"
+
+#: ../source/notebooks/clv/sBG.ipynb:20006 7023446dfb4047f9a206151a14cb3449
+msgid ""
+"The authors describe the Shifted Beta Geometric (sBG) model for customer "
+"behavior in a discrete contractual setting. It assumes that:"
+msgstr ""
+"Los autores describen el modelo de Beta Geométrica Desplazada (sBG) para el "
+"comportamiento del cliente en un entorno contractual discreto. Se asume que:"
+
+#: ../source/notebooks/clv/sBG.ipynb:20007 236d042a05f443cd9aa30dd02cf77b85
+msgid ""
+"At the end of each period, a customer has a probability `theta` of renewing "
+"the contract and `1-theta` of cancelling"
+msgstr ""
+"Al final de cada período, un cliente tiene una probabilidad `theta` de "
+"renovar el contrato y `1-theta` de cancelarlo."
+
+#: ../source/notebooks/clv/sBG.ipynb:20009 79427e96f8e7460d90099acada61e8bf
+msgid "The probability `theta` does not change over time for a given customer"
+msgstr "La probabilidad `theta` no cambia con el tiempo para un cliente dado."
+
+#: ../source/notebooks/clv/sBG.ipynb:20010 95f584c5a58f4162b29d73f20f1f4a70
+msgid ""
+"The probability `theta` varies across customers according to a Beta prior "
+"distribution with hyperparameters `alpha` and `beta`."
+msgstr ""
+"La probabilidad `theta` varía entre los clientes de acuerdo con una "
+"distribución previa Beta con hiperparámetros `alpha` y `beta`."
+
+#: ../source/notebooks/clv/sBG.ipynb:50002 05c2de0701fc4265a7709b4845378450
+msgid "Recreating the dataset"
+msgstr "Recreando el conjunto de datos"
+
+#: ../source/notebooks/clv/sBG.ipynb:60002 a923ef794fd5460aaff14ceb5c44e541
+msgid ""
+"The dataset contains the percentage of customers still enrolled in the "
+"service after each time period. There are two distinct groups of users: "
+"regular and high-end, believed to have different attrition rates. Each group"
+" had 1000 customers at the start."
+msgstr ""
+"El conjunto de datos contiene el porcentaje de clientes que aún están "
+"inscritos en el servicio después de cada período de tiempo. Hay dos grupos "
+"distintos de usuarios: regular y de alta gama, que se cree que tienen "
+"diferentes tasas de deserción. Cada grupo tenía 1000 clientes al inicio."
+
+#: ../source/notebooks/clv/sBG.ipynb:60004 d922a417c9e84a45aaa47f4683ccfc8a
+msgid ""
+"As in the original paper, we will fit the data from the first 7 time periods"
+" only, and use the following periods for validation."
+msgstr ""
+"Como en el documento original, ajustaremos los datos solo de los primeros 7 "
+"períodos de tiempo y utilizaremos los siguientes períodos para la "
+"validación."
+
+#: ../source/notebooks/clv/sBG.ipynb:80002 3ac63a36fbf541b8997056ce96084dbb
+msgid ""
+"The implemented pymc-marketing model fits each individual `theta`,  in "
+"contrast to the paper approach where the inidividual parameters are "
+"marginalized out."
+msgstr ""
+"El modelo pymc-marketing implementado ajusta cada `theta` individual, en "
+"contraste con el enfoque del artículo donde los parámetros individuales se "
+"marginalizan."
+
+#: ../source/notebooks/clv/sBG.ipynb:80005 012fabccabd24f6e926b8929270a5589
+msgid ""
+"For our analysis we wil have to create a synthetic dataset with individual "
+"data, following the aggregate group trends."
+msgstr ""
+"Para nuestro análisis, tendremos que crear un conjunto de datos sintético "
+"con datos individuales, siguiendo las tendencias del grupo agregado."
+
+#: ../source/notebooks/clv/sBG.ipynb:110002 8a499d0457cc40f18196a0884b421f1f
+msgid ""
+"Customers which haven't churned have `t_churn == T == 8`.  The model will "
+"handle these differently, as their lifetimes are "
+"[censored](https://en.wikipedia.org/wiki/Censoring_(statistics))."
+msgstr ""
+"Los clientes que no han abandonado tienen `t_churn == T == 8`. El modelo "
+"manejará estos casos de manera diferente, ya que sus vidas útiles están "
+"[censuradas](https://en.wikipedia.org/wiki/Censoring_(statistics))."
+
+#: ../source/notebooks/clv/sBG.ipynb:120002 82d6ad26f23147289aec59a3f6b83157
+msgid "Fitting the sBG models for high end and regular users"
+msgstr ""
+"Ajustando los modelos sBG para usuarios de alta gama y usuarios regulares"
+
+#: ../source/notebooks/clv/sBG.ipynb:180002 97d7a635edbe4fa5a534dce6b07d78f6
+msgid "Contrasting posterior inferences with the repo MLE estimates"
+msgstr ""
+"Contrastando las inferencias posteriores con las estimaciones MLE del "
+"repositorio"
+
+#: ../source/notebooks/clv/sBG.ipynb:190002 96deb5357e1a4c2fa7bb6b4277370969
+msgid ""
+"The sBG model has 2 population parameters of interest: `alpha` and `beta`.  "
+"These parameters define the population distribution of the individual "
+"customer's churn rates `theta`.  The larger the values of `alpha` and `beta`"
+" the more homogenous the churn rates are across different customers."
+msgstr ""
+"El modelo sBG tiene 2 parámetros poblacionales de interés: `alpha` y `beta`."
+" Estos parámetros definen la distribución poblacional de las tasas de "
+"abandono individuales de los clientes `theta`. Cuanto mayores sean los "
+"valores de `alpha` y `beta`, más homogéneas serán las tasas de abandono "
+"entre diferentes clientes."
+
+#: ../source/notebooks/clv/sBG.ipynb:190006 44265a2784ac42c790c22906ec94e1dd
+msgid ""
+"The ratio of `alpha` to `beta` tells us the expected churn rates. If "
+"`alpha/beta == 0.1`, we expect the average customer to have a `0.1` "
+"probability of churning between each time period."
+msgstr ""
+"La relación de `alpha` a `beta` nos indica las tasas de cancelación "
+"esperadas. Si `alpha/beta == 0.1`, esperamos que el cliente promedio tenga "
+"una probabilidad de `0.1` de cancelar entre cada período de tiempo."
+
+#: ../source/notebooks/clv/sBG.ipynb:250002 b8e33d3632544284bb8ad0daa90ee834
+msgid ""
+"The model fitting agrees with the Maximum Likelihood estimates described in "
+"the original paper. In addition, MCMC sampling, gives us useful information "
+"about the uncertainty of the fits."
+msgstr ""
+"El ajuste del modelo concuerda con las estimaciones de Máxima Verosimilitud "
+"descritas en el artículo original. Además, el muestreo MCMC nos proporciona "
+"información útil sobre la incertidumbre de los ajustes."
+
+#: ../source/notebooks/clv/sBG.ipynb:260002 3a8a6d76a8494a1d8dfc605a1fd97abd
+msgid "Recreating main results and figures from the paper"
+msgstr "Recreando los resultados y figuras principales del artículo"
+
+#: ../source/notebooks/clv/sBG.ipynb:270002 1a010f77e6454496a730747beef259eb
+msgid ""
+"Figure 6 from the paper shows the group distribution of `theta` churn rates."
+msgstr ""
+"La Figura 6 del documento muestra la distribución grupal de las tasas de "
+"abandono de `theta`."
+
+#: ../source/notebooks/clv/sBG.ipynb:270004 2e7f55fe15034d678b2b06891c8399b8
+msgid ""
+"The inferred distributions are relatively wide in both groups, which follows"
+" directly from the fact that both `alpha` and `beta` were inferred to be < "
+"10."
+msgstr ""
+"Las distribuciones inferidas son relativamente amplias en ambos grupos, lo "
+"que sigue directamente del hecho de que tanto `alpha` como `beta` se "
+"inferieron como < 10."
+
+#: ../source/notebooks/clv/sBG.ipynb:270006 5b98a8df5a1f4f4abb574a25d012aa4c
+msgid ""
+"It is still clear that the distribution of `theta` for the highend users has"
+" much more mass near lower values, suggesting highend users have lower "
+"attrition rates on average, when compared with regular users."
+msgstr ""
+"Aún está claro que la distribución de `theta` para los usuarios de alto "
+"nivel tiene mucha más masa cerca de valores bajos, lo que sugiere que los "
+"usuarios de alto nivel tienen tasas de deserción más bajas en promedio, en "
+"comparación con los usuarios regulares."
+
+#: ../source/notebooks/clv/sBG.ipynb:300002 0d4a307fa8434047b7db215d479e03d2
+msgid ""
+"Figures 4 and 5 show the predicted average churn and retention trends for "
+"the two groups. We can see that predictions nicely match the observed data "
+"(black line), even when extrapolating into the time periods that were held-"
+"out when fitting the model."
+msgstr ""
+"Las Figuras 4 y 5 muestran las tendencias promedio de abandono y retención "
+"predichas para los dos grupos. Podemos observar que las predicciones "
+"coinciden perfectamente con los datos observados (línea negra), incluso al "
+"extrapolar en los períodos de tiempo que se excluyeron al ajustar el modelo."
+
+#: ../source/notebooks/clv/sBG.ipynb:300005 97e42e2d795545708d7c63214b609aba
+msgid ""
+"The plots also highlight an interesting implication from the model:  the "
+"retention rates are expected to increase over time, as the more precarious "
+"customers gradually drop out. This is a direct consequence of modelling "
+"individual churn rates as being fixed over time."
+msgstr ""
+"Los gráficos también destacan una implicación interesante del modelo: se "
+"espera que las tasas de retención aumenten con el tiempo, a medida que los "
+"clientes más precarios vayan abandonando gradualmente. Esta es una "
+"consecuencia directa de modelar las tasas de abandono individuales como "
+"fijas a lo largo del tiempo."

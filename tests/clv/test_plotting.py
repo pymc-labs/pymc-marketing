@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -205,7 +205,7 @@ def test_plot_expected_purchases_over_time_exceptions(mock_model, cdnow_trans):
 
 def test_plot_expected_purchases_ppc_exceptions(fitted_model):
     with pytest.raises(
-        NameError, match="Specify 'prior' or 'posterior' for 'ppc' parameter."
+        NameError, match=r"Specify 'prior' or 'posterior' for 'ppc' parameter."
     ):
         plot_expected_purchases_ppc(fitted_model, ppc="ppc")
 

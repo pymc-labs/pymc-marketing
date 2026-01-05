@@ -1,0 +1,165 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.customer_choice.mv_its.MVITS.sample.rst:2
+#: 724724391c4f47af9181a9d89193af70
+msgid "MVITS.sample"
+msgstr "MVITS.muestra"
+
+#: 49ec32da3bb946d7b0b9c991cbc110b2 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.sample:2
+msgid "Sample all the things."
+msgstr "Muestrea todas las cosas."
+
+#: c575619e64204f21aa5ea86007ec66ad of
+#: pymc_marketing.customer_choice.mv_its.MVITS.sample:4
+msgid "Run all of the sample methods in the sequence:"
+msgstr "Ejecute todos los métodos de muestra en la secuencia:"
+
+#: 476d1fa32b174ab0b22290e31413f65f of
+#: pymc_marketing.customer_choice.mv_its.MVITS.sample:6
+msgid ":meth:`sample_prior_predictive`"
+msgstr ":meth:`sample_prior_predictive`"
+
+#: f9922f3201fa42e1b0bd683188f07402 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.sample:7
+msgid ":meth:`fit`"
+msgstr ":meth:`fit`"
+
+#: 8688fd7d24f5412b97a882ca5d015543 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.sample:8
+msgid ":meth:`sample_posterior_predictive`"
+msgstr ":meth:`sample_posterior_predictive`"
+
+#: 78428b0edb334e01be418144f09d979d of
+#: pymc_marketing.customer_choice.mv_its.MVITS.sample:9
+msgid ":meth:`calculate_counterfactual`"
+msgstr ":meth:`calcular_contraparte`"
+
+#: 6ca5d841077f4d78b21d79bc24059226 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.sample
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: fb0145419b76497e8b738d20e9b467ce of
+#: pymc_marketing.customer_choice.mv_its.MVITS.sample:13
+msgid "**X** : :obj:`pd.DataFrame`"
+msgstr "**X** : :obj:`pd.DataFrame`"
+
+#: b1c75af993754b51aaebe6561c35e7aa of
+#: pymc_marketing.customer_choice.mv_its.MVITS.sample:12
+msgid "pd.DataFrame"
+msgstr "pd.DataFrame"
+
+#: 15d361d871ae477d9ebf7fde579add36 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.sample:14
+msgid "The data for the existing products."
+msgstr "Los datos de los productos existentes."
+
+#: c26349007ad84133b5a5bf8a3c9582dd of
+#: pymc_marketing.customer_choice.mv_its.MVITS.sample:16
+msgid "**y** : :obj:`np.ndarray <numpy.ndarray>` | :obj:`pd.Series`"
+msgstr "**y** : :obj:`np.ndarray <numpy.ndarray>` | :obj:`pd.Series`"
+
+#: 581de329b1a14f80966d8bc312400584 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.sample:15
+msgid "np.ndarray | pd.Series"
+msgstr "np.ndarray | pd.Series"
+
+#: 83b63d3b5282449aabacda7e65f8df2e of
+#: pymc_marketing.customer_choice.mv_its.MVITS.sample:17
+msgid "The data for the new product."
+msgstr "Los datos del nuevo producto."
+
+#: d5c78fc3fc964207a6862b83cdd45375 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.sample:19
+msgid ""
+"**random_seed** : :obj:`np.random.Generator` | :class:`python:int`, optional"
+msgstr ""
+"**random_seed** : :obj:`np.random.Generator` | :class:`python:int`, opcional"
+
+#: 34d2af91faf5453ea1e95be048e36496 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.sample:18
+msgid "np.random.Generator | python:int, optional"
+msgstr "np.random.Generator | python:int, opcional"
+
+#: 7e921efd36c84737b7132f0d975f11a5 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.sample:20
+msgid "The random seed for each stage of sampling."
+msgstr "La semilla aleatoria para cada etapa de muestreo."
+
+#: 67a7d468637944e8980fdacb863564cb of
+#: pymc_marketing.customer_choice.mv_its.MVITS.sample:22
+msgid "**sample_prior_predictive_kwargs** : :class:`python:dict`, optional"
+msgstr "**sample_prior_predictive_kwargs** : :class:`python:dict`, opcional"
+
+#: 601661beac4d4d67835e632f01440e77 d154c1f5ab414c788dc37c9dabb0cefc
+#: f71267154f6547f385d03b0adef4fab3 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.sample:21
+#: pymc_marketing.customer_choice.mv_its.MVITS.sample:24
+#: pymc_marketing.customer_choice.mv_its.MVITS.sample:27
+msgid "python:dict, optional"
+msgstr "python:dict, opcional"
+
+#: 137db2eef0aa431eb962528ced255cea of
+#: pymc_marketing.customer_choice.mv_its.MVITS.sample:23
+msgid "The keyword arguments for the sample_prior_predictive method."
+msgstr ""
+"Los argumentos de palabra clave para el método sample_prior_predictive."
+
+#: 593b4a7bc7934dbb8a71987840260bad of
+#: pymc_marketing.customer_choice.mv_its.MVITS.sample:25
+msgid "**fit_kwargs** : :class:`python:dict`, optional"
+msgstr "**fit_kwargs** : :class:`python:dict`, opcional"
+
+#: cd4f13c198df4e7caf7c33f0934850a4 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.sample:26
+msgid "The keyword arguments for the fit method."
+msgstr "Los argumentos de palabra clave para el método fit."
+
+#: a44a6b2dae534cb7842dbf9e2ca3f613 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.sample:28
+msgid ""
+"**sample_posterior_predictive_kwargs** : :class:`python:dict`, optional"
+msgstr ""
+"**sample_posterior_predictive_kwargs** : :class:`python:dict`, opcional"
+
+#: 1d8889debe49453b8051f933c5c7e212 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.sample:29
+msgid "The keyword arguments for the sample_posterior_predictive method."
+msgstr ""
+"Los argumentos de palabra clave para el método sample_posterior_predictive."
+
+#: f049fae0f7614a519c9d1ddf68515c20 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.sample
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: b4346826bfdc41e9b2268cfe4ed21db1 of
+#: pymc_marketing.customer_choice.mv_its.MVITS.sample:35
+msgid ":obj:`Self`"
+msgstr ":obj:`Self`"
+
+#: 248a44475cb34a3faa6ee1c61ba29c6b of
+#: pymc_marketing.customer_choice.mv_its.MVITS.sample:36
+msgid "The model instance."
+msgstr "La instancia del modelo."

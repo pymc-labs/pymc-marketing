@@ -1,0 +1,197 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.utility.mean_tightness_score.rst:2
+#: d9f70055970e4f41b6d1b2a14786e2c1
+msgid "mean\\_tightness\\_score"
+msgstr "puntuación\\_de\\_apretamiento\\_promedio"
+
+#: bf90ac48c0ab4021bd856f7436371946 of
+#: pymc_marketing.mmm.utility.mean_tightness_score:2
+msgid "Calculate the Mean Tightness Score (MTS)."
+msgstr "Calcule el Puntaje Medio de Ajuste (MTS)."
+
+#: 2504e4025ec8482b9d6ed73604a11639 of
+#: pymc_marketing.mmm.utility.mean_tightness_score:4
+msgid ""
+"MTS balances the posterior mean against a symmetric, quantile-based tail "
+"spread and returns a dimensionless, normalized score:"
+msgstr ""
+"MTS equilibra la media posterior contra un rango de cola simétrico basado en"
+" cuantiles y devuelve una puntuación normalizada adimensional:"
+
+#: ef5efed1b38e4729a1ecf278ccf50dd7 of
+#: pymc_marketing.mmm.utility.mean_tightness_score:7
+#, python-brace-format
+msgid ""
+"\\mathrm{MTS}(X; \\alpha, p) = 1 - \\alpha \\frac{T_p(X)}{\\mu}\n"
+"\n"
+msgstr "\\mathrm{MTS}(X; \\alpha, p) = 1 - \\alpha \\frac{T_p(X)}{\\mu}"
+
+#: 121674abce594e64a852d1cafd94fec8 of
+#: pymc_marketing.mmm.utility.mean_tightness_score:10
+msgid "where:"
+msgstr "donde:"
+
+#: c893b60bda49406398368cfe5dc8dc6f of
+#: pymc_marketing.mmm.utility.mean_tightness_score:11
+msgid ":math:`\\mu` is the posterior mean of the samples."
+msgstr ":math:`\\mu` es la media posterior de las muestras."
+
+#: 4a66e7dbc52b4f4a85b4f8010a17960c of
+#: pymc_marketing.mmm.utility.mean_tightness_score:12
+#, python-brace-format
+msgid ""
+":math:`T_p(X) = |Q_p - \\mu| + |\\mu - Q_{1-p}|` is a symmetric tail "
+"distance."
+msgstr ""
+":math:`T_p(X) = |Q_p - \\mu| + |\\mu - Q_{1-p}|` es una distancia de cola "
+"simétrica."
+
+#: 691288ea59af45ca9f48630cda2b874b of
+#: pymc_marketing.mmm.utility.mean_tightness_score:14
+msgid ""
+"Larger :math:`T_p` indicates a more dispersed posterior and thus a lower "
+"score."
+msgstr ""
+"Un mayor :math:`T_p` indica una posterior más dispersa y, por lo tanto, una "
+"puntuación más baja."
+
+#: 85c4c815ae0f4d75bbef411a304fd3d6 of
+#: pymc_marketing.mmm.utility.mean_tightness_score:16
+msgid "This formulation makes the following properties explicit:"
+msgstr "Esta formulación hace explícitas las siguientes propiedades:"
+
+#: ef067ebc300e44b498ba72ea5c56c19a of
+#: pymc_marketing.mmm.utility.mean_tightness_score:17
+msgid ""
+":math:`\\alpha` controls risk aversion: increasing :math:`\\alpha` increases"
+" the penalty on dispersion, so the score decreases for more spread "
+"posteriors (all else equal)."
+msgstr ""
+":math:`\\alpha` controla la aversión al riesgo: aumentar :math:`\\alpha` "
+"incrementa la penalización por dispersión, por lo que la puntuación "
+"disminuye para posteriors más dispersos (todo lo demás igual)."
+
+#: 84ee80c552bc41a9a5e5fd8043252311 of
+#: pymc_marketing.mmm.utility.mean_tightness_score:19
+msgid ""
+"With :math:`\\alpha = 0`, the score is identically 1 for any samples (no "
+"preference signal)."
+msgstr ""
+"Con :math:`\\alpha = 0`, la puntuación es idénticamente 1 para cualquier "
+"muestra (sin señal de preferencia)."
+
+#: ae6efc6b4ff64967842afaa281e996b1 of
+#: pymc_marketing.mmm.utility.mean_tightness_score:20
+msgid ""
+"For fixed :math:`X` and :math:`p`, the score is linear and non-increasing in"
+" :math:`\\alpha`."
+msgstr ""
+"Para un :math:`X` y :math:`p` fijos, la puntuación es lineal y no creciente "
+"en :math:`\\alpha`."
+
+#: bea356792f9c459cb8b1354788f21dd8 of
+#: pymc_marketing.mmm.utility.mean_tightness_score:21
+#, python-brace-format
+msgid ""
+"For fixed :math:`X` and :math:`\\alpha`, the score is non-increasing in "
+":math:`p` (since :math:`Q_p - Q_{1-p}` widens as :math:`p` moves away from "
+"0.5)."
+msgstr ""
+"Para un :math:`X` y un :math:`\\alpha` fijos, la puntuación no aumenta en "
+":math:`p` (ya que :math:`Q_p - Q_{1-p}` se amplía a medida que :math:`p` se "
+"aleja de 0.5)."
+
+#: c29cc5768d8042dd97ab42e8faed7c38 of
+#: pymc_marketing.mmm.utility.mean_tightness_score
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 76cc8bcd218a4e5883f94aea03a537e3 of
+#: pymc_marketing.mmm.utility.mean_tightness_score:26
+msgid "**alpha** : :class:`python:float`, optional"
+msgstr "**alpha** : :class:`python:float`, opcional"
+
+#: a14d40ec29774c1a982257d2770431ab c1156abcb21d44ab8eeeb63c40feb321 of
+#: pymc_marketing.mmm.utility.mean_tightness_score:25
+#: pymc_marketing.mmm.utility.mean_tightness_score:28
+msgid "python:float, optional"
+msgstr "python:float, opcional"
+
+#: b1eb47862d0249fea0a5dc38ccef250f of
+#: pymc_marketing.mmm.utility.mean_tightness_score:27
+msgid ""
+"Risk-aversion weight. Larger values increase the penalty from tail spread "
+"(default 0.5)."
+msgstr ""
+"Peso de aversión al riesgo. Valores más grandes aumentan la penalización por"
+" la dispersión de colas (valor predeterminado 0.5)."
+
+#: ef42a8bf80c44dbda3956460ac737344 of
+#: pymc_marketing.mmm.utility.mean_tightness_score:29
+msgid "**confidence_level** : :class:`python:float`, optional"
+msgstr "**nivel_de_confianza** : :class:`python:float`, opcional"
+
+#: fd330b64ca124f959c7be89fce7fc31d of
+#: pymc_marketing.mmm.utility.mean_tightness_score:30
+msgid ""
+"Quantile probability :math:`p \\in (0, 1)` used to compute :math:`T_p`. "
+"Typical choices are :math:`p \\in [0.6, 0.9]` (default 0.75)."
+msgstr ""
+"Probabilidad cuántica :math:`p \\in (0, 1)` utilizada para calcular "
+":math:`T_p`. Las elecciones típicas son :math:`p \\in [0.6, 0.9]` "
+"(predeterminado 0.75)."
+
+#: 47e75019537a4f7f87b52bce08cedd2e of
+#: pymc_marketing.mmm.utility.mean_tightness_score
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 9e595b7b362f4899ad2da58a492a706c of
+#: pymc_marketing.mmm.utility.mean_tightness_score:37
+msgid ":obj:`UtilityFunctionType`"
+msgstr ":obj:`UtilityFunctionType`"
+
+#: 7f3a454362b74a3487148dbb1e2ffc45 of
+#: pymc_marketing.mmm.utility.mean_tightness_score:38
+msgid ""
+"A function that calculates the normalized mean tightness score given samples"
+" and budgets."
+msgstr ""
+"Una función que calcula la puntuación de ajuste media normalizada dada "
+"muestras y presupuestos."
+
+#: 60ab29059da7463baf275cbeb55bfad6 of
+#: pymc_marketing.mmm.utility.mean_tightness_score
+msgid "Raises"
+msgstr "Aumentos"
+
+#: cf822a1adb2e4490aa05371fa7a95434 of
+#: pymc_marketing.mmm.utility.mean_tightness_score:45
+msgid ":obj:`ValueError`"
+msgstr ":obj:`ValueError`"
+
+#: 603dc63d405b4f009e11b9bd1c42084b of
+#: pymc_marketing.mmm.utility.mean_tightness_score:46
+msgid "If ``confidence_level`` is not between 0 and 1."
+msgstr "Si ``confidence_level`` no está entre 0 y 1."

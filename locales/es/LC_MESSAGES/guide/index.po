@@ -1,0 +1,51 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/guide/index.md:6
+msgid "Benefits of PyMC-Marketing"
+msgstr "Beneficios de PyMC-Marketing"
+
+#: ../source/guide/index.md:16
+msgid "Media Mix Models"
+msgstr "Modelos de Mezcla de Medios"
+
+#: ../source/guide/index.md:25
+msgid "Customer Lifetime Value"
+msgstr "Valor del Cliente a lo Largo de la Vida"
+
+#: ../source/guide/index.md:32
+msgid "Customer Choice"
+msgstr "Elección del Cliente"
+
+#: ../source/guide/index.md:1 6769ce1e14324f298ed06280917ba09f
+msgid "Guide"
+msgstr "Guía"
+
+#: ../source/guide/index.md:3 67551b683fe14ef782a8ac640eee7d6f
+msgid ""
+"Are you looking for introductory material on Marketing Mix Models or "
+"Customer Lifetime Value? This section provides a guide to the concepts and "
+"techniques used in PyMC-Marketing."
+msgstr ""
+"¿Estás buscando material introductorio sobre Modelos de Mezcla de Marketing "
+"o Valor de Vida del Cliente? Esta sección proporciona una guía sobre los "
+"conceptos y técnicas utilizados en PyMC-Marketing."

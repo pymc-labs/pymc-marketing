@@ -1,0 +1,161 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.synthetic_data.generate_unsaturated_data.rst:2
+#: e80fd9577a88438487448466ca1c5100
+msgid "generate\\_unsaturated\\_data"
+msgstr "generar\\_datos\\_no\\_saturados"
+
+#: c9572b6409184bfdbb0115bf40a01edd of
+#: pymc_marketing.customer_choice.synthetic_data.generate_unsaturated_data:2
+msgid "Generate synthetic data for the MVITS model."
+msgstr "Generar datos sintéticos para el modelo MVITS."
+
+#: 48133a2f23c648d1a33a6d2cf04a927c of
+#: pymc_marketing.customer_choice.synthetic_data.generate_unsaturated_data:4
+msgid ""
+"Notably, we can define different total sales levels before and after the "
+"introduction of the new model."
+msgstr ""
+"Notablemente, podemos definir diferentes niveles de ventas totales antes y "
+"después de la introducción del nuevo modelo."
+
+#: d62a9783e2094369a63b14c500bf5c87 of
+#: pymc_marketing.customer_choice.synthetic_data.generate_unsaturated_data:7
+msgid ""
+"This function generates synthetic data for the MVITS model, assuming that "
+"the market is unsaturated meaning that there are new sales to be made."
+msgstr ""
+"Esta función genera datos sintéticos para el modelo MVITS, asumiendo que el "
+"mercado está no saturado, lo que significa que hay nuevas ventas por "
+"realizar."
+
+#: 026cae56fee84561ad59f7c64d50b612 of
+#: pymc_marketing.customer_choice.synthetic_data.generate_unsaturated_data:10
+msgid ""
+"This makes the assumption that the total sales are normally distributed "
+"around some average level of sales, and that the market shares are constant "
+"over time."
+msgstr ""
+"Esto supone que las ventas totales están distribuidas normalmente alrededor "
+"de algún nivel promedio de ventas y que las cuotas de mercado son constantes"
+" a lo largo del tiempo."
+
+#: 61644e6b6cbc46449550e3e2c4229ffa of
+#: pymc_marketing.customer_choice.synthetic_data.generate_unsaturated_data
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: b40fcd3748774b16835e950644f4c7bc of
+#: pymc_marketing.customer_choice.synthetic_data.generate_unsaturated_data:15
+msgid "**total_sales_mu: int**"
+msgstr "**total_ventas_mu: int**"
+
+#: 0e8a0be33abd468a99712a1e98d149f7 of
+#: pymc_marketing.customer_choice.synthetic_data.generate_unsaturated_data:16
+msgid "The average level of sales in the market."
+msgstr "El nivel promedio de ventas en el mercado."
+
+#: 1fa035ca7cdb422ba790ed0518bb87f7 of
+#: pymc_marketing.customer_choice.synthetic_data.generate_unsaturated_data:18
+msgid "**total_sales_sigma: float**"
+msgstr "**total_ventas_sigma: float**"
+
+#: d2b645827e474b8197d3303adc16b9a3 of
+#: pymc_marketing.customer_choice.synthetic_data.generate_unsaturated_data:19
+msgid "The standard deviation of sales in the market."
+msgstr "La desviación estándar de las ventas en el mercado."
+
+#: 92986f2496c743e9834380a230052540 of
+#: pymc_marketing.customer_choice.synthetic_data.generate_unsaturated_data:21
+msgid "**treatment_time: int**"
+msgstr "**tiempo_de_tratamiento: int**"
+
+#: 80c7b0ffe0a1496382c755e0fb05d8e2 of
+#: pymc_marketing.customer_choice.synthetic_data.generate_unsaturated_data:22
+msgid "The time at which the new model is introduced."
+msgstr "El momento en el que se introduce el nuevo modelo."
+
+#: 984112c224e04505a1e502d39a096156 of
+#: pymc_marketing.customer_choice.synthetic_data.generate_unsaturated_data:24
+msgid "**n_observations: int**"
+msgstr "**n_observaciones: int**"
+
+#: 4fd03e2d6b56472b865fab2693213901 of
+#: pymc_marketing.customer_choice.synthetic_data.generate_unsaturated_data:25
+msgid "The number of observations to generate."
+msgstr "El número de observaciones a generar."
+
+#: 89850ed19a9b4d64964c3b4b4147c483 of
+#: pymc_marketing.customer_choice.synthetic_data.generate_unsaturated_data:27
+msgid "**market_shares_before: list[float]**"
+msgstr "**participaciones_de_mercado_antes: lista[float]**"
+
+#: 37ddc7264848416ebea4b4423b903a7b of
+#: pymc_marketing.customer_choice.synthetic_data.generate_unsaturated_data:28
+msgid "The market shares before the introduction of the new model."
+msgstr "Las cuotas de mercado antes de la introducción del nuevo modelo."
+
+#: 9fc0d6556978416bba05b25a1a61f95b of
+#: pymc_marketing.customer_choice.synthetic_data.generate_unsaturated_data:30
+msgid "**market_shares_after: list[float]**"
+msgstr "**participaciones_de_mercado_despues: lista[float]**"
+
+#: 15ca53082db64ccbb2251af89879a234 of
+#: pymc_marketing.customer_choice.synthetic_data.generate_unsaturated_data:31
+msgid "The market shares after the introduction of the new model."
+msgstr "Las cuotas de mercado tras la introducción del nuevo modelo."
+
+#: 5c98accc87944c2eac638868ffced608 of
+#: pymc_marketing.customer_choice.synthetic_data.generate_unsaturated_data:33
+msgid "**market_share_labels: list[str]**"
+msgstr "**etiquetas_de_cuota_de_mercado: lista[str]**"
+
+#: 7bb095ff1a3a4ebd898ef951beca6922 of
+#: pymc_marketing.customer_choice.synthetic_data.generate_unsaturated_data:34
+msgid "The labels for the market shares."
+msgstr "Las etiquetas para las cuotas de mercado."
+
+#: 690df50e6c214cd6916e27063cbcd47d of
+#: pymc_marketing.customer_choice.synthetic_data.generate_unsaturated_data:36
+msgid "**random_seed: np.random.Generator | int, optional**"
+msgstr "**semilla_aleatoria: np.random.Generator | int, opcional**"
+
+#: 1053487eb59545c883b7ff8b9665ef88 of
+#: pymc_marketing.customer_choice.synthetic_data.generate_unsaturated_data:37
+msgid "The random number generator to use."
+msgstr "El generador de números aleatorios a utilizar."
+
+#: ca06a7f7531d4e9a8d7756fe6e25f77b of
+#: pymc_marketing.customer_choice.synthetic_data.generate_unsaturated_data
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: e056b6d0f0964bc4a84a3f712386a783 of
+#: pymc_marketing.customer_choice.synthetic_data.generate_unsaturated_data:43
+msgid "data: :obj:`pd.DataFrame`"
+msgstr "data: :obj:`pd.DataFrame`"
+
+#: 4a34c89dc2b84944a8084563460666b9 of
+#: pymc_marketing.customer_choice.synthetic_data.generate_unsaturated_data:44
+msgid "The synthetic data generated."
+msgstr "Los datos sintéticos generados."

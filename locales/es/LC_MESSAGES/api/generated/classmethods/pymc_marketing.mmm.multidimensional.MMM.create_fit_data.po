@@ -1,0 +1,189 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.multidimensional.MMM.create_fit_data.rst:2
+#: 7f911c72a50e4d37b8c232be3af86774
+msgid "MMM.create\\_fit\\_data"
+msgstr "MMM.create\\_fit\\_data"
+
+#: 68fdbcff916546f7af0e01d5eb665b14 of
+#: pymc_marketing.mmm.multidimensional.MMM.create_fit_data:2
+msgid "Create a fit dataset aligned on date and present dimensions."
+msgstr ""
+"Cree un conjunto de datos adecuado alineado en dimensiones de fecha y "
+"presentación."
+
+#: 3f0bcb1d307c47ff8c8404f071e719ca of
+#: pymc_marketing.mmm.multidimensional.MMM.create_fit_data:4
+msgid "Builds and returns an xarray ``Dataset`` that contains:"
+msgstr "Construye y devuelve un ``Dataset`` de xarray que contiene:"
+
+#: 0bb8ed16a7c5405aa142640c1029dc81 of
+#: pymc_marketing.mmm.multidimensional.MMM.create_fit_data:6
+msgid "data variables from ``X`` (all non-coordinate columns),"
+msgstr "variables de datos de ``X`` (todas las columnas no de coordenadas),"
+
+#: c522a13cf2bd454f95b5f587bb85a0f0 of
+#: pymc_marketing.mmm.multidimensional.MMM.create_fit_data:7
+msgid "the target variable from ``y`` under ``self.output_var``, and"
+msgstr "la variable objetivo de ``y`` bajo ``self.output_var``, y"
+
+#: 80b5ac4d024f49f4b9a78b7a89dca05c of
+#: pymc_marketing.mmm.multidimensional.MMM.create_fit_data:8
+msgid "coordinates on ``(self.date_column, *dims present in X)``."
+msgstr "coordenadas en ``(self.date_column, *dims presentes en X)``."
+
+#: 57355a7c6074471297470c49d94942af of
+#: pymc_marketing.mmm.multidimensional.MMM.create_fit_data
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: e01c3b58a5c949539b066352e4c00813 of
+#: pymc_marketing.mmm.multidimensional.MMM.create_fit_data:12
+msgid "**X** : :obj:`pd.DataFrame` | :obj:`xr.Dataset` | :obj:`xr.DataArray`"
+msgstr "**X** : :obj:`pd.DataFrame` | :obj:`xr.Dataset` | :obj:`xr.DataArray`"
+
+#: aa7661555e4445498df48e5f3d2f6dcd of
+#: pymc_marketing.mmm.multidimensional.MMM.create_fit_data:11
+msgid "pd.DataFrame | xr.Dataset | xr.DataArray"
+msgstr "pd.DataFrame | xr.Dataset | xr.DataArray"
+
+#: 71c8c24f2fb6482c9dffbce0377186a7 of
+#: pymc_marketing.mmm.multidimensional.MMM.create_fit_data:13
+msgid ""
+"Feature data. If an xarray object is provided, it is converted to a "
+"DataFrame via ``to_dataframe().reset_index()`` before processing."
+msgstr ""
+"Datos de la función. Si se proporciona un objeto xarray, se convierte en un "
+"DataFrame a través de ``to_dataframe().reset_index()`` antes del "
+"procesamiento."
+
+#: eae332feef084198be7aa567c0a122da of
+#: pymc_marketing.mmm.multidimensional.MMM.create_fit_data:16
+msgid ""
+"**y** : :obj:`np.ndarray <numpy.ndarray>` | :obj:`pd.Series` | "
+":obj:`xr.DataArray`"
+msgstr ""
+"**y** : :obj:`np.ndarray <numpy.ndarray>` | :obj:`pd.Series` | "
+":obj:`xr.DataArray`"
+
+#: edde292674fb4dd8922308498e4f944a of
+#: pymc_marketing.mmm.multidimensional.MMM.create_fit_data:15
+msgid "np.ndarray | pd.Series | xr.DataArray"
+msgstr "np.ndarray | pd.Series | xr.DataArray"
+
+#: 7ab8e51f3f714866b4db3b974e674aae of
+#: pymc_marketing.mmm.multidimensional.MMM.create_fit_data:17
+msgid ""
+"Target values. Must align with ``X`` either by position (same length) or via"
+" a MultiIndex that includes ``(self.date_column, *dims present in X)``."
+msgstr ""
+"Valores objetivo. Deben alinearse con ``X`` ya sea por posición (mismo "
+"tamaño) o a través de un MultiIndex que incluya ``(self.date_column, *dims "
+"presentes en X)``."
+
+#: 93e140a77eb6434990e807dcf44e736d of
+#: pymc_marketing.mmm.multidimensional.MMM.create_fit_data
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: c18122db11da49adbff0643447bc7656 of
+#: pymc_marketing.mmm.multidimensional.MMM.create_fit_data:24
+msgid ":obj:`xr.Dataset`"
+msgstr ":obj:`xr.Dataset`"
+
+#: 6e4da2a7eb6a444491591dcf890c8a68 of
+#: pymc_marketing.mmm.multidimensional.MMM.create_fit_data:25
+msgid ""
+"Dataset indexed by ``(self.date_column, *dims present in X)`` with the "
+"feature variables and a target variable named ``self.output_var``."
+msgstr ""
+"Conjunto de datos indexado por ``(self.date_column, *dims presentes en X)`` "
+"con las variables de características y una variable objetivo llamada "
+"``self.output_var``."
+
+#: 2d218c603dd247d886df9a95ab6fbeef of
+#: pymc_marketing.mmm.multidimensional.MMM.create_fit_data
+msgid "Raises"
+msgstr "Aumentos"
+
+#: be742fd0c8854c1290976074a499bd79 of
+#: pymc_marketing.mmm.multidimensional.MMM.create_fit_data:33
+msgid ":obj:`ValueError`"
+msgstr ":obj:`ValueError`"
+
+#: 1f57ab3e3fe14101bdd8511673269ad5 of
+#: pymc_marketing.mmm.multidimensional.MMM.create_fit_data:34
+msgid "If ``self.date_column`` is missing in ``X``."
+msgstr "Si ``self.date_column`` falta en ``X``."
+
+#: c2fd6eddee47460bb6d5d2f0596f450a of
+#: pymc_marketing.mmm.multidimensional.MMM.create_fit_data:35
+msgid "If ``y`` is a ``np.ndarray`` and its length does not match ``X``."
+msgstr "Si ``y`` es un ``np.ndarray`` y su longitud no coincide con ``X``."
+
+#: 206a0ce4885142f9b3839684fd1e0c9d of
+#: pymc_marketing.mmm.multidimensional.MMM.create_fit_data:36
+msgid "If ``y`` cannot be aligned to ``X`` by index or position."
+msgstr "Si ``y`` no puede alinearse con ``X`` por índice o posición."
+
+#: b708011e7a3848caa06524bdde9df24e of
+#: pymc_marketing.mmm.multidimensional.MMM.create_fit_data:38
+msgid ":obj:`RuntimeError`"
+msgstr ":obj:`RuntimeError`"
+
+#: bf59c258c4c748ccb71d34c91a43f57b of
+#: pymc_marketing.mmm.multidimensional.MMM.create_fit_data:39
+msgid "If the target column is missing after alignment."
+msgstr "Si la columna objetivo falta después de la alineación."
+
+#: 5143be11220b408e99f0b0f61571b2c4 of
+#: pymc_marketing.mmm.multidimensional.MMM.create_fit_data:45
+msgid "Notes"
+msgstr "Notas"
+
+#: 0ee7f87f18984f39aadb43725a410ca3 of
+#: pymc_marketing.mmm.multidimensional.MMM.create_fit_data:46
+msgid "The original date column name is preserved (``self.date_column``)."
+msgstr ""
+"El nombre original de la columna de fecha se conserva "
+"(``self.date_column``)."
+
+#: 97b16b5ab04745f68f1a56bc652efbf4 of
+#: pymc_marketing.mmm.multidimensional.MMM.create_fit_data:47
+msgid "Coordinates are assigned only for dimensions present in ``X``."
+msgstr ""
+"Las coordenadas se asignan solo para las dimensiones presentes en ``X``."
+
+#: 44509d6ae6f2404483afa50368a76a11 of
+#: pymc_marketing.mmm.multidimensional.MMM.create_fit_data:48
+msgid ""
+"Data is sorted by ``(self.date_column, *dims present in X)`` prior to "
+"conversion to xarray."
+msgstr ""
+"Los datos se ordenan por ``(self.date_column, *dims presentes en X)`` antes "
+"de la conversión a xarray."
+
+#: f3792955295a4444bac2557f775c5890 of
+#: pymc_marketing.mmm.multidimensional.MMM.create_fit_data:53
+msgid "Examples"
+msgstr "Ejemplos"

@@ -1,0 +1,932 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:10003
+#: ccffdee9433945f684aa1ed17ba6c1d1
+msgid "MMMs and Pearl's ladder of causal inference"
+msgstr "MMMs y la escalera de inferencia causal de Pearl"
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:10005
+#: 685dccea7e8d495387d2a0378ab915a6
+msgid ""
+"In this notebook, we will explore [Judea "
+"Pearl's](https://en.wikipedia.org/wiki/Judea_Pearl) causal ladder and how it"
+" can be applied to solve business problems with Media Mix Models (MMMs). We "
+"will assume familiarity with the basics of MMMs in order to focus on causal "
+"inference."
+msgstr ""
+"En este cuaderno, exploraremos la escalera causal de [Judea "
+"Pearl](https://en.wikipedia.org/wiki/Judea_Pearl) y cómo se puede aplicar "
+"para resolver problemas empresariales con Modelos de Mezcla de Medios (MMM)."
+" Supondremos familiaridad con los conceptos básicos de los MMM para "
+"centrarnos en la inferencia causal."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:10007
+#: 5987faa867334b319617f9f2d7c4aec9
+msgid "What is Pearl's causal ladder?"
+msgstr "¿Cuál es la escalera causal de Pearl?"
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:10009
+#: c030bf88b53b4973a4cd1452c1819fa0
+msgid ""
+"Pearl's causal ladder outlines 3 successively more sophisticated levels of "
+"causal reasoning:"
+msgstr ""
+"La escalera causal de Pearl describe 3 niveles de razonamiento causal "
+"sucesivamente más sofisticados:"
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:10011
+#: dc53db0e5923402db6a77f460dbfb1c0
+msgid ""
+"**Prediction / Forecasting / Association:** With the first step on the "
+"ladder, we could use a model to predict future sales based on past data. "
+"This does not involve causal reasoning, just prediction."
+msgstr ""
+"**Predicción / Pronóstico / Asociación:** Con el primer paso en la escalera,"
+" podríamos utilizar un modelo para predecir las ventas futuras basándonos en"
+" datos pasados. Esto no implica razonamiento causal, solo predicción."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:10013
+#: 733ebad2e813428b8d2a6a18ee88923d
+msgid ""
+"**Intervention:** The second step on the ladder involves using a model to "
+"predict the future effect of an intervention. It is similar to step 1 in "
+"that it involves prediction/forecasting, but it is different in that we "
+"consider a potential intervention that will have effects in the future."
+msgstr ""
+"**Intervención:** El segundo paso en la escalera implica utilizar un modelo "
+"para predecir el efecto futuro de una intervención. Es similar al paso 1 en "
+"que involucra predicción/forecasting, pero es diferente en que consideramos "
+"una intervención potencial que tendrá efectos en el futuro."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:10015
+#: c64e8eaf5cac48c7b60a47ed318d723b
+msgid ""
+"**Counterfactuals:** The third and final step on the ladder could use a to "
+"estimate how the world _would_ have been different if we had taken a "
+"different action in the past. This is clearly different from the first two "
+"steps in that it is retrospective. It is also the most sophisticated level "
+"of causal reasoning - it involves learning about the world from historical "
+"data, but then imagining how the world _could_ have been different in a "
+"counterfactual scenario."
+msgstr ""
+"**Contrafactuales:** El tercer y último paso en la escalera podría utilizar "
+"un {like_this} para estimar cómo habría sido diferente el mundo si "
+"hubiéramos tomado una acción diferente en el pasado. Esto es claramente "
+"diferente de los dos primeros pasos en que es retrospectivo. También es el "
+"nivel más sofisticado de razonamiento causal: implica aprender sobre el "
+"mundo a partir de datos históricos, pero luego imaginar cómo podría haber "
+"sido diferente el mundo en un escenario contrafactual."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:10017
+#: 7c5ce3e1919345d499df0af76f4daa4d
+msgid "![Causal Ladder](../../_static/causal_ladder.png)"
+msgstr "![Escalera Causal](../../_static/causal_ladder.png)"
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:10017
+#: a85edebe6af348a5849e3b1de1df85a5
+msgid "Causal Ladder"
+msgstr "Escalera Causal"
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:10019
+#: 7b89a69f79234c478ce3f9a739257fed
+msgid ""
+"The image of Pearl's causal ladder appears in the book \"[The Book of "
+"Why](https://en.wikipedia.org/wiki/The_Book_of_Why)\" by Judea Pearl and "
+"Dana Mackenzie. The book is a great introduction to causal inference."
+msgstr ""
+"La imagen de la escalera causal de Pearl aparece en el libro \"[The Book of "
+"Why](https://en.wikipedia.org/wiki/The_Book_of_Why)\" de Judea Pearl y Dana "
+"Mackenzie. El libro es una excelente introducción a la inferencia causal."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:10021
+#: 56ae6b3d8186461eb9b2045909f74abe
+msgid "The do-operator"
+msgstr "El operador do"
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:10023
+#: a63577e05fd7404c864d6a8009344b25
+msgid ""
+"The do-operator is a key concept in Pearl's causal inference framework and "
+"is required for causal reasoning on steps 2 or 3 of the causal ladder. It is"
+" used to denote interventions in a system. If we think about our modeling "
+"efforts as describing a Bayesian structural causal model, then the do-"
+"operator is used to denote the effect of changing a variable in the model. "
+"Any incoming causal links to that node are severed, and the node is set to "
+"the value specified by the do-operator."
+msgstr ""
+"El operador do es un concepto clave en el marco de inferencia causal de "
+"Pearl y es necesario para el razonamiento causal en los pasos 2 o 3 de la "
+"escalera causal. Se utiliza para denotar intervenciones en un sistema. Si "
+"pensamos en nuestros esfuerzos de modelado como la descripción de un modelo "
+"causal estructural bayesiano, entonces el operador do se utiliza para "
+"denotar el efecto de cambiar una variable en el modelo. Cualquier enlace "
+"causal entrante a ese nodo se corta, y el nodo se establece en el valor "
+"especificado por el operador do."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:10026
+#: 12343c03740c4ba68ebae40aeaa8b2b8
+msgid ""
+"For practical examples of the do-operator in action, the following resources"
+" are useful:"
+msgstr ""
+"Para ejemplos prácticos del operador do en acción, los siguientes recursos "
+"son útiles:"
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:10027
+#: fca37634b7fb4b2da1aca07d8de4a983
+msgid ""
+"[Causal analysis with PyMC: Answering \"What If?\" with the new do "
+"operator](https://www.pymc-labs.com/blog-posts/causal-analysis-with-pymc-"
+"answering-what-if-with-the-new-do-operator/)"
+msgstr ""
+"Análisis causal con PyMC: Respondiendo a \"¿Qué pasaría si?\" con el nuevo "
+"operador do"
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:10028
+#: 0bedfcb4c3e943fd88a4a0966e05ef4f
+msgid ""
+"[Interventional distributions and graph mutation with the do-"
+"operator](https://www.pymc.io/projects/examples/en/latest/causal_inference/interventional_distribution.html)"
+msgstr ""
+"Distribuciones interventionales y mutación de gráficos con el operador do."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:20002
+#: d88cecb505f14262ac4d6cf26bec7d2f
+msgid "How does this help us solve business problems?"
+msgstr "¿Cómo nos ayuda esto a resolver problemas de negocio?"
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:20004
+#: 3320aef7baf7477681bf589cbfd819c8
+msgid ""
+"Now we've recapped the causal ladder, let's consider how it can help us "
+"solve business problems, specifically with MMMs. Let's look at a few example"
+" use cases and see what level of the causal ladder they correspond to:"
+msgstr ""
+"Ahora que hemos resumido la escalera causal, consideremos cómo puede "
+"ayudarnos a resolver problemas empresariales, específicamente con los MMM. "
+"Veamos algunos casos de uso de ejemplo y veamos a qué nivel de la escalera "
+"causal corresponden:"
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:20006
+#: cf911e9d164541fbb662fddf054f2756
+#, python-brace-format
+msgid ""
+"**Predicting future sales:** A very common use-case of MMM's is to make "
+"forecasts of our outcome variable (e.g. sales). This can be particularly "
+"useful ingredient in demand forecasting for example. Once we've trained an "
+"MMM on historical data we can use the MMM to predict future sales (out of "
+"sample prediction) based on past sales, marketing spend, and other predictor"
+" variables. This would correspond to step 1 on the causal ladder - we are "
+"forecasting into the future but not considering any changes to our marketing"
+" strategy. See our docs {ref}`mmm_budget_allocation_example` for a worked "
+"example."
+msgstr ""
+"**Predicción de ventas futuras:** Un caso de uso muy común de los MMM es "
+"hacer pronósticos de nuestra variable de resultado (por ejemplo, ventas). "
+"Esto puede ser un ingrediente particularmente útil en la previsión de la "
+"demanda, por ejemplo. Una vez que hemos entrenado un MMM con datos "
+"históricos, podemos utilizar el MMM para predecir ventas futuras (predicción"
+" fuera de muestra) basándonos en ventas pasadas, gasto en marketing y otras "
+"variables predictoras. Esto correspondería al paso 1 en la escalera causal: "
+"estamos pronosticando hacia el futuro pero no considerando ningún cambio en "
+"nuestra estrategia de marketing. Consulte nuestra documentación "
+"{ref}`mmm_budget_allocation_example` para un ejemplo trabajado."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:20008
+#: 6fea5ff221b749f8af7ebac582477a9c
+#, python-brace-format
+msgid ""
+"**Optimizing existing marketing spend:** A more sophisticated use-case of "
+"MMM's is to use the model to predict the effect of different marketing "
+"strategies (see our docs {ref}`mmm_time_slice_cross_validation`). For "
+"example, we could use it to predict the effect of various different changes "
+"to media spend. We could then predict the expected sales under these "
+"scenarios and pick a scenario which maximises sales or profit, for example. "
+"This corresponds to step 2 on the causal ladder - intervention. This is a "
+"more sophisticated level of causal reasoning, as it involves prediction, but"
+" in the presence of an altered marketing strategies (i.e. interventions)."
+msgstr ""
+"**Optimización del gasto en marketing existente:** Un caso de uso más "
+"sofisticado de los MMM es utilizar el modelo para predecir el efecto de "
+"diferentes estrategias de marketing (consulte nuestra documentación "
+"{ref}`mmm_time_slice_cross_validation`). Por ejemplo, podríamos usarlo para "
+"predecir el efecto de varios cambios en el gasto en medios. Luego podríamos "
+"predecir las ventas esperadas bajo estos escenarios y elegir un escenario "
+"que maximice las ventas o el beneficio, por ejemplo. Esto corresponde al "
+"paso 2 en la escalera causal - intervención. Este es un nivel más "
+"sofisticado de razonamiento causal, ya que implica predicción, pero en "
+"presencia de estrategias de marketing alteradas (es decir, intervenciones)."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:20010
+#: f2ff21a329964ef3b7a72aa586b43463
+#, python-format
+msgid ""
+"**Planning an increase in marketing spend:** Let's say our business wants to"
+" gain more market share and has decided to increase marketing spend by 20% "
+"over the next quarter. You are tasked with proposing a number of different "
+"future media spend strategies that you think will cause the largest increase"
+" in sales. This corresponds to step 2 on the causal ladder - intervention. "
+"We are predicting the effect of an intervention (increasing media spend) on "
+"sales."
+msgstr ""
+"**Planificación de un aumento en el gasto en marketing:** Supongamos que "
+"nuestro negocio desea ganar más cuota de mercado y ha decidido aumentar el "
+"gasto en marketing en un 20% durante el próximo trimestre. Se le ha "
+"encomendado la tarea de proponer una serie de diferentes estrategias de "
+"gasto en medios futuros que usted cree que causarán el mayor aumento en las "
+"ventas. Esto corresponde al paso 2 en la escalera causal - intervención. "
+"Estamos prediciendo el efecto de una intervención (aumento del gasto en "
+"medios) en las ventas."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:20012
+#: d0f6568005fd40f0a7b3acedad1bd8d0
+#, python-format
+msgid ""
+"**Evaluating the impact of a previous increase in marketing spend:** Let's "
+"say our business increased TV spend by 20% over the last quarter and we want"
+" to know what impact this had on sales. We can answer this question by "
+"comparing what _actually_ happened, to what we think _would have happened_ "
+"under some alternative imagined counterfactual scenario such as not "
+"increasing TV spend by 20%. Importantly, this counterfactual reasoning is "
+"_retrospective_, but it uses the knowledge we have learnt from all "
+"observations so far. This corresponds to step 3 on the causal ladder - "
+"counterfactual inference. We are learning from historical data, but then "
+"imagining how the world _could_ have been different in a counterfactual "
+"scenario. So this involves retrospective causal reasoning."
+msgstr ""
+"**Evaluando el impacto de un aumento previo en el gasto de marketing:** "
+"Supongamos que nuestro negocio aumentó el gasto en televisión en un 20% "
+"durante el último trimestre y queremos saber qué impacto tuvo esto en las "
+"ventas. Podemos responder a esta pregunta comparando lo que _realmente_ "
+"sucedió con lo que creemos que _habría sucedido_ en algún escenario "
+"contrafactual alternativo imaginado, como no haber aumentado el gasto en "
+"televisión en un 20%. Es importante destacar que este razonamiento "
+"contrafactual es _retrospectivo_, pero utiliza el conocimiento que hemos "
+"aprendido de todas las observaciones hasta ahora. Esto corresponde al paso 3"
+" en la escalera causal - inferencia contrafactual. Estamos aprendiendo de "
+"datos históricos, pero luego imaginamos cómo el mundo _podría_ haber sido "
+"diferente en un escenario contrafactual. Así que esto implica un "
+"razonamiento causal retrospectivo."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:30002
+#: 9d60b606563c4b3dad331c4fc9f9fa0a
+msgid "Notebook setup"
+msgstr "Configuración del cuaderno"
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:70002
+#: 6540582b39b44a6c9f87571b8eeff810
+msgid "Generate synthetic data"
+msgstr "Generar datos sintéticos"
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:80002
+#: 803e25faa3714e8da922f8c943672ed3
+msgid ""
+"Now we'll generate some synthetic data to use in the rest of the notebook. "
+"In short, we will consider a relatively simple situation where we have two "
+"media channels ($x_1$ and $x_2$), and we consider the effects of time in "
+"terms of an underlying trend in sales as well as seasonal effects. We can "
+"draw our causal DAG like this:"
+msgstr ""
+"Ahora generaremos algunos datos sintéticos para utilizar en el resto del "
+"cuaderno. En resumen, consideraremos una situación relativamente simple en "
+"la que tenemos dos canales de medios ($x_1$ y $x_2$), y consideramos los "
+"efectos del tiempo en términos de una tendencia subyacente en las ventas, "
+"así como efectos estacionales. Podemos representar nuestro DAG causal de la "
+"siguiente manera:"
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:100002
+#: 6110b1d6f28b4c639c85c296b84fe24b
+msgid ""
+"In the code below we will generate some synthetic data with the general "
+"structure described above. Our dataset is going to include a marketing "
+"campaign where we elevate the spending on one media channel for a period of "
+"time. This is going to be used later on when we come to examine Step 3 where"
+" we will evaluate the impact of this campaign."
+msgstr ""
+"En el código a continuación, generaremos algunos datos sintéticos con la "
+"estructura general descrita anteriormente. Nuestro conjunto de datos "
+"incluirá una campaña de marketing en la que aumentamos el gasto en un canal "
+"de medios durante un período de tiempo. Esto se utilizará más adelante "
+"cuando lleguemos a examinar el Paso 3, donde evaluaremos el impacto de esta "
+"campaña."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:100004
+#: 394e6dee6cdc4046921e1b1036b824ce
+msgid ""
+"As a slight twist is that because we are using simulated data, we are in the"
+" privileged position of knowing the true causal relationships in the data. "
+"This is not the case in the real world, where we have to infer these "
+"relationships from the data. So we'll first generate a _counterfactual_ "
+"scenario (where we didn not run the campaign) and then generate the _actual_"
+" scenario (where we did run the campaign). This allows us to compare our "
+"_estimated_ causal impact of the campaign with the _true_ causal impact of "
+"the campaign. But more on this when we reach Step 3 of the causal ladder."
+msgstr ""
+"Como una ligera variación, dado que estamos utilizando datos simulados, nos "
+"encontramos en la posición privilegiada de conocer las verdaderas relaciones"
+" causales en los datos. Este no es el caso en el mundo real, donde debemos "
+"inferir estas relaciones a partir de los datos. Por lo tanto, primero "
+"generaremos un escenario _contrafactual_ (donde no ejecutamos la campaña) y "
+"luego generaremos el escenario _real_ (donde sí ejecutamos la campaña). Esto"
+" nos permite comparar nuestro impacto causal _estimado_ de la campaña con el"
+" impacto causal _verdadero_ de la campaña. Pero hablaremos más sobre esto "
+"cuando lleguemos al Paso 3 de la escalera causal."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:100006
+#: 587a2c4c733c48aa9b73886dea9d5096
+msgid ""
+"Let's generate some synthetic data - more specifically some predictors such "
+"as media spend, intercept, seasonality, and trend."
+msgstr ""
+"Generemos algunos datos sintéticos, más específicamente algunos predictores "
+"como el gasto en medios, la intersección, la estacionalidad y la tendencia."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:120002
+#: 472ad661b0a340e2af4a3234a587fcba
+msgid ""
+"Now we'll write a function to forward simulate the response (sales), given "
+"these predictor variables. The functions below simply calculate a weighted "
+"sum of the predictor variables, after having passed the media channels "
+"through our trusty adstock and saturation functions."
+msgstr ""
+"Ahora escribiremos una función para simular hacia adelante la respuesta "
+"(ventas), dado estas variables predictoras. Las funciones a continuación "
+"simplemente calculan una suma ponderada de las variables predictoras, "
+"después de haber pasado los canales de medios a través de nuestras "
+"confiables funciones de adstock y saturación."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:140002
+#: de55b44d546544f6bddf9d7f08cab919
+msgid ""
+"Now let's use those functions to generate synthetic data that represents "
+"what happens in our simulated world under a 'business as usual' (or "
+"counterfactual) scenario of no media campaign."
+msgstr ""
+"Ahora utilicemos esas funciones para generar datos sintéticos que "
+"representen lo que ocurre en nuestro mundo simulado bajo un escenario de "
+"'negocios como siempre' (o contrafactual) de ausencia de campaña mediática."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:160002
+#: 84c43f567fc047e081bbbd2abb7f3a9d
+#, python-format
+msgid ""
+"Finally, let's create a copy of this data, but one where we conducted an "
+"intervention. That is, a marketing campaign where we increased media spend "
+"in channel 1 by 40% for Q1 of 2021. This `df_actual` data will represent "
+"what actually happened in our world. The `df_counterfactual` data will "
+"represent what _would_ have happened if we had not conducted the "
+"intervention, and this will be used when we encounter Step 3 of the causal "
+"ladder."
+msgstr ""
+"Finalmente, creemos una copia de estos datos, pero una en la que realizamos "
+"una intervención. Es decir, una campaña de marketing en la que aumentamos el"
+" gasto en medios en el canal 1 en un 40% para el primer trimestre de 2021. "
+"Estos datos `df_actual` representarán lo que realmente sucedió en nuestro "
+"mundo. Los datos `df_counterfactual` representarán lo que _habría_ sucedido "
+"si no hubiéramos realizado la intervención, y esto se utilizará cuando "
+"lleguemos al Paso 3 de la escalera causal."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:180002
+#: ced87fe2f9384902b9e99a3cdc1336d7
+msgid "Let's visialize the dataset:"
+msgstr "Vamos a visualizar el conjunto de datos:"
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:200002
+#: 1f2146f078534b6aa7ec66eee18124ed
+msgid ""
+"This plot shows our (normalised) media spends (top two panels) and the "
+"resulting sales (bottom panel). Our dataset also involves a period (between "
+"dashed red lines) where we ran a marketing campaign that increased our media"
+" spend by 40%."
+msgstr ""
+"Este gráfico muestra nuestros gastos en medios (normalizados) (paneles "
+"superiores) y las ventas resultantes (panel inferior). Nuestro conjunto de "
+"datos también incluye un período (entre las líneas rojas discontinuas) en el"
+" que realizamos una campaña de marketing que incrementó nuestro gasto en "
+"medios en un 40%."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:210002
+#: f39cc0b0771f442bb7c549b5ef916849
+msgid "Build an MMM and fit to data"
+msgstr "Construya un MMM y ajuste a los datos"
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:210004
+#: d97796984118408095710764f325d1a9
+msgid ""
+"As part of our regular MMM workflow, we'll build an MMM object and fit it to"
+" our synthetic data."
+msgstr ""
+"Como parte de nuestro flujo de trabajo regular de MMM, construiremos un "
+"objeto MMM y lo ajustaremos a nuestros datos sintéticos."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:240002
+#: e0b8bea5f0f24a288119b3389bfda143
+msgid ""
+"Before starting our procedure for counterfactual inference, let's first "
+"confirm that the MMM is doing a reasonable job of accounting for the data. "
+"Below is a plot of the posterior predictive distribution for the sales "
+"(shaded regions) and the actual sales (black line)."
+msgstr ""
+"Antes de comenzar nuestro procedimiento para la inferencia contrafactual, "
+"primero confirmemos que el MMM está haciendo un trabajo razonable al "
+"contabilizar los datos. A continuación se muestra un gráfico de la "
+"distribución predictiva posterior para las ventas (regiones sombreadas) y "
+"las ventas reales (línea negra)."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:260002
+#: 5124192b762c4d63987eb3dce5e17c5f
+msgid ""
+"The model seems to be doing a good job of capturing the data so we can "
+"proceed."
+msgstr ""
+"El modelo parece estar haciendo un buen trabajo al capturar los datos, por "
+"lo que podemos proceder."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:270002
+#: 0a5d00163d614b4aacb90bf74a7e8ade
+msgid "Level 1 - Association and Prediction"
+msgstr "Nivel 1 - Asociación y Predicción"
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:270004
+#: 1eeba4b1b58c41fb834170f4f9d1cba6
+msgid "On Level 1 of the ladder, we can do at least 2 things:"
+msgstr "En el Nivel 1 de la escalera, podemos hacer al menos 2 cosas:"
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:270006
+#: 11c86b5980e148ad8e69d9df772a342f
+msgid ""
+"Explore the model fit results - gain insights about the relationship between"
+" media spend and sales. Not note, at this point, even if our MMM represents "
+"a causal DAG that captures what we believe to be reasonable causal "
+"relationships, we are still only operating on the level of prediction and "
+"association."
+msgstr ""
+"Explora los resultados del ajuste del modelo: obtén información sobre la "
+"relación entre el gasto en medios y las ventas. No obstante, en este punto, "
+"incluso si nuestro MMM representa un DAG causal que captura lo que creemos "
+"que son relaciones causales razonables, todavía estamos operando únicamente "
+"a nivel de predicción y asociación."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:270008
+#: 56cec3986d704ac3a0d847f5cc4740af
+msgid ""
+"Use the model to predict future sales. This is a common use-case of MMMs and"
+" corresponds to step 1 on the causal ladder. Let's dive in to this in more "
+"detail."
+msgstr ""
+"Utilice el modelo para predecir las ventas futuras. Este es un caso de uso "
+"común de los MMM y corresponde al paso 1 en la escalera causal. "
+"Profundicemos en esto con más detalle."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:270010
+#: 91ee0b5ab7c94b249598147d6f16ad94
+msgid ""
+"In order to predict future sales, we need to specify future values of our "
+"predictor variables. For simplicity, we will assume that our media spend "
+"will take on the mean of past media spends. We will then use the MMM to "
+"predict future sales. The code below generates a scenario for forecasting."
+msgstr ""
+"Para predecir las ventas futuras, necesitamos especificar los valores "
+"futuros de nuestras variables predictoras. Para simplificar, asumiremos que "
+"nuestro gasto en medios tomará el promedio de los gastos en medios pasados. "
+"Luego utilizaremos el MMM para predecir las ventas futuras. El código a "
+"continuación genera un escenario para la previsión."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:290002
+#: 4ab9f45d52cd42d8a9adc62265dc02ff
+msgid ""
+"Now we have a 'forecasting scenario' we can use our MMM to predict future "
+"sales, based upon what it has learnt from historical data."
+msgstr ""
+"Ahora tenemos un 'escenario de pronóstico' que podemos utilizar para que "
+"nuestro MMM prediga las ventas futuras, basándose en lo que ha aprendido de "
+"los datos históricos."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:310002
+#: fe7b3275bf0440a386f2d8490eaaa303
+msgid "Let's vizualize the forecasted sales."
+msgstr "Visualicemos las ventas pronosticadas."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:330002
+#: 77f74a147b7243f28b899c084058f2d1
+msgid ""
+"The plot above shows the model's prediction for future sales (shaded "
+"region). Let's take a moment to unpack what we are seeing:"
+msgstr ""
+"El gráfico anterior muestra la predicción del modelo para las ventas futuras"
+" (región sombreada). Tomemos un momento para desglosar lo que estamos "
+"viendo:"
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:330004
+#: 6005f552944548bfbd0a2355e65afd82
+msgid ""
+"In our forecasting scenario, we make the simplifying assumption that the "
+"future media spend (for both channels) would be at a constant level, equal "
+"to their historical averages."
+msgstr ""
+"En nuestro escenario de pronóstico, hacemos la suposición simplificadora de "
+"que el gasto futuro en medios (para ambos canales) se mantendría en un nivel"
+" constante, igual a sus promedios históricos."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:330005
+#: f576771e014340eda0112ed867c7c361
+msgid ""
+"Therefore, there is no real variation in the model's prediction for future "
+"sales _from the perspective of media spend_."
+msgstr ""
+"Por lo tanto, no hay una variación real en la predicción del modelo para las"
+" ventas futuras _desde la perspectiva del gasto en medios_."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:330006
+#: febc60becd0c4df0a8576c2d40d5671d
+msgid ""
+"However, the model does have a trend and seasonal component, so the "
+"variation in the prediction is due to these components."
+msgstr ""
+"Sin embargo, el modelo tiene una tendencia y un componente estacional, por "
+"lo que la variación en la predicción se debe a estos componentes."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:330008
+#: 5c01be07bf00476798309e0ec7a06408
+msgid ""
+"We can of course make this more realistic by considering different scenarios"
+" for future media spend, but is is a matter of refinement. What we have seen"
+" so far is the general process of using an MMM for Step 1 style forecasting."
+msgstr ""
+"Podemos, por supuesto, hacer esto más realista considerando diferentes "
+"escenarios para el gasto en medios futuros, pero es una cuestión de "
+"refinamiento. Lo que hemos visto hasta ahora es el proceso general de "
+"utilizar un MMM para la previsión de estilo Paso 1."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:340002
+#: 5f89eb74f1914aefa9eb6fe88037765f
+msgid "Level 2 - Intervention"
+msgstr "Nivel 2 - Intervención"
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:340004
+#: c71bbdeb69f94143a0d9bb13e5f3e808
+msgid ""
+"Now we'll climb up a step and look at how we can use our MMM to predict the "
+"effect of an intervention. In this case, we will consider the effect of the "
+"historical average of channel $x_2$ and _double_ the historical average of "
+"channel $x_1$. So let's generate the predictor variables for this "
+"intervention scenario:"
+msgstr ""
+"Ahora subiremos un peldaño y veremos cómo podemos utilizar nuestro MMM para "
+"predecir el efecto de una intervención. En este caso, consideraremos el "
+"efecto del promedio histórico del canal $x_2$ y _doblaremos_ el promedio "
+"histórico del canal $x_1$. Así que generemos las variables predictoras para "
+"este escenario de intervención:"
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:360002
+#: f08eede52dfc484a91f4949d6a226173
+msgid ""
+"Now we can run the intervention and ask the MMM what it believes the effect "
+"of this intervention will be on future sales. More formally, this amounts to"
+" sampling from the posterior predictive distribution, but under the "
+"intervention scenario."
+msgstr ""
+"Ahora podemos ejecutar la intervención y preguntar al MMM qué cree que será "
+"el efecto de esta intervención en las ventas futuras. Más formalmente, esto "
+"equivale a muestrear de la distribución predictiva posterior, pero bajo el "
+"escenario de intervención."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:390002
+#: 5d7f643103a04659942a29567a738ca0
+msgid ""
+"Nice! We can see that, relative to our 'business as usual` (Step 1 "
+"forecast), the MMM predicts that the intervention will lead to an increase "
+"in sales. This is a simple example of using an MMM for causal inference - we"
+" are predicting the effect of an intervention on future sales."
+msgstr ""
+"¡Genial! Podemos ver que, en relación con nuestro 'negocio como siempre' "
+"(pronóstico del Paso 1), el MMM predice que la intervención conducirá a un "
+"aumento en las ventas. Este es un ejemplo simple de cómo utilizar un MMM "
+"para inferencia causal: estamos prediciendo el efecto de una intervención en"
+" las ventas futuras."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:400003
+#: d2edb580ba374325bafd4a94172204f4
+#, python-brace-format
+msgid ""
+"For much more information on using Level 2 of the causal ladder, see the "
+"dedicated notebook on {ref}`mmm_budget_allocation_example`."
+msgstr ""
+"Para obtener mucha más información sobre el uso del Nivel 2 de la escalera "
+"causal, consulte el cuaderno dedicado en "
+"{ref}`mmm_budget_allocation_example`."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:410002
+#: abcb36abc1a7449b9139743b60ec87ab
+msgid "Level 3 - Counterfactual inference"
+msgstr "Nivel 3 - Inferencia contrafactual"
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:410004
+#: 9c01831b0026472d9acf1055eb8904da
+msgid ""
+"Finally we are at the top of the ladder! We will now use our MMM to estimate"
+" the effect of a previous intervention. Remember, our historical dataset "
+"includes a period where we increased media spend on $x_1$ by 40%. We will "
+"use our MMM to estimate the effect of this intervention on sales."
+msgstr ""
+"¡Finalmente estamos en la cima de la escalera! Ahora utilizaremos nuestro "
+"MMM para estimar el efecto de una intervención previa. Recuerde que nuestro "
+"conjunto de datos históricos incluye un período en el que aumentamos el "
+"gasto en medios en $x_1$ en un 40%. Utilizaremos nuestro MMM para estimar el"
+" efecto de esta intervención en las ventas."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:410006
+#: 08a5d348f9f84eb299535c57da593ff7
+msgid ""
+"To do this, we will compare what _actually_ happened, to what we think "
+"_would have happened_ under some alternative imagined counterfactual "
+"scenario such as not increasing media spend by 40%."
+msgstr ""
+"Para hacer esto, compararemos lo que _realmente_ sucedió con lo que creemos "
+"que _habría sucedido_ bajo algún escenario contrafactual alternativo "
+"imaginado, como no aumentar el gasto en medios en un 40%."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:410008
+#: aee5f040f65a4d7090c6ec0f5175294c
+msgid ""
+"This requires coming up with a counterfactual scenario where we have to "
+"think hard about what the $x_1$ media spend would have been in the absence "
+"of the campaign. In real-world situations this might be easy or difficult, "
+"depending."
+msgstr ""
+"Esto requiere idear un escenario contrafactual en el que debemos pensar "
+"detenidamente sobre cuál habría sido el gasto en medios de $x_1 en ausencia "
+"de la campaña. En situaciones del mundo real, esto puede ser fácil o "
+"difícil, dependiendo."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:410010
+#: 5db486649f68451aa9d5e6e535545167
+msgid ""
+"Easy: If our marketing spend is predictable, we can simply use our business "
+"knowledge to define what the spend would have been in the absence of the "
+"campaign."
+msgstr ""
+"Fácil: Si nuestro gasto en marketing es predecible, simplemente podemos "
+"utilizar nuestro conocimiento empresarial para definir cuál habría sido el "
+"gasto en ausencia de la campaña."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:410011
+#: 26ae2f73fc91489e90d6e95a903ba912
+msgid ""
+"Difficult: If our marketing spend is unpredictable, we might have to use a "
+"more sophisticated model to predict what the spend would have been in the "
+"absence of the campaign. There are ways of doing this, but it is a bit of a "
+"side-quest, so is beyond the scope of this notebook."
+msgstr ""
+"Difícil: Si nuestro gasto en marketing es impredecible, podríamos tener que "
+"utilizar un modelo más sofisticado para predecir cuál habría sido el gasto "
+"en ausencia de la campaña. Hay formas de hacerlo, pero es un poco una misión"
+" secundaria, por lo que está más allá del alcance de este cuaderno."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:410013
+#: b76eaf8178004a309a8bb4b313cbd650
+msgid ""
+"In our case, we will take the easy route. Because we simulated the data, we "
+"already know what our media spend would have been in the absence of the "
+"campaign. We can use this information to define our counterfactual scenario."
+" This allows us to take a parameter recovery approach - we will be able to "
+"compare the model's counterfactual predictions to ground truth."
+msgstr ""
+"En nuestro caso, tomaremos el camino fácil. Debido a que simulamos los "
+"datos, ya sabemos cuál habría sido nuestro gasto en medios en ausencia de la"
+" campaña. Podemos utilizar esta información para definir nuestro escenario "
+"contrafactual. Esto nos permite adoptar un enfoque de recuperación de "
+"parámetros: podremos comparar las predicciones contrafactuales del modelo "
+"con la verdad objetiva."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:420002
+#: 53cbb53be751403ca1aba80cbfc28672
+msgid "Parameter recovery"
+msgstr "Recuperación de parámetros"
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:420005
+#: e3f37209220b4c618379d027d39a63a5
+msgid ""
+"The logic of running through these steps on simulated actual and "
+"counterfactual data is that we can compare the MMM's ability to estimate the"
+" causal impact of the marketing campaign to the true causal impact that we "
+"know because we simulated the data. If we do ok here, we can be more "
+"confident that the MMM will be able to estimate the causal impact of the "
+"marketing campaign on real data where only the actual data is available."
+msgstr ""
+"La lógica de seguir estos pasos con datos simulados reales y contrafactuales"
+" es que podemos comparar la capacidad del MMM para estimar el impacto causal"
+" de la campaña de marketing con el verdadero impacto causal que conocemos "
+"porque simulamos los datos. Si lo hacemos bien aquí, podemos tener más "
+"confianza en que el MMM podrá estimar el impacto causal de la campaña de "
+"marketing en datos reales donde solo están disponibles los datos reales."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:430002
+#: 2ed49fd673c44b25be3896d8c30a2673
+msgid ""
+"Let's make that more real by visualizing the `x1` and `x2` predictors, along"
+" with the `y` outcome variable. This is done for both the actual and "
+"counterfactual scenarios. We can see that there is divergence in the media "
+"spend in `x1` during the campaign period and also for the outcome variable "
+"`y`. The difference between the outcome in the actual and counterfactual "
+"scenarios is the causal effect of the marketing campaign (bottom plot)."
+msgstr ""
+"Hagamos esto más real al visualizar los predictores `x1` y `x2`, junto con "
+"la variable de resultado `y`. Esto se realiza tanto para los escenarios "
+"reales como para los contrafactuales. Podemos observar que hay una "
+"divergencia en el gasto en medios en `x1` durante el período de la campaña y"
+" también para la variable de resultado `y`. La diferencia entre el resultado"
+" en los escenarios real y contrafactual es el efecto causal de la campaña de"
+" marketing (gráfico inferior)."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:450003
+#: aedf6354347341e280408bd375368ad5
+msgid ""
+"Notice in the bottom plot that the causal impact of the campaign continues "
+"on for a short duration after the campaign as ended. This is a direct result"
+" of the adstock function in the MMM which models the lagged effect of media "
+"spend on sales. Similarly, there is a slight lag effect at the start of the "
+"campaign. There is also noise in the causal impact - this makes sense "
+"because the way how we similated this data was based on changes in media "
+"spend, not on a specified level of sales difference."
+msgstr ""
+"Observe en el gráfico inferior que el impacto causal de la campaña continúa "
+"durante un corto período después de que la campaña ha terminado. Esto es un "
+"resultado directo de la función de adstock en el MMM, que modela el efecto "
+"rezagado del gasto en medios sobre las ventas. De manera similar, hay un "
+"ligero efecto rezagado al inicio de la campaña. También hay ruido en el "
+"impacto causal; esto tiene sentido porque la forma en que simulamos estos "
+"datos se basó en cambios en el gasto en medios, no en un nivel específico de"
+" diferencia en ventas."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:460002
+#: 20334b5cdf1e43a78dfebb44691bd35c
+msgid ""
+"Now we want to evaluate what the model thinks would have happened in the "
+"counterfactual scenario that the intervention did not take place. For this, "
+"we will use the counterfactual spend in `df.x1`. But remember, in a real-"
+"world scenario, we would not have access to this data and so we would have "
+"to estimate it as discussed above."
+msgstr ""
+"Ahora queremos evaluar qué piensa el modelo que habría sucedido en el "
+"escenario contrafactual en el que la intervención no tuvo lugar. Para esto, "
+"utilizaremos el gasto contrafactual en `df.x1`. Pero recuerde, en un "
+"escenario del mundo real, no tendríamos acceso a estos datos y, por lo "
+"tanto, tendríamos que estimarlos como se discutió anteriormente."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:480002
+#: c2e1cca82d6341dea64889a34a27a73f
+msgid ""
+"The command below effectively uses the do-operator to intervene on the DAG "
+"and set `x1` to the counterfactual spend, and use the model to predict what "
+"the sales would have been in the counterfactual scenario."
+msgstr ""
+"El comando a continuación utiliza de manera efectiva el operador do para "
+"intervenir en el DAG y establecer `x1` en el gasto contrafactual, y usar el "
+"modelo para predecir cuáles habrían sido las ventas en el escenario "
+"contrafactual."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:500002
+#: 255e394bbc1a4222904a5f8bdec99a10
+msgid ""
+"Now we have the actual sales data, and our predicted sales in the "
+"counterfactual scenario, we can calculate the causal impact of the "
+"intervention. This is done by comparing the actual sales to the predicted "
+"sales in the counterfactual scenario."
+msgstr ""
+"Ahora que tenemos los datos de ventas reales y nuestras ventas predichas en "
+"el escenario contrafactual, podemos calcular el impacto causal de la "
+"intervención. Esto se realiza comparando las ventas reales con las ventas "
+"predichas en el escenario contrafactual."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:530002
+#: ac2f1b1bb95e4ca28d20566acecc561b
+msgid ""
+"**Top plot:** The top plot shows the actual sales data (black line), the "
+"posterior predicted sales under the actual scenario (blue shaded region), "
+"and the posterior predicted sales under the counterfactual scenario (orange "
+"shaded region). We might be able to see that the model predicts lower sales "
+"in the counterfactual scenario than in the actual scenario. This makes sense"
+" because the counterfactual scenario is one where we did not conduct the "
+"marketing campaign - so lower sales in this case would be expected."
+msgstr ""
+"**Gráfico superior:** El gráfico superior muestra los datos de ventas reales"
+" (línea negra), las ventas predichas posteriores bajo el escenario actual "
+"(región sombreada en azul) y las ventas predichas posteriores bajo el "
+"escenario contrafactual (región sombreada en naranja). Podríamos observar "
+"que el modelo predice ventas más bajas en el escenario contrafactual que en "
+"el escenario actual. Esto tiene sentido porque el escenario contrafactual es"
+" aquel en el que no realizamos la campaña de marketing, por lo que se "
+"esperarían ventas más bajas en este caso."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:530004
+#: 32de96ce408a45f6a060dc58793f2346
+msgid ""
+"**Middle plot:** The middle plot shows the difference between the actual and"
+" counterfactual sales. This is the causal impact of the marketing campaign. "
+"We can see that the model predicts a positive causal impact of the marketing"
+" campaign. We can also see that the model predicts negligible causal impact "
+"of the marketing capaign before the campaign started - this makes total "
+"sense but it is important to check that we don't have some unexpected causal"
+" impact before the campaign started."
+msgstr ""
+"**Gráfico del medio:** El gráfico del medio muestra la diferencia entre las "
+"ventas reales y las contrafactuales. Este es el impacto causal de la campaña"
+" de marketing. Podemos ver que el modelo predice un impacto causal positivo "
+"de la campaña de marketing. También podemos observar que el modelo predice "
+"un impacto causal negligible de la campaña de marketing antes de que "
+"comenzara la campaña; esto tiene total sentido, pero es importante verificar"
+" que no tengamos algún impacto causal inesperado antes de que comenzara la "
+"campaña."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:530006
+#: 78ab7545f82a4a6f89c05cb8c9ab6516
+msgid ""
+"**Bottom plot:** The bottom plot shows the estimated cumulative causal "
+"impact from the start of the campaign. And because we simulated the data and"
+" know the true causal impact, we can see that the model is doing a good job."
+msgstr ""
+"**Gráfico inferior:** El gráfico inferior muestra el impacto causal "
+"acumulado estimado desde el inicio de la campaña. Y dado que simulamos los "
+"datos y conocemos el verdadero impacto causal, podemos ver que el modelo "
+"está funcionando bien."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:540002
+#: ca8a1de35e5c4d71931a5c390266a3fb
+msgid "Summary"
+msgstr "Resumen"
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:540004
+#: 93e09df9514b44b8b4b834ca62d4ac1b
+msgid ""
+"In this notebook, we've recapped Pearl's causal ladder and seen how "
+"different levels of causal reasoning can be applied to solve business "
+"problems with MMMs. We've seen how MMMs can be used to predict future sales "
+"(Step 1), optimize marketing spend (Step 2), and evaluate the impact of "
+"marketing campaigns (Step 3)."
+msgstr ""
+"En este cuaderno, hemos resumido la escalera causal de Pearl y hemos visto "
+"cómo se pueden aplicar diferentes niveles de razonamiento causal para "
+"resolver problemas empresariales con MMMs. Hemos observado cómo se pueden "
+"utilizar los MMMs para predecir ventas futuras (Paso 1), optimizar el gasto "
+"en marketing (Paso 2) y evaluar el impacto de las campañas de marketing "
+"(Paso 3)."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:540006
+#: 8c4eca3fd4154a41bec6bdb2cb3fb421
+msgid ""
+"We saw how counterfactual inference can be used to estimate the causal "
+"impact of marketing campaigns. In this notebook we used \"God Mode\" to "
+"simulate a world where we had knowledge of the counterfactual scenario - but"
+" in real world use cases we may have to estimate what the media spend would "
+"have been had we not run a marketing campaign."
+msgstr ""
+"Vimos cómo la inferencia contrafactual puede ser utilizada para estimar el "
+"impacto causal de las campañas de marketing. En este cuaderno utilizamos el "
+"\"Modo Dios\" para simular un mundo en el que teníamos conocimiento del "
+"escenario contrafactual, pero en casos de uso del mundo real, es posible que"
+" tengamos que estimar cuál habría sido el gasto en medios si no hubiéramos "
+"realizado una campaña de marketing."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:540008
+#: fb7e2058c24d4e76bcbb9ee67e6636ae
+msgid ""
+"Of course, the methods demonstrated here can be used in other ways. An "
+"immediate one that comes to mind is to evaluate the causal impact of our "
+"past media spending by comparing it to a counterfactual scenario of zero "
+"media spend (on one or multiple channels), for example."
+msgstr ""
+"Por supuesto, los métodos demostrados aquí pueden utilizarse de otras "
+"maneras. Una inmediata que viene a la mente es evaluar el impacto causal de "
+"nuestro gasto en medios pasados comparándolo con un escenario contrafactual "
+"de gasto en medios cero (en uno o múltiples canales), por ejemplo."
+
+#: ../source/notebooks/mmm/mmm_counterfactuals.ipynb:540010
+#: 7bdb6bf229114ad28ddd937bb3882766
+msgid ""
+"We hope you see how this can be a powerful tool for businesses to understand"
+" the impact of their marketing efforts and make data-driven decisions."
+msgstr ""
+"Esperamos que vea cómo esto puede ser una herramienta poderosa para que las "
+"empresas comprendan el impacto de sus esfuerzos de marketing y tomen "
+"decisiones basadas en datos."

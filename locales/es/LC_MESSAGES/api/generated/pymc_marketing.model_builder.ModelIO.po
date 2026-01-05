@@ -1,0 +1,208 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelIO.rst:2
+#: 0df6f6171012447bb6424acb2f623695
+msgid "ModelIO"
+msgstr "ModelIO"
+
+#: 51f0824afa014efca57d89521e616603 of pymc_marketing.model_builder.ModelIO:2
+msgid "Mixin to handle saving and loading of models."
+msgstr "Mixin para manejar el guardado y la carga de modelos."
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelIO.rst:12
+#: 77f29ef1e3a94398a8b2b36bc9ca95ae
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelIO.rst:30:<autosummary>:1
+#: 68d891a4522646bcba252413ef928d15
+msgid ""
+":py:obj:`ModelIO.__init__ <pymc_marketing.model_builder.ModelIO.__init__>`\\"
+" \\(\\*args\\, \\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`ModelIO.__init__ <pymc_marketing.model_builder.ModelIO.__init__>`\\"
+" \\(\\*args\\, \\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelIO.rst:30:<autosummary>:1
+#: f6086cc0e14748d79a251cd6649e3f83
+msgid ""
+":py:obj:`ModelIO.attrs_to_init_kwargs "
+"<pymc_marketing.model_builder.ModelIO.attrs_to_init_kwargs>`\\ \\(attrs\\)"
+msgstr ""
+":py:obj:`ModelIO.attrs_to_init_kwargs "
+"<pymc_marketing.model_builder.ModelIO.attrs_to_init_kwargs>`\\ \\(attrs\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelIO.rst:30:<autosummary>:1
+#: fd9e73dc0ea24f7d963b2acdb200942d
+msgid ""
+"Convert the model configuration and sampler configuration from the "
+"attributes to keyword arguments."
+msgstr ""
+"Convierte la configuración del modelo y la configuración del muestreador de "
+"los atributos a argumentos de palabra clave."
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelIO.rst:30:<autosummary>:1
+#: 476c63197ed14fadb119a0eac5fb7434
+msgid ""
+":py:obj:`ModelIO.build_from_idata "
+"<pymc_marketing.model_builder.ModelIO.build_from_idata>`\\ \\(idata\\)"
+msgstr ""
+":py:obj:`ModelIO.build_from_idata "
+"<pymc_marketing.model_builder.ModelIO.build_from_idata>`\\ \\(idata\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelIO.rst:30:<autosummary>:1
+#: dd6fe8f9b04d4a2bb54ca0573bcf64c1
+msgid "Build the model from the InferenceData object."
+msgstr "Construya el modelo a partir del objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelIO.rst:30:<autosummary>:1
+#: 4db1180b8d9c4315b2399934a9b3b106
+msgid ""
+":py:obj:`ModelIO.create_idata_attrs "
+"<pymc_marketing.model_builder.ModelIO.create_idata_attrs>`\\ \\(\\)"
+msgstr ""
+":py:obj:`ModelIO.create_idata_attrs "
+"<pymc_marketing.model_builder.ModelIO.create_idata_attrs>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelIO.rst:30:<autosummary>:1
+#: e6a2eba0fabf436a98e2ef42272e7b74
+msgid "Create attributes for the inference data."
+msgstr "Cree atributos para los datos de inferencia."
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelIO.rst:30:<autosummary>:1
+#: 9e90229dd0964c82987c1cfdcc16fdab
+msgid ""
+":py:obj:`ModelIO.idata_to_init_kwargs "
+"<pymc_marketing.model_builder.ModelIO.idata_to_init_kwargs>`\\ \\(idata\\)"
+msgstr ""
+":py:obj:`ModelIO.idata_to_init_kwargs "
+"<pymc_marketing.model_builder.ModelIO.idata_to_init_kwargs>`\\ \\(idata\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelIO.rst:30:<autosummary>:1
+#: 41a45188b9904045bd85007219371544
+msgid ""
+"Create  the model configuration and sampler configuration from the "
+"InferenceData to keyword arguments."
+msgstr ""
+"Cree la configuración del modelo y la configuración del muestreador a partir"
+" de InferenceData a argumentos de palabra clave."
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelIO.rst:30:<autosummary>:1
+#: 89a06ce0d2ad401fbee3ee8182b8a91d
+msgid ""
+":py:obj:`ModelIO.load <pymc_marketing.model_builder.ModelIO.load>`\\ "
+"\\(fname\\[\\, check\\]\\)"
+msgstr ""
+":py:obj:`ModelIO.load <pymc_marketing.model_builder.ModelIO.load>`\\ "
+"\\(fname\\[\\, check\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelIO.rst:30:<autosummary>:1
+#: cf3b3d8c03ab4e4c84fd2fbe043bb7aa
+msgid "Create a ModelBuilder instance from a file."
+msgstr "Cree una instancia de ModelBuilder a partir de un archivo."
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelIO.rst:30:<autosummary>:1
+#: ba203d41a23042d0beb043219ffbc5cb
+msgid ""
+":py:obj:`ModelIO.load_from_idata "
+"<pymc_marketing.model_builder.ModelIO.load_from_idata>`\\ \\(idata\\[\\, "
+"check\\]\\)"
+msgstr ""
+":py:obj:`ModelIO.load_from_idata "
+"<pymc_marketing.model_builder.ModelIO.load_from_idata>`\\ \\(idata\\[\\, "
+"check\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelIO.rst:30:<autosummary>:1
+#: f0427a7ac6e14971a739dc2dd67459ac
+msgid "Create a ModelBuilder instance from an InferenceData object."
+msgstr ""
+"Cree una instancia de ModelBuilder a partir de un objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelIO.rst:30:<autosummary>:1
+#: 7e4f368320b1489d8aae9ed85e811353
+msgid ""
+":py:obj:`ModelIO.save <pymc_marketing.model_builder.ModelIO.save>`\\ "
+"\\(fname\\, \\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`ModelIO.save <pymc_marketing.model_builder.ModelIO.save>`\\ "
+"\\(fname\\, \\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelIO.rst:30:<autosummary>:1
+#: 53fb939ec64d45988da7ffa21061c417
+msgid "Save the model's inference data to a file."
+msgstr "Guarde los datos de inferencia del modelo en un archivo."
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelIO.rst:30:<autosummary>:1
+#: ce9c51efed1e4dfa93d0c82b77bd5226
+msgid ""
+":py:obj:`ModelIO.set_idata_attrs "
+"<pymc_marketing.model_builder.ModelIO.set_idata_attrs>`\\ \\(\\[idata\\]\\)"
+msgstr ""
+":py:obj:`ModelIO.set_idata_attrs "
+"<pymc_marketing.model_builder.ModelIO.set_idata_attrs>`\\ \\(\\[idata\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelIO.rst:30:<autosummary>:1
+#: dd44b6bda9874490a0c2c427dde3ebe7
+msgid "Set attributes on an InferenceData object."
+msgstr "Establecer atributos en un objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelIO.rst:32
+#: dcec8b895fc74d79bcf0703bd960ac0b
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelIO.rst:39:<autosummary>:1
+#: 4c5bef6688ee4a2b8419a245b1b032b4
+msgid ":py:obj:`id <pymc_marketing.model_builder.ModelIO.id>`\\"
+msgstr ":py:obj:`id <pymc_marketing.model_builder.ModelIO.id>`"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelIO.rst:39:<autosummary>:1
+#: 7cbf6966f1cb434da42d62eb57642927
+msgid "Generate a unique hash value for the model."
+msgstr "Generar un valor hash único para el modelo."
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelIO.rst:39:<autosummary>:1
+#: a92daa96d6de48aba160d8a690dfb898
+msgid ":py:obj:`version <pymc_marketing.model_builder.ModelIO.version>`\\"
+msgstr ":py:obj:`versión <pymc_marketing.model_builder.ModelIO.version>`\\"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelIO.rst:39:<autosummary>:1
+#: 3f7e7046795f4181acc23e2745609ce1
+msgid ":py:obj:`idata <pymc_marketing.model_builder.ModelIO.idata>`\\"
+msgstr ":py:obj:`idata <pymc_marketing.model_builder.ModelIO.idata>`"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelIO.rst:39:<autosummary>:1
+#: 466d3f6b83bf489890b533062aedc0b6
+msgid ""
+":py:obj:`sampler_config "
+"<pymc_marketing.model_builder.ModelIO.sampler_config>`\\"
+msgstr ""
+":py:obj:`sampler_config "
+"<pymc_marketing.model_builder.ModelIO.sampler_config>`"
+
+#: ../source/api/generated/pymc_marketing.model_builder.ModelIO.rst:39:<autosummary>:1
+#: 005a4f5a0c2c4ad49d35eabcf60efc7b
+msgid ""
+":py:obj:`model_config <pymc_marketing.model_builder.ModelIO.model_config>`\\"
+msgstr ""
+":py:obj:`model_config <pymc_marketing.model_builder.ModelIO.model_config>`"

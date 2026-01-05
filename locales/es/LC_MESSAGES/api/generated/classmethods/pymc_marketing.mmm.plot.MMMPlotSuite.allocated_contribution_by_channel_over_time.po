@@ -1,0 +1,217 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.plot.MMMPlotSuite.allocated_contribution_by_channel_over_time.rst:2
+#: 61017ffbbcdf40f6a01892f6d64f1bba
+msgid "MMMPlotSuite.allocated\\_contribution\\_by\\_channel\\_over\\_time"
+msgstr "MMMPlotSuite.contribución\\_asignada\\_por\\_canal\\_a\\_lo\\_largo\\_del\\_tiempo"
+
+#: d99f887dfd6145f492107fadbde402aa of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.allocated_contribution_by_channel_over_time:2
+msgid "Plot the allocated contribution by channel with uncertainty intervals."
+msgstr ""
+"Trace la contribución asignada por canal con intervalos de incertidumbre."
+
+#: 0356b5e8f9894dfca61e9a31c261d783 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.allocated_contribution_by_channel_over_time:4
+msgid ""
+"This function visualizes the mean allocated contributions by channel along "
+"with the uncertainty intervals defined by the lower and upper quantiles. If "
+"additional dimensions besides 'channel', 'date', and 'sample' are present, "
+"creates a subplot for each combination of these dimensions."
+msgstr ""
+"Esta función visualiza las contribuciones medias asignadas por canal junto "
+"con los intervalos de incertidumbre definidos por los cuartiles inferior y "
+"superior. Si hay dimensiones adicionales además de 'canal', 'fecha' y "
+"'muestra', crea un subplot para cada combinación de estas dimensiones."
+
+#: 1b885256d0574056aea3fb43a06f34bc of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.allocated_contribution_by_channel_over_time
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: db11b80b6e6640029b3246bd9c56b2be of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.allocated_contribution_by_channel_over_time:11
+msgid "**samples** : :obj:`xr.Dataset`"
+msgstr "**muestras** : :obj:`xr.Dataset`"
+
+#: ad65f807305e456985428207bef5c304 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.allocated_contribution_by_channel_over_time:10
+msgid "xr.Dataset"
+msgstr "xr.ConjuntoDeDatos"
+
+#: 27a5e7adb1dc4dfe907d272318f246bd of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.allocated_contribution_by_channel_over_time:12
+msgid ""
+"The dataset containing the samples of channel contributions. Expected to "
+"have 'channel_contribution' variable with dimensions 'channel', 'date', and "
+"'sample'."
+msgstr ""
+"El conjunto de datos que contiene las muestras de contribuciones de canal. "
+"Se espera que tenga la variable 'channel_contribution' con dimensiones "
+"'channel', 'date' y 'sample'."
+
+#: 1c3d7d9b76644388954f7b12c3f3977c of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.allocated_contribution_by_channel_over_time:16
+msgid "**scale_factor** : :class:`python:float`, optional"
+msgstr "**factor_de_escala** : :class:`python:float`, opcional"
+
+#: 18e887ef1626424cbe38065bda417433 91777b05b6dc4d5eb17d8866fe77e435
+#: ee61ceef1c1e43be968a0b68e07e5cb3 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.allocated_contribution_by_channel_over_time:15
+#: pymc_marketing.mmm.plot.MMMPlotSuite.allocated_contribution_by_channel_over_time:19
+#: pymc_marketing.mmm.plot.MMMPlotSuite.allocated_contribution_by_channel_over_time:22
+msgid "python:float, optional"
+msgstr "python:float, opcional"
+
+#: fe9723b83e974a608bb33f758f52183e of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.allocated_contribution_by_channel_over_time:17
+msgid ""
+"Scale factor to convert to original scale, if original_scale=True. If None "
+"and original_scale=True, assumes scale_factor=1."
+msgstr ""
+"Factor de escala para convertir a la escala original, si "
+"original_scale=True. Si es None y original_scale=True, se asume "
+"scale_factor=1."
+
+#: e9e52c5bbfd849c4bf47fa0982aa3593 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.allocated_contribution_by_channel_over_time:20
+msgid "**lower_quantile** : :class:`python:float`, optional"
+msgstr "**lower_quantile** : :class:`python:float`, opcional"
+
+#: 2f33e6c4d7dd4c6dbb9a14189b1a3b2a of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.allocated_contribution_by_channel_over_time:21
+msgid "The lower quantile for the uncertainty interval. Default is 0.025."
+msgstr ""
+"El cuartil inferior para el intervalo de incertidumbre. El valor "
+"predeterminado es 0.025."
+
+#: 056173a118604e1bae181b128f14d994 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.allocated_contribution_by_channel_over_time:23
+msgid "**upper_quantile** : :class:`python:float`, optional"
+msgstr "**cuartil_superior** : :class:`python:float`, opcional"
+
+#: 109b58b4f1084084a6f0b8d27ffc051c of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.allocated_contribution_by_channel_over_time:24
+msgid "The upper quantile for the uncertainty interval. Default is 0.975."
+msgstr ""
+"El cuartil superior para el intervalo de incertidumbre. El valor "
+"predeterminado es 0.975."
+
+#: 202f22fc2ba64113b9676815612908b8 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.allocated_contribution_by_channel_over_time:26
+msgid ""
+"**original_scale** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+"**original_scale** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 252b3b0d267b4df2acbb9bac2a5b452f of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.allocated_contribution_by_channel_over_time:25
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: 288164caca7b4f9dad2cf6662a43d450 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.allocated_contribution_by_channel_over_time:27
+msgid ""
+"If True, the contributions are plotted on the original scale. Default is "
+"True."
+msgstr ""
+"Si es verdadero, las contribuciones se representan en la escala original. El"
+" valor predeterminado es verdadero."
+
+#: 2221c5de42b147878ec9631e0b014039 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.allocated_contribution_by_channel_over_time:29
+msgid ""
+"**figsize** : :class:`python:tuple`\\[:class:`python:float`, "
+":class:`python:float`], optional"
+msgstr ""
+"**figsize** : :class:`python:tuple`\\[:class:`python:float`, "
+":class:`python:float`], opcional"
+
+#: 482307392823405a951fde8802615092 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.allocated_contribution_by_channel_over_time:28
+msgid "python:tuple[python:float, python:float], optional"
+msgstr "python:tuple[python:float, python:float], opcional"
+
+#: e1e8356f47cc455d9ef5f0ce22488a78 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.allocated_contribution_by_channel_over_time:30
+msgid "The size of the figure to be created. Default is (10, 6)."
+msgstr "El tamaño de la figura a crear. El valor predeterminado es (10, 6)."
+
+#: f3997fd7611f433db61ee75bef37c448 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.allocated_contribution_by_channel_over_time:32
+msgid "**ax** : :obj:`plt.Axes`, optional"
+msgstr "**ax** : :obj:`plt.Axes`, opcional"
+
+#: 4472d5b597d1427a8d7ed3f34b6930cc of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.allocated_contribution_by_channel_over_time:31
+msgid "plt.Axes, optional"
+msgstr "plt.Axes, opcional"
+
+#: 91385ba50d5f4f57bcde440683bc2a40 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.allocated_contribution_by_channel_over_time:33
+msgid ""
+"The axis to plot on. If None, a new figure and axis will be created. Only "
+"used when no extra dimensions are present."
+msgstr ""
+"El eje en el que trazar. Si es None, se creará una nueva figura y eje. Solo "
+"se utiliza cuando no hay dimensiones adicionales presentes."
+
+#: 06b392f937ef4a8084d840bcd3204187 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.allocated_contribution_by_channel_over_time
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: f07ca9901a4c40408207cebe38f5ca62 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.allocated_contribution_by_channel_over_time:40
+msgid "**fig** : :obj:`matplotlib.figure.Figure`"
+msgstr "**fig** : :obj:`matplotlib.figure.Figure`"
+
+#: 13bbdc22a8f74d6e8da7019b5f1ca39d of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.allocated_contribution_by_channel_over_time:39
+msgid "matplotlib.figure.Figure"
+msgstr "matplotlib.figure.Figure"
+
+#: 73093af661ca4ea989055e7fe18d7bc1 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.allocated_contribution_by_channel_over_time:41
+msgid "The Figure object containing the plot."
+msgstr "El objeto Figure que contiene el gráfico."
+
+#: ff3836a1122a426dac44719c87066c79 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.allocated_contribution_by_channel_over_time:43
+msgid ""
+"**axes** : :obj:`matplotlib.axes.Axes` or :obj:`numpy.ndarray` of "
+":obj:`matplotlib.axes.Axes`"
+msgstr ""
+"**ejes** : :obj:`matplotlib.axes.Axes` o :obj:`numpy.ndarray` de "
+":obj:`matplotlib.axes.Axes`"
+
+#: 1c874accf62a4922a22d2ecd1ab2965f of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.allocated_contribution_by_channel_over_time:42
+msgid "matplotlib.axes.Axes or numpy.ndarray of matplotlib.axes.Axes"
+msgstr "matplotlib.axes.Axes o numpy.ndarray de matplotlib.axes.Axes"
+
+#: 49d1a9be0ae94bf081dd69ed3f089e83 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.allocated_contribution_by_channel_over_time:44
+msgid "The Axes object with the plot, or array of Axes for multiple subplots."
+msgstr ""
+"El objeto Axes con el gráfico, o matriz de Axes para múltiples subgráficas."

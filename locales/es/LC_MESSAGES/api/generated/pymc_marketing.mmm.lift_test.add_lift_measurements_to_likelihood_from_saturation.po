@@ -1,0 +1,220 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation.rst:2
+#: 627b06dc25054e89a695ae99a3b0c673
+msgid "add\\_lift\\_measurements\\_to\\_likelihood\\_from\\_saturation"
+msgstr "agregar_mediciones_de_elevación_a_la_probabilidad_desde_la_saturación"
+
+#: 64b0023b23e64eca90a7aec2e37c3a0a of
+#: pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation:2
+msgid ""
+"Add lift measurements to the likelihood from a saturation transformation."
+msgstr ""
+"Agregue las medidas de elevación a la probabilidad de una transformación de "
+"saturación."
+
+#: c05fb292d7a84013ac9e9f8947c91b8e of
+#: pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation:4
+msgid ""
+"Wrapper around :func:`add_saturation_observations` to work with "
+"SaturationTransformation instances and time-varying variables."
+msgstr ""
+"Envoltorio alrededor de :func:`add_saturation_observations` para trabajar "
+"con instancias de SaturationTransformation y variables que varían con el "
+"tiempo."
+
+#: eed801a35e604f8ca71d9268d2bc9d16 of
+#: pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation:7
+msgid "Used internally of the :class:`MMM` class."
+msgstr "Utilizado internamente de la clase :class:`MMM`."
+
+#: c8d73f83a18746c9ad8262a318bf4832 of
+#: pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: cf4fba493a2d434e82f6829969ec257b of
+#: pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation:11
+msgid "**df_lift_test** : :obj:`pd.DataFrame`"
+msgstr "**df_lift_test** : :obj:`pd.DataFrame`"
+
+#: 47b1e681e054491aa4604f376af067a0 of
+#: pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation:10
+msgid "pd.DataFrame"
+msgstr "pd.DataFrame"
+
+#: a02da806004b4eb1bcf0535ce7cb1b70 of
+#: pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation:12
+msgid "DataFrame with lift test results with at least the following columns:"
+msgstr ""
+"DataFrame con resultados de la prueba de elevación con al menos las "
+"siguientes columnas:"
+
+#: f220f5fef1d848c1aed6d1b3dbb3fdda of
+#: pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation:13
+msgid "`x`: x axis value of the lift test."
+msgstr "`x`: valor del eje x de la prueba de elevación."
+
+#: ff25412b271a40558a387e32170bf9ad of
+#: pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation:14
+msgid "`delta_x`: change in x axis value of the lift test."
+msgstr "`delta_x`: cambio en el valor del eje x de la prueba de elevación."
+
+#: b07a9c54a28243a58f6f58e70a44199f of
+#: pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation:15
+msgid "`delta_y`: change in y axis value of the lift test."
+msgstr "`delta_y`: cambio en el valor del eje y de la prueba de elevación."
+
+#: 9a890a1e7f8147c2a9fc979cca7e5658 of
+#: pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation:16
+msgid "`sigma`: standard deviation of the lift test."
+msgstr "`sigma`: desviación estándar de la prueba de elevación."
+
+#: 227d6e0770a848eeb6e0ef47f5c88648 of
+#: pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation:18
+msgid "**saturation** : :obj:`SaturationTransformation`"
+msgstr "**saturación** : :obj:`SaturationTransformation`"
+
+#: 4319f0a22e0f44f88b9e01ee893992c1 of
+#: pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation:17
+msgid "SaturationTransformation"
+msgstr "Transformación de Saturación"
+
+#: a324ca4cd640485fbc7a09c25353a3ff of
+#: pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation:19
+msgid "Any SaturationTransformation instance."
+msgstr "Cualquier instancia de SaturationTransformation."
+
+#: 3c195c6778854ccaaa9628ac31b57f02 of
+#: pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation:21
+msgid "**time_varying_var_name** : :class:`python:str`, optional"
+msgstr "**time_varying_var_name** : :class:`python:str`, opcional"
+
+#: 6de79ae507a44bd2bd07e92a35f94ab6 d5dde5a9a83c49a0a70717df70314c6f of
+#: pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation:20
+#: pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation:29
+msgid "python:str, optional"
+msgstr "python:str, opcional"
+
+#: 74db12f8b14048a985fdd4faf070290a of
+#: pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation:22
+msgid "Name of the time-varying variable in model."
+msgstr "Nombre de la variable que varía en el tiempo en el modelo."
+
+#: 05b8b802e3a44ef49ed46627e33c1bcf of
+#: pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation:24
+msgid "**model** : :obj:`Optional`\\[:obj:`pm.Model`], optional"
+msgstr "**modelo** : :obj:`Opcional`\\[:obj:`pm.Model`], opcional"
+
+#: 5a29171a06a3482e9b03a7af048b6b7c of
+#: pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation:23
+msgid "Optional[pm.Model], optional"
+msgstr "Opcional[pm.Model], opcional"
+
+#: 4f8d56ebc7ad44b4b45b2bff3cdd6b8c of
+#: pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation:25
+msgid "PyMC model with arbitrary number of coordinates, by default None"
+msgstr "Modelo PyMC con un número arbitrario de coordenadas, por defecto None"
+
+#: 82c41fa120c54e07a1e1bd7fb4ceefa4 of
+#: pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation:27
+msgid "**dist** : :obj:`pm.Distribution` :obj:`class`, optional"
+msgstr "**dist** : :obj:`pm.Distribution` :obj:`clase`, opcional"
+
+#: d505261342164a9f88e148c44b33675b of
+#: pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation:26
+msgid "pm.Distribution class, optional"
+msgstr "clase pm.Distribution, opcional"
+
+#: eab220f9af4d4586a1e485722df37092 of
+#: pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation:28
+msgid "PyMC distribution to use for the likelihood, by default pm.Gamma"
+msgstr ""
+"Distribución de PyMC a utilizar para la verosimilitud, por defecto pm.Gamma"
+
+#: 818df71e147447ccaf27caff8b0450be of
+#: pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation:30
+msgid "**name** : :class:`python:str`, optional"
+msgstr "**nombre** : :class:`python:str`, opcional"
+
+#: 75883a4fc67f421ea9f160d19c856fa6 of
+#: pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation:31
+msgid "Name of the likelihood, by default \"lift_measurements\""
+msgstr "Nombre de la probabilidad, por defecto \"lift_measurements\""
+
+#: 9f0912228a744158ba4fc57b1a1cffa9 of
+#: pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation:33
+msgid ""
+"**get_indices** : :obj:`Callable`\\[[:obj:`pd.DataFrame`, :obj:`pm.Model`], "
+":obj:`Indices`], optional"
+msgstr ""
+"**get_indices** : :obj:`Callable`\\[[:obj:`pd.DataFrame`, :obj:`pm.Model`], "
+":obj:`Indices`], opcional"
+
+#: f7ba944a20db47408e4eb97db302bae4 of
+#: pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation:32
+msgid "Callable[[pd.DataFrame, pm.Model], Indices], optional"
+msgstr "Llamable[[pd.DataFrame, pm.Model], Indices], opcional"
+
+#: 9ddffdf615b84aee999a5021445a5943 of
+#: pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation:34
+msgid ""
+"Function to get the indices of the DataFrame in the model, by default "
+"exact_row_indices which assumes that the columns map exactly to the model "
+"coordinates."
+msgstr ""
+"Función para obtener los índices del DataFrame en el modelo, por defecto "
+"exact_row_indices que asume que las columnas se mapean exactamente a las "
+"coordenadas del modelo."
+
+#: 78e7a34337624387805ec44400443b95 of
+#: pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation:37
+msgid ""
+"**variable_indexer_factory** : :obj:`Callable`\\[[:obj:`pm.Model`, "
+":obj:`Indices`], :obj:`Callable`\\[[:class:`python:str`], "
+":class:`~pytensor.tensor.TensorVariable`]], optional"
+msgstr ""
+"**variable_indexer_factory** : :obj:`Callable`\\[[:obj:`pm.Model`, "
+":obj:`Indices`], :obj:`Callable`\\[[:class:`python:str`], "
+":class:`~pytensor.tensor.TensorVariable`]], opcional"
+
+#: 3bcdce99e9d34c6ea08cedcbd57c270c of
+#: pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation:36
+msgid ""
+"Callable[[pm.Model, Indices], Callable[[python:str], TensorVariable]], "
+"optional"
+msgstr ""
+"Callable[[pm.Model, Indices], Callable[[python:str], TensorVariable]], "
+"opcional"
+
+#: dc242c46aca541558b91ab0ed8c8e249 of
+#: pymc_marketing.mmm.lift_test.add_lift_measurements_to_likelihood_from_saturation:38
+msgid ""
+"Function to create a variable indexer, by default create_variable_indexer "
+"which creates a function to index variables in the model. This is used "
+"determine the values of the parameters to evaluate the saturation function."
+msgstr ""
+"Función para crear un indexador de variables, por defecto "
+"create_variable_indexer, que crea una función para indexar variables en el "
+"modelo. Esto se utiliza para determinar los valores de los parámetros para "
+"evaluar la función de saturación."

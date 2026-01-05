@@ -1,0 +1,82 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.distribution_customer_spend.rst:2
+#: 0e48a261291d4743a06971d69a37630b
+msgid "BaseGammaGammaModel.distribution\\_customer\\_spend"
+msgstr "BaseGammaGammaModel.distribution\\_gasto\\_del\\_cliente"
+
+#: 3a46fcc908ea4d5bb78b4ff13bf06824 of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.distribution_customer_spend:2
+msgid "Posterior distribution of mean spend values for each customer."
+msgstr ""
+"Distribución posterior de los valores medios de gasto para cada cliente."
+
+#: 779094cd29b1477a8e1efd936c1ca793 of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.distribution_customer_spend
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 5f49fcc160f34b769d6b188d8c332e8f of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.distribution_customer_spend:7
+msgid "**data** : :obj:`~pandas.DataFrame`"
+msgstr "**datos** : :obj:`~pandas.DataFrame`"
+
+#: 881b49740991453f9bf95390fd84e685 of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.distribution_customer_spend:6
+msgid "DataFrame"
+msgstr "DataFrame"
+
+#: a0b9996d9e70429ea242d172d7c90a83 of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.distribution_customer_spend:8
+msgid "DataFrame containing the following columns:"
+msgstr "DataFrame que contiene las siguientes columnas:"
+
+#: 6c2f50f1e8ce4b5baaeb398158b3fcab of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.distribution_customer_spend:10
+msgid "`customer_id`: Unique customer identifier"
+msgstr "`customer_id`: Identificador único del cliente"
+
+#: b1116214a0f04bf7b13ac7e76d87d3c0 of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.distribution_customer_spend:11
+msgid "`frequency`: Number of purchases"
+msgstr "`frequency`: Número de compras"
+
+#: 8869c7ade9194972bf829855e0ed8137 of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.distribution_customer_spend:12
+msgid "`monetary_value`: Mean spend values for each customer"
+msgstr "`monetary_value`: Valores de gasto medio para cada cliente"
+
+#: e72d0319b95a4bfa9e24df31b5d2bd18 of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.distribution_customer_spend:14
+msgid "**random_seed** : :obj:`~RandomState`, optional"
+msgstr "**random_seed** : :obj:`~RandomState`, opcional"
+
+#: f2fa74ecb398457f965b5c5441741a30 of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.distribution_customer_spend:13
+msgid "RandomState, optional"
+msgstr "RandomState, opcional"
+
+#: 3e96680d7ddc4c85a1b2bb79c9c2c231 of
+#: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.distribution_customer_spend:15
+msgid "Optional random seed to fix sampling results."
+msgstr "Semilla aleatoria opcional para fijar los resultados de muestreo."

@@ -1,0 +1,39 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.hsgp.PeriodicCovFunc.rjust.rst:2
+#: 8b03ed2ea4174f3180c6a0141a431c1f
+msgid "PeriodicCovFunc.rjust"
+msgstr "PeriodicCovFunc.rjust"
+
+#: 22c64da9aa5e47849b322355020549bf of
+#: pymc_marketing.mmm.hsgp.PeriodicCovFunc.rjust:2
+msgid "Return a right-justified string of length width."
+msgstr "Devuelve una cadena alineada a la derecha de longitud width."
+
+#: 67ce2604184441a5858023a73edbdcdd of
+#: pymc_marketing.mmm.hsgp.PeriodicCovFunc.rjust:4
+msgid ""
+"Padding is done using the specified fill character (default is a space)."
+msgstr ""
+"El relleno se realiza utilizando el carácter de relleno especificado (el "
+"valor predeterminado es un espacio)."

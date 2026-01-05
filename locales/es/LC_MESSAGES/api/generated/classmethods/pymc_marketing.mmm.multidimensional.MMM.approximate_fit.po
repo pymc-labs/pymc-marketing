@@ -1,0 +1,189 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.multidimensional.MMM.approximate_fit.rst:2
+#: f33cae420a674adabc308824bb3b995a
+msgid "MMM.approximate\\_fit"
+msgstr "MMM.ajuste\\_aproximado"
+
+#: bc195111b59547878532c2ecdecd34ee of
+#: pymc_marketing.model_builder.RegressionModelBuilder.approximate_fit:2
+msgid "Fit a model using Variational Inference and return InferenceData."
+msgstr ""
+"Ajuste un modelo utilizando Inferencia Variacional y devuelva InferenceData."
+
+#: afa54b9164554cdf90fb94b396c66856 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.approximate_fit:4
+msgid ""
+"This performs variational inference via `pymc.fit`, then draws posterior "
+"samples from the fitted approximation via `Approximation.sample`, returning "
+"an `arviz.InferenceData` compatible with the rest of the API (same structure"
+" as `.fit`)."
+msgstr ""
+"Esto realiza inferencia variacional a través de `pymc.fit`, luego extrae "
+"muestras posteriores de la aproximación ajustada mediante "
+"`Approximation.sample`, devolviendo un `arviz.InferenceData` compatible con "
+"el resto de la API (misma estructura que `.fit`)."
+
+#: 41dd4c7faf9c45e9aa8260d079177947 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.approximate_fit
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 59c1504ed9154445ac39aed82d01918a of
+#: pymc_marketing.model_builder.RegressionModelBuilder.approximate_fit:10
+msgid ""
+"**X** : :term:`numpy:array_like` | :obj:`array <numpy.ndarray>`, "
+":obj:`shape` (:obj:`n_obs`, :obj:`n_features`)"
+msgstr ""
+"**X** : :term:`numpy:array_like` | :obj:`array <numpy.ndarray>`, "
+":obj:`shape` (:obj:`n_obs`, :obj:`n_features`)"
+
+#: b456e73c7c4a4d4cb1f151dde6c0f42b of
+#: pymc_marketing.model_builder.RegressionModelBuilder.approximate_fit:9
+msgid "numpy:array_like | array, shape (n_obs, n_features)"
+msgstr "numpy:array_like | arreglo, forma (n_obs, n_features)"
+
+#: 1c80fad5f5b6432297f582513f77144b of
+#: pymc_marketing.model_builder.RegressionModelBuilder.approximate_fit:11
+msgid ""
+"The training input samples. If scikit-learn is available, array-like, "
+"otherwise array."
+msgstr ""
+"Las muestras de entrada de entrenamiento. Si scikit-learn está disponible, "
+"tipo array, de lo contrario, array."
+
+#: 213a1a0ef55d484aa4290f689175a608 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.approximate_fit:13
+msgid ""
+"**y** : :term:`numpy:array_like` | :obj:`array <numpy.ndarray>`, "
+":obj:`shape` (n_obs,)"
+msgstr ""
+"**y** : :term:`numpy:array_like` | :obj:`array <numpy.ndarray>`, "
+":obj:`shape` (n_obs,)"
+
+#: c7980f52ed1d43359233e76b086455f4 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.approximate_fit:12
+msgid "numpy:array_like | array, shape (n_obs,)"
+msgstr "numpy:array_like | arreglo, forma (n_obs,)"
+
+#: fd0703079edb4458b8fbbab8692ea72e of
+#: pymc_marketing.model_builder.RegressionModelBuilder.approximate_fit:14
+msgid ""
+"The target values (real numbers). If scikit-learn is available, array-like, "
+"otherwise array."
+msgstr ""
+"Los valores objetivo (números reales). Si scikit-learn está disponible, tipo"
+" array, de lo contrario array."
+
+#: 26e363c5477b453fb1057ea8a0d780a7 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.approximate_fit:16
+msgid "**progressbar** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+"**barra de progreso** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: f623682f5f114d0399af3295fcdda912 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.approximate_fit:15
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: 01a050d28645434bb4aac3ba09b0efc5 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.approximate_fit:17
+msgid ""
+"Specifies whether the fitting/sample progress bar should be displayed. "
+"Defaults to True."
+msgstr ""
+"Especifica si se debe mostrar la barra de progreso de ajuste/muestra. Por "
+"defecto es True."
+
+#: 6cbf5fc4ed304d018d99bfd4b97eb3e4 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.approximate_fit:19
+msgid ""
+"**random_seed** : :obj:`Optional`\\[:obj:`RandomState "
+"<numpy.random.RandomState>`]"
+msgstr ""
+"**random_seed** : :obj:`Opcional`\\[:obj:`RandomState "
+"<numpy.random.RandomState>`]"
+
+#: 54e1e3c83e6c41caafd440d2eae436d1 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.approximate_fit:18
+msgid "Optional[RandomState]"
+msgstr "Opcional[RandomState]"
+
+#: 59b2003d11a44ca3966408c4ea4ff35d of
+#: pymc_marketing.model_builder.RegressionModelBuilder.approximate_fit:20
+msgid ""
+"Provides stochastic procedures with initial random seed for reproducibility."
+msgstr ""
+"Proporciona procedimientos estocásticos con una semilla aleatoria inicial "
+"para la reproducibilidad."
+
+#: ad54160ffb3c4c5a8b761a6d5fffd24d of
+#: pymc_marketing.model_builder.RegressionModelBuilder.approximate_fit:22
+msgid "**fit_kwargs** : :class:`python:dict`, optional"
+msgstr "**fit_kwargs** : :class:`python:dict`, opcional"
+
+#: 19dfa1f07b2b4475bf9cc1edf8ad86de 5842bf10ff0f4d28b31cca5ed5a8d2f0 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.approximate_fit:21
+#: pymc_marketing.model_builder.RegressionModelBuilder.approximate_fit:24
+msgid "python:dict, optional"
+msgstr "python:dict, opcional"
+
+#: 4792c86669104228bd58fa8b76cb2094 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.approximate_fit:23
+#, python-brace-format
+msgid ""
+"Extra keyword arguments forwarded to `pymc.fit` (e.g., {\"n\": 10_000, "
+"\"method\": \"advi\"})."
+msgstr ""
+"Argumentos adicionales de palabras clave enviados a `pymc.fit` (por ejemplo,"
+" {\"n\": 10_000, \"method\": \"advi\"})."
+
+#: a0190f06ca6442859aa10f7d944d83bb of
+#: pymc_marketing.model_builder.RegressionModelBuilder.approximate_fit:25
+msgid "**sample_kwargs** : :class:`python:dict`, optional"
+msgstr "**sample_kwargs** : :class:`python:dict`, opcional"
+
+#: 78f16162f2c44cc9ae8e86c70f1bc1d3 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.approximate_fit:26
+#, python-brace-format
+msgid ""
+"Extra keyword arguments forwarded to `Approximation.sample` (e.g., "
+"{\"draws\": 1_000})."
+msgstr ""
+"Argumentos adicionales de palabras clave enviados a `Approximation.sample` "
+"(por ejemplo, {\"draws\": 1_000})."
+
+#: a20fa0886f1f4dd897b94cc8fb9c9aec of
+#: pymc_marketing.model_builder.RegressionModelBuilder.approximate_fit
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 49f527f608974d40b204236a3f39d721 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.approximate_fit:32
+msgid ":obj:`az.InferenceData`"
+msgstr ":obj:`az.InferenceData`"
+
+#: 38e1b2650df147e699480a248351382b of
+#: pymc_marketing.model_builder.RegressionModelBuilder.approximate_fit:33
+msgid "Inference data of the variationally fitted model."
+msgstr "Datos de inferencia del modelo ajustado variacionalmente."

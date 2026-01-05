@@ -1,0 +1,104 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.events.GaussianBasis.apply.rst:2
+#: 4f3215ff7c364376989825458e622bb2
+msgid "GaussianBasis.apply"
+msgstr "GaussianBasis.aplicar"
+
+#: 36e896cdc74e4960a5f027b5994156fd of
+#: pymc_marketing.mmm.components.base.Transformation.apply:2
+msgid "Call within a model context."
+msgstr "Llamar dentro de un contexto de modelo."
+
+#: 4b3965152739403788d83442ac11b438 of
+#: pymc_marketing.mmm.components.base.Transformation.apply:4
+msgid "Used internally of the MMM to apply the transformation to the data."
+msgstr ""
+"Utilizado internamente en el MMM para aplicar la transformación a los datos."
+
+#: 423ce83f4c744ff196fc05eb08d5e88d of
+#: pymc_marketing.mmm.components.base.Transformation.apply
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 035c7180af364cfcb75a1ab91ab75b22 of
+#: pymc_marketing.mmm.components.base.Transformation.apply:8
+msgid "**x** : :obj:`pt.TensorLike`"
+msgstr "**x** : :obj:`pt.TensorLike`"
+
+#: fdd1357c9f5a49ec8cc24ce18390f0ec of
+#: pymc_marketing.mmm.components.base.Transformation.apply:7
+msgid "pt.TensorLike"
+msgstr "pt.TensorComo"
+
+#: 4083d6b205534af49e56aae722b588c8 of
+#: pymc_marketing.mmm.components.base.Transformation.apply:9
+msgid "The data to be transformed."
+msgstr "Los datos que se van a transformar."
+
+#: b7d70014f76a4d43ae6c2b5e10c496ec of
+#: pymc_marketing.mmm.components.base.Transformation.apply:11
+msgid ""
+"**dims** : :class:`python:str`, "
+":term:`python:sequence`\\[:class:`python:str`], optional"
+msgstr ""
+"**dims** : :class:`python:str`, "
+":term:`python:sequence`\\[:class:`python:str`], opcional"
+
+#: ed057cc92cc04214bf60db9e25d30c5e of
+#: pymc_marketing.mmm.components.base.Transformation.apply:10
+msgid "python:str, python:sequence[python:str], optional"
+msgstr "python:str, python:sequence[python:str], opcional"
+
+#: 1ab2147870644610a7212a0c393e83c0 of
+#: pymc_marketing.mmm.components.base.Transformation.apply:12
+msgid ""
+"The dims of the parameters. Defaults to None. Not the dims of the data!"
+msgstr ""
+"Las dimensiones de los parámetros. Por defecto es None. ¡No son las "
+"dimensiones de los datos!"
+
+#: 05ff11c415204161b05c138317ec28b5 of
+#: pymc_marketing.mmm.components.base.Transformation.apply
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 3cc3784c36464f839ae048c627db8d9b of
+#: pymc_marketing.mmm.components.base.Transformation.apply:19
+msgid ":obj:`pt.TensorVariable`"
+msgstr ":obj:`pt.TensorVariable`"
+
+#: 60d9b26b8ae64eaf9f7285bfe5729cee of
+#: pymc_marketing.mmm.components.base.Transformation.apply:20
+msgid "The transformed data."
+msgstr "Los datos transformados."
+
+#: a4a5ca62ea5547b882f39fbf80d5d8d6 of
+#: pymc_marketing.mmm.components.base.Transformation.apply:32
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: e23a54f4a729496bad25864d907c6f26 of
+#: pymc_marketing.mmm.components.base.Transformation.apply:33
+msgid "Call the function for custom use-case"
+msgstr "Llama a la función para un caso de uso personalizado"

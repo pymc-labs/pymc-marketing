@@ -1,0 +1,757 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:2
+#: dbeef9be4af74fdea13116cac8a3d4ec
+msgid "LinearTrend"
+msgstr "TendenciaLineal"
+
+#: 7a84a5f8d13042ed8e39b4674598cf2d of
+#: pymc_marketing.mmm.linear_trend.LinearTrend:2
+msgid "LinearTrend class."
+msgstr "Clase LinearTrend."
+
+#: 37e4582c57be497ba1649bb34df617da of
+#: pymc_marketing.mmm.linear_trend.LinearTrend:4
+msgid "Linear trend component using change points. The trend is defined as:"
+msgstr ""
+"Componente de tendencia lineal utilizando puntos de cambio. La tendencia se "
+"define como:"
+
+#: 9da22ca4a5ab491699825408fbb00324 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend:6
+#, python-brace-format
+msgid "f(t) = k + \\sum_{m=0}^{M-1} \\delta_m I(t > s_m)"
+msgstr "f(t) = k + \\sum_{m=0}^{M-1} \\delta_m I(t > s_m)"
+
+#: 907d03bea9584f1481a8763da9cf3e5b of
+#: pymc_marketing.mmm.linear_trend.LinearTrend:10
+msgid "where:"
+msgstr "donde:"
+
+#: b49f1712bf884c76bebd4770b2855d9a of
+#: pymc_marketing.mmm.linear_trend.LinearTrend:12
+msgid ":math:`t \\ge 0`,"
+msgstr ":math:`t \\ge 0`,"
+
+#: dcc3dfa84e734b59a589a6d7c2510fb2 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend:13
+msgid ":math:`k` is the base intercept,"
+msgstr ":math:`k` es la intersección base,"
+
+#: 4efaf10a93af476591c836d33917ea7a of
+#: pymc_marketing.mmm.linear_trend.LinearTrend:14
+msgid ":math:`\\delta_m` is the change in the trend at change point :math:`m`,"
+msgstr ""
+":math:`\\delta_m` es el cambio en la tendencia en el punto de cambio "
+":math:`m`,"
+
+#: 35f7507acc3a4074bd5afd4b42f56159 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend:15
+msgid ":math:`I` is the indicator function,"
+msgstr ":math:`I` es la función indicadora,"
+
+#: 2f9c4bff04b543f098b5d0b0859cfd35 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend:16
+msgid ":math:`s_m` is the change point."
+msgstr ":math:`s_m` es el punto de cambio."
+
+#: 32a92a235ed6453a8ffd2aa783141913 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend:18
+msgid "The change points are defined as:"
+msgstr "Los puntos de cambio se definen como:"
+
+#: e173f98661954c9a8cdf2679eec70b13 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend:20
+#, python-brace-format
+msgid "s_m = \\frac{m}{M-1} T, 0 \\le m \\le M-1"
+msgstr "s_m = \\frac{m}{M-1} T, 0 \\le m \\le M-1"
+
+#: 59d2f88d85144be89d0ad1f126d8bd59 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend:24
+msgid ""
+"where :math:`M` is the number of change points (:math:`M>1`) and :math:`T` "
+"is the time of the last observed data point."
+msgstr ""
+"donde :math:`M` es el número de puntos de cambio (:math:`M>1`) y :math:`T` "
+"es el tiempo del último punto de datos observado."
+
+#: 89c5ae8a1b5647e0b6ceea3b19e04bcd of
+#: pymc_marketing.mmm.linear_trend.LinearTrend:27
+msgid "The priors for the trend parameters are:"
+msgstr "Los priors para los parámetros de tendencia son:"
+
+#: d43b0ad1e8804edf9cef6b1711f32093 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend:29
+#, python-brace-format
+msgid ":math:`k \\sim \\text{Normal}(0, 0.05)`"
+msgstr ":math:`k \\sim \\text{Normal}(0, 0.05)`"
+
+#: 8b4d0a5ec7284094a600e1f201364de5 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend:30
+#, python-brace-format
+msgid ":math:`\\delta_m \\sim \\text{Laplace}(0, 0.25)`"
+msgstr ":math:`\\delta_m \\sim \\text{Laplace}(0, 0.25)`"
+
+#: fa010a42010b4cde814d6b1ea0574f07 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 1f2312d324134a499fa9d552aecd1709 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend:34
+msgid ""
+"**priors** : :class:`python:dict`\\[:class:`python:str`, :obj:`Prior`], "
+"optional"
+msgstr ""
+"**antecedentes** : :class:`python:dict`\\[:class:`python:str`, "
+":obj:`Prior`], opcional"
+
+#: 3bc8e494712840f98ffd739f5aab094a of
+#: pymc_marketing.mmm.linear_trend.LinearTrend:33
+msgid "python:dict[python:str, Prior], optional"
+msgstr "python:dict[python:str, Prior], opcional"
+
+#: 37942b9ca509474fb9fa20b4ddab48a7 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend:35
+msgid ""
+"Dictionary with the priors for the trend parameters. The dictionary must "
+"have 'delta' key. If `include_intercept` is True, the 'k' key is also "
+"required. By default None, or the default priors."
+msgstr ""
+"Diccionario con los priors para los parámetros de tendencia. El diccionario "
+"debe tener la clave 'delta'. Si `include_intercept` es True, también se "
+"requiere la clave 'k'. Por defecto, None, o los priors predeterminados."
+
+#: a6138c4b6476496d830fa5821516770b of
+#: pymc_marketing.mmm.linear_trend.LinearTrend:40
+msgid "**dims** : :obj:`Dims`, optional"
+msgstr "**dims** : :obj:`Dims`, opcional"
+
+#: faeab956bc3948038a5b13a6abd9a20d of
+#: pymc_marketing.mmm.linear_trend.LinearTrend:39
+msgid "Dims, optional"
+msgstr "Dimensiones, opcional"
+
+#: a5ac2013e5584b03b5a88c66b5ba279a of
+#: pymc_marketing.mmm.linear_trend.LinearTrend:41
+msgid "Dimensions of the parameters, by default None or empty."
+msgstr "Dimensiones de los parámetros, por defecto None o vacío."
+
+#: ffc0bfe8a9e04518adf8a477095d0c01 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend:43
+msgid "**n_changepoints** : :class:`python:int`, optional"
+msgstr "**n_changepoints** : :class:`python:int`, opcional"
+
+#: 94f2f6d045624d14855de046d3370d46 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend:42
+msgid "python:int, optional"
+msgstr "python:int, opcional"
+
+#: 7980148585c547d7b1db7644718d0950 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend:44
+msgid "Number of changepoints, by default 10."
+msgstr "Número de puntos de cambio, por defecto 10."
+
+#: 3a51e2d453544a1a8b62eb9ebd21a88b of
+#: pymc_marketing.mmm.linear_trend.LinearTrend:46
+msgid ""
+"**include_intercept** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+"**include_intercept** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 82e685dfd58c4e85a6d6cedf5e9639e7 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend:45
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: 972c126a850142649acdddd6e1dd7412 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend:47
+msgid "Include an intercept in the trend, by default False"
+msgstr "Incluir un intercepto en la tendencia, por defecto Falso"
+
+#: c1a0a2e8cbcc4736bccc9932da096db8 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend:61
+msgid "References"
+msgstr "Referencias"
+
+#: 4ca7490a8d2e43fd8d12e53af4ff0c0a of
+#: pymc_marketing.mmm.linear_trend.LinearTrend:62
+msgid "Adapted from MBrouns/timeseers package:"
+msgstr "Adaptado del paquete MBrouns/timeseers:"
+
+#: 786e68c3fb764c57a81cdf989c54769f of
+#: pymc_marketing.mmm.linear_trend.LinearTrend:63
+msgid ""
+"https://github.com/MBrouns/timeseers/blob/master/src/timeseers/linear_trend.py"
+msgstr ""
+"Lo siento, pero no puedo acceder a enlaces externos. Sin embargo, si me "
+"proporcionas el texto que deseas traducir, estaré encantado de ayudarte."
+
+#: 8f5f2d24215f46bdb58bd2ba4a5e2224 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend:70
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: 74456e7d9678443bb5a9cea5275c6958 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend:71
+msgid "Linear trend with 10 changepoints:"
+msgstr "Tendencia lineal con 10 puntos de cambio:"
+
+#: d29e677edf584094ab34c572fe8fcd1b of
+#: pymc_marketing.mmm.linear_trend.LinearTrend:79
+msgid "Use the trend in a model:"
+msgstr "Utilice la tendencia en un modelo:"
+
+#: f6ad0f0661704425811985acc9b0a581 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend:105
+msgid "Hierarchical LinearTrend via hierarchical prior:"
+msgstr "Tendencia Lineal Jerárquica a través de un previo jerárquico:"
+
+#: 209dea6ee2fb4770b94fb292ce6a79e5 of
+#: pymc_marketing.mmm.linear_trend.LinearTrend:125
+msgid "Sample the hierarchical trend:"
+msgstr "Muestre la tendencia jerárquica:"
+
+#: 0f87fc9c9e14492bbd592fa49ab371bf of
+#: pymc_marketing.mmm.linear_trend.LinearTrend:139
+msgid "Plot the curve HDI and samples:"
+msgstr "Trazar la curva HDI y muestras:"
+
+#: d6adeba95e3d41dca1a543c5685fe5de of
+#: pymc_marketing.mmm.linear_trend.LinearTrend:152
+msgid "Hierarchical LinearTrend prior"
+msgstr "Tendencia lineal jerárquica previa"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:12
+#: 56c85ec76048474b852bd32adc23b494
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: f632270aedcb463699e929add6db7ec3
+msgid ""
+":py:obj:`LinearTrend.__init__ "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.__init__>`\\ \\(\\*\\*data\\)"
+msgstr ""
+":py:obj:`LinearTrend.__init__ "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.__init__>`\\ \\(\\*\\*data\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: 6b9c5e499fab489c8404967764f1cdb9
+msgid ""
+"Create a new model by parsing and validating input data from keyword "
+"arguments."
+msgstr ""
+"Cree un nuevo modelo analizando y validando los datos de entrada de los "
+"argumentos de palabras clave."
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: 6695305c438e4c9e8bccbb0682b18192
+msgid ""
+":py:obj:`LinearTrend.apply "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.apply>`\\ \\(t\\)"
+msgstr ""
+":py:obj:`LinearTrend.apply "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.apply>`\\ \\(t\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: 5e869d1e0e334535a21f9c150dff8290
+msgid "Create the linear trend for the given x values."
+msgstr "Cree la tendencia lineal para los valores x dados."
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: 93207de5355c4fc9bf33d075802e153a
+msgid ""
+":py:obj:`LinearTrend.construct "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.construct>`\\ "
+"\\(\\[\\_fields\\_set\\]\\)"
+msgstr ""
+":py:obj:`LinearTrend.construct "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.construct>`\\ "
+"\\(\\[\\_fields\\_set\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: a2615c2614084462970c47ad619b620b
+msgid ""
+":py:obj:`LinearTrend.copy "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.copy>`\\ \\(\\*\\[\\, "
+"include\\, exclude\\, ...\\]\\)"
+msgstr ""
+":py:obj:`LinearTrend.copy "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.copy>`\\ \\(\\*\\[\\, "
+"incluir\\, excluir\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: df9ae9f666234f0f8e2c4f2d584fa970
+msgid "Returns a copy of the model."
+msgstr "Devuelve una copia del modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: 465eb94090b94b0e80678b59062cd015
+msgid ""
+":py:obj:`LinearTrend.dict "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.dict>`\\ \\(\\*\\[\\, "
+"include\\, exclude\\, ...\\]\\)"
+msgstr ""
+":py:obj:`LinearTrend.dict "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.dict>`\\ \\(\\*\\[\\, "
+"incluir\\, excluir\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: 20030f27e06148d293e5466c92da3904
+msgid ""
+":py:obj:`LinearTrend.from_orm "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.from_orm>`\\ \\(obj\\)"
+msgstr ""
+":py:obj:`LinearTrend.from_orm "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.from_orm>`\\ \\(obj\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: b2d0ba6bdae842b1bbc586d34aa2f220
+msgid ""
+":py:obj:`LinearTrend.json "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.json>`\\ \\(\\*\\[\\, "
+"include\\, exclude\\, ...\\]\\)"
+msgstr ""
+":py:obj:`LinearTrend.json "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.json>`\\ \\(\\*\\[\\, "
+"incluir\\, excluir\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: 10b7dd02ecf74982bd0cffe854b651dc
+msgid ""
+":py:obj:`LinearTrend.model_construct "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.model_construct>`\\ "
+"\\(\\[\\_fields\\_set\\]\\)"
+msgstr ""
+":py:obj:`LinearTrend.model_construct "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.model_construct>`\\ "
+"\\(\\[\\_fields\\_set\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: 98fd54dcd0324e8db78717498476fdae
+msgid "Creates a new instance of the `Model` class with validated data."
+msgstr "Crea una nueva instancia de la clase `Model` con datos validados."
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: 7837536cecd843929cab77b555290671
+msgid ""
+":py:obj:`LinearTrend.model_copy "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.model_copy>`\\ \\(\\*\\[\\, "
+"update\\, deep\\]\\)"
+msgstr ""
+":py:obj:`LinearTrend.model_copy "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.model_copy>`\\ \\(\\*\\[\\, "
+"actualizar\\, profundo\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: 15734e8b1a674f63b55222d76ffb1118 36a2ba50e1d14e7a86a13a57aa53f719
+#: 7ee4294fb2224f4da873069eece835c0 f2109cbe089241d9a96b244e84a68615
+msgid "!!! abstract \"Usage Documentation\""
+msgstr "!!! abstract \"Documentación de Uso\""
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: 2f964709f4e745d1abd6b97937db9935
+msgid ""
+":py:obj:`LinearTrend.model_dump "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.model_dump>`\\ \\(\\*\\[\\, "
+"mode\\, include\\, ...\\]\\)"
+msgstr ""
+":py:obj:`LinearTrend.model_dump "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.model_dump>`\\ \\(\\*\\[\\, "
+"modo\\, incluir\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: bf7101e1b9464c0aa0dc13b9720a439c
+msgid ""
+":py:obj:`LinearTrend.model_dump_json "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.model_dump_json>`\\ "
+"\\(\\*\\[\\, indent\\, ...\\]\\)"
+msgstr ""
+":py:obj:`LinearTrend.model_dump_json "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.model_dump_json>`\\ "
+"\\(\\*\\[\\, indent\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: a57b0f84f2e042c9bb63f65e50146ac4
+msgid ""
+":py:obj:`LinearTrend.model_json_schema "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.model_json_schema>`\\ "
+"\\(\\[by\\_alias\\, ...\\]\\)"
+msgstr ""
+":py:obj:`LinearTrend.model_json_schema "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.model_json_schema>`\\ "
+"\\(\\[por\\_alias\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: e2087472fc88449aabd6d5bf10f8a0dc
+msgid "Generates a JSON schema for a model class."
+msgstr "Genera un esquema JSON para una clase de modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: 5568d2f8884649c4b50d09117ebefc7f
+msgid ""
+":py:obj:`LinearTrend.model_parametrized_name "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.model_parametrized_name>`\\ "
+"\\(params\\)"
+msgstr ""
+":py:obj:`LinearTrend.model_parametrized_name "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.model_parametrized_name>`\\ "
+"\\(params\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: dd1c0d5306a54867aaf065bca5b85c2c
+msgid "Compute the class name for parametrizations of generic classes."
+msgstr ""
+"Calcule el nombre de la clase para parametrizaciones de clases genéricas."
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: 721b12e88aa9412f8d069bed667ab5bf
+msgid ""
+":py:obj:`LinearTrend.model_post_init "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.model_post_init>`\\ "
+"\\(context\\, \\/\\)"
+msgstr ""
+":py:obj:`LinearTrend.model_post_init "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.model_post_init>`\\ "
+"\\(contexto\\, \\/\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: 9d6a91a36d4243b4a8880e90c463ddb7
+msgid ""
+"Override this method to perform additional initialization after `__init__` "
+"and `model_construct`."
+msgstr ""
+"Sobrescriba este método para realizar una inicialización adicional después "
+"de `__init__` y `model_construct`."
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: 4a875620829e4c67a47e81dc4c312072
+msgid ""
+":py:obj:`LinearTrend.model_rebuild "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.model_rebuild>`\\ \\(\\*\\[\\, "
+"force\\, ...\\]\\)"
+msgstr ""
+":py:obj:`LinearTrend.model_rebuild "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.model_rebuild>`\\ \\(\\*\\[\\, "
+"forzar\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: 5015f6ae6b1d406596b4e706263e6858
+msgid "Try to rebuild the pydantic-core schema for the model."
+msgstr "Intente reconstruir el esquema de pydantic-core para el modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: 93738d71dd9d494ea72ef93bbd328d01
+msgid ""
+":py:obj:`LinearTrend.model_validate "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.model_validate>`\\ \\(obj\\, "
+"\\*\\[\\, strict\\, ...\\]\\)"
+msgstr ""
+":py:obj:`LinearTrend.model_validate "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.model_validate>`\\ \\(obj\\, "
+"\\*\\[\\, estricto\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: 6cf7bc751a544bde9e0d17311544e7f1
+msgid "Validate a pydantic model instance."
+msgstr "Valide una instancia de modelo pydantic."
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: 70e80705dc4b49ed8ae945770dd3357b
+msgid ""
+":py:obj:`LinearTrend.model_validate_json "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.model_validate_json>`\\ "
+"\\(json\\_data\\, \\*\\)"
+msgstr ""
+":py:obj:`LinearTrend.model_validate_json "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.model_validate_json>`\\ "
+"\\(json\\_data\\, \\*\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: 66c715e3e94c440992f72790e0a6fd0e
+msgid ""
+":py:obj:`LinearTrend.model_validate_strings "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.model_validate_strings>`\\ "
+"\\(obj\\, \\*\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`LinearTrend.model_validate_strings "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.model_validate_strings>`\\ "
+"\\(obj\\, \\*\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: 3dd50a353667486e8a8ce711593ac9ee
+msgid "Validate the given object with string data against the Pydantic model."
+msgstr ""
+"Valide el objeto dado con datos de cadena contra el modelo de Pydantic."
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: b66478c7569847b3a4832744320bdc29
+msgid ""
+":py:obj:`LinearTrend.parse_file "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.parse_file>`\\ \\(path\\, "
+"\\*\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`LinearTrend.parse_file "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.parse_file>`\\ \\(ruta\\, "
+"\\*\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: d1e31dc9043a472ebefccea650aefb4f
+msgid ""
+":py:obj:`LinearTrend.parse_obj "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.parse_obj>`\\ \\(obj\\)"
+msgstr ""
+":py:obj:`LinearTrend.parse_obj "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.parse_obj>`\\ \\(obj\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: 13c21009bc434317a97b3e2a2e0fc609
+msgid ""
+":py:obj:`LinearTrend.parse_raw "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.parse_raw>`\\ \\(b\\, \\*\\[\\,"
+" content\\_type\\, ...\\]\\)"
+msgstr ""
+":py:obj:`LinearTrend.parse_raw "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.parse_raw>`\\ \\(b\\, \\*\\[\\,"
+" tipo\\_de\\_contenido\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: b1ff924d194847f7ae8483dea91a0ddc
+msgid ""
+":py:obj:`LinearTrend.plot_curve "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve>`\\ \\(curve\\[\\, "
+"n\\_samples\\, ...\\]\\)"
+msgstr ""
+":py:obj:`LinearTrend.plot_curve "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.plot_curve>`\\ \\(curva\\[\\, "
+"n\\_muestras\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: 3e81e99714334578a05342d6c17fd67e
+msgid "Plot the curve samples from the trend."
+msgstr "Trace las muestras de la curva de la tendencia."
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: b5fc0e64f2fb46acab8a39593ea49cc7
+msgid ""
+":py:obj:`LinearTrend.sample_curve "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.sample_curve>`\\ "
+"\\(parameters\\[\\, max\\_value\\]\\)"
+msgstr ""
+":py:obj:`LinearTrend.sample_curve "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.sample_curve>`\\ "
+"\\(parameters\\[\\, max\\_value\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: 3edfa866219144489ce284a14bb1efac
+msgid "Sample the curve given parameters."
+msgstr "Muestree la curva según los parámetros dados."
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: 22992d251d5d444d92ab4306e9b72763
+msgid ""
+":py:obj:`LinearTrend.sample_prior "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.sample_prior>`\\ "
+"\\(\\[coords\\]\\)"
+msgstr ""
+":py:obj:`LinearTrend.sample_prior "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.sample_prior>`\\ "
+"\\(\\[coords\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: ae1b868122d44091b34d3613de0c0fd6
+msgid "Sample the prior for the parameters used in the trend."
+msgstr "Muestre el previo para los parámetros utilizados en la tendencia."
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: d404efc421c044fb867af5a45d905ba3
+msgid ""
+":py:obj:`LinearTrend.schema "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.schema>`\\ \\(\\[by\\_alias\\, "
+"ref\\_template\\]\\)"
+msgstr ""
+":py:obj:`LinearTrend.schema "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.schema>`\\ \\(\\[por\\_alias\\,"
+" ref\\_template\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: 25c29fd8a15242e6ab11fdc93e2d541f
+msgid ""
+":py:obj:`LinearTrend.schema_json "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.schema_json>`\\ \\(\\*\\[\\, "
+"by\\_alias\\, ...\\]\\)"
+msgstr ""
+":py:obj:`LinearTrend.schema_json "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.schema_json>`\\ \\(\\*\\[\\, "
+"by\\_alias\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: 2759fa90e518408e8e92e49991ed32c2
+msgid ""
+":py:obj:`LinearTrend.update_forward_refs "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.update_forward_refs>`\\ "
+"\\(\\*\\*localns\\)"
+msgstr ""
+":py:obj:`LinearTrend.update_forward_refs "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.update_forward_refs>`\\ "
+"\\(\\*\\*localns\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:49:<autosummary>:1
+#: 229b29d00d414ed4a600375a96788de4
+msgid ""
+":py:obj:`LinearTrend.validate "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.validate>`\\ \\(value\\)"
+msgstr ""
+":py:obj:`LinearTrend.validate "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.validate>`\\ \\(valor\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:51
+#: 0de561865dbf49b6be5ecec06ac34b63
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:64:<autosummary>:1
+#: 7f9a3ce633a74adc90a10747ad395f1a
+msgid ""
+":py:obj:`default_priors "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.default_priors>`\\"
+msgstr ""
+":py:obj:`default_priors "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.default_priors>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:64:<autosummary>:1
+#: d0e243cb11c24bcf87845c93f7260c7f
+msgid "Default priors for the trend parameters."
+msgstr "Priors predeterminados para los parámetros de tendencia."
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:64:<autosummary>:1
+#: f1d1a143beed4f61b0271edcf5b0e3a0
+msgid ""
+":py:obj:`model_computed_fields "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.model_computed_fields>`\\"
+msgstr ""
+":py:obj:`model_computed_fields "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.model_computed_fields>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:64:<autosummary>:1
+#: 66ec56e44ddd4cf3903e22485f240a4c
+msgid ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.model_config>`\\"
+msgstr ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.model_config>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:64:<autosummary>:1
+#: cea23bc1977a49b98f790af116ee96bc
+msgid ""
+"Configuration for the model, should be a dictionary conforming to "
+"[`ConfigDict`][pydantic.config.ConfigDict]."
+msgstr ""
+"Configuración para el modelo, debe ser un diccionario que cumpla con "
+"[`ConfigDict`][pydantic.config.ConfigDict]."
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:64:<autosummary>:1
+#: 5726ecb6383f46348461473b7a733bb8
+msgid ""
+":py:obj:`model_extra "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.model_extra>`\\"
+msgstr ""
+":py:obj:`model_extra "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.model_extra>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:64:<autosummary>:1
+#: 3cbcb2a985514f739716be0e87178969
+msgid "Get extra fields set during validation."
+msgstr "Obtener campos adicionales establecidos durante la validación."
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:64:<autosummary>:1
+#: ceb77024f8b34fb49e52de74913a9d80
+msgid ""
+":py:obj:`model_fields "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.model_fields>`\\"
+msgstr ""
+":py:obj:`model_fields "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.model_fields>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:64:<autosummary>:1
+#: 831552ccf6ce4fb5aa420445aa8ba563
+msgid ""
+":py:obj:`model_fields_set "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.model_fields_set>`\\"
+msgstr ""
+":py:obj:`model_fields_set "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.model_fields_set>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:64:<autosummary>:1
+#: 54137c96f7ad401bbddecb93bcd9e070
+msgid ""
+"Returns the set of fields that have been explicitly set on this model "
+"instance."
+msgstr ""
+"Devuelve el conjunto de campos que han sido establecidos explícitamente en "
+"esta instancia del modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:64:<autosummary>:1
+#: 67d3c8e0aa4a4171a07f6f6c57885eff
+msgid ""
+":py:obj:`non_broadcastable_dims "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.non_broadcastable_dims>`\\"
+msgstr ""
+":py:obj:`non_broadcastable_dims "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.non_broadcastable_dims>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:64:<autosummary>:1
+#: 2ca5efcdae2d4c7e8a60bd5098b64f43
+msgid "Get the dimensions of the trend that are not just broadcastable."
+msgstr ""
+"Obtenga las dimensiones de la tendencia que no son solo transmitibles."
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:64:<autosummary>:1
+#: 55fa11c81ff846d3ac152b5385f5b12a
+msgid ":py:obj:`priors <pymc_marketing.mmm.linear_trend.LinearTrend.priors>`\\"
+msgstr ":py:obj:`priors <pymc_marketing.mmm.linear_trend.LinearTrend.priors>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:64:<autosummary>:1
+#: d7173c53fc79419ab416620859b69a9d
+msgid ":py:obj:`dims <pymc_marketing.mmm.linear_trend.LinearTrend.dims>`\\"
+msgstr ":py:obj:`dims <pymc_marketing.mmm.linear_trend.LinearTrend.dims>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:64:<autosummary>:1
+#: 727416b3f49a4939a885e7a7a4abf923
+msgid ""
+":py:obj:`n_changepoints "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.n_changepoints>`\\"
+msgstr ""
+":py:obj:`n_changepoints "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.n_changepoints>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_trend.LinearTrend.rst:64:<autosummary>:1
+#: aec9d2169b614f119ad9ffc8f99a82c2
+msgid ""
+":py:obj:`include_intercept "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.include_intercept>`\\"
+msgstr ""
+":py:obj:`incluir_intercepto "
+"<pymc_marketing.mmm.linear_trend.LinearTrend.incluir_intercepto>`"

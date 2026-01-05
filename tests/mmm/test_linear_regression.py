@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -82,12 +82,16 @@ def test_fancy_linear_regression(
         "date",
         "channel",
         "channel_contribution",
+        "channel_contribution_original_scale",
         "control",
         "control_contribution",
+        "control_contribution_original_scale",
         "intercept",
         "mu",
         "gamma_control",
         "saturation_beta",
         "total_contribution",
+        "total_contribution_original_scale",
+        "y_original_scale",
         "y_sigma",
     }

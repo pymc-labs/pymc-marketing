@@ -1,0 +1,151 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.plot.MMMPlotSuite.plot_sensitivity_analysis.rst:2
+#: 53f53596d5d14443bff12de42ca366b5
+msgid "MMMPlotSuite.plot\\_sensitivity\\_analysis"
+msgstr "MMMPlotSuite.plot\\_análisis\\_de\\_sensibilidad"
+
+#: 80dbce66839844c3aa7d7f5510b20a35 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.plot_sensitivity_analysis:2
+msgid "Plot counterfactual uplift or marginal effects curves."
+msgstr "Trazar curvas de aumento contrafactual o efectos marginales."
+
+#: 593d6bb5ef6d4ad6a4f13d6b7cd9d51c of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.plot_sensitivity_analysis:4
+msgid ""
+"Handles additional (non sweep/date/chain/draw) dimensions by creating one "
+"subplot per combination of those dimensions - consistent with other plot_* "
+"methods."
+msgstr ""
+"Maneja dimensiones adicionales (no barrido/fecha/cadena/sorteo) creando un "
+"subplot por cada combinación de esas dimensiones, de manera consistente con "
+"otros métodos plot_*."
+
+#: ae02532db8584192afac617b44d5bbac of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.plot_sensitivity_analysis
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: b5e9368b80db45b494b541234ccd5861 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.plot_sensitivity_analysis:9
+msgid "**hdi_prob** : :class:`python:float`, default 0.94"
+msgstr "**hdi_prob** : :class:`python:float`, valor predeterminado 0.94"
+
+#: e83ff20471f24c9a8e08032e7e33a2fd of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.plot_sensitivity_analysis:8
+msgid "python:float, default 0.94"
+msgstr "python:float, valor predeterminado 0.94"
+
+#: 8cb81d8ad81a494e89d47eb574ad2fef of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.plot_sensitivity_analysis:10
+msgid "HDI probability mass."
+msgstr "Masa de probabilidad del HDI."
+
+#: f74c52effbba4f91a5f79b644c9a4ed2 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.plot_sensitivity_analysis:12
+msgid "**ax** : :obj:`plt.Axes`, optional"
+msgstr "**ax** : :obj:`plt.Axes`, opcional"
+
+#: a73290f5733346edada67db1126f1531 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.plot_sensitivity_analysis:11
+msgid "plt.Axes, optional"
+msgstr "plt.Axes, opcional"
+
+#: ae6ddb12c04f4d09b3f4876e8e59100b of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.plot_sensitivity_analysis:13
+msgid "Only used when there are no extra dimensions (single panel case)."
+msgstr ""
+"Solo se utiliza cuando no hay dimensiones adicionales (caso de panel único)."
+
+#: 1291a72cd2fa4f2b92a89d048e31704f of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.plot_sensitivity_analysis:15
+msgid ""
+"**marginal** : :ref:`bool <python:bltin-boolean-values>`, default "
+":data:`python:False`"
+msgstr ""
+"**marginal** : :ref:`bool <python:bltin-boolean-values>`, predeterminado "
+":data:`python:False`"
+
+#: 536c86ee7a6546aaa620cc06c1e3d800 d6972b33525f47e4a5fcc8f6ce9484d1 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.plot_sensitivity_analysis:14
+#: pymc_marketing.mmm.plot.MMMPlotSuite.plot_sensitivity_analysis:17
+msgid "bool, default python:False"
+msgstr "bool, python predeterminado:False"
+
+#: 02ecfa13bd4f454586cfb5d0e87b6edf of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.plot_sensitivity_analysis:16
+msgid "Plot marginal effects instead of uplift."
+msgstr "Trazar efectos marginales en lugar de aumento."
+
+#: d88d0e32c1c64abe883ad39c739dd9e4 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.plot_sensitivity_analysis:18
+msgid ""
+"**percentage** : :ref:`bool <python:bltin-boolean-values>`, default "
+":data:`python:False`"
+msgstr ""
+"**porcentaje** : :ref:`bool <python:bltin-boolean-values>`, predeterminado "
+":data:`python:False`"
+
+#: 165905072a01454daec13c9ea7d83705 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.plot_sensitivity_analysis:19
+msgid "Express uplift as a percentage of actual (not supported for marginal)."
+msgstr ""
+"Expresar el aumento como un porcentaje del real (no soportado para "
+"marginal)."
+
+#: a77d47b0ac3146cca963fe23bd1f336a of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.plot_sensitivity_analysis:21
+msgid ""
+"**sharey** : :ref:`bool <python:bltin-boolean-values>`, default "
+":data:`python:True`"
+msgstr ""
+"**sharey** : :ref:`bool <python:bltin-boolean-values>`, predeterminado "
+":data:`python:True`"
+
+#: 1f2fd16b74e94634846009ddb478211a of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.plot_sensitivity_analysis:20
+msgid "bool, default python:True"
+msgstr "bool, predeterminado python:True"
+
+#: 28068641962e45bfa723897bbf92cf81 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.plot_sensitivity_analysis:22
+msgid "Share y-axis across subplots (only relevant for multi-panel case)."
+msgstr ""
+"Compartir el eje y entre los subgráficos (solo relevante para el caso de "
+"múltiples paneles)."
+
+#: 8e6468cac6f0484a8783c795e2cccb2c of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.plot_sensitivity_analysis
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 6f1e3e5ea7024e8cb9dea536beae3761 of
+#: pymc_marketing.mmm.plot.MMMPlotSuite.plot_sensitivity_analysis:28
+msgid ""
+"(:obj:`fig`, :obj:`axes`) :obj:`if` multi-panel, :obj:`else` :obj:`a` "
+":obj:`single` :obj:`Axes` (:obj:`backwards` :obj:`compatible` single-dim "
+":obj:`case`)."
+msgstr ""
+"(:obj:`fig`, :obj:`axes`) :obj:`si` es un panel múltiple, :obj:`de lo "
+"contrario` :obj:`un` :obj:`solo` :obj:`Axes` (:obj:`compatible` :obj:`con` "
+":obj:`versiones anteriores` caso unidimensional :obj:`simple`)."

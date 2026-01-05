@@ -1,0 +1,133 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.save.rst:2
+#: 06ec3a7609264b29975d347b2a6a4623
+msgid "ParetoNBDModel.save"
+msgstr "ParetoNBDModel.guardar"
+
+#: fc7bee147d5c4d9090107fea6e82df0e of
+#: pymc_marketing.model_builder.ModelIO.save:2
+msgid "Save the model's inference data to a file."
+msgstr "Guarde los datos de inferencia del modelo en un archivo."
+
+#: c7bfb89dd4cf44c6a815271dce12b904 of
+#: pymc_marketing.model_builder.ModelIO.save
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 0f5bd59e21174071a3635060e6da0179 of
+#: pymc_marketing.model_builder.ModelIO.save:7
+msgid "**fname** : :class:`python:str`"
+msgstr "**fname** : :class:`python:str`"
+
+#: 491526a40a6a43e7ae8300b97f2b6fd5 of
+#: pymc_marketing.model_builder.ModelIO.save:6
+msgid "python:str"
+msgstr "python:str"
+
+#: a4a6f67d86924d32b80e5d7042333eff of
+#: pymc_marketing.model_builder.ModelIO.save:8
+msgid ""
+"The name and path of the file to save the inference data with model "
+"parameters."
+msgstr ""
+"El nombre y la ruta del archivo para guardar los datos de inferencia con los"
+" parámetros del modelo."
+
+#: 08498221df384e82894cc7d5c809b048 of
+#: pymc_marketing.model_builder.ModelIO.save:10
+msgid "**\\*\\*kwargs**"
+msgstr "**\\*\\*kwargs**"
+
+#: 2d2c851ae6ec4ca2ba525b5e7f5d6bda of
+#: pymc_marketing.model_builder.ModelIO.save:11
+msgid ""
+"Additional keyword arguments to pass to arviz.InferenceData.to_netcdf(). "
+"Common options include: - engine : str, optional (default \"netcdf4\")"
+msgstr ""
+"Argumentos adicionales de palabras clave para pasar a "
+"arviz.InferenceData.to_netcdf(). Las opciones comunes incluyen: - engine : "
+"str, opcional (predeterminado \"netcdf4\")"
+
+#: a4dbdb97f3584bc19149b8d7ef730009 of
+#: pymc_marketing.model_builder.ModelIO.save:14
+msgid "Library to use for writing files."
+msgstr "Biblioteca para usar para escribir archivos."
+
+#: 08f2ec869a434957986cb04f4fa493c8 of
+#: pymc_marketing.model_builder.ModelIO.save:15
+msgid "groups"
+msgstr "grupos"
+
+#: 73b6e111e84e45919e37e16b84f72cfd of
+#: pymc_marketing.model_builder.ModelIO.save:-1
+msgid "list of str, optional"
+msgstr "lista de str, opcional"
+
+#: 8b99f088b9a544709a945c2506b57cec of
+#: pymc_marketing.model_builder.ModelIO.save:16
+msgid "Groups to save to netcdf. If None, all groups are saved."
+msgstr ""
+"Grupos para guardar en netcdf. Si es None, se guardan todos los grupos."
+
+#: 040450c445124766a1145dd9174f173a of
+#: pymc_marketing.model_builder.ModelIO.save
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: cda73ef63c4e461ba14c022d6e0aba40 of
+#: pymc_marketing.model_builder.ModelIO.save:22
+msgid ":data:`python:None`"
+msgstr ":data:`python:Ninguno`"
+
+#: e2f06ca8d613458c9f080f060cd599c3 of
+#: pymc_marketing.model_builder.ModelIO.save
+msgid "Raises"
+msgstr "Aumentos"
+
+#: 73b52c9a08614e8787142c4fdb0b57a7 of
+#: pymc_marketing.model_builder.ModelIO.save:30
+msgid ":obj:`RuntimeError`"
+msgstr ":obj:`RuntimeError`"
+
+#: 0621e69f25254d6293cd04306f179c59 of
+#: pymc_marketing.model_builder.ModelIO.save:31
+msgid "If the model hasn't been fit yet (no inference data available)."
+msgstr ""
+"Si el modelo aún no ha sido ajustado (no hay datos de inferencia "
+"disponibles)."
+
+#: 5cdb1cc72a9c4e85ba32ab93b6597d02 of
+#: pymc_marketing.model_builder.ModelIO.save:39
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: 8e2fb3b8136c4d8d9f2099ef2cfeefb5 of
+#: pymc_marketing.model_builder.ModelIO.save:40
+msgid ""
+"This method is meant to be overridden and implemented by subclasses. It "
+"should not be called directly on the base abstract class or its instances."
+msgstr ""
+"Este método está destinado a ser sobrescrito e implementado por las "
+"subclases. No debe ser llamado directamente en la clase abstracta base o en "
+"sus instancias."

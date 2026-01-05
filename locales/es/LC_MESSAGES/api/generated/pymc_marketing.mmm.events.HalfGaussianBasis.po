@@ -1,0 +1,375 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.HalfGaussianBasis.rst:2
+#: 0c7c2bedf2c0413da9e3f6aabd80924a
+msgid "HalfGaussianBasis"
+msgstr "HalfGaussianBasis"
+
+#: 07a1e7f694014ecb95dba5612a6b8725 of
+#: pymc_marketing.mmm.events.HalfGaussianBasis:2
+msgid "One-sided Gaussian basis transformation."
+msgstr "Transformación de base gaussiana unidireccional."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.HalfGaussianBasis.rst:7
+#: 9bdc6d60abcb4499b0a9043824fefed4
+msgid ""
+"(:download:`Source code "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-events-"
+"HalfGaussianBasis-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-events-"
+"HalfGaussianBasis-1.png>`, :download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-events-"
+"HalfGaussianBasis-1.hires.png>`, :download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-events-"
+"HalfGaussianBasis-1.pdf>`)"
+msgstr ""
+"(:descargar:`Código fuente "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-events-"
+"HalfGaussianBasis-1.py>`, :descargar:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-events-"
+"HalfGaussianBasis-1.png>`, :descargar:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-events-"
+"HalfGaussianBasis-1.hires.png>`, :descargar:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-events-"
+"HalfGaussianBasis-1.pdf>`)"
+
+#: 8c91d97267134cfea5239aa2b5e5aba2 of
+#: pymc_marketing.mmm.events.HalfGaussianBasis
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 1fba82a3fbfb4c938f6c09d6b91becf6 of
+#: pymc_marketing.mmm.events.HalfGaussianBasis:27
+msgid "**mode** : :obj:`Literal`\\[\"after\", \"before\"]"
+msgstr "**modo** : :obj:`Literal`\\[\"después\", \"antes\"]"
+
+#: 6acb312dc5a24937aa5ef9e48cf94aab of
+#: pymc_marketing.mmm.events.HalfGaussianBasis:26
+msgid "Literal[\"after\", \"before\"]"
+msgstr "Literal[\"después\", \"antes\"]"
+
+#: 52984d47546a463c885f7cbc5229932e of
+#: pymc_marketing.mmm.events.HalfGaussianBasis:28
+msgid "Whether the basis is located before or after the event."
+msgstr "Ya sea que la base se encuentre antes o después del evento."
+
+#: bea0dca3969347529823dd91bbfb15f4 of
+#: pymc_marketing.mmm.events.HalfGaussianBasis:30
+msgid "**include_event** : :ref:`bool <python:bltin-boolean-values>`"
+msgstr "**include_event** : :ref:`bool <python:bltin-boolean-values>`"
+
+#: 009f03457095449bbc5e26754b8a2a28 of
+#: pymc_marketing.mmm.events.HalfGaussianBasis:29
+msgid "bool"
+msgstr "bool"
+
+#: c46c0b9e6c7542c581bef5fb9eda7b42 of
+#: pymc_marketing.mmm.events.HalfGaussianBasis:31
+msgid "Whether to include the event days in the basis."
+msgstr "Si incluir los días del evento en la base."
+
+#: 87ed1d0a81a946bcb5c4acfddf817611 of
+#: pymc_marketing.mmm.events.HalfGaussianBasis:33
+msgid "**priors** : :class:`python:dict`\\[:class:`python:str`, :obj:`Prior`]"
+msgstr ""
+"**antecedentes** : :class:`python:dict`\\[:class:`python:str`, :obj:`Prior`]"
+
+#: 03e762f8f38e431bb12b97d5884c949b of
+#: pymc_marketing.mmm.events.HalfGaussianBasis:32
+msgid "python:dict[python:str, Prior]"
+msgstr "python:dict[python:str, Prior]"
+
+#: d6c8da81a641493e9c4f2bdc900182ff of
+#: pymc_marketing.mmm.events.HalfGaussianBasis:34
+msgid "Prior for the sigma parameter."
+msgstr "Prior para el parámetro sigma."
+
+#: 7bc4b2aee1194d0eada85c91c6a89241 of
+#: pymc_marketing.mmm.events.HalfGaussianBasis:36
+msgid "**prefix** : :class:`python:str`"
+msgstr "**prefijo** : :class:`python:str`"
+
+#: 86cbb20be01e4813910d1bdf68c2477a of
+#: pymc_marketing.mmm.events.HalfGaussianBasis:35
+msgid "python:str"
+msgstr "python:str"
+
+#: 927622643104483dbc7cb87c456a4738 of
+#: pymc_marketing.mmm.events.HalfGaussianBasis:37
+msgid "Prefix for the parameter names."
+msgstr "Prefijo para los nombres de los parámetros."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.HalfGaussianBasis.rst:12
+#: 175c4ce445a24e279bda4b658f49b86f
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.HalfGaussianBasis.rst:32:<autosummary>:1
+#: e121874dc05345cfaf8a44df7a487175
+msgid ""
+":py:obj:`HalfGaussianBasis.__init__ "
+"<pymc_marketing.mmm.events.HalfGaussianBasis.__init__>`\\ \\(\\[mode\\, "
+"include\\_event\\]\\)"
+msgstr ""
+":py:obj:`HalfGaussianBasis.__init__ "
+"<pymc_marketing.mmm.events.HalfGaussianBasis.__init__>`\\ \\(\\[modo\\, "
+"incluir\\_evento\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.HalfGaussianBasis.rst:32:<autosummary>:1
+#: 9dd7e355d56e4b4f933ae933da168d39
+msgid ""
+":py:obj:`HalfGaussianBasis.apply "
+"<pymc_marketing.mmm.events.HalfGaussianBasis.apply>`\\ \\(x\\[\\, dims\\, "
+"idx\\]\\)"
+msgstr ""
+":py:obj:`HalfGaussianBasis.apply "
+"<pymc_marketing.mmm.events.HalfGaussianBasis.apply>`\\ \\(x\\[\\, dims\\, "
+"idx\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.HalfGaussianBasis.rst:32:<autosummary>:1
+#: c9eb20fa7854429ca3f8664d0480e0a7
+msgid "Call within a model context."
+msgstr "Llamar dentro de un contexto de modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.HalfGaussianBasis.rst:32:<autosummary>:1
+#: 95bd50fe401745dda34c5c32d1a19dc1
+msgid ""
+":py:obj:`HalfGaussianBasis.function "
+"<pymc_marketing.mmm.events.HalfGaussianBasis.function>`\\ \\(x\\, sigma\\)"
+msgstr ""
+":py:obj:`HalfGaussianBasis.function "
+"<pymc_marketing.mmm.events.HalfGaussianBasis.function>`\\ \\(x\\, sigma\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.HalfGaussianBasis.rst:32:<autosummary>:1
+#: 3fc26f6a11ae4184b3d2d4f8fd5e8f00
+msgid "One-sided Gaussian bump function."
+msgstr "Función de bache gaussiano unilateral."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.HalfGaussianBasis.rst:32:<autosummary>:1
+#: 0b5cbad1413442a4b62ff4d777450740
+msgid ""
+":py:obj:`HalfGaussianBasis.plot_curve "
+"<pymc_marketing.mmm.events.HalfGaussianBasis.plot_curve>`\\ \\(curve\\[\\, "
+"...\\]\\)"
+msgstr ""
+":py:obj:`HalfGaussianBasis.plot_curve "
+"<pymc_marketing.mmm.events.HalfGaussianBasis.plot_curve>`\\ \\(curva\\[\\, "
+"...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.HalfGaussianBasis.rst:32:<autosummary>:1
+#: 727ab44948c94e6eb50966a9222f499d
+msgid "Plot curve HDI and samples."
+msgstr "Trazar curva HDI y muestras."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.HalfGaussianBasis.rst:32:<autosummary>:1
+#: f640b258702c4fc180ba6cd120429667
+msgid ""
+":py:obj:`HalfGaussianBasis.plot_curve_hdi "
+"<pymc_marketing.mmm.events.HalfGaussianBasis.plot_curve_hdi>`\\ "
+"\\(curve\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`HalfGaussianBasis.plot_curve_hdi "
+"<pymc_marketing.mmm.events.HalfGaussianBasis.plot_curve_hdi>`\\ "
+"\\(curve\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.HalfGaussianBasis.rst:32:<autosummary>:1
+#: 8f26085473c042088734c3dc25594e81
+msgid "Plot the HDI of the curve."
+msgstr "Trace el IDH de la curva."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.HalfGaussianBasis.rst:32:<autosummary>:1
+#: bdfb1845b989416bada704fd5058d403
+msgid ""
+":py:obj:`HalfGaussianBasis.plot_curve_samples "
+"<pymc_marketing.mmm.events.HalfGaussianBasis.plot_curve_samples>`\\ "
+"\\(curve\\)"
+msgstr ""
+":py:obj:`HalfGaussianBasis.plot_curve_samples "
+"<pymc_marketing.mmm.events.HalfGaussianBasis.plot_curve_samples>`\\ "
+"\\(curva\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.HalfGaussianBasis.rst:32:<autosummary>:1
+#: a1119d9ed05a40ed92b2d9b1157d52a3
+msgid "Plot samples from the curve."
+msgstr "Trazar muestras de la curva."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.HalfGaussianBasis.rst:32:<autosummary>:1
+#: c57bbeb5cca64bbe96b55f73d476b5b6
+msgid ""
+":py:obj:`HalfGaussianBasis.sample_curve "
+"<pymc_marketing.mmm.events.HalfGaussianBasis.sample_curve>`\\ "
+"\\(\\[parameters\\, ...\\]\\)"
+msgstr ""
+":py:obj:`HalfGaussianBasis.sample_curve "
+"<pymc_marketing.mmm.events.HalfGaussianBasis.sample_curve>`\\ "
+"\\(\\[parámetros\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.HalfGaussianBasis.rst:32:<autosummary>:1
+#: 83142f4b78c147ad914a7d1d6d26a246
+msgid "Sample the curve of the saturation transformation given parameters."
+msgstr ""
+"Muestre la curva de la transformación de saturación dadas las parámetros."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.HalfGaussianBasis.rst:32:<autosummary>:1
+#: 8e808b7c62f24d45bcd9b742e4f4efce
+msgid ""
+":py:obj:`HalfGaussianBasis.sample_prior "
+"<pymc_marketing.mmm.events.HalfGaussianBasis.sample_prior>`\\ "
+"\\(\\[coords\\]\\)"
+msgstr ""
+":py:obj:`HalfGaussianBasis.sample_prior "
+"<pymc_marketing.mmm.events.HalfGaussianBasis.sample_prior>`\\ "
+"\\(\\[coords\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.HalfGaussianBasis.rst:32:<autosummary>:1
+#: d97cb666b3ed449798cfdf4dfaa083ec
+msgid "Sample the priors for the transformation."
+msgstr "Muestre las distribuciones previas para la transformación."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.HalfGaussianBasis.rst:32:<autosummary>:1
+#: 6b8d8d4bc04241848255fe87c9c652f8
+msgid ""
+":py:obj:`HalfGaussianBasis.set_dims_for_all_priors "
+"<pymc_marketing.mmm.events.HalfGaussianBasis.set_dims_for_all_priors>`\\ "
+"\\(dims\\)"
+msgstr ""
+":py:obj:`HalfGaussianBasis.set_dims_for_all_priors "
+"<pymc_marketing.mmm.events.HalfGaussianBasis.set_dims_for_all_priors>`\\ "
+"(dims)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.HalfGaussianBasis.rst:32:<autosummary>:1
+#: c0c7873bf5e742ac9c04c8fd80910126
+msgid "Set the dims for all priors."
+msgstr "Establezca las dimensiones para todos los antecedentes."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.HalfGaussianBasis.rst:32:<autosummary>:1
+#: f2b8db791fe44dc9b1d4e4843b5a0e68
+msgid ""
+":py:obj:`HalfGaussianBasis.to_dict "
+"<pymc_marketing.mmm.events.HalfGaussianBasis.to_dict>`\\ \\(\\)"
+msgstr ""
+":py:obj:`HalfGaussianBasis.to_dict "
+"<pymc_marketing.mmm.events.HalfGaussianBasis.to_dict>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.HalfGaussianBasis.rst:32:<autosummary>:1
+#: d579c342fbfa4ecfab072d02cd129dfd
+msgid "Convert the half Gaussian basis to a dictionary."
+msgstr "Convierte la base de media gaussiana a un diccionario."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.HalfGaussianBasis.rst:32:<autosummary>:1
+#: 63339465e8c64c359f791907e9511d1e
+msgid ""
+":py:obj:`HalfGaussianBasis.update_priors "
+"<pymc_marketing.mmm.events.HalfGaussianBasis.update_priors>`\\ \\(priors\\)"
+msgstr ""
+":py:obj:`HalfGaussianBasis.update_priors "
+"<pymc_marketing.mmm.events.HalfGaussianBasis.update_priors>`\\ \\(priors\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.HalfGaussianBasis.rst:32:<autosummary>:1
+#: 66e71e4b6d30482bba02e176fa4e099b
+msgid "Update the priors for a function after initialization."
+msgstr "Actualiza los priors para una función después de la inicialización."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.HalfGaussianBasis.rst:34
+#: 7c23689701eb4c028e530fcf3d854fe6
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.HalfGaussianBasis.rst:43:<autosummary>:1
+#: e181ab47795b4309b4d7e19091db93a1
+msgid ""
+":py:obj:`combined_dims "
+"<pymc_marketing.mmm.events.HalfGaussianBasis.combined_dims>`\\"
+msgstr ""
+":py:obj:`combined_dims "
+"<pymc_marketing.mmm.events.HalfGaussianBasis.combined_dims>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.HalfGaussianBasis.rst:43:<autosummary>:1
+#: 9f3d5bb6d23145dda5de7b5d5060c0b5
+msgid "Get the combined dims for all the parameters."
+msgstr "Obtenga las dimensiones combinadas para todos los parámetros."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.HalfGaussianBasis.rst:43:<autosummary>:1
+#: aeffede2b45f4614a354f33f763c7827
+msgid ""
+":py:obj:`default_priors "
+"<pymc_marketing.mmm.events.HalfGaussianBasis.default_priors>`\\"
+msgstr ""
+":py:obj:`default_priors "
+"<pymc_marketing.mmm.events.HalfGaussianBasis.default_priors>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.HalfGaussianBasis.rst:43:<autosummary>:1
+#: accfbe279e3b4deab10bc6487b751c29
+msgid ""
+":py:obj:`function_priors "
+"<pymc_marketing.mmm.events.HalfGaussianBasis.function_priors>`\\"
+msgstr ""
+":py:obj:`function_priors "
+"<pymc_marketing.mmm.events.HalfGaussianBasis.function_priors>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.HalfGaussianBasis.rst:43:<autosummary>:1
+#: 9172681f56ab480295e67370244443c0
+msgid "Get the priors for the function."
+msgstr "Obtenga los antecedentes para la función."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.HalfGaussianBasis.rst:43:<autosummary>:1
+#: ae1bd11781c146e892603b01ca820fd4
+msgid ""
+":py:obj:`lookup_name "
+"<pymc_marketing.mmm.events.HalfGaussianBasis.lookup_name>`\\"
+msgstr ""
+":py:obj:`lookup_name "
+"<pymc_marketing.mmm.events.HalfGaussianBasis.lookup_name>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.HalfGaussianBasis.rst:43:<autosummary>:1
+#: fb037063c4b74ae995df76e3362d98d9
+msgid ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.events.HalfGaussianBasis.model_config>`\\"
+msgstr ""
+":py:obj:`model_config "
+"<pymc_marketing.mmm.events.HalfGaussianBasis.model_config>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.HalfGaussianBasis.rst:43:<autosummary>:1
+#: d5d54e7f08a249bcbbfc6a31ceadfc70
+msgid "Mapping from variable name to prior for the model."
+msgstr "Mapeo del nombre de la variable a la prior para el modelo."
+
+#: ../source/api/generated/pymc_marketing.mmm.events.HalfGaussianBasis.rst:43:<autosummary>:1
+#: c471b4f749a944cb82013840bf0aa280
+msgid ":py:obj:`prefix <pymc_marketing.mmm.events.HalfGaussianBasis.prefix>`\\"
+msgstr ":py:obj:`prefix <pymc_marketing.mmm.events.HalfGaussianBasis.prefix>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.HalfGaussianBasis.rst:43:<autosummary>:1
+#: 0015f688747f49daaabcaf8a7c6a5827
+msgid ""
+":py:obj:`variable_mapping "
+"<pymc_marketing.mmm.events.HalfGaussianBasis.variable_mapping>`\\"
+msgstr ""
+":py:obj:`variable_mapping "
+"<pymc_marketing.mmm.events.HalfGaussianBasis.variable_mapping>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.events.HalfGaussianBasis.rst:43:<autosummary>:1
+#: 8362a0d8de394a89aa2ba390fae97327
+msgid "Mapping from parameter name to variable name in the model."
+msgstr "Mapeo del nombre del parámetro al nombre de la variable en el modelo."

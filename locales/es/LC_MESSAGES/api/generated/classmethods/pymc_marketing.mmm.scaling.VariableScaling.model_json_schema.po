@@ -1,0 +1,111 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-13 11:28+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.scaling.VariableScaling.model_json_schema.rst:2
+#: d017af2277244beb9049964bef41dee3
+msgid "VariableScaling.model\\_json\\_schema"
+msgstr "VariableScaling.model\\_json\\_schema"
+
+#: 03db5916653b4ca3bbd9c487c441fb95 of
+#: pydantic.main.BaseModel.model_json_schema:2
+msgid "Generates a JSON schema for a model class."
+msgstr "Genera un esquema JSON para una clase de modelo."
+
+#: 78e3d6275b9b452d8696d084e48692fa of
+#: pydantic.main.BaseModel.model_json_schema:4
+msgid "Args:"
+msgstr "Args:"
+
+#: 4205714f6abb4eb6bec15dfacdd13538 of
+#: pydantic.main.BaseModel.model_json_schema:5
+msgid ""
+"by_alias: Whether to use attribute aliases or not. ref_template: The "
+"reference template. union_format: The format to use when combining schemas "
+"from unions together. Can be one of:"
+msgstr ""
+"by_alias: Si se deben utilizar alias de atributos o no. ref_template: La "
+"plantilla de referencia. union_format: El formato a utilizar al combinar "
+"esquemas de uniones. Puede ser uno de:"
+
+#: ebdb5e26c31f4ed495283900bce87b79 of
+#: pydantic.main.BaseModel.model_json_schema:9
+msgid ""
+"`'any_of'`: Use the [`anyOf`](https://json-schema.org/understanding-json-"
+"schema/reference/combining#anyOf)"
+msgstr ""
+"`'any_of'`: Utilice el [`anyOf`](https://json-schema.org/understanding-json-"
+"schema/reference/combining#anyOf)"
+
+#: a52aacf8aa32449ebeb4277b2bc68f83 of
+#: pydantic.main.BaseModel.model_json_schema:10
+msgid ""
+"keyword to combine schemas (the default). - `'primitive_type_array'`: Use "
+"the [`type`](https://json-schema.org/understanding-json-"
+"schema/reference/type) keyword as an array of strings, containing each type "
+"of the combination. If any of the schemas is not a primitive type (`string`,"
+" `boolean`, `null`, `integer` or `number`) or contains constraints/metadata,"
+" falls back to `any_of`."
+msgstr ""
+"palabra clave para combinar esquemas (el valor predeterminado). - "
+"`'primitive_type_array'`: Utilice la palabra clave [`type`](https://json-"
+"schema.org/understanding-json-schema/reference/type) como un array de "
+"cadenas, que contenga cada tipo de la combinación. Si alguno de los esquemas"
+" no es un tipo primitivo (`string`, `boolean`, `null`, `integer` o `number`)"
+" o contiene restricciones/metadatos, se retrocede a `any_of`."
+
+#: ff321ad05f6847c48e1f3542a9c9c8eb of
+#: pydantic.main.BaseModel.model_json_schema:15
+msgid ""
+"schema_generator: To override the logic used to generate the JSON schema, as"
+" a subclass of"
+msgstr ""
+"schema_generator: Para anular la lógica utilizada para generar el esquema "
+"JSON, como una subclase de"
+
+#: fe25eb0513104cf59bd3b0442ffb739e of
+#: pydantic.main.BaseModel.model_json_schema:16
+msgid "`GenerateJsonSchema` with your desired modifications"
+msgstr "GenerarJsonSchema con las modificaciones deseadas"
+
+#: 522fe7baa0bc40f196e9844bb628131e of
+#: pydantic.main.BaseModel.model_json_schema:17
+msgid "mode: The mode in which to generate the schema."
+msgstr "modo: El modo en el que se generará el esquema."
+
+#: e2a8aff4f74e4f14960d15bb3e88a275 of
+#: pydantic.main.BaseModel.model_json_schema:19
+msgid "Returns:"
+msgstr "Devoluciones:"
+
+#: 63a6d30cce8f451dabd921065161b78a of
+#: pydantic.main.BaseModel.model_json_schema:20
+msgid "The JSON schema for the given model class."
+msgstr "El esquema JSON para la clase de modelo dada."
+
+#~ msgid ""
+#~ "by_alias: Whether to use attribute aliases or not. ref_template: The "
+#~ "reference template. schema_generator: To override the logic used to generate"
+#~ " the JSON schema, as a subclass of"
+#~ msgstr ""
+#~ "by_alias: Si se deben utilizar alias de atributos o no. ref_template: La "
+#~ "plantilla de referencia. schema_generator: Para anular la lógica utilizada "
+#~ "para generar el esquema JSON, como una subclase de"

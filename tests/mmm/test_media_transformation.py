@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -15,8 +15,8 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
+from pymc_extras.deserialize import deserialize
 
-from pymc_marketing.deserialize import deserialize
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.media_transformation import (
     MediaConfig,

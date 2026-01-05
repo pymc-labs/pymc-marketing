@@ -1,0 +1,110 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.hsgp.create_complexity_penalizing_prior.rst:2
+#: f0e2f3dbbd734cbca416dcdacbb6e7ec
+msgid "create\\_complexity\\_penalizing\\_prior"
+msgstr "crear\\_prior\\_penalizando\\_complejidad"
+
+#: eae324ff058a44c8833ceba621b8eb08 of
+#: pymc_marketing.mmm.hsgp.create_complexity_penalizing_prior:2
+msgid "Create prior that penalizes complexity for GP lengthscale."
+msgstr ""
+"Cree un prior que penalice la complejidad para la longitud de escala GP."
+
+#: 50a4ca27e7f44332aed97003e84718a0 of
+#: pymc_marketing.mmm.hsgp.create_complexity_penalizing_prior:4
+msgid "The prior is defined with the following property:"
+msgstr "El anterior se define con la siguiente propiedad:"
+
+#: 11bbbe516f2448b2b2edc46a264797da of
+#: pymc_marketing.mmm.hsgp.create_complexity_penalizing_prior:6
+#, python-brace-format
+msgid "P[\\ell < \\text{lower}] = \\alpha"
+msgstr "P[\\ell < \\text{lower}] = \\alpha"
+
+#: 30b1cd847cd5462fadfeec486ac225c0 of
+#: pymc_marketing.mmm.hsgp.create_complexity_penalizing_prior:10
+msgid "Where :math:`\\ell` is the lengthscale"
+msgstr "Donde :math:`\\ell` es la escala de longitud"
+
+#: 449ce44187a043c7a25cb56d51f4e90c of
+#: pymc_marketing.mmm.hsgp.create_complexity_penalizing_prior
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 36178fbdbe644c8894dc34bba93c0d65 of
+#: pymc_marketing.mmm.hsgp.create_complexity_penalizing_prior:14
+msgid "**alpha** : :class:`python:float`"
+msgstr "**alpha** : :class:`python:float`"
+
+#: 1de5b80f0b5a4d07b7f8254749a4f046 cfa91fdba7254b1da11ecc477a27fb87 of
+#: pymc_marketing.mmm.hsgp.create_complexity_penalizing_prior:13
+#: pymc_marketing.mmm.hsgp.create_complexity_penalizing_prior:16
+msgid "python:float"
+msgstr "python:float"
+
+#: 2053b7f19cfd44bfb4ddf43b2dea2994 of
+#: pymc_marketing.mmm.hsgp.create_complexity_penalizing_prior:15
+msgid "Tail probability."
+msgstr "Probabilidad de cola."
+
+#: 088bc16e20504021aab554f1793efd16 of
+#: pymc_marketing.mmm.hsgp.create_complexity_penalizing_prior:17
+msgid "**lower** : :class:`python:float`"
+msgstr "**inferior** : :class:`python:float`"
+
+#: 8a637477553d4db1bb5baf331367f3fb of
+#: pymc_marketing.mmm.hsgp.create_complexity_penalizing_prior:18
+msgid "Lower bound for the lengthscale."
+msgstr "Límite inferior para la escala de longitud."
+
+#: 02125c74b725415e97147d2484fbe581 of
+#: pymc_marketing.mmm.hsgp.create_complexity_penalizing_prior
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 6a2f5809682749d1b4ae2650be4e9329 of
+#: pymc_marketing.mmm.hsgp.create_complexity_penalizing_prior:24
+msgid ":obj:`Prior`"
+msgstr ":obj:`Prior`"
+
+#: 1dd8bec0841c47c5b74f358614474db9 of
+#: pymc_marketing.mmm.hsgp.create_complexity_penalizing_prior:25
+msgid "Weibull prior for the lengthscale with the given properties."
+msgstr ""
+"Prior de Weibull para la longitud de escala con las propiedades dadas."
+
+#: df643e2b46104c7b9930adece6e08060 of
+#: pymc_marketing.mmm.hsgp.create_complexity_penalizing_prior:36
+msgid "References"
+msgstr "Referencias"
+
+#: 2b9d142e723e4bc897fe0f3e8a20a11a of
+#: pymc_marketing.mmm.hsgp.create_complexity_penalizing_prior:37
+msgid "Geir-Arne Fuglstad, Daniel Simpson, Finn Lindgren, Håvard Rue (2015)."
+msgstr "Geir-Arne Fuglstad, Daniel Simpson, Finn Lindgren, Håvard Rue (2015)."
+
+#: 55a6802fc2a94e7280b8850ebf4e5a99 of
+#: pymc_marketing.mmm.hsgp.create_complexity_penalizing_prior:41
+msgid "[R845988fb02c3-1]_"
+msgstr "[R845988fb02c3-1]_"

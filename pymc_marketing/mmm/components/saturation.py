@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ Create a new saturation transformation:
 .. code-block:: python
 
     from pymc_marketing.mmm import SaturationTransformation
-    from pymc_marketing.prior import Prior
+    from pymc_extras.prior import Prior
 
 
     class InfiniteReturns(SaturationTransformation):
@@ -55,7 +55,7 @@ for saturation parameter of logistic saturation.
 
 .. code-block:: python
 
-    from pymc_marketing.prior import Prior
+    from pymc_extras.prior import Prior
     from pymc_marketing.mmm import LogisticSaturation
 
     hierarchical_lam = Prior(
@@ -78,8 +78,9 @@ import numpy as np
 import pytensor.tensor as pt
 import xarray as xr
 from pydantic import Field, InstanceOf, validate_call
+from pymc_extras.deserialize import deserialize, register_deserialization
+from pymc_extras.prior import Prior
 
-from pymc_marketing.deserialize import deserialize, register_deserialization
 from pymc_marketing.mmm.components.base import (
     Transformation,
     create_registration_meta,
@@ -94,7 +95,6 @@ from pymc_marketing.mmm.transformers import (
     tanh_saturation,
     tanh_saturation_baselined,
 )
-from pymc_marketing.prior import Prior
 
 SATURATION_TRANSFORMATIONS: dict[str, type[SaturationTransformation]] = {}
 
@@ -118,7 +118,7 @@ class SaturationTransformation(Transformation, metaclass=SaturationRegistrationM
     .. code-block:: python
 
         from pymc_marketing.mmm import SaturationTransformation
-        from pymc_marketing.prior import Prior
+        from pymc_extras.prior import Prior
 
 
         def infinite_returns(x, b):
@@ -158,6 +158,9 @@ class SaturationTransformation(Transformation, metaclass=SaturationRegistrationM
             ..., description="Parameters of the saturation transformation."
         ),
         max_value: float = Field(1.0, gt=0, description="Maximum range value."),
+        num_points: int = Field(
+            100, gt=0, description="Number of points between 0 and max_value."
+        ),
     ) -> xr.DataArray:
         """Sample the curve of the saturation transformation given parameters.
 
@@ -167,6 +170,8 @@ class SaturationTransformation(Transformation, metaclass=SaturationRegistrationM
             Dataset with the parameters of the saturation transformation.
         max_value : float, optional
             Maximum value of the curve, by default 1.0.
+        num_points : int, optional
+            Number of points between 0 and max_value, by default 100.
 
         Returns
         -------
@@ -174,7 +179,7 @@ class SaturationTransformation(Transformation, metaclass=SaturationRegistrationM
             Curve of the saturation transformation.
 
         """
-        x = np.linspace(0, max_value, 100)
+        x = np.linspace(0, max_value, num_points)
 
         coords = {
             "x": x,
@@ -464,8 +469,6 @@ class RootSaturation(SaturationTransformation):
 
 class NoSaturation(SaturationTransformation):
     """Wrapper around linear saturation function.
-
-    For more information, see :func:`pymc_marketing.mmm.transformers.linear_saturation`.
 
     .. plot::
         :context: close-figs

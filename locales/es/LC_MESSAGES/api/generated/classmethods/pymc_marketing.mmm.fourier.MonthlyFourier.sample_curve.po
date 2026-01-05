@@ -1,0 +1,106 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.fourier.MonthlyFourier.sample_curve.rst:2
+#: d21e5eb96f2e4e828d493ffa9a41fc6d
+msgid "MonthlyFourier.sample\\_curve"
+msgstr "MonthlyFourier.muestra\\_curva"
+
+#: 5a2f1e7007b042bb9f1b0864d3daceee of
+#: pymc_marketing.mmm.fourier.FourierBase.sample_curve:2
+msgid "Create full period of the Fourier seasonality."
+msgstr "Crear el período completo de la estacionalidad de Fourier."
+
+#: a504073dd9a648d395f6c8e353f46163 of
+#: pymc_marketing.mmm.fourier.FourierBase.sample_curve
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 914faab0321d453b870ab60872bd7838 of
+#: pymc_marketing.mmm.fourier.FourierBase.sample_curve:7
+msgid "**parameters** : :obj:`az.InferenceData` | :obj:`xr.Dataset`"
+msgstr "**parámetros** : :obj:`az.InferenceData` | :obj:`xr.Dataset`"
+
+#: 04fb08bd7da1442bac80ce19da192f19 of
+#: pymc_marketing.mmm.fourier.FourierBase.sample_curve:6
+msgid "az.InferenceData | xr.Dataset"
+msgstr "az.InferenceData | xr.Dataset"
+
+#: 3d13c3cebc0b4f46a89185861155122e of
+#: pymc_marketing.mmm.fourier.FourierBase.sample_curve:8
+msgid ""
+"Inference data or dataset containing the Fourier parameters. Can be "
+"posterior or prior."
+msgstr ""
+"Datos de inferencia o conjunto de datos que contiene los parámetros de "
+"Fourier. Puede ser posterior o anterior."
+
+#: ac24d5dec7c44b258010659a149ab2d6 of
+#: pymc_marketing.mmm.fourier.FourierBase.sample_curve:11
+msgid "**use_dates** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr "**use_dates** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 51d21d377bde4a06889b734021f225cf of
+#: pymc_marketing.mmm.fourier.FourierBase.sample_curve:10
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: c8a1a62004894d528d33ddd37858e4af of
+#: pymc_marketing.mmm.fourier.FourierBase.sample_curve:12
+msgid "If True, use datetime coordinates for the x-axis. Defaults to False."
+msgstr ""
+"Si es verdadero, utiliza coordenadas de fecha y hora para el eje x. Por "
+"defecto es falso."
+
+#: aa6ef2fa72fb43a5a9cf134dba179c76 of
+#: pymc_marketing.mmm.fourier.FourierBase.sample_curve:14
+msgid "**start_date** : :obj:`datetime.datetime`, optional"
+msgstr "**fecha_de_inicio** : :obj:`datetime.datetime`, opcional"
+
+#: 387de79e9b4a47ab928a19a0e16ec5e5 of
+#: pymc_marketing.mmm.fourier.FourierBase.sample_curve:13
+msgid "datetime.datetime, optional"
+msgstr "datetime.datetime, opcional"
+
+#: a1a48252801449f5bfd5960bf69b43c9 of
+#: pymc_marketing.mmm.fourier.FourierBase.sample_curve:15
+msgid ""
+"Starting date for the Fourier curve. If not provided and use_dates is True, "
+"it will be derived from the current year or month. Defaults to None."
+msgstr ""
+"Fecha de inicio para la curva de Fourier. Si no se proporciona y use_dates "
+"es True, se derivará del año o mes actual. Por defecto es None."
+
+#: 8123031c61cd481593e037d5816e684f of
+#: pymc_marketing.mmm.fourier.FourierBase.sample_curve
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 9a32f753e978438798290cdb4f53b279 of
+#: pymc_marketing.mmm.fourier.FourierBase.sample_curve:22
+msgid ":obj:`xr.DataArray`"
+msgstr ":obj:`xr.DataArray`"
+
+#: b123393b9f424510be7b095128c20155 of
+#: pymc_marketing.mmm.fourier.FourierBase.sample_curve:23
+msgid "Full period of the Fourier seasonality."
+msgstr "Período completo de la estacionalidad de Fourier."

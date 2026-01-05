@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ Use custom transformations for media in the MMM model:
 
 .. code-block:: python
 
-    from pymc_marketing.prior import Prior
+    from pymc_extras.prior import Prior
     from pymc_marketing.mmm import (
         SaturationTransformation,
         MMM,

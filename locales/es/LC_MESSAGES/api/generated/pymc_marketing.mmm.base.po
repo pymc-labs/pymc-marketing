@@ -1,0 +1,60 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.base.rst:2
+#: 81846603433d4e5cb72573a794d7c860
+msgid "base"
+msgstr "base"
+
+#: ../source/api/generated/pymc_marketing.mmm.base.rst:26:<autosummary>:1
+#: 455ea39138ef4f13a410901f1163eae0 4db1ac214ba14adda36dea1a218e0326 of
+#: pymc_marketing.mmm.base:1
+msgid "Base class for Marketing Mix Models (MMM)."
+msgstr "Clase base para Modelos de Mezcla de Marketing (MMM)."
+
+#: ../source/api/generated/pymc_marketing.mmm.base.rst:17
+#: 9a66101b57d34deb849b297a8414085c
+msgid "Classes"
+msgstr "Clases"
+
+#: ../source/api/generated/pymc_marketing.mmm.base.rst:26:<autosummary>:1
+#: 090d582a5f3b4a2baf2f02f84ec36a32
+msgid ""
+":py:obj:`BaseValidateMMM <pymc_marketing.mmm.base.BaseValidateMMM>`\\ "
+"\\(\\[date\\_column\\, ...\\]\\)"
+msgstr ""
+":py:obj:`BaseValidateMMM <pymc_marketing.mmm.base.BaseValidateMMM>`\\ "
+"\\(\\[date\\_column\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.base.rst:26:<autosummary>:1
+#: 3aaafafe80a34ab49ab0e9c14f995520
+msgid "Base class with some validation of the inputs."
+msgstr "Clase base con alguna validación de las entradas."
+
+#: ../source/api/generated/pymc_marketing.mmm.base.rst:26:<autosummary>:1
+#: 9ac0ac098c5e4e18aebeafb2a8c0e040
+msgid ""
+":py:obj:`MMMModelBuilder <pymc_marketing.mmm.base.MMMModelBuilder>`\\ "
+"\\(\\[date\\_column\\, ...\\]\\)"
+msgstr ""
+":py:obj:`MMMModelBuilder <pymc_marketing.mmm.base.MMMModelBuilder>`\\ "
+"\\(\\[date\\_column\\, ...\\]\\)"

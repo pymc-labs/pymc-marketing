@@ -1,0 +1,88 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/clv/dev/pareto_nbd_advi.ipynb:20002
+#: af35b5044d4141a8ac6a28b56f95957c
+msgid "Load data"
+msgstr "Cargar datos"
+
+#: ../source/notebooks/clv/dev/pareto_nbd_advi.ipynb:40002
+#: 49a012a5819c446482e866cfa7195e42
+msgid "RFM aggregations"
+msgstr "Agregaciones RFM"
+
+#: ../source/notebooks/clv/dev/pareto_nbd_advi.ipynb:60002
+#: 5dc8cf9140a54481b6eb7ac51bb823e9
+msgid "ParetoNBDModel"
+msgstr "ModeloParetoNBD"
+
+#: ../source/notebooks/clv/dev/pareto_nbd_advi.ipynb:70002
+#: c1e048528c934d22810f21c1e17dbb9f
+msgid "MAP fit"
+msgstr "ajuste del MAP"
+
+#: ../source/notebooks/clv/dev/pareto_nbd_advi.ipynb:110002
+#: 58c3fe4999494ec0af491f7c59e13cdf
+msgid "DEMZ fit"
+msgstr "DEMZ se ajusta"
+
+#: ../source/notebooks/clv/dev/pareto_nbd_advi.ipynb:140002
+#: 3f8815d4980c476a8dc5dad74bd49188
+msgid "Nutpie Fit"
+msgstr "Nutpie Fit"
+
+#: ../source/notebooks/clv/dev/pareto_nbd_advi.ipynb:160002
+#: cff0ea3d5d304ccca302476280696640
+msgid "ADVI fit"
+msgstr "ADVI fit"
+
+#: ../source/notebooks/clv/dev/pareto_nbd_advi.ipynb:200002
+#: a9f9ff1162924d7781fe0dda543ad010
+msgid "Full-rank fit"
+msgstr "Ajuste de rango completo"
+
+#: ../source/notebooks/clv/dev/pareto_nbd_advi.ipynb:240002
+#: a71c2c3df7104b15aaee0ee219f5b9f8
+msgid "Visual comparison"
+msgstr "Comparación visual"
+
+#: ../source/notebooks/clv/dev/pareto_nbd_advi.ipynb:270002
+#: ac56be902f074f7daea90ee67bb50859
+msgid "Observations:"
+msgstr "Observaciones:"
+
+#: ../source/notebooks/clv/dev/pareto_nbd_advi.ipynb:270003
+#: d11226bcced54110ae015ca0a9a9936e
+msgid "Fullrank provides a rather poor fit"
+msgstr "Fullrank ofrece un ajuste bastante deficiente."
+
+#: ../source/notebooks/clv/dev/pareto_nbd_advi.ipynb:270004
+#: cb3ab0eb14514fe1a590181cd7ba78bc
+msgid "advi's fit does match mcmc, although providing narrower estimates"
+msgstr ""
+"el ajuste de advi coincide con mcmc, aunque proporciona estimaciones más "
+"estrechas"
+
+#: ../source/notebooks/clv/dev/pareto_nbd_advi.ipynb:280002
+#: 70f34f370521474cbf5cf66af828fcaf
+msgid "Relative Differences in param estimates"
+msgstr "Diferencias relativas en las estimaciones de parámetros"

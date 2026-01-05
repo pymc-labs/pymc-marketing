@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -23,7 +23,10 @@ from pymc_marketing.clv.models.gamma_gamma import (
 )
 from pymc_marketing.clv.models.modified_beta_geo import ModifiedBetaGeoModel
 from pymc_marketing.clv.models.pareto_nbd import ParetoNBDModel
-from pymc_marketing.clv.models.shifted_beta_geo import ShiftedBetaGeoModelIndividual
+from pymc_marketing.clv.models.shifted_beta_geo import (
+    ShiftedBetaGeoModel,
+    ShiftedBetaGeoModelIndividual,
+)
 
 __all__ = (
     "BetaGeoBetaBinomModel",
@@ -33,5 +36,6 @@ __all__ = (
     "GammaGammaModelIndividual",
     "ModifiedBetaGeoModel",
     "ParetoNBDModel",
+    "ShiftedBetaGeoModel",
     "ShiftedBetaGeoModelIndividual",
 )

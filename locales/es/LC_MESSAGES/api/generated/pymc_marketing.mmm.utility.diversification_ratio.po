@@ -1,0 +1,177 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.utility.diversification_ratio.rst:2
+#: 8041fd368b9e454cbf1d70c12d7d14a4
+msgid "diversification\\_ratio"
+msgstr "razón\\_de\\_diversificación"
+
+#: ccb86307429b47f596ed014d8222641d of
+#: pymc_marketing.mmm.utility.diversification_ratio:2
+msgid ""
+"Calculate the Diversification Ratio of a portfolio to evaluate risk "
+"distribution."
+msgstr ""
+"Calcule el Ratio de Diversificación de una cartera para evaluar la "
+"distribución del riesgo."
+
+#: 4080da8018ad4b9aa72b641e3b92ae32 of
+#: pymc_marketing.mmm.utility.diversification_ratio:4
+msgid ""
+"The Diversification Ratio measures the effectiveness of diversification by "
+"comparing the weighted average volatility of individual assets to the "
+"overall portfolio volatility. A higher ratio indicates better "
+"diversification, as it reflects lower correlations among assets, leading to "
+"reduced portfolio risk."
+msgstr ""
+"El Ratio de Diversificación mide la efectividad de la diversificación al "
+"comparar la volatilidad promedio ponderada de los activos individuales con "
+"la volatilidad general de la cartera. Un ratio más alto indica una mejor "
+"diversificación, ya que refleja correlaciones más bajas entre los activos, "
+"lo que conduce a una reducción del riesgo de la cartera."
+
+#: 00c6e6d9c7104b028fd54c45c61e2ef2 of
+#: pymc_marketing.mmm.utility.diversification_ratio:9
+msgid "The Diversification Ratio is calculated as:"
+msgstr "El Ratio de Diversificación se calcula como:"
+
+#: cee52f893cec4277adee85abb6edae58 of
+#: pymc_marketing.mmm.utility.diversification_ratio:11
+msgid ""
+"DR = \\frac{\\\\sum_{i=1}^{n} w_i \\\\cdot \\\\sigma_i}{\\\\sigma_p}\n"
+"\n"
+msgstr "DR = \\frac{\\\\sum_{i=1}^{n} w_i \\\\cdot \\\\sigma_i}{\\\\sigma_p}"
+
+#: a46c548e22414ffbb6fec5886bd555bb of
+#: pymc_marketing.mmm.utility.diversification_ratio:14
+msgid "where:"
+msgstr "donde:"
+
+#: 77b3527156c64c0693afd74a776c4280 of
+#: pymc_marketing.mmm.utility.diversification_ratio:15
+msgid ":math:`w_i` is the weight of asset \\\\( i \\\\)"
+msgstr ":math:`w_i` es el peso del activo \\\\( i \\\\)"
+
+#: 5cd141327a894712bda8853731ce734a of
+#: pymc_marketing.mmm.utility.diversification_ratio:16
+msgid ":math:`\\\\sigma_i` is the volatility (standard deviation) of asset \\\\( i \\\\)"
+msgstr ""
+":math:`\\\\sigma_i` es la volatilidad (desviación estándar) del activo \\\\("
+" i \\\\)"
+
+#: de7727e8c77c4f829e192024e5f123b6 of
+#: pymc_marketing.mmm.utility.diversification_ratio:17
+msgid ":math:`\\\\sigma_p` is the volatility of the portfolio"
+msgstr ":math:`\\\\sigma_p` es la volatilidad de la cartera"
+
+#: 9dd5f130ec8f42d68b192de6235e3cdd of
+#: pymc_marketing.mmm.utility.diversification_ratio
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 0c5f1bc71351407abbdbbefa1993bad9 of
+#: pymc_marketing.mmm.utility.diversification_ratio:21
+msgid "**samples** : :obj:`pt.TensorVariable`"
+msgstr "**muestras** : :obj:`pt.TensorVariable`"
+
+#: 2a68e5ec38bd4a7cafd6e6dd8f8b10eb 360e7dd15ad345b49ada0891805431a1 of
+#: pymc_marketing.mmm.utility.diversification_ratio:20
+#: pymc_marketing.mmm.utility.diversification_ratio:23
+msgid "pt.TensorVariable"
+msgstr "pt.TensorVariable"
+
+#: 9fc294ff6507490e84294537ec231159 of
+#: pymc_marketing.mmm.utility.diversification_ratio:22
+msgid ""
+"2D PyTensor tensor variable where each column represents the returns of an "
+"asset."
+msgstr ""
+"Variable tensor 2D de PyTensor donde cada columna representa los "
+"rendimientos de un activo."
+
+#: 650f4cb4b5b546ffb2a75441525af9fa of
+#: pymc_marketing.mmm.utility.diversification_ratio:24
+msgid "**budgets** : :obj:`pt.TensorVariable`"
+msgstr "**presupuestos** : :obj:`pt.TensorVariable`"
+
+#: 49fc0b713d2c4defb63130f8d675f021 of
+#: pymc_marketing.mmm.utility.diversification_ratio:25
+msgid ""
+"1D PyTensor tensor variable representing the investment amounts in each "
+"asset."
+msgstr ""
+"Variable tensor 1D PyTensor que representa los montos de inversión en cada "
+"activo."
+
+#: 223486b70daf4a73b7489ed290221be8 of
+#: pymc_marketing.mmm.utility.diversification_ratio
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: af6c89395d7342f3bf2cb8d50b78116b of
+#: pymc_marketing.mmm.utility.diversification_ratio:31
+msgid ":obj:`pt.TensorVariable`"
+msgstr ":obj:`pt.TensorVariable`"
+
+#: 8a0705b706c84d0ebc2d1e09016f330f of
+#: pymc_marketing.mmm.utility.diversification_ratio:32
+msgid "Diversification Ratio."
+msgstr "Ratio de Diversificación."
+
+#: 4dea61bcf9b5494d8c2180b6294080a3 of
+#: pymc_marketing.mmm.utility.diversification_ratio:34
+msgid ""
+":obj:`This` :obj:`ratio` :obj:`provides` :obj:`insight` :obj:`into` "
+":obj:`how` :obj:`individual` :obj:`asset` :obj:`volatilities` :obj:`and` "
+":obj:`their` :obj:`correlations`"
+msgstr ""
+":obj:`Este` :obj:`ratio` :obj:`proporciona` :obj:`una` :obj:`visión` "
+":obj:`sobre` :obj:`cómo` :obj:`las` :obj:`volatilidades` :obj:`de` "
+":obj:`activos` :obj:`individuales` :obj:`y` :obj:`sus` :obj:`correlaciones`"
+
+#: 930542681b994a058e6490a84d8c5408 of
+#: pymc_marketing.mmm.utility.diversification_ratio:37
+msgid ""
+":obj:`contribute` :obj:`to` :obj:`the` :obj:`overall` :obj:`portfolio` risk."
+msgstr ""
+":obj:`contribuir` :obj:`a` :obj:`el` :obj:`riesgo` :obj:`general` :obj:`del`"
+" :obj:`portafolio`."
+
+#: 135649d3a4da4a118279d472fc0f95dd of
+#: pymc_marketing.mmm.utility.diversification_ratio:49
+msgid "References"
+msgstr "Referencias"
+
+#: 37ba71791e584fb08f4cdda8cfdb6ac6 of
+#: pymc_marketing.mmm.utility.diversification_ratio:50
+msgid ""
+"Choueifaty, Y., & Coignard, Y. (2008). Toward Maximum Diversification. "
+"*Journal of Portfolio Management*."
+msgstr ""
+"Choueifaty, Y., y Coignard, Y. (2008). Hacia la máxima diversificación. "
+"*Revista de Gestión de Carteras*."
+
+#: 711bcdc19e6d4fe3a54ea17b4b5a0c02 of
+#: pymc_marketing.mmm.utility.diversification_ratio:51
+msgid "Meucci, A. (2009). Managing Diversification. *Risk*, 22(5), 74-79."
+msgstr ""
+"Meucci, A. (2009). Gestión de la Diversificación. *Riesgo*, 22(5), 74-79."

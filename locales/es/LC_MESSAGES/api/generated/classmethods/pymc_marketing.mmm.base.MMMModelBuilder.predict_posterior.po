@@ -1,0 +1,126 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.base.MMMModelBuilder.predict_posterior.rst:2
+#: 6e1dc31385134de6b0a613b3494772e5
+msgid "MMMModelBuilder.predict\\_posterior"
+msgstr "MMMModelBuilder.predecir\\_posterior"
+
+#: 272c3dc224444b51a84f7744b439762a of
+#: pymc_marketing.model_builder.RegressionModelBuilder.predict_posterior:2
+msgid "Generate posterior predictive samples on unseen data."
+msgstr "Generar muestras predictivas posteriores en datos no vistos."
+
+#: 8f7eadafe38f4510a2b3e86c73e7d7aa of
+#: pymc_marketing.model_builder.RegressionModelBuilder.predict_posterior
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: b0e6b12deeba4922a7b9d89c1f19ac85 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.predict_posterior:7
+msgid ""
+"**X** : :term:`numpy:array_like` | :obj:`array <numpy.ndarray>`, "
+":obj:`shape` (:obj:`n_pred`, :obj:`n_features`)"
+msgstr ""
+"**X** : :term:`numpy:array_like` | :obj:`array <numpy.ndarray>`, "
+":obj:`shape` (:obj:`n_pred`, :obj:`n_features`)"
+
+#: df7355bd96b44a8db33aefb931b3d86c of
+#: pymc_marketing.model_builder.RegressionModelBuilder.predict_posterior:6
+msgid "numpy:array_like | array, shape (n_pred, n_features)"
+msgstr "numpy:array_like | arreglo, forma (n_pred, n_features)"
+
+#: 8073b0b8714546758101d065f85bdc40 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.predict_posterior:8
+msgid ""
+"The input data used for prediction. If scikit-learn is available, array-"
+"like, otherwise array."
+msgstr ""
+"Los datos de entrada utilizados para la predicción. Si scikit-learn está "
+"disponible, tipo array, de lo contrario, array."
+
+#: 5fc7d0d1c9ce409fa67e73270bbd1d79 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.predict_posterior:10
+msgid "**extend_idata** : :obj:`Boolean`"
+msgstr "**extend_idata** : :obj:`Booleano`"
+
+#: 5da08a55e2214cc784b94b5c705c5f53 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.predict_posterior:9
+msgid "Boolean"
+msgstr "Boolean"
+
+#: 39c4587d378f474ba0fc57eb6ef9bea1 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.predict_posterior:11
+msgid ""
+"Determine whether the predictions should be added to inference data object. "
+"Defaults to True."
+msgstr ""
+"Determine si las predicciones deben ser añadidas al objeto de datos de "
+"inferencia. Por defecto es True."
+
+#: 5431842690494d9dabb5fff49bdd6de5 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.predict_posterior:14
+msgid "**combined: Boolean**"
+msgstr "**combinado: Booleano**"
+
+#: 11d498c8cf214f47950fb693ae98d9df of
+#: pymc_marketing.model_builder.RegressionModelBuilder.predict_posterior:15
+msgid ""
+"Combine chain and draw dims into sample. Won't work if a dim named sample "
+"already exists. Defaults to True."
+msgstr ""
+"Combina la cadena y las dimensiones de dibujo en la muestra. No funcionará "
+"si ya existe una dimensión llamada muestra. Por defecto es True."
+
+#: ab1b14aa8e694c348fc3652515bdb5c2 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.predict_posterior:18
+msgid ""
+"**\\*\\*kwargs: Additional arguments to pass to sample_posterior_predictive "
+"method**"
+msgstr ""
+"**\\*\\*kwargs: Argumentos adicionales para pasar al método "
+"sample_posterior_predictive**"
+
+#: 4d5070d234ed489cb7a12b59b78d270b of
+#: pymc_marketing.model_builder.RegressionModelBuilder.predict_posterior
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 7b79b603c28d45ca8e75f5a9ccadea8d of
+#: pymc_marketing.model_builder.RegressionModelBuilder.predict_posterior:25
+msgid "**y_pred** : :obj:`DataArray`"
+msgstr "**y_pred** : :obj:`DataArray`"
+
+#: d0b06fb25cd3410aa2a32e9a2322f2a1 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.predict_posterior:24
+msgid "DataArray"
+msgstr "DataArray"
+
+#: c4333915dd7b452fa14fd747407339f7 of
+#: pymc_marketing.model_builder.RegressionModelBuilder.predict_posterior:26
+msgid ""
+"Posterior predictive samples for each input X. Shape is (n_pred, chains * "
+"draws) if combined is True, otherwise (chains, draws, n_pred)."
+msgstr ""
+"Muestras predictivas posteriores para cada entrada X. La forma es (n_pred, "
+"chains * draws) si combinado es Verdadero, de lo contrario (chains, draws, "
+"n_pred)."

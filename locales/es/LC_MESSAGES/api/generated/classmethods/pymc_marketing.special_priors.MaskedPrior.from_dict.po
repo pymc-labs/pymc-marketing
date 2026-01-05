@@ -1,0 +1,66 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.special_priors.MaskedPrior.from_dict.rst:2
+#: 49d2af977d054d22b6e6ebc6014409ff
+msgid "MaskedPrior.from\\_dict"
+msgstr "MaskedPrior.from\\_dict"
+
+#: 4b930d02b6af403d81e4d91febb09fc3 of
+#: pymc_marketing.special_priors.MaskedPrior.from_dict:2
+msgid "Deserialize MaskedPrior from dictionary created by ``to_dict``."
+msgstr "Deserializar MaskedPrior del diccionario creado por ``to_dict``."
+
+#: bdb7f3c78a5d42e4839163866d8b7508 of
+#: pymc_marketing.special_priors.MaskedPrior.from_dict
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: d09616ba6d68474d9822a1707fd81efe of
+#: pymc_marketing.special_priors.MaskedPrior.from_dict:7
+msgid "**data** : :class:`python:dict`"
+msgstr "**datos** : :class:`python:dict`"
+
+#: ed4eb8eaa65146289ebba5ce2970bbfa of
+#: pymc_marketing.special_priors.MaskedPrior.from_dict:6
+msgid "python:dict"
+msgstr "python:dict"
+
+#: c8f8d19f888445fd9845d014831908b7 of
+#: pymc_marketing.special_priors.MaskedPrior.from_dict:8
+msgid "Dictionary produced by :meth:`to_dict`."
+msgstr "Diccionario producido por :meth:`to_dict`."
+
+#: b3153ecdc9344c3a9760d85a1c28d5bd of
+#: pymc_marketing.special_priors.MaskedPrior.from_dict
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 908facdedd934cbdbfacf7bc0028b4f0 of
+#: pymc_marketing.special_priors.MaskedPrior.from_dict:14
+msgid ":obj:`MaskedPrior`"
+msgstr ":obj:`MaskedPrior`"
+
+#: 2a9938a460264a3b80ffc3006472e99c of
+#: pymc_marketing.special_priors.MaskedPrior.from_dict:15
+msgid "Reconstructed instance."
+msgstr "Instancia reconstruida."

@@ -1,0 +1,51 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.transformers.ConvMode.rpartition.rst:2
+#: 3e680c3047674b90ac8bb94ff3f25145
+msgid "ConvMode.rpartition"
+msgstr "ConvMode.rpartition"
+
+#: d86d48d3a3814edf82c5e74d39174ffb of
+#: pymc_marketing.mmm.transformers.ConvMode.rpartition:2
+msgid "Partition the string into three parts using the given separator."
+msgstr "Particione la cadena en tres partes utilizando el separador dado."
+
+#: 486e5dfdec774897b8059617fe6de187 of
+#: pymc_marketing.mmm.transformers.ConvMode.rpartition:4
+msgid ""
+"This will search for the separator in the string, starting at the end. If "
+"the separator is found, returns a 3-tuple containing the part before the "
+"separator, the separator itself, and the part after it."
+msgstr ""
+"Esto buscará el separador en la cadena, comenzando desde el final. Si se "
+"encuentra el separador, devuelve una tupla de 3 elementos que contiene la "
+"parte antes del separador, el separador en sí, y la parte después de este."
+
+#: ae837174b5484b3aaeb23b0ebc76a9ce of
+#: pymc_marketing.mmm.transformers.ConvMode.rpartition:8
+msgid ""
+"If the separator is not found, returns a 3-tuple containing two empty "
+"strings and the original string."
+msgstr ""
+"Si no se encuentra el separador, devuelve una tupla de 3 elementos que "
+"contiene dos cadenas vacías y la cadena original."

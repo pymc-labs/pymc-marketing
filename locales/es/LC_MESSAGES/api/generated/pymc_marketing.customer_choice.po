@@ -1,0 +1,81 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.rst:2
+#: ebc50dd3804440d0b8e8b626d8b39dae
+msgid "customer\\_choice"
+msgstr "elección_del_cliente"
+
+#: 4e7155f8a8454ccaa4602d4cd14957d6 of pymc_marketing.customer_choice:1
+msgid "Customer Choice module."
+msgstr "Módulo de Elección del Cliente."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.rst:25
+#: d66105aca84340a7bb645784f12c2685
+msgid "Modules"
+msgstr "Módulos"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.rst:34:<autosummary>:1
+#: 3b3e539a957c46b3be70c5870c290c9f
+msgid ":py:obj:`mnl_logit <pymc_marketing.customer_choice.mnl_logit>`\\"
+msgstr ":py:obj:`mnl_logit <pymc_marketing.customer_choice.mnl_logit>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.rst:34:<autosummary>:1
+#: 33e14710473b4d879d66dd4afbf1ca2d
+msgid "Multinomial Logit for Product Preference Analysis."
+msgstr "Logit multinomial para el análisis de preferencias de productos."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.rst:34:<autosummary>:1
+#: 65c9aacb9e2b4d1fbc1707acc36e40b7
+msgid ":py:obj:`mv_its <pymc_marketing.customer_choice.mv_its>`\\"
+msgstr ":py:obj:`mv_its <pymc_marketing.customer_choice.mv_its>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.rst:34:<autosummary>:1
+#: a4c1d0e544f6458bb3452ff2d03485e8
+msgid ""
+"Multivariate Interrupted Time Series Analysis for Product Incrementality."
+msgstr ""
+"Análisis de Series de Tiempo Interrumpidas Multivariantes para la "
+"Incrementalidad del Producto."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.rst:34:<autosummary>:1
+#: f8fbcf3df33b48ea999ca16da1df3408
+msgid ":py:obj:`nested_logit <pymc_marketing.customer_choice.nested_logit>`\\"
+msgstr ":py:obj:`nested_logit <pymc_marketing.customer_choice.nested_logit>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.rst:34:<autosummary>:1
+#: 0a3438e2807c4cb5aa021350a6bb10f2
+msgid "Nested Logit for Product Preference Analysis."
+msgstr "Logit anidado para el análisis de preferencias de productos."
+
+#: ../source/api/generated/pymc_marketing.customer_choice.rst:34:<autosummary>:1
+#: 519dcd8a7c0243fba84a4d3ec99e5b4a
+msgid ""
+":py:obj:`synthetic_data <pymc_marketing.customer_choice.synthetic_data>`\\"
+msgstr ""
+":py:obj:`datos_sintéticos <pymc_marketing.customer_choice.synthetic_data>`"
+
+#: ../source/api/generated/pymc_marketing.customer_choice.rst:34:<autosummary>:1
+#: 519b43f6935a40b6808114d6b87cfd46
+msgid "Data generation functions for consumer choice models."
+msgstr ""
+"Funciones de generación de datos para modelos de elección del consumidor."

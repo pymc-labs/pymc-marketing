@@ -1,0 +1,59 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.rst:2
+#: 35b834c001184bd6a3a4e59813a7b44b
+msgid "scaling"
+msgstr "escalado"
+
+#: 02df5a08b54c4d849b9765bb35108c8f of pymc_marketing.mmm.scaling:1
+msgid "Scaling configuration for the MMMM."
+msgstr "Configuración de escalado para el MMMM."
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.rst:17
+#: 25b2bac8776d49f4b825605e0a879b01
+msgid "Classes"
+msgstr "Clases"
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.rst:26:<autosummary>:1
+#: 2aedf721e3c34d4f9d52ca495a328223
+msgid ":py:obj:`Scaling <pymc_marketing.mmm.scaling.Scaling>`\\ \\(\\*\\*data\\)"
+msgstr ":py:obj:`Escalado <pymc_marketing.mmm.scaling.Scaling>`\\ \\(\\*\\*data\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.rst:26:<autosummary>:1
+#: a99e7a0507d8448b9c4826a42a5f1777
+msgid "Scaling configuration for the MMM."
+msgstr "Configuración de escalado para el MMM."
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.rst:26:<autosummary>:1
+#: 490aefbdf74e44dfb3676324089b814c
+msgid ""
+":py:obj:`VariableScaling <pymc_marketing.mmm.scaling.VariableScaling>`\\ "
+"\\(\\*\\*data\\)"
+msgstr ""
+":py:obj:`VariableScaling <pymc_marketing.mmm.scaling.VariableScaling>`\\ "
+"\\(\\*\\*data\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.scaling.rst:26:<autosummary>:1
+#: 0fa76247811a44cab44907f4dd01289f
+msgid "How to scale a variable."
+msgstr "Cómo escalar una variable."

@@ -1,0 +1,173 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.lift_test.scale_lift_measurements.rst:2
+#: 300ea9d13a3f460594c93fda3202810b
+msgid "scale\\_lift\\_measurements"
+msgstr "mediciones\\_de\\_elevación\\_de\\_escala"
+
+#: c51dff64796644c4acc8c2d0e46c7907 of
+#: pymc_marketing.mmm.lift_test.scale_lift_measurements:2
+msgid "Scale the DataFrame with lift test results to be used in the model."
+msgstr ""
+"Escalar el DataFrame con los resultados de la prueba de elevación para ser "
+"utilizados en el modelo."
+
+#: dcd3e2e368e144a69b0891e99ab511ed of
+#: pymc_marketing.mmm.lift_test.scale_lift_measurements
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 0ab3c2c3300d4cf6990bf22cea1d691d of
+#: pymc_marketing.mmm.lift_test.scale_lift_measurements:7
+msgid "**df_lift_test** : :obj:`pd.DataFrame`"
+msgstr "**df_lift_test** : :obj:`pd.DataFrame`"
+
+#: 2ef75891e7164c22be41dc173a7d8987 of
+#: pymc_marketing.mmm.lift_test.scale_lift_measurements:6
+msgid "pd.DataFrame"
+msgstr "pd.DataFrame"
+
+#: e9c113e46cc6400d925344398295ca68 of
+#: pymc_marketing.mmm.lift_test.scale_lift_measurements:8
+msgid "DataFrame with lift test results with at least the following columns:"
+msgstr ""
+"DataFrame con los resultados de la prueba de elevación con al menos las "
+"siguientes columnas:"
+
+#: de2f603c448f47048cc56dc84f4d5e97 of
+#: pymc_marketing.mmm.lift_test.scale_lift_measurements:9
+msgid "`x`: x axis value of the lift test."
+msgstr "`x`: valor del eje x de la prueba de elevación."
+
+#: dda7cbe280814af9809f722eb32fb520 of
+#: pymc_marketing.mmm.lift_test.scale_lift_measurements:10
+msgid "`delta_x`: change in x axis value of the lift test."
+msgstr "`delta_x`: cambio en el valor del eje x de la prueba de elevación."
+
+#: 1f2c10cc761d47b5b1aa4f669d7c8008 of
+#: pymc_marketing.mmm.lift_test.scale_lift_measurements:11
+msgid "`delta_y`: change in y axis value of the lift test."
+msgstr "`delta_y`: cambio en el valor del eje y de la prueba de elevación."
+
+#: 407f08927b6a4c07aa232987400554fd of
+#: pymc_marketing.mmm.lift_test.scale_lift_measurements:12
+msgid "`sigma`: standard deviation of the lift test."
+msgstr "`sigma`: desviación estándar de la prueba de elevación."
+
+#: cb305c15ddbf45ed83535fcadbc3f8b0 of
+#: pymc_marketing.mmm.lift_test.scale_lift_measurements:14
+msgid "**channel_col** : :class:`python:str`"
+msgstr "**channel_col** : :class:`python:str`"
+
+#: 38bc3752f42a44fba0a0d0f150968856 of
+#: pymc_marketing.mmm.lift_test.scale_lift_measurements:13
+msgid "python:str"
+msgstr "python:str"
+
+#: 541ccaf421444a3fa241e8670685e322 of
+#: pymc_marketing.mmm.lift_test.scale_lift_measurements:15
+msgid "Name of the channel to scale."
+msgstr "Nombre del canal a escalar."
+
+#: 6c36db4d7983438ab932cce540fd01eb of
+#: pymc_marketing.mmm.lift_test.scale_lift_measurements:17
+msgid "**channel_columns** : :class:`python:list`\\[:class:`python:str`]"
+msgstr "**channel_columns** : :class:`python:list`\\[:class:`python:str`]"
+
+#: 4b7b0bae21494b30abead95927d8035b of
+#: pymc_marketing.mmm.lift_test.scale_lift_measurements:16
+msgid "python:list[python:str]"
+msgstr "python:list[python:str]"
+
+#: 53fc71a00fcf483ebdbb7b3249b746b2 of
+#: pymc_marketing.mmm.lift_test.scale_lift_measurements:18
+msgid "List of channel names."
+msgstr "Lista de nombres de canales."
+
+#: a9977c1f673a40e4816c93ab01ec2f7c of
+#: pymc_marketing.mmm.lift_test.scale_lift_measurements:20
+msgid ""
+"**channel_transform** : :obj:`Callable`\\[[:obj:`np.ndarray "
+"<numpy.ndarray>`], :obj:`np.ndarray <numpy.ndarray>`]"
+msgstr ""
+"**channel_transform** : :obj:`Callable`\\[[:obj:`np.ndarray "
+"<numpy.ndarray>`], :obj:`np.ndarray <numpy.ndarray>`]"
+
+#: 572ea1004d594fae9fb708cca3d57c25 fc2d8f4d8c9f44fa864862c5d1487565 of
+#: pymc_marketing.mmm.lift_test.scale_lift_measurements:19
+#: pymc_marketing.mmm.lift_test.scale_lift_measurements:22
+msgid "Callable[[np.ndarray], np.ndarray]"
+msgstr "Callable[[np.ndarray], np.ndarray]"
+
+#: 2224eeaf166d4a3a8ad58c50b4c1c9e0 of
+#: pymc_marketing.mmm.lift_test.scale_lift_measurements:21
+msgid "Function to scale the lift measurements."
+msgstr "Función para escalar las medidas del ascensor."
+
+#: da9aacce48c94a59b3a1a7b32ab2f1e1 of
+#: pymc_marketing.mmm.lift_test.scale_lift_measurements:23
+msgid ""
+"**target_transform** : :obj:`Callable`\\[[:obj:`np.ndarray "
+"<numpy.ndarray>`], :obj:`np.ndarray <numpy.ndarray>`]"
+msgstr ""
+"**target_transform** : :obj:`Callable`\\[[:obj:`np.ndarray "
+"<numpy.ndarray>`], :obj:`np.ndarray <numpy.ndarray>`]"
+
+#: eae6aab106b845df8a5369a16b5c20c0 of
+#: pymc_marketing.mmm.lift_test.scale_lift_measurements:24
+msgid "Function to scale the target."
+msgstr "Función para escalar el objetivo."
+
+#: df5a04b1034e4a1ea3f3103bf14c7976 of
+#: pymc_marketing.mmm.lift_test.scale_lift_measurements:26
+msgid "**dim_cols** : :class:`python:list`\\[:class:`python:str`], optional"
+msgstr "**dim_cols** : :class:`python:list`\\[:class:`python:str`], opcional"
+
+#: 88a9cf0298e34990aae10d493a7a7dba of
+#: pymc_marketing.mmm.lift_test.scale_lift_measurements:25
+msgid "python:list[python:str], optional"
+msgstr "python:list[python:str], opcional"
+
+#: d59d2f60fc344e08ad49bfdb04ce0baf of
+#: pymc_marketing.mmm.lift_test.scale_lift_measurements:27
+msgid "Names of the columns for channel dimensions"
+msgstr "Nombres de las columnas para las dimensiones del canal"
+
+#: 07360cab2d70456190e97c8bd54a0a58 of
+#: pymc_marketing.mmm.lift_test.scale_lift_measurements
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: c346ff916c584f018258bae9d2126d17 of
+#: pymc_marketing.mmm.lift_test.scale_lift_measurements:33
+msgid ":obj:`pd.DataFrame`"
+msgstr ":obj:`pd.DataFrame`"
+
+#: 2378f282b1b04c28a538c7310fe6e18e of
+#: pymc_marketing.mmm.lift_test.scale_lift_measurements:34
+msgid ""
+"DataFrame with the scaled lift measurements. Will be same columns and index "
+"as the input DataFrame, but with the values scaled."
+msgstr ""
+"DataFrame con las medidas de elevación escaladas. Tendrá las mismas columnas"
+" e índice que el DataFrame de entrada, pero con los valores escalados."

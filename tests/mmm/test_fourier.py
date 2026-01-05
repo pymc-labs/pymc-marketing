@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -18,12 +18,13 @@ import numpy as np
 import pymc as pm
 import pytest
 import xarray as xr
-
-from pymc_marketing.deserialize import (
+from pymc_extras.deserialize import (
     DESERIALIZERS,
     deserialize,
     register_deserialization,
 )
+from pymc_extras.prior import Prior
+
 from pymc_marketing.mmm.fourier import (
     FourierBase,
     MonthlyFourier,
@@ -31,7 +32,6 @@ from pymc_marketing.mmm.fourier import (
     YearlyFourier,
     generate_fourier_modes,
 )
-from pymc_marketing.prior import Prior
 
 
 @pytest.mark.parametrize(
@@ -62,7 +62,7 @@ def test_prior_without_dims(seasonality) -> None:
 )
 def test_prior_doesnt_have_prefix(seasonality) -> None:
     prior = Prior("Normal", dims="hierarchy")
-    with pytest.raises(ValueError, match="Prior distribution must have"):
+    with pytest.raises(ValueError, match=r"Prior distribution must have"):
         seasonality(n_order=2, prior=prior)
 
 
@@ -429,7 +429,7 @@ def test_apply_result_callback(seasonality) -> None:
 )
 def test_error_with_prefix_and_variable_name(seasonality) -> None:
     name = "variable_name"
-    with pytest.raises(ValueError, match="Variable name cannot"):
+    with pytest.raises(ValueError, match=r"Variable name cannot"):
         seasonality(n_order=2, prefix=name, variable_name=name)
 
 

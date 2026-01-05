@@ -1,0 +1,642 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:2
+#: ae07045e16374287bcbd4bc2a9c4ef90
+msgid "GammaGammaModelIndividual"
+msgstr "GammaGammaModeloIndividual"
+
+#: e73bca4ee0fa4acfa31a66bb73d6990f of
+#: pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual:2
+msgid "Gamma-Gamma Model for expected future monetary value."
+msgstr "Modelo Gamma-Gamma para el valor monetario futuro esperado."
+
+#: 7fe493999e9e4ab78d4bdf9be7e52123 of
+#: pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual:4
+msgid ""
+"The Gamma-Gamma model assumes expected future spend follows a Gamma "
+"distribution, and the scale of this distribution is also Gamma-distributed."
+msgstr ""
+"El modelo Gamma-Gamma asume que el gasto futuro esperado sigue una "
+"distribución Gamma, y la escala de esta distribución también está "
+"distribuida según una Gamma."
+
+#: 6fa5c94bff284bdea865c5ac2b18b525 of
+#: pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual:7
+msgid ""
+"This model is conditioned on the spend values of each purchase for each "
+"customer, and is based on [R2ceda99b342e-1]_, [R2ceda99b342e-2]_."
+msgstr ""
+"Este modelo está condicionado a los valores de gasto de cada compra para "
+"cada cliente y se basa en [R2ceda99b342e-1]_, [R2ceda99b342e-2]_."
+
+#: 69638ed9c49c4a66bbba5ee186ef13b0 of
+#: pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual:10
+msgid ""
+"See `GammaGammaModel` for an equivalent model conditioned on mean "
+"transaction values of repeat purchases for the customer population."
+msgstr ""
+"Consulte `GammaGammaModel` para un modelo equivalente condicionado a los "
+"valores medios de transacción de las compras repetidas para la población de "
+"clientes."
+
+#: 246bd96941a54f76836c733506115598 of
+#: pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 6d31187325114a8aa2977ab2588e6989 of
+#: pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual:15
+msgid "**data** : :obj:`~pandas.DataFrame`"
+msgstr "**datos** : :obj:`~pandas.DataFrame`"
+
+#: 48e91483539649a5ae58c4bc4c450767 of
+#: pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual:14
+msgid "DataFrame"
+msgstr "DataFrame"
+
+#: 1bab3edeeed34d7bbd3b4727ff69ba30 of
+#: pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual:16
+msgid "Dataframe containing the following columns:"
+msgstr "Dataframe que contiene las siguientes columnas:"
+
+#: 303c16787be54cb8a3db78536583a7ca of
+#: pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual:18
+msgid "`customer_id`: Unique customer identifier"
+msgstr "`customer_id`: Identificador único del cliente"
+
+#: 419eff73669b4d64b1b2db99041e7acf of
+#: pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual:19
+msgid ""
+"`individual_transaction_value`: Monetary value of each purchase for each "
+"customer"
+msgstr ""
+"`individual_transaction_value`: Valor monetario de cada compra para cada "
+"cliente"
+
+#: 984055a87e1447a1b4b7a42eb2edce21 of
+#: pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual:21
+msgid "**model_config** : :class:`python:dict`, optional"
+msgstr "**model_config** : :class:`python:dict`, opcional"
+
+#: 7c4dcf3c63a34b648724e5335218959d dc6a997f31d54710b00fb8b7a4e42945 of
+#: pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual:20
+#: pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual:24
+msgid "python:dict, optional"
+msgstr "python:dict, opcional"
+
+#: 6fa9a0c1c4014a49bcf6a9e2f5e89670 of
+#: pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual:22
+msgid ""
+"Dictionary of model prior parameters. If not provided, the model will use "
+"default priors specified in the `default_model_config` class attribute."
+msgstr ""
+"Diccionario de parámetros previos del modelo. Si no se proporciona, el "
+"modelo utilizará los priors predeterminados especificados en el atributo de "
+"clase `default_model_config`."
+
+#: 35ca784a40da4b0fbe2efeb4e8d0c018 of
+#: pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual:25
+msgid "**sampler_config** : :class:`python:dict`, optional"
+msgstr "**sampler_config** : :class:`python:dict`, opcional"
+
+#: e9d32ed62b934b4c96adaf0d2b7d7667 of
+#: pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual:26
+msgid "Dictionary of sampler parameters. Defaults to *None*."
+msgstr "Diccionario de parámetros del muestreador. Por defecto es *Ninguno*."
+
+#: a8804a1e68474f40bc23bb3ed1da6406 of
+#: pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual:40
+msgid "References"
+msgstr "Referencias"
+
+#: 601b2592fbf749548c97531a83de5b45 of
+#: pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual:41
+msgid ""
+"Fader, P. S., & Hardie, B. G. (2013). \"The Gamma-Gamma model of monetary "
+"value\". http://www.brucehardie.com/notes/025/gamma_gamma.pdf"
+msgstr ""
+"Fader, P. S., y Hardie, B. G. (2013). \"El modelo Gamma-Gamma del valor "
+"monetario\". http://www.brucehardie.com/notes/025/gamma_gamma.pdf"
+
+#: ae76bd59319942a1869aac51acccfaa9 of
+#: pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual:43
+msgid ""
+"Peter S. Fader, Bruce G. S. Hardie, and Ka Lok Lee (2005), “RFM and CLV: "
+"Using iso-value curves for customer base analysis”, Journal of Marketing "
+"Research, 42 (November), 415-430. "
+"https://journals.sagepub.com/doi/pdf/10.1509/jmkr.2005.42.4.415"
+msgstr ""
+"Peter S. Fader, Bruce G. S. Hardie y Ka Lok Lee (2005), “RFM y CLV: Uso de "
+"curvas iso-valor para el análisis de la base de clientes”, Journal of "
+"Marketing Research, 42 (noviembre), 415-430. "
+"https://journals.sagepub.com/doi/pdf/10.1509/jmkr.2005.42.4.415"
+
+#: 768eee29ae8348b39fda39fa0b1db103 of
+#: pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual:50
+msgid "[R2ceda99b342e-1]_, [R2ceda99b342e-2]_"
+msgstr "[R2ceda99b342e-1]_, [R2ceda99b342e-2]_"
+
+#: 48ec3d954a7842b58d2e1066d6d087b3 of
+#: pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual:53
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:12
+#: 04977ffdb50a46caaee7c8da66b469c1
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: 23c41757730d45b5b1b3b990fcef8d55
+msgid ""
+":py:obj:`GammaGammaModelIndividual.__init__ "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.__init__>`\\"
+" \\(data\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`GammaGammaModelIndividual.__init__ "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.__init__>`\\"
+" \\(data\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: 8761199950ac4b9db3feebca16d4b6e8
+msgid ""
+"Initialize model configuration and sampler configuration for the model."
+msgstr ""
+"Inicializar la configuración del modelo y la configuración del muestreador "
+"para el modelo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: 0d18eed534f94c2c94c411e901421158
+msgid ""
+":py:obj:`GammaGammaModelIndividual.attrs_to_init_kwargs "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.attrs_to_init_kwargs>`\\"
+" \\(attrs\\)"
+msgstr ""
+":py:obj:`GammaGammaModelIndividual.attrs_to_init_kwargs "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.attrs_to_init_kwargs>`\\"
+" \\(attrs\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: 7fbadaabd5114a849899346bed8bf58f
+msgid ""
+"Convert the model configuration and sampler configuration from the "
+"attributes to keyword arguments."
+msgstr ""
+"Convierte la configuración del modelo y la configuración del muestreador de "
+"los atributos a argumentos de palabra clave."
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: 1b8e0fb9f4054793a51f7292cc3dd68c
+msgid ""
+":py:obj:`GammaGammaModelIndividual.build_from_idata "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.build_from_idata>`\\"
+" \\(idata\\)"
+msgstr ""
+":py:obj:`GammaGammaModelIndividual.build_from_idata "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.build_from_idata>`\\"
+" \\(idata\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: e4bba776d45145afbf18604ba8edbbe7
+msgid "Build the model from the InferenceData object."
+msgstr "Construya el modelo a partir del objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: 923ece3c79ba40e3911c4dad8c5415ac
+msgid ""
+":py:obj:`GammaGammaModelIndividual.build_model "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.build_model>`\\"
+" \\(\\)"
+msgstr ""
+":py:obj:`GammaGammaModelIndividual.build_model "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.build_model>`\\"
+" \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: e58e1cda7d504d249fa70dc34314acf6
+msgid "Build the model."
+msgstr "Construya el modelo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: d7842b721cef4d2092f9068255a10ff2
+msgid ""
+":py:obj:`GammaGammaModelIndividual.create_idata_attrs "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.create_idata_attrs>`\\"
+" \\(\\)"
+msgstr ""
+":py:obj:`GammaGammaModelIndividual.create_idata_attrs "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.create_idata_attrs>`\\"
+" \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: 82cb35f2ea8d47efb46e12838ec030a8
+msgid "Create attributes for the inference data."
+msgstr "Cree atributos para los datos de inferencia."
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: 3a4150c71ac9420b98cb2245baf6a85d
+msgid ""
+":py:obj:`GammaGammaModelIndividual.distribution_customer_spend "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.distribution_customer_spend>`\\"
+" \\(data\\)"
+msgstr ""
+":py:obj:`GammaGammaModelIndividual.distribution_customer_spend "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.distribution_customer_spend>`\\"
+" \\(datos\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: 3fa524272d2b45518eca1fc2c020fd3b
+msgid "Posterior distribution of mean spend values for each customer."
+msgstr ""
+"Distribución posterior de los valores de gasto medio para cada cliente."
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: ee810dc2be8a49e19488c82518d5f04d
+msgid ""
+":py:obj:`GammaGammaModelIndividual.distribution_new_customer_spend "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.distribution_new_customer_spend>`\\"
+" \\(\\[...\\]\\)"
+msgstr ""
+":py:obj:`GammaGammaModelIndividual.distribution_new_customer_spend "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.distribution_new_customer_spend>`\\"
+" \\(\\[...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: 6b53b2f4b76b4d0b988d18e702676ed8
+msgid "Posterior distribution of mean spend values for new customers."
+msgstr ""
+"Distribución posterior de los valores de gasto medio para nuevos clientes."
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: d8b427914dff4c8981bc660a000de72d
+msgid ""
+":py:obj:`GammaGammaModelIndividual.expected_customer_lifetime_value "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.expected_customer_lifetime_value>`\\"
+" \\(...\\)"
+msgstr ""
+":py:obj:`GammaGammaModelIndividual.expected_customer_lifetime_value "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.expected_customer_lifetime_value>`\\"
+" \\(...\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: 87f21df5e7374cd7926a66ff6cf14f15
+msgid ""
+"Compute the average lifetime value for a group of one or more customers."
+msgstr ""
+"Calcule el valor promedio de vida útil para un grupo de uno o más clientes."
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: a7bfe947e33c4f5ba38c488489adf63f
+msgid ""
+":py:obj:`GammaGammaModelIndividual.expected_customer_spend "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.expected_customer_spend>`\\"
+" \\(data\\)"
+msgstr ""
+":py:obj:`GammaGammaModelIndividual.expected_customer_spend "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.expected_customer_spend>`\\"
+" \\(datos\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: 3dd22f48fde04f3d96caa75e5a7de5b5
+msgid "Compute the expected future mean spend value per customer."
+msgstr "Calcule el valor medio de gasto futuro esperado por cliente."
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: 03807e512a2343e2a5b80831ea779fb4
+msgid ""
+":py:obj:`GammaGammaModelIndividual.expected_new_customer_spend "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.expected_new_customer_spend>`\\"
+" \\(\\)"
+msgstr ""
+":py:obj:`GammaGammaModelIndividual.expected_new_customer_spend "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.expected_new_customer_spend>`\\"
+" \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: 9a8935fa4dc2404b8624f6c00cade903
+msgid "Compute the expected mean spend value for a new customer."
+msgstr "Calcule el valor medio de gasto esperado para un nuevo cliente."
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: 0db15625006b4df4878d83ffabe83774
+msgid ""
+":py:obj:`GammaGammaModelIndividual.fit "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.fit>`\\ "
+"\\(\\[method\\, ...\\]\\)"
+msgstr ""
+":py:obj:`GammaGammaModelIndividual.fit "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.fit>`\\ "
+"\\(\\[método\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: bbfd8ae67aa34e0cb7a13da8751483d0
+msgid "Infer model posterior."
+msgstr "Inferir la posterior del modelo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: 1df0c75c18624afe8587d55d86d54a61
+msgid ""
+":py:obj:`GammaGammaModelIndividual.fit_summary "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.fit_summary>`\\"
+" \\(\\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`GammaGammaModelIndividual.fit_summary "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.fit_summary>`\\"
+" \\(\\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: 5053c84d92dc44cdb90ffcb59dae3fef
+msgid "Compute the summary of the fit result."
+msgstr "Calcule el resumen del resultado del ajuste."
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: 690b678fab834859ba8fa9c0cf5366b0
+msgid ""
+":py:obj:`GammaGammaModelIndividual.graphviz "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.graphviz>`\\"
+" \\(\\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`GammaGammaModelIndividual.graphviz "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.graphviz>`\\"
+" \\(\\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: 33550c72e92d45a88d5b6c05fb5f7edb
+msgid "Get the graphviz representation of the model."
+msgstr "Obtenga la representación graphviz del modelo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: 4a6162f965fc4e3d878cb8e89f382318
+msgid ""
+":py:obj:`GammaGammaModelIndividual.idata_to_init_kwargs "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.idata_to_init_kwargs>`\\"
+" \\(idata\\)"
+msgstr ""
+":py:obj:`GammaGammaModelIndividual.idata_to_init_kwargs "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.idata_to_init_kwargs>`\\"
+" \\(idata\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: 0af1546215964ec48e6765a238a6c768
+msgid "Create the initialization kwargs from an InferenceData object."
+msgstr ""
+"Cree los kwargs de inicialización a partir de un objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: df081a7488cb492cb654867a65796447
+msgid ""
+":py:obj:`GammaGammaModelIndividual.load "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.load>`\\ "
+"\\(fname\\[\\, check\\]\\)"
+msgstr ""
+":py:obj:`GammaGammaModelIndividual.load "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.load>`\\ "
+"\\(fname\\[\\, check\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: 3d552bd410ba4ad6ac281b55d381bc56
+msgid "Create a ModelBuilder instance from a file."
+msgstr "Cree una instancia de ModelBuilder a partir de un archivo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: a69f0ee18cb740d283605da9e5e9926d
+msgid ""
+":py:obj:`GammaGammaModelIndividual.load_from_idata "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.load_from_idata>`\\"
+" \\(idata\\)"
+msgstr ""
+":py:obj:`GammaGammaModelIndividual.load_from_idata "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.load_from_idata>`\\"
+" \\(idata\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: 630311fcc30b40eba9138c04316568b0
+msgid "Create a ModelBuilder instance from an InferenceData object."
+msgstr ""
+"Cree una instancia de ModelBuilder a partir de un objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: 98798e31591741bdb3044d9ba52ed195
+msgid ""
+":py:obj:`GammaGammaModelIndividual.save "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.save>`\\ "
+"\\(fname\\, \\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`GammaGammaModelIndividual.save "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.save>`\\ "
+"\\(fname\\, \\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: de2bb2b3dcdd44e79c947f553a9a277c
+msgid "Save the model's inference data to a file."
+msgstr "Guarde los datos de inferencia del modelo en un archivo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: a3afaae0851343309f498f8e5f5cd068
+msgid ""
+":py:obj:`GammaGammaModelIndividual.set_idata_attrs "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.set_idata_attrs>`\\"
+" \\(\\[idata\\]\\)"
+msgstr ""
+":py:obj:`GammaGammaModelIndividual.set_idata_attrs "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.set_idata_attrs>`\\"
+" \\(\\[idata\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: d441cf91ed3d45ce9f036f5d2376cfd4
+msgid "Set attributes on an InferenceData object."
+msgstr "Establecer atributos en un objeto InferenceData."
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: c5d60dfdd1964d37a0f9ca0a6422b80e
+msgid ""
+":py:obj:`GammaGammaModelIndividual.table "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.table>`\\ "
+"\\(...\\)"
+msgstr ""
+":py:obj:`GammaGammaModelIndividual.table "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.table>`\\ "
+"\\(...\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: 7736833b9d1747db86f98b5e4c08c425
+msgid "Get the summary table of the model."
+msgstr "Obtenga la tabla resumen del modelo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: b42ffaf55dd844f1855bc550623a9990
+msgid ""
+":py:obj:`GammaGammaModelIndividual.thin_fit_result "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.thin_fit_result>`\\"
+" \\(...\\)"
+msgstr ""
+":py:obj:`GammaGammaModelIndividual.thin_fit_result "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.thin_fit_result>`\\"
+" \\(...\\)"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:41:<autosummary>:1
+#: 2d4f0c7b9d004e4590b46f2e17057af4
+msgid "Return a copy of the model with a thinned fit result."
+msgstr "Devuelva una copia del modelo con un resultado de ajuste reducido."
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:43
+#: 49ff9a66264d47ff9cb33edcb06a27b2
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:58:<autosummary>:1
+#: cde5272baf9b40359e481738da0f9fbb
+msgid ""
+":py:obj:`default_model_config "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.default_model_config>`\\"
+msgstr ""
+":py:obj:`default_model_config "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.default_model_config>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:58:<autosummary>:1
+#: 89fe057d8a354dcca587bce4bb7e724d
+msgid "Default model configuration."
+msgstr "Configuración de modelo predeterminada."
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:58:<autosummary>:1
+#: 7d1f46130fab4b7e8aada6f86d7ec3cb
+msgid ""
+":py:obj:`default_sampler_config "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.default_sampler_config>`\\"
+msgstr ""
+":py:obj:`default_sampler_config "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.default_sampler_config>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:58:<autosummary>:1
+#: d8406a3e6a8a4df0aa3d81fbbccee217
+msgid "Default sampler configuration."
+msgstr "Configuración de muestreador predeterminada."
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:58:<autosummary>:1
+#: 1195358b2e9449ff9eb395bb4164f4b2
+msgid ""
+":py:obj:`fit_result "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.fit_result>`\\"
+msgstr ""
+":py:obj:`fit_result "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.fit_result>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:58:<autosummary>:1
+#: a169e131f97540e7b1ee2e6e3ee2b4b2
+msgid "Get the posterior fit_result."
+msgstr "Obtenga el resultado de ajuste posterior fit_result."
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:58:<autosummary>:1
+#: 6a8cf8b94f1744c7b47cc16c0d5ea0ce
+msgid ""
+":py:obj:`id "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.id>`\\"
+msgstr ""
+":py:obj:`id "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.id>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:58:<autosummary>:1
+#: dbc6c87d6def447d93b048c99d2296e0
+msgid "Generate a unique hash value for the model."
+msgstr "Generar un valor hash único para el modelo."
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:58:<autosummary>:1
+#: 4d745dee5dc14d30ae5920f5ae0bfdea
+msgid ""
+":py:obj:`posterior "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.posterior>`\\"
+msgstr ""
+":py:obj:`posterior "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.posterior>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:58:<autosummary>:1
+#: 643879af12d64ccf80238555e99b4e7a
+msgid ""
+":py:obj:`posterior_predictive "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.posterior_predictive>`\\"
+msgstr ""
+":py:obj:`posterior_predictive "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.posterior_predictive>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:58:<autosummary>:1
+#: 4235ea3a7d44499db0d0a280e3b3952c
+msgid ""
+":py:obj:`predictions "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.predictions>`\\"
+msgstr ""
+":py:obj:`predicciones "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.predictions>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:58:<autosummary>:1
+#: 08e0e86c8d2a4355bac0cfe60e8e9a99
+msgid ""
+":py:obj:`prior "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.prior>`\\"
+msgstr ""
+":py:obj:`prior "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.prior>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:58:<autosummary>:1
+#: dac17665056c424e8dc7d2c39c79ee0e
+msgid ""
+":py:obj:`prior_predictive "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.prior_predictive>`\\"
+msgstr ""
+":py:obj:`prior_predictive "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.prior_predictive>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:58:<autosummary>:1
+#: ce0f2222c7444026b31be96ef4afe248
+msgid ""
+":py:obj:`version "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.version>`\\"
+msgstr ""
+":py:obj:`versión "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.version>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:58:<autosummary>:1
+#: abf96c6d65bb49e6ba84cc45ed0908cf
+msgid ""
+":py:obj:`idata "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.idata>`\\"
+msgstr ""
+":py:obj:`idata "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.idata>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:58:<autosummary>:1
+#: f772fcc209f54a6b829aaa5bdf6ea065
+msgid ""
+":py:obj:`sampler_config "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.sampler_config>`\\"
+msgstr ""
+":py:obj:`sampler_config "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.sampler_config>`"
+
+#: ../source/api/generated/pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.rst:58:<autosummary>:1
+#: 479d737c8e124321b9c2e443b6d0ab9a
+msgid ""
+":py:obj:`model_config "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.model_config>`\\"
+msgstr ""
+":py:obj:`model_config "
+"<pymc_marketing.clv.models.gamma_gamma.GammaGammaModelIndividual.model_config>`"

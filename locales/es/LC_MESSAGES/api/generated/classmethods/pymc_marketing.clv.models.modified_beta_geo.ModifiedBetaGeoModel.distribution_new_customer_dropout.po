@@ -1,0 +1,82 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.distribution_new_customer_dropout.rst:2
+#: 1170704739d546b78a94cc23a8256dea
+msgid "ModifiedBetaGeoModel.distribution\\_new\\_customer\\_dropout"
+msgstr "ModifiedBetaGeoModel.distribution\\_nuevo\\_cliente\\_abandono"
+
+#: 3dbc3742aba6447e86d79fe9a0d547dc of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer_dropout:2
+msgid "Sample the Beta distribution for the population-level dropout rate."
+msgstr ""
+"Muestree la distribución Beta para la tasa de abandono a nivel poblacional."
+
+#: 0452efe4da17455188fb308a9f3f36a2 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer_dropout:4
+msgid ""
+"This is the probability that a new customer will \"drop out\" and make no "
+"further purchases."
+msgstr ""
+"Esta es la probabilidad de que un nuevo cliente \"abandone\" y no realice "
+"más compras."
+
+#: 0a34f9f628bd4199b4e361832af77afa of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer_dropout
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: f434c13c361c40ca98c53a9eeddaef5b of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer_dropout:8
+msgid ""
+"**random_seed** : :obj:`RandomState <numpy.random.RandomState>`, optional"
+msgstr ""
+"**random_seed** : :obj:`RandomState <numpy.random.RandomState>`, opcional"
+
+#: 75a37c3cb5ef473c89c0f6db3596922c of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer_dropout:7
+msgid "RandomState, optional"
+msgstr "RandomState, opcional"
+
+#: 891c8ed21df440febaf93830cee56987 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer_dropout:9
+msgid "Random state to use for sampling."
+msgstr "Estado aleatorio a utilizar para el muestreo."
+
+#: de80a2f2f07241069e075bfda91bd490 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer_dropout
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 24a05d8371eb4bbebb5330b2fd8cf784 of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer_dropout:15
+msgid ":obj:`xarray.Dataset`"
+msgstr ":obj:`xarray.Dataset`"
+
+#: 633636a1d0d945e3be2ef28f7395524a of
+#: pymc_marketing.clv.models.beta_geo.BetaGeoModel.distribution_new_customer_dropout:16
+msgid ""
+"Dataset containing the posterior samples for the population-level dropout "
+"rate."
+msgstr ""
+"Conjunto de datos que contiene las muestras posteriores para la tasa de "
+"abandono a nivel poblacional."

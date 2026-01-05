@@ -1,0 +1,61 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.utils.from_netcdf.rst:2
+#: 24ce8c8ceadc4dd8b81a7725f206944f
+msgid "from\\_netcdf"
+msgstr "from\\_netcdf"
+
+#: b9471104d5c3421bb999d9b9faa1da95 of pymc_marketing.utils.from_netcdf:2
+msgid ""
+"Load inference data from a netcdf file without `fit_data` group warnings."
+msgstr ""
+"Cargar datos de inferencia desde un archivo netcdf sin advertencias del "
+"grupo `fit_data`."
+
+#: 53dd3ae404df432092f48bebfc2ee3bb of pymc_marketing.utils.from_netcdf
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 45a416ed669d48d9aeabd2f59a3ce426 of pymc_marketing.utils.from_netcdf:7
+msgid "**filepath** : :class:`python:str` or :obj:`Path`"
+msgstr "**ruta de archivo** : :class:`python:str` o :obj:`Path`"
+
+#: 881fc135bb5b4c58a918c4b74ae0b6f7 of pymc_marketing.utils.from_netcdf:6
+msgid "python:str or Path"
+msgstr "python:str o Path"
+
+#: 6b22964b6e7a425d93aafa8ea41d095f of pymc_marketing.utils.from_netcdf:8
+msgid "The path to the netcdf file."
+msgstr "La ruta al archivo netcdf."
+
+#: 531f25ca02e94ba4b7091b2763bb21a9 of pymc_marketing.utils.from_netcdf
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: aeff53f451864cb0b41617e4530c37c6 of pymc_marketing.utils.from_netcdf:14
+msgid ":obj:`az.InferenceData`"
+msgstr ":obj:`az.InferenceData`"
+
+#: 4ad95e1e08804f268a3d037c182de68b of pymc_marketing.utils.from_netcdf:15
+msgid "The inference data."
+msgstr "Los datos de inferencia."

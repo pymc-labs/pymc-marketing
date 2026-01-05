@@ -1,0 +1,122 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.mmm.BaseMMM.preprocess.rst:2
+#: cb5559b07bea4330b75820d675b81424
+msgid "BaseMMM.preprocess"
+msgstr "BaseMMM.preprocess"
+
+#: a1d1b24470d54a149915c21484ed1094 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.preprocess:2
+msgid "Preprocess the provided data according to the specified target."
+msgstr ""
+"Preprocese los datos proporcionados de acuerdo con el objetivo especificado."
+
+#: 39c4dd5bcf3d48d0b4ce8dfb259dacce of
+#: pymc_marketing.mmm.base.MMMModelBuilder.preprocess:4
+msgid ""
+"This method applies preprocessing methods to the data (\"X\" or \"y\"), "
+"which are specified in the preprocessing_methods property of this object. It"
+" iteratively applies each method in the appropriate list (either for \"X\" "
+"or \"y\") to the data."
+msgstr ""
+"Este método aplica métodos de preprocesamiento a los datos (\"X\" o \"y\"), "
+"que se especifican en la propiedad preprocessing_methods de este objeto. "
+"Aplica de manera iterativa cada método en la lista correspondiente (ya sea "
+"para \"X\" o \"y\") a los datos."
+
+#: a2dd8213173d422a9047de1afc51e14a of
+#: pymc_marketing.mmm.base.MMMModelBuilder.preprocess
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: c0ddb51a64724c14a8c18ab8199aa76b of
+#: pymc_marketing.mmm.base.MMMModelBuilder.preprocess:10
+msgid "**target** : :class:`python:str`"
+msgstr "**objetivo** : :class:`python:str`"
+
+#: e2c313ab506449bbb44b9da63e0f5f08 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.preprocess:9
+msgid "python:str"
+msgstr "python:str"
+
+#: 6e26c06443d248ba986e67da527a3ca5 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.preprocess:11
+msgid ""
+"Indicates whether the data represents features (\"X\") or the target "
+"variable (\"y\")."
+msgstr ""
+"Indica si los datos representan características (\"X\") o la variable "
+"objetivo (\"y\")."
+
+#: e0707180dd554827a4c672bd48481b8e of
+#: pymc_marketing.mmm.base.MMMModelBuilder.preprocess:13
+msgid ""
+"**data** : :obj:`Union`\\[:obj:`pd.DataFrame`, :obj:`pd.Series`, "
+":obj:`np.ndarray <numpy.ndarray>`]"
+msgstr ""
+"**datos** : :obj:`Union`\\[:obj:`pd.DataFrame`, :obj:`pd.Series`, "
+":obj:`np.ndarray <numpy.ndarray>`]"
+
+#: 0dbd4367d9f542b89e8f7f3726625557 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.preprocess:12
+msgid "Union[pd.DataFrame, pd.Series, np.ndarray]"
+msgstr "Unión[pd.DataFrame, pd.Series, np.ndarray]"
+
+#: 15a62e30dba3472f8842aeeedcd8b4bf of
+#: pymc_marketing.mmm.base.MMMModelBuilder.preprocess:14
+msgid "The data to be preprocessed."
+msgstr "Los datos que se van a preprocesar."
+
+#: 994658b9e7394da09845b00d7b95b58c of
+#: pymc_marketing.mmm.base.MMMModelBuilder.preprocess
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: f38f40e375c1492ca35885cf007f47c2 of
+#: pymc_marketing.mmm.base.MMMModelBuilder.preprocess:20
+msgid ""
+":obj:`Union`\\[:obj:`pd.DataFrame`, :obj:`pd.Series`, :obj:`np.ndarray "
+"<numpy.ndarray>`]"
+msgstr ""
+":obj:`Unión`\\[:obj:`pd.DataFrame`, :obj:`pd.Series`, :obj:`np.ndarray "
+"<numpy.ndarray>`]"
+
+#: af38ffc7ac3b452282ba5db628e1a43d of
+#: pymc_marketing.mmm.base.MMMModelBuilder.preprocess:21
+msgid "The preprocessed data."
+msgstr "Los datos preprocesados."
+
+#: 26b41dc9d44d44c8af670f496f94487b of
+#: pymc_marketing.mmm.base.MMMModelBuilder.preprocess
+msgid "Raises"
+msgstr "Aumentos"
+
+#: 1513ab719f664c4bbe9dce1d8cda72eb of
+#: pymc_marketing.mmm.base.MMMModelBuilder.preprocess:28
+msgid ":obj:`ValueError`"
+msgstr ":obj:`ValueError`"
+
+#: 30cc3bb0fe514e9ca158dafe0a1c50ca of
+#: pymc_marketing.mmm.base.MMMModelBuilder.preprocess:29
+msgid "If the target is neither \"X\" nor \"y\"."
+msgstr "Si el objetivo no es ni \"X\" ni \"y\"."

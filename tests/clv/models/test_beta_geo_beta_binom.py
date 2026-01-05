@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -21,11 +21,11 @@ import pytensor as pt
 import pytest
 import xarray as xr
 from lifetimes.fitters.beta_geo_beta_binom_fitter import BetaGeoBetaBinomFitter
+from pymc_extras.prior import Prior
 
 from pymc_marketing.clv.distributions import BetaGeoBetaBinom
 from pymc_marketing.clv.models import BetaGeoBetaBinomModel
-from pymc_marketing.prior import Prior
-from tests.conftest import create_mock_fit, mock_sample
+from tests.clv.conftest import create_mock_fit, mock_sample
 
 
 class TestBetaGeoBetaBinomModel:
@@ -176,27 +176,39 @@ class TestBetaGeoBetaBinomModel:
     def test_missing_cols(self):
         data_invalid = self.data.drop(columns="customer_id")
 
-        with pytest.raises(ValueError, match="Required column customer_id missing"):
+        with pytest.raises(
+            ValueError,
+            match=r"The following required columns are missing from the input data: \['customer_id'\]",
+        ):
             BetaGeoBetaBinomModel(data=data_invalid)
 
         data_invalid = self.data.drop(columns="frequency")
 
-        with pytest.raises(ValueError, match="Required column frequency missing"):
+        with pytest.raises(
+            ValueError,
+            match=r"The following required columns are missing from the input data: \['frequency'\]",
+        ):
             BetaGeoBetaBinomModel(data=data_invalid)
 
         data_invalid = self.data.drop(columns="recency")
 
-        with pytest.raises(ValueError, match="Required column recency missing"):
+        with pytest.raises(
+            ValueError,
+            match=r"The following required columns are missing from the input data: \['recency'\]",
+        ):
             BetaGeoBetaBinomModel(data=data_invalid)
 
         data_invalid = self.data.drop(columns="T")
 
-        with pytest.raises(ValueError, match="Required column T missing"):
+        with pytest.raises(
+            ValueError,
+            match=r"The following required columns are missing from the input data: \['T'\]",
+        ):
             BetaGeoBetaBinomModel(data=data_invalid)
 
     def test_customer_id_duplicate(self):
         with pytest.raises(
-            ValueError, match="Column customer_id has duplicate entries"
+            ValueError, match=r"Column customer_id has duplicate entries"
         ):
             data = pd.DataFrame(
                 {
@@ -212,7 +224,7 @@ class TestBetaGeoBetaBinomModel:
             )
 
     def test_T_homogeneity(self):
-        with pytest.raises(ValueError, match="Column T has  non-homogeneous entries"):
+        with pytest.raises(ValueError, match=r"Column T has non-homogeneous entries"):
             data = pd.DataFrame(
                 {
                     "customer_id": np.asarray([1, 2]),
@@ -300,7 +312,7 @@ class TestBetaGeoBetaBinomModel:
 
     def test_fit_result_without_fit(self, mocker, model_config):
         model = BetaGeoBetaBinomModel(data=self.pred_data, model_config=model_config)
-        with pytest.raises(RuntimeError, match="The model hasn't been fit yet"):
+        with pytest.raises(RuntimeError, match=r"The model hasn't been fit yet"):
             model.fit_result
 
         mocker.patch("pymc.sample", mock_sample)

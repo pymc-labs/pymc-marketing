@@ -1,0 +1,81 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.additive_effect.FourierEffect.set_data.rst:2
+#: 2e1c0d4955724f1586100a95b3c4d714
+msgid "FourierEffect.set\\_data"
+msgstr "FourierEffect.set\\_data"
+
+#: 94053de7d28642778b1053a647de58b7 of
+#: pymc_marketing.mmm.additive_effect.FourierEffect.set_data:2
+msgid "Set the data for new predictions."
+msgstr "Establezca los datos para nuevas predicciones."
+
+#: f9221450619d47e89af05723e2bbd141 of
+#: pymc_marketing.mmm.additive_effect.FourierEffect.set_data
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 37ff4c1be4a34e72bacb00ce242f5abf of
+#: pymc_marketing.mmm.additive_effect.FourierEffect.set_data:7
+msgid "**mmm** : :obj:`MMM`"
+msgstr "**mmm** : :obj:`MMM`"
+
+#: 75e92cc0b7ce4c108324e12eb13ff222 of
+#: pymc_marketing.mmm.additive_effect.FourierEffect.set_data:6
+msgid "MMM"
+msgstr "MMM"
+
+#: 9fcd9a4d754e4d548c784b1f7d87512c of
+#: pymc_marketing.mmm.additive_effect.FourierEffect.set_data:8
+msgid "The MMM model instance"
+msgstr "La instancia del modelo MMM"
+
+#: 27e67c3fd32246989c69b12294a6289d of
+#: pymc_marketing.mmm.additive_effect.FourierEffect.set_data:10
+msgid "**model** : :obj:`pm.Model`"
+msgstr "**modelo** : :obj:`pm.Model`"
+
+#: 0b4cf896623f46b49246f66748688613 of
+#: pymc_marketing.mmm.additive_effect.FourierEffect.set_data:9
+msgid "pm.Model"
+msgstr "pm.Model"
+
+#: f49455e3e3744fc19399791dfe4392ea of
+#: pymc_marketing.mmm.additive_effect.FourierEffect.set_data:11
+msgid "The PyMC model"
+msgstr "El modelo de PyMC"
+
+#: 372453c326db49bd871f5c320c527676 of
+#: pymc_marketing.mmm.additive_effect.FourierEffect.set_data:13
+msgid "**X** : :obj:`xr.Dataset`"
+msgstr "**X** : :obj:`xr.Dataset`"
+
+#: 84fd2fc8b70f498d8e64174450828b35 of
+#: pymc_marketing.mmm.additive_effect.FourierEffect.set_data:12
+msgid "xr.Dataset"
+msgstr "xr.Dataset"
+
+#: fee98c8de5ab4c72ac94027c2d5cb09e of
+#: pymc_marketing.mmm.additive_effect.FourierEffect.set_data:14
+msgid "The dataset for prediction"
+msgstr "El conjunto de datos para la predicción"

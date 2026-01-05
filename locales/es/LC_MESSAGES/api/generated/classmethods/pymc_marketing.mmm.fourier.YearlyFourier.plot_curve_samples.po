@@ -1,0 +1,142 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.fourier.YearlyFourier.plot_curve_samples.rst:2
+#: c2817782297c4bb8881ffa9163baaa91
+msgid "YearlyFourier.plot\\_curve\\_samples"
+msgstr "YearlyFourier.plot\\_curve\\_samples"
+
+#: c7e0771038f84af88058a7da1a015a28 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_samples:2
+msgid "Plot samples from the curve."
+msgstr "Trazar muestras de la curva."
+
+#: 4867f65e905744679c60fd8bb5214d24 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_samples
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: b12c415af52048eeb8e985a9f545fc73 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_samples:7
+msgid "**curve** : :obj:`xr.DataArray`"
+msgstr "**curva** : :obj:`xr.DataArray`"
+
+#: 316c66484b35442d9e399efa703007f3 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_samples:6
+msgid "xr.DataArray"
+msgstr "xr.DataArray"
+
+#: f27bcd0e5d544a79a6eb361bc60343eb of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_samples:8
+msgid "Samples from the curve."
+msgstr "Muestras de la curva."
+
+#: e499e3b025574410b08fcb6c61285d5e of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_samples:10
+msgid "**n** : :class:`python:int`, optional"
+msgstr "**n** : :class:`python:int`, opcional"
+
+#: 014b4a2f383b4031a4911e90f93e59b6 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_samples:9
+msgid "python:int, optional"
+msgstr "python:int, opcional"
+
+#: 018958f2b1194c59b9a7c4a93f31ba2b of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_samples:11
+msgid "Number of samples to plot, by default 10"
+msgstr "Número de muestras a graficar, por defecto 10"
+
+#: 0977aaf3ea14481ea515a3e1fa7a1026 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_samples:13
+msgid "**rng** : :obj:`np.random.Generator`, optional"
+msgstr "**rng** : :obj:`np.random.Generator`, opcional"
+
+#: 02e75a67f4a3454082ed4dbbd730e041 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_samples:12
+msgid "np.random.Generator, optional"
+msgstr "np.random.Generator, opcional"
+
+#: 924b53b2a89340a29beb0526d83ede5f of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_samples:14
+msgid "Random number generator, by default None"
+msgstr "Generador de números aleatorios, por defecto None"
+
+#: a46e604edd0e44dfa5810f454cdce463 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_samples:16
+msgid "**plot_kwargs** : :class:`python:dict`, optional"
+msgstr "**plot_kwargs** : :class:`python:dict`, opcional"
+
+#: 6c0794f812da43af9f4ed0392f8ac460 9c2ef65a64c44232a06fcc8d7fe31718 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_samples:15
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_samples:18
+msgid "python:dict, optional"
+msgstr "python:dict, opcional"
+
+#: b87174449f3c48b68e240bb8b5adc19e of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_samples:17
+msgid "Keyword arguments for the plot function, by default None"
+msgstr ""
+"Argumentos de palabras clave para la función de trazado, por defecto None"
+
+#: 3943fe41bfda4495a4e0478045fd30ac of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_samples:19
+msgid "**subplot_kwargs** : :class:`python:dict`, optional"
+msgstr "**subplot_kwargs** : :class:`python:dict`, opcional"
+
+#: a5a06fb99aa2452b8d0468897f2fe9aa of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_samples:20
+msgid "Keyword arguments for the subplot, by default None"
+msgstr "Argumentos de palabras clave para el subplot, por defecto None"
+
+#: 254fd07892784357af3291f87384253b of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_samples:22
+msgid "**axes** : :obj:`npt.NDArray`\\[:obj:`plt.Axes`], optional"
+msgstr "**ejes** : :obj:`npt.NDArray`\\[:obj:`plt.Axes`], opcional"
+
+#: 89e703860f8942dca461b9da628a0fc3 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_samples:21
+msgid "npt.NDArray[plt.Axes], optional"
+msgstr "npt.NDArray[plt.Axes], opcional"
+
+#: 4731eacfff8d40fe9aa799c61cb9337a of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_samples:23
+msgid "Matplotlib axes, by default None"
+msgstr "Ejes de Matplotlib, por defecto None"
+
+#: d5485b83274d4d34a065746409724022 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_samples
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: e74fb93540334e368eedac9ccab9964a of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_samples:29
+msgid ""
+":class:`python:tuple`\\[:obj:`plt.Figure`, "
+":obj:`npt.NDArray`\\[:obj:`plt.Axes`]]"
+msgstr ""
+":class:`python:tuple`\\[:obj:`plt.Figure`, "
+":obj:`npt.NDArray`\\[:obj:`plt.Axes`]]"
+
+#: 7fb90ced832a49188777e3e8640792b1 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_samples:30
+msgid "Matplotlib figure and axes."
+msgstr "Figura y ejes de Matplotlib."

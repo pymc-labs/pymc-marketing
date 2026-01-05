@@ -1,0 +1,138 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.rst:2
+#: 6fc951ba44e844168ea45bb3d42dae8d
+msgid "multidimensional"
+msgstr "multidimensional"
+
+#: 94f4f1d35bc44d1aa54b793495e72cdf of pymc_marketing.mmm.multidimensional:1
+msgid "Multidimensional Marketing Mix Model (MMM)."
+msgstr "Modelo de Mezcla de Marketing Multidimensional (MMM)."
+
+#: 34ce4c473f1c4b0fb7f3a527f7c4f6a1 of pymc_marketing.mmm.multidimensional:4
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: 8aa0f133e6ba446d92f76273dbdf2f83 of pymc_marketing.mmm.multidimensional:5
+msgid "Basic MMM fit:"
+msgstr "Ajuste básico de MMM:"
+
+#: ae6bd25ce351457bb29afbb9d3b05eee of pymc_marketing.mmm.multidimensional:35
+msgid "Multi-dimensional (panel) with dims:"
+msgstr "Multi-dimensional (panel) con dimensiones:"
+
+#: f216724b0ff14e11a693ff174581aaef of pymc_marketing.mmm.multidimensional:59
+msgid "Time-varying parameters and seasonality:"
+msgstr "Parámetros variables en el tiempo y estacionalidad:"
+
+#: de3ed47e75064e38938828acee609a50 of pymc_marketing.mmm.multidimensional:77
+msgid "Controls (additional regressors):"
+msgstr "Controles (regresores adicionales):"
+
+#: a4bbc07a21f74b36a0a73fbf9bdb6f4d of pymc_marketing.mmm.multidimensional:92
+msgid "Events:"
+msgstr "Eventos:"
+
+#: af365840ad6847129fab3c45c3ab4b6d of pymc_marketing.mmm.multidimensional:125
+msgid "Save, load, and plot:"
+msgstr "Guardar, cargar y trazar:"
+
+#: f4291c6b994743b7b3219431004d8307 of pymc_marketing.mmm.multidimensional:134
+msgid "Notes"
+msgstr "Notas"
+
+#: 42400a427feb4acbb96aedc80888de52 of pymc_marketing.mmm.multidimensional:135
+msgid ""
+"X must include `date`, the `channel_columns`, and any extra `dims` columns."
+msgstr ""
+"X debe incluir `date`, las `channel_columns` y cualquier columna adicional "
+"de `dims`."
+
+#: ce2a0ce4aae741d28dd2ebf8e7e59b72 of pymc_marketing.mmm.multidimensional:136
+msgid "y is a Series with name equal to `target_column`."
+msgstr "y es una Serie con el nombre igual a `target_column`."
+
+#: f9a486b01db141beab3728efac089399 of pymc_marketing.mmm.multidimensional:137
+msgid "Call `add_events` before fitting/building."
+msgstr "Llama a `add_events` antes de ajustar/construir."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.rst:13
+#: a8e908b793164855b44e0d3450ec3bf2
+msgid "Functions"
+msgstr "Funciones"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.rst:23:<autosummary>:1
+#: c9946fdc48064259b094a8013e5e30d9
+msgid ""
+":py:obj:`create_sample_kwargs "
+"<pymc_marketing.mmm.multidimensional.create_sample_kwargs>`\\ "
+"\\(sampler\\_config\\, ...\\)"
+msgstr ""
+":py:obj:`create_sample_kwargs "
+"<pymc_marketing.mmm.multidimensional.create_sample_kwargs>`\\ "
+"\\(sampler\\_config\\, ...\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.rst:23:<autosummary>:1
+#: 99dec2a27b9347dc8d07dc158f9acb39
+msgid "Create the dictionary of keyword arguments for `pm.sample`."
+msgstr "Cree el diccionario de argumentos clave para `pm.sample`."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.rst:25
+#: 808a75f1ba8e40dd97ef161b5b69da5f
+msgid "Classes"
+msgstr "Clases"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.rst:34:<autosummary>:1
+#: 2d3052bcb46a4fd48594bcec9cb90a6c
+msgid ""
+":py:obj:`MMM <pymc_marketing.mmm.multidimensional.MMM>`\\ "
+"\\(\\[date\\_column\\, channel\\_columns\\, ...\\]\\)"
+msgstr ""
+":py:obj:`MMM <pymc_marketing.mmm.multidimensional.MMM>`\\ "
+"\\(\\[columna\\_fecha\\, columnas\\_canal\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.rst:34:<autosummary>:1
+#: 4b91b7d7cdf74a0097916056e23f4ca7
+msgid ""
+"Marketing Mix Model class for estimating the impact of marketing channels on"
+" a target variable."
+msgstr ""
+"Clase del Modelo de Mezcla de Marketing para estimar el impacto de los "
+"canales de marketing en una variable objetivo."
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.rst:34:<autosummary>:1
+#: 0eb6fb08541f4af0bdb1a8004087f363
+msgid ""
+":py:obj:`MultiDimensionalBudgetOptimizerWrapper "
+"<pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper>`\\"
+" \\(...\\)"
+msgstr ""
+":py:obj:`MultiDimensionalBudgetOptimizerWrapper "
+"<pymc_marketing.mmm.multidimensional.MultiDimensionalBudgetOptimizerWrapper>`\\"
+" \\(...\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.multidimensional.rst:34:<autosummary>:1
+#: 439514b284fd4fd6b798c88566d7f2f5
+msgid "Wrapper for the BudgetOptimizer to handle multi-dimensional model."
+msgstr ""
+"Envoltura para el BudgetOptimizer para manejar un modelo multidimensional."

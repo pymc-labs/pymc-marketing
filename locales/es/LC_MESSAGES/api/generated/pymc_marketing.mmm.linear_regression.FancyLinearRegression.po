@@ -1,0 +1,79 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.linear_regression.FancyLinearRegression.rst:2
+#: 9a1609298de249968fe4b2ec4e083722
+msgid "FancyLinearRegression"
+msgstr "FancyLinearRegression"
+
+#: aedb9c891e7f4c76a29a12017b815c5c of
+#: pymc_marketing.mmm.linear_regression.FancyLinearRegression:2
+msgid "Create wrapper around MMM for a linear regression model."
+msgstr ""
+"Crear un envoltorio alrededor de MMM para un modelo de regresión lineal."
+
+#: d9f13dabd6af427188d99d8b06387b36 of
+#: pymc_marketing.mmm.linear_regression.FancyLinearRegression:4
+msgid "See :func:`pymc_marketing.mmm.mmm.MMM` for more details."
+msgstr "Vea :func:`pymc_marketing.mmm.mmm.MMM` para más detalles."
+
+#: dabc4b25473a47ce9302fd30a9194b9e of
+#: pymc_marketing.mmm.linear_regression.FancyLinearRegression
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: c8d096dc21a349e1aaa76153c7464473 of
+#: pymc_marketing.mmm.linear_regression.FancyLinearRegression:8
+msgid "**mmm_kwargs**"
+msgstr "**mmm_kwargs**"
+
+#: e81a859c0fae4b508e7b62d7992bc4d1 of
+#: pymc_marketing.mmm.linear_regression.FancyLinearRegression:9
+msgid "Keyword arguments to pass to the MMM constructor."
+msgstr "Argumentos de palabra clave para pasar al constructor de MMM."
+
+#: e9a587a110f34839bc8f696c90b65fee of
+#: pymc_marketing.mmm.linear_regression.FancyLinearRegression
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: e57bb333fdbb476bb2eeae5e0896a1df of
+#: pymc_marketing.mmm.linear_regression.FancyLinearRegression:15
+msgid ":obj:`MMM`"
+msgstr ":obj:`MMM`"
+
+#: 85d06385619c4e84b87b46df8364d63d of
+#: pymc_marketing.mmm.linear_regression.FancyLinearRegression:16
+msgid "An instance of the MMM class with linear regression settings."
+msgstr ""
+"Una instancia de la clase MMM con configuraciones de regresión lineal."
+
+#: 3ac051a94c864cc88b6411175c84a784 of
+#: pymc_marketing.mmm.linear_regression.FancyLinearRegression:28
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: 9fb2c52ad4974c2baac5c584c3167482 of
+#: pymc_marketing.mmm.linear_regression.FancyLinearRegression:29
+msgid "Load a saved MMM model with linear regression settings:"
+msgstr ""
+"Cargar un modelo MMM guardado con configuraciones de regresión lineal:"

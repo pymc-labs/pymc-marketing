@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -18,10 +18,11 @@ import pandas as pd
 import pymc as pm
 import pytest
 from arviz import InferenceData, from_dict
+from pymc_extras.prior import Prior
 
 from pymc_marketing.clv.models.basic import CLVModel
-from pymc_marketing.prior import Prior
-from tests.conftest import mock_fit_MAP, mock_sample, set_model_fit
+from pymc_marketing.model_builder import DifferentModelError
+from tests.clv.conftest import mock_fit_MAP, mock_sample, set_model_fit
 
 
 class CLVModelTest(CLVModel):
@@ -142,7 +143,7 @@ class TestCLVModel:
 
         with pytest.warns(
             UserWarning,
-            match="The 'chains' parameter must be 1 with 'advi'. Sampling only 1 chain despite the provided parameter.",
+            match=r"The 'chains' parameter must be 1 with 'advi'. Sampling only 1 chain despite the provided parameter.",  # noqa: E501
         ):
             model.fit(
                 method="advi",
@@ -178,7 +179,11 @@ class TestCLVModel:
         model.fit(tune=0, chains=2, draws=5)
         model.save("test_model")
         model2 = model.load("test_model")
+
         assert model2.fit_result is not None
+
+        # TODO: Add this to the model_builder.py load method?
+        model2.build_model()
         assert model2.model is not None
         os.remove("test_model")
 
@@ -214,8 +219,8 @@ class TestCLVModel:
         # Apply the monkeypatch for the property
         monkeypatch.setattr(CLVModelTest, "id", property(mock_property))
         with pytest.raises(
-            ValueError,
-            match="Inference data not compatible with CLVModelTest",
+            DifferentModelError,
+            match=r"The file 'test_model'",
         ):
             CLVModelTest.load("test_model")
         os.remove("test_model")
@@ -239,7 +244,7 @@ class TestCLVModel:
         model_config = {
             "x": {"dist": "StudentT", "kwargs": {"mu": 0, "sigma": 5, "nu": 15}},
         }
-        with pytest.warns(DeprecationWarning, match="x is automatically"):
+        with pytest.warns(DeprecationWarning, match=r"x is automatically"):
             model = CLVModelTest(model_config=model_config)
 
         assert model.model_config == {
@@ -269,8 +274,22 @@ class TestCLVModel:
             "x_prior": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 1}}
         }
         with pytest.warns(
-            DeprecationWarning, match="The key 'x_prior' in model_config is deprecated"
+            DeprecationWarning, match=r"The key 'x_prior' in model_config is deprecated"
         ):
             model = CLVModelTest(model_config=old_model_config)
 
         assert model.model_config == {"x": Prior("Normal", mu=0, sigma=1)}
+
+    def test_validate_cols_reports_all_missing_columns(self):
+        """Test _validate_cols raises a single ValueError listing all missing columns."""
+        required = ("customer_id", "frequency", "recency", "T")
+        data = pd.DataFrame(
+            {
+                "customer_id": [1, 2, 3],
+                "frequency": [1, 2, 3],
+            }
+        )
+        expected_error_msg = r"The following required columns are missing from the input data: \['T', 'recency'\]"
+
+        with pytest.raises(ValueError, match=expected_error_msg):
+            CLVModel._validate_cols(data=data, required_cols=required)

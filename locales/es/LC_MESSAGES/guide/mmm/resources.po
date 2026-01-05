@@ -1,0 +1,374 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/guide/mmm/resources.md:1 5198c320333b43c395447db2f5748b5a
+msgid "Resources"
+msgstr "Recursos"
+
+#: ../source/guide/mmm/resources.md:3 103b2ae2b2e64d3c9a4b641eea6c54d7
+msgid "Videos"
+msgstr "Videos"
+
+#: ../source/guide/mmm/resources.md:5 ab3cb5827a624a1b8973cc0fe5bada5d
+msgid "Bayesian Marketing Science - Solving Marketing's 3 Biggest Problems"
+msgstr ""
+"Ciencia del Marketing Bayesiano - Resolviendo los 3 Problemas Más Grandes "
+"del Marketing"
+
+#: ../source/guide/mmm/resources.md:7 82a718c9d31941ddbf25e775507d0d40
+msgid ""
+"In this talk I will present two new open-source packages that make up a "
+"powerful and state-of-the-art marketing analytics toolbox. Specifically, "
+"PyMC-Marketing is a new library built on top of the popular Bayesian "
+"modeling library PyMC. PyMC-Marketing allows robust estimation of customer "
+"acquisition costs (via media mix modeling) as well as customer lifetime "
+"value. In addition, I will show how we can estimate the effectiveness of "
+"marketing campaigns using a new Bayesian causal inference package called "
+"CausalPy. The talk will be applied with a real-world case-study and many "
+"code examples. Special emphasis will be placed on the interplay between "
+"these tools and how they can be combined together to make optimal marketing "
+"budget decisions in complex scenarios."
+msgstr ""
+"En esta charla presentaré dos nuevos paquetes de código abierto que "
+"conforman una poderosa y avanzada caja de herramientas de análisis de "
+"marketing. Específicamente, PyMC-Marketing es una nueva biblioteca "
+"construida sobre la popular biblioteca de modelado bayesiano PyMC. PyMC-"
+"Marketing permite la estimación robusta de los costos de adquisición de "
+"clientes (a través de la modelización de mezcla de medios) así como el valor"
+" de vida del cliente. Además, mostraré cómo podemos estimar la efectividad "
+"de las campañas de marketing utilizando un nuevo paquete de inferencia "
+"causal bayesiana llamado CausalPy. La charla se aplicará con un estudio de "
+"caso del mundo real y muchos ejemplos de código. Se hará un énfasis especial"
+" en la interacción entre estas herramientas y cómo se pueden combinar para "
+"tomar decisiones óptimas sobre el presupuesto de marketing en escenarios "
+"complejos."
+
+#: ../source/guide/mmm/resources.md:10 17c8cb0ae3e444f1bc23a4960b01411d
+msgid ""
+"Click through the video thumbnail below to [watch the "
+"video](https://www.youtube.com/watch?v=RY-M0tvN77s)."
+msgstr ""
+"Haz clic en la miniatura del video a continuación para [ver el "
+"video](https://www.youtube.com/watch?v=RY-M0tvN77s)."
+
+#: ../source/guide/mmm/resources.md:12 6756929849d44afdbb040fc4ea24ba48
+msgid ""
+"[![Youtube video thumbnail "
+"image](https://img.youtube.com/vi/RY-M0tvN77s/maxresdefault.jpg)](https://www.youtube.com/watch?v=RY-M0tvN77s)"
+msgstr ""
+"[![Imagen en miniatura del video de "
+"Youtube](https://img.youtube.com/vi/RY-M0tvN77s/maxresdefault.jpg)](https://www.youtube.com/watch?v=RY-M0tvN77s)"
+
+#: ../source/guide/mmm/resources.md:12 ../source/guide/mmm/resources.md:17
+#: ../source/guide/mmm/resources.md:25 ../source/guide/mmm/resources.md:30
+#: ../source/guide/mmm/resources.md:38 176de14f7d714638b1beb05d40afb540
+#: 4e8ae04e4e464c71b31d0b39afee9c7e 9a20a13ccc13426abc4a3d8cd96f9289
+#: b824261d5c05448ba0af549ba1d946b2 f2cb827a41b64246806b4882ac55fc13
+msgid "Youtube video thumbnail image"
+msgstr "Imagen en miniatura del video de Youtube"
+
+#: ../source/guide/mmm/resources.md:14 ab31ea364a8c487fb58082a6b037b7e0
+msgid "Bayesian Marketing Mix models: State of the Art and their Future"
+msgstr ""
+"Modelos de Mezcla de Marketing Bayesianos: Estado del Arte y su Futuro"
+
+#: ../source/guide/mmm/resources.md:15 7ea683531b6f417eb185a7a65e3ef369
+msgid ""
+"The video below is a discussion, recorded in 2022, about the state of the "
+"art of Bayesian Marketing Mix Models (MMM) and their future. Click through "
+"the video thumbnail below to [watch the "
+"video](https://www.youtube.com/watch?v=xVx91prC81g)."
+msgstr ""
+"El video a continuación es una discusión, grabada en 2022, sobre el estado "
+"del arte de los Modelos de Mezcla de Marketing Bayesianos (MMM) y su futuro."
+" Haz clic en la miniatura del video a continuación para [ver el "
+"video](https://www.youtube.com/watch?v=xVx91prC81g)."
+
+#: ../source/guide/mmm/resources.md:17 d573071250114c13976cae2ed23bebc7
+msgid ""
+"[![Youtube video thumbnail "
+"image](https://img.youtube.com/vi/xVx91prC81g/maxresdefault.jpg)](https://www.youtube.com/watch?v=xVx91prC81g)"
+msgstr ""
+"[![Imagen en miniatura del video de "
+"Youtube](https://img.youtube.com/vi/xVx91prC81g/maxresdefault.jpg)](https://www.youtube.com/watch?v=xVx91prC81g)"
+
+#: ../source/guide/mmm/resources.md:19 0d8bffba41ba4806948f3f32385e0d3e
+msgid "PyMC-Marketing: Bayesian Approach to Marketing Data Science"
+msgstr ""
+"PyMC-Marketing: Enfoque Bayesiano para la Ciencia de Datos de Marketing"
+
+#: ../source/guide/mmm/resources.md:21 29e962d2cfa54f76897f0f1d86fd1cf0
+msgid ""
+"In this webinar, you'll learn about the history and development of PyMC-"
+"Marketing from Ben Vincent, and why using an open source package like this "
+"can be advantageous for your marketing analytics needs."
+msgstr ""
+"En este seminario web, aprenderás sobre la historia y el desarrollo de PyMC-"
+"Marketing de Ben Vincent, y por qué usar un paquete de código abierto como "
+"este puede ser ventajoso para tus necesidades de análisis de marketing."
+
+#: ../source/guide/mmm/resources.md:23 b7c8034fb8074004910083584de5fe4d
+msgid ""
+"The two main components of PyMC-Marketing - media mix modelling and customer"
+" lifetime value - will be presented by Ben Vincent, with input from Niall "
+"Oulton, and Christian Luhmann with input from Colt Allen, respectively. You "
+"will learn how PyMC-Marketing can be used to accurately model marketing "
+"campaigns and determine their effectiveness, as well as how it can help "
+"businesses understand and optimize their customer lifetime value. Click "
+"through the video thumbnail below to [watch the "
+"video](https://youtu.be/7a_HL5BRB-s?si=fitQK_GrQcoSNWJq)"
+msgstr ""
+"Los dos componentes principales de PyMC-Marketing - modelado de mezcla de "
+"medios y valor de vida del cliente - serán presentados por Ben Vincent, con "
+"la participación de Niall Oulton, y Christian Luhmann con la participación "
+"de Colt Allen, respectivamente. Aprenderás cómo PyMC-Marketing se puede "
+"utilizar para modelar con precisión campañas de marketing y determinar su "
+"efectividad, así como cómo puede ayudar a las empresas a entender y "
+"optimizar su valor de vida del cliente. Haz clic en la miniatura del video a"
+" continuación para [ver el "
+"video](https://youtu.be/7a_HL5BRB-s?si=fitQK_GrQcoSNWJq)"
+
+#: ../source/guide/mmm/resources.md:25 f56c7e91a2994348a7cf21b3c58b58d2
+msgid ""
+"[![Youtube video thumbnail "
+"image](https://img.youtube.com/vi/7a_HL5BRB-s/maxresdefault.jpg)](https://youtu.be/7a_HL5BRB-s?si=fitQK_GrQcoSNWJq)"
+msgstr ""
+"[![Imagen en miniatura del video de "
+"Youtube](https://img.youtube.com/vi/7a_HL5BRB-s/maxresdefault.jpg)](https://youtu.be/7a_HL5BRB-s?si=fitQK_GrQcoSNWJq)"
+
+#: ../source/guide/mmm/resources.md:27 4e6e8ac48e09406e93abed8a81818154
+msgid "Bolt's Evolution towards MMM with PyMC with Carlos Agostini"
+msgstr "La evolución de Bolt hacia MMM con PyMC con Carlos Agostini"
+
+#: ../source/guide/mmm/resources.md:28 df28653cb45046f2819b876d41d4dc44
+msgid ""
+"The video below is a discussion highlighting Bolt's adoption of PyMC for "
+"building Marketing Mix Models (MMM) and more. This webinar will take you "
+"through the various approaches Bolt initially considered for its MMM before "
+"ultimately deciding on PyMC. Click through the video thumbnail below to "
+"[watch the video](https://youtu.be/djXoPq60bRM?si=fitQK_GrQcoSNWJq)"
+msgstr ""
+"El video a continuación es una discusión que destaca la adopción de PyMC por"
+" parte de Bolt para construir Modelos de Mezcla de Marketing (MMM) y más. "
+"Este seminario web te llevará a través de los diversos enfoques que Bolt "
+"consideró inicialmente para su MMM antes de decidirse finalmente por PyMC. "
+"Haz clic en la miniatura del video a continuación para [ver el "
+"video](https://youtu.be/djXoPq60bRM?si=fitQK_GrQcoSNWJq)"
+
+#: ../source/guide/mmm/resources.md:30 12e63654c06a48d280aa975dec2696e1
+msgid ""
+"[![Youtube video thumbnail "
+"image](https://img.youtube.com/vi/djXoPq60bRM/maxresdefault.jpg)](https://youtu.be/djXoPq60bRM?si=fitQK_GrQcoSNWJq)"
+msgstr ""
+"[![Imagen en miniatura del video de "
+"Youtube](https://img.youtube.com/vi/djXoPq60bRM/maxresdefault.jpg)](https://youtu.be/djXoPq60bRM?si=fitQK_GrQcoSNWJq)"
+
+#: ../source/guide/mmm/resources.md:32 44670338e29141eb8f2236c55308d02a
+msgid ""
+"PyMC-Marketing Yearly Catch-up & New Use Cases with Niall Oulton and Carlos "
+"Agostini"
+msgstr ""
+"PyMC-Marketing Reunión Anual y Nuevos Casos de Uso con Niall Oulton y Carlos"
+" Agostini"
+
+#: ../source/guide/mmm/resources.md:34 76659b599db94395a01b6f51eca81fc3
+msgid ""
+"We're excited to present a live demo, meticulously designed to showcase a "
+"selection of compelling use cases. These cases are not just theoretical "
+"constructs; they are real-world applications demonstrated by actual users of"
+" PyMC-Marketing. Witness firsthand how our platform has been instrumental in"
+" their success."
+msgstr ""
+"Estamos emocionados de presentar una demostración en vivo, meticulosamente "
+"diseñada para mostrar una selección de casos de uso atractivos. Estos casos "
+"no son solo construcciones teóricas; son aplicaciones del mundo real "
+"demostradas por usuarios reales de PyMC-Marketing. Sea testigo de primera "
+"mano de cómo nuestra plataforma ha sido fundamental en su éxito."
+
+#: ../source/guide/mmm/resources.md:36 0eb0cc3216e04699a7bb0ed929209c18
+msgid ""
+"To add more substance to our session and ensure it's not just informative "
+"but also engaging, we've planned a unique segment featuring the new GPT "
+"model developed by Niall. The new GPT will be the most powerful assistant to"
+" create MMM models. Click through the video thumbnail below to [watch the "
+"video](https://youtu.be/ikCK76gq65Q?si=fitQK_GrQcoSNWJq)"
+msgstr ""
+"Para añadir más sustancia a nuestra sesión y asegurarnos de que no sea solo "
+"informativa sino también atractiva, hemos planeado un segmento único con el "
+"nuevo modelo GPT desarrollado por Niall. El nuevo GPT será el asistente más "
+"poderoso para crear modelos MMM. Haz clic en la miniatura del video a "
+"continuación para [ver el "
+"video](https://youtu.be/ikCK76gq65Q?si=fitQK_GrQcoSNWJq)"
+
+#: ../source/guide/mmm/resources.md:38 f6d17df5bf7f47999d9f1c2c070dbe2d
+msgid ""
+"[![Youtube video thumbnail "
+"image](https://img.youtube.com/vi/ikCK76gq65Q/maxresdefault.jpg)](https://youtu.be/ikCK76gq65Q?si=fitQK_GrQcoSNWJq)"
+msgstr ""
+"[![Imagen en miniatura del video de "
+"Youtube](https://img.youtube.com/vi/ikCK76gq65Q/maxresdefault.jpg)](https://youtu.be/ikCK76gq65Q?si=fitQK_GrQcoSNWJq)"
+
+#: ../source/guide/mmm/resources.md:40 f1824fc2cdbe4d15b03ac2451c87205b
+msgid "Business Cases"
+msgstr "Casos de Negocio"
+
+#: ../source/guide/mmm/resources.md:42 a2d960851acc4da9a291002868391c47
+msgid ""
+"PyMC Labs: [Bayesian Media Mix Models: Modelling changes in marketing "
+"effectiveness over time](https://www.pymc-labs.com/blog-posts/modelling-"
+"changes-marketing-effectiveness-over-time/)"
+msgstr ""
+"PyMC Labs: [Modelos de Mezcla de Medios Bayesianos: Modelando cambios en la "
+"efectividad del marketing a lo largo del tiempo](https://www.pymc-"
+"labs.com/blog-posts/modelling-changes-marketing-effectiveness-over-time/)"
+
+#: ../source/guide/mmm/resources.md:43 fb9c7471d53f4c50b26caa074c33b2c3
+msgid ""
+"Bolt: [Better budgeting with Bayesian models: Bolt’s story with PyMC-"
+"Marketing](https://bolt.eu/en/blog/budgeting-with-bayesian-models-pymc-"
+"marketing/)"
+msgstr ""
+"Bolt: [Mejor presupuesto con modelos bayesianos: la historia de Bolt con "
+"PyMC-Marketing](https://bolt.eu/en/blog/budgeting-with-bayesian-models-pymc-"
+"marketing/)"
+
+#: ../source/guide/mmm/resources.md:44 771e79c4ded442c0aee2fac3ee351a6a
+msgid ""
+"Shell & Databricks: [Revolutionizing Tech Marketing: The Synergy of PyMC and"
+" Databricks](https://www.databricks.com/blog/revolutionizing-tech-marketing)"
+msgstr ""
+"Shell y Databricks: [Revolucionando el Marketing Tecnológico: La Sinergia de"
+" PyMC y Databricks](https://www.databricks.com/blog/revolutionizing-tech-"
+"marketing)"
+
+#: ../source/guide/mmm/resources.md:46 d45b0433185b45bf9049d520edc4e9a0
+msgid "Blogposts"
+msgstr "Publicaciones de blog"
+
+#: ../source/guide/mmm/resources.md:48 4c3f52f8795c40519c3fd649ef837aa8
+msgid ""
+"PyMC Labs: [Improving the Speed and Accuracy of Bayesian Media Mix "
+"Models](https://www.pymc-labs.com/blog-posts/reducing-customer-acquisition-"
+"costs-how-we-helped-optimizing-hellofreshs-marketing-budget/)"
+msgstr ""
+"PyMC Labs: [Mejorando la Velocidad y Precisión de los Modelos de Mezcla de "
+"Medios Bayesianos](https://www.pymc-labs.com/blog-posts/reducing-customer-"
+"acquisition-costs-how-we-helped-optimizing-hellofreshs-marketing-budget/)"
+
+#: ../source/guide/mmm/resources.md:49 7dfaf7e8e3854f55852e240ca39a701b
+msgid ""
+"1749: [Measuring Marketing Effectiveness Over the Long-"
+"Term](https://1749.io/resource-center/f/measuring-marketing-effectiveness-"
+"over-the-long-term)"
+msgstr ""
+"1749: [Midiendo la Efectividad del Marketing a Largo "
+"Plazo](https://1749.io/resource-center/f/midiendo-la-efectividad-del-"
+"marketing-a-largo-plazo)"
+
+#: ../source/guide/mmm/resources.md:50 c0380d1d6eef4b318c9e38a9cdd582b8
+msgid ""
+"1749: [Marketing Mix Modeling in a Modern Era: Time-Varying "
+"Parameters](https://1749.io/resource-center/f/marketing-mix-modeling-in-a-"
+"modern-era-time-varying-parameters)"
+msgstr ""
+"1749: [Modelado de Mezcla de Marketing en una Era Moderna: Parámetros que "
+"Varían con el Tiempo](https://1749.io/resource-center/f/marketing-mix-"
+"modeling-in-a-modern-era-time-varying-parameters)"
+
+#: ../source/guide/mmm/resources.md:51 25a21cb36f574edfa9483afe5236215a
+msgid ""
+"1749: [A Comprehensive Guide to Marketing-Mix "
+"Modeling](https://1749.io/resource-center/f/a-comprehensive-guide-to-"
+"bayesian-marketing-mix-modeling)"
+msgstr ""
+"1749: [Una Guía Completa para el Modelado de Mezcla de "
+"Marketing](https://1749.io/resource-center/f/a-comprehensive-guide-to-"
+"bayesian-marketing-mix-modeling)"
+
+#: ../source/guide/mmm/resources.md:52 6deba3ebcfd14dafa1b00071b29a9adf
+msgid ""
+"Juan Orduz: [Media Effect Estimation with Orbit's KTR "
+"Model](https://juanitorduz.github.io/orbit_mmm/)"
+msgstr ""
+"Juan Orduz: [Estimación del Efecto Mediático con el Modelo KTR de "
+"Orbit](https://juanitorduz.github.io/orbit_mmm/)"
+
+#: ../source/guide/mmm/resources.md:53 1be54db379ad4a7186acf1d498d7745e
+msgid ""
+"Juan Orduz: [Media Effect Estimation with PyMC: Adstock, Saturation & "
+"Diminishing Returns](https://juanitorduz.github.io/pymc_mmm/)"
+msgstr ""
+"Juan Orduz: [Estimación del Efecto de Medios con PyMC: Adstock, Saturación y"
+" Rendimientos Decrecientes](https://juanitorduz.github.io/pymc_mmm/)"
+
+#: ../source/guide/mmm/resources.md:54 db19cffa8168436ea2fbeeebf6656060
+msgid ""
+"Juan Orduz: [Media Mix Model and Experimental Calibration: A Simulation "
+"Study](https://juanitorduz.github.io/mmm_roas/)"
+msgstr ""
+"Juan Orduz: [Modelo de Mezcla de Medios y Calibración Experimental: Un "
+"Estudio de Simulación](https://juanitorduz.github.io/mmm_roas/)"
+
+#: ../source/guide/mmm/resources.md:55 e0c7256ffd6d406fb17e4438c5aecb22
+msgid ""
+"Dr. Robert Kübler: [Convenient Bayesian Marketing Mix Modeling with PyMC-"
+"Marketing](https://towardsdatascience.com/convenient-bayesian-marketing-mix-"
+"modeling-with-pymc-marketing-8b02a9a9c4aa)"
+msgstr ""
+"Dr. Robert Kübler: [Modelado de Mezcla de Marketing Bayesiano Conveniente "
+"con PyMC-Marketing](https://towardsdatascience.com/convenient-bayesian-"
+"marketing-mix-modeling-with-pymc-marketing-8b02a9a9c4aa)"
+
+#: ../source/guide/mmm/resources.md:56 b6d5d91dfa1d4b05b38f34d0d065c768
+msgid ""
+"Ryan O'Sullivan, [Is Multi-Collinearity Destroying Your Causal Inferences In"
+" Marketing Mix Modelling?](https://towardsdatascience.com/is-multi-"
+"collinearity-destroying-your-causal-inferences-in-marketing-mix-"
+"modelling-78cb56017c73)"
+msgstr ""
+"Ryan O'Sullivan, [¿Está la multi-colinealidad destruyendo tus inferencias "
+"causales en el modelado de mezcla de "
+"marketing?](https://towardsdatascience.com/is-multi-collinearity-destroying-"
+"your-causal-inferences-in-marketing-mix-modelling-78cb56017c73)"
+
+#: ../source/guide/mmm/resources.md:58 817635c351f047e3a30a9fa2b1f0c7c3
+msgid "Tutorials"
+msgstr "Tutoriales"
+
+#: ../source/guide/mmm/resources.md:60 9d9c62bd8fba400dbd7d32bfd642d64a
+msgid "[Example Problem: JellyPop](https://github.com/PhilClarkPhD/mmm)"
+msgstr "[Ejemplo de problema: JellyPop](https://github.com/PhilClarkPhD/mmm)"
+
+#: ../source/guide/mmm/resources.md:62 7ca0e73bb85643bf928dabdf6954921b
+msgid "MMM Explainer App"
+msgstr "MMM Aplicación Explicativa"
+
+#: ../source/guide/mmm/resources.md:64 012e541f571f4be9a9553ce2744abec6
+msgid ""
+"[MMM Explainer App](https://pymc-marketing-app.streamlit.app/). Dynamic and "
+"interactive visualization of key Marketing Mix Modeling (MMM) concepts, "
+"including adstock, saturation, and the use of Bayesian priors."
+msgstr ""
+"[MMM Explainer App](https://pymc-marketing-app.streamlit.app/). "
+"Visualización dinámica e interactiva de conceptos clave del Modelado de "
+"Mezcla de Marketing (MMM), incluyendo adstock, saturación y el uso de priors"
+" bayesianos."

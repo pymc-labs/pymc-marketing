@@ -1,0 +1,155 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.TanhSaturationParameters.rst:2
+#: 49d1b76b74a140088945e6fda8bdeef8
+msgid "TanhSaturationParameters"
+msgstr "TanhSaturationParameters"
+
+#: 008bf38c807c43c2811b34e5e9accf66 of
+#: pymc_marketing.mmm.transformers.TanhSaturationParameters:2
+msgid "Container for tanh saturation parameters."
+msgstr "Contenedor para los parámetros de saturación de tanh."
+
+#: 7289c0f06b494e92b7e7c7864706a026 of
+#: pymc_marketing.mmm.transformers.TanhSaturationParameters
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: be5238a1730d46b28891b2960af26a21 of
+#: pymc_marketing.mmm.transformers.TanhSaturationParameters:7
+msgid "**b** : :obj:`pt.TensorLike`"
+msgstr "**b** : :obj:`pt.TensorLike`"
+
+#: 554fa4b9b0dd421fa68582b0e5d3d3a1 7d77e2dd096c4e8aa121b01bf8accb8a of
+#: pymc_marketing.mmm.transformers.TanhSaturationParameters:6
+#: pymc_marketing.mmm.transformers.TanhSaturationParameters:9
+msgid "pt.TensorLike"
+msgstr "pt.TensorComo"
+
+#: 038383ba67ca49b6b71324b2dbcc3950 of
+#: pymc_marketing.mmm.transformers.TanhSaturationParameters:8
+msgid "Saturation"
+msgstr "Saturación"
+
+#: fa44b3b7d9b945dfbcc06b161dda2bd5 of
+#: pymc_marketing.mmm.transformers.TanhSaturationParameters:10
+msgid "**c** : :obj:`pt.TensorLike`"
+msgstr "**c** : :obj:`pt.TensorLike`"
+
+#: 249c2f0e7b9e400aa232614b6e1b4120 of
+#: pymc_marketing.mmm.transformers.TanhSaturationParameters:11
+msgid "Customer Aquisition Cost at 0."
+msgstr "Costo de Adquisición de Clientes en 0."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.TanhSaturationParameters.rst:12
+#: 805d010fd67d498482683b8363e9c46c
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.TanhSaturationParameters.rst:25:<autosummary>:1
+#: 2f070b51eff541dc92ddcf96b139804a
+msgid ""
+":py:obj:`TanhSaturationParameters.__init__ "
+"<pymc_marketing.mmm.transformers.TanhSaturationParameters.__init__>`\\ "
+"\\(\\*args\\, ...\\)"
+msgstr ""
+":py:obj:`TanhSaturationParameters.__init__ "
+"<pymc_marketing.mmm.transformers.TanhSaturationParameters.__init__>`\\ "
+"\\(\\*args\\, ...\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.TanhSaturationParameters.rst:25:<autosummary>:1
+#: 5058b2575dbb43b092f681d9aae10b3d
+msgid ""
+":py:obj:`TanhSaturationParameters.baseline "
+"<pymc_marketing.mmm.transformers.TanhSaturationParameters.baseline>`\\ "
+"\\(x0\\)"
+msgstr ""
+":py:obj:`TanhSaturationParameters.baseline "
+"<pymc_marketing.mmm.transformers.TanhSaturationParameters.baseline>`\\ "
+"\\(x0\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.TanhSaturationParameters.rst:25:<autosummary>:1
+#: 619474093d5640e8a10a2de4eda17161
+msgid "Change the parameterization to baselined at :math:`x_0`."
+msgstr "Cambia la parametrización a la línea base en :math:`x_0`."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.TanhSaturationParameters.rst:25:<autosummary>:1
+#: 83db1d8d11ee4d05a35b2cfe9ca48a4f
+msgid ""
+":py:obj:`TanhSaturationParameters.count "
+"<pymc_marketing.mmm.transformers.TanhSaturationParameters.count>`\\ "
+"\\(value\\, \\/\\)"
+msgstr ""
+":py:obj:`TanhSaturationParameters.count "
+"<pymc_marketing.mmm.transformers.TanhSaturationParameters.count>`\\ "
+"(valor\\, \\/)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.TanhSaturationParameters.rst:25:<autosummary>:1
+#: f16bc576c3294868bde9ff1a7da0efad
+msgid "Return number of occurrences of value."
+msgstr "Devolver el número de ocurrencias del valor."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.TanhSaturationParameters.rst:25:<autosummary>:1
+#: 5a2a315de29a4a8aabe604301d103896
+msgid ""
+":py:obj:`TanhSaturationParameters.index "
+"<pymc_marketing.mmm.transformers.TanhSaturationParameters.index>`\\ "
+"\\(value\\[\\, ...\\]\\)"
+msgstr ""
+":py:obj:`TanhSaturationParameters.index "
+"<pymc_marketing.mmm.transformers.TanhSaturationParameters.index>`\\ "
+"\\(valor\\[\\, ...\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.TanhSaturationParameters.rst:25:<autosummary>:1
+#: 48312a3221da4f6abe28dc6db8d88e34
+msgid "Return first index of value."
+msgstr "Devolver el primer índice del valor."
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.TanhSaturationParameters.rst:27
+#: 7e17403d01074bf9a5f2cd1fc4605264
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.TanhSaturationParameters.rst:31:<autosummary>:1
+#: e24e586baac242f89c856007010476ed
+msgid ""
+":py:obj:`b <pymc_marketing.mmm.transformers.TanhSaturationParameters.b>`\\"
+msgstr ""
+":py:obj:`b <pymc_marketing.mmm.transformers.TanhSaturationParameters.b>`\\"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.TanhSaturationParameters.rst:31:<autosummary>:1
+#: f5930c3b7aae41f69b45347451e528a4
+msgid "Alias for field number 0"
+msgstr "Alias para el campo número 0"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.TanhSaturationParameters.rst:31:<autosummary>:1
+#: 067c841a212d480fa743ee58d2769666
+msgid ""
+":py:obj:`c <pymc_marketing.mmm.transformers.TanhSaturationParameters.c>`\\"
+msgstr ""
+":py:obj:`c <pymc_marketing.mmm.transformers.TanhSaturationParameters.c>`"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.TanhSaturationParameters.rst:31:<autosummary>:1
+#: ac62f4ef739e4857a81dfbaf6214faac
+msgid "Alias for field number 1"
+msgstr "Alias para el campo número 1"

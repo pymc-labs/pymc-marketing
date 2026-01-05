@@ -1,0 +1,66 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.fourier.FourierBase.serialize_prior.rst:2
+#: efb92211fcf74c0d9091137be32f431d
+msgid "FourierBase.serialize\\_prior"
+msgstr "FourierBase.serializar\\_prior"
+
+#: 1db97729f63543e4a6905cb04d13c9d4 of
+#: pymc_marketing.mmm.fourier.FourierBase.serialize_prior:2
+msgid "Serialize the prior distribution."
+msgstr "Serializar la distribución previa."
+
+#: 53e0b1c117f448c69fcb2f1f57e6798d of
+#: pymc_marketing.mmm.fourier.FourierBase.serialize_prior
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: bca99bfc10974e00b78200d496c8f36e of
+#: pymc_marketing.mmm.fourier.FourierBase.serialize_prior:7
+msgid "**prior** : :obj:`VariableFactory` | :obj:`Prior`"
+msgstr "**prior** : :obj:`VariableFactory` | :obj:`Prior`"
+
+#: cc8ce659dbd0401596c2a3fec229db01 of
+#: pymc_marketing.mmm.fourier.FourierBase.serialize_prior:6
+msgid "VariableFactory | Prior"
+msgstr "VariableFactory | Prior"
+
+#: 71c78765e7b8451fb03567ee79d72c87 of
+#: pymc_marketing.mmm.fourier.FourierBase.serialize_prior:8
+msgid "The prior distribution to serialize."
+msgstr "La distribución previa para serializar."
+
+#: c2c24d52604743f8948f180d59165f07 of
+#: pymc_marketing.mmm.fourier.FourierBase.serialize_prior
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: b8b8f274a0754b639537e646dbe80ecd of
+#: pymc_marketing.mmm.fourier.FourierBase.serialize_prior:14
+msgid ":class:`python:dict`\\[:class:`python:str`, :obj:`Any`]"
+msgstr ":class:`python:dict`\\[:class:`python:str`, :obj:`Cualquiera`]"
+
+#: b757a60353e54c2190955e038bd5738b of
+#: pymc_marketing.mmm.fourier.FourierBase.serialize_prior:15
+msgid "The serialized prior distribution."
+msgstr "La distribución previa serializada."

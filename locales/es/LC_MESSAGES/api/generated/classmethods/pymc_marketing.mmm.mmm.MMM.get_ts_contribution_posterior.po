@@ -1,0 +1,91 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.mmm.MMM.get_ts_contribution_posterior.rst:2
+#: cba4cece74534158951ecce72d772e2c
+msgid "MMM.get\\_ts\\_contribution\\_posterior"
+msgstr "MMM.get\\_ts\\_contribution\\_posterior"
+
+#: 81895e876bc2465bbca8328f40288d29 of
+#: pymc_marketing.mmm.mmm.MMM.get_ts_contribution_posterior:2
+msgid ""
+"Get the posterior distribution of the time series contributions of a given "
+"variable."
+msgstr ""
+"Obtenga la distribución posterior de las contribuciones de la serie temporal"
+" de una variable dada."
+
+#: f6cfa8f99ddd428cbd1a40b9ec9ee8e2 of
+#: pymc_marketing.mmm.mmm.MMM.get_ts_contribution_posterior
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 48ee1b58fbc74cb3b0c44f9fa97db51e of
+#: pymc_marketing.mmm.mmm.MMM.get_ts_contribution_posterior:7
+msgid "**var_contribution** : :class:`python:str`"
+msgstr "**var_contribution** : :class:`python:str`"
+
+#: 9a572c49149d4c9b88b5d1f748c341bc of
+#: pymc_marketing.mmm.mmm.MMM.get_ts_contribution_posterior:6
+msgid "python:str"
+msgstr "python:str"
+
+#: 72367857933049a3a82ebb9aaf06ed9c of
+#: pymc_marketing.mmm.mmm.MMM.get_ts_contribution_posterior:8
+msgid ""
+"The variable for which to get the contributions. It must be a valid variable"
+" in the `fit_result` attribute."
+msgstr ""
+"La variable para la cual obtener las contribuciones. Debe ser una variable "
+"válida en el atributo `fit_result`."
+
+#: c8b36a8cca9641cdbdd2e5ab94cee2fc of
+#: pymc_marketing.mmm.mmm.MMM.get_ts_contribution_posterior:11
+msgid ""
+"**original_scale** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr ""
+"**original_scale** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: a1ee95fea330410f8edffe578354f208 of
+#: pymc_marketing.mmm.mmm.MMM.get_ts_contribution_posterior:10
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: 69db5f2b34dc421b8581f326d6d2442a of
+#: pymc_marketing.mmm.mmm.MMM.get_ts_contribution_posterior:12
+msgid "Whether to plot in the original scale."
+msgstr "Si se debe trazar en la escala original."
+
+#: 2d48cb8c40f14c83bf601bc705114835 of
+#: pymc_marketing.mmm.mmm.MMM.get_ts_contribution_posterior
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 4344e70f272749adb55b7f66af7d63dc of
+#: pymc_marketing.mmm.mmm.MMM.get_ts_contribution_posterior:18
+msgid ":obj:`DataArray`"
+msgstr ":obj:`DataArray`"
+
+#: f4178294393f4d2eba6cbd16444c43c0 of
+#: pymc_marketing.mmm.mmm.MMM.get_ts_contribution_posterior:19
+msgid "The posterior distribution of the time series contributions."
+msgstr "La distribución posterior de las contribuciones de la serie temporal."

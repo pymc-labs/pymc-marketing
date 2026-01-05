@@ -1,0 +1,279 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.special_priors.LogNormalPrior.rst:2
+#: 44a87984f7404e3d8499ed5ce38fdab9
+msgid "LogNormalPrior"
+msgstr "LogNormalPrior"
+
+#: cf11605f4171416abee75696ec6a4786 of
+#: pymc_marketing.special_priors.LogNormalPrior:2
+msgid "Lognormal prior parameterized by positive-scale mean and std."
+msgstr ""
+"Parámetro lognormal priorizado por la media y la desviación estándar de "
+"escala positiva."
+
+#: 0aeeb756bef145e1ae6894e85b60b54f of
+#: pymc_marketing.special_priors.LogNormalPrior:4
+msgid ""
+"A lognormal prior parameterized by mean and standard deviation on the "
+"positive domain, with optional centered or non-centered parameterization."
+msgstr ""
+"Un prior lognormal parametrizado por la media y la desviación estándar en el"
+" dominio positivo, con parametrización opcional centrada o no centrada."
+
+#: 775ae5d466c8434ab50ab9c5d4b0dc3a of
+#: pymc_marketing.special_priors.LogNormalPrior:8
+msgid ""
+"This prior differs from the standard ``LogNormal`` distribution, which takes"
+" log-scale parameters (``mu_log``, ``sigma_log``). Instead, it is "
+"parameterized directly in terms of the mean and standard deviation "
+"(``mean``, ``std``) on the positive scale, making it more intuitive and "
+"suitable for hierarchical modeling."
+msgstr ""
+"Este prior difiere de la distribución estándar ``LogNormal``, que utiliza "
+"parámetros en escala logarítmica (``mu_log``, ``sigma_log``). En cambio, "
+"está parametrizado directamente en términos de la media y la desviación "
+"estándar (``mean``, ``std``) en la escala positiva, lo que lo hace más "
+"intuitivo y adecuado para el modelado jerárquico."
+
+#: fb3412a3112c40dcaa8ad369922c7c61 of
+#: pymc_marketing.special_priors.LogNormalPrior:14
+msgid ""
+"To achieve this, the lognormal parameters are computed internally from the "
+"positive-domain parameters:"
+msgstr ""
+"Para lograr esto, los parámetros lognormales se calculan internamente a "
+"partir de los parámetros del dominio positivo:"
+
+#: 216e185cb55e4d22a785c30697146b0b of
+#: pymc_marketing.special_priors.LogNormalPrior:17
+msgid ""
+"\\mu_{\\log} &= \\ln \\left( \\frac{\\mean^2}{\\sqrt{\\mean^2 + \\std^2}} \\right) \\\\\n"
+"\\sigma_{\\log} &= \\sqrt{ \\ln \\left( 1 + \\frac{\\std^2}{\\mean^2} \\right) }"
+msgstr ""
+"\\mu_{\\log} &= \\ln \\left( \\frac{\\mean^2}{\\sqrt{\\mean^2 + \\std^2}} \\right) \\\\\n"
+"\\sigma_{\\log} &= \\sqrt{ \\ln \\left( 1 + \\frac{\\std^2}{\\mean^2} \\right) }"
+
+#: 1f8d57205419486bbfdae1239f7ffa2f of
+#: pymc_marketing.special_priors.LogNormalPrior:22
+msgid "where :math:`\\\\mean > 0` and :math:`\\\\std > 0`."
+msgstr "donde :math:`\\\\mean > 0` y :math:`\\\\std > 0`."
+
+#: 36c12be35a8a41008561017833f5d3eb of
+#: pymc_marketing.special_priors.LogNormalPrior:24
+msgid "The prior is then defined as:"
+msgstr "El anterior se define entonces como:"
+
+#: 15ca4221b20943bc8c3b8022a3146596 of
+#: pymc_marketing.special_priors.LogNormalPrior:26
+#, python-brace-format
+msgid "\\\\phi &\\\\sim \\text{LogNormal}(\\\\mu_{\\\\log}, \\\\sigma_{\\\\log})"
+msgstr "\\\\phi &\\\\sim \\text{LogNormal}(\\\\mu_{\\\\log}, \\\\sigma_{\\\\log})"
+
+#: ba2afd124c4445babdfe329378476c27 of
+#: pymc_marketing.special_priors.LogNormalPrior:30
+msgid ""
+"This construction ensures that the resulting random variable has "
+"approximately the intended mean and variance on the positive scale, even "
+"when :math:`\\\\mean` and :math:`\\\\std` are themselves random variables."
+msgstr ""
+"Esta construcción asegura que la variable aleatoria resultante tenga "
+"aproximadamente la media y la varianza deseadas en la escala positiva, "
+"incluso cuando :math:`\\\\mean` y :math:`\\\\std` son en sí mismas variables"
+" aleatorias."
+
+#: 1d1975ba217e45d8b23f9c17e8deb0fb of
+#: pymc_marketing.special_priors.LogNormalPrior
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: bcd3ea1c3d514ec381362b14a3f8c0c9 of
+#: pymc_marketing.special_priors.LogNormalPrior:36
+msgid ""
+"**mean** : :obj:`Prior`, :class:`python:float`, :class:`python:int`, "
+":term:`numpy:array_like`"
+msgstr ""
+"**media** : :obj:`Prior`, :class:`python:float`, :class:`python:int`, "
+":term:`numpy:array_like`"
+
+#: 0b917bc40aa04b458b1faf1e57b0e6d2 cba2cab48565402da5e0492ca47d341f of
+#: pymc_marketing.special_priors.LogNormalPrior:35
+#: pymc_marketing.special_priors.LogNormalPrior:38
+msgid "Prior, python:float, python:int, numpy:array_like"
+msgstr "Previo, python:float, python:int, numpy:array_like"
+
+#: 66cb27ff629a44e6ae682eac6d1c1d8b of
+#: pymc_marketing.special_priors.LogNormalPrior:37
+msgid "The mean of the distribution on the positive scale."
+msgstr "La media de la distribución en la escala positiva."
+
+#: 58349e537a5a48ec9b77dabc474faa89 of
+#: pymc_marketing.special_priors.LogNormalPrior:39
+msgid ""
+"**std** : :obj:`Prior`, :class:`python:float`, :class:`python:int`, "
+":term:`numpy:array_like`"
+msgstr ""
+"**std** : :obj:`Prior`, :class:`python:float`, :class:`python:int`, "
+":term:`numpy:array_like`"
+
+#: 12799206296d44a68ae254df8a0ddceb of
+#: pymc_marketing.special_priors.LogNormalPrior:40
+msgid "The standard deviation of the distribution on the positive scale."
+msgstr "La desviación estándar de la distribución en la escala positiva."
+
+#: ead72421b69a432fb70d677218241982 of
+#: pymc_marketing.special_priors.LogNormalPrior:42
+msgid "**dims** : :class:`python:tuple`\\[:class:`python:str`, ...], optional"
+msgstr "**dims** : :class:`python:tuple`\\[:class:`python:str`, ...], opcional"
+
+#: e848ea1df77448809eae5f864ea13fcd of
+#: pymc_marketing.special_priors.LogNormalPrior:41
+msgid "python:tuple[python:str, ...], optional"
+msgstr "python:tuple[python:str, ...], opcional"
+
+#: fbf06cdb2c214df79c72acf5d21b12f3 of
+#: pymc_marketing.special_priors.LogNormalPrior:43
+msgid "The dimensions of the distribution, by default None."
+msgstr "Las dimensiones de la distribución, por defecto None."
+
+#: 0221d8df2fbe4a879bf2e355a02098fb of
+#: pymc_marketing.special_priors.LogNormalPrior:45
+msgid "**centered** : :ref:`bool <python:bltin-boolean-values>`, optional"
+msgstr "**centrado** : :ref:`bool <python:bltin-boolean-values>`, opcional"
+
+#: 305e5db739d14099ab20dff62c6624bd of
+#: pymc_marketing.special_priors.LogNormalPrior:44
+msgid "bool, optional"
+msgstr "bool, opcional"
+
+#: 066123a834484729b8ec5bb3579c5b42 of
+#: pymc_marketing.special_priors.LogNormalPrior:46
+msgid "Whether to use the centered parameterization, by default True."
+msgstr ""
+"Si se debe utilizar la parametrización centrada, por defecto Verdadero."
+
+#: 84edd62902c4491cbe38335342d905f0 of
+#: pymc_marketing.special_priors.LogNormalPrior:60
+msgid "References"
+msgstr "Referencias"
+
+#: f5681ccc0f934cb58f60c4d013c1e005 of
+#: pymc_marketing.special_priors.LogNormalPrior:61
+msgid "Saunders, *A positive constrained non-centered prior that sparks joy*."
+msgstr ""
+"Saunders, *Un prior no centrado positivo con restricciones que genera "
+"alegría*."
+
+#: b7426bb65a1248bbafd48741875f1ec2 of
+#: pymc_marketing.special_priors.LogNormalPrior:62
+msgid "Wikipedia, *Log-normal distribution — Definitions*."
+msgstr "Wikipedia, *Distribución log-normal — Definiciones*."
+
+#: 8dec412cfea543a8ade6763fb19c607e of
+#: pymc_marketing.special_priors.LogNormalPrior:69
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: 41f7414f856b423592b92405bac1d278 of
+#: pymc_marketing.special_priors.LogNormalPrior:70
+msgid ""
+"Build a non-centered hierarchical model where information is shared across "
+"groups:"
+msgstr ""
+"Construya un modelo jerárquico no centrado donde la información se comparta "
+"entre grupos:"
+
+#: ../source/api/generated/pymc_marketing.special_priors.LogNormalPrior.rst:12
+#: 39750e8b13254591868ff5712b7e849e
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.special_priors.LogNormalPrior.rst:21:<autosummary>:1
+#: 34cc1b37276d4aa0940e1b188e5e7518
+msgid ""
+":py:obj:`LogNormalPrior.__init__ "
+"<pymc_marketing.special_priors.LogNormalPrior.__init__>`\\ \\(\\[dims\\, "
+"centered\\]\\)"
+msgstr ""
+":py:obj:`LogNormalPrior.__init__ "
+"<pymc_marketing.special_priors.LogNormalPrior.__init__>`\\ \\(\\[dims\\, "
+"centrado\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.special_priors.LogNormalPrior.rst:21:<autosummary>:1
+#: 6581643f012d4f46ad976ec1f80eaca5
+msgid ""
+":py:obj:`LogNormalPrior.create_variable "
+"<pymc_marketing.special_priors.LogNormalPrior.create_variable>`\\ \\(name\\)"
+msgstr ""
+":py:obj:`LogNormalPrior.create_variable "
+"<pymc_marketing.special_priors.LogNormalPrior.create_variable>`\\ "
+"\\(nombre\\)"
+
+#: ../source/api/generated/pymc_marketing.special_priors.LogNormalPrior.rst:21:<autosummary>:1
+#: fa9bc236ddb24cd9a54e6013142d229b
+msgid "Create a variable from the prior distribution."
+msgstr "Cree una variable a partir de la distribución anterior."
+
+#: ../source/api/generated/pymc_marketing.special_priors.LogNormalPrior.rst:21:<autosummary>:1
+#: b09c3ad8f0dc47989aa623fb5c6b59f7
+msgid ""
+":py:obj:`LogNormalPrior.from_dict "
+"<pymc_marketing.special_priors.LogNormalPrior.from_dict>`\\ \\(data\\)"
+msgstr ""
+":py:obj:`LogNormalPrior.from_dict "
+"<pymc_marketing.special_priors.LogNormalPrior.from_dict>`\\ \\(datos\\)"
+
+#: ../source/api/generated/pymc_marketing.special_priors.LogNormalPrior.rst:21:<autosummary>:1
+#: 8c3a953f7f1241688b4cbce7558edc2e
+msgid "Create a LogNormalPrior prior from a dictionary."
+msgstr "Cree un LogNormalPrior a partir de un diccionario."
+
+#: ../source/api/generated/pymc_marketing.special_priors.LogNormalPrior.rst:21:<autosummary>:1
+#: b5a887a84846437cb2f2ab4a9afed3a0
+msgid ""
+":py:obj:`LogNormalPrior.sample_prior "
+"<pymc_marketing.special_priors.LogNormalPrior.sample_prior>`\\ "
+"\\(\\[coords\\, name\\]\\)"
+msgstr ""
+":py:obj:`LogNormalPrior.sample_prior "
+"<pymc_marketing.special_priors.LogNormalPrior.sample_prior>`\\ "
+"\\(\\[coords\\, name\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.special_priors.LogNormalPrior.rst:21:<autosummary>:1
+#: 65b0d60c77b645a7b2525280cd7ee0cd
+msgid "Sample from the prior distribution."
+msgstr "Muestra de la distribución previa."
+
+#: ../source/api/generated/pymc_marketing.special_priors.LogNormalPrior.rst:21:<autosummary>:1
+#: 71ce80bd82ed4afdae920c7d55d71c73
+msgid ""
+":py:obj:`LogNormalPrior.to_dict "
+"<pymc_marketing.special_priors.LogNormalPrior.to_dict>`\\ \\(\\)"
+msgstr ""
+":py:obj:`LogNormalPrior.to_dict "
+"<pymc_marketing.special_priors.LogNormalPrior.to_dict>`\\ \\(\\)"
+
+#: ../source/api/generated/pymc_marketing.special_priors.LogNormalPrior.rst:21:<autosummary>:1
+#: c6ef515a1b604a38bc2225f0b755eaf7
+msgid "Convert the prior distribution to a dictionary."
+msgstr "Convierte la distribución previa a un diccionario."

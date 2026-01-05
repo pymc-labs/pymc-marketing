@@ -1,0 +1,73 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.ValidateChannelColumns.rst:2
+#: 72179a437e28409995c376bde7d58f4b
+msgid "ValidateChannelColumns"
+msgstr "ValidarColumnasDelCanal"
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.ValidateChannelColumns.rst:23:<autosummary>:1
+#: 40d5c669d7c74748b96e968d4513fbea 9cca72d04751403e987fce098d437025 of
+#: pymc_marketing.mmm.validating.ValidateChannelColumns:2
+msgid "Validate the channel columns."
+msgstr "Valide las columnas del canal."
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.ValidateChannelColumns.rst:12
+#: 5496f85f910146349752d5232713c989
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.ValidateChannelColumns.rst:23:<autosummary>:1
+#: 39a3f8b6f0b14c938c6f1097bafd8ffb
+msgid ""
+":py:obj:`ValidateChannelColumns.__init__ "
+"<pymc_marketing.mmm.validating.ValidateChannelColumns.__init__>`\\ "
+"\\(\\*args\\, \\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`ValidateChannelColumns.__init__ "
+"<pymc_marketing.mmm.validating.ValidateChannelColumns.__init__>`\\ "
+"\\(\\*args\\, \\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.ValidateChannelColumns.rst:23:<autosummary>:1
+#: 3d24cbd4cebc4939a3548c52f59066d3
+msgid ""
+":py:obj:`ValidateChannelColumns.validate_channel_columns "
+"<pymc_marketing.mmm.validating.ValidateChannelColumns.validate_channel_columns>`\\"
+" \\(data\\)"
+msgstr ""
+":py:obj:`ValidateChannelColumns.validate_channel_columns "
+"<pymc_marketing.mmm.validating.ValidateChannelColumns.validate_channel_columns>`\\"
+" \\(datos\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.ValidateChannelColumns.rst:25
+#: c29a1677a91648659df13fcc57e8bc88
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mmm.validating.ValidateChannelColumns.rst:28:<autosummary>:1
+#: 55ec1e96ac34498fb7a8c23b42634c0a
+msgid ""
+":py:obj:`channel_columns "
+"<pymc_marketing.mmm.validating.ValidateChannelColumns.channel_columns>`\\"
+msgstr ""
+":py:obj:`channel_columns "
+"<pymc_marketing.mmm.validating.ValidateChannelColumns.channel_columns>`"

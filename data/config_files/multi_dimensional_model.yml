@@ -6,7 +6,7 @@ model:
       - channel_1
       - channel_2
       # …
-    target_column: "kpi_registrations"
+    target_column: "y"
     dims: ["market"]
 
     # --- media transformations ---------------------------------------
@@ -26,7 +26,7 @@ model:
       chains: 8
       random_seed: 42
       target_accept: 0.90
-      nuts_sampler: "nutpie"
+      # if you want to use a custom sampler (e.g: nutpie) you could add # nuts_sampler: "nutpie"
 
 # ----------------------------------------------------------------------
 # (optional) idata from a previous sample

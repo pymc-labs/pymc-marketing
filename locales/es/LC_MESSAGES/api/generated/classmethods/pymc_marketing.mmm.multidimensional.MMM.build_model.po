@@ -1,0 +1,117 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.multidimensional.MMM.build_model.rst:2
+#: 5acc3b0b14a443c8888a23bedbbbdbd5
+msgid "MMM.build\\_model"
+msgstr "MMM.construir\\_modelo"
+
+#: 69f3266df9784d998b8efbec4664cc8d of
+#: pymc_marketing.mmm.multidimensional.MMM.build_model:2
+msgid "Build a probabilistic model using PyMC for marketing mix modeling."
+msgstr ""
+"Construya un modelo probabilístico utilizando PyMC para el modelado de "
+"mezcla de marketing."
+
+#: 8eedeee228a44b88acad27d05d5f830e of
+#: pymc_marketing.mmm.multidimensional.MMM.build_model:4
+msgid ""
+"The model incorporates channels, control variables, and Fourier components, "
+"applying adstock and saturation transformations to the channel data. The "
+"final model is constructed with multiple factors contributing to the "
+"response variable."
+msgstr ""
+"El modelo incorpora canales, variables de control y componentes de Fourier, "
+"aplicando transformaciones de adstock y saturación a los datos del canal. El"
+" modelo final se construye con múltiples factores que contribuyen a la "
+"variable de respuesta."
+
+#: d11bbcc0d923437d9534ab1ba73df5bd of
+#: pymc_marketing.mmm.multidimensional.MMM.build_model
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: c1bee0e403d24f08b59740475ba90d01 of
+#: pymc_marketing.mmm.multidimensional.MMM.build_model:10
+msgid "**X** : :obj:`pd.DataFrame`"
+msgstr "**X** : :obj:`pd.DataFrame`"
+
+#: bc70f5b24dc0416a966d211e81e8a02c of
+#: pymc_marketing.mmm.multidimensional.MMM.build_model:9
+msgid "pd.DataFrame"
+msgstr "pd.DataFrame"
+
+#: 59f208210f2a4d44b9728968ff0b1298 of
+#: pymc_marketing.mmm.multidimensional.MMM.build_model:11
+msgid ""
+"The input data for the model, which should include columns for channels, "
+"control variables (if applicable), and Fourier components (if applicable)."
+msgstr ""
+"Los datos de entrada para el modelo, que deben incluir columnas para "
+"canales, variables de control (si corresponde) y componentes de Fourier (si "
+"corresponde)."
+
+#: 2dbff921d47b44e88a587e8b5706383c of
+#: pymc_marketing.mmm.multidimensional.MMM.build_model:14
+msgid ""
+"**y** : :obj:`Union`\\[:obj:`pd.Series`, :obj:`np.ndarray <numpy.ndarray>`]"
+msgstr ""
+"**y** : :obj:`Union`\\[:obj:`pd.Series`, :obj:`np.ndarray <numpy.ndarray>`]"
+
+#: 315ffcef362c420a94a7f5b3e57a0447 of
+#: pymc_marketing.mmm.multidimensional.MMM.build_model:13
+msgid "Union[pd.Series, np.ndarray]"
+msgstr "Unión[pd.Series, np.ndarray]"
+
+#: 9d1fb74821784c1fa3747e75ee113c21 of
+#: pymc_marketing.mmm.multidimensional.MMM.build_model:15
+msgid "The target/response variable for the modeling."
+msgstr "La variable objetivo/respuesta para el modelado."
+
+#: 08c131072206427ea7290182fecc04ef of
+#: pymc_marketing.mmm.multidimensional.MMM.build_model:17
+msgid "**\\*\\*kwargs** : :class:`python:dict`"
+msgstr "**\\*\\*kwargs** : :class:`python:dict`"
+
+#: cadc645f0991435a8f0a934b920b131e of
+#: pymc_marketing.mmm.multidimensional.MMM.build_model:16
+msgid "python:dict"
+msgstr "python:dict"
+
+#: d43b70ae0d414b9d8870a8f7cc3c1ec2 of
+#: pymc_marketing.mmm.multidimensional.MMM.build_model:18
+msgid ""
+"Additional keyword arguments that might be required by underlying methods or"
+" utilities."
+msgstr ""
+"Argumentos adicionales de palabras clave que podrían ser requeridos por los "
+"métodos o utilidades subyacentes."
+
+#: 9dbbfe99163f41b68096c3acb47edcb7 of
+#: pymc_marketing.mmm.multidimensional.MMM.build_model:33
+msgid "Examples"
+msgstr "Ejemplos"
+
+#: 337a3bf97a16457db2b93480a2b8a7ef of
+#: pymc_marketing.mmm.multidimensional.MMM.build_model:34
+msgid "Initialize model with custom configuration"
+msgstr "Inicializar el modelo con configuración personalizada"

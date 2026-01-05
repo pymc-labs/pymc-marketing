@@ -1,0 +1,77 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.components.base.Transformation.sample_prior.rst:2
+#: 2d0cc892430b4850863edff663153e11
+msgid "Transformation.sample\\_prior"
+msgstr "Transformación.muestra\\_previa"
+
+#: 6bccd6d1eec14e90bbd96c862f312174 of
+#: pymc_marketing.mmm.components.base.Transformation.sample_prior:2
+msgid "Sample the priors for the transformation."
+msgstr "Muestree las distribuciones a priori para la transformación."
+
+#: 13b3a27dd00749e1b0481bb3353a1d18 of
+#: pymc_marketing.mmm.components.base.Transformation.sample_prior
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 0ef775a4815f47b5b4780c0c54826582 of
+#: pymc_marketing.mmm.components.base.Transformation.sample_prior:7
+msgid "**coords** : :class:`python:dict`, optional"
+msgstr "**coords** : :class:`python:dict`, opcional"
+
+#: e0f523c541d54e1787401db3aa01b510 of
+#: pymc_marketing.mmm.components.base.Transformation.sample_prior:6
+msgid "python:dict, optional"
+msgstr "python:dict, opcional"
+
+#: 9f9eae3d94574bc488b417efd9cbce18 of
+#: pymc_marketing.mmm.components.base.Transformation.sample_prior:8
+msgid "The coordinates for the associated with dims"
+msgstr "Las coordenadas para el asociado con dims"
+
+#: 3131aa7b13e645e9893a6785a990077d of
+#: pymc_marketing.mmm.components.base.Transformation.sample_prior:10
+msgid "**\\*\\*sample_prior_predictive_kwargs**"
+msgstr "**\\*\\*sample_prior_predictive_kwargs**"
+
+#: 0240a5b807174ae2861d61a4e7d27991 of
+#: pymc_marketing.mmm.components.base.Transformation.sample_prior:11
+msgid "Keyword arguments for the pm.sample_prior_predictive function."
+msgstr ""
+"Argumentos de palabras clave para la función pm.sample_prior_predictive."
+
+#: 5976cfab1c354d62aa44c9d885c18cf9 of
+#: pymc_marketing.mmm.components.base.Transformation.sample_prior
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 6a2ca9a917424c9c8b2e37b28d5263fd of
+#: pymc_marketing.mmm.components.base.Transformation.sample_prior:17
+msgid ":obj:`xr.Dataset`"
+msgstr ":obj:`xr.Dataset`"
+
+#: 91f9ee5af67c48dd878c3d67d3b2bbb1 of
+#: pymc_marketing.mmm.components.base.Transformation.sample_prior:18
+msgid "The dataset with the sampled priors."
+msgstr "El conjunto de datos con los priors muestreados."

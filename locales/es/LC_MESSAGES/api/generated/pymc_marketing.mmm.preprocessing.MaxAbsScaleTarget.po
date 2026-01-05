@@ -1,0 +1,73 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.preprocessing.MaxAbsScaleTarget.rst:2
+#: 11a08b4faa074958b0863680fdd76a0f
+msgid "MaxAbsScaleTarget"
+msgstr "MaxAbsScaleTarget"
+
+#: ../source/api/generated/pymc_marketing.mmm.preprocessing.MaxAbsScaleTarget.rst:23:<autosummary>:1
+#: 0265d565a6ad42c78e8f97118c3362e6 e4ba1d49fa534ee2bf36a352ce172683 of
+#: pymc_marketing.mmm.preprocessing.MaxAbsScaleTarget:2
+msgid "MaxAbsScaler for the target data."
+msgstr "MaxAbsScaler para los datos objetivo."
+
+#: ../source/api/generated/pymc_marketing.mmm.preprocessing.MaxAbsScaleTarget.rst:12
+#: d85f5de6dd254b3cb89052b73812d046
+msgid "Methods"
+msgstr "Métodos"
+
+#: ../source/api/generated/pymc_marketing.mmm.preprocessing.MaxAbsScaleTarget.rst:23:<autosummary>:1
+#: c9fc8390cc784121b2bb2ba4371308ec
+msgid ""
+":py:obj:`MaxAbsScaleTarget.__init__ "
+"<pymc_marketing.mmm.preprocessing.MaxAbsScaleTarget.__init__>`\\ "
+"\\(\\*args\\, \\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`MaxAbsScaleTarget.__init__ "
+"<pymc_marketing.mmm.preprocessing.MaxAbsScaleTarget.__init__>`\\ "
+"\\(\\*args\\, \\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.preprocessing.MaxAbsScaleTarget.rst:23:<autosummary>:1
+#: b05971d9701a45c4988865ab09fa7e41
+msgid ""
+":py:obj:`MaxAbsScaleTarget.max_abs_scale_target_data "
+"<pymc_marketing.mmm.preprocessing.MaxAbsScaleTarget.max_abs_scale_target_data>`\\"
+" \\(data\\)"
+msgstr ""
+":py:obj:`MaxAbsScaleTarget.max_abs_scale_target_data "
+"<pymc_marketing.mmm.preprocessing.MaxAbsScaleTarget.max_abs_scale_target_data>`\\"
+" \\(datos\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.preprocessing.MaxAbsScaleTarget.rst:25
+#: 6bbc7ce318b14fb8b8986f2f6f51ed9e
+msgid "Attributes"
+msgstr "Atributos"
+
+#: ../source/api/generated/pymc_marketing.mmm.preprocessing.MaxAbsScaleTarget.rst:28:<autosummary>:1
+#: befeadf3c381410e8e7b5a7423527b0c
+msgid ""
+":py:obj:`target_transformer "
+"<pymc_marketing.mmm.preprocessing.MaxAbsScaleTarget.target_transformer>`\\"
+msgstr ""
+":py:obj:`target_transformer "
+"<pymc_marketing.mmm.preprocessing.MaxAbsScaleTarget.target_transformer>`"

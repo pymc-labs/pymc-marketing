@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -125,7 +125,7 @@ def test_multidimensional(coords):
 
 
 def test_calling_without_model():
-    with pytest.raises(TypeError, match="No model on context stack."):
+    with pytest.raises(TypeError, match=r"No model on context stack."):
         X = pm.Data("X", np.array([0, 1, 2, 3, 4]), dims="date")
         hsgp_kwargs = HSGPKwargs(m=5, L=10)
         time_varying_prior(

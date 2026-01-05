@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -69,7 +69,7 @@ class ModifiedBetaGeoModel(BetaGeoModel):
     --------
     .. code-block:: python
 
-        from pymc_marketing.prior import Prior
+        from pymc_extras.prior import Prior
         from pymc_marketing.clv import ModifiedBetaGeoModel, rfm_summary
 
         # customer identifiers and purchase datetimes

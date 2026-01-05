@@ -14,6 +14,10 @@ In this case, you would just need to install the requirements.txt within the str
 
 - **Bayesian Priors**: Interactive charts that demonstrate Bayesian prior distributions, designed to showcase the power of Bayesian methods in handling uncertainty and incorporating prior knowledge into MMM.
 
+- **Fourier Modes Exploration**: Interactive charts that demonstrate Fourier Modes, used to capture seasonal effects. Users can adjust parameters explore differnt periodic trends.
+
+- **Time-Varying Parameters**: Interactive charts that demonstrate Time-Varying effects. Users can adjust parameters to explore different configurations that help capture hidden latent temporal variations within media effects.
+
 - **Customizable Parameters**: All sections of the app include options to customize parameters, allowing users to experiment with different scenarios and understand their impacts on MMM.
 
 ## Getting Started

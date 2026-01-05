@@ -1,0 +1,154 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.inverse_scaled_logistic_saturation.rst:2
+#: b4b4441f7bca4c4cb714c8f795edfa63
+msgid "inverse\\_scaled\\_logistic\\_saturation"
+msgstr "inversa\\_escalada\\_logística\\_saturación"
+
+#: c890a2548f834d9c840f663c750fe107 of
+#: pymc_marketing.mmm.transformers.inverse_scaled_logistic_saturation:2
+msgid "Inverse scaled logistic saturation transformation."
+msgstr "Transformación de saturación logística inversamente escalada."
+
+#: 231608b1fe584dfc9176e374f5d726c0 of
+#: pymc_marketing.mmm.transformers.inverse_scaled_logistic_saturation:4
+msgid ""
+"It offers a more intuitive alternative to logistic_saturation, allowing for "
+"lambda to be interpreted as the half saturation point when using default "
+"value for eps."
+msgstr ""
+"Ofrece una alternativa más intuitiva a logistic_saturation, permitiendo que "
+"lambda sea interpretado como el punto de media saturación al utilizar el "
+"valor predeterminado para eps."
+
+#: bfb547b53e0a4884957533129bb90f41 of
+#: pymc_marketing.mmm.transformers.inverse_scaled_logistic_saturation:8
+msgid ""
+"f(x) = \\frac{1 - e^{-x*\\epsilon/\\lambda}}{1 + e^{-x*\\epsilon/\\lambda}}\n"
+"\n"
+msgstr "f(x) = \\frac{1 - e^{-x*\\epsilon/\\lambda}}{1 + e^{-x*\\epsilon/\\lambda}}"
+
+#: ../source/api/generated/pymc_marketing.mmm.transformers.inverse_scaled_logistic_saturation.rst:7
+#: 7ab60af1499f42c2b3b43eaac5974036
+msgid ""
+"(:download:`Source code "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-inverse_scaled_logistic_saturation-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-inverse_scaled_logistic_saturation-1.png>`, "
+":download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-inverse_scaled_logistic_saturation-1.hires.png>`, "
+":download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-inverse_scaled_logistic_saturation-1.pdf>`)"
+msgstr ""
+"(:download:`Código fuente "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-inverse_scaled_logistic_saturation-1.py>`, :download:`png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-inverse_scaled_logistic_saturation-1.png>`, "
+":download:`hires.png "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-inverse_scaled_logistic_saturation-1.hires.png>`, "
+":download:`pdf "
+"<../../../gettext/plot_directive/api/generated/pymc_marketing-mmm-"
+"transformers-inverse_scaled_logistic_saturation-1.pdf>`)"
+
+#: c63240c8a59b40d89547e6358d80c262 of
+#: pymc_marketing.mmm.transformers.inverse_scaled_logistic_saturation
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: a5aed05fcbd648be8701208192b61d41 of
+#: pymc_marketing.mmm.transformers.inverse_scaled_logistic_saturation:34
+msgid "**x** : :obj:`tensor`"
+msgstr "**x** : :obj:`tensor`"
+
+#: 996131ee22514d72bdcc2f0ad39f484a of
+#: pymc_marketing.mmm.transformers.inverse_scaled_logistic_saturation:33
+msgid "tensor"
+msgstr "tensor"
+
+#: 34ca73248fa44fe38bfc12e06da3de1c of
+#: pymc_marketing.mmm.transformers.inverse_scaled_logistic_saturation:35
+msgid "Input tensor."
+msgstr "Tensor de entrada."
+
+#: 92683b2caa8d4cf8a952dc9474458968 of
+#: pymc_marketing.mmm.transformers.inverse_scaled_logistic_saturation:37
+msgid ""
+"**lam** : :class:`python:float` or :term:`numpy:array_like`, optional, "
+":obj:`by` default 0.5"
+msgstr ""
+"**lam** : :class:`python:float` o :term:`numpy:array_like`, opcional, "
+":obj:`by` por defecto 0.5"
+
+#: 3e3a8639619a4563ba595557feb33bfb of
+#: pymc_marketing.mmm.transformers.inverse_scaled_logistic_saturation:36
+msgid "python:float or numpy:array_like, optional, by default 0.5"
+msgstr "python:float o numpy:array_like, opcional, por defecto 0.5"
+
+#: 7d13cfa26ae64854b8b0625f11626300 of
+#: pymc_marketing.mmm.transformers.inverse_scaled_logistic_saturation:38
+msgid ""
+"The half-saturation point. Larger values represent less efficient channels."
+msgstr ""
+"El punto de media saturación. Los valores más grandes representan canales "
+"menos eficientes."
+
+#: 5626bf2602ee4cbaa238150aaa5f3f59 of
+#: pymc_marketing.mmm.transformers.inverse_scaled_logistic_saturation:40
+msgid ""
+"**eps** : :class:`python:float` or :term:`numpy:array_like`, optional, "
+":obj:`by` default :obj:`ln`\\(3)"
+msgstr ""
+"**eps** : :class:`python:float` o :term:`numpy:array_like`, opcional, "
+":obj:`por` defecto :obj:`ln`\\(3)"
+
+#: b5a18cfa250a429ea642bfde2f9f9a9b of
+#: pymc_marketing.mmm.transformers.inverse_scaled_logistic_saturation:39
+msgid "python:float or numpy:array_like, optional, by default ln(3)"
+msgstr "python:float o numpy:array_like, opcional, por defecto ln(3)"
+
+#: f366db567bc04dec82ae9f3f0b4f3989 of
+#: pymc_marketing.mmm.transformers.inverse_scaled_logistic_saturation:41
+msgid "Scaling parameter. ln(3) results in halfway saturation at lam"
+msgstr ""
+"Parámetro de escalado. ln(3) resulta en una saturación a mitad de camino en "
+"lam."
+
+#: 204a570e22e94cdc97399c414170184f of
+#: pymc_marketing.mmm.transformers.inverse_scaled_logistic_saturation
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 62274a312d634174a7f22ebc31d51e80 of
+#: pymc_marketing.mmm.transformers.inverse_scaled_logistic_saturation:47
+msgid ":obj:`tensor`"
+msgstr ":obj:`tensor`"
+
+#: a5b520eb4b2748fb9564c6fc0b5185bc of
+#: pymc_marketing.mmm.transformers.inverse_scaled_logistic_saturation:48
+msgid "Transformed tensor."
+msgstr "Tensor transformado."

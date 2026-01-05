@@ -1,0 +1,121 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.mmm.fourier.WeeklyFourier.plot_curve_hdi.rst:2
+#: 4e248e9077da4992892b6d991ba27f42
+msgid "WeeklyFourier.plot\\_curve\\_hdi"
+msgstr "WeeklyFourier.plot\\_curve\\_hdi"
+
+#: 9a42b86da357432eaa17ecb8f8cfa123 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_hdi:2
+msgid "Plot full period of the fourier seasonality."
+msgstr "Trazar el período completo de la estacionalidad de Fourier."
+
+#: 5037284368da4cfb898e295787e4dfc4 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_hdi
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 2e6fd53337004d26a45472f05273d5de of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_hdi:7
+msgid "**curve** : :obj:`xr.DataArray`"
+msgstr "**curva** : :obj:`xr.DataArray`"
+
+#: 867265a02fc84fd3a8cbddac14812c58 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_hdi:6
+msgid "xr.DataArray"
+msgstr "xr.DataArray"
+
+#: f622b846d26d4c1f8f15d20f8bd5dd4f of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_hdi:8
+msgid "The curve to plot."
+msgstr "La curva a graficar."
+
+#: a7fa8cb6217a4dce963f540c2fb05a19 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_hdi:10
+msgid "**hdi_kwargs** : :class:`python:dict`, optional"
+msgstr "**hdi_kwargs** : :class:`python:dict`, opcional"
+
+#: 07cd164e84a742a6b12f4278412030e2 11dfe5578e20446bad0e57f114c6a643
+#: dc43c4a22d3d42d4a6b91b82f355fd46 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_hdi:9
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_hdi:12
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_hdi:15
+msgid "python:dict, optional"
+msgstr "python:dict, opcional"
+
+#: b60d65516a26439fb126680f86c62f06 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_hdi:11
+msgid "Keyword arguments for the az.hdi function. Defaults to None."
+msgstr ""
+"Argumentos de palabras clave para la función az.hdi. Por defecto es None."
+
+#: 19916b5105164830998fbb0d4f30409d of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_hdi:13
+msgid "**plot_kwargs** : :class:`python:dict`, optional"
+msgstr "**plot_kwargs** : :class:`python:dict`, opcional"
+
+#: 7de7535701154e15b9695a32645380a7 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_hdi:14
+msgid "Keyword arguments for the fill_between function. Defaults to None."
+msgstr ""
+"Argumentos de palabras clave para la función fill_between. Por defecto es "
+"None."
+
+#: 9960783e5b4545ff99fc4f3b39319fc0 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_hdi:16
+msgid "**subplot_kwargs** : :class:`python:dict`, optional"
+msgstr "**subplot_kwargs** : :class:`python:dict`, opcional"
+
+#: ba8aa83737394fe984fd86aae9e7bb2a of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_hdi:17
+msgid "Keyword arguments for plt.subplots"
+msgstr "Argumentos de palabras clave para plt.subplots"
+
+#: 1df71d872f964a608b90358abd1ebf21 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_hdi:19
+msgid "**axes** : :obj:`npt.NDArray`\\[:obj:`plt.Axes`], optional"
+msgstr "**ejes** : :obj:`npt.NDArray`\\[:obj:`plt.Axes`], opcional"
+
+#: 7da9b71c5503440da31008f3f83c13b3 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_hdi:18
+msgid "npt.NDArray[plt.Axes], optional"
+msgstr "npt.NDArray[plt.Axes], opcional"
+
+#: 9cddfc5dbbc544bc85d4df85a7ab14da of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_hdi:20
+msgid "The exact axes to plot on. Overrides any subplot_kwargs"
+msgstr "Los ejes exactos para trazar. Anula cualquier subplot_kwargs."
+
+#: 8155d235aefb469db4627aaa81d3d22c of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_hdi
+msgid "Returns"
+msgstr "Devoluciones"
+
+#: 1e73937aee5b41eaa3c53da06649dd73 of
+#: pymc_marketing.mmm.fourier.FourierBase.plot_curve_hdi:26
+msgid ""
+":class:`python:tuple`\\[:obj:`plt.Figure`, "
+":obj:`npt.NDArray`\\[:obj:`plt.Axes`]]"
+msgstr ""
+":class:`python:tuple`\\[:obj:`plt.Figure`, "
+":obj:`npt.NDArray`\\[:obj:`plt.Axes`]]"

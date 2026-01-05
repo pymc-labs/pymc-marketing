@@ -1,0 +1,91 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.expected_purchases_new_customer.rst:2
+#: 58678d0bcdf54fffb65d65e33511d48e
+msgid "ModifiedBetaGeoModel.expected\\_purchases\\_new\\_customer"
+msgstr "ModifiedBetaGeoModel.expected\\_purchases\\_new\\_customer"
+
+#: 1ccba42ec1024d9b88ee75dce72aabee of
+#: pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.expected_purchases_new_customer:2
+msgid ""
+"Compute the expected number of purchases for a new customer across *t* time "
+"periods."
+msgstr ""
+"Calcule el número esperado de compras para un nuevo cliente a lo largo de "
+"*t* períodos de tiempo."
+
+#: 21550dfbf1c1485ea6673a6a4a2f404d of
+#: pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.expected_purchases_new_customer:4
+msgid ""
+"Adapted from equation (4) in [Rf0cc0740f61b-1]_, and `lifetimes` library: "
+"https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/modified_beta_geo_fitter.py#L130"
+msgstr ""
+"Adaptado de la ecuación (4) en [Rf0cc0740f61b-1]_, y la biblioteca "
+"`lifetimes`: "
+"https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/modified_beta_geo_fitter.py#L130"
+
+#: 9c214fc2726747cbb1d620d27455899b of
+#: pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.expected_purchases_new_customer
+msgid "Parameters"
+msgstr "Parámetros"
+
+#: 05df56bf68d1416683032cdcab56b337 of
+#: pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.expected_purchases_new_customer:9
+msgid "**t** : :term:`numpy:array_like`"
+msgstr "**t** : :term:`numpy:array_like`"
+
+#: dc7e8c3721e14f37bcf4215b49cc8f5e of
+#: pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.expected_purchases_new_customer:8
+msgid "numpy:array_like"
+msgstr "numpy:similar_a_array"
+
+#: f415dd557d5e46309e4b130b5f147d77 of
+#: pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.expected_purchases_new_customer:10
+msgid "Number of time periods over which to estimate purchases."
+msgstr "Número de períodos de tiempo sobre los cuales estimar las compras."
+
+#: 9dbcd1bb11ca4efea483fdba0b788bfd of
+#: pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.expected_purchases_new_customer:24
+msgid "References"
+msgstr "Referencias"
+
+#: a6501cbf49ff4b72bc009d19c6a7fc04 of
+#: pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.expected_purchases_new_customer:25
+msgid "Batislam, E.P., M. Denizel, A. Filiztekin (2007),"
+msgstr "Batislam, E.P., M. Denizel, A. Filiztekin (2007),"
+
+#: fdd4884b025a473ba15bc81e326a4897 of
+#: pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.expected_purchases_new_customer:26
+msgid ""
+"\"Empirical validation and comparison of models for customer base "
+"analysis.\" International Journal of Research in Marketing, 24 (3), 201-209."
+" https://works.bepress.com/meltem-denizel/2/download/"
+msgstr ""
+"Validación empírica y comparación de modelos para el análisis de la base de "
+"clientes. Revista Internacional de Investigación en Marketing, 24 (3), "
+"201-209. https://works.bepress.com/meltem-denizel/2/download/"
+
+#: 12c2d882700246ab9d251a94d1a91d2c of
+#: pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.expected_purchases_new_customer:32
+msgid "[Rf0cc0740f61b-1]_"
+msgstr "[Rf0cc0740f61b-1]_"

@@ -1,0 +1,1585 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10003
+#: d9861043f1b945d18e159f4f3a1d364f
+msgid "Prior Predictive Modeling"
+msgstr "Modelado Predictivo Anterior"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10005
+#: c3302256bb21422296bb0618da4a3e3d
+#, python-brace-format
+msgid ""
+"This guide provides an introduction to prior predictive modeling using PyMC "
+"(and PyMC-Marketing) and the {class}`Prior <pymc_extras.prior.Prior>` class "
+"from PyMC-Marketing.  We start by looking into a simpler example and then we"
+" will see how to apply to real case scenarios with marketing mix models in "
+"PyMC-Marketing."
+msgstr ""
+"Esta guía proporciona una introducción a la modelización predictiva previa "
+"utilizando PyMC (y PyMC-Marketing) y la clase `{class}`Prior "
+"<pymc_extras.prior.Prior>` de PyMC-Marketing. Comenzamos examinando un "
+"ejemplo más simple y luego veremos cómo aplicarlo a escenarios de casos "
+"reales con modelos de mezcla de marketing en PyMC-Marketing."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10008
+#: 6b7773ccb6d14220921ac7e347944862
+msgid ""
+"Before diving into the technical details, let's understand why priors are "
+"crucial in Bayesian analysis and their practical importance in industry "
+"applications."
+msgstr ""
+"Antes de profundizar en los detalles técnicos, comprendamos por qué los "
+"priors son cruciales en el análisis bayesiano y su importancia práctica en "
+"las aplicaciones industriales."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10010
+#: 1aa26db8814d49d0897ab047541ec8f3
+msgid "Understanding Bayesian Inference"
+msgstr "Comprendiendo la Inferencia Bayesiana"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10012
+#: 9f58e941ef0247469906cdbbacf89345
+msgid ""
+"Bayesian inference is based on Bayes' theorem, which provides a formal way "
+"to update our beliefs about parameters $\\theta$ (say, saturation or decay "
+"rate in a marketing mix models) given observed data $y$:"
+msgstr ""
+"La inferencia bayesiana se basa en el teorema de Bayes, que proporciona una "
+"forma formal de actualizar nuestras creencias sobre los parámetros $\\theta$"
+" (por ejemplo, la tasa de saturación o de decaimiento en modelos de mezcla "
+"de marketing) dado los datos observados $y$:"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10014
+#: 6c2b9bf79d9b48d3a4a44ba63f2dbb95
+#, python-brace-format
+msgid "p(\\theta|y) = \\frac{p(y|\\theta)p(\\theta)}{p(y)}"
+msgstr "p(\\theta|y) = \\frac{p(y|\\theta)p(\\theta)}{p(y)}"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10016
+#: bdb65de16e3341fa9034c9eeee88ce5f
+msgid "Where:"
+msgstr "Dónde:"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10017
+#: 015c2cb2625b4fbcaad25d98aa12c1ad
+msgid "$p(\\theta|y)$ is the posterior probability (what we want to learn)"
+msgstr "$p(\\theta|y)$ es la probabilidad posterior (lo que queremos aprender)"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10018
+#: 00ae930a30dc481595533b72883710df
+msgid "$p(y|\\theta)$ is the likelihood (how the data is generated)"
+msgstr "$p(y|\\theta)$ es la verosimilitud (cómo se generan los datos)"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10019
+#: 8097276c88fc4196806741289a031a45
+msgid "$p(\\theta)$ is the prior probability (our initial beliefs)"
+msgstr "$p(\\theta)$ es la probabilidad a priori (nuestras creencias iniciales)"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10020
+#: d7bf8d319e634c6098adca3e9980a04a
+#, python-brace-format
+msgid ""
+"$p(y)$ is the evidence (a normalizing constant), which can be written as "
+"$p(y) = \\displaystyle{ \\int p(y|\\theta)p(\\theta)d\\theta }$"
+msgstr ""
+"$p(y)$ es la evidencia (una constante de normalización), que se puede "
+"escribir como $p(y) = \\displaystyle{ \\int p(y|\\theta)p(\\theta)d\\theta "
+"}$"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10022
+#: 0945fcaa3a67413b8e9c3fdf6281459e
+msgid ""
+"The posterior distribution combines our prior knowledge with the observed "
+"data to give us updated beliefs about the parameters. In practice, we often "
+"work with the unnormalized posterior:"
+msgstr ""
+"La distribución posterior combina nuestro conocimiento previo con los datos "
+"observados para proporcionarnos creencias actualizadas sobre los parámetros."
+" En la práctica, a menudo trabajamos con la posterior no normalizada:"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10024
+#: fcc3b36b2ddd427f82ae4c2513b2c1f3
+msgid "p(\\theta|y) \\propto p(y|\\theta)p(\\theta)"
+msgstr "p(\\theta|y) \\propto p(y|\\theta)p(\\theta)"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10026
+#: 7ea4d763b89849e890a4a75e1d98ce78
+msgid ""
+"This is because the normalizing constant $p(y)$ is often intractable to "
+"compute directly."
+msgstr ""
+"Esto se debe a que la constante de normalización $p(y)$ a menudo es "
+"intractable de calcular directamente."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10028
+#: 34d77cfad5e14126a09fe3eb8d1badbb
+msgid "Why Priors Matter in Industry"
+msgstr "Por qué los priors son importantes en la industria"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10030
+#: 2e1e75cf292541b6b91ef841107ad6e3
+msgid "In industry applications, priors serve several crucial purposes:"
+msgstr ""
+"En aplicaciones industriales, los priors cumplen varios propósitos "
+"cruciales:"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10032
+#: b4f4d6eb7e14446295642c12804316de
+msgid "**Domain Knowledge Integration**:"
+msgstr "**Integración del Conocimiento del Dominio**:"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10033
+#: 6a4e2bb3729c46cea0ca2300aedc123b
+msgid "Incorporating expert knowledge into models"
+msgstr "Incorporando conocimiento experto en modelos"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10034
+#: 1ffca60849934eb5870201af522900ce
+msgid "Leveraging historical data from similar projects"
+msgstr "Aprovechando datos históricos de proyectos similares"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10035
+#: ce273011a4cc4a7285a61790e680bba0
+msgid "Encoding business constraints and requirements"
+msgstr "Codificación de restricciones y requisitos empresariales"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10037
+#: 95fe832c259a4bbe8821dc90794feae6
+msgid "**Risk Management**:"
+msgstr "**Gestión de Riesgos**:"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10038
+#: 9fb8a206288b4a69940ae9b4c6b367d3
+msgid "Preventing unrealistic predictions"
+msgstr "Prevención de predicciones poco realistas"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10039
+#: f85159714a52404d96bd7c8d5fa87b49
+msgid "Ensuring stable model behavior"
+msgstr "Asegurando un comportamiento estable del modelo"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10040
+#: ef14df70b75a429cb79209100f4f6490
+msgid "Managing uncertainty in decision-making"
+msgstr "Gestionar la incertidumbre en la toma de decisiones"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10042
+#: 0693d15714394ec489dbdd2c9c8b9169
+msgid "**Data Efficiency**:"
+msgstr "**Eficiencia de Datos**:"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10043
+#: f11cea26b2e64ce497f7582e6009cd7a
+msgid "Making models work with limited data"
+msgstr "Haciendo que los modelos funcionen con datos limitados"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10044
+#: e02fe54952ad47eaba026c5a7e4daca3
+msgid "Faster convergence to reasonable solutions"
+msgstr "Convergencia más rápida hacia soluciones razonables"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10045
+#: a630fd0d3922429bbcc6fd08184e02de
+msgid "Robust predictions in new scenarios"
+msgstr "Predicciones robustas en nuevos escenarios"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10047
+#: a6c46959bc694ca5ba5fff0d24772b78
+msgid "**Model Regularization**:"
+msgstr "**Regularización del Modelo**:"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10048
+#: 86b0918986a34234b2ea9c62768c90df
+msgid "Preventing overfitting"
+msgstr "Prevención del sobreajuste"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10049
+#: 446bdbcc8b1947d389757925e740a5b7
+msgid "Handling multicollinearity"
+msgstr "Manejo de la multicolinealidad"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10050
+#: fdc9291a302f47adae7346d481d2621b
+msgid "Dealing with sparse data"
+msgstr "Tratando con datos escasos"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10052
+#: 98faa33f06b54f0093252bf5e01a9fae
+msgid "Common Prior Specification Scenarios"
+msgstr "Escenarios Comunes de Especificación de Prioridades"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10054
+#: f10e590c8e064cf88a9659e455693628
+msgid "In marketing analytics, you'll often encounter these scenarios:"
+msgstr ""
+"En el análisis de marketing, a menudo se encontrará con estos escenarios:"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10056
+#: ea00fb58f53d477bbbedbb8d5fbc61b1
+msgid "**Marketing Mix Models**:"
+msgstr "**Modelos de Mezcla de Marketing**:"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10057
+#: cbd4f86281fc4a88b259d205df3cad8c
+msgid "Media channel effectiveness (typically positive)"
+msgstr "Efectividad del canal de medios (típicamente positiva)"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10058
+#: d5c8e31e6f454b4b902119739b3663bd
+msgid "Diminishing returns (shape constraints)"
+msgstr "Rendimientos decrecientes (restricciones de forma)"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10059
+#: 00319dcdf64a4c04a9d8ee5aa811ad52
+msgid "Lift tests calibration"
+msgstr "Calibración de pruebas de elevación"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10061
+#: f84a782ef64a4f20b196d559541cda89
+msgid "**Customer Lifetime Value**:"
+msgstr "**Valor del Tiempo de Vida del Cliente**:"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10062
+#: 5972f68786c34fd28e6a5e2c69d8d1ec
+msgid "Purchase rates (positive values)"
+msgstr "Tasas de compra (valores positivos)"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10063
+#: d2d9c624f11a408a97f4617bf815def4
+msgid "Churn probabilities (between 0 and 1)"
+msgstr "Probabilidades de deserción (entre 0 y 1)"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10064
+#: 3bbfc417740546aa98a848ca017565f4
+msgid "Monetary value distributions (positive, often log-normal)"
+msgstr ""
+"Distribuciones de valor monetario (positivas, a menudo logarítmicamente "
+"normales)"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10066
+#: c9240c3f0eb24af0926a9f203cf0d02c
+msgid "**A/B Testing**:"
+msgstr "**Pruebas A/B**:"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10067
+#: 86db3b41a8414d878eb2ff52c9ba07cd
+msgid "Conversion rates (bounded between 0 and 1)"
+msgstr "Tasas de conversión (limitadas entre 0 y 1)"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10068
+#: f40c2234109d4232aca8cc71ceaeb020
+msgid "Lift measurements (centered around small effects)"
+msgstr "Mediciones de elevación (centradas en efectos pequeños)"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10069
+#: 366305b37a4142feb4d1eaf578b7a746
+msgid "Revenue impacts (potentially heavy-tailed)"
+msgstr "Impactos en los ingresos (potencialmente de cola pesada)"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10071
+#: e75a2309131643bb8ff8c77b73e02552
+msgid ""
+"A/B tests is a fascinating field where Bayesian methods can provide huge "
+"benefits. Still, omiting prior predictive analysis can lead to bad results "
+"as described in the great article [\"The Bet Test: Spotting Problems in "
+"Bayesian A/B Test Analysis\"](https://www.geteppo.com/blog/the-bet-test-"
+"problems-in-bayesian-ab-test-analysis) by Tyler Buffington."
+msgstr ""
+"Las pruebas A/B son un campo fascinante donde los métodos bayesianos pueden "
+"ofrecer enormes beneficios. Sin embargo, omitir el análisis predictivo "
+"previo puede llevar a resultados negativos, como se describe en el excelente"
+" artículo [\"The Bet Test: Spotting Problems in Bayesian A/B Test "
+"Analysis\"](https://www.geteppo.com/blog/the-bet-test-problems-in-bayesian-"
+"ab-test-analysis) de Tyler Buffington."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10073
+#: f7fd7fdd2e7844cca4c569b1fc3abb67
+msgid "What is Prior Predictive Modeling?"
+msgstr "¿Qué es el Modelado Predictivo Previo?"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10075
+#: bd00dc8e466648a58802a90fa58cfb47
+msgid ""
+"Prior predictive modeling is a crucial step in Bayesian workflow that helps "
+"us validate our prior choices before seeing the actual data. The process "
+"involves:"
+msgstr ""
+"El modelado predictivo previo es un paso crucial en el flujo de trabajo "
+"bayesiano que nos ayuda a validar nuestras elecciones previas antes de ver "
+"los datos reales. El proceso implica:"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10077
+#: ad4dc5d7717f46c5bfb322878b0900af
+msgid "**Specification**:"
+msgstr "**Especificación**:"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10078
+#: 22a803c211684c62b39ef36e9cd678ac
+msgid "Define prior distributions for model parameters"
+msgstr "Defina distribuciones a priori para los parámetros del modelo"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10079
+#: d25cefc6259b4564a1fda217d36b87f9
+msgid "Encode domain knowledge and constraints"
+msgstr "Codificar el conocimiento del dominio y las restricciones"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10080
+#: e4f63481f12748189d1da43a5031c73a
+msgid "Document assumptions and choices"
+msgstr "Documentar suposiciones y elecciones"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10082
+#: 5ed83f4b2b28428f9738bee2b194aa35
+msgid "**Simulation**:"
+msgstr "**Simulación**:"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10083
+#: 57043eaddf404a1f80c5fcbae4ec4a52
+msgid "Sample parameters from prior distributions"
+msgstr "Parámetros de muestra de distribuciones anteriores"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10084
+#: 61cc77d17f4d4380a06af2e7647580f9
+msgid "Generate synthetic data using the model structure"
+msgstr "Generar datos sintéticos utilizando la estructura del modelo"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10085
+#: bfeaa32363c74020a121473273f4e78c
+msgid "Create multiple scenarios of possible outcomes"
+msgstr "Cree múltiples escenarios de posibles resultados"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10087
+#: e386b9e5ef5545afa921c29005f451b6
+msgid "**Validation**:"
+msgstr "**Validación**:"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10088
+#: 1ba09e7d4ae0484fb937c08b3319dcb3
+msgid "Check if simulated data matches domain expertise"
+msgstr ""
+"Verifique si los datos simulados coinciden con la experiencia del dominio."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10089
+#: ee553446f6d8498782a23f939a5de4cf
+msgid "Verify that impossible scenarios are excluded"
+msgstr "Verifique que se excluyan los escenarios imposibles."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10090
+#: 7d8e2ca15e324be8b8571965c5b1aeab
+msgid "Ensure reasonable coverage of possible outcomes"
+msgstr "Asegure una cobertura razonable de los posibles resultados."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10092
+#: b49dae5120a14186b7dc985fc96a854d
+msgid "Benefits in Practice"
+msgstr "Beneficios en la Práctica"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10094
+#: 1576ba29ac854d018939845a95d9aa45
+msgid "**Early Problem Detection**:"
+msgstr "**Detección Temprana de Problemas**:"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10095
+#: db68da4bd3454599939730862d6a3ca0
+msgid "Identify unrealistic assumptions"
+msgstr "Identificar suposiciones poco realistas"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10096
+#: 244e7626df8841a888545c0b6c8b3716
+msgid "Catch numerical issues before model fitting"
+msgstr "Detectar problemas numéricos antes del ajuste del modelo"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10097
+#: 01d75a19bbec422eb78609ec71c83044
+msgid "Validate model structure"
+msgstr "Validar la estructura del modelo"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10099
+#: 1f728ff662fa412897caeee627be37d3
+msgid "**Stakeholder Communication**:"
+msgstr "**Comunicación con las partes interesadas**:"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10100
+#: e99851605562441a811cf18b75947050
+msgid "Visualize model implications"
+msgstr "Visualizar las implicaciones del modelo"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10101
+#: a7c254bafeba4ac4ab0149e4e136c213
+msgid "Justify modeling choices"
+msgstr "Justificar las elecciones de modelado"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10102
+#: e794dc4d17334edaa23ba23efd7f0f28
+msgid "Set realistic expectations"
+msgstr "Establecer expectativas realistas"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10104
+#: 6e7e7ff713b94ebf88902e223a630471
+msgid "**Model Development**:"
+msgstr "**Desarrollo de Modelos**:"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10105
+#: 831622f2c065404d9de14fb71039a611
+msgid "Iterate on prior choices efficiently"
+msgstr "Iterar sobre elecciones anteriores de manera eficiente"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10106
+#: 6bbfe937a470483eb4d2aef5ee6f4d28
+msgid "Compare alternative specifications"
+msgstr "Comparar especificaciones alternativas"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10107
+#: 52df8546237643aab1207f317bfb8fab
+msgid "Document model evolution"
+msgstr "Evolución del modelo de documento"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10109
+#: b65caa623b6445b7b4fa4d099ad18f23
+msgid "**Risk Assessment**:"
+msgstr "**Evaluación de Riesgos**:"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10110
+#: ed015fe840514b2ca83dec08ec33c9a6
+msgid "Understand model limitations"
+msgstr "Entender las limitaciones del modelo"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10111
+#: 1abe50e3cf5e441f915c86ac95edaf60
+msgid "Identify edge cases"
+msgstr "Identificar casos límite"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10112
+#: 170e04049a994203a891e759fa6b29f0
+msgid "Plan for failure modes"
+msgstr "Plan para modos de fallo"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10114
+#: 1f420c202b7e4129804398fa45c266de
+msgid ""
+"The prior predictive distribution $p(y)$ represents our beliefs about the "
+"data before we observe it. Mathematically, it's the distribution of the data"
+" marginalized over the prior:"
+msgstr ""
+"La distribución predictiva previa $p(y)$ representa nuestras creencias sobre"
+" los datos antes de observarlos. Matemáticamente, es la distribución de los "
+"datos marginalizada sobre la previa:"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10116
+#: a7a422ce89064ae3847455666f10eda3
+msgid "p(y) = \\int p(y|\\theta)p(\\theta)d\\theta"
+msgstr "p(y) = \\int p(y|\\theta)p(\\theta)d\\theta"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10118
+#: 350e178fe6334ae48bc137917f423465
+msgid "In practice, we can sample from this distribution by:"
+msgstr "En la práctica, podemos muestrear de esta distribución mediante:"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10119
+#: 0bdbbd66a44e45ba82ec38a1afabf37a
+#, python-brace-format
+msgid "Drawing parameters from the prior: $\\theta^{(s)} \\sim p(\\theta)$"
+msgstr "Extrayendo parámetros de lo anterior: $\\theta^{(s)} \\sim p(\\theta)$"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10120
+#: 0940186a14c74841b958daef69700b7b
+#, python-brace-format
+msgid "Generating data from the likelihood: $y^{(s)} \\sim p(y|\\theta^{(s)})$"
+msgstr ""
+"Generando datos a partir de la verosimilitud: $y^{(s)} \\sim "
+"p(y|\\theta^{(s)})$"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10122
+#: 6e2e54136a91492982dc8e6b54aa8944
+msgid "This process helps us validate our model in several ways:"
+msgstr "Este proceso nos ayuda a validar nuestro modelo de varias maneras:"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10124
+#: cb580fe2cf5245cf9ca12c7fbfd82600
+msgid ""
+"**Parameter Space Coverage**:  The samples $\\{\\theta^{(s)}\\}_{s=1}^S$ "
+"show us what parameter values we consider plausible"
+msgstr ""
+"**Cobertura del Espacio de Parámetros**: Las muestras "
+"$\\{\\theta^{(s)}\\}_{s=1}^S$ nos muestran qué valores de parámetros "
+"consideramos plausibles."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10127
+#: 24c56af70d574c7d8d518759b1786eff
+msgid ""
+"**Data Space Coverage**:  The samples $\\{y^{(s)}\\}_{s=1}^S$ show us what "
+"data our model can generate"
+msgstr ""
+"**Cobertura del Espacio de Datos**: Las muestras $\\{y^{(s)}\\}_{s=1}^S$ nos"
+" muestran qué datos puede generar nuestro modelo."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10130
+#: 8a9e21a156244ee79d99518bf639888d
+#, python-brace-format
+msgid ""
+"**Model Sensitivity**:  The relationship between $\\theta^{(s)}$ and "
+"$y^{(s)}$ shows how parameters influence predictions"
+msgstr ""
+"**Sensibilidad del Modelo**: La relación entre $\\theta^{(s)}$ y $y^{(s)}$ "
+"muestra cómo los parámetros influyen en las predicciones."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:10133
+#: 6eb757087d754a4c9629723d6ad50d8c
+#, python-brace-format
+msgid ""
+"Let's explore these concepts through practical examples using the "
+"{class}`Prior <pymc_extras.prior.Prior>` class from PyMC-Marketing."
+msgstr ""
+"Exploramos estos conceptos a través de ejemplos prácticos utilizando la "
+"clase {class}`Prior <pymc_extras.prior.Prior>` de PyMC-Marketing."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:20002
+#: d8b5836cc8c845e59d6d4a9e77759e0b
+msgid "Prepare Notebook"
+msgstr "Preparar el cuaderno"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:40002
+#: da9872771de94286af81f69e719150c4
+msgid "Simple Example: Normal Distribution"
+msgstr "Ejemplo simple: Distribución normal"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:40004
+#: 15a632f1b7d6415cbe988570a86741ab
+msgid "Let's start with a simple example using a normal distribution. We'll:"
+msgstr ""
+"Comencemos con un ejemplo simple utilizando una distribución normal. Vamos "
+"a:"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:40005
+#: a93410f22cc542c29bb45484ae27cbbd
+msgid "Generate a synthetic dataset"
+msgstr "Generar un conjunto de datos sintético"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:40006
+#: 9f053416729b4799b43ec234d270c87a
+msgid "Study the observed distribution"
+msgstr "Estudie la distribución observada"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:40007
+#: 4692ec1c73484869b60e9e86a45113d9
+msgid "Set a prior for the mean and standard deviation"
+msgstr "Establezca un prior para la media y la desviación estándar."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:40008
+#: 9e99c73694104c37980144e62fa85f67
+msgid "Sample from its prior predictive distribution"
+msgstr "Muestra de su distribución predictiva previa"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:50002
+#: 8d9702c7e21d4dae8da660225f57c230
+msgid ""
+"First we generate a synthetic dataset from a normal distribution with mean "
+"one and standard deviation two."
+msgstr ""
+"Primero generamos un conjunto de datos sintético a partir de una "
+"distribución normal con una media de uno y una desviación estándar de dos."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:70002
+#: 5c9f2fa4d9264d57b64e61a1746b7aca
+msgid "Let's visualize the observed data."
+msgstr "Visualicemos los datos observados."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:90002
+#: 3d63298f60a7411fb169d53ae22b2053
+msgid ""
+"We assume we do not know the true mean and standard deviation of the data "
+"(as in almost all cases). Our idea is to fit a bayesian model to try to "
+"recover the true parameters."
+msgstr ""
+"Asumimos que no conocemos la media verdadera y la desviación estándar de los"
+" datos (como en casi todos los casos). Nuestra idea es ajustar un modelo "
+"bayesiano para intentar recuperar los parámetros verdaderos."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:90004
+#: 74a51b6f9f54420b97c6d23c07ab66e6
+msgid "We consider the parametric form of the data:"
+msgstr "Consideramos la forma paramétrica de los datos:"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:90006
+#: cc2e338f48cd47ad83dd0b417893d06a
+#, python-brace-format
+msgid ""
+"\n"
+"y \\sim \\text{Normal}(\\mu, \\sigma)\n"
+msgstr "y \\sim \\text{Normal}(\\mu, \\sigma)"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:90010
+#: c95b9d2e39f24b9cb3ad84d314e0beb1
+msgid ""
+"What could be sensible priors for the mean and standard deviation? This is "
+"where the prior predictive modeling comes in."
+msgstr ""
+"¿Cuáles podrían ser priors sensatos para la media y la desviación estándar? "
+"Aquí es donde entra el modelado predictivo previo."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:90012
+#: d7b11f0127814e7ebebe2fe6db5e7b2e
+msgid "Fixed Mean and Standard Deviation"
+msgstr "Media y Desviación Estándar Fijas"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:90014
+#: ea33e3eade2b4b57ab0509632e7a770c
+msgid ""
+"First, we consider the simple case where we set fixed values for the mean "
+"and standard deviation and we sample from the prior predictive distribution "
+"(the normal distribution)."
+msgstr ""
+"Primero, consideramos el caso simple en el que establecemos valores fijos "
+"para la media y la desviación estándar y muestreamos de la distribución "
+"predictiva previa (la distribución normal)."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:90016
+#: ca528c73b24c4ab4987707ab295cd7c3
+msgid "Consider the following values for the mean and standard deviation:"
+msgstr ""
+"Considere los siguientes valores para la media y la desviación estándar:"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:110002
+#: cd105443b7464c86a605bec5368636fe
+msgid ""
+"Given these values, we can simply sample from a normal distribution with "
+"these parameters and compare it with the observed data."
+msgstr ""
+"Dado estos valores, podemos simplemente muestrear de una distribución normal"
+" con estos parámetros y compararlo con los datos observados."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:130002
+#: a65c1e1d55074dfcacda728b2b6cf33a
+msgid ""
+"Looking at the plots above, we can see how different combinations of mean "
+"(μ) and standard deviation (σ) parameters affect the fit to our observed "
+"data:"
+msgstr ""
+"Al observar los gráficos anteriores, podemos ver cómo diferentes "
+"combinaciones de los parámetros de media (μ) y desviación estándar (σ) "
+"afectan el ajuste a nuestros datos observados:"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:130004
+#: c66060acdb8448daab657ce8c0d4862f
+msgid ""
+"$\\mu=-2, \\sigma=0.5$: The distribution is too narrow and centered too far "
+"to the left"
+msgstr ""
+"$\\mu=-2, \\sigma=0.5$: La distribución es demasiado estrecha y está "
+"centrada demasiado a la izquierda."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:130005
+#: 46d45bedbf9b4f5588060946e0bab074
+msgid "$\\mu=-2, \\sigma=3$: Better spread but still centered too far left"
+msgstr ""
+"$\\mu=-2, \\sigma=3$: Mejor dispersión pero aún centrado demasiado a la "
+"izquierda"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:130006
+#: d9781bcc699d452c8217b18b56d423cd
+msgid "$\\mu=0, \\sigma=0.5$: Better centered but too narrow"
+msgstr "$\\mu=0, \\sigma=0.5$: Mejor centrado pero demasiado estrecho"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:130007
+#: 8a00f9e34b48413292bc7bbde7f4ee22
+msgid ""
+"$\\mu=0, \\sigma=3$: This appears to be the best fit, with both good center "
+"and spread matching the observed data"
+msgstr ""
+"$\\mu=0, \\sigma=3$: Esto parece ser el mejor ajuste, con un buen centro y "
+"dispersión que coinciden con los datos observados."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:130009
+#: 9702e30203c746d69aada8d55734d039
+msgid ""
+"This visual comparison helps us understand that priors centered around "
+"$\\mu=0$ with a wider standard deviation ($\\sigma=3$) may be more "
+"appropriate for our data."
+msgstr ""
+"Esta comparación visual nos ayuda a entender que las distribuciones previas "
+"centradas alrededor de $\\mu=0$ con una desviación estándar más amplia "
+"($\\sigma=3$) pueden ser más apropiadas para nuestros datos."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:140002
+#: ../source/notebooks/general/prior_predictive.ipynb:690002
+#: 34dac85c8234461e8f41c385c337aa0d 8f96e1ba51074f6295c391c05d3f6c3e
+msgid "Prior Predictive Sampling"
+msgstr "Muestreo Predictivo Previo"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:140004
+#: 137140a4ac5e4fa5b1c6ce673cd3ea96
+msgid ""
+"Now we can take a step forward and instead of fixing the mean and standard "
+"deviation, we can set a prior for them. To start, we set the following "
+"priors for the mean and standard deviation:"
+msgstr ""
+"Ahora podemos dar un paso adelante y, en lugar de fijar la media y la "
+"desviación estándar, podemos establecer un prior para ellas. Para comenzar, "
+"establecemos los siguientes priors para la media y la desviación estándar:"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:140006
+#: 9f979d08b7a2480eb6c456b4a3f1d7be
+#, python-brace-format
+msgid "$\\mu \\sim \\text{Normal}(0, 2)$"
+msgstr "$\\mu \\sim \\text{Normal}(0, 2)$"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:140007
+#: 12435f15ce774f5dbac283a16b545274
+#, python-brace-format
+msgid "$\\sigma \\sim \\text{Exponential}(1/3)$"
+msgstr "$\\sigma \\sim \\text{Exponential}(1/3)$"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:140009
+#: ad8272d560274be994fdf4bc005fd870
+msgid "We first sample from the model parameters."
+msgstr "Primero muestreamos de los parámetros del modelo."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:160002
+#: bc0e8aaf3ec442f496d9f6534e847d8a
+msgid ""
+"Next, we pass these samples through a normal distribution to get the prior "
+"predictive samples."
+msgstr ""
+"A continuación, pasamos estas muestras a través de una distribución normal "
+"para obtener las muestras predictivas previas."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:180002
+#: f59a5605c1ca42519777598bda07d56a
+msgid ""
+"The prior predictive check shows a good agreement between our simulated data"
+" and the prior predictive samples. The overlapping densities indicate that "
+"our chosen prior distributions for the mean (normal) and standard deviation "
+"(exponential) are reasonable and can generate data similar to what we "
+"observe. This suggests our prior specifications are appropriate for this "
+"modeling task."
+msgstr ""
+"La verificación predictiva previa muestra una buena concordancia entre "
+"nuestros datos simulados y las muestras predictivas previas. Las densidades "
+"superpuestas indican que nuestras distribuciones previas elegidas para la "
+"media (normal) y la desviación estándar (exponencial) son razonables y "
+"pueden generar datos similares a los que observamos. Esto sugiere que "
+"nuestras especificaciones previas son apropiadas para esta tarea de "
+"modelado."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:190002
+#: 49350a10f8cf4999bb2eabbf6b9d4489
+msgid "Prior Predictive Sampling with PyMC"
+msgstr "Muestreo Predictivo Previo con PyMC"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:190004
+#: 941e12c24f9f4c03a29a2973a02635de
+msgid ""
+"We start by defining the model in PyMC. Note that we do not need to pass the"
+" observed data (yet) in order to sample from the prior predictive "
+"distribution."
+msgstr ""
+"Comenzamos definiendo el modelo en PyMC. Tenga en cuenta que no necesitamos "
+"pasar los datos observados (aún) para muestrear de la distribución "
+"predictiva a priori."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:210002
+#: d9500cb823a44176ba91aab8bffd1c9c
+#, python-brace-format
+msgid ""
+"PyMC offers a convenient way to sample from the prior predictive "
+"distribution using the {func}`pymc.sample_prior_predictive "
+"<pymc.sample_prior_predictive>` function."
+msgstr ""
+"PyMC ofrece una forma conveniente de muestrear de la distribución predictiva"
+" previa utilizando la función `pymc.sample_prior_predictive "
+"<pymc.sample_prior_predictive>`."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:240002
+#: 5f30507e0ad64d3a97ca016ac02991fe
+msgid ""
+"The prior predictive samples are very similar to the ones obtained from the "
+"manual sampling."
+msgstr ""
+"Las muestras predictivas anteriores son muy similares a las obtenidas a "
+"partir del muestreo manual."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:250002
+#: ../source/notebooks/general/prior_predictive.ipynb:850002
+#: 05147bb57e154052976f11caecc1662c 118250421fad42f881ca116a2c792e73
+msgid "Posterior Predictive Sampling"
+msgstr "Muestreo Predictivo Posterior"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:250004
+#: 758d3046b1c84c8fa4be57662e649fc6
+msgid ""
+"Now we can fit the model to the observed data and sample from the posterior "
+"predictive distribution."
+msgstr ""
+"Ahora podemos ajustar el modelo a los datos observados y muestrear de la "
+"distribución predictiva posterior."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:270002
+#: de71a38c6e644fcf9fdacb8f4a46d23b
+msgid ""
+"Let's plot the posterior distributions of the mean and standard deviation "
+"parameters."
+msgstr ""
+"Vamos a trazar las distribuciones posteriores de los parámetros de la media "
+"y la desviación estándar."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:290002
+#: bf8e538f913c446fb3c538e676ed40b3
+msgid ""
+"We obtain values very close to the true values (this is known as parameter "
+"recovery)."
+msgstr ""
+"Obtenemos valores muy cercanos a los valores verdaderos (esto se conoce como"
+" recuperación de parámetros)."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:300002
+#: 7fb749d3afb44b52acd895e234c7c5e1
+msgid ""
+"We can compare the prior and posterior distributions of the mean and "
+"standard deviation parameters. These plots are very handy to understand the "
+"impact of the data on the parameters."
+msgstr ""
+"Podemos comparar las distribuciones previas y posteriores de los parámetros "
+"de la media y la desviación estándar. Estos gráficos son muy útiles para "
+"entender el impacto de los datos en los parámetros."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:330002
+#: bcac4253eb7643f8b0fea512c36be2ea
+msgid ""
+"Finally, we can plot the posterior predictive distribution vs the observed "
+"data."
+msgstr ""
+"Finalmente, podemos trazar la distribución predictiva posterior frente a los"
+" datos observados."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:350002
+#: 7831089ab3404744bea9f24d6cd429ff
+msgid ""
+"We see that the posterior predictive distribution is very similar to the "
+"observed data. This is a good sign that our model is well specified."
+msgstr ""
+"Vemos que la distribución predictiva posterior es muy similar a los datos "
+"observados. Esto es una buena señal de que nuestro modelo está bien "
+"especificado."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:360003
+#: d82fa94a867045d8933ebcb19daa4b90
+msgid ""
+"When working with generalized linear models (GLMs), and models with non "
+"linear transformations (for example, media mix models), normal priors on "
+"coefficients can sometimes lead to unexpected behavior due to the non-linear"
+" link functions. Make sure to check the prior predictive distribution for "
+"these models carefully. This is beautifully explained in the (fantastic!) "
+"book [\"Statistical Rethinking\"](https://xcelab.net/rm/) by [Richard "
+"McElreath](https://www.eva.mpg.de/ecology/staff/richard-mcelreath/)."
+msgstr ""
+"Al trabajar con modelos lineales generalizados (GLMs) y modelos con "
+"transformaciones no lineales (por ejemplo, modelos de mezcla de medios), las"
+" distribuciones a priori normales sobre los coeficientes pueden, en "
+"ocasiones, conducir a comportamientos inesperados debido a las funciones de "
+"enlace no lineales. Asegúrese de revisar cuidadosamente la distribución "
+"predictiva a priori para estos modelos. Esto se explica de manera excelente "
+"en el (fantástico) libro [\"Statistical "
+"Rethinking\"](https://xcelab.net/rm/) de [Richard "
+"McElreath](https://www.eva.mpg.de/ecology/staff/richard-mcelreath/)."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:370004
+#: c50ec94c6a494ab7bd022fe4dc0b2979
+msgid "Prior Predictive Sampling for Marketing Mix Models"
+msgstr "Muestreo Predictivo Previos para Modelos de Mezcla de Marketing"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:370006
+#: 6e30de0b4c3a4f7e848120917424ddbd
+#, python-brace-format
+msgid ""
+"In the section we we focus on how to do prior predictive sampling for "
+"marketing mix models. We will use the same data from the {ref}`mmm_example` "
+"notebook. In particular, we focus on the ROAS of the two channels `x1` and "
+"`x2`."
+msgstr ""
+"En esta sección nos enfocamos en cómo realizar muestreo predictivo previo "
+"para modelos de mezcla de marketing. Utilizaremos los mismos datos del "
+"cuaderno {ref}`mmm_example`. En particular, nos centramos en el ROAS de los "
+"dos canales `x1` y `x2`."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:380002
+#: 221ca33d64fc42d4a926732b84b67a36
+msgid "Read Data"
+msgstr "Leer datos"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:380004
+#: f78c9a6140a245308da66b6241e00546
+msgid "We start by reading the data."
+msgstr "Comenzamos leyendo los datos."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:400002
+#: 5e16d3b3a1664cdbbfda5b6dbda64371
+msgid ""
+"Recall we want to understand the ROAS and contribution of the two channels "
+"`x1` and `x2` to the sales data `y`. Let's plot the data."
+msgstr ""
+"Recuerde que queremos entender el ROAS y la contribución de los dos canales "
+"`x1` y `x2` a los datos de ventas `y`. Vamos a graficar los datos."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:420002
+#: f8b64d57ab0f4b36a1804bc907931ea5
+#, python-brace-format
+msgid ""
+"Internally, during the fitting process via the class {class}`MMM "
+"<pymc_marketing.mmm.mmm.MMM>` , the channels and target variables are scaled"
+" by dividing by the maximum value (per variable). Let's visualize the scaled"
+" data."
+msgstr ""
+"Internamente, durante el proceso de ajuste a través de la clase {class}`MMM "
+"<pymc_marketing.mmm.mmm.MMM>`, los canales y las variables objetivo se "
+"escalan dividiendo por el valor máximo (por variable). Visualicemos los "
+"datos escalados."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:440002
+#: 44b8de9ba46f43ca8af9b02c2a5977f9
+#, python-brace-format
+msgid ""
+"We see there is a mild trend component and some seasonality (please refer to"
+" the {ref}`mmm_example` notebook for more details)."
+msgstr ""
+"Vemos que hay un componente de tendencia leve y algo de estacionalidad (por "
+"favor, consulte el cuaderno {ref}`mmm_example` para más detalles)."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:450002
+#: 35863a2a86aa441998890986be8c9f45
+msgid "Priors Specification on the Media Parameters"
+msgstr "Especificación de Priors sobre los Parámetros de Medios"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:450004
+#: 199bbf594c4d4f6ca4552eca1a7bd612
+msgid ""
+"We now describe a way to think about the priors specification on the media "
+"parameters. In real applications, the modeler usually has additional "
+"valuable domain kwowledge and information to be incorporated into the model "
+"through priors (e.g lift tests, benchmarks, etc). In this example, we simply"
+" set priors from the input spend data."
+msgstr ""
+"Ahora describimos una forma de pensar sobre la especificación de los priors "
+"en los parámetros de los medios. En aplicaciones reales, el modelador "
+"generalmente tiene conocimientos y información valiosos adicionales del "
+"dominio que se pueden incorporar al modelo a través de priors (por ejemplo, "
+"pruebas de elevación, puntos de referencia, etc.). En este ejemplo, "
+"simplemente establecemos priors a partir de los datos de gasto de entrada."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:450006
+#: a1d0f7945e7e4983a6f62715ccb7c3f8
+#, python-brace-format
+msgid ""
+"Recall that the idea of these types of media mix models is to pass the media"
+" spend through an adstock transformation and then through a saturation "
+"function (both, non linear functions) before adding them to the linear model"
+" to add other control variables. These non linear transformations are "
+"controlled by the parameters $\\alpha$ (adstock) , $\\lambda$ (saturation) "
+"and $\\beta$ (regression) coefficients. We must specify priors for these "
+"parameters. Nevertheless, the {class}`MMM <pymc_marketing.mmm.mmm.MMM>` "
+"class provides reasonable defaults priors."
+msgstr ""
+"Recuerde que la idea de estos tipos de modelos de mezcla de medios es pasar "
+"el gasto en medios a través de una transformación de adstock y luego a "
+"través de una función de saturación (ambas, funciones no lineales) antes de "
+"sumarlas al modelo lineal para añadir otras variables de control. Estas "
+"transformaciones no lineales están controladas por los parámetros $\\alpha$ "
+"(adstock), $\\lambda$ (saturación) y los coeficientes $\\beta$ (regresión). "
+"Debemos especificar priors para estos parámetros. Sin embargo, la clase "
+"{class}`MMM <pymc_marketing.mmm.mmm.MMM>` proporciona priors razonables por "
+"defecto."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:460002
+#: 407d6dbd428048b699a26a47b36b9898
+msgid "Adstock"
+msgstr "Adstock"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:460004
+#: 9a50566059a44733b0bd28e2e4fdced7
+msgid ""
+"Let's start by looking into the adstock parameter. The adstock parameter "
+"controls the decay rate of the media effect over time. A higher value of "
+"$\\alpha$ indicates a slower decay, meaning the media effect persists "
+"longer. The value of $\\alpha$ is usually between 0 and 1. For many digital "
+"channels we expect this parameter to be close to $0$ whereas for offline "
+"channels (like TV) we expect this parameter to be close to $1$."
+msgstr ""
+"Comencemos examinando el parámetro de adstock. El parámetro de adstock "
+"controla la tasa de decaimiento del efecto mediático a lo largo del tiempo. "
+"Un valor más alto de $\\alpha$ indica un decaimiento más lento, lo que "
+"significa que el efecto mediático persiste por más tiempo. El valor de "
+"$\\alpha$ suele estar entre 0 y 1. Para muchos canales digitales, esperamos "
+"que este parámetro esté cerca de $0$, mientras que para los canales offline "
+"(como la televisión) esperamos que este parámetro esté cerca de $1$."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:460006
+#: 72bb34bc58cd434f85a3739af6ff65a5
+msgid ""
+"Assuming that $x_1$ and $x_2$ are digital channels, we expect the adstock "
+"parameter to be close to $0$. We can set a prior for the adstock parameter "
+"as follows:"
+msgstr ""
+"Asumiendo que $x_1$ y $x_2$ son canales digitales, esperamos que el "
+"parámetro de adstock esté cerca de $0$. Podemos establecer un prior para el "
+"parámetro de adstock de la siguiente manera:"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:480002
+#: 547b94b078c64140940d4ead407a8058
+msgid ""
+"We can look into the implications of the adstock decay rate on the media "
+"effect."
+msgstr ""
+"Podemos analizar las implicaciones de la tasa de decaimiento del adstock en "
+"el efecto de los medios."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:500002
+#: 5a8d2542b77e451c96c78b0e1b03b2a0
+msgid "Saturation"
+msgstr "Saturación"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:500004
+#: f7ca5f3bb72c476ead5f335c0eb5c265
+msgid ""
+"Next we look into the saturation parameter. The saturation parameter "
+"controls the saturation level of the media effect. A higher value of "
+"$\\lambda$ indicates a higher saturation level, meaning the media effect "
+"saturates faster. The value of $\\lambda$ is always positive. a reasonable "
+"prior to start with is something between $0$ and $3$ centered around $1$."
+msgstr ""
+"A continuación, examinamos el parámetro de saturación. El parámetro de "
+"saturación controla el nivel de saturación del efecto de medios. Un valor "
+"más alto de $\\lambda$ indica un nivel de saturación más alto, lo que "
+"significa que el efecto de medios se satura más rápidamente. El valor de "
+"$\\lambda$ es siempre positivo. Un valor previo razonable para comenzar es "
+"algo entre $0$ y $3$, centrado alrededor de $1$."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:520002
+#: c2f5f2be23d747c38b10ceadffda8582
+msgid ""
+"For the regression coefficients we can use the costs distributions. Without "
+"seeing the data is reasonable to expect the larger the channels (in terms of"
+" spend) the larger the effect (in terms of ROAS). This is not a constrain, "
+"but at least a starting point (we can also use the same priors for all the "
+"channels if we do not wanna make any assumption). We use the spend share as "
+"a proxy for the effect size trough the width of the prior (half normal "
+"distribution, as we want to ensure we have positive values)."
+msgstr ""
+"Para los coeficientes de regresión podemos utilizar las distribuciones de "
+"costos. Sin ver los datos, es razonable esperar que cuanto mayores sean los "
+"canales (en términos de gasto), mayor será el efecto (en términos de ROAS). "
+"Esto no es una restricción, sino al menos un punto de partida (también "
+"podemos usar los mismos priors para todos los canales si no queremos hacer "
+"ninguna suposición). Utilizamos la participación del gasto como un proxy "
+"para el tamaño del efecto a través del ancho del prior (distribución normal "
+"truncada, ya que queremos asegurarnos de tener valores positivos)."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:550002
+#: 6907edf68c8140568e9cb0a0fbf693f5
+msgid ""
+"Similarly as above, we can look into the implications of the saturation "
+"parameter on the media effect."
+msgstr ""
+"De manera similar a lo anterior, podemos analizar las implicaciones del "
+"parámetro de saturación en el efecto mediático."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:570002
+#: d7e36a092f924ad5af4c09e9c8fd96ff
+msgid ""
+"These visualizations, together with the business context, can help us to set"
+" the priors for the media mix model! Make sure you make them part of your "
+"workflow."
+msgstr ""
+"Estas visualizaciones, junto con el contexto empresarial, pueden ayudarnos a"
+" establecer las prioridades para el modelo de mezcla de medios. Asegúrate de"
+" incluirlas en tu flujo de trabajo."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:580002
+#: b634bbb401f442c3807dbc427d1f4651
+msgid "Priors on the Time-Varying Intercept"
+msgstr "Priors sobre el Intercepto Variable en el Tiempo"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:580004
+#: d2623463800b48d9861085a0d1ed404a
+#, python-brace-format
+msgid ""
+"In contrast with the {ref}`mmm_example` notebook, we now include a time-"
+"varying intercept. This is a way to model the trend component of the data "
+"without assuming any specific functional form. We use a Hilbert Space "
+"Gaussian Process (HSGP) to model the time-varying intercept. If you are not "
+"familiar with HSGPs, please refer to the [\"Gaussian Processes: HSGP "
+"Reference & First "
+"Steps\"](https://www.pymc.io/projects/examples/en/latest/gaussian_processes/HSGP-"
+"Basic.html) PyMC example notebook or the video [\"A conceptual and practical"
+" introduction to Hilbert Space Gaussian Process (HSGP) approximation "
+"methods\"](https://www.youtube.com/watch?v=SvefEqtoaxg)."
+msgstr ""
+"En contraste con el cuaderno {ref}`mmm_example`, ahora incluimos un "
+"intercepto que varía con el tiempo. Esta es una forma de modelar el "
+"componente de tendencia de los datos sin asumir ninguna forma funcional "
+"específica. Utilizamos un Proceso Gaussiano en Espacio de Hilbert (HSGP) "
+"para modelar el intercepto que varía con el tiempo. Si no está familiarizado"
+" con los HSGP, consulte el cuaderno de ejemplo de PyMC [\"Procesos "
+"Gaussianos: Referencia HSGP y Primeros "
+"Pasos\"](https://www.pymc.io/projects/examples/en/latest/gaussian_processes/HSGP-"
+"Basic.html) o el video [\"Una introducción conceptual y práctica a los "
+"métodos de aproximación del Proceso Gaussiano en Espacio de Hilbert "
+"(HSGP)\"](https://www.youtube.com/watch?v=SvefEqtoaxg)."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:590002
+#: 7300ac6c3427459c83eb33da96537881
+msgid ""
+"As we will set priors on the length scales of the time component, we need to"
+" have in mind the number of data points we have:"
+msgstr ""
+"Dado que estableceremos priors sobre las escalas de longitud del componente "
+"temporal, debemos tener en cuenta el número de puntos de datos que tenemos:"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:600002
+#: 2cf7a3185c4b410ea2bd30379b95bddc
+msgid "\\displaystyle 179"
+msgstr "\\displaystyle 179"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:610002
+#: e35b6bb4dfaa4851a74e93a9bd15968c
+msgid ""
+"The length scale parameter represents the distance between two points in the"
+" time series where we expect a change in the intercept. In our particular "
+"case, as we have weekly data and expect to capture a long term trend, we are"
+" want to consider length scales of around two or three weeks. The default "
+"prior for the length scale in PyMC-Marketing is an inverse gamma "
+"distribution. This distribution has many desirable properties: (1) is "
+"positive, (2) it goes to zero very fast (so we do not divide by zero) and "
+"(3) it has a long tail. In order to translate the length scale intuition "
+"into the inverse gamma parameters we can use a very handy function that "
+"maximizes the entropy (for a great explanation and motivation of maximum "
+"entropy see Chapter 10 in [Statistical Rethinking](https://xcelab.net/rm/)) "
+"of the distribution within a given expected interval:"
+msgstr ""
+"El parámetro de escala de longitud representa la distancia entre dos puntos "
+"en la serie temporal donde esperamos un cambio en la intersección. En "
+"nuestro caso particular, dado que tenemos datos semanales y esperamos "
+"capturar una tendencia a largo plazo, queremos considerar escalas de "
+"longitud de alrededor de dos o tres semanas. El prior por defecto para la "
+"escala de longitud en PyMC-Marketing es una distribución gamma inversa. Esta"
+" distribución tiene muchas propiedades deseables: (1) es positiva, (2) "
+"tiende a cero muy rápidamente (por lo que no dividimos por cero) y (3) tiene"
+" una cola larga. Para traducir la intuición de la escala de longitud en los "
+"parámetros gamma inversos, podemos utilizar una función muy útil que "
+"maximiza la entropía (para una excelente explicación y motivación de la "
+"entropía máxima, consulte el Capítulo 10 en [Statistical "
+"Rethinking](https://xcelab.net/rm/)) de la distribución dentro de un "
+"intervalo esperado dado:"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:630002
+#: b753639dab4642b295e7e3fb8f1b1188
+msgid ""
+"We also need to specify the amplitude of the Gaussian process. The default "
+"prior distribution in in PyMC-Marketing is an exponential distribution (note"
+" it has to be positive) As we are scaling the data, a good default is set "
+"this to one."
+msgstr ""
+"También necesitamos especificar la amplitud del proceso gaussiano. La "
+"distribución a priori predeterminada en PyMC-Marketing es una distribución "
+"exponencial (tenga en cuenta que debe ser positiva). Dado que estamos "
+"escalando los datos, un buen valor predeterminado es establecer esto en uno."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:630004
+#: 957d205efbf44726aaf8826613a0ba59
+#, python-brace-format
+msgid ""
+"We can now encode these parameters into a {class}`HSGPKwargs "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs>` object."
+msgstr ""
+"Ahora podemos codificar estos parámetros en un objeto {class}`HSGPKwargs "
+"<pymc_marketing.hsgp_kwargs.HSGPKwargs>`."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:650002
+#: 1883d193a133464fbc1fc0ed062e93f6
+msgid "Media Mix Model Prior Configuration"
+msgstr "Configuración previa del modelo de mezcla de medios"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:650004
+#: 2ef30515eeb34f7ba79d5df2f3ed7fc4
+#, python-brace-format
+msgid ""
+"We can do similar analysis for the rest of the components and pass our "
+"custom priors to the {class}`MMM <pymc_marketing.mmm.mmm.MMM>` class as a "
+"dictionary configuration."
+msgstr ""
+"Podemos realizar un análisis similar para el resto de los componentes y "
+"pasar nuestros priors personalizados a la clase {class}`MMM "
+"<pymc_marketing.mmm.mmm.MMM>` como una configuración de diccionario."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:670002
+#: 171501520895486bb861ccafb619ff96
+msgid "Having the configuration, we can now initialize the model object:"
+msgstr ""
+"Teniendo la configuración, ahora podemos inicializar el objeto del modelo:"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:690004
+#: 33b9bcff5f37409082dff903c6492a98
+msgid ""
+"With the model initialized, we can now sample from the prior predictive "
+"distribution."
+msgstr ""
+"Con el modelo inicializado, ahora podemos muestrear de la distribución "
+"predictiva a priori."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:710002
+#: 827ca2b11f744789b74fc001bf6566de
+msgid ""
+"Let's start by looking into the expected sales (remember this is before "
+"fitting the model)."
+msgstr ""
+"Comencemos por analizar las ventas esperadas (recuerde que esto es antes de "
+"ajustar el modelo)."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:730002
+#: b28695aa5c4541f0920a872a9324d188
+msgid ""
+"The range covers our seen data and it ios in the same order of magnitude "
+"(tenths). The prior predictive mean is very correlated with the observed "
+"data. This can be explained by the fact that the, in this particular "
+"example, we are setting tied priors for the media parameters and the media "
+"variables are hte ones will explain most of the variance in the data."
+msgstr ""
+"El rango abarca nuestros datos observados y está en el mismo orden de "
+"magnitud (décimas). La media predictiva previa está muy correlacionada con "
+"los datos observados. Esto puede explicarse por el hecho de que, en este "
+"ejemplo particular, estamos estableciendo priors atados para los parámetros "
+"de la media y las variables de la media son las que explicarán la mayor "
+"parte de la varianza en los datos."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:740002
+#: 1f550f7c57564ba28e15341d4544f4f5
+msgid "It is always good to look the Gaussian process components:"
+msgstr "Siempre es bueno observar los componentes del proceso gaussiano:"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:760002
+#: e7ae96e671fa4be19154b9e319deaa58
+msgid ""
+"We confirm that the level of fluctuations is tin the order of months, as "
+"expected."
+msgstr ""
+"Confirmamos que el nivel de fluctuaciones está en el orden de meses, como se"
+" esperaba."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:770002
+#: b8ef60d652fb4564be59ca41f07b3c26
+msgid ""
+"Next, we can look into the channel ROAS, which is what we want to "
+"understand. We simply compute them by dividing the channel contribution by "
+"the spend."
+msgstr ""
+"A continuación, podemos analizar el ROAS del canal, que es lo que queremos "
+"entender. Simplemente los calculamos dividiendo la contribución del canal "
+"por el gasto."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:790002
+#: bb808c85294a4a2aa10828494e88e607
+msgid ""
+"As expected, the ROAS are positive! Moreover, for our particular case, the "
+"set of plausible values are very reasonable (as we own the simulation 😉). We"
+" can not stress enough how important this step is! If the expected ROAS are "
+"not reasonable, before seeing the data it is most likely that the model will"
+" not fit the data well. Also, conceptually the model would be very flawed. "
+"So if you take anything from this notebook, please always do prior "
+"predictive checks on the quantities you want to infer 🙂."
+msgstr ""
+"Como era de esperar, ¡los ROAS son positivos! Además, para nuestro caso "
+"particular, el conjunto de valores plausibles es muy razonable (ya que "
+"poseemos la simulación 😉). No podemos enfatizar lo suficiente cuán "
+"importante es este paso. Si los ROAS esperados no son razonables, antes de "
+"ver los datos, es muy probable que el modelo no se ajuste bien a los datos. "
+"Además, conceptualmente, el modelo estaría muy defectuoso. Así que, si hay "
+"algo que debes llevarte de este cuaderno, por favor, siempre realiza "
+"verificaciones predictivas previas sobre las cantidades que deseas inferir "
+"🙂."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:800003
+#: 5976c0d0fccf4ef7b843b037b2733629
+msgid ""
+"There is a little detail regarding the computation of the ROAS as we are not"
+" considering the adstock contributions and we should be more precise about "
+"the time intervals, see formula (10) in [\"Bayesian Methods for Media Mix "
+"Modeling with Carryover and Shape "
+"Effects\"](https://research.google/pubs/bayesian-methods-for-media-mix-"
+"modeling-with-carryover-and-shape-effects/). We do not want to get lost in "
+"details here because our goal is to show the prior predictive sampling and "
+"we expect this small correction to have little impact on this example."
+msgstr ""
+"Hay un pequeño detalle respecto al cálculo del ROAS, ya que no estamos "
+"considerando las contribuciones del adstock y deberíamos ser más precisos "
+"sobre los intervalos de tiempo, ver fórmula (10) en [\"Métodos Bayesianos "
+"para la Modelización de Mezclas de Medios con Efectos de Continuidad y "
+"Forma\"](https://research.google/pubs/bayesian-methods-for-media-mix-"
+"modeling-with-carryover-and-shape-effects/). No queremos perdernos en "
+"detalles aquí porque nuestro objetivo es mostrar el muestreo predictivo "
+"previo y esperamos que esta pequeña corrección tenga poco impacto en este "
+"ejemplo."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:810002
+#: cb836160f6464c2cb9b2f7103f4d310e
+msgid "Model Fit"
+msgstr "Ajuste del modelo"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:810004
+#: 79199e91194c4b93b4d46fa081d39612
+msgid "We are ready to fit the model to the data."
+msgstr "Estamos listos para ajustar el modelo a los datos."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:830002
+#: cc5ee1fe4025440fb2834c48e31446ac
+msgid "\\displaystyle 0"
+msgstr "\\displaystyle 0"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:840002
+#: 935f8df9241b45ba91a5caffb95ffc1a
+#, python-brace-format
+msgid ""
+"For more model diagnostics and error analysis, please refer to the "
+"{ref}`mmm_example` notebook."
+msgstr ""
+"Para obtener más diagnósticos del modelo y análisis de errores, consulte el "
+"cuaderno {ref}`mmm_example`."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:850004
+#: d4ab626ad79e4938bd907737618c2bdc
+msgid "Finally, we can look into the posterior predictive distribution."
+msgstr "Finalmente, podemos analizar la distribución predictiva posterior."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:870002
+#: b680eb8f60c8474c894301aab8c8b294
+msgid "The fitted sales data looks very good!"
+msgstr "Los datos de ventas ajustados se ven muy bien."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:880002
+#: b7531bed7b6b4d1ca76cd62122525391
+msgid "We can not look into the model components:"
+msgstr "No podemos examinar los componentes del modelo:"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:900002
+#: 6b3b92e9edf249c5ac4c2d0088944f5e
+#, python-brace-format
+msgid ""
+"Wee see how the model has captured a mild trend and a nice yearly "
+"seasonality component. The results look very consistent with the "
+"{ref}`mmm_example` notebook."
+msgstr ""
+"Vemos cómo el modelo ha capturado una leve tendencia y un agradable "
+"componente de estacionalidad anual. Los resultados son muy consistentes con "
+"el cuaderno {ref}`mmm_example`."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:910004
+#: 585ed4924be4442c929c444c565a7796
+msgid "Let's look into the channel ROAS."
+msgstr "Analicemos el ROAS del canal."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:930002
+#: d510d7977bac4494ad17cc6c62a22eee
+#, python-brace-format
+msgid ""
+"These are the same as the one obtained in the {ref}`mmm_example` notebook "
+"(and therefore close to the true values)."
+msgstr ""
+"Estos son los mismos que los obtenidos en el cuaderno {ref}`mmm_example` (y,"
+" por lo tanto, cercanos a los valores verdaderos)."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:940002
+#: d3b2fb4284f04316a1dc83b9a539d2c8
+msgid ""
+"A final tip is to compare the prior and posterior ROAS distributions. This "
+"can help us to understand the impact of the data on the parameters."
+msgstr ""
+"Un consejo final es comparar las distribuciones de ROAS anteriores y "
+"posteriores. Esto puede ayudarnos a entender el impacto de los datos en los "
+"parámetros."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:960002
+#: f9f9652076ec4d11ad43a05dd7c66b8f
+msgid ""
+"We clearly see how the data has shrunk the prior distribution to have a "
+"finer posterior estimate."
+msgstr ""
+"Vemos claramente cómo los datos han reducido la distribución previa para "
+"tener una estimación posterior más precisa."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:960006
+#: ce3b9df1fa9d41b5aa6810ec3ab46817
+#, python-brace-format
+msgid ""
+"We can use lift tests to calibrate our model in PyMC-Marketing using an "
+"additional calibration likelihood as explained in {ref}`mmm_lift_test`. This"
+" way we do not need to \"guess\" the media parameters to constrain the model"
+" to match the expected range from lift tests."
+msgstr ""
+"Podemos utilizar pruebas de lift para calibrar nuestro modelo en PyMC-"
+"Marketing utilizando una probabilidad de calibración adicional como se "
+"explica en {ref}`mmm_lift_test`. De esta manera, no necesitamos \"adivinar\""
+" los parámetros de los medios para restringir el modelo a que coincida con "
+"el rango esperado de las pruebas de lift."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:960008
+#: b08fa4454d704ba8a5211c76237173bd
+#, python-brace-format
+msgid ""
+"An alternative approach is to parametrize the model using the ROAS directly,"
+" as suggested in [\"Media Mix Model Calibration With Bayesian "
+"Priors\"](https://research.google/pubs/media-mix-model-calibration-with-"
+"bayesian-priors/). Please find more details on these approaches in the "
+"example notebook {ref}`mmm_roas`."
+msgstr ""
+"Un enfoque alternativo es parametrizar el modelo utilizando directamente el "
+"ROAS, como se sugiere en [\"Calibración del Modelo de Mezcla de Medios con "
+"Priors Bayesianos\"](https://research.google/pubs/media-mix-model-"
+"calibration-with-bayesian-priors/). Por favor, encuentre más detalles sobre "
+"estos enfoques en el cuaderno de ejemplo {ref}`mmm_roas`."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:970004
+#: df0201a14ee6411abd6a321fe5303ae8
+msgid "Key Takeaways"
+msgstr "Conclusiones clave"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:970006
+#: 2b5b3f08f2b5471e84f79d199d13ff1b
+msgid ""
+"Prior predictive modeling helps us validate our model assumptions before "
+"using real data"
+msgstr ""
+"La modelización predictiva previa nos ayuda a validar nuestras suposiciones "
+"del modelo antes de utilizar datos reales."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:970007
+#: 62424e2d75344483af44eda1699a2f1b
+#, python-brace-format
+msgid ""
+"The {class}`Prior <pymc_extras.prior.prior.Prior>` class provides a "
+"convenient interface for:"
+msgstr ""
+"La clase {class}`Prior <pymc_extras.prior.prior.Prior>` proporciona una "
+"interfaz conveniente para:"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:970008
+#: 08e1a7ada8164e33bd3c4b13048aa01d
+msgid "Creating and visualizing prior distributions"
+msgstr "Creando y visualizando distribuciones a priori"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:970009
+#: e3645a1cbb914e169e8c12d526552a28
+msgid "Sampling from prior predictive distributions"
+msgstr "Muestreo de distribuciones predictivas anteriores"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:970010
+#: c46c0f38f70649d3b71efe8bd46125f3
+msgid ""
+"Always visualize your prior predictive distributions to ensure they align "
+"with your domain knowledge"
+msgstr ""
+"Siempre visualice sus distribuciones predictivas anteriores para asegurarse "
+"de que se alineen con su conocimiento del dominio."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:970012
+#: 6be2416748a2489ca44fa4a3dd4dec68
+msgid "Common Pitfalls and Best Practices"
+msgstr "Errores Comunes y Mejores Prácticas"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:970014
+#: ea6c8a1e7a6e48c989e5606ca92477ef
+msgid "**Always Check Your Scales**"
+msgstr "**Siempre Verifique Sus Escalas**"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:970015
+#: b0ea9d6e146245b8ac2eb3d4f5c2f5e1
+msgid "Make sure your priors are on the right scale for your data"
+msgstr ""
+"Asegúrese de que sus priors estén en la escala correcta para sus datos."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:970016
+#: a23ef72428064431b396cccdffd20bc7
+msgid "Use domain knowledge to set reasonable bounds"
+msgstr ""
+"Utilice el conocimiento del dominio para establecer límites razonables."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:970018
+#: d239f6ad06334140ae69d20d93cc8809
+msgid "**Constraint Considerations**"
+msgstr "**Consideraciones sobre las restricciones**"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:970019
+#: bbaa7a42845c46ceb9e66371fff5faaf
+msgid ""
+"Use constraints when you have clear bounds (e.g., rates between 0 and 1)"
+msgstr ""
+"Utilice restricciones cuando tenga límites claros (por ejemplo, tasas entre "
+"0 y 1)"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:970020
+#: e9d7d20a08c04532b80bb8e01ed30a3d
+msgid "Be careful not to over-constrain your priors"
+msgstr "Tenga cuidado de no sobreconstruir sus priors."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:970022
+#: c020d3c989de441cabd5e51a9c9a5889
+msgid "**Visualization is Key**"
+msgstr "**La visualización es clave**"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:970023
+#: 16fb95a072fe4dcaab57f1c9e0b9dca7
+msgid "Always plot your prior distributions"
+msgstr "Siempre grafique sus distribuciones previas"
+
+#: ../source/notebooks/general/prior_predictive.ipynb:970024
+#: 94d5191833544e46b818bf23043c4a6f
+msgid "Check prior predictive samples against domain knowledge"
+msgstr ""
+"Verifique las muestras predictivas anteriores en comparación con el "
+"conocimiento del dominio."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:970027
+#: 6718759537e744a49de1715cf2ba180e
+msgid ""
+"The main takeaway from this notebook is that prior predictive checks are a "
+"fundamental component of the modeling workflow and it should **never** be "
+"skipped. Observe that the prior predictive analysis enables the modeler to "
+"model even without using data. This is a great superpower to use simulations"
+" to challenge the model assumptions."
+msgstr ""
+"La conclusión principal de este cuaderno es que las verificaciones "
+"predictivas previas son un componente fundamental del flujo de trabajo de "
+"modelado y **nunca** deben ser omitidas. Observe que el análisis predictivo "
+"previo permite al modelador realizar modelados incluso sin utilizar datos. "
+"Este es un gran superpoder para usar simulaciones que desafíen las "
+"suposiciones del modelo."
+
+#: ../source/notebooks/general/prior_predictive.ipynb:980003
+#: 12d9e194143749849f73b15385ee3c84
+msgid ""
+"Where to learn more? There are many great resources online. A great "
+"reference is the [Stan: Prior Choice Recommendations "
+"Guide](https://github.com/stan-dev/stan/wiki/prior-choice-recommendations). "
+"Here you can find great tips and additional references on how to set priors."
+msgstr ""
+"¿Dónde aprender más? Hay muchos recursos excelentes en línea. Una gran "
+"referencia es la [Guía de Recomendaciones de Elección de Priors de "
+"Stan](https://github.com/stan-dev/stan/wiki/prior-choice-recommendations). "
+"Aquí puedes encontrar excelentes consejos y referencias adicionales sobre "
+"cómo establecer priors."

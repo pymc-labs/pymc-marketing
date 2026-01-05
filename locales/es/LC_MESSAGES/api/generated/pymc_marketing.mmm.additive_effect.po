@@ -1,0 +1,193 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-07 18:10+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.rst:2
+#: 0760bf0b93ec495580c9e757673038d1
+msgid "additive\\_effect"
+msgstr "efecto\\_aditivo"
+
+#: 0aff44e5f3704aaa8f338f06bf83366e of pymc_marketing.mmm.additive_effect:1
+msgid "Additive effects for the multidimensional Marketing Mix Model."
+msgstr ""
+"Efectos aditivos para el modelo de mezcla de marketing multidimensional."
+
+#: 36ffd2f46a5f455eb080d0ebc84eb2c5 of pymc_marketing.mmm.additive_effect:4
+msgid "Example of a custom additive effect"
+msgstr "Ejemplo de un efecto aditivo personalizado"
+
+#: 88cec7b9720d4dc28e53ed4409a6c012 of pymc_marketing.mmm.additive_effect:6
+msgid "Custom negative-effect component (added as a MuEffect)"
+msgstr ""
+"Componente de efecto negativo personalizado (agregado como un MuEffect)"
+
+#: cd945cdcb7934faab0473037317ed198 of pymc_marketing.mmm.additive_effect:72
+msgid "How it works"
+msgstr "Cómo funciona"
+
+#: 4d932b1ca23942c2a04e534b30bd271d of pymc_marketing.mmm.additive_effect:73
+msgid ""
+"Mu effects follow a simple protocol: ``create_data(mmm)``, "
+"``create_effect(mmm)``, and ``set_data(mmm, model, X)``."
+msgstr ""
+"Los efectos Mu siguen un protocolo simple: ``create_data(mmm)``, "
+"``create_effect(mmm)``, y ``set_data(mmm, model, X)``."
+
+#: 26054f313b474e088bc8a3f2cc79aaa6 of pymc_marketing.mmm.additive_effect:75
+msgid ""
+"During ``MMM.build_model(...)``, each effect’s ``create_data`` is called "
+"first to introduce any needed ``pm.Data``. Then ``create_effect`` must "
+"return a tensor with dims (\"date\", *mmm.dims) that is added additively to "
+"the model mean."
+msgstr ""
+"Durante ``MMM.build_model(...)``, se llama primero a ``create_data`` de cada"
+" efecto para introducir cualquier ``pm.Data`` necesario. Luego, "
+"``create_effect`` debe devolver un tensor con dimensiones (\"date\", "
+"*mmm.dims) que se añade de forma aditiva a la media del modelo."
+
+#: 9abed6b202b84469b963dda8ce0549e7 of pymc_marketing.mmm.additive_effect:78
+msgid ""
+"During posterior predictive, ``set_data`` is called with the cloned PyMC "
+"model and the new coordinates; update any ``pm.Data`` you created using "
+"``pm.set_data``."
+msgstr ""
+"Durante la predicción posterior, se llama a ``set_data`` con el modelo PyMC "
+"clonado y las nuevas coordenadas; actualice cualquier ``pm.Data`` que haya "
+"creado utilizando ``pm.set_data``."
+
+#: 4e4bc21b5a604c30939d9ca901951a51 of pymc_marketing.mmm.additive_effect:82
+msgid "Tips for custom components"
+msgstr "Consejos para componentes personalizados"
+
+#: 6e45abd115ea400d95132bddc29277f7 of pymc_marketing.mmm.additive_effect:83
+msgid ""
+"Use unique variable prefixes to avoid name clashes with built-in pieces like"
+" controls. Do not call your component \"control\"; choose a distinct "
+"name/prefix."
+msgstr ""
+"Utilice prefijos de variable únicos para evitar conflictos de nombres con "
+"elementos integrados como los controles. No llame a su componente "
+"\"control\"; elija un nombre/prefijo distinto."
+
+#: 1dff20436ea640f2915345193e1ee620 of pymc_marketing.mmm.additive_effect:85
+msgid ""
+"Follow the patterns used by the provided effects in this module (e.g., "
+"`FourierEffect`, `LinearTrendEffect`, `EventAdditiveEffect`): - In "
+"`create_data`, derive and register any required inputs into the model. - In "
+"`create_effect`, construct PyTensor expressions and return a contribution"
+msgstr ""
+"Siga los patrones utilizados por los efectos proporcionados en este módulo "
+"(por ejemplo, `FourierEffect`, `LinearTrendEffect`, `EventAdditiveEffect`): "
+"- En `create_data`, derive y registre cualquier entrada requerida en el "
+"modelo. - En `create_effect`, construya expresiones de PyTensor y devuelva "
+"una contribución."
+
+#: f01231ce6d944041bf0d315a2bb302e7 of pymc_marketing.mmm.additive_effect:89
+msgid ""
+"with dims (\"date\", *mmm.dims). If you need broadcasting, use "
+"`pymc_extras.prior.create_dim_handler` as shown above."
+msgstr ""
+"con dims (\"date\", *mmm.dims). Si necesita broadcasting, utilice "
+"`pymc_extras.prior.create_dim_handler` como se mostró arriba."
+
+#: ba7f5111a9c74892a5efa5b93b910d05 of pymc_marketing.mmm.additive_effect:91
+msgid "In `set_data`, update the data variables when dates/dims change."
+msgstr ""
+"En `set_data`, actualice las variables de datos cuando cambien las "
+"fechas/dimensiones."
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.rst:17
+#: 23ccd680830e48c4b7878b60887c28e9
+msgid "Classes"
+msgstr "Clases"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.rst:35:<autosummary>:1
+#: 07f1ad87cbb140afafee4a54121468f8
+msgid ""
+":py:obj:`EventAdditiveEffect "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect>`\\ \\(\\*\\*data\\)"
+msgstr ""
+":py:obj:`EventAdditiveEffect "
+"<pymc_marketing.mmm.additive_effect.EventAdditiveEffect>`\\ \\(\\*\\*data\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.rst:35:<autosummary>:1
+#: cef0ed7af06c4680b961f8982e0cb85c
+msgid "Event effect class for the MMM."
+msgstr "Clase de efecto de evento para el MMM."
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.rst:35:<autosummary>:1
+#: 75911a803a63470282aa7f0f277ea313
+msgid ""
+":py:obj:`FourierEffect <pymc_marketing.mmm.additive_effect.FourierEffect>`\\"
+" \\(fourier\\[\\, date\\_dim\\_name\\]\\)"
+msgstr ""
+":py:obj:`FourierEffect <pymc_marketing.mmm.additive_effect.FourierEffect>`\\"
+" \\(fourier\\[\\, date\\_dim\\_name\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.rst:35:<autosummary>:1
+#: eb37a2d736a04948baece582d4c57b1c
+msgid "Fourier seasonality additive effect for MMM."
+msgstr "Efecto aditivo de estacionalidad de Fourier para MMM."
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.rst:35:<autosummary>:1
+#: 4c427b20858f42079900b143c9e16ca3
+msgid ""
+":py:obj:`LinearTrendEffect "
+"<pymc_marketing.mmm.additive_effect.LinearTrendEffect>`\\ \\(trend\\, "
+"prefix\\[\\, date\\_dim\\_name\\]\\)"
+msgstr ""
+":py:obj:`LinearTrendEffect "
+"<pymc_marketing.mmm.additive_effect.LinearTrendEffect>`\\ \\(tendencia\\, "
+"prefijo\\[\\, nombre\\_dim\\_fecha\\]\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.rst:35:<autosummary>:1
+#: 4223cc618f34424c8489ef6afd028c5c
+msgid "Wrapper for LinearTrend to use with MMM's MuEffect protocol."
+msgstr ""
+"Envoltura para LinearTrend para usar con el protocolo MuEffect de MMM."
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.rst:35:<autosummary>:1
+#: 7360285f913b4281af15b29e09cdcc30
+msgid ""
+":py:obj:`Model <pymc_marketing.mmm.additive_effect.Model>`\\ \\(\\*args\\, "
+"\\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`Modelo <pymc_marketing.mmm.additive_effect.Model>`\\ \\(\\*args\\, "
+"\\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.rst:35:<autosummary>:1
+#: 6cee776ef7304c78b0f4bc633651c322
+msgid "Protocol MMM."
+msgstr "Protocolo MMM."
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.rst:35:<autosummary>:1
+#: a39645962a3d4b86bfeebc64dff50b1f
+msgid ""
+":py:obj:`MuEffect <pymc_marketing.mmm.additive_effect.MuEffect>`\\ "
+"\\(\\*args\\, \\*\\*kwargs\\)"
+msgstr ""
+":py:obj:`MuEffect <pymc_marketing.mmm.additive_effect.MuEffect>`\\ "
+"\\(\\*args\\, \\*\\*kwargs\\)"
+
+#: ../source/api/generated/pymc_marketing.mmm.additive_effect.rst:35:<autosummary>:1
+#: b35680cc412043ee8aefcc2f76515e0a
+msgid "Protocol for arbitrary additive mu effect."
+msgstr "Protocolo para el efecto mu aditivo arbitrario."
