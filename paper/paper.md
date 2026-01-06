@@ -17,19 +17,22 @@ authors:
     orcid: 0000-0002-1097-6125
     affiliation: 1
   - name: Colt Allen
-    orcid:
+    orcid: 0009-0006-8055-6560
     affiliation: 1
   - name: Carlos Trujillo
-    orcid:
+    orcid: PENDING-NEED-ORCID
     affiliation: 1
   - name: Ricardo Vieira
-    orcid:
+    orcid: PENDING-NEED-ORCID
     affiliation: 1
   - name: Benjamin T. Vincent
-    orcid:
+    orcid: 0000-0002-8801-2430
     affiliation: 1
   - name: Thomas V. Wiecki
     orcid: "0009-0000-6015-101X"
+    affiliation: 1
+  - name: Nathaniel Forde
+    orcid: PENDING-NEED-ORCID
     affiliation: 1
 affiliations:
  - name: PyMC Labs
@@ -48,13 +51,25 @@ Marketing organizations struggle to attribute sales outcomes to specific marketi
 
 PyMC-Marketing addresses these gaps by bridging marketing science research and practical applications. It operationalizes advanced Bayesian methods—hierarchical modeling, experimental calibration, and uncertainty quantification—within a user-friendly, scikit-learn compatible API. Key innovations include time-varying coefficients using modern Gaussian process approximations optimized for marketing contexts, and a novel experimental calibration framework that integrates lift test results directly into model likelihood. While frequentist approaches like Robyn provide bootstrap-based intervals, all PyMC-Marketing outputs include full Bayesian posterior distributions, enabling decision-makers to assess risk explicitly.
 
+# State of the Field
+
+Existing marketing mix modeling tools include Meta's Robyn [@facebook2022robyn] and Google's Meridian [@google2023meridian], which focus primarily on MMM with limited Bayesian inference capabilities. While Robyn provides bootstrap-based uncertainty intervals, it lacks full posterior distributions. Meridian offers Bayesian inference but is limited to media mix modeling without extending to customer lifetime value, choice analysis, or product diffusion modeling.
+
+PyMC-Marketing fills this gap by providing a unified Bayesian framework across multiple marketing domains (MMM, CLV, Bass diffusion, choice modeling) with full uncertainty quantification. Rather than contributing to existing tools, we created a standalone library to integrate advanced Bayesian methods (hierarchical modeling, experimental calibration, time-varying parameters via modern GP approximations) within a scikit-learn compatible API. This design enables both methodological research and production applications while maintaining computational efficiency.
+
+# Software Design
+
+PyMC-Marketing follows a modular component architecture built on the PyMC probabilistic programming framework [@salvatier2016probabilistic]. The design prioritizes flexibility and extensibility through pluggable transformation components (adstock, saturation functions) and a builder pattern for model construction.
+
+Key architectural decisions include: (1) separation of data transformation from model specification enabling custom function implementation; (2) scikit-learn compatibility for seamless integration with existing ML pipelines; (3) PyMC backend providing automatic differentiation and multiple MCMC samplers; (4) standardized serialization for production deployment via MLflow [@zaharia2018mlflow]. This architecture enables both methodological research and production applications while maintaining computational efficiency through GPU acceleration and modern sampling algorithms including NumPyro [@bingham2019pyro] and Nutpie [@Seyboldt_nutpie].
+
 # Installation and Dependencies
 
-PyMC-Marketing is available via conda-forge and pip. Core dependencies include PyMC (≥5.0), NumPy, Pandas, ArviZ [@arviz2019], and scikit-learn. Optional dependencies enable GPU acceleration (JAX), advanced samplers (NumPyro, Nutpie), and production deployment (MLflow [@zaharia2018mlflow], Docker).
+PyMC-Marketing is available on conda-forge and PyPI. Core dependencies include PyMC (5.0 or higher), NumPy [@numpy2020], Pandas [@pandas2020], ArviZ [@arviz2019], and scikit-learn [@sklearn2011]. Optional dependencies enable GPU acceleration (JAX), advanced samplers (NumPyro, Nutpie), and production deployment (MLflow [@zaharia2018mlflow], Docker).
 
 # Key Features
 
-PyMC-Marketing provides four distinct modules addressing comprehensive marketing analytics:
+PyMC-Marketing provides multiple comprehensive modules addressing various marketing analytics domains:
 
 **1. Media Mix Modeling (MMM)**: Multiple adstock functions, saturation curves, time-varying parameters via HSGP [@solin2020hilbert], experimental calibration for causal inference, budget optimization with business constraints, time-slice cross-validation, and marginal effects analysis [@arelbundock2024marginaleffects].
 
@@ -66,21 +81,19 @@ PyMC-Marketing provides four distinct modules addressing comprehensive marketing
 
 **Production Ready**: All modules feature MLflow [@zaharia2018mlflow] integration, Docker containerization, multiple MCMC backends (NumPyro [@bingham2019pyro], Nutpie [@Seyboldt_nutpie]), variational inference (ADVI), MAP estimation, data connectors (e.g., Fivetran), and comprehensive diagnostics via ArviZ.
 
-# Key Advantages
+# Research Impact Statement
 
-PyMC-Marketing provides uncertainty quantification through full posterior distributions, experimental calibration anchoring observational models to causal ground truth, and flexible budget optimization with business constraints. The scikit-learn compatible API ensures seamless integration into existing data science workflows. The library has been successfully deployed by companies including HelloFresh and Bolt for production marketing analytics. Comprehensive tutorials, example notebooks, and video resources are available in the online documentation at https://www.pymc-marketing.io/en/stable/, with community support from over 70 contributors and translations in Spanish.
+PyMC-Marketing provides uncertainty quantification through full posterior distributions, experimental calibration anchoring observational models to causal ground truth, and flexible budget optimization with business constraints. The scikit-learn compatible API ensures seamless integration into existing data science workflows. The library has been successfully deployed by companies including HelloFresh and Bolt for production marketing analytics, demonstrating real-world impact and scalability.
 
-# Community Guidelines
+Novel methodological contributions include: (1) time-varying coefficients using modern Gaussian process approximations specifically optimized for marketing applications; (2) experimental calibration framework integrating lift test results directly into model likelihood—a novel approach in the marketing science literature; (3) comprehensive marginal effects analysis for marketing sensitivity studies [@arelbundock2024marginaleffects]. Comprehensive tutorials, example notebooks, and video resources are available in the online documentation at https://www.pymc-marketing.io/en/stable/, with community support from over 70 contributors and translations in Spanish.
 
-- **Issues**: Report bugs and feature requests on [GitHub](https://github.com/pymc-labs/pymc-marketing/issues)
-- **Discussions**: Join community discussions on [GitHub Discussions](https://github.com/pymc-labs/pymc-marketing/discussions)
-- **Documentation**: Comprehensive guides and tutorials available at [pymc-marketing.io](https://www.pymc-marketing.io/en/stable/)
-- **Contributing**: See [CONTRIBUTING.md](https://github.com/pymc-labs/pymc-marketing/blob/main/CONTRIBUTING.md) for development guidelines
-- **Support**: Professional consulting available through [PyMC Labs](https://www.pymc-labs.com)
+# AI Usage Disclosure
+
+Generative AI tools were used during paper preparation. OpenCode (v1.0.220) with Claude Opus 4.5 assisted with gathering information from existing documentation and codebase, drafting text, and incorporating peer reviewer feedback. The PyMC-Marketing software itself was developed by human contributors. All paper content was reviewed, edited, and validated by the human authors.
 
 # Funding
 
-PyMC-Marketing is a community-driven project built primarily through volunteer contributions from over 70 developers. Some contributions by PyMC Labs affiliates have received partial funding.
+PyMC-Marketing is a community-driven project built primarily through volunteer contributions from over 70 developers. Some contributions by PyMC Labs affiliates have received partial funding from both consulting engagements on marketing analytics and its internal budget.
 
 # Acknowledgments
 
