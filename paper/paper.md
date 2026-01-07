@@ -43,7 +43,7 @@ bibliography: paper.bib
 
 # Summary
 
-PyMC-Marketing is a comprehensive Python library implementing Bayesian marketing analytics, built on PyMC [@salvatier2016probabilistic]. Commercial marketing analytics tools typically provide limited transparency into their models, while open-source alternatives like Meta's Robyn and Google's Meridian focus primarily on media mix modeling [@facebook2022robyn; @google2023meridian]. PyMC-Marketing provides a unified framework spanning multiple marketing domains, including: Media Mix Modeling, Customer Lifetime Value analysis, Bass Diffusion Models, and Customer Choice Models. All outputs include full posterior distributions rather than point estimates, enabling explicit risk assessment in business decisions.
+PyMC-Marketing is a comprehensive Python library implementing Bayesian marketing analytics, built on PyMC [@pymc2023]. Commercial marketing analytics tools typically provide limited transparency into their models, while open-source alternatives like Meta's Robyn and Google's Meridian focus primarily on media mix modeling [@facebook2022robyn; @google2023meridian]. PyMC-Marketing provides a unified framework spanning multiple marketing domains, including: Media Mix Modeling, Customer Lifetime Value analysis, Bass Diffusion Models, and Customer Choice Models. All outputs include full posterior distributions rather than point estimates, enabling explicit risk assessment in business decisions.
 
 # Statement of Need
 
@@ -53,13 +53,13 @@ PyMC-Marketing addresses these gaps by bridging marketing science research and p
 
 # State of the Field
 
-Existing marketing mix modeling tools include Meta's Robyn [@facebook2022robyn] and Google's Meridian [@google2023meridian], which focus primarily on MMM with limited Bayesian inference capabilities. While Robyn provides bootstrap-based uncertainty intervals, it lacks full posterior distributions. Meridian offers Bayesian inference but is limited to media mix modeling without extending to customer lifetime value, choice analysis, or product diffusion modeling.
+Existing marketing mix modeling tools include Meta's Robyn [@facebook2022robyn] and Google's Meridian [@google2023meridian], which focus primarily on MMM with limited Bayesian inference capabilities. While Robyn provides bootstrap-based uncertainty intervals, it lacks full posterior distributions. Meridian offers Bayesian inference but is limited to media mix modeling without extending to customer lifetime value, choice analysis, or product diffusion modeling. Benchmarks demonstrate that PyMC-Marketing achieves more efficient sampling and more accurate channel contribution recovery than Meridian, with explicit Fourier-based seasonality providing clearer separation of trend, seasonality, and media effects [@pymclabs2025meridian].
 
 PyMC-Marketing fills this gap by providing a unified Bayesian framework across multiple marketing domains (MMM, CLV, Bass diffusion, choice modeling) with full uncertainty quantification. Rather than contributing to existing tools, we created a standalone library to integrate advanced Bayesian methods (hierarchical modeling, experimental calibration, time-varying parameters via modern GP approximations) within a scikit-learn compatible API. This design enables both methodological research and production applications while maintaining computational efficiency.
 
 # Software Design
 
-PyMC-Marketing follows a modular component architecture built on the PyMC probabilistic programming framework [@salvatier2016probabilistic]. The design prioritizes flexibility and extensibility through pluggable transformation components (adstock, saturation functions) and a builder pattern for model construction.
+PyMC-Marketing follows a modular component architecture built on the PyMC probabilistic programming framework [@pymc2023]. The design prioritizes flexibility and extensibility through pluggable transformation components (adstock, saturation functions) and a builder pattern for model construction.
 
 Key architectural decisions include: (1) separation of data transformation from model specification enabling custom function implementation; (2) scikit-learn compatibility for seamless integration with existing ML pipelines; (3) PyMC backend providing automatic differentiation and multiple MCMC samplers; (4) standardized serialization for production deployment via MLflow [@zaharia2018mlflow]. This architecture enables both methodological research and production applications while maintaining computational efficiency through GPU acceleration and modern sampling algorithms including NumPyro [@bingham2019pyro] and Nutpie [@Seyboldt_nutpie].
 
