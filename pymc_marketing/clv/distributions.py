@@ -79,7 +79,9 @@ continuous_non_contractual = ContNonContractRV()
 
 
 class ContNonContract(PositiveContinuous):
-    r"""Individual-level model for the customer lifetime value.
+    r"""Deprecated: will be removed in v1.0.
+
+    Individual-level model for the customer lifetime value.
 
     See equation (3) from Fader et al. (2005) [1]_.
 
@@ -201,7 +203,9 @@ continuous_contractual = ContContractRV()
 
 
 class ContContract(PositiveContinuous):
-    r"""Distribution class of a continuous contractual data-generating process.
+    r"""Deprecated: will be removed in v1.0.
+
+    Distribution class of a continuous contractual data-generating process.
 
     That is where purchases can occur at any time point (continuous) and churning/dropping
     out is explicit (contractual).

@@ -337,7 +337,7 @@ class MNLogit(RegressionModelBuilder):
                 "alphas", pt.set_subtensor(alphas[-1], 0), dims="alts"
             )
             U = pm.Deterministic("U", F + U + alphas, dims=("obs", "alts"))
-            # Apply Softmax Transform
+            ## Apply Softmax Transform
             p_ = pm.Deterministic("p", pm.math.softmax(U, axis=1), dims=("obs", "alts"))
 
             # likelihood

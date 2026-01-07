@@ -638,7 +638,7 @@ class NestedLogit(RegressionModelBuilder):
         """
         nest_indices = self.nest_indices
         conditional_probs = {}
-        # Collect All Exp Inclusive Value terms per nest
+        ## Collect All Exp Inclusive Value terms per nest
         for n in nest_indices[level].keys():
             exp_W_nest, P_y_given_nest = self.make_exp_nest(
                 U, W, betas_fixed, lambdas_nests, n, level
