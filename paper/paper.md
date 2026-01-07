@@ -23,7 +23,7 @@ authors:
     orcid: PENDING-NEED-ORCID
     affiliation: 1
   - name: Ricardo Vieira
-    orcid: PENDING-NEED-ORCID
+    orcid: 0000-0003-4690-7110
     affiliation: 1
   - name: Benjamin T. Vincent
     orcid: 0000-0002-8801-2430
