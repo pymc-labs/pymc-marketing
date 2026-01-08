@@ -19,21 +19,6 @@ To run the app, you need a Python environment with **Python 3.11 or newer**.
 3. **Launch the App:**
     streamlit run Visualise_Priors.py
 
-### How to update the PR
-
-After you save the file with the text above, run these commands in your VS Code terminal to update the Pull Request:
-
-```powershell
-git add streamlit/mmm-explainer/README.md
-git commit -m "docs: remove accidental text and fix formatting"
-git push
-
-#### 3. Submit the changes (The Pull Request)
-Are you familiar with how to push these changes to GitHub and open a Pull Request?
-
-**If "Yes":** Go ahead and push your changes!
-**If "No" or "Not sure":** Let me know, and I will walk you through the `git add`, `git commit`, and `git push` commands.
-
 ## Features
 
 - **Adstock Transformation Visualization**: Interactive charts that demonstrate how the adstock effect changes with different decay rates and lengths of advertising impact. Users can input their parameters to see how adstocked values are calculated over time.
