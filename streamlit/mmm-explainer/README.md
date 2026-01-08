@@ -14,8 +14,14 @@ To run the app, you need a Python environment with **Python 3.11 or newer**.
    ```bash
    conda create -c conda-forge -n marketing_stream python=3.11 pymc-marketing
    conda activate marketing_stream
-2. **Install App Dependencies:** 
-    The Streamlit app requires extra libraries (like streamlit and plotly) that are not in the main package.
+2. **Install App Dependencies:**
+
+The Streamlit app has additional dependencies listed in `streamlit/mmm-explainer/requirements.txt`.
+Install them using:
+
+```bash
+pip install -r streamlit/mmm-explainer/requirements.txt
+```
 3. **Launch the App:**
     streamlit run Visualise_Priors.py
 
