@@ -1115,9 +1115,6 @@ class MMM(RegressionModelBuilder):
         """
         self._validate_model_was_built()
         target_dims = self.scalers._target.dims
-        # Ensure target_dims is a tuple (handle if it's a list)
-        if target_dims is not None and not isinstance(target_dims, tuple):
-            target_dims = tuple(target_dims)
         with self.model:
             for v in var:
                 self._validate_contribution_variable(v)
