@@ -26,6 +26,7 @@ from pymc_extras.prior import Prior
 from pytensor.tensor.basic import TensorVariable
 from scipy.optimize import OptimizeResult
 
+from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm import (
     CovFunc,
     GeometricAdstock,
@@ -2922,6 +2923,96 @@ def test_specify_time_varying_configuration(
         mmm.model[expected_rv["name"]].owner.op.__class__.__name__
         == expected_rv["kind"]
     )
+
+
+class TestTimeVaryingConfigFormats:
+    """Test time-varying coefficient configuration formats for API harmonization."""
+
+    @pytest.fixture
+    def sample_data(self) -> tuple[pd.DataFrame, pd.Series]:
+        """Create minimal sample data for testing."""
+        n = 20
+        dates = pd.date_range("2024-01-01", periods=n, freq="W")
+        X = pd.DataFrame(
+            {
+                "date": dates,
+                "channel_1": np.random.rand(n),
+                "channel_2": np.random.rand(n),
+            }
+        )
+        y = pd.Series(np.random.rand(n), name="target")
+        return X, y
+
+    def test_intercept_tvp_with_hsgp_kwargs_instance(
+        self, sample_data: tuple[pd.DataFrame, pd.Series]
+    ) -> None:
+        """Test time_varying_intercept=True with HSGPKwargs in model_config."""
+        X, y = sample_data
+        model_config = {
+            "intercept_tvp_config": HSGPKwargs(
+                m=50, L=None, eta_lam=1.0, ls_mu=5.0, ls_sigma=10.0, cov_func=None
+            ),
+        }
+        mmm = MMM(
+            date_column="date",
+            target_column="target",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            time_varying_intercept=True,
+            model_config=model_config,
+        )
+        mmm.build_model(X, y)
+        assert "intercept_latent_process" in mmm.model.named_vars
+
+    def test_intercept_tvp_with_hsgp_kwargs_dict(
+        self, sample_data: tuple[pd.DataFrame, pd.Series]
+    ) -> None:
+        """Test time_varying_intercept=True with dict in HSGPKwargs format."""
+        X, y = sample_data
+        model_config = {
+            "intercept_tvp_config": {
+                "m": 50,
+                "L": None,
+                "eta_lam": 1.0,
+                "ls_mu": 5.0,
+                "ls_sigma": 10.0,
+                "cov_func": None,
+            },
+        }
+        mmm = MMM(
+            date_column="date",
+            target_column="target",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            time_varying_intercept=True,
+            model_config=model_config,
+        )
+        mmm.build_model(X, y)
+        assert "intercept_latent_process" in mmm.model.named_vars
+
+    def test_media_tvp_with_hsgp_kwargs_instance(
+        self, sample_data: tuple[pd.DataFrame, pd.Series]
+    ) -> None:
+        """Test time_varying_media=True with HSGPKwargs in model_config."""
+        X, y = sample_data
+        model_config = {
+            "media_tvp_config": HSGPKwargs(
+                m=50, L=None, eta_lam=1.0, ls_mu=5.0, ls_sigma=10.0, cov_func=None
+            ),
+        }
+        mmm = MMM(
+            date_column="date",
+            target_column="target",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            time_varying_media=True,
+            model_config=model_config,
+        )
+        mmm.build_model(X, y)
+        assert "media_temporal_latent_multiplier" in mmm.model.named_vars
 
 
 def test_multidimensional_mmm_serializes_and_deserializes_dag_and_nodes(

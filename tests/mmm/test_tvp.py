@@ -12,15 +12,19 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import pytest
 
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
+from pymc_marketing.mmm.hsgp import SoftPlusHSGP
 from pymc_marketing.mmm.tvp import (
+    create_hsgp_from_config,
     create_time_varying_gp_multiplier,
     infer_time_index,
+    is_hsgp_kwargs_format,
     time_varying_prior,
 )
 
@@ -172,3 +176,111 @@ def test_infer_time_index(freq, time_resolution, index, offset, expected):
     date_series_new = date_series + pd.Timedelta(offset, unit=freq)
     result = infer_time_index(date_series_new, date_series, time_resolution)
     np.testing.assert_array_equal(result, expected)
+
+
+class TestIsHsgpKwargsFormat:
+    """Tests for is_hsgp_kwargs_format function."""
+
+    def test_hsgp_kwargs_format_with_eta_lam(self) -> None:
+        """Test detection with eta_lam key."""
+        config: dict[str, float] = {"m": 200, "eta_lam": 1.0}
+        assert is_hsgp_kwargs_format(config) is True
+
+    def test_hsgp_kwargs_format_with_ls_mu(self) -> None:
+        """Test detection with ls_mu key."""
+        config: dict[str, float] = {"m": 200, "ls_mu": 5.0}
+        assert is_hsgp_kwargs_format(config) is True
+
+    def test_hsgp_kwargs_format_with_ls_sigma(self) -> None:
+        """Test detection with ls_sigma key."""
+        config: dict[str, float] = {"ls_sigma": 10.0}
+        assert is_hsgp_kwargs_format(config) is True
+
+    def test_hsgp_kwargs_format_full_config(self) -> None:
+        """Test detection with full HSGPKwargs config."""
+        config: dict[str, float | None] = {
+            "m": 200,
+            "L": 100,
+            "eta_lam": 1.0,
+            "ls_mu": 5.0,
+            "ls_sigma": 10.0,
+            "cov_func": None,
+        }
+        assert is_hsgp_kwargs_format(config) is True
+
+    def test_parameterize_from_data_format(self) -> None:
+        """Test that parameterize_from_data format returns False."""
+        config: dict[str, float] = {"ls_lower": 0.3, "ls_upper": 2.0}
+        assert is_hsgp_kwargs_format(config) is False
+
+    def test_empty_dict(self) -> None:
+        """Test empty dict returns False."""
+        assert is_hsgp_kwargs_format({}) is False
+
+    def test_unrelated_keys(self) -> None:
+        """Test dict with unrelated keys returns False."""
+        config: dict[str, str | int] = {"foo": "bar", "m": 200}
+        assert is_hsgp_kwargs_format(config) is False
+
+
+class TestCreateHsgpFromConfig:
+    """Tests for create_hsgp_from_config function."""
+
+    @pytest.fixture
+    def time_index(self) -> npt.NDArray[np.int_]:
+        """Create sample time index."""
+        return np.arange(52)
+
+    def test_with_hsgp_kwargs_instance(self, time_index: npt.NDArray[np.int_]) -> None:
+        """Test with HSGPKwargs instance."""
+        config = HSGPKwargs(m=200, eta_lam=1.0, ls_mu=5.0, ls_sigma=10.0)
+        hsgp = create_hsgp_from_config(X=time_index, dims="date", config=config)
+        assert isinstance(hsgp, SoftPlusHSGP)
+        assert hsgp.m == 200
+
+    def test_with_hsgp_kwargs_dict(self, time_index: npt.NDArray[np.int_]) -> None:
+        """Test with dict in HSGPKwargs format."""
+        config: dict[str, float | None] = {
+            "m": 200,
+            "L": 100.0,
+            "eta_lam": 1.0,
+            "ls_mu": 5.0,
+            "ls_sigma": 10.0,
+            "cov_func": None,
+        }
+        hsgp = create_hsgp_from_config(X=time_index, dims="date", config=config)
+        assert isinstance(hsgp, SoftPlusHSGP)
+        assert hsgp.m == 200
+
+    def test_with_parameterize_from_data_dict(
+        self, time_index: npt.NDArray[np.int_]
+    ) -> None:
+        """Test with dict in parameterize_from_data format."""
+        config: dict[str, float] = {"ls_lower": 0.3, "ls_upper": 2.0}
+        hsgp = create_hsgp_from_config(X=time_index, dims="date", config=config)
+        assert isinstance(hsgp, SoftPlusHSGP)
+
+    def test_with_x_mid_provided(self, time_index: npt.NDArray[np.int_]) -> None:
+        """Test with explicit X_mid parameter."""
+        config = HSGPKwargs(m=200, eta_lam=1.0, ls_mu=5.0, ls_sigma=10.0)
+        hsgp = create_hsgp_from_config(
+            X=time_index, dims="date", config=config, X_mid=26.0
+        )
+        assert hsgp.X_mid == 26.0
+
+    def test_with_tuple_dims(self, time_index: npt.NDArray[np.int_]) -> None:
+        """Test with tuple dimensions."""
+        config: dict[str, float] = {"ls_lower": 0.3, "ls_upper": 2.0}
+        hsgp = create_hsgp_from_config(
+            X=time_index, dims=("date", "channel"), config=config
+        )
+        assert hsgp.dims == ("date", "channel")
+
+    def test_invalid_config_type_raises(self, time_index: npt.NDArray[np.int_]) -> None:
+        """Test that invalid config type raises TypeError."""
+        with pytest.raises(TypeError, match="config must be HSGPKwargs or dict"):
+            create_hsgp_from_config(
+                X=time_index,
+                dims="date",
+                config="invalid",  # type: ignore
+            )
