@@ -262,7 +262,12 @@ def create_hsgp_from_config(
         )
 
     # Case 4: Dict with parameterize_from_data keys -> use SoftPlusHSGP.parameterize_from_data
-    return SoftPlusHSGP.parameterize_from_data(X=X, dims=dims, X_mid=X_mid, **config)
+    # Filter out keys that are explicitly passed to avoid "multiple values" error
+    reserved_keys = {"X", "dims", "X_mid"}
+    filtered_config = {k: v for k, v in config.items() if k not in reserved_keys}
+    return SoftPlusHSGP.parameterize_from_data(
+        X=X, dims=dims, X_mid=X_mid, **filtered_config
+    )
 
 
 def time_varying_prior(

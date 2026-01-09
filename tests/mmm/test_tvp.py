@@ -329,3 +329,85 @@ class TestCreateHsgpFromConfig:
         assert isinstance(hsgp, SoftPlusHSGP)
         assert hsgp.m == 150
         assert hsgp.L == 80.0
+
+    def test_config_with_X_key_does_not_raise(
+        self, time_index: npt.NDArray[np.int_]
+    ) -> None:
+        """Test that config dict with X key doesn't cause multiple values error.
+
+        The explicitly passed X argument should take precedence over config["X"].
+        """
+        different_X = np.arange(10, 62)  # Different from time_index
+        config: dict[str, float | npt.NDArray[np.int_]] = {
+            "ls_lower": 0.3,
+            "ls_upper": 2.0,
+            "X": different_X,
+        }
+        # Should not raise TypeError: got multiple values for keyword argument 'X'
+        hsgp = create_hsgp_from_config(X=time_index, dims="date", config=config)
+        assert isinstance(hsgp, SoftPlusHSGP)
+        # The explicitly passed X should be used, not the one in config
+        np.testing.assert_array_equal(hsgp.X.eval(), time_index)
+
+    def test_config_with_dims_key_does_not_raise(
+        self, time_index: npt.NDArray[np.int_]
+    ) -> None:
+        """Test that config dict with dims key doesn't cause multiple values error.
+
+        The explicitly passed dims argument should take precedence over config["dims"].
+        """
+        config: dict[str, float | str] = {
+            "ls_lower": 0.3,
+            "ls_upper": 2.0,
+            "dims": "other_dim",
+        }
+        # Should not raise TypeError: got multiple values for keyword argument 'dims'
+        hsgp = create_hsgp_from_config(X=time_index, dims="date", config=config)
+        assert isinstance(hsgp, SoftPlusHSGP)
+        # The explicitly passed dims should be used, not the one in config
+        assert hsgp.dims == ("date",)
+
+    def test_config_with_X_mid_key_does_not_raise(
+        self, time_index: npt.NDArray[np.int_]
+    ) -> None:
+        """Test that config dict with X_mid key doesn't cause multiple values error.
+
+        The explicitly passed X_mid argument should take precedence over config["X_mid"].
+        """
+        config: dict[str, float] = {
+            "ls_lower": 0.3,
+            "ls_upper": 2.0,
+            "X_mid": 100.0,  # Different from what we'll pass explicitly
+        }
+        # Should not raise TypeError: got multiple values for keyword argument 'X_mid'
+        hsgp = create_hsgp_from_config(
+            X=time_index, dims="date", config=config, X_mid=26.0
+        )
+        assert isinstance(hsgp, SoftPlusHSGP)
+        # The explicitly passed X_mid should be used, not the one in config
+        assert hsgp.X_mid == 26.0
+
+    def test_config_with_all_reserved_keys_does_not_raise(
+        self, time_index: npt.NDArray[np.int_]
+    ) -> None:
+        """Test that config dict with all reserved keys doesn't cause errors.
+
+        Reserved keys (X, dims, X_mid) in config should be filtered out.
+        """
+        different_X = np.arange(100, 152)
+        config: dict[str, float | str | npt.NDArray[np.int_]] = {
+            "ls_lower": 0.3,
+            "ls_upper": 2.0,
+            "X": different_X,
+            "dims": "wrong_dim",
+            "X_mid": 999.0,
+        }
+        # Should not raise TypeError for any of the reserved keys
+        hsgp = create_hsgp_from_config(
+            X=time_index, dims=("date", "channel"), config=config, X_mid=26.0
+        )
+        assert isinstance(hsgp, SoftPlusHSGP)
+        # All explicitly passed values should take precedence
+        np.testing.assert_array_equal(hsgp.X.eval(), time_index)
+        assert hsgp.dims == ("date", "channel")
+        assert hsgp.X_mid == 26.0
