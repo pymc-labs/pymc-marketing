@@ -1122,9 +1122,6 @@ class MMM(RegressionModelBuilder):
             for v in var:
                 self._validate_contribution_variable(v)
                 var_dims = self.model.named_vars_to_dims[v]
-                # Ensure var_dims is a tuple (handle if it's a list)
-                if var_dims is not None and not isinstance(var_dims, tuple):
-                    var_dims = tuple(var_dims)
                 mmm_dims_order = ("date", *self.dims)
 
                 if v == "channel_contribution":
