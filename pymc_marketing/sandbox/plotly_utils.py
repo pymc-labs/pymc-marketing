@@ -296,28 +296,27 @@ def plot_posterior_predictive(
     # Convert to pandas for plotly compatibility
     pdf = posterior_predictive_df.to_pandas()
 
-    fig = go.Figure()
-
-    # Add predicted line
-    fig.add_trace(
-        go.Scatter(
-            x=pdf["date"],
-            y=pdf["mean"],
-            mode="lines",
-            name="Predicted",
-            line=dict(color=COLORS[0]),
-        )
+    # Melt data for px.line
+    melted = pdf.melt(
+        id_vars=["date"],
+        value_vars=["mean", "observed"],
+        var_name="variable",
+        value_name="value",
+    )
+    # Rename for better legend labels
+    melted["variable"] = melted["variable"].replace(
+        {"mean": "Predicted", "observed": "Observed"}
     )
 
-    # Add observed line
-    fig.add_trace(
-        go.Scatter(
-            x=pdf["date"],
-            y=pdf["observed"],
-            mode="lines",
-            name="Observed",
-            line=dict(color="rgba(0,0,0, 0.7)"),
-        )
+    # Create color mapping
+    color_map = {"Predicted": COLORS[0], "Observed": "rgba(0,0,0, 0.7)"}
+
+    fig = px.line(
+        melted,
+        x="date",
+        y="value",
+        color="variable",
+        color_discrete_map=color_map,
     )
 
     # Add HDI band
@@ -412,8 +411,10 @@ def plot_bar(
     x: str | None = "channel",
     color: str | None = None,
     yaxis_title: str | None = None,
+    **kwargs,
 ) -> go.Figure:
     """Plot bar chart.
+
     Can be used to plot ROAS, contribution, etc.
 
     Parameters
@@ -458,9 +459,10 @@ def plot_bar(
         barmode="group",
         error_y=error_y,
         error_y_minus=error_y_minus,
+        **kwargs,
     )
 
-    fig.update_layout(yaxis_title=yaxis_title)
+    # fig.update_layout(yaxis_title=yaxis_title)
     return fig
 
 

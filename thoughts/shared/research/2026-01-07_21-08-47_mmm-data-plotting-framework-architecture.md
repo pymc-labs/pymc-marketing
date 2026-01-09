@@ -5,10 +5,11 @@ git_commit: ceb76cd374e458ce0302d800b60e71cafe41c997
 branch: main
 repository: pymc-marketing
 topic: "MMM Data & Plotting Framework Architecture Evaluation"
-tags: [research, codebase, mmm, plotting, data-handling, architecture, idata]
+tags: [research, codebase, mmm, plotting, data-handling, architecture, idata, narwhals, polars, pandas]
 status: complete
-last_updated: 2026-01-07
-last_updated_by: Claude Sonnet 4.5
+last_updated: 2026-01-09
+last_updated_by: Claude Opus 4.5
+last_updated_note: "Updated to support both Pandas and Polars DataFrames via output_format parameter, with Narwhals in Component 3 for DataFrame-agnostic plotting. Also updated to present both factory functions AND class wrappers as first-class citizens."
 ---
 
 # Research: MMM Data & Plotting Framework Architecture Evaluation
@@ -18,6 +19,43 @@ last_updated_by: Claude Sonnet 4.5
 **Git Commit**: ceb76cd374e458ce0302d800b60e71cafe41c997
 **Branch**: main
 **Repository**: pymc-marketing
+
+---
+
+## Table of Contents
+
+1. [Research Question](#research-question)
+   - [Context](#context)
+   - [Proposed Solution](#proposed-solution)
+2. [Summary](#summary)
+3. [Detailed Findings](#detailed-findings)
+   - [1. Current MMM Plotting Implementation](#1-current-mmm-plotting-implementation)
+   - [2. InferenceData Usage Patterns](#2-inferencedata-usage-patterns)
+   - [3. Existing Data Summarization Patterns](#3-existing-data-summarization-patterns)
+   - [4. Time Aggregation and Dimension Handling](#4-time-aggregation-and-dimension-handling)
+   - [5. Sandbox Work-in-Progress Analysis](#5-sandbox-work-in-progress-analysis)
+   - [6. Architectural Patterns in Existing Code](#6-architectural-patterns-in-existing-code)
+4. [Evaluation of Proposed Architecture](#evaluation-of-proposed-architecture)
+   - [Question 1: Does the solution answer the requirements?](#question-1-does-the-solution-answer-the-requirements)
+   - [Question 2: Feedback and Suggested Improvements](#question-2-feedback-and-suggested-improvements)
+   - [Question 3: Is there a better solution?](#question-3-is-there-a-better-solution)
+5. [Code References](#code-references)
+   - [Current Implementation](#current-implementation)
+   - [Sandbox WIP](#sandbox-wip)
+6. [Architecture Insights](#architecture-insights)
+   - [Current Pain Points](#current-pain-points)
+   - [Design Patterns Observed](#design-patterns-observed)
+   - [Architectural Trade-offs](#architectural-trade-offs)
+   - [Multi-Dimensional Complexity](#multi-dimensional-complexity)
+7. [Related Research](#related-research)
+8. [Open Questions](#open-questions)
+9. [Recommendations](#recommendations)
+   - [Immediate Actions](#immediate-actions)
+   - [Medium-Term (Next 2-3 Releases)](#medium-term-next-2-3-releases)
+   - [Long-Term](#long-term)
+10. [Conclusion](#conclusion)
+
+---
 
 ## Research Question
 
@@ -383,10 +421,10 @@ This preserves dimensions for further slicing/aggregation by users.
    - What schema does Component 3 expect?
    - **Recommendation**: Document the DataFrame schema explicitly (columns, types, index structure)
 
-3. **Backward Compatibility Not Addressed**:
-   - Existing 30+ matplotlib plot methods in production
+3. **Coexistence with MMMPlotSuite**:
+   - Existing 30+ matplotlib plot methods in production via MMMPlotSuite
    - Users depend on these methods
-   - **Recommendation**: Implement new architecture in parallel, mark old methods as deprecated, provide migration guide
+   - **Decision**: MMMPlotSuite (matplotlib) will **NOT be deprecated**. The new Plotly plotting suite will exist alongside it, giving users choice between matplotlib and Plotly based on their needs.
 
 4. **Multi-Dimensional Handling Unclear**:
    - How does aggregation work with extra dimensions (geo, brand)?
@@ -412,13 +450,15 @@ This preserves dimensions for further slicing/aggregation by users.
    - Sandbox functions return Polars DataFrames (`pl.DataFrame`)
    - PyMC-Marketing currently only supports Pandas throughout the codebase
    - Users expect Pandas DataFrames from existing methods (e.g., `fit_summary()`, `az.summary()`)
-   - This creates API inconsistency and potential user friction
-   - **Decision Required**: Choose one of:
-     - **(a) Pandas only**: Convert sandbox to return Pandas for consistency with existing codebase
-     - **(b) Polars only**: Migrate entire codebase to Polars (breaking change, significant effort)
-     - **(c) Dual support**: Return Polars internally, provide `.to_pandas()` convenience or `return_type` parameter
-     - **(d) User configurable**: Global config setting for default return type
-   - **Recommendation**: Start with **(a) Pandas only** for backward compatibility. Polars can be used internally for performance if needed, but public API should return Pandas until a broader Polars migration strategy is decided.
+   - **Decision**: Support **both Pandas and Polars** via `output_format` parameter:
+     - Component 2 (Summary Functions) accept `output_format="pandas"` (default) or `output_format="polars"`
+     - Default is Pandas for backward compatibility with PyMC/ArviZ ecosystem
+     - Polars is an optional dependency (`pip install pymc-marketing[polars]`)
+     - Component 3 (Plotting Functions) use **Narwhals** to accept either DataFrame type as input
+   - **Narwhals**: A lightweight library providing a unified DataFrame API across Pandas and Polars
+     - Plotting functions wrap input with `nw.from_native(df)` to work with either type
+     - No conversion overhead - Narwhals provides lazy expression evaluation
+     - See [Narwhals documentation](https://narwhals-dev.github.io/narwhals/) for details
 
 #### Specific Implementation Suggestions
 
@@ -474,17 +514,26 @@ class MMMSummary:
     # ... other summary methods ...
 ```
 
-**Component 3: Plotting Suite**
+**Component 3: Plotting Suite (with Narwhals for DataFrame-agnostic input)**
 
 ```python
 # Thin functions consuming MMMSummary DataFrames
+# Uses Narwhals to accept both Pandas and Polars DataFrames
+
+import narwhals as nw
+from narwhals.typing import IntoDataFrame
 
 def plot_posterior_predictive(
-    df: pl.DataFrame,
+    df: IntoDataFrame,  # Accepts both pd.DataFrame and pl.DataFrame
     hdi_prob: float = 0.94,
     **plotly_kwargs
 ) -> go.Figure:
     """Plot posterior predictive with HDI band.
+
+    Parameters
+    ----------
+    df : pd.DataFrame or pl.DataFrame
+        Summary DataFrame from Component 2 (either Pandas or Polars)
 
     Expected schema:
     - date: datetime column
@@ -493,17 +542,23 @@ def plot_posterior_predictive(
     - abs_error_{prob}_lower: float (HDI lower bound)
     - abs_error_{prob}_upper: float (HDI upper bound)
     """
-    # Implementation in sandbox/plotly_utils.py already exists!
+    # Wrap with Narwhals for unified API
+    nw_df = nw.from_native(df)
+    # ... implementation using nw_df methods ...
 
 def plot_contribution_bar(
-    df: pl.DataFrame,
+    df: IntoDataFrame,  # Accepts both pd.DataFrame and pl.DataFrame
     hdi_prob: Optional[float] = None,
     x: str = "channel",
     color: Optional[str] = None,
     **plotly_kwargs
 ) -> go.Figure:
-    """Plot contribution bar chart with optional grouping."""
-    # Implementation in sandbox/plotly_utils.py already exists!
+    """Plot contribution bar chart with optional grouping.
+
+    Works with both Pandas and Polars DataFrames via Narwhals.
+    """
+    nw_df = nw.from_native(df)
+    # ... implementation ...
 ```
 
 #### Critical Design Decision: Lazy vs Eager
@@ -536,15 +591,13 @@ Reasoning: Premature optimization. The functional approach in sandbox is simpler
 - Add Plotly plotting functions to `pymc_marketing.mmm.plot_plotly` module
 - Keep existing matplotlib `MMMPlotSuite` unchanged
 
-**Phase 2**: Add deprecation warnings
-- Mark old plot methods with `@deprecated` decorator
-- Point users to new equivalents in docstrings
+**Phase 2**: Documentation and user guidance
+- Document both matplotlib (MMMPlotSuite) and Plotly options
+- Provide examples showing when each is appropriate
+- MMMPlotSuite for static reports, publications, existing workflows
+- Plotly for interactive exploration, dashboards, stakeholder presentations
 
-**Phase 3**: Migration guide
-- Document migration path in release notes
-- Provide code examples showing old vs new approach
-
-**Phase 4**: Remove deprecated methods (2-3 releases later)
+**Note**: MMMPlotSuite will **NOT be deprecated**. Both plotting backends will coexist.
 
 ### Question 3: Is there a better solution?
 
@@ -568,23 +621,29 @@ aggregate_coords(idata, coord, values, new_label) -> az.InferenceData
 compute_summary_stats(data: xr.DataArray, hdi_prob: float) -> pl.DataFrame
 ```
 
-**Tier 2: Convenience Wrapper (Optional)**
+**Tier 2: Data Wrapper Class (Recommended for Ergonomics)**
 
-For users who want method chaining:
+Class wrapper providing method chaining and fluent API - **recommended for most users**:
 ```python
-class MMMDataView:
-    """Lightweight view for chaining operations."""
+class MMMIDataWrapper:
+    """Wrapper around InferenceData with MMM-specific operations.
+
+    Provides validated access, filtering, and aggregation.
+    Follows the pattern used by mmm.plot (MMMPlotSuite).
+    """
     def __init__(self, idata): ...
-    def filter_dates(self, start, end): return MMMDataView(filter_dates(self.idata, start, end))
-    def aggregate_time(self, period): return MMMDataView(aggregate_time(self.idata, period))
+    def filter_dates(self, start, end) -> "MMMIDataWrapper":
+        return MMMIDataWrapper(filter_idata_by_dates(self.idata, start, end))
+    def aggregate_time(self, period) -> "MMMIDataWrapper":
+        return MMMIDataWrapper(aggregate_idata_time(self.idata, period))
     # ... etc
 ```
 
-Usage: `view.filter_dates("2024-01-01", "2024-12-31").aggregate_time("monthly")`
+Usage: `mmm.data.filter_dates("2024-01-01", "2024-12-31").aggregate_time("monthly")`
 
-**Tier 3: Summary Factory Functions**
+**Tier 3: Summary Factory Functions AND Class**
 
-Replace "summary object" class with factory functions:
+Both factory functions and a convenience class are **first-class citizens**:
 ```python
 def create_posterior_predictive_summary(
     idata: az.InferenceData,
@@ -593,25 +652,57 @@ def create_posterior_predictive_summary(
     """Extract posterior predictive with HDI into DataFrame."""
 
 def create_contribution_summary(
-    idata: az.InferenceData,
+    data: MMMIDataWrapper,  # Takes wrapper, not raw idata
     hdi_prob: float = 0.94,
     groupby: Optional[str] = None,
-) -> pl.DataFrame:
+    output_format: Literal["pandas", "polars"] = "pandas",
+) -> pd.DataFrame | pl.DataFrame:
     """Extract channel contributions with HDI into DataFrame."""
 ```
 
+**Convenience class for ergonomic access** (follows `mmm.plot` pattern):
+```python
+class MMMSummaryFactory:
+    """Factory for creating summary DataFrames from MMMIDataWrapper.
+
+    Provides convenient property-based access like mmm.summary.contributions().
+    """
+    def __init__(self, data: MMMIDataWrapper, output_format: str = "pandas"): ...
+
+    def posterior_predictive(self) -> DataFrame:
+        return create_posterior_predictive_summary(self.data, ...)
+
+    def contributions(self) -> DataFrame:
+        return create_contribution_summary(self.data, ...)
+
+    def roas(self) -> DataFrame:
+        return create_roas_summary(self.data, ...)
+```
+
+Usage: `mmm.summary.contributions()` or `MMMSummaryFactory(mmm.data).roas()`
+
 **Tier 4: Thin Plotting Functions** (Already in sandbox)
 
-Keep as-is from `plotly_utils.py`.
+Keep as-is from `plotly_utils.py`, but add **Narwhals** for DataFrame-agnostic input:
+- Use `IntoDataFrame` type hint to accept both Pandas and Polars
+- Wrap input with `nw.from_native(df)` at function entry
+- Use Narwhals API for column access, filtering, etc.
+- No conversion overhead - Narwhals provides lazy expression evaluation
 
-#### Why This Is Better
+#### Why Both Approaches Work Together
 
-1. **Simpler**: No complex class hierarchies, just functions
-2. **Testable**: Pure functions are easier to unit test
-3. **Flexible**: Users can compose operations as needed
-4. **Familiar**: Aligns with pandas/xarray functional style
-5. **Incremental**: Can add optional wrapper later without breaking changes
-6. **Existing Code**: Sandbox already implements this approach!
+**Factory Functions** (for advanced users and internal use):
+1. **Testable**: Pure functions are easier to unit test
+2. **Composable**: Users can build custom pipelines
+3. **Flexible**: Can be used independently of wrapper classes
+
+**Class Wrappers** (recommended for most users):
+1. **Ergonomic**: Fluent API with method chaining (`mmm.data.filter_dates(...).aggregate_time(...)`)
+2. **Discoverable**: IDE autocomplete shows available methods
+3. **Consistent**: Follows existing `mmm.plot` and `mmm.sensitivity` patterns
+4. **Encapsulated**: Hides complexity, provides validated access
+
+**Key Insight**: This is the same pattern used by `mmm.plot` (MMMPlotSuite) - the class wrapper provides ergonomics while internal implementation uses functional utilities.
 
 #### Integration with Existing Model Classes
 
@@ -697,7 +788,10 @@ fig = mmm.plot_contribution_interactive()
 - ❌ No built-in caching
 - ❌ More verbose for complex chains
 
-**Recommendation**: Start with functional approach, add optional class wrapper for convenience.
+**Recommendation**: Implement **both** as first-class citizens:
+- Factory functions for internal implementation, testing, and advanced users
+- Class wrappers (`MMMIDataWrapper`, `MMMSummaryFactory`) for ergonomic user-facing API
+- This follows the established `mmm.plot` (MMMPlotSuite) pattern in the codebase
 
 ### Multi-Dimensional Complexity
 
@@ -729,11 +823,11 @@ This research connects to several ongoing architectural themes:
 
 2. **Schema Evolution**: How do we version the DataFrame schemas returned by summary functions? What if we add new columns?
 
-3. **Interoperability**: Should summary DataFrames use Polars (as in sandbox) or Pandas (as in current code)? Polars is faster but Pandas is more familiar.
+3. **Interoperability**: ✅ RESOLVED - Support both Pandas and Polars via `output_format` parameter in Component 2. Plotting functions (Component 3) use Narwhals to accept either type.
 
 4. **Plotly Theme**: Should we create a standard PyMC-Marketing Plotly theme for consistency?
 
-5. **Matplotlib Deprecation Timeline**: How long should we support old matplotlib methods before removing?
+5. ~~**Matplotlib Deprecation Timeline**~~: **RESOLVED** - MMMPlotSuite (matplotlib) will NOT be deprecated. Both matplotlib and Plotly plotting will coexist.
 
 6. **Documentation Migration**: How do we update 100+ documentation examples that use old plot methods?
 
@@ -745,6 +839,8 @@ This research connects to several ongoing architectural themes:
    - Move `xarray_processing_utils.py` → `pymc_marketing/mmm/data_transforms.py`
    - Move `plotly_utils.py` → `pymc_marketing/mmm/plot_interactive.py`
    - Add comprehensive tests and documentation
+   - Add `narwhals>=1.0` as a dependency for DataFrame-agnostic plotting
+   - Add `polars>=0.20` as optional dependency (`[polars]` extra)
 
 2. **Add convenience methods to MMM class**:
    - `get_posterior_predictive_summary()` → Returns DataFrame
@@ -763,31 +859,37 @@ This research connects to several ongoing architectural themes:
 
 ### Medium-Term (Next 2-3 Releases)
 
-1. **Add optional method-chaining wrapper** (`MMMDataView` or similar)
-2. **Deprecate matplotlib plot methods** in favor of new interactive methods
-3. **Extend to other model types** (CLV, time-varying parameter models)
-4. **Add multi-HDI support** (e.g., show both 50% and 90% intervals)
+1. **Extend to other model types** (CLV, time-varying parameter models)
+2. **Add multi-HDI support** (e.g., show both 50% and 90% intervals)
+3. **Add caching to wrapper classes** if performance benchmarks show need
+4. **Ensure feature parity** between MMMPlotSuite and Plotly suite where appropriate
 
 ### Long-Term
 
-1. **Remove deprecated matplotlib methods**
-2. **Standardize DataFrame schemas** across all summary functions
-3. **Create comprehensive plotting gallery** with Plotly examples
-4. **Publish design patterns guide** for extending the framework
+1. **Standardize DataFrame schemas** across all summary functions
+2. **Create comprehensive plotting gallery** with both matplotlib and Plotly examples
+3. **Publish design patterns guide** for extending the framework
+4. **Maintain both plotting backends** - MMMPlotSuite (matplotlib) for static outputs, Plotly for interactive
 
 ## Conclusion
 
-The proposed three-component architecture **correctly identifies the problems** and provides a **sound solution framework**. However, the implementation should favor **simplicity over abstraction**:
+The proposed three-component architecture **correctly identifies the problems** and provides a **sound solution framework**. The implementation provides **both functional utilities AND class wrappers** as first-class citizens:
 
-- ✅ **Use functional utilities** from sandbox (already implemented and working)
-- ✅ **Add convenience methods** to MMM class for common use cases
-- ✅ **Keep plotting functions thin** consuming DataFrames
-- ⚠️ **Defer class-based wrappers** until proven necessary
+- ✅ **Factory functions** for internal implementation, testing, and advanced users
+- ✅ **Class wrappers** (`MMMIDataWrapper`, `MMMSummaryFactory`) for ergonomic user-facing API
+- ✅ **Property-based access** via `mmm.data` and `mmm.summary` (follows `mmm.plot` pattern)
+- ✅ **Keep plotting functions thin** consuming DataFrames (with Narwhals for Pandas/Polars support)
+- ✅ **Support both Pandas and Polars** via `output_format` parameter
 - ⚠️ **Start with eager evaluation** and optimize later if needed
 
 The sandbox work validates this approach and provides a strong foundation. The main remaining work is:
 1. Productionizing the sandbox utilities with tests and docs
-2. Integrating with existing MMM class via convenience methods
-3. Managing backward compatibility with existing matplotlib plots
+2. Implementing `MMMIDataWrapper` (Component 1) and `MMMSummaryFactory` (Component 2) classes
+3. Adding `mmm.data` and `mmm.summary` properties to MMM class
+4. Adding new Plotly plotting suite alongside existing MMMPlotSuite (matplotlib)
 
-This will solve all three stated problems while maintaining simplicity and alignment with existing codebase patterns.
+**Note**: MMMPlotSuite (matplotlib) will **NOT be deprecated**. Users will have both options:
+- `mmm.plot` → MMMPlotSuite (matplotlib) for static plots, publications, existing workflows
+- New Plotly suite for interactive exploration, dashboards, stakeholder presentations
+
+This will solve all three stated problems while providing an ergonomic API that aligns with existing codebase patterns (`mmm.plot`, `mmm.sensitivity`).
