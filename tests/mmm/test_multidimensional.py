@@ -3523,3 +3523,152 @@ def test_calibration_coordinate_label_mismatch_error(multi_dim_data, mock_pymc_s
             calibration_data=calibration_df,
             name_prefix="cpt_calibration",
         )
+
+
+class TestAddOriginalScaleContributionVariable:
+    """Tests for add_original_scale_contribution_variable method."""
+
+    @pytest.fixture
+    def sample_data(self) -> tuple[pd.DataFrame, pd.Series]:
+        """Create sample data for testing."""
+        rng = np.random.default_rng(42)
+        n_dates = 20
+        dates = pd.date_range("2023-01-01", periods=n_dates, freq="W")
+        X = pd.DataFrame(
+            {
+                "date": dates,
+                "x1": rng.uniform(0.1, 1.0, n_dates),
+                "x2": rng.uniform(0.1, 1.0, n_dates),
+            }
+        )
+        y = pd.Series(rng.uniform(100, 500, n_dates), name="y")
+        return X, y
+
+    def test_channel_contribution(self, sample_data) -> None:
+        """Test adding channel_contribution_original_scale."""
+        X, y = sample_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["x1", "x2"],
+            target_column="y",
+        )
+        mmm.build_model(X, y)
+        mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+
+        assert "channel_contribution_original_scale" in mmm.model.named_vars
+        dims = mmm.model.named_vars_to_dims["channel_contribution_original_scale"]
+        assert dims == ("date", "channel")
+
+    def test_fourier_contribution(self, sample_data) -> None:
+        """Test adding fourier_contribution_original_scale."""
+        X, y = sample_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["x1", "x2"],
+            target_column="y",
+            yearly_seasonality=3,
+        )
+        mmm.build_model(X, y)
+        mmm.add_original_scale_contribution_variable(var=["fourier_contribution"])
+
+        assert "fourier_contribution_original_scale" in mmm.model.named_vars
+        dims = mmm.model.named_vars_to_dims["fourier_contribution_original_scale"]
+        assert dims == ("date", "fourier_mode")
+
+    def test_multiple_contributions(self, sample_data) -> None:
+        """Test adding multiple contribution variables at once."""
+        X, y = sample_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["x1", "x2"],
+            target_column="y",
+            yearly_seasonality=3,
+        )
+        mmm.build_model(X, y)
+        mmm.add_original_scale_contribution_variable(
+            var=["channel_contribution", "fourier_contribution"]
+        )
+
+        assert "channel_contribution_original_scale" in mmm.model.named_vars
+        assert "fourier_contribution_original_scale" in mmm.model.named_vars
+
+        channel_dims = mmm.model.named_vars_to_dims[
+            "channel_contribution_original_scale"
+        ]
+        fourier_dims = mmm.model.named_vars_to_dims[
+            "fourier_contribution_original_scale"
+        ]
+        assert channel_dims == ("date", "channel")
+        assert fourier_dims == ("date", "fourier_mode")
+
+    def test_yearly_seasonality_contribution(self, sample_data) -> None:
+        """Test adding yearly_seasonality_contribution_original_scale."""
+        X, y = sample_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["x1", "x2"],
+            target_column="y",
+            yearly_seasonality=3,
+        )
+        mmm.build_model(X, y)
+        mmm.add_original_scale_contribution_variable(
+            var=["yearly_seasonality_contribution"]
+        )
+
+        assert "yearly_seasonality_contribution_original_scale" in mmm.model.named_vars
+        dims = mmm.model.named_vars_to_dims[
+            "yearly_seasonality_contribution_original_scale"
+        ]
+        assert dims == ("date",)
+
+    def test_intercept_contribution_with_tvp(self, sample_data) -> None:
+        """Test adding intercept_contribution_original_scale with time-varying intercept."""
+        X, y = sample_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["x1", "x2"],
+            target_column="y",
+            time_varying_intercept=True,
+        )
+        mmm.build_model(X, y)
+        mmm.add_original_scale_contribution_variable(var=["intercept_contribution"])
+
+        assert "intercept_contribution_original_scale" in mmm.model.named_vars
+        dims = mmm.model.named_vars_to_dims["intercept_contribution_original_scale"]
+        assert dims == ("date",)
+
+    def test_with_geo_dims(self, multi_dim_data) -> None:
+        """Test adding contribution variables with geo dimensions."""
+        X, y = multi_dim_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            target_column="target",
+            dims=("country",),
+            yearly_seasonality=2,
+        )
+        mmm.build_model(X, y)
+        mmm.add_original_scale_contribution_variable(
+            var=["channel_contribution", "fourier_contribution"]
+        )
+
+        channel_dims = mmm.model.named_vars_to_dims[
+            "channel_contribution_original_scale"
+        ]
+        fourier_dims = mmm.model.named_vars_to_dims[
+            "fourier_contribution_original_scale"
+        ]
+        assert channel_dims == ("date", "country", "channel")
+        assert fourier_dims == ("date", "country", "fourier_mode")
