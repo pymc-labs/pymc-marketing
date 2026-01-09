@@ -2933,14 +2933,15 @@ class TestTimeVaryingConfigFormats:
         """Create minimal sample data for testing."""
         n = 20
         dates = pd.date_range("2024-01-01", periods=n, freq="W")
+        rng = np.random.default_rng(12345)
         X = pd.DataFrame(
             {
                 "date": dates,
-                "channel_1": np.random.rand(n),
-                "channel_2": np.random.rand(n),
+                "channel_1": rng.random(n),
+                "channel_2": rng.random(n),
             }
         )
-        y = pd.Series(np.random.rand(n), name="target")
+        y = pd.Series(rng.random(n), name="target")
         return X, y
 
     def test_intercept_tvp_with_hsgp_kwargs_instance(
