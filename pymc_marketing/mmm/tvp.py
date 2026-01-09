@@ -111,8 +111,9 @@ __all__ = [
 ]
 
 # Keys unique to HSGPKwargs format (not present in parameterize_from_data)
+# m and L are HSGPKwargs-only keys that parameterize_from_data computes internally
 HSGP_KWARGS_DISTINCTIVE_KEYS: frozenset[str] = frozenset(
-    {"eta_lam", "ls_mu", "ls_sigma"}
+    {"m", "L", "eta_lam", "ls_mu", "ls_sigma"}
 )
 
 

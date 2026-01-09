@@ -219,8 +219,23 @@ class TestIsHsgpKwargsFormat:
 
     def test_unrelated_keys(self) -> None:
         """Test dict with unrelated keys returns False."""
-        config: dict[str, str | int] = {"foo": "bar", "m": 200}
+        config: dict[str, str | int] = {"foo": "bar"}
         assert is_hsgp_kwargs_format(config) is False
+
+    def test_hsgp_kwargs_format_with_m_only(self) -> None:
+        """Test detection with only m key (HSGPKwargs-only param)."""
+        config: dict[str, int] = {"m": 200}
+        assert is_hsgp_kwargs_format(config) is True
+
+    def test_hsgp_kwargs_format_with_L_only(self) -> None:
+        """Test detection with only L key (HSGPKwargs-only param)."""
+        config: dict[str, float] = {"L": 100.0}
+        assert is_hsgp_kwargs_format(config) is True
+
+    def test_hsgp_kwargs_format_with_m_and_L(self) -> None:
+        """Test detection with m and L keys."""
+        config: dict[str, int | float] = {"m": 200, "L": 100.0}
+        assert is_hsgp_kwargs_format(config) is True
 
 
 class TestCreateHsgpFromConfig:
@@ -284,3 +299,33 @@ class TestCreateHsgpFromConfig:
                 dims="date",
                 config="invalid",  # type: ignore
             )
+
+    def test_with_m_only_dict(self, time_index: npt.NDArray[np.int_]) -> None:
+        """Test with dict containing only m key (customizing basis functions).
+
+        This tests the bug fix where {"m": 200} was incorrectly falling through
+        to parameterize_from_data which doesn't accept m parameter.
+        """
+        config: dict[str, int] = {"m": 200}
+        hsgp = create_hsgp_from_config(X=time_index, dims="date", config=config)
+        assert isinstance(hsgp, SoftPlusHSGP)
+        assert hsgp.m == 200
+
+    def test_with_L_only_dict(self, time_index: npt.NDArray[np.int_]) -> None:
+        """Test with dict containing only L key (customizing basis extent).
+
+        This tests the bug fix where {"L": 100.0} was incorrectly falling through
+        to parameterize_from_data which doesn't accept L parameter.
+        """
+        config: dict[str, float] = {"L": 100.0}
+        hsgp = create_hsgp_from_config(X=time_index, dims="date", config=config)
+        assert isinstance(hsgp, SoftPlusHSGP)
+        assert hsgp.L == 100.0
+
+    def test_with_m_and_L_dict(self, time_index: npt.NDArray[np.int_]) -> None:
+        """Test with dict containing m and L keys."""
+        config: dict[str, int | float] = {"m": 150, "L": 80.0}
+        hsgp = create_hsgp_from_config(X=time_index, dims="date", config=config)
+        assert isinstance(hsgp, SoftPlusHSGP)
+        assert hsgp.m == 150
+        assert hsgp.L == 80.0
