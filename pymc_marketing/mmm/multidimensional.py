@@ -623,6 +623,58 @@ class MMM(RegressionModelBuilder):
         return MMMPlotSuite(idata=self.idata)
 
     @property
+    def data(self) -> Any:  # type: ignore[no-any-return]
+        """Get codified data wrapper for this model's InferenceData.
+
+        Returns
+        -------
+        MMMIDataWrapper
+            Wrapper providing validated access and transformations
+
+        Examples
+        --------
+        .. code-block:: python
+
+            # Access observed data
+            observed = mmm.data.get_target()
+
+            # Get contributions in original scale
+            contributions = mmm.data.get_contributions(original_scale=True)
+
+            # Filter and aggregate
+            monthly = mmm.data.filter_dates("2024-01-01", "2024-12-31").aggregate_time(
+                "monthly"
+            )
+        """
+        from pymc_marketing.mmm.idata_schema import MMMIdataSchema
+        from pymc_marketing.mmm.idata_wrapper import MMMIDataWrapper
+
+        self._validate_idata_exists()
+
+        if (
+            not hasattr(self, "_data_wrapper")
+            or getattr(self, "_data_wrapper", None) is None
+        ):
+            # Create schema from model configuration
+            schema = MMMIdataSchema.from_model_config(
+                custom_dims=self.dims if hasattr(self, "dims") and self.dims else (),
+                has_controls=self.control_columns is not None,
+                has_seasonality=self.yearly_seasonality is not None,
+                time_varying=(
+                    getattr(self, "time_varying_intercept", False)
+                    or getattr(self, "time_varying_media", False)
+                ),
+            )
+
+            self._data_wrapper = MMMIDataWrapper(
+                self.idata,
+                schema=schema,
+                validate_on_init=False,  # Don't validate on every access
+            )
+
+        return self._data_wrapper
+
+    @property
     def default_model_config(self) -> dict:
         """Define the default model configuration."""
         base_config = {
