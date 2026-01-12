@@ -35,11 +35,13 @@ dependencies = [
     "pytensor>=2.31.3",
     "scikit-learn>=1.1.1",
     "seaborn>=0.12.2",
+    "tqdm",
     "xarray>=2024.1.0",
     "xarray-einstats>=0.5.1",
     "pyprojroot",
     "pymc-extras>=0.4.0",
     "preliz>=0.20.0",
+    "pyyaml",
 ]
 
 [project.optional-dependencies]
@@ -79,6 +81,7 @@ test = [
     "blackjax",
     "nutpie",
     "numpyro",
+    "ipykernel",
     "jax",
     "graphviz>=0.20.1",
     "lifetimes==0.11.3",
@@ -152,7 +155,7 @@ ignore = [
     "D",
     "S101", # Use of assert
 ]
-"scripts/*" = ["D"]
+"scripts/*" = ["D", "E402"]
 
 [tool.ruff.lint.pycodestyle]
 max-line-length = 120

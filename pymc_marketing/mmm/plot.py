@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -184,6 +184,7 @@ Notes
 """
 
 import itertools
+import warnings
 from collections.abc import Iterable
 from typing import Any
 
@@ -198,6 +199,7 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from numpy.typing import NDArray
 
+from pymc_marketing.metrics import crps
 from pymc_marketing.mmm.utils import build_contributions
 
 __all__ = ["MMMPlotSuite"]
@@ -406,6 +408,20 @@ class MMMPlotSuite:
             dims_keys = []
             dims_combos = [()]
         return dims_keys, dims_combos
+
+    def _filter_df_by_indexer(
+        self, df: pd.DataFrame | None, indexer: dict
+    ) -> pd.DataFrame:
+        """Train / Test rows for this fold & panel: filter metadata DataFrames by all panel dims."""
+        if df is None:
+            return pd.DataFrame([])
+        if not indexer:
+            return df.copy()
+        mask = pd.Series(True, index=df.index)
+        for k, v in indexer.items():
+            if k in df.columns:
+                mask &= df[k].astype(str) == str(v)
+        return df.loc[mask]
 
     # ------------------------------------------------------------------------
     #                          Main Plotting Methods
@@ -2885,3 +2901,885 @@ class MMMPlotSuite:
         fig.suptitle("Channel Contribution Share", fontsize=16, y=1.05)
 
         return fig, ax
+
+    def cv_predictions(
+        self, results: az.InferenceData, dims: dict[str, str | int | list] | None = None
+    ) -> tuple[Figure, NDArray[Axes]]:
+        """Plot posterior predictive predictions across CV folds.
+
+        Generates visualization showing posterior predictive distributions for
+        each cross-validation fold, with separate panels for different dimension
+        combinations.
+
+        Parameters
+        ----------
+        results : arviz.InferenceData
+            Combined InferenceData produced by ``TimeSliceCrossValidator.run()``.
+            Must contain:
+
+            - A coordinate named 'cv'
+            - A 'cv_metadata' group with per-fold metadata (X_train, y_train,
+              X_test, y_test) stored under ``cv_metadata.metadata``
+            - A posterior_predictive group containing 'y_original_scale'
+
+        dims : dict, optional
+            Dictionary specifying dimensions to filter when plotting.
+            Keys must be coordinates present on
+            ``posterior_predictive['y_original_scale']``.
+            Values can be single values or lists of values.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The matplotlib figure object.
+        axes : numpy.ndarray of matplotlib.axes.Axes
+            Array of axes objects, one per panel.
+
+        Raises
+        ------
+        TypeError
+            If ``results`` is not an ``arviz.InferenceData`` object.
+        ValueError
+            If required groups or variables are missing from ``results``.
+            If unsupported dimensions are specified in ``dims``.
+
+        Notes
+        -----
+        The plot shows:
+
+        - HDI (94%) for train (blue) and test (orange) ranges as shaded bands
+        - Observed values as black lines
+        - A vertical dashed green line marking the end of training for each fold
+
+        See Also
+        --------
+        TimeSliceCrossValidator.run : Generate the combined InferenceData.
+        param_stability : Plot parameter stability across folds.
+        cv_crps : Plot CRPS scores across folds.
+        """
+        # Expect an arviz.InferenceData with cv coord and cv_metadata
+        if not isinstance(results, az.InferenceData):
+            raise TypeError(
+                "plot_cv_predictions expects an arviz.InferenceData object for 'results'."
+            )
+
+        # Validate presence of cv metadata and posterior predictive
+        if not hasattr(results, "cv_metadata") or "metadata" not in results.cv_metadata:
+            raise ValueError(
+                "Provided InferenceData must include a 'cv_metadata' group with a 'metadata' DataArray."
+            )
+        if (
+            not hasattr(results, "posterior_predictive")
+            or "y_original_scale" not in results.posterior_predictive
+        ):
+            raise ValueError(
+                "Provided InferenceData must include posterior_predictive['y_original_scale']."
+            )
+
+        # Discover posterior_predictive dataarray we'll be working with
+        pp = results.posterior_predictive["y_original_scale"]
+
+        # Determine which coordinate dims are available for paneling (exclude technical dims)
+        technical_dims = {"chain", "draw", "sample", "date", "cv"}
+        available_dims = [d for d in pp.dims if d not in technical_dims]
+
+        # If the user supplied dims, validate they are a subset of available_dims
+        if dims is None:
+            # Require explicit dims or use additional dims for paneling
+            dims = {}
+        else:
+            unsupported = [d for d in dims.keys() if d not in available_dims]
+            if unsupported:
+                raise ValueError(
+                    f"cv_predictions only supports dims that exist. Unsupported dims: {unsupported}"
+                )
+
+        # Build explicit lists for dims that may contain single values
+        dims_keys, dims_combos = self._dim_list_handler(dims)
+
+        # Additional dimensions to create separate panels for (those not in dims and not ignored)
+        additional_dims = [d for d in available_dims if d not in dims_keys]
+        if additional_dims:
+            additional_coords = [pp.coords[d].values for d in additional_dims]
+            additional_combinations = list(itertools.product(*additional_coords))
+        else:
+            additional_combinations = [()]
+
+        # Build all panel indexers: each panel corresponds to a mapping dim->value
+        total_panels = []
+        for dims_combo in dims_combos:
+            for addl_combo in additional_combinations:
+                indexer: dict = {}
+                indexer.update(dict(zip(dims_keys, dims_combo, strict=False)))
+                if additional_dims:
+                    indexer.update(dict(zip(additional_dims, addl_combo, strict=False)))
+                total_panels.append(indexer)
+
+        cv_labels = list(results.cv_metadata.coords["cv"].values)
+        n_folds = len(cv_labels)
+        n_panels = len(total_panels)
+        n_axes = max(1, n_panels * n_folds)
+
+        fig, axes = plt.subplots(
+            n_axes, 1, figsize=(12, 4 * max(1, n_axes)), sharex=True
+        )
+        if n_axes == 1:
+            axes = [axes]
+
+        # Helper to align y Series to a DataFrame's rows without using reindex (avoids duplicate-index errors)
+        def _align_y_to_df(y_series, df):
+            y_df = y_series.reset_index()
+            y_df.columns = ["orig_index", "y_value"]
+            df_idx = pd.DataFrame({"orig_index": df.index, "date": df["date"].values})
+            merged = df_idx.merge(y_df, on="orig_index", how="left")
+            return merged["y_value"], merged["date"]
+
+        # Robust wrapper to call arviz.plot_hdi from an xarray DataArray `sel`.
+        def _plot_hdi_from_sel(sel, ax, color, label):
+            sel2 = sel.squeeze()
+            arr = getattr(sel2, "values", sel2)
+            if arr.ndim == 1:
+                if hasattr(sel2, "coords") and "sample" in sel2.coords:
+                    arr = arr.reshape((-1, 1))
+                    x = (
+                        sel2.coords["date"].values
+                        if "date" in sel2.coords
+                        else [sel2.coords.get("date")]
+                    )
+                else:
+                    arr = arr.reshape((1, -1))
+                    x = (
+                        sel2.coords["date"].values
+                        if "date" in sel2.coords
+                        else [sel2.coords.get("date")]
+                    )
+            else:
+                if hasattr(sel2, "dims"):
+                    dims = list(sel2.dims)
+                    if dims == ["date", "sample"]:
+                        arr = arr.T
+                    elif dims != ["sample", "date"]:
+                        try:
+                            sel2 = sel2.transpose("sample", "date")
+                            arr = sel2.values
+                        except Exception as exc:
+                            warnings.warn(
+                                f"Could not transpose sel2 to ('sample','date'): {exc}",
+                                stacklevel=2,
+                            )
+                            arr = getattr(sel2, "values", sel2)
+                x = (
+                    sel2.coords["date"].values
+                    if hasattr(sel2, "coords") and "date" in sel2.coords
+                    else None
+                )
+
+            # Ensure x is at least 1D array (arviz.plot_hdi fails on 0-dim arrays)
+            if x is not None:
+                x = np.atleast_1d(x)
+
+            az.plot_hdi(
+                y=arr,
+                x=x,
+                ax=ax,
+                hdi_prob=0.94,
+                color=color,
+                smooth=False,
+                fill_kwargs={"alpha": 0.25, "label": label},
+                plot_kwargs={"color": color, "linestyle": "--", "linewidth": 1},
+            )
+
+        # Iterate panels x folds
+        for panel_idx, panel_indexer in enumerate(total_panels):
+            for fold_idx, cv_label in enumerate(cv_labels):
+                ax_i = panel_idx * n_folds + fold_idx
+                ax = axes[ax_i]
+
+                # Select posterior predictive array for this CV and this panel
+                arr = results.posterior_predictive["y_original_scale"].sel(cv=cv_label)
+                try:
+                    arr = arr.sel(**panel_indexer) if panel_indexer else arr
+                except (KeyError, ValueError) as exc:
+                    # If a specific panel coord value cannot be selected (e.g., not present), warn and skip
+                    warnings.warn(
+                        f"Could not select posterior_predictive panel {panel_indexer}: {exc}; skipping.",
+                        stacklevel=2,
+                    )
+                    continue
+
+                # Stack chain/draw -> sample for quantile computation and ensure ordering
+                arr_s = arr.stack(sample=("chain", "draw"))
+                # Ensure date is a dimension we can index into and keep ordering date,last dims
+                # Move date and sample to front for consistent indexing used by helper
+                try:
+                    arr_s = arr_s.transpose(
+                        "sample",
+                        "date",
+                        *[d for d in arr_s.dims if d not in ("sample", "date")],
+                    )
+                except (ValueError, KeyError) as exc:
+                    # If transpose fails, continue with whatever ordering exists
+                    warnings.warn(
+                        f"Could not transpose posterior_predictive array to ('sample','date',...): {exc}",
+                        stacklevel=2,
+                    )
+
+                # Extract train/test metadata for this fold from cv_metadata
+                meta_da = results.cv_metadata["metadata"].sel(cv=cv_label)
+                try:
+                    meta = meta_da.values.item()
+                except (ValueError, AttributeError):
+                    # fallback: try python object access
+                    meta = getattr(meta_da, "item", lambda: None)()
+
+                X_train = meta.get("X_train") if isinstance(meta, dict) else None
+                y_train = meta.get("y_train") if isinstance(meta, dict) else None
+                X_test = meta.get("X_test") if isinstance(meta, dict) else None
+                y_test = meta.get("y_test") if isinstance(meta, dict) else None
+
+                # Filter train/test DataFrames to this panel
+                train_df_panel = self._filter_df_by_indexer(X_train, panel_indexer)
+                test_df_panel = self._filter_df_by_indexer(X_test, panel_indexer)
+
+                train_dates = (
+                    pd.to_datetime(train_df_panel["date"].values)
+                    if not train_df_panel.empty
+                    else pd.DatetimeIndex([])
+                )
+                test_dates = (
+                    pd.to_datetime(test_df_panel["date"].values)
+                    if not test_df_panel.empty
+                    else pd.DatetimeIndex([])
+                )
+                train_dates = train_dates.sort_values().unique()
+                test_dates = test_dates.sort_values().unique()
+
+                # Plot HDI for train (blue) and test (orange)
+                if train_dates.size:
+                    try:
+                        sel = arr_s.sel(
+                            date=train_dates,
+                            **{
+                                k: v
+                                for k, v in panel_indexer.items()
+                                if k in arr_s.dims
+                            },
+                        )
+                        _plot_hdi_from_sel(sel, ax, "C0", "HDI (train)")
+                    except (KeyError, ValueError, TypeError) as exc:
+                        warnings.warn(
+                            f"Could not compute HDI for train range: {exc}; skipping.",
+                            stacklevel=2,
+                        )
+
+                if test_dates.size:
+                    try:
+                        sel = arr_s.sel(
+                            date=test_dates,
+                            **{
+                                k: v
+                                for k, v in panel_indexer.items()
+                                if k in arr_s.dims
+                            },
+                        )
+                        _plot_hdi_from_sel(sel, ax, "C1", "HDI (test)")
+                    except (KeyError, ValueError, TypeError) as exc:
+                        warnings.warn(
+                            f"Could not compute HDI for test range: {exc}; skipping.",
+                            stacklevel=2,
+                        )
+
+                # Plot observed actuals in black (train + test) as lines (no markers)
+                if (
+                    X_train is not None
+                    and y_train is not None
+                    and not train_df_panel.empty
+                ):
+                    y_train_vals, train_plot_dates = _align_y_to_df(
+                        y_train, train_df_panel
+                    )
+                    y_train_vals = y_train_vals.dropna()
+                    if not y_train_vals.empty:
+                        dates_to_plot = pd.to_datetime(
+                            train_plot_dates.loc[y_train_vals.index].values
+                        )
+                        ax.plot(
+                            dates_to_plot,
+                            y_train_vals.values,
+                            color="black",
+                            linestyle="-",
+                            linewidth=1.5,
+                            label="observed",
+                        )
+
+                if (
+                    X_test is not None
+                    and y_test is not None
+                    and not test_df_panel.empty
+                ):
+                    y_test_vals, test_plot_dates = _align_y_to_df(y_test, test_df_panel)
+                    y_test_vals = y_test_vals.dropna()
+                    if not y_test_vals.empty:
+                        dates_to_plot = pd.to_datetime(
+                            test_plot_dates.loc[y_test_vals.index].values
+                        )
+                        ax.plot(
+                            dates_to_plot,
+                            y_test_vals.values,
+                            color="black",
+                            linestyle="-",
+                            linewidth=1.5,
+                        )
+
+                # Vertical line marking end of training
+                if train_dates.size:
+                    end_train_date = pd.to_datetime(train_dates.max())
+                    ax.axvline(
+                        end_train_date,
+                        color="green",
+                        linestyle="--",
+                        linewidth=2,
+                        alpha=0.9,
+                        label="train end",
+                    )
+
+                # Build title from panel indexer values
+                if panel_indexer:
+                    title_parts = [f"{k}={v}" for k, v in panel_indexer.items()]
+                    panel_title = ", ".join(title_parts)
+                else:
+                    panel_title = "Posterior Predictive"
+                ax.set_title(f"{panel_title} — Fold {fold_idx} — Posterior Predictive")
+                ax.set_ylabel("y_original_scale")
+
+        # Build a single unique legend placed at the bottom of the figure
+        handles, labels = [], []
+        for ax in axes:
+            h, _l = ax.get_legend_handles_labels()
+            handles.extend(h)
+            labels.extend(_l)
+        by_label = dict(zip(labels, handles, strict=False))
+        if by_label:
+            plt.tight_layout(rect=[0, 0.07, 1, 1])
+            ncol = min(4, len(by_label))
+            fig.legend(
+                by_label.values(),
+                by_label.keys(),
+                loc="lower center",
+                ncol=ncol,
+                bbox_to_anchor=(0.5, 0.01),
+            )
+        else:
+            plt.tight_layout()
+
+        axes[-1].set_xlabel("date")
+        plt.show()
+        return fig, axes
+
+    def param_stability(
+        self,
+        results: az.InferenceData,
+        parameter: list[str],
+        dims: dict[str, list[str]] | None = None,
+    ) -> tuple[Figure, NDArray[Axes]]:
+        """Plot parameter stability across CV iterations.
+
+        Generates forest plots showing how parameter estimates vary across
+        cross-validation folds, helping assess model stability.
+
+        Parameters
+        ----------
+        results : arviz.InferenceData
+            Combined InferenceData produced by ``TimeSliceCrossValidator.run()``.
+            Must contain a coordinate named 'cv' which labels each CV fold.
+        parameter : list of str
+            List of parameter names to plot (e.g., ``["beta_channel"]``).
+        dims : dict, optional
+            Dictionary specifying dimensions and coordinate values to slice over.
+            Each key is a dimension name, and the value is a list of coordinate
+            values. A separate forest plot is generated for each combination.
+            Example: ``{"geo": ["geo_a", "geo_b"]}``.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The matplotlib figure object (last one if multiple plots generated).
+        ax : matplotlib.axes.Axes
+            The axes object (last one if multiple plots generated).
+
+        Raises
+        ------
+        TypeError
+            If ``results`` is not an ``arviz.InferenceData`` object.
+        ValueError
+            If the InferenceData does not contain a 'cv' coordinate.
+            If unable to select specified dimensions from posterior.
+
+        See Also
+        --------
+        TimeSliceCrossValidator.run : Generate the combined InferenceData.
+        cv_predictions : Plot posterior predictive across folds.
+        cv_crps : Plot CRPS scores across folds.
+
+        Examples
+        --------
+        Basic usage:
+
+        >>> suite = MMMPlotSuite(idata=None)
+        >>> fig, ax = suite.param_stability(combined_idata, parameter=["beta_channel"])
+
+        With dimension slicing:
+
+        >>> fig, ax = suite.param_stability(
+        ...     combined_idata, parameter=["beta_channel"], dims={"geo": ["US", "UK"]}
+        ... )
+        """
+        # Ensure the provided input is an arviz.InferenceData with a 'cv' coord
+        if not isinstance(results, az.InferenceData):
+            raise TypeError(
+                "plot_param_stability expects an `arviz.InferenceData` returned by TimeSliceCrossValidator.run(...)"
+            )
+
+        idata = results
+        # discover cv labels from any group that exposes the coordinate
+        cv_labels = None
+        for grp in (
+            "posterior",
+            "posterior_predictive",
+            "sample_stats",
+            "observed_data",
+            "prior",
+        ):
+            try:
+                ds = getattr(idata, grp)
+            except AttributeError:
+                ds = None
+            if ds is None:
+                continue
+            if "cv" in ds.coords:
+                cv_labels = list(ds.coords["cv"].values)
+                break
+
+        if cv_labels is None:
+            raise ValueError(
+                "Provided InferenceData does not contain a 'cv' coordinate."
+            )
+
+        # Build posterior_list by selecting along cv for the posterior group
+        posterior_list = []
+        model_names: list[str] = []
+        for lbl in cv_labels:
+            try:
+                p = idata.posterior.sel(cv=lbl)
+            except (KeyError, AttributeError):
+                # fallback to selecting from posterior_predictive if posterior missing
+                p = idata.posterior_predictive.sel(cv=lbl)
+
+            posterior_list.append(p)
+            model_names.append(str(lbl))
+
+        if dims is None:
+            # No dims: standard forest plot
+            fig, ax = plt.subplots(figsize=(9, 6))
+            az.plot_forest(
+                data=posterior_list,
+                model_names=model_names,
+                var_names=parameter,
+                combined=True,
+                ax=ax,
+            )
+            fig.suptitle(
+                f"Parameter Stability: {parameter}",
+                fontsize=18,
+                fontweight="bold",
+                y=1.06,
+            )
+            plt.show()
+            return fig, ax
+
+        else:
+            # Plot one forest plot per dim value
+            last_fig_ax = None
+            for dim_name, coord_values in dims.items():
+                for coord in coord_values:
+                    fig, ax = plt.subplots(figsize=(9, 6))
+                    # Select the coordinate value from each posterior fold
+                    sel_data = []
+                    for p in posterior_list:
+                        try:
+                            sel_data.append(p.sel({dim_name: coord}))
+                        except (KeyError, ValueError) as exc:
+                            raise ValueError(
+                                f"Unable to select dims from posterior for one or more folds: {exc}"  # noqa: S608
+                            ) from exc
+
+                    az.plot_forest(
+                        data=sel_data,
+                        model_names=model_names,
+                        var_names=parameter,
+                        combined=True,
+                        ax=ax,
+                    )
+                    fig.suptitle(
+                        f"Parameter Stability: {parameter} | {dim_name}={coord}",
+                        fontsize=18,
+                        fontweight="bold",
+                        y=1.06,
+                    )
+                    plt.show()
+                    last_fig_ax = (fig, ax)
+
+            # If dims provided but empty, fall back to the no-dims behavior
+            if last_fig_ax is None:
+                fig, ax = plt.subplots(figsize=(9, 6))
+                az.plot_forest(
+                    data=posterior_list,
+                    model_names=model_names,
+                    var_names=parameter,
+                    combined=True,
+                    ax=ax,
+                )
+                fig.suptitle(
+                    f"Parameter Stability: {parameter}",
+                    fontsize=18,
+                    fontweight="bold",
+                    y=1.06,
+                )
+                plt.show()
+                return fig, ax
+
+            return last_fig_ax
+
+    def cv_crps(
+        self, results: az.InferenceData, dims: dict[str, str | int | list] | None = None
+    ) -> tuple[Figure, NDArray[Axes]]:
+        """Plot CRPS scores for train and test sets across CV splits.
+
+        Generates plots showing the Continuous Ranked Probability Score (CRPS)
+        for each cross-validation fold, optionally stratified by additional
+        dimensions.
+
+        Parameters
+        ----------
+        results : arviz.InferenceData
+            Combined InferenceData produced by ``TimeSliceCrossValidator.run()``.
+            Must contain:
+
+            - A coordinate named 'cv'
+            - A 'cv_metadata' group with per-fold metadata (X_train, y_train,
+              X_test, y_test) stored under ``cv_metadata.metadata``
+            - A posterior_predictive group containing 'y_original_scale'
+
+        dims : dict, optional
+            Dictionary specifying dimensions to stratify the CRPS computation.
+            Keys must be coordinates present on
+            ``posterior_predictive['y_original_scale']``.
+            Values can be single values or lists of values.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The matplotlib figure object.
+        axes : numpy.ndarray of matplotlib.axes.Axes
+            2D array of axes objects with shape (n_panels, 2), where the first
+            column shows train CRPS and the second shows test CRPS.
+
+        Raises
+        ------
+        TypeError
+            If ``results`` is not an ``arviz.InferenceData`` object.
+        ValueError
+            If required groups or variables are missing from ``results``.
+            If no 'cv' coordinate is found in the InferenceData.
+
+        See Also
+        --------
+        TimeSliceCrossValidator.run : Generate the combined InferenceData.
+        cv_predictions : Plot posterior predictive across folds.
+        param_stability : Plot parameter stability across folds.
+
+        Notes
+        -----
+        CRPS (Continuous Ranked Probability Score) is a proper scoring rule
+        that measures the quality of probabilistic predictions. Lower values
+        indicate better predictions.
+        """
+        # Validate input is combined InferenceData
+        if not isinstance(results, az.InferenceData):
+            raise TypeError(
+                "cv_crps expects an arviz.InferenceData returned by TimeSliceCrossValidator._combine_idata(...)"
+            )
+        if not hasattr(results, "cv_metadata") or "metadata" not in results.cv_metadata:
+            raise ValueError(
+                "Provided InferenceData must include a 'cv_metadata' group with a 'metadata' DataArray."
+            )
+        if (
+            not hasattr(results, "posterior_predictive")
+            or "y_original_scale" not in results.posterior_predictive
+        ):
+            raise ValueError(
+                "Provided InferenceData must include posterior_predictive['y_original_scale']."
+            )
+
+        # Helper: build prediction matrix for a given cv label and rows DataFrame
+        def _pred_matrix_for_rows(
+            idata: az.InferenceData, cv_label, rows_df: pd.DataFrame
+        ):
+            """Build (n_samples, n_rows) prediction matrix for given rows DataFrame and CV label.
+
+            Selects posterior_predictive['y_original_scale'] for the given cv and then
+            behaves like the legacy helper: find date coord, select by date (and any
+            other matching row-level coords), and assemble a (n_samples, n_rows) matrix.
+            """
+            da = idata.posterior_predictive["y_original_scale"].sel(cv=cv_label)
+            da_s = da.stack(sample=("chain", "draw"))
+
+            # Ensure 'sample' is first axis
+            if da_s.dims[0] != "sample":
+                da_s = da_s.transpose("sample", ...)
+            else:
+                dims = list(da_s.dims)
+                order = ["sample"] + [d for d in dims if d != "sample"]
+                da_s = da_s.transpose(*order)
+
+            n_samples = int(da_s.sizes["sample"])
+            n_rows = len(rows_df)
+            mat = np.empty((n_samples, n_rows))
+
+            for j, (_idx, row) in enumerate(rows_df.iterrows()):
+                # determine date coord
+                date_coord = None
+                if "date" in da_s.coords:
+                    date_coord = "date"
+                else:
+                    technical_skip = {"sample", "chain", "draw"}
+                    for coord, vals in da_s.coords.items():
+                        if coord in technical_skip:
+                            continue
+                        if pd.api.types.is_datetime64_any_dtype(
+                            getattr(vals, "dtype", vals)
+                        ):
+                            date_coord = coord
+                            break
+
+                if date_coord is None:
+                    for coord in da_s.coords:
+                        if coord not in ("sample", "chain", "draw"):
+                            date_coord = coord
+                            break
+
+                # find matching row date value
+                if date_coord in rows_df.columns:
+                    date_value = row[date_coord]  # type: ignore[index]
+                else:
+                    found_col = None
+                    for col in rows_df.columns:
+                        if "date" in col.lower():
+                            found_col = col
+                            break
+                    if found_col is None:
+                        for col in rows_df.columns:
+                            if pd.api.types.is_datetime64_any_dtype(rows_df[col].dtype):
+                                found_col = col
+
+                    if found_col is None:
+                        raise ValueError(
+                            "Could not find a date-like column in rows_df to match posterior_predictive coordinate"
+                        )
+                    # found_col is guaranteed to be str here after the check above
+                    date_value = row[found_col]  # type: ignore[index]
+
+                # select by date
+                sel = da_s.sel({date_coord: date_value})
+
+                # select by any other dims that appear in both sel.dims and rows_df.columns
+                other_dims = [d for d in sel.dims if d not in ("sample", date_coord)]
+                for dim in other_dims:
+                    if dim in rows_df.columns:
+                        try:
+                            sel = sel.sel({dim: str(row[dim])})
+                        except (KeyError, ValueError):
+                            # try without casting to string if that fails
+                            sel = sel.sel({dim: row[dim]})
+
+                arr = np.squeeze(getattr(sel, "values", sel))
+                if arr.ndim == 0:
+                    raise ValueError(
+                        "Posterior predictive selection returned a scalar for a row"
+                    )
+                if arr.ndim > 1:
+                    arr = arr.reshape(n_samples, -1)[:, 0]
+
+                mat[:, j] = arr
+
+            return mat
+
+        # dims handling (validate + build combinations)
+        # derive dims from the posterior_predictive (use first cv to inspect dims)
+        # discover cv labels from cv_metadata (preferred) or posterior_predictive coords
+        if hasattr(results, "cv_metadata") and "cv" in results.cv_metadata.coords:
+            cv_labels = list(results.cv_metadata.coords["cv"].values)
+        elif (
+            hasattr(results, "posterior_predictive")
+            and "cv" in results.posterior_predictive.coords
+        ):
+            cv_labels = list(results.posterior_predictive.coords["cv"].values)
+        else:
+            raise ValueError(
+                "No 'cv' coordinate found in provided InferenceData (checked cv_metadata and posterior_predictive)"
+            )
+        if not cv_labels:
+            raise ValueError("No CV labels found in provided InferenceData")
+        main_da = results.posterior_predictive["y_original_scale"].sel(cv=cv_labels[0])
+        all_dims = list(main_da.dims)
+
+        # validate dims
+        if dims:
+            self._validate_dims(dims, all_dims)
+        else:
+            self._validate_dims({}, all_dims)
+        dims_keys, dims_combos = self._dim_list_handler(dims)
+
+        # identify additional dims to iterate over
+        ignored_dims = {"chain", "draw", "sample", "date"}
+        additional_dims = [
+            d for d in all_dims if d not in ignored_dims and d not in (dims or {})
+        ]
+        if additional_dims:
+            additional_coords = [main_da.coords[d].values for d in additional_dims]
+            additional_combinations = list(itertools.product(*additional_coords))
+        else:
+            additional_combinations = [()]
+
+        total_combos = list(itertools.product(dims_combos, additional_combinations))
+        n_panels = len(total_combos)
+
+        # create one panel per combination -> create two columns: train | test
+        fig, axes = self._init_subplots(n_subplots=max(1, n_panels), ncols=2)
+
+        def _filter_rows_and_y(
+            df: pd.DataFrame | None, y: pd.Series | None, indexers: dict
+        ) -> tuple[pd.DataFrame, np.ndarray]:
+            # Accept optional df and y to satisfy callers; always return concrete types
+            if df is None or df.empty:
+                return pd.DataFrame([], columns=[]), np.array([])
+            if y is None:
+                return pd.DataFrame([], columns=[]), np.array([])
+            mask = np.ones(len(df), dtype=bool)
+            for k, v in indexers.items():
+                if k in df.columns:
+                    mask &= df[k].astype(str) == str(v)
+            filtered_df = df[mask].reset_index(drop=True)
+            y_arr = y.to_numpy()[mask]
+
+            return filtered_df, y_arr
+
+        # iterate and compute per-panel CRPS across folds
+        for panel_idx, (dims_combo, addl_combo) in enumerate(total_combos):
+            ax_train = axes[panel_idx][0]
+            ax_test = axes[panel_idx][1]
+            indexers: dict = {}
+            for i, k in enumerate(dims_keys):
+                indexers[k] = dims_combo[i]
+            for k, v in (dims or {}).items():
+                if k not in dims_keys:
+                    indexers[k] = v
+            for i, d in enumerate(additional_dims):
+                indexers[d] = addl_combo[i] if addl_combo else addl_combo
+
+            crps_train_list = []
+            crps_test_list = []
+
+            # loop over cv folds using cv_metadata
+            for _cv_idx, cv_label in enumerate(cv_labels):
+                meta_da = results.cv_metadata["metadata"].sel(cv=cv_label)
+                vals = getattr(meta_da, "values", None)
+                if isinstance(vals, np.ndarray) and vals.size == 1:
+                    meta = vals.item()
+                else:
+                    meta = getattr(meta_da, "item", lambda: None)()
+
+                X_train_df = meta.get("X_train") if isinstance(meta, dict) else None
+                y_train = meta.get("y_train") if isinstance(meta, dict) else None
+                X_test_df = meta.get("X_test") if isinstance(meta, dict) else None
+                y_test = meta.get("y_test") if isinstance(meta, dict) else None
+
+                # Training data
+                filtered_train_rows, y_train_arr = _filter_rows_and_y(
+                    X_train_df, y_train, indexers
+                )
+                if len(filtered_train_rows) == 0:
+                    crps_train_list.append(np.nan)
+                else:
+                    try:
+                        y_pred_train = _pred_matrix_for_rows(
+                            results,
+                            cv_label,
+                            filtered_train_rows.reset_index(drop=True),
+                        )
+                        if y_pred_train.shape[1] != len(y_train_arr):
+                            crps_train_list.append(np.nan)
+                        else:
+                            crps_train_list.append(
+                                crps(y_true=y_train_arr, y_pred=y_pred_train)
+                            )
+                    except (KeyError, ValueError, IndexError):
+                        crps_train_list.append(np.nan)
+
+                # Testing data
+                filtered_test_rows, y_test_arr = _filter_rows_and_y(
+                    X_test_df, y_test, indexers
+                )
+                if len(filtered_test_rows) == 0:
+                    crps_test_list.append(np.nan)
+                else:
+                    try:
+                        y_pred_test = _pred_matrix_for_rows(
+                            results, cv_label, filtered_test_rows.reset_index(drop=True)
+                        )
+                        if y_pred_test.shape[1] != len(y_test_arr):
+                            crps_test_list.append(np.nan)
+                        else:
+                            crps_test_list.append(
+                                crps(y_true=y_test_arr, y_pred=y_pred_test)
+                            )
+                    except (KeyError, ValueError, IndexError):
+                        crps_test_list.append(np.nan)
+
+            # convert to arrays for plotting
+            crps_train_arr = np.array(crps_train_list, dtype=float)
+            crps_test_arr = np.array(crps_test_list, dtype=float)
+
+            # plot train and test on separate axes (left = train, right = test)
+            x_axis = np.arange(len(cv_labels))
+            if not np.all(np.isnan(crps_train_arr)):
+                ax_train.plot(x_axis, crps_train_arr, marker="o", color="C0")
+            if not np.all(np.isnan(crps_test_arr)):
+                ax_test.plot(x_axis, crps_test_arr, marker="o", color="C1")
+
+            # Title for this pair of subplots
+            title_dims = list(dims.keys() if dims else []) + additional_dims
+            title_values = []
+            for v in dims_combo:
+                title_values.append(v)
+            for k in dims or {}:
+                if k not in dims_keys:
+                    title_values.append((dims or {})[k])
+            if addl_combo:
+                title_values.extend(addl_combo)
+            subplot_title = self._build_subplot_title(
+                title_dims, tuple(title_values), fallback_title="CRPS per dimension"
+            )
+
+            ax_train.set_title(f"{subplot_title} — train")
+            ax_test.set_title(f"{subplot_title} — test")
+            ax_train.set_xlabel("Iteration")
+            ax_test.set_xlabel("Iteration")
+            ax_train.set_ylabel("CRPS")
+            ax_test.set_ylabel("CRPS")
+            ax_train.legend(["train"], loc="best")
+            ax_test.legend(["test"], loc="best")
+
+        fig.suptitle("CRPS per dimension", fontsize=14, fontweight="bold", y=1.02)
+        plt.tight_layout()
+        return fig, axes
