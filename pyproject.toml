@@ -68,6 +68,7 @@ docs = [
     "sphinx-remove-toctrees",
     "sphinx",
     "sphinxext-opengraph",
+    "sphinx-sitemap",
     "watermark",
     "mlflow>=2.0.0",
     "networkx",
