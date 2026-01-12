@@ -186,6 +186,8 @@ from pymc_marketing.mmm.components.saturation import (
 from pymc_marketing.mmm.events import EventEffect
 from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.hsgp import HSGPBase, hsgp_from_dict
+from pymc_marketing.mmm.idata_schema import MMMIdataSchema
+from pymc_marketing.mmm.idata_wrapper import MMMIDataWrapper
 from pymc_marketing.mmm.lift_test import (
     add_cost_per_target_potentials,
     add_lift_measurements_to_likelihood_from_saturation,
@@ -646,9 +648,6 @@ class MMM(RegressionModelBuilder):
                 "monthly"
             )
         """
-        from pymc_marketing.mmm.idata_schema import MMMIdataSchema
-        from pymc_marketing.mmm.idata_wrapper import MMMIDataWrapper
-
         self._validate_idata_exists()
 
         if (
