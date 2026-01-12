@@ -1291,16 +1291,15 @@ class MMM(RegressionModelBuilder):
                     "intercept_baseline"
                 )
 
-                intercept_latent_process_contribution = create_hsgp_from_config(
+                intercept_latent_process = create_hsgp_from_config(
                     X=time_index,
                     dims=("date", *self.dims),
                     config=self.model_config["intercept_tvp_config"],
-                ).create_variable("intercept_latent_process_contribution")
+                ).create_variable("intercept_latent_process")
 
                 intercept = pm.Deterministic(
                     name="intercept_contribution",
-                    var=intercept_baseline[None, ...]
-                    * intercept_latent_process_contribution,
+                    var=intercept_baseline[None, ...] * intercept_latent_process,
                     dims=("date", *self.dims),
                 )
 
@@ -1311,16 +1310,13 @@ class MMM(RegressionModelBuilder):
 
                 # Register internal time index and build latent process
                 self.time_varying_intercept.register_data(time_index)
-                intercept_latent_process_contribution = (
-                    self.time_varying_intercept.create_variable(
-                        "intercept_latent_process_contribution"
-                    )
+                intercept_latent_process = self.time_varying_intercept.create_variable(
+                    "intercept_latent_process"
                 )
 
                 intercept = pm.Deterministic(
                     name="intercept_contribution",
-                    var=intercept_baseline[None, ...]
-                    * intercept_latent_process_contribution,
+                    var=intercept_baseline[None, ...] * intercept_latent_process,
                     dims=("date", *self.dims),
                 )
             else:

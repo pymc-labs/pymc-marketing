@@ -275,7 +275,7 @@ def test_fit(
     assert "channel_data" in var_names
     assert "target_data" in var_names
     if time_varying_intercept:
-        assert "intercept_latent_process_contribution" in var_names
+        assert "intercept_latent_process" in var_names
     if time_varying_media:
         assert "media_temporal_latent_multiplier" in var_names
     if yearly_seasonality is not None:
@@ -589,7 +589,7 @@ def test_time_varying_intercept_with_custom_hsgp_single_dim(single_dim_data, hsg
 
     mmm.build_model(X, y)
 
-    var_name = "intercept_latent_process_contribution"
+    var_name = "intercept_latent_process"
     assert var_name in mmm.model.named_vars
     latent_dims = mmm.model.named_vars_to_dims[var_name]
     assert latent_dims == hsgp_dims
@@ -658,7 +658,7 @@ def test_time_varying_intercept_with_custom_hsgp_single_dim_kernels(
 
     mmm.build_model(X, y)
 
-    var_name = "intercept_latent_process_contribution"
+    var_name = "intercept_latent_process"
     assert var_name in mmm.model.named_vars
     assert mmm.model.named_vars_to_dims[var_name] == ("date",)
 
@@ -738,7 +738,7 @@ def test_time_varying_intercept_with_custom_hsgp_multi_dim(
 
     mmm.build_model(X, y)
 
-    var_name = "intercept_latent_process_contribution"
+    var_name = "intercept_latent_process"
     assert var_name in mmm.model.named_vars
     latent_dims = mmm.model.named_vars_to_dims[var_name]
     assert latent_dims == hsgp_dims
@@ -2776,7 +2776,7 @@ def test_mmm_with_arbitrary_date_column_names_multi_dim(
     assert isinstance(idata_multi, az.InferenceData)
 
     # Test that time-varying features work with arbitrary date names
-    assert "intercept_latent_process_contribution" in mmm_multi.model.named_vars
+    assert "intercept_latent_process" in mmm_multi.model.named_vars
     assert "fourier_contribution" in mmm_multi.model.named_vars
 
     # Test posterior predictive with new data having the same arbitrary date column name
@@ -2881,7 +2881,7 @@ def test_arbitrary_date_column_with_control_variables(
             {"intercept_tvp_config": {"ls_lower": 0.1, "ls_upper": None}},
             None,
             dict(
-                name="intercept_latent_process_contribution_raw_ls_raw",
+                name="intercept_latent_process_raw_ls_raw",
                 kind="WeibullBetaRV",
             ),
             id="weibull",
@@ -2889,9 +2889,7 @@ def test_arbitrary_date_column_with_control_variables(
         pytest.param(
             {"intercept_tvp_config": {"ls_lower": 1, "ls_upper": 10}},
             None,
-            dict(
-                name="intercept_latent_process_contribution_raw_ls", kind="InvGammaRV"
-            ),
+            dict(name="intercept_latent_process_raw_ls", kind="InvGammaRV"),
             id="inversegamma",
         ),
     ],
@@ -2969,7 +2967,7 @@ class TestTimeVaryingConfigFormats:
             model_config=model_config,
         )
         mmm.build_model(X, y)
-        assert "intercept_latent_process_contribution" in mmm.model.named_vars
+        assert "intercept_latent_process" in mmm.model.named_vars
 
     def test_intercept_tvp_with_hsgp_kwargs_dict(
         self, sample_data: tuple[pd.DataFrame, pd.Series]
@@ -2996,7 +2994,7 @@ class TestTimeVaryingConfigFormats:
             model_config=model_config,
         )
         mmm.build_model(X, y)
-        assert "intercept_latent_process_contribution" in mmm.model.named_vars
+        assert "intercept_latent_process" in mmm.model.named_vars
 
     def test_media_tvp_with_hsgp_kwargs_instance(
         self, sample_data: tuple[pd.DataFrame, pd.Series]
