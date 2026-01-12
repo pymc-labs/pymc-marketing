@@ -1881,6 +1881,28 @@ C. **Scrollable subplots**
 
 **Recommendation**: Design these functions as part of Component 2 follow-up work before implementing corresponding Component 3 plots.
 
+---
+
+### 5. Backward Compatibility Strategy
+
+**Question**: How aggressively should we deprecate matplotlib plots?
+
+**Options**:
+A. **Conservative** (recommended)
+   - Keep matplotlib plots indefinitely
+   - Add interactive plots as alternative
+   - Let users choose based on use case
+
+B. **Moderate**
+   - Soft deprecation warnings in next release
+   - Hard deprecation in 2-3 releases
+   - Remove in major version bump
+
+C. **Aggressive**
+   - Deprecate immediately
+   - Remove in next major version
+
+**Recommendation**: Option A for now - both plotting systems coexist. Revisit based on user feedback.
 
 ---
 
