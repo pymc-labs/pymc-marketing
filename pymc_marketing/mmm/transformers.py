@@ -20,9 +20,19 @@ import numpy as np
 import numpy.typing as npt
 import pymc as pm
 import pytensor.tensor as pt
-from numpy.core.multiarray import normalize_axis_index
 from pymc.distributions.dist_math import check_parameters
 from pytensor.tensor.variable import TensorVariable
+
+# Import normalize_axis_index - handle compatibility
+try:
+    from pytensor.npy_2_compat import normalize_axis_index
+except ImportError:
+    # PyTensor 2.35+ no longer exports this, use numpy directly
+    try:
+        from numpy._core.numeric import normalize_axis_index
+    except (ImportError, AttributeError):
+        # Older numpy versions
+        from numpy.core.numeric import normalize_axis_index
 
 
 class ConvMode(StrEnum):
