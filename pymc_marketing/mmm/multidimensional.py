@@ -1909,26 +1909,9 @@ class MMM(RegressionModelBuilder):
         # Scale to original scale if requested
         if original_scale:
             target_scale = self.scalers._target
-            # Handle scalar scale (no additional dims) vs array scale
-            if target_scale.dims:
-                # Non-scalar: use dim handler for broadcasting
-                target_dim_handler = create_dim_handler(("date", *self.dims))
-                scale_values = target_dim_handler(
-                    target_scale.values, self.scalers._target.dims
-                )
-                # Create xarray-compatible scale
-                scale_da = xr.DataArray(
-                    scale_values,
-                    dims=("date", *self.dims),
-                    coords={
-                        dim: channel_contribution.coords[dim].values
-                        for dim in ("date", *self.dims)
-                    },
-                )
-                channel_contribution = channel_contribution * scale_da
-            else:
-                # Scalar scale: simple multiplication
-                channel_contribution = channel_contribution * float(target_scale.values)
+            # Use xarray broadcasting - target_scale will broadcast correctly
+            # regardless of whether it's a scalar or has dimensions
+            channel_contribution = channel_contribution * target_scale
 
         return channel_contribution
 
