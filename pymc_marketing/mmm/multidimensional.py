@@ -731,7 +731,7 @@ class MMM(RegressionModelBuilder):
 
     def _validate_idata_exists(self) -> None:
         """Validate that the idata exists."""
-        if not hasattr(self, "idata"):
+        if not hasattr(self, "idata") or self.idata is None:
             raise ValueError("idata does not exist. Build the model first and fit.")
 
     def _validate_dims_in_multiindex(
