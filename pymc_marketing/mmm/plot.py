@@ -1827,6 +1827,10 @@ class MMMPlotSuite:
         ignored_dims = {"delta", "chain", "draw", "channel", "sample"}
         additional_dims = [d for d in data.dims if d not in ignored_dims]
 
+        # Remove dims that are already handled by the dims parameter
+        if dims:
+            additional_dims = [d for d in additional_dims if d not in dims]
+
         # Handle list-valued dims
         dims_keys, dims_combos = self._dim_list_handler(dims)
 

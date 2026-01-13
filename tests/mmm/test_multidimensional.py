@@ -4234,3 +4234,45 @@ class TestMMMPlotSuiteChannelContributionGrid:
         with pytest.raises(ValueError, match="grid_data must have dims"):
             mmm.plot.channel_contribution_grid(grid_data=invalid_data)
         plt.close("all")
+
+    def test_plot_suite_dims_list_excludes_from_additional_dims(
+        self, multi_dim_data, mock_pymc_sample
+    ) -> None:
+        """Test that dims with list values are excluded from additional_dims.
+
+        This test verifies the fix for the issue where `additional_dims` was computed
+        without excluding keys already in the `dims` parameter. When `dims` contains
+        list values for dimensions that also exist in `data.dims`, those dimensions
+        should not be processed twice (once in `dims_combos` and again in `additional_combos`).
+        """
+        import matplotlib.pyplot as plt
+
+        X, y = multi_dim_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            target_column="target",
+            dims=("country",),
+        )
+        mmm.fit(X, y)
+
+        # Get grid data
+        grid_data = mmm.get_channel_contribution_forward_pass_grid(
+            start=0.5, stop=1.5, num=3
+        )
+
+        # Pass dims with a list value - this should create subplots for each
+        # country in the list, NOT create subplots for all combinations of
+        # dims_combos x additional_combos (which would happen if "country"
+        # was not excluded from additional_dims)
+        fig, axes = mmm.plot.channel_contribution_grid(
+            grid_data=grid_data, dims={"country": ["Venezuela", "Colombia"]}
+        )
+
+        assert isinstance(fig, plt.Figure)
+        # Should have exactly 2 subplots (one per country in the list)
+        # If the bug existed, it would have 2 x 2 = 4 subplots
+        assert axes.shape == (2, 1)
+        plt.close(fig)
