@@ -1755,165 +1755,40 @@ class MMM(RegressionModelBuilder):
             pymc_model=self.model, idata=self.idata, dims=self.dims
         )
 
-    def channel_contribution_forward_pass(
-        self,
-        channel_data: xr.DataArray,
-        progressbar: bool = False,
-        original_scale: bool = True,
-    ) -> xr.DataArray:
-        """Evaluate channel contributions for given channel data using posterior samples.
-
-        This method computes the channel contribution by applying the forward pass
-        (adstock and saturation transformations) to the provided channel data,
-        using the posterior samples from a fitted model.
+    def _build_prediction_dataframe(self, channel_data: xr.DataArray) -> pd.DataFrame:
+        """Convert channel xarray data to DataFrame for sample_posterior_predictive.
 
         Parameters
         ----------
         channel_data : xr.DataArray
-            Input channel data with dims ``(date, *dims, channel)``.
-            The data should be in the original (unscaled) units.
-        progressbar : bool, optional
-            Whether to show a progress bar during posterior predictive sampling.
-            Default is False.
-        original_scale : bool, optional
-            Whether to return contributions in the original scale of the target
-            variable. Default is True.
+            Channel data with dims ``(date, *dims, channel)``.
 
         Returns
         -------
-        xr.DataArray
-            Channel contributions with dims ``(chain, draw, date, *dims, channel)``.
-
-        Raises
-        ------
-        ValueError
-            If the model has not been fitted yet.
-
-        Examples
-        --------
-        Compute channel contributions for modified channel data:
-
-        .. code-block:: python
-
-            # Get original channel data
-            channel_data = mmm.idata.constant_data.channel_data
-
-            # Scale channel data by 1.5x
-            modified_data = channel_data * 1.5
-
-            # Compute contributions
-            contributions = mmm.channel_contribution_forward_pass(modified_data)
-
-        See Also
-        --------
-        get_channel_contribution_forward_pass_grid : Generate contributions for a grid of multipliers.
-        plot_channel_contribution_grid : Plot channel contributions across multipliers.
+        pd.DataFrame
+            DataFrame with columns ``[date_column, *dims, *channel_columns]``,
+            plus control columns if the model has controls.
 
         """
-        # Check if model is fitted using try/except since fit_result raises exception
-        try:
-            fit_result = self.fit_result
-            if fit_result is None:
-                raise ValueError(
-                    "Model has not been fitted yet. "
-                    "Please fit the model using `mmm.fit(X, y)` before calling this method."
-                )
-        except RuntimeError as e:
-            raise ValueError(
-                "Model has not been fitted yet. "
-                "Please fit the model using `mmm.fit(X, y)` before calling this method."
-            ) from e
+        # Convert (date, *dims, channel) xarray to wide DataFrame
+        df = channel_data.to_dataframe(name="value").reset_index()
+        df_wide = df.pivot_table(
+            index=["date", *self.dims],
+            columns="channel",
+            values="value",
+        ).reset_index()
 
-        # Validate channel_data dimensions
-        expected_dims = ("date", *self.dims, "channel")
-        if channel_data.dims != expected_dims:
-            raise ValueError(
-                f"channel_data must have dims {expected_dims}, got {channel_data.dims}"
+        # Rename 'date' to match the model's date column name
+        df_wide = df_wide.rename(columns={"date": self.date_column})
+
+        # Add control columns from original training data if model has controls
+        if self.control_columns:
+            controls = self.X[[self.date_column, *self.dims, *self.control_columns]]
+            df_wide = df_wide.merge(
+                controls, on=[self.date_column, *self.dims], how="left"
             )
 
-        # Build coords for the temporary model
-        coords = {
-            "date": channel_data.coords["date"].values,
-            "channel": channel_data.coords["channel"].values,
-        }
-        for dim in self.dims:
-            coords[dim] = channel_data.coords[dim].values
-
-        with pm.Model(coords=coords):
-            # Store channel data
-            channel_data_var = pm.Data(
-                name="channel_data",
-                value=channel_data.values,
-                dims=expected_dims,
-            )
-
-            # Store scaling factors
-            channel_scale = pm.Data(
-                "channel_scale",
-                self.scalers._channel.values,
-                dims=self.scalers._channel.dims,
-            )
-
-            # Scale channel data
-            channel_dim_handler = create_dim_handler(expected_dims)
-            channel_data_scaled = channel_data_var / channel_dim_handler(
-                channel_scale,
-                self.scalers._channel.dims,
-            )
-            channel_data_scaled = pt.switch(
-                pt.isnan(channel_data_scaled), 0.0, channel_data_scaled
-            )
-
-            # Apply forward pass
-            pm.Deterministic(
-                "channel_contribution",
-                self.forward_pass(x=channel_data_scaled, dims=(*self.dims, "channel")),
-                dims=expected_dims,
-            )
-
-            # Sample from posterior
-            idata = pm.sample_posterior_predictive(
-                fit_result,
-                var_names=["channel_contribution"],
-                progressbar=progressbar,
-            )
-
-        # Extract channel contribution
-        channel_contribution = idata.posterior_predictive.channel_contribution
-
-        # Apply time-varying media multiplier if enabled
-        if bool(self.time_varying_media):
-            name = "media_temporal_latent_multiplier"
-            if name in fit_result:
-                multiplier = fit_result[name]
-                # Align multiplier with contribution dates
-                if "date" in multiplier.dims:
-                    # Need to reindex or interpolate if dates don't match
-                    original_dates = multiplier.coords["date"].values
-                    new_dates = channel_contribution.coords["date"].values
-                    if not np.array_equal(original_dates, new_dates):
-                        # Use the same multiplier values (assume similar time structure)
-                        # This is a simplification - for out-of-sample, we'd need interpolation
-                        if len(new_dates) > len(original_dates):
-                            raise ValueError(
-                                "Time-varying media multiplier has fewer dates than "
-                                "channel_contribution. Extrapolation is not supported; "
-                                "consider retraining the model or disabling "
-                                "time_varying_media for this prediction."
-                            )
-                        multiplier = multiplier.isel(
-                            date=slice(0, len(new_dates))
-                        ).assign_coords(date=new_dates)
-                channel_contribution = channel_contribution * multiplier
-
-        # Scale to original scale if requested
-        if original_scale:
-            target_scale = self.scalers._target
-            # Use xarray broadcasting - target_scale will broadcast correctly
-            # regardless of whether it's a scalar or has dimensions
-            channel_contribution = channel_contribution * target_scale
-
-        return channel_contribution
+        return df_wide
 
     def get_channel_contribution_forward_pass_grid(
         self,
@@ -1968,7 +1843,6 @@ class MMM(RegressionModelBuilder):
 
         See Also
         --------
-        channel_contribution_forward_pass : Compute contributions for arbitrary channel data.
         plot_channel_contribution_grid : Plot the contribution grid.
 
         """
@@ -1987,18 +1861,31 @@ class MMM(RegressionModelBuilder):
         # Get base channel data from constant_data
         base_channel_data = self.idata.constant_data.channel_data
 
-        # Compute contributions for each delta
+        # Compute contributions for each delta using sample_posterior_predictive
         contributions_list = []
         for delta in delta_grid:
             # Scale channel data by delta
             scaled_channel_data = base_channel_data * delta
 
-            # Compute forward pass
-            contribution = self.channel_contribution_forward_pass(
-                channel_data=scaled_channel_data,
+            # Convert to DataFrame for sample_posterior_predictive
+            X_df = self._build_prediction_dataframe(scaled_channel_data)
+
+            # Sample channel_contribution using existing infrastructure
+            # Use combined=False to keep chain and draw separate for compatibility
+            result = self.sample_posterior_predictive(
+                X=X_df,
+                var_names=["channel_contribution"],
+                extend_idata=False,
+                combined=False,
                 progressbar=progressbar,
-                original_scale=original_scale,
             )
+
+            contribution = result.channel_contribution
+
+            # Scale to original units if requested
+            if original_scale:
+                contribution = contribution * self.scalers._target
+
             contributions_list.append(contribution)
 
         # Stack contributions along delta dimension
