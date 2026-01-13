@@ -1420,3 +1420,805 @@ def test_mmm_data_property_does_not_validate_on_every_access(fitted_mmm):
     # We can't directly check the init parameter, but if validation
     # happened every time, this would be slow/fail on invalid data
     assert wrapper is not None
+
+
+# ============================================================================
+# Category 14: Additional Coverage Tests - Error Paths and Edge Cases
+# ============================================================================
+
+
+def test_filter_idata_by_dates_preserves_groups_without_date_dim():
+    """Test that groups without date dimension are preserved unchanged."""
+    # Arrange - Create idata with a group that has no date dimension
+    dates = pd.date_range("2024-01-01", periods=10, freq="W")
+
+    idata = az.InferenceData(
+        posterior=xr.Dataset(
+            {
+                "mu": xr.DataArray(
+                    rng.normal(size=(2, 10, 10)),
+                    dims=("chain", "draw", "date"),
+                    coords={"date": dates},
+                ),
+            }
+        ),
+        # sample_stats typically doesn't have date dimension
+        sample_stats=xr.Dataset(
+            {
+                "lp": xr.DataArray(
+                    rng.normal(size=(2, 10)),
+                    dims=("chain", "draw"),
+                ),
+            }
+        ),
+    )
+
+    # Act
+    filtered = filter_idata_by_dates(idata, "2024-02-01", "2024-03-01")
+
+    # Assert - sample_stats preserved unchanged
+    assert hasattr(filtered, "sample_stats")
+    assert "date" not in filtered.sample_stats.dims
+    xr.testing.assert_equal(filtered.sample_stats.lp, idata.sample_stats.lp)
+
+
+def test_aggregate_idata_time_all_time_mean_method():
+    """Test all_time aggregation with mean method."""
+    # Arrange
+    dates = pd.date_range("2024-01-01", periods=10, freq="W")
+
+    idata = az.InferenceData(
+        posterior=xr.Dataset(
+            {
+                "mu": xr.DataArray(
+                    np.ones((2, 10, 10)) * 5.0,  # All 5s for predictable mean
+                    dims=("chain", "draw", "date"),
+                    coords={"date": dates},
+                ),
+            }
+        ),
+    )
+
+    # Act
+    aggregated = aggregate_idata_time(idata, period="all_time", method="mean")
+
+    # Assert - date dimension removed
+    assert "date" not in aggregated.posterior.dims
+
+    # Mean of 5s should be 5
+    np.testing.assert_allclose(aggregated.posterior.mu.values, 5.0)
+
+
+def test_aggregate_idata_time_all_time_preserves_groups_without_date():
+    """Test that all_time aggregation preserves groups without date dimension."""
+    # Arrange
+    dates = pd.date_range("2024-01-01", periods=10, freq="W")
+
+    idata = az.InferenceData(
+        posterior=xr.Dataset(
+            {
+                "mu": xr.DataArray(
+                    rng.normal(size=(2, 10, 10)),
+                    dims=("chain", "draw", "date"),
+                    coords={"date": dates},
+                ),
+            }
+        ),
+        sample_stats=xr.Dataset(
+            {
+                "lp": xr.DataArray(
+                    rng.normal(size=(2, 10)),
+                    dims=("chain", "draw"),
+                ),
+            }
+        ),
+    )
+
+    # Act
+    aggregated = aggregate_idata_time(idata, period="all_time", method="sum")
+
+    # Assert - sample_stats preserved unchanged
+    xr.testing.assert_equal(aggregated.sample_stats.lp, idata.sample_stats.lp)
+
+
+def test_aggregate_idata_time_all_time_unknown_method_raises():
+    """Test that unknown aggregation method raises ValueError for all_time."""
+    # Arrange
+    dates = pd.date_range("2024-01-01", periods=10, freq="W")
+
+    idata = az.InferenceData(
+        posterior=xr.Dataset(
+            {
+                "mu": xr.DataArray(
+                    rng.normal(size=(2, 10, 10)),
+                    dims=("chain", "draw", "date"),
+                    coords={"date": dates},
+                ),
+            }
+        ),
+    )
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="Unknown aggregation method"):
+        aggregate_idata_time(idata, period="all_time", method="invalid")
+
+
+def test_aggregate_idata_time_periodic_preserves_groups_without_date():
+    """Test that periodic aggregation preserves groups without date dimension."""
+    # Arrange
+    dates = pd.date_range("2024-01-01", periods=52, freq="W")
+
+    idata = az.InferenceData(
+        posterior=xr.Dataset(
+            {
+                "mu": xr.DataArray(
+                    rng.normal(size=(2, 10, 52)),
+                    dims=("chain", "draw", "date"),
+                    coords={"date": dates},
+                ),
+            }
+        ),
+        sample_stats=xr.Dataset(
+            {
+                "lp": xr.DataArray(
+                    rng.normal(size=(2, 10)),
+                    dims=("chain", "draw"),
+                ),
+            }
+        ),
+    )
+
+    # Act
+    aggregated = aggregate_idata_time(idata, period="monthly", method="sum")
+
+    # Assert - sample_stats preserved unchanged
+    xr.testing.assert_equal(aggregated.sample_stats.lp, idata.sample_stats.lp)
+
+
+def test_aggregate_idata_time_periodic_unknown_method_raises():
+    """Test that unknown aggregation method raises ValueError for periodic."""
+    # Arrange
+    dates = pd.date_range("2024-01-01", periods=52, freq="W")
+
+    idata = az.InferenceData(
+        posterior=xr.Dataset(
+            {
+                "mu": xr.DataArray(
+                    rng.normal(size=(2, 10, 52)),
+                    dims=("chain", "draw", "date"),
+                    coords={"date": dates},
+                ),
+            }
+        ),
+    )
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="Unknown aggregation method"):
+        aggregate_idata_time(idata, period="monthly", method="invalid")
+
+
+def test_aggregate_idata_dims_unknown_method_raises():
+    """Test that unknown aggregation method raises ValueError in aggregate_idata_dims."""
+    # Arrange
+    dates = pd.date_range("2024-01-01", periods=10, freq="W")
+    channels = ["TV", "Radio"]
+
+    idata = az.InferenceData(
+        posterior=xr.Dataset(
+            {
+                "channel_contribution": xr.DataArray(
+                    rng.normal(size=(2, 10, 10, 2)),
+                    dims=("chain", "draw", "date", "channel"),
+                    coords={"date": dates, "channel": channels},
+                ),
+            }
+        ),
+    )
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="Unknown aggregation method"):
+        aggregate_idata_dims(
+            idata,
+            dim="channel",
+            values=["TV", "Radio"],
+            new_label="All",
+            method="invalid",
+        )
+
+
+def test_aggregate_idata_dims_all_values_aggregated():
+    """Test aggregating all values in a dimension (no other_values)."""
+    # Arrange
+    dates = pd.date_range("2024-01-01", periods=10, freq="W")
+    channels = ["TV", "Radio"]
+
+    idata = az.InferenceData(
+        posterior=xr.Dataset(
+            {
+                "channel_contribution": xr.DataArray(
+                    rng.normal(size=(2, 10, 10, 2)),
+                    dims=("chain", "draw", "date", "channel"),
+                    coords={"date": dates, "channel": channels},
+                ),
+            }
+        ),
+    )
+
+    # Act - Aggregate ALL channels into one
+    combined = aggregate_idata_dims(
+        idata,
+        dim="channel",
+        values=["TV", "Radio"],  # All channels
+        new_label="All",
+        method="sum",
+    )
+
+    # Assert - Only "All" channel should exist
+    assert list(combined.posterior.coords["channel"].values) == ["All"]
+    assert combined.posterior.sizes["channel"] == 1
+
+
+def test_get_target_raises_when_fit_data_missing():
+    """Test that get_target raises when fit_data/target is missing."""
+    # Arrange - Create idata without fit_data
+    dates = pd.date_range("2024-01-01", periods=10, freq="W")
+
+    idata = az.InferenceData(
+        posterior=xr.Dataset(
+            {
+                "mu": xr.DataArray(
+                    rng.normal(size=(2, 10, 10)),
+                    dims=("chain", "draw", "date"),
+                    coords={"date": dates},
+                ),
+            }
+        ),
+    )
+
+    wrapper = MMMIDataWrapper(idata)
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="Target data not found in fit_data"):
+        wrapper.get_target()
+
+
+def test_get_channel_spend_raises_when_channel_data_missing():
+    """Test that get_channel_spend raises when channel_data is missing."""
+    # Arrange - Create idata without constant_data/channel_data
+    dates = pd.date_range("2024-01-01", periods=10, freq="W")
+
+    idata = az.InferenceData(
+        posterior=xr.Dataset(
+            {
+                "mu": xr.DataArray(
+                    rng.normal(size=(2, 10, 10)),
+                    dims=("chain", "draw", "date"),
+                    coords={"date": dates},
+                ),
+            }
+        ),
+    )
+
+    wrapper = MMMIDataWrapper(idata)
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="Channel data not found in constant_data"):
+        wrapper.get_channel_spend()
+
+
+def test_get_contributions_baseline_scaled(idata_with_all_contributions):
+    """Test get_contributions with baseline in scaled space (original_scale=False)."""
+    # Arrange
+    wrapper = MMMIDataWrapper(idata_with_all_contributions)
+
+    # Act
+    contributions = wrapper.get_contributions(
+        original_scale=False,
+        include_baseline=True,
+        include_controls=False,
+        include_seasonality=False,
+    )
+
+    # Assert
+    assert "baseline" in contributions
+    # Baseline should be the raw value (not multiplied by target_scale)
+    xr.testing.assert_equal(
+        contributions["baseline"],
+        idata_with_all_contributions.posterior.intercept_contribution,
+    )
+
+
+def test_get_contributions_controls_with_original_scale_variable():
+    """Test get_contributions uses existing control_contribution_original_scale."""
+    # Arrange - Create idata with control_contribution_original_scale
+    dates = pd.date_range("2024-01-01", periods=10, freq="W")
+    channels = ["TV", "Radio"]
+    controls = ["price"]
+
+    # Create control_contribution_original_scale with distinct values
+    control_orig_scale_values = rng.normal(size=(2, 10, 10, 1)) * 999
+
+    idata = az.InferenceData(
+        constant_data=xr.Dataset(
+            {
+                "channel_data": xr.DataArray(
+                    rng.uniform(0, 100, size=(10, 2)),
+                    dims=("date", "channel"),
+                    coords={"date": dates, "channel": channels},
+                ),
+                "target_scale": xr.DataArray(100.0),
+            }
+        ),
+        posterior=xr.Dataset(
+            {
+                "channel_contribution": xr.DataArray(
+                    rng.normal(size=(2, 10, 10, 2)),
+                    dims=("chain", "draw", "date", "channel"),
+                    coords={"date": dates, "channel": channels},
+                ),
+                "control_contribution": xr.DataArray(
+                    rng.normal(size=(2, 10, 10, 1)),
+                    dims=("chain", "draw", "date", "control"),
+                    coords={"date": dates, "control": controls},
+                ),
+                "control_contribution_original_scale": xr.DataArray(
+                    control_orig_scale_values,
+                    dims=("chain", "draw", "date", "control"),
+                    coords={"date": dates, "control": controls},
+                ),
+            }
+        ),
+    )
+
+    wrapper = MMMIDataWrapper(idata)
+
+    # Act
+    contributions = wrapper.get_contributions(
+        original_scale=True,
+        include_baseline=False,
+        include_controls=True,
+        include_seasonality=False,
+    )
+
+    # Assert - Should use existing original scale variable
+    # Compare values directly since xr.testing.assert_equal is strict about coordinate objects
+    np.testing.assert_array_equal(
+        contributions["control"].values,
+        idata.posterior.control_contribution_original_scale.values,
+    )
+
+
+def test_get_contributions_controls_scaled(idata_with_all_contributions):
+    """Test get_contributions with controls in scaled space (original_scale=False)."""
+    # Arrange
+    wrapper = MMMIDataWrapper(idata_with_all_contributions)
+
+    # Act
+    contributions = wrapper.get_contributions(
+        original_scale=False,
+        include_baseline=False,
+        include_controls=True,
+        include_seasonality=False,
+    )
+
+    # Assert
+    assert "control" in contributions
+    # Control should be the raw value (not multiplied by target_scale)
+    # Compare values directly since xr.testing.assert_equal is strict about coordinate objects
+    np.testing.assert_array_equal(
+        contributions["control"].values,
+        idata_with_all_contributions.posterior.control_contribution.values,
+    )
+
+
+def test_get_contributions_seasonality_with_original_scale_variable():
+    """Test get_contributions uses existing yearly_seasonality_contribution_original_scale."""
+    # Arrange - Create idata with yearly_seasonality_contribution_original_scale
+    dates = pd.date_range("2024-01-01", periods=10, freq="W")
+    channels = ["TV", "Radio"]
+
+    idata = az.InferenceData(
+        constant_data=xr.Dataset(
+            {
+                "channel_data": xr.DataArray(
+                    rng.uniform(0, 100, size=(10, 2)),
+                    dims=("date", "channel"),
+                    coords={"date": dates, "channel": channels},
+                ),
+                "target_scale": xr.DataArray(100.0),
+            }
+        ),
+        posterior=xr.Dataset(
+            {
+                "channel_contribution": xr.DataArray(
+                    rng.normal(size=(2, 10, 10, 2)),
+                    dims=("chain", "draw", "date", "channel"),
+                    coords={"date": dates, "channel": channels},
+                ),
+                "yearly_seasonality_contribution": xr.DataArray(
+                    rng.normal(size=(2, 10, 10)),
+                    dims=("chain", "draw", "date"),
+                    coords={"date": dates},
+                ),
+                "yearly_seasonality_contribution_original_scale": xr.DataArray(
+                    rng.normal(size=(2, 10, 10)) * 999,  # Distinct values
+                    dims=("chain", "draw", "date"),
+                    coords={"date": dates},
+                ),
+            }
+        ),
+    )
+
+    wrapper = MMMIDataWrapper(idata)
+
+    # Act
+    contributions = wrapper.get_contributions(
+        original_scale=True,
+        include_baseline=False,
+        include_controls=False,
+        include_seasonality=True,
+    )
+
+    # Assert - Should use existing original scale variable
+    xr.testing.assert_equal(
+        contributions["seasonality"],
+        idata.posterior.yearly_seasonality_contribution_original_scale,
+    )
+
+
+def test_get_contributions_seasonality_scaled(idata_with_all_contributions):
+    """Test get_contributions with seasonality in scaled space (original_scale=False)."""
+    # Arrange
+    wrapper = MMMIDataWrapper(idata_with_all_contributions)
+
+    # Act
+    contributions = wrapper.get_contributions(
+        original_scale=False,
+        include_baseline=False,
+        include_controls=False,
+        include_seasonality=True,
+    )
+
+    # Assert
+    assert "seasonality" in contributions
+    # Seasonality should be the raw value (not multiplied by target_scale)
+    xr.testing.assert_equal(
+        contributions["seasonality"],
+        idata_with_all_contributions.posterior.yearly_seasonality_contribution,
+    )
+
+
+def test_to_original_scale_raises_when_original_scale_var_not_found():
+    """Test to_original_scale raises when _original_scale variable doesn't exist."""
+    # Arrange - Create idata without the _original_scale variable
+    dates = pd.date_range("2024-01-01", periods=10, freq="W")
+
+    idata = az.InferenceData(
+        constant_data=xr.Dataset(
+            {
+                "target_scale": xr.DataArray(100.0),
+            }
+        ),
+        posterior=xr.Dataset(
+            {
+                "mu": xr.DataArray(
+                    rng.normal(size=(2, 10, 10)),
+                    dims=("chain", "draw", "date"),
+                    coords={"date": dates},
+                ),
+            }
+        ),
+    )
+
+    wrapper = MMMIDataWrapper(idata)
+
+    # Act & Assert - Request a var that ends with _original_scale but doesn't exist
+    with pytest.raises(ValueError, match="not found in posterior"):
+        wrapper.to_original_scale("nonexistent_original_scale")
+
+
+def test_to_original_scale_raises_when_var_not_found():
+    """Test to_original_scale raises when variable doesn't exist."""
+    # Arrange
+    dates = pd.date_range("2024-01-01", periods=10, freq="W")
+
+    idata = az.InferenceData(
+        constant_data=xr.Dataset(
+            {
+                "target_scale": xr.DataArray(100.0),
+            }
+        ),
+        posterior=xr.Dataset(
+            {
+                "mu": xr.DataArray(
+                    rng.normal(size=(2, 10, 10)),
+                    dims=("chain", "draw", "date"),
+                    coords={"date": dates},
+                ),
+            }
+        ),
+    )
+
+    wrapper = MMMIDataWrapper(idata)
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="Variable 'nonexistent' not found"):
+        wrapper.to_original_scale("nonexistent")
+
+
+def test_to_scaled_raises_when_base_var_not_found():
+    """Test to_scaled raises when base variable for _original_scale doesn't exist."""
+    # Arrange
+    dates = pd.date_range("2024-01-01", periods=10, freq="W")
+
+    idata = az.InferenceData(
+        constant_data=xr.Dataset(
+            {
+                "target_scale": xr.DataArray(100.0),
+            }
+        ),
+        posterior=xr.Dataset(
+            {
+                # Has nonexistent_original_scale but NOT 'nonexistent'
+                "nonexistent_original_scale": xr.DataArray(
+                    rng.normal(size=(2, 10, 10)),
+                    dims=("chain", "draw", "date"),
+                    coords={"date": dates},
+                ),
+            }
+        ),
+    )
+
+    wrapper = MMMIDataWrapper(idata)
+
+    # Act & Assert - Looking for base var 'nonexistent' which doesn't exist
+    with pytest.raises(ValueError, match="Variable 'nonexistent' not found"):
+        wrapper.to_scaled("nonexistent_original_scale")
+
+
+def test_to_scaled_raises_when_var_not_found():
+    """Test to_scaled raises when variable doesn't exist."""
+    # Arrange
+    dates = pd.date_range("2024-01-01", periods=10, freq="W")
+
+    idata = az.InferenceData(
+        constant_data=xr.Dataset(
+            {
+                "target_scale": xr.DataArray(100.0),
+            }
+        ),
+        posterior=xr.Dataset(
+            {
+                "mu": xr.DataArray(
+                    rng.normal(size=(2, 10, 10)),
+                    dims=("chain", "draw", "date"),
+                    coords={"date": dates},
+                ),
+            }
+        ),
+    )
+
+    wrapper = MMMIDataWrapper(idata)
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="Variable 'nonexistent' not found"):
+        wrapper.to_scaled("nonexistent")
+
+
+def test_compute_posterior_summary_scaled_raises_when_var_not_found():
+    """Test compute_posterior_summary with original_scale=False raises when var not found."""
+    # Arrange
+    dates = pd.date_range("2024-01-01", periods=10, freq="W")
+
+    idata = az.InferenceData(
+        constant_data=xr.Dataset(
+            {
+                "target_scale": xr.DataArray(100.0),
+            }
+        ),
+        posterior=xr.Dataset(
+            {
+                "mu": xr.DataArray(
+                    rng.normal(size=(2, 10, 10)),
+                    dims=("chain", "draw", "date"),
+                    coords={"date": dates},
+                ),
+            }
+        ),
+    )
+
+    wrapper = MMMIDataWrapper(idata)
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="Variable 'nonexistent' not found"):
+        wrapper.compute_posterior_summary("nonexistent", original_scale=False)
+
+
+def test_compute_posterior_summary_scaled_returns_dataframe(multidim_idata):
+    """Test compute_posterior_summary with original_scale=False returns DataFrame."""
+    # Arrange
+    wrapper = MMMIDataWrapper(multidim_idata)
+
+    # Act - Request summary in scaled space (not original scale)
+    summary = wrapper.compute_posterior_summary(
+        "channel_contribution",
+        hdi_prob=0.94,
+        original_scale=False,
+    )
+
+    # Assert
+    assert isinstance(summary, pd.DataFrame)
+    assert "mean" in summary.columns
+    assert "sd" in summary.columns
+
+
+def test_validate_raises_when_no_schema():
+    """Test validate raises when no schema provided."""
+    # Arrange
+    dates = pd.date_range("2024-01-01", periods=10, freq="W")
+
+    idata = az.InferenceData(
+        posterior=xr.Dataset(
+            {
+                "mu": xr.DataArray(
+                    rng.normal(size=(2, 10, 10)),
+                    dims=("chain", "draw", "date"),
+                    coords={"date": dates},
+                ),
+            }
+        ),
+    )
+
+    wrapper = MMMIDataWrapper(idata, schema=None)
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="No schema provided"):
+        wrapper.validate()
+
+
+def test_dates_property_from_posterior_when_no_constant_data():
+    """Test dates property falls back to posterior when constant_data missing."""
+    # Arrange
+    dates = pd.date_range("2024-01-01", periods=10, freq="W")
+
+    idata = az.InferenceData(
+        posterior=xr.Dataset(
+            {
+                "mu": xr.DataArray(
+                    rng.normal(size=(2, 10, 10)),
+                    dims=("chain", "draw", "date"),
+                    coords={"date": dates},
+                ),
+            }
+        ),
+    )
+
+    wrapper = MMMIDataWrapper(idata)
+
+    # Act
+    result_dates = wrapper.dates
+
+    # Assert
+    assert isinstance(result_dates, pd.DatetimeIndex)
+    assert len(result_dates) == 10
+    np.testing.assert_array_equal(result_dates, dates)
+
+
+def test_dates_property_raises_when_no_date_coord():
+    """Test dates property raises when no date coordinate found."""
+    # Arrange - Create idata with no date dimension
+    idata = az.InferenceData(
+        sample_stats=xr.Dataset(
+            {
+                "lp": xr.DataArray(
+                    rng.normal(size=(2, 10)),
+                    dims=("chain", "draw"),
+                ),
+            }
+        ),
+    )
+
+    wrapper = MMMIDataWrapper(idata)
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="Could not find date coordinate"):
+        _ = wrapper.dates
+
+
+def test_channels_property_from_posterior_when_no_constant_data():
+    """Test channels property falls back to posterior when constant_data missing."""
+    # Arrange
+    dates = pd.date_range("2024-01-01", periods=10, freq="W")
+    channels = ["TV", "Radio", "Facebook"]
+
+    idata = az.InferenceData(
+        posterior=xr.Dataset(
+            {
+                "channel_contribution": xr.DataArray(
+                    rng.normal(size=(2, 10, 10, 3)),
+                    dims=("chain", "draw", "date", "channel"),
+                    coords={"date": dates, "channel": channels},
+                ),
+            }
+        ),
+    )
+
+    wrapper = MMMIDataWrapper(idata)
+
+    # Act
+    result_channels = wrapper.channels
+
+    # Assert
+    assert isinstance(result_channels, list)
+    assert result_channels == channels
+
+
+def test_channels_property_raises_when_no_channel_coord():
+    """Test channels property raises when no channel coordinate found."""
+    # Arrange - Create idata with no channel dimension (neither constant_data nor posterior)
+    idata = az.InferenceData(
+        sample_stats=xr.Dataset(
+            {
+                "lp": xr.DataArray(
+                    rng.normal(size=(2, 10)),
+                    dims=("chain", "draw"),
+                ),
+            }
+        ),
+    )
+
+    wrapper = MMMIDataWrapper(idata)
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="Could not find channel coordinate"):
+        _ = wrapper.channels
+
+
+def test_custom_dims_returns_empty_when_no_constant_data():
+    """Test custom_dims returns empty list when no constant_data."""
+    # Arrange
+    dates = pd.date_range("2024-01-01", periods=10, freq="W")
+
+    idata = az.InferenceData(
+        posterior=xr.Dataset(
+            {
+                "mu": xr.DataArray(
+                    rng.normal(size=(2, 10, 10)),
+                    dims=("chain", "draw", "date"),
+                    coords={"date": dates},
+                ),
+            }
+        ),
+    )
+
+    wrapper = MMMIDataWrapper(idata)
+
+    # Act
+    custom_dims = wrapper.custom_dims
+
+    # Assert
+    assert custom_dims == []
+
+
+def test_filter_dates_wrapper_returns_self_when_none(multidim_idata):
+    """Test filter_dates wrapper method returns self when both dates are None."""
+    # Arrange
+    wrapper = MMMIDataWrapper(multidim_idata)
+
+    # Act
+    result = wrapper.filter_dates(None, None)
+
+    # Assert - Same wrapper returned
+    assert result is wrapper
+
+
+def test_filter_dims_wrapper_returns_self_when_no_filters(multidim_idata):
+    """Test filter_dims wrapper method returns self when no filters provided."""
+    # Arrange
+    wrapper = MMMIDataWrapper(multidim_idata)
+
+    # Act
+    result = wrapper.filter_dims()
+
+    # Assert - Same wrapper returned
+    assert result is wrapper
