@@ -585,14 +585,6 @@ class MMMIDataWrapper:
                 "idata validation failed:\n" + "\n".join(f"  - {e}" for e in errors)
             )
 
-    def is_valid(self) -> bool:
-        """Check if idata structure is valid."""
-        if self.schema is None:
-            return True  # No schema, assume valid
-
-        errors = self.validate()
-        return len(errors) == 0
-
     # ==================== Convenience Properties ====================
 
     @property

@@ -1244,37 +1244,6 @@ def test_validate_returns_error_list(multidim_idata):
     assert errors == []
 
 
-def test_is_valid_returns_boolean(multidim_idata):
-    """Test that is_valid returns boolean."""
-    # Arrange - Use schema that matches multidim_idata (has custom dims)
-    schema = MMMIdataSchema.from_model_config(
-        custom_dims=("country",),
-        has_controls=False,
-        has_seasonality=False,
-        time_varying=False,
-    )
-    wrapper = MMMIDataWrapper(multidim_idata, schema=schema, validate_on_init=False)
-
-    # Act
-    is_valid = wrapper.is_valid()
-
-    # Assert
-    assert isinstance(is_valid, bool)
-    assert is_valid is True
-
-
-def test_is_valid_returns_true_when_no_schema(multidim_idata):
-    """Test that is_valid returns True when no schema provided."""
-    # Arrange
-    wrapper = MMMIDataWrapper(multidim_idata, schema=None)
-
-    # Act
-    is_valid = wrapper.is_valid()
-
-    # Assert
-    assert is_valid is True
-
-
 def test_validate_or_raise_raises_on_error(multidim_idata):
     """Test that validate_or_raise raises ValueError on validation failure."""
     # Arrange - Create schema that won't match idata (wrong dims)
