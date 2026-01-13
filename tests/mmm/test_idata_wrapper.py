@@ -681,10 +681,10 @@ def test_get_target_returns_target_data(multidim_idata):
     # Assert
     assert isinstance(target, xr.DataArray)
     assert "date" in target.dims
-    assert target.sizes["date"] == multidim_idata.fit_data.sizes["date"]
+    assert target.sizes["date"] == multidim_idata.constant_data.sizes["date"]
 
-    # Should match fit_data.target
-    xr.testing.assert_equal(target, multidim_idata.fit_data.target)
+    # Should match constant_data.target_data
+    xr.testing.assert_equal(target, multidim_idata.constant_data.target_data)
 
 
 def test_get_target_scaled_divides_by_target_scale(multidim_idata):
@@ -1627,9 +1627,9 @@ def test_aggregate_idata_dims_all_values_aggregated():
     assert combined.posterior.sizes["channel"] == 1
 
 
-def test_get_target_raises_when_fit_data_missing():
-    """Test that get_target raises when fit_data/target is missing."""
-    # Arrange - Create idata without fit_data
+def test_get_target_raises_when_target_data_missing():
+    """Test that get_target raises when constant_data/target_data is missing."""
+    # Arrange - Create idata without constant_data/target_data
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
 
     idata = az.InferenceData(
@@ -1647,7 +1647,7 @@ def test_get_target_raises_when_fit_data_missing():
     wrapper = MMMIDataWrapper(idata)
 
     # Act & Assert
-    with pytest.raises(ValueError, match="Target data not found in fit_data"):
+    with pytest.raises(ValueError, match="Target data not found in constant_data"):
         wrapper.get_target()
 
 

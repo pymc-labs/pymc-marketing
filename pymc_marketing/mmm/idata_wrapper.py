@@ -78,15 +78,18 @@ class MMMIDataWrapper:
         Raises
         ------
         ValueError
-            If target data not found in fit_data
+            If target data not found in constant_data
         """
-        if not (hasattr(self.idata, "fit_data") and "target" in self.idata.fit_data):
+        if not (
+            hasattr(self.idata, "constant_data")
+            and "target_data" in self.idata.constant_data
+        ):
             raise ValueError(
-                "Target data not found in fit_data. "
-                "Expected 'target' variable in idata.fit_data."
+                "Target data not found in constant_data. "
+                "Expected 'target_data' variable in idata.constant_data."
             )
 
-        data = self.idata.fit_data.target
+        data = self.idata.constant_data.target_data
         if original_scale:
             return data
         else:
