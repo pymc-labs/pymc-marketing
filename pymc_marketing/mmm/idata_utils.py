@@ -182,11 +182,13 @@ def aggregate_idata_time(
         return az.InferenceData(**aggregated_groups)
 
     # Map period to pandas offset for periodic aggregation
+    # Note: "ME", "QE", "YE" are the modern pandas 2.2+ aliases
+    # (previously "M", "Q", "Y" which are now deprecated)
     period_map = {
         "weekly": "W",
-        "monthly": "M",
-        "quarterly": "Q",
-        "yearly": "Y",
+        "monthly": "ME",
+        "quarterly": "QE",
+        "yearly": "YE",
     }
     freq = period_map[period]
 
@@ -241,7 +243,8 @@ def aggregate_idata_dims(
     Raises
     ------
     ValueError
-        If the dimension doesn't exist in any group
+        If the dimension doesn't exist in any group, or if new_label
+        conflicts with existing coordinate values that aren't being aggregated
 
     Examples
     --------
@@ -265,6 +268,21 @@ def aggregate_idata_dims(
             f"Dimension '{dim}' not found in any group. "
             f"Available dimensions: {sorted(all_dims)}"
         )
+
+    # Pre-validate that new_label doesn't conflict with non-aggregated values
+    # Check across all groups to fail fast with a clear error
+    for group_name in idata.groups():
+        group = getattr(idata, group_name)
+        if dim in group.dims:
+            existing_coords = set(group[dim].values)
+            non_aggregated = existing_coords - set(values)
+            if new_label in non_aggregated:
+                raise ValueError(
+                    f"new_label '{new_label}' conflicts with existing coordinate value "
+                    f"in dimension '{dim}' that is not being aggregated. "
+                    f"Existing values not being aggregated: {sorted(non_aggregated)}"
+                )
+            break  # Only need to check one group since coords are consistent
 
     aggregated_groups = {}
     for group_name in idata.groups():

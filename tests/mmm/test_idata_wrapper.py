@@ -530,20 +530,23 @@ def test_aggregate_idata_time_parametrized_periods(
 def test_aggregate_idata_dims_combines_channels(multidim_idata):
     """Test combining multiple channels into one."""
     # Arrange & Act
+    # Note: Aggregating Facebook, Instagram, Social into "SocialMedia"
+    # (We can't use "Social" as new_label since it already exists as a channel)
     combined = aggregate_idata_dims(
         multidim_idata,
         dim="channel",
-        values=["Facebook", "Instagram"],
-        new_label="Social",
+        values=["Facebook", "Instagram", "Social"],
+        new_label="SocialMedia",
         method="sum",
     )
 
-    # Assert - Social channel added
-    assert "Social" in combined.posterior.coords["channel"].values
+    # Assert - SocialMedia channel added
+    assert "SocialMedia" in combined.posterior.coords["channel"].values
 
     # Assert - Original channels removed
     assert "Facebook" not in combined.posterior.coords["channel"].values
     assert "Instagram" not in combined.posterior.coords["channel"].values
+    assert "Social" not in combined.posterior.coords["channel"].values
 
     # Assert - Other channels preserved
     assert "TV" in combined.posterior.coords["channel"].values
@@ -596,6 +599,26 @@ def test_aggregate_idata_dims_raises_on_nonexistent_dimension(multidim_idata):
             dim="nonexistent_dim",
             values=["a", "b"],
             new_label="combined",
+            method="sum",
+        )
+
+
+def test_aggregate_idata_dims_raises_on_conflicting_new_label(multidim_idata):
+    """Test that new_label conflicting with existing coordinate raises ValueError.
+
+    When aggregating Facebook and Instagram with new_label="TV", but TV already
+    exists as a channel that isn't being aggregated, this should raise an error
+    to prevent duplicate coordinate labels.
+    """
+    # Arrange & Act & Assert
+    with pytest.raises(
+        ValueError, match="new_label 'TV' conflicts with existing coordinate value"
+    ):
+        aggregate_idata_dims(
+            multidim_idata,
+            dim="channel",
+            values=["Facebook", "Instagram"],
+            new_label="TV",  # TV already exists as a channel!
             method="sum",
         )
 
@@ -1118,14 +1141,14 @@ def test_aggregate_dims_delegates_to_utility(multidim_idata):
     combined_wrapper = wrapper.aggregate_dims(
         dim="channel",
         values=["Facebook", "Instagram"],
-        new_label="Social",
+        new_label="SocialCombined",
         method="sum",
     )
 
     # Assert
     assert isinstance(combined_wrapper, MMMIDataWrapper)
     assert combined_wrapper is not wrapper
-    assert "Social" in combined_wrapper.idata.posterior.coords["channel"].values
+    assert "SocialCombined" in combined_wrapper.idata.posterior.coords["channel"].values
 
 
 # ============================================================================
