@@ -1894,6 +1894,13 @@ class MMM(RegressionModelBuilder):
                     if not np.array_equal(original_dates, new_dates):
                         # Use the same multiplier values (assume similar time structure)
                         # This is a simplification - for out-of-sample, we'd need interpolation
+                        if len(new_dates) > len(original_dates):
+                            raise ValueError(
+                                "Time-varying media multiplier has fewer dates than "
+                                "channel_contribution. Extrapolation is not supported; "
+                                "consider retraining the model or disabling "
+                                "time_varying_media for this prediction."
+                            )
                         multiplier = multiplier.isel(
                             date=slice(0, len(new_dates))
                         ).assign_coords(date=new_dates)
