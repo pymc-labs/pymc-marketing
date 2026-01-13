@@ -194,7 +194,7 @@ from pymc_marketing.mmm.lift_test import (
 from pymc_marketing.mmm.plot import MMMPlotSuite
 from pymc_marketing.mmm.scaling import Scaling, VariableScaling
 from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
-from pymc_marketing.mmm.tvp import infer_time_index
+from pymc_marketing.mmm.tvp import create_hsgp_from_config, infer_time_index
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
 from pymc_marketing.mmm.utils import (
     add_noise_to_channel_allocation,
@@ -1125,6 +1125,12 @@ class MMM(RegressionModelBuilder):
                     mmm_dims_order += ("channel",)
                 elif v == "control_contribution":
                     mmm_dims_order += ("control",)
+                elif v == "fourier_contribution":
+                    mmm_dims_order += ("fourier_mode",)
+                elif v == "yearly_seasonality_contribution":
+                    pass  # Only has date dim
+                elif v == "intercept_contribution":
+                    pass  # Only has date dim
 
                 deterministic_dims = tuple(
                     [
@@ -1285,10 +1291,10 @@ class MMM(RegressionModelBuilder):
                     "intercept_baseline"
                 )
 
-                intercept_latent_process = SoftPlusHSGP.parameterize_from_data(
+                intercept_latent_process = create_hsgp_from_config(
                     X=time_index,
                     dims=("date", *self.dims),
-                    **self.model_config["intercept_tvp_config"],
+                    config=self.model_config["intercept_tvp_config"],
                 ).create_variable("intercept_latent_process")
 
                 intercept = pm.Deterministic(
@@ -1328,10 +1334,10 @@ class MMM(RegressionModelBuilder):
                     dims=("date", *self.dims, "channel"),
                 )
 
-                media_latent_process = SoftPlusHSGP.parameterize_from_data(
+                media_latent_process = create_hsgp_from_config(
                     X=time_index,
                     dims=("date", *self.dims),
-                    **self.model_config["media_tvp_config"],
+                    config=self.model_config["media_tvp_config"],
                 ).create_variable("media_temporal_latent_multiplier")
 
                 channel_contribution = pm.Deterministic(
