@@ -662,8 +662,8 @@ class MMM(RegressionModelBuilder):
 
         schema = MMMIdataSchema.from_model_config(
             custom_dims=self.dims if hasattr(self, "dims") and self.dims else (),
-            has_controls=self.control_columns is not None,
-            has_seasonality=self.yearly_seasonality is not None,
+            has_controls=bool(self.control_columns),
+            has_seasonality=bool(self.yearly_seasonality),
             time_varying=(
                 getattr(self, "time_varying_intercept", False)
                 or getattr(self, "time_varying_media", False)
