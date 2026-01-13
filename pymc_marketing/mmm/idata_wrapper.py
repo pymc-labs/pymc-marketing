@@ -486,6 +486,30 @@ class MMMIDataWrapper:
 
         return self.schema.validate(self.idata)
 
+    def validate_or_raise(self) -> None:
+        """Validate idata structure, raising detailed exception if invalid.
+
+        Call this after operations that modify idata to ensure structure is valid.
+
+        Raises
+        ------
+        ValueError
+            If schema is None (no validation possible) or validation fails
+
+        Examples
+        --------
+        >>> mmm.add_original_scale_contribution_variable(["channel_contribution"])
+        >>> mmm.data.validate_or_raise()  # Explicitly validate new structure
+        """
+        if self.schema is None:
+            raise ValueError("No schema provided for validation")
+
+        errors = self.schema.validate(self.idata)
+        if errors:
+            raise ValueError(
+                "idata validation failed:\n" + "\n".join(f"  - {e}" for e in errors)
+            )
+
     def is_valid(self) -> bool:
         """Check if idata structure is valid."""
         if self.schema is None:

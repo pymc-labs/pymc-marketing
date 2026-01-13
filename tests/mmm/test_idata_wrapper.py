@@ -235,35 +235,26 @@ def fitted_mmm(multidim_idata):
             self.yearly_seasonality = None
             self.time_varying_intercept = False
             self.time_varying_media = False
-            self._data_wrapper = None
 
         @property
         def data(self):
-            """Get codified data wrapper for this model's InferenceData."""
+            """Get data wrapper for InferenceData access and manipulation.
+
+            Returns a fresh wrapper on each access.
+            """
             from pymc_marketing.mmm.idata_schema import MMMIdataSchema
             from pymc_marketing.mmm.idata_wrapper import MMMIDataWrapper
 
-            if self._data_wrapper is None:
-                # Create schema from model configuration
-                schema = MMMIdataSchema.from_model_config(
-                    custom_dims=self.dims
-                    if hasattr(self, "dims") and self.dims
-                    else (),
-                    has_controls=self.control_columns is not None,
-                    has_seasonality=self.yearly_seasonality is not None,
-                    time_varying=(
-                        getattr(self, "time_varying_intercept", False)
-                        or getattr(self, "time_varying_media", False)
-                    ),
-                )
-
-                self._data_wrapper = MMMIDataWrapper(
-                    self.idata,
-                    schema=schema,
-                    validate_on_init=False,  # Don't validate on every access
-                )
-
-            return self._data_wrapper
+            schema = MMMIdataSchema.from_model_config(
+                custom_dims=self.dims if hasattr(self, "dims") and self.dims else (),
+                has_controls=self.control_columns is not None,
+                has_seasonality=self.yearly_seasonality is not None,
+                time_varying=(
+                    getattr(self, "time_varying_intercept", False)
+                    or getattr(self, "time_varying_media", False)
+                ),
+            )
+            return MMMIDataWrapper(self.idata, schema=schema, validate_on_init=False)
 
     return MockMMM(multidim_idata)
 
@@ -280,35 +271,26 @@ def fitted_mmm_with_controls(idata_with_all_contributions):
             self.yearly_seasonality = True
             self.time_varying_intercept = False
             self.time_varying_media = False
-            self._data_wrapper = None
 
         @property
         def data(self):
-            """Get codified data wrapper for this model's InferenceData."""
+            """Get data wrapper for InferenceData access and manipulation.
+
+            Returns a fresh wrapper on each access.
+            """
             from pymc_marketing.mmm.idata_schema import MMMIdataSchema
             from pymc_marketing.mmm.idata_wrapper import MMMIDataWrapper
 
-            if self._data_wrapper is None:
-                # Create schema from model configuration
-                schema = MMMIdataSchema.from_model_config(
-                    custom_dims=self.dims
-                    if hasattr(self, "dims") and self.dims
-                    else (),
-                    has_controls=self.control_columns is not None,
-                    has_seasonality=self.yearly_seasonality is not None,
-                    time_varying=(
-                        getattr(self, "time_varying_intercept", False)
-                        or getattr(self, "time_varying_media", False)
-                    ),
-                )
-
-                self._data_wrapper = MMMIDataWrapper(
-                    self.idata,
-                    schema=schema,
-                    validate_on_init=False,  # Don't validate on every access
-                )
-
-            return self._data_wrapper
+            schema = MMMIdataSchema.from_model_config(
+                custom_dims=self.dims if hasattr(self, "dims") and self.dims else (),
+                has_controls=self.control_columns is not None,
+                has_seasonality=self.yearly_seasonality is not None,
+                time_varying=(
+                    getattr(self, "time_varying_intercept", False)
+                    or getattr(self, "time_varying_media", False)
+                ),
+            )
+            return MMMIDataWrapper(self.idata, schema=schema, validate_on_init=False)
 
     return MockMMM(idata_with_all_contributions)
 
@@ -1241,6 +1223,50 @@ def test_is_valid_returns_true_when_no_schema(multidim_idata):
     assert is_valid is True
 
 
+def test_validate_or_raise_raises_on_error(multidim_idata):
+    """Test that validate_or_raise raises ValueError on validation failure."""
+    # Arrange - Create schema that won't match idata (wrong dims)
+    schema = MMMIdataSchema.from_model_config(
+        custom_dims=("nonexistent_dim",),  # Wrong dims
+        has_controls=False,
+        has_seasonality=False,
+        time_varying=False,
+    )
+    wrapper = MMMIDataWrapper(multidim_idata, schema=schema, validate_on_init=False)
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="idata validation failed"):
+        wrapper.validate_or_raise()
+
+
+def test_validate_or_raise_silent_on_success(multidim_idata):
+    """Test that validate_or_raise returns None on success."""
+    # Arrange - Create schema that matches idata
+    schema = MMMIdataSchema.from_model_config(
+        custom_dims=("country",),
+        has_controls=False,
+        has_seasonality=False,
+        time_varying=False,
+    )
+    wrapper = MMMIDataWrapper(multidim_idata, schema=schema, validate_on_init=False)
+
+    # Act
+    result = wrapper.validate_or_raise()
+
+    # Assert
+    assert result is None
+
+
+def test_validate_or_raise_raises_when_no_schema(multidim_idata):
+    """Test that validate_or_raise raises when schema is None."""
+    # Arrange
+    wrapper = MMMIDataWrapper(multidim_idata, schema=None)
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="No schema provided"):
+        wrapper.validate_or_raise()
+
+
 # ============================================================================
 # Category 12: Property Tests
 # ============================================================================
@@ -1305,14 +1331,17 @@ def test_mmm_data_property_returns_wrapper(fitted_mmm):
     assert wrapper.idata is fitted_mmm.idata
 
 
-def test_mmm_data_property_caches_wrapper(fitted_mmm):
-    """Test that .data property caches wrapper instance."""
+def test_mmm_data_property_returns_fresh_wrapper(fitted_mmm):
+    """Test that .data property returns fresh wrapper on each access."""
     # Arrange & Act
     wrapper1 = fitted_mmm.data
     wrapper2 = fitted_mmm.data
 
-    # Assert - Same instance returned
-    assert wrapper1 is wrapper2
+    # Assert - Different instances returned (no caching)
+    assert wrapper1 is not wrapper2
+
+    # But both wrap the same idata
+    assert wrapper1.idata is wrapper2.idata
 
 
 def test_mmm_data_property_creates_schema_from_config(fitted_mmm_with_controls):

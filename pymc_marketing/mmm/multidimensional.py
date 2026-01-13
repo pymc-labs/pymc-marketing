@@ -626,7 +626,13 @@ class MMM(RegressionModelBuilder):
 
     @property
     def data(self) -> Any:  # type: ignore[no-any-return]
-        """Get codified data wrapper for this model's InferenceData.
+        """Get data wrapper for InferenceData access and manipulation.
+
+        Returns a fresh wrapper on each access. The wrapper is lightweight
+        and wraps the current state of self.idata.
+
+        Validation is explicit - call `.validate()` or `.validate_or_raise()`
+        to check idata structure after modifications.
 
         Returns
         -------
@@ -643,6 +649,10 @@ class MMM(RegressionModelBuilder):
             # Get contributions in original scale
             contributions = mmm.data.get_contributions(original_scale=True)
 
+            # Validate after modifications
+            mmm.add_original_scale_contribution_variable(["channel_contribution"])
+            mmm.data.validate_or_raise()
+
             # Filter and aggregate
             monthly = mmm.data.filter_dates("2024-01-01", "2024-12-31").aggregate_time(
                 "monthly"
@@ -650,28 +660,16 @@ class MMM(RegressionModelBuilder):
         """
         self._validate_idata_exists()
 
-        if (
-            not hasattr(self, "_data_wrapper")
-            or getattr(self, "_data_wrapper", None) is None
-        ):
-            # Create schema from model configuration
-            schema = MMMIdataSchema.from_model_config(
-                custom_dims=self.dims if hasattr(self, "dims") and self.dims else (),
-                has_controls=self.control_columns is not None,
-                has_seasonality=self.yearly_seasonality is not None,
-                time_varying=(
-                    getattr(self, "time_varying_intercept", False)
-                    or getattr(self, "time_varying_media", False)
-                ),
-            )
-
-            self._data_wrapper = MMMIDataWrapper(
-                self.idata,
-                schema=schema,
-                validate_on_init=False,  # Don't validate on every access
-            )
-
-        return self._data_wrapper
+        schema = MMMIdataSchema.from_model_config(
+            custom_dims=self.dims if hasattr(self, "dims") and self.dims else (),
+            has_controls=self.control_columns is not None,
+            has_seasonality=self.yearly_seasonality is not None,
+            time_varying=(
+                getattr(self, "time_varying_intercept", False)
+                or getattr(self, "time_varying_media", False)
+            ),
+        )
+        return MMMIDataWrapper(self.idata, schema=schema)
 
     @property
     def default_model_config(self) -> dict:
