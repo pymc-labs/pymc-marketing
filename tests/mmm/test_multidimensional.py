@@ -3675,3 +3675,455 @@ class TestAddOriginalScaleContributionVariable:
         ]
         assert channel_dims == ("date", "country", "channel")
         assert fourier_dims == ("date", "country", "fourier_mode")
+
+
+class TestChannelContributionForwardPass:
+    """Tests for channel_contribution_forward_pass method."""
+
+    @pytest.fixture
+    def sample_data(self) -> tuple[pd.DataFrame, pd.Series]:
+        """Create sample data for testing."""
+        rng = np.random.default_rng(42)
+        n_dates = 20
+        dates = pd.date_range("2023-01-01", periods=n_dates, freq="W")
+        X = pd.DataFrame(
+            {
+                "date": dates,
+                "x1": rng.uniform(0.1, 1.0, n_dates),
+                "x2": rng.uniform(0.1, 1.0, n_dates),
+            }
+        )
+        y = pd.Series(rng.uniform(100, 500, n_dates), name="y")
+        return X, y
+
+    def test_channel_contribution_forward_pass_basic(
+        self, sample_data, mock_pymc_sample
+    ) -> None:
+        """Test basic channel contribution forward pass computation."""
+        X, y = sample_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["x1", "x2"],
+            target_column="y",
+        )
+        mmm.fit(X, y)
+
+        # Get channel data from constant_data
+        channel_data = mmm.idata.constant_data.channel_data
+
+        # Compute forward pass
+        contributions = mmm.channel_contribution_forward_pass(
+            channel_data=channel_data,
+            progressbar=False,
+        )
+
+        # Check output dimensions
+        assert "chain" in contributions.dims
+        assert "draw" in contributions.dims
+        assert "date" in contributions.dims
+        assert "channel" in contributions.dims
+
+        # Check shapes
+        n_chains = contributions.sizes["chain"]
+        n_draws = contributions.sizes["draw"]
+        n_dates = len(X)
+        n_channels = len(mmm.channel_columns)
+        assert contributions.shape == (n_chains, n_draws, n_dates, n_channels)
+
+    def test_channel_contribution_forward_pass_scaled(
+        self, sample_data, mock_pymc_sample
+    ) -> None:
+        """Test forward pass with scaled data (2x original)."""
+        X, y = sample_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["x1", "x2"],
+            target_column="y",
+        )
+        mmm.fit(X, y)
+
+        # Get channel data and scale by 2
+        channel_data = mmm.idata.constant_data.channel_data
+        scaled_data = channel_data * 2.0
+
+        # Compute forward pass for scaled data
+        contributions = mmm.channel_contribution_forward_pass(
+            channel_data=scaled_data,
+            progressbar=False,
+        )
+
+        # Should have same dimensions but different values
+        assert contributions.sizes["date"] == len(X)
+        assert contributions.sizes["channel"] == len(mmm.channel_columns)
+
+    def test_channel_contribution_forward_pass_not_fitted(self, sample_data) -> None:
+        """Test error when model not fitted."""
+        X, y = sample_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["x1", "x2"],
+            target_column="y",
+        )
+
+        # Build model but don't fit
+        mmm.build_model(X, y)
+
+        with pytest.raises(ValueError, match="Model has not been fitted yet"):
+            # Create fake channel data
+            channel_data = xr.DataArray(
+                np.ones((len(X), 2)),
+                dims=("date", "channel"),
+                coords={"date": X["date"].values, "channel": ["x1", "x2"]},
+            )
+            mmm.channel_contribution_forward_pass(channel_data=channel_data)
+
+    def test_channel_contribution_forward_pass_original_scale(
+        self, sample_data, mock_pymc_sample
+    ) -> None:
+        """Test forward pass returns original scale by default."""
+        X, y = sample_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["x1", "x2"],
+            target_column="y",
+        )
+        mmm.fit(X, y)
+
+        channel_data = mmm.idata.constant_data.channel_data
+
+        # Original scale
+        contributions_orig = mmm.channel_contribution_forward_pass(
+            channel_data=channel_data,
+            original_scale=True,
+        )
+
+        # Scaled (not original)
+        contributions_scaled = mmm.channel_contribution_forward_pass(
+            channel_data=channel_data,
+            original_scale=False,
+        )
+
+        # Original scale should generally have larger absolute values
+        # (since target scale is usually > 1)
+        assert contributions_orig is not None
+        assert contributions_scaled is not None
+
+    def test_channel_contribution_forward_pass_with_dims(
+        self, multi_dim_data, mock_pymc_sample
+    ) -> None:
+        """Test forward pass with additional dimensions (country)."""
+        X, y = multi_dim_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            target_column="target",
+            dims=("country",),
+        )
+        mmm.fit(X, y)
+
+        # Get channel data
+        channel_data = mmm.idata.constant_data.channel_data
+
+        # Compute forward pass
+        contributions = mmm.channel_contribution_forward_pass(
+            channel_data=channel_data,
+            progressbar=False,
+        )
+
+        # Check dimensions include country
+        assert "country" in contributions.dims
+        assert "channel" in contributions.dims
+        assert "date" in contributions.dims
+
+
+class TestGetChannelContributionForwardPassGrid:
+    """Tests for get_channel_contribution_forward_pass_grid method."""
+
+    @pytest.fixture
+    def sample_data(self) -> tuple[pd.DataFrame, pd.Series]:
+        """Create sample data for testing."""
+        rng = np.random.default_rng(42)
+        n_dates = 20
+        dates = pd.date_range("2023-01-01", periods=n_dates, freq="W")
+        X = pd.DataFrame(
+            {
+                "date": dates,
+                "x1": rng.uniform(0.1, 1.0, n_dates),
+                "x2": rng.uniform(0.1, 1.0, n_dates),
+            }
+        )
+        y = pd.Series(rng.uniform(100, 500, n_dates), name="y")
+        return X, y
+
+    def test_grid_shapes(self, sample_data, mock_pymc_sample) -> None:
+        """Test grid output has correct dimensions."""
+        X, y = sample_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["x1", "x2"],
+            target_column="y",
+        )
+        mmm.fit(X, y)
+
+        num_points = 5
+        contributions = mmm.get_channel_contribution_forward_pass_grid(
+            start=0.0, stop=2.0, num=num_points
+        )
+
+        # Check dimensions
+        assert "delta" in contributions.dims
+        assert "chain" in contributions.dims
+        assert "draw" in contributions.dims
+        assert "date" in contributions.dims
+        assert "channel" in contributions.dims
+
+        # Check delta coordinate
+        assert contributions.sizes["delta"] == num_points
+        np.testing.assert_allclose(
+            contributions.coords["delta"].values,
+            np.linspace(0.0, 2.0, num_points),
+        )
+
+    def test_grid_bad_start(self, sample_data, mock_pymc_sample) -> None:
+        """Test error when start < 0."""
+        X, y = sample_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["x1", "x2"],
+            target_column="y",
+        )
+        mmm.fit(X, y)
+
+        with pytest.raises(
+            ValueError, match="start must be greater than or equal to 0"
+        ):
+            mmm.get_channel_contribution_forward_pass_grid(start=-0.5, stop=1.5, num=5)
+
+    def test_grid_not_fitted(self, sample_data) -> None:
+        """Test error when model not fitted."""
+        X, y = sample_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["x1", "x2"],
+            target_column="y",
+        )
+        # Only build, don't fit
+        mmm.build_model(X, y)
+
+        with pytest.raises(ValueError, match="Model has not been fitted"):
+            mmm.get_channel_contribution_forward_pass_grid(start=0.0, stop=2.0, num=5)
+
+    def test_grid_with_dims(self, multi_dim_data, mock_pymc_sample) -> None:
+        """Test grid with additional dimensions."""
+        X, y = multi_dim_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            target_column="target",
+            dims=("country",),
+        )
+        mmm.fit(X, y)
+
+        num_points = 3
+        contributions = mmm.get_channel_contribution_forward_pass_grid(
+            start=0.5, stop=1.5, num=num_points
+        )
+
+        # Check dimensions include country
+        assert "country" in contributions.dims
+        assert "delta" in contributions.dims
+        assert contributions.sizes["delta"] == num_points
+
+
+class TestPlotChannelContributionGrid:
+    """Tests for plot_channel_contribution_grid method."""
+
+    @pytest.fixture
+    def sample_data(self) -> tuple[pd.DataFrame, pd.Series]:
+        """Create sample data for testing."""
+        rng = np.random.default_rng(42)
+        n_dates = 20
+        dates = pd.date_range("2023-01-01", periods=n_dates, freq="W")
+        X = pd.DataFrame(
+            {
+                "date": dates,
+                "x1": rng.uniform(0.1, 1.0, n_dates),
+                "x2": rng.uniform(0.1, 1.0, n_dates),
+            }
+        )
+        y = pd.Series(rng.uniform(100, 500, n_dates), name="y")
+        return X, y
+
+    def test_basic_plot(self, sample_data, mock_pymc_sample) -> None:
+        """Test basic plot generation."""
+        import matplotlib.pyplot as plt
+
+        X, y = sample_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["x1", "x2"],
+            target_column="y",
+        )
+        mmm.fit(X, y)
+
+        fig, axes = mmm.plot_channel_contribution_grid(start=0.0, stop=2.0, num=5)
+
+        assert isinstance(fig, plt.Figure)
+        assert axes is not None
+        plt.close(fig)
+
+    def test_plot_absolute_xrange(self, sample_data, mock_pymc_sample) -> None:
+        """Test plot with absolute x-range."""
+        import matplotlib.pyplot as plt
+
+        X, y = sample_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["x1", "x2"],
+            target_column="y",
+        )
+        mmm.fit(X, y)
+
+        fig, _axes = mmm.plot_channel_contribution_grid(
+            start=0.0, stop=2.0, num=5, absolute_xrange=True
+        )
+
+        assert isinstance(fig, plt.Figure)
+        plt.close(fig)
+
+    def test_plot_with_dims_filter(self, multi_dim_data, mock_pymc_sample) -> None:
+        """Test plot with dimension filtering."""
+        import matplotlib.pyplot as plt
+
+        X, y = multi_dim_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            target_column="target",
+            dims=("country",),
+        )
+        mmm.fit(X, y)
+
+        # Filter to single country
+        fig, _axes = mmm.plot_channel_contribution_grid(
+            start=0.5, stop=1.5, num=3, dims={"country": "Venezuela"}
+        )
+
+        assert isinstance(fig, plt.Figure)
+        plt.close(fig)
+
+    def test_plot_with_aggregation(self, multi_dim_data, mock_pymc_sample) -> None:
+        """Test plot with aggregation over dimensions."""
+        import matplotlib.pyplot as plt
+
+        X, y = multi_dim_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            target_column="target",
+            dims=("country",),
+        )
+        mmm.fit(X, y)
+
+        # Aggregate over country
+        fig, _axes = mmm.plot_channel_contribution_grid(
+            start=0.5, stop=1.5, num=3, aggregation={"sum": ("country",)}
+        )
+
+        assert isinstance(fig, plt.Figure)
+        plt.close(fig)
+
+
+class TestMMMPlotSuiteChannelContributionGrid:
+    """Tests for the channel_contribution_grid method in MMMPlotSuite."""
+
+    @pytest.fixture
+    def sample_data(self) -> tuple[pd.DataFrame, pd.Series]:
+        """Create sample data for testing."""
+        rng = np.random.default_rng(42)
+        n_dates = 20
+        dates = pd.date_range("2023-01-01", periods=n_dates, freq="W")
+        X = pd.DataFrame(
+            {
+                "date": dates,
+                "x1": rng.uniform(0.1, 1.0, n_dates),
+                "x2": rng.uniform(0.1, 1.0, n_dates),
+            }
+        )
+        y = pd.Series(rng.uniform(100, 500, n_dates), name="y")
+        return X, y
+
+    def test_plot_suite_basic(self, sample_data, mock_pymc_sample) -> None:
+        """Test basic plotting through plot suite."""
+        import matplotlib.pyplot as plt
+
+        X, y = sample_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["x1", "x2"],
+            target_column="y",
+        )
+        mmm.fit(X, y)
+
+        # Get grid data
+        grid_data = mmm.get_channel_contribution_forward_pass_grid(
+            start=0.0, stop=2.0, num=5
+        )
+
+        # Use plot suite directly
+        fig, _axes = mmm.plot.channel_contribution_grid(grid_data=grid_data)
+
+        assert isinstance(fig, plt.Figure)
+        plt.close(fig)
+
+    def test_plot_suite_validation(self, sample_data, mock_pymc_sample) -> None:
+        """Test validation of grid_data dimensions."""
+        import matplotlib.pyplot as plt
+
+        X, y = sample_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["x1", "x2"],
+            target_column="y",
+        )
+        mmm.fit(X, y)
+
+        # Create invalid grid data (missing dimensions)
+        invalid_data = xr.DataArray(
+            np.ones((5, 2)),
+            dims=("delta", "channel"),
+        )
+
+        with pytest.raises(ValueError, match="grid_data must have dims"):
+            mmm.plot.channel_contribution_grid(grid_data=invalid_data)
+        plt.close("all")

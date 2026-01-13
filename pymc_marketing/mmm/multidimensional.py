@@ -1755,6 +1755,367 @@ class MMM(RegressionModelBuilder):
             pymc_model=self.model, idata=self.idata, dims=self.dims
         )
 
+    def channel_contribution_forward_pass(
+        self,
+        channel_data: xr.DataArray,
+        progressbar: bool = False,
+        original_scale: bool = True,
+    ) -> xr.DataArray:
+        """Evaluate channel contributions for given channel data using posterior samples.
+
+        This method computes the channel contribution by applying the forward pass
+        (adstock and saturation transformations) to the provided channel data,
+        using the posterior samples from a fitted model.
+
+        Parameters
+        ----------
+        channel_data : xr.DataArray
+            Input channel data with dims ``(date, *dims, channel)``.
+            The data should be in the original (unscaled) units.
+        progressbar : bool, optional
+            Whether to show a progress bar during posterior predictive sampling.
+            Default is False.
+        original_scale : bool, optional
+            Whether to return contributions in the original scale of the target
+            variable. Default is True.
+
+        Returns
+        -------
+        xr.DataArray
+            Channel contributions with dims ``(chain, draw, date, *dims, channel)``.
+
+        Raises
+        ------
+        ValueError
+            If the model has not been fitted yet.
+
+        Examples
+        --------
+        Compute channel contributions for modified channel data:
+
+        .. code-block:: python
+
+            # Get original channel data
+            channel_data = mmm.idata.constant_data.channel_data
+
+            # Scale channel data by 1.5x
+            modified_data = channel_data * 1.5
+
+            # Compute contributions
+            contributions = mmm.channel_contribution_forward_pass(modified_data)
+
+        See Also
+        --------
+        get_channel_contribution_forward_pass_grid : Generate contributions for a grid of multipliers.
+        plot_channel_contribution_grid : Plot channel contributions across multipliers.
+
+        """
+        # Check if model is fitted using try/except since fit_result raises exception
+        try:
+            fit_result = self.fit_result
+            if fit_result is None:
+                raise ValueError(
+                    "Model has not been fitted yet. "
+                    "Please fit the model using `mmm.fit(X, y)` before calling this method."
+                )
+        except RuntimeError as e:
+            raise ValueError(
+                "Model has not been fitted yet. "
+                "Please fit the model using `mmm.fit(X, y)` before calling this method."
+            ) from e
+
+        # Validate channel_data dimensions
+        expected_dims = ("date", *self.dims, "channel")
+        if channel_data.dims != expected_dims:
+            raise ValueError(
+                f"channel_data must have dims {expected_dims}, got {channel_data.dims}"
+            )
+
+        # Build coords for the temporary model
+        coords = {
+            "date": channel_data.coords["date"].values,
+            "channel": channel_data.coords["channel"].values,
+        }
+        for dim in self.dims:
+            coords[dim] = channel_data.coords[dim].values
+
+        with pm.Model(coords=coords):
+            # Store channel data
+            channel_data_var = pm.Data(
+                name="channel_data",
+                value=channel_data.values,
+                dims=expected_dims,
+            )
+
+            # Store scaling factors
+            channel_scale = pm.Data(
+                "channel_scale",
+                self.scalers._channel.values,
+                dims=self.scalers._channel.dims,
+            )
+
+            # Scale channel data
+            channel_dim_handler = create_dim_handler(expected_dims)
+            channel_data_scaled = channel_data_var / channel_dim_handler(
+                channel_scale,
+                self.scalers._channel.dims,
+            )
+            channel_data_scaled = pt.switch(
+                pt.isnan(channel_data_scaled), 0.0, channel_data_scaled
+            )
+
+            # Apply forward pass
+            pm.Deterministic(
+                "channel_contribution",
+                self.forward_pass(x=channel_data_scaled, dims=(*self.dims, "channel")),
+                dims=expected_dims,
+            )
+
+            # Sample from posterior
+            idata = pm.sample_posterior_predictive(
+                fit_result,
+                var_names=["channel_contribution"],
+                progressbar=progressbar,
+            )
+
+        # Extract channel contribution
+        channel_contribution = idata.posterior_predictive.channel_contribution
+
+        # Apply time-varying media multiplier if enabled
+        if bool(self.time_varying_media):
+            name = "media_temporal_latent_multiplier"
+            if name in fit_result:
+                multiplier = fit_result[name]
+                # Align multiplier with contribution dates
+                if "date" in multiplier.dims:
+                    # Need to reindex or interpolate if dates don't match
+                    original_dates = multiplier.coords["date"].values
+                    new_dates = channel_contribution.coords["date"].values
+                    if not np.array_equal(original_dates, new_dates):
+                        # Use the same multiplier values (assume similar time structure)
+                        # This is a simplification - for out-of-sample, we'd need interpolation
+                        multiplier = multiplier.isel(
+                            date=slice(0, len(new_dates))
+                        ).assign_coords(date=new_dates)
+                channel_contribution = channel_contribution * multiplier[..., None]
+
+        # Scale to original scale if requested
+        if original_scale:
+            target_scale = self.scalers._target
+            # Handle scalar scale (no additional dims) vs array scale
+            if target_scale.dims:
+                # Non-scalar: use dim handler for broadcasting
+                target_dim_handler = create_dim_handler(("date", *self.dims))
+                scale_values = target_dim_handler(
+                    target_scale.values, self.scalers._target.dims
+                )
+                # Create xarray-compatible scale
+                scale_da = xr.DataArray(
+                    scale_values,
+                    dims=("date", *self.dims),
+                    coords={
+                        dim: channel_contribution.coords[dim].values
+                        for dim in ("date", *self.dims)
+                    },
+                )
+                channel_contribution = channel_contribution * scale_da
+            else:
+                # Scalar scale: simple multiplication
+                channel_contribution = channel_contribution * float(target_scale.values)
+
+        return channel_contribution
+
+    def get_channel_contribution_forward_pass_grid(
+        self,
+        start: float,
+        stop: float,
+        num: int,
+        progressbar: bool = False,
+        original_scale: bool = True,
+    ) -> xr.DataArray:
+        """Generate channel contributions for a grid of spend multipliers.
+
+        This method computes channel contributions for different spend levels
+        by applying multipliers (deltas) to the original channel data. This is
+        useful for understanding how contributions change as spending varies.
+
+        Parameters
+        ----------
+        start : float
+            Start of the multiplier grid. Must be >= 0.
+        stop : float
+            End of the multiplier grid. Must be > start.
+        num : int
+            Number of points in the grid.
+        progressbar : bool, optional
+            Whether to show a progress bar during computation. Default is False.
+        original_scale : bool, optional
+            Whether to return contributions in the original scale. Default is True.
+
+        Returns
+        -------
+        xr.DataArray
+            Channel contributions with dims ``(delta, chain, draw, date, *dims, channel)``.
+            The ``delta`` coordinate contains the multiplier values.
+
+        Raises
+        ------
+        ValueError
+            If ``start < 0`` or if the model has not been fitted.
+
+        Examples
+        --------
+        Compute contributions for spend levels from 0 to 2x original:
+
+        .. code-block:: python
+
+            contributions = mmm.get_channel_contribution_forward_pass_grid(
+                start=0.0, stop=2.0, num=11
+            )
+
+            # contributions has dims (delta, chain, draw, date, *dims, channel)
+            # delta values: [0.0, 0.2, 0.4, ..., 2.0]
+
+        See Also
+        --------
+        channel_contribution_forward_pass : Compute contributions for arbitrary channel data.
+        plot_channel_contribution_grid : Plot the contribution grid.
+
+        """
+        if start < 0:
+            raise ValueError("start must be greater than or equal to 0.")
+
+        if not hasattr(self, "idata") or self.idata is None:
+            raise ValueError(
+                "Model has not been fitted yet. "
+                "Please fit the model using `mmm.fit(X, y)` before calling this method."
+            )
+
+        # Create multiplier grid
+        delta_grid = np.linspace(start=start, stop=stop, num=num)
+
+        # Get base channel data from constant_data
+        base_channel_data = self.idata.constant_data.channel_data
+
+        # Compute contributions for each delta
+        contributions_list = []
+        for delta in delta_grid:
+            # Scale channel data by delta
+            scaled_channel_data = base_channel_data * delta
+
+            # Compute forward pass
+            contribution = self.channel_contribution_forward_pass(
+                channel_data=scaled_channel_data,
+                progressbar=progressbar,
+                original_scale=original_scale,
+            )
+            contributions_list.append(contribution)
+
+        # Stack contributions along delta dimension
+        contributions = xr.concat(contributions_list, dim="delta")
+        contributions = contributions.assign_coords(delta=delta_grid)
+
+        return contributions
+
+    def plot_channel_contribution_grid(
+        self,
+        start: float,
+        stop: float,
+        num: int,
+        absolute_xrange: bool = False,
+        hdi_prob: float = 0.94,
+        dims: dict[str, str | int | list] | None = None,
+        aggregation: dict[str, tuple[str, ...] | list[str]] | None = None,
+        subplot_kwargs: dict[str, Any] | None = None,
+        progressbar: bool = False,
+        **plot_kwargs: Any,
+    ) -> tuple[Any, np.ndarray]:
+        """Plot channel contributions across a grid of spend multipliers.
+
+        This method generates a visualization showing how channel contributions
+        change as spending levels vary. It computes contributions for a grid
+        of multipliers and plots the mean and HDI for each channel.
+
+        Parameters
+        ----------
+        start : float
+            Start of the multiplier grid. Must be >= 0.
+        stop : float
+            End of the multiplier grid. Must be > start.
+        num : int
+            Number of points in the grid.
+        absolute_xrange : bool, optional
+            If True, the x-axis shows absolute spend values.
+            If False, shows relative multipliers (delta). Default is False.
+        hdi_prob : float, optional
+            Probability mass for the HDI interval. Default is 0.94.
+        dims : dict, optional
+            Dimension filters to apply. Example: ``{"country": "US"}``.
+        aggregation : dict, optional
+            Aggregation operations to apply over dimensions.
+            Example: ``{"sum": ("country",)}`` to sum over countries.
+        subplot_kwargs : dict, optional
+            Keyword arguments passed to ``plt.subplots()``.
+        progressbar : bool, optional
+            Whether to show progress bar during computation. Default is False.
+        **plot_kwargs
+            Additional keyword arguments passed to the plotting function.
+
+        Returns
+        -------
+        tuple[Figure, NDArray[Axes]]
+            Matplotlib figure and axes array.
+
+        Examples
+        --------
+        Basic usage:
+
+        .. code-block:: python
+
+            fig, axes = mmm.plot_channel_contribution_grid(start=0.0, stop=2.0, num=11)
+
+        With absolute x-axis:
+
+        .. code-block:: python
+
+            fig, axes = mmm.plot_channel_contribution_grid(
+                start=0.0, stop=2.0, num=11, absolute_xrange=True
+            )
+
+        With dimension filtering:
+
+        .. code-block:: python
+
+            fig, axes = mmm.plot_channel_contribution_grid(
+                start=0.0, stop=2.0, num=11, dims={"country": "US"}
+            )
+
+        See Also
+        --------
+        get_channel_contribution_forward_pass_grid : Get raw contribution data.
+        channel_contribution_forward_pass : Compute contributions for arbitrary data.
+
+        """
+        # Compute contribution grid
+        grid_data = self.get_channel_contribution_forward_pass_grid(
+            start=start,
+            stop=stop,
+            num=num,
+            progressbar=progressbar,
+            original_scale=True,
+        )
+
+        # Use plot suite for visualization
+        return self.plot.channel_contribution_grid(
+            grid_data=grid_data,
+            absolute_xrange=absolute_xrange,
+            hdi_prob=hdi_prob,
+            dims=dims,
+            aggregation=aggregation,
+            subplot_kwargs=subplot_kwargs,
+            **plot_kwargs,
+        )
+
     def _make_channel_transform(
         self, df_lift_test: pd.DataFrame
     ) -> Callable[[np.ndarray], np.ndarray]:

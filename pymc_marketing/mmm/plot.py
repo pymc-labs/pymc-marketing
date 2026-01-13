@@ -1696,6 +1696,272 @@ class MMMPlotSuite:
         # are not used by saturation_scatterplot, so we don't pass them
         return self.saturation_scatterplot(original_scale=original_scale, **kwargs)
 
+    def channel_contribution_grid(
+        self,
+        grid_data: xr.DataArray,
+        absolute_xrange: bool = False,
+        hdi_prob: float = 0.94,
+        dims: dict[str, str | int | list] | None = None,
+        aggregation: dict[str, tuple[str, ...] | list[str]] | None = None,
+        subplot_kwargs: dict[str, Any] | None = None,
+        **plot_kwargs: Any,
+    ) -> tuple[Figure, NDArray[Axes]]:
+        """Plot channel contributions across a grid of spend multipliers.
+
+        This method visualizes how channel contributions change as spending
+        levels vary. It plots the mean contribution and HDI bands for each
+        channel across the delta (multiplier) values.
+
+        Parameters
+        ----------
+        grid_data : xr.DataArray
+            Channel contribution grid with dims ``(delta, chain, draw, date, *dims, channel)``.
+            Usually obtained from ``mmm.get_channel_contribution_forward_pass_grid()``.
+        absolute_xrange : bool, optional
+            If True, the x-axis shows absolute spend values (total input * delta).
+            If False, shows relative multipliers (delta). Default is False.
+        hdi_prob : float, optional
+            Probability mass for the HDI interval. Default is 0.94.
+        dims : dict, optional
+            Dimension filters to apply. Example: ``{"country": "US"}``.
+            Values can be single items or lists for multiple selections.
+        aggregation : dict, optional
+            Aggregation operations to apply over dimensions before plotting.
+            Supported operations: "sum", "mean", "median".
+            Example: ``{"sum": ("country",)}`` to sum contributions over countries.
+        subplot_kwargs : dict, optional
+            Keyword arguments passed to ``plt.subplots()``.
+        **plot_kwargs
+            Additional keyword arguments (currently unused, reserved for future).
+
+        Returns
+        -------
+        tuple[Figure, NDArray[Axes]]
+            Matplotlib figure and axes array.
+
+        Examples
+        --------
+        Basic usage with pre-computed grid:
+
+        .. code-block:: python
+
+            grid_data = mmm.get_channel_contribution_forward_pass_grid(
+                start=0.0, stop=2.0, num=11
+            )
+            fig, axes = mmm.plot.channel_contribution_grid(grid_data)
+
+        With absolute x-axis values:
+
+        .. code-block:: python
+
+            fig, axes = mmm.plot.channel_contribution_grid(
+                grid_data, absolute_xrange=True
+            )
+
+        With dimension filtering:
+
+        .. code-block:: python
+
+            fig, axes = mmm.plot.channel_contribution_grid(
+                grid_data, dims={"country": "US"}
+            )
+
+        With aggregation over dimensions:
+
+        .. code-block:: python
+
+            fig, axes = mmm.plot.channel_contribution_grid(
+                grid_data, aggregation={"sum": ("country",)}
+            )
+
+        See Also
+        --------
+        MMMPlotSuite.saturation_scatterplot : Scatter plot of channel saturation.
+        MMMPlotSuite.saturation_curves : Plot saturation curves with HDI bands.
+
+        """
+        # Validate grid_data has required dimensions
+        required_dims = {"delta", "chain", "draw", "date", "channel"}
+        if not required_dims.issubset(set(grid_data.dims)):
+            missing = required_dims - set(grid_data.dims)
+            raise ValueError(
+                f"grid_data must have dims {required_dims}, missing: {missing}"
+            )
+
+        # Sum over date dimension to get total contributions
+        data = grid_data.sum(dim="date")
+
+        # Get all dimensions in the data
+        all_dims = list(data.dims)
+
+        # Validate dims filter
+        if dims:
+            self._validate_dims(dims=dims, all_dims=all_dims)
+
+        # Apply dimension filtering
+        if dims:
+            filter_indexers: dict[str, str | int | list] = {}
+            for key, val in dims.items():
+                filter_indexers[key] = val
+            data = data.sel(**filter_indexers)
+
+        # Apply aggregation
+        if aggregation:
+            for op, agg_dims in aggregation.items():
+                dims_list = [d for d in agg_dims if d in data.dims]
+                if not dims_list:
+                    continue
+                if op == "sum":
+                    data = data.sum(dim=dims_list)
+                elif op == "mean":
+                    data = data.mean(dim=dims_list)
+                elif op == "median":
+                    data = data.median(dim=dims_list)
+                else:
+                    raise ValueError(
+                        f"Unknown aggregation operation: {op}. "
+                        "Supported: 'sum', 'mean', 'median'."
+                    )
+
+        # Identify additional dims for subplotting (excluding delta, chain, draw, channel)
+        ignored_dims = {"delta", "chain", "draw", "channel", "sample"}
+        additional_dims = [d for d in data.dims if d not in ignored_dims]
+
+        # Handle list-valued dims
+        dims_keys, dims_combos = self._dim_list_handler(dims)
+
+        # Build all combinations of additional dims
+        if additional_dims:
+            additional_coords = [data.coords[d].values for d in additional_dims]
+            additional_combos = list(itertools.product(*additional_coords))
+        else:
+            additional_combos = [()]
+
+        # Determine number of subplots
+        total_combos = list(itertools.product(dims_combos, additional_combos))
+        n_subplots = max(1, len(total_combos))
+
+        # Create subplots
+        subplot_kwargs = subplot_kwargs or {}
+        default_figsize = subplot_kwargs.pop("figsize", (10, 4 * n_subplots))
+        fig, axes = plt.subplots(
+            nrows=n_subplots,
+            ncols=1,
+            figsize=default_figsize,
+            squeeze=False,
+            **subplot_kwargs,
+        )
+
+        # Get delta and channel coordinates
+        delta_values = data.coords["delta"].values
+        channels = data.coords["channel"].values
+
+        # Get channel data for absolute x-range if needed
+        channel_totals = {}
+        if absolute_xrange and hasattr(self.idata, "constant_data"):
+            channel_data = self.idata.constant_data.channel_data
+            for ch in channels:
+                # Sum over all dims to get total input per channel
+                ch_data = channel_data.sel(channel=ch)
+                channel_totals[ch] = float(ch_data.sum().values)
+
+        # Plot each combination
+        for row_idx, (dims_combo, extra_combo) in enumerate(total_combos):
+            ax = axes[row_idx][0]
+
+            # Build indexers
+            indexers = {}
+            if dims_combo and dims_keys:
+                for i, key in enumerate(dims_keys):
+                    indexers[key] = dims_combo[i]
+            if extra_combo and additional_dims:
+                for i, dim in enumerate(additional_dims):
+                    indexers[dim] = extra_combo[i]
+
+            # Select data for this combination
+            if indexers:
+                plot_data = data.sel(**indexers)
+            else:
+                plot_data = data
+
+            # Plot each channel
+            for i, channel in enumerate(channels):
+                channel_data_sel = plot_data.sel(channel=channel)
+
+                # Compute mean and HDI
+                mean_contrib = channel_data_sel.mean(dim=("chain", "draw"))
+                hdi_contrib = az.hdi(channel_data_sel, hdi_prob=hdi_prob)
+
+                # Determine x-range
+                if absolute_xrange and channel in channel_totals:
+                    x_range = delta_values * channel_totals[channel]
+                else:
+                    x_range = delta_values
+
+                # Get HDI bounds - handle the variable name
+                hdi_var = hdi_contrib[channel_data_sel.name or "x"]
+                lower = hdi_var.sel(hdi="lower").values
+                upper = hdi_var.sel(hdi="higher").values
+
+                # Plot HDI band
+                ax.fill_between(
+                    x=x_range,
+                    y1=lower,
+                    y2=upper,
+                    color=f"C{i}",
+                    alpha=0.3,
+                    label=f"{channel} ${100 * hdi_prob:.0f}\\%$ HDI",
+                )
+
+                # Plot mean line
+                ax.plot(
+                    x_range,
+                    mean_contrib.values,
+                    color=f"C{i}",
+                    marker="o",
+                    markersize=4,
+                    label=f"{channel} mean",
+                )
+
+                # Add current input vertical line if absolute
+                if absolute_xrange and channel in channel_totals:
+                    ax.axvline(
+                        x=channel_totals[channel],
+                        color=f"C{i}",
+                        linestyle="--",
+                        alpha=0.7,
+                    )
+
+            # Add delta=1 reference line if relative
+            if not absolute_xrange:
+                ax.axvline(
+                    x=1.0,
+                    color="black",
+                    linestyle="--",
+                    label=r"$\delta = 1$",
+                )
+
+            # Build subplot title
+            title_dims = (dims_keys or []) + additional_dims
+            title_combo = list(dims_combo if dims_combo else []) + list(
+                extra_combo if extra_combo else []
+            )
+            title = self._build_subplot_title(
+                dims=title_dims,
+                combo=tuple(title_combo),
+                fallback_title="Channel Contribution Grid",
+            )
+            ax.set_title(title)
+
+            # Labels
+            x_label = "Input" if absolute_xrange else r"$\delta$ (multiplier)"
+            ax.set_xlabel(x_label)
+            ax.set_ylabel("Total Contribution")
+            ax.legend(loc="center left", bbox_to_anchor=(1, 0.5))
+
+        fig.tight_layout()
+        return fig, axes
+
     def budget_allocation(
         self,
         samples: xr.Dataset,
