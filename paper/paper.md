@@ -34,6 +34,9 @@ authors:
   - name: Nathaniel Forde
     orcid: PENDING-NEED-ORCID
     affiliation: 1
+  - name: Luciano Paz
+    orcid: 0000-0002-6255-3888
+    affiliation: 1
 affiliations:
  - name: PyMC Labs
    index: 1
