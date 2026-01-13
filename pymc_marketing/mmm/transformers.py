@@ -20,7 +20,7 @@ import numpy as np
 import numpy.typing as npt
 import pymc as pm
 import pytensor.tensor as pt
-from numpy.core.multiarray import normalize_axis_index
+from numpy.lib.array_utils import normalize_axis_index
 from pymc.distributions.dist_math import check_parameters
 from pytensor.tensor.variable import TensorVariable
 

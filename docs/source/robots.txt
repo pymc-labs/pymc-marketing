@@ -1,0 +1,12 @@
+# Custom robots.txt file
+# It controls the crawling and indexing of your documentation by search engines.
+# Part of the configuration happens through readthedocs and part through extensions
+#
+# You can learn more about robots.txt, including how to customize it, in our rtd docs:
+#
+# * Our documentation on Robots.txt: https://docs.readthedocs.com/platform/stable/reference/robots.html
+# * Our guide about SEO techniques: https://docs.readthedocs.com/platform/stable/guides/technical-docs-seo-guide.html
+
+User-agent: *
+
+Sitemap: https://www.pymc-marketing.io/en/stable/sitemap.xml
