@@ -26,6 +26,7 @@ from pymc_extras.prior import Prior
 from pytensor.tensor.basic import TensorVariable
 from scipy.optimize import OptimizeResult
 
+from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm import (
     CovFunc,
     GeometricAdstock,
@@ -2879,7 +2880,10 @@ def test_arbitrary_date_column_with_control_variables(
         pytest.param(
             {"intercept_tvp_config": {"ls_lower": 0.1, "ls_upper": None}},
             None,
-            dict(name="intercept_latent_process_raw_ls_raw", kind="WeibullBetaRV"),
+            dict(
+                name="intercept_latent_process_raw_ls_raw",
+                kind="WeibullBetaRV",
+            ),
             id="weibull",
         ),
         pytest.param(
@@ -2922,6 +2926,97 @@ def test_specify_time_varying_configuration(
         mmm.model[expected_rv["name"]].owner.op.__class__.__name__
         == expected_rv["kind"]
     )
+
+
+class TestTimeVaryingConfigFormats:
+    """Test time-varying coefficient configuration formats for API harmonization."""
+
+    @pytest.fixture
+    def sample_data(self) -> tuple[pd.DataFrame, pd.Series]:
+        """Create minimal sample data for testing."""
+        n = 20
+        dates = pd.date_range("2024-01-01", periods=n, freq="W")
+        rng = np.random.default_rng(12345)
+        X = pd.DataFrame(
+            {
+                "date": dates,
+                "channel_1": rng.random(n),
+                "channel_2": rng.random(n),
+            }
+        )
+        y = pd.Series(rng.random(n), name="target")
+        return X, y
+
+    def test_intercept_tvp_with_hsgp_kwargs_instance(
+        self, sample_data: tuple[pd.DataFrame, pd.Series]
+    ) -> None:
+        """Test time_varying_intercept=True with HSGPKwargs in model_config."""
+        X, y = sample_data
+        model_config = {
+            "intercept_tvp_config": HSGPKwargs(
+                m=50, L=None, eta_lam=1.0, ls_mu=5.0, ls_sigma=10.0, cov_func=None
+            ),
+        }
+        mmm = MMM(
+            date_column="date",
+            target_column="target",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            time_varying_intercept=True,
+            model_config=model_config,
+        )
+        mmm.build_model(X, y)
+        assert "intercept_latent_process" in mmm.model.named_vars
+
+    def test_intercept_tvp_with_hsgp_kwargs_dict(
+        self, sample_data: tuple[pd.DataFrame, pd.Series]
+    ) -> None:
+        """Test time_varying_intercept=True with dict in HSGPKwargs format."""
+        X, y = sample_data
+        model_config = {
+            "intercept_tvp_config": {
+                "m": 50,
+                "L": None,
+                "eta_lam": 1.0,
+                "ls_mu": 5.0,
+                "ls_sigma": 10.0,
+                "cov_func": None,
+            },
+        }
+        mmm = MMM(
+            date_column="date",
+            target_column="target",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            time_varying_intercept=True,
+            model_config=model_config,
+        )
+        mmm.build_model(X, y)
+        assert "intercept_latent_process" in mmm.model.named_vars
+
+    def test_media_tvp_with_hsgp_kwargs_instance(
+        self, sample_data: tuple[pd.DataFrame, pd.Series]
+    ) -> None:
+        """Test time_varying_media=True with HSGPKwargs in model_config."""
+        X, y = sample_data
+        model_config = {
+            "media_tvp_config": HSGPKwargs(
+                m=50, L=None, eta_lam=1.0, ls_mu=5.0, ls_sigma=10.0, cov_func=None
+            ),
+        }
+        mmm = MMM(
+            date_column="date",
+            target_column="target",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            time_varying_media=True,
+            model_config=model_config,
+        )
+        mmm.build_model(X, y)
+        assert "media_temporal_latent_multiplier" in mmm.model.named_vars
 
 
 def test_multidimensional_mmm_serializes_and_deserializes_dag_and_nodes(
@@ -3431,3 +3526,152 @@ def test_calibration_coordinate_label_mismatch_error(multi_dim_data, mock_pymc_s
             calibration_data=calibration_df,
             name_prefix="cpt_calibration",
         )
+
+
+class TestAddOriginalScaleContributionVariable:
+    """Tests for add_original_scale_contribution_variable method."""
+
+    @pytest.fixture
+    def sample_data(self) -> tuple[pd.DataFrame, pd.Series]:
+        """Create sample data for testing."""
+        rng = np.random.default_rng(42)
+        n_dates = 20
+        dates = pd.date_range("2023-01-01", periods=n_dates, freq="W")
+        X = pd.DataFrame(
+            {
+                "date": dates,
+                "x1": rng.uniform(0.1, 1.0, n_dates),
+                "x2": rng.uniform(0.1, 1.0, n_dates),
+            }
+        )
+        y = pd.Series(rng.uniform(100, 500, n_dates), name="y")
+        return X, y
+
+    def test_channel_contribution(self, sample_data) -> None:
+        """Test adding channel_contribution_original_scale."""
+        X, y = sample_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["x1", "x2"],
+            target_column="y",
+        )
+        mmm.build_model(X, y)
+        mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+
+        assert "channel_contribution_original_scale" in mmm.model.named_vars
+        dims = mmm.model.named_vars_to_dims["channel_contribution_original_scale"]
+        assert dims == ("date", "channel")
+
+    def test_fourier_contribution(self, sample_data) -> None:
+        """Test adding fourier_contribution_original_scale."""
+        X, y = sample_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["x1", "x2"],
+            target_column="y",
+            yearly_seasonality=3,
+        )
+        mmm.build_model(X, y)
+        mmm.add_original_scale_contribution_variable(var=["fourier_contribution"])
+
+        assert "fourier_contribution_original_scale" in mmm.model.named_vars
+        dims = mmm.model.named_vars_to_dims["fourier_contribution_original_scale"]
+        assert dims == ("date", "fourier_mode")
+
+    def test_multiple_contributions(self, sample_data) -> None:
+        """Test adding multiple contribution variables at once."""
+        X, y = sample_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["x1", "x2"],
+            target_column="y",
+            yearly_seasonality=3,
+        )
+        mmm.build_model(X, y)
+        mmm.add_original_scale_contribution_variable(
+            var=["channel_contribution", "fourier_contribution"]
+        )
+
+        assert "channel_contribution_original_scale" in mmm.model.named_vars
+        assert "fourier_contribution_original_scale" in mmm.model.named_vars
+
+        channel_dims = mmm.model.named_vars_to_dims[
+            "channel_contribution_original_scale"
+        ]
+        fourier_dims = mmm.model.named_vars_to_dims[
+            "fourier_contribution_original_scale"
+        ]
+        assert channel_dims == ("date", "channel")
+        assert fourier_dims == ("date", "fourier_mode")
+
+    def test_yearly_seasonality_contribution(self, sample_data) -> None:
+        """Test adding yearly_seasonality_contribution_original_scale."""
+        X, y = sample_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["x1", "x2"],
+            target_column="y",
+            yearly_seasonality=3,
+        )
+        mmm.build_model(X, y)
+        mmm.add_original_scale_contribution_variable(
+            var=["yearly_seasonality_contribution"]
+        )
+
+        assert "yearly_seasonality_contribution_original_scale" in mmm.model.named_vars
+        dims = mmm.model.named_vars_to_dims[
+            "yearly_seasonality_contribution_original_scale"
+        ]
+        assert dims == ("date",)
+
+    def test_intercept_contribution_with_tvp(self, sample_data) -> None:
+        """Test adding intercept_contribution_original_scale with time-varying intercept."""
+        X, y = sample_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["x1", "x2"],
+            target_column="y",
+            time_varying_intercept=True,
+        )
+        mmm.build_model(X, y)
+        mmm.add_original_scale_contribution_variable(var=["intercept_contribution"])
+
+        assert "intercept_contribution_original_scale" in mmm.model.named_vars
+        dims = mmm.model.named_vars_to_dims["intercept_contribution_original_scale"]
+        assert dims == ("date",)
+
+    def test_with_geo_dims(self, multi_dim_data) -> None:
+        """Test adding contribution variables with geo dimensions."""
+        X, y = multi_dim_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            target_column="target",
+            dims=("country",),
+            yearly_seasonality=2,
+        )
+        mmm.build_model(X, y)
+        mmm.add_original_scale_contribution_variable(
+            var=["channel_contribution", "fourier_contribution"]
+        )
+
+        channel_dims = mmm.model.named_vars_to_dims[
+            "channel_contribution_original_scale"
+        ]
+        fourier_dims = mmm.model.named_vars_to_dims[
+            "fourier_contribution_original_scale"
+        ]
+        assert channel_dims == ("date", "country", "channel")
+        assert fourier_dims == ("date", "country", "fourier_mode")
