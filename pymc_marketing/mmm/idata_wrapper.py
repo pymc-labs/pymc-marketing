@@ -244,22 +244,63 @@ class MMMIDataWrapper:
     def to_original_scale(self, var: str | xr.DataArray) -> xr.DataArray:
         """Transform variable from scaled to original scale.
 
+        Handles three scenarios based on input type:
+
+        1. **String with corresponding '_original_scale' variable**: If posterior
+           contains `{var}_original_scale`, returns it directly (e.g., "mu" returns
+           posterior["mu_original_scale"] if it exists).
+
+        2. **String ending with '_original_scale'**: Returns the variable directly
+           from posterior (e.g., "mu_original_scale" → posterior["mu_original_scale"]).
+           Already in original scale, so no transformation is applied.
+
+        3. **String (scaled variable) or xr.DataArray**: Multiplies by target_scale
+           to convert from scaled to original space.
+
         Parameters
         ----------
         var : str or xr.DataArray
-            Variable name in posterior or DataArray in scaled space
+            One of:
+            - Variable name with existing '_original_scale' version (returns that)
+            - Variable name ending with '_original_scale' (returns as-is)
+            - Scaled variable name (multiplies by target_scale)
+            - DataArray in scaled space (multiplies by target_scale)
 
         Returns
         -------
         xr.DataArray
             Variable in original scale
+
+        Raises
+        ------
+        ValueError
+            If string variable is not found in posterior
+
+        Examples
+        --------
+        >>> # Get existing original scale variable
+        >>> original = wrapper.to_original_scale("channel_contribution")
+        >>>
+        >>> # Get variable that's already in original scale
+        >>> original = wrapper.to_original_scale("mu_original_scale")
+        >>>
+        >>> # Convert DataArray from scaled to original space
+        >>> scaled_data = posterior["mu"]
+        >>> original = wrapper.to_original_scale(scaled_data)
         """
         if isinstance(var, str):
             if f"{var}_original_scale" in self.idata.posterior:
-                # Already exists
+                # Corresponding _original_scale variable exists
                 return self.idata.posterior[f"{var}_original_scale"]
-            elif var in self.idata.posterior:
-                # Compute on-the-fly
+
+            if var.endswith("_original_scale"):
+                # Variable is already in original scale - return directly
+                if var in self.idata.posterior:
+                    return self.idata.posterior[var]
+                raise ValueError(f"Variable '{var}' not found in posterior")
+
+            # Scaled variable - compute on-the-fly
+            if var in self.idata.posterior:
                 data = self.idata.posterior[var]
             else:
                 raise ValueError(f"Variable '{var}' not found in posterior")
@@ -272,32 +313,66 @@ class MMMIDataWrapper:
     def to_scaled(self, var: str | xr.DataArray) -> xr.DataArray:
         """Transform variable from original to scaled space.
 
+        Handles three scenarios based on input type:
+
+        1. **String ending with '_original_scale'**: Returns the corresponding
+           base variable from posterior (e.g., "mu_original_scale" → posterior["mu"]).
+           The base variable is already in scaled space.
+
+        2. **String without '_original_scale' suffix**: Returns the variable
+           directly from posterior (e.g., "channel_contribution" → posterior["channel_contribution"]).
+           These variables are already in scaled space, so no transformation is applied.
+
+        3. **xr.DataArray**: Assumes the data is in original scale and divides
+           by target_scale to convert to scaled space.
+
         Parameters
         ----------
         var : str or xr.DataArray
-            Variable name ending with '_original_scale' or DataArray in original space
+            One of:
+            - Variable name ending with '_original_scale' (returns base scaled variable)
+            - Variable name in posterior (returns as-is, already scaled)
+            - DataArray in original space (divides by target_scale)
 
         Returns
         -------
         xr.DataArray
             Variable in scaled space
+
+        Raises
+        ------
+        ValueError
+            If string variable is not found in posterior
+
+        Examples
+        --------
+        >>> # Get scaled version of original scale variable
+        >>> scaled = wrapper.to_scaled("mu_original_scale")
+        >>>
+        >>> # Get already-scaled variable directly
+        >>> scaled = wrapper.to_scaled("channel_contribution")
+        >>>
+        >>> # Convert DataArray from original to scaled space
+        >>> original_data = posterior["mu"] * constant_data.target_scale
+        >>> scaled = wrapper.to_scaled(original_data)
         """
         if isinstance(var, str):
             if var.endswith("_original_scale"):
-                # Get base variable name
+                # Get base variable name (which is in scaled space)
                 base_name = var.replace("_original_scale", "")
                 if base_name in self.idata.posterior:
                     return self.idata.posterior[base_name]
+                raise ValueError(f"Variable '{base_name}' not found in posterior")
 
+            # Variable name without _original_scale suffix - return directly (already scaled)
             if var in self.idata.posterior:
-                data = self.idata.posterior[var]
+                return self.idata.posterior[var]
             else:
                 raise ValueError(f"Variable '{var}' not found in posterior")
-        else:
-            data = var
 
+        # DataArray in original space - convert to scaled
         target_scale = self.idata.constant_data.target_scale
-        return data / target_scale
+        return var / target_scale
 
     # ==================== Filtering Operations ====================
 

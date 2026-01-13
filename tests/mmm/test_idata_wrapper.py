@@ -969,6 +969,21 @@ def test_to_original_scale_uses_existing_variable_if_present(idata_with_original
     )
 
 
+def test_to_original_scale_with_original_scale_variable_name(idata_with_original_scale):
+    """Test to_original_scale with _original_scale variable name returns as-is."""
+    # Arrange
+    wrapper = MMMIDataWrapper(idata_with_original_scale)
+
+    # Act
+    original_scale = wrapper.to_original_scale("channel_contribution_original_scale")
+
+    # Assert - Should return variable directly without transformation
+    xr.testing.assert_equal(
+        original_scale,
+        idata_with_original_scale.posterior.channel_contribution_original_scale,
+    )
+
+
 def test_to_scaled_with_original_scale_variable_name(idata_with_original_scale):
     """Test to_scaled with _original_scale variable name."""
     # Arrange
@@ -976,6 +991,20 @@ def test_to_scaled_with_original_scale_variable_name(idata_with_original_scale):
 
     # Act
     scaled = wrapper.to_scaled("channel_contribution_original_scale")
+
+    # Assert - Should return base scaled variable
+    xr.testing.assert_equal(
+        scaled, idata_with_original_scale.posterior.channel_contribution
+    )
+
+
+def test_to_scaled_with_scaled_variable_name(idata_with_original_scale):
+    """Test to_scaled with scaled variable name."""
+    # Arrange
+    wrapper = MMMIDataWrapper(idata_with_original_scale)
+
+    # Act
+    scaled = wrapper.to_scaled("channel_contribution")
 
     # Assert - Should return base scaled variable
     xr.testing.assert_equal(

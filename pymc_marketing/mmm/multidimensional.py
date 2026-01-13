@@ -669,7 +669,7 @@ class MMM(RegressionModelBuilder):
                 or getattr(self, "time_varying_media", False)
             ),
         )
-        return MMMIDataWrapper(self.idata, schema=schema)
+        return MMMIDataWrapper(self.idata, schema=schema, validate_on_init=False)
 
     @property
     def default_model_config(self) -> dict:
