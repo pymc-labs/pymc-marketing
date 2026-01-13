@@ -3783,6 +3783,63 @@ class TestGetChannelContributionForwardPassGrid:
         assert "delta" in contributions.dims
         assert contributions.sizes["delta"] == num_points
 
+    def test_grid_with_control_columns(self, mock_pymc_sample) -> None:
+        """Test grid computation when model has control columns."""
+        rng = np.random.default_rng(42)
+        n_dates = 20
+        dates = pd.date_range("2023-01-01", periods=n_dates, freq="W")
+        X = pd.DataFrame(
+            {
+                "date": dates,
+                "x1": rng.uniform(0.1, 1.0, n_dates),
+                "x2": rng.uniform(0.1, 1.0, n_dates),
+                "control_1": rng.uniform(0, 1, n_dates),
+            }
+        )
+        y = pd.Series(rng.uniform(100, 500, n_dates), name="y")
+
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["x1", "x2"],
+            control_columns=["control_1"],
+            target_column="y",
+        )
+        mmm.fit(X, y)
+
+        num_points = 5
+        contributions = mmm.get_channel_contribution_forward_pass_grid(
+            start=0.0, stop=2.0, num=num_points
+        )
+
+        assert "delta" in contributions.dims
+        assert contributions.sizes["delta"] == num_points
+
+    def test_grid_original_scale_false(self, sample_data, mock_pymc_sample) -> None:
+        """Test grid output with original_scale=False."""
+        X, y = sample_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["x1", "x2"],
+            target_column="y",
+        )
+        mmm.fit(X, y)
+
+        contributions_scaled = mmm.get_channel_contribution_forward_pass_grid(
+            start=0.0, stop=2.0, num=5, original_scale=True
+        )
+        contributions_unscaled = mmm.get_channel_contribution_forward_pass_grid(
+            start=0.0, stop=2.0, num=5, original_scale=False
+        )
+
+        # Values should differ by the target scaler
+        assert not np.allclose(
+            contributions_scaled.values, contributions_unscaled.values
+        )
+
 
 class TestPlotChannelContributionGrid:
     """Tests for plot_channel_contribution_grid method."""
@@ -3999,4 +4056,196 @@ class TestMMMPlotSuiteChannelContributionGrid:
         # Should have exactly 2 subplots (one per country in the list)
         # If the bug existed, it would have 2 x 2 = 4 subplots
         assert axes.shape == (2, 1)
+        plt.close(fig)
+
+    def test_plot_suite_invalid_dims_raises_error(
+        self, sample_data, mock_pymc_sample
+    ) -> None:
+        """Test that invalid dims filter raises appropriate error."""
+        import matplotlib.pyplot as plt
+
+        X, y = sample_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["x1", "x2"],
+            target_column="y",
+        )
+        mmm.fit(X, y)
+
+        grid_data = mmm.get_channel_contribution_forward_pass_grid(
+            start=0.0, stop=2.0, num=5
+        )
+
+        with pytest.raises(ValueError, match="not found in idata dimensions"):
+            mmm.plot.channel_contribution_grid(
+                grid_data=grid_data, dims={"nonexistent_dim": "value"}
+            )
+        plt.close("all")
+
+    def test_plot_suite_unknown_aggregation_raises_error(
+        self, multi_dim_data, mock_pymc_sample
+    ) -> None:
+        """Test that unknown aggregation operation raises ValueError."""
+        import matplotlib.pyplot as plt
+
+        X, y = multi_dim_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            target_column="target",
+            dims=("country",),
+        )
+        mmm.fit(X, y)
+
+        grid_data = mmm.get_channel_contribution_forward_pass_grid(
+            start=0.5, stop=1.5, num=3
+        )
+
+        with pytest.raises(ValueError, match="Unknown aggregation operation"):
+            mmm.plot.channel_contribution_grid(
+                grid_data=grid_data, aggregation={"invalid_op": ("country",)}
+            )
+        plt.close("all")
+
+    def test_plot_suite_aggregation_on_nonexistent_dim(
+        self, sample_data, mock_pymc_sample
+    ) -> None:
+        """Test that aggregation over non-existent dims is silently ignored."""
+        import matplotlib.pyplot as plt
+
+        X, y = sample_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["x1", "x2"],
+            target_column="y",
+        )
+        mmm.fit(X, y)
+
+        grid_data = mmm.get_channel_contribution_forward_pass_grid(
+            start=0.0, stop=2.0, num=5
+        )
+
+        # Aggregate over "nonexistent_dim" which doesn't exist - should be silently ignored
+        fig, _axes = mmm.plot.channel_contribution_grid(
+            grid_data=grid_data, aggregation={"sum": ("nonexistent_dim",)}
+        )
+
+        assert isinstance(fig, plt.Figure)
+        plt.close(fig)
+
+    def test_plot_suite_mean_aggregation(
+        self, multi_dim_data, mock_pymc_sample
+    ) -> None:
+        """Test plot with mean aggregation over dimensions."""
+        import matplotlib.pyplot as plt
+
+        X, y = multi_dim_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            target_column="target",
+            dims=("country",),
+        )
+        mmm.fit(X, y)
+
+        grid_data = mmm.get_channel_contribution_forward_pass_grid(
+            start=0.5, stop=1.5, num=3
+        )
+
+        fig, _axes = mmm.plot.channel_contribution_grid(
+            grid_data=grid_data, aggregation={"mean": ("country",)}
+        )
+
+        assert isinstance(fig, plt.Figure)
+        plt.close(fig)
+
+    def test_plot_suite_median_aggregation(
+        self, multi_dim_data, mock_pymc_sample
+    ) -> None:
+        """Test plot with median aggregation over dimensions."""
+        import matplotlib.pyplot as plt
+
+        X, y = multi_dim_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            target_column="target",
+            dims=("country",),
+        )
+        mmm.fit(X, y)
+
+        grid_data = mmm.get_channel_contribution_forward_pass_grid(
+            start=0.5, stop=1.5, num=3
+        )
+
+        fig, _axes = mmm.plot.channel_contribution_grid(
+            grid_data=grid_data, aggregation={"median": ("country",)}
+        )
+
+        assert isinstance(fig, plt.Figure)
+        plt.close(fig)
+
+    def test_plot_suite_custom_subplot_kwargs(
+        self, sample_data, mock_pymc_sample
+    ) -> None:
+        """Test plot with custom subplot_kwargs."""
+        import matplotlib.pyplot as plt
+
+        X, y = sample_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["x1", "x2"],
+            target_column="y",
+        )
+        mmm.fit(X, y)
+
+        grid_data = mmm.get_channel_contribution_forward_pass_grid(
+            start=0.0, stop=2.0, num=5
+        )
+
+        custom_figsize = (15, 8)
+        fig, _axes = mmm.plot.channel_contribution_grid(
+            grid_data=grid_data, subplot_kwargs={"figsize": custom_figsize}
+        )
+
+        assert isinstance(fig, plt.Figure)
+        assert fig.get_size_inches()[0] == pytest.approx(custom_figsize[0])
+        assert fig.get_size_inches()[1] == pytest.approx(custom_figsize[1])
+        plt.close(fig)
+
+    def test_plot_suite_custom_hdi_prob(self, sample_data, mock_pymc_sample) -> None:
+        """Test plot with custom hdi_prob."""
+        import matplotlib.pyplot as plt
+
+        X, y = sample_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["x1", "x2"],
+            target_column="y",
+        )
+        mmm.fit(X, y)
+
+        grid_data = mmm.get_channel_contribution_forward_pass_grid(
+            start=0.0, stop=2.0, num=5
+        )
+
+        fig, _axes = mmm.plot.channel_contribution_grid(
+            grid_data=grid_data, hdi_prob=0.89
+        )
+
+        assert isinstance(fig, plt.Figure)
         plt.close(fig)
