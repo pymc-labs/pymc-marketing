@@ -1983,7 +1983,7 @@ class MMM(RegressionModelBuilder):
 
         """
         if start < 0:
-            raise ValueError("start must be greater than or equal to 0.")
+            raise ValueError("start must be greater than or equal to 0")
 
         if not hasattr(self, "idata") or self.idata is None:
             raise ValueError(
