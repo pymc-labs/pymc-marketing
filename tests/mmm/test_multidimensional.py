@@ -3845,6 +3845,61 @@ class TestChannelContributionForwardPass:
         assert "channel" in contributions.dims
         assert "date" in contributions.dims
 
+    def test_channel_contribution_forward_pass_with_time_varying_media(
+        self, sample_data, mock_pymc_sample
+    ) -> None:
+        """Test forward pass with time_varying_media enabled.
+
+        This test verifies that the xarray broadcasting works correctly when
+        multiplying the channel_contribution by the media_temporal_latent_multiplier.
+        Previously, using multiplier[..., None] on an xarray DataArray would add
+        an unnamed dimension instead of properly broadcasting over the channel dim.
+
+        The fix removes the [..., None] since xarray automatically broadcasts by
+        dimension names.
+        """
+        X, y = sample_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["x1", "x2"],
+            target_column="y",
+            time_varying_media=True,
+        )
+        mmm.fit(X, y)
+
+        # Verify media_temporal_latent_multiplier exists in fit_result
+        assert "media_temporal_latent_multiplier" in mmm.fit_result
+
+        # Get channel data from constant_data
+        channel_data = mmm.idata.constant_data.channel_data
+
+        # Compute forward pass
+        contributions = mmm.channel_contribution_forward_pass(
+            channel_data=channel_data,
+            progressbar=False,
+        )
+
+        # Check output has exactly the expected dimensions (no extra unnamed dims)
+        expected_dims = {"chain", "draw", "date", "channel"}
+        actual_dims = set(contributions.dims)
+        assert actual_dims == expected_dims, (
+            f"Expected dims {expected_dims}, got {actual_dims}. "
+            "Extra unnamed dimensions suggest broadcasting issue with "
+            "media_temporal_latent_multiplier."
+        )
+
+        # Check shapes are correct
+        n_chains = contributions.sizes["chain"]
+        n_draws = contributions.sizes["draw"]
+        n_dates = len(X)
+        n_channels = len(mmm.channel_columns)
+        assert contributions.shape == (n_chains, n_draws, n_dates, n_channels)
+
+        # Verify contributions are finite and not all zeros
+        assert np.all(np.isfinite(contributions.values))
+
 
 class TestGetChannelContributionForwardPassGrid:
     """Tests for get_channel_contribution_forward_pass_grid method."""

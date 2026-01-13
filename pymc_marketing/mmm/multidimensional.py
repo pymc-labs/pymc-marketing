@@ -1904,7 +1904,7 @@ class MMM(RegressionModelBuilder):
                         multiplier = multiplier.isel(
                             date=slice(0, len(new_dates))
                         ).assign_coords(date=new_dates)
-                channel_contribution = channel_contribution * multiplier[..., None]
+                channel_contribution = channel_contribution * multiplier
 
         # Scale to original scale if requested
         if original_scale:
