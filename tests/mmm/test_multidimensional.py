@@ -3900,6 +3900,58 @@ class TestChannelContributionForwardPass:
         # Verify contributions are finite and not all zeros
         assert np.all(np.isfinite(contributions.values))
 
+    def test_channel_contribution_forward_pass_time_varying_media_more_dates_error(
+        self, sample_data, mock_pymc_sample
+    ) -> None:
+        """Test error when channel_data has more dates than training with time_varying_media.
+
+        When time-varying media is enabled and the user provides channel_data with more
+        dates than the original training data, the method should raise a clear ValueError
+        instead of allowing xarray to fail with a cryptic CoordinateValidationError.
+
+        This test verifies the safeguard in channel_contribution_forward_pass that
+        prevents dimension mismatch issues between the media_temporal_latent_multiplier
+        and the new channel_data.
+        """
+        X, y = sample_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["x1", "x2"],
+            target_column="y",
+            time_varying_media=True,
+        )
+        mmm.fit(X, y)
+
+        # Get original channel data
+        original_channel_data = mmm.idata.constant_data.channel_data
+        original_dates = original_channel_data.coords["date"].values
+
+        # Create extended channel data with more dates than training
+        rng = np.random.default_rng(42)
+        extra_dates = np.array(
+            [np.datetime64("2020-01-11"), np.datetime64("2020-01-12")],
+            dtype=original_dates.dtype,
+        )
+        extended_dates = np.concatenate([original_dates, extra_dates])
+
+        extended_channel_data = xr.DataArray(
+            rng.uniform(0, 100, size=(len(extended_dates), 2)),
+            dims=("date", "channel"),
+            coords={
+                "date": extended_dates,
+                "channel": mmm.channel_columns,
+            },
+        )
+
+        # Should raise ValueError with descriptive message about extrapolation
+        with pytest.raises(ValueError, match="Extrapolation is not supported"):
+            mmm.channel_contribution_forward_pass(
+                channel_data=extended_channel_data,
+                progressbar=False,
+            )
+
 
 class TestGetChannelContributionForwardPassGrid:
     """Tests for get_channel_contribution_forward_pass_grid method."""
