@@ -1211,6 +1211,8 @@ class TestPlotBudgetAllocationBars:
         assert all(np.isfinite(ax2_limits)), (
             f"ax2 limits not finite for {description}: {ax2_limits}"
         )
+
+
 @pytest.fixture(scope="module")
 def mock_idata_with_errors_data() -> az.InferenceData:
     """Create mock InferenceData with data needed for errors plot."""

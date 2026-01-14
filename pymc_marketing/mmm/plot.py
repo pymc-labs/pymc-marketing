@@ -184,8 +184,8 @@ Notes
 """
 
 import itertools
-from collections import namedtuple
 import warnings
+from collections import namedtuple
 from collections.abc import Iterable
 from typing import Any
 
