@@ -2189,3 +2189,151 @@ def test_filter_dims_wrapper_returns_self_when_no_filters(multidim_idata):
 
     # Assert - Same wrapper returned
     assert result is wrapper
+
+
+# ============================================================================
+# Category 15: Target Scale Missing Error Tests
+# ============================================================================
+
+
+@pytest.fixture
+def idata_without_target_scale():
+    """Create InferenceData with target_data but without target_scale."""
+    dates = pd.date_range("2024-01-01", periods=10, freq="W")
+    channels = ["TV", "Radio"]
+
+    return az.InferenceData(
+        constant_data=xr.Dataset(
+            {
+                "channel_data": xr.DataArray(
+                    rng.uniform(0, 100, size=(10, 2)),
+                    dims=("date", "channel"),
+                    coords={"date": dates, "channel": channels},
+                ),
+                "target_data": xr.DataArray(
+                    rng.uniform(100, 1000, size=(10,)),
+                    dims=("date",),
+                    coords={"date": dates},
+                ),
+                # Note: target_scale is intentionally missing!
+            }
+        ),
+        posterior=xr.Dataset(
+            {
+                "channel_contribution": xr.DataArray(
+                    rng.normal(size=(2, 10, 10, 2)),
+                    dims=("chain", "draw", "date", "channel"),
+                    coords={"date": dates, "channel": channels},
+                ),
+                "mu": xr.DataArray(
+                    rng.normal(size=(2, 10, 10)),
+                    dims=("chain", "draw", "date"),
+                    coords={"date": dates},
+                ),
+            }
+        ),
+    )
+
+
+def test_get_target_scaled_raises_valueerror_when_target_scale_missing(
+    idata_without_target_scale,
+):
+    """Test that get_target raises ValueError (not AttributeError) when target_scale is missing."""
+    # Arrange
+    wrapper = MMMIDataWrapper(idata_without_target_scale)
+
+    # Act & Assert - Should raise ValueError with helpful message
+    with pytest.raises(ValueError, match="target_scale not found in constant_data"):
+        wrapper.get_target(original_scale=False)
+
+
+def test_get_target_original_scale_works_without_target_scale(
+    idata_without_target_scale,
+):
+    """Test that get_target with original_scale=True works even without target_scale."""
+    # Arrange
+    wrapper = MMMIDataWrapper(idata_without_target_scale)
+
+    # Act - Should work since we don't need target_scale for original_scale=True
+    result = wrapper.get_target(original_scale=True)
+
+    # Assert
+    assert isinstance(result, xr.DataArray)
+
+
+def test_get_contributions_raises_valueerror_when_target_scale_missing(
+    idata_without_target_scale,
+):
+    """Test that get_contributions raises ValueError when target_scale is missing and needed."""
+    # Arrange
+    wrapper = MMMIDataWrapper(idata_without_target_scale)
+
+    # Act & Assert - Should raise ValueError with helpful message
+    with pytest.raises(ValueError, match="target_scale not found in constant_data"):
+        wrapper.get_contributions(original_scale=True)
+
+
+def test_get_contributions_scaled_works_without_target_scale(
+    idata_without_target_scale,
+):
+    """Test that get_contributions with original_scale=False works without target_scale."""
+    # Arrange
+    wrapper = MMMIDataWrapper(idata_without_target_scale)
+
+    # Act - Should work since we don't need target_scale for original_scale=False
+    result = wrapper.get_contributions(original_scale=False)
+
+    # Assert
+    assert isinstance(result, xr.Dataset)
+    assert "channel" in result
+
+
+def test_to_original_scale_raises_valueerror_when_target_scale_missing(
+    idata_without_target_scale,
+):
+    """Test that to_original_scale raises ValueError (not AttributeError) when target_scale missing."""
+    # Arrange
+    wrapper = MMMIDataWrapper(idata_without_target_scale)
+
+    # Act & Assert - Should raise ValueError with helpful message
+    with pytest.raises(ValueError, match="target_scale not found in constant_data"):
+        wrapper.to_original_scale("mu")
+
+
+def test_to_original_scale_dataarray_raises_valueerror_when_target_scale_missing(
+    idata_without_target_scale,
+):
+    """Test that to_original_scale with DataArray raises ValueError when target_scale missing."""
+    # Arrange
+    wrapper = MMMIDataWrapper(idata_without_target_scale)
+    data = idata_without_target_scale.posterior.mu
+
+    # Act & Assert - Should raise ValueError with helpful message
+    with pytest.raises(ValueError, match="target_scale not found in constant_data"):
+        wrapper.to_original_scale(data)
+
+
+def test_to_scaled_dataarray_raises_valueerror_when_target_scale_missing(
+    idata_without_target_scale,
+):
+    """Test that to_scaled with DataArray raises ValueError when target_scale missing."""
+    # Arrange
+    wrapper = MMMIDataWrapper(idata_without_target_scale)
+    data = idata_without_target_scale.posterior.mu
+
+    # Act & Assert - Should raise ValueError with helpful message
+    with pytest.raises(ValueError, match="target_scale not found in constant_data"):
+        wrapper.to_scaled(data)
+
+
+def test_to_scaled_string_works_without_target_scale(idata_without_target_scale):
+    """Test that to_scaled with string variable works without target_scale."""
+    # Arrange
+    wrapper = MMMIDataWrapper(idata_without_target_scale)
+
+    # Act - Should work since we're just returning the posterior variable
+    result = wrapper.to_scaled("mu")
+
+    # Assert
+    assert isinstance(result, xr.DataArray)
+    xr.testing.assert_equal(result, idata_without_target_scale.posterior.mu)

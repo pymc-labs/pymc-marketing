@@ -60,6 +60,31 @@ class MMMIDataWrapper:
         # Cache for expensive operations
         self._cache: dict[str, Any] = {}
 
+    # ==================== Private Helpers ====================
+
+    def _get_target_scale(self) -> xr.DataArray:
+        """Get target_scale with validation.
+
+        Returns
+        -------
+        xr.DataArray
+            Target scale values
+
+        Raises
+        ------
+        ValueError
+            If target_scale not found in constant_data
+        """
+        if not (
+            hasattr(self.idata, "constant_data")
+            and "target_scale" in self.idata.constant_data
+        ):
+            raise ValueError(
+                "target_scale not found in constant_data. "
+                "Expected 'target_scale' variable in idata.constant_data."
+            )
+        return self.idata.constant_data.target_scale
+
     # ==================== Observed Data Access ====================
 
     def get_target(self, original_scale: bool = True) -> xr.DataArray:
@@ -78,7 +103,8 @@ class MMMIDataWrapper:
         Raises
         ------
         ValueError
-            If target data not found in constant_data
+            If target data not found in constant_data, or if
+            original_scale=False and target_scale is not found
         """
         if not (
             hasattr(self.idata, "constant_data")
@@ -94,7 +120,7 @@ class MMMIDataWrapper:
             return data
         else:
             # Scale down using target_scale
-            target_scale = self.idata.constant_data.target_scale
+            target_scale = self._get_target_scale()
             return data / target_scale
 
     def get_channel_spend(self) -> xr.DataArray:
@@ -176,6 +202,11 @@ class MMMIDataWrapper:
         -------
         xr.Dataset
             Dataset with all contribution variables
+
+        Raises
+        ------
+        ValueError
+            If original_scale=True and target_scale is not found in constant_data
         """
         contributions = {}
 
@@ -188,7 +219,7 @@ class MMMIDataWrapper:
             else:
                 # Compute on-the-fly
                 channel_contrib = self.idata.posterior.channel_contribution
-                target_scale = self.idata.constant_data.target_scale
+                target_scale = self._get_target_scale()
                 # xarray automatically handles broadcasting when dimensions match
                 contributions["channel"] = channel_contrib * target_scale
         else:
@@ -200,7 +231,7 @@ class MMMIDataWrapper:
                 if var in self.idata.posterior:
                     baseline = self.idata.posterior[var]
                     if original_scale:
-                        target_scale = self.idata.constant_data.target_scale
+                        target_scale = self._get_target_scale()
                         contributions["baseline"] = baseline * target_scale
                     else:
                         contributions["baseline"] = baseline
@@ -215,7 +246,7 @@ class MMMIDataWrapper:
                         self.idata.posterior.control_contribution_original_scale
                     )
                 else:
-                    target_scale = self.idata.constant_data.target_scale
+                    target_scale = self._get_target_scale()
                     contributions["control"] = control * target_scale
             else:
                 contributions["control"] = control
@@ -235,7 +266,7 @@ class MMMIDataWrapper:
                         self.idata.posterior.yearly_seasonality_contribution_original_scale
                     )
                 else:
-                    target_scale = self.idata.constant_data.target_scale
+                    target_scale = self._get_target_scale()
                     contributions["seasonality"] = seasonality * target_scale
             else:
                 contributions["seasonality"] = seasonality
@@ -277,7 +308,8 @@ class MMMIDataWrapper:
         Raises
         ------
         ValueError
-            If string variable is not found in posterior
+            If string variable is not found in posterior, or if
+            target_scale is not found in constant_data when scaling is required
 
         Examples
         --------
@@ -310,7 +342,7 @@ class MMMIDataWrapper:
         else:
             data = var
 
-        target_scale = self.idata.constant_data.target_scale
+        target_scale = self._get_target_scale()
         return data * target_scale
 
     def to_scaled(self, var: str | xr.DataArray) -> xr.DataArray:
@@ -345,7 +377,8 @@ class MMMIDataWrapper:
         Raises
         ------
         ValueError
-            If string variable is not found in posterior
+            If string variable is not found in posterior, or if
+            target_scale is not found in constant_data when scaling a DataArray
 
         Examples
         --------
@@ -374,7 +407,7 @@ class MMMIDataWrapper:
                 raise ValueError(f"Variable '{var}' not found in posterior")
 
         # DataArray in original space - convert to scaled
-        target_scale = self.idata.constant_data.target_scale
+        target_scale = self._get_target_scale()
         return var / target_scale
 
     # ==================== Filtering Operations ====================
