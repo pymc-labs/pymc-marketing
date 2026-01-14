@@ -32,7 +32,7 @@ authors:
     orcid: "0009-0000-6015-101X"
     affiliation: 1
   - name: Nathaniel Forde
-    orcid: PENDING-NEED-ORCID
+    orcid: 0009-0005-7585-0987
     affiliation: 1
   - name: Luciano Paz
     orcid: 0000-0002-6255-3888
