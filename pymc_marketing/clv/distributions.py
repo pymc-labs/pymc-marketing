@@ -579,10 +579,11 @@ class BetaGeoBetaBinom(Discrete):
 
             return pt.logsumexp(unnorm_logprob_customer_died_at_tx_plus_i_vec)
 
-        unnorm_logp, _ = scan(
+        unnorm_logp = scan(
             fn=logp_customer_died,
             outputs_info=[None],
             sequences=[t_x, x, alpha, beta, gamma, delta, T],
+            return_updates=False,
         )
 
         logp = unnorm_logp - betaln(alpha, beta) - betaln(gamma, delta)
