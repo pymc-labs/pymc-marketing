@@ -5,9 +5,9 @@ git_commit: c0f88f7e707cfddf21da7763f4da2786c1eebf19
 branch: work-issue-2188
 repository: pymc-marketing
 topic: "Add a method for registering data needed for predictions by a MuEffect"
-tags: [research, codebase, mmm, mueffect, data-registration, extensibility]
-status: complete
-last_updated: 2026-01-14
+tags: [research, codebase, mmm, mueffect, data-registration, extensibility, optional-columns, event-effect]
+status: updated
+last_updated: 2026-01-14 13:02:06 UTC
 last_updated_by: Claude Sonnet 4.5
 issue_number: 2188
 ---
@@ -32,6 +32,8 @@ The MuEffect protocol currently requires effects to handle their own data via th
 Current architecture supports extension via the `mu_effects` list using the MuEffect protocol, but there's no built-in mechanism for effects to declare which additional columns from `X` they need included in the xr.Dataset passed to `set_data()`. The issue suggests creating a `data_vars` dictionary pattern similar to how channel, control, and target columns are currently registered.
 
 **Key Finding**: The current implementation already has the infrastructure needed through `_create_xarray_from_pandas()` and the dataarrays merge pattern in `_posterior_predictive_data_transformation()`. The suggested solution of a `data_vars` registry is architecturally sound and aligns with existing patterns.
+
+**Important Extension** (from community discussion): Adding an `optional` flag to the data registration would enable EventEffect to handle out-of-sample predictions with future events dynamically, rather than requiring all future events to be specified at model creation time. This would avoid the current workaround of adding zero-filled columns for non-existing future events.
 
 ## Detailed Findings
 
@@ -577,6 +579,62 @@ Based on this research, the recommended implementation approach is:
 
 The suggested solution from the issue is architecturally sound and aligns well with existing patterns. The main enhancement would be adding the `register_data_columns()` method to provide a clean API.
 
+## Additional Considerations from Community Discussion
+
+### Optional Columns for Out-of-Sample Predictions (Issue Comment by @TeemuSailynoja)
+
+**Key Insight**: The proposed data registration approach would enable EventEffect to make true out-of-sample predictions with future events.
+
+**Current EventEffect Limitation** (`pymc_marketing/mmm/additive_effect.py:442-567`):
+- EventAdditiveEffect receives `df_events` (with start_date, end_date, name) during initialization
+- In `create_data()`, these events are stored as PyMC Data in the model (lines 511-520)
+- In `set_data()`, only the "days" reference is updated (lines 560-567)
+- **Problem**: To make predictions including future events, you must include those events in the original `df_events` at model creation time
+- **Consequence**: Cannot add new events discovered after model fitting for out-of-sample predictions
+
+**Proposed Enhancement**: Add `optional` flag to `register_data_columns()`
+
+```python
+def register_data_columns(
+    self,
+    coordinate_name: str,
+    column_names: list[str],
+    dims: tuple[str, ...] | None = None,
+    optional: bool = False,
+) -> None:
+    """Register additional data columns to include in predictions.
+
+    Parameters
+    ----------
+    ...
+    optional : bool, default False
+        If True, columns are not required to exist in input DataFrame.
+        Missing optional columns will be filled with zeros.
+        Useful for event data where future events may not be known.
+    """
+```
+
+**Benefits for EventEffect**:
+1. Register event-related columns as optional during `create_data()`
+2. If future event columns present in prediction DataFrame → include them
+3. If not present → use zeros (no events) rather than failing
+4. Eliminates need to pre-specify all future events at model creation
+5. Enables truly dynamic out-of-sample event handling
+
+**Example Usage**:
+```python
+class EventAdditiveEffect:
+    def create_data(self, mmm):
+        # Register event columns as optional
+        mmm.register_data_columns(
+            coordinate_name="future_events",
+            column_names=["event_start", "event_end", "event_intensity"],
+            optional=True,  # Don't fail if not present
+        )
+```
+
+**Note**: This enhancement would **not require changes** to current MuEffect implementations except EventEffect itself. Existing effects (FourierEffect, LinearTrendEffect) don't need additional columns, so they remain unchanged.
+
 ## Open Questions
 
 1. **dims Flexibility**: Should registered data sources support custom dims (different from `self.dims`), or always use `self.dims`? The issue's workaround shows `var_dims` as a parameter.
@@ -591,17 +649,36 @@ The suggested solution from the issue is architecturally sound and aligns well w
 
 6. **Target Special Handling**: Should target remain special-cased (due to `y` parameter and `.sum()` operation), or should it fully conform to the loop pattern?
 
+7. **Optional Columns Support**: Should `register_data_columns()` support an `optional` flag? If so:
+   - How should missing optional columns be handled? (zeros, NaN, custom fill value?)
+   - Should there be a callback mechanism for effects to handle missing data differently?
+   - How does this interact with the `.fillna(0)` currently applied to all xarray data?
+   - Should optional columns create a separate tracking mechanism to inform effects which columns were actually present?
+
 ## Related Research
 
 No previous research documents found in thoughts/shared/research/ or thoughts/shared/issues/ directories related to this specific topic.
 
 ## Next Steps
 
+### Core Implementation
 1. Decide on dims flexibility (use `self.dims` universally or allow custom dims per data source)
 2. Implement `data_vars` dictionary initialization
 3. Implement `register_data_columns()` method with validation
-4. Refactor `_posterior_predictive_data_transformation()` to use loop over `data_vars`
-5. Refactor `_generate_and_preprocess_model_data()` to match
-6. Add tests demonstrating custom MuEffect registering additional columns
-7. Update MuEffect protocol documentation with data registration pattern
-8. Consider deprecation path for old `hasattr(mmm, 'additional_vars')` pattern if it exists in the wild
+4. **Decide on optional columns support** and implementation strategy:
+   - Should `optional` parameter be included in initial implementation?
+   - Define behavior for missing optional columns (zeros vs. NaN vs. custom fill)
+   - Consider impact on EventEffect out-of-sample predictions
+5. Refactor `_posterior_predictive_data_transformation()` to use loop over `data_vars`
+6. Refactor `_generate_and_preprocess_model_data()` to match
+
+### Testing & Documentation
+7. Add tests demonstrating custom MuEffect registering additional columns
+8. Add tests for optional columns (if implemented)
+9. Add tests for EventEffect with out-of-sample event predictions (if optional columns implemented)
+10. Update MuEffect protocol documentation with data registration pattern
+11. Add examples showing the data registration pattern in docstrings
+
+### Backward Compatibility
+12. Consider deprecation path for old `hasattr(mmm, 'additional_vars')` pattern if it exists in the wild
+13. Ensure existing MuEffect implementations continue to work without modification (except EventEffect if enhanced)
