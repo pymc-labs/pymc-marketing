@@ -28,7 +28,7 @@ import pandas as pd
 import pytest
 import xarray as xr
 
-from pymc_marketing.mmm.idata_wrapper import MMMIDataWrapper
+from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 
 # Seed for reproducibility
 SEED = sum(map(ord, "summary_tests"))

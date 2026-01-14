@@ -47,7 +47,7 @@ import pandas as pd
 import xarray as xr
 
 if TYPE_CHECKING:
-    from pymc_marketing.mmm.idata_wrapper import MMMIDataWrapper
+    from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 
 try:
     import polars as pl
