@@ -37,6 +37,9 @@ authors:
   - name: Luciano Paz
     orcid: 0000-0002-6255-3888
     affiliation: 1
+  - name: Pablo de Roque
+    orcid: 0000-0002-0751-9126
+    affiliation: 1
 affiliations:
  - name: PyMC Labs
    index: 1
