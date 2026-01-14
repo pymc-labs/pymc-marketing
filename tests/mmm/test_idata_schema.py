@@ -19,8 +19,7 @@ import pandas as pd
 import pytest
 import xarray as xr
 
-# Imports that will fail until we implement
-from pymc_marketing.mmm.idata_schema import (
+from pymc_marketing.data.idata.schema import (
     InferenceDataGroupSchema,
     MMMIdataSchema,
     VariableSchema,

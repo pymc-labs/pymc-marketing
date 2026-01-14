@@ -19,16 +19,14 @@ import pandas as pd
 import pytest
 import xarray as xr
 
-from pymc_marketing.mmm.idata_schema import MMMIdataSchema
-
-# Imports that will fail until we implement
-from pymc_marketing.mmm.idata_utils import (
+from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
+from pymc_marketing.data.idata.schema import MMMIdataSchema
+from pymc_marketing.data.idata.utils import (
     aggregate_idata_dims,
     aggregate_idata_time,
     filter_idata_by_dates,
     filter_idata_by_dims,
 )
-from pymc_marketing.mmm.idata_wrapper import MMMIDataWrapper
 
 # Seed for reproducibility
 SEED = sum(map(ord, "idata_wrapper_tests"))
@@ -242,8 +240,8 @@ def fitted_mmm(multidim_idata):
 
             Returns a fresh wrapper on each access.
             """
-            from pymc_marketing.mmm.idata_schema import MMMIdataSchema
-            from pymc_marketing.mmm.idata_wrapper import MMMIDataWrapper
+            from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
+            from pymc_marketing.data.idata.schema import MMMIdataSchema
 
             schema = MMMIdataSchema.from_model_config(
                 custom_dims=self.dims if hasattr(self, "dims") and self.dims else (),
@@ -278,8 +276,8 @@ def fitted_mmm_with_controls(idata_with_all_contributions):
 
             Returns a fresh wrapper on each access.
             """
-            from pymc_marketing.mmm.idata_schema import MMMIdataSchema
-            from pymc_marketing.mmm.idata_wrapper import MMMIDataWrapper
+            from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
+            from pymc_marketing.data.idata.schema import MMMIdataSchema
 
             schema = MMMIdataSchema.from_model_config(
                 custom_dims=self.dims if hasattr(self, "dims") and self.dims else (),

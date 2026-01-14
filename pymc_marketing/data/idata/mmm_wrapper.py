@@ -403,7 +403,7 @@ class MMMIDataWrapper:
         if start_date is None and end_date is None:
             return self
 
-        from pymc_marketing.mmm.idata_utils import filter_idata_by_dates
+        from pymc_marketing.data.idata.utils import filter_idata_by_dates
 
         filtered_idata = filter_idata_by_dates(self.idata, start_date, end_date)
 
@@ -434,7 +434,7 @@ class MMMIDataWrapper:
         if not dim_filters:
             return self
 
-        from pymc_marketing.mmm.idata_utils import filter_idata_by_dims
+        from pymc_marketing.data.idata.utils import filter_idata_by_dims
 
         filtered_idata = filter_idata_by_dims(self.idata, **dim_filters)
 
@@ -465,7 +465,7 @@ class MMMIDataWrapper:
         MMMIDataWrapper
             New wrapper with aggregated idata
         """
-        from pymc_marketing.mmm.idata_utils import aggregate_idata_time
+        from pymc_marketing.data.idata.utils import aggregate_idata_time
 
         aggregated_idata = aggregate_idata_time(self.idata, period, method)
 
@@ -501,7 +501,7 @@ class MMMIDataWrapper:
         MMMIDataWrapper
             New wrapper with aggregated idata
         """
-        from pymc_marketing.mmm.idata_utils import aggregate_idata_dims
+        from pymc_marketing.data.idata.utils import aggregate_idata_dims
 
         aggregated_idata = aggregate_idata_dims(
             self.idata, dim, values, new_label, method
