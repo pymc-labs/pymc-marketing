@@ -200,7 +200,7 @@ msgid ""
 msgstr ""
 ":py:obj:`HillSaturation.set_dims_for_all_priors "
 "<pymc_marketing.mmm.components.saturation.HillSaturation.set_dims_for_all_priors>`\\"
-" \\(dims\\)"
+" (dims)"
 
 #: ../source/api/generated/pymc_marketing.mmm.components.saturation.HillSaturation.rst:32:<autosummary>:1
 #: 3d5041d529c74f18b3bbeb3298eabeb9

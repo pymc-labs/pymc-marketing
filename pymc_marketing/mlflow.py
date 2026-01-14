@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -171,6 +171,7 @@ from mlflow.utils.autologging_utils import autologging_integration
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.mmm import MMM
 from pymc_marketing.mmm.evaluation import compute_summary_metrics
+from pymc_marketing.mmm.multidimensional import MMM as MultiDimensionalMMM
 from pymc_marketing.version import __version__
 
 FLAVOR_NAME = "pymc"
@@ -1257,6 +1258,7 @@ def autolog(
 
     if log_mmm:
         MMM.fit = patch_mmm_fit(MMM.fit)
+        MultiDimensionalMMM.fit = patch_mmm_fit(MultiDimensionalMMM.fit)
 
     def patch_clv_fit(fit):
         @wraps(fit)

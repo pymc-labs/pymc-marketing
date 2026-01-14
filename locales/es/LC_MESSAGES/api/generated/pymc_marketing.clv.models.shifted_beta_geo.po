@@ -53,10 +53,8 @@ msgid ""
 "Shifted Beta Geometric (sBG) model for customers renewing contracts over "
 "discrete time periods."
 msgstr ""
-"{\n"
-"  \"singular\": \"Modelo Geométrico Beta Desplazado (sBG) para clientes que renuevan contratos durante períodos de tiempo discretos.\",\n"
-"  \"plural\": \"Modelo Geométrico Beta Desplazado (sBG) para clientes que renuevan contratos durante períodos de tiempo discretos.\"\n"
-"}"
+"Modelo Geométrico Beta Desplazado (sBG) para clientes que renuevan contratos"
+" durante períodos de tiempo discretos."
 
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.rst:26:<autosummary>:1
 #: e7a09cb66f164a78ab43103e643be11c

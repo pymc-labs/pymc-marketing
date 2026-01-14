@@ -68,7 +68,7 @@ msgstr "**sample_weight** : :term:`numpy:array_like`, opcional"
 
 #: 3b64c6136edb45358e07e795e95ad816 of pymc_marketing.metrics.crps:13
 msgid "numpy:array_like, optional"
-msgstr "numpy:similar_a_array, opcional"
+msgstr "numpy:similar a un array, opcional"
 
 #: 2d90516bf0704b7f821f280ce9cf865f of pymc_marketing.metrics.crps:15
 msgid "The sample weights."

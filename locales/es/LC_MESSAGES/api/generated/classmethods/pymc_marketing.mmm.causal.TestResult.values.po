@@ -23,8 +23,4 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.TestResult.values.rst:2
 #: f0ab81961b5f415e8132f44b89d6f166
 msgid "TestResult.values"
-msgstr ""
-"{\n"
-"  \"singular\": \"TestResult.values\",\n"
-"  \"plural\": \"TestResult.values\"\n"
-"}"
+msgstr "TestResult.valores"

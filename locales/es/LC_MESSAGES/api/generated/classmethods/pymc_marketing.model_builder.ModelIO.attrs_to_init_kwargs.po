@@ -23,7 +23,7 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.model_builder.ModelIO.attrs_to_init_kwargs.rst:2
 #: 38d6bed71ea34bea83badb66449308fe
 msgid "ModelIO.attrs\\_to\\_init\\_kwargs"
-msgstr "ModelIO.attrs\\_to\\_init\\_kwargs"
+msgstr "ModelIO.attrs_a_inicializar_kwargs"
 
 #: 2dacad44b5c7479a8b2543973c5616ac of
 #: pymc_marketing.model_builder.ModelIO.attrs_to_init_kwargs:2

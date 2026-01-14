@@ -338,8 +338,9 @@ msgid ""
 "[Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover "
 "and shape effects.” (2017).](https://research.google/pubs/pub46001/)"
 msgstr ""
-"[Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover "
-"and shape effects.” (2017).](https://research.google/pubs/pub46001/)"
+"[Jin, Yuxue, et al. “Métodos bayesianos para la modelización de mezcla de "
+"medios con efectos de arrastre y de forma.” "
+"(2017).](https://research.google/pubs/pub46001/)"
 
 #: ../source/notebooks/mmm/mmm_example.ipynb:40015
 #: c06af3184b31401299d550def85ac3b2
@@ -352,8 +353,9 @@ msgid ""
 "[Bayesian Media Mix Modeling for Marketing Optimization](https://www.pymc-"
 "labs.com/blog-posts/bayesian-media-mix-modeling-for-marketing-optimization/)"
 msgstr ""
-"[Bayesian Media Mix Modeling for Marketing Optimization](https://www.pymc-"
-"labs.com/blog-posts/bayesian-media-mix-modeling-for-marketing-optimization/)"
+"[Modelado de Mezcla de Medios Bayesiano para la Optimización del "
+"Marketing](https://www.pymc-labs.com/blog-posts/bayesian-media-mix-modeling-"
+"for-marketing-optimization/)"
 
 #: ../source/notebooks/mmm/mmm_example.ipynb:40017
 #: 4dfddff9d5b743a2acabbc20a7067424
@@ -362,9 +364,9 @@ msgid ""
 "Models](https://www.pymc-labs.com/blog-posts/reducing-customer-acquisition-"
 "costs-how-we-helped-optimizing-hellofreshs-marketing-budget/)"
 msgstr ""
-"[Improving the Speed and Accuracy of Bayesian Media Mix "
-"Models](https://www.pymc-labs.com/blog-posts/reducing-customer-acquisition-"
-"costs-how-we-helped-optimizing-hellofreshs-marketing-budget/)"
+"[Mejorando la Velocidad y Precisión de los Modelos de Mezcla de Medios "
+"Bayesianos](https://www.pymc-labs.com/blog-posts/reducing-customer-"
+"acquisition-costs-how-we-helped-optimizing-hellofreshs-marketing-budget/)"
 
 #: ../source/notebooks/mmm/mmm_example.ipynb:40018
 #: daffe6f7e4da450db92a5094d5f9f23e
@@ -381,8 +383,9 @@ msgid ""
 "[Orduz, Juan. \"Media Effect Estimation with PyMC: Adstock, Saturation & "
 "Diminishing Returns\"](https://juanitorduz.github.io/pymc_mmm/)"
 msgstr ""
-"[Orduz, Juan. \"Media Effect Estimation with PyMC: Adstock, Saturation & "
-"Diminishing Returns\"](https://juanitorduz.github.io/pymc_mmm/)"
+"[Orduz, Juan. \"Estimación del Efecto de los Medios con PyMC: Adstock, "
+"Saturación y Rendimientos "
+"Decrecientes\"](https://juanitorduz.github.io/pymc_mmm/)"
 
 #: ../source/notebooks/mmm/mmm_example.ipynb:50004
 #: e50764e75bf548429ac07663827c9e9c

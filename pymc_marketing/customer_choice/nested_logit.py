@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -91,18 +91,22 @@ class NestedLogit(RegressionModelBuilder):
 
     Example `utility_equations` list:
 
-    >>> utility_equations = [
-    ...     "alt_1 ~ X1_alt1 + X2_alt1 | income",
-    ...     "alt_2 ~ X1_alt2 + X2_alt2 | income",
-    ...     "alt_3 ~ X1_alt3 + X2_alt3 | income",
-    ... ]
+    .. code-block:: python
+
+        utility_equations = [
+            "alt_1 ~ X1_alt1 + X2_alt1 | income",
+            "alt_2 ~ X1_alt2 + X2_alt2 | income",
+            "alt_3 ~ X1_alt3 + X2_alt3 | income",
+        ]
 
     Example nesting structure:
 
-    >>> nesting_structure = {
-    ...     "Nest1": ["alt1"],
-    ...     "Nest2": {"Nest2_1": ["alt_2", "alt_3"], "Nest_2_2": ["alt_4", "alt_5"]},
-    ... }
+    .. code-block:: python
+
+        nesting_structure = {
+            "Nest1": ["alt1"],
+            "Nest2": {"Nest2_1": ["alt_2", "alt_3"], "Nest_2_2": ["alt_4", "alt_5"]},
+        }
 
     """
 

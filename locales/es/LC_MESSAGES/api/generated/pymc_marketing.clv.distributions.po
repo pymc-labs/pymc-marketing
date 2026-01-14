@@ -146,21 +146,16 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.rst:47:<autosummary>:1
 #: 70f970a0351a4cebb1670a4d777a8691
-#, fuzzy
 msgid ""
 ":py:obj:`ShiftedBetaGeometric "
 "<pymc_marketing.clv.distributions.ShiftedBetaGeometric>`\\ \\(name\\, "
 "\\*args\\, \\*\\*kwargs\\)"
 msgstr ""
-":py:obj:`BetaGeoBetaBinom "
-"<pymc_marketing.clv.distributions.BetaGeoBetaBinom>`\\ \\(nombre\\, "
+":py:obj:`ShiftedBetaGeometric "
+"<pymc_marketing.clv.distributions.ShiftedBetaGeometric>`\\ \\(nombre\\, "
 "\\*args\\, \\*\\*kwargs\\)"
 
 #: ../source/api/generated/pymc_marketing.clv.distributions.rst:47:<autosummary>:1
 #: f42fcc73e53644ffa0970ec9a67e3f3a
 msgid "Shifted Beta-Geometric distribution."
-msgstr ""
-"{\n"
-"  \"singular\": \"Distribución Beta-Geométrica Desplazada.\",\n"
-"  \"plural\": \"Distribuciones Beta-Geométricas Desplazadas.\"\n"
-"}"
+msgstr "Distribución Beta-Geométrica desplazada."

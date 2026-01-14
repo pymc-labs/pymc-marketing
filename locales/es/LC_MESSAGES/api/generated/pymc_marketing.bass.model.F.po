@@ -23,9 +23,7 @@ msgstr ""
 #: ../source/api/generated/pymc_marketing.bass.model.F.rst:2
 #: 31bac366d9fa4f96b716108829311d2e
 msgid "f"
-msgstr ""
-"It seems that the text you provided is incomplete. Please provide the full "
-"text you would like to have translated, and I'll be happy to assist you!"
+msgstr "f"
 
 #: 4173dd8e6542481085feec66ff90f4d2 of pymc_marketing.bass.model.f:2
 msgid "Installed base fraction rate of change (adoption rate)."

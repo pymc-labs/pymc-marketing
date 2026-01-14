@@ -28,7 +28,7 @@ msgstr "BaseMMM.build\\_from\\_idata"
 #: 3177683e5e2a43ad85cd3d324e87f03a of
 #: pymc_marketing.model_builder.RegressionModelBuilder.build_from_idata:2
 msgid "Build model from the InferenceData object."
-msgstr "Construir modelo a partir del objeto InferenceData."
+msgstr "Construir el modelo a partir del objeto InferenceData."
 
 #: e4e28aff956b4aecac14c7f867d65336 of
 #: pymc_marketing.model_builder.RegressionModelBuilder.build_from_idata:4

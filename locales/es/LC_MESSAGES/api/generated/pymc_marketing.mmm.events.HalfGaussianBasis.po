@@ -255,7 +255,7 @@ msgid ""
 msgstr ""
 ":py:obj:`HalfGaussianBasis.set_dims_for_all_priors "
 "<pymc_marketing.mmm.events.HalfGaussianBasis.set_dims_for_all_priors>`\\ "
-"\\(dims\\)"
+"(dims)"
 
 #: ../source/api/generated/pymc_marketing.mmm.events.HalfGaussianBasis.rst:32:<autosummary>:1
 #: c0c7873bf5e742ac9c04c8fd80910126

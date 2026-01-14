@@ -34,6 +34,7 @@ jobs:
     timeout-minutes: 60
     strategy:
       matrix:
+        linker: [cvm, numba]
         split:
           - "--notebooks mmm --end-idx 10"
           - "--notebooks mmm --start-idx 10"
@@ -42,8 +43,10 @@ jobs:
           - "--notebooks customer_choice"
           - "--notebooks general"
           - "--exclude-dirs mmm clv bass customer_choice general"
+    env:
+      PYTENSOR_FLAGS: linker=${{ matrix.linker }}
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
 
     - name: Install uv
       uses: astral-sh/setup-uv@v7

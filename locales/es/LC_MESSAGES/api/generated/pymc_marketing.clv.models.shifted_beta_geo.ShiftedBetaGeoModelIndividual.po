@@ -12,12 +12,12 @@ msgstr ""
 "POT-Creation-Date: 2025-10-20 21:01+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language: es\n"
 "Language-Team: es <LL@li.org>\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Language: es\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "Generated-By: Babel 2.17.0\n"
 
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:2
@@ -34,8 +34,8 @@ msgstr "ModeloIndividualBetaGeoDesplazado"
 #: f324a9e0cd154bcaa335fc46e90f86ff of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual:4
 msgid ""
-"Model for customer behavior in a discrete contractual setting. It assumes"
-" that:"
+"Model for customer behavior in a discrete contractual setting. It assumes "
+"that:"
 msgstr ""
 "Modelo para el comportamiento del cliente en un entorno contractual "
 "discreto. Asume que:"
@@ -43,8 +43,8 @@ msgstr ""
 #: 649363c87d2f4688b287d34c938459fa of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual:5
 msgid ""
-"At the end of each period, a customer has a probability `theta` of "
-"renewing the contract and `1-theta` of cancelling"
+"At the end of each period, a customer has a probability `theta` of renewing "
+"the contract and `1-theta` of cancelling"
 msgstr ""
 "Al final de cada período, un cliente tiene una probabilidad `theta` de "
 "renovar el contrato y `1-theta` de cancelarlo."
@@ -57,8 +57,8 @@ msgstr "La probabilidad `theta` no cambia con el tiempo para un cliente dado."
 #: a6d7987578ed4f969ab54c235cddd6cb of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual:8
 msgid ""
-"The probability `theta` varies across customers according to a Beta prior"
-" distribution with hyperparameters `alpha` and `beta`."
+"The probability `theta` varies across customers according to a Beta prior "
+"distribution with hyperparameters `alpha` and `beta`."
 msgstr ""
 "La probabilidad `theta` varía entre los clientes de acuerdo con una "
 "distribución a priori Beta con hiperparámetros `alpha` y `beta`."
@@ -86,20 +86,20 @@ msgstr "DataFrame que contiene las siguientes columnas:"
 #: 3e9755020b4243b3b4ecbe060708cb29 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual:17
 msgid ""
-"`customer_id`: Customer labels. There should be one unique label for each"
-" customer"
+"`customer_id`: Customer labels. There should be one unique label for each "
+"customer"
 msgstr ""
-"`customer_id`: Etiquetas de cliente. Debe haber una etiqueta única para "
-"cada cliente."
+"`customer_id`: Etiquetas de cliente. Debe haber una etiqueta única para cada"
+" cliente."
 
 #: 295bb6aba3034831ae4d44955ea2cbf4 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual:18
 msgid ""
-"`t_churn`: Time at which the customer cancelled the contract (starting at"
-" 0)."
+"`t_churn`: Time at which the customer cancelled the contract (starting at "
+"0)."
 msgstr ""
-"`t_churn`: Tiempo en el que el cliente canceló el contrato (comenzando "
-"desde 0)."
+"`t_churn`: Tiempo en el que el cliente canceló el contrato (comenzando desde"
+" 0)."
 
 #: 9568306d152a4e909af8fca34dc67ee2 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual:19
@@ -107,8 +107,8 @@ msgid ""
 "It should  equal T for users that have not cancelled by the end of the "
 "observation period"
 msgstr ""
-"Debería ser igual a T para los usuarios que no han cancelado al final del"
-" período de observación."
+"Debería ser igual a T para los usuarios que no han cancelado al final del "
+"período de observación."
 
 #: 4478de310d5d484689b63ebc809640c8 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual:21
@@ -123,12 +123,12 @@ msgstr "**model_config: dict, opcional**"
 #: 73a55b65e0604bdfb86a5fca216fddf0 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual:24
 msgid ""
-"Dictionary of model prior parameters. If not provided, the model will use"
-" default priors specified in the `default_model_config` class attribute."
+"Dictionary of model prior parameters. If not provided, the model will use "
+"default priors specified in the `default_model_config` class attribute."
 msgstr ""
 "Diccionario de parámetros previos del modelo. Si no se proporciona, el "
-"modelo utilizará los priors predeterminados especificados en el atributo "
-"de clase `default_model_config`."
+"modelo utilizará los priors predeterminados especificados en el atributo de "
+"clase `default_model_config`."
 
 #: 7a636a9e19c34e6aa41ad322f6a8fb55 of
 #: pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual:27
@@ -184,10 +184,11 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
 #: 6e59cb2cce404ebeb4cdfbc80024a427
-msgid "Initialize model configuration and sampler configuration for the model."
+msgid ""
+"Initialize model configuration and sampler configuration for the model."
 msgstr ""
-"Inicializar la configuración del modelo y la configuración del "
-"muestreador para el modelo."
+"Inicializar la configuración del modelo y la configuración del muestreador "
+"para el modelo."
 
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
 #: 30d1efd88dc34dc8be20822e8ba4b3c7
@@ -206,8 +207,8 @@ msgid ""
 "Convert the model configuration and sampler configuration from the "
 "attributes to keyword arguments."
 msgstr ""
-"Convierte la configuración del modelo y la configuración del muestreador "
-"de los atributos a argumentos de palabra clave."
+"Convierte la configuración del modelo y la configuración del muestreador de "
+"los atributos a argumentos de palabra clave."
 
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
 #: 4d063ed5845e4469a70e5925b95b8b58
@@ -272,26 +273,24 @@ msgstr ""
 #: 3e88e9686b1340b581bcc7a0cdc894e8
 msgid "Sample distribution of churn time for existing customers."
 msgstr ""
-"Distribución de muestra del tiempo de cancelación para clientes "
-"existentes."
+"Distribución de muestra del tiempo de cancelación para clientes existentes."
 
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
 #: a1ce62b0a52745438a39693bb1cd299b
 msgid ""
-":py:obj:`ShiftedBetaGeoModelIndividual.distribution_new_customer_churn_time"
-" "
+":py:obj:`ShiftedBetaGeoModelIndividual.distribution_new_customer_churn_time "
 "<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.distribution_new_customer_churn_time>`\\"
 " \\(\\[...\\]\\)"
 msgstr ""
-":py:obj:`ShiftedBetaGeoModelIndividual.distribution_new_customer_churn_time"
-" "
+":py:obj:`ShiftedBetaGeoModelIndividual.distribution_new_customer_churn_time "
 "<pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.distribution_new_customer_churn_time>`\\"
 " \\(\\[...\\]\\)"
 
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
 #: b5d05842faa141e09477efb794b62638
 msgid "Sample distribution of churn time for new customers."
-msgstr "Distribución de muestra del tiempo de cancelación para nuevos clientes."
+msgstr ""
+"Distribución de muestra del tiempo de cancelación para nuevos clientes."
 
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
 #: 21aa5eeaeca54b9991b4d517b969e787
@@ -371,7 +370,8 @@ msgstr ""
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
 #: 683fb23880794c8fb64883fc865c8317
 msgid "Create the initialization kwargs from an InferenceData object."
-msgstr "Cree los kwargs de inicialización a partir de un objeto InferenceData."
+msgstr ""
+"Cree los kwargs de inicialización a partir de un objeto InferenceData."
 
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
 #: dae12320bcc647f98faacb8943496d07
@@ -403,7 +403,8 @@ msgstr ""
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
 #: 82e26b2cac1042e3976b5db6d525c193
 msgid "Create a ModelBuilder instance from an InferenceData object."
-msgstr "Cree una instancia de ModelBuilder a partir de un objeto InferenceData."
+msgstr ""
+"Cree una instancia de ModelBuilder a partir de un objeto InferenceData."
 
 #: ../source/api/generated/pymc_marketing.clv.models.shifted_beta_geo.ShiftedBetaGeoModelIndividual.rst:39:<autosummary>:1
 #: 38eb5130560a4bf3b8693d4857f432fe

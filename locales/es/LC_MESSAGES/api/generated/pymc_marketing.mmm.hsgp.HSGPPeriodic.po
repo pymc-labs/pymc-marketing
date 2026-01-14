@@ -224,8 +224,7 @@ msgid ""
 "\\(name\\)"
 msgstr ""
 ":py:obj:`HSGPPeriodic.deterministics_to_replace "
-"<pymc_marketing.mmm.hsgp.HSGPPeriodic.deterministics_to_replace>`\\ "
-"\\(nombre\\)"
+"<pymc_marketing.mmm.hsgp.HSGPPeriodic.deterministics_to_replace>`\\ %(name)s"
 
 #: ../source/api/generated/pymc_marketing.mmm.hsgp.HSGPPeriodic.rst:52:<autosummary>:1
 #: 10ce543b4eaa4ee6b151390096cb1b9b

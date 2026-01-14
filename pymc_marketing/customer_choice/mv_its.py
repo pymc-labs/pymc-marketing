@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -310,7 +310,7 @@ class MVITS(RegressionModelBuilder):
 
             # expectation
 
-            mu = intercept[None, :] - y[:, None] * beta[None, :]
+            mu = intercept[None, :] - y[:, None] * beta[None, :]  # type: ignore[index]
 
             for mu_effect in self.mu_effects:
                 mu += mu_effect.create_effect(self)

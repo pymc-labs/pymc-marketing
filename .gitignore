@@ -147,3 +147,9 @@ dmypy.json
 # Gallery images
 docs/source/gallery/images/
 docs/gettext/
+
+# Sandbox folder
+sandbox/
+
+.cursor/plans
+automatic_translation.py

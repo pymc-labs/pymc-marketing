@@ -1,0 +1,5 @@
+---
+alwaysApply: true
+---
+- Always activate conda env `pymc-marketing-dev`.
+- Run pre-commit everytime you create or modify a file.

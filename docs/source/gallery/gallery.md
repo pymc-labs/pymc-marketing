@@ -152,7 +152,22 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_counterfactuals.html
 :::
 
-::::
+:::{grid-item-card} Introduction: Upper-Funnel Impact with PyMC‑Marketing
+:img-top: ../gallery/images/mmm_intro_upper_funnel.png
+:link: ../notebooks/mmm/mmm_intro_upper_funnel.html
+:::
+
+:::{grid-item-card} Advanced: Upper-Funnel Impact with PyMC‑Marketing
+:img-top: ../gallery/images/mmm_upper_funnel_causal_approach.png
+:link: ../notebooks/mmm/mmm_upper_funnel_causal_approach.html
+:::
+
+:::{grid-item-card} Causal Reasoning and Discovery
+:img-top: ../gallery/images/mmm_causal_reasoning_and_discovery.png
+:link: ../notebooks/mmm/mmm_causal_reasoning_and_discovery.html
+:::
+
+:::::
 
 ### Case Studies
 
@@ -195,7 +210,12 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/clv/gamma_gamma.html
 :::
 
-:::{grid-item-card} sBG Model
+:::{grid-item-card} Shifted BG Model for Cohorts
+:img-top: ../gallery/images/sbg.png
+:link: ../notebooks/clv/sbg.html
+:::
+
+:::{grid-item-card} sBG Model for Individuals
 :img-top: ../gallery/images/sBG_individual.png
 :link: ../notebooks/clv/sBG_individual.html
 :::

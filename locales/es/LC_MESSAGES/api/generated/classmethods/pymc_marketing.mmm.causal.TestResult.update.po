@@ -23,11 +23,7 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.TestResult.update.rst:2
 #: 6718ea315548462bb79af205d47f4738
 msgid "TestResult.update"
-msgstr ""
-"{\n"
-"  \"singular\": \"TestResult.actualizar\",\n"
-"  \"plural\": \"TestResults.actualizar\"\n"
-"}"
+msgstr "TestResult.update"
 
 #: 121b738ba7e6407092115f9393d0ac51 of
 #: pymc_marketing.mmm.causal.TestResult.update:2
@@ -37,7 +33,7 @@ msgid ""
 " in E: D[k] = v In either case, this is followed by: for k in F:  D[k] = "
 "F[k]"
 msgstr ""
-"{\n"
-"  \"singular\": \"Si E está presente y tiene un método .keys(), entonces hace:  for k in E.keys(): D[k] = E[k] Si E está presente y carece de un método .keys(), entonces hace:  for k, v in E: D[k] = v En cualquier caso, esto es seguido por: for k in F:  D[k] = F[k]\",\n"
-"  \"plural\": \"Si E está presente y tiene un método .keys(), entonces hace:  for k in E.keys(): D[k] = E[k] Si E está presente y carece de un método .keys(), entonces hace:  for k, v in E: D[k] = v En cualquier caso, esto es seguido por: for k in F:  D[k] = F[k]\"\n"
-"}"
+"Si E está presente y tiene un método .keys(), entonces hace: for k in "
+"E.keys(): D[k] = E[k] Si E está presente y carece de un método .keys(), "
+"entonces hace: for k, v in E: D[k] = v En cualquier caso, esto es seguido "
+"por: for k in F: D[k] = F[k]"

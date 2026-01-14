@@ -79,8 +79,7 @@ msgid ""
 "\\(attrs\\)"
 msgstr ""
 ":py:obj:`MMMModelBuilder.attrs_to_init_kwargs "
-"<pymc_marketing.mmm.base.MMMModelBuilder.attrs_to_init_kwargs>`\\ "
-"\\(attrs\\)"
+"<pymc_marketing.mmm.base.MMMModelBuilder.attrs_to_init_kwargs>`\\ (attrs)"
 
 #: ../source/api/generated/pymc_marketing.mmm.base.MMMModelBuilder.rst:57:<autosummary>:1
 #: 35ecaeef4ddc4eee80e4baf12af0e853

@@ -23,17 +23,11 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.TestResult.get.rst:2
 #: 9c6015ee2b9c4b6bb132dad1986a5900
 msgid "TestResult.get"
-msgstr ""
-"{\n"
-"  \"singular\": \"TestResult.get\",\n"
-"  \"plural\": \"TestResult.get\"\n"
-"}"
+msgstr "TestResult.get"
 
 #: 698c6b648d864fdc840804b1b2eae3d9 of
 #: pymc_marketing.mmm.causal.TestResult.get:2
 msgid "Return the value for key if key is in the dictionary, else default."
 msgstr ""
-"{\n"
-"  \"singular\": \"Devuelve el valor para la clave si la clave está en el diccionario, de lo contrario, devuelve el valor por defecto.\",\n"
-"  \"plural\": \"Devuelven los valores para las claves si las claves están en el diccionario, de lo contrario, devuelven los valores por defecto.\"\n"
-"}"
+"Devuelve el valor para la clave si la clave está en el diccionario, de lo "
+"contrario, devuelve el valor por defecto."

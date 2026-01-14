@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -684,7 +684,7 @@ def plot_curve(
 
     .. plot::
         :include-source: True
-        :context: reset
+        :context: close-figs
 
         fig, axes = plot_curve(
             curve,

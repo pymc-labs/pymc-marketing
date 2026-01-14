@@ -23,7 +23,7 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.prior.Prior.to_dict.rst:2
 #: 5ab3d6b2355c4e7288bf7f034a4b0e1a
 msgid "Prior.to\\_dict"
-msgstr "Prior.to\\_dict"
+msgstr "Prior.a\\_dict"
 
 #: 57872df96cb2440e8f4a92a08f05fcd6 of pymc_extras.prior.Prior.to_dict:2
 msgid "Convert the prior to dictionary format."

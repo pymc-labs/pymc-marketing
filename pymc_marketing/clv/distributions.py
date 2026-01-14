@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -564,10 +564,11 @@ class BetaGeoBetaBinom(Discrete):
 
             return pt.logsumexp(unnorm_logprob_customer_died_at_tx_plus_i_vec)
 
-        unnorm_logp, _ = scan(
+        unnorm_logp = scan(
             fn=logp_customer_died,
             outputs_info=[None],
             sequences=[t_x, x, alpha, beta, gamma, delta, T],
+            return_updates=False,
         )
 
         logp = unnorm_logp - betaln(alpha, beta) - betaln(gamma, delta)
@@ -928,9 +929,9 @@ class ShiftedBetaGeometric(Discrete):
     Hardie and Fader describe this distribution with the following PMF and survival functions in [1]_:
 
     .. math::
-        \mathbb{P}(T=t|\alpha,\beta) = (\frac{B(\alpha+1,\beta+t-1)}{B(\alpha,\beta}),t=1,2,...  \\
+        \mathbb{P}(T=t|\alpha,\beta) = \frac{B(\alpha+1,\beta+t-1)}{B(\alpha,\beta)},t=1,2,...  \\
         \begin{align}
-        \mathbb{S}(t|\alpha,\beta) = (\frac{B(\alpha,\beta+t)}{B(\alpha,\beta}),t=1,2,... \\
+        \mathbb{S}(t|\alpha,\beta) = \frac{B(\alpha,\beta+t)}{B(\alpha,\beta)},t=1,2,... \\
         \end{align}
 
     ========  ===============================================
