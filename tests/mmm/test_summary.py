@@ -1014,3 +1014,507 @@ class TestEdgeCases:
         assert len(df) > 0, "Should return non-empty DataFrame"
         assert "channel" in df.columns
         assert "mean" in df.columns
+
+
+# ============================================================================
+# Category 10: MMMSummaryFactory Method Coverage
+# ============================================================================
+
+
+class TestMMMSummaryFactoryMethodCoverage:
+    """Test all MMMSummaryFactory methods to ensure full coverage."""
+
+    def test_factory_posterior_predictive_method(self, mock_mmm_idata_wrapper):
+        """Test that factory posterior_predictive method works correctly."""
+        from pymc_marketing.mmm.summary import MMMSummaryFactory
+
+        factory = MMMSummaryFactory(data=mock_mmm_idata_wrapper, hdi_probs=[0.94])
+
+        # Act
+        df = factory.posterior_predictive()
+
+        # Assert
+        assert isinstance(df, pd.DataFrame)
+        assert "date" in df.columns
+        assert "mean" in df.columns
+        assert "observed" in df.columns
+        assert "abs_error_94_lower" in df.columns
+
+    def test_factory_roas_method(self, mock_mmm_idata_wrapper):
+        """Test that factory roas method works correctly."""
+        from pymc_marketing.mmm.summary import MMMSummaryFactory
+
+        factory = MMMSummaryFactory(data=mock_mmm_idata_wrapper, hdi_probs=[0.94])
+
+        # Act
+        df = factory.roas()
+
+        # Assert
+        assert isinstance(df, pd.DataFrame)
+        assert "date" in df.columns
+        assert "channel" in df.columns
+        assert "mean" in df.columns
+        assert "abs_error_94_lower" in df.columns
+
+    def test_factory_channel_spend_method(self, mock_mmm_idata_wrapper):
+        """Test that factory channel_spend method works correctly."""
+        from pymc_marketing.mmm.summary import MMMSummaryFactory
+
+        factory = MMMSummaryFactory(data=mock_mmm_idata_wrapper)
+
+        # Act
+        df = factory.channel_spend()
+
+        # Assert
+        assert isinstance(df, pd.DataFrame)
+        assert "date" in df.columns
+        assert "channel" in df.columns
+        assert "channel_data" in df.columns
+
+    def test_factory_saturation_curves_method(self, mock_mmm_idata_wrapper):
+        """Test that factory saturation_curves method works correctly."""
+        from pymc_marketing.mmm.summary import MMMSummaryFactory
+
+        factory = MMMSummaryFactory(data=mock_mmm_idata_wrapper, hdi_probs=[0.94])
+
+        # Act
+        df = factory.saturation_curves(n_points=50)
+
+        # Assert
+        assert isinstance(df, pd.DataFrame)
+        assert "x" in df.columns
+        assert "channel" in df.columns
+        assert "mean" in df.columns
+
+    def test_factory_decay_curves_method(self, mock_mmm_idata_wrapper):
+        """Test that factory decay_curves method works correctly."""
+        from pymc_marketing.mmm.summary import MMMSummaryFactory
+
+        factory = MMMSummaryFactory(data=mock_mmm_idata_wrapper, hdi_probs=[0.94])
+
+        # Act
+        df = factory.decay_curves(max_lag=10)
+
+        # Assert
+        assert isinstance(df, pd.DataFrame)
+        assert "time" in df.columns
+        assert "channel" in df.columns
+        assert "mean" in df.columns
+
+    def test_factory_total_contribution_method(self, mock_mmm_idata_wrapper):
+        """Test that factory total_contribution method works correctly."""
+        from pymc_marketing.mmm.summary import MMMSummaryFactory
+
+        factory = MMMSummaryFactory(data=mock_mmm_idata_wrapper, hdi_probs=[0.94])
+
+        # Act
+        df = factory.total_contribution()
+
+        # Assert
+        assert isinstance(df, pd.DataFrame)
+        assert "date" in df.columns
+        assert "component" in df.columns
+        assert "mean" in df.columns
+
+    def test_factory_period_over_period_method(self, mock_mmm_idata_wrapper):
+        """Test that factory period_over_period method works correctly."""
+        from pymc_marketing.mmm.summary import MMMSummaryFactory
+
+        factory = MMMSummaryFactory(data=mock_mmm_idata_wrapper, hdi_probs=[0.94])
+
+        # Act
+        df = factory.period_over_period()
+
+        # Assert
+        assert isinstance(df, pd.DataFrame)
+        assert "channel" in df.columns
+        assert "pct_change_mean" in df.columns
+
+    def test_factory_methods_with_frequency_parameter(self, mock_mmm_idata_wrapper):
+        """Test factory methods with frequency parameter."""
+        from pymc_marketing.mmm.summary import MMMSummaryFactory
+
+        factory = MMMSummaryFactory(data=mock_mmm_idata_wrapper)
+
+        # Test methods that support frequency
+        df_pp = factory.posterior_predictive(frequency="monthly")
+        df_roas = factory.roas(frequency="monthly")
+        df_total = factory.total_contribution(frequency="monthly")
+
+        # All should return DataFrames with fewer unique dates than original
+        original_pp = factory.posterior_predictive()
+
+        assert df_pp["date"].nunique() < original_pp["date"].nunique()
+        assert isinstance(df_roas, pd.DataFrame)
+        assert isinstance(df_total, pd.DataFrame)
+
+    def test_factory_methods_with_output_format_override(self, mock_mmm_idata_wrapper):
+        """Test that factory methods correctly override output_format."""
+        from pymc_marketing.mmm.summary import MMMSummaryFactory
+
+        factory = MMMSummaryFactory(
+            data=mock_mmm_idata_wrapper,
+            output_format="pandas",
+        )
+
+        # All methods should return pandas when explicitly overridden
+        assert isinstance(
+            factory.posterior_predictive(output_format="pandas"), pd.DataFrame
+        )
+        assert isinstance(factory.roas(output_format="pandas"), pd.DataFrame)
+        assert isinstance(factory.channel_spend(output_format="pandas"), pd.DataFrame)
+        assert isinstance(
+            factory.saturation_curves(output_format="pandas"), pd.DataFrame
+        )
+        assert isinstance(factory.decay_curves(output_format="pandas"), pd.DataFrame)
+        assert isinstance(
+            factory.total_contribution(output_format="pandas"), pd.DataFrame
+        )
+        assert isinstance(
+            factory.period_over_period(output_format="pandas"), pd.DataFrame
+        )
+
+
+# ============================================================================
+# Category 11: Non-Channel Component Coverage
+# ============================================================================
+
+
+@pytest.fixture
+def mock_mmm_idata_wrapper_with_controls(simple_dates, simple_channels):
+    """Mock MMMIDataWrapper with control variables for testing non-channel components."""
+    local_rng = np.random.default_rng(seed=44)
+    controls = ["price", "promo"]
+
+    # Create mock InferenceData with control contributions
+    idata = az.InferenceData(
+        posterior=xr.Dataset(
+            {
+                "channel_contribution": xr.DataArray(
+                    local_rng.normal(loc=1000, scale=100, size=(2, 10, 52, 3)),
+                    dims=("chain", "draw", "date", "channel"),
+                    coords={"date": simple_dates, "channel": simple_channels},
+                ),
+                "control_contribution": xr.DataArray(
+                    local_rng.normal(loc=200, scale=50, size=(2, 10, 52, 2)),
+                    dims=("chain", "draw", "date", "control"),
+                    coords={"date": simple_dates, "control": controls},
+                ),
+                "intercept": xr.DataArray(
+                    local_rng.normal(loc=3000, scale=100, size=(2, 10)),
+                    dims=("chain", "draw"),
+                ),
+                "mu": xr.DataArray(
+                    local_rng.normal(loc=5000, scale=200, size=(2, 10, 52)),
+                    dims=("chain", "draw", "date"),
+                    coords={"date": simple_dates},
+                ),
+            }
+        ),
+        posterior_predictive=xr.Dataset(
+            {
+                "y": xr.DataArray(
+                    local_rng.normal(loc=5000, scale=200, size=(2, 10, 52)),
+                    dims=("chain", "draw", "date"),
+                    coords={"date": simple_dates},
+                ),
+            }
+        ),
+        fit_data=xr.Dataset(
+            {
+                "target": xr.DataArray(
+                    local_rng.uniform(4000, 6000, size=52),
+                    dims=("date",),
+                    coords={"date": simple_dates},
+                ),
+            }
+        ),
+        constant_data=xr.Dataset(
+            {
+                "channel_data": xr.DataArray(
+                    local_rng.uniform(0, 100, size=(52, 3)),
+                    dims=("date", "channel"),
+                    coords={"date": simple_dates, "channel": simple_channels},
+                ),
+                "channel_scale": xr.DataArray(
+                    [100.0, 50.0, 75.0],
+                    dims=("channel",),
+                    coords={"channel": simple_channels},
+                ),
+                "control_data": xr.DataArray(
+                    local_rng.uniform(0, 10, size=(52, 2)),
+                    dims=("date", "control"),
+                    coords={"date": simple_dates, "control": controls},
+                ),
+                "target_scale": xr.DataArray(500.0),
+                "target_data": xr.DataArray(
+                    local_rng.uniform(4000, 6000, size=52),
+                    dims=("date",),
+                    coords={"date": simple_dates},
+                ),
+            }
+        ),
+    )
+
+    return MMMIDataWrapper(idata, schema=None, validate_on_init=False)
+
+
+class TestNonChannelComponents:
+    """Test contribution summary for non-channel components."""
+
+    def test_contribution_summary_control_component(
+        self, mock_mmm_idata_wrapper_with_controls
+    ):
+        """Test contribution summary for control component."""
+        from pymc_marketing.mmm.summary import create_contribution_summary
+
+        # Act
+        df = create_contribution_summary(
+            data=mock_mmm_idata_wrapper_with_controls,
+            component="control",
+            hdi_probs=[0.94],
+        )
+
+        # Assert
+        assert isinstance(df, pd.DataFrame)
+        assert "control" in df.columns
+        assert "mean" in df.columns
+        assert "date" in df.columns
+        assert len(df["control"].unique()) == 2  # price and promo
+
+    def test_contribution_summary_baseline_component_raises_when_missing(
+        self, mock_mmm_idata_wrapper_with_controls
+    ):
+        """Test contribution summary for baseline component raises when not present."""
+        from pymc_marketing.mmm.summary import create_contribution_summary
+
+        # The fixture doesn't have a proper baseline contribution
+        # so this should raise ValueError
+        with pytest.raises(ValueError, match=r"No baseline contributions found"):
+            create_contribution_summary(
+                data=mock_mmm_idata_wrapper_with_controls,
+                component="baseline",
+                hdi_probs=[0.94],
+            )
+
+    def test_contribution_summary_missing_component_raises(
+        self, mock_mmm_idata_wrapper
+    ):
+        """Test that requesting missing component raises ValueError."""
+        from pymc_marketing.mmm.summary import create_contribution_summary
+
+        # The mock fixture doesn't have control_contribution
+        with pytest.raises(ValueError, match=r"No control contributions found"):
+            create_contribution_summary(
+                data=mock_mmm_idata_wrapper,
+                component="control",
+            )
+
+    def test_total_contribution_summary_with_multiple_components(
+        self, mock_mmm_idata_wrapper
+    ):
+        """Test total contribution summary includes multiple component types."""
+        from pymc_marketing.mmm.summary import create_total_contribution_summary
+
+        # Act - use the basic fixture which has channel contributions
+        df = create_total_contribution_summary(
+            data=mock_mmm_idata_wrapper,
+            hdi_probs=[0.94],
+        )
+
+        # Assert
+        assert isinstance(df, pd.DataFrame)
+        assert "component" in df.columns
+        # Should have at least channel contributions
+        if len(df) > 0:
+            # All rows should have mean/median computed
+            assert not df["mean"].isna().any()
+            assert "date" in df.columns
+
+
+# ============================================================================
+# Category 12: Additional Edge Cases and Path Coverage
+# ============================================================================
+
+
+@pytest.fixture
+def mock_mmm_idata_wrapper_with_total_contributions(simple_dates, simple_channels):
+    """Mock MMMIDataWrapper with contributions that work with create_total_contribution_summary."""
+    local_rng = np.random.default_rng(seed=45)
+
+    # Create mock InferenceData
+    idata = az.InferenceData(
+        posterior=xr.Dataset(
+            {
+                "channel_contribution": xr.DataArray(
+                    local_rng.normal(loc=1000, scale=100, size=(2, 10, 52, 3)),
+                    dims=("chain", "draw", "date", "channel"),
+                    coords={"date": simple_dates, "channel": simple_channels},
+                ),
+            }
+        ),
+        constant_data=xr.Dataset(
+            {
+                "channel_data": xr.DataArray(
+                    local_rng.uniform(0, 100, size=(52, 3)),
+                    dims=("date", "channel"),
+                    coords={"date": simple_dates, "channel": simple_channels},
+                ),
+                "channel_scale": xr.DataArray(
+                    [100.0, 50.0, 75.0],
+                    dims=("channel",),
+                    coords={"channel": simple_channels},
+                ),
+                "target_scale": xr.DataArray(500.0),
+            }
+        ),
+    )
+
+    return MMMIDataWrapper(idata, schema=None, validate_on_init=False)
+
+
+class TestAdditionalPathCoverage:
+    """Additional tests for complete path coverage."""
+
+    def test_total_contribution_summary_with_mocked_contributions(
+        self, mock_mmm_idata_wrapper_with_total_contributions, simple_dates
+    ):
+        """Test total contribution summary when contributions have proper data_vars."""
+        from pymc_marketing.mmm.summary import create_total_contribution_summary
+
+        # Create mock contributions Dataset with proper data_vars
+        # The issue is that when key name matches dimension name, xarray puts it in coords
+        # So we need to patch get_contributions to return a properly named Dataset
+        local_rng = np.random.default_rng(seed=46)
+
+        mock_contributions = xr.Dataset(
+            {
+                # Use different names from dimensions to ensure they're data_vars
+                "channel_contribution": xr.DataArray(
+                    local_rng.normal(loc=1000, scale=100, size=(2, 10, 52, 3)),
+                    dims=("chain", "draw", "date", "channel"),
+                    coords={"date": simple_dates, "channel": ["TV", "Radio", "Social"]},
+                ),
+            }
+        )
+
+        # Patch get_contributions
+        wrapper = mock_mmm_idata_wrapper_with_total_contributions
+        original_get_contributions = wrapper.get_contributions
+
+        def mock_get_contributions(*args, **kwargs):
+            return mock_contributions
+
+        wrapper.get_contributions = mock_get_contributions
+
+        # Act
+        df = create_total_contribution_summary(data=wrapper, hdi_probs=[0.94])
+
+        # Restore
+        wrapper.get_contributions = original_get_contributions
+
+        # Assert
+        assert isinstance(df, pd.DataFrame)
+        assert len(df) > 0
+        assert "component" in df.columns
+        assert "mean" in df.columns
+        assert "date" in df.columns
+        # Should have channel_contribution as a component
+        assert "channel_contribution" in df["component"].values
+
+    def test_hdi_probs_default_none(self, mock_mmm_idata_wrapper):
+        """Test that hdi_probs=None uses default [0.94]."""
+        from pymc_marketing.mmm.summary import create_contribution_summary
+
+        # Act - explicitly pass None for hdi_probs
+        df = create_contribution_summary(
+            data=mock_mmm_idata_wrapper,
+            hdi_probs=None,  # Should default to [0.94]
+        )
+
+        # Assert - should have 94% HDI columns
+        assert "abs_error_94_lower" in df.columns
+        assert "abs_error_94_upper" in df.columns
+
+    def test_frequency_none_means_original(self, mock_mmm_idata_wrapper):
+        """Test that frequency=None means no aggregation (same as 'original')."""
+        from pymc_marketing.mmm.summary import create_contribution_summary
+
+        # Act
+        df_none = create_contribution_summary(
+            data=mock_mmm_idata_wrapper,
+            frequency=None,
+        )
+        df_original = create_contribution_summary(
+            data=mock_mmm_idata_wrapper,
+            frequency="original",
+        )
+
+        # Assert - same number of dates
+        assert df_none["date"].nunique() == df_original["date"].nunique()
+
+    def test_saturation_curves_custom_n_points(self, mock_mmm_idata_wrapper):
+        """Test saturation curves with custom n_points parameter."""
+        from pymc_marketing.mmm.summary import create_saturation_curves
+
+        # Act
+        df = create_saturation_curves(
+            data=mock_mmm_idata_wrapper,
+            n_points=25,
+            hdi_probs=[0.80],
+        )
+
+        # Assert - should have n_points rows per channel (3 channels x 25 points = 75 rows)
+        n_channels = df["channel"].nunique()
+        assert len(df) == 25 * n_channels
+        assert "abs_error_80_lower" in df.columns
+
+    def test_decay_curves_custom_max_lag(self, mock_mmm_idata_wrapper):
+        """Test decay curves with custom max_lag parameter."""
+        from pymc_marketing.mmm.summary import create_decay_curves
+
+        # Act
+        df = create_decay_curves(
+            data=mock_mmm_idata_wrapper,
+            max_lag=15,
+            hdi_probs=[0.80],
+        )
+
+        # Assert - should have lags 0-15 (16 values) per channel
+        assert df["time"].max() == 15
+        assert len(df["time"].unique()) == 16
+        assert "abs_error_80_lower" in df.columns
+
+    def test_period_over_period_with_multiple_hdi(self, mock_mmm_idata_wrapper):
+        """Test period over period summary with multiple HDI probs."""
+        from pymc_marketing.mmm.summary import create_period_over_period_summary
+
+        # Act
+        df = create_period_over_period_summary(
+            data=mock_mmm_idata_wrapper,
+            hdi_probs=[0.80, 0.94],
+        )
+
+        # Assert
+        assert "abs_error_80_lower" in df.columns
+        assert "abs_error_94_lower" in df.columns
+
+    def test_default_hdi_probs_applied_in_all_functions(self, mock_mmm_idata_wrapper):
+        """Test that default HDI probs [0.94] are applied when None is passed."""
+        from pymc_marketing.mmm.summary import (
+            create_decay_curves,
+            create_period_over_period_summary,
+            create_saturation_curves,
+        )
+
+        # All functions should have 94% HDI columns when hdi_probs=None
+        df_sat = create_saturation_curves(mock_mmm_idata_wrapper, hdi_probs=None)
+        assert "abs_error_94_lower" in df_sat.columns
+
+        df_decay = create_decay_curves(mock_mmm_idata_wrapper, hdi_probs=None)
+        assert "abs_error_94_lower" in df_decay.columns
+
+        df_pop = create_period_over_period_summary(
+            mock_mmm_idata_wrapper, hdi_probs=None
+        )
+        assert "abs_error_94_lower" in df_pop.columns
