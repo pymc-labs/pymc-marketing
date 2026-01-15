@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 """Sphinx configuration for PyMC-Marketing Docs."""
 
+import inspect
 import os
+import subprocess
+import sys
+from pathlib import Path
 
 import pymc_marketing  # isort:skip
 
 # -- General configuration ------------------------------------------------
 
 # General information about the project.
-project = "pymc-marketing"
+project = "PyMC-Marketing"
 author = "PyMC Labs"
 copyright = f"2022-%Y, {author}"
 html_title = "Open Source Marketing Analytics Solution"
@@ -21,12 +25,11 @@ extensions = [
     # extensions from sphinx base
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
-    "sphinx.ext.viewcode",
+    "sphinx.ext.linkcode",
     "sphinx.ext.mathjax",
     "sphinx.ext.intersphinx",
-    # "sphinx.ext.napoleon",
-    "sphinx_autodoc_typehints",
     # extensions provided by other packages
+    "sphinx_autodoc_typehints",
     "numpydoc",
     "matplotlib.sphinxext.plot_directive",  # needed to plot in docstrings
     "myst_nb",
@@ -34,6 +37,8 @@ extensions = [
     "sphinx_copybutton",
     "sphinx_design",
     "sphinx_remove_toctrees",
+    "sphinx_sitemap",
+    "sphinxext.opengraph",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -56,6 +61,7 @@ if os.environ.get("READTHEDOCS", False):
         version = rtd_version
 else:
     version = "local"
+    rtd_version = version
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
@@ -79,9 +85,6 @@ gettext_compact = False
 locale_dirs = ["../../locales"]
 
 # -- Extension configuration ------------------------------------------------
-
-# configure notfound extension to not add any prefix to the urls
-notfound_urls_prefix = "/en/latest/"
 
 # exclude method pages from toctree to make pages lighter and build faster
 remove_from_toctrees = ["**/classmethods/*"]
@@ -128,11 +131,80 @@ intersphinx_mapping = {
     "xarray": ("https://docs.xarray.dev/en/stable/", None),
 }
 
+
+# linkcode extension (links of [source] pointing to github)
+def linkcode_resolve(domain, info):
+    """Given sphinx contextual objects when building the docs, generate links to source on GH."""
+
+    def find_obj() -> object:
+        # try to find the file and line number, based on code from numpy:
+        # https://github.com/numpy/numpy/blob/master/doc/source/conf.py#L286
+        obj = sys.modules[info["module"]]
+        for part in info["fullname"].split("."):
+            obj = getattr(obj, part)
+        return obj
+
+    def find_source(obj):
+        fn = Path(inspect.getsourcefile(obj))
+        fn = fn.relative_to(Path(pymc_marketing.__file__).parent)
+        source, lineno = inspect.getsourcelines(obj)
+        return fn, lineno, lineno + len(source) - 1
+
+    def fallback_source():
+        return info["module"].replace(".", "/") + ".py"
+
+    if domain != "py" or not info["module"]:
+        return None
+
+    try:
+        obj = find_obj()
+    except Exception:
+        filename = fallback_source()
+    else:
+        try:
+            path, start_line, end_line = find_source(obj)
+            filename = f"pymc_marketing/{path}#L{start_line}-L{end_line}"
+        except Exception:
+            try:
+                filename = obj.__module__.replace(".", "/") + ".py"
+            except AttributeError:
+                # Some objects do not have a __module__ attribute (?)
+                filename = fallback_source()
+
+    tag = subprocess.Popen(
+        ["git", "rev-parse", "HEAD"],  # noqa: S607
+        stdout=subprocess.PIPE,
+        universal_newlines=True,
+    ).communicate()[0][:-1]
+    return f"https://github.com/pymc-labs/pymc-marketing/blob/{tag}/{filename}"
+
+
+# -- HTML specific extensions -------------------------------------
+
+# configure notfound extension
+notfound_urls_prefix = "/en/latest/"
+
+# opengraph metadata settings
+ogp_site_url = "https://www.pymc-marketing.io/en/stable/"
+ogp_canonical_url = "https://www.pymc-marketing.io/en/stable/"
+ogp_image = "https://www.pymc-marketing.io/en/stable/_images/marketing-logo-light.jpg"
+ogp_enable_meta_description = False
+
+
+# sitemap extension configuration
+site_url = "https://www.pymc-marketing.io/"
+sitemap_url_scheme = f"{{lang}}{rtd_version}/{{link}}"
+
+
 # -- Options for HTML output ----------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 html_theme = "labs_sphinx_theme"
+html_extra_path = ["robots.txt"]
+html_copy_source = (
+    False  # don't include rst source files as _sources/...txt in the build
+)
 
 html_favicon = "_static/favicon.ico"
 
@@ -152,6 +224,9 @@ html_context = {
     "github_version": "main",
     "doc_path": "docs/source/",
     "default_mode": "light",
+    "baseurl": "https://www.pymc-marketing.io/",
+    "rtd_version": rtd_version,
+    "translations": ["en", "es"],
 }
 
 # Add any paths that contain custom static files (such as style sheets) here,

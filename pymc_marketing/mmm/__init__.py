@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -64,6 +64,11 @@ from pymc_marketing.mmm.preprocessing import (
     preprocessing_method_y,
 )
 from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
+from pymc_marketing.mmm.time_slice_cross_validation import (
+    TimeSliceCrossValidationResult,
+    TimeSliceCrossValidator,
+)
+from pymc_marketing.mmm.types import MMMBuilder
 from pymc_marketing.mmm.validating import validation_method_X, validation_method_y
 
 __all__ = [
@@ -82,6 +87,7 @@ __all__ = [
     "InverseScaledLogisticSaturation",
     "LinearTrend",
     "LogisticSaturation",
+    "MMMBuilder",
     "MMMModelBuilder",
     "MediaConfig",
     "MediaConfigList",
@@ -97,6 +103,8 @@ __all__ = [
     "SoftPlusHSGP",
     "TanhSaturation",
     "TanhSaturationBaselined",
+    "TimeSliceCrossValidationResult",
+    "TimeSliceCrossValidator",
     "WeeklyFourier",
     "WeibullCDFAdstock",
     "WeibullPDFAdstock",
