@@ -63,3 +63,4 @@ dependencies:
 - pip:
   - roadmapper
   - labs-sphinx-theme
+  - arviz-plots[matplotlib]
