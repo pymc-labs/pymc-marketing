@@ -3453,3 +3453,310 @@ def test_param_stability_fallback_uses_posterior_predictive_and_returns_fig_ax()
     assert hasattr(fig, "savefig")
     assert hasattr(ax, "plot")
     plt.close(fig)
+
+
+# ==============================================================================
+# Channel Contribution Grid Tests
+# ==============================================================================
+
+
+@pytest.fixture(scope="module")
+def mock_channel_contribution_grid() -> xr.DataArray:
+    """Create mock channel contribution grid data for testing.
+
+    Returns an xr.DataArray with dims: (delta, chain, draw, date, country, channel)
+    which matches the expected output from get_channel_contribution_forward_pass_grid.
+    """
+    seed = sum(map(ord, "Channel contribution grid"))
+    rng = np.random.default_rng(seed)
+
+    n_delta = 5
+    n_chains = 2
+    n_draws = 10
+    n_dates = 12
+    channels = ["channel_1", "channel_2"]
+    countries = ["A", "B"]
+
+    delta_values = np.linspace(0.0, 2.0, n_delta)
+    dates = pd.date_range("2025-01-01", periods=n_dates, freq="W-MON")
+
+    # Shape: (delta, chain, draw, date, country, channel)
+    data = rng.uniform(0, 100, size=(n_delta, n_chains, n_draws, n_dates, 2, 2))
+
+    return xr.DataArray(
+        data,
+        dims=("delta", "chain", "draw", "date", "country", "channel"),
+        coords={
+            "delta": delta_values,
+            "chain": np.arange(n_chains),
+            "draw": np.arange(n_draws),
+            "date": dates,
+            "country": countries,
+            "channel": channels,
+        },
+        name="channel_contribution",
+    )
+
+
+@pytest.fixture(scope="module")
+def mock_channel_contribution_grid_single_dim() -> xr.DataArray:
+    """Create mock channel contribution grid data without extra dimensions.
+
+    Returns an xr.DataArray with dims: (delta, chain, draw, date, channel)
+    which is the minimal required dimensions.
+    """
+    seed = sum(map(ord, "Channel contribution grid single dim"))
+    rng = np.random.default_rng(seed)
+
+    n_delta = 5
+    n_chains = 2
+    n_draws = 10
+    n_dates = 12
+    channels = ["channel_1", "channel_2"]
+
+    delta_values = np.linspace(0.0, 2.0, n_delta)
+    dates = pd.date_range("2025-01-01", periods=n_dates, freq="W-MON")
+
+    # Shape: (delta, chain, draw, date, channel)
+    data = rng.uniform(0, 100, size=(n_delta, n_chains, n_draws, n_dates, 2))
+
+    return xr.DataArray(
+        data,
+        dims=("delta", "chain", "draw", "date", "channel"),
+        coords={
+            "delta": delta_values,
+            "chain": np.arange(n_chains),
+            "draw": np.arange(n_draws),
+            "date": dates,
+            "channel": channels,
+        },
+        name="channel_contribution",
+    )
+
+
+class TestChannelContributionGrid:
+    """Tests for the channel_contribution_grid method in MMMPlotSuite."""
+
+    def test_channel_contribution_grid_basic(
+        self, mock_suite_with_constant_data, mock_channel_contribution_grid
+    ):
+        """Test basic functionality of channel_contribution_grid."""
+        fig, axes = mock_suite_with_constant_data.channel_contribution_grid(
+            grid_data=mock_channel_contribution_grid
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        assert all(isinstance(ax, Axes) for ax in axes.flat)
+        plt.close(fig)
+
+    def test_channel_contribution_grid_single_dim(
+        self,
+        mock_suite_with_constant_data_single_dim,
+        mock_channel_contribution_grid_single_dim,
+    ):
+        """Test channel_contribution_grid with minimal dimensions."""
+        fig, axes = mock_suite_with_constant_data_single_dim.channel_contribution_grid(
+            grid_data=mock_channel_contribution_grid_single_dim
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        assert all(isinstance(ax, Axes) for ax in axes.flat)
+        # Should have only 1 subplot when no additional dims
+        assert axes.shape == (1, 1)
+        plt.close(fig)
+
+    def test_channel_contribution_grid_missing_dims_raises(
+        self, mock_suite_with_constant_data
+    ):
+        """Test that channel_contribution_grid raises error when grid_data missing required dims."""
+        # Create invalid grid data missing required dimensions
+        invalid_data = xr.DataArray(
+            np.ones((5, 2)),
+            dims=("delta", "channel"),
+            coords={
+                "delta": np.linspace(0.0, 2.0, 5),
+                "channel": ["channel_1", "channel_2"],
+            },
+        )
+
+        with pytest.raises(ValueError, match=r"grid_data must have dims"):
+            mock_suite_with_constant_data.channel_contribution_grid(
+                grid_data=invalid_data
+            )
+        plt.close("all")
+
+    def test_channel_contribution_grid_absolute_xrange(
+        self, mock_suite_with_constant_data, mock_channel_contribution_grid
+    ):
+        """Test channel_contribution_grid with absolute_xrange=True."""
+        fig, axes = mock_suite_with_constant_data.channel_contribution_grid(
+            grid_data=mock_channel_contribution_grid,
+            absolute_xrange=True,
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        assert all(isinstance(ax, Axes) for ax in axes.flat)
+        plt.close(fig)
+
+    def test_channel_contribution_grid_subplot_kwargs(
+        self, mock_suite_with_constant_data, mock_channel_contribution_grid
+    ):
+        """Test channel_contribution_grid with custom subplot_kwargs."""
+        custom_figsize = (15, 8)
+        fig, axes = mock_suite_with_constant_data.channel_contribution_grid(
+            grid_data=mock_channel_contribution_grid,
+            subplot_kwargs={"figsize": custom_figsize},
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        assert all(isinstance(ax, Axes) for ax in axes.flat)
+        # Check that figsize was applied
+        assert fig.get_size_inches()[0] == pytest.approx(custom_figsize[0])
+        assert fig.get_size_inches()[1] == pytest.approx(custom_figsize[1])
+        plt.close(fig)
+
+    def test_channel_contribution_grid_custom_hdi_prob(
+        self, mock_suite_with_constant_data, mock_channel_contribution_grid
+    ):
+        """Test channel_contribution_grid with custom hdi_prob."""
+        fig, axes = mock_suite_with_constant_data.channel_contribution_grid(
+            grid_data=mock_channel_contribution_grid,
+            hdi_prob=0.89,
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        assert all(isinstance(ax, Axes) for ax in axes.flat)
+        plt.close(fig)
+
+
+class TestChannelContributionGridDims:
+    """Tests for channel_contribution_grid with dimension filtering."""
+
+    def test_channel_contribution_grid_with_dim(
+        self, mock_suite_with_constant_data, mock_channel_contribution_grid
+    ):
+        """Test channel_contribution_grid with a single value in dims."""
+        fig, axes = mock_suite_with_constant_data.channel_contribution_grid(
+            grid_data=mock_channel_contribution_grid,
+            dims={"country": "A"},
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        # Should have 1 subplot when filtering to single country
+        assert axes.shape == (1, 1)
+        # When filtering with a single value (not a list), the title uses fallback
+        assert axes[0, 0].get_title() == "Channel Contribution Grid"
+        plt.close(fig)
+
+    def test_channel_contribution_grid_with_dims_list(
+        self, mock_suite_with_constant_data, mock_channel_contribution_grid
+    ):
+        """Test channel_contribution_grid with a list in dims (creates subplot per value)."""
+        fig, axes = mock_suite_with_constant_data.channel_contribution_grid(
+            grid_data=mock_channel_contribution_grid,
+            dims={"country": ["A", "B"]},
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        # Should have 2 subplots (one per country in the list)
+        assert axes.shape == (2, 1)
+        # Check titles contain the correct countries
+        assert "country=A" in axes[0, 0].get_title()
+        assert "country=B" in axes[1, 0].get_title()
+        plt.close(fig)
+
+    def test_channel_contribution_grid_invalid_dim_raises(
+        self, mock_suite_with_constant_data, mock_channel_contribution_grid
+    ):
+        """Test that channel_contribution_grid raises error for invalid dim name."""
+        with pytest.raises(ValueError, match=r"not found in idata dimensions"):
+            mock_suite_with_constant_data.channel_contribution_grid(
+                grid_data=mock_channel_contribution_grid,
+                dims={"nonexistent_dim": "value"},
+            )
+        plt.close("all")
+
+
+class TestChannelContributionGridAggregation:
+    """Tests for channel_contribution_grid with aggregation operations."""
+
+    def test_channel_contribution_grid_sum_aggregation(
+        self, mock_suite_with_constant_data, mock_channel_contribution_grid
+    ):
+        """Test channel_contribution_grid with sum aggregation over dimensions."""
+        fig, axes = mock_suite_with_constant_data.channel_contribution_grid(
+            grid_data=mock_channel_contribution_grid,
+            aggregation={"sum": ("country",)},
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        assert all(isinstance(ax, Axes) for ax in axes.flat)
+        # After summing over country, should have only 1 subplot
+        assert axes.shape == (1, 1)
+        plt.close(fig)
+
+    def test_channel_contribution_grid_mean_aggregation(
+        self, mock_suite_with_constant_data, mock_channel_contribution_grid
+    ):
+        """Test channel_contribution_grid with mean aggregation over dimensions."""
+        fig, axes = mock_suite_with_constant_data.channel_contribution_grid(
+            grid_data=mock_channel_contribution_grid,
+            aggregation={"mean": ("country",)},
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        assert all(isinstance(ax, Axes) for ax in axes.flat)
+        # After averaging over country, should have only 1 subplot
+        assert axes.shape == (1, 1)
+        plt.close(fig)
+
+    def test_channel_contribution_grid_median_aggregation(
+        self, mock_suite_with_constant_data, mock_channel_contribution_grid
+    ):
+        """Test channel_contribution_grid with median aggregation over dimensions."""
+        fig, axes = mock_suite_with_constant_data.channel_contribution_grid(
+            grid_data=mock_channel_contribution_grid,
+            aggregation={"median": ("country",)},
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        assert all(isinstance(ax, Axes) for ax in axes.flat)
+        # After median over country, should have only 1 subplot
+        assert axes.shape == (1, 1)
+        plt.close(fig)
+
+    def test_channel_contribution_grid_unknown_aggregation_raises(
+        self, mock_suite_with_constant_data, mock_channel_contribution_grid
+    ):
+        """Test that channel_contribution_grid raises error for unknown aggregation operation."""
+        with pytest.raises(ValueError, match=r"Unknown aggregation operation"):
+            mock_suite_with_constant_data.channel_contribution_grid(
+                grid_data=mock_channel_contribution_grid,
+                aggregation={"invalid_op": ("country",)},
+            )
+        plt.close("all")
+
+    def test_channel_contribution_grid_aggregation_nonexistent_dim(
+        self, mock_suite_with_constant_data, mock_channel_contribution_grid
+    ):
+        """Test that aggregation over non-existent dims is silently ignored."""
+        # Aggregate over "nonexistent_dim" which doesn't exist - should be silently ignored
+        fig, axes = mock_suite_with_constant_data.channel_contribution_grid(
+            grid_data=mock_channel_contribution_grid,
+            aggregation={"sum": ("nonexistent_dim",)},
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        assert all(isinstance(ax, Axes) for ax in axes.flat)
+        plt.close(fig)
