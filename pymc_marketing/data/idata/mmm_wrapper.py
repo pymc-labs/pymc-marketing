@@ -60,20 +60,58 @@ class MMMIDataWrapper:
         # Cache for expensive operations
         self._cache: dict[str, Any] = {}
 
-    # ==================== Private Helpers ====================
+    # ==================== Scale Accessor Methods ====================
 
-    def _get_target_scale(self) -> xr.DataArray:
-        """Get target_scale with validation.
+    def get_channel_scale(self) -> xr.DataArray:
+        """Get channel scaling factor used during model fitting.
 
         Returns
         -------
         xr.DataArray
-            Target scale values
+            Channel scale values with dims matching channel dimensions.
+            Typically has dims like ("channel",) for simple models or
+            ("country", "channel") for panel models.
+
+        Raises
+        ------
+        ValueError
+            If channel_scale not found in constant_data
+
+        Examples
+        --------
+        >>> channel_scale = mmm.data.get_channel_scale()
+        >>> # Convert original scale value to scaled space
+        >>> max_scaled = 1000 / float(channel_scale.mean())
+        """
+        if not (
+            hasattr(self.idata, "constant_data")
+            and "channel_scale" in self.idata.constant_data
+        ):
+            raise ValueError(
+                "channel_scale not found in constant_data. "
+                "Expected 'channel_scale' variable in idata.constant_data."
+            )
+        return self.idata.constant_data.channel_scale
+
+    def get_target_scale(self) -> xr.DataArray:
+        """Get target scaling factor used during model fitting.
+
+        Returns
+        -------
+        xr.DataArray
+            Target scale values. May have dims for panel models
+            (e.g., ("country",)) or be scalar.
 
         Raises
         ------
         ValueError
             If target_scale not found in constant_data
+
+        Examples
+        --------
+        >>> target_scale = mmm.data.get_target_scale()
+        >>> # Convert scaled contribution to original units
+        >>> original = scaled_contribution * target_scale
         """
         if not (
             hasattr(self.idata, "constant_data")
@@ -120,7 +158,7 @@ class MMMIDataWrapper:
             return data
         else:
             # Scale down using target_scale
-            target_scale = self._get_target_scale()
+            target_scale = self.get_target_scale()
             return data / target_scale
 
     def get_channel_spend(self) -> xr.DataArray:
@@ -219,7 +257,7 @@ class MMMIDataWrapper:
             else:
                 # Compute on-the-fly
                 channel_contrib = self.idata.posterior.channel_contribution
-                target_scale = self._get_target_scale()
+                target_scale = self.get_target_scale()
                 # xarray automatically handles broadcasting when dimensions match
                 contributions["channel"] = channel_contrib * target_scale
         else:
@@ -231,7 +269,7 @@ class MMMIDataWrapper:
                 if var in self.idata.posterior:
                     baseline = self.idata.posterior[var]
                     if original_scale:
-                        target_scale = self._get_target_scale()
+                        target_scale = self.get_target_scale()
                         contributions["baseline"] = baseline * target_scale
                     else:
                         contributions["baseline"] = baseline
@@ -246,7 +284,7 @@ class MMMIDataWrapper:
                         self.idata.posterior.control_contribution_original_scale
                     )
                 else:
-                    target_scale = self._get_target_scale()
+                    target_scale = self.get_target_scale()
                     contributions["control"] = control * target_scale
             else:
                 contributions["control"] = control
@@ -266,7 +304,7 @@ class MMMIDataWrapper:
                         self.idata.posterior.yearly_seasonality_contribution_original_scale
                     )
                 else:
-                    target_scale = self._get_target_scale()
+                    target_scale = self.get_target_scale()
                     contributions["seasonality"] = seasonality * target_scale
             else:
                 contributions["seasonality"] = seasonality
@@ -342,7 +380,7 @@ class MMMIDataWrapper:
         else:
             data = var
 
-        target_scale = self._get_target_scale()
+        target_scale = self.get_target_scale()
         return data * target_scale
 
     def to_scaled(self, var: str | xr.DataArray) -> xr.DataArray:
@@ -407,7 +445,7 @@ class MMMIDataWrapper:
                 raise ValueError(f"Variable '{var}' not found in posterior")
 
         # DataArray in original space - convert to scaled
-        target_scale = self._get_target_scale()
+        target_scale = self.get_target_scale()
         return var / target_scale
 
     # ==================== Filtering Operations ====================
