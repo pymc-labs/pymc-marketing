@@ -171,6 +171,8 @@ from pymc.util import RandomState
 from pymc_extras.prior import Prior, create_dim_handler
 from scipy.optimize import OptimizeResult
 
+from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
+from pymc_marketing.data.idata.schema import MMMIdataSchema
 from pymc_marketing.mmm import SoftPlusHSGP
 from pymc_marketing.mmm.additive_effect import EventAdditiveEffect, MuEffect
 from pymc_marketing.mmm.budget_optimizer import OptimizerCompatibleModelWrapper
@@ -623,6 +625,53 @@ class MMM(RegressionModelBuilder):
         return MMMPlotSuite(idata=self.idata)
 
     @property
+    def data(self) -> Any:  # type: ignore[no-any-return]
+        """Get data wrapper for InferenceData access and manipulation.
+
+        Returns a fresh wrapper on each access. The wrapper is lightweight
+        and wraps the current state of self.idata.
+
+        Validation is explicit - call `.validate()` or `.validate_or_raise()`
+        to check idata structure after modifications.
+
+        Returns
+        -------
+        MMMIDataWrapper
+            Wrapper providing validated access and transformations
+
+        Examples
+        --------
+        .. code-block:: python
+
+            # Access observed data
+            observed = mmm.data.get_target()
+
+            # Get contributions in original scale
+            contributions = mmm.data.get_contributions(original_scale=True)
+
+            # Validate after modifications
+            mmm.add_original_scale_contribution_variable(["channel_contribution"])
+            mmm.data.validate_or_raise()
+
+            # Filter and aggregate
+            monthly = mmm.data.filter_dates("2024-01-01", "2024-12-31").aggregate_time(
+                "monthly"
+            )
+        """
+        self._validate_idata_exists()
+
+        schema = MMMIdataSchema.from_model_config(
+            custom_dims=self.dims if hasattr(self, "dims") and self.dims else (),
+            has_controls=bool(self.control_columns),
+            has_seasonality=bool(self.yearly_seasonality),
+            time_varying=(
+                getattr(self, "time_varying_intercept", False)
+                or getattr(self, "time_varying_media", False)
+            ),
+        )
+        return MMMIDataWrapper(self.idata, schema=schema, validate_on_init=False)
+
+    @property
     def default_model_config(self) -> dict:
         """Define the default model configuration."""
         base_config = {
@@ -682,7 +731,7 @@ class MMM(RegressionModelBuilder):
 
     def _validate_idata_exists(self) -> None:
         """Validate that the idata exists."""
-        if not hasattr(self, "idata"):
+        if not hasattr(self, "idata") or self.idata is None:
             raise ValueError("idata does not exist. Build the model first and fit.")
 
     def _validate_dims_in_multiindex(
