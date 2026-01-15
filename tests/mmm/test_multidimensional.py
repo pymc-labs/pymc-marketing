@@ -4250,6 +4250,8 @@ class TestMMMPlotSuiteChannelContributionGrid:
 
         assert isinstance(fig, plt.Figure)
         plt.close(fig)
+
+
 class TestDataProperty:
     """Tests for the MMM.data property."""
 
