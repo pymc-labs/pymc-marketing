@@ -1919,9 +1919,8 @@ class MMM(RegressionModelBuilder):
                 "The model must be fitted (call .fit()) before sampling saturation curves."
             )
 
-        # Step 1: Extract saturation parameters from posterior and subsample
-        var_names = list(self.saturation.variable_mapping.values())
-        posterior = self.idata.posterior[var_names]  # type: ignore[union-attr]
+        # Step 1: Subsample posterior
+        posterior = self.idata.posterior  # type: ignore[union-attr]
 
         n_chains = posterior.sizes["chain"]
         n_draws = posterior.sizes["draw"]
