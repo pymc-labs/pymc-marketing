@@ -1870,31 +1870,6 @@ class MMM(RegressionModelBuilder):
         ...     max_value=max_scaled, num_points=200, num_samples=1000, random_state=42
         ... )
 
-        Plot the curves (mean across samples):
-
-        >>> import matplotlib.pyplot as plt
-        >>> mean_curves = curves.mean(dim="sample")
-        >>> for channel in mean_curves.coords["channel"].values:
-        ...     curve = mean_curves.sel(channel=channel)
-        ...     plt.plot(curve.coords["x"], curve, label=channel)
-        >>> plt.xlabel("Spend")
-        >>> plt.ylabel("Contribution")
-        >>> plt.legend()
-        >>> plt.show()
-
-        Plot uncertainty bands:
-
-        >>> import matplotlib.pyplot as plt
-        >>> for channel in curves.coords["channel"].values:
-        ...     curve = curves.sel(channel=channel)
-        ...     x = curve.coords["x"].values
-        ...     mean = curve.mean(dim="sample")
-        ...     lower = curve.quantile(0.05, dim="sample")
-        ...     upper = curve.quantile(0.95, dim="sample")
-        ...     plt.fill_between(x, lower, upper, alpha=0.3)
-        ...     plt.plot(x, mean, label=channel)
-        >>> plt.legend()
-        >>> plt.show()
 
         Notes
         -----
