@@ -1892,7 +1892,8 @@ class MMM(RegressionModelBuilder):
 
         See Also
         --------
-        plot_channel_contribution_grid : Plot the contribution grid.
+        MMMPlotSuite.channel_contribution_grid : Plot the contribution grid via
+            ``mmm.plot.channel_contribution_grid(grid_data)``.
 
         """
         if start < 0:
@@ -1942,105 +1943,6 @@ class MMM(RegressionModelBuilder):
         contributions = contributions.assign_coords(delta=delta_grid)
 
         return contributions
-
-    def plot_channel_contribution_grid(
-        self,
-        start: float,
-        stop: float,
-        num: int,
-        absolute_xrange: bool = False,
-        hdi_prob: float = 0.94,
-        dims: dict[str, str | int | list] | None = None,
-        aggregation: dict[str, tuple[str, ...] | list[str]] | None = None,
-        subplot_kwargs: dict[str, Any] | None = None,
-        progressbar: bool = False,
-        **plot_kwargs: Any,
-    ) -> tuple[Any, np.ndarray]:
-        """Plot channel contributions across a grid of spend multipliers.
-
-        This method generates a visualization showing how channel contributions
-        change as spending levels vary. It computes contributions for a grid
-        of multipliers and plots the mean and HDI for each channel.
-
-        Parameters
-        ----------
-        start : float
-            Start of the multiplier grid. Must be >= 0.
-        stop : float
-            End of the multiplier grid. Must be > start.
-        num : int
-            Number of points in the grid.
-        absolute_xrange : bool, optional
-            If True, the x-axis shows absolute spend values.
-            If False, shows relative multipliers (delta). Default is False.
-        hdi_prob : float, optional
-            Probability mass for the HDI interval. Default is 0.94.
-        dims : dict, optional
-            Dimension filters to apply. Example: ``{"country": "US"}``.
-        aggregation : dict, optional
-            Aggregation operations to apply over dimensions.
-            Example: ``{"sum": ("country",)}`` to sum over countries.
-        subplot_kwargs : dict, optional
-            Keyword arguments passed to ``plt.subplots()``.
-        progressbar : bool, optional
-            Whether to show progress bar during computation. Default is False.
-        **plot_kwargs
-            Additional keyword arguments passed to the plotting function.
-
-        Returns
-        -------
-        tuple[Figure, NDArray[Axes]]
-            Matplotlib figure and axes array.
-
-        Examples
-        --------
-        Basic usage:
-
-        .. code-block:: python
-
-            fig, axes = mmm.plot_channel_contribution_grid(start=0.0, stop=2.0, num=11)
-
-        With absolute x-axis:
-
-        .. code-block:: python
-
-            fig, axes = mmm.plot_channel_contribution_grid(
-                start=0.0, stop=2.0, num=11, absolute_xrange=True
-            )
-
-        With dimension filtering:
-
-        .. code-block:: python
-
-            fig, axes = mmm.plot_channel_contribution_grid(
-                start=0.0, stop=2.0, num=11, dims={"country": "US"}
-            )
-
-        See Also
-        --------
-        get_channel_contribution_forward_pass_grid : Get raw contribution data.
-        channel_contribution_forward_pass : Compute contributions for arbitrary data.
-
-        """
-        # Compute contribution grid
-        grid_data = self.get_channel_contribution_forward_pass_grid(
-            start=start,
-            stop=stop,
-            num=num,
-            progressbar=progressbar,
-            original_scale=True,
-        )
-
-        # Use plot suite for visualization
-        return self.plot.channel_contribution_grid(
-            grid_data=grid_data,
-            absolute_xrange=absolute_xrange,
-            hdi_prob=hdi_prob,
-            dims=dims,
-            aggregation=aggregation,
-            subplot_kwargs=subplot_kwargs,
-            **plot_kwargs,
-        )
 
     def _make_channel_transform(
         self, df_lift_test: pd.DataFrame
