@@ -1944,6 +1944,7 @@ class MMM(RegressionModelBuilder):
 
         return curve
 
+    @validate_call(config={"arbitrary_types_allowed": True})
     def sample_adstock_curve(
         self,
         amount: float = Field(
