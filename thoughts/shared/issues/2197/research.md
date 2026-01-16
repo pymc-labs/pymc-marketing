@@ -1,12 +1,12 @@
 ---
 date: 2026-01-16T15:41:00+00:00
 researcher: Claude Sonnet 4.5
-git_commit: d19500dcfc23d24e347883ad11b4257e29ba9722
+git_commit: e91356954e87d8bc4e0d0860d6fe893f65452029
 branch: work-issue-2197
 repository: pymc-labs/pymc-marketing
 topic: "Add sample_adstock_curve() Method to MMM"
-tags: [research, codebase, mmm, adstock, saturation, transformations, issue-2197]
-status: complete
+tags: [research, codebase, mmm, adstock, saturation, transformations, issue-2197, testing-strategy]
+status: updated
 last_updated: 2026-01-16
 last_updated_by: Claude Sonnet 4.5
 issue_number: 2197
@@ -14,9 +14,9 @@ issue_number: 2197
 
 # Research: Add sample_adstock_curve() Method to MMM
 
-**Date**: 2026-01-16T15:41:00+00:00
+**Date**: 2026-01-16T15:41:00+00:00 (Updated: 2026-01-16T16:00:00+00:00)
 **Researcher**: Claude Sonnet 4.5
-**Git Commit**: d19500dcfc23d24e347883ad11b4257e29ba9722
+**Git Commit**: e91356954e87d8bc4e0d0860d6fe893f65452029
 **Branch**: work-issue-2197
 **Repository**: pymc-labs/pymc-marketing
 **Issue**: #2197
@@ -436,6 +436,120 @@ Both `sample_saturation_curve()` and `sample_adstock_curve()` follow the Templat
 5. **Transform** if needed (scale to original units - only for saturation)
 
 This consistent structure makes the codebase maintainable and predictable.
+
+## Test Strategy: Parameterization vs Separate Files
+
+### Analysis
+
+After analyzing `tests/mmm/test_multidimensional_saturation_curve.py` (501 lines) and comparing it with the requirements for adstock curve testing, here's the recommendation:
+
+**Recommendation: Create a separate test file** `tests/mmm/test_multidimensional_adstock_curve.py`
+
+### Reasoning
+
+**Arguments Against Parameterization:**
+
+1. **Parameter Signatures Differ Significantly**:
+   - Saturation: `max_value`, `num_points`, `num_samples`, `random_state`, `original_scale`
+   - Adstock: `amount`, `num_samples`, `random_state`
+   - No overlap except `num_samples` and `random_state`
+
+2. **Coordinate Differences**:
+   - Saturation uses `"x"` coordinate (continuous spending levels)
+   - Adstock uses `"time since exposure"` coordinate (discrete time periods)
+   - All tests referencing coordinates would need conditional logic
+
+3. **Curve Properties Are Opposite**:
+   - Saturation: monotonic increasing (test at line 393: `test_sample_saturation_curve_curves_are_monotonic_increasing`)
+   - Adstock: decays over time (requires new test: `test_sample_adstock_curve_curves_decay_over_time`)
+   - These are fundamentally different mathematical properties
+
+4. **Scaling Behavior Differs**:
+   - Saturation has entire section (lines 235-304) testing `original_scale` parameter
+   - Adstock has no scaling - these 70 lines of tests would need to be skipped with complex conditional logic
+   - Tests like `test_sample_saturation_curve_original_scale_uses_target_scale` have no adstock equivalent
+
+5. **Validation Tests Have Different Parameters**:
+   - Saturation validates: `max_value`, `num_points`, `num_samples` (3 separate tests)
+   - Adstock validates: `amount`, `num_samples` (2 separate tests)
+   - Parameterizing would require skipping tests conditionally
+
+6. **Test Complexity**:
+   - ~20 tests in the saturation file
+   - Only ~8 tests could be shared (basic functionality like return type, dims, reproducibility)
+   - 12 tests are transformation-specific
+   - Parameterization would add conditional logic to 60% of tests
+
+**What Can Be Shared (Without Parameterization):**
+
+These patterns can be copy-pasted and adapted:
+- Test structure and organization (fixtures, categories, docstrings)
+- Random state reproducibility tests (lines 147-216)
+- Num samples control tests (lines 89-145)
+- Unfitted model and missing posterior validation (lines 344-385)
+- Panel model integration (lines 443-458)
+- Plotting operations (lines 483-501)
+
+**Example of Why Parameterization Is Complex:**
+
+```python
+# This test would become overly complex with parameterization
+@pytest.mark.parametrize("transformation", ["saturation", "adstock"])
+def test_coordinate_range(simple_fitted_mmm, transformation):
+    if transformation == "saturation":
+        max_value = 2.0
+        curves = simple_fitted_mmm.sample_saturation_curve(
+            max_value=max_value, original_scale=False
+        )
+        coord_name = "x"
+        assert curves.coords[coord_name][0] == pytest.approx(0.0)
+        assert np.max(curves.coords[coord_name].values) == pytest.approx(max_value)
+    else:  # adstock
+        amount = 1.0
+        curves = simple_fitted_mmm.sample_adstock_curve(amount=amount)
+        coord_name = "time since exposure"
+        assert curves.coords[coord_name][0] == pytest.approx(0.0)
+        assert np.max(curves.coords[coord_name].values) == simple_fitted_mmm.adstock.l_max - 1
+
+# Much clearer as two separate tests with descriptive names
+```
+
+### Implementation Recommendation
+
+**Create separate file: `tests/mmm/test_multidimensional_adstock_curve.py`**
+
+Structure it with similar organization to the saturation tests:
+1. Header with module docstring referencing fixtures
+2. Basic functionality tests (8 tests)
+3. Validation tests (4 tests, no scaling section)
+4. Integration tests (6 tests with adstock-specific properties)
+
+**Benefits of Separate File:**
+- Clear, readable test code without conditionals
+- Easy to understand what each transformation should do
+- Descriptive test names specific to each transformation
+- Can add transformation-specific tests without affecting the other
+- Easier debugging - test failures are immediately clear about which transformation broke
+- Simpler test maintenance
+- Standard pytest patterns without framework overhead
+
+**Estimated Effort:**
+- Separate files: ~2-3 hours (copy, adapt, write adstock-specific tests)
+- Parameterized approach: ~4-5 hours (design abstraction, write conditional logic, debug edge cases)
+
+**Code Duplication:**
+- Some duplication in test structure (~40% of lines)
+- But tests are declarative documentation - duplication is acceptable
+- The clarity gained outweighs the maintenance cost of duplicated test structure
+
+### Conclusion
+
+**Separate test files are the better approach** because:
+1. The transformations have fundamentally different parameters and behaviors
+2. Only 40% of tests could be shared, and sharing would require complex conditional logic
+3. Test clarity and maintainability are more important than DRY in this case
+4. It's easier to extend and maintain transformation-specific tests
+5. The pytest philosophy favors clear, explicit tests over abstraction
 
 ## Open Questions
 
