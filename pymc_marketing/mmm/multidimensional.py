@@ -1944,6 +1944,140 @@ class MMM(RegressionModelBuilder):
 
         return curve
 
+    def sample_adstock_curve(
+        self,
+        amount: float = Field(
+            1.0, gt=0, description="Amount to apply the adstock transformation to."
+        ),
+        num_samples: int | None = Field(
+            500, gt=0, description="Number of posterior samples to use."
+        ),
+        random_state: RandomState | None = None,
+    ) -> xr.DataArray:
+        """Sample adstock curves from posterior parameters.
+
+        This method samples the adstock transformation curves using posterior
+        parameters from the fitted model. It allows visualization of the
+        carryover effect of media exposure over time.
+
+        Parameters
+        ----------
+        amount : float, optional
+            Amount to apply the adstock transformation to. By default 1.0.
+            This represents an impulse of spend at time 0, and the curve
+            shows how this effect decays over subsequent time periods.
+        num_samples : int or None, optional
+            Number of posterior samples to use for generating curves. By default 500.
+            Samples are drawn randomly from the full posterior (across all chains
+            and draws). Using fewer samples speeds up computation and reduces memory
+            usage while still capturing posterior uncertainty. If None, all posterior
+            samples are used without subsampling.
+        random_state : int, np.random.Generator, or None, optional
+            Random state for reproducible subsampling. Can be an integer seed,
+            a numpy Generator instance, or None for non-reproducible sampling.
+            Only used when num_samples is not None and less than total available
+            samples.
+
+        Returns
+        -------
+        xr.DataArray
+            Sampled adstock curves with dimensions:
+            - Simple model: (time since exposure, channel, sample)
+            - Panel model: (time since exposure, *custom_dims, channel, sample)
+
+            The "sample" dimension indexes the posterior samples used.
+            The "time since exposure" coordinate represents time periods from 0
+            to l_max (the maximum lag for the adstock transformation).
+
+        Raises
+        ------
+        ValueError
+            If called before model is fitted (idata doesn't exist)
+        ValueError
+            If idata exists but no posterior (model not fitted)
+
+        Examples
+        --------
+        Sample curves with default parameters:
+
+        >>> curves = mmm.sample_adstock_curve()
+        >>> curves.dims
+        ('sample', 'time since exposure', 'channel')
+
+        Sample curves using all posterior samples:
+
+        >>> curves_all = mmm.sample_adstock_curve(num_samples=None)
+
+        Sample curves with custom amount and reproducible sampling:
+
+        >>> curves = mmm.sample_adstock_curve(
+        ...     amount=100.0, num_samples=1000, random_state=42
+        ... )
+
+        Notes
+        -----
+        - The adstock curve shows the carryover effect of a single impulse of
+          media exposure over time, unlike saturation curves which show
+          diminishing returns.
+        - For panel models, curves are generated for each combination of custom
+          dimensions (e.g., each country) and channel.
+        - The returned array includes a "sample" dimension for uncertainty
+          quantification. Use `.mean(dim='sample')` for point estimates and
+          `.quantile()` for credible intervals.
+        - Posterior samples are drawn randomly without replacement when num_samples
+          is less than the total available samples.
+        """
+        self._validate_idata_exists()
+
+        # Validate that posterior exists
+        if (
+            not hasattr(self.idata, "posterior") or self.idata.posterior is None  # type: ignore[union-attr]
+        ):
+            raise ValueError(
+                "posterior not found in idata. "
+                "The model must be fitted (call .fit()) before sampling adstock curves."
+            )
+
+        # Step 1: Subsample posterior
+        posterior = self.idata.posterior  # type: ignore[union-attr]
+
+        n_chains = posterior.sizes["chain"]
+        n_draws = posterior.sizes["draw"]
+        total_samples = n_chains * n_draws
+
+        # Subsample from posterior if needed
+        if num_samples is not None and num_samples < total_samples:
+            rng = np.random.default_rng(random_state)
+            # Randomly select samples across all chains/draws
+            flat_indices = rng.choice(total_samples, size=num_samples, replace=False)
+
+            # Stack chain/draw into single dimension, select samples, reshape to chain=1
+            stacked = posterior.stack(sample=("chain", "draw"))
+            selected = stacked.isel(sample=flat_indices)
+            # Drop the multi-index coords before renaming to avoid conflicts
+            params = (
+                selected.drop_vars(["chain", "draw"])
+                .rename({"sample": "draw"})
+                .expand_dims("chain")
+            )
+        else:
+            params = posterior
+
+        # Step 2: Sample curve using transformation's method
+        # This automatically handles channel dimensions
+        curve = self.adstock.sample_curve(
+            parameters=params,
+            amount=amount,
+        )
+
+        # Flatten chain/draw to 'sample' dimension for consistent output
+        curve = curve.stack(sample=("chain", "draw"))
+
+        # Note: No scaling step - adstock curves represent time decay,
+        # not contribution to target variable
+
+        return curve
+
     @property
     def sensitivity(self) -> SensitivityAnalysis:
         """Access sensitivity analysis functionality.
