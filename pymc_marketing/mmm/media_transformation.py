@@ -296,9 +296,9 @@ class MediaTransformation:
         if self.dims:
             output_dims = self.dims if isinstance(self.dims, tuple) else (self.dims,)
         else:
-            output_dims = tuple(
-                dict.fromkeys(list(adstock_dims) + list(saturation_dims))
-            )
+            # Combine dims preserving order and removing duplicates
+            combined_dims = list(adstock_dims) + list(saturation_dims)
+            output_dims = tuple(dict.fromkeys(combined_dims).keys())
 
         # Create dummy coords based on the transformation's dims
         coords = {}
