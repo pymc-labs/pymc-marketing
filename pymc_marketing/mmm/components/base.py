@@ -654,6 +654,63 @@ class Transformation:
         kwargs = self._create_distributions(dims=dims, idx=idx)
         return self.function(x, **kwargs)
 
+    def graphviz(self, **kwargs):
+        """Create a graphviz representation of the transformation.
+
+        Creates a PyMC model with dummy data and coordinates, applies the
+        transformation, and returns the graphviz visualization.
+
+        Parameters
+        ----------
+        **kwargs
+            Keyword arguments passed to :func:`pymc.model_to_graphviz`.
+
+        Returns
+        -------
+        graphviz.Digraph
+            Graphviz representation of the transformation.
+
+        Examples
+        --------
+        Visualize a geometric adstock transformation:
+
+        .. code-block:: python
+
+            from pymc_marketing.mmm import GeometricAdstock
+
+            adstock = GeometricAdstock(l_max=12)
+            graph = adstock.graphviz()
+
+        Visualize a logistic saturation transformation:
+
+        .. code-block:: python
+
+            from pymc_marketing.mmm import LogisticSaturation
+
+            saturation = LogisticSaturation()
+            graph = saturation.graphviz()
+
+        """
+        output_core_dims = self._infer_output_core_dims()
+
+        # Create dummy coords based on the transformation's dims
+        coords = {}
+        for dim in output_core_dims:
+            # Use a dummy coordinate with a single element
+            coords[dim] = [f"{dim}_0"]
+
+        # Create a dummy data array with appropriate shape
+        # Use a simple scalar or vector based on dimensions
+        if output_core_dims:
+            x = np.ones(len(output_core_dims) + 1)
+        else:
+            x = np.ones(1)
+
+        with pm.Model(coords=coords) as model:
+            self.apply(x, dims=output_core_dims)
+
+        return pm.model_to_graphviz(model, **kwargs)
+
 
 def _serialize_value(value: Any) -> Any:
     if hasattr(value, "to_dict"):

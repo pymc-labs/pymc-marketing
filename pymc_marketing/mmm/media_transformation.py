@@ -94,6 +94,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import cast
 
+import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
 from pymc.distributions.shape_utils import Dims
@@ -248,6 +249,73 @@ class MediaTransformation:
             adstock_first=data["adstock_first"],
             dims=data.get("dims"),
         )
+
+    def graphviz(self, **kwargs):
+        """Create a graphviz representation of the media transformation.
+
+        Creates a PyMC model with dummy data and coordinates, applies both
+        adstock and saturation transformations, and returns the graphviz
+        visualization.
+
+        Parameters
+        ----------
+        **kwargs
+            Keyword arguments passed to :func:`pymc.model_to_graphviz`.
+
+        Returns
+        -------
+        graphviz.Digraph
+            Graphviz representation of the transformation.
+
+        Examples
+        --------
+        Visualize a media transformation with adstock and saturation:
+
+        .. code-block:: python
+
+            from pymc_marketing.mmm import (
+                GeometricAdstock,
+                LogisticSaturation,
+                MediaTransformation,
+            )
+
+            media_transformation = MediaTransformation(
+                adstock=GeometricAdstock(l_max=12),
+                saturation=LogisticSaturation(),
+                adstock_first=True,
+                dims=(),
+            )
+            graph = media_transformation.graphviz()
+
+        """
+        # Combine dims from both transformations
+        adstock_dims = self.adstock._infer_output_core_dims()
+        saturation_dims = self.saturation._infer_output_core_dims()
+
+        # Use self.dims if specified, otherwise combine unique dims
+        if self.dims:
+            output_dims = self.dims if isinstance(self.dims, tuple) else (self.dims,)
+        else:
+            output_dims = tuple(
+                dict.fromkeys(list(adstock_dims) + list(saturation_dims))
+            )
+
+        # Create dummy coords based on the transformation's dims
+        coords = {}
+        for dim in output_dims:
+            # Use a dummy coordinate with a single element
+            coords[dim] = [f"{dim}_0"]
+
+        # Create a dummy data array
+        if output_dims:
+            x = np.ones(len(output_dims) + 1)
+        else:
+            x = np.ones(1)
+
+        with pm.Model(coords=coords) as model:
+            self(x)
+
+        return pm.model_to_graphviz(model, **kwargs)
 
 
 def _is_media_transformation(data):

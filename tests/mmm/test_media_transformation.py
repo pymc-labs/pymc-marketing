@@ -219,3 +219,24 @@ def test_incompatible_dims_raise(adstock_dims, saturation_dims) -> None:
             adstock_first=True,
             dims=(),
         )
+
+
+def test_media_transformation_graphviz() -> None:
+    """Test that graphviz method creates a valid graph visualization for MediaTransformation."""
+    adstock = GeometricAdstock(l_max=12)
+    saturation = LogisticSaturation()
+    media_transformation = MediaTransformation(
+        adstock=adstock,
+        saturation=saturation,
+        adstock_first=True,
+        dims=(),
+    )
+    
+    graph = media_transformation.graphviz()
+    
+    # Check that it returns a graphviz object
+    assert hasattr(graph, "source")
+    assert hasattr(graph, "render")
+    
+    # Check that the graph contains some content (not empty)
+    assert len(graph.source) > 0

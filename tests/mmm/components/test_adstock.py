@@ -254,3 +254,19 @@ def test_deserialize_new_transformation() -> None:
     assert instance.l_max == 10
 
     ADSTOCK_TRANSFORMATIONS.pop("new_adstock")
+
+
+@pytest.mark.parametrize(
+    "adstock",
+    adstocks(),
+)
+def test_adstock_graphviz(adstock: AdstockTransformation) -> None:
+    """Test that graphviz method creates a valid graph visualization."""
+    graph = adstock.graphviz()
+    
+    # Check that it returns a graphviz object
+    assert hasattr(graph, "source")
+    assert hasattr(graph, "render")
+    
+    # Check that the graph contains some content (not empty)
+    assert len(graph.source) > 0

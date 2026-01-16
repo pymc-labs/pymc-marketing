@@ -325,3 +325,19 @@ def test_deserialize_new_transformation() -> None:
     assert isinstance(instance, NewSaturation)
 
     SATURATION_TRANSFORMATIONS.pop("new_saturation")
+
+
+@pytest.mark.parametrize(
+    "saturation",
+    saturation_functions(),
+)
+def test_saturation_graphviz(saturation: SaturationTransformation) -> None:
+    """Test that graphviz method creates a valid graph visualization."""
+    graph = saturation.graphviz()
+    
+    # Check that it returns a graphviz object
+    assert hasattr(graph, "source")
+    assert hasattr(graph, "render")
+    
+    # Check that the graph contains some content (not empty)
+    assert len(graph.source) > 0
