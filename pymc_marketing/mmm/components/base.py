@@ -658,7 +658,8 @@ class Transformation:
         """Create a graphviz representation of the transformation.
 
         Creates a PyMC model with dummy data and coordinates, applies the
-        transformation, and returns the graphviz visualization.
+        transformation, and returns the graphviz visualization showing the
+        complete data flow including input, parameters, and output.
 
         Parameters
         ----------
@@ -707,7 +708,12 @@ class Transformation:
             x = np.ones(1)
 
         with pm.Model(coords=coords) as model:
-            self.apply(x, dims=output_core_dims)
+            # Add input data to the graph
+            data = pm.Data("data", x)
+            
+            # Apply transformation and add output to the graph
+            transformed = self.apply(data, dims=output_core_dims)
+            pm.Deterministic("transformed", transformed)
 
         return pm.model_to_graphviz(model, **kwargs)
 

@@ -255,7 +255,8 @@ class MediaTransformation:
 
         Creates a PyMC model with dummy data and coordinates, applies both
         adstock and saturation transformations, and returns the graphviz
-        visualization.
+        visualization showing the complete data flow including input,
+        parameters, and output.
 
         Parameters
         ----------
@@ -313,7 +314,12 @@ class MediaTransformation:
             x = np.ones(1)
 
         with pm.Model(coords=coords) as model:
-            self(x)
+            # Add input data to the graph
+            data = pm.Data("data", x)
+            
+            # Apply transformation and add output to the graph
+            transformed = self(data)
+            pm.Deterministic("transformed", transformed)
 
         return pm.model_to_graphviz(model, **kwargs)
 
