@@ -498,8 +498,6 @@ class Transformation:
         parameters: xr.Dataset,
         x: pt.TensorLike,
         coords: dict[str, Any],
-        num_samples: int | None = None,
-        random_state: np.random.Generator | int | None = None,
     ) -> xr.DataArray:
         """Sample the transformation curve given parameters.
 
@@ -514,11 +512,6 @@ class Transformation:
         coords : dict[str, Any]
             Coordinates for the output DataArray. Should have exactly one key
             representing the x-dimension.
-        num_samples : int or None, optional
-            Number of posterior samples to use. If None, all samples are used.
-            If less than total available samples, random subsampling is performed.
-        random_state : np.random.Generator, int, or None, optional
-            Random state for reproducible subsampling.
 
         Returns
         -------
@@ -534,26 +527,6 @@ class Transformation:
             raise ValueError(msg)
         x_dim = keys[0]
 
-        # Subsample from posterior if needed
-        n_chains = parameters.sizes["chain"]
-        n_draws = parameters.sizes["draw"]
-        total_samples = n_chains * n_draws
-
-        if num_samples is not None and num_samples < total_samples:
-            rng = np.random.default_rng(random_state)
-            flat_indices = rng.choice(total_samples, size=num_samples, replace=False)
-
-            stacked = parameters.stack(sample=("chain", "draw"))
-            selected = stacked.isel(sample=flat_indices)
-            # Drop chain, draw, and sample to avoid MultiIndex deprecation warning
-            params = (
-                selected.drop_vars(["chain", "draw", "sample"])
-                .rename({"sample": "draw"})
-                .expand_dims("chain")
-            )
-        else:
-            params = parameters
-
         # Allow broadcasting
         x = np.expand_dims(
             x,
@@ -563,7 +536,7 @@ class Transformation:
         coords.update(
             {
                 dim: np.asarray(coord)
-                for dim, coord in params.coords.items()
+                for dim, coord in parameters.coords.items()
                 if dim not in ["chain", "draw"]
             }
         )
@@ -576,7 +549,7 @@ class Transformation:
             )
 
             curve = pm.sample_posterior_predictive(
-                params,
+                parameters,
                 var_names=[var_name],
             ).posterior_predictive[var_name]
 

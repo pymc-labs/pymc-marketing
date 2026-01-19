@@ -161,12 +161,6 @@ class SaturationTransformation(Transformation, metaclass=SaturationRegistrationM
         num_points: int = Field(
             100, gt=0, description="Number of points between 0 and max_value."
         ),
-        num_samples: int | None = Field(
-            None, gt=0, description="Number of posterior samples to use."
-        ),
-        random_state: np.random.Generator | int | None = Field(
-            None, description="Random state for reproducible subsampling."
-        ),
     ) -> xr.DataArray:
         """Sample the curve of the saturation transformation given parameters.
 
@@ -178,10 +172,6 @@ class SaturationTransformation(Transformation, metaclass=SaturationRegistrationM
             Maximum value of the curve, by default 1.0.
         num_points : int, optional
             Number of points between 0 and max_value, by default 100.
-        num_samples : int or None, optional
-            Number of posterior samples to use. If None, all samples are used.
-        random_state : np.random.Generator, int, or None, optional
-            Random state for reproducible subsampling.
 
         Returns
         -------
@@ -200,8 +190,6 @@ class SaturationTransformation(Transformation, metaclass=SaturationRegistrationM
             parameters=parameters,
             x=x,
             coords=coords,
-            num_samples=num_samples,
-            random_state=random_state,
         )
 
 

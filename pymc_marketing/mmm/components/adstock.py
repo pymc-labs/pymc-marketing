@@ -143,8 +143,6 @@ class AdstockTransformation(Transformation, metaclass=AdstockRegistrationMeta): 
         self,
         parameters: xr.Dataset,
         amount: float = 1.0,
-        num_samples: int | None = None,
-        random_state: np.random.Generator | int | None = None,
     ) -> xr.DataArray:
         """Sample the adstock transformation given parameters.
 
@@ -154,10 +152,6 @@ class AdstockTransformation(Transformation, metaclass=AdstockRegistrationMeta): 
             Dataset with parameter values.
         amount : float, optional
             Amount to apply the adstock transformation to, by default 1.0.
-        num_samples : int or None, optional
-            Number of posterior samples to use. If None, all samples are used.
-        random_state : np.random.Generator, int, or None, optional
-            Random state for reproducible subsampling.
 
         Returns
         -------
@@ -177,8 +171,6 @@ class AdstockTransformation(Transformation, metaclass=AdstockRegistrationMeta): 
             parameters=parameters,
             x=x,
             coords=coords,
-            num_samples=num_samples,
-            random_state=random_state,
         )
 
 

@@ -1543,6 +1543,53 @@ class MMM(RegressionModelBuilder):
                 f"Either set include_last_observations=False or use input dates that don't overlap with training data."
             )
 
+    def _subsample_posterior(
+        self,
+        parameters: xr.Dataset,
+        num_samples: int | None = None,
+        random_state: RandomState | None = None,
+    ) -> xr.Dataset:
+        """Subsample posterior parameters if needed.
+
+        Parameters
+        ----------
+        parameters : xr.Dataset
+            Dataset with parameter values (posterior samples).
+        num_samples : int or None, optional
+            Number of posterior samples to use. If None, all samples are used.
+            If less than total available samples, random subsampling is performed.
+        random_state : np.random.Generator, int, or None, optional
+            Random state for reproducible subsampling.
+
+        Returns
+        -------
+        xr.Dataset
+            Subsampled parameters (or original if no subsampling needed).
+        """
+        if num_samples is None:
+            return parameters
+
+        n_chains = parameters.sizes["chain"]
+        n_draws = parameters.sizes["draw"]
+        total_samples = n_chains * n_draws
+
+        if num_samples >= total_samples:
+            return parameters
+
+        rng = np.random.default_rng(random_state)
+        flat_indices = rng.choice(total_samples, size=num_samples, replace=False)
+
+        stacked = parameters.stack(sample=("chain", "draw"))
+        selected = stacked.isel(sample=flat_indices)
+        # Drop chain, draw, and sample to avoid MultiIndex deprecation warning
+        params = (
+            selected.drop_vars(["chain", "draw", "sample"])
+            .rename({"sample": "draw"})
+            .expand_dims("chain")
+        )
+
+        return params
+
     def _posterior_predictive_data_transformation(
         self,
         X: pd.DataFrame,
@@ -1894,14 +1941,18 @@ class MMM(RegressionModelBuilder):
                 "The model must be fitted (call .fit()) before sampling saturation curves."
             )
 
-        # Sample curve using transformation's method
-        # Subsampling and chain/draw flattening is handled by _sample_curve
-        curve = self.saturation.sample_curve(
+        # Subsample posterior if needed
+        parameters = self._subsample_posterior(
             parameters=self.idata.posterior,  # type: ignore[union-attr]
-            max_value=max_value,
-            num_points=num_points,
             num_samples=num_samples,
             random_state=random_state,
+        )
+
+        # Sample curve using transformation's method
+        curve = self.saturation.sample_curve(
+            parameters=parameters,
+            max_value=max_value,
+            num_points=num_points,
         )
 
         # Convert to original scale if requested
@@ -2011,13 +2062,17 @@ class MMM(RegressionModelBuilder):
                 "The model must be fitted (call .fit()) before sampling adstock curves."
             )
 
-        # Sample curve using transformation's method
-        # Subsampling and chain/draw flattening is handled by _sample_curve
-        return self.adstock.sample_curve(
+        # Subsample posterior if needed
+        parameters = self._subsample_posterior(
             parameters=self.idata.posterior,  # type: ignore[union-attr]
-            amount=amount,
             num_samples=num_samples,
             random_state=random_state,
+        )
+
+        # Sample curve using transformation's method
+        return self.adstock.sample_curve(
+            parameters=parameters,
+            amount=amount,
         )
 
     @property
