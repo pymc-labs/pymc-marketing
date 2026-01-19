@@ -1955,6 +1955,9 @@ class MMM(RegressionModelBuilder):
             num_points=num_points,
         )
 
+        # Flatten chain and draw dimensions to sample dimension
+        curve = curve.stack(sample=("chain", "draw"))
+
         # Convert to original scale if requested
         if original_scale:
             # Scale y values (contribution) to original target units
@@ -2070,10 +2073,15 @@ class MMM(RegressionModelBuilder):
         )
 
         # Sample curve using transformation's method
-        return self.adstock.sample_curve(
+        curve = self.adstock.sample_curve(
             parameters=parameters,
             amount=amount,
         )
+
+        # Flatten chain and draw dimensions to sample dimension
+        curve = curve.stack(sample=("chain", "draw"))
+
+        return curve
 
     @property
     def sensitivity(self) -> SensitivityAnalysis:
