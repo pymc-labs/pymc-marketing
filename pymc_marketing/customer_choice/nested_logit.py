@@ -530,7 +530,6 @@ class NestedLogit(ModelBuilder):
     def make_fixed_coefs(
         self, X_fixed: np.ndarray | None, n_obs: int, n_alts: int
     ) -> pt.TensorVariable:
-
         """Create alternative-varying coefficients for fixed (non-varying) covariates.
 
         Each fixed covariate gets a separate coefficient for each alternative, allowing
@@ -593,7 +592,7 @@ class NestedLogit(ModelBuilder):
         nest_idx: int,
         nest_name: str,
         nest_indices: dict[str, np.ndarray],
-        alphas_nest: pt.TensorVariable | None = None
+        alphas_nest: pt.TensorVariable,
     ) -> tuple[pt.TensorVariable, pt.TensorVariable]:
         """Calculate conditional probability within a nest.
 
@@ -657,7 +656,7 @@ class NestedLogit(ModelBuilder):
         U: pt.TensorVariable,
         lambdas: pt.TensorVariable,
         nest_indices: dict[str, np.ndarray],
-        alphas_nest: pt.TensorVariable | None = None
+        alphas_nest: pt.TensorVariable | None = None,
     ) -> tuple[dict[str, pt.TensorVariable], dict[str, pt.TensorVariable]]:
         """Calculate nest selection probabilities and conditional probabilities.
 
