@@ -15,6 +15,7 @@
 
 import json
 import warnings
+from collections.abc import Sequence
 from typing import Self
 
 import arviz as az
@@ -167,7 +168,9 @@ class MNLogit(ModelBuilder):
 
         return result
 
-    def parse_formula(self, df: pd.DataFrame, formula: str, depvar: str) -> tuple[str, str, str]:
+    def parse_formula(
+        self, df: pd.DataFrame, formula: str, depvar: str
+    ) -> tuple[str, str, str]:
         """Parse the three-part structure of a formula specification.
 
         Splits the formula into target, alternative-specific covariates, and
@@ -204,8 +207,9 @@ class MNLogit(ModelBuilder):
 
         return target, alt_covariates, fixed_covariates
 
-    def prepare_X_matrix(self, df: pd.DataFrame, utility_formulas: list[str], depvar: str
-        ) -> tuple[np.ndarray, np.ndarray | list, list[str], np.ndarray]:
+    def prepare_X_matrix(
+        self, df: pd.DataFrame, utility_formulas: list[str], depvar: str
+    ) -> tuple[np.ndarray, np.ndarray | None, list[str], np.ndarray]:
         """Prepare the X matrix for the utility equations.
 
         The X matrix is a tensor with dimensions:
@@ -245,7 +249,7 @@ class MNLogit(ModelBuilder):
             F = "0 + " + F
             F = np.asarray(patsy.dmatrix(F, df))
         else:
-            F = []
+            F = None
 
         X = np.stack(alt_covariates, axis=1).T
         if X.shape != (n_obs, n_alts, n_covariates):
@@ -271,8 +275,8 @@ class MNLogit(ModelBuilder):
         df: pd.DataFrame,
         alternatives: list[str],
         covariates: list[str],
-        f_covariates: np.ndarray
-    ) -> dict[str, list[str] | list[int]]:
+        f_covariates: np.ndarray,
+    ) -> dict[str, Sequence[str] | Sequence[int]]:
         """Prepare coordinates for PyMC model."""
         if isinstance(f_covariates, np.ndarray) & (f_covariates.size > 0):
             f_cov = [s.strip() for s in f_covariates[0].split("+")]
@@ -289,22 +293,20 @@ class MNLogit(ModelBuilder):
 
     def preprocess_model_data(
         self, choice_df: pd.DataFrame, utility_equations: list[str]
-    ) -> tuple[np.ndarray, np.ndarray | list, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray | None, np.ndarray]:
         """Pre-process the model initiation inputs into a format that can be used by the PyMC model."""
         X, F, alternatives, fixed_covar = self.prepare_X_matrix(
             choice_df, utility_equations, self.depvar
         )
-        self.X, self.F, self.alternatives, self.fixed_covar = (
-            X,
-            F,
-            alternatives,
-            fixed_covar,
-        )
+        self.X = X
+        self.F: np.ndarray | None = F
+        self.alternatives = alternatives
+        self.fixed_covar = fixed_covar
         y = self._prepare_y_outcome(choice_df, self.alternatives, self.depvar)
         self.y = y
 
         # note: type hints for coords required for mypy to not get confused
-        self.coords: dict[str, list[str]] = self._prepare_coords(
+        self.coords: dict[str, Sequence[str] | Sequence[int]] = self._prepare_coords(
             choice_df, self.alternatives, self.covariates, self.fixed_covar
         )
 
@@ -386,7 +388,7 @@ class MNLogit(ModelBuilder):
         X_data: pt.TensorVariable,
         alphas: pt.TensorVariable,
         betas: pt.TensorVariable,
-        F: pt.TensorVariable
+        F: pt.TensorVariable,
     ) -> pt.TensorVariable:
         """Compute systematic utility for each alternative.
 
@@ -426,7 +428,9 @@ class MNLogit(ModelBuilder):
         p = pm.Deterministic("p", pm.math.softmax(U, axis=1), dims=("obs", "alts"))
         return p
 
-    def make_model(self, X, F, y) -> pm.Model:
+    def make_model(
+        self, X: np.ndarray, F: np.ndarray | None, y: np.ndarray
+    ) -> pm.Model:
         """Build Model.
 
         Parameters
@@ -729,7 +733,9 @@ class MNLogit(ModelBuilder):
         )
         return self
 
-    def apply_intervention(self, new_choice_df, new_utility_equations=None) -> az.InferenceData:
+    def apply_intervention(
+        self, new_choice_df, new_utility_equations=None
+    ) -> az.InferenceData:
         """Apply one of two types of intervention.
 
         The first type of intervention assumes we have a fitted model and
@@ -806,7 +812,9 @@ class MNLogit(ModelBuilder):
         return shares_df
 
     @staticmethod
-    def plot_change(change_df, title="Change due to Intervention", figsize=(8, 4)) -> plt.Figure:
+    def plot_change(
+        change_df, title="Change due to Intervention", figsize=(8, 4)
+    ) -> plt.Figure:
         """Plot change induced by a market intervention."""
         fig, ax = plt.subplots(figsize=figsize)
         ax.axvline(x=0, color="black", linestyle="--", linewidth=1)

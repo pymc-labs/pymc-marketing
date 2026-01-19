@@ -137,7 +137,7 @@ def test_prepare_X_matrix_no_fixed_covariates(mnl, sample_df):
     X, F, _, fixed_cov = mnl.prepare_X_matrix(sample_df, formulas, "choice")
 
     assert X.shape == (3, 2, 2)
-    assert F == []  # Empty list if no fixed covariates
+    assert F is None  # None if no fixed covariates
     assert len(fixed_cov) == 0
 
 
