@@ -2304,7 +2304,7 @@ class MMMPlotSuite:
                     "x_sweep_axis='absolute' requires 'channel_scale' in "
                     "idata.constant_data."
                 )
-            channel_scale = self.idata.constant_data.channel_scale
+            channel_scale = self.idata.constant_data.channel_data.sum(dim="date")
 
         plot_dims = [d for d in x.dims if d not in excluded_dims]
         if plot_dims:
