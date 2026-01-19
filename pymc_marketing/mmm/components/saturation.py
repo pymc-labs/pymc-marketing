@@ -77,7 +77,7 @@ from __future__ import annotations
 import numpy as np
 import pytensor.tensor as pt
 import xarray as xr
-from pydantic import ConfigDict, Field, InstanceOf, validate_call
+from pydantic import Field, InstanceOf, validate_call
 from pymc_extras.deserialize import deserialize, register_deserialization
 from pymc_extras.prior import Prior
 
@@ -151,7 +151,7 @@ class SaturationTransformation(Transformation, metaclass=SaturationRegistrationM
 
     prefix: str = "saturation"
 
-    @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
+    @validate_call
     def sample_curve(
         self,
         parameters: InstanceOf[xr.Dataset] = Field(

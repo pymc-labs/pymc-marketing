@@ -499,26 +499,6 @@ class Transformation:
         x: pt.TensorLike,
         coords: dict[str, Any],
     ) -> xr.DataArray:
-        """Sample the transformation curve given parameters.
-
-        Parameters
-        ----------
-        var_name : str
-            Name of the variable to create.
-        parameters : xr.Dataset
-            Dataset with parameter values (posterior samples).
-        x : pt.TensorLike
-            Input values to apply the transformation to.
-        coords : dict[str, Any]
-            Coordinates for the output DataArray. Should have exactly one key
-            representing the x-dimension.
-
-        Returns
-        -------
-        xr.DataArray
-            Sampled transformation curve with dimensions including 'sample'.
-
-        """
         output_core_dims = self._infer_output_core_dims()
 
         keys = list(coords.keys())
@@ -548,13 +528,10 @@ class Transformation:
                 dims=(x_dim, *output_core_dims),
             )
 
-            curve = pm.sample_posterior_predictive(
+            return pm.sample_posterior_predictive(
                 parameters,
                 var_names=[var_name],
             ).posterior_predictive[var_name]
-
-        # Flatten chain/draw to 'sample' dimension for consistent output
-        return curve.stack(sample=("chain", "draw"))
 
     def plot_curve_samples(
         self,
