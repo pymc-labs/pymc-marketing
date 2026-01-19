@@ -167,7 +167,7 @@ class MNLogit(ModelBuilder):
 
         return result
 
-    def parse_formula(self, df, formula, depvar):
+    def parse_formula(self, df: pd.DataFrame, formula: str, depvar: str) -> tuple[str, str, str]:
         """Parse the three-part structure of a formula specification.
 
         Splits the formula into target, alternative-specific covariates, and
@@ -204,7 +204,8 @@ class MNLogit(ModelBuilder):
 
         return target, alt_covariates, fixed_covariates
 
-    def prepare_X_matrix(self, df, utility_formulas, depvar):
+    def prepare_X_matrix(self, df: pd.DataFrame, utility_formulas: list[str], depvar: str
+        ) -> tuple[np.ndarray, np.ndarray | list, list[str], np.ndarray]:
         """Prepare the X matrix for the utility equations.
 
         The X matrix is a tensor with dimensions:
@@ -266,7 +267,12 @@ class MNLogit(ModelBuilder):
         return y
 
     @staticmethod
-    def _prepare_coords(df, alternatives, covariates, f_covariates):
+    def _prepare_coords(
+        df: pd.DataFrame,
+        alternatives: list[str],
+        covariates: list[str],
+        f_covariates: np.ndarray
+    ) -> dict[str, list[str] | list[int]]:
         """Prepare coordinates for PyMC model."""
         if isinstance(f_covariates, np.ndarray) & (f_covariates.size > 0):
             f_cov = [s.strip() for s in f_covariates[0].split("+")]
@@ -281,7 +287,9 @@ class MNLogit(ModelBuilder):
         }
         return coords
 
-    def preprocess_model_data(self, choice_df, utility_equations):
+    def preprocess_model_data(
+        self, choice_df: pd.DataFrame, utility_equations: list[str]
+    ) -> tuple[np.ndarray, np.ndarray | list, np.ndarray]:
         """Pre-process the model initiation inputs into a format that can be used by the PyMC model."""
         X, F, alternatives, fixed_covar = self.prepare_X_matrix(
             choice_df, utility_equations, self.depvar
@@ -312,7 +320,7 @@ class MNLogit(ModelBuilder):
         X, F, y = self.preprocess_model_data(self.choice_df, self.utility_equations)
         self.model = self.make_model(X, F, y)
 
-    def make_intercepts(self):
+    def make_intercepts(self) -> pt.TensorVariable:
         """Create alternative-specific intercepts with reference alternative set to zero.
 
         Returns
@@ -326,7 +334,7 @@ class MNLogit(ModelBuilder):
         )
         return alphas
 
-    def make_alt_coefs(self):
+    def make_alt_coefs(self) -> pt.TensorVariable:
         """Create coefficients for alternative-specific covariates.
 
         Returns
@@ -337,7 +345,9 @@ class MNLogit(ModelBuilder):
         betas = self.model_config["betas"].create_variable("betas")
         return betas
 
-    def make_fixed_coefs(self, X_fixed, n_obs, n_alts):
+    def make_fixed_coefs(
+        self, X_fixed: np.ndarray | None, n_obs: int, n_alts: int
+    ) -> pt.TensorVariable:
         """Create alternative-varying coefficients for fixed (non-varying) covariates.
 
         Parameters
@@ -371,7 +381,13 @@ class MNLogit(ModelBuilder):
             )
         return F
 
-    def make_utility(self, X_data, alphas, betas, F):
+    def make_utility(
+        self,
+        X_data: pt.TensorVariable,
+        alphas: pt.TensorVariable,
+        betas: pt.TensorVariable,
+        F: pt.TensorVariable
+    ) -> pt.TensorVariable:
         """Compute systematic utility for each alternative.
 
         Parameters
@@ -394,7 +410,7 @@ class MNLogit(ModelBuilder):
         U = pm.Deterministic("U", F + U + alphas, dims=("obs", "alts"))
         return U
 
-    def make_choice_prob(self, U):
+    def make_choice_prob(self, U: pt.TensorVariable) -> pt.TensorVariable:
         """Compute choice probabilities via softmax transformation.
 
         Parameters
@@ -466,7 +482,7 @@ class MNLogit(ModelBuilder):
         samples: int = 500,
         extend_idata: bool = True,
         **kwargs,
-    ):
+    ) -> az.InferenceData:
         """
         Sample from prior predictive distribution.
 
@@ -713,7 +729,7 @@ class MNLogit(ModelBuilder):
         )
         return self
 
-    def apply_intervention(self, new_choice_df, new_utility_equations=None):
+    def apply_intervention(self, new_choice_df, new_utility_equations=None) -> az.InferenceData:
         """Apply one of two types of intervention.
 
         The first type of intervention assumes we have a fitted model and
@@ -767,7 +783,7 @@ class MNLogit(ModelBuilder):
         return idata_new_policy
 
     @staticmethod
-    def calculate_share_change(idata, new_idata):
+    def calculate_share_change(idata, new_idata) -> pd.DataFrame:
         """Calculate difference in market share due to market intervention."""
         expected = idata["posterior_predictive"].mean(dim=("chain", "draw", "obs"))["p"]
         expected_new = new_idata["posterior_predictive"].mean(
@@ -790,7 +806,7 @@ class MNLogit(ModelBuilder):
         return shares_df
 
     @staticmethod
-    def plot_change(change_df, title="Change due to Intervention", figsize=(8, 4)):
+    def plot_change(change_df, title="Change due to Intervention", figsize=(8, 4)) -> plt.Figure:
         """Plot change induced by a market intervention."""
         fig, ax = plt.subplots(figsize=figsize)
         ax.axvline(x=0, color="black", linestyle="--", linewidth=1)

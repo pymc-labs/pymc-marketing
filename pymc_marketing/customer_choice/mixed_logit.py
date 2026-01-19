@@ -1013,7 +1013,7 @@ class MixedLogit(ModelBuilder):
         samples: int = 500,
         extend_idata: bool = True,
         **kwargs,
-    ):
+    ) -> az.InferenceData:
         """
         Sample from prior predictive distribution.
 
@@ -1400,7 +1400,7 @@ class MixedLogit(ModelBuilder):
         change_df: pd.DataFrame,
         title: str = "Change in Market Share due to Intervention",
         figsize: tuple = (8, 4),
-    ):
+    ) -> plt.Figure:
         """Plot change induced by a market intervention.
 
         Parameters

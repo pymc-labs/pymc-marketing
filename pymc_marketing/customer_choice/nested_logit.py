@@ -502,7 +502,7 @@ class NestedLogit(ModelBuilder):
         X, F, y = self.preprocess_model_data(self.choice_df, self.utility_equations)
         self.model = self.make_model(X, F, y)
 
-    def make_intercepts(self):
+    def make_intercepts(self) -> pt.TensorVariable:
         """Create alternative-specific intercepts with reference alternative set to zero.
 
         Returns
@@ -516,7 +516,7 @@ class NestedLogit(ModelBuilder):
         )
         return alphas
 
-    def make_alt_coefs(self):
+    def make_alt_coefs(self) -> pt.TensorVariable:
         """Create coefficients for alternative-specific covariates.
 
         Returns
@@ -527,7 +527,10 @@ class NestedLogit(ModelBuilder):
         betas = self.model_config["betas"].create_variable("betas")
         return betas
 
-    def make_fixed_coefs(self, X_fixed, n_obs, n_alts):
+    def make_fixed_coefs(
+        self, X_fixed: np.ndarray | None, n_obs: int, n_alts: int
+    ) -> pt.TensorVariable:
+
         """Create alternative-varying coefficients for fixed (non-varying) covariates.
 
         Each fixed covariate gets a separate coefficient for each alternative, allowing
@@ -569,7 +572,7 @@ class NestedLogit(ModelBuilder):
             )
         return W_contrib
 
-    def make_lambdas(self):
+    def make_lambdas(self) -> pt.TensorVariable:
         """Create nest-specific lambda (scale) parameters.
 
         Returns
@@ -584,8 +587,14 @@ class NestedLogit(ModelBuilder):
         return lambdas_nests
 
     def calc_conditional_prob(
-        self, U, lambdas, nest_idx, nest_name, nest_indices, alphas_nest=None
-    ):
+        self,
+        U: pt.TensorVariable,
+        lambdas: pt.TensorVariable,
+        nest_idx: int,
+        nest_name: str,
+        nest_indices: dict[str, np.ndarray],
+        alphas_nest: pt.TensorVariable | None = None
+    ) -> tuple[pt.TensorVariable, pt.TensorVariable]:
         """Calculate conditional probability within a nest.
 
         This implements the scaled softmax probability within a nest:
@@ -643,7 +652,13 @@ class NestedLogit(ModelBuilder):
 
         return exp_W_nest, P_y_given_nest
 
-    def make_nest_probs(self, U, lambdas, nest_indices, alphas_nest=None):
+    def make_nest_probs(
+        self,
+        U: pt.TensorVariable,
+        lambdas: pt.TensorVariable,
+        nest_indices: dict[str, np.ndarray],
+        alphas_nest: pt.TensorVariable | None = None
+    ) -> tuple[dict[str, pt.TensorVariable], dict[str, pt.TensorVariable]]:
         """Calculate nest selection probabilities and conditional probabilities.
 
         This computes:
@@ -1168,7 +1183,7 @@ class NestedLogit(ModelBuilder):
         change_df: pd.DataFrame,
         title: str = "Change in Proportion due to Intervention",
         figsize: tuple = (8, 4),
-    ):
+    ) -> plt.Figure:
         """Plot change induced by a market intervention.
 
         Parameters
