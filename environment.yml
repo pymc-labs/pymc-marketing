@@ -41,6 +41,7 @@ dependencies:
 - sphinx-notfound-page
 - sphinx-design
 - sphinx-remove-toctrees
+- sphinx-sitemap
 - watermark
 - typing
 - networkx

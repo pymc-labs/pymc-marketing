@@ -30,7 +30,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        config: [ {python-version: "3.11", oldest-pymc: false}, {python-version: "3.13", oldest-pymc: true}]
+        linker: [cvm, numba]
+        config: [ {python-version: "3.11", oldest-pymc: false}, {python-version: "3.13", oldest-pymc: true} ]
         split:
           - "--ignore tests/mmm --ignore tests/clv"
           - "tests/mmm --ignore tests/mmm/test_tvp.py --ignore tests/mmm/test_budget_optimizer.py --ignore tests/mmm/test_hsgp.py --ignore tests/mmm/test_transformers.py"
@@ -42,6 +43,8 @@ jobs:
           - "tests/clv/models/test_basic.py"
           - "tests/clv/test_distributions.py"
           - "tests/clv/ --ignore=tests/clv/models/test_pareto_nbd.py --ignore=tests/clv/models/test_beta_geo_beta_binom.py --ignore=tests/clv/models/test_beta_geo.py --ignore=tests/clv/models/test_shifted_beta_geo.py --ignore=tests/clv/models/test_basic.py --ignore=tests/clv/test_distributions.py"
+    env:
+      PYTENSOR_FLAGS: linker=${{ matrix.linker }}
     steps:
       - uses: actions/checkout@v6
       - name: Set up Python
@@ -72,17 +75,20 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
+        linker: [cvm, numba]
         # From referencing https://github.com/pymc-labs/pymc-marketing/issues/1158
         split:
           - "tests/clv/models/test_beta_geo_beta_binom.py"
           - "tests/clv/models/test_pareto_nbd.py"
           - "--ignore tests/clv/models/test_beta_geo_beta_binom.py --ignore tests/clv/models/test_pareto_nbd.py"
+    env:
+      PYTENSOR_FLAGS: linker=${{ matrix.linker }}
     steps:
       - uses: actions/checkout@v6
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: "3.11"
+          python-version: "3.13"
           cache: "pip"
           cache-dependency-path: "pyproject.toml"
       - name: Run tests
