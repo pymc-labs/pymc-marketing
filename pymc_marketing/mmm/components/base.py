@@ -498,7 +498,34 @@ class Transformation:
         parameters: xr.Dataset,
         x: pt.TensorLike,
         coords: dict[str, Any],
+        num_samples: int | None = None,
+        random_state: np.random.Generator | int | None = None,
     ) -> xr.DataArray:
+        """Sample the transformation curve given parameters.
+
+        Parameters
+        ----------
+        var_name : str
+            Name of the variable to create.
+        parameters : xr.Dataset
+            Dataset with parameter values (posterior samples).
+        x : pt.TensorLike
+            Input values to apply the transformation to.
+        coords : dict[str, Any]
+            Coordinates for the output DataArray. Should have exactly one key
+            representing the x-dimension.
+        num_samples : int or None, optional
+            Number of posterior samples to use. If None, all samples are used.
+            If less than total available samples, random subsampling is performed.
+        random_state : np.random.Generator, int, or None, optional
+            Random state for reproducible subsampling.
+
+        Returns
+        -------
+        xr.DataArray
+            Sampled transformation curve with dimensions including 'sample'.
+
+        """
         output_core_dims = self._infer_output_core_dims()
 
         keys = list(coords.keys())
@@ -506,6 +533,26 @@ class Transformation:
             msg = "The coords should only have one key."
             raise ValueError(msg)
         x_dim = keys[0]
+
+        # Subsample from posterior if needed
+        n_chains = parameters.sizes["chain"]
+        n_draws = parameters.sizes["draw"]
+        total_samples = n_chains * n_draws
+
+        if num_samples is not None and num_samples < total_samples:
+            rng = np.random.default_rng(random_state)
+            flat_indices = rng.choice(total_samples, size=num_samples, replace=False)
+
+            stacked = parameters.stack(sample=("chain", "draw"))
+            selected = stacked.isel(sample=flat_indices)
+            # Drop chain, draw, and sample to avoid MultiIndex deprecation warning
+            params = (
+                selected.drop_vars(["chain", "draw", "sample"])
+                .rename({"sample": "draw"})
+                .expand_dims("chain")
+            )
+        else:
+            params = parameters
 
         # Allow broadcasting
         x = np.expand_dims(
@@ -516,7 +563,7 @@ class Transformation:
         coords.update(
             {
                 dim: np.asarray(coord)
-                for dim, coord in parameters.coords.items()
+                for dim, coord in params.coords.items()
                 if dim not in ["chain", "draw"]
             }
         )
@@ -528,10 +575,13 @@ class Transformation:
                 dims=(x_dim, *output_core_dims),
             )
 
-            return pm.sample_posterior_predictive(
-                parameters,
+            curve = pm.sample_posterior_predictive(
+                params,
                 var_names=[var_name],
             ).posterior_predictive[var_name]
+
+        # Flatten chain/draw to 'sample' dimension for consistent output
+        return curve.stack(sample=("chain", "draw"))
 
     def plot_curve_samples(
         self,

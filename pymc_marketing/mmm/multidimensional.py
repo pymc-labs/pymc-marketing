@@ -1923,14 +1923,12 @@ class MMM(RegressionModelBuilder):
         # Step 2: Sample curve using transformation's method
         # max_value is already in scaled space
         # This automatically handles channel dimensions
+        # Subsampling and chain/draw flattening is handled by _sample_curve
         curve = self.saturation.sample_curve(
             parameters=params,
             max_value=max_value,
             num_points=num_points,
         )
-
-        # Flatten chain/draw to 'sample' dimension for consistent output
-        curve = curve.stack(sample=("chain", "draw"))
 
         # Step 3: Convert to original scale if requested
         if original_scale:
@@ -2039,45 +2037,14 @@ class MMM(RegressionModelBuilder):
                 "The model must be fitted (call .fit()) before sampling adstock curves."
             )
 
-        # Step 1: Subsample posterior
-        posterior = self.idata.posterior  # type: ignore[union-attr]
-
-        n_chains = posterior.sizes["chain"]
-        n_draws = posterior.sizes["draw"]
-        total_samples = n_chains * n_draws
-
-        # Subsample from posterior if needed
-        if num_samples is not None and num_samples < total_samples:
-            rng = np.random.default_rng(random_state)
-            # Randomly select samples across all chains/draws
-            flat_indices = rng.choice(total_samples, size=num_samples, replace=False)
-
-            # Stack chain/draw into single dimension, select samples, reshape to chain=1
-            stacked = posterior.stack(sample=("chain", "draw"))
-            selected = stacked.isel(sample=flat_indices)
-            # Drop the multi-index coords before renaming to avoid conflicts
-            params = (
-                selected.drop_vars(["chain", "draw"])
-                .rename({"sample": "draw"})
-                .expand_dims("chain")
-            )
-        else:
-            params = posterior
-
-        # Step 2: Sample curve using transformation's method
-        # This automatically handles channel dimensions
-        curve = self.adstock.sample_curve(
-            parameters=params,
+        # Sample curve using transformation's method
+        # Subsampling and chain/draw flattening is handled by _sample_curve
+        return self.adstock.sample_curve(
+            parameters=self.idata.posterior,  # type: ignore[union-attr]
             amount=amount,
+            num_samples=num_samples,
+            random_state=random_state,
         )
-
-        # Flatten chain/draw to 'sample' dimension for consistent output
-        curve = curve.stack(sample=("chain", "draw"))
-
-        # Note: No scaling step - adstock curves represent time decay,
-        # not contribution to target variable
-
-        return curve
 
     @property
     def sensitivity(self) -> SensitivityAnalysis:
