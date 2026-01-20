@@ -177,10 +177,9 @@ class TestFactoryFunctionExistence:
     def test_factory_functions_importable(self):
         """Test that all factory functions are importable from summary module."""
         from pymc_marketing.mmm.summary import (
+            create_adstock_curves,
             create_channel_spend_dataframe,
             create_contribution_summary,
-            create_decay_curves,
-            create_period_over_period_summary,
             create_posterior_predictive_summary,
             create_roas_summary,
             create_saturation_curves,
@@ -193,9 +192,8 @@ class TestFactoryFunctionExistence:
         assert callable(create_roas_summary)
         assert callable(create_channel_spend_dataframe)
         assert callable(create_saturation_curves)
-        assert callable(create_decay_curves)
+        assert callable(create_adstock_curves)
         assert callable(create_total_contribution_summary)
-        assert callable(create_period_over_period_summary)
 
     def test_factory_class_importable(self):
         """Test that MMMSummaryFactory class is importable."""
@@ -410,7 +408,6 @@ class TestOutputFormats:
             "create_roas_summary",
             "create_channel_spend_dataframe",
             "create_total_contribution_summary",
-            "create_period_over_period_summary",
         ],
     )
     def test_all_factory_functions_support_output_format(
@@ -785,14 +782,11 @@ class TestMMMSummaryFactory:
         assert hasattr(factory, "saturation_curves")
         assert callable(factory.saturation_curves)
 
-        assert hasattr(factory, "decay_curves")
-        assert callable(factory.decay_curves)
+        assert hasattr(factory, "adstock_curves")
+        assert callable(factory.adstock_curves)
 
         assert hasattr(factory, "total_contribution")
         assert callable(factory.total_contribution)
-
-        assert hasattr(factory, "period_over_period")
-        assert callable(factory.period_over_period)
 
     def test_factory_methods_use_stored_defaults(self, mock_mmm_idata_wrapper):
         """Test that factory methods use stored defaults."""
@@ -916,13 +910,13 @@ class TestAdditionalSummaryFunctions:
         )
 
     @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-    def test_decay_curves_schema(self, fitted_mmm, request):
-        """Test decay curves summary returns DataFrame with correct schema."""
-        from pymc_marketing.mmm.summary import create_decay_curves
+    def test_adstock_curves_schema(self, fitted_mmm, request):
+        """Test adstock curves summary returns DataFrame with correct schema."""
+        from pymc_marketing.mmm.summary import create_adstock_curves
 
         mmm = request.getfixturevalue(fitted_mmm)
-        # Act - decay curves require a fitted model
-        df = create_decay_curves(
+        # Act - adstock curves require a fitted model
+        df = create_adstock_curves(
             model=mmm,
             hdi_probs=[0.94],
         )
@@ -958,22 +952,6 @@ class TestAdditionalSummaryFunctions:
         if len(df) > 0:
             components = set(df["component"].unique())
             assert len(components) > 0, "Should have at least one component type"
-
-    def test_period_over_period_summary_schema(self, mock_mmm_idata_wrapper):
-        """Test period-over-period summary returns percentage changes."""
-        from pymc_marketing.mmm.summary import create_period_over_period_summary
-
-        # Act
-        df = create_period_over_period_summary(
-            data=mock_mmm_idata_wrapper,
-            hdi_probs=[0.94],
-        )
-
-        # Assert - required columns
-        required_columns = {"channel", "pct_change_mean", "pct_change_median"}
-        assert required_columns.issubset(set(df.columns)), (
-            f"Missing required columns. Expected {required_columns}, got {set(df.columns)}"
-        )
 
 
 # ============================================================================
@@ -1124,16 +1102,16 @@ class TestMMMSummaryFactoryMethodCoverage:
         assert "mean" in df.columns
 
     @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-    def test_factory_decay_curves_method(self, fitted_mmm, request):
-        """Test that factory decay_curves method works correctly."""
+    def test_factory_adstock_curves_method(self, fitted_mmm, request):
+        """Test that factory adstock_curves method works correctly."""
         from pymc_marketing.mmm.summary import MMMSummaryFactory
 
-        # decay_curves requires model
+        # adstock_curves requires model
         mmm = request.getfixturevalue(fitted_mmm)
         factory = MMMSummaryFactory(data=mmm.data, model=mmm, hdi_probs=[0.94])
 
         # Act
-        df = factory.decay_curves(max_lag=10)
+        df = factory.adstock_curves(max_lag=10)
 
         # Assert
         assert isinstance(df, pd.DataFrame)
@@ -1154,20 +1132,6 @@ class TestMMMSummaryFactoryMethodCoverage:
         assert "date" in df.columns
         assert "component" in df.columns
         assert "mean" in df.columns
-
-    def test_factory_period_over_period_method(self, mock_mmm_idata_wrapper):
-        """Test that factory period_over_period method works correctly."""
-        from pymc_marketing.mmm.summary import MMMSummaryFactory
-
-        factory = MMMSummaryFactory(data=mock_mmm_idata_wrapper, hdi_probs=[0.94])
-
-        # Act
-        df = factory.period_over_period()
-
-        # Assert
-        assert isinstance(df, pd.DataFrame)
-        assert "channel" in df.columns
-        assert "pct_change_mean" in df.columns
 
     def test_factory_methods_with_frequency_parameter(self, mock_mmm_idata_wrapper):
         """Test factory methods with frequency parameter."""
@@ -1212,9 +1176,6 @@ class TestMMMSummaryFactoryMethodCoverage:
         assert isinstance(
             data_factory.total_contribution(output_format="pandas"), pd.DataFrame
         )
-        assert isinstance(
-            data_factory.period_over_period(output_format="pandas"), pd.DataFrame
-        )
 
         # Factory with model for curve methods
         model_factory = MMMSummaryFactory(
@@ -1228,7 +1189,7 @@ class TestMMMSummaryFactoryMethodCoverage:
             model_factory.saturation_curves(output_format="pandas"), pd.DataFrame
         )
         assert isinstance(
-            model_factory.decay_curves(output_format="pandas"), pd.DataFrame
+            model_factory.adstock_curves(output_format="pandas"), pd.DataFrame
         )
 
 
@@ -1556,14 +1517,14 @@ class TestAdditionalPathCoverage:
         assert "abs_error_80_lower" in df.columns
 
     @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-    def test_decay_curves_custom_max_lag(self, fitted_mmm, request):
-        """Test decay curves with custom max_lag parameter."""
-        from pymc_marketing.mmm.summary import create_decay_curves
+    def test_adstock_curves_custom_max_lag(self, fitted_mmm, request):
+        """Test adstock curves with custom max_lag parameter."""
+        from pymc_marketing.mmm.summary import create_adstock_curves
 
         mmm = request.getfixturevalue(fitted_mmm)
-        # Act - decay curves require a fitted model
+        # Act - adstock curves require a fitted model
         max_lag = 3
-        df = create_decay_curves(
+        df = create_adstock_curves(
             model=mmm,
             max_lag=max_lag,
             hdi_probs=[0.80],
@@ -1574,20 +1535,6 @@ class TestAdditionalPathCoverage:
         assert len(df["time"].unique()) == max_lag + 1
         assert "abs_error_80_lower" in df.columns
 
-    def test_period_over_period_with_multiple_hdi(self, mock_mmm_idata_wrapper):
-        """Test period over period summary with multiple HDI probs."""
-        from pymc_marketing.mmm.summary import create_period_over_period_summary
-
-        # Act
-        df = create_period_over_period_summary(
-            data=mock_mmm_idata_wrapper,
-            hdi_probs=[0.80, 0.94],
-        )
-
-        # Assert
-        assert "abs_error_80_lower" in df.columns
-        assert "abs_error_94_lower" in df.columns
-
     @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
     def test_default_hdi_probs_applied_in_all_functions(
         self, mock_mmm_idata_wrapper, fitted_mmm, request
@@ -1595,7 +1542,6 @@ class TestAdditionalPathCoverage:
         """Test that default HDI probs [0.94] are applied when None is passed."""
         from pymc_marketing.mmm.summary import (
             create_adstock_curves,
-            create_period_over_period_summary,
             create_saturation_curves,
         )
 
@@ -1606,12 +1552,6 @@ class TestAdditionalPathCoverage:
 
         df_adstock = create_adstock_curves(mmm, hdi_probs=None)
         assert "abs_error_94_lower" in df_adstock.columns
-
-        # Period over period uses data wrapper
-        df_pop = create_period_over_period_summary(
-            mock_mmm_idata_wrapper, hdi_probs=None
-        )
-        assert "abs_error_94_lower" in df_pop.columns
 
 
 # ============================================================================
@@ -2040,40 +1980,13 @@ class TestAdstockCurvesSpecific:
 
 
 class TestChangeOverTimeImplementation:
-    """Test change over time (renamed from period_over_period) implementation."""
+    """Test change over time implementation."""
 
     def test_change_over_time_function_exists(self):
         """Test that create_change_over_time_summary exists."""
         from pymc_marketing.mmm.summary import create_change_over_time_summary
 
         assert callable(create_change_over_time_summary)
-
-    def test_period_over_period_deprecated(self, mock_mmm_idata_wrapper):
-        """Test that old period_over_period name is deprecated."""
-        import warnings
-
-        from pymc_marketing.mmm.summary import create_period_over_period_summary
-
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-
-            # Call the deprecated function
-            try:
-                create_period_over_period_summary(mock_mmm_idata_wrapper)
-            except Exception:  # noqa: S110
-                # Function might fail if not fully implemented
-                pass
-
-            # Check for deprecation warning
-            deprecation_warnings = [
-                warning
-                for warning in w
-                if issubclass(warning.category, DeprecationWarning)
-            ]
-            assert len(deprecation_warnings) > 0, "Should raise DeprecationWarning"
-            assert "create_change_over_time_summary" in str(
-                deprecation_warnings[0].message
-            )
 
     def test_change_over_time_output_schema(self, mock_mmm_idata_wrapper):
         """Test that change_over_time returns correct column schema."""

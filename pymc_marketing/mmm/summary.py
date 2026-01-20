@@ -688,34 +688,6 @@ def create_adstock_curves(
     return _convert_output(df, output_format)
 
 
-def create_decay_curves(
-    model: Any,
-    hdi_probs: list[float] | None = None,
-    max_lag: int = 20,
-    output_format: OutputFormat = "pandas",
-) -> DataFrameType:
-    """Use create_adstock_curves instead.
-
-    .. deprecated:: 0.X.0
-        `create_decay_curves` has been renamed to `create_adstock_curves`.
-        Use the new name instead.
-    """
-    import warnings
-
-    warnings.warn(
-        "create_decay_curves is deprecated. Use create_adstock_curves instead.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-
-    return create_adstock_curves(
-        model=model,
-        hdi_probs=hdi_probs,
-        max_lag=max_lag,
-        output_format=output_format,
-    )
-
-
 @validate_mmm_data
 def create_total_contribution_summary(
     data: MMMIDataWrapper,
@@ -878,35 +850,6 @@ def create_change_over_time_summary(
     return _convert_output(df, output_format)
 
 
-def create_period_over_period_summary(
-    data: MMMIDataWrapper,
-    hdi_probs: list[float] | None = None,
-    frequency: Frequency | None = None,
-    output_format: OutputFormat = "pandas",
-) -> DataFrameType:
-    """Use create_change_over_time_summary instead.
-
-    .. deprecated:: 0.X.0
-        `create_period_over_period_summary` has been renamed to
-        `create_change_over_time_summary`. Use the new name instead.
-    """
-    import warnings
-
-    warnings.warn(
-        "create_period_over_period_summary is deprecated. "
-        "Use create_change_over_time_summary instead.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-
-    return create_change_over_time_summary(
-        data=data,
-        hdi_probs=hdi_probs,
-        frequency=frequency,
-        output_format=output_format,
-    )
-
-
 # ==================== Factory Class ====================
 
 
@@ -1066,27 +1009,6 @@ class MMMSummaryFactory:
             else self.output_format,
         )
 
-    def decay_curves(
-        self,
-        hdi_probs: list[float] | None = None,
-        max_lag: int = 20,
-        output_format: OutputFormat | None = None,
-    ) -> DataFrameType:
-        """Use adstock_curves instead."""
-        import warnings
-
-        warnings.warn(
-            "decay_curves is deprecated. Use adstock_curves instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
-        return self.adstock_curves(
-            hdi_probs=hdi_probs,
-            max_lag=max_lag,
-            output_format=output_format,
-        )
-
     def total_contribution(
         self,
         hdi_probs: list[float] | None = None,
@@ -1120,23 +1042,4 @@ class MMMSummaryFactory:
             output_format=output_format
             if output_format is not None
             else self.output_format,
-        )
-
-    def period_over_period(
-        self,
-        hdi_probs: list[float] | None = None,
-        output_format: OutputFormat | None = None,
-    ) -> DataFrameType:
-        """Use change_over_time instead."""
-        import warnings
-
-        warnings.warn(
-            "period_over_period is deprecated. Use change_over_time instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
-        return self.change_over_time(
-            hdi_probs=hdi_probs,
-            output_format=output_format,
         )
