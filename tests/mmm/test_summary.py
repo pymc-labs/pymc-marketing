@@ -2150,3 +2150,143 @@ class TestMMMSummaryProperty:
         assert saturation_df is not None
         assert len(saturation_df) > 0
         assert "x" in saturation_df.columns
+
+
+# ============================================================================
+# Category 11: Edge Cases - Empty HDI Probabilities
+# ============================================================================
+
+
+class TestEmptyHDIProbs:
+    """Test that all create_* functions work correctly with empty hdi_probs list."""
+
+    @pytest.mark.parametrize(
+        "factory_function_name,function_kwargs,expected_mean_col,expected_median_col,allow_empty",
+        [
+            ("create_posterior_predictive_summary", {}, "mean", "median", False),
+            (
+                "create_contribution_summary",
+                {"component": "channel"},
+                "mean",
+                "median",
+                False,
+            ),
+            ("create_roas_summary", {}, "mean", "median", False),
+            ("create_total_contribution_summary", {}, "mean", "median", True),
+            (
+                "create_change_over_time_summary",
+                {},
+                "pct_change_mean",
+                "pct_change_median",
+                False,
+            ),
+        ],
+    )
+    def test_data_functions_with_empty_hdi_probs(
+        self,
+        mock_mmm_idata_wrapper,
+        factory_function_name,
+        function_kwargs,
+        expected_mean_col,
+        expected_median_col,
+        allow_empty,
+    ):
+        """Test that data-only factory functions work with empty hdi_probs list.
+
+        When hdi_probs=[], functions should:
+        - Not crash
+        - Return DataFrame with mean and median columns (or equivalent)
+        - Not include any HDI columns (abs_error_*)
+        """
+        from pymc_marketing.mmm import summary
+
+        factory_func = getattr(summary, factory_function_name)
+
+        # Act - call with empty hdi_probs
+        df = factory_func(
+            data=mock_mmm_idata_wrapper,
+            hdi_probs=[],
+            **function_kwargs,
+        )
+
+        # Assert - function succeeded
+        assert df is not None, f"{factory_function_name} returned None"
+        assert isinstance(df, pd.DataFrame), (
+            f"{factory_function_name} should return DataFrame"
+        )
+
+        # Some functions may return empty DataFrames (e.g., when no contributions exist)
+        if not allow_empty:
+            assert len(df) > 0, f"{factory_function_name} returned empty DataFrame"
+
+        # Assert - mean and median columns exist (or equivalent columns)
+        if len(df) > 0:
+            assert expected_mean_col in df.columns, (
+                f"{factory_function_name} should have '{expected_mean_col}' column"
+            )
+            assert expected_median_col in df.columns, (
+                f"{factory_function_name} should have '{expected_median_col}' column"
+            )
+
+        # Assert - no HDI columns exist
+        hdi_columns = [col for col in df.columns if "abs_error" in col]
+        assert len(hdi_columns) == 0, (
+            f"{factory_function_name} should not have HDI columns when hdi_probs=[]. "
+            f"Found: {hdi_columns}"
+        )
+
+    @pytest.mark.parametrize(
+        "factory_function_name,function_kwargs",
+        [
+            ("create_saturation_curves", {"n_points": 50}),
+            ("create_adstock_curves", {"max_lag": 10}),
+        ],
+    )
+    @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
+    def test_model_functions_with_empty_hdi_probs(
+        self,
+        factory_function_name,
+        function_kwargs,
+        fitted_mmm,
+        request,
+    ):
+        """Test that model-requiring factory functions work with empty hdi_probs list.
+
+        When hdi_probs=[], functions should:
+        - Not crash
+        - Return DataFrame with mean and median columns
+        - Not include any HDI columns (abs_error_*)
+        """
+        from pymc_marketing.mmm import summary
+
+        mmm = request.getfixturevalue(fitted_mmm)
+        factory_func = getattr(summary, factory_function_name)
+
+        # Act - call with empty hdi_probs
+        df = factory_func(
+            model=mmm,
+            hdi_probs=[],
+            **function_kwargs,
+        )
+
+        # Assert - function succeeded
+        assert df is not None, f"{factory_function_name} returned None"
+        assert isinstance(df, pd.DataFrame), (
+            f"{factory_function_name} should return DataFrame"
+        )
+        assert len(df) > 0, f"{factory_function_name} returned empty DataFrame"
+
+        # Assert - mean and median columns exist
+        assert "mean" in df.columns, (
+            f"{factory_function_name} should have 'mean' column"
+        )
+        assert "median" in df.columns, (
+            f"{factory_function_name} should have 'median' column"
+        )
+
+        # Assert - no HDI columns exist
+        hdi_columns = [col for col in df.columns if "abs_error" in col]
+        assert len(hdi_columns) == 0, (
+            f"{factory_function_name} should not have HDI columns when hdi_probs=[]. "
+            f"Found: {hdi_columns}"
+        )
