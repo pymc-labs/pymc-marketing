@@ -56,17 +56,18 @@ Plot the default priors for an adstock transformation:
 from __future__ import annotations
 
 import numpy as np
-import pytensor.tensor as pt
 import xarray as xr
 from pydantic import Field, validate_call
 from pymc_extras.deserialize import deserialize, register_deserialization
-from pymc_extras.prior import Prior
+from pytensor.xtensor import as_xtensor
 
+# from pymc.dims.distributions import Weibull
 from pymc_marketing.mmm.components.base import (
     SupportedPrior,
     Transformation,
     create_registration_meta,
 )
+from pymc_marketing.mmm.dims import XPrior
 from pymc_marketing.mmm.transformers import (
     ConvMode,
     WeibullType,
@@ -86,7 +87,7 @@ class AdstockTransformation(Transformation, metaclass=AdstockRegistrationMeta): 
 
     In order to use a custom saturation function, inherit from this class and define:
 
-    - `function`: a function that takes x to adstock x
+    - `function`: a function that takes x to adstock x, along a given `dim`
     - `default_priors`: dictionary with priors for every parameter in function
 
     Consider the predefined subclasses as examples.
@@ -198,13 +199,18 @@ class BinomialAdstock(AdstockTransformation):
 
     lookup_name = "binomial"
 
-    def function(self, x, alpha):
+    def function(self, x, alpha, *, dim: str):
         """Binomial adstock function."""
         return binomial_adstock(
-            x, alpha=alpha, l_max=self.l_max, normalize=self.normalize, mode=self.mode
+            x,
+            alpha=alpha,
+            l_max=self.l_max,
+            normalize=self.normalize,
+            mode=self.mode,
+            dim=dim,
         )
 
-    default_priors = {"alpha": Prior("Beta", alpha=1, beta=3)}
+    default_priors = {"alpha": XPrior("Beta", alpha=1, beta=3)}
 
 
 class GeometricAdstock(AdstockTransformation):
@@ -231,13 +237,18 @@ class GeometricAdstock(AdstockTransformation):
 
     lookup_name = "geometric"
 
-    def function(self, x, alpha):
+    def function(self, x, alpha, *, dim: str):
         """Geometric adstock function."""
         return geometric_adstock(
-            x, alpha=alpha, l_max=self.l_max, normalize=self.normalize, mode=self.mode
+            x,
+            alpha=alpha,
+            l_max=self.l_max,
+            normalize=self.normalize,
+            mode=self.mode,
+            dim=dim,
         )
 
-    default_priors = {"alpha": Prior("Beta", alpha=1, beta=3)}
+    default_priors = {"alpha": XPrior("Beta", alpha=1, beta=3)}
 
 
 class DelayedAdstock(AdstockTransformation):
@@ -264,7 +275,7 @@ class DelayedAdstock(AdstockTransformation):
 
     lookup_name = "delayed"
 
-    def function(self, x, alpha, theta):
+    def function(self, x, alpha, theta, *, dim: str):
         """Delayed adstock function."""
         return delayed_adstock(
             x,
@@ -273,11 +284,12 @@ class DelayedAdstock(AdstockTransformation):
             l_max=self.l_max,
             normalize=self.normalize,
             mode=self.mode,
+            dim=dim,
         )
 
     default_priors = {
-        "alpha": Prior("Beta", alpha=1, beta=3),
-        "theta": Prior("HalfNormal", sigma=1),
+        "alpha": XPrior("Beta", alpha=1, beta=3),
+        "theta": XPrior("HalfNormal", sigma=1),
     }
 
 
@@ -305,7 +317,7 @@ class WeibullPDFAdstock(AdstockTransformation):
 
     lookup_name = "weibull_pdf"
 
-    def function(self, x, lam, k):
+    def function(self, x, lam, k, *, dim: str):
         """Weibull adstock function."""
         return weibull_adstock(
             x=x,
@@ -315,11 +327,12 @@ class WeibullPDFAdstock(AdstockTransformation):
             mode=self.mode,
             type=WeibullType.PDF,
             normalize=self.normalize,
+            dim=dim,
         )
 
     default_priors = {
-        "lam": Prior("Gamma", mu=2, sigma=1),
-        "k": Prior("Gamma", mu=3, sigma=1),
+        "lam": XPrior("Gamma", mu=2, sigma=1),
+        "k": XPrior("Gamma", mu=3, sigma=1),
     }
 
 
@@ -347,7 +360,7 @@ class WeibullCDFAdstock(AdstockTransformation):
 
     lookup_name = "weibull_cdf"
 
-    def function(self, x, lam, k):
+    def function(self, x, lam, k, *, dim: str):
         """Weibull adstock function."""
         return weibull_adstock(
             x=x,
@@ -357,11 +370,12 @@ class WeibullCDFAdstock(AdstockTransformation):
             mode=self.mode,
             type=WeibullType.CDF,
             normalize=self.normalize,
+            dim=dim,
         )
 
     default_priors = {
-        "lam": Prior("Gamma", mu=2, sigma=2.5),
-        "k": Prior("Gamma", mu=2, sigma=2.5),
+        "lam": XPrior("Gamma", mu=2, sigma=2.5),
+        "k": XPrior("Gamma", mu=2, sigma=2.5),
     }
 
 
@@ -370,9 +384,10 @@ class NoAdstock(AdstockTransformation):
 
     lookup_name: str = "no_adstock"
 
-    def function(self, x):
+    def function(self, x, *, dim: str | None = None):
         """No adstock function."""
-        return pt.as_tensor_variable(x)
+        x = as_xtensor(x)
+        return x
 
     default_priors = {}
 

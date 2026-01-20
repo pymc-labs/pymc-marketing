@@ -14,6 +14,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pymc as pm
+import pymc.dims as pmd
 import pytensor
 import pytensor.tensor as pt
 import pytest
@@ -22,7 +23,9 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from pydantic import ValidationError
 from pymc_extras.prior import Prior, UnknownTransformError
+from pytensor.xtensor.type import XTensorVariable
 
+from pymc_marketing.mmm.dims import XPrior
 from pymc_marketing.mmm.hsgp import (
     HSGP,
     CovFunc,
@@ -64,17 +67,17 @@ def test_hspg_class_method_assigns_data(data, default_hsgp) -> None:
 
 
 def test_hspg_class_method_default_distributions(default_hsgp) -> None:
-    assert isinstance(default_hsgp.ls, Prior)
+    assert isinstance(default_hsgp.ls, XPrior)
     assert default_hsgp.ls.distribution == "Weibull"
-    assert isinstance(default_hsgp.eta, Prior)
+    assert isinstance(default_hsgp.eta, XPrior)
     assert default_hsgp.eta.distribution == "Exponential"
 
 
 def test_hsgp_class_method_ls_upper_changes_distribution(data) -> None:
     hsgp = HSGP.parameterize_from_data(data, dims="time", ls_upper=10)
-    assert isinstance(hsgp.ls, Prior)
+    assert isinstance(hsgp.ls, XPrior)
     assert hsgp.ls.distribution == "InverseGamma"
-    assert isinstance(hsgp.eta, Prior)
+    assert isinstance(hsgp.eta, XPrior)
     assert hsgp.eta.distribution == "Exponential"
 
 
@@ -125,7 +128,7 @@ def test_unsupported_cov_func_raises() -> None:
 def test_X_at_init_stores_as_tensor_variable() -> None:
     X = np.arange(10)
     hsgp = HSGP(X=X, dims="time", m=200, L=5, eta=1, ls=1)
-    assert isinstance(hsgp.X, pt.TensorVariable)
+    assert isinstance(hsgp.X, XTensorVariable)
 
 
 @pytest.fixture(scope="module")
@@ -333,7 +336,7 @@ def test_hsgp_with_shared_data():
     # Create a model and a shared data variable using pm.MutableData
     with pm.Model(coords=coords) as model:
         # Create a shared data variable with the name "X_shared"
-        X_shared = pm.Data("X_shared", X, dims="time")
+        X_shared = pmd.Data("X_shared", X, dims="time")
         # Parameterize the HSGP using the shared data
         hsgp = HSGP.parameterize_from_data(X_shared, dims="time")
         # Create the deterministic variable "f" from the HSGP configuration
@@ -343,7 +346,7 @@ def test_hsgp_with_shared_data():
         assert "f" in model.named_vars
 
         # Ensure that the stored X is a shared tensor variable
-        assert isinstance(hsgp.X, pt.TensorVariable)
+        assert isinstance(hsgp.X, XTensorVariable)
 
         # Verify that f depends on X_shared in the computational graph
         assert any(

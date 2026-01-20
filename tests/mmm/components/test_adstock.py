@@ -24,7 +24,8 @@ from pymc_extras.deserialize import (
     register_deserialization,
 )
 from pymc_extras.prior import Prior
-from pytensor.tensor.variable import TensorVariable
+from pytensor.xtensor import as_xtensor
+from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.mmm.components.adstock import (
     ADSTOCK_TRANSFORMATIONS,
@@ -33,6 +34,7 @@ from pymc_marketing.mmm.components.adstock import (
     GeometricAdstock,
     adstock_from_dict,
 )
+from pymc_marketing.mmm.dims import XPrior
 from pymc_marketing.mmm.transformers import ConvMode
 
 
@@ -62,16 +64,17 @@ x[0] = 1
 @pytest.mark.parametrize(
     "x, dims",
     [
-        pytest.param(x, None, id="vector"),
-        pytest.param(np.broadcast_to(x, (3, 20)).T, "channel", id="matrix"),
+        pytest.param(x, ("time",), id="vector"),
+        pytest.param(np.broadcast_to(x, (3, 20)).T, ("channel", "time"), id="matrix"),
     ],
 )
 def test_apply(model, adstock: AdstockTransformation, x, dims) -> None:
+    x = as_xtensor(x, dims=dims)
     with model:
-        y = adstock.apply(x, dims=dims)
+        y = adstock.apply(x, dims=dims, core_dim="time")
 
-    assert isinstance(y, TensorVariable)
-    assert y.eval().shape == x.shape
+    assert isinstance(y, XTensorVariable)
+    assert y.eval().shape == x.type.shape
 
 
 @pytest.mark.parametrize(
@@ -128,7 +131,7 @@ def test_adstock_from_dict(deserialize_func) -> None:
         l_max=10,
         prefix="test",
         priors={
-            "alpha": Prior("Beta", alpha=1, beta=2),
+            "alpha": XPrior("Beta", alpha=1, beta=2),
         },
         mode=ConvMode.Before,
     )
@@ -152,7 +155,7 @@ def test_adstock_from_dict_without_priors(
 
     adstock = deserialize_func(data)
     assert adstock.default_priors == {
-        k: Prior.from_dict(v) for k, v in adstock.to_dict()["priors"].items()
+        k: XPrior.from_dict(v) for k, v in adstock.to_dict()["priors"].items()
     }
 
 
@@ -185,7 +188,7 @@ def test_repr() -> None:
         "GeometricAdstock(prefix='adstock', l_max=10, "
         "normalize=True, "
         "mode='After', "
-        "priors={'alpha': Prior(\"Beta\", alpha=1, beta=3)}"
+        "priors={'alpha': XPrior(\"Beta\", alpha=1, beta=3)}"
         ")"
     )
 

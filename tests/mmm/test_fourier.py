@@ -16,6 +16,7 @@ import datetime
 import matplotlib.pyplot as plt
 import numpy as np
 import pymc as pm
+import pymc.dims as pmd
 import pytest
 import xarray as xr
 from pymc_extras.deserialize import (
@@ -23,8 +24,8 @@ from pymc_extras.deserialize import (
     deserialize,
     register_deserialization,
 )
-from pymc_extras.prior import Prior
 
+from pymc_marketing.mmm.dims import XPrior
 from pymc_marketing.mmm.fourier import (
     FourierBase,
     MonthlyFourier,
@@ -44,7 +45,7 @@ from pymc_marketing.mmm.fourier import (
     ],
 )
 def test_prior_without_dims(seasonality) -> None:
-    prior = Prior("Normal")
+    prior = XPrior("Normal")
     periodicity = seasonality(n_order=2, prior=prior)
 
     assert periodicity.prior.dims == (periodicity.prefix,)
@@ -61,7 +62,7 @@ def test_prior_without_dims(seasonality) -> None:
     ],
 )
 def test_prior_doesnt_have_prefix(seasonality) -> None:
-    prior = Prior("Normal", dims="hierarchy")
+    prior = XPrior("Normal", dims="hierarchy")
     with pytest.raises(ValueError, match=r"Prior distribution must have"):
         seasonality(n_order=2, prior=prior)
 
@@ -229,7 +230,7 @@ def test_sample_curve_additional_dims(mock_parameters, seasonality) -> None:
     ],
 )
 def test_additional_dimension(seasonality) -> None:
-    prior = Prior("Normal", dims=("fourier", "additional_dim", "yet_another_dim"))
+    prior = XPrior("Normal", dims=("fourier", "additional_dim", "yet_another_dim"))
     periodicity = YearlyFourier(n_order=2, prior=prior)
 
     coords = {
@@ -258,7 +259,7 @@ def test_additional_dimension(seasonality) -> None:
     ],
 )
 def test_plot_curve(seasonality) -> None:
-    prior = Prior("Normal", dims=("fourier", "additional_dim"))
+    prior = XPrior("Normal", dims=("fourier", "additional_dim"))
     periodicity = seasonality(n_order=2, prior=prior)
 
     coords = {"additional_dim": range(4)}
@@ -400,22 +401,17 @@ def test_apply_result_callback(seasonality) -> None:
     n_order = 3
     fourier = seasonality(n_order=n_order)
 
-    def result_callback(x):
-        pm.Deterministic(
-            "components",
-            x,
-            dims=("dayofyear", *fourier.prior.dims),
-        )
-
     dayofyear = np.arange(365)
     coords = {
         "dayofyear": dayofyear,
     }
     with pm.Model(coords=coords) as model:
-        fourier.apply(dayofyear, result_callback=result_callback)
+        res = fourier.apply(dayofyear, sum=False)
+        assert res.dims == ("date", "fourier")
 
-    assert "components" in model
-    assert model["components"].eval().shape == (365, n_order * 2)
+    with pm.Model(coords=coords) as model:
+        res = fourier.apply(dayofyear, sum=True)
+        assert res.dims == ("date",)
 
 
 @pytest.mark.parametrize(
@@ -465,19 +461,19 @@ def test_serialization_to_json(seasonality) -> None:
 
 @pytest.fixture
 def yearly_fourier() -> YearlyFourier:
-    prior = Prior("Laplace", mu=0, b=1, dims="fourier")
+    prior = XPrior("Laplace", mu=0, b=1, dims="fourier")
     return YearlyFourier(n_order=2, prior=prior)
 
 
 @pytest.fixture
 def monthly_fourier() -> MonthlyFourier:
-    prior = Prior("Laplace", mu=0, b=1, dims="fourier")
+    prior = XPrior("Laplace", mu=0, b=1, dims="fourier")
     return MonthlyFourier(n_order=2, prior=prior)
 
 
 @pytest.fixture
 def weekly_fourier() -> WeeklyFourier:
-    prior = Prior("Laplace", mu=0, b=1, dims="fourier")
+    prior = XPrior("Laplace", mu=0, b=1, dims="fourier")
     return WeeklyFourier(n_order=2, prior=prior)
 
 
@@ -573,7 +569,7 @@ def test_fourier_base_instantiation():
     with pytest.raises(TypeError) as exc_info:
         FourierBase(
             n_order=2,
-            prior=Prior("Laplace", mu=0, b=1, dims="fourier"),
+            prior=XPrior("Laplace", mu=0, b=1, dims="fourier"),
         )
     assert "Can't instantiate abstract class FourierBase" in str(exc_info.value)
 
@@ -583,7 +579,7 @@ class ArbitraryCode:
         self.dims = dims
 
     def create_variable(self, name: str):
-        return pm.Normal(name, dims=self.dims)
+        return pmd.Normal(name, dims=self.dims)
 
 
 @pytest.mark.parametrize(
@@ -657,7 +653,7 @@ def test_fourier_to_dict(name, cls, days_in_period) -> None:
             "days_in_period": days_in_period,
             "prefix": "fourier",
             "prior": {
-                "dist": "Laplace",
+                "xdist": "Laplace",
                 "kwargs": {"b": 1, "mu": 0},
                 "dims": ["fourier"],
             },
