@@ -1531,8 +1531,10 @@ class TestAdditionalPathCoverage:
             n_channels = 1
 
         # Check for custom dimensions (e.g., country in panel model)
+        # Exclude standard columns and channel (channel is counted separately)
         excluded_cols = [
             "x",
+            "channel",  # Channel is counted separately, not a custom dimension
             "mean",
             "median",
             "abs_error_80_lower",

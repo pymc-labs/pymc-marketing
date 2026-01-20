@@ -74,7 +74,7 @@ DataFrameType = pd.DataFrame  # Will be Union[pd.DataFrame, pl.DataFrame] at run
 # ==================== Validation Decorator ====================
 
 
-def validate_idata(func: Callable[P, R]) -> Callable[P, R]:
+def validate_mmm_data(func: Callable[P, R]) -> Callable[P, R]:
     """Validate MMMIDataWrapper before function execution.
 
     Calls wrapper.validate_or_raise() to ensure idata structure is valid
@@ -85,7 +85,7 @@ def validate_idata(func: Callable[P, R]) -> Callable[P, R]:
 
     Examples
     --------
-    >>> @validate_idata
+    >>> @validate_mmm_data
     ... def create_contribution_summary(data: MMMIDataWrapper, ...):
     ...     # data is validated before this runs
     ...     contributions = data.get_contributions()
@@ -301,7 +301,7 @@ def _prepare_data_and_hdi(
 # ==================== Factory Functions ====================
 
 
-@validate_idata
+@validate_mmm_data
 def create_posterior_predictive_summary(
     data: MMMIDataWrapper,
     hdi_probs: list[float] | None = None,
@@ -353,7 +353,7 @@ def create_posterior_predictive_summary(
     return _convert_output(df, output_format)
 
 
-@validate_idata
+@validate_mmm_data
 def create_contribution_summary(
     data: MMMIDataWrapper,
     hdi_probs: list[float] | None = None,
@@ -417,7 +417,7 @@ def create_contribution_summary(
     return _convert_output(df, output_format)
 
 
-@validate_idata
+@validate_mmm_data
 def create_roas_summary(
     data: MMMIDataWrapper,
     hdi_probs: list[float] | None = None,
@@ -471,7 +471,7 @@ def create_roas_summary(
     return _convert_output(df, output_format)
 
 
-@validate_idata
+@validate_mmm_data
 def create_channel_spend_dataframe(
     data: MMMIDataWrapper,
     output_format: OutputFormat = "pandas",
@@ -716,7 +716,7 @@ def create_decay_curves(
     )
 
 
-@validate_idata
+@validate_mmm_data
 def create_total_contribution_summary(
     data: MMMIDataWrapper,
     hdi_probs: list[float] | None = None,
@@ -783,7 +783,7 @@ def create_total_contribution_summary(
     return _convert_output(result_df, output_format)
 
 
-@validate_idata
+@validate_mmm_data
 def create_change_over_time_summary(
     data: MMMIDataWrapper,
     hdi_probs: list[float] | None = None,
