@@ -465,6 +465,140 @@ class TestOutputFormats:
 
 
 # ============================================================================
+# Category 3b: _convert_output Unit Tests
+# ============================================================================
+
+
+class TestConvertOutput:
+    """Unit tests for the _convert_output helper function."""
+
+    def test_convert_output_pandas_returns_same_dataframe(self):
+        """Test that _convert_output returns the same DataFrame for pandas format."""
+        from pymc_marketing.mmm.summary import _convert_output
+
+        # Arrange
+        df = pd.DataFrame({"a": [1, 2, 3], "b": [4.0, 5.0, 6.0]})
+
+        # Act
+        result = _convert_output(df, "pandas")
+
+        # Assert
+        assert result is df, "Should return the exact same DataFrame object"
+        assert isinstance(result, pd.DataFrame)
+
+    @pytest.mark.skipif(
+        not importlib.util.find_spec("polars"),
+        reason="Polars not installed",
+    )
+    def test_convert_output_polars_returns_polars_dataframe(self):
+        """Test that _convert_output returns a polars DataFrame for polars format."""
+        import polars as pl
+
+        from pymc_marketing.mmm.summary import _convert_output
+
+        # Arrange
+        df = pd.DataFrame({"a": [1, 2, 3], "b": [4.0, 5.0, 6.0]})
+
+        # Act
+        result = _convert_output(df, "polars")
+
+        # Assert
+        assert isinstance(result, pl.DataFrame)
+        assert result.shape == df.shape
+        assert list(result.columns) == list(df.columns)
+        # Verify data integrity
+        assert result["a"].to_list() == [1, 2, 3]
+        assert result["b"].to_list() == [4.0, 5.0, 6.0]
+
+    @pytest.mark.skipif(
+        not importlib.util.find_spec("polars"),
+        reason="Polars not installed",
+    )
+    def test_convert_output_polars_preserves_dtypes(self):
+        """Test that _convert_output preserves column dtypes when converting to polars."""
+        import polars as pl
+
+        from pymc_marketing.mmm.summary import _convert_output
+
+        # Arrange - create DataFrame with various types
+        df = pd.DataFrame(
+            {
+                "int_col": [1, 2, 3],
+                "float_col": [1.5, 2.5, 3.5],
+                "str_col": ["a", "b", "c"],
+                "date_col": pd.to_datetime(["2024-01-01", "2024-01-02", "2024-01-03"]),
+            }
+        )
+
+        # Act
+        result = _convert_output(df, "polars")
+
+        # Assert
+        assert isinstance(result, pl.DataFrame)
+        # Check that the data is preserved
+        assert result["int_col"].to_list() == [1, 2, 3]
+        assert result["float_col"].to_list() == [1.5, 2.5, 3.5]
+        assert result["str_col"].to_list() == ["a", "b", "c"]
+
+    def test_convert_output_invalid_format_raises_value_error(self):
+        """Test that _convert_output raises ValueError for invalid format."""
+        from pymc_marketing.mmm.summary import _convert_output
+
+        # Arrange
+        df = pd.DataFrame({"a": [1, 2, 3]})
+
+        # Act & Assert
+        with pytest.raises(ValueError, match=r"Unknown output_format.*invalid"):
+            _convert_output(df, "invalid")
+
+    def test_convert_output_invalid_format_error_message_helpful(self):
+        """Test that error message suggests valid options."""
+        from pymc_marketing.mmm.summary import _convert_output
+
+        # Arrange
+        df = pd.DataFrame({"a": [1, 2, 3]})
+
+        # Act & Assert
+        with pytest.raises(ValueError, match=r"'pandas' or 'polars'"):
+            _convert_output(df, "spark")
+
+    @pytest.mark.skipif(
+        not importlib.util.find_spec("polars"),
+        reason="Polars not installed",
+    )
+    def test_convert_output_empty_dataframe_polars(self):
+        """Test that _convert_output handles empty DataFrames correctly."""
+        import polars as pl
+
+        from pymc_marketing.mmm.summary import _convert_output
+
+        # Arrange
+        df = pd.DataFrame({"a": [], "b": []})
+
+        # Act
+        result = _convert_output(df, "polars")
+
+        # Assert
+        assert isinstance(result, pl.DataFrame)
+        assert result.shape == (0, 2)
+        assert list(result.columns) == ["a", "b"]
+
+    def test_convert_output_empty_dataframe_pandas(self):
+        """Test that _convert_output handles empty DataFrames correctly for pandas."""
+        from pymc_marketing.mmm.summary import _convert_output
+
+        # Arrange
+        df = pd.DataFrame({"a": [], "b": []})
+
+        # Act
+        result = _convert_output(df, "pandas")
+
+        # Assert
+        assert result is df
+        assert result.shape == (0, 2)
+
+
+# ============================================================================
 # Category 4: HDI Computation Correctness
 # ============================================================================
 
