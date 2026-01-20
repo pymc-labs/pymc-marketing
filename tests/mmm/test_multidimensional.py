@@ -550,10 +550,7 @@ def test_sample_posterior_predictive_same_data(single_dim_data, mock_pymc_sample
     """
     X, y = single_dim_data
     X_train = X.iloc[:-5]
-    _ = X.iloc[-5:]
-
     y_train = y.iloc[:-5]
-    _ = y.iloc[-5:]
 
     # Build a small model
     adstock = GeometricAdstock(l_max=2)
