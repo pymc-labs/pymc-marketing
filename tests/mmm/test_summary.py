@@ -444,17 +444,19 @@ class TestOutputFormats:
             "create_adstock_curves",
         ],
     )
+    @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
     def test_model_factory_functions_support_output_format(
-        self, simple_fitted_mmm, factory_function_name
+        self, factory_function_name, fitted_mmm, request
     ):
         """Test that model-requiring factory functions accept output_format parameter."""
         from pymc_marketing.mmm import summary
 
+        mmm = request.getfixturevalue(fitted_mmm)
         factory_func = getattr(summary, factory_function_name)
 
         # Act - these functions take model as first arg
         try:
-            df = factory_func(model=simple_fitted_mmm, output_format="pandas")
+            df = factory_func(model=mmm, output_format="pandas")
             # Assert it returned something
             assert df is not None, f"{factory_function_name} returned None"
         except TypeError as e:
@@ -886,13 +888,15 @@ class TestMMMSummaryFactory:
 class TestAdditionalSummaryFunctions:
     """Test additional summary functions beyond the core 4."""
 
-    def test_saturation_curves_schema(self, simple_fitted_mmm):
+    @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
+    def test_saturation_curves_schema(self, fitted_mmm, request):
         """Test saturation curves summary returns DataFrame with correct schema."""
         from pymc_marketing.mmm.summary import create_saturation_curves
 
+        mmm = request.getfixturevalue(fitted_mmm)
         # Act - saturation curves require a fitted model
         df = create_saturation_curves(
-            model=simple_fitted_mmm,
+            model=mmm,
             hdi_probs=[0.94],
         )
 
@@ -911,13 +915,15 @@ class TestAdditionalSummaryFunctions:
             f"x column should be numeric, got {df['x'].dtype}"
         )
 
-    def test_decay_curves_schema(self, simple_fitted_mmm):
+    @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
+    def test_decay_curves_schema(self, fitted_mmm, request):
         """Test decay curves summary returns DataFrame with correct schema."""
         from pymc_marketing.mmm.summary import create_decay_curves
 
+        mmm = request.getfixturevalue(fitted_mmm)
         # Act - decay curves require a fitted model
         df = create_decay_curves(
-            model=simple_fitted_mmm,
+            model=mmm,
             hdi_probs=[0.94],
         )
 
@@ -1100,14 +1106,14 @@ class TestMMMSummaryFactoryMethodCoverage:
         assert "channel" in df.columns
         assert "channel_data" in df.columns
 
-    def test_factory_saturation_curves_method(self, simple_fitted_mmm):
+    @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
+    def test_factory_saturation_curves_method(self, fitted_mmm, request):
         """Test that factory saturation_curves method works correctly."""
         from pymc_marketing.mmm.summary import MMMSummaryFactory
 
+        mmm = request.getfixturevalue(fitted_mmm)
         # saturation_curves requires model
-        factory = MMMSummaryFactory(
-            data=simple_fitted_mmm.data, model=simple_fitted_mmm, hdi_probs=[0.94]
-        )
+        factory = MMMSummaryFactory(data=mmm.data, model=mmm, hdi_probs=[0.94])
 
         # Act
         df = factory.saturation_curves(n_points=50)
@@ -1181,12 +1187,14 @@ class TestMMMSummaryFactoryMethodCoverage:
         assert isinstance(df_roas, pd.DataFrame)
         assert isinstance(df_total, pd.DataFrame)
 
+    @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
     def test_factory_methods_with_output_format_override(
-        self, mock_mmm_idata_wrapper, simple_fitted_mmm
+        self, mock_mmm_idata_wrapper, fitted_mmm, request
     ):
         """Test that factory methods correctly override output_format."""
         from pymc_marketing.mmm.summary import MMMSummaryFactory
 
+        mmm = request.getfixturevalue(fitted_mmm)
         # Data-only factory for methods that don't need model
         data_factory = MMMSummaryFactory(
             data=mock_mmm_idata_wrapper,
@@ -1210,8 +1218,8 @@ class TestMMMSummaryFactoryMethodCoverage:
 
         # Factory with model for curve methods
         model_factory = MMMSummaryFactory(
-            data=simple_fitted_mmm.data,
-            model=simple_fitted_mmm,
+            data=mmm.data,
+            model=mmm,
             output_format="pandas",
         )
 
@@ -1502,39 +1510,66 @@ class TestAdditionalPathCoverage:
         # Assert - same number of dates
         assert df_none["date"].nunique() == df_original["date"].nunique()
 
-    def test_saturation_curves_custom_n_points(self, simple_fitted_mmm):
+    @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
+    @pytest.mark.parametrize("n_points", [25, 50, 100])
+    def test_saturation_curves_custom_n_points(self, fitted_mmm, n_points, request):
         """Test saturation curves with custom n_points parameter."""
         from pymc_marketing.mmm.summary import create_saturation_curves
 
+        mmm = request.getfixturevalue(fitted_mmm)
         # Act - saturation curves require a fitted model
         df = create_saturation_curves(
-            model=simple_fitted_mmm,
-            n_points=25,
+            model=mmm,
+            n_points=n_points,
             hdi_probs=[0.80],
         )
 
-        # Assert - should have n_points rows per channel
+        # Assert - should have n_points rows per channel (and per custom dim if present)
         if "channel" in df.columns:
             n_channels = df["channel"].nunique()
         else:
             n_channels = 1
-        assert len(df) == 25 * n_channels
+
+        # Check for custom dimensions (e.g., country in panel model)
+        excluded_cols = [
+            "x",
+            "mean",
+            "median",
+            "abs_error_80_lower",
+            "abs_error_80_upper",
+        ]
+        custom_dims = [col for col in df.columns if col not in excluded_cols]
+        if custom_dims:
+            n_custom = 1
+            for dim in custom_dims:
+                n_custom *= df[dim].nunique()
+        else:
+            n_custom = 1
+
+        expected_rows = n_points * n_channels * n_custom
+        assert len(df) == expected_rows, (
+            f"Expected {expected_rows} rows ({n_points} x {n_channels} x {n_custom}), "
+            f"got {len(df)}"
+        )
         assert "abs_error_80_lower" in df.columns
 
-    def test_decay_curves_custom_max_lag(self, simple_fitted_mmm):
+    @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
+    def test_decay_curves_custom_max_lag(self, fitted_mmm, request):
         """Test decay curves with custom max_lag parameter."""
         from pymc_marketing.mmm.summary import create_decay_curves
 
+        mmm = request.getfixturevalue(fitted_mmm)
         # Act - decay curves require a fitted model
+        max_lag = 3
         df = create_decay_curves(
-            model=simple_fitted_mmm,
-            max_lag=3,
+            model=mmm,
+            max_lag=max_lag,
             hdi_probs=[0.80],
         )
 
-        # Assert - should have lags 0-15 (16 values) per channel
-        assert df["time"].max() == 3
-        assert len(df["time"].unique()) == 4
+        # Assert - should have lags 0 to max_lag (max_lag + 1 values) per channel
+        assert df["time"].max() == max_lag
+        assert len(df["time"].unique()) == max_lag + 1
         assert "abs_error_80_lower" in df.columns
 
     def test_period_over_period_with_multiple_hdi(self, mock_mmm_idata_wrapper):
@@ -1551,8 +1586,9 @@ class TestAdditionalPathCoverage:
         assert "abs_error_80_lower" in df.columns
         assert "abs_error_94_lower" in df.columns
 
+    @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
     def test_default_hdi_probs_applied_in_all_functions(
-        self, mock_mmm_idata_wrapper, simple_fitted_mmm
+        self, mock_mmm_idata_wrapper, fitted_mmm, request
     ):
         """Test that default HDI probs [0.94] are applied when None is passed."""
         from pymc_marketing.mmm.summary import (
@@ -1561,11 +1597,12 @@ class TestAdditionalPathCoverage:
             create_saturation_curves,
         )
 
+        mmm = request.getfixturevalue(fitted_mmm)
         # Saturation and adstock curves require a fitted model
-        df_sat = create_saturation_curves(simple_fitted_mmm, hdi_probs=None)
+        df_sat = create_saturation_curves(mmm, hdi_probs=None)
         assert "abs_error_94_lower" in df_sat.columns
 
-        df_adstock = create_adstock_curves(simple_fitted_mmm, hdi_probs=None)
+        df_adstock = create_adstock_curves(mmm, hdi_probs=None)
         assert "abs_error_94_lower" in df_adstock.columns
 
         # Period over period uses data wrapper
@@ -1683,19 +1720,21 @@ class TestMMMSummaryFactoryRefactoring:
         df = factory.contributions()
         assert df is not None
 
-    def test_factory_accepts_data_and_model(self, simple_fitted_mmm):
+    @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
+    def test_factory_accepts_data_and_model(self, fitted_mmm, request):
         """Test that MMMSummaryFactory accepts both data and model."""
         from pymc_marketing.mmm.summary import MMMSummaryFactory
 
+        mmm = request.getfixturevalue(fitted_mmm)
         # Get the data wrapper once to use for factory
-        data = simple_fitted_mmm.data
+        data = mmm.data
 
         # Act
-        factory = MMMSummaryFactory(data, model=simple_fitted_mmm)
+        factory = MMMSummaryFactory(data, model=mmm)
 
         # Assert - data should be the same instance we passed
         assert factory.data is data
-        assert factory.model is simple_fitted_mmm
+        assert factory.model is mmm
         assert hasattr(factory.model, "saturation")
         assert hasattr(factory.model, "adstock")
 
@@ -1738,15 +1777,16 @@ class TestSaturationAndAdstockCurves:
         ],
         ids=["saturation", "adstock"],
     )
+    @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
     def test_factory_method_uses_model_sample_method(
-        self, simple_fitted_mmm, method_name, sample_method_name
+        self, method_name, sample_method_name, fitted_mmm, request
     ):
         """Test that factory method delegates to MMM.sample_*_curve() method."""
         from unittest.mock import patch
 
         from pymc_marketing.mmm.summary import MMMSummaryFactory
 
-        mmm = simple_fitted_mmm
+        mmm = request.getfixturevalue(fitted_mmm)
         factory = MMMSummaryFactory(mmm.data, model=mmm)
 
         with patch.object(
@@ -1798,11 +1838,13 @@ class TestSaturationAndAdstockCurves:
         ],
         ids=["saturation", "adstock"],
     )
-    def test_curves_return_summary_stats(self, simple_fitted_mmm, method_name, x_col):
+    @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
+    def test_curves_return_summary_stats(self, method_name, x_col, fitted_mmm, request):
         """Test that curve functions return summary statistics."""
         from pymc_marketing.mmm.summary import MMMSummaryFactory
 
-        factory = MMMSummaryFactory(simple_fitted_mmm.data, model=simple_fitted_mmm)
+        mmm = request.getfixturevalue(fitted_mmm)
+        factory = MMMSummaryFactory(mmm.data, model=mmm)
 
         # Act
         df = getattr(factory, method_name)(hdi_probs=[0.94])
@@ -1831,11 +1873,13 @@ class TestSaturationAndAdstockCurves:
         ["saturation_curves", "adstock_curves"],
         ids=["saturation", "adstock"],
     )
-    def test_curves_hdi_bounds_vary(self, simple_fitted_mmm, method_name):
+    @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
+    def test_curves_hdi_bounds_vary(self, method_name, fitted_mmm, request):
         """Test that curve HDI bounds vary (not constant placeholder values)."""
         from pymc_marketing.mmm.summary import MMMSummaryFactory
 
-        factory = MMMSummaryFactory(simple_fitted_mmm.data, model=simple_fitted_mmm)
+        mmm = request.getfixturevalue(fitted_mmm)
+        factory = MMMSummaryFactory(mmm.data, model=mmm)
 
         # Act
         df = getattr(factory, method_name)()
@@ -1855,11 +1899,13 @@ class TestSaturationAndAdstockCurves:
 class TestSaturationCurvesSpecific:
     """Test saturation-specific behavior."""
 
-    def test_saturation_curves_are_increasing(self, simple_fitted_mmm):
+    @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
+    def test_saturation_curves_are_increasing(self, fitted_mmm, request):
         """Test that saturation curves show increasing pattern."""
         from pymc_marketing.mmm.summary import MMMSummaryFactory
 
-        factory = MMMSummaryFactory(simple_fitted_mmm.data, model=simple_fitted_mmm)
+        mmm = request.getfixturevalue(fitted_mmm)
+        factory = MMMSummaryFactory(mmm.data, model=mmm)
 
         # Act
         df = factory.saturation_curves()
@@ -1867,59 +1913,22 @@ class TestSaturationCurvesSpecific:
             df["channel"] = "channel"
 
         # Assert - curves should be increasing
-        for channel in df["channel"].unique():
-            channel_df = df[df["channel"] == channel].sort_values("x")
+        # Group by all dimension columns (channel, country, etc.)
+        excluded_cols = ["x", "mean", "median"]
+        dim_cols = [
+            col
+            for col in df.columns
+            if col not in excluded_cols and not col.startswith("abs_error")
+        ]
+        if not dim_cols:
+            dim_cols = ["channel"]
 
+        for dims, group_df in df.groupby(dim_cols):
+            group_sorted = group_df.sort_values("x")
             # Mean should increase with x (saturation property)
-            assert channel_df["mean"].iloc[-1] > channel_df["mean"].iloc[0], (
-                f"Saturation curve for {channel} should be increasing"
+            assert group_sorted["mean"].iloc[-1] > group_sorted["mean"].iloc[0], (
+                f"Saturation curve for {dims} should be increasing"
             )
-
-    @pytest.mark.parametrize("n_points", [50, 100])
-    def test_saturation_curves_respects_n_points(self, simple_fitted_mmm, n_points):
-        """Test that n_points parameter controls number of curve points."""
-        from pymc_marketing.mmm.summary import MMMSummaryFactory
-
-        factory = MMMSummaryFactory(simple_fitted_mmm.data, model=simple_fitted_mmm)
-
-        # Act
-        df = factory.saturation_curves(n_points=n_points)
-
-        # Assert - rows = n_points x n_channels
-        print(simple_fitted_mmm.idata.posterior["saturation_beta"].dims)
-        print(simple_fitted_mmm.idata.posterior["saturation_beta"].sizes)
-        if "channel" in simple_fitted_mmm.idata.posterior["saturation_beta"].dims:
-            n_channels = len(simple_fitted_mmm.channel_columns)
-        else:
-            n_channels = 1
-        expected_rows = n_points * n_channels
-
-        assert len(df) == expected_rows, (
-            f"Expected {expected_rows} rows ({n_points} points x {n_channels} channels), "
-            f"got {len(df)}"
-        )
-
-    @pytest.mark.parametrize("n_points", [50, 100])
-    def test_saturation_curves_respects_n_points_panel(
-        self, panel_fitted_mmm, n_points
-    ):
-        """Test that n_points parameter works with panel data."""
-        from pymc_marketing.mmm.summary import MMMSummaryFactory
-
-        factory = MMMSummaryFactory(panel_fitted_mmm.data, model=panel_fitted_mmm)
-
-        # Act
-        df = factory.saturation_curves(n_points=n_points)
-
-        # Assert - rows = n_points x n_channels x n_countries
-        n_channels = len(panel_fitted_mmm.channel_columns)
-        n_countries = 2  # US, UK from panel_mmm_data fixture
-        expected_rows = n_points * n_channels * n_countries
-
-        assert len(df) == expected_rows, (
-            f"Expected {expected_rows} rows ({n_points} x {n_channels} x {n_countries}), "
-            f"got {len(df)}"
-        )
 
 
 # ============================================================================
@@ -1930,11 +1939,13 @@ class TestSaturationCurvesSpecific:
 class TestAdstockCurvesSpecific:
     """Test adstock-specific behavior."""
 
-    def test_adstock_curves_are_decreasing(self, simple_fitted_mmm):
+    @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
+    def test_adstock_curves_are_decreasing(self, fitted_mmm, request):
         """Test that adstock curves show decreasing pattern over time."""
         from pymc_marketing.mmm.summary import MMMSummaryFactory
 
-        factory = MMMSummaryFactory(simple_fitted_mmm.data, model=simple_fitted_mmm)
+        mmm = request.getfixturevalue(fitted_mmm)
+        factory = MMMSummaryFactory(mmm.data, model=mmm)
 
         # Act
         df = factory.adstock_curves()
@@ -1943,84 +1954,82 @@ class TestAdstockCurvesSpecific:
             df["channel"] = "channel"
 
         # Assert - adstock curves should show decreasing pattern
-        for channel in df["channel"].unique():
-            channel_df = df[df["channel"] == channel].sort_values("time")
+        # Group by all dimension columns (channel, country, etc.)
+        excluded_cols = ["time", "mean", "median"]
+        dim_cols = [
+            col
+            for col in df.columns
+            if col not in excluded_cols and not col.startswith("abs_error")
+        ]
+        if not dim_cols:
+            dim_cols = ["channel"]
 
+        for dims, group_df in df.groupby(dim_cols):
+            group_sorted = group_df.sort_values("time")
             # Mean should decrease over time (adstock property)
-            first_value = channel_df["mean"].iloc[0]
-            last_value = channel_df["mean"].iloc[-1]
+            first_value = group_sorted["mean"].iloc[0]
+            last_value = group_sorted["mean"].iloc[-1]
 
             assert first_value > last_value, (
-                f"Adstock curve for {channel} should decrease over time. "
+                f"Adstock curve for {dims} should decrease over time. "
                 f"First: {first_value}, Last: {last_value}"
             )
 
             # First time point should be highest (immediate effect)
-            assert channel_df["mean"].iloc[0] == channel_df["mean"].max(), (
+            assert group_sorted["mean"].iloc[0] == group_sorted["mean"].max(), (
                 "Adstock effect should be strongest at time=0"
             )
 
-    def test_adstock_curves_respects_max_lag(self, simple_fitted_mmm):
+    @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
+    def test_adstock_curves_respects_max_lag(self, fitted_mmm, request):
         """Test that max_lag parameter controls adstock curve length."""
         from pymc_marketing.mmm.summary import MMMSummaryFactory
 
-        factory = MMMSummaryFactory(simple_fitted_mmm.data, model=simple_fitted_mmm)
-
-        # Act
-        max_lag = 3
-        df = factory.adstock_curves(max_lag=3)
-
-        # Assert - rows = (max_lag + 1) x n_channels
-        if "channel" in simple_fitted_mmm.adstock.combined_dims:
-            n_channels = len(simple_fitted_mmm.channel_columns)
-        else:
-            n_channels = 1
-            df["channel"] = "channel"
-        expected_rows = (max_lag + 1) * n_channels
-
-        assert len(df) == expected_rows, (
-            f"Expected {expected_rows} rows ({max_lag + 1} lags x {n_channels} channels), "
-            f"got {len(df)}"
-        )
-
-        # Verify time values
-        for channel in df["channel"].unique():
-            channel_df = df[df["channel"] == channel]
-            time_values = sorted(channel_df["time"].unique())
-
-            assert time_values == list(range(max_lag + 1)), (
-                f"Time values for {channel} should be 0 to {max_lag}, got {time_values}"
-            )
-
-    def test_adstock_curves_respects_max_lag_panel(self, panel_fitted_mmm):
-        """Test that max_lag parameter works with panel data."""
-        from pymc_marketing.mmm.summary import MMMSummaryFactory
-
-        factory = MMMSummaryFactory(panel_fitted_mmm.data, model=panel_fitted_mmm)
+        mmm = request.getfixturevalue(fitted_mmm)
+        factory = MMMSummaryFactory(mmm.data, model=mmm)
         max_lag = 3
 
         # Act
         df = factory.adstock_curves(max_lag=max_lag)
 
-        # Assert - rows = (max_lag + 1) x n_channels x n_countries
-        n_channels = len(panel_fitted_mmm.channel_columns)
-        n_countries = 2  # US, UK from panel_mmm_data fixture
-        expected_rows = (max_lag + 1) * n_channels * n_countries
+        # Assert - rows = (max_lag + 1) x n_channels x n_custom_dims
+        if "channel" in df.columns:
+            n_channels = df["channel"].nunique()
+        else:
+            n_channels = 1
+            df["channel"] = "channel"
+
+        # Check for custom dimensions (e.g., country in panel model)
+        excluded_cols = ["time", "channel", "mean", "median"]
+        custom_dims = [
+            col
+            for col in df.columns
+            if col not in excluded_cols and not col.startswith("abs_error")
+        ]
+        n_custom = 1
+        for dim in custom_dims:
+            n_custom *= df[dim].nunique()
+
+        expected_rows = (max_lag + 1) * n_channels * n_custom
 
         assert len(df) == expected_rows, (
-            f"Expected {expected_rows} rows ({max_lag + 1} x {n_channels} x {n_countries}), "
+            f"Expected {expected_rows} rows "
+            f"({max_lag + 1} lags x {n_channels} channels x {n_custom} custom dims), "
             f"got {len(df)}"
         )
 
-        # Verify time values for each (channel, country) combo
-        for channel in df["channel"].unique():
-            for country in df["country"].unique():
-                subset = df[(df["channel"] == channel) & (df["country"] == country)]
-                time_values = sorted(subset["time"].unique())
-
-                assert time_values == list(range(max_lag + 1)), (
-                    f"Time values for {channel}/{country} should be 0 to {max_lag}, got {time_values}"
-                )
+        # Verify time values for each combination of dimensions
+        excluded_cols = ["time", "mean", "median"]
+        dim_cols = [
+            col
+            for col in df.columns
+            if col not in excluded_cols and not col.startswith("abs_error")
+        ]
+        for dims, subset in df.groupby(dim_cols):
+            time_values = sorted(subset["time"].unique())
+            assert time_values == list(range(max_lag + 1)), (
+                f"Time values for {dims} should be 0 to {max_lag}, got {time_values}"
+            )
 
 
 # ============================================================================
@@ -2125,15 +2134,15 @@ class TestChangeOverTimeImplementation:
 class TestMMMSummaryProperty:
     """Test MMM model has summary property."""
 
-    def test_mmm_has_summary_property(self, simple_fitted_mmm):
+    @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
+    def test_mmm_has_summary_property(self, fitted_mmm, request):
         """Test that MMM model has summary property."""
+        mmm = request.getfixturevalue(fitted_mmm)
         # Assert - property exists
-        assert hasattr(simple_fitted_mmm, "summary"), (
-            "MMM model should have .summary property"
-        )
+        assert hasattr(mmm, "summary"), "MMM model should have .summary property"
 
         # Access property
-        summary = simple_fitted_mmm.summary
+        summary = mmm.summary
 
         # Assert - returns factory
         from pymc_marketing.mmm.summary import MMMSummaryFactory
@@ -2155,9 +2164,11 @@ class TestMMMSummaryProperty:
             "change_over_time",
         ],
     )
-    def test_summary_property_has_method(self, simple_fitted_mmm, method_name):
+    @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
+    def test_summary_property_has_method(self, method_name, fitted_mmm, request):
         """Test that summary property provides access to expected method."""
-        summary = simple_fitted_mmm.summary
+        mmm = request.getfixturevalue(fitted_mmm)
+        summary = mmm.summary
 
         assert hasattr(summary, method_name), (
             f"summary should have {method_name} method"
@@ -2166,11 +2177,13 @@ class TestMMMSummaryProperty:
             f"summary.{method_name} should be callable"
         )
 
-    def test_summary_property_returns_fresh_factory(self, simple_fitted_mmm):
+    @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
+    def test_summary_property_returns_fresh_factory(self, fitted_mmm, request):
         """Test that summary property returns fresh factory on each access."""
+        mmm = request.getfixturevalue(fitted_mmm)
         # Access property twice
-        summary1 = simple_fitted_mmm.summary
-        summary2 = simple_fitted_mmm.summary
+        summary1 = mmm.summary
+        summary2 = mmm.summary
 
         # Assert - different instances (following .data property pattern)
         assert summary1 is not summary2, (
@@ -2178,8 +2191,8 @@ class TestMMMSummaryProperty:
         )
 
         # But both should reference the same model
-        assert summary1.model is simple_fitted_mmm
-        assert summary2.model is simple_fitted_mmm
+        assert summary1.model is mmm
+        assert summary2.model is mmm
 
     def test_summary_validates_idata_exists(self):
         """Test that summary property validates idata exists."""
@@ -2199,23 +2212,25 @@ class TestMMMSummaryProperty:
         with pytest.raises(ValueError, match=r"idata does not exist"):
             _ = mmm.summary
 
-    def test_summary_property_usage_example(self, simple_fitted_mmm):
+    @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
+    def test_summary_property_usage_example(self, fitted_mmm, request):
         """Test realistic usage of summary property."""
+        mmm = request.getfixturevalue(fitted_mmm)
         # Get contributions summary
-        contributions_df = simple_fitted_mmm.summary.contributions()
+        contributions_df = mmm.summary.contributions()
 
         assert contributions_df is not None
         assert len(contributions_df) > 0
         assert "channel" in contributions_df.columns
 
         # Get ROAS summary
-        roas_df = simple_fitted_mmm.summary.roas()
+        roas_df = mmm.summary.roas()
 
         assert roas_df is not None
         assert len(roas_df) > 0
 
         # Get saturation curves
-        saturation_df = simple_fitted_mmm.summary.saturation_curves()
+        saturation_df = mmm.summary.saturation_curves()
 
         assert saturation_df is not None
         assert len(saturation_df) > 0
