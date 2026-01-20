@@ -250,6 +250,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/nested_logit.png
 :link: ../notebooks/customer_choice/nested_logit.html
 :::
+
+:::{grid-item-card} Mixed Logit Discrete Choice
+:img-top: ../gallery/images/mixed_logit.png
+:link: ../notebooks/customer_choice/mixed_logit.html
+:::
 ::::
 
 ## Bass Diffusion Model
