@@ -35,7 +35,6 @@ from pymc_marketing.mmm.lift_test import (
     add_lift_measurements_to_likelihood_from_saturation,
     assert_monotonic,
     create_time_varying_saturation,
-    create_variable_indexer,
     exact_row_indices,
     scale_channel_lift_measurements,
     scale_lift_measurements,
@@ -138,33 +137,6 @@ def indices():
         "channel": [0, 1, 0],
         "date": [2, 1, 0],
     }
-
-
-@pytest.fixture(scope="module")
-def variable_indexer(fixed_model, indices):
-    return create_variable_indexer(fixed_model, indices)
-
-
-@pytest.mark.parametrize(
-    "name, expected",
-    [
-        ("alpha", [10, 20, 10]),
-        ("beta", [1, 3, 2]),
-        ("gamma", [11, 23, 12]),
-        ("delta", [3, 2, 1]),
-        ("epsilon", [33, 46, 12]),
-    ],
-)
-def test_variable_indexer(variable_indexer, name, expected) -> None:
-    np.testing.assert_allclose(
-        fast_eval(variable_indexer(name)),
-        expected,
-    )
-
-
-def test_variable_indexer_missing_variable(variable_indexer) -> None:
-    with pytest.raises(KeyError, match=r"The variable 'missing' is not in the model"):
-        variable_indexer("missing")
 
 
 def test_lift_test_missing_coords(df_lift_test) -> None:

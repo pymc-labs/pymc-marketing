@@ -34,7 +34,7 @@ Create a new saturation transformation:
         def function(self, x, b):
             return b * x
 
-        default_priors = {"b": Prior("HalfNormal", sigma=1)}
+        default_priors = {"b": XPrior("HalfNormal", sigma=1)}
 
 Plot the default priors for a saturation transformation:
 
@@ -58,15 +58,15 @@ for saturation parameter of logistic saturation.
     from pymc_extras.prior import Prior
     from pymc_marketing.mmm import LogisticSaturation
 
-    hierarchical_lam = Prior(
+    hierarchical_lam = XPrior(
         "Gamma",
-        alpha=Prior("HalfNormal"),
-        beta=Prior("HalfNormal"),
+        alpha=XPrior("HalfNormal"),
+        beta=XPrior("HalfNormal"),
         dims="channel",
     )
     priors = {
         "lam": hierarchical_lam,
-        "beta": Prior("HalfNormal", dims="channel"),
+        "beta": XPrior("HalfNormal", dims="channel"),
     }
     saturation = LogisticSaturation(priors=priors)
 
@@ -75,16 +75,16 @@ for saturation parameter of logistic saturation.
 from __future__ import annotations
 
 import numpy as np
-import pytensor.tensor as pt
 import xarray as xr
 from pydantic import Field, InstanceOf, validate_call
 from pymc_extras.deserialize import deserialize, register_deserialization
-from pymc_extras.prior import Prior
+from pytensor.xtensor import as_xtensor
 
 from pymc_marketing.mmm.components.base import (
     Transformation,
     create_registration_meta,
 )
+from pymc_marketing.mmm.dims import XPrior
 from pymc_marketing.mmm.transformers import (
     hill_function,
     hill_saturation_sigmoid,
@@ -128,7 +128,7 @@ class SaturationTransformation(Transformation, metaclass=SaturationRegistrationM
         class InfiniteReturns(SaturationTransformation):
             lookup_name = "infinite_returns"
             function = infinite_returns
-            default_priors = {"b": Prior("HalfNormal")}
+            default_priors = {"b": XPrior("HalfNormal")}
 
     Make use of plotting capabilities to understand the transformation and its
     priors
@@ -181,15 +181,11 @@ class SaturationTransformation(Transformation, metaclass=SaturationRegistrationM
         """
         x = np.linspace(0, max_value, num_points)
 
-        coords = {
-            "x": x,
-        }
-
         return self._sample_curve(
             var_name="saturation",
             parameters=parameters,
             x=x,
-            coords=coords,
+            coords={"x": x},
         )
 
 
@@ -217,13 +213,13 @@ class LogisticSaturation(SaturationTransformation):
 
     lookup_name = "logistic"
 
-    def function(self, x, lam, beta):
+    def function(self, x, lam, beta, *, dim: str | None = None):
         """Logistic saturation function."""
         return beta * logistic_saturation(x, lam)
 
     default_priors = {
-        "lam": Prior("Gamma", alpha=3, beta=1),
-        "beta": Prior("HalfNormal", sigma=2),
+        "lam": XPrior("Gamma", alpha=3, beta=1),
+        "beta": XPrior("HalfNormal", sigma=2),
     }
 
 
@@ -251,13 +247,13 @@ class InverseScaledLogisticSaturation(SaturationTransformation):
 
     lookup_name = "inverse_scaled_logistic"
 
-    def function(self, x, lam, beta):
+    def function(self, x, lam, beta, *, dim: str | None = None):
         """Inverse scaled logistic saturation function."""
         return beta * inverse_scaled_logistic_saturation(x, lam)
 
     default_priors = {
-        "lam": Prior("Gamma", alpha=0.5, beta=1),
-        "beta": Prior("HalfNormal", sigma=2),
+        "lam": XPrior("Gamma", alpha=0.5, beta=1),
+        "beta": XPrior("HalfNormal", sigma=2),
     }
 
 
@@ -285,13 +281,13 @@ class TanhSaturation(SaturationTransformation):
 
     lookup_name = "tanh"
 
-    def function(self, x, b, c):
+    def function(self, x, b, c, *, dim: str | None = None):
         """Tanh saturation function."""
         return tanh_saturation(x, b, c)
 
     default_priors = {
-        "b": Prior("HalfNormal", sigma=1),
-        "c": Prior("HalfNormal", sigma=1),
+        "b": XPrior("HalfNormal", sigma=1),
+        "c": XPrior("HalfNormal", sigma=1),
     }
 
 
@@ -319,15 +315,15 @@ class TanhSaturationBaselined(SaturationTransformation):
 
     lookup_name = "tanh_baselined"
 
-    def function(self, x, x0, gain, r, beta):
+    def function(self, x, x0, gain, r, beta, *, dim: str | None = None):
         """Tanh saturation function."""
         return beta * tanh_saturation_baselined(x, x0, gain, r)
 
     default_priors = {
-        "x0": Prior("HalfNormal", sigma=1),
-        "gain": Prior("HalfNormal", sigma=1),
-        "r": Prior("HalfNormal", sigma=1),
-        "beta": Prior("HalfNormal", sigma=1),
+        "x0": XPrior("HalfNormal", sigma=1),
+        "gain": XPrior("HalfNormal", sigma=1),
+        "r": XPrior("HalfNormal", sigma=1),
+        "beta": XPrior("HalfNormal", sigma=1),
     }
 
 
@@ -355,13 +351,13 @@ class MichaelisMentenSaturation(SaturationTransformation):
 
     lookup_name = "michaelis_menten"
 
-    def function(self, x, alpha, lam):
+    def function(self, x, alpha, lam, *, dim: str | None = None):
         """Michaelis-Menten saturation function."""
-        return pt.as_tensor_variable(michaelis_menten(x, alpha, lam))
+        return michaelis_menten(x, alpha, lam)
 
     default_priors = {
-        "alpha": Prior("Gamma", mu=2, sigma=1),
-        "lam": Prior("HalfNormal", sigma=1),
+        "alpha": XPrior("Gamma", mu=2, sigma=1),
+        "lam": XPrior("HalfNormal", sigma=1),
     }
 
 
@@ -389,14 +385,14 @@ class HillSaturation(SaturationTransformation):
 
     lookup_name = "hill"
 
-    def function(self, x, slope, kappa, beta):
+    def function(self, x, slope, kappa, beta, *, dim: str | None = None):
         """Hill saturation function."""
         return beta * hill_function(x, slope, kappa)
 
     default_priors = {
-        "slope": Prior("HalfNormal", sigma=1.5),
-        "kappa": Prior("HalfNormal", sigma=1.5),
-        "beta": Prior("HalfNormal", sigma=1.5),
+        "slope": XPrior("HalfNormal", sigma=1.5),
+        "kappa": XPrior("HalfNormal", sigma=1.5),
+        "beta": XPrior("HalfNormal", sigma=1.5),
     }
 
 
@@ -424,12 +420,13 @@ class HillSaturationSigmoid(SaturationTransformation):
 
     lookup_name = "hill_sigmoid"
 
-    function = hill_saturation_sigmoid
+    def function(self, x, sigma, beta, lam, *, dim: str | None = None):
+        return hill_saturation_sigmoid(x, sigma, beta, lam)
 
     default_priors = {
-        "sigma": Prior("HalfNormal", sigma=1.5),
-        "beta": Prior("HalfNormal", sigma=1.5),
-        "lam": Prior("HalfNormal", sigma=1.5),
+        "sigma": XPrior("HalfNormal", sigma=1.5),
+        "beta": XPrior("HalfNormal", sigma=1.5),
+        "lam": XPrior("HalfNormal", sigma=1.5),
     }
 
 
@@ -457,13 +454,13 @@ class RootSaturation(SaturationTransformation):
 
     lookup_name = "root"
 
-    def function(self, x, alpha, beta):
+    def function(self, x, alpha, beta, *, dim: str | None = None):
         """Root saturation function."""
         return beta * root_saturation(x, alpha)
 
     default_priors = {
-        "alpha": Prior("Beta", alpha=1, beta=2),
-        "beta": Prior("Gamma", mu=1, sigma=1),
+        "alpha": XPrior("Beta", alpha=1, beta=2),
+        "beta": XPrior("Gamma", mu=1, sigma=1),
     }
 
 
@@ -489,11 +486,13 @@ class NoSaturation(SaturationTransformation):
 
     lookup_name = "no_saturation"
 
-    def function(self, x, beta):
+    def function(self, x, beta, *, dim: str | None = None):
         """Linear saturation function."""
-        return pt.as_tensor_variable(beta * x)
+        x = as_xtensor(x)
+        beta = as_xtensor(beta)
+        return beta * x
 
-    default_priors = {"beta": Prior("HalfNormal", sigma=1)}
+    default_priors = {"beta": XPrior("HalfNormal", sigma=1)}
 
 
 def saturation_from_dict(data: dict) -> SaturationTransformation:

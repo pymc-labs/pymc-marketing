@@ -255,7 +255,8 @@ from pydantic import (
     model_validator,
 )
 from pymc_extras.deserialize import deserialize, register_deserialization
-from pymc_extras.prior import Prior, VariableFactory, create_dim_handler
+from pymc_extras.prior import Prior, VariableFactory
+from pytensor.xtensor import as_xtensor
 
 from pymc_marketing.constants import DAYS_IN_MONTH, DAYS_IN_WEEK, DAYS_IN_YEAR
 from pymc_marketing.plot import SelToString, plot_curve, plot_hdi, plot_samples
@@ -488,19 +489,11 @@ class FourierBase(BaseModel):
 
         fourier_modes = generate_fourier_modes(periods=periods, n_order=self.n_order)
 
-        DUMMY_DIM = "DATE"
-
-        prefix_idx = self.prior.dims.index(self.prefix)
-        result_dims = (DUMMY_DIM, *self.prior.dims)
-        dim_handler = create_dim_handler(result_dims)
-
-        result = dim_handler(fourier_modes, (DUMMY_DIM, self.prefix)) * dim_handler(
-            beta, self.prior.dims
-        )
+        result = as_xtensor(fourier_modes, dims=("date", self.prefix)) * beta
         if result_callback is not None:
             result_callback(result)
 
-        return result.sum(axis=prefix_idx + 1)
+        return result.sum(dim=self.prefix)
 
     def sample_prior(self, coords: dict | None = None, **kwargs) -> xr.Dataset:
         """Sample the prior distributions.

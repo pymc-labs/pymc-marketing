@@ -108,15 +108,18 @@ from typing import Any, Protocol
 
 import pandas as pd
 import pymc as pm
+import pymc.dims as pmd
+import pytensor.xtensor as ptx
 import xarray as xr
 from pydantic import BaseModel, InstanceOf
-from pymc_extras.prior import create_dim_handler
 from pytensor import tensor as pt
+from pytensor.xtensor import as_xtensor
+from xarray import DataArray
 
+from pymc_marketing.mmm.dims import XData, get_xdata
 from pymc_marketing.mmm.events import EventEffect, days_from_reference
 from pymc_marketing.mmm.fourier import FourierBase
 from pymc_marketing.mmm.linear_trend import LinearTrend
-from pymc_marketing.mmm.utils import create_index
 
 
 class Model(Protocol):
@@ -213,24 +216,18 @@ class FourierEffect:
 
         # Retrieve the components deterministic just created
         components_var = model[f"{self.fourier.prefix}_components"]
-        component_dims = model.named_vars_to_dims[components_var.name]
         # Identify axis of the fourier prefix dimension and collapse it
-        prefix_axis = component_dims.index(self.fourier.prefix)
-        collapsed = components_var.sum(axis=prefix_axis)
+        collapsed = components_var.sum(dim=self.fourier.prefix)
 
         # Determine final dims order consistent with MMM dims
         dims = tuple(dim for dim in mmm.dims if dim in self.fourier.prior.dims)
         fourier_dims = (self.date_dim_name, *dims)
 
-        fourier_contribution = pm.Deterministic(
+        return pmd.Deterministic(
             f"{self.fourier.prefix}_contribution",
             collapsed,
             dims=fourier_dims,
         )
-
-        # Broadcast to full MMM dims ordering
-        dim_handler = create_dim_handler((self.date_dim_name, *mmm.dims))
-        return dim_handler(fourier_contribution, fourier_dims)
 
     def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
         """Set the data for new predictions.
@@ -378,7 +375,7 @@ class LinearTrendEffect:
         self.linear_trend_first_date = dates[0]
         t = (dates - self.linear_trend_first_date).days.astype(float)
 
-        pm.Data(f"{self.prefix}_t", t, dims=self.date_dim_name)
+        XData(f"{self.prefix}_t", DataArray(t, dims=self.date_dim_name))
 
     def create_effect(self, mmm: Model) -> pt.TensorVariable:
         """Create the trend effect in the model.
@@ -396,28 +393,18 @@ class LinearTrendEffect:
         model: pm.Model = mmm.model
 
         # Get the time data
-        t = model[f"{self.prefix}_t"]
-        t_max = t.max().eval()
-        t = t / t_max if t_max > 0 else t
+        t_name = f"{self.prefix}_t"
+        # Hack around pm.Data not register the XTensorVariable
+        t = as_xtensor(model[t_name], model.named_vars_to_dims[t_name])
 
-        # Apply the trend
+        t_max = t.max()
+        t = t / ptx.math.switch(t_max > 0, t_max, 1)
         trend_effect = self.trend.apply(t)
 
-        # Create deterministic for the trend effect
-        trend_dims = (self.date_dim_name, *self.trend.dims)  # type: ignore
-        trend_non_broadcastable_dims = (
-            self.date_dim_name,
-            *self.trend.non_broadcastable_dims,
-        )
-        trend_effect = pm.Deterministic(
+        return pm.Deterministic(
             f"{self.prefix}_effect_contribution",
-            trend_effect[create_index(trend_dims, trend_non_broadcastable_dims)],
-            dims=trend_non_broadcastable_dims,
+            trend_effect,
         )
-
-        # Return the trend effect
-        dim_handler = create_dim_handler((self.date_dim_name, *mmm.dims))
-        return dim_handler(trend_effect, trend_non_broadcastable_dims)
 
     def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
         """Set the data for new predictions.
@@ -502,21 +489,27 @@ class EventAdditiveEffect(BaseModel):
         model.add_coord(self.prefix, self.df_events["name"].to_numpy())
 
         if "days" not in model:
-            pm.Data(
+            XData(
                 "days",
-                days_from_reference(model_dates, self.reference_date),
-                dims=self.date_dim_name,
+                DataArray(
+                    days_from_reference(model_dates, self.reference_date),
+                    dims=(self.date_dim_name,),
+                ),
             )
 
-        pm.Data(
+        XData(
             f"{self.prefix}_start_diff",
-            days_from_reference(self.start_dates, self.reference_date),
-            dims=self.prefix,
+            DataArray(
+                days_from_reference(self.start_dates, self.reference_date),
+                dims=(self.prefix,),
+            ),
         )
-        pm.Data(
+        XData(
             f"{self.prefix}_end_diff",
-            days_from_reference(self.end_dates, self.reference_date),
-            dims=self.prefix,
+            DataArray(
+                days_from_reference(self.end_dates, self.reference_date),
+                dims=(self.prefix,),
+            ),
         )
 
     def create_effect(self, mmm: Model) -> pt.TensorVariable:
@@ -535,27 +528,26 @@ class EventAdditiveEffect(BaseModel):
         """
         model: pm.Model = mmm.model
 
-        start_ref = model["days"][:, None] - model[f"{self.prefix}_start_diff"]
-        end_ref = model["days"][:, None] - model[f"{self.prefix}_end_diff"]
+        days = get_xdata(model, "days")
+        start_ref = days - get_xdata(model, f"{self.prefix}_start_diff")
+        end_ref = days - get_xdata(model, f"{self.prefix}_end_diff")
 
         def create_basis_matrix(start_ref, end_ref):
-            return pt.where(
+            return ptx.math.where(
                 (start_ref >= 0) & (end_ref <= 0),
                 0,
-                pt.where(pt.abs(start_ref) < pt.abs(end_ref), start_ref, end_ref),
+                ptx.math.where(
+                    ptx.math.abs(start_ref) < ptx.math.abs(end_ref), start_ref, end_ref
+                ),
             )
 
         X = create_basis_matrix(start_ref, end_ref)
         event_effect = self.effect.apply(X, name=self.prefix)
 
-        total_effect = pm.Deterministic(
+        return pmd.Deterministic(
             f"{self.prefix}_total_effect",
-            event_effect.sum(axis=1),
-            dims=self.date_dim_name,
+            event_effect.sum(dim=self.prefix),
         )
-
-        dim_handler = create_dim_handler((self.date_dim_name, *mmm.dims))
-        return dim_handler(total_effect, self.date_dim_name)
 
     def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
         """Set the data for new predictions."""

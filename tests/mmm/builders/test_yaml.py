@@ -73,6 +73,8 @@ def test_build_mmm_from_yaml(config_path, X_data, y_data, model_kwargs):
     with open(config_path) as file:
         config = yaml.safe_load(file)
 
+    print(config)
+
     # Build model from YAML
     model = build_mmm_from_yaml(
         config_path=config_path, X=X_data, y=y_data.squeeze(), model_kwargs=model_kwargs
