@@ -296,6 +296,68 @@ def mock_suite_with_sensitivity(mock_idata_with_sensitivity):
     return MMMPlotSuite(idata=mock_idata_with_sensitivity)
 
 
+@pytest.fixture(scope="module")
+def mock_idata_with_sensitivity_and_channels():
+    """Fixture with sensitivity data that has channel dim + constant_data for x_sweep_axis='absolute'."""
+    seed = sum(map(ord, "sensitivity_channels"))
+    rng = np.random.default_rng(seed)
+
+    n_sample, n_sweep = 40, 5
+    sweep = np.linspace(0.5, 1.5, n_sweep)
+    regions = ["A", "B"]
+    channels = ["channel_1", "channel_2"]
+    dates = pd.date_range("2025-01-01", periods=52, freq="W-MON")
+
+    # Sensitivity analysis data with channel dimension
+    samples = xr.DataArray(
+        rng.normal(0, 1, size=(n_sample, n_sweep, len(regions), len(channels))),
+        dims=("sample", "sweep", "region", "channel"),
+        coords={
+            "sample": np.arange(n_sample),
+            "sweep": sweep,
+            "region": regions,
+            "channel": channels,
+        },
+        name="x",
+    )
+
+    sensitivity_analysis = xr.Dataset(
+        {"x": samples},
+        coords={"sweep": sweep, "region": regions, "channel": channels},
+        attrs={"sweep_type": "multiplicative", "var_names": "test_var"},
+    )
+
+    # constant_data with channel_data and channel_scale for x_sweep_axis="absolute"
+    constant_data = xr.Dataset(
+        {
+            "channel_data": xr.DataArray(
+                rng.uniform(0, 10, size=(52, len(channels), len(regions))),
+                dims=("date", "channel", "region"),
+                coords={
+                    "date": dates,
+                    "channel": channels,
+                    "region": regions,
+                },
+            ),
+            "channel_scale": xr.DataArray(
+                [[100.0, 200.0], [150.0, 250.0]],
+                dims=("region", "channel"),
+                coords={"region": regions, "channel": channels},
+            ),
+        }
+    )
+
+    idata = az.InferenceData(constant_data=constant_data)
+    idata.sensitivity_analysis = sensitivity_analysis
+    return idata
+
+
+@pytest.fixture(scope="module")
+def mock_suite_with_sensitivity_and_channels(mock_idata_with_sensitivity_and_channels):
+    """Fixture to create a MMMPlotSuite with sensitivity analysis and channel dimension."""
+    return MMMPlotSuite(idata=mock_idata_with_sensitivity_and_channels)
+
+
 def test_contributions_over_time_expand_dims(mock_suite: MMMPlotSuite):
     fig, ax = mock_suite.contributions_over_time(
         var=[
@@ -909,6 +971,170 @@ def test_sensitivity_analysis_error_on_missing_results(mock_idata):
     with pytest.raises(ValueError, match=r"No sensitivity analysis results found"):
         suite.sensitivity_analysis()
         suite.plot_sensitivity_analysis()
+
+
+# Tests for hue_dim parameter
+def test_sensitivity_analysis_hue_dim_basic(mock_suite_with_sensitivity_and_channels):
+    """Verify multiple lines are drawn when hue_dim='channel'."""
+    fig, axes = mock_suite_with_sensitivity_and_channels.sensitivity_analysis(
+        hue_dim="channel"
+    )
+    assert isinstance(fig, Figure)
+    assert isinstance(axes, np.ndarray)
+    # Verify multiple lines were drawn (one per channel) in each visible axis
+    for ax in axes.flat:
+        if ax.get_visible():
+            lines = ax.get_lines()
+            # At least 2 lines (one per channel)
+            assert len(lines) >= 2
+
+
+def test_sensitivity_analysis_hue_dim_invalid_sample(mock_suite_with_sensitivity):
+    """Error when hue_dim='sample' (excluded dim)."""
+    with pytest.raises(ValueError, match=r"Invalid hue_dim 'sample'"):
+        mock_suite_with_sensitivity.sensitivity_analysis(hue_dim="sample")
+
+
+def test_sensitivity_analysis_hue_dim_invalid_sweep(mock_suite_with_sensitivity):
+    """Error when hue_dim='sweep' (excluded dim)."""
+    with pytest.raises(ValueError, match=r"Invalid hue_dim 'sweep'"):
+        mock_suite_with_sensitivity.sensitivity_analysis(hue_dim="sweep")
+
+
+def test_sensitivity_analysis_hue_dim_not_found(mock_suite_with_sensitivity):
+    """Error when hue_dim is not in the data."""
+    with pytest.raises(
+        ValueError, match=r"Dimension 'nonexistent' not found in sensitivity analysis"
+    ):
+        mock_suite_with_sensitivity.sensitivity_analysis(hue_dim="nonexistent")
+
+
+# Tests for legend parameter
+def test_sensitivity_analysis_legend_default_on(
+    mock_suite_with_sensitivity_and_channels,
+):
+    """Legend shown by default when hue_dim is set."""
+    _fig, axes = mock_suite_with_sensitivity_and_channels.sensitivity_analysis(
+        hue_dim="channel"
+    )
+    # Check that at least one visible axis has a legend
+    has_legend = False
+    for ax in axes.flat:
+        if ax.get_visible() and ax.get_legend() is not None:
+            has_legend = True
+            break
+    assert has_legend
+
+
+def test_sensitivity_analysis_legend_disabled(mock_suite_with_sensitivity_and_channels):
+    """Legend hidden when legend=False."""
+    _fig, axes = mock_suite_with_sensitivity_and_channels.sensitivity_analysis(
+        hue_dim="channel", legend=False
+    )
+    # All visible axes should NOT have a legend
+    for ax in axes.flat:
+        if ax.get_visible():
+            assert ax.get_legend() is None
+
+
+def test_sensitivity_analysis_legend_kwargs(mock_suite_with_sensitivity_and_channels):
+    """legend_kwargs are passed correctly."""
+    _fig, axes = mock_suite_with_sensitivity_and_channels.sensitivity_analysis(
+        hue_dim="channel", legend_kwargs={"loc": "upper left", "title": "Channels"}
+    )
+    # Check that at least one visible axis has a legend with the specified title
+    for ax in axes.flat:
+        if ax.get_visible():
+            legend = ax.get_legend()
+            if legend is not None:
+                assert legend.get_title().get_text() == "Channels"
+                break
+
+
+# Tests for x_sweep_axis parameter
+def test_sensitivity_analysis_x_sweep_axis_relative(
+    mock_suite_with_sensitivity_and_channels,
+):
+    """Default 'relative' mode works."""
+    fig, axes = mock_suite_with_sensitivity_and_channels.sensitivity_analysis(
+        hue_dim="channel", x_sweep_axis="relative"
+    )
+    assert isinstance(fig, Figure)
+    assert isinstance(axes, np.ndarray)
+
+
+def test_sensitivity_analysis_x_sweep_axis_absolute(
+    mock_suite_with_sensitivity_and_channels,
+):
+    """'absolute' mode works with proper constant_data setup."""
+    fig, axes = mock_suite_with_sensitivity_and_channels.sensitivity_analysis(
+        hue_dim="channel", x_sweep_axis="absolute"
+    )
+    assert isinstance(fig, Figure)
+    assert isinstance(axes, np.ndarray)
+
+
+def test_sensitivity_analysis_x_sweep_axis_absolute_requires_hue_dim(
+    mock_suite_with_sensitivity_and_channels,
+):
+    """Error when x_sweep_axis='absolute' but hue_dim is None."""
+    with pytest.raises(
+        ValueError, match=r"x_sweep_axis='absolute' requires hue_dim to be set"
+    ):
+        mock_suite_with_sensitivity_and_channels.sensitivity_analysis(
+            x_sweep_axis="absolute"
+        )
+
+
+def test_sensitivity_analysis_x_sweep_axis_absolute_missing_constant_data(
+    mock_suite_with_sensitivity,
+):
+    """Error when constant_data is missing."""
+    with pytest.raises(
+        ValueError, match=r"x_sweep_axis='absolute' requires idata.constant_data"
+    ):
+        mock_suite_with_sensitivity.sensitivity_analysis(
+            hue_dim="region", x_sweep_axis="absolute"
+        )
+
+
+def test_sensitivity_analysis_x_sweep_axis_absolute_missing_channel_scale():
+    """Error when channel_scale is missing from constant_data."""
+    # Create idata with constant_data but no channel_scale
+    n_sample, n_sweep = 40, 5
+    sweep = np.linspace(0.5, 1.5, n_sweep)
+    regions = ["A", "B"]
+
+    samples = xr.DataArray(
+        np.random.normal(0, 1, size=(n_sample, n_sweep, len(regions))),
+        dims=("sample", "sweep", "region"),
+        coords={
+            "sample": np.arange(n_sample),
+            "sweep": sweep,
+            "region": regions,
+        },
+        name="x",
+    )
+    sensitivity_analysis = xr.Dataset(
+        {"x": samples},
+        coords={"sweep": sweep, "region": regions},
+    )
+
+    # constant_data WITHOUT channel_scale
+    constant_data = xr.Dataset(
+        {
+            "some_other_var": xr.DataArray([1.0, 2.0], dims=("region",)),
+        }
+    )
+
+    idata = az.InferenceData(constant_data=constant_data)
+    idata.sensitivity_analysis = sensitivity_analysis
+
+    suite = MMMPlotSuite(idata=idata)
+    with pytest.raises(
+        ValueError, match=r"x_sweep_axis='absolute' requires 'channel_scale'"
+    ):
+        suite.sensitivity_analysis(hue_dim="region", x_sweep_axis="absolute")
 
 
 def test_budget_allocation_with_dims(mock_suite_with_constant_data):
