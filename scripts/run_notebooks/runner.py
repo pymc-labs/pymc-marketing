@@ -68,6 +68,12 @@ NOTEBOOKS_PATH = DOC_SOURCE / "notebooks"
 NOTEBOOKS: list[Path] = list(NOTEBOOKS_PATH.glob("*/*.ipynb"))
 NOTEBOOKS.append(DOC_SOURCE / "guide" / "benefits" / "model_deployment.ipynb")
 
+# Notebooks to exclude from testing (relative to repo root)
+BLACKLIST: set[str] = {
+    "docs/source/notebooks/mmm/mmm_chronos.ipynb",
+}
+NOTEBOOKS = [nb for nb in NOTEBOOKS if str(nb) not in BLACKLIST]
+
 INJECTED_CODE_FILE = HERE / "injected.py"
 INJECTED_CODE = INJECTED_CODE_FILE.read_text()
 
