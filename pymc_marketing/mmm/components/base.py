@@ -29,15 +29,18 @@ from typing import Any, TypeAlias
 import numpy as np
 import numpy.typing as npt
 import pymc as pm
+import pymc.dims as pmd
 import xarray as xr
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from pydantic import InstanceOf
 from pymc.distributions.shape_utils import Dims
-from pymc_extras.prior import Prior, VariableFactory, create_dim_handler
+from pymc_extras.prior import Prior, VariableFactory
 from pytensor import tensor as pt
 from pytensor.tensor.variable import TensorVariable
+from pytensor.xtensor import as_xtensor
 
+from pymc_marketing.mmm.dims import XPrior
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.plot import (
     SelToString,
@@ -220,13 +223,13 @@ class Transformation:
         return self.function_priors
 
     @function_priors.setter  # type: ignore
-    def function_priors(self, priors: dict[str, Any | Prior] | None) -> None:
+    def function_priors(self, priors: dict[str, Any | XPrior] | None) -> None:
         priors = priors or {}
 
         non_distributions = [
             key
             for key, value in priors.items()
-            if not isinstance(value, Prior) and not isinstance(value, dict)
+            if not isinstance(value, XPrior) and not isinstance(value, dict)
         ]
 
         priors = parse_model_config(priors, non_distributions=non_distributions)
@@ -313,9 +316,10 @@ class Transformation:
         function_signature = signature(self.function)
 
         # Remove the first one as assumed to be the data
+        # And the last one, as assumed to be dim
         parameters_that_need_priors = set(
             list(function_signature.parameters.keys())[1:]
-        )
+        ) - {"dim"}
         parameters_with_priors = set(self.default_priors.keys())
 
         missing_priors = parameters_that_need_priors - parameters_with_priors
@@ -379,8 +383,6 @@ class Transformation:
         if idx is not None:
             dims = ("N", *dims)
 
-        dim_handler = create_dim_handler(dims)
-
         def create_variable(parameter_name: str, variable_name: str) -> TensorVariable:
             dist = self.function_priors[parameter_name]
             if not hasattr(dist, "create_variable"):
@@ -392,10 +394,7 @@ class Transformation:
             if idx is not None and any(dim in idx for dim in dist_dims):
                 var = index_variable(var, dist.dims, idx)
 
-                dist_dims = [dim for dim in dist_dims if dim not in idx]
-                dist_dims = ("N", *dist_dims)
-
-            return dim_handler(var, dist_dims)
+            return var
 
         return {
             parameter_name: create_variable(parameter_name, variable_name)
@@ -521,16 +520,19 @@ class Transformation:
             }
         )
 
+        x = as_xtensor(x, dims=(x_dim,))
+
         with pm.Model(coords=coords):
-            pm.Deterministic(
+            pmd.Deterministic(
                 var_name,
-                self.apply(x, dims=output_core_dims),
+                self.apply(x, dims=output_core_dims, core_dim=x_dim),
                 dims=(x_dim, *output_core_dims),
             )
 
             return pm.sample_posterior_predictive(
                 parameters,
                 var_names=[var_name],
+                progressbar=False,
             ).posterior_predictive[var_name]
 
     def plot_curve_samples(
@@ -616,7 +618,9 @@ class Transformation:
     def apply(
         self,
         x: pt.TensorLike,
+        *,
         dims: Dims | None = None,
+        core_dim: str,
         idx: dict[str, pt.TensorLike] | None = None,
     ) -> TensorVariable:
         """Call within a model context.
@@ -646,13 +650,18 @@ class Transformation:
 
             transformation = ...
 
-            coords = {"channel": ["TV", "Radio", "Digital"]}
+            coords = {
+                "channel": ["TV", "Radio", "Digital"],
+                "date": range(10),
+            }
             with pm.Model(coords=coords):
-                transformed_data = transformation.apply(data, dims="channel")
+                transformed_data = transformation.apply(
+                    data, dims="channel", core_dim="date"
+                )
 
         """
         kwargs = self._create_distributions(dims=dims, idx=idx)
-        return self.function(x, **kwargs)
+        return self.function(x, dim=core_dim, **kwargs)
 
 
 def _serialize_value(value: Any) -> Any:

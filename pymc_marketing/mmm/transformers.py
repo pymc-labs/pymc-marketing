@@ -18,11 +18,15 @@ from typing import NamedTuple
 
 import numpy as np
 import numpy.typing as npt
-import pymc as pm
 import pytensor.tensor as pt
-from numpy.lib.array_utils import normalize_axis_index
-from pymc.distributions.dist_math import check_parameters
+import pytensor.xtensor as ptx
+from pymc import logcdf, logp
+from pymc.dims import Weibull
+from pytensor.tensor.signal.conv import Convolve1d
 from pytensor.tensor.variable import TensorVariable
+from pytensor.xtensor import as_xtensor
+from pytensor.xtensor.type import XTensorVariable
+from pytensor.xtensor.vectorization import XBlockwise
 
 
 class ConvMode(StrEnum):
@@ -43,7 +47,8 @@ class WeibullType(StrEnum):
 def batched_convolution(
     x,
     w,
-    axis: int = 0,
+    *,
+    dim: str,
     mode: ConvMode | str = ConvMode.After,
 ) -> TensorVariable:
     R"""Apply a 1D convolution in a vectorized way across multiple batch dimensions.
@@ -77,10 +82,9 @@ def batched_convolution(
     x : tensor_like
         The array to convolve.
     w : tensor_like
-        The weight of the convolution. The last axis of ``w`` determines the number of steps
-        to use in the convolution.
-    axis : int
-        The axis of ``x`` along witch to apply the convolution
+        The weight of the convolution.
+    dim: str,
+        The dimension along which to perform the convolution
     mode : ConvMode, optional
         The convolution mode determines how the convolution is applied at the boundaries
         of the input signal, denoted as "x." The default mode is ConvMode.After.
@@ -102,38 +106,46 @@ def batched_convolution(
     """
     # We move the axis to the last dimension of the array so that it's easier to
     # reason about parameter broadcasting. We will move the axis back at the end
-    x = pt.as_tensor(x)
-    w = pt.as_tensor(w)
+    x = ptx.as_xtensor(x)
+    w = ptx.as_xtensor(w)
 
-    axis = normalize_axis_index(axis, x.ndim)
-    x = pt.moveaxis(x, axis, -1)
-    x_batch_shape = tuple(x.shape)[:-1]
-    lags = w.shape[-1]
+    lags = w.sizes[dim]
 
     if mode == ConvMode.After:
-        zeros = pt.zeros((*x_batch_shape, lags - 1), dtype=x.dtype)
-        padded_x = pt.join(-1, zeros, x)
+        zeros = ptx.as_xtensor(pt.zeros(lags - 1, dtype=x.dtype), dims=(dim,))
+        padded_x = ptx.concat([zeros, x], dim=dim)
     elif mode == ConvMode.Before:
-        zeros = pt.zeros((*x_batch_shape, lags - 1), dtype=x.dtype)
-        padded_x = pt.join(-1, x, zeros)
+        zeros = ptx.as_xtensor(pt.zeros(lags - 1, dtype=x.dtype), dims=(dim,))
+        padded_x = ptx.concat([x, zeros], dim=dim)
     elif mode == ConvMode.Overlap:
-        zeros_left = pt.zeros((*x_batch_shape, lags // 2), dtype=x.dtype)
-        zeros_right = pt.zeros((*x_batch_shape, (lags - 1) // 2), dtype=x.dtype)
-        padded_x = pt.join(-1, zeros_left, x, zeros_right)
+        zeros_left = ptx.as_xtensor(pt.zeros(lags // 2, dtype=x.dtype), dims=(dim,))
+        zeros_right = ptx.as_xtensor(
+            pt.zeros((lags - 1) // 2, dtype=x.dtype), dims=(dim,)
+        )
+        padded_x = ptx.concat([zeros_left, x, zeros_right], dim=dim)
     else:
         raise ValueError(f"Wrong Mode: {mode}, expected one of {', '.join(ConvMode)}")
 
-    conv = pt.signal.convolve1d(padded_x, w, mode="valid")
-    return pt.moveaxis(conv, -1, axis + conv.ndim - x.ndim)
+    convolved1d = Convolve1d()
+    dim0 = f"{dim}_0"
+    dim1 = f"{dim}_1"
+    xconvolved1d = XBlockwise(
+        convolved1d,
+        core_dims=(((dim0,), (dim1,), ()), ((dim,),)),
+        signature=convolved1d.gufunc_signature,
+    )
+    full_mode = np.array(False)
+    return xconvolved1d(padded_x.rename({dim: dim0}), w.rename({dim: dim1}), full_mode)
 
 
 def binomial_adstock(
     x,
     alpha: float = 0.5,
+    *,
     l_max: int = 12,
     normalize: bool = False,
-    axis: int = 0,
     mode: ConvMode = ConvMode.After,
+    dim: str,
 ) -> TensorVariable:
     R"""Binomial adstock transformation.
 
@@ -199,22 +211,26 @@ def binomial_adstock(
         Transformed tensor.
 
     """
-    alpha = check_parameters(
-        alpha, [pt.gt(alpha, 0), pt.le(alpha, 1)], msg="0 < alpha <= 1"
-    )
-    rescaled_alpha = pt.as_tensor(1 / alpha - 1)[..., None]
-    lag_tensor = pt.as_tensor(l_max + 1)[..., None]
-    w = pt.power(1 - pt.arange(l_max, dtype=x.dtype) / lag_tensor, rescaled_alpha)
-    w = w / pt.sum(w, axis=-1, keepdims=True) if normalize else w
-    return batched_convolution(x, w, axis=axis, mode=mode)
+    # alpha = check_parameters(
+    #     alpha, [pt.gt(alpha, 0), pt.le(alpha, 1)], msg="0 < alpha <= 1"
+    # )
+    x = as_xtensor(x)
+    alpha = as_xtensor(alpha)
+
+    rescaled_alpha = 1 / alpha - 1
+    lags = ptx.as_xtensor(pt.arange(l_max, dtype=x.dtype), dims=(dim,))
+    w = ptx.math.power(1 - (lags / (l_max + 1)), rescaled_alpha)
+    w = w / w.sum(dim=dim) if normalize else w
+    return batched_convolution(x, w, mode=mode, dim=dim)
 
 
 def geometric_adstock(
     x,
     alpha: float = 0.0,
     l_max: int = 12,
+    *,
+    dim: str,
     normalize: bool = False,
-    axis: int = 0,
     mode: ConvMode = ConvMode.After,
 ) -> TensorVariable:
     R"""Geometric adstock transformation.
@@ -265,8 +281,6 @@ def geometric_adstock(
         Maximum duration of carryover effect.
     normalize : bool, by default False
         Whether to normalize the weights.
-    axis : int
-        The axis of ``x`` along witch to apply the convolution
     mode : ConvMode, optional
         The convolution mode determines how the convolution is applied at the boundaries
         of the input signal, denoted as "x." The default mode is ConvMode.After.
@@ -288,22 +302,25 @@ def geometric_adstock(
        with carryover and shape effects." (2017).
 
     """
-    alpha = check_parameters(
-        alpha, [pt.ge(alpha, 0), pt.le(alpha, 1)], msg="0 <= alpha <= 1"
-    )
-
-    w = pt.power(pt.as_tensor(alpha)[..., None], pt.arange(l_max, dtype=x.dtype))
-    w = w / pt.sum(w, axis=-1, keepdims=True) if normalize else w
-    return batched_convolution(x, w, axis=axis, mode=mode)
+    # alpha = check_parameters(
+    #     alpha, [pt.ge(alpha, 0), pt.le(alpha, 1)], msg="0 <= alpha <= 1"
+    # )
+    x = as_xtensor(x)
+    alpha = as_xtensor(alpha)
+    lags = ptx.as_xtensor(pt.arange(l_max, dtype=x.dtype), dims=(dim,))
+    w = ptx.math.power(alpha, lags)
+    w = w / w.sum(dim=dim) if normalize else w
+    return batched_convolution(x, w, dim=dim, mode=mode)
 
 
 def delayed_adstock(
     x,
     alpha: float = 0.0,
     theta: int = 0,
+    *,
     l_max: int = 12,
     normalize: bool = False,
-    axis: int = 0,
+    dim: str,
     mode: ConvMode = ConvMode.After,
 ) -> TensorVariable:
     R"""Delayed adstock transformation.
@@ -374,24 +391,28 @@ def delayed_adstock(
        with carryover and shape effects." (2017).
 
     """
-    w = pt.power(
-        pt.as_tensor(alpha)[..., None],
-        (pt.arange(l_max, dtype=x.dtype) - pt.as_tensor(theta)[..., None]) ** 2,
+    alpha = as_xtensor(alpha)
+    theta = as_xtensor(theta)
+    lags = as_xtensor(pt.arange(l_max, dtype=x.dtype), dims=(dim,))
+    w = ptx.math.power(
+        alpha,
+        (lags - theta) ** 2,
     )
-    w = w / pt.sum(w, axis=-1, keepdims=True) if normalize else w
-    return batched_convolution(x, w, axis=axis, mode=mode)
+    w = w / w.sum(dim=dim) if normalize else w
+    return batched_convolution(x, w, dim=dim, mode=mode)
 
 
 def weibull_adstock(
     x,
     lam=1,
     k=1,
+    *,
     l_max: int = 12,
-    axis: int = 0,
+    dim: str,
     mode: ConvMode = ConvMode.After,
     type: WeibullType | str = WeibullType.PDF,
     normalize: bool = False,
-) -> TensorVariable:
+) -> XTensorVariable:
     R"""Weibull Adstocking Transformation.
 
     This transformation is similar to geometric adstock transformation but has more
@@ -478,26 +499,23 @@ def weibull_adstock(
         Transformed tensor based on Weibull adstock transformation.
 
     """
-    lam = pt.as_tensor(lam)[..., None]
-    k = pt.as_tensor(k)[..., None]
-    t = pt.arange(l_max, dtype=x.dtype) + 1
+    lam = as_xtensor(lam)
+    k = as_xtensor(k)
+    t = as_xtensor(pt.arange(l_max, dtype=x.dtype) + 1, dims=(dim,))
+    weibull_dist = Weibull.dist(k, lam, dim_lengths=t.sizes)
 
     if type == WeibullType.PDF:
-        w = pt.exp(pm.Weibull.logp(t, k, lam))
-        w = (w - pt.min(w, axis=-1)[..., None]) / (
-            pt.max(w, axis=-1)[..., None] - pt.min(w, axis=-1)[..., None]
-        )
+        w = ptx.math.exp(logp(weibull_dist, t))
+        w = (w - w.min(dim=dim)) / (w.max(dim=dim) - w.min(dim=dim))
     elif type == WeibullType.CDF:
-        w = 1 - pt.exp(pm.Weibull.logcdf(t, k, lam))
-        shape = (*w.shape[:-1], w.shape[-1] + 1)
-        padded_w = pt.ones(shape, dtype=w.dtype)
-        padded_w = pt.set_subtensor(padded_w[..., 1:], w)
-        w = pt.cumprod(padded_w, axis=-1)
+        w = 1 - ptx.math.exp(logcdf(weibull_dist, t))
+        padded_w = ptx.concat([1, w], dim=dim)
+        w = padded_w.cumprod(dim=dim)
     else:
         raise ValueError(f"Wrong WeibullType: {type}, expected of WeibullType")
 
-    w = w / pt.sum(w, axis=-1, keepdims=True) if normalize else w
-    return batched_convolution(x, w, axis=axis, mode=mode)
+    w = w / w.sum(dim=dim) if normalize else w
+    return batched_convolution(x, w, mode=mode, dim=dim)
 
 
 def logistic_saturation(x, lam: npt.NDArray | float = 0.5) -> TensorVariable:
@@ -547,7 +565,7 @@ def logistic_saturation(x, lam: npt.NDArray | float = 0.5) -> TensorVariable:
         Transformed tensor.
 
     """
-    return (1 - pt.exp(-lam * x)) / (1 + pt.exp(-lam * x))
+    return (1 - ptx.math.exp(-lam * x)) / (1 + ptx.math.exp(-lam * x))
 
 
 def inverse_scaled_logistic_saturation(
