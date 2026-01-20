@@ -26,11 +26,18 @@ from typing import Any
 
 import numpy as np
 import pymc as pm
+import pymc.dims as pmd
 import pytensor.tensor as pt
 import xarray as xr
 from pymc_extras.deserialize import deserialize, register_deserialization
-from pymc_extras.prior import Prior, VariableFactory, create_dim_handler, sample_prior
-from pytensor.tensor import TensorVariable
+from pymc_extras.prior import (
+    Prior,
+    VariableFactory,
+    _param_value_with_dims,
+    sample_prior,
+)
+from pytensor.tensor import TensorVariable, as_tensor
+from pytensor.xtensor.type import XTensorVariable, as_xtensor
 
 
 class SpecialPrior(ABC):
@@ -101,12 +108,15 @@ class SpecialPrior(ABC):
         """Create a variable from the prior distribution."""
         pass
 
-    def _create_parameter(self, param, value, name):
+    def _create_parameter(self, param, value, name, xdist: bool = False):
         if not hasattr(value, "create_variable"):
-            return value
+            if xdist:
+                return _param_value_with_dims(param, value, dims=self.dims)
+            else:
+                return value
 
         child_name = f"{name}_{param}"
-        return self.dim_handler(value.create_variable(child_name), value.dims)
+        return value.create_variable(child_name, xdist=xdist)
 
     def to_dict(self):
         """Convert the SpecialPrior to a dictionary."""
@@ -192,6 +202,7 @@ class SpecialPrior(ABC):
             factory=self,
             coords=coords,
             name=name,
+            xdist=True,
             **sample_prior_predictive_kwargs,
         )
 
@@ -274,34 +285,38 @@ class LogNormalPrior(SpecialPrior):
         if set(self.parameters.keys()) != {"mean", "std"}:
             raise ValueError("Parameters must be mean and std")
 
-    def create_variable(self, name: str) -> TensorVariable:
+    def create_variable(
+        self, name: str, xdist: bool = False
+    ) -> TensorVariable | XTensorVariable:
         """Create a variable from the prior distribution."""
-        self.dim_handler = create_dim_handler(self.dims)
+        if not xdist:
+            raise NotImplementedError(f"{self!r} only supports xdist=True")
+
         parameters = {
-            param: self._create_parameter(param, value, name)
+            param: as_xtensor(self._create_parameter(param, value, name, xdist=True))
             for param, value in self.parameters.items()
         }
-        mu_log = pt.log(
+        mu_log = pmd.math.log(
             parameters["mean"] ** 2
-            / pt.sqrt(parameters["mean"] ** 2 + parameters["std"] ** 2)
+            / pmd.math.sqrt(parameters["mean"] ** 2 + parameters["std"] ** 2)
         )
-        sigma_log = pt.sqrt(
-            pt.log(1 + (parameters["std"] ** 2 / parameters["mean"] ** 2))
+        sigma_log = pmd.math.sqrt(
+            pmd.math.log1p(parameters["std"] ** 2 / parameters["mean"] ** 2)
         )
 
         if self.centered:
-            log_phi = pm.Normal(
+            log_phi = pmd.Normal(
                 name + "_log", mu=mu_log, sigma=sigma_log, dims=self.dims
             )
 
         else:
-            log_phi_z = pm.Normal(
+            log_phi_z = pmd.Normal(
                 name + "_log" + "_offset", mu=0, sigma=1, dims=self.dims
             )
             log_phi = mu_log + log_phi_z * sigma_log
 
-        phi = pm.math.exp(log_phi)
-        phi = pm.Deterministic(name, phi, dims=self.dims)
+        phi = pmd.math.exp(log_phi)
+        phi = pmd.Deterministic(name, phi)
 
         return phi
 
@@ -351,23 +366,26 @@ class LaplacePrior(SpecialPrior):
         if set(self.parameters.keys()) != {"mu", "b"}:
             raise ValueError("Parameters must be mu and b")
 
-    def create_variable(self, name: str) -> TensorVariable:
+    def create_variable(self, name: str, xdist: bool = False) -> TensorVariable:
         """Create a variable from the prior distribution."""
-        self.dim_handler = create_dim_handler(self.dims)
+        if not xdist:
+            raise NotImplementedError(f"{self!r} only supports xdist=True")
+
         parameters = {
-            param: self._create_parameter(param, value, name)
+            param: self._create_parameter(param, value, name, xdist=True)
             for param, value in self.parameters.items()
         }
         if self.centered:
-            phi = pm.Laplace(
+            phi = pmd.Laplace(
                 name, mu=parameters["mu"], b=parameters["b"], dims=self.dims
             )
 
         else:
-            sigma = pm.Exponential(name + "_sigma", scale=2 * parameters["b"] ** 2)
-            phi = pm.Normal(name + "_offset", mu=0, sigma=1, dims=self.dims)
-            phi = pm.Deterministic(
-                name, phi * pt.sqrt(sigma) + parameters["mu"], dims=self.dims
+            sigma = pmd.Exponential(name + "_sigma", scale=2 * parameters["b"] ** 2)
+            phi = pmd.Normal(name + "_offset", mu=0, sigma=1, dims=self.dims)
+            phi = pmd.Deterministic(
+                name,
+                phi * pmd.math.sqrt(sigma) + parameters["mu"],
             )
 
         return phi
@@ -595,7 +613,9 @@ class MaskedPrior:
 
         return factory
 
-    def create_variable(self, name: str) -> TensorVariable:
+    def create_variable(
+        self, name: str, xdist: bool = False
+    ) -> TensorVariable | XTensorVariable:
         """Create a deterministic variable with full dims using the active subset.
 
         Creates an underlying variable over the active entries only and expands
@@ -608,11 +628,11 @@ class MaskedPrior:
 
         Returns
         -------
-        pt.TensorVariable
+        TensorVariable or XTensorVariable
             Deterministic variable with the original dims, zeros on inactive entries.
         """
         model = pm.modelcontext(None)
-        flat_mask = self.mask.values.ravel().astype(bool)
+        flat_mask = self.mask.values.astype(bool).ravel()
         n_active = int(flat_mask.sum())
 
         if n_active == 0:
@@ -629,10 +649,18 @@ class MaskedPrior:
         # Make a deep copy and remap dims depth-first before creating the RV
         reduced = self._remap_dims(self.prior.deepcopy())
 
-        active_rv = reduced.create_variable(f"{name}_active")  # shape: (active_dim,)
-        flat_full = pt.zeros((self.mask.size,), dtype=active_rv.dtype)
-        full = flat_full[flat_mask].set(active_rv).reshape(self.mask.shape)
-        return pm.Deterministic(name, full, dims=self.dims)
+        active_rv = reduced.create_variable(
+            f"{name}_active", xdist=xdist
+        )  # shape: (active_dim,)
+        flat_zeros = pt.zeros((self.mask.size,), dtype=active_rv.dtype)
+        flat_full = flat_zeros[flat_mask].set(
+            as_tensor(active_rv, allow_xtensor_conversion=True)
+        )
+        full = flat_full.reshape(self.mask.shape)
+        if xdist:
+            return pmd.Deterministic(name, as_xtensor(full, dims=self.dims))
+        else:
+            return pm.Deterministic(name, full, dims=self.dims)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize MaskedPrior to a JSON-serializable dictionary.
@@ -688,7 +716,12 @@ class MaskedPrior:
         return cls(prior=prior, mask=mask_da, active_dim=active_dim)
 
     def create_likelihood_variable(
-        self, name: str, *, mu: pt.TensorLike, observed: pt.TensorLike
+        self,
+        name: str,
+        *,
+        mu: pt.TensorLike,
+        observed: pt.TensorLike,
+        xdist: bool = False,
     ) -> TensorVariable:
         """Create an observed variable over the active subset and expand to full dims.
 
@@ -696,16 +729,19 @@ class MaskedPrior:
         ----------
         name : str
             Base name for the created variables.
-        mu : pt.TensorLike
+        mu : XTensorLike
             Mean/location parameter broadcastable to the masked shape.
-        observed : pt.TensorLike
+        observed : XTensorLike
             Observations broadcastable to the masked shape.
 
         Returns
         -------
-        pt.TensorVariable
+        XTensorVariable
             Deterministic variable over the full dims with observed RV on active entries.
         """
+        if xdist:
+            raise NotImplementedError(f"{self!r} only supports xdist=False")
+
         model = pm.modelcontext(None)
         flat_mask = self.mask.values.ravel().astype(bool)
         n_active = int(flat_mask.sum())
