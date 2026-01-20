@@ -1,0 +1,349 @@
+from __future__ import annotations
+
+from copy import copy, deepcopy
+from typing import Callable, Any
+
+import numpy as np
+from pydantic import validate_call
+
+from pymc import dims as pmd
+from pymc.distributions.shape_utils import Dims
+from pymc_extras.deserialize import deserialize
+from pymc_extras.prior import UnsupportedDistributionError, _get_pymc_parameters, VariableFactory, \
+    UnsupportedParameterizationError, MuAlreadyExistsError
+from pytensor import tensor as pt, Variable
+from pytensor.tensor import TensorVariable
+from pytensor.xtensor.type import XTensorVariable
+from xarray import DataArray
+
+
+def XData(name: str, data: DataArray) -> pmd.XTensorVariable:
+    return pmd.Data(name, data.values, dims=data.dims)
+
+
+class XPrior:
+    """Temporary alternative to Prior that works with dimmed distributions/variables"""
+
+    # Taken from https://en.wikipedia.org/wiki/Location%E2%80%93scale_family
+    non_centered_distributions: dict[str, dict[str, float]] = {
+        "Normal": {"mu": 0, "sigma": 1},
+        "StudentT": {"mu": 0, "sigma": 1},
+        "ZeroSumNormal": {"sigma": 1},
+    }
+    """Available non-centered distributions and their default parameters."""
+
+    pymc_distribution: type[pmd.DimDistribution]
+    """The PyMC distribution class."""
+
+    pytensor_transform: Callable[["XTensorLike"], "XTensorLike"] | None
+    """The PyTensor transform function."""
+
+    @validate_call
+    def __init__(
+        self,
+        distribution: str,
+        *,
+        dims: Dims | None = None,
+        centered: bool = True,
+        transform: str | None = None,
+        **parameters,
+    ) -> None:
+        self.distribution = distribution
+        self.parameters = parameters
+        self.dims = dims
+        self.centered = centered
+        self.transform = transform
+
+        self._checks()
+
+    @property
+    def distribution(self) -> str:
+        """The name of the PyMC distribution."""
+        return self._distribution
+
+    @distribution.setter
+    def distribution(self, distribution: str) -> None:
+        if hasattr(self, "_distribution"):
+            raise AttributeError("Can't change the distribution")
+
+        self._distribution = distribution
+
+        try:
+            self.pymc_distribution = getattr(pmd, distribution)
+        except AttributeError:
+            raise UnsupportedDistributionError(f"PyMC.dims doesn't have a distribution of name {distribution!r}")
+
+
+    @property
+    def transform(self) -> str | None:
+        """The name of the transform to apply to the variable after it is created."""
+        return self._transform
+
+    @transform.setter
+    def transform(self, transform: str | None) -> None:
+        self._transform = transform
+        self.pytensor_transform = not transform or _get_transform(transform)  # type: ignore
+
+    @property
+    def dims(self) -> Dims:
+        """The dimensions of the variable."""
+        return self._dims
+
+    @dims.setter
+    def dims(self, dims) -> None:
+        if isinstance(dims, str):
+            dims = (dims,)
+
+        if isinstance(dims, list):
+            dims = tuple(dims)
+
+        self._dims = dims or ()
+
+    def __getitem__(self, key: str) -> XPrior | Any:
+        """Return the parameter of the prior."""
+        return self.parameters[key]
+
+    def _checks(self) -> None:
+        if not self.centered:
+            self._correct_non_centered_distribution()
+
+        self._parameters_are_at_least_subset_of_pymc()
+        self._convert_lists_to_numpy()
+        self._parameters_are_correct_type()
+
+    def _parameters_are_at_least_subset_of_pymc(self) -> None:
+        pymc_params = _get_pymc_parameters(self.pymc_distribution)
+        if not set(self.parameters.keys()).issubset(pymc_params):
+            msg = (
+                f"Parameters {set(self.parameters.keys())} "
+                "are not a subset of the pymc distribution "
+                f"parameters {set(pymc_params)}"
+            )
+            raise ValueError(msg)
+
+    def _convert_lists_to_numpy(self) -> None:
+        def convert(x):
+            if not isinstance(x, list):
+                return x
+
+            return np.array(x)
+
+        self.parameters = {key: convert(value) for key, value in self.parameters.items()}
+
+    def _parameters_are_correct_type(self) -> None:
+        supported_types = (
+            int,
+            float,
+            np.ndarray,
+            XPrior,
+            TensorVariable,
+            XTensorVariable,
+            VariableFactory,
+        )
+
+        incorrect_types = {
+            param: type(value)
+            for param, value in self.parameters.items()
+            if not isinstance(value, supported_types)
+        }
+        if incorrect_types:
+            msg = (
+                "Parameters must be one of the following types: "
+                f"(int, float, np.array, XPrior, TensorVariable, XTensorVariable). Incorrect parameters: {incorrect_types}"
+            )
+            raise ValueError(msg)
+
+    def _correct_non_centered_distribution(self) -> None:
+        if not self.centered and self.distribution not in self.non_centered_distributions:
+            raise UnsupportedParameterizationError(
+                f"{self.distribution!r} is not supported for non-centered parameterization. "
+                f"Choose from {list(self.non_centered_distributions.keys())}"
+            )
+
+        required_parameters = set(self.non_centered_distributions[self.distribution].keys())
+
+        if set(self.parameters.keys()) < required_parameters:
+            msg = " and ".join([f"{param!r}" for param in required_parameters])
+            raise ValueError(
+                f"Must have at least {msg} parameter for non-centered for {self.distribution!r}"
+            )
+
+
+    def _create_parameter(self, param, value, name):
+        if not hasattr(value, "create_variable"):
+            return value
+
+        child_name = f"{name}_{param}"
+        return value.create_variable(child_name)
+
+    def _create_centered_variable(self, name: str):
+        parameters = {
+            param: self._create_parameter(param, value, name)
+            for param, value in self.parameters.items()
+        }
+        return self.pymc_distribution(name, **parameters, dims=self.dims)
+
+    def _create_non_centered_variable(self, name: str) -> pt.TensorVariable:
+        def handle_variable(var_name: str):
+            parameter = self.parameters[var_name]
+            if not hasattr(parameter, "create_variable"):
+                return parameter
+
+            return parameter.create_variable(f"{name}_{var_name}")
+
+        defaults = self.non_centered_distributions[self.distribution]
+        other_parameters = {
+            param: handle_variable(param)
+            for param in self.parameters.keys()
+            if param not in defaults
+        }
+        offset = self.pymc_distribution(
+            f"{name}_offset",
+            **defaults,
+            **other_parameters,
+            dims=self.dims,
+        )
+        if "mu" in self.parameters:
+            mu = (
+                handle_variable("mu")
+                if isinstance(self.parameters["mu"], XPrior)
+                else self.parameters["mu"]
+            )
+        else:
+            mu = 0
+
+        sigma = (
+            handle_variable("sigma")
+            if isinstance(self.parameters["sigma"], XPrior)
+            else self.parameters["sigma"]
+        )
+
+        return pmd.Deterministic(
+            name,
+            mu + sigma * offset,
+        )
+
+    def create_variable(self, name: str) -> pt.TensorVariable:
+        if self.transform:
+            var_name = f"{name}_raw"
+
+            def transform(var):
+                return pmd.Deterministic(name, self.pytensor_transform(var))
+        else:
+            var_name = name
+
+            def transform(var):
+                return var
+
+        create_variable = (
+            self._create_centered_variable if self.centered else self._create_non_centered_variable
+        )
+        var = create_variable(name=var_name)
+        return transform(var)
+
+
+    def to_dict(self) -> dict[str, Any]:
+        data: dict[str, Any] = {
+            "dist": self.distribution,
+        }
+        if self.parameters:
+
+            def handle_value(value):
+                if isinstance(value, XPrior):
+                    return value.to_dict()
+
+                if isinstance(value, Variable):
+                    value = value.eval()
+
+                if isinstance(value, np.ndarray):
+                    return value.tolist()
+
+                if hasattr(value, "to_dict"):
+                    return value.to_dict()
+
+                return value
+
+            data["kwargs"] = {
+                param: handle_value(value) for param, value in self.parameters.items()
+            }
+        if not self.centered:
+            data["centered"] = False
+
+        if self.dims:
+            data["dims"] = self.dims
+
+        if self.transform:
+            data["transform"] = self.transform
+
+        return data
+
+    @classmethod
+    def from_dict(cls, data) -> XPrior:
+        if not isinstance(data, dict):
+            msg = (
+                "Must be a dictionary representation of a prior distribution. "
+                f"Not of type: {type(data)}"
+            )
+            raise ValueError(msg)
+
+        dist = data["dist"]
+        kwargs = data.get("kwargs", {})
+
+        def handle_value(value):
+            if isinstance(value, dict):
+                return deserialize(value)
+
+            if isinstance(value, list):
+                return np.array(value)
+
+            return value
+
+        kwargs = {param: handle_value(value) for param, value in kwargs.items()}
+        centered = data.get("centered", True)
+        dims = data.get("dims")
+        if isinstance(dims, list):
+            dims = tuple(dims)
+        transform = data.get("transform")
+
+        return cls(dist, dims=dims, centered=centered, transform=transform, **kwargs)
+
+
+
+    def __deepcopy__(self, memo) -> XPrior:
+        """Return a deep copy of the prior."""
+        if id(self) in memo:
+            return memo[id(self)]
+
+        copy_obj = XPrior(
+            self.distribution,
+            dims=copy(self.dims),
+            centered=self.centered,
+            transform=self.transform,
+            **deepcopy(self.parameters),
+        )
+        memo[id(self)] = copy_obj
+        return copy_obj
+
+    def deepcopy(self) -> XPrior:
+        """Return a deep copy of the prior."""
+        return deepcopy(self)
+
+
+    def create_likelihood_variable(
+        self,
+        name: str,
+        mu: "XTensorLike",
+        observed: "XTensorLike",
+    ) -> XTensorVariable:
+        if "mu" not in _get_pymc_parameters(self.pymc_distribution):
+            raise UnsupportedDistributionError(
+                f"Likelihood distribution {self.distribution!r} is not supported."
+            )
+
+        if "mu" in self.parameters:
+            raise MuAlreadyExistsError(self)
+
+        distribution = self.deepcopy()
+        distribution.parameters["mu"] = mu
+        distribution.parameters["observed"] = observed
+        return distribution.create_variable(name)

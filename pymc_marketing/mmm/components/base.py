@@ -38,6 +38,7 @@ from pymc_extras.prior import Prior, VariableFactory, create_dim_handler
 from pytensor import tensor as pt
 from pytensor.tensor.variable import TensorVariable
 
+from pymc_marketing.mmm.dims import XPrior
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.plot import (
     SelToString,
@@ -220,13 +221,13 @@ class Transformation:
         return self.function_priors
 
     @function_priors.setter  # type: ignore
-    def function_priors(self, priors: dict[str, Any | Prior] | None) -> None:
+    def function_priors(self, priors: dict[str, Any | XPrior] | None) -> None:
         priors = priors or {}
 
         non_distributions = [
             key
             for key, value in priors.items()
-            if not isinstance(value, Prior) and not isinstance(value, dict)
+            if not isinstance(value, XPrior) and not isinstance(value, dict)
         ]
 
         priors = parse_model_config(priors, non_distributions=non_distributions)
@@ -392,10 +393,7 @@ class Transformation:
             if idx is not None and any(dim in idx for dim in dist_dims):
                 var = index_variable(var, dist.dims, idx)
 
-                dist_dims = [dim for dim in dist_dims if dim not in idx]
-                dist_dims = ("N", *dist_dims)
-
-            return dim_handler(var, dist_dims)
+            return var
 
         return {
             parameter_name: create_variable(parameter_name, variable_name)
