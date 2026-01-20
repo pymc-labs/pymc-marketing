@@ -116,14 +116,50 @@ def mock_fit(model, X: pd.DataFrame, y: pd.Series, **kwargs):
             category=UserWarning,
             message="The group fit_data is not defined in the InferenceData scheme",
         )
+
+        # Create posterior from prior
+        posterior = idata.prior.copy(deep=True)
+
+        # Add mu if channel_contribution exists (compute from channel_contribution + intercept)
+        # mu is a deterministic variable, so it won't be in prior_predictive samples
+        if "channel_contribution" in posterior.data_vars:
+            channel_contrib = posterior["channel_contribution"]
+            # Sum over channel dimension to get total channel contribution
+            channel_sum = channel_contrib.sum(dim="channel")
+
+            # Add intercept if it exists
+            if "intercept_contribution" in posterior.data_vars:
+                intercept = posterior["intercept_contribution"]
+                mu = intercept + channel_sum
+            else:
+                # If no intercept, just use channel sum
+                mu = channel_sum
+
+            # Ensure mu has correct dims (chain, draw, date, ...)
+            posterior["mu"] = mu
+
         idata.add_groups(
             {
-                "posterior": idata.prior,
+                "posterior": posterior,
                 "fit_data": pd.concat(
                     [X, pd.Series(y, index=X.index, name="y")], axis=1
                 ).to_xarray(),
             }
         )
+
+    # Fix dtypes in constant_data to float64 (schema expects float64, but test data uses int32)
+    if hasattr(idata, "constant_data"):
+        for var_name in [
+            "channel_data",
+            "target_data",
+            "channel_scale",
+            "target_scale",
+        ]:
+            if var_name in idata.constant_data.data_vars:
+                var = idata.constant_data[var_name]
+                if var.dtype != "float64":
+                    idata.constant_data[var_name] = var.astype("float64")
+
     model.idata = idata
     model.set_idata_attrs(idata=idata)
 
