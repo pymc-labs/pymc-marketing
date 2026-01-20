@@ -1598,6 +1598,53 @@ class MMM(RegressionModelBuilder):
                 f"Either set include_last_observations=False or use input dates that don't overlap with training data."
             )
 
+    def _subsample_posterior(
+        self,
+        parameters: xr.Dataset,
+        num_samples: int | None = None,
+        random_state: RandomState | None = None,
+    ) -> xr.Dataset:
+        """Subsample posterior parameters if needed.
+
+        Parameters
+        ----------
+        parameters : xr.Dataset
+            Dataset with parameter values (posterior samples).
+        num_samples : int or None, optional
+            Number of posterior samples to use. If None, all samples are used.
+            If less than total available samples, random subsampling is performed.
+        random_state : np.random.Generator, int, or None, optional
+            Random state for reproducible subsampling.
+
+        Returns
+        -------
+        xr.Dataset
+            Subsampled parameters (or original if no subsampling needed).
+        """
+        if num_samples is None:
+            return parameters
+
+        n_chains = parameters.sizes["chain"]
+        n_draws = parameters.sizes["draw"]
+        total_samples = n_chains * n_draws
+
+        if num_samples >= total_samples:
+            return parameters
+
+        rng = np.random.default_rng(random_state)
+        flat_indices = rng.choice(total_samples, size=num_samples, replace=False)
+
+        stacked = parameters.stack(sample=("chain", "draw"))
+        selected = stacked.isel(sample=flat_indices)
+        # Drop chain, draw, and sample to avoid MultiIndex deprecation warning
+        params = (
+            selected.drop_vars(["chain", "draw", "sample"])
+            .rename({"sample": "draw"})
+            .expand_dims("chain")
+        )
+
+        return params
+
     def _posterior_predictive_data_transformation(
         self,
         X: pd.DataFrame,
@@ -1949,45 +1996,24 @@ class MMM(RegressionModelBuilder):
                 "The model must be fitted (call .fit()) before sampling saturation curves."
             )
 
-        # Step 1: Subsample posterior
-        posterior = self.idata.posterior  # type: ignore[union-attr]
+        # Subsample posterior if needed
+        parameters = self._subsample_posterior(
+            parameters=self.idata.posterior,  # type: ignore[union-attr]
+            num_samples=num_samples,
+            random_state=random_state,
+        )
 
-        n_chains = posterior.sizes["chain"]
-        n_draws = posterior.sizes["draw"]
-        total_samples = n_chains * n_draws
-
-        # Subsample from posterior if needed
-        # We need to keep chain/draw dimensions for sample_curve to work
-        if num_samples is not None and num_samples < total_samples:
-            rng = np.random.default_rng(random_state)
-            # Randomly select samples across all chains/draws
-            flat_indices = rng.choice(total_samples, size=num_samples, replace=False)
-
-            # Stack chain/draw into single dimension, select samples, reshape to chain=1
-            stacked = posterior.stack(sample=("chain", "draw"))
-            selected = stacked.isel(sample=flat_indices)
-            # Drop the multi-index coords before renaming to avoid conflicts
-            params = (
-                selected.drop_vars(["chain", "draw"])
-                .rename({"sample": "draw"})
-                .expand_dims("chain")
-            )
-        else:
-            params = posterior
-
-        # Step 2: Sample curve using transformation's method
-        # max_value is already in scaled space
-        # This automatically handles channel dimensions
+        # Sample curve using transformation's method
         curve = self.saturation.sample_curve(
-            parameters=params,
+            parameters=parameters,
             max_value=max_value,
             num_points=num_points,
         )
 
-        # Flatten chain/draw to 'sample' dimension for consistent output
+        # Flatten chain and draw dimensions to sample dimension
         curve = curve.stack(sample=("chain", "draw"))
 
-        # Step 3: Convert to original scale if requested
+        # Convert to original scale if requested
         if original_scale:
             # Scale y values (contribution) to original target units
             # Note: x coordinates remain in scaled space (same as max_value input)
@@ -2002,7 +2028,9 @@ class MMM(RegressionModelBuilder):
     @validate_call(config={"arbitrary_types_allowed": True})
     def sample_adstock_curve(
         self,
-        amount: float = Field(1.0, gt=0, description="Amount to apply adstock to."),
+        amount: float = Field(
+            1.0, gt=0, description="Amount to apply the adstock transformation to."
+        ),
         num_samples: int | None = Field(
             500, gt=0, description="Number of posterior samples to use."
         ),
@@ -2012,13 +2040,14 @@ class MMM(RegressionModelBuilder):
 
         This method samples the adstock transformation curves using posterior
         parameters from the fitted model. It allows visualization of the
-        carryover effect of media spend over time.
+        carryover effect of media exposure over time.
 
         Parameters
         ----------
         amount : float, optional
             Amount to apply the adstock transformation to. By default 1.0.
-            This represents the initial media exposure that decays over time.
+            This represents an impulse of spend at time 0, and the curve
+            shows how this effect decays over subsequent time periods.
         num_samples : int or None, optional
             Number of posterior samples to use for generating curves. By default 500.
             Samples are drawn randomly from the full posterior (across all chains
@@ -2035,16 +2064,19 @@ class MMM(RegressionModelBuilder):
         -------
         xr.DataArray
             Sampled adstock curves with dimensions:
-            - Simple model: (time_since_exposure, channel, sample)
-            - Panel model: (time_since_exposure, *custom_dims, channel, sample)
+            - Simple model: (time since exposure, channel, sample)
+            - Panel model: (time since exposure, *custom_dims, channel, sample)
 
             The "sample" dimension indexes the posterior samples used.
-            The "time_since_exposure" coordinate represents lag periods starting from 0.
+            The "time since exposure" coordinate represents time periods from 0
+            to l_max (the maximum lag for the adstock transformation).
 
         Raises
         ------
         ValueError
             If called before model is fitted (idata doesn't exist)
+        ValueError
+            If idata exists but no posterior (model not fitted)
 
         Examples
         --------
@@ -2052,7 +2084,7 @@ class MMM(RegressionModelBuilder):
 
         >>> curves = mmm.sample_adstock_curve()
         >>> curves.dims
-        ('time_since_exposure', 'channel', 'sample')
+        ('sample', 'time since exposure', 'channel')
 
         Sample curves using all posterior samples:
 
@@ -2066,21 +2098,20 @@ class MMM(RegressionModelBuilder):
 
         Notes
         -----
+        - The adstock curve shows the carryover effect of a single impulse of
+          media exposure over time, unlike saturation curves which show
+          diminishing returns.
         - For panel models, curves are generated for each combination of custom
           dimensions (e.g., each country) and channel.
         - The returned array includes a "sample" dimension for uncertainty
           quantification. Use `.mean(dim='sample')` for point estimates and
           `.quantile()` for credible intervals.
         - Posterior samples are drawn randomly without replacement when num_samples
-          is less than the total available samples, otherwise all samples are used.
-
-        See Also
-        --------
-        sample_saturation_curve : Sample saturation curves from posterior
+          is less than the total available samples.
         """
         self._validate_idata_exists()
 
-        # Validate that posterior exists (model was fitted, not just prior sampled)
+        # Validate that posterior exists
         if (
             not hasattr(self.idata, "posterior") or self.idata.posterior is None  # type: ignore[union-attr]
         ):
@@ -2089,40 +2120,20 @@ class MMM(RegressionModelBuilder):
                 "The model must be fitted (call .fit()) before sampling adstock curves."
             )
 
-        # Step 1: Subsample posterior
-        posterior = self.idata.posterior  # type: ignore[union-attr]
+        # Subsample posterior if needed
+        parameters = self._subsample_posterior(
+            parameters=self.idata.posterior,  # type: ignore[union-attr]
+            num_samples=num_samples,
+            random_state=random_state,
+        )
 
-        n_chains = posterior.sizes["chain"]
-        n_draws = posterior.sizes["draw"]
-        total_samples = n_chains * n_draws
-
-        # Subsample from posterior if needed
-        # We need to keep chain/draw dimensions for sample_curve to work
-        if num_samples is not None and num_samples < total_samples:
-            rng = np.random.default_rng(random_state)
-            # Randomly select samples across all chains/draws
-            flat_indices = rng.choice(total_samples, size=num_samples, replace=False)
-
-            # Stack chain/draw into single dimension, select samples, reshape to chain=1
-            stacked = posterior.stack(sample=("chain", "draw"))
-            selected = stacked.isel(sample=flat_indices)
-            # Drop the multi-index coords before renaming to avoid conflicts
-            params = (
-                selected.drop_vars(["chain", "draw"])
-                .rename({"sample": "draw"})
-                .expand_dims("chain")
-            )
-        else:
-            params = posterior
-
-        # Step 2: Sample curve using transformation's method
-        # This automatically handles channel dimensions
+        # Sample curve using transformation's method
         curve = self.adstock.sample_curve(
-            parameters=params,
+            parameters=parameters,
             amount=amount,
         )
 
-        # Flatten chain/draw to 'sample' dimension for consistent output
+        # Flatten chain and draw dimensions to sample dimension
         curve = curve.stack(sample=("chain", "draw"))
 
         return curve
