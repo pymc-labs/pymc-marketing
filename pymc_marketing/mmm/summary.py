@@ -860,8 +860,9 @@ def create_change_over_time_summary(
     shifted_safe = xr.where(shifted == 0, np.nan, shifted)
     pct_change = (diff / shifted_safe) * 100
 
-    # Drop first date (no previous value, will be all NaN from diff)
-    pct_change = pct_change.isel(date=slice(1, None))
+    # Note: diff("date") already drops the first date (no previous value),
+    # and xarray automatically aligns coordinates when dividing, so pct_change
+    # will have dates[1:] (one fewer than input)
 
     # Compute summary statistics using existing helper
     df = _compute_summary_stats_with_hdi(pct_change, hdi_probs)

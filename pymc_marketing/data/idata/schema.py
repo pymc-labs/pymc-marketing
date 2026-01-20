@@ -332,7 +332,7 @@ class MMMIdataSchema(BaseModel):
                 dims=("chain", "draw", "date", *custom_dims),
                 dtype="float64",
                 description="Total predicted mean (scaled)",
-                required=True,
+                required=False,
             ),
         }
 

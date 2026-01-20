@@ -13,11 +13,8 @@
 #   limitations under the License.
 """Shared fixtures for MMM tests."""
 
-import warnings
-
 import numpy as np
 import pandas as pd
-import pymc as pm
 import pytest
 from pymc_extras.prior import Prior
 
@@ -100,73 +97,6 @@ def panel_mmm_data():
 
 
 # ============================================================================
-# Mock Fit Function
-# ============================================================================
-
-
-def mock_fit(model, X: pd.DataFrame, y: pd.Series, **kwargs):
-    """Mock fit function that mimics the fit process without actual sampling."""
-    model.build_model(X=X, y=y)
-    with model.model:
-        idata = pm.sample_prior_predictive(random_seed=rng, **kwargs)
-
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore",
-            category=UserWarning,
-            message="The group fit_data is not defined in the InferenceData scheme",
-        )
-
-        # Create posterior from prior
-        posterior = idata.prior.copy(deep=True)
-
-        # Add mu if channel_contribution exists (compute from channel_contribution + intercept)
-        # mu is a deterministic variable, so it won't be in prior_predictive samples
-        if "channel_contribution" in posterior.data_vars:
-            channel_contrib = posterior["channel_contribution"]
-            # Sum over channel dimension to get total channel contribution
-            channel_sum = channel_contrib.sum(dim="channel")
-
-            # Add intercept if it exists
-            if "intercept_contribution" in posterior.data_vars:
-                intercept = posterior["intercept_contribution"]
-                mu = intercept + channel_sum
-            else:
-                # If no intercept, just use channel sum
-                mu = channel_sum
-
-            # Ensure mu has correct dims (chain, draw, date, ...)
-            posterior["mu"] = mu
-
-        idata.add_groups(
-            {
-                "posterior": posterior,
-                "fit_data": pd.concat(
-                    [X, pd.Series(y, index=X.index, name="y")], axis=1
-                ).to_xarray(),
-            }
-        )
-
-    # Fix dtypes in constant_data to float64 (schema expects float64, but test data uses int32)
-    if hasattr(idata, "constant_data"):
-        for var_name in [
-            "channel_data",
-            "target_data",
-            "channel_scale",
-            "target_scale",
-        ]:
-            if var_name in idata.constant_data.data_vars:
-                var = idata.constant_data[var_name]
-                if var.dtype != "float64":
-                    idata.constant_data[var_name] = var.astype("float64")
-
-    model.idata = idata
-    model.set_idata_attrs(idata=idata)
-
-    return model
-
-
-# ============================================================================
 # Fitted Model Fixtures
 # ============================================================================
 
@@ -186,7 +116,7 @@ def simple_fitted_mmm(simple_mmm_data, mock_pymc_sample):
         saturation=LogisticSaturation(),
     )
 
-    mock_fit(mmm, X, y)
+    mmm.fit(X, y, draws=100, chains=2, random_seed=42, tune=1)
 
     return mmm
 
@@ -229,6 +159,6 @@ def panel_fitted_mmm(panel_mmm_data, mock_pymc_sample):
         saturation=saturation,
     )
 
-    mock_fit(mmm, X, y)
+    mmm.fit(X, y, draws=100, chains=2, random_seed=42, tune=1)
 
     return mmm
