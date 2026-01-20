@@ -156,7 +156,7 @@ import json
 import warnings
 from collections.abc import Callable, Sequence
 from copy import deepcopy
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, cast
 
 import arviz as az
 import numpy as np
@@ -1893,6 +1893,9 @@ class MMM(RegressionModelBuilder):
         original_scale: bool = Field(
             True, description="Whether to return curve in original scale."
         ),
+        idata: InstanceOf[az.InferenceData] | None = Field(
+            None, description="Optional InferenceData to sample from."
+        ),
     ) -> xr.DataArray:
         """Sample saturation curves from posterior parameters.
 
@@ -1928,6 +1931,10 @@ class MMM(RegressionModelBuilder):
             from scaled to original units. If False, values remain in scaled space
             as used internally by the model. Note that x-axis values always remain
             in scaled space consistent with the max_value parameter.
+        idata : az.InferenceData or None, optional
+            Optional InferenceData to sample from. If None (default), uses
+            self.idata. This allows sampling curves from different posterior
+            distributions, such as from a different model or a subset of samples.
 
         Returns
         -------
@@ -1944,7 +1951,7 @@ class MMM(RegressionModelBuilder):
         Raises
         ------
         ValueError
-            If called before model is fitted (idata doesn't exist)
+            If called before model is fitted (idata doesn't exist) and no idata provided
         ValueError
             If original_scale=True but scale factors not found in constant_data
 
@@ -1973,6 +1980,11 @@ class MMM(RegressionModelBuilder):
         ...     max_value=max_scaled, num_points=200, num_samples=1000, random_state=42
         ... )
 
+        Sample curves from a different InferenceData:
+
+        >>> external_idata = az.from_netcdf("other_model.nc")
+        >>> curves = mmm.sample_saturation_curve(idata=external_idata)
+
 
         Notes
         -----
@@ -1986,12 +1998,13 @@ class MMM(RegressionModelBuilder):
         - Posterior samples are drawn randomly without replacement when num_samples
           is less than the total available samples, otherwise all samples are used.
         """
-        self._validate_idata_exists()
+        # Use provided idata or fall back to self.idata
+        if idata is None:
+            self._validate_idata_exists()
+            idata = cast(az.InferenceData, self.idata)
 
         # Validate that posterior exists (model was fitted, not just prior sampled)
-        if (
-            not hasattr(self.idata, "posterior") or self.idata.posterior is None  # type: ignore[union-attr]
-        ):
+        if not hasattr(idata, "posterior") or idata.posterior is None:
             raise ValueError(
                 "posterior not found in idata. "
                 "The model must be fitted (call .fit()) before sampling saturation curves."
@@ -1999,7 +2012,7 @@ class MMM(RegressionModelBuilder):
 
         # Subsample posterior if needed
         parameters = self._subsample_posterior(
-            parameters=self.idata.posterior,  # type: ignore[union-attr]
+            parameters=idata.posterior,
             num_samples=num_samples,
             random_state=random_state,
         )
@@ -2036,6 +2049,9 @@ class MMM(RegressionModelBuilder):
             500, gt=0, description="Number of posterior samples to use."
         ),
         random_state: RandomState | None = None,
+        idata: InstanceOf[az.InferenceData] | None = Field(
+            None, description="Optional InferenceData to sample from."
+        ),
     ) -> xr.DataArray:
         """Sample adstock curves from posterior parameters.
 
@@ -2060,6 +2076,10 @@ class MMM(RegressionModelBuilder):
             a numpy Generator instance, or None for non-reproducible sampling.
             Only used when num_samples is not None and less than total available
             samples.
+        idata : az.InferenceData or None, optional
+            Optional InferenceData to sample from. If None (default), uses
+            self.idata. This allows sampling curves from different posterior
+            distributions, such as from a different model or a subset of samples.
 
         Returns
         -------
@@ -2075,7 +2095,7 @@ class MMM(RegressionModelBuilder):
         Raises
         ------
         ValueError
-            If called before model is fitted (idata doesn't exist)
+            If called before model is fitted (idata doesn't exist) and no idata provided
         ValueError
             If idata exists but no posterior (model not fitted)
 
@@ -2097,6 +2117,11 @@ class MMM(RegressionModelBuilder):
         ...     amount=100.0, num_samples=1000, random_state=42
         ... )
 
+        Sample curves from a different InferenceData:
+
+        >>> external_idata = az.from_netcdf("other_model.nc")
+        >>> curves = mmm.sample_adstock_curve(idata=external_idata)
+
         Notes
         -----
         - The adstock curve shows the carryover effect of a single impulse of
@@ -2110,12 +2135,13 @@ class MMM(RegressionModelBuilder):
         - Posterior samples are drawn randomly without replacement when num_samples
           is less than the total available samples.
         """
-        self._validate_idata_exists()
+        # Use provided idata or fall back to self.idata
+        if idata is None:
+            self._validate_idata_exists()
+            idata = cast(az.InferenceData, self.idata)
 
         # Validate that posterior exists
-        if (
-            not hasattr(self.idata, "posterior") or self.idata.posterior is None  # type: ignore[union-attr]
-        ):
+        if not hasattr(idata, "posterior") or idata.posterior is None:
             raise ValueError(
                 "posterior not found in idata. "
                 "The model must be fitted (call .fit()) before sampling adstock curves."
@@ -2123,7 +2149,7 @@ class MMM(RegressionModelBuilder):
 
         # Subsample posterior if needed
         parameters = self._subsample_posterior(
-            parameters=self.idata.posterior,  # type: ignore[union-attr]
+            parameters=idata.posterior,
             num_samples=num_samples,
             random_state=random_state,
         )

@@ -384,3 +384,34 @@ def test_sample_adstock_curve_can_be_used_for_plotting(fitted_mmm, request):
     time_values = curves.coords["time since exposure"].values
     assert len(time_values) > 0
     assert time_values[0] == 0.0  # Starts at 0
+
+
+@pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
+def test_sample_adstock_curve_with_idata_differs_from_default(fitted_mmm, request):
+    """Test that using idata argument produces different curves than default.
+
+    This test verifies that passing a modified InferenceData object via the
+    idata argument uses those posterior samples instead of self.idata.
+    """
+    mmm = request.getfixturevalue(fitted_mmm)
+
+    # Create a modified copy of the idata with different posterior values
+    modified_idata = mmm.idata.copy()
+    # Modify the alpha parameter (adstock decay rate) by multiplying by a factor
+    # This should produce noticeably different adstock curves
+    modified_posterior = modified_idata.posterior.copy()
+    if "adstock_alpha" in modified_posterior:
+        # Modify alpha values - clamp to (0, 1) range since it's a decay rate
+        modified_posterior["adstock_alpha"] = np.clip(
+            modified_posterior["adstock_alpha"] * 0.5, 0.01, 0.99
+        )
+    modified_idata.posterior = modified_posterior
+
+    # Sample curves with and without the idata argument
+    curves_default = mmm.sample_adstock_curve(random_state=42)
+    curves_with_idata = mmm.sample_adstock_curve(idata=modified_idata, random_state=42)
+
+    # Assert - Curves should differ since we modified the posterior
+    assert not np.allclose(curves_default.values, curves_with_idata.values), (
+        "Curves with modified idata should differ from default"
+    )

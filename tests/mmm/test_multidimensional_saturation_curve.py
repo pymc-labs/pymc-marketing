@@ -519,3 +519,38 @@ def test_sample_saturation_curve_can_be_used_for_plotting(fitted_mmm, request):
     x_values = curves.coords["x"].values
     assert len(x_values) > 0
     assert x_values[0] == 0.0  # Starts at 0
+
+
+@pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
+def test_sample_saturation_curve_with_idata_differs_from_default(fitted_mmm, request):
+    """Test that using idata argument produces different curves than default.
+
+    This test verifies that passing a modified InferenceData object via the
+    idata argument uses those posterior samples instead of self.idata.
+    """
+    mmm = request.getfixturevalue(fitted_mmm)
+
+    # Create a modified copy of the idata with different posterior values
+    modified_idata = mmm.idata.copy()
+    # Modify the saturation parameters to produce noticeably different curves
+    modified_posterior = modified_idata.posterior.copy()
+    if "saturation_lam" in modified_posterior:
+        # Modify lambda values - affects the steepness of saturation
+        modified_posterior["saturation_lam"] = modified_posterior["saturation_lam"] * 2
+    if "saturation_beta" in modified_posterior:
+        # Modify beta values - affects the scale of saturation
+        modified_posterior["saturation_beta"] = (
+            modified_posterior["saturation_beta"] * 2
+        )
+    modified_idata.posterior = modified_posterior
+
+    # Sample curves with and without the idata argument
+    curves_default = mmm.sample_saturation_curve(random_state=42)
+    curves_with_idata = mmm.sample_saturation_curve(
+        idata=modified_idata, random_state=42
+    )
+
+    # Assert - Curves should differ since we modified the posterior
+    assert not np.allclose(curves_default.values, curves_with_idata.values), (
+        "Curves with modified idata should differ from default"
+    )

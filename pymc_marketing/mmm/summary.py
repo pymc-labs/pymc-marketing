@@ -504,6 +504,7 @@ def create_saturation_curves(
     hdi_probs: list[float] | None = None,
     n_points: int = 100,
     output_format: OutputFormat = "pandas",
+    data: MMMIDataWrapper | None = None,
 ) -> DataFrameType:
     """Create saturation curves summary DataFrame.
 
@@ -525,6 +526,10 @@ def create_saturation_curves(
         Number of points to sample along the x-axis
     output_format : {"pandas", "polars"}, default "pandas"
         Output DataFrame format
+    data : MMMIDataWrapper or None, optional
+        Optional data wrapper to use for sampling curves. If None (default),
+        uses model.data. This allows sampling curves from a different
+        InferenceData, such as from a subset of samples or another model.
 
     Returns
     -------
@@ -548,6 +553,9 @@ def create_saturation_curves(
     >>>
     >>> # Via factory
     >>> df = mmm.summary.saturation_curves(n_points=50)
+    >>>
+    >>> # With custom data wrapper
+    >>> df = create_saturation_curves(mmm, data=custom_data_wrapper)
 
     See Also
     --------
@@ -559,9 +567,12 @@ def create_saturation_curves(
     else:
         _validate_hdi_probs(hdi_probs)
 
+    # Use provided data wrapper or fall back to model.data
+    if data is None:
+        data = model.data
+
     # Determine max_value for x range based on channel spend
     # Use scaled space consistent with sample_saturation_curve()
-    data = model.data
     spend = data.get_channel_spend()
     max_spend = float(spend.max())
 
@@ -584,6 +595,7 @@ def create_saturation_curves(
             num_points=n_points,
             num_samples=None,  # Use all posterior samples for accurate HDI
             original_scale=True,  # Return in original scale
+            idata=data.idata,  # Pass the idata from the data wrapper
         )
     except Exception as e:
         raise ValueError(f"Failed to sample saturation curves: {e}") from e
@@ -613,6 +625,7 @@ def create_adstock_curves(
     hdi_probs: list[float] | None = None,
     max_lag: int = 20,
     output_format: OutputFormat = "pandas",
+    data: MMMIDataWrapper | None = None,
 ) -> DataFrameType:
     """Create adstock curves summary DataFrame.
 
@@ -629,6 +642,10 @@ def create_adstock_curves(
         Maximum lag periods to include in output
     output_format : {"pandas", "polars"}, default "pandas"
         Output DataFrame format
+    data : MMMIDataWrapper or None, optional
+        Optional data wrapper to use for sampling curves. If None (default),
+        uses model.data. This allows sampling curves from a different
+        InferenceData, such as from a subset of samples or another model.
 
     Returns
     -------
@@ -642,6 +659,14 @@ def create_adstock_curves(
         - abs_error_{prob}_lower: HDI lower bound for each prob
         - abs_error_{prob}_upper: HDI upper bound for each prob
 
+    Examples
+    --------
+    >>> # Basic usage
+    >>> df = create_adstock_curves(mmm)
+    >>>
+    >>> # With custom data wrapper
+    >>> df = create_adstock_curves(mmm, data=custom_data_wrapper)
+
     See Also
     --------
     MMM.sample_adstock_curve : Underlying method for sampling curves
@@ -652,11 +677,16 @@ def create_adstock_curves(
     else:
         _validate_hdi_probs(hdi_probs)
 
+    # Use provided data wrapper or fall back to model.data
+    if data is None:
+        data = model.data
+
     # Delegate to MMM.sample_adstock_curve()
     try:
         curve_samples = model.sample_adstock_curve(
             amount=1.0,
             num_samples=None,  # Use all posterior samples for accurate HDI
+            idata=data.idata,  # Pass the idata from the data wrapper
         )
     except Exception as e:
         raise ValueError(f"Failed to sample adstock curves: {e}") from e
@@ -974,10 +1004,22 @@ class MMMSummaryFactory:
         hdi_probs: list[float] | None = None,
         n_points: int = 100,
         output_format: OutputFormat | None = None,
+        data: MMMIDataWrapper | None = None,
     ) -> DataFrameType:
         """Get saturation curves summary.
 
         Requires model to be provided (has saturation transformation).
+
+        Parameters
+        ----------
+        hdi_probs : list of float, optional
+            HDI probability levels (default: uses factory default)
+        n_points : int, default 100
+            Number of points to sample along the x-axis
+        output_format : {"pandas", "polars"}, optional
+            Output DataFrame format (default: uses factory default)
+        data : MMMIDataWrapper or None, optional
+            Optional data wrapper to use. If None (default), uses self.data.
         """
         self._require_model("saturation_curves")
         return create_saturation_curves(
@@ -987,6 +1029,7 @@ class MMMSummaryFactory:
             output_format=output_format
             if output_format is not None
             else self.output_format,
+            data=data if data is not None else self.data,
         )
 
     def adstock_curves(
@@ -994,10 +1037,22 @@ class MMMSummaryFactory:
         hdi_probs: list[float] | None = None,
         max_lag: int = 20,
         output_format: OutputFormat | None = None,
+        data: MMMIDataWrapper | None = None,
     ) -> DataFrameType:
         """Get adstock curves summary.
 
         Requires model to be provided (has adstock transformation).
+
+        Parameters
+        ----------
+        hdi_probs : list of float, optional
+            HDI probability levels (default: uses factory default)
+        max_lag : int, default 20
+            Maximum lag periods to include in output
+        output_format : {"pandas", "polars"}, optional
+            Output DataFrame format (default: uses factory default)
+        data : MMMIDataWrapper or None, optional
+            Optional data wrapper to use. If None (default), uses self.data.
         """
         self._require_model("adstock_curves")
         return create_adstock_curves(
@@ -1007,6 +1062,7 @@ class MMMSummaryFactory:
             output_format=output_format
             if output_format is not None
             else self.output_format,
+            data=data if data is not None else self.data,
         )
 
     def total_contribution(
