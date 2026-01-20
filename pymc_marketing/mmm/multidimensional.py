@@ -672,6 +672,61 @@ class MMM(RegressionModelBuilder):
         return MMMIDataWrapper(self.idata, schema=schema, validate_on_init=False)
 
     @property
+    def summary(self) -> Any:  # type: ignore[no-any-return]
+        """Access summary DataFrame generation functionality.
+
+        Returns a factory for creating summary DataFrames from the model's
+        InferenceData with configurable defaults for HDI levels and output format.
+
+        Returns a fresh factory on each access. The factory includes both
+        data and model, enabling all summary methods including transformation curves.
+
+        Returns
+        -------
+        MMMSummaryFactory
+            Factory providing methods for different summary types
+
+        Examples
+        --------
+        .. code-block:: python
+
+            # Get contribution summary (default: pandas, 94% HDI)
+            df = mmm.summary.contributions()
+
+            # Get ROAS summary
+            df = mmm.summary.roas()
+
+            # Get saturation curves (requires model - provided automatically)
+            df = mmm.summary.saturation_curves(n_points=50)
+
+            # Get adstock curves
+            df = mmm.summary.adstock_curves(max_lag=15)
+
+            # Get posterior predictive with custom settings
+            df = mmm.summary.posterior_predictive(
+                hdi_probs=[0.80, 0.94], frequency="monthly", output_format="polars"
+            )
+
+            # Configure factory defaults
+            factory = mmm.summary
+            factory.hdi_probs = [0.50, 0.94]
+            factory.output_format = "polars"
+            df = factory.contributions()  # Uses new defaults
+
+            # Get change over time
+            df = mmm.summary.change_over_time()
+
+        See Also
+        --------
+        MMMSummaryFactory : Factory class documentation
+        pymc_marketing.mmm.summary : Module with all factory functions
+        """
+        from pymc_marketing.mmm.summary import MMMSummaryFactory
+
+        self._validate_idata_exists()
+        return MMMSummaryFactory(self.data, model=self)  # Pass both data and model
+
+    @property
     def default_model_config(self) -> dict:
         """Define the default model configuration."""
         base_config = {
@@ -1941,6 +1996,134 @@ class MMM(RegressionModelBuilder):
             target_scale = self.data.get_target_scale()
             # Multiply by target_scale since saturation affects target variable
             curve = curve * target_scale
+
+        return curve
+
+    @validate_call(config={"arbitrary_types_allowed": True})
+    def sample_adstock_curve(
+        self,
+        amount: float = Field(1.0, gt=0, description="Amount to apply adstock to."),
+        num_samples: int | None = Field(
+            500, gt=0, description="Number of posterior samples to use."
+        ),
+        random_state: RandomState | None = None,
+    ) -> xr.DataArray:
+        """Sample adstock curves from posterior parameters.
+
+        This method samples the adstock transformation curves using posterior
+        parameters from the fitted model. It allows visualization of the
+        carryover effect of media spend over time.
+
+        Parameters
+        ----------
+        amount : float, optional
+            Amount to apply the adstock transformation to. By default 1.0.
+            This represents the initial media exposure that decays over time.
+        num_samples : int or None, optional
+            Number of posterior samples to use for generating curves. By default 500.
+            Samples are drawn randomly from the full posterior (across all chains
+            and draws). Using fewer samples speeds up computation and reduces memory
+            usage while still capturing posterior uncertainty. If None, all posterior
+            samples are used without subsampling.
+        random_state : int, np.random.Generator, or None, optional
+            Random state for reproducible subsampling. Can be an integer seed,
+            a numpy Generator instance, or None for non-reproducible sampling.
+            Only used when num_samples is not None and less than total available
+            samples.
+
+        Returns
+        -------
+        xr.DataArray
+            Sampled adstock curves with dimensions:
+            - Simple model: (time_since_exposure, channel, sample)
+            - Panel model: (time_since_exposure, *custom_dims, channel, sample)
+
+            The "sample" dimension indexes the posterior samples used.
+            The "time_since_exposure" coordinate represents lag periods starting from 0.
+
+        Raises
+        ------
+        ValueError
+            If called before model is fitted (idata doesn't exist)
+
+        Examples
+        --------
+        Sample curves with default parameters:
+
+        >>> curves = mmm.sample_adstock_curve()
+        >>> curves.dims
+        ('time_since_exposure', 'channel', 'sample')
+
+        Sample curves using all posterior samples:
+
+        >>> curves_all = mmm.sample_adstock_curve(num_samples=None)
+
+        Sample curves with custom amount and reproducible sampling:
+
+        >>> curves = mmm.sample_adstock_curve(
+        ...     amount=100.0, num_samples=1000, random_state=42
+        ... )
+
+        Notes
+        -----
+        - For panel models, curves are generated for each combination of custom
+          dimensions (e.g., each country) and channel.
+        - The returned array includes a "sample" dimension for uncertainty
+          quantification. Use `.mean(dim='sample')` for point estimates and
+          `.quantile()` for credible intervals.
+        - Posterior samples are drawn randomly without replacement when num_samples
+          is less than the total available samples, otherwise all samples are used.
+
+        See Also
+        --------
+        sample_saturation_curve : Sample saturation curves from posterior
+        """
+        self._validate_idata_exists()
+
+        # Validate that posterior exists (model was fitted, not just prior sampled)
+        if (
+            not hasattr(self.idata, "posterior") or self.idata.posterior is None  # type: ignore[union-attr]
+        ):
+            raise ValueError(
+                "posterior not found in idata. "
+                "The model must be fitted (call .fit()) before sampling adstock curves."
+            )
+
+        # Step 1: Subsample posterior
+        posterior = self.idata.posterior  # type: ignore[union-attr]
+
+        n_chains = posterior.sizes["chain"]
+        n_draws = posterior.sizes["draw"]
+        total_samples = n_chains * n_draws
+
+        # Subsample from posterior if needed
+        # We need to keep chain/draw dimensions for sample_curve to work
+        if num_samples is not None and num_samples < total_samples:
+            rng = np.random.default_rng(random_state)
+            # Randomly select samples across all chains/draws
+            flat_indices = rng.choice(total_samples, size=num_samples, replace=False)
+
+            # Stack chain/draw into single dimension, select samples, reshape to chain=1
+            stacked = posterior.stack(sample=("chain", "draw"))
+            selected = stacked.isel(sample=flat_indices)
+            # Drop the multi-index coords before renaming to avoid conflicts
+            params = (
+                selected.drop_vars(["chain", "draw"])
+                .rename({"sample": "draw"})
+                .expand_dims("chain")
+            )
+        else:
+            params = posterior
+
+        # Step 2: Sample curve using transformation's method
+        # This automatically handles channel dimensions
+        curve = self.adstock.sample_curve(
+            parameters=params,
+            amount=amount,
+        )
+
+        # Flatten chain/draw to 'sample' dimension for consistent output
+        curve = curve.stack(sample=("chain", "draw"))
 
         return curve
 

@@ -39,7 +39,9 @@ Examples
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from collections.abc import Callable
+from functools import wraps
+from typing import TYPE_CHECKING, Any, Literal, ParamSpec, TypeVar, cast
 
 import arviz as az
 import numpy as np
@@ -48,6 +50,9 @@ import xarray as xr
 
 if TYPE_CHECKING:
     from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
+
+P = ParamSpec("P")
+R = TypeVar("R")
 
 try:
     import polars as pl
@@ -64,6 +69,44 @@ OutputFormat = Literal["pandas", "polars"]
 
 # Union type for return values
 DataFrameType = pd.DataFrame  # Will be Union[pd.DataFrame, pl.DataFrame] at runtime
+
+
+# ==================== Validation Decorator ====================
+
+
+def validate_idata(func: Callable[P, R]) -> Callable[P, R]:
+    """Validate MMMIDataWrapper before function execution.
+
+    Calls wrapper.validate_or_raise() to ensure idata structure is valid
+    before processing. This catches missing variables or incorrect structure
+    early with clear error messages.
+
+    The first parameter of the decorated function must be a MMMIDataWrapper.
+
+    Examples
+    --------
+    >>> @validate_idata
+    ... def create_contribution_summary(data: MMMIDataWrapper, ...):
+    ...     # data is validated before this runs
+    ...     contributions = data.get_contributions()
+    ...     ...
+
+    Notes
+    -----
+    For functions that can receive data without a date dimension (e.g., after
+    "all_time" aggregation), validation still checks idata structure but
+    functions should handle missing dimensions gracefully.
+    """
+
+    @wraps(func)
+    def wrapper(data: Any, *args: P.args, **kwargs: P.kwargs) -> R:
+        # Validate idata structure if schema is available
+        if hasattr(data, "validate_or_raise") and data.schema is not None:
+            data.validate_or_raise()
+
+        return func(data, *args, **kwargs)
+
+    return cast(Callable[P, R], wrapper)
 
 
 # ==================== Internal Helper Functions ====================
@@ -130,6 +173,7 @@ def _convert_output(df: pd.DataFrame, output_format: OutputFormat) -> DataFrameT
 def _compute_summary_stats_with_hdi(
     data: xr.DataArray,
     hdi_probs: list[float],
+    sample_dim: str | None = None,
 ) -> pd.DataFrame:
     """Convert xarray to DataFrame with summary stats and HDI.
 
@@ -141,9 +185,12 @@ def _compute_summary_stats_with_hdi(
     Parameters
     ----------
     data : xr.DataArray
-        Must have 'chain' and 'draw' dimensions
+        Must have 'chain' and 'draw' dimensions OR a single 'sample' dimension
     hdi_probs : list of float
         HDI probability levels (e.g., [0.80, 0.94])
+    sample_dim : str, optional
+        Name of the sample dimension. If None, assumes ['chain', 'draw'].
+        Use 'sample' for curve data from sample_*_curve() methods.
 
     Returns
     -------
@@ -154,10 +201,19 @@ def _compute_summary_stats_with_hdi(
     -----
     - Always returns Pandas internally
     - Conversion to other formats happens at public API boundary
-    - Uses az.stats.hdi() for HDI computation
+    - Uses az.stats.hdi() for HDI computation when data has chain/draw dims
+    - Uses quantile-based HDI for data with sample dimension
     """
-    # Determine the index columns (all dims except chain/draw)
-    index_cols = [d for d in data.dims if d not in ["chain", "draw"]]
+    # Determine sample dimensions
+    if sample_dim is None:
+        sample_dims = ["chain", "draw"]
+        use_az_hdi = True
+    else:
+        sample_dims = [sample_dim]
+        use_az_hdi = False
+
+    # Determine the index columns (all dims except sample dimensions)
+    index_cols = [d for d in data.dims if d not in sample_dims]
 
     # Rename the DataArray to avoid conflicts with coordinates
     # (az.hdi fails if name matches a coordinate name)
@@ -165,19 +221,34 @@ def _compute_summary_stats_with_hdi(
     data = data.rename(var_name)
 
     # Compute point estimates
-    mean_ = data.mean(dim=["chain", "draw"])
-    median_ = data.median(dim=["chain", "draw"])
+    mean_ = data.mean(dim=sample_dims)
+    median_ = data.median(dim=sample_dims)
 
-    # Compute HDI for each probability level using az.hdi
+    # Compute HDI for each probability level
     hdi_results = {}
     for hdi_prob in hdi_probs:
-        # az.hdi returns a Dataset with the variable name as key
-        hdi_dataset = az.hdi(data, hdi_prob=hdi_prob)
-        hdi_da = hdi_dataset[var_name]
         prob_str = str(int(hdi_prob * 100))
-        # Drop the 'hdi' coordinate after selection to avoid conflicts
-        hdi_lower = hdi_da.sel(hdi="lower").drop_vars("hdi", errors="ignore")
-        hdi_upper = hdi_da.sel(hdi="higher").drop_vars("hdi", errors="ignore")
+
+        if use_az_hdi:
+            # Use az.hdi when we have chain/draw dimensions
+            hdi_dataset = az.hdi(data, hdi_prob=hdi_prob)
+            hdi_da = hdi_dataset[var_name]
+            # Drop the 'hdi' coordinate after selection to avoid conflicts
+            hdi_lower = hdi_da.sel(hdi="lower").drop_vars("hdi", errors="ignore")
+            hdi_upper = hdi_da.sel(hdi="higher").drop_vars("hdi", errors="ignore")
+        else:
+            # Use quantile-based HDI for single sample dimension
+            # Symmetric HDI: take (1-prob)/2 and 1-(1-prob)/2 quantiles
+            alpha = 1 - hdi_prob
+            lower_q = alpha / 2
+            upper_q = 1 - alpha / 2
+            hdi_lower = data.quantile(lower_q, dim=sample_dims).drop_vars(
+                "quantile", errors="ignore"
+            )
+            hdi_upper = data.quantile(upper_q, dim=sample_dims).drop_vars(
+                "quantile", errors="ignore"
+            )
+
         hdi_results[f"abs_error_{prob_str}_lower"] = hdi_lower
         hdi_results[f"abs_error_{prob_str}_upper"] = hdi_upper
 
@@ -230,6 +301,7 @@ def _prepare_data_and_hdi(
 # ==================== Factory Functions ====================
 
 
+@validate_idata
 def create_posterior_predictive_summary(
     data: MMMIDataWrapper,
     hdi_probs: list[float] | None = None,
@@ -281,6 +353,7 @@ def create_posterior_predictive_summary(
     return _convert_output(df, output_format)
 
 
+@validate_idata
 def create_contribution_summary(
     data: MMMIDataWrapper,
     hdi_probs: list[float] | None = None,
@@ -344,6 +417,7 @@ def create_contribution_summary(
     return _convert_output(df, output_format)
 
 
+@validate_idata
 def create_roas_summary(
     data: MMMIDataWrapper,
     hdi_probs: list[float] | None = None,
@@ -397,6 +471,7 @@ def create_roas_summary(
     return _convert_output(df, output_format)
 
 
+@validate_idata
 def create_channel_spend_dataframe(
     data: MMMIDataWrapper,
     output_format: OutputFormat = "pandas",
@@ -425,19 +500,25 @@ def create_channel_spend_dataframe(
 
 
 def create_saturation_curves(
-    data: MMMIDataWrapper,
+    model: Any,  # MMM type, avoid circular import
     hdi_probs: list[float] | None = None,
     n_points: int = 100,
     output_format: OutputFormat = "pandas",
 ) -> DataFrameType:
     """Create saturation curves summary DataFrame.
 
-    Generates saturation response curves for each channel.
+    Samples saturation response curves from the posterior distribution
+    using the model's sample_saturation_curve() method, then computes
+    summary statistics (mean, median, HDI).
+
+    Supports multi-dimensional data with custom_dims (e.g., country, region).
+    When custom dimensions are present, curves are generated for each
+    combination of channel and custom dimension values.
 
     Parameters
     ----------
-    data : MMMIDataWrapper
-        Data wrapper from Component 1
+    model : MMM
+        Fitted MMM model with saturation transformation
     hdi_probs : list of float, optional
         HDI probability levels (default: [0.94])
     n_points : int, default 100
@@ -449,71 +530,103 @@ def create_saturation_curves(
     -------
     pd.DataFrame or pl.DataFrame
         Summary DataFrame with columns:
-        - x: Input value (spend level)
+        - x: Input value (spend level, in scaled space)
         - channel: Channel name
+        - <custom_dims>: One column for each custom dimension (e.g., country)
         - mean: Mean saturation response
         - median: Median saturation response
         - abs_error_{prob}_lower: HDI lower bound for each prob
         - abs_error_{prob}_upper: HDI upper bound for each prob
+
+    Examples
+    --------
+    >>> # Basic usage
+    >>> df = create_saturation_curves(mmm)
+    >>>
+    >>> # With more resolution
+    >>> df = create_saturation_curves(mmm, n_points=200)
+    >>>
+    >>> # Via factory
+    >>> df = mmm.summary.saturation_curves(n_points=50)
+
+    See Also
+    --------
+    MMM.sample_saturation_curve : Underlying method for sampling curves
+    create_adstock_curves : For adstock curves
     """
     if hdi_probs is None:
         hdi_probs = [0.94]
     else:
         _validate_hdi_probs(hdi_probs)
 
-    # Get channel spend to determine x range
+    # Determine max_value for x range based on channel spend
+    # Use scaled space consistent with sample_saturation_curve()
+    data = model.data
     spend = data.get_channel_spend()
-    channels = spend.coords["channel"].values
+    max_spend = float(spend.max())
 
-    # Create x values from 0 to max spend for each channel
-    all_dfs = []
+    # Get channel scale to convert to scaled space
+    try:
+        channel_scale = data.get_channel_scale()
+        max_scaled = max_spend / float(channel_scale.mean())
+    except (ValueError, AttributeError):
+        # If no channel_scale, use max_spend as-is
+        max_scaled = max_spend
 
-    for channel in channels:
-        channel_spend = spend.sel(channel=channel)
-        x_values = np.linspace(0, float(channel_spend.max()) * 1.5, n_points)
+    # Extend beyond max to show saturation behavior
+    max_value = max_scaled * 1.5 if max_scaled > 0 else 1.0
 
-        # For now, create placeholder curves
-        # In full implementation, would sample from saturation function posterior
-        channel_df = pd.DataFrame(
-            {
-                "x": x_values,
-                "channel": channel,
-                "mean": x_values * 0.5,  # Placeholder
-                "median": x_values * 0.5,  # Placeholder
-            }
+    # Delegate to MMM.sample_saturation_curve()
+    # Returns DataArray with dims: (x, channel, sample) or (x, *custom_dims, channel, sample)
+    try:
+        curve_samples = model.sample_saturation_curve(
+            max_value=max_value,
+            num_points=n_points,
+            num_samples=None,  # Use all posterior samples for accurate HDI
+            original_scale=True,  # Return in original scale
         )
+    except Exception as e:
+        raise ValueError(f"Failed to sample saturation curves: {e}") from e
 
-        # Add HDI columns
-        for hdi_prob in hdi_probs:
-            prob_str = str(int(hdi_prob * 100))
-            margin = (1 - hdi_prob) / 2
-            channel_df[f"abs_error_{prob_str}_lower"] = x_values * (0.5 - margin)
-            channel_df[f"abs_error_{prob_str}_upper"] = x_values * (0.5 + margin)
+    # Compute summary statistics across 'sample' dimension
+    # The sample_saturation_curve returns DataArray with 'sample' dim
+    df = _compute_summary_stats_with_hdi(curve_samples, hdi_probs, sample_dim="sample")
 
-        all_dfs.append(channel_df)
+    # Ensure proper column ordering
+    # Detect custom dimensions from model
+    custom_dims = list(model.dims) if hasattr(model, "dims") and model.dims else []
 
-    df = pd.concat(all_dfs, ignore_index=True)
+    # Standard columns: x, channel, [custom_dims...], mean, median, HDI columns
+    index_cols = ["x", "channel", *custom_dims]
+    stat_cols = ["mean", "median"] + [c for c in df.columns if "abs_error" in c]
+
+    # Reorder columns (keeping any unexpected columns at the end)
+    all_expected = index_cols + stat_cols
+    other_cols = [c for c in df.columns if c not in all_expected]
+    df = df[[c for c in all_expected if c in df.columns] + other_cols]
+
     return _convert_output(df, output_format)
 
 
-def create_decay_curves(
-    data: MMMIDataWrapper,
+def create_adstock_curves(
+    model: Any,  # MMM type, avoid circular import
     hdi_probs: list[float] | None = None,
     max_lag: int = 20,
     output_format: OutputFormat = "pandas",
 ) -> DataFrameType:
-    """Create decay (adstock) curves summary DataFrame.
+    """Create adstock curves summary DataFrame.
 
-    Generates decay weight curves for each channel.
+    Delegates to MMM.sample_adstock_curve() to sample adstock weight curves
+    from the posterior distribution, then computes summary statistics.
 
     Parameters
     ----------
-    data : MMMIDataWrapper
-        Data wrapper from Component 1
+    model : MMM
+        Fitted MMM model with adstock transformation
     hdi_probs : list of float, optional
         HDI probability levels (default: [0.94])
     max_lag : int, default 20
-        Maximum lag periods to include
+        Maximum lag periods to include in output
     output_format : {"pandas", "polars"}, default "pandas"
         Output DataFrame format
 
@@ -521,55 +634,89 @@ def create_decay_curves(
     -------
     pd.DataFrame or pl.DataFrame
         Summary DataFrame with columns:
-        - time: Lag period
+        - time: Lag period (0 to max_lag)
         - channel: Channel name
-        - mean: Mean decay weight
-        - median: Median decay weight
+        - <custom_dims>: One column for each custom dimension (e.g., country)
+        - mean: Mean adstock weight
+        - median: Median adstock weight
         - abs_error_{prob}_lower: HDI lower bound for each prob
         - abs_error_{prob}_upper: HDI upper bound for each prob
+
+    See Also
+    --------
+    MMM.sample_adstock_curve : Underlying method for sampling curves
+    create_saturation_curves : For saturation curves
     """
     if hdi_probs is None:
         hdi_probs = [0.94]
     else:
         _validate_hdi_probs(hdi_probs)
 
-    # Get channels
-    spend = data.get_channel_spend()
-    channels = spend.coords["channel"].values
-
-    # Create time values
-    time_values = np.arange(max_lag + 1)
-
-    all_dfs = []
-
-    for channel in channels:
-        # For now, create placeholder decay curves
-        # In full implementation, would sample from adstock posterior
-        decay_rate = 0.7  # Placeholder
-        weights = decay_rate**time_values
-
-        channel_df = pd.DataFrame(
-            {
-                "time": time_values,
-                "channel": channel,
-                "mean": weights,
-                "median": weights,
-            }
+    # Delegate to MMM.sample_adstock_curve()
+    try:
+        curve_samples = model.sample_adstock_curve(
+            amount=1.0,
+            num_samples=None,  # Use all posterior samples for accurate HDI
         )
+    except Exception as e:
+        raise ValueError(f"Failed to sample adstock curves: {e}") from e
 
-        # Add HDI columns
-        for hdi_prob in hdi_probs:
-            prob_str = str(int(hdi_prob * 100))
-            margin = (1 - hdi_prob) / 2
-            channel_df[f"abs_error_{prob_str}_lower"] = weights * (1 - margin)
-            channel_df[f"abs_error_{prob_str}_upper"] = weights * (1 + margin)
+    # Rename time dimension to 'time' for output
+    # Handle both "time_since_exposure" and "time since exposure" (with spaces)
+    for dim_name in ["time_since_exposure", "time since exposure"]:
+        if dim_name in curve_samples.dims:
+            curve_samples = curve_samples.rename({dim_name: "time"})
+            break
 
-        all_dfs.append(channel_df)
+    # Trim to max_lag if needed
+    if max_lag is not None and "time" in curve_samples.dims:
+        actual_max_lag = min(max_lag, len(curve_samples["time"]) - 1)
+        curve_samples = curve_samples.isel(time=slice(0, actual_max_lag + 1))
 
-    df = pd.concat(all_dfs, ignore_index=True)
+    # Compute summary statistics across 'sample' dimension
+    df = _compute_summary_stats_with_hdi(curve_samples, hdi_probs, sample_dim="sample")
+
+    # Ensure proper column ordering
+    custom_dims = list(model.dims) if hasattr(model, "dims") and model.dims else []
+    index_cols = ["time", "channel", *custom_dims]
+    stat_cols = ["mean", "median"] + [c for c in df.columns if "abs_error" in c]
+
+    all_expected = index_cols + stat_cols
+    other_cols = [c for c in df.columns if c not in all_expected]
+    df = df[[c for c in all_expected if c in df.columns] + other_cols]
+
     return _convert_output(df, output_format)
 
 
+def create_decay_curves(
+    model: Any,
+    hdi_probs: list[float] | None = None,
+    max_lag: int = 20,
+    output_format: OutputFormat = "pandas",
+) -> DataFrameType:
+    """Use create_adstock_curves instead.
+
+    .. deprecated:: 0.X.0
+        `create_decay_curves` has been renamed to `create_adstock_curves`.
+        Use the new name instead.
+    """
+    import warnings
+
+    warnings.warn(
+        "create_decay_curves is deprecated. Use create_adstock_curves instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
+    return create_adstock_curves(
+        model=model,
+        hdi_probs=hdi_probs,
+        max_lag=max_lag,
+        output_format=output_format,
+    )
+
+
+@validate_idata
 def create_total_contribution_summary(
     data: MMMIDataWrapper,
     hdi_probs: list[float] | None = None,
@@ -636,14 +783,17 @@ def create_total_contribution_summary(
     return _convert_output(result_df, output_format)
 
 
-def create_period_over_period_summary(
+@validate_idata
+def create_change_over_time_summary(
     data: MMMIDataWrapper,
     hdi_probs: list[float] | None = None,
+    frequency: Frequency | None = None,
     output_format: OutputFormat = "pandas",
 ) -> DataFrameType:
-    """Create period-over-period summary with percentage changes.
+    """Create change over time summary with per-date percentage changes.
 
-    Computes percentage change in contributions compared to previous period.
+    Computes percentage change in contributions between consecutive time periods:
+    (value[t] - value[t-1]) / value[t-1] * 100 for each date.
 
     Parameters
     ----------
@@ -651,6 +801,10 @@ def create_period_over_period_summary(
         Data wrapper from Component 1
     hdi_probs : list of float, optional
         HDI probability levels (default: [0.94])
+    frequency : {"original", "weekly", "monthly", "quarterly", "yearly"}, optional
+        Aggregate to time frequency before computing changes.
+        Use "original" or None for no aggregation. Cannot use "all_time"
+        (change over time requires date dimension).
     output_format : {"pandas", "polars"}, default "pandas"
         Output DataFrame format
 
@@ -658,57 +812,117 @@ def create_period_over_period_summary(
     -------
     pd.DataFrame or pl.DataFrame
         Summary DataFrame with columns:
+        - date: Date (excluding first date which has no previous)
         - channel: Channel name
         - pct_change_mean: Mean percentage change
         - pct_change_median: Median percentage change
-        - abs_error_{prob}_lower: HDI lower bound for pct change
-        - abs_error_{prob}_upper: HDI upper bound for pct change
+        - abs_error_{prob}_lower: HDI lower bound for each prob
+        - abs_error_{prob}_upper: HDI upper bound for each prob
+
+    Raises
+    ------
+    ValueError
+        If data has no date dimension (e.g., after "all_time" aggregation)
+
+    Examples
+    --------
+    >>> # Basic usage
+    >>> df = create_change_over_time_summary(mmm.data)
+    >>>
+    >>> # With monthly aggregation first
+    >>> df = create_change_over_time_summary(mmm.data, frequency="monthly")
+    >>>
+    >>> # Via factory
+    >>> df = mmm.summary.change_over_time()
     """
-    if hdi_probs is None:
-        hdi_probs = [0.94]
-    else:
-        _validate_hdi_probs(hdi_probs)
+    # Validate and prepare
+    data, hdi_probs = _prepare_data_and_hdi(data, hdi_probs, frequency)
 
-    # Get contributions
+    # Get contributions (chain, draw, date, channel)
     contributions = data.get_channel_contributions(original_scale=True)
-    channels = contributions.coords["channel"].values
 
-    # For period-over-period, we'd need to split the data
-    # For now, create placeholder percentage changes
-    all_rows = []
+    # Check for date dimension
+    if "date" not in contributions.dims:
+        raise ValueError(
+            "change_over_time requires date dimension. "
+            "Data may have been aggregated with frequency='all_time', "
+            "which removes the date dimension. Use a different frequency "
+            "or call on unaggregated data."
+        )
 
-    for channel in channels:
-        row = {
-            "channel": channel,
-            "pct_change_mean": 0.05,  # Placeholder 5% change
-            "pct_change_median": 0.05,
+    # Compute percentage change using xarray operations
+    # Formula: (value[t] - value[t-1]) / value[t-1] * 100
+    shifted = contributions.shift(date=1)
+    diff = contributions.diff("date")
+
+    # Handle division by zero (set to NaN)
+    # Use xr.where to replace zeros with NaN before division
+    shifted_safe = xr.where(shifted == 0, np.nan, shifted)
+    pct_change = (diff / shifted_safe) * 100
+
+    # Drop first date (no previous value, will be all NaN from diff)
+    pct_change = pct_change.isel(date=slice(1, None))
+
+    # Compute summary statistics using existing helper
+    df = _compute_summary_stats_with_hdi(pct_change, hdi_probs)
+
+    # Rename columns to match expected schema
+    df = df.rename(
+        columns={
+            "mean": "pct_change_mean",
+            "median": "pct_change_median",
         }
+    )
 
-        # Add HDI columns
-        for hdi_prob in hdi_probs:
-            prob_str = str(int(hdi_prob * 100))
-            row[f"abs_error_{prob_str}_lower"] = 0.01
-            row[f"abs_error_{prob_str}_upper"] = 0.09
-
-        all_rows.append(row)
-
-    df = pd.DataFrame(all_rows)
     return _convert_output(df, output_format)
+
+
+def create_period_over_period_summary(
+    data: MMMIDataWrapper,
+    hdi_probs: list[float] | None = None,
+    frequency: Frequency | None = None,
+    output_format: OutputFormat = "pandas",
+) -> DataFrameType:
+    """Use create_change_over_time_summary instead.
+
+    .. deprecated:: 0.X.0
+        `create_period_over_period_summary` has been renamed to
+        `create_change_over_time_summary`. Use the new name instead.
+    """
+    import warnings
+
+    warnings.warn(
+        "create_period_over_period_summary is deprecated. "
+        "Use create_change_over_time_summary instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
+    return create_change_over_time_summary(
+        data=data,
+        hdi_probs=hdi_probs,
+        frequency=frequency,
+        output_format=output_format,
+    )
 
 
 # ==================== Factory Class ====================
 
 
 class MMMSummaryFactory:
-    """Factory for creating summary DataFrames from MMMIDataWrapper.
+    """Factory for creating summary DataFrames from MMM data.
 
     Provides a convenient interface for generating summary DataFrames
-    with shared default settings.
+    with shared default settings. Accepts data wrapper (required) and
+    optionally the MMM model to access transformations.
 
     Parameters
     ----------
     data : MMMIDataWrapper
-        Data wrapper from Component 1
+        Data wrapper containing idata and schema (required)
+    model : MMM, optional
+        Fitted MMM model with transformations (saturation, adstock).
+        Required for saturation_curves() and adstock_curves() methods.
     hdi_probs : list of float, optional
         Default HDI probability levels (default: [0.94])
     output_format : {"pandas", "polars"}, default "pandas"
@@ -716,30 +930,38 @@ class MMMSummaryFactory:
 
     Examples
     --------
+    >>> # With data only (for most summaries)
     >>> factory = MMMSummaryFactory(mmm.data)
-    >>> df = factory.contributions()
+    >>> contributions_df = factory.contributions()
     >>>
-    >>> # With custom defaults
-    >>> factory = MMMSummaryFactory(
-    ...     mmm.data,
-    ...     hdi_probs=[0.80, 0.94],
-    ...     output_format="polars",
-    ... )
-    >>> df = factory.contributions()  # Uses polars and [0.80, 0.94] HDI
+    >>> # With model (for transformation curves)
+    >>> factory = MMMSummaryFactory(mmm.data, model=mmm)
+    >>> saturation_df = factory.saturation_curves()
     >>>
-    >>> # Override per call
-    >>> df = factory.contributions(hdi_probs=[0.50], output_format="pandas")
+    >>> # Via model property (recommended - includes model automatically)
+    >>> factory = mmm.summary
+    >>> saturation_df = factory.saturation_curves()
     """
 
     def __init__(
         self,
         data: MMMIDataWrapper,
+        model: Any | None = None,  # MMM type, but avoid circular import
         hdi_probs: list[float] | None = None,
         output_format: OutputFormat = "pandas",
     ):
         self.data = data
+        self.model = model
         self.hdi_probs = hdi_probs if hdi_probs is not None else [0.94]
         self.output_format = output_format
+
+    def _require_model(self, method_name: str) -> None:
+        """Raise helpful error if model is required but not provided."""
+        if self.model is None:
+            raise ValueError(
+                f"{method_name} requires model to access transformations. "
+                f"Use MMMSummaryFactory(data, model=mmm) or mmm.summary instead."
+            )
 
     def posterior_predictive(
         self,
@@ -809,11 +1031,35 @@ class MMMSummaryFactory:
         n_points: int = 100,
         output_format: OutputFormat | None = None,
     ) -> DataFrameType:
-        """Get saturation curves summary."""
+        """Get saturation curves summary.
+
+        Requires model to be provided (has saturation transformation).
+        """
+        self._require_model("saturation_curves")
         return create_saturation_curves(
-            self.data,
+            self.model,
             hdi_probs=hdi_probs if hdi_probs is not None else self.hdi_probs,
             n_points=n_points,
+            output_format=output_format
+            if output_format is not None
+            else self.output_format,
+        )
+
+    def adstock_curves(
+        self,
+        hdi_probs: list[float] | None = None,
+        max_lag: int = 20,
+        output_format: OutputFormat | None = None,
+    ) -> DataFrameType:
+        """Get adstock curves summary.
+
+        Requires model to be provided (has adstock transformation).
+        """
+        self._require_model("adstock_curves")
+        return create_adstock_curves(
+            self.model,
+            hdi_probs=hdi_probs if hdi_probs is not None else self.hdi_probs,
+            max_lag=max_lag,
             output_format=output_format
             if output_format is not None
             else self.output_format,
@@ -825,14 +1071,19 @@ class MMMSummaryFactory:
         max_lag: int = 20,
         output_format: OutputFormat | None = None,
     ) -> DataFrameType:
-        """Get decay curves summary."""
-        return create_decay_curves(
-            self.data,
-            hdi_probs=hdi_probs if hdi_probs is not None else self.hdi_probs,
+        """Use adstock_curves instead."""
+        import warnings
+
+        warnings.warn(
+            "decay_curves is deprecated. Use adstock_curves instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
+        return self.adstock_curves(
+            hdi_probs=hdi_probs,
             max_lag=max_lag,
-            output_format=output_format
-            if output_format is not None
-            else self.output_format,
+            output_format=output_format,
         )
 
     def total_contribution(
@@ -851,16 +1102,40 @@ class MMMSummaryFactory:
             else self.output_format,
         )
 
+    def change_over_time(
+        self,
+        hdi_probs: list[float] | None = None,
+        frequency: Frequency | None = None,
+        output_format: OutputFormat | None = None,
+    ) -> DataFrameType:
+        """Get change over time summary.
+
+        Computes percentage change between consecutive time periods.
+        """
+        return create_change_over_time_summary(
+            self.data,
+            hdi_probs=hdi_probs if hdi_probs is not None else self.hdi_probs,
+            frequency=frequency,
+            output_format=output_format
+            if output_format is not None
+            else self.output_format,
+        )
+
     def period_over_period(
         self,
         hdi_probs: list[float] | None = None,
         output_format: OutputFormat | None = None,
     ) -> DataFrameType:
-        """Get period-over-period summary."""
-        return create_period_over_period_summary(
-            self.data,
-            hdi_probs=hdi_probs if hdi_probs is not None else self.hdi_probs,
-            output_format=output_format
-            if output_format is not None
-            else self.output_format,
+        """Use change_over_time instead."""
+        import warnings
+
+        warnings.warn(
+            "period_over_period is deprecated. Use change_over_time instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
+        return self.change_over_time(
+            hdi_probs=hdi_probs,
+            output_format=output_format,
         )
