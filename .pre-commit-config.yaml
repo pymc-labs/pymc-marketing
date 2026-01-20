@@ -40,4 +40,4 @@ repos:
       - id: check-toml
       - id: check-yaml
       - id: check-added-large-files
-        exclude: (^docs/source/notebooks/|docs/source/gallery/images/)
+        exclude: ^(docs/source/notebooks/|docs/source/gallery/images/)
