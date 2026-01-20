@@ -943,7 +943,42 @@ class MMMSummaryFactory:
         frequency: Frequency | None = None,
         output_format: OutputFormat | None = None,
     ) -> DataFrameType:
-        """Get posterior predictive summary."""
+        """Create posterior predictive summary DataFrame.
+
+        Computes mean, median, and HDI bounds for posterior predictive samples,
+        along with observed values for comparison.
+
+        Parameters
+        ----------
+        hdi_probs : list of float, optional
+            HDI probability levels (default: uses factory default)
+        frequency : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}, optional
+            Time aggregation period (default: None, no aggregation)
+        output_format : {"pandas", "polars"}, optional
+            Output DataFrame format (default: uses factory default)
+
+        Returns
+        -------
+        pd.DataFrame or pl.DataFrame
+            Summary DataFrame with columns:
+
+            - date: Time index
+            - mean: Mean of posterior predictive samples
+            - median: Median of posterior predictive samples
+            - observed: Observed target values
+            - abs_error_{prob}_lower: HDI lower bound for each prob
+            - abs_error_{prob}_upper: HDI upper bound for each prob
+
+        Examples
+        --------
+        >>> df = mmm.summary.posterior_predictive()
+        >>> df = mmm.summary.posterior_predictive(frequency="monthly")
+        >>> df = mmm.summary.posterior_predictive(hdi_probs=[0.80, 0.94])
+
+        See Also
+        --------
+        create_posterior_predictive_summary : Standalone function
+        """
         return create_posterior_predictive_summary(
             self.data,
             hdi_probs=hdi_probs if hdi_probs is not None else self.hdi_probs,
@@ -960,7 +995,44 @@ class MMMSummaryFactory:
         frequency: Frequency | None = None,
         output_format: OutputFormat | None = None,
     ) -> DataFrameType:
-        """Get contribution summary."""
+        """Create contribution summary DataFrame.
+
+        Computes mean, median, and HDI bounds for contribution samples
+        for the specified component type.
+
+        Parameters
+        ----------
+        hdi_probs : list of float, optional
+            HDI probability levels (default: uses factory default)
+        component : {"channel", "control", "seasonality", "baseline"}, default "channel"
+            Which contribution component to summarize
+        frequency : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}, optional
+            Time aggregation period (default: None, no aggregation)
+        output_format : {"pandas", "polars"}, optional
+            Output DataFrame format (default: uses factory default)
+
+        Returns
+        -------
+        pd.DataFrame or pl.DataFrame
+            Summary DataFrame with columns:
+
+            - date: Time index
+            - channel/control: Component identifier
+            - mean: Mean contribution
+            - median: Median contribution
+            - abs_error_{prob}_lower: HDI lower bound for each prob
+            - abs_error_{prob}_upper: HDI upper bound for each prob
+
+        Examples
+        --------
+        >>> df = mmm.summary.contributions()
+        >>> df = mmm.summary.contributions(component="control")
+        >>> df = mmm.summary.contributions(frequency="monthly", hdi_probs=[0.80, 0.94])
+
+        See Also
+        --------
+        create_contribution_summary : Standalone function
+        """
         return create_contribution_summary(
             self.data,
             hdi_probs=hdi_probs if hdi_probs is not None else self.hdi_probs,
@@ -977,7 +1049,42 @@ class MMMSummaryFactory:
         frequency: Frequency | None = None,
         output_format: OutputFormat | None = None,
     ) -> DataFrameType:
-        """Get ROAS summary."""
+        """Create ROAS (Return on Ad Spend) summary DataFrame.
+
+        Computes ROAS = contribution / spend for each channel with
+        mean, median, and HDI bounds.
+
+        Parameters
+        ----------
+        hdi_probs : list of float, optional
+            HDI probability levels (default: uses factory default)
+        frequency : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}, optional
+            Time aggregation period (default: None, no aggregation)
+        output_format : {"pandas", "polars"}, optional
+            Output DataFrame format (default: uses factory default)
+
+        Returns
+        -------
+        pd.DataFrame or pl.DataFrame
+            Summary DataFrame with columns:
+
+            - date: Time index
+            - channel: Channel name
+            - mean: Mean ROAS
+            - median: Median ROAS
+            - abs_error_{prob}_lower: HDI lower bound for each prob
+            - abs_error_{prob}_upper: HDI upper bound for each prob
+
+        Examples
+        --------
+        >>> df = mmm.summary.roas()
+        >>> df = mmm.summary.roas(frequency="monthly")
+        >>> df = mmm.summary.roas(hdi_probs=[0.80, 0.94])
+
+        See Also
+        --------
+        create_roas_summary : Standalone function
+        """
         return create_roas_summary(
             self.data,
             hdi_probs=hdi_probs if hdi_probs is not None else self.hdi_probs,
@@ -991,7 +1098,34 @@ class MMMSummaryFactory:
         self,
         output_format: OutputFormat | None = None,
     ) -> DataFrameType:
-        """Get channel spend DataFrame."""
+        """Create channel spend DataFrame (raw data, no HDI).
+
+        Returns the raw spend values per channel and date without
+        any statistical aggregation.
+
+        Parameters
+        ----------
+        output_format : {"pandas", "polars"}, optional
+            Output DataFrame format (default: uses factory default)
+
+        Returns
+        -------
+        pd.DataFrame or pl.DataFrame
+            DataFrame with columns:
+
+            - date: Time index
+            - channel: Channel name
+            - channel_data: Spend value
+
+        Examples
+        --------
+        >>> df = mmm.summary.channel_spend()
+        >>> df = mmm.summary.channel_spend(output_format="polars")
+
+        See Also
+        --------
+        create_channel_spend_dataframe : Standalone function
+        """
         return create_channel_spend_dataframe(
             self.data,
             output_format=output_format
@@ -1006,7 +1140,15 @@ class MMMSummaryFactory:
         output_format: OutputFormat | None = None,
         data: MMMIDataWrapper | None = None,
     ) -> DataFrameType:
-        """Get saturation curves summary.
+        """Create saturation curves summary DataFrame.
+
+        Samples saturation response curves from the posterior distribution
+        using the model's sample_saturation_curve() method, then computes
+        summary statistics (mean, median, HDI).
+
+        Supports multi-dimensional data with custom_dims (e.g., country, region).
+        When custom dimensions are present, curves are generated for each
+        combination of channel and custom dimension values.
 
         Requires model to be provided (has saturation transformation).
 
@@ -1019,7 +1161,34 @@ class MMMSummaryFactory:
         output_format : {"pandas", "polars"}, optional
             Output DataFrame format (default: uses factory default)
         data : MMMIDataWrapper or None, optional
-            Optional data wrapper to use. If None (default), uses self.data.
+            Optional data wrapper to use for sampling curves. If None (default),
+            uses self.data. This allows sampling curves from a different
+            InferenceData, such as from a subset of samples or another model.
+
+        Returns
+        -------
+        pd.DataFrame or pl.DataFrame
+            Summary DataFrame with columns:
+
+            - x: Input value (spend level, in scaled space)
+            - channel: Channel name
+            - <custom_dims>: One column for each custom dimension (e.g., country)
+            - mean: Mean saturation response
+            - median: Median saturation response
+            - abs_error_{prob}_lower: HDI lower bound for each prob
+            - abs_error_{prob}_upper: HDI upper bound for each prob
+
+        Examples
+        --------
+        >>> df = mmm.summary.saturation_curves()
+        >>> df = mmm.summary.saturation_curves(n_points=200)
+        >>> df = mmm.summary.saturation_curves(hdi_probs=[0.80, 0.94])
+
+        See Also
+        --------
+        create_saturation_curves : Standalone function
+        MMM.sample_saturation_curve : Underlying method for sampling curves
+        adstock_curves : For adstock curves
         """
         self._require_model("saturation_curves")
         return create_saturation_curves(
@@ -1039,7 +1208,11 @@ class MMMSummaryFactory:
         output_format: OutputFormat | None = None,
         data: MMMIDataWrapper | None = None,
     ) -> DataFrameType:
-        """Get adstock curves summary.
+        """Create adstock curves summary DataFrame.
+
+        Delegates to MMM.sample_adstock_curve() to sample adstock weight curves
+        from the posterior distribution, then computes summary statistics
+        (mean, median, HDI).
 
         Requires model to be provided (has adstock transformation).
 
@@ -1052,7 +1225,34 @@ class MMMSummaryFactory:
         output_format : {"pandas", "polars"}, optional
             Output DataFrame format (default: uses factory default)
         data : MMMIDataWrapper or None, optional
-            Optional data wrapper to use. If None (default), uses self.data.
+            Optional data wrapper to use for sampling curves. If None (default),
+            uses self.data. This allows sampling curves from a different
+            InferenceData, such as from a subset of samples or another model.
+
+        Returns
+        -------
+        pd.DataFrame or pl.DataFrame
+            Summary DataFrame with columns:
+
+            - time: Lag period (0 to max_lag)
+            - channel: Channel name
+            - <custom_dims>: One column for each custom dimension (e.g., country)
+            - mean: Mean adstock weight
+            - median: Median adstock weight
+            - abs_error_{prob}_lower: HDI lower bound for each prob
+            - abs_error_{prob}_upper: HDI upper bound for each prob
+
+        Examples
+        --------
+        >>> df = mmm.summary.adstock_curves()
+        >>> df = mmm.summary.adstock_curves(max_lag=30)
+        >>> df = mmm.summary.adstock_curves(hdi_probs=[0.80, 0.94])
+
+        See Also
+        --------
+        create_adstock_curves : Standalone function
+        MMM.sample_adstock_curve : Underlying method for sampling curves
+        saturation_curves : For saturation curves
         """
         self._require_model("adstock_curves")
         return create_adstock_curves(
@@ -1071,7 +1271,43 @@ class MMMSummaryFactory:
         frequency: Frequency | None = None,
         output_format: OutputFormat | None = None,
     ) -> DataFrameType:
-        """Get total contribution summary."""
+        """Create total contribution summary (all effects combined).
+
+        Summarizes contributions by component type (channel, control, etc.),
+        summing across individual components within each type.
+
+        Parameters
+        ----------
+        hdi_probs : list of float, optional
+            HDI probability levels (default: uses factory default)
+        frequency : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}, optional
+            Time aggregation period (default: None, no aggregation)
+        output_format : {"pandas", "polars"}, optional
+            Output DataFrame format (default: uses factory default)
+
+        Returns
+        -------
+        pd.DataFrame or pl.DataFrame
+            Summary DataFrame with columns:
+
+            - date: Time index
+            - component: Effect type ("channel", "control", "seasonality", "baseline")
+            - mean: Mean total contribution
+            - median: Median total contribution
+            - abs_error_{prob}_lower: HDI lower bound for each prob
+            - abs_error_{prob}_upper: HDI upper bound for each prob
+
+        Examples
+        --------
+        >>> df = mmm.summary.total_contribution()
+        >>> df = mmm.summary.total_contribution(frequency="monthly")
+        >>> df = mmm.summary.total_contribution(hdi_probs=[0.80, 0.94])
+
+        See Also
+        --------
+        create_total_contribution_summary : Standalone function
+        contributions : For per-channel/control contributions
+        """
         return create_total_contribution_summary(
             self.data,
             hdi_probs=hdi_probs if hdi_probs is not None else self.hdi_probs,
@@ -1087,9 +1323,48 @@ class MMMSummaryFactory:
         frequency: Frequency | None = None,
         output_format: OutputFormat | None = None,
     ) -> DataFrameType:
-        """Get change over time summary.
+        """Create change over time summary with per-date percentage changes.
 
-        Computes percentage change between consecutive time periods.
+        Computes percentage change in contributions between consecutive time periods:
+        (value[t] - value[t-1]) / value[t-1] * 100 for each date.
+
+        Parameters
+        ----------
+        hdi_probs : list of float, optional
+            HDI probability levels (default: uses factory default)
+        frequency : {"original", "weekly", "monthly", "quarterly", "yearly"}, optional
+            Aggregate to time frequency before computing changes.
+            Use "original" or None for no aggregation. Cannot use "all_time"
+            (change over time requires date dimension).
+        output_format : {"pandas", "polars"}, optional
+            Output DataFrame format (default: uses factory default)
+
+        Returns
+        -------
+        pd.DataFrame or pl.DataFrame
+            Summary DataFrame with columns:
+
+            - date: Date (excluding first date which has no previous)
+            - channel: Channel name
+            - pct_change_mean: Mean percentage change
+            - pct_change_median: Median percentage change
+            - abs_error_{prob}_lower: HDI lower bound for each prob
+            - abs_error_{prob}_upper: HDI upper bound for each prob
+
+        Raises
+        ------
+        ValueError
+            If data has no date dimension (e.g., after "all_time" aggregation)
+
+        Examples
+        --------
+        >>> df = mmm.summary.change_over_time()
+        >>> df = mmm.summary.change_over_time(frequency="monthly")
+        >>> df = mmm.summary.change_over_time(hdi_probs=[0.80, 0.94])
+
+        See Also
+        --------
+        create_change_over_time_summary : Standalone function
         """
         return create_change_over_time_summary(
             self.data,
