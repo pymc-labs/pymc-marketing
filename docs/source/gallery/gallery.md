@@ -37,8 +37,8 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::
 
 :::{grid-item-card} Understanding Media Saturation
-:img-top: ../gallery/images/media_saturation.png
-:link: ../notebooks/mmm/media_saturation.html
+:img-top: ../gallery/images/mmm_media_saturation.png
+:link: ../notebooks/mmm/mmm_media_saturation.html
 :::
 
 :::{grid-item-card} Build MMM from YAML Configuration
