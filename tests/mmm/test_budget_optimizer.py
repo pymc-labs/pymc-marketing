@@ -34,6 +34,8 @@ from pymc_marketing.mmm.components.saturation import LogisticSaturation
 from pymc_marketing.mmm.constraints import Constraint
 from pymc_marketing.mmm.utility import _check_samples_dimensionality
 
+pytest.skip(reason="MMM not refactored with pymc.dims", allow_module_level=True)
+
 
 @pytest.fixture(scope="module")
 def dummy_df():

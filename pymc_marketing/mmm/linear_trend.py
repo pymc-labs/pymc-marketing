@@ -58,15 +58,19 @@ from typing import Any, Self, cast
 import numpy as np
 import numpy.typing as npt
 import pymc as pm
+import pymc.dims as pmd
 import pytensor.tensor as pt
 import xarray as xr
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from pydantic import BaseModel, ConfigDict, Field, InstanceOf, model_validator
 from pymc.distributions.shape_utils import Dims
-from pymc_extras.prior import Prior, create_dim_handler
-from pytensor.tensor.variable import TensorVariable
+from pymc_extras.prior import Prior
+from pytensor.xtensor import as_xtensor
+from pytensor.xtensor.type import XTensorVariable
+from xarray import DataArray
 
+from pymc_marketing.mmm.dims import XTensorLike
 from pymc_marketing.plot import SelToString, plot_curve
 
 
@@ -240,7 +244,6 @@ class LinearTrend(BaseModel):
     @model_validator(mode="after")
     def _priors_are_set(self) -> Self:
         self.priors = self.priors or self.default_priors.copy()
-
         return self
 
     @model_validator(mode="after")
@@ -287,76 +290,43 @@ class LinearTrend(BaseModel):
 
         return priors
 
-    @property
-    def non_broadcastable_dims(self) -> tuple[str, ...]:
-        """Get the dimensions of the trend that are not just broadcastable.
-
-        Returns
-        -------
-        tuple[str, ...]
-            Tuple with the dimensions of the trend.
-
-        """
-        dims = set()
-        for prior in self.priors.values():
-            dims.update(prior.dims)
-
-        dims = dims.difference({"changepoint"})
-
-        return tuple(dim for dim in cast(tuple[str, ...], self.dims) if dim in dims)
-
-    def apply(self, t: pt.TensorLike) -> TensorVariable:
+    def apply(self, t: XTensorLike) -> XTensorVariable:
         """Create the linear trend for the given x values.
 
         Parameters
         ----------
-        t : pt.TensorLike
+        t : XTensorLike
             1D array of strictly increasing time values for the trend starting from 0.
 
         Returns
         -------
-        pt.TensorVariable
-            TensorVariable with the trend values.
+        XTensorVariable
+            XTensorVariable with the trend values.
 
         """
-        dims = cast(Dims, self.dims)
+        t = as_xtensor(t)
+        if "changepoint" in t.dims:
+            raise ValueError(f"Variable t {t} cannot have a dimension 'changepoint'")
+
         model = pm.modelcontext(None)
         model.add_coord("changepoint", range(self.n_changepoints))
-        DUMMY_DIM = "DATE"
-        out_dims = (DUMMY_DIM, "changepoint", *dims)
-        dim_handler = create_dim_handler(desired_dims=out_dims)
 
-        # (changepoints, )
-        s = pt.linspace(0, pt.max(t).eval(), self.n_changepoints)
-        s.type.shape = (self.n_changepoints,)
-        s = dim_handler(
-            s,
-            ("changepoint",),
+        s = as_xtensor(
+            pt.linspace(0, t.max().values, self.n_changepoints), dims=("changepoint",)
         )
-        # (dates, changepoints)
-        A = (dim_handler(t, (DUMMY_DIM,)) > s) * 1.0
+        A = t > s
 
-        delta_dist = self.priors["delta"]
-        delta = dim_handler(
-            delta_dist.create_variable("delta"),
-            delta_dist.dims,
-        )
+        delta = self.priors["delta"].create_variable("delta", xdist=True)
 
-        k_dim_handler = create_dim_handler((DUMMY_DIM, *dims))
-
-        first = (A * delta).sum(axis=1) * k_dim_handler(t, (DUMMY_DIM,))
+        first = (A * delta).sum(dim="changepoint") * t
 
         if self.include_intercept:
             # (additional_groups)
-            k_dist = self.priors["k"]
-            k = k_dim_handler(
-                k_dist.create_variable("k"),
-                k_dist.dims,
-            )
+            k = self.priors["k"].create_variable("k", xdist=True)
             first += k
 
         gamma = -s * delta
-        second = (A * gamma).sum(axis=1)
+        second = (A * gamma).sum(dim="changepoint")
 
         return first + second
 
@@ -384,7 +354,7 @@ class LinearTrend(BaseModel):
         coords["changepoint"] = range(self.n_changepoints)
         with pm.Model(coords=coords):
             for key, param in self.priors.items():
-                param.create_variable(key)
+                param.create_variable(key, xdist=True)
 
             return pm.sample_prior_predictive(**sample_prior_predictive_kwargs).prior
 
@@ -407,7 +377,7 @@ class LinearTrend(BaseModel):
             DataArray with the curve samples.
 
         """
-        t = np.linspace(0, max_value, 100)
+        t = DataArray(np.linspace(0, max_value, 100), dims=("t",))
         coords: dict[str, Any] = {"t": t}
         for name in self.priors.keys():
             for key, values in parameters[name].coords.items():
@@ -416,12 +386,12 @@ class LinearTrend(BaseModel):
 
                 coords[key] = values.to_numpy()
 
+        name = "trend"
         with pm.Model(coords=coords):
-            name = "trend"
-            pm.Deterministic(
+            pmd.Deterministic(
                 name,
                 self.apply(t),
-                dims=("t", *cast(Dims, self.dims)),
+                dims=("t", ...),
             )
 
             return pm.sample_posterior_predictive(

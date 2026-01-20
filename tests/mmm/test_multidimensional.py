@@ -23,7 +23,7 @@ import xarray as xr
 from pydantic import ValidationError
 from pymc.model_graph import fast_eval
 from pymc_extras.prior import Prior
-from pytensor.tensor.basic import TensorVariable
+from pytensor.xtensor.type import XTensorVariable
 from scipy.optimize import OptimizeResult
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
@@ -1205,7 +1205,7 @@ def test_create_effect_mu_effect(
     with mock_mmm.model:
         mu = effect.create_effect(mock_mmm)
 
-    assert isinstance(mu, TensorVariable)
+    assert isinstance(mu, XTensorVariable)
 
     for named_vars in ["holiday_sigma", "holiday_effect_size", "holiday_total_effect"]:
         assert named_vars in mock_mmm.model.named_vars
@@ -3377,7 +3377,7 @@ def test_specify_time_varying_configuration(
     mmm.build_model(X, y)
 
     assert (
-        mmm.model[expected_rv["name"]].owner.op.__class__.__name__
+        mmm.model[expected_rv["name"]].owner.op.core_op.__class__.__name__
         == expected_rv["kind"]
     )
 
@@ -3904,13 +3904,9 @@ def test_calibration_shape_mismatch_error(multi_dim_data, mock_pymc_sample):
     spend_df = spend_df[spend_df["country"] != "Chile"].copy()
     for col in ["channel_1", "channel_2", "channel_3"]:
         spend_df[col] = spend_df[col] * 1.5
-    # print unique countries in spend_df
-    print(spend_df["country"].unique())
 
     # Create calibration data
     countries = mmm.model.coords["country"]
-    # print unique countries in countries
-    print(countries)
     calibration_df = pd.DataFrame(
         {
             "country": [countries[0], countries[1], countries[2]],
@@ -3921,7 +3917,10 @@ def test_calibration_shape_mismatch_error(multi_dim_data, mock_pymc_sample):
     )
 
     # This should raise a shape mismatch error
-    with pytest.raises(ValueError, match="shape does not match"):
+    with pytest.raises(
+        ValueError,
+        match=r"Spend data coordinates for dim 'country' do not match model coords",
+    ):
         mmm.add_cost_per_target_calibration(
             data=spend_df,
             calibration_data=calibration_df,

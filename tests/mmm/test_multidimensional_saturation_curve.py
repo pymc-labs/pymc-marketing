@@ -417,7 +417,7 @@ def test_sample_saturation_curve_curves_are_monotonic_increasing(fitted_mmm, req
     mean_curve = curves.mean(dim="sample")
 
     # Values should be non-decreasing along x dimension
-    diffs = np.diff(mean_curve.values, axis=0)
+    diffs = mean_curve.diff(dim="x")
     assert np.all(diffs >= -1e-6)  # Allow tiny numerical errors
 
 

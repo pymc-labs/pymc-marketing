@@ -32,7 +32,7 @@ Key Concepts:
 -------------
 
 - **Samples**:
-    A PyTensor tensor variable (`pt.TensorVariable`) representing samples drawn from the posterior
+    A PyTensor tensor variable (`XTensorVariable`) representing samples drawn from the posterior
     distributions of the model outputs. These samples capture the uncertainty in the model predictions
     and are essential for computing expected utilities and risk measures in Bayesian optimization.
 
@@ -45,11 +45,13 @@ Key Concepts:
 from collections.abc import Callable
 
 import pytensor.tensor as pt
+import pytensor.xtensor as ptx
+from pytensor.xtensor.type import XTensorVariable, as_xtensor
 
-UtilityFunctionType = Callable[[pt.TensorVariable, pt.TensorVariable], float]
+UtilityFunctionType = Callable[[XTensorVariable, XTensorVariable], float]
 
 
-def _check_samples_dimensionality(samples: pt.TensorVariable) -> pt.TensorVariable:
+def _check_samples_dimensionality(samples: XTensorVariable) -> XTensorVariable:
     """Check if samples is a 1D tensor variable."""
     ndim = samples.type.ndim
     if ndim == 1:
@@ -60,36 +62,38 @@ def _check_samples_dimensionality(samples: pt.TensorVariable) -> pt.TensorVariab
         )
 
 
-def _compute_quantile(x: pt.TensorVariable, q: float) -> pt.TensorVariable:
+def _compute_quantile(x: XTensorVariable, q: float) -> XTensorVariable:
     """
     Compute the quantile of a PyTensor tensor variable.
 
     Parameters
     ----------
-    x : pt.TensorVariable
+    x : XTensorVariable
         A 1D PyTensor tensor variable containing samples.
     q : float
         The quantile to compute, between 0 and 1.
 
     Returns
     -------
-    pt.TensorVariable
+    XTensorVariable
         The quantile value.
     """
-    sorted_x = pt.sort(x)
+    # No sort in xtensor
+    sorted_x = as_xtensor(pt.sort(x.values, axis=-1), dims=x.dims)
     n = x.shape[0]
     idx = q * (n - 1)
-    idx_floor = pt.floor(idx).astype("int64")
-    idx_ceil = pt.ceil(idx).astype("int64")
+    idx_floor = ptx.math.floor(idx).astype("int64")
+    idx_ceil = ptx.math.ceil(idx).astype("int64")
     weight = idx - idx_floor
     return (1 - weight) * sorted_x[idx_floor] + weight * sorted_x[idx_ceil]
 
 
 def average_response(
-    samples: pt.TensorVariable, budgets: pt.TensorVariable
-) -> pt.TensorVariable:
+    samples: XTensorVariable, budgets: XTensorVariable
+) -> XTensorVariable:
     """Compute the average response of the posterior predictive distribution."""
-    return pt.mean(_check_samples_dimensionality(samples))
+    samples = as_xtensor(samples)
+    return samples.mean(dim="sample")
 
 
 def tail_distance(confidence_level: float = 0.75) -> UtilityFunctionType:
@@ -122,20 +126,21 @@ def tail_distance(confidence_level: float = 0.75) -> UtilityFunctionType:
         raise ValueError("Confidence level must be between 0 and 1.")
 
     def _tail_distance(
-        samples: pt.TensorVariable, budgets: pt.TensorVariable
-    ) -> pt.TensorVariable:
+        samples: XTensorVariable, budgets: XTensorVariable
+    ) -> XTensorVariable:
+        samples = as_xtensor(samples)
         samples = _check_samples_dimensionality(samples)
-        mean = pt.mean(samples)
+        mean = samples.mean()
         q1 = _compute_quantile(samples, confidence_level)
         q2 = _compute_quantile(samples, 1 - confidence_level)
-        return pt.abs(q1 - mean) + pt.abs(mean - q2)
+        return ptx.math.abs(q1 - mean) + ptx.math.abs(mean - q2)
 
     return _tail_distance
 
 
 def _calculate_roas_distribution_for_allocation(
-    samples: pt.TensorVariable, budgets: pt.TensorVariable
-) -> pt.TensorVariable:
+    samples: XTensorVariable, budgets: XTensorVariable
+) -> XTensorVariable:
     """Calculate the ROAS (Return on Advertising Spend) distribution for a given total budget.
 
     This function computes the ratio of each sample (representing returns) to the sum of budgets.
@@ -143,18 +148,20 @@ def _calculate_roas_distribution_for_allocation(
 
     Parameters
     ----------
-    samples : pt.TensorVariable
+    samples : XTensorVariable
         A 1D PyTensor tensor variable containing the returns for each asset or campaign.
-    budgets : pt.TensorVariable
+    budgets : XTensorVariable
         A 1D PyTensor tensor variable representing the budget allocations for each asset or campaign.
 
     Returns
     -------
-    pt.TensorVariable
+    XTensorVariable
         A PyTensor tensor variable representing the ROAS distribution.
     """
+    samples = as_xtensor(samples)
+    budgets = as_xtensor(budgets)
     samples = _check_samples_dimensionality(samples)
-    total_budget = pt.sum(budgets)
+    total_budget = budgets.sum()
     roas_distribution = samples / total_budget
     return roas_distribution
 
@@ -207,10 +214,11 @@ def mean_tightness_score(
         raise ValueError("Confidence level must be between 0 and 1.")
 
     def _mean_tightness_score(
-        samples: pt.TensorVariable, budgets: pt.TensorVariable
-    ) -> pt.TensorVariable:
+        samples: XTensorVariable, budgets: XTensorVariable
+    ) -> XTensorVariable:
+        samples = as_xtensor(samples)
         samples = _check_samples_dimensionality(samples)
-        mean = pt.mean(samples)
+        mean = samples.mean()
         tail_metric = tail_distance(confidence_level)
         return 1 - alpha * tail_metric(samples, budgets) / mean
 
@@ -258,8 +266,9 @@ def value_at_risk(confidence_level: float = 0.95) -> UtilityFunctionType:
         raise ValueError("Confidence level must be between 0 and 1.")
 
     def _value_at_risk(
-        samples: pt.TensorVariable, budgets: pt.TensorVariable
-    ) -> pt.TensorVariable:
+        samples: XTensorVariable, budgets: XTensorVariable
+    ) -> XTensorVariable:
+        samples = as_xtensor(samples)
         samples = _check_samples_dimensionality(samples)
         return _compute_quantile(samples, 1 - confidence_level)
 
@@ -307,16 +316,17 @@ def conditional_value_at_risk(confidence_level: float = 0.95) -> UtilityFunction
         raise ValueError("Confidence level must be between 0 and 1.")
 
     def _conditional_value_at_risk(
-        samples: pt.TensorVariable, budgets: pt.TensorVariable
-    ) -> pt.TensorVariable:
+        samples: XTensorVariable, budgets: XTensorVariable
+    ) -> XTensorVariable:
+        samples = as_xtensor(samples)
         samples = _check_samples_dimensionality(samples)
         VaR = _compute_quantile(samples, 1 - confidence_level)
         mask = samples <= VaR
-        num_tail_losses = pt.sum(mask)
-        CVaR = pt.switch(
-            pt.eq(num_tail_losses, 0),
+        num_tail_losses = mask.sum()
+        CVaR = ptx.math.switch(
+            ptx.math.eq(num_tail_losses, 0),
             pt.nan,
-            pt.sum(samples * mask) / num_tail_losses,
+            (samples * mask).sum() / num_tail_losses,
         )
         return CVaR
 
@@ -355,12 +365,14 @@ def sharpe_ratio(risk_free_rate: float = 0.0) -> UtilityFunctionType:
     """
 
     def _sharpe_ratio(
-        samples: pt.TensorVariable, budgets: pt.TensorVariable
-    ) -> pt.TensorVariable:
+        samples: XTensorVariable, budgets: XTensorVariable
+    ) -> XTensorVariable:
+        samples = as_xtensor(samples)
         samples = _check_samples_dimensionality(samples)
         excess_returns = samples - risk_free_rate
-        mean_excess_return = pt.mean(excess_returns)
-        std_excess_return = pt.std(excess_returns, ddof=1)
+        # Should this be dim="sample"?
+        mean_excess_return = excess_returns.mean()
+        std_excess_return = excess_returns.std(ddof=1)
         sharpe_ratio = mean_excess_return / std_excess_return
         return sharpe_ratio
 
@@ -402,12 +414,12 @@ def raroc(risk_free_rate: float = 0.0) -> UtilityFunctionType:
     .. [1] Matten, C. (2000). Managing Bank Capital: Capital Allocation and Performance Measurement.
     """
 
-    def _raroc(
-        samples: pt.TensorVariable, budgets: pt.TensorVariable
-    ) -> pt.TensorVariable:
+    def _raroc(samples: XTensorVariable, budgets: XTensorVariable) -> XTensorVariable:
+        samples = as_xtensor(samples)
+        budgets = as_xtensor(budgets)
         samples = _check_samples_dimensionality(samples)
-        capital = pt.sum(budgets)
-        expected_return = pt.mean(samples)
+        capital = budgets.sum()
+        expected_return = samples.mean()
         risk_adjusted_return = expected_return - risk_free_rate
         raroc_value = risk_adjusted_return / capital
         return raroc_value
@@ -460,19 +472,19 @@ def adjusted_value_at_risk_score(
         raise ValueError("Confidence level must be between 0 and 1.")
 
     def _adjusted_value_at_risk_score(
-        samples: pt.TensorVariable, budgets: pt.TensorVariable
-    ) -> pt.TensorVariable:
+        samples: XTensorVariable, budgets: XTensorVariable
+    ) -> XTensorVariable:
         samples = _check_samples_dimensionality(samples)
         var = _compute_quantile(samples, 1 - confidence_level)
-        mean = pt.mean(samples)
+        mean = samples.mean()
         return (1 - risk_aversion) * mean + risk_aversion * var
 
     return _adjusted_value_at_risk_score
 
 
 def portfolio_entropy(
-    samples: pt.TensorVariable, budgets: pt.TensorVariable
-) -> pt.TensorVariable:
+    samples: XTensorVariable, budgets: XTensorVariable
+) -> XTensorVariable:
     R"""
     Calculate the entropy of a portfolio's asset weights to assess diversification.
 
@@ -490,14 +502,14 @@ def portfolio_entropy(
 
     Parameters
     ----------
-    samples : pt.TensorVariable
+    samples : XTensorVariable
         1D PyTensor tensor variable containing samples.
-    budgets : pt.TensorVariable
+    budgets : XTensorVariable
         1D PyTensor tensor variable representing the investment amounts in each asset.
 
     Returns
     -------
-    pt.TensorVariable
+    XTensorVariable
         Portfolio entropy value.
 
     References
@@ -505,34 +517,40 @@ def portfolio_entropy(
     .. [1] Bera, A. K., & Park, S. Y. (2008). Optimal Portfolio Diversification using the Maximum Entropy Principle.
     .. [2] Pola, G. (2013). On entropy and portfolio diversification. *Journal of Asset Management*, 14(4), 228-238.
     """
-    weights = budgets / pt.sum(budgets)
-    entropy = -pt.sum(weights * pt.log(weights))
+    budgets = as_xtensor(budgets)
+    weights = budgets / budgets.sum()
+    entropy = -(weights * ptx.math.log(weights)).sum()
     return entropy
 
 
-def _covariance_matrix(samples: pt.TensorVariable) -> pt.TensorVariable:
+def _covariance_matrix(samples: XTensorVariable, asset_dim: str) -> XTensorVariable:
     """
     Compute covariance matrix of samples.
 
     Parameters
     ----------
-    samples : pt.TensorVariable
+    samples : XTensorVariable
         2D PyTensor tensor variable where each column represents the returns of an asset.
 
     Returns
     -------
-    pt.TensorVariable
-        Covariance matrix.
+    XTensorVariable
+        Covariance matrix, with dims (asset_dim, asset_dim').
     """
-    samples_mean = pt.mean(samples, axis=0, keepdims=True)
+    samples = as_xtensor(samples)
+    samples_mean = samples.mean(dim="sample")
     samples_centered = samples - samples_mean
-    cov_matrix = pt.dot(samples_centered.T, samples_centered) / (samples.shape[0] - 1)
+    # To do X @ X.T in xarray, (i.e., contract the sample dim), we have to rename the other dim
+    cov_matrix = ptx.dot(
+        samples_centered, samples_centered.rename({asset_dim: f"{asset_dim}'"})
+    )
+    cov_matrix /= samples.sizes["sample"] - 1
     return cov_matrix
 
 
 def diversification_ratio(
-    samples: pt.TensorVariable, budgets: pt.TensorVariable
-) -> pt.TensorVariable:
+    samples: XTensorVariable, budgets: XTensorVariable
+) -> XTensorVariable:
     R"""
     Calculate the Diversification Ratio of a portfolio to evaluate risk distribution.
 
@@ -553,14 +571,14 @@ def diversification_ratio(
 
     Parameters
     ----------
-    samples : pt.TensorVariable
+    samples : XTensorVariable
         2D PyTensor tensor variable where each column represents the returns of an asset.
-    budgets : pt.TensorVariable
+    budgets : XTensorVariable
         1D PyTensor tensor variable representing the investment amounts in each asset.
 
     Returns
     -------
-    pt.TensorVariable
+    XTensorVariable
         Diversification Ratio.
 
     This ratio provides insight into how individual asset volatilities and their correlations
@@ -571,11 +589,20 @@ def diversification_ratio(
     - Choueifaty, Y., & Coignard, Y. (2008). Toward Maximum Diversification. *Journal of Portfolio Management*.
     - Meucci, A. (2009). Managing Diversification. *Risk*, 22(5), 74-79.
     """
+    samples = as_xtensor(samples)
+    budgets = as_xtensor(budgets)
     samples = _check_samples_dimensionality(samples)
-    weights = budgets / pt.sum(budgets)
-    individual_volatilities = pt.std(samples, axis=0, ddof=1)
-    cov_matrix = _covariance_matrix(samples)
-    portfolio_volatility = pt.sqrt(pt.dot(weights, pt.dot(cov_matrix, weights.T)))
-    weighted_avg_volatility = pt.sum(weights * individual_volatilities)
+    weights = budgets / budgets.sum()
+    individual_volatilities = samples.std(dim="sample", ddof=1)
+
+    [asset_dim] = weights.dims
+    cov_matrix = _covariance_matrix(samples, asset_dim=asset_dim)
+
+    # w'Σw
+    portfolio_var = ptx.dot(
+        weights.rename({asset_dim: f"{asset_dim}'"}, ptx.dot(cov_matrix, weights)),
+    )
+    portfolio_volatility = ptx.math.sqrt(portfolio_var)
+    weighted_avg_volatility = (weights * individual_volatilities).sum()
     diversification_ratio = weighted_avg_volatility / portfolio_volatility
     return diversification_ratio

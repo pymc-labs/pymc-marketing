@@ -15,6 +15,7 @@ import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
+import pymc.dims as pmd
 import pytest
 import xarray as xr
 
@@ -31,10 +32,10 @@ def _make_saturation_model_and_idata(channel_data, n_draws, alpha_val=0.8, lam_v
     coords = {"date": np.arange(n_dates), "channel": channel_names}
 
     with pm.Model(coords=coords) as model:
-        X = pm.Data("channel_data", channel_data, dims=("date", "channel"))
-        alpha = pm.Gamma("alpha", 1.0, 1.0, dims=("channel",))
-        lam = pm.Gamma("lam", 1.0, 1.0, dims=("channel",))
-        pm.Deterministic(
+        X = pmd.Data("channel_data", channel_data, dims=("date", "channel"))
+        alpha = pmd.Gamma("alpha", 1.0, 1.0, dims=("channel",))
+        lam = pmd.Gamma("lam", 1.0, 1.0, dims=("channel",))
+        pmd.Deterministic(
             "channel_contribution",
             (alpha * X) / (X + lam),
             dims=("date", "channel"),
@@ -42,7 +43,12 @@ def _make_saturation_model_and_idata(channel_data, n_draws, alpha_val=0.8, lam_v
 
     alpha_draws = np.full((1, n_draws, n_channels), alpha_val, dtype=np.float64)
     lam_draws = np.full((1, n_draws, n_channels), lam_val, dtype=np.float64)
-    idata = az.from_dict(posterior={"alpha": alpha_draws, "lam": lam_draws})
+    dims = ["channel"]
+    idata = az.from_dict(
+        posterior={"alpha": alpha_draws, "lam": lam_draws},
+        dims={"alpha": dims, "lam": dims},
+    )
+    assert set(idata.posterior.dims) == {"chain", "draw", "channel"}
     return model, idata
 
 
@@ -326,19 +332,6 @@ def test_posterior_sample_percentage_controls_draws(sensitivity):
 
     assert full.sizes["sample"] == 5
     assert limited.sizes["sample"] == 2
-
-
-def test_posterior_sample_batch_backward_compatibility(sensitivity):
-    sweeps = np.linspace(0.5, 1.5, 4)
-    with pytest.warns(DeprecationWarning):
-        legacy = sensitivity.run_sweep(
-            var_input="channel_data",
-            var_names="channel_contribution",
-            sweep_values=sweeps,
-            posterior_sample_batch=2,
-        )
-
-    assert legacy.sizes["sample"] == 2
 
 
 def test_compute_dims_order_from_varinput_internal(sensitivity):

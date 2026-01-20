@@ -16,6 +16,7 @@ import numpy as np
 import pymc as pm
 import pytest
 from pymc_extras.prior import Prior
+from xarray import DataArray
 
 from pymc_marketing.mmm.linear_trend import LinearTrend
 
@@ -66,11 +67,11 @@ def test_apply(include_intercept, expected_keys) -> None:
     trend = LinearTrend(include_intercept=include_intercept)
 
     n_obs = 100
-    x = np.linspace(0, 1, n_obs)
+    x = DataArray(np.linspace(0, 1, n_obs), dims=("date",))
     with pm.Model() as model:
         mu = trend.apply(x)
 
-    assert mu.eval().shape == (n_obs,)
+    assert mu.type.shape == (n_obs,)
     assert set(model.named_vars.keys()) == expected_keys
 
 
@@ -94,7 +95,7 @@ def test_apply_additional_dims(delta_dims, dims) -> None:
     trend = LinearTrend(priors=priors, dims=dims)
 
     n_obs = 100
-    x = np.linspace(0, 1, n_obs)
+    x = DataArray(np.linspace(0, 1, n_obs), dims=("time",))
     geos = ["A", "B", "C"]
     products = ["X", "Y"]
     coords = {
@@ -105,16 +106,10 @@ def test_apply_additional_dims(delta_dims, dims) -> None:
         mu = trend.apply(x)
 
     if delta_dims is None:
-        additional_sizes = (1,)
+        dims = {"time"}
     else:
-        additional_sizes = tuple(
-            len(coords[dim]) for dim in delta_dims if dim in coords
-        )
-
-    if not additional_sizes:
-        additional_sizes = (1,)
-
-    assert mu.eval().shape == (n_obs, *additional_sizes)
+        dims = {"time", *delta_dims} - {"changepoint"}
+    assert set(mu.type.dims) == dims
 
 
 @pytest.mark.parametrize(
@@ -138,16 +133,15 @@ def test_plot_workflow(include_changepoints: bool) -> None:
     "priors, dims, expected_dims",
     [
         pytest.param({}, (), (), id="no-priors-no-dims"),
-        pytest.param({}, ("geo", "product"), (), id="scalar"),
+        pytest.param({}, ("geo", "product"), ("geo", "product"), id="scalar"),
         pytest.param(
             {"delta": Prior("Normal", dims=("geo", "changepoint"))},
             ("geo", "product"),
-            ("geo",),
+            ("geo", "product"),
             id="drop-broadcastable-product-dim",
         ),
     ],
 )
 def test_linear_trend_apply_dims(priors, dims, expected_dims) -> None:
     trend = LinearTrend(priors=priors, dims=dims)
-
-    assert trend.non_broadcastable_dims == expected_dims
+    assert trend.dims == expected_dims

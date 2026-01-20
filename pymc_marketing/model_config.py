@@ -129,7 +129,7 @@ def parse_model_config(
         if name in non_distributions_set or name in hsgp_kwargs_set:
             return prior_config
 
-        if isinstance(prior_config, Prior) or isinstance(prior_config, VariableFactory):
+        if isinstance(prior_config, Prior | VariableFactory):
             return prior_config
 
         # Skip deserialization for non-dict, non-string sequence types (lists, tuples, etc.)

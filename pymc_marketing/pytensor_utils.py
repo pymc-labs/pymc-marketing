@@ -30,9 +30,11 @@ from pymc.model.fgraph import (
 from pymc.pytensorf import rvs_in_graph
 from pytensor import as_symbolic
 from pytensor.graph.fg import FunctionGraph
-from pytensor.graph.replace import clone_replace, vectorize_graph
+from pytensor.graph.replace import clone_replace
 from pytensor.graph.rewriting import rewrite_graph
 from pytensor.graph.traversal import ancestors
+from pytensor.xtensor import xtensor_constant
+from pytensor.xtensor.vectorization import vectorize_graph
 
 
 def _prefix_model(f2, prefix: str, exclude_vars: set | None = None):
@@ -299,12 +301,7 @@ def extract_response_distribution(
     needed_rvs = [
         rv for rv in ancestors([response_var], blockers=free_rvs) if rv in free_rvs
     ]
-    placeholder_replace_dict = {
-        pymc_model[rv.name]: pt.tensor(
-            name=rv.name, shape=rv.type.shape, dtype=rv.dtype
-        )
-        for rv in needed_rvs
-    }
+    placeholder_replace_dict = {pymc_model[rv.name]: rv.clone() for rv in needed_rvs}
 
     [response_var] = clone_replace(
         [response_var],
@@ -320,7 +317,7 @@ def extract_response_distribution(
     # Replace placeholders with actual posterior samples
     replace_dict = {}
     for placeholder in placeholder_replace_dict.values():
-        replace_dict[placeholder] = pt.constant(
+        replace_dict[placeholder] = xtensor_constant(
             posterior[placeholder.name].astype(placeholder.dtype),
             name=placeholder.name,
         )

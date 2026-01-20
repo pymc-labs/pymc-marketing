@@ -24,7 +24,8 @@ from pymc_extras.deserialize import (
     register_deserialization,
 )
 from pymc_extras.prior import Prior
-from pytensor.tensor.variable import TensorVariable
+from pytensor.xtensor import as_xtensor
+from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.mmm.components.adstock import (
     ADSTOCK_TRANSFORMATIONS,
@@ -62,16 +63,17 @@ x[0] = 1
 @pytest.mark.parametrize(
     "x, dims",
     [
-        pytest.param(x, None, id="vector"),
-        pytest.param(np.broadcast_to(x, (3, 20)).T, "channel", id="matrix"),
+        pytest.param(x, ("time",), id="vector"),
+        pytest.param(np.broadcast_to(x, (3, 20)).T, ("channel", "time"), id="matrix"),
     ],
 )
 def test_apply(model, adstock: AdstockTransformation, x, dims) -> None:
+    x = as_xtensor(x, dims=dims)
     with model:
-        y = adstock.apply(x, dims=dims)
+        y = adstock.apply(x, dims=dims, core_dim="time")
 
-    assert isinstance(y, TensorVariable)
-    assert y.eval().shape == x.shape
+    assert isinstance(y, XTensorVariable)
+    assert y.eval().shape == x.type.shape
 
 
 @pytest.mark.parametrize(

@@ -725,18 +725,15 @@ class BaseMMM(BaseValidateMMM):
         dayofyear_value = X_data[self.date_column].dt.dayofyear.to_numpy()
         dayofyear = pm.Data(name="dayofyear", value=dayofyear_value, dims="date")
 
-        def create_deterministic(x: pt.TensorVariable) -> None:
-            pm.Deterministic(
-                "fourier_contribution",
-                x,
-                dims=("date", *self.yearly_fourier.prior.dims),
-            )
+        fourier_contribution = pm.Deterministic(
+            "fourier_contribution",
+            self.yearly_fourier.apply(dayofyear, sum=False),
+            dims=("date", *self.yearly_fourier.prior.dims),
+        )
 
         return pm.Deterministic(
             name="yearly_seasonality_contribution",
-            var=self.yearly_fourier.apply(
-                dayofyear, result_callback=create_deterministic
-            ),
+            var=fourier_contribution.sum(tuple(range(1, fourier_contribution.ndim))),
             dims="date",
         )
 

@@ -14,6 +14,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pymc as pm
+import pymc.dims as pmd
 import pytensor
 import pytensor.tensor as pt
 import pytest
@@ -22,6 +23,7 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from pydantic import ValidationError
 from pymc_extras.prior import Prior, UnknownTransformError
+from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.mmm.hsgp import (
     HSGP,
@@ -125,7 +127,7 @@ def test_unsupported_cov_func_raises() -> None:
 def test_X_at_init_stores_as_tensor_variable() -> None:
     X = np.arange(10)
     hsgp = HSGP(X=X, dims="time", m=200, L=5, eta=1, ls=1)
-    assert isinstance(hsgp.X, pt.TensorVariable)
+    assert isinstance(hsgp.X, XTensorVariable)
 
 
 @pytest.fixture(scope="module")
@@ -333,17 +335,17 @@ def test_hsgp_with_shared_data():
     # Create a model and a shared data variable using pm.MutableData
     with pm.Model(coords=coords) as model:
         # Create a shared data variable with the name "X_shared"
-        X_shared = pm.Data("X_shared", X, dims="time")
+        X_shared = pmd.Data("X_shared", X, dims="time")
         # Parameterize the HSGP using the shared data
         hsgp = HSGP.parameterize_from_data(X_shared, dims="time")
         # Create the deterministic variable "f" from the HSGP configuration
-        f = hsgp.create_variable("f")
+        f = hsgp.create_variable("f", xdist=True)
 
         # Check that "f" is added to the model variables
         assert "f" in model.named_vars
 
         # Ensure that the stored X is a shared tensor variable
-        assert isinstance(hsgp.X, pt.TensorVariable)
+        assert isinstance(hsgp.X, XTensorVariable)
 
         # Verify that f depends on X_shared in the computational graph
         assert any(
@@ -381,7 +383,7 @@ def test_soft_plus_hsgp_is_centered_around_1() -> None:
     coords = {"date": insample}
     with pm.Model(coords=coords):
         X = pm.Data("X", insample, dims="date")
-        hsgp.register_data(X).create_variable("f")
+        hsgp.register_data(X).create_variable("f", xdist=True)
 
         idata = pm.sample_prior_predictive(prior_samples, random_seed=rng)
 
@@ -413,7 +415,7 @@ def test_soft_plus_hsgp_continous_with_new_data() -> None:
     coords = {"date": insample}
     with pm.Model(coords=coords) as model:
         X = pm.Data("X", insample, dims="date")
-        hsgp.register_data(X).create_variable("f")
+        hsgp.register_data(X).create_variable("f", xdist=True)
 
         idata = pm.sample_prior_predictive(prior_samples, random_seed=rng)
 
@@ -525,7 +527,7 @@ def test_softplus_hsgp_intercept_is_non_negative() -> None:
     coords = {"date": data}
     with pm.Model(coords=coords):
         X = pm.Data("X", data, dims="date")
-        multiplier = hsgp.register_data(X).create_variable("multiplier")
+        multiplier = hsgp.register_data(X).create_variable("multiplier", xdist=True)
 
         intercept_baseline = pm.HalfNormal("intercept_baseline", sigma=5.0)
         pm.Deterministic(
@@ -556,9 +558,12 @@ class ScalarVariableFactory:
 
     dims = ()  # Scalar: no dimensions
 
-    def create_variable(self, name: str):
+    def create_variable(self, name: str, xdist: bool = False):
         """Create a scalar variable."""
-        return pm.HalfNormal(name, sigma=1.0)
+        if xdist:
+            return pmd.HalfNormal(name, sigma=1.0)
+        else:
+            return pm.HalfNormal(name, sigma=1.0)
 
 
 class NonScalarVariableFactory:
@@ -566,9 +571,12 @@ class NonScalarVariableFactory:
 
     dims = ("time",)  # Non-scalar: has dimensions
 
-    def create_variable(self, name: str):
+    def create_variable(self, name: str, xdist: bool = False):
         """Create a non-scalar variable."""
-        return pm.HalfNormal(name, sigma=1.0, shape=(10,))
+        if xdist:
+            return pmd.HalfNormal(name, sigma=1.0, dims=self.dims)
+        else:
+            return pm.HalfNormal(name, sigma=1.0, shape=(10,))
 
 
 class SerializableVariableFactory:
@@ -576,9 +584,12 @@ class SerializableVariableFactory:
 
     dims = ()
 
-    def create_variable(self, name: str):
+    def create_variable(self, name: str, xdist: bool = False):
         """Create a variable."""
-        return pm.HalfNormal(name, sigma=1.0)
+        if xdist:
+            return pmd.HalfNormal(name, sigma=1.0)
+        else:
+            return pm.HalfNormal(name, sigma=1.0)
 
     def to_dict(self):
         """Serialization method."""

@@ -193,15 +193,18 @@ from typing import Any, ClassVar, Protocol, cast, runtime_checkable
 import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
+import pytensor.xtensor as ptx
 import xarray as xr
 from arviz import InferenceData
 from pydantic import BaseModel, ConfigDict, Field, InstanceOf, PrivateAttr
 from pymc import Model, do
 from pymc.model.fgraph import clone_model
 from pymc.model.transform.optimization import freeze_dims_and_data
-from pymc.pytensorf import rewrite_pregrad
 from pytensor import function
-from pytensor.compile.sharedvalue import SharedVariable, shared
+from pytensor.compile.sharedvalue import shared
+from pytensor.graph import rewrite_graph
+from pytensor.xtensor import as_xtensor
+from pytensor.xtensor.type import XTensorVariable
 from scipy.optimize import OptimizeResult, minimize
 from xarray import DataArray
 
@@ -662,9 +665,7 @@ class BudgetOptimizer(BaseModel):
         )  # TODO: Once multidimensional class becomes the main class.
 
         # 2. Shared variable for total_budget: Use annotation to avoid type checking
-        self._total_budget: SharedVariable = shared(
-            np.array(0.0, dtype="float64"), name="total_budget"
-        )  # type: ignore
+        self._total_budget = shared(np.array(0.0, dtype="float64"), name="total_budget")  # type: ignore
 
         # 3. Identify budget dimensions and shapes
         self._budget_dims = [
@@ -677,7 +678,7 @@ class BudgetOptimizer(BaseModel):
         }
         self._budget_shape = tuple(len(coord) for coord in self._budget_coords.values())
 
-        # 4. Ensure that we only optmize over non-zero channels
+        # 4. Ensure that we only optimize over non-zero channels
         # Only perform non-zero channel detection for MMM instances.
         # For OptimizerCompatibleModelWrapper, default to optimizing all channels unless a mask is provided.
         is_wrapper = (
@@ -713,13 +714,19 @@ class BudgetOptimizer(BaseModel):
 
         size_budgets = self.budgets_to_optimize.sum().item()
 
-        self._budgets_flat = pt.tensor("budgets_flat", shape=(size_budgets,))
+        self._budgets_flat = ptx.xtensor(
+            "budgets_flat", shape=(size_budgets,), dims=("budgets_flat",)
+        )
 
         # Fill a zero array, then set only the True positions
+        # TODO: We should be able to implement this with xtensor, once we have `.where`
         budgets_zeros = pt.zeros(self._budget_shape)
         budgets_zeros.name = "budgets_zeros"
         bool_mask = np.asarray(self.budgets_to_optimize).astype(bool)
-        self._budgets = budgets_zeros[bool_mask].set(self._budgets_flat)
+        self._budgets = as_xtensor(
+            budgets_zeros[bool_mask].set(self._budgets_flat.values),
+            dims=self._budget_dims,
+        )
 
         # 5. Validate and process budget_distribution_over_period
         self._budget_distribution_over_period_tensor = (
@@ -779,7 +786,7 @@ class BudgetOptimizer(BaseModel):
         num_periods: int,
         budget_dims: list[str],
         budgets_to_optimize: DataArray,
-    ) -> pt.TensorVariable | None:
+    ) -> XTensorVariable | None:
         """Validate and process budget distribution over periods.
 
         Parameters
@@ -795,7 +802,7 @@ class BudgetOptimizer(BaseModel):
 
         Returns
         -------
-        pt.TensorVariable | None
+        XTensorVariable | None
             Processed tensor containing masked time factors, or None if no distribution provided.
         """
         if budget_distribution_over_period is None:
@@ -836,28 +843,29 @@ class BudgetOptimizer(BaseModel):
         time_factors_masked = time_factors_flat[:, bool_mask]
 
         # Store only the masked tensor
-        return pt.constant(time_factors_masked, name="budget_distribution_over_period")
+        return ptx.xtensor_constant(
+            time_factors_masked,
+            name="budget_distribution_over_period",
+            dims=("date", "budgets_flat"),
+        )
 
     def _apply_budget_distribution_over_period(
         self,
-        budgets: pt.TensorVariable,
+        budgets: XTensorVariable,
         num_periods: int,
-        date_dim_idx: int,
-    ) -> pt.TensorVariable:
+    ) -> XTensorVariable:
         """Apply budget distribution over periods to budgets across time periods.
 
         Parameters
         ----------
-        budgets : pt.TensorVariable
+        budgets : XTensorVariable
             The scaled budget tensor with shape matching budget dimensions.
         num_periods : int
             Number of time periods to distribute budget across.
-        date_dim_idx : int
-            Index position where the date dimension should be inserted.
 
         Returns
         -------
-        pt.TensorVariable
+        XTensorVariable
             Budget tensor repeated across time periods with distribution factors applied.
             Shape will be (*budget_dims[:date_dim_idx], num_periods, *budget_dims[date_dim_idx:])
         """
@@ -868,27 +876,21 @@ class BudgetOptimizer(BaseModel):
 
         # Get the optimized budget values
         bool_mask = np.asarray(self.budgets_to_optimize).astype(bool)
-        budgets_optimized = budgets[bool_mask]  # Shape: (num_optimized_budgets,)
+        budgets_optimized = self._budgets_flat
 
-        # Now multiply budgets by time factors
-        budgets_expanded = pt.expand_dims(
-            budgets_optimized, 0
-        )  # Shape: (1, num_optimized_budgets)
         repeated_budgets_flat = (
-            budgets_expanded * self._budget_distribution_over_period_tensor
-        )  # Shape: (num_periods, num_optimized_budgets)
+            budgets_optimized * self._budget_distribution_over_period_tensor
+        ).transpose("date", "budgets_flat")
 
         # Reconstruct the full shape for each time period
-        repeated_budgets_list = []
-        for t in range(num_periods):
-            # Create a zero tensor with the full budget shape
-            budgets_t = pt.zeros_like(budgets)
-            # Set the optimized values
-            budgets_t = budgets_t[bool_mask].set(repeated_budgets_flat[t])
-            repeated_budgets_list.append(budgets_t)
+        budgets = ptx.zeros_like(budgets).expand_dims(date=num_periods, axis=0)
+        # Need to go to tensor, as we don't have `.where` yet and xtensor don't support >1D boolean indices
+        repeated_budgets = budgets.values[:, bool_mask].set(
+            repeated_budgets_flat.values
+        )
+        # Back to xtensor
+        repeated_budgets = as_xtensor(repeated_budgets, dims=budgets.dims)
 
-        # Stack the time periods
-        repeated_budgets = pt.stack(repeated_budgets_list, axis=date_dim_idx)
         repeated_budgets *= num_periods
 
         return repeated_budgets
@@ -897,8 +899,6 @@ class BudgetOptimizer(BaseModel):
         """Replace `channel_data` in the model graph with our newly created `_budgets` variable."""
         num_periods = self.num_periods
         max_lag = self.mmm_model.adstock.l_max
-        channel_data_dims = model.named_vars_to_dims["channel_data"]
-        date_dim_idx = list(channel_data_dims).index("date")
         channel_scales = self.mmm_model._channel_scales
         channel_data_dtype = model["channel_data"].dtype
         if np.dtype(channel_data_dtype).kind != "f":
@@ -911,43 +911,26 @@ class BudgetOptimizer(BaseModel):
         budgets /= channel_scales
 
         # Repeat budgets over num_periods
-        repeated_budgets_shape = list(tuple(budgets.shape))
-        repeated_budgets_shape.insert(date_dim_idx, num_periods)
-
         if self._budget_distribution_over_period_tensor is not None:
             # Apply time distribution factors
             repeated_budgets = self._apply_budget_distribution_over_period(
-                budgets, num_periods, date_dim_idx
+                budgets, num_periods
             )
         else:
             # Default behavior: distribute evenly across periods
-            repeated_budgets = pt.broadcast_to(
-                pt.expand_dims(budgets, date_dim_idx),
-                shape=repeated_budgets_shape,
-            )
+            repeated_budgets = budgets.expand_dims(date=num_periods)
 
         repeated_budgets.name = "repeated_budgets"
 
-        # Pad the repeated budgets with zeros to account for carry-over effects
-        # We set the repeated budgehts in a zero-filled tensor to achieve this
-        repeated_budgets_with_carry_over_shape = list(tuple(budgets.shape))
-        repeated_budgets_with_carry_over_shape.insert(
-            date_dim_idx, num_periods + max_lag
+        repeated_budgets_with_carry_over = ptx.concat(
+            [
+                repeated_budgets.astype(channel_data_dtype),
+                ptx.as_xtensor(
+                    pt.zeros(max_lag, dtype=channel_data_dtype), dims=("date",)
+                ),
+            ],
+            dim="date",
         )
-
-        # Get the dtype from the model's channel_data to ensure type compatibility
-        channel_data_dtype = model["channel_data"].dtype
-
-        repeated_budgets_with_carry_over = pt.zeros(
-            repeated_budgets_with_carry_over_shape,
-            dtype=channel_data_dtype,  # Use the same dtype as channel_data
-        )
-        set_idxs = (*((slice(None),) * date_dim_idx), slice(None, num_periods))
-        repeated_budgets_with_carry_over = repeated_budgets_with_carry_over[
-            set_idxs
-        ].set(
-            pt.cast(repeated_budgets, channel_data_dtype)
-        )  # Cast to ensure type compatibility
         repeated_budgets_with_carry_over.name = "repeated_budgets_with_carry_over"
 
         # Freeze dims & data in the underlying PyMC model
@@ -956,9 +939,7 @@ class BudgetOptimizer(BaseModel):
         # Use `do(...)` to replace `channel_data` with repeated_budgets_with_carry_over
         return do(model, {"channel_data": repeated_budgets_with_carry_over})
 
-    def extract_response_distribution(
-        self, response_variable: str
-    ) -> pt.TensorVariable:
+    def extract_response_distribution(self, response_variable: str) -> XTensorVariable:
         """Extract the response distribution graph, conditioned on posterior parameters.
 
         Example:
@@ -987,22 +968,15 @@ class BudgetOptimizer(BaseModel):
         objective = -self.utility_function(
             samples=response_distribution, budgets=budgets
         )
-        objective_grad = pt.grad(rewrite_pregrad(objective), budgets_flat)
+        # xtensor Ops don't have gradients implemented yet, so we need to include `lower_xtensor`
+        objective_tensor = rewrite_graph(
+            objective.values, include=("lower_xtensor", "canonicalize", "stabilize")
+        )
+        objective_grad = pt.grad(objective_tensor, budgets_flat)
 
-        if self.compile_kwargs and (self.compile_kwargs["mode"]).lower() == "jax":
-            # Use PyMC's JAX infrastructure for robust compilation
-            from pymc.sampling.jax import get_jaxified_graph
-
-            objective_and_grad_func = get_jaxified_graph(
-                inputs=[budgets_flat],
-                outputs=[objective, objective_grad],
-                **{k: v for k, v in self.compile_kwargs.items() if k != "mode"} or {},
-            )
-        else:
-            # Standard PyTensor compilation
-            objective_and_grad_func = function(
-                [budgets_flat], [objective, objective_grad], **self.compile_kwargs or {}
-            )
+        objective_and_grad_func = function(
+            [budgets_flat], [objective, objective_grad], **self.compile_kwargs or {}
+        )
 
         # Avoid repeated input validation for performance
         if hasattr(objective_and_grad_func, "trust_input"):

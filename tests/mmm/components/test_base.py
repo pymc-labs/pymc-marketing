@@ -16,12 +16,16 @@ from unittest.mock import Mock
 import matplotlib.pyplot as plt
 import numpy as np
 import pymc as pm
+import pymc.dims as pmd
 import pytensor.tensor as pt
 import pytest
 import xarray as xr
 from pymc_extras.prior import Prior, VariableFactory
 from pytensor.tensor import scalar
 from pytensor.tensor.variable import TensorVariable
+from pytensor.xtensor import as_xtensor
+from pytensor.xtensor.type import XTensorVariable
+from xarray import DataArray
 
 from pymc_marketing.mmm.components.base import (
     DuplicatedTransformationError,
@@ -29,7 +33,6 @@ from pymc_marketing.mmm.components.base import (
     ParameterPriorException,
     Transformation,
     create_registration_meta,
-    index_variable,
 )
 from pymc_marketing.mmm.components.saturation import TanhSaturation
 
@@ -155,7 +158,7 @@ def new_transformation_class() -> type[Transformation]:
         prefix = "new"
         lookup_name: str = "new_transformation"
 
-        def function(self, x, a, b):
+        def function(self, x, a, b, *, dim: str | None = None):
             return a * b * x
 
         default_priors = {
@@ -193,7 +196,7 @@ def test_new_transformation_variable_mapping(new_transformation) -> None:
 
 
 def test_apply(new_transformation):
-    x = np.array([1, 2, 3])
+    x = as_xtensor(np.array([1, 2, 3]), dims=("time",))
     expected = np.array([6, 12, 18])
     with pm.Model() as generative_model:
         pm.Deterministic("y", new_transformation.apply(x))
@@ -376,8 +379,13 @@ class StandardNormal:
             "dims": self.dims,
         }
 
-    def create_variable(self, name: str) -> TensorVariable:
-        return pm.Normal(name, 0, 1, dims=self.dims)
+    def create_variable(
+        self, name: str, xdist: bool = False
+    ) -> TensorVariable | XTensorVariable:
+        if xdist:
+            return pmd.Normal(name, 0, 1, dims=self.dims)
+        else:
+            return pm.Normal(name, 0, 1, dims=self.dims)
 
 
 @pytest.fixture
@@ -464,11 +472,14 @@ def test_transform_sample_curve_with_variable_factory():
     class Example(VariableFactory):
         dims = ("dim_a",)
 
-        def create_variable(self, name: str):
+        def create_variable(self, name: str, xdist: bool = False):
+            if not xdist:
+                raise NotImplementedError(f"{self!r} only supports xdist=True")
+
             with pm.Model(name=name):
-                beta = pm.Normal("beta", dims="dim_b")
-                c = pm.Normal("c", dims=("dim_a", "dim_b"))
-                return pt.dot(c, beta)
+                beta = pmd.Normal("beta", dims="dim_b")
+                c = pmd.Normal("c", dims=("dim_a", "dim_b"))
+                return pmd.math.dot(c, beta)
 
     saturation = TanhSaturation(
         priors={
@@ -482,49 +493,7 @@ def test_transform_sample_curve_with_variable_factory():
         prior = saturation.sample_prior()
 
     curve = saturation.sample_curve(prior, 10)
-    assert curve.dims == ("chain", "draw", "x", "dim_a")
-
-
-@pytest.mark.parametrize(
-    "var, dims, idx, expected",
-    [
-        (
-            np.arange(2 * 3 * 4).reshape(2, 3, 4),
-            ("geo", "product", "channel"),
-            {
-                "geo": [0, 0, 1, 1],
-                "product": [0, 2, 1, 0],
-            },
-            np.array(
-                [
-                    [0, 1, 2, 3],
-                    [8, 9, 10, 11],
-                    [16, 17, 18, 19],
-                    [12, 13, 14, 15],
-                ]
-            ),
-        ),
-        (
-            np.array([[1, 2, 3], [4, 5, 6]]),
-            ("geo", "channel"),
-            {"geo": [0, 0, 1, 1]},
-            np.array(
-                [
-                    [1, 2, 3],
-                    [1, 2, 3],
-                    [4, 5, 6],
-                    [4, 5, 6],
-                ]
-            ),
-        ),
-    ],
-)
-def test_index_variable(var, dims, idx, expected) -> None:
-    result = index_variable(var, dims=dims, idx=idx)
-    if isinstance(result, TensorVariable):
-        result = result.eval()
-
-    np.testing.assert_allclose(result, expected)
+    assert curve.dims == ("chain", "draw", "dim_a", "x")
 
 
 def test_apply_idx(new_transformation_class) -> None:
@@ -541,7 +510,7 @@ def test_apply_idx(new_transformation_class) -> None:
         }
     )
 
-    X = np.array(
+    X = DataArray(
         [
             [0, 0, 0],
             [1, 1, 1],
@@ -549,17 +518,18 @@ def test_apply_idx(new_transformation_class) -> None:
             [0, 0, 0],
             [1, 1, 1],
             [2, 2, 2],
-        ]
+        ],
+        dims=("geo", "channel"),
     )
 
     coords = {"geo": ["A", "B"], "channel": ["TV", "Radio", "Online"]}
     with pm.Model(coords=coords) as model:
-        idx = [0, 0, 0, 1, 1, 1]
-        Y = instance.apply(X, idx={"geo": idx}, dims="channel")
+        idx = as_xtensor([0, 0, 0, 1, 1, 1], dims=("geo",))
+        Y = instance.apply(X, idx=idx, dims=("channel",))
 
         expected = instance.function(
             X,
-            a=model["new_a"][idx, None],
+            a=model["new_a"][idx],
             b=model["new_b"],
         )
 
@@ -583,7 +553,7 @@ def test_apply_idx_more_dims(new_transformation_class) -> None:
         }
     )
 
-    X = np.array(
+    X = DataArray(
         [
             [0, 0, 0],
             [1, 1, 1],
@@ -591,7 +561,8 @@ def test_apply_idx_more_dims(new_transformation_class) -> None:
             [0, 0, 0],
             [1, 1, 1],
             [2, 2, 2],
-        ]
+        ],
+        dims=("product", "channel"),
     )
 
     coords = {
@@ -600,20 +571,17 @@ def test_apply_idx_more_dims(new_transformation_class) -> None:
         "channel": ["TV", "Radio", "Online"],
     }
     with pm.Model(coords=coords) as model:
-        geo_idx = [0, 0, 0, 1, 1, 1]
-        product_idx = [0, 2, 1, 0, 1, 0]
+        geo_idx = as_xtensor([0, 0, 0, 1, 1, 1], dims=("geo",))
+        product_idx = as_xtensor([0, 2, 1, 0, 1, 0], dims=("product",))
         Y = instance.apply(
             X,
-            idx={
-                "geo": geo_idx,
-                "product": product_idx,
-            },
+            idx=(geo_idx, product_idx),
             dims="channel",
         )
 
         expected = instance.function(
             X,
-            a=model["new_a"][geo_idx, product_idx, None],
+            a=model["new_a"][geo_idx, product_idx],
             b=model["new_b"][product_idx],
         )
 
@@ -639,6 +607,7 @@ mock_variable_factory = Mock(spec=VariableFactory)
 @pytest.mark.parametrize(
     "prior_value",
     [
+        Prior("Normal", mu=0, sigma=1),
         Prior("Normal", mu=0, sigma=1),
         0.5,
         scalar("x"),
