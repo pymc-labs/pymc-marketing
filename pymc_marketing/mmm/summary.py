@@ -893,6 +893,9 @@ class MMMSummaryFactory:
     with shared default settings. Accepts data wrapper (required) and
     optionally the MMM model to access transformations.
 
+    The factory is immutable - use :meth:`configure` to create a new
+    factory with different settings.
+
     Parameters
     ----------
     data : MMMIDataWrapper
@@ -918,6 +921,12 @@ class MMMSummaryFactory:
     >>> # Via model property (recommended - includes model automatically)
     >>> factory = mmm.summary
     >>> saturation_df = factory.saturation_curves()
+    >>>
+    >>> # Configure factory with new defaults (returns new instance)
+    >>> polars_factory = factory.configure(
+    ...     output_format="polars", hdi_probs=[0.80, 0.94]
+    ... )
+    >>> df = polars_factory.contributions()  # Uses configured defaults
     """
 
     def __init__(
@@ -927,10 +936,78 @@ class MMMSummaryFactory:
         hdi_probs: list[float] | None = None,
         output_format: OutputFormat = "pandas",
     ):
-        self.data = data
-        self.model = model
-        self.hdi_probs = hdi_probs if hdi_probs is not None else [0.94]
-        self.output_format = output_format
+        self._data = data
+        self._model = model
+        self._hdi_probs = hdi_probs if hdi_probs is not None else [0.94]
+        self._output_format = output_format
+
+    @property
+    def data(self) -> MMMIDataWrapper:
+        """Data wrapper containing idata and schema."""
+        return self._data
+
+    @property
+    def model(self) -> Any | None:
+        """Fitted MMM model (None if not provided)."""
+        return self._model
+
+    @property
+    def hdi_probs(self) -> list[float]:
+        """Default HDI probability levels."""
+        return self._hdi_probs
+
+    @property
+    def output_format(self) -> OutputFormat:
+        """Default output DataFrame format."""
+        return self._output_format
+
+    def configure(
+        self,
+        hdi_probs: list[float] | None = None,
+        output_format: OutputFormat | None = None,
+    ) -> MMMSummaryFactory:
+        """Create a new factory with updated configuration.
+
+        Returns a new MMMSummaryFactory instance with the specified settings,
+        keeping all other settings from this factory. This allows for an
+        immutable configuration pattern.
+
+        Parameters
+        ----------
+        hdi_probs : list of float, optional
+            New HDI probability levels. If None, keeps current setting.
+        output_format : {"pandas", "polars"}, optional
+            New output DataFrame format. If None, keeps current setting.
+
+        Returns
+        -------
+        MMMSummaryFactory
+            New factory instance with updated configuration
+
+        Examples
+        --------
+        >>> # Start with default factory
+        >>> factory = mmm.summary
+        >>>
+        >>> # Create new factory with polars output
+        >>> polars_factory = factory.configure(output_format="polars")
+        >>>
+        >>> # Create new factory with custom HDI and polars
+        >>> custom_factory = factory.configure(
+        ...     hdi_probs=[0.80, 0.94], output_format="polars"
+        ... )
+        >>>
+        >>> # Chain configurations
+        >>> result = mmm.summary.configure(output_format="polars").contributions()
+        """
+        return MMMSummaryFactory(
+            data=self._data,
+            model=self._model,
+            hdi_probs=hdi_probs if hdi_probs is not None else self._hdi_probs,
+            output_format=output_format
+            if output_format is not None
+            else self._output_format,
+        )
 
     def _require_model(self, method_name: str) -> None:
         """Raise helpful error if model is required but not provided."""

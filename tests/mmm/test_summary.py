@@ -1140,6 +1140,71 @@ class TestMMMSummaryFactory:
         assert mock_called["data"] is mock_mmm_idata_wrapper
         assert mock_called["kwargs"]["hdi_probs"] == [0.94]
 
+    def test_configure_updates_hdi_probs(self, mock_mmm_idata_wrapper):
+        """Test that configure() updates hdi_probs in new instance."""
+        from pymc_marketing.mmm.summary import MMMSummaryFactory
+
+        # Arrange
+        factory = MMMSummaryFactory(
+            data=mock_mmm_idata_wrapper,
+            hdi_probs=[0.94],
+        )
+
+        # Act
+        new_factory = factory.configure(hdi_probs=[0.80, 0.90])
+
+        # Assert - new factory has updated hdi_probs
+        assert new_factory.hdi_probs == [0.80, 0.90]
+        # Original factory unchanged
+        assert factory.hdi_probs == [0.94]
+
+    def test_configure_updates_output_format(self, mock_mmm_idata_wrapper):
+        """Test that configure() updates output_format in new instance."""
+        from pymc_marketing.mmm.summary import MMMSummaryFactory
+
+        # Arrange
+        factory = MMMSummaryFactory(
+            data=mock_mmm_idata_wrapper,
+            output_format="pandas",
+        )
+
+        # Act - Note: we use "pandas" here since polars may not be installed
+        new_factory = factory.configure(output_format="pandas")
+
+        # Assert - new factory has updated output_format
+        assert new_factory.output_format == "pandas"
+
+    def test_configure_preserves_data_and_model(self, mock_mmm_idata_wrapper):
+        """Test that configure() preserves data and model references."""
+        from pymc_marketing.mmm.summary import MMMSummaryFactory
+
+        # Arrange - using a sentinel object for model
+        sentinel_model = object()
+        factory = MMMSummaryFactory(
+            data=mock_mmm_idata_wrapper,
+            model=sentinel_model,
+        )
+
+        # Act
+        new_factory = factory.configure(hdi_probs=[0.80])
+
+        # Assert - data and model should be the same
+        assert new_factory.data is mock_mmm_idata_wrapper
+        assert new_factory.model is sentinel_model
+
+    def test_properties_are_read_only(self, mock_mmm_idata_wrapper):
+        """Test that factory properties cannot be set directly."""
+        from pymc_marketing.mmm.summary import MMMSummaryFactory
+
+        factory = MMMSummaryFactory(data=mock_mmm_idata_wrapper)
+
+        # Assert - properties should not be settable
+        with pytest.raises(AttributeError):
+            factory.hdi_probs = [0.50]  # type: ignore[misc]
+
+        with pytest.raises(AttributeError):
+            factory.output_format = "polars"  # type: ignore[misc]
+
 
 # ============================================================================
 # Category 8: Additional Summary Functions

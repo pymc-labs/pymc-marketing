@@ -708,11 +708,11 @@ class MMM(RegressionModelBuilder):
                 hdi_probs=[0.80, 0.94], frequency="monthly", output_format="polars"
             )
 
-            # Configure factory defaults
-            factory = mmm.summary
-            factory.hdi_probs = [0.50, 0.94]
-            factory.output_format = "polars"
-            df = factory.contributions()  # Uses new defaults
+            # Configure factory with new defaults (returns new instance)
+            polars_factory = mmm.summary.configure(
+                hdi_probs=[0.50, 0.94], output_format="polars"
+            )
+            df = polars_factory.contributions()  # Uses configured defaults
 
             # Get change over time
             df = mmm.summary.change_over_time()
