@@ -26,10 +26,6 @@ from pydantic import ValidationError
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.multidimensional import MMM
 
-# ============================================================================
-# Basic Functionality Tests
-# ============================================================================
-
 
 @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
 def test_sample_adstock_curve_returns_dataarray(fitted_mmm, request):
@@ -204,11 +200,6 @@ def test_sample_adstock_curve_time_coordinate_range(fitted_mmm, request):
     assert np.max(time_coords) == pytest.approx(l_max - 1)
 
 
-# ============================================================================
-# Parameter Validation Tests
-# ============================================================================
-
-
 @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
 @pytest.mark.parametrize("amount", [0, -1])
 def test_sample_adstock_curve_raises_on_invalid_amount(fitted_mmm, request, amount):
@@ -276,11 +267,6 @@ def test_sample_adstock_curve_raises_when_no_posterior(simple_mmm_data):
     # Act & Assert
     with pytest.raises(ValueError, match="posterior not found in idata"):
         mmm.sample_adstock_curve()
-
-
-# ============================================================================
-# Integration Tests
-# ============================================================================
 
 
 @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])

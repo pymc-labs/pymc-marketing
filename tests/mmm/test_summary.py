@@ -35,11 +35,6 @@ SEED = sum(map(ord, "summary_tests"))
 rng = np.random.default_rng(seed=SEED)
 
 
-# ============================================================================
-# Test Fixtures
-# ============================================================================
-
-
 @pytest.fixture(scope="module")
 def simple_dates():
     """Date range for testing (52 weeks)."""
@@ -254,11 +249,6 @@ def mock_panel_idata_wrapper(simple_dates, simple_channels):
     return MMMIDataWrapper(idata, schema=None, validate_on_init=False)
 
 
-# ============================================================================
-# Category 1: Factory Function Existence & Signatures
-# ============================================================================
-
-
 class TestFactoryFunctionExistence:
     """Test that all factory functions exist and are importable."""
 
@@ -290,11 +280,6 @@ class TestFactoryFunctionExistence:
         assert MMMSummaryFactory is not None
         # Should be a class
         assert isinstance(MMMSummaryFactory, type)
-
-
-# ============================================================================
-# Category 2: DataFrame Schema Validation
-# ============================================================================
 
 
 class TestDataFrameSchemas:
@@ -440,11 +425,6 @@ class TestDataFrameSchemas:
         assert len(hdi_columns) == 0, (
             f"Channel spend should not have HDI columns, found: {hdi_columns}"
         )
-
-
-# ============================================================================
-# Category 3: Output Format (Pandas vs Polars)
-# ============================================================================
 
 
 class TestOutputFormats:
@@ -597,11 +577,6 @@ class TestOutputFormats:
             raise
 
 
-# ============================================================================
-# Category 3b: _convert_output Unit Tests
-# ============================================================================
-
-
 class TestConvertOutput:
     """Unit tests for the _convert_output helper function."""
 
@@ -731,11 +706,6 @@ class TestConvertOutput:
         assert result.shape == (0, 2)
 
 
-# ============================================================================
-# Category 4: HDI Computation Correctness
-# ============================================================================
-
-
 class TestHDIComputation:
     """Test HDI bounds are computed correctly."""
 
@@ -800,11 +770,6 @@ class TestHDIComputation:
         assert expected_hdi_columns.issubset(set(df.columns)), (
             f"Missing HDI columns. Expected {expected_hdi_columns}, got {set(df.columns)}"
         )
-
-
-# ============================================================================
-# Category 5: Data Transformation (xarray → DataFrame)
-# ============================================================================
 
 
 class TestDataTransformation:
@@ -901,11 +866,6 @@ class TestDataTransformation:
         )
 
 
-# ============================================================================
-# Category 6: Integration with Component 1 (MMMIDataWrapper)
-# ============================================================================
-
-
 class TestComponent1Integration:
     """Test Component 2 correctly consumes Component 1's filtered/aggregated data."""
 
@@ -987,11 +947,6 @@ class TestComponent1Integration:
         assert df_monthly["date"].nunique() < df_original["date"].nunique(), (
             "frequency='monthly' should produce fewer unique dates than 'original'"
         )
-
-
-# ============================================================================
-# Category 7: MMMSummaryFactory Class
-# ============================================================================
 
 
 class TestMMMSummaryFactory:
@@ -1206,11 +1161,6 @@ class TestMMMSummaryFactory:
             factory.output_format = "polars"  # type: ignore[misc]
 
 
-# ============================================================================
-# Category 8: Additional Summary Functions
-# ============================================================================
-
-
 class TestAdditionalSummaryFunctions:
     """Test additional summary functions beyond the core 4."""
 
@@ -1286,11 +1236,6 @@ class TestAdditionalSummaryFunctions:
             assert len(components) > 0, "Should have at least one component type"
 
 
-# ============================================================================
-# Category 9: Edge Cases & Error Handling
-# ============================================================================
-
-
 class TestEdgeCases:
     """Test edge cases and error conditions."""
 
@@ -1359,11 +1304,6 @@ class TestEdgeCases:
         assert len(df) > 0, "Should return non-empty DataFrame"
         assert "channel" in df.columns
         assert "mean" in df.columns
-
-
-# ============================================================================
-# Category 10: MMMSummaryFactory Method Coverage
-# ============================================================================
 
 
 class TestMMMSummaryFactoryMethodCoverage:
@@ -1525,11 +1465,6 @@ class TestMMMSummaryFactoryMethodCoverage:
         )
 
 
-# ============================================================================
-# Category 11: Non-Channel Component Coverage
-# ============================================================================
-
-
 @pytest.fixture
 def mock_mmm_idata_wrapper_with_controls(simple_dates, simple_channels):
     """Mock MMMIDataWrapper with control variables for testing non-channel components."""
@@ -1680,11 +1615,6 @@ class TestNonChannelComponents:
             # All rows should have mean/median computed
             assert not df["mean"].isna().any()
             assert "date" in df.columns
-
-
-# ============================================================================
-# Category 12: Additional Edge Cases and Path Coverage
-# ============================================================================
 
 
 @pytest.fixture
@@ -1886,11 +1816,6 @@ class TestAdditionalPathCoverage:
         assert "abs_error_94_lower" in df_adstock.columns
 
 
-# ============================================================================
-# Category 13: TDD Extensions - Validation Decorator
-# ============================================================================
-
-
 class TestValidationDecorator:
     """Test validation decorator is applied to all factory functions."""
 
@@ -1971,11 +1896,6 @@ class TestValidationDecorator:
             create_contribution_summary(wrapper)
 
 
-# ============================================================================
-# Category 14: TDD Extensions - Factory Refactoring
-# ============================================================================
-
-
 class TestMMMSummaryFactoryRefactoring:
     """Test MMMSummaryFactory refactoring to accept optional model parameter."""
 
@@ -2033,11 +1953,6 @@ class TestMMMSummaryFactoryRefactoring:
             match=r"adstock_curves requires model.*MMMSummaryFactory\(data, model=mmm\)",
         ):
             factory.adstock_curves()
-
-
-# ============================================================================
-# Category 15: TDD Extensions - Saturation & Adstock Curves (Parameterized)
-# ============================================================================
 
 
 class TestSaturationAndAdstockCurves:
@@ -2165,11 +2080,6 @@ class TestSaturationAndAdstockCurves:
         )
 
 
-# ============================================================================
-# Category 16: TDD Extensions - Saturation Curves (Specific Tests)
-# ============================================================================
-
-
 class TestSaturationCurvesSpecific:
     """Test saturation-specific behavior."""
 
@@ -2203,11 +2113,6 @@ class TestSaturationCurvesSpecific:
             assert group_sorted["mean"].iloc[-1] > group_sorted["mean"].iloc[0], (
                 f"Saturation curve for {dims} should be increasing"
             )
-
-
-# ============================================================================
-# Category 17: TDD Extensions - Adstock Curves (Specific Tests)
-# ============================================================================
 
 
 class TestAdstockCurvesSpecific:
@@ -2306,11 +2211,6 @@ class TestAdstockCurvesSpecific:
             )
 
 
-# ============================================================================
-# Category 18: TDD Extensions - Change Over Time Implementation
-# ============================================================================
-
-
 class TestChangeOverTimeImplementation:
     """Test change over time implementation."""
 
@@ -2371,11 +2271,6 @@ class TestChangeOverTimeImplementation:
             ValueError, match=r"change_over_time requires date dimension.*all_time"
         ):
             create_change_over_time_summary(aggregated_data)
-
-
-# ============================================================================
-# Category 19: TDD Extensions - MMM.summary Property Integration
-# ============================================================================
 
 
 class TestMMMSummaryProperty:
@@ -2482,11 +2377,6 @@ class TestMMMSummaryProperty:
         assert saturation_df is not None
         assert len(saturation_df) > 0
         assert "x" in saturation_df.columns
-
-
-# ============================================================================
-# Category 11: Edge Cases - Empty HDI Probabilities
-# ============================================================================
 
 
 class TestEmptyHDIProbs:

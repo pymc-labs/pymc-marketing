@@ -26,10 +26,6 @@ from pydantic import ValidationError
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.multidimensional import MMM
 
-# ============================================================================
-# Basic Functionality Tests
-# ============================================================================
-
 
 @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
 def test_sample_saturation_curve_returns_dataarray(fitted_mmm, request):
@@ -227,11 +223,6 @@ def test_sample_saturation_curve_x_coordinate_range(fitted_mmm, request):
     assert np.max(x_coords) == pytest.approx(max_value)
 
 
-# ============================================================================
-# Scaling Behavior Tests
-# ============================================================================
-
-
 @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
 def test_sample_saturation_curve_original_scale_differs_from_scaled(
     fitted_mmm, request
@@ -304,11 +295,6 @@ def test_sample_saturation_curve_original_scale_uses_target_scale(fitted_mmm, re
     # Original should be roughly scaled * target_scale
     # (Broadcasting makes exact comparison complex, so check magnitude)
     assert np.mean(np.abs(mean_original.values)) > np.mean(np.abs(mean_scaled.values))
-
-
-# ============================================================================
-# Parameter Validation Tests
-# ============================================================================
 
 
 @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
@@ -392,11 +378,6 @@ def test_sample_saturation_curve_raises_when_no_posterior(simple_mmm_data):
     # Act & Assert
     with pytest.raises(ValueError, match="posterior not found in idata"):
         mmm.sample_saturation_curve()
-
-
-# ============================================================================
-# Integration Tests
-# ============================================================================
 
 
 @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
