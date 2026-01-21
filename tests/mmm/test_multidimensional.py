@@ -26,6 +26,7 @@ from pymc_extras.prior import Prior
 from pytensor.tensor.basic import TensorVariable
 from scipy.optimize import OptimizeResult
 
+from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm import (
     CovFunc,
@@ -3675,3 +3676,133 @@ class TestAddOriginalScaleContributionVariable:
         ]
         assert channel_dims == ("date", "country", "channel")
         assert fourier_dims == ("date", "country", "fourier_mode")
+
+
+class TestDataProperty:
+    """Tests for the MMM.data property."""
+
+    def test_data_property_raises_when_no_idata(self) -> None:
+        """Test that accessing .data before fitting raises ValueError."""
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["C1", "C2"],
+            target_column="target",
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+
+        with pytest.raises(ValueError, match="idata does not exist"):
+            _ = mmm.data
+
+    def test_data_property_returns_wrapper(self, fit_mmm) -> None:
+        """Test that .data returns MMMIDataWrapper with correct schema."""
+        wrapper = fit_mmm.data
+
+        assert isinstance(wrapper, MMMIDataWrapper)
+        assert wrapper.idata is fit_mmm.idata
+        assert wrapper.schema is not None
+        # fit_mmm has dims=("country",), no controls, no seasonality, no time-varying
+        assert wrapper.schema.custom_dims == ("country",)
+
+    def test_data_property_without_custom_dims(
+        self, single_dim_data, mock_pymc_sample
+    ) -> None:
+        """Test schema receives empty tuple when dims is empty."""
+        X, y = single_dim_data
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            target_column="target",
+            dims=(),
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mmm.fit(X, y)
+
+        wrapper = mmm.data
+        assert isinstance(wrapper, MMMIDataWrapper)
+        assert wrapper.schema.custom_dims == ()
+
+    def test_data_property_with_controls(
+        self, single_dim_data, mock_pymc_sample
+    ) -> None:
+        """Test schema receives has_controls=True when control_columns set."""
+        X, y = single_dim_data
+        # Add a control column
+        X = X.copy()
+        X["control_var"] = np.random.rand(len(X))
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            control_columns=["control_var"],
+            target_column="target",
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mmm.fit(X, y)
+
+        wrapper = mmm.data
+        assert isinstance(wrapper, MMMIDataWrapper)
+        # Verify control_data variable exists in schema
+        assert "control_data_" in wrapper.schema.groups["constant_data"].variables
+
+    def test_data_property_with_seasonality(
+        self, single_dim_data, mock_pymc_sample
+    ) -> None:
+        """Test schema receives has_seasonality=True when yearly_seasonality set."""
+        X, y = single_dim_data
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            target_column="target",
+            yearly_seasonality=2,
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mmm.fit(X, y)
+
+        wrapper = mmm.data
+        assert isinstance(wrapper, MMMIDataWrapper)
+        # Verify dayofyear variable exists in schema (indicator of seasonality)
+        assert "dayofyear" in wrapper.schema.groups["constant_data"].variables
+
+    def test_data_property_with_time_varying_intercept(
+        self, single_dim_data, mock_pymc_sample
+    ) -> None:
+        """Test schema receives time_varying=True when time_varying_intercept=True."""
+        X, y = single_dim_data
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            target_column="target",
+            time_varying_intercept=True,
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mmm.fit(X, y)
+
+        wrapper = mmm.data
+        assert isinstance(wrapper, MMMIDataWrapper)
+        # Verify time_index variable exists in schema (indicator of time-varying)
+        assert "time_index" in wrapper.schema.groups["constant_data"].variables
+
+    def test_data_property_with_time_varying_media(
+        self, single_dim_data, mock_pymc_sample
+    ) -> None:
+        """Test schema receives time_varying=True when time_varying_media=True."""
+        X, y = single_dim_data
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            target_column="target",
+            time_varying_media=True,
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mmm.fit(X, y)
+
+        wrapper = mmm.data
+        assert isinstance(wrapper, MMMIDataWrapper)
+        # Verify time_index variable exists in schema (indicator of time-varying)
+        assert "time_index" in wrapper.schema.groups["constant_data"].variables
