@@ -338,7 +338,10 @@ def create_posterior_predictive_summary(
     data, hdi_probs = _prepare_data_and_hdi(data, hdi_probs, frequency)
 
     # Get posterior predictive samples
-    pp_samples = data.idata.posterior_predictive["y"]
+    if hasattr(data.idata, "posterior_predictive"):
+        pp_samples = data.idata.posterior_predictive["y"]
+    else:
+        raise AttributeError("No posterior predictive samples found in idata")
 
     # Get observed data
     observed = data.get_target(original_scale=True)
