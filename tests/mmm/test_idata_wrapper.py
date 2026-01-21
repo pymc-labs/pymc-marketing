@@ -2192,7 +2192,106 @@ def test_filter_dims_wrapper_returns_self_when_no_filters(multidim_idata):
 
 
 # ============================================================================
-# Category 15: Target Scale Missing Error Tests
+# Category 15: Scale Accessor Method Tests
+# ============================================================================
+
+
+def test_get_channel_scale_returns_scale_array(multidim_idata):
+    """Test that get_channel_scale returns channel scale DataArray."""
+    # Arrange
+    wrapper = MMMIDataWrapper(multidim_idata)
+
+    # Act
+    channel_scale = wrapper.get_channel_scale()
+
+    # Assert
+    assert isinstance(channel_scale, xr.DataArray)
+    xr.testing.assert_equal(channel_scale, multidim_idata.constant_data.channel_scale)
+
+
+def test_get_channel_scale_raises_when_missing():
+    """Test that get_channel_scale raises when channel_scale is missing."""
+    # Arrange - Create idata without channel_scale
+    dates = pd.date_range("2024-01-01", periods=10, freq="W")
+
+    idata = az.InferenceData(
+        constant_data=xr.Dataset(
+            {
+                "target_data": xr.DataArray(
+                    rng.uniform(100, 1000, size=(10,)),
+                    dims=("date",),
+                    coords={"date": dates},
+                ),
+                # channel_scale intentionally missing
+            }
+        ),
+        posterior=xr.Dataset(
+            {
+                "mu": xr.DataArray(
+                    rng.normal(size=(2, 10, 10)),
+                    dims=("chain", "draw", "date"),
+                    coords={"date": dates},
+                ),
+            }
+        ),
+    )
+
+    wrapper = MMMIDataWrapper(idata)
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="channel_scale not found in constant_data"):
+        wrapper.get_channel_scale()
+
+
+def test_get_target_scale_returns_scale_array(multidim_idata):
+    """Test that get_target_scale returns target scale DataArray."""
+    # Arrange
+    wrapper = MMMIDataWrapper(multidim_idata)
+
+    # Act
+    target_scale = wrapper.get_target_scale()
+
+    # Assert
+    assert isinstance(target_scale, xr.DataArray)
+    xr.testing.assert_equal(target_scale, multidim_idata.constant_data.target_scale)
+
+
+def test_get_target_scale_raises_when_missing():
+    """Test that get_target_scale raises when target_scale is missing."""
+    # Arrange - Create idata without target_scale
+    dates = pd.date_range("2024-01-01", periods=10, freq="W")
+
+    idata = az.InferenceData(
+        constant_data=xr.Dataset(
+            {
+                "target_data": xr.DataArray(
+                    rng.uniform(100, 1000, size=(10,)),
+                    dims=("date",),
+                    coords={"date": dates},
+                ),
+                # target_scale intentionally missing
+            }
+        ),
+        posterior=xr.Dataset(
+            {
+                "mu": xr.DataArray(
+                    rng.normal(size=(2, 10, 10)),
+                    dims=("chain", "draw", "date"),
+                    coords={"date": dates},
+                ),
+            }
+        ),
+    )
+
+    wrapper = MMMIDataWrapper(idata)
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="target_scale not found in constant_data"):
+        wrapper.get_target_scale()
+
+
+# ============================================================================
+# Category 16: Target Scale Missing Error Tests
 # ============================================================================
 
 
