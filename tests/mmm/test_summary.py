@@ -166,6 +166,94 @@ def mock_mmm_idata_wrapper_with_zero_spend(simple_dates):
     return MMMIDataWrapper(idata, schema=None, validate_on_init=False)
 
 
+@pytest.fixture
+def mock_panel_idata_wrapper(simple_dates, simple_channels):
+    """Mock MMMIDataWrapper with panel data (custom dimensions) for testing.
+
+    Creates a data wrapper with 'country' as a custom dimension to test
+    multi-dimensional merging behavior.
+    """
+    local_rng = np.random.default_rng(seed=44)
+
+    countries = ["US", "UK"]
+    n_dates = len(simple_dates)
+    n_channels = len(simple_channels)
+    n_countries = len(countries)
+
+    idata = az.InferenceData(
+        posterior=xr.Dataset(
+            {
+                "channel_contribution": xr.DataArray(
+                    local_rng.normal(
+                        loc=1000,
+                        scale=100,
+                        size=(2, 10, n_dates, n_countries, n_channels),
+                    ),
+                    dims=("chain", "draw", "date", "country", "channel"),
+                    coords={
+                        "date": simple_dates,
+                        "country": countries,
+                        "channel": simple_channels,
+                    },
+                ),
+                "mu": xr.DataArray(
+                    local_rng.normal(
+                        loc=5000, scale=200, size=(2, 10, n_dates, n_countries)
+                    ),
+                    dims=("chain", "draw", "date", "country"),
+                    coords={"date": simple_dates, "country": countries},
+                ),
+            }
+        ),
+        posterior_predictive=xr.Dataset(
+            {
+                "y": xr.DataArray(
+                    local_rng.normal(
+                        loc=5000, scale=200, size=(2, 10, n_dates, n_countries)
+                    ),
+                    dims=("chain", "draw", "date", "country"),
+                    coords={"date": simple_dates, "country": countries},
+                ),
+            }
+        ),
+        fit_data=xr.Dataset(
+            {
+                "target": xr.DataArray(
+                    local_rng.uniform(4000, 6000, size=(n_dates, n_countries)),
+                    dims=("date", "country"),
+                    coords={"date": simple_dates, "country": countries},
+                ),
+            }
+        ),
+        constant_data=xr.Dataset(
+            {
+                "channel_data": xr.DataArray(
+                    local_rng.uniform(0, 100, size=(n_dates, n_countries, n_channels)),
+                    dims=("date", "country", "channel"),
+                    coords={
+                        "date": simple_dates,
+                        "country": countries,
+                        "channel": simple_channels,
+                    },
+                ),
+                "channel_scale": xr.DataArray(
+                    [100.0, 50.0, 75.0],
+                    dims=("channel",),
+                    coords={"channel": simple_channels},
+                ),
+                "target_scale": xr.DataArray(500.0),
+                "target_data": xr.DataArray(
+                    local_rng.uniform(4000, 6000, size=(n_dates, n_countries)),
+                    dims=("date", "country"),
+                    coords={"date": simple_dates, "country": countries},
+                ),
+            }
+        ),
+    )
+
+    return MMMIDataWrapper(idata, schema=None, validate_on_init=False)
+
+
 # ============================================================================
 # Category 1: Factory Function Existence & Signatures
 # ============================================================================
@@ -241,6 +329,51 @@ class TestDataFrameSchemas:
         )
         assert pd.api.types.is_float_dtype(df["median"]), (
             f"median column should be float, got {df['median'].dtype}"
+        )
+
+    def test_posterior_predictive_summary_panel_model(self, mock_panel_idata_wrapper):
+        """Test posterior predictive summary correctly merges observed values for panel models."""
+        from pymc_marketing.mmm.summary import create_posterior_predictive_summary
+
+        # Act
+        df = create_posterior_predictive_summary(
+            data=mock_panel_idata_wrapper,
+            hdi_probs=[0.94],
+        )
+
+        # Get expected number of rows from the posterior predictive data
+        pp_samples = mock_panel_idata_wrapper.idata.posterior_predictive["y"]
+        expected_rows = pp_samples.sizes["date"] * pp_samples.sizes["country"]
+
+        # Assert - should have exactly date x country rows, NOT date x country x country
+        # If the bug exists, we'd have 52 x 2 x 2 = 208 rows instead of 52 x 2 = 104
+        assert len(df) == expected_rows, (
+            f"Panel model posterior predictive summary should have {expected_rows} rows "
+            f"(date × country), but got {len(df)} rows. "
+            "This suggests an incorrect cross-join during the merge."
+        )
+
+        # Assert - country column should be present
+        assert "country" in df.columns, (
+            "Panel model summary should include 'country' dimension column"
+        )
+
+        # Assert - each (date, country) combination should appear exactly once
+        date_country_counts = df.groupby(["date", "country"]).size()
+        assert all(date_country_counts == 1), (
+            "Each (date, country) combination should appear exactly once"
+        )
+
+        # Assert - observed values should match the correct country
+        # Get the original observed data from the wrapper
+        observed = mock_panel_idata_wrapper.get_target(original_scale=True)
+        observed_df = observed.to_dataframe(name="expected_observed").reset_index()
+
+        # Merge on all common keys to verify values match
+        merged = df.merge(observed_df, on=["date", "country"], how="left")
+        # Check that observed values approximately match (allowing for floating point)
+        assert not merged["expected_observed"].isna().any(), (
+            "Merge should find all expected observed values"
         )
 
     def test_contribution_summary_schema(self, mock_mmm_idata_wrapper):

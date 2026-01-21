@@ -348,7 +348,8 @@ def create_posterior_predictive_summary(
 
     # Add observed values
     observed_df = observed.to_dataframe(name="observed").reset_index()
-    df = df.merge(observed_df, on="date", how="left")
+    merge_keys = ["date", *data.custom_dims]
+    df = df.merge(observed_df, on=merge_keys, how="left")
 
     return _convert_output(df, output_format)
 
