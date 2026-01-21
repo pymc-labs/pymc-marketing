@@ -41,15 +41,14 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Literal, ParamSpec, TypeVar, cast
+from typing import Any, Literal, ParamSpec, TypeVar, cast
 
 import arviz as az
 import numpy as np
 import pandas as pd
 import xarray as xr
 
-if TYPE_CHECKING:
-    from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
+from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 
 P = ParamSpec("P")
 R = TypeVar("R")
