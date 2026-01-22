@@ -16,6 +16,7 @@
 from typing import Any, Literal
 
 import arviz as az
+import numpy as np
 import pandas as pd
 import xarray as xr
 
@@ -310,6 +311,35 @@ class MMMIDataWrapper:
                 contributions["seasonality"] = seasonality
 
         return xr.Dataset(contributions)
+
+    def get_roas(self, original_scale: bool = True) -> xr.DataArray:
+        """Compute ROAS (Return on Ad Spend) for each channel.
+
+        ROAS = contribution / spend for each channel.
+
+        Parameters
+        ----------
+        original_scale : bool, default True
+            Whether to return contributions in original scale.
+
+        Returns
+        -------
+        xr.DataArray
+            ROAS values with dims (chain, draw, date, channel) plus any custom dims.
+            Zero spend values result in NaN to avoid division by zero.
+
+        Examples
+        --------
+        >>> roas = mmm.data.get_roas()
+        >>> roas_mean = roas.mean(dim=["chain", "draw"])
+        """
+        contributions = self.get_channel_contributions(original_scale=original_scale)
+        spend = self.get_channel_spend()
+
+        # Handle zero spend - use xr.where to avoid division by zero
+        spend_safe = xr.where(spend == 0, np.nan, spend)
+
+        return contributions / spend_safe
 
     # ==================== Scaling Operations ====================
 

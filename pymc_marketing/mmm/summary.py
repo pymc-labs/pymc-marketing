@@ -580,18 +580,8 @@ class MMMSummaryFactory:
             hdi_probs, frequency, output_format
         )
 
-        # Get channel contributions and spend
-        contributions = data.get_channel_contributions(original_scale=True)
-        spend = data.get_channel_spend()
-
-        # Compute ROAS = contribution / spend
-        # Need to broadcast spend to match contributions dimensions
-        # spend has dims (date, channel), contributions has (chain, draw, date, channel)
-        # xarray handles broadcasting automatically
-
-        # Handle zero spend - use xr.where to avoid division by zero
-        spend_with_epsilon = xr.where(spend == 0, np.nan, spend)
-        roas = contributions / spend_with_epsilon
+        # Compute ROAS using data wrapper method
+        roas = data.get_roas(original_scale=True)
 
         # Compute summary stats with HDI
         df = self._compute_summary_stats_with_hdi(roas, hdi_probs)
