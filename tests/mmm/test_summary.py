@@ -33,16 +33,7 @@ import xarray as xr
 from pymc_marketing.data.idata import MMMIdataSchema, MMMIDataWrapper
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation, summary
 from pymc_marketing.mmm.multidimensional import MMM
-from pymc_marketing.mmm.summary import (
-    MMMSummaryFactory,
-    _convert_output,
-    create_adstock_curves,
-    create_change_over_time_summary,
-    create_channel_spend_dataframe,
-    create_posterior_predictive_summary,
-    create_saturation_curves,
-    create_total_contribution_summary,
-)
+from pymc_marketing.mmm.summary import MMMSummaryFactory
 
 # Seed for reproducibility
 SEED = sum(map(ord, "summary_tests"))
@@ -268,14 +259,16 @@ class TestFactoryFunctionExistence:
 
     def test_factory_functions_importable(self):
         """Test that all factory functions are importable from summary module."""
-        # Assert all are callable
-        assert callable(create_posterior_predictive_summary)
-        assert callable(create_channel_spend_dataframe)
-        assert callable(create_saturation_curves)
-        assert callable(create_adstock_curves)
-        assert callable(create_total_contribution_summary)
-        # MMMSummaryFactory.contributions() replaces create_contribution_summary
+        # All summary methods are now factory methods only
+        assert hasattr(MMMSummaryFactory, "posterior_predictive")
+        assert hasattr(MMMSummaryFactory, "channel_spend")
+        assert hasattr(MMMSummaryFactory, "total_contribution")
+        assert hasattr(MMMSummaryFactory, "change_over_time")
         assert hasattr(MMMSummaryFactory, "contributions")
+        assert hasattr(MMMSummaryFactory, "roas")
+        # Curve methods also moved to factory
+        assert hasattr(MMMSummaryFactory, "saturation_curves")
+        assert hasattr(MMMSummaryFactory, "adstock_curves")
 
     def test_factory_class_importable(self):
         """Test that MMMSummaryFactory class is importable."""
@@ -290,8 +283,7 @@ class TestDataFrameSchemas:
     def test_posterior_predictive_summary_schema(self, mock_mmm_idata_wrapper):
         """Test posterior predictive summary returns DataFrame with correct schema."""
         # Act
-        df = create_posterior_predictive_summary(
-            data=mock_mmm_idata_wrapper,
+        df = MMMSummaryFactory(mock_mmm_idata_wrapper).posterior_predictive(
             hdi_probs=[0.94],
         )
 
@@ -319,8 +311,7 @@ class TestDataFrameSchemas:
     def test_posterior_predictive_summary_panel_model(self, mock_panel_idata_wrapper):
         """Test posterior predictive summary correctly merges observed values for panel models."""
         # Act
-        df = create_posterior_predictive_summary(
-            data=mock_panel_idata_wrapper,
+        df = MMMSummaryFactory(mock_panel_idata_wrapper).posterior_predictive(
             hdi_probs=[0.94],
         )
 
@@ -400,7 +391,7 @@ class TestDataFrameSchemas:
     def test_channel_spend_dataframe_schema(self, mock_mmm_idata_wrapper):
         """Test channel spend DataFrame has correct schema (no HDI columns)."""
         # Act
-        df = create_channel_spend_dataframe(data=mock_mmm_idata_wrapper)
+        df = MMMSummaryFactory(mock_mmm_idata_wrapper).channel_spend()
 
         # Assert - required columns
         required_columns = {"date", "channel", "channel_data"}
@@ -485,180 +476,66 @@ class TestOutputFormats:
             )
 
     @pytest.mark.parametrize(
-        "factory_function_name",
+        "method_name",
         [
-            "create_posterior_predictive_summary",
-            "create_channel_spend_dataframe",
-            "create_total_contribution_summary",
+            "posterior_predictive",
+            "channel_spend",
+            "total_contribution",
+            "contributions",
+            "roas",
+            "change_over_time",
         ],
     )
-    def test_all_factory_functions_support_output_format(
-        self, mock_mmm_idata_wrapper, factory_function_name
+    def test_all_factory_methods_support_output_format(
+        self, mock_mmm_idata_wrapper, method_name
     ):
-        """Test that data-only factory functions accept output_format parameter.
+        """Test that factory methods accept output_format parameter.
 
-        Note: create_saturation_curves and create_adstock_curves are excluded
-        as they require a fitted model, not just a data wrapper.
-        Note: create_contribution_summary was removed - use MMMSummaryFactory.contributions() instead.
+        Note: saturation_curves and adstock_curves are tested separately
+        as they require a fitted model.
         """
-        factory_func = getattr(summary, factory_function_name)
+        factory = MMMSummaryFactory(mock_mmm_idata_wrapper)
+        method = getattr(factory, method_name)
 
         # Act - should not raise TypeError for unexpected keyword argument
         try:
-            df = factory_func(data=mock_mmm_idata_wrapper, output_format="pandas")
+            df = method(output_format="pandas")
             # Assert it returned something
-            assert df is not None, f"{factory_function_name} returned None"
+            assert df is not None, f"{method_name} returned None"
         except TypeError as e:
             if "output_format" in str(e):
                 pytest.fail(
-                    f"{factory_function_name} does not accept output_format parameter: {e}"
+                    f"{method_name} does not accept output_format parameter: {e}"
                 )
             raise
 
-    def test_factory_contributions_supports_output_format(self, mock_mmm_idata_wrapper):
-        """Test that MMMSummaryFactory.contributions() accepts output_format parameter."""
-        # Act - should not raise TypeError for unexpected keyword argument
-        df = MMMSummaryFactory(mock_mmm_idata_wrapper).contributions(
-            output_format="pandas"
-        )
-        # Assert it returned something
-        assert df is not None, "contributions() returned None"
-
     @pytest.mark.parametrize(
-        "factory_function_name",
+        "method_name",
         [
-            "create_saturation_curves",
-            "create_adstock_curves",
+            "saturation_curves",
+            "adstock_curves",
         ],
     )
     @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-    def test_model_factory_functions_support_output_format(
-        self, factory_function_name, fitted_mmm, request
+    def test_model_factory_methods_support_output_format(
+        self, method_name, fitted_mmm, request
     ):
-        """Test that model-requiring factory functions accept output_format parameter."""
+        """Test that model-requiring factory methods accept output_format parameter."""
         mmm = request.getfixturevalue(fitted_mmm)
-        factory_func = getattr(summary, factory_function_name)
+        factory = MMMSummaryFactory(mmm.data, model=mmm)
+        method = getattr(factory, method_name)
 
-        # Act - these functions take model as first arg
+        # Act - these methods now live on factory
         try:
-            df = factory_func(model=mmm, output_format="pandas")
+            df = method(output_format="pandas")
             # Assert it returned something
-            assert df is not None, f"{factory_function_name} returned None"
+            assert df is not None, f"{method_name} returned None"
         except TypeError as e:
             if "output_format" in str(e):
                 pytest.fail(
-                    f"{factory_function_name} does not accept output_format parameter: {e}"
+                    f"{method_name} does not accept output_format parameter: {e}"
                 )
             raise
-
-
-class TestConvertOutput:
-    """Unit tests for the _convert_output helper function."""
-
-    def test_convert_output_pandas_returns_same_dataframe(self):
-        """Test that _convert_output returns the same DataFrame for pandas format."""
-        # Arrange
-        df = pd.DataFrame({"a": [1, 2, 3], "b": [4.0, 5.0, 6.0]})
-
-        # Act
-        result = _convert_output(df, "pandas")
-
-        # Assert
-        assert result is df, "Should return the exact same DataFrame object"
-        assert isinstance(result, pd.DataFrame)
-
-    @pytest.mark.skipif(
-        not importlib.util.find_spec("polars"),
-        reason="Polars not installed",
-    )
-    def test_convert_output_polars_returns_polars_dataframe(self):
-        """Test that _convert_output returns a polars DataFrame for polars format."""
-        # Arrange
-        df = pd.DataFrame({"a": [1, 2, 3], "b": [4.0, 5.0, 6.0]})
-
-        # Act
-        result = _convert_output(df, "polars")
-
-        # Assert
-        assert isinstance(result, pl.DataFrame)
-        assert result.shape == df.shape
-        assert list(result.columns) == list(df.columns)
-        # Verify data integrity
-        assert result["a"].to_list() == [1, 2, 3]
-        assert result["b"].to_list() == [4.0, 5.0, 6.0]
-
-    @pytest.mark.skipif(
-        not importlib.util.find_spec("polars"),
-        reason="Polars not installed",
-    )
-    def test_convert_output_polars_preserves_dtypes(self):
-        """Test that _convert_output preserves column dtypes when converting to polars."""
-        # Arrange - create DataFrame with various types
-        df = pd.DataFrame(
-            {
-                "int_col": [1, 2, 3],
-                "float_col": [1.5, 2.5, 3.5],
-                "str_col": ["a", "b", "c"],
-                "date_col": pd.to_datetime(["2024-01-01", "2024-01-02", "2024-01-03"]),
-            }
-        )
-
-        # Act
-        result = _convert_output(df, "polars")
-
-        # Assert
-        assert isinstance(result, pl.DataFrame)
-        # Check that the data is preserved
-        assert result["int_col"].to_list() == [1, 2, 3]
-        assert result["float_col"].to_list() == [1.5, 2.5, 3.5]
-        assert result["str_col"].to_list() == ["a", "b", "c"]
-
-    def test_convert_output_invalid_format_raises_value_error(self):
-        """Test that _convert_output raises ValueError for invalid format."""
-        # Arrange
-        df = pd.DataFrame({"a": [1, 2, 3]})
-
-        # Act & Assert
-        with pytest.raises(ValueError, match=r"Unknown output_format.*invalid"):
-            _convert_output(df, "invalid")
-
-    def test_convert_output_invalid_format_error_message_helpful(self):
-        """Test that error message suggests valid options."""
-        # Arrange
-        df = pd.DataFrame({"a": [1, 2, 3]})
-
-        # Act & Assert
-        with pytest.raises(ValueError, match=r"'pandas' or 'polars'"):
-            _convert_output(df, "spark")
-
-    @pytest.mark.skipif(
-        not importlib.util.find_spec("polars"),
-        reason="Polars not installed",
-    )
-    def test_convert_output_empty_dataframe_polars(self):
-        """Test that _convert_output handles empty DataFrames correctly."""
-        # Arrange
-        df = pd.DataFrame({"a": [], "b": []})
-
-        # Act
-        result = _convert_output(df, "polars")
-
-        # Assert
-        assert isinstance(result, pl.DataFrame)
-        assert result.shape == (0, 2)
-        assert list(result.columns) == ["a", "b"]
-
-    def test_convert_output_empty_dataframe_pandas(self):
-        """Test that _convert_output handles empty DataFrames correctly for pandas."""
-        # Arrange
-        df = pd.DataFrame({"a": [], "b": []})
-
-        # Act
-        result = _convert_output(df, "pandas")
-
-        # Assert
-        assert result is df
-        assert result.shape == (0, 2)
 
 
 class TestHDIComputation:
@@ -1315,10 +1192,8 @@ class TestAdditionalSummaryFunctions:
         """Test saturation curves summary returns DataFrame with correct schema."""
         mmm = request.getfixturevalue(fitted_mmm)
         # Act - saturation curves require a fitted model
-        df = create_saturation_curves(
-            model=mmm,
-            hdi_probs=[0.94],
-        )
+        factory = MMMSummaryFactory(mmm.data, model=mmm)
+        df = factory.saturation_curves(hdi_probs=[0.94])
 
         # Assert - required columns (channel may not be present with default priors)
         required_columns = {"x", "mean", "median"}
@@ -1340,27 +1215,24 @@ class TestAdditionalSummaryFunctions:
         """Test adstock curves summary returns DataFrame with correct schema."""
         mmm = request.getfixturevalue(fitted_mmm)
         # Act - adstock curves require a fitted model
-        df = create_adstock_curves(
-            model=mmm,
-            hdi_probs=[0.94],
-        )
+        factory = MMMSummaryFactory(mmm.data, model=mmm)
+        df = factory.adstock_curves(hdi_probs=[0.94])
 
         # Assert - required columns (channel may not be present with default priors)
-        required_columns = {"time", "mean", "median"}
+        required_columns = {"time since exposure", "mean", "median"}
         assert required_columns.issubset(set(df.columns)), (
             f"Missing required columns. Expected {required_columns}, got {set(df.columns)}"
         )
 
         # Assert - time values are numeric (lag periods)
-        assert pd.api.types.is_numeric_dtype(df["time"]), (
-            f"time column should be numeric, got {df['time'].dtype}"
+        assert pd.api.types.is_numeric_dtype(df["time since exposure"]), (
+            f"time since exposure column should be numeric, got {df['time since exposure'].dtype}"
         )
 
     def test_total_contribution_summary_schema(self, mock_mmm_idata_wrapper):
         """Test total contribution summary combines all effect types."""
         # Act
-        df = create_total_contribution_summary(
-            data=mock_mmm_idata_wrapper,
+        df = MMMSummaryFactory(mock_mmm_idata_wrapper).total_contribution(
             hdi_probs=[0.94],
         )
 
@@ -1489,7 +1361,7 @@ class TestMMMSummaryFactoryMethodCoverage:
         factory = MMMSummaryFactory(data=mmm.data, model=mmm, hdi_probs=[0.94])
 
         # Act
-        df = factory.saturation_curves(n_points=50)
+        df = factory.saturation_curves(num_points=50)
 
         # Assert
         assert isinstance(df, pd.DataFrame)
@@ -1504,11 +1376,11 @@ class TestMMMSummaryFactoryMethodCoverage:
         factory = MMMSummaryFactory(data=mmm.data, model=mmm, hdi_probs=[0.94])
 
         # Act
-        df = factory.adstock_curves(max_lag=10)
+        df = factory.adstock_curves()
 
         # Assert
         assert isinstance(df, pd.DataFrame)
-        assert "time" in df.columns
+        assert "time since exposure" in df.columns
         assert "mean" in df.columns
 
     def test_factory_total_contribution_method(self, mock_mmm_idata_wrapper):
@@ -1706,8 +1578,7 @@ class TestNonChannelComponents:
     ):
         """Test total contribution summary includes multiple component types."""
         # Act - use the basic fixture which has channel contributions
-        df = create_total_contribution_summary(
-            data=mock_mmm_idata_wrapper,
+        df = MMMSummaryFactory(mock_mmm_idata_wrapper).total_contribution(
             hdi_probs=[0.94],
         )
 
@@ -1723,7 +1594,7 @@ class TestNonChannelComponents:
 
 @pytest.fixture
 def mock_mmm_idata_wrapper_with_total_contributions(simple_dates, simple_channels):
-    """Mock MMMIDataWrapper with contributions that work with create_total_contribution_summary."""
+    """Mock MMMIDataWrapper with contributions that work with MMMSummaryFactory.total_contribution()."""
     local_rng = np.random.default_rng(seed=45)
 
     # Create mock InferenceData
@@ -1790,7 +1661,7 @@ class TestAdditionalPathCoverage:
         wrapper.get_contributions = mock_get_contributions
 
         # Act
-        df = create_total_contribution_summary(data=wrapper, hdi_probs=[0.94])
+        df = MMMSummaryFactory(wrapper).total_contribution(hdi_probs=[0.94])
 
         # Restore
         wrapper.get_contributions = original_get_contributions
@@ -1829,18 +1700,15 @@ class TestAdditionalPathCoverage:
         assert df_none["date"].nunique() == df_original["date"].nunique()
 
     @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-    @pytest.mark.parametrize("n_points", [25, 50, 100])
-    def test_saturation_curves_custom_n_points(self, fitted_mmm, n_points, request):
-        """Test saturation curves with custom n_points parameter."""
+    @pytest.mark.parametrize("num_points", [25, 50, 100])
+    def test_saturation_curves_custom_num_points(self, fitted_mmm, num_points, request):
+        """Test saturation curves with custom num_points parameter."""
         mmm = request.getfixturevalue(fitted_mmm)
         # Act - saturation curves require a fitted model
-        df = create_saturation_curves(
-            model=mmm,
-            n_points=n_points,
-            hdi_probs=[0.80],
-        )
+        factory = MMMSummaryFactory(mmm.data, model=mmm)
+        df = factory.saturation_curves(num_points=num_points, hdi_probs=[0.80])
 
-        # Assert - should have n_points rows per channel (and per custom dim if present)
+        # Assert - should have num_points rows per channel (and per custom dim if present)
         if "channel" in df.columns:
             n_channels = df["channel"].nunique()
         else:
@@ -1864,28 +1732,11 @@ class TestAdditionalPathCoverage:
         else:
             n_custom = 1
 
-        expected_rows = n_points * n_channels * n_custom
+        expected_rows = num_points * n_channels * n_custom
         assert len(df) == expected_rows, (
-            f"Expected {expected_rows} rows ({n_points} x {n_channels} x {n_custom}), "
+            f"Expected {expected_rows} rows ({num_points} x {n_channels} x {n_custom}), "
             f"got {len(df)}"
         )
-        assert "abs_error_80_lower" in df.columns
-
-    @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-    def test_adstock_curves_custom_max_lag(self, fitted_mmm, request):
-        """Test adstock curves with custom max_lag parameter."""
-        mmm = request.getfixturevalue(fitted_mmm)
-        # Act - adstock curves require a fitted model
-        max_lag = 3
-        df = create_adstock_curves(
-            model=mmm,
-            max_lag=max_lag,
-            hdi_probs=[0.80],
-        )
-
-        # Assert - should have lags 0 to max_lag (max_lag + 1 values) per channel
-        assert df["time"].max() == max_lag
-        assert len(df["time"].unique()) == max_lag + 1
         assert "abs_error_80_lower" in df.columns
 
     @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
@@ -1895,68 +1746,19 @@ class TestAdditionalPathCoverage:
         """Test that default HDI probs [0.94] are applied when None is passed."""
         mmm = request.getfixturevalue(fitted_mmm)
         # Saturation and adstock curves require a fitted model
-        df_sat = create_saturation_curves(mmm, hdi_probs=None)
+        factory = MMMSummaryFactory(mmm.data, model=mmm)
+
+        df_sat = factory.saturation_curves(hdi_probs=None)
         assert "abs_error_94_lower" in df_sat.columns
 
-        df_adstock = create_adstock_curves(mmm, hdi_probs=None)
+        df_adstock = factory.adstock_curves(hdi_probs=None)
         assert "abs_error_94_lower" in df_adstock.columns
 
 
-class TestValidationDecorator:
-    """Test validation decorator is applied to all factory functions."""
+class TestFactoryValidation:
+    """Test validation is performed at factory initialization."""
 
-    @pytest.mark.parametrize(
-        "factory_func_name",
-        [
-            "create_posterior_predictive_summary",
-            "create_channel_spend_dataframe",
-            "create_total_contribution_summary",
-        ],
-    )
-    def test_factory_function_calls_validate(
-        self, factory_func_name, mock_mmm_idata_wrapper
-    ):
-        """Test that factory function validates idata before processing.
-
-        Note: create_contribution_summary and create_roas_summary were removed -
-        use MMMSummaryFactory.contributions() and .roas() instead.
-        """
-        factory_func = getattr(summary, factory_func_name)
-
-        # Create a mock wrapper that tracks validate_or_raise calls
-        mock_wrapper = Mock(spec=MMMIDataWrapper)
-        mock_wrapper.idata = mock_mmm_idata_wrapper.idata
-        mock_wrapper.schema = Mock()
-        mock_wrapper.validate_or_raise = Mock()
-
-        # Mock the wrapper methods to return valid data
-        mock_wrapper.get_target = Mock(
-            return_value=mock_mmm_idata_wrapper.get_target(original_scale=True)
-        )
-        mock_wrapper.get_channel_contributions = Mock(
-            return_value=mock_mmm_idata_wrapper.get_channel_contributions(
-                original_scale=True
-            )
-        )
-        mock_wrapper.get_channel_spend = Mock(
-            return_value=mock_mmm_idata_wrapper.get_channel_spend()
-        )
-        mock_wrapper.get_contributions = Mock(
-            return_value=mock_mmm_idata_wrapper.idata.posterior
-        )
-        mock_wrapper.channels = mock_mmm_idata_wrapper.channels
-
-        try:
-            factory_func(mock_wrapper)
-        except Exception:  # noqa: S110
-            # We only care if validate_or_raise was called, not if the function succeeds
-            pass
-
-        assert mock_wrapper.validate_or_raise.called, (
-            f"{factory_func_name} should call validate_or_raise before processing"
-        )
-
-    def test_factory_contributions_calls_validate(self, mock_mmm_idata_wrapper):
+    def test_factory_validates_at_init(self, mock_mmm_idata_wrapper):
         """Test that MMMSummaryFactory validates idata at init time."""
         # Create a mock wrapper that tracks validate_or_raise calls
         mock_wrapper = Mock(spec=MMMIDataWrapper)
@@ -2110,7 +1912,7 @@ class TestSaturationAndAdstockCurves:
         "method_name,x_col",
         [
             ("saturation_curves", "x"),
-            ("adstock_curves", "time"),
+            ("adstock_curves", "time since exposure"),
         ],
         ids=["saturation", "adstock"],
     )
@@ -2213,7 +2015,7 @@ class TestAdstockCurvesSpecific:
 
         # Assert - adstock curves should show decreasing pattern
         # Group by all dimension columns (channel, country, etc.)
-        excluded_cols = ["time", "mean", "median"]
+        excluded_cols = ["time since exposure", "mean", "median"]
         dim_cols = [
             col
             for col in df.columns
@@ -2223,7 +2025,7 @@ class TestAdstockCurvesSpecific:
             dim_cols = ["channel"]
 
         for dims, group_df in df.groupby(dim_cols):
-            group_sorted = group_df.sort_values("time")
+            group_sorted = group_df.sort_values("time since exposure")
             # Mean should decrease over time (adstock property)
             first_value = group_sorted["mean"].iloc[0]
             last_value = group_sorted["mean"].iloc[-1]
@@ -2235,70 +2037,24 @@ class TestAdstockCurvesSpecific:
 
             # First time point should be highest (immediate effect)
             assert group_sorted["mean"].iloc[0] == group_sorted["mean"].max(), (
-                "Adstock effect should be strongest at time=0"
-            )
-
-    @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-    def test_adstock_curves_respects_max_lag(self, fitted_mmm, request):
-        """Test that max_lag parameter controls adstock curve length."""
-        mmm = request.getfixturevalue(fitted_mmm)
-        factory = MMMSummaryFactory(mmm.data, model=mmm)
-        max_lag = 3
-
-        # Act
-        df = factory.adstock_curves(max_lag=max_lag)
-
-        # Assert - rows = (max_lag + 1) x n_channels x n_custom_dims
-        if "channel" in df.columns:
-            n_channels = df["channel"].nunique()
-        else:
-            n_channels = 1
-            df["channel"] = "channel"
-
-        # Check for custom dimensions (e.g., country in panel model)
-        excluded_cols = ["time", "channel", "mean", "median"]
-        custom_dims = [
-            col
-            for col in df.columns
-            if col not in excluded_cols and not col.startswith("abs_error")
-        ]
-        n_custom = 1
-        for dim in custom_dims:
-            n_custom *= df[dim].nunique()
-
-        expected_rows = (max_lag + 1) * n_channels * n_custom
-
-        assert len(df) == expected_rows, (
-            f"Expected {expected_rows} rows "
-            f"({max_lag + 1} lags x {n_channels} channels x {n_custom} custom dims), "
-            f"got {len(df)}"
-        )
-
-        # Verify time values for each combination of dimensions
-        excluded_cols = ["time", "mean", "median"]
-        dim_cols = [
-            col
-            for col in df.columns
-            if col not in excluded_cols and not col.startswith("abs_error")
-        ]
-        for dims, subset in df.groupby(dim_cols):
-            time_values = sorted(subset["time"].unique())
-            assert time_values == list(range(max_lag + 1)), (
-                f"Time values for {dims} should be 0 to {max_lag}, got {time_values}"
+                "Adstock effect should be strongest at time since exposure=0"
             )
 
 
 class TestChangeOverTimeImplementation:
     """Test change over time implementation."""
 
-    def test_change_over_time_function_exists(self):
-        """Test that create_change_over_time_summary exists."""
-        assert callable(create_change_over_time_summary)
+    def test_change_over_time_method_exists(self):
+        """Test that MMMSummaryFactory.change_over_time method exists."""
+        assert hasattr(MMMSummaryFactory, "change_over_time")
+        assert callable(MMMSummaryFactory.change_over_time)
 
     def test_change_over_time_output_schema(self, mock_mmm_idata_wrapper):
         """Test that change_over_time returns correct column schema."""
         # Act
-        df = create_change_over_time_summary(mock_mmm_idata_wrapper, hdi_probs=[0.94])
+        df = MMMSummaryFactory(mock_mmm_idata_wrapper).change_over_time(
+            hdi_probs=[0.94]
+        )
 
         # Assert - required columns
         required_columns = {
@@ -2341,7 +2097,7 @@ class TestChangeOverTimeImplementation:
         with pytest.raises(
             ValueError, match=r"change_over_time requires date dimension.*all_time"
         ):
-            create_change_over_time_summary(aggregated_data)
+            MMMSummaryFactory(aggregated_data).change_over_time()
 
 
 class TestMMMSummaryProperty:
@@ -2446,73 +2202,58 @@ class TestMMMSummaryProperty:
 
 
 class TestEmptyHDIProbs:
-    """Test that all create_* functions work correctly with empty hdi_probs list."""
+    """Test that all factory methods work correctly with empty hdi_probs list."""
 
     @pytest.mark.parametrize(
-        "factory_function_name,function_kwargs,expected_mean_col,expected_median_col,allow_empty",
+        "method_name,expected_mean_col,expected_median_col,allow_empty",
         [
-            ("create_posterior_predictive_summary", {}, "mean", "median", False),
-            ("create_total_contribution_summary", {}, "mean", "median", True),
-            (
-                "create_change_over_time_summary",
-                {},
-                "pct_change_mean",
-                "pct_change_median",
-                False,
-            ),
+            ("posterior_predictive", "mean", "median", False),
+            ("total_contribution", "mean", "median", True),
+            ("change_over_time", "pct_change_mean", "pct_change_median", False),
         ],
     )
-    def test_data_functions_with_empty_hdi_probs(
+    def test_factory_methods_with_empty_hdi_probs(
         self,
         mock_mmm_idata_wrapper,
-        factory_function_name,
-        function_kwargs,
+        method_name,
         expected_mean_col,
         expected_median_col,
         allow_empty,
     ):
-        """Test that data-only factory functions work with empty hdi_probs list.
+        """Test that factory methods work with empty hdi_probs list.
 
-        When hdi_probs=[], functions should:
+        When hdi_probs=[], methods should:
         - Not crash
         - Return DataFrame with mean and median columns (or equivalent)
         - Not include any HDI columns (abs_error_*)
-
-        Note: create_contribution_summary and create_roas_summary were removed -
-        use MMMSummaryFactory.contributions() and .roas() instead.
         """
-        factory_func = getattr(summary, factory_function_name)
+        factory = MMMSummaryFactory(mock_mmm_idata_wrapper, hdi_probs=[])
+        method = getattr(factory, method_name)
 
-        # Act - call with empty hdi_probs
-        df = factory_func(
-            data=mock_mmm_idata_wrapper,
-            hdi_probs=[],
-            **function_kwargs,
-        )
+        # Act - call method
+        df = method()
 
-        # Assert - function succeeded
-        assert df is not None, f"{factory_function_name} returned None"
-        assert isinstance(df, pd.DataFrame), (
-            f"{factory_function_name} should return DataFrame"
-        )
+        # Assert - method succeeded
+        assert df is not None, f"{method_name} returned None"
+        assert isinstance(df, pd.DataFrame), f"{method_name} should return DataFrame"
 
-        # Some functions may return empty DataFrames (e.g., when no contributions exist)
+        # Some methods may return empty DataFrames (e.g., when no contributions exist)
         if not allow_empty:
-            assert len(df) > 0, f"{factory_function_name} returned empty DataFrame"
+            assert len(df) > 0, f"{method_name} returned empty DataFrame"
 
         # Assert - mean and median columns exist (or equivalent columns)
         if len(df) > 0:
             assert expected_mean_col in df.columns, (
-                f"{factory_function_name} should have '{expected_mean_col}' column"
+                f"{method_name} should have '{expected_mean_col}' column"
             )
             assert expected_median_col in df.columns, (
-                f"{factory_function_name} should have '{expected_median_col}' column"
+                f"{method_name} should have '{expected_median_col}' column"
             )
 
         # Assert - no HDI columns exist
         hdi_columns = [col for col in df.columns if "abs_error" in col]
         assert len(hdi_columns) == 0, (
-            f"{factory_function_name} should not have HDI columns when hdi_probs=[]. "
+            f"{method_name} should not have HDI columns when hdi_probs=[]. "
             f"Found: {hdi_columns}"
         )
 
@@ -2559,55 +2300,46 @@ class TestEmptyHDIProbs:
         )
 
     @pytest.mark.parametrize(
-        "factory_function_name,function_kwargs",
+        "method_name,method_kwargs",
         [
-            ("create_saturation_curves", {"n_points": 50}),
-            ("create_adstock_curves", {"max_lag": 10}),
+            ("saturation_curves", {"num_points": 50}),
+            ("adstock_curves", {}),
         ],
     )
     @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-    def test_model_functions_with_empty_hdi_probs(
+    def test_model_methods_with_empty_hdi_probs(
         self,
-        factory_function_name,
-        function_kwargs,
+        method_name,
+        method_kwargs,
         fitted_mmm,
         request,
     ):
-        """Test that model-requiring factory functions work with empty hdi_probs list.
+        """Test that model-requiring factory methods work with empty hdi_probs list.
 
-        When hdi_probs=[], functions should:
+        When hdi_probs=[], methods should:
         - Not crash
         - Return DataFrame with mean and median columns
         - Not include any HDI columns (abs_error_*)
         """
         mmm = request.getfixturevalue(fitted_mmm)
-        factory_func = getattr(summary, factory_function_name)
+        factory = MMMSummaryFactory(mmm.data, model=mmm)
+        method = getattr(factory, method_name)
 
         # Act - call with empty hdi_probs
-        df = factory_func(
-            model=mmm,
-            hdi_probs=[],
-            **function_kwargs,
-        )
+        df = method(hdi_probs=[], **method_kwargs)
 
-        # Assert - function succeeded
-        assert df is not None, f"{factory_function_name} returned None"
-        assert isinstance(df, pd.DataFrame), (
-            f"{factory_function_name} should return DataFrame"
-        )
-        assert len(df) > 0, f"{factory_function_name} returned empty DataFrame"
+        # Assert - method succeeded
+        assert df is not None, f"{method_name} returned None"
+        assert isinstance(df, pd.DataFrame), f"{method_name} should return DataFrame"
+        assert len(df) > 0, f"{method_name} returned empty DataFrame"
 
         # Assert - mean and median columns exist
-        assert "mean" in df.columns, (
-            f"{factory_function_name} should have 'mean' column"
-        )
-        assert "median" in df.columns, (
-            f"{factory_function_name} should have 'median' column"
-        )
+        assert "mean" in df.columns, f"{method_name} should have 'mean' column"
+        assert "median" in df.columns, f"{method_name} should have 'median' column"
 
         # Assert - no HDI columns exist
         hdi_columns = [col for col in df.columns if "abs_error" in col]
         assert len(hdi_columns) == 0, (
-            f"{factory_function_name} should not have HDI columns when hdi_probs=[]. "
+            f"{method_name} should not have HDI columns when hdi_probs=[]. "
             f"Found: {hdi_columns}"
         )
