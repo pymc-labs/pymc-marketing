@@ -40,7 +40,6 @@ from pymc_marketing.mmm.summary import (
     create_change_over_time_summary,
     create_channel_spend_dataframe,
     create_posterior_predictive_summary,
-    create_roas_summary,
     create_saturation_curves,
     create_total_contribution_summary,
 )
@@ -271,7 +270,6 @@ class TestFactoryFunctionExistence:
         """Test that all factory functions are importable from summary module."""
         # Assert all are callable
         assert callable(create_posterior_predictive_summary)
-        assert callable(create_roas_summary)
         assert callable(create_channel_spend_dataframe)
         assert callable(create_saturation_curves)
         assert callable(create_adstock_curves)
@@ -387,10 +385,7 @@ class TestDataFrameSchemas:
     def test_roas_summary_schema(self, mock_mmm_idata_wrapper):
         """Test ROAS summary returns DataFrame with correct schema."""
         # Act
-        df = create_roas_summary(
-            data=mock_mmm_idata_wrapper,
-            hdi_probs=[0.94],
-        )
+        df = MMMSummaryFactory(mock_mmm_idata_wrapper, hdi_probs=[0.94]).roas()
 
         # Assert - required columns
         required_columns = {"date", "channel", "mean", "median"}
@@ -493,7 +488,6 @@ class TestOutputFormats:
         "factory_function_name",
         [
             "create_posterior_predictive_summary",
-            "create_roas_summary",
             "create_channel_spend_dataframe",
             "create_total_contribution_summary",
         ],
@@ -883,6 +877,176 @@ class TestComponent1Integration:
         )
 
 
+class TestMMMSummaryFactoryHelperMethods:
+    """Test MMMSummaryFactory private helper methods (Step 0.5)."""
+
+    def test_validate_hdi_probs_accepts_valid_values(self, mock_mmm_idata_wrapper):
+        """Test that _validate_hdi_probs accepts valid probability values."""
+        factory = MMMSummaryFactory(data=mock_mmm_idata_wrapper)
+
+        # Should not raise for valid values
+        factory._validate_hdi_probs([0.50])
+        factory._validate_hdi_probs([0.80, 0.94])
+        factory._validate_hdi_probs([0.01, 0.99])
+
+    def test_validate_hdi_probs_rejects_invalid_values(self, mock_mmm_idata_wrapper):
+        """Test that _validate_hdi_probs rejects invalid probability values."""
+        factory = MMMSummaryFactory(data=mock_mmm_idata_wrapper)
+
+        with pytest.raises(ValueError, match=r"[Hh][Dd][Ii]|probability"):
+            factory._validate_hdi_probs([1.5])
+
+        with pytest.raises(ValueError, match=r"[Hh][Dd][Ii]|probability"):
+            factory._validate_hdi_probs([0.0])
+
+        with pytest.raises(ValueError, match=r"[Hh][Dd][Ii]|probability"):
+            factory._validate_hdi_probs([-0.5])
+
+        with pytest.raises(ValueError, match=r"[Hh][Dd][Ii]|probability"):
+            factory._validate_hdi_probs([94])  # Percentage format
+
+    def test_convert_output_pandas_returns_same_dataframe(self, mock_mmm_idata_wrapper):
+        """Test that _convert_output returns the same DataFrame for pandas format."""
+        factory = MMMSummaryFactory(data=mock_mmm_idata_wrapper)
+        df = pd.DataFrame({"a": [1, 2, 3], "b": [4.0, 5.0, 6.0]})
+
+        result = factory._convert_output(df, "pandas")
+
+        assert result is df
+        assert isinstance(result, pd.DataFrame)
+
+    @pytest.mark.skipif(
+        not importlib.util.find_spec("polars"),
+        reason="Polars not installed",
+    )
+    def test_convert_output_polars_returns_polars_dataframe(
+        self, mock_mmm_idata_wrapper
+    ):
+        """Test that _convert_output returns polars DataFrame for polars format."""
+        factory = MMMSummaryFactory(data=mock_mmm_idata_wrapper)
+        df = pd.DataFrame({"a": [1, 2, 3], "b": [4.0, 5.0, 6.0]})
+
+        result = factory._convert_output(df, "polars")
+
+        assert isinstance(result, pl.DataFrame)
+        assert result.shape == df.shape
+
+    def test_convert_output_uses_factory_default(self, mock_mmm_idata_wrapper):
+        """Test that _convert_output uses factory default when output_format is None."""
+        factory = MMMSummaryFactory(data=mock_mmm_idata_wrapper, output_format="pandas")
+        df = pd.DataFrame({"a": [1, 2, 3]})
+
+        # Pass None - should use factory default
+        result = factory._convert_output(df, None)
+
+        assert isinstance(result, pd.DataFrame)
+
+    def test_convert_output_invalid_format_raises(self, mock_mmm_idata_wrapper):
+        """Test that _convert_output raises ValueError for invalid format."""
+        factory = MMMSummaryFactory(data=mock_mmm_idata_wrapper)
+        df = pd.DataFrame({"a": [1, 2, 3]})
+
+        with pytest.raises(ValueError, match=r"Unknown output_format.*invalid"):
+            factory._convert_output(df, "invalid")
+
+    def test_compute_summary_stats_with_hdi_basic(self, mock_mmm_idata_wrapper):
+        """Test that _compute_summary_stats_with_hdi computes basic statistics."""
+        factory = MMMSummaryFactory(data=mock_mmm_idata_wrapper)
+
+        # Get some test data with chain/draw dimensions
+        data = mock_mmm_idata_wrapper.get_channel_contributions()
+
+        result = factory._compute_summary_stats_with_hdi(data, [0.94])
+
+        assert isinstance(result, pd.DataFrame)
+        assert "mean" in result.columns
+        assert "median" in result.columns
+        assert "abs_error_94_lower" in result.columns
+        assert "abs_error_94_upper" in result.columns
+
+    def test_compute_summary_stats_with_hdi_multiple_probs(
+        self, mock_mmm_idata_wrapper
+    ):
+        """Test _compute_summary_stats_with_hdi with multiple HDI probabilities."""
+        factory = MMMSummaryFactory(data=mock_mmm_idata_wrapper)
+        data = mock_mmm_idata_wrapper.get_channel_contributions()
+
+        result = factory._compute_summary_stats_with_hdi(data, [0.80, 0.94])
+
+        assert "abs_error_80_lower" in result.columns
+        assert "abs_error_80_upper" in result.columns
+        assert "abs_error_94_lower" in result.columns
+        assert "abs_error_94_upper" in result.columns
+
+    def test_compute_summary_stats_with_hdi_empty_probs(self, mock_mmm_idata_wrapper):
+        """Test _compute_summary_stats_with_hdi with empty HDI probs list."""
+        factory = MMMSummaryFactory(data=mock_mmm_idata_wrapper)
+        data = mock_mmm_idata_wrapper.get_channel_contributions()
+
+        result = factory._compute_summary_stats_with_hdi(data, [])
+
+        assert isinstance(result, pd.DataFrame)
+        assert "mean" in result.columns
+        assert "median" in result.columns
+        # No HDI columns
+        hdi_cols = [c for c in result.columns if "abs_error" in c]
+        assert len(hdi_cols) == 0
+
+    def test_prepare_data_and_hdi_resolves_defaults(self, mock_mmm_idata_wrapper):
+        """Test that _prepare_data_and_hdi resolves factory defaults."""
+        factory = MMMSummaryFactory(
+            data=mock_mmm_idata_wrapper,
+            hdi_probs=[0.80, 0.94],
+            output_format="pandas",
+        )
+
+        # Pass None for all args - should use factory defaults
+        data, hdi_probs, output_format = factory._prepare_data_and_hdi(None, None, None)
+
+        assert data is mock_mmm_idata_wrapper
+        assert hdi_probs == [0.80, 0.94]
+        assert output_format == "pandas"
+
+    def test_prepare_data_and_hdi_allows_overrides(self, mock_mmm_idata_wrapper):
+        """Test that _prepare_data_and_hdi allows overriding defaults."""
+        factory = MMMSummaryFactory(
+            data=mock_mmm_idata_wrapper,
+            hdi_probs=[0.94],
+            output_format="pandas",
+        )
+
+        _, hdi_probs, output_format = factory._prepare_data_and_hdi(
+            hdi_probs=[0.50, 0.80],
+            frequency=None,
+            output_format="pandas",  # Override
+        )
+
+        assert hdi_probs == [0.50, 0.80]  # Overridden
+        assert output_format == "pandas"
+
+    def test_prepare_data_and_hdi_aggregates_data(self, mock_mmm_idata_wrapper):
+        """Test that _prepare_data_and_hdi aggregates data by frequency."""
+        factory = MMMSummaryFactory(data=mock_mmm_idata_wrapper)
+
+        data, _, _ = factory._prepare_data_and_hdi(
+            hdi_probs=None, frequency="monthly", output_format=None
+        )
+
+        # Data should be aggregated (fewer dates)
+        original_dates = len(mock_mmm_idata_wrapper.idata.posterior["date"])
+        aggregated_dates = len(data.idata.posterior["date"])
+        assert aggregated_dates < original_dates
+
+    def test_prepare_data_and_hdi_validates_hdi_probs(self, mock_mmm_idata_wrapper):
+        """Test that _prepare_data_and_hdi validates HDI probs."""
+        factory = MMMSummaryFactory(data=mock_mmm_idata_wrapper)
+
+        with pytest.raises(ValueError, match=r"[Hh][Dd][Ii]|probability"):
+            factory._prepare_data_and_hdi(
+                hdi_probs=[1.5], frequency=None, output_format=None
+            )
+
+
 class TestMMMSummaryFactory:
     """Test MMMSummaryFactory convenience wrapper."""
 
@@ -1247,7 +1411,7 @@ class TestEdgeCases:
     ):
         """Test that ROAS computation handles zero spend without errors."""
         # Act - should not raise ZeroDivisionError
-        df = create_roas_summary(data=mock_mmm_idata_wrapper_with_zero_spend)
+        df = MMMSummaryFactory(mock_mmm_idata_wrapper_with_zero_spend).roas()
 
         # Assert - rows with zero spend should have ROAS = 0, NaN, or inf
         zero_spend_rows = df[df["channel"] == "zero_spend_channel"]
@@ -1745,7 +1909,6 @@ class TestValidationDecorator:
         "factory_func_name",
         [
             "create_posterior_predictive_summary",
-            "create_roas_summary",
             "create_channel_spend_dataframe",
             "create_total_contribution_summary",
         ],
@@ -1755,7 +1918,8 @@ class TestValidationDecorator:
     ):
         """Test that factory function validates idata before processing.
 
-        Note: create_contribution_summary was removed - use MMMSummaryFactory.contributions() instead.
+        Note: create_contribution_summary and create_roas_summary were removed -
+        use MMMSummaryFactory.contributions() and .roas() instead.
         """
         factory_func = getattr(summary, factory_func_name)
 
@@ -2288,7 +2452,6 @@ class TestEmptyHDIProbs:
         "factory_function_name,function_kwargs,expected_mean_col,expected_median_col,allow_empty",
         [
             ("create_posterior_predictive_summary", {}, "mean", "median", False),
-            ("create_roas_summary", {}, "mean", "median", False),
             ("create_total_contribution_summary", {}, "mean", "median", True),
             (
                 "create_change_over_time_summary",
@@ -2315,7 +2478,8 @@ class TestEmptyHDIProbs:
         - Return DataFrame with mean and median columns (or equivalent)
         - Not include any HDI columns (abs_error_*)
 
-        Note: create_contribution_summary was removed - use MMMSummaryFactory.contributions() instead.
+        Note: create_contribution_summary and create_roas_summary were removed -
+        use MMMSummaryFactory.contributions() and .roas() instead.
         """
         factory_func = getattr(summary, factory_function_name)
 
@@ -2370,6 +2534,27 @@ class TestEmptyHDIProbs:
         hdi_columns = [col for col in df.columns if "abs_error" in col]
         assert len(hdi_columns) == 0, (
             f"contributions() should not have HDI columns when hdi_probs=[]. "
+            f"Found: {hdi_columns}"
+        )
+
+    def test_factory_roas_with_empty_hdi_probs(self, mock_mmm_idata_wrapper):
+        """Test that MMMSummaryFactory.roas() works with empty hdi_probs list."""
+        # Act - call with empty hdi_probs
+        df = MMMSummaryFactory(mock_mmm_idata_wrapper, hdi_probs=[]).roas()
+
+        # Assert - function succeeded
+        assert df is not None, "roas() returned None"
+        assert isinstance(df, pd.DataFrame), "roas() should return DataFrame"
+        assert len(df) > 0, "roas() returned empty DataFrame"
+
+        # Assert - mean and median columns exist
+        assert "mean" in df.columns, "roas() should have 'mean' column"
+        assert "median" in df.columns, "roas() should have 'median' column"
+
+        # Assert - no HDI columns exist
+        hdi_columns = [col for col in df.columns if "abs_error" in col]
+        assert len(hdi_columns) == 0, (
+            f"roas() should not have HDI columns when hdi_probs=[]. "
             f"Found: {hdi_columns}"
         )
 

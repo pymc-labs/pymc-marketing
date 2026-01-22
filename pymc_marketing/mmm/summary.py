@@ -358,60 +358,6 @@ def create_posterior_predictive_summary(
 
 
 @validate_mmm_data
-def create_roas_summary(
-    data: MMMIDataWrapper,
-    hdi_probs: list[float] | None = None,
-    frequency: Frequency | None = None,
-    output_format: OutputFormat = "pandas",
-) -> DataFrameType:
-    """Create ROAS (Return on Ad Spend) summary DataFrame.
-
-    Computes ROAS = contribution / spend for each channel.
-
-    Parameters
-    ----------
-    data : MMMIDataWrapper
-        Data wrapper from Component 1
-    hdi_probs : list of float, optional
-        HDI probability levels (default: [0.94])
-    frequency : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}, optional
-        Time aggregation period (default: None, no aggregation)
-    output_format : {"pandas", "polars"}, default "pandas"
-        Output DataFrame format
-
-    Returns
-    -------
-    pd.DataFrame or pl.DataFrame
-        Summary DataFrame with columns:
-        - date: Time index
-        - channel: Channel name
-        - mean: Mean ROAS
-        - median: Median ROAS
-        - abs_error_{prob}_lower: HDI lower bound for each prob
-        - abs_error_{prob}_upper: HDI upper bound for each prob
-    """
-    data, hdi_probs = _prepare_data_and_hdi(data, hdi_probs, frequency)
-
-    # Get channel contributions and spend
-    contributions = data.get_channel_contributions(original_scale=True)
-    spend = data.get_channel_spend()
-
-    # Compute ROAS = contribution / spend
-    # Need to broadcast spend to match contributions dimensions
-    # spend has dims (date, channel), contributions has (chain, draw, date, channel)
-    # xarray handles broadcasting automatically
-
-    # Handle zero spend - use np.where to avoid division by zero
-    spend_with_epsilon = xr.where(spend == 0, np.nan, spend)
-    roas = contributions / spend_with_epsilon
-
-    # Compute summary stats with HDI
-    df = _compute_summary_stats_with_hdi(roas, hdi_probs)
-
-    return _convert_output(df, output_format)
-
-
-@validate_mmm_data
 def create_channel_spend_dataframe(
     data: MMMIDataWrapper,
     output_format: OutputFormat = "pandas",
@@ -882,8 +828,208 @@ class MMMSummaryFactory:
         self._hdi_probs = hdi_probs if hdi_probs is not None else [0.94]
         self._output_format = output_format
 
-        # Validate HDI probs at init time (uses module-level function)
-        _validate_hdi_probs(self._hdi_probs)
+        # Validate HDI probs at init time (uses class method)
+        self._validate_hdi_probs(self._hdi_probs)
+
+    # ==================== Private Helper Methods ====================
+
+    def _validate_hdi_probs(self, hdi_probs: list[float]) -> None:
+        """Validate HDI probability values are in valid range.
+
+        Parameters
+        ----------
+        hdi_probs : list of float
+            HDI probability levels to validate
+
+        Raises
+        ------
+        ValueError
+            If any probability is not in range (0, 1)
+        """
+        for prob in hdi_probs:
+            if not 0 < prob < 1:
+                raise ValueError(
+                    f"HDI probability must be between 0 and 1 (exclusive), got {prob}. "
+                    "Use values like 0.94 for 94% HDI, not percentages like 94."
+                )
+
+    def _convert_output(
+        self, df: pd.DataFrame, output_format: OutputFormat | None = None
+    ) -> DataFrameType:
+        """Convert Pandas DataFrame to requested output format.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            Input DataFrame (always Pandas from internal computation)
+        output_format : {"pandas", "polars"} or None
+            Desired output format. If None, uses factory default.
+
+        Returns
+        -------
+        pd.DataFrame or pl.DataFrame
+            DataFrame in requested format
+
+        Raises
+        ------
+        ImportError
+            If output_format="polars" but polars is not installed
+        ValueError
+            If output_format is not recognized
+        """
+        fmt = output_format if output_format is not None else self._output_format
+        if fmt == "pandas":
+            return df
+        elif fmt == "polars":
+            if not POLARS_INSTALLED:
+                raise ImportError(
+                    "Polars is required for output_format='polars'. "
+                    "Install it with: pip install pymc-marketing[polars]"
+                )
+            return pl.from_pandas(df)
+        else:
+            raise ValueError(
+                f"Unknown output_format: {fmt!r}. Use 'pandas' or 'polars'."
+            )
+
+    def _compute_summary_stats_with_hdi(
+        self,
+        data: xr.DataArray,
+        hdi_probs: list[float],
+        sample_dim: str | None = None,
+    ) -> pd.DataFrame:
+        """Convert xarray to DataFrame with summary stats and HDI.
+
+        Core transformation function that:
+        1. Computes mean and median across MCMC samples
+        2. Computes HDI bounds for each probability level
+        3. Returns structured DataFrame with absolute HDI bounds
+
+        Parameters
+        ----------
+        data : xr.DataArray
+            Must have 'chain' and 'draw' dimensions OR a single 'sample' dimension
+        hdi_probs : list of float
+            HDI probability levels (e.g., [0.80, 0.94])
+        sample_dim : str, optional
+            Name of the sample dimension. If None, assumes ['chain', 'draw'].
+            Use 'sample' for curve data from sample_*_curve() methods.
+
+        Returns
+        -------
+        pd.DataFrame
+            With columns: <dimensions>, mean, median, abs_error_{prob}_lower,
+            abs_error_{prob}_upper
+
+        Notes
+        -----
+        - Always returns Pandas internally
+        - Conversion to other formats happens at public API boundary
+        - Uses az.stats.hdi() for HDI computation when data has chain/draw dims
+        - Uses quantile-based HDI for data with sample dimension
+        """
+        # Determine sample dimensions
+        if sample_dim is None:
+            sample_dims = ["chain", "draw"]
+            use_az_hdi = True
+        else:
+            sample_dims = [sample_dim]
+            use_az_hdi = False
+
+        # Determine the index columns (all dims except sample dimensions)
+        index_cols = [d for d in data.dims if d not in sample_dims]
+
+        # Rename the DataArray to avoid conflicts with coordinates
+        # (az.hdi fails if name matches a coordinate name)
+        var_name = "_values"
+        data = data.rename(var_name)
+
+        # Compute point estimates
+        mean_ = data.mean(dim=sample_dims)
+        median_ = data.median(dim=sample_dims)
+
+        # Compute HDI for each probability level
+        hdi_results = {}
+        for hdi_prob in hdi_probs:
+            prob_str = str(int(hdi_prob * 100))
+
+            if use_az_hdi:
+                # Use az.hdi when we have chain/draw dimensions
+                hdi_dataset = az.hdi(data, hdi_prob=hdi_prob)
+                hdi_da = hdi_dataset[var_name]
+                # Drop the 'hdi' coordinate after selection to avoid conflicts
+                hdi_lower = hdi_da.sel(hdi="lower").drop_vars("hdi", errors="ignore")
+                hdi_upper = hdi_da.sel(hdi="higher").drop_vars("hdi", errors="ignore")
+            else:
+                # Use quantile-based HDI for single sample dimension
+                # Symmetric HDI: take (1-prob)/2 and 1-(1-prob)/2 quantiles
+                alpha = 1 - hdi_prob
+                lower_q = alpha / 2
+                upper_q = 1 - alpha / 2
+                hdi_lower = data.quantile(lower_q, dim=sample_dims).drop_vars(
+                    "quantile", errors="ignore"
+                )
+                hdi_upper = data.quantile(upper_q, dim=sample_dims).drop_vars(
+                    "quantile", errors="ignore"
+                )
+
+            hdi_results[f"abs_error_{prob_str}_lower"] = hdi_lower
+            hdi_results[f"abs_error_{prob_str}_upper"] = hdi_upper
+
+        # Build a single Dataset with all results and convert to DataFrame
+        result_dict = {"mean": mean_, "median": median_, **hdi_results}
+        result_ds = xr.Dataset(result_dict)
+
+        # Convert to DataFrame - this preserves coordinate values
+        df = result_ds.to_dataframe().reset_index()
+
+        # Ensure coordinate columns have correct order
+        other_cols = [c for c in df.columns if c not in index_cols]
+        df = df[index_cols + other_cols]
+
+        return df
+
+    def _prepare_data_and_hdi(
+        self,
+        hdi_probs: list[float] | None = None,
+        frequency: Frequency | None = None,
+        output_format: OutputFormat | None = None,
+    ) -> tuple[MMMIDataWrapper, list[float], OutputFormat]:
+        """Prepare data, resolve defaults, and validate.
+
+        This is the main "resolve defaults" method that should be called
+        at the start of each public summary method. It:
+        1. Resolves hdi_probs default from self._hdi_probs
+        2. Resolves output_format default from self._output_format
+        3. Validates hdi_probs
+        4. Aggregates data by frequency if specified
+
+        Parameters
+        ----------
+        hdi_probs : list of float or None
+            HDI probability levels (None uses factory default)
+        frequency : Frequency or None
+            Time aggregation period (None or "original" means no aggregation)
+        output_format : OutputFormat or None
+            Output format (None uses factory default)
+
+        Returns
+        -------
+        tuple[MMMIDataWrapper, list[float], OutputFormat]
+            (prepared_data, effective_hdi_probs, effective_output_format)
+        """
+        effective_hdi_probs = hdi_probs if hdi_probs is not None else self._hdi_probs
+        effective_output_format = (
+            output_format if output_format is not None else self._output_format
+        )
+
+        self._validate_hdi_probs(effective_hdi_probs)
+
+        data = self._data
+        if frequency is not None and frequency != "original":
+            data = data.aggregate_time(frequency)
+
+        return data, effective_hdi_probs, effective_output_format
 
     @property
     def data(self) -> MMMIDataWrapper:
@@ -1058,15 +1204,9 @@ class MMMSummaryFactory:
         Expects validated data. Call `data.validate_or_raise()` if you've
         modified the underlying idata before calling this method.
         """
-        # Resolve defaults from factory
-        effective_hdi_probs = hdi_probs if hdi_probs is not None else self.hdi_probs
-        effective_output_format = (
-            output_format if output_format is not None else self.output_format
-        )
-
-        # Prepare data with aggregation and validate HDI probs
-        data, effective_hdi_probs = _prepare_data_and_hdi(
-            self.data, effective_hdi_probs, frequency
+        # Resolve all defaults in one call
+        data, hdi_probs, output_format = self._prepare_data_and_hdi(
+            hdi_probs, frequency, output_format
         )
 
         # Get contributions via Component 1 (handles scaling)
@@ -1085,9 +1225,9 @@ class MMMSummaryFactory:
             component_data = contributions[component]
 
         # Compute summary stats with HDI
-        df = _compute_summary_stats_with_hdi(component_data, effective_hdi_probs)
+        df = self._compute_summary_stats_with_hdi(component_data, hdi_probs)
 
-        return _convert_output(df, effective_output_format)
+        return self._convert_output(df, output_format)
 
     def roas(
         self,
@@ -1131,14 +1271,28 @@ class MMMSummaryFactory:
         --------
         create_roas_summary : Standalone function
         """
-        return create_roas_summary(
-            self.data,
-            hdi_probs=hdi_probs if hdi_probs is not None else self.hdi_probs,
-            frequency=frequency,
-            output_format=output_format
-            if output_format is not None
-            else self.output_format,
+        # Resolve all defaults in one call
+        data, hdi_probs, output_format = self._prepare_data_and_hdi(
+            hdi_probs, frequency, output_format
         )
+
+        # Get channel contributions and spend
+        contributions = data.get_channel_contributions(original_scale=True)
+        spend = data.get_channel_spend()
+
+        # Compute ROAS = contribution / spend
+        # Need to broadcast spend to match contributions dimensions
+        # spend has dims (date, channel), contributions has (chain, draw, date, channel)
+        # xarray handles broadcasting automatically
+
+        # Handle zero spend - use xr.where to avoid division by zero
+        spend_with_epsilon = xr.where(spend == 0, np.nan, spend)
+        roas = contributions / spend_with_epsilon
+
+        # Compute summary stats with HDI
+        df = self._compute_summary_stats_with_hdi(roas, hdi_probs)
+
+        return self._convert_output(df, output_format)
 
     def channel_spend(
         self,
