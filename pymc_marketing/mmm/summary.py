@@ -24,17 +24,18 @@ Key Features:
 Examples
 --------
 >>> from pymc_marketing.mmm import MMM
->>> from pymc_marketing.mmm.summary import create_contribution_summary
+>>> from pymc_marketing.mmm.summary import MMMSummaryFactory
 >>>
 >>> # Fit model
 >>> mmm = MMM(...)
 >>> mmm.fit(X, y)
 >>>
->>> # Get summary as Pandas (default)
->>> df = create_contribution_summary(mmm.data)
+>>> # Get summary as Pandas (default) - via model property
+>>> df = mmm.summary.contributions()
 >>>
->>> # Get summary as Polars
->>> df = create_contribution_summary(mmm.data, output_format="polars")
+>>> # Get summary as Polars - via factory directly
+>>> factory = MMMSummaryFactory(mmm.data)
+>>> df = factory.configure(output_format="polars").contributions()
 """
 
 from __future__ import annotations
@@ -85,7 +86,7 @@ def validate_mmm_data(func: Callable[P, R]) -> Callable[P, R]:
     Examples
     --------
     >>> @validate_mmm_data
-    ... def create_contribution_summary(data: MMMIDataWrapper, ...):
+    ... def create_summary(data: MMMIDataWrapper, ...):
     ...     # data is validated before this runs
     ...     contributions = data.get_contributions()
     ...     ...
@@ -352,70 +353,6 @@ def create_posterior_predictive_summary(
     observed_df = observed.to_dataframe(name="observed").reset_index()
     merge_keys = ["date", *data.custom_dims]
     df = df.merge(observed_df, on=merge_keys, how="left")
-
-    return _convert_output(df, output_format)
-
-
-@validate_mmm_data
-def create_contribution_summary(
-    data: MMMIDataWrapper,
-    hdi_probs: list[float] | None = None,
-    component: Literal["channel", "control", "seasonality", "baseline"] = "channel",
-    frequency: Frequency | None = None,
-    output_format: OutputFormat = "pandas",
-) -> DataFrameType:
-    """Create contribution summary DataFrame.
-
-    Computes mean, median, and HDI bounds for contribution samples.
-
-    Parameters
-    ----------
-    data : MMMIDataWrapper
-        Data wrapper from Component 1
-    hdi_probs : list of float, optional
-        HDI probability levels (default: [0.94])
-    component : {"channel", "control", "seasonality", "baseline"}, default "channel"
-        Which contribution component to summarize
-    frequency : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}, optional
-        Time aggregation period (default: None, no aggregation)
-    output_format : {"pandas", "polars"}, default "pandas"
-        Output DataFrame format
-
-    Returns
-    -------
-    pd.DataFrame or pl.DataFrame
-        Summary DataFrame with columns:
-        - date: Time index
-        - channel/control: Component identifier
-        - mean: Mean contribution
-        - median: Median contribution
-        - abs_error_{prob}_lower: HDI lower bound for each prob
-        - abs_error_{prob}_upper: HDI upper bound for each prob
-
-    Notes
-    -----
-    Expects validated data. Call `data.validate_or_raise()` if you've
-    modified the underlying idata before calling this function.
-    """
-    data, hdi_probs = _prepare_data_and_hdi(data, hdi_probs, frequency)
-
-    # Get contributions via Component 1 (handles scaling)
-    if component == "channel":
-        component_data = data.get_channel_contributions(original_scale=True)
-    else:
-        contributions = data.get_contributions(
-            original_scale=True,
-            include_baseline=(component == "baseline"),
-            include_controls=(component == "control"),
-            include_seasonality=(component == "seasonality"),
-        )
-
-        if component not in contributions:
-            raise ValueError(f"No {component} contributions found in model")
-        component_data = contributions[component]
-
-    # Compute summary stats with HDI
-    df = _compute_summary_stats_with_hdi(component_data, hdi_probs)
 
     return _convert_output(df, output_format)
 
@@ -936,10 +873,17 @@ class MMMSummaryFactory:
         hdi_probs: list[float] | None = None,
         output_format: OutputFormat = "pandas",
     ):
+        # Validate data structure at initialization (early fail)
+        if hasattr(data, "validate_or_raise") and data.schema is not None:
+            data.validate_or_raise()
+
         self._data = data
         self._model = model
         self._hdi_probs = hdi_probs if hdi_probs is not None else [0.94]
         self._output_format = output_format
+
+        # Validate HDI probs at init time (uses module-level function)
+        _validate_hdi_probs(self._hdi_probs)
 
     @property
     def data(self) -> MMMIDataWrapper:
@@ -1109,19 +1053,41 @@ class MMMSummaryFactory:
         >>> df = mmm.summary.contributions(component="control")
         >>> df = mmm.summary.contributions(frequency="monthly", hdi_probs=[0.80, 0.94])
 
-        See Also
-        --------
-        create_contribution_summary : Standalone function
+        Notes
+        -----
+        Expects validated data. Call `data.validate_or_raise()` if you've
+        modified the underlying idata before calling this method.
         """
-        return create_contribution_summary(
-            self.data,
-            hdi_probs=hdi_probs if hdi_probs is not None else self.hdi_probs,
-            component=component,
-            frequency=frequency,
-            output_format=output_format
-            if output_format is not None
-            else self.output_format,
+        # Resolve defaults from factory
+        effective_hdi_probs = hdi_probs if hdi_probs is not None else self.hdi_probs
+        effective_output_format = (
+            output_format if output_format is not None else self.output_format
         )
+
+        # Prepare data with aggregation and validate HDI probs
+        data, effective_hdi_probs = _prepare_data_and_hdi(
+            self.data, effective_hdi_probs, frequency
+        )
+
+        # Get contributions via Component 1 (handles scaling)
+        if component == "channel":
+            component_data = data.get_channel_contributions(original_scale=True)
+        else:
+            contributions = data.get_contributions(
+                original_scale=True,
+                include_baseline=(component == "baseline"),
+                include_controls=(component == "control"),
+                include_seasonality=(component == "seasonality"),
+            )
+
+            if component not in contributions:
+                raise ValueError(f"No {component} contributions found in model")
+            component_data = contributions[component]
+
+        # Compute summary stats with HDI
+        df = _compute_summary_stats_with_hdi(component_data, effective_hdi_probs)
+
+        return _convert_output(df, effective_output_format)
 
     def roas(
         self,

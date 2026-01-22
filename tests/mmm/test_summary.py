@@ -21,14 +21,29 @@ The tests follow a TDD approach - tests define the expected API and behavior.
 """
 
 import importlib.util
+from unittest.mock import Mock, patch
 
 import arviz as az
 import numpy as np
 import pandas as pd
+import polars as pl
 import pytest
 import xarray as xr
 
-from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
+from pymc_marketing.data.idata import MMMIdataSchema, MMMIDataWrapper
+from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation, summary
+from pymc_marketing.mmm.multidimensional import MMM
+from pymc_marketing.mmm.summary import (
+    MMMSummaryFactory,
+    _convert_output,
+    create_adstock_curves,
+    create_change_over_time_summary,
+    create_channel_spend_dataframe,
+    create_posterior_predictive_summary,
+    create_roas_summary,
+    create_saturation_curves,
+    create_total_contribution_summary,
+)
 
 # Seed for reproducibility
 SEED = sum(map(ord, "summary_tests"))
@@ -254,29 +269,18 @@ class TestFactoryFunctionExistence:
 
     def test_factory_functions_importable(self):
         """Test that all factory functions are importable from summary module."""
-        from pymc_marketing.mmm.summary import (
-            create_adstock_curves,
-            create_channel_spend_dataframe,
-            create_contribution_summary,
-            create_posterior_predictive_summary,
-            create_roas_summary,
-            create_saturation_curves,
-            create_total_contribution_summary,
-        )
-
         # Assert all are callable
         assert callable(create_posterior_predictive_summary)
-        assert callable(create_contribution_summary)
         assert callable(create_roas_summary)
         assert callable(create_channel_spend_dataframe)
         assert callable(create_saturation_curves)
         assert callable(create_adstock_curves)
         assert callable(create_total_contribution_summary)
+        # MMMSummaryFactory.contributions() replaces create_contribution_summary
+        assert hasattr(MMMSummaryFactory, "contributions")
 
     def test_factory_class_importable(self):
         """Test that MMMSummaryFactory class is importable."""
-        from pymc_marketing.mmm.summary import MMMSummaryFactory
-
         assert MMMSummaryFactory is not None
         # Should be a class
         assert isinstance(MMMSummaryFactory, type)
@@ -287,8 +291,6 @@ class TestDataFrameSchemas:
 
     def test_posterior_predictive_summary_schema(self, mock_mmm_idata_wrapper):
         """Test posterior predictive summary returns DataFrame with correct schema."""
-        from pymc_marketing.mmm.summary import create_posterior_predictive_summary
-
         # Act
         df = create_posterior_predictive_summary(
             data=mock_mmm_idata_wrapper,
@@ -318,8 +320,6 @@ class TestDataFrameSchemas:
 
     def test_posterior_predictive_summary_panel_model(self, mock_panel_idata_wrapper):
         """Test posterior predictive summary correctly merges observed values for panel models."""
-        from pymc_marketing.mmm.summary import create_posterior_predictive_summary
-
         # Act
         df = create_posterior_predictive_summary(
             data=mock_panel_idata_wrapper,
@@ -363,11 +363,8 @@ class TestDataFrameSchemas:
 
     def test_contribution_summary_schema(self, mock_mmm_idata_wrapper):
         """Test contribution summary returns DataFrame with correct schema."""
-        from pymc_marketing.mmm.summary import create_contribution_summary
-
         # Act
-        df = create_contribution_summary(
-            data=mock_mmm_idata_wrapper,
+        df = MMMSummaryFactory(mock_mmm_idata_wrapper).contributions(
             hdi_probs=[0.80, 0.94],
             component="channel",
         )
@@ -389,8 +386,6 @@ class TestDataFrameSchemas:
 
     def test_roas_summary_schema(self, mock_mmm_idata_wrapper):
         """Test ROAS summary returns DataFrame with correct schema."""
-        from pymc_marketing.mmm.summary import create_roas_summary
-
         # Act
         df = create_roas_summary(
             data=mock_mmm_idata_wrapper,
@@ -409,8 +404,6 @@ class TestDataFrameSchemas:
 
     def test_channel_spend_dataframe_schema(self, mock_mmm_idata_wrapper):
         """Test channel spend DataFrame has correct schema (no HDI columns)."""
-        from pymc_marketing.mmm.summary import create_channel_spend_dataframe
-
         # Act
         df = create_channel_spend_dataframe(data=mock_mmm_idata_wrapper)
 
@@ -432,10 +425,8 @@ class TestOutputFormats:
 
     def test_default_output_is_pandas(self, mock_mmm_idata_wrapper):
         """Test that default output format is pandas DataFrame."""
-        from pymc_marketing.mmm.summary import create_contribution_summary
-
         # Act - no output_format specified
-        df = create_contribution_summary(data=mock_mmm_idata_wrapper)
+        df = MMMSummaryFactory(mock_mmm_idata_wrapper).contributions()
 
         # Assert
         assert isinstance(df, pd.DataFrame), (
@@ -444,11 +435,8 @@ class TestOutputFormats:
 
     def test_pandas_output_format_explicit(self, mock_mmm_idata_wrapper):
         """Test that output_format='pandas' returns pandas DataFrame."""
-        from pymc_marketing.mmm.summary import create_contribution_summary
-
         # Act
-        df = create_contribution_summary(
-            data=mock_mmm_idata_wrapper,
+        df = MMMSummaryFactory(mock_mmm_idata_wrapper).contributions(
             output_format="pandas",
         )
 
@@ -463,13 +451,8 @@ class TestOutputFormats:
     )
     def test_polars_output_format_when_installed(self, mock_mmm_idata_wrapper):
         """Test that output_format='polars' returns polars DataFrame when installed."""
-        import polars as pl
-
-        from pymc_marketing.mmm.summary import create_contribution_summary
-
         # Act
-        df = create_contribution_summary(
-            data=mock_mmm_idata_wrapper,
+        df = MMMSummaryFactory(mock_mmm_idata_wrapper).contributions(
             output_format="polars",
         )
 
@@ -479,8 +462,7 @@ class TestOutputFormats:
         )
 
         # Verify it has the same columns as pandas version
-        df_pandas = create_contribution_summary(
-            data=mock_mmm_idata_wrapper,
+        df_pandas = MMMSummaryFactory(mock_mmm_idata_wrapper).contributions(
             output_format="pandas",
         )
         assert set(df.columns) == set(df_pandas.columns), (
@@ -493,23 +475,17 @@ class TestOutputFormats:
     )
     def test_polars_output_raises_when_not_installed(self, mock_mmm_idata_wrapper):
         """Test that requesting Polars without it installed raises helpful error."""
-        from pymc_marketing.mmm.summary import create_contribution_summary
-
         # Act & Assert
         with pytest.raises(ImportError, match=r"Polars is required.*polars"):
-            create_contribution_summary(
-                data=mock_mmm_idata_wrapper,
+            MMMSummaryFactory(mock_mmm_idata_wrapper).contributions(
                 output_format="polars",
             )
 
     def test_invalid_output_format_raises(self, mock_mmm_idata_wrapper):
         """Test that invalid output_format raises ValueError."""
-        from pymc_marketing.mmm.summary import create_contribution_summary
-
         # Act & Assert
         with pytest.raises(ValueError, match=r"Unknown output_format.*spark"):
-            create_contribution_summary(
-                data=mock_mmm_idata_wrapper,
+            MMMSummaryFactory(mock_mmm_idata_wrapper).contributions(
                 output_format="spark",  # Invalid
             )
 
@@ -517,7 +493,6 @@ class TestOutputFormats:
         "factory_function_name",
         [
             "create_posterior_predictive_summary",
-            "create_contribution_summary",
             "create_roas_summary",
             "create_channel_spend_dataframe",
             "create_total_contribution_summary",
@@ -530,9 +505,8 @@ class TestOutputFormats:
 
         Note: create_saturation_curves and create_adstock_curves are excluded
         as they require a fitted model, not just a data wrapper.
+        Note: create_contribution_summary was removed - use MMMSummaryFactory.contributions() instead.
         """
-        from pymc_marketing.mmm import summary
-
         factory_func = getattr(summary, factory_function_name)
 
         # Act - should not raise TypeError for unexpected keyword argument
@@ -547,6 +521,15 @@ class TestOutputFormats:
                 )
             raise
 
+    def test_factory_contributions_supports_output_format(self, mock_mmm_idata_wrapper):
+        """Test that MMMSummaryFactory.contributions() accepts output_format parameter."""
+        # Act - should not raise TypeError for unexpected keyword argument
+        df = MMMSummaryFactory(mock_mmm_idata_wrapper).contributions(
+            output_format="pandas"
+        )
+        # Assert it returned something
+        assert df is not None, "contributions() returned None"
+
     @pytest.mark.parametrize(
         "factory_function_name",
         [
@@ -559,8 +542,6 @@ class TestOutputFormats:
         self, factory_function_name, fitted_mmm, request
     ):
         """Test that model-requiring factory functions accept output_format parameter."""
-        from pymc_marketing.mmm import summary
-
         mmm = request.getfixturevalue(fitted_mmm)
         factory_func = getattr(summary, factory_function_name)
 
@@ -582,8 +563,6 @@ class TestConvertOutput:
 
     def test_convert_output_pandas_returns_same_dataframe(self):
         """Test that _convert_output returns the same DataFrame for pandas format."""
-        from pymc_marketing.mmm.summary import _convert_output
-
         # Arrange
         df = pd.DataFrame({"a": [1, 2, 3], "b": [4.0, 5.0, 6.0]})
 
@@ -600,10 +579,6 @@ class TestConvertOutput:
     )
     def test_convert_output_polars_returns_polars_dataframe(self):
         """Test that _convert_output returns a polars DataFrame for polars format."""
-        import polars as pl
-
-        from pymc_marketing.mmm.summary import _convert_output
-
         # Arrange
         df = pd.DataFrame({"a": [1, 2, 3], "b": [4.0, 5.0, 6.0]})
 
@@ -624,10 +599,6 @@ class TestConvertOutput:
     )
     def test_convert_output_polars_preserves_dtypes(self):
         """Test that _convert_output preserves column dtypes when converting to polars."""
-        import polars as pl
-
-        from pymc_marketing.mmm.summary import _convert_output
-
         # Arrange - create DataFrame with various types
         df = pd.DataFrame(
             {
@@ -650,8 +621,6 @@ class TestConvertOutput:
 
     def test_convert_output_invalid_format_raises_value_error(self):
         """Test that _convert_output raises ValueError for invalid format."""
-        from pymc_marketing.mmm.summary import _convert_output
-
         # Arrange
         df = pd.DataFrame({"a": [1, 2, 3]})
 
@@ -661,8 +630,6 @@ class TestConvertOutput:
 
     def test_convert_output_invalid_format_error_message_helpful(self):
         """Test that error message suggests valid options."""
-        from pymc_marketing.mmm.summary import _convert_output
-
         # Arrange
         df = pd.DataFrame({"a": [1, 2, 3]})
 
@@ -676,10 +643,6 @@ class TestConvertOutput:
     )
     def test_convert_output_empty_dataframe_polars(self):
         """Test that _convert_output handles empty DataFrames correctly."""
-        import polars as pl
-
-        from pymc_marketing.mmm.summary import _convert_output
-
         # Arrange
         df = pd.DataFrame({"a": [], "b": []})
 
@@ -693,8 +656,6 @@ class TestConvertOutput:
 
     def test_convert_output_empty_dataframe_pandas(self):
         """Test that _convert_output handles empty DataFrames correctly for pandas."""
-        from pymc_marketing.mmm.summary import _convert_output
-
         # Arrange
         df = pd.DataFrame({"a": [], "b": []})
 
@@ -711,11 +672,8 @@ class TestHDIComputation:
 
     def test_hdi_bounds_contain_median(self, mock_mmm_idata_wrapper):
         """Test that HDI bounds contain the median value."""
-        from pymc_marketing.mmm.summary import create_contribution_summary
-
         # Act
-        df = create_contribution_summary(
-            data=mock_mmm_idata_wrapper,
+        df = MMMSummaryFactory(mock_mmm_idata_wrapper).contributions(
             hdi_probs=[0.94],
         )
 
@@ -729,11 +687,8 @@ class TestHDIComputation:
 
     def test_wider_hdi_contains_narrower_hdi(self, mock_mmm_idata_wrapper):
         """Test that wider HDI intervals contain narrower intervals on average."""
-        from pymc_marketing.mmm.summary import create_contribution_summary
-
         # Act - request two HDI levels
-        df = create_contribution_summary(
-            data=mock_mmm_idata_wrapper,
+        df = MMMSummaryFactory(mock_mmm_idata_wrapper).contributions(
             hdi_probs=[0.80, 0.94],  # 94% is wider than 80%
         )
 
@@ -750,11 +705,8 @@ class TestHDIComputation:
 
     def test_multiple_hdi_probs_in_same_dataframe(self, mock_mmm_idata_wrapper):
         """Test that multiple HDI probabilities create all expected columns."""
-        from pymc_marketing.mmm.summary import create_contribution_summary
-
         # Act
-        df = create_contribution_summary(
-            data=mock_mmm_idata_wrapper,
+        df = MMMSummaryFactory(mock_mmm_idata_wrapper).contributions(
             hdi_probs=[0.80, 0.90, 0.94],
         )
 
@@ -777,15 +729,13 @@ class TestDataTransformation:
 
     def test_mcmc_dimensions_collapsed(self, mock_mmm_idata_wrapper):
         """Test that chain and draw dimensions are collapsed in output."""
-        from pymc_marketing.mmm.summary import create_contribution_summary
-
         # Arrange - verify input has chain/draw dimensions
         contributions = mock_mmm_idata_wrapper.get_channel_contributions()
         assert "chain" in contributions.dims, "Test data should have chain dimension"
         assert "draw" in contributions.dims, "Test data should have draw dimension"
 
         # Act
-        df = create_contribution_summary(data=mock_mmm_idata_wrapper)
+        df = MMMSummaryFactory(mock_mmm_idata_wrapper).contributions()
 
         # Assert - output should NOT have chain/draw columns
         assert "chain" not in df.columns, (
@@ -797,10 +747,8 @@ class TestDataTransformation:
 
     def test_data_dimensions_preserved(self, mock_mmm_idata_wrapper):
         """Test that data dimensions (date, channel) are preserved as columns."""
-        from pymc_marketing.mmm.summary import create_contribution_summary
-
         # Act
-        df = create_contribution_summary(data=mock_mmm_idata_wrapper)
+        df = MMMSummaryFactory(mock_mmm_idata_wrapper).contributions()
 
         # Assert - data dimensions should be columns
         assert "date" in df.columns, "date dimension should become DataFrame column"
@@ -819,10 +767,8 @@ class TestDataTransformation:
 
     def test_coordinates_become_values(self, mock_mmm_idata_wrapper, simple_channels):
         """Test that xarray coordinates become DataFrame column values."""
-        from pymc_marketing.mmm.summary import create_contribution_summary
-
         # Act
-        df = create_contribution_summary(data=mock_mmm_idata_wrapper)
+        df = MMMSummaryFactory(mock_mmm_idata_wrapper).contributions()
 
         # Assert - DataFrame should contain the expected number of unique channels
         # (the fixture has 3 channels: TV, Radio, Social)
@@ -833,8 +779,6 @@ class TestDataTransformation:
 
     def test_mean_and_median_computed_correctly(self, mock_mmm_idata_wrapper):
         """Test that mean and median are computed correctly from MCMC samples."""
-        from pymc_marketing.mmm.summary import create_contribution_summary
-
         # Arrange - get raw xarray data
         contributions = mock_mmm_idata_wrapper.get_channel_contributions()
 
@@ -847,7 +791,7 @@ class TestDataTransformation:
         expected_median = np.median(samples)
 
         # Act
-        df = create_contribution_summary(data=mock_mmm_idata_wrapper)
+        df = MMMSummaryFactory(mock_mmm_idata_wrapper).contributions()
 
         # Get actual values from DataFrame - filter by date and first channel
         # Use the first row for the first date (dates are sorted)
@@ -871,15 +815,13 @@ class TestComponent1Integration:
 
     def test_filtered_dates_produce_filtered_dataframe(self, mock_mmm_idata_wrapper):
         """Test that Component 1 date filtering is preserved in output."""
-        from pymc_marketing.mmm.summary import create_contribution_summary
-
         # Arrange - filter to specific date range
         start_date = "2024-02-01"
         end_date = "2024-03-31"
         filtered_data = mock_mmm_idata_wrapper.filter_dates(start_date, end_date)
 
         # Act
-        df = create_contribution_summary(data=filtered_data)
+        df = MMMSummaryFactory(filtered_data).contributions()
 
         # Assert - DataFrame should only contain filtered dates
         assert df["date"].min() >= pd.Timestamp(start_date), (
@@ -891,18 +833,16 @@ class TestComponent1Integration:
 
     def test_filtered_channels_produce_filtered_dataframe(self, mock_mmm_idata_wrapper):
         """Test that Component 1 channel filtering is preserved in output."""
-        from pymc_marketing.mmm.summary import create_contribution_summary
-
         # Arrange - filter to specific channels (first 2 channels)
         all_channels = mock_mmm_idata_wrapper.channels
         selected_channels = all_channels[:2]
         filtered_data = mock_mmm_idata_wrapper.filter_dims(channel=selected_channels)
 
         # Act
-        df = create_contribution_summary(data=filtered_data)
+        df = MMMSummaryFactory(filtered_data).contributions()
 
         # Assert - DataFrame should have fewer unique channels than original
-        original_df = create_contribution_summary(data=mock_mmm_idata_wrapper)
+        original_df = MMMSummaryFactory(mock_mmm_idata_wrapper).contributions()
         assert len(df["channel"].unique()) == len(selected_channels), (
             f"Expected {len(selected_channels)} unique channels, "
             f"got {len(df['channel'].unique())}"
@@ -915,31 +855,25 @@ class TestComponent1Integration:
         self, mock_mmm_idata_wrapper
     ):
         """Test that Component 1 time aggregation is preserved in output."""
-        from pymc_marketing.mmm.summary import create_contribution_summary
-
         # Arrange - aggregate to monthly
         aggregated_data = mock_mmm_idata_wrapper.aggregate_time("monthly")
 
         # Act
-        df = create_contribution_summary(data=aggregated_data)
+        df = MMMSummaryFactory(aggregated_data).contributions()
 
         # Assert - fewer dates than original (due to aggregation)
-        original_df = create_contribution_summary(data=mock_mmm_idata_wrapper)
+        original_df = MMMSummaryFactory(mock_mmm_idata_wrapper).contributions()
         assert df["date"].nunique() < original_df["date"].nunique(), (
             "Aggregated DataFrame should have fewer unique dates"
         )
 
     def test_frequency_parameter_delegates_to_component1(self, mock_mmm_idata_wrapper):
         """Test that frequency parameter triggers time aggregation via Component 1."""
-        from pymc_marketing.mmm.summary import create_contribution_summary
-
         # Act - use frequency parameter (Component 2 API)
-        df_monthly = create_contribution_summary(
-            data=mock_mmm_idata_wrapper,
+        df_monthly = MMMSummaryFactory(mock_mmm_idata_wrapper).contributions(
             frequency="monthly",
         )
-        df_original = create_contribution_summary(
-            data=mock_mmm_idata_wrapper,
+        df_original = MMMSummaryFactory(mock_mmm_idata_wrapper).contributions(
             frequency="original",  # No aggregation
         )
 
@@ -954,8 +888,6 @@ class TestMMMSummaryFactory:
 
     def test_factory_class_initialization(self, mock_mmm_idata_wrapper):
         """Test that MMMSummaryFactory can be instantiated."""
-        from pymc_marketing.mmm.summary import MMMSummaryFactory
-
         # Act
         factory = MMMSummaryFactory(data=mock_mmm_idata_wrapper)
 
@@ -967,10 +899,83 @@ class TestMMMSummaryFactory:
             "Default output_format should be 'pandas'"
         )
 
+    def test_factory_validates_data_at_init(self, mock_mmm_idata_wrapper):
+        """Test that MMMSummaryFactory validates data structure at initialization."""
+        # Create a mock wrapper that tracks validate_or_raise calls
+        mock_wrapper = Mock(spec=MMMIDataWrapper)
+        mock_wrapper.schema = (
+            Mock()
+        )  # Schema is not None, so validation should be called
+        mock_wrapper.validate_or_raise = Mock()
+
+        # Act - instantiate factory
+        MMMSummaryFactory(data=mock_wrapper)
+
+        # Assert - validate_or_raise was called during init
+        mock_wrapper.validate_or_raise.assert_called_once()
+
+    def test_factory_skips_validation_when_no_schema(self, mock_mmm_idata_wrapper):
+        """Test that MMMSummaryFactory skips validation when schema is None."""
+        # Create a mock wrapper with schema=None
+        mock_wrapper = Mock(spec=MMMIDataWrapper)
+        mock_wrapper.schema = None  # No schema, so validation should be skipped
+        mock_wrapper.validate_or_raise = Mock()
+
+        # Act - instantiate factory
+        MMMSummaryFactory(data=mock_wrapper)
+
+        # Assert - validate_or_raise was NOT called (no schema to validate against)
+        mock_wrapper.validate_or_raise.assert_not_called()
+
+    def test_factory_validates_hdi_probs_at_init(self, mock_mmm_idata_wrapper):
+        """Test that MMMSummaryFactory validates HDI probs at initialization."""
+        # Act & Assert - invalid HDI probs should raise at init time
+        with pytest.raises(ValueError, match=r"[Hh][Dd][Ii]|probability"):
+            MMMSummaryFactory(data=mock_mmm_idata_wrapper, hdi_probs=[1.5])
+
+        with pytest.raises(ValueError, match=r"[Hh][Dd][Ii]|probability"):
+            MMMSummaryFactory(data=mock_mmm_idata_wrapper, hdi_probs=[0.0])
+
+        with pytest.raises(ValueError, match=r"[Hh][Dd][Ii]|probability"):
+            MMMSummaryFactory(data=mock_mmm_idata_wrapper, hdi_probs=[-0.5])
+
+        with pytest.raises(ValueError, match=r"[Hh][Dd][Ii]|probability"):
+            MMMSummaryFactory(
+                data=mock_mmm_idata_wrapper, hdi_probs=[94]
+            )  # Percentage format
+
+    def test_factory_accepts_valid_hdi_probs_at_init(self, mock_mmm_idata_wrapper):
+        """Test that MMMSummaryFactory accepts valid HDI probs at initialization."""
+        # Act - valid HDI probs should not raise
+        factory = MMMSummaryFactory(
+            data=mock_mmm_idata_wrapper, hdi_probs=[0.50, 0.80, 0.94, 0.99]
+        )
+
+        # Assert
+        assert factory.hdi_probs == [0.50, 0.80, 0.94, 0.99]
+
+    def test_factory_raises_with_invalid_data_structure(self):
+        """Test that MMMSummaryFactory raises early with invalid data structure."""
+        # Create wrapper with invalid idata (missing required variables)
+        invalid_idata = az.InferenceData(
+            posterior=xr.Dataset()  # Empty - missing channel_contribution
+        )
+
+        schema = MMMIdataSchema.from_model_config(
+            custom_dims=(),
+            has_controls=False,
+            has_seasonality=False,
+            time_varying=False,
+        )
+
+        wrapper = MMMIDataWrapper(invalid_idata, schema=schema, validate_on_init=False)
+
+        # Act & Assert - should raise at factory init, not at method call
+        with pytest.raises(ValueError, match="idata validation failed"):
+            MMMSummaryFactory(data=wrapper)
+
     def test_factory_class_custom_defaults(self, mock_mmm_idata_wrapper):
         """Test that MMMSummaryFactory stores custom defaults."""
-        from pymc_marketing.mmm.summary import MMMSummaryFactory
-
         # Act
         factory = MMMSummaryFactory(
             data=mock_mmm_idata_wrapper,
@@ -984,8 +989,6 @@ class TestMMMSummaryFactory:
 
     def test_factory_methods_exist(self, mock_mmm_idata_wrapper):
         """Test that MMMSummaryFactory has all expected methods."""
-        from pymc_marketing.mmm.summary import MMMSummaryFactory
-
         factory = MMMSummaryFactory(data=mock_mmm_idata_wrapper)
 
         # Assert all methods exist and are callable
@@ -1012,8 +1015,6 @@ class TestMMMSummaryFactory:
 
     def test_factory_methods_use_stored_defaults(self, mock_mmm_idata_wrapper):
         """Test that factory methods use stored defaults."""
-        from pymc_marketing.mmm.summary import MMMSummaryFactory
-
         # Arrange - create factory with custom defaults
         factory = MMMSummaryFactory(
             data=mock_mmm_idata_wrapper,
@@ -1037,8 +1038,6 @@ class TestMMMSummaryFactory:
 
     def test_factory_methods_allow_overrides(self, mock_mmm_idata_wrapper):
         """Test that factory methods allow overriding defaults per call."""
-        from pymc_marketing.mmm.summary import MMMSummaryFactory
-
         # Arrange - create factory with defaults
         factory = MMMSummaryFactory(
             data=mock_mmm_idata_wrapper,
@@ -1063,42 +1062,31 @@ class TestMMMSummaryFactory:
             "Should not use factory default hdi_probs=[0.80]"
         )
 
-    def test_factory_delegates_to_factory_functions(
-        self, mock_mmm_idata_wrapper, monkeypatch
-    ):
-        """Test that factory methods delegate to factory functions."""
-        from pymc_marketing.mmm import summary
-        from pymc_marketing.mmm.summary import MMMSummaryFactory
-
-        # Arrange - mock the factory function
-        mock_called = {"called": False, "data": None, "kwargs": None}
-
-        def mock_create_contribution_summary(data, **kwargs):
-            mock_called["called"] = True
-            mock_called["data"] = data
-            mock_called["kwargs"] = kwargs
-            return pd.DataFrame({"channel": ["TV"], "mean": [100.0]})
-
-        monkeypatch.setattr(
-            summary, "create_contribution_summary", mock_create_contribution_summary
+    def test_factory_contributions_uses_factory_defaults(self, mock_mmm_idata_wrapper):
+        """Test that factory contributions method uses factory default settings."""
+        # Arrange - create factory with custom defaults
+        factory = MMMSummaryFactory(
+            data=mock_mmm_idata_wrapper,
+            hdi_probs=[0.80, 0.94],
+            output_format="pandas",
         )
 
         # Act
-        factory = MMMSummaryFactory(
-            data=mock_mmm_idata_wrapper,
-            hdi_probs=[0.94],
-        )
-        factory.contributions()
+        df = factory.contributions()
 
-        # Assert - factory function was called with correct arguments
-        assert mock_called["called"], "Factory function should be called"
-        assert mock_called["data"] is mock_mmm_idata_wrapper
-        assert mock_called["kwargs"]["hdi_probs"] == [0.94]
+        # Assert - factory defaults were used
+        assert "abs_error_80_lower" in df.columns, (
+            "Factory default hdi_probs should be used"
+        )
+        assert "abs_error_94_lower" in df.columns, (
+            "Factory default hdi_probs should be used"
+        )
+        assert isinstance(df, pd.DataFrame), (
+            "Factory default output_format should be used"
+        )
 
     def test_configure_updates_hdi_probs(self, mock_mmm_idata_wrapper):
         """Test that configure() updates hdi_probs in new instance."""
-        from pymc_marketing.mmm.summary import MMMSummaryFactory
-
         # Arrange
         factory = MMMSummaryFactory(
             data=mock_mmm_idata_wrapper,
@@ -1115,8 +1103,6 @@ class TestMMMSummaryFactory:
 
     def test_configure_updates_output_format(self, mock_mmm_idata_wrapper):
         """Test that configure() updates output_format in new instance."""
-        from pymc_marketing.mmm.summary import MMMSummaryFactory
-
         # Arrange
         factory = MMMSummaryFactory(
             data=mock_mmm_idata_wrapper,
@@ -1131,8 +1117,6 @@ class TestMMMSummaryFactory:
 
     def test_configure_preserves_data_and_model(self, mock_mmm_idata_wrapper):
         """Test that configure() preserves data and model references."""
-        from pymc_marketing.mmm.summary import MMMSummaryFactory
-
         # Arrange - using a sentinel object for model
         sentinel_model = object()
         factory = MMMSummaryFactory(
@@ -1149,8 +1133,6 @@ class TestMMMSummaryFactory:
 
     def test_properties_are_read_only(self, mock_mmm_idata_wrapper):
         """Test that factory properties cannot be set directly."""
-        from pymc_marketing.mmm.summary import MMMSummaryFactory
-
         factory = MMMSummaryFactory(data=mock_mmm_idata_wrapper)
 
         # Assert - properties should not be settable
@@ -1167,8 +1149,6 @@ class TestAdditionalSummaryFunctions:
     @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
     def test_saturation_curves_schema(self, fitted_mmm, request):
         """Test saturation curves summary returns DataFrame with correct schema."""
-        from pymc_marketing.mmm.summary import create_saturation_curves
-
         mmm = request.getfixturevalue(fitted_mmm)
         # Act - saturation curves require a fitted model
         df = create_saturation_curves(
@@ -1194,8 +1174,6 @@ class TestAdditionalSummaryFunctions:
     @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
     def test_adstock_curves_schema(self, fitted_mmm, request):
         """Test adstock curves summary returns DataFrame with correct schema."""
-        from pymc_marketing.mmm.summary import create_adstock_curves
-
         mmm = request.getfixturevalue(fitted_mmm)
         # Act - adstock curves require a fitted model
         df = create_adstock_curves(
@@ -1216,8 +1194,6 @@ class TestAdditionalSummaryFunctions:
 
     def test_total_contribution_summary_schema(self, mock_mmm_idata_wrapper):
         """Test total contribution summary combines all effect types."""
-        from pymc_marketing.mmm.summary import create_total_contribution_summary
-
         # Act
         df = create_total_contribution_summary(
             data=mock_mmm_idata_wrapper,
@@ -1241,14 +1217,12 @@ class TestEdgeCases:
 
     def test_empty_date_range_raises_or_returns_empty(self, mock_mmm_idata_wrapper):
         """Test behavior when filtered data has no dates."""
-        from pymc_marketing.mmm.summary import create_contribution_summary
-
         # Arrange - filter to impossible date range
         filtered_data = mock_mmm_idata_wrapper.filter_dates("2030-01-01", "2030-01-02")
 
         # Act & Assert - should either raise or return empty DataFrame
         try:
-            df = create_contribution_summary(data=filtered_data)
+            df = MMMSummaryFactory(filtered_data).contributions()
             # If returns DataFrame, it should be empty
             assert len(df) == 0, "Empty date range should produce empty DataFrame"
         except ValueError as e:
@@ -1262,12 +1236,9 @@ class TestEdgeCases:
     )
     def test_invalid_hdi_prob_raises(self, mock_mmm_idata_wrapper, invalid_hdi_prob):
         """Test that invalid HDI probabilities raise ValueError."""
-        from pymc_marketing.mmm.summary import create_contribution_summary
-
         # Act & Assert
         with pytest.raises(ValueError, match=r"[Hh][Dd][Ii]|probability"):
-            create_contribution_summary(
-                data=mock_mmm_idata_wrapper,
+            MMMSummaryFactory(mock_mmm_idata_wrapper).contributions(
                 hdi_probs=[invalid_hdi_prob],
             )
 
@@ -1275,8 +1246,6 @@ class TestEdgeCases:
         self, mock_mmm_idata_wrapper_with_zero_spend
     ):
         """Test that ROAS computation handles zero spend without errors."""
-        from pymc_marketing.mmm.summary import create_roas_summary
-
         # Act - should not raise ZeroDivisionError
         df = create_roas_summary(data=mock_mmm_idata_wrapper_with_zero_spend)
 
@@ -1290,15 +1259,13 @@ class TestEdgeCases:
 
     def test_wrapper_without_schema_still_works(self, mock_mmm_idata_wrapper):
         """Test that summary functions work when wrapper has no schema."""
-        from pymc_marketing.mmm.summary import create_contribution_summary
-
         # Arrange - wrapper was created with schema=None
         assert mock_mmm_idata_wrapper.schema is None, (
             "Test fixture should have no schema"
         )
 
         # Act - should not raise
-        df = create_contribution_summary(data=mock_mmm_idata_wrapper)
+        df = MMMSummaryFactory(mock_mmm_idata_wrapper).contributions()
 
         # Assert - got valid DataFrame
         assert len(df) > 0, "Should return non-empty DataFrame"
@@ -1311,8 +1278,6 @@ class TestMMMSummaryFactoryMethodCoverage:
 
     def test_factory_posterior_predictive_method(self, mock_mmm_idata_wrapper):
         """Test that factory posterior_predictive method works correctly."""
-        from pymc_marketing.mmm.summary import MMMSummaryFactory
-
         factory = MMMSummaryFactory(data=mock_mmm_idata_wrapper, hdi_probs=[0.94])
 
         # Act
@@ -1327,8 +1292,6 @@ class TestMMMSummaryFactoryMethodCoverage:
 
     def test_factory_roas_method(self, mock_mmm_idata_wrapper):
         """Test that factory roas method works correctly."""
-        from pymc_marketing.mmm.summary import MMMSummaryFactory
-
         factory = MMMSummaryFactory(data=mock_mmm_idata_wrapper, hdi_probs=[0.94])
 
         # Act
@@ -1343,8 +1306,6 @@ class TestMMMSummaryFactoryMethodCoverage:
 
     def test_factory_channel_spend_method(self, mock_mmm_idata_wrapper):
         """Test that factory channel_spend method works correctly."""
-        from pymc_marketing.mmm.summary import MMMSummaryFactory
-
         factory = MMMSummaryFactory(data=mock_mmm_idata_wrapper)
 
         # Act
@@ -1359,8 +1320,6 @@ class TestMMMSummaryFactoryMethodCoverage:
     @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
     def test_factory_saturation_curves_method(self, fitted_mmm, request):
         """Test that factory saturation_curves method works correctly."""
-        from pymc_marketing.mmm.summary import MMMSummaryFactory
-
         mmm = request.getfixturevalue(fitted_mmm)
         # saturation_curves requires model
         factory = MMMSummaryFactory(data=mmm.data, model=mmm, hdi_probs=[0.94])
@@ -1376,8 +1335,6 @@ class TestMMMSummaryFactoryMethodCoverage:
     @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
     def test_factory_adstock_curves_method(self, fitted_mmm, request):
         """Test that factory adstock_curves method works correctly."""
-        from pymc_marketing.mmm.summary import MMMSummaryFactory
-
         # adstock_curves requires model
         mmm = request.getfixturevalue(fitted_mmm)
         factory = MMMSummaryFactory(data=mmm.data, model=mmm, hdi_probs=[0.94])
@@ -1392,8 +1349,6 @@ class TestMMMSummaryFactoryMethodCoverage:
 
     def test_factory_total_contribution_method(self, mock_mmm_idata_wrapper):
         """Test that factory total_contribution method works correctly."""
-        from pymc_marketing.mmm.summary import MMMSummaryFactory
-
         factory = MMMSummaryFactory(data=mock_mmm_idata_wrapper, hdi_probs=[0.94])
 
         # Act
@@ -1407,8 +1362,6 @@ class TestMMMSummaryFactoryMethodCoverage:
 
     def test_factory_methods_with_frequency_parameter(self, mock_mmm_idata_wrapper):
         """Test factory methods with frequency parameter."""
-        from pymc_marketing.mmm.summary import MMMSummaryFactory
-
         factory = MMMSummaryFactory(data=mock_mmm_idata_wrapper)
 
         # Test methods that support frequency
@@ -1428,8 +1381,6 @@ class TestMMMSummaryFactoryMethodCoverage:
         self, mock_mmm_idata_wrapper, fitted_mmm, request
     ):
         """Test that factory methods correctly override output_format."""
-        from pymc_marketing.mmm.summary import MMMSummaryFactory
-
         mmm = request.getfixturevalue(fitted_mmm)
         # Data-only factory for methods that don't need model
         data_factory = MMMSummaryFactory(
@@ -1551,11 +1502,8 @@ class TestNonChannelComponents:
         self, mock_mmm_idata_wrapper_with_controls
     ):
         """Test contribution summary for control component."""
-        from pymc_marketing.mmm.summary import create_contribution_summary
-
         # Act
-        df = create_contribution_summary(
-            data=mock_mmm_idata_wrapper_with_controls,
+        df = MMMSummaryFactory(mock_mmm_idata_wrapper_with_controls).contributions(
             component="control",
             hdi_probs=[0.94],
         )
@@ -1571,13 +1519,10 @@ class TestNonChannelComponents:
         self, mock_mmm_idata_wrapper_with_controls
     ):
         """Test contribution summary for baseline component raises when not present."""
-        from pymc_marketing.mmm.summary import create_contribution_summary
-
         # The fixture doesn't have a proper baseline contribution
         # so this should raise ValueError
         with pytest.raises(ValueError, match=r"No baseline contributions found"):
-            create_contribution_summary(
-                data=mock_mmm_idata_wrapper_with_controls,
+            MMMSummaryFactory(mock_mmm_idata_wrapper_with_controls).contributions(
                 component="baseline",
                 hdi_probs=[0.94],
             )
@@ -1586,12 +1531,9 @@ class TestNonChannelComponents:
         self, mock_mmm_idata_wrapper
     ):
         """Test that requesting missing component raises ValueError."""
-        from pymc_marketing.mmm.summary import create_contribution_summary
-
         # The mock fixture doesn't have control_contribution
         with pytest.raises(ValueError, match=r"No control contributions found"):
-            create_contribution_summary(
-                data=mock_mmm_idata_wrapper,
+            MMMSummaryFactory(mock_mmm_idata_wrapper).contributions(
                 component="control",
             )
 
@@ -1599,8 +1541,6 @@ class TestNonChannelComponents:
         self, mock_mmm_idata_wrapper
     ):
         """Test total contribution summary includes multiple component types."""
-        from pymc_marketing.mmm.summary import create_total_contribution_summary
-
         # Act - use the basic fixture which has channel contributions
         df = create_total_contribution_summary(
             data=mock_mmm_idata_wrapper,
@@ -1660,8 +1600,6 @@ class TestAdditionalPathCoverage:
         self, mock_mmm_idata_wrapper_with_total_contributions, simple_dates
     ):
         """Test total contribution summary when contributions have proper data_vars."""
-        from pymc_marketing.mmm.summary import create_total_contribution_summary
-
         # Create mock contributions Dataset with proper data_vars
         # The issue is that when key name matches dimension name, xarray puts it in coords
         # So we need to patch get_contributions to return a properly named Dataset
@@ -1704,12 +1642,9 @@ class TestAdditionalPathCoverage:
 
     def test_hdi_probs_default_none(self, mock_mmm_idata_wrapper):
         """Test that hdi_probs=None uses default [0.94]."""
-        from pymc_marketing.mmm.summary import create_contribution_summary
-
-        # Act - explicitly pass None for hdi_probs
-        df = create_contribution_summary(
-            data=mock_mmm_idata_wrapper,
-            hdi_probs=None,  # Should default to [0.94]
+        # Act - explicitly pass None for hdi_probs (uses factory default)
+        df = MMMSummaryFactory(mock_mmm_idata_wrapper).contributions(
+            hdi_probs=None,  # Should use factory default [0.94]
         )
 
         # Assert - should have 94% HDI columns
@@ -1718,15 +1653,11 @@ class TestAdditionalPathCoverage:
 
     def test_frequency_none_means_original(self, mock_mmm_idata_wrapper):
         """Test that frequency=None means no aggregation (same as 'original')."""
-        from pymc_marketing.mmm.summary import create_contribution_summary
-
         # Act
-        df_none = create_contribution_summary(
-            data=mock_mmm_idata_wrapper,
+        df_none = MMMSummaryFactory(mock_mmm_idata_wrapper).contributions(
             frequency=None,
         )
-        df_original = create_contribution_summary(
-            data=mock_mmm_idata_wrapper,
+        df_original = MMMSummaryFactory(mock_mmm_idata_wrapper).contributions(
             frequency="original",
         )
 
@@ -1737,8 +1668,6 @@ class TestAdditionalPathCoverage:
     @pytest.mark.parametrize("n_points", [25, 50, 100])
     def test_saturation_curves_custom_n_points(self, fitted_mmm, n_points, request):
         """Test saturation curves with custom n_points parameter."""
-        from pymc_marketing.mmm.summary import create_saturation_curves
-
         mmm = request.getfixturevalue(fitted_mmm)
         # Act - saturation curves require a fitted model
         df = create_saturation_curves(
@@ -1781,8 +1710,6 @@ class TestAdditionalPathCoverage:
     @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
     def test_adstock_curves_custom_max_lag(self, fitted_mmm, request):
         """Test adstock curves with custom max_lag parameter."""
-        from pymc_marketing.mmm.summary import create_adstock_curves
-
         mmm = request.getfixturevalue(fitted_mmm)
         # Act - adstock curves require a fitted model
         max_lag = 3
@@ -1802,11 +1729,6 @@ class TestAdditionalPathCoverage:
         self, mock_mmm_idata_wrapper, fitted_mmm, request
     ):
         """Test that default HDI probs [0.94] are applied when None is passed."""
-        from pymc_marketing.mmm.summary import (
-            create_adstock_curves,
-            create_saturation_curves,
-        )
-
         mmm = request.getfixturevalue(fitted_mmm)
         # Saturation and adstock curves require a fitted model
         df_sat = create_saturation_curves(mmm, hdi_probs=None)
@@ -1823,7 +1745,6 @@ class TestValidationDecorator:
         "factory_func_name",
         [
             "create_posterior_predictive_summary",
-            "create_contribution_summary",
             "create_roas_summary",
             "create_channel_spend_dataframe",
             "create_total_contribution_summary",
@@ -1832,11 +1753,10 @@ class TestValidationDecorator:
     def test_factory_function_calls_validate(
         self, factory_func_name, mock_mmm_idata_wrapper
     ):
-        """Test that factory function validates idata before processing."""
-        from unittest.mock import Mock
+        """Test that factory function validates idata before processing.
 
-        from pymc_marketing.mmm import summary
-
+        Note: create_contribution_summary was removed - use MMMSummaryFactory.contributions() instead.
+        """
         factory_func = getattr(summary, factory_func_name)
 
         # Create a mock wrapper that tracks validate_or_raise calls
@@ -1872,11 +1792,26 @@ class TestValidationDecorator:
             f"{factory_func_name} should call validate_or_raise before processing"
         )
 
+    def test_factory_contributions_calls_validate(self, mock_mmm_idata_wrapper):
+        """Test that MMMSummaryFactory validates idata at init time."""
+        # Create a mock wrapper that tracks validate_or_raise calls
+        mock_wrapper = Mock(spec=MMMIDataWrapper)
+        mock_wrapper.idata = mock_mmm_idata_wrapper.idata
+        mock_wrapper.schema = (
+            Mock()
+        )  # Schema is not None, so validation should be called
+        mock_wrapper.validate_or_raise = Mock()
+
+        # Act - instantiate factory (validation happens at init)
+        MMMSummaryFactory(mock_wrapper)
+
+        # Assert - validate_or_raise was called during init
+        assert mock_wrapper.validate_or_raise.called, (
+            "MMMSummaryFactory should call validate_or_raise at init"
+        )
+
     def test_validation_fails_with_invalid_idata(self):
         """Test that invalid idata raises validation error."""
-        from pymc_marketing.data.idata import MMMIdataSchema, MMMIDataWrapper
-        from pymc_marketing.mmm.summary import create_contribution_summary
-
         # Create wrapper with invalid idata (missing required variables)
         invalid_idata = az.InferenceData(
             posterior=xr.Dataset()  # Empty - missing channel_contribution
@@ -1891,9 +1826,9 @@ class TestValidationDecorator:
 
         wrapper = MMMIDataWrapper(invalid_idata, schema=schema, validate_on_init=False)
 
-        # Act & Assert
+        # Act & Assert - validation happens at factory init
         with pytest.raises(ValueError, match="idata validation failed"):
-            create_contribution_summary(wrapper)
+            MMMSummaryFactory(wrapper)
 
 
 class TestMMMSummaryFactoryRefactoring:
@@ -1901,8 +1836,6 @@ class TestMMMSummaryFactoryRefactoring:
 
     def test_factory_accepts_data_only(self, mock_mmm_idata_wrapper):
         """Test that MMMSummaryFactory works with data only."""
-        from pymc_marketing.mmm.summary import MMMSummaryFactory
-
         # Act
         factory = MMMSummaryFactory(mock_mmm_idata_wrapper)
 
@@ -1917,8 +1850,6 @@ class TestMMMSummaryFactoryRefactoring:
     @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
     def test_factory_accepts_data_and_model(self, fitted_mmm, request):
         """Test that MMMSummaryFactory accepts both data and model."""
-        from pymc_marketing.mmm.summary import MMMSummaryFactory
-
         mmm = request.getfixturevalue(fitted_mmm)
         # Get the data wrapper once to use for factory
         data = mmm.data
@@ -1936,8 +1867,6 @@ class TestMMMSummaryFactoryRefactoring:
         self, mock_mmm_idata_wrapper
     ):
         """Test that functions needing model raise helpful error when model is None."""
-        from pymc_marketing.mmm.summary import MMMSummaryFactory
-
         factory = MMMSummaryFactory(mock_mmm_idata_wrapper)  # No model
 
         # Act & Assert - saturation_curves needs model
@@ -1971,10 +1900,6 @@ class TestSaturationAndAdstockCurves:
         self, method_name, sample_method_name, fitted_mmm, request
     ):
         """Test that factory method delegates to MMM.sample_*_curve() method."""
-        from unittest.mock import patch
-
-        from pymc_marketing.mmm.summary import MMMSummaryFactory
-
         mmm = request.getfixturevalue(fitted_mmm)
         factory = MMMSummaryFactory(mmm.data, model=mmm)
 
@@ -2000,8 +1925,6 @@ class TestSaturationAndAdstockCurves:
     )
     def test_curves_preserve_custom_dims(self, panel_fitted_mmm, method_name):
         """Test that curve functions preserve custom dimensions."""
-        from pymc_marketing.mmm.summary import MMMSummaryFactory
-
         factory = MMMSummaryFactory(panel_fitted_mmm.data, model=panel_fitted_mmm)
 
         # Act
@@ -2030,8 +1953,6 @@ class TestSaturationAndAdstockCurves:
     @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
     def test_curves_return_summary_stats(self, method_name, x_col, fitted_mmm, request):
         """Test that curve functions return summary statistics."""
-        from pymc_marketing.mmm.summary import MMMSummaryFactory
-
         mmm = request.getfixturevalue(fitted_mmm)
         factory = MMMSummaryFactory(mmm.data, model=mmm)
 
@@ -2065,8 +1986,6 @@ class TestSaturationAndAdstockCurves:
     @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
     def test_curves_hdi_bounds_vary(self, method_name, fitted_mmm, request):
         """Test that curve HDI bounds vary (not constant placeholder values)."""
-        from pymc_marketing.mmm.summary import MMMSummaryFactory
-
         mmm = request.getfixturevalue(fitted_mmm)
         factory = MMMSummaryFactory(mmm.data, model=mmm)
 
@@ -2086,8 +2005,6 @@ class TestSaturationCurvesSpecific:
     @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
     def test_saturation_curves_are_increasing(self, fitted_mmm, request):
         """Test that saturation curves show increasing pattern."""
-        from pymc_marketing.mmm.summary import MMMSummaryFactory
-
         mmm = request.getfixturevalue(fitted_mmm)
         factory = MMMSummaryFactory(mmm.data, model=mmm)
 
@@ -2121,8 +2038,6 @@ class TestAdstockCurvesSpecific:
     @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
     def test_adstock_curves_are_decreasing(self, fitted_mmm, request):
         """Test that adstock curves show decreasing pattern over time."""
-        from pymc_marketing.mmm.summary import MMMSummaryFactory
-
         mmm = request.getfixturevalue(fitted_mmm)
         factory = MMMSummaryFactory(mmm.data, model=mmm)
 
@@ -2162,8 +2077,6 @@ class TestAdstockCurvesSpecific:
     @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
     def test_adstock_curves_respects_max_lag(self, fitted_mmm, request):
         """Test that max_lag parameter controls adstock curve length."""
-        from pymc_marketing.mmm.summary import MMMSummaryFactory
-
         mmm = request.getfixturevalue(fitted_mmm)
         factory = MMMSummaryFactory(mmm.data, model=mmm)
         max_lag = 3
@@ -2216,14 +2129,10 @@ class TestChangeOverTimeImplementation:
 
     def test_change_over_time_function_exists(self):
         """Test that create_change_over_time_summary exists."""
-        from pymc_marketing.mmm.summary import create_change_over_time_summary
-
         assert callable(create_change_over_time_summary)
 
     def test_change_over_time_output_schema(self, mock_mmm_idata_wrapper):
         """Test that change_over_time returns correct column schema."""
-        from pymc_marketing.mmm.summary import create_change_over_time_summary
-
         # Act
         df = create_change_over_time_summary(mock_mmm_idata_wrapper, hdi_probs=[0.94])
 
@@ -2261,8 +2170,6 @@ class TestChangeOverTimeImplementation:
 
     def test_change_over_time_requires_date_dimension(self, mock_mmm_idata_wrapper):
         """Test that change_over_time raises error when date dimension is missing."""
-        from pymc_marketing.mmm.summary import create_change_over_time_summary
-
         # Aggregate to all_time (removes date dimension)
         aggregated_data = mock_mmm_idata_wrapper.aggregate_time("all_time")
 
@@ -2284,12 +2191,10 @@ class TestMMMSummaryProperty:
         assert hasattr(mmm, "summary"), "MMM model should have .summary property"
 
         # Access property
-        summary = mmm.summary
+        summary_factory = mmm.summary
 
         # Assert - returns factory
-        from pymc_marketing.mmm.summary import MMMSummaryFactory
-
-        assert isinstance(summary, MMMSummaryFactory), (
+        assert isinstance(summary_factory, MMMSummaryFactory), (
             f"summary property should return MMMSummaryFactory, got {type(summary)}"
         )
 
@@ -2338,9 +2243,6 @@ class TestMMMSummaryProperty:
 
     def test_summary_validates_idata_exists(self):
         """Test that summary property validates idata exists."""
-        from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
-        from pymc_marketing.mmm.multidimensional import MMM
-
         # Create unfitted model (no idata) - using multidimensional.MMM which has summary property
         mmm = MMM(
             adstock=GeometricAdstock(l_max=10),
@@ -2386,13 +2288,6 @@ class TestEmptyHDIProbs:
         "factory_function_name,function_kwargs,expected_mean_col,expected_median_col,allow_empty",
         [
             ("create_posterior_predictive_summary", {}, "mean", "median", False),
-            (
-                "create_contribution_summary",
-                {"component": "channel"},
-                "mean",
-                "median",
-                False,
-            ),
             ("create_roas_summary", {}, "mean", "median", False),
             ("create_total_contribution_summary", {}, "mean", "median", True),
             (
@@ -2419,9 +2314,9 @@ class TestEmptyHDIProbs:
         - Not crash
         - Return DataFrame with mean and median columns (or equivalent)
         - Not include any HDI columns (abs_error_*)
-        """
-        from pymc_marketing.mmm import summary
 
+        Note: create_contribution_summary was removed - use MMMSummaryFactory.contributions() instead.
+        """
         factory_func = getattr(summary, factory_function_name)
 
         # Act - call with empty hdi_probs
@@ -2457,6 +2352,27 @@ class TestEmptyHDIProbs:
             f"Found: {hdi_columns}"
         )
 
+    def test_factory_contributions_with_empty_hdi_probs(self, mock_mmm_idata_wrapper):
+        """Test that MMMSummaryFactory.contributions() works with empty hdi_probs list."""
+        # Act - call with empty hdi_probs
+        df = MMMSummaryFactory(mock_mmm_idata_wrapper, hdi_probs=[]).contributions()
+
+        # Assert - function succeeded
+        assert df is not None, "contributions() returned None"
+        assert isinstance(df, pd.DataFrame), "contributions() should return DataFrame"
+        assert len(df) > 0, "contributions() returned empty DataFrame"
+
+        # Assert - mean and median columns exist
+        assert "mean" in df.columns, "contributions() should have 'mean' column"
+        assert "median" in df.columns, "contributions() should have 'median' column"
+
+        # Assert - no HDI columns exist
+        hdi_columns = [col for col in df.columns if "abs_error" in col]
+        assert len(hdi_columns) == 0, (
+            f"contributions() should not have HDI columns when hdi_probs=[]. "
+            f"Found: {hdi_columns}"
+        )
+
     @pytest.mark.parametrize(
         "factory_function_name,function_kwargs",
         [
@@ -2479,8 +2395,6 @@ class TestEmptyHDIProbs:
         - Return DataFrame with mean and median columns
         - Not include any HDI columns (abs_error_*)
         """
-        from pymc_marketing.mmm import summary
-
         mmm = request.getfixturevalue(fitted_mmm)
         factory_func = getattr(summary, factory_function_name)
 
