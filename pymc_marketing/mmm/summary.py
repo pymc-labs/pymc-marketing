@@ -574,9 +574,6 @@ class MMMSummaryFactory:
         >>> df = mmm.summary.roas(frequency="monthly")
         >>> df = mmm.summary.roas(hdi_probs=[0.80, 0.94])
 
-        See Also
-        --------
-        create_roas_summary : Standalone function
         """
         # Resolve all defaults in one call
         data, hdi_probs, output_format = self._prepare_data_and_hdi(
