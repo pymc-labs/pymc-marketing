@@ -2033,7 +2033,7 @@ class MMM(RegressionModelBuilder):
             # Note: x coordinates remain in scaled space (same as max_value input)
             # since converting to original scale would require per-channel scaling
             # which complicates plotting and interpretation
-            target_scale = self.data.get_target_scale()
+            target_scale = MMMIDataWrapper(idata).get_target_scale()
             # Multiply by target_scale since saturation affects target variable
             curve = curve * target_scale
 
