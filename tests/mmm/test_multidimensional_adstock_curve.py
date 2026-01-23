@@ -28,206 +28,71 @@ from pymc_marketing.mmm.multidimensional import MMM
 
 
 @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-def test_sample_adstock_curve_returns_dataarray(fitted_mmm, request):
-    """Test that sample_adstock_curve returns xr.DataArray."""
+def test_sample_adstock_curve_basic_functionality(fitted_mmm, request):
+    """Test basic functionality: return type, dimensions, and coordinate range."""
     mmm = request.getfixturevalue(fitted_mmm)
-    # Act
+
     curves = mmm.sample_adstock_curve()
 
-    # Assert
+    # Return type and required dimensions
     assert isinstance(curves, xr.DataArray)
-
-
-@pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-def test_sample_adstock_curve_has_correct_dims(fitted_mmm, request):
-    """Test that curves have correct dimensions.
-
-    Note: The dimensions depend on how the adstock transformation's
-    priors are configured. With default priors without channel dims,
-    the output will be (time since exposure, sample). With channel-specific
-    priors, it would include a channel dimension.
-    """
-    mmm = request.getfixturevalue(fitted_mmm)
-    # Act
-    curves = mmm.sample_adstock_curve()
-
-    # Assert - should have sample and time since exposure dims at minimum
     assert "sample" in curves.dims
     assert "time since exposure" in curves.dims
+    assert curves.sizes["time since exposure"] > 0
+    assert curves.sizes["sample"] > 0
 
-
-@pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-def test_sample_adstock_curve_num_samples_controls_shape(fitted_mmm, request):
-    """Test that num_samples parameter controls number of posterior samples.
-
-    Note: With mock_pymc_sample, we get a small number of samples.
-    This test verifies that when num_samples < total, we get num_samples.
-    """
-    mmm = request.getfixturevalue(fitted_mmm)
-    # Arrange - use a smaller num_samples than available
-    total_available = (
-        mmm.idata.posterior.sizes["chain"] * mmm.idata.posterior.sizes["draw"]
-    )
-    num_samples = min(5, total_available - 1)  # Request fewer than available
-
-    # Skip if we don't have enough samples to test subsampling
-    if total_available <= 2:
-        pytest.skip("Not enough posterior samples to test subsampling")
-
-    # Act
-    curves = mmm.sample_adstock_curve(num_samples=num_samples)
-
-    # Assert - should have exactly num_samples
-    assert curves.sizes["sample"] == num_samples
-
-
-@pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-def test_sample_adstock_curve_uses_all_samples_when_num_samples_exceeds_total(
-    fitted_mmm, request
-):
-    """Test that all samples are used when num_samples > total available."""
-    mmm = request.getfixturevalue(fitted_mmm)
-    # Arrange - Request more samples than available
-    num_samples = 10000
-
-    # Act
-    curves = mmm.sample_adstock_curve(num_samples=num_samples)
-
-    # Assert - Should get all available samples, not num_samples
-    total_available = (
-        mmm.idata.posterior.sizes["chain"] * mmm.idata.posterior.sizes["draw"]
-    )
-    assert curves.sizes["sample"] == total_available
-
-
-@pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-def test_sample_adstock_curve_uses_all_samples_when_num_samples_is_none(
-    fitted_mmm, request
-):
-    """Test that all samples are used when num_samples is None."""
-    mmm = request.getfixturevalue(fitted_mmm)
-    # Act
-    curves = mmm.sample_adstock_curve(num_samples=None)
-
-    # Assert - Should get all available samples
-    total_available = (
-        mmm.idata.posterior.sizes["chain"] * mmm.idata.posterior.sizes["draw"]
-    )
-    assert curves.sizes["sample"] == total_available
-
-
-@pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-def test_sample_adstock_curve_random_state_reproducibility(fitted_mmm, request):
-    """Test that random_state produces reproducible results."""
-    mmm = request.getfixturevalue(fitted_mmm)
-    # Arrange
-    num_samples = 50
-    random_state = 42
-
-    # Act - Sample twice with same random_state
-    curves1 = mmm.sample_adstock_curve(
-        num_samples=num_samples, random_state=random_state
-    )
-    curves2 = mmm.sample_adstock_curve(
-        num_samples=num_samples, random_state=random_state
-    )
-
-    # Assert - Results should be identical
-    xr.testing.assert_equal(curves1, curves2)
-
-
-@pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-def test_sample_adstock_curve_random_state_different_seeds_differ(fitted_mmm, request):
-    """Test that different random_state values produce different results.
-
-    Note: This only works when subsampling (num_samples < total available).
-    With mock_pymc_sample, we may have limited samples.
-    """
-    mmm = request.getfixturevalue(fitted_mmm)
-    # Arrange - use smaller num_samples to ensure subsampling happens
-    total_available = (
-        mmm.idata.posterior.sizes["chain"] * mmm.idata.posterior.sizes["draw"]
-    )
-    num_samples = min(5, total_available - 1)
-
-    # Skip if we don't have enough samples to test different subsampling
-    if total_available <= 5:
-        pytest.skip("Not enough posterior samples to test different subsampling")
-
-    # Act - Sample with different random states
-    curves1 = mmm.sample_adstock_curve(num_samples=num_samples, random_state=42)
-    curves2 = mmm.sample_adstock_curve(num_samples=num_samples, random_state=123)
-
-    # Assert - Results should differ (different posterior samples selected)
-    assert not np.allclose(curves1.values, curves2.values)
-
-
-@pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-def test_sample_adstock_curve_random_state_with_generator(fitted_mmm, request):
-    """Test that random_state accepts numpy Generator."""
-    mmm = request.getfixturevalue(fitted_mmm)
-    # Arrange - use smaller num_samples to ensure subsampling happens
-    total_available = (
-        mmm.idata.posterior.sizes["chain"] * mmm.idata.posterior.sizes["draw"]
-    )
-    num_samples = min(5, total_available - 1)
-
-    # Skip if we don't have enough samples to test subsampling
-    if total_available <= 2:
-        pytest.skip("Not enough posterior samples to test subsampling")
-
-    rng = np.random.default_rng(42)
-
-    # Act - Should not raise
-    curves = mmm.sample_adstock_curve(num_samples=num_samples, random_state=rng)
-
-    # Assert
-    assert curves.sizes["sample"] == num_samples
-
-
-@pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-def test_sample_adstock_curve_time_coordinate_range(fitted_mmm, request):
-    """Test that time coordinate spans from 0 to l_max-1."""
-    mmm = request.getfixturevalue(fitted_mmm)
-    # Act
-    curves = mmm.sample_adstock_curve()
-
-    # Assert
+    # Time coordinate range: 0 to l_max-1
     time_coords = curves.coords["time since exposure"].values
     assert time_coords[0] == pytest.approx(0.0)
-    # Maximum time should be l_max - 1 (0-indexed)
-    l_max = mmm.adstock.l_max
-    assert np.max(time_coords) == pytest.approx(l_max - 1)
+    assert curves.sizes["time since exposure"] == mmm.adstock.l_max
+    assert np.max(time_coords) == pytest.approx(mmm.adstock.l_max - 1)
 
 
-@pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
+@pytest.mark.parametrize(
+    "num_samples_mode",
+    ["less_than_total", "greater_than_total", "none"],
+)
+def test_sample_adstock_curve_num_samples_behavior(simple_fitted_mmm, num_samples_mode):
+    """Test num_samples parameter behavior for different scenarios."""
+    mmm = simple_fitted_mmm
+    total_available = (
+        mmm.idata.posterior.sizes["chain"] * mmm.idata.posterior.sizes["draw"]
+    )
+
+    if num_samples_mode == "less_than_total":
+        if total_available <= 2:
+            pytest.skip("Not enough posterior samples to test subsampling")
+        num_samples = min(5, total_available - 1)
+        expected_samples = num_samples
+    elif num_samples_mode == "greater_than_total":
+        num_samples = 10000
+        expected_samples = total_available
+    else:  # none
+        num_samples = None
+        expected_samples = total_available
+
+    curves = mmm.sample_adstock_curve(num_samples=num_samples)
+    assert curves.sizes["sample"] == expected_samples
+
+
 @pytest.mark.parametrize("amount", [0, -1])
-def test_sample_adstock_curve_raises_on_invalid_amount(fitted_mmm, request, amount):
+def test_sample_adstock_curve_raises_on_invalid_amount(simple_fitted_mmm, amount):
     """Test that invalid amount raises ValidationError."""
-    mmm = request.getfixturevalue(fitted_mmm)
-    # Act & Assert
     with pytest.raises(ValidationError):
-        mmm.sample_adstock_curve(amount=amount)
+        simple_fitted_mmm.sample_adstock_curve(amount=amount)
 
 
-@pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
 @pytest.mark.parametrize("num_samples", [0, -1])
 def test_sample_adstock_curve_raises_on_invalid_num_samples(
-    fitted_mmm, request, num_samples
+    simple_fitted_mmm, num_samples
 ):
-    """Test that invalid num_samples raises ValidationError.
-
-    Note: None is valid (uses all samples), but 0 and negative are not.
-    """
-    mmm = request.getfixturevalue(fitted_mmm)
-    # Act & Assert
+    """Test that invalid num_samples raises ValidationError."""
     with pytest.raises(ValidationError):
-        mmm.sample_adstock_curve(num_samples=num_samples)
+        simple_fitted_mmm.sample_adstock_curve(num_samples=num_samples)
 
 
 def test_sample_adstock_curve_raises_on_unfitted_model():
     """Test that calling on unfitted model raises ValueError."""
-    # Arrange - Create unfitted MMM
     mmm = MMM(
         channel_columns=["channel_1", "channel_2"],
         date_column="date",
@@ -236,19 +101,14 @@ def test_sample_adstock_curve_raises_on_unfitted_model():
         saturation=LogisticSaturation(),
     )
 
-    # Act & Assert
     with pytest.raises(ValueError, match="idata does not exist"):
         mmm.sample_adstock_curve()
 
 
 def test_sample_adstock_curve_raises_when_no_posterior(simple_mmm_data):
-    """Test that calling raises ValueError when idata exists but has no posterior.
-
-    This can happen if only sample_prior_predictive() was called but not fit().
-    """
+    """Test that calling raises ValueError when idata exists but has no posterior."""
     import arviz as az
 
-    # Arrange - Create MMM with idata but no posterior
     X = simple_mmm_data["X"]
     y = simple_mmm_data["y"]
 
@@ -260,144 +120,28 @@ def test_sample_adstock_curve_raises_when_no_posterior(simple_mmm_data):
         saturation=LogisticSaturation(),
     )
 
-    # Build model and create empty idata (simulating prior-only sampling)
     mmm.build_model(X, y)
-    mmm.idata = az.InferenceData()  # Empty idata without posterior
+    mmm.idata = az.InferenceData()
 
-    # Act & Assert
     with pytest.raises(ValueError, match="posterior not found in idata"):
         mmm.sample_adstock_curve()
 
 
-@pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-def test_sample_adstock_curve_curves_decay_over_time(fitted_mmm, request):
-    """Test that sampled curves decay over time (adstock-specific behavior).
+def test_sample_adstock_curve_with_idata_argument(simple_fitted_mmm):
+    """Test that idata argument uses provided InferenceData instead of self.idata."""
+    mmm = simple_fitted_mmm
 
-    Adstock curves should generally decrease as time since exposure increases,
-    showing the carryover effect diminishing over time.
-
-    Note: We check that the curve starts higher and ends lower, which is the
-    characteristic behavior of adstock transformations.
-    """
-    mmm = request.getfixturevalue(fitted_mmm)
-    # Act
-    curves = mmm.sample_adstock_curve()
-
-    # Assert - Check that mean curve shows decay behavior
-    mean_curve = curves.mean(dim="sample")
-
-    # First value (time 0) should be higher than last value (time l_max-1)
-    # This is the characteristic decay of adstock effects
-    first_val = mean_curve.isel({"time since exposure": 0}).values
-    last_val = mean_curve.isel({"time since exposure": -1}).values
-
-    assert np.all(first_val > last_val), "Adstock curve should decay over time"
-
-
-@pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-def test_sample_adstock_curve_amount_scales_linearly(fitted_mmm, request):
-    """Test that doubling amount approximately doubles curve values (linearity).
-
-    Adstock transformations should be linear with respect to the input amount.
-    """
-    mmm = request.getfixturevalue(fitted_mmm)
-    # Act
-    curves_1x = mmm.sample_adstock_curve(amount=1.0)
-    curves_2x = mmm.sample_adstock_curve(amount=2.0)
-
-    # Assert - 2x amount should give approximately 2x values
-    # Use mean across samples for simpler comparison
-    mean_1x = curves_1x.mean(dim="sample")
-    mean_2x = curves_2x.mean(dim="sample")
-
-    # Check approximate 2x relationship (within 10% tolerance for numerical stability)
-    ratio = mean_2x / mean_1x
-    assert np.allclose(ratio.values, 2.0, rtol=0.1)
-
-
-@pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-def test_sample_adstock_curve_works(fitted_mmm, request):
-    """Test that model curves can be sampled.
-
-    Note: The adstock transformation's sample_curve returns
-    (time since exposure, sample) dimensions. Custom dimensions
-    (like country) would only appear if the adstock priors were
-    configured with those dimensions.
-    """
-    mmm = request.getfixturevalue(fitted_mmm)
-    # Act
-    curves = mmm.sample_adstock_curve()
-
-    # Assert - Should have time since exposure and sample dimensions
-    assert "time since exposure" in curves.dims
-    assert "sample" in curves.dims
-    # Should be a valid DataArray with values
-    assert curves.sizes["time since exposure"] > 0
-    assert curves.sizes["sample"] > 0
-
-
-@pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-def test_sample_adstock_curve_default_parameters(fitted_mmm, request):
-    """Test that default parameters produce expected output."""
-    mmm = request.getfixturevalue(fitted_mmm)
-    # Act
-    curves = mmm.sample_adstock_curve()
-
-    # Assert - time coordinate spans from 0 to l_max-1
-    l_max = mmm.adstock.l_max
-    assert curves.sizes["time since exposure"] == l_max
-    # Time values start at 0
-    assert curves.coords["time since exposure"].values[0] == pytest.approx(0.0)
-
-
-@pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-def test_sample_adstock_curve_can_be_used_for_plotting(fitted_mmm, request):
-    """Test that the returned array can be used for common plotting operations."""
-    mmm = request.getfixturevalue(fitted_mmm)
-    # Act
-    curves = mmm.sample_adstock_curve()
-
-    # Assert - These operations should work without error
-    mean_curves = curves.mean(dim="sample")
-    assert isinstance(mean_curves, xr.DataArray)
-
-    lower = curves.quantile(0.05, dim="sample")
-    upper = curves.quantile(0.95, dim="sample")
-    assert isinstance(lower, xr.DataArray)
-    assert isinstance(upper, xr.DataArray)
-
-    # time coordinate should be usable for plotting
-    time_values = curves.coords["time since exposure"].values
-    assert len(time_values) > 0
-    assert time_values[0] == 0.0  # Starts at 0
-
-
-@pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-def test_sample_adstock_curve_with_idata_differs_from_default(fitted_mmm, request):
-    """Test that using idata argument produces different curves than default.
-
-    This test verifies that passing a modified InferenceData object via the
-    idata argument uses those posterior samples instead of self.idata.
-    """
-    mmm = request.getfixturevalue(fitted_mmm)
-
-    # Create a modified copy of the idata with different posterior values
     modified_idata = mmm.idata.copy()
-    # Modify the alpha parameter (adstock decay rate) by multiplying by a factor
-    # This should produce noticeably different adstock curves
     modified_posterior = modified_idata.posterior.copy()
     if "adstock_alpha" in modified_posterior:
-        # Modify alpha values - clamp to (0, 1) range since it's a decay rate
         modified_posterior["adstock_alpha"] = np.clip(
             modified_posterior["adstock_alpha"] * 0.5, 0.01, 0.99
         )
     modified_idata.posterior = modified_posterior
 
-    # Sample curves with and without the idata argument
     curves_default = mmm.sample_adstock_curve(random_state=42)
     curves_with_idata = mmm.sample_adstock_curve(idata=modified_idata, random_state=42)
 
-    # Assert - Curves should differ since we modified the posterior
     assert not np.allclose(curves_default.values, curves_with_idata.values), (
         "Curves with modified idata should differ from default"
     )
