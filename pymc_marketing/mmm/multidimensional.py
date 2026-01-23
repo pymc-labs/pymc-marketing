@@ -209,14 +209,6 @@ from pymc_marketing.model_builder import (
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.model_graph import deterministics_to_flat
 
-PYMC_MARKETING_ISSUE = "https://github.com/pymc-labs/pymc-marketing/issues/new"
-warning_msg = (
-    "This functionality is experimental and subject to change. "
-    "If you encounter any issues or have suggestions, please raise them at: "
-    f"{PYMC_MARKETING_ISSUE}"
-)
-warnings.warn(warning_msg, FutureWarning, stacklevel=1)
-
 
 class MMM(RegressionModelBuilder):
     """Marketing Mix Model class for estimating the impact of marketing channels on a target variable.
