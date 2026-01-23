@@ -4135,3 +4135,396 @@ def test_param_stability_fallback_uses_posterior_predictive_and_returns_fig_ax()
     assert hasattr(fig, "savefig")
     assert hasattr(ax, "plot")
     plt.close(fig)
+
+
+class TestAllocatedContributionByChannelOverTime:
+    """Test cases for allocated_contribution_by_channel_over_time plot."""
+
+    @pytest.fixture(scope="class")
+    def mock_samples_basic(self):
+        """Create mock samples dataset for basic testing (no extra dims)."""
+        rng = np.random.default_rng(42)
+        dates = pd.date_range("2025-01-01", periods=12, freq="W-MON")
+        channels = ["C1", "C2", "C3"]
+
+        samples = xr.Dataset(
+            {
+                "channel_contribution": xr.DataArray(
+                    rng.normal(100, 20, size=(200, 12, 3)),
+                    dims=("sample", "date", "channel"),
+                    coords={
+                        "sample": np.arange(200),
+                        "date": dates,
+                        "channel": channels,
+                    },
+                ),
+                "allocation": xr.DataArray(
+                    [1000, 2000, 1500],
+                    dims=("channel",),
+                    coords={"channel": channels},
+                ),
+            }
+        )
+        return samples
+
+    @pytest.fixture(scope="class")
+    def mock_samples_with_geo(self):
+        """Create mock samples dataset with geo dimension."""
+        rng = np.random.default_rng(42)
+        dates = pd.date_range("2025-01-01", periods=10, freq="W-MON")
+        channels = ["C1", "C2"]
+        geos = ["US", "UK", "DE"]
+
+        samples = xr.Dataset(
+            {
+                "channel_contribution": xr.DataArray(
+                    rng.normal(100, 20, size=(150, 10, 2, 3)),
+                    dims=("sample", "date", "channel", "geo"),
+                    coords={
+                        "sample": np.arange(150),
+                        "date": dates,
+                        "channel": channels,
+                        "geo": geos,
+                    },
+                ),
+                "channel_contribution_original_scale": xr.DataArray(
+                    rng.normal(10000, 2000, size=(150, 10, 2, 3)),
+                    dims=("sample", "date", "channel", "geo"),
+                    coords={
+                        "sample": np.arange(150),
+                        "date": dates,
+                        "channel": channels,
+                        "geo": geos,
+                    },
+                ),
+                "allocation": xr.DataArray(
+                    [[1000, 1200, 900], [2000, 1800, 2200]],
+                    dims=("channel", "geo"),
+                    coords={"channel": channels, "geo": geos},
+                ),
+            }
+        )
+        return samples
+
+    @pytest.fixture(scope="class")
+    def mock_suite_basic(self):
+        """Create minimal MMMPlotSuite for testing."""
+        # We just need an idata to instantiate; actual plotting uses samples
+        idata = az.InferenceData()
+        return MMMPlotSuite(idata=idata)
+
+    def test_basic_plot_no_extra_dims(self, mock_suite_basic, mock_samples_basic):
+        """Test basic plot without extra dimensions."""
+        fig, ax = mock_suite_basic.allocated_contribution_by_channel_over_time(
+            samples=mock_samples_basic
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(ax, Axes)
+        assert ax.get_title() == "Allocated Contribution by Channel Over Time"
+        assert ax.get_xlabel() == "Date"
+        assert ax.get_ylabel() == "Channel Contribution"
+        plt.close(fig)
+
+    def test_custom_hdi_prob(self, mock_suite_basic, mock_samples_basic):
+        """Test plot with custom HDI probability."""
+        fig, ax = mock_suite_basic.allocated_contribution_by_channel_over_time(
+            samples=mock_samples_basic,
+            hdi_prob=0.89,
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(ax, Axes)
+        plt.close(fig)
+
+    def test_custom_figsize(self, mock_suite_basic, mock_samples_basic):
+        """Test plot with custom figure size."""
+        fig, _ax = mock_suite_basic.allocated_contribution_by_channel_over_time(
+            samples=mock_samples_basic,
+            figsize=(14, 8),
+        )
+
+        assert isinstance(fig, Figure)
+        assert fig.get_figwidth() == 14
+        assert fig.get_figheight() == 8
+        plt.close(fig)
+
+    def test_with_scale_factor(self, mock_suite_basic, mock_samples_basic):
+        """Test plot with scale factor applied."""
+        fig, ax = mock_suite_basic.allocated_contribution_by_channel_over_time(
+            samples=mock_samples_basic,
+            scale_factor=1000.0,
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(ax, Axes)
+        plt.close(fig)
+
+    def test_auto_split_extra_dims(self, mock_suite_basic, mock_samples_with_geo):
+        """Test auto-detection of extra dimensions creates subplots."""
+        fig, axes = mock_suite_basic.allocated_contribution_by_channel_over_time(
+            samples=mock_samples_with_geo
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        # Should have 3 subplots for 3 geos
+        assert axes.size >= 3
+        plt.close(fig)
+
+    def test_split_by_single_dim(self, mock_suite_basic, mock_samples_with_geo):
+        """Test split_by parameter with single dimension."""
+        fig, axes = mock_suite_basic.allocated_contribution_by_channel_over_time(
+            samples=mock_samples_with_geo,
+            split_by="geo",
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        # Should have 3 subplots for 3 geos (US, UK, DE)
+        axes_flat = axes.flatten()
+        visible_axes = [ax for ax in axes_flat if ax.get_visible()]
+        assert len(visible_axes) == 3
+
+        # Check that titles contain geo values
+        titles = [ax.get_title() for ax in visible_axes]
+        assert any("US" in t for t in titles)
+        assert any("UK" in t for t in titles)
+        assert any("DE" in t for t in titles)
+        plt.close(fig)
+
+    def test_split_by_with_ncols(self, mock_suite_basic, mock_samples_with_geo):
+        """Test split_by with ncols specification."""
+        fig, axes = mock_suite_basic.allocated_contribution_by_channel_over_time(
+            samples=mock_samples_with_geo,
+            split_by="geo",
+            subplot_kwargs={"ncols": 3},
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        assert axes.shape == (1, 3)  # 1 row x 3 cols
+        plt.close(fig)
+
+    def test_split_by_with_nrows(self, mock_suite_basic, mock_samples_with_geo):
+        """Test split_by with nrows specification."""
+        fig, axes = mock_suite_basic.allocated_contribution_by_channel_over_time(
+            samples=mock_samples_with_geo,
+            split_by="geo",
+            subplot_kwargs={"nrows": 3},
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        assert axes.shape == (3, 1)  # 3 rows x 1 col
+        plt.close(fig)
+
+    def test_dims_filter_single_value(self, mock_suite_basic, mock_samples_with_geo):
+        """Test dims parameter to filter to single value."""
+        fig, ax = mock_suite_basic.allocated_contribution_by_channel_over_time(
+            samples=mock_samples_with_geo,
+            dims={"geo": "US"},
+        )
+
+        # Single geo filtered = single panel
+        assert isinstance(fig, Figure)
+        assert isinstance(ax, Axes)
+        plt.close(fig)
+
+    def test_dims_filter_list_values(self, mock_suite_basic, mock_samples_with_geo):
+        """Test dims parameter with list of values."""
+        fig, axes = mock_suite_basic.allocated_contribution_by_channel_over_time(
+            samples=mock_samples_with_geo,
+            dims={"geo": ["US", "UK"]},
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        # Should have 2 subplots (US, UK)
+        axes_flat = axes.flatten()
+        visible_axes = [ax for ax in axes_flat if ax.get_visible()]
+        assert len(visible_axes) == 2
+        plt.close(fig)
+
+    def test_original_scale_prefers_original_scale_var(
+        self, mock_suite_basic, mock_samples_with_geo
+    ):
+        """Test that original_scale=True prefers channel_contribution_original_scale."""
+        # This should use channel_contribution_original_scale
+        fig1, _ = mock_suite_basic.allocated_contribution_by_channel_over_time(
+            samples=mock_samples_with_geo,
+            original_scale=True,
+            dims={"geo": "US"},
+        )
+
+        # This should use channel_contribution
+        fig2, _ = mock_suite_basic.allocated_contribution_by_channel_over_time(
+            samples=mock_samples_with_geo,
+            original_scale=False,
+            dims={"geo": "US"},
+        )
+
+        # Both should succeed
+        assert isinstance(fig1, Figure)
+        assert isinstance(fig2, Figure)
+        plt.close(fig1)
+        plt.close(fig2)
+
+    def test_missing_channel_dim_error(self, mock_suite_basic):
+        """Test error when channel dimension is missing."""
+        samples = xr.Dataset(
+            {
+                "channel_contribution": xr.DataArray(
+                    np.random.rand(100, 10),
+                    dims=("sample", "date"),
+                )
+            }
+        )
+
+        with pytest.raises(ValueError, match=r"'channel' dimension"):
+            mock_suite_basic.allocated_contribution_by_channel_over_time(
+                samples=samples
+            )
+
+    def test_missing_date_dim_error(self, mock_suite_basic):
+        """Test error when date dimension is missing."""
+        samples = xr.Dataset(
+            {
+                "channel_contribution": xr.DataArray(
+                    np.random.rand(100, 3),
+                    dims=("sample", "channel"),
+                )
+            }
+        )
+
+        with pytest.raises(ValueError, match=r"'date' dimension"):
+            mock_suite_basic.allocated_contribution_by_channel_over_time(
+                samples=samples
+            )
+
+    def test_missing_sample_dim_error(self, mock_suite_basic):
+        """Test error when sample dimension is missing."""
+        samples = xr.Dataset(
+            {
+                "channel_contribution": xr.DataArray(
+                    np.random.rand(10, 3),
+                    dims=("date", "channel"),
+                )
+            }
+        )
+
+        with pytest.raises(ValueError, match=r"'sample' dimension"):
+            mock_suite_basic.allocated_contribution_by_channel_over_time(
+                samples=samples
+            )
+
+    def test_missing_channel_contribution_error(self, mock_suite_basic):
+        """Test error when channel_contribution variable is missing."""
+        samples = xr.Dataset(
+            {
+                "some_other_var": xr.DataArray(
+                    np.random.rand(100, 10, 3),
+                    dims=("sample", "date", "channel"),
+                )
+            }
+        )
+
+        with pytest.raises(ValueError, match=r"'channel_contribution'"):
+            mock_suite_basic.allocated_contribution_by_channel_over_time(
+                samples=samples
+            )
+
+    def test_invalid_split_by_dim_error(self, mock_suite_basic, mock_samples_basic):
+        """Test error when split_by dimension doesn't exist."""
+        with pytest.raises(ValueError, match=r"Split dimension 'nonexistent'"):
+            mock_suite_basic.allocated_contribution_by_channel_over_time(
+                samples=mock_samples_basic,
+                split_by="nonexistent",
+            )
+
+    def test_nrows_ncols_both_specified_error(
+        self, mock_suite_basic, mock_samples_with_geo
+    ):
+        """Test error when both nrows and ncols are specified."""
+        with pytest.raises(ValueError, match=r"Specify only one of 'nrows' or 'ncols'"):
+            mock_suite_basic.allocated_contribution_by_channel_over_time(
+                samples=mock_samples_with_geo,
+                split_by="geo",
+                subplot_kwargs={"nrows": 2, "ncols": 2},
+            )
+
+    def test_prepare_allocated_contribution_data_helper(
+        self, mock_suite_basic, mock_samples_with_geo
+    ):
+        """Test the private _prepare_allocated_contribution_data method."""
+        channel_contribution, split_dims, dim_combinations = (
+            mock_suite_basic._prepare_allocated_contribution_data(
+                samples=mock_samples_with_geo,
+                split_by="geo",
+            )
+        )
+
+        assert isinstance(channel_contribution, xr.DataArray)
+        assert split_dims == ["geo"]
+        assert len(dim_combinations) == 3  # US, UK, DE
+        assert ("US",) in dim_combinations
+        assert ("UK",) in dim_combinations
+        assert ("DE",) in dim_combinations
+
+    def test_prepare_allocated_contribution_data_with_dims_filter(
+        self, mock_suite_basic, mock_samples_with_geo
+    ):
+        """Test _prepare_allocated_contribution_data with dims filter."""
+        channel_contribution, _split_dims, _dim_combinations = (
+            mock_suite_basic._prepare_allocated_contribution_data(
+                samples=mock_samples_with_geo,
+                dims={"geo": "US"},
+            )
+        )
+
+        # After filtering, geo dimension should be reduced
+        assert "geo" not in channel_contribution.dims or (
+            "geo" in channel_contribution.dims
+            and len(channel_contribution.coords["geo"]) == 1
+        )
+
+    def test_inference_data_input(self, mock_suite_basic):
+        """Test that InferenceData input is handled correctly."""
+        rng = np.random.default_rng(42)
+        dates = pd.date_range("2025-01-01", periods=10, freq="W-MON")
+        channels = ["C1", "C2"]
+
+        # Create InferenceData with chain and draw dimensions (like sample_response_distribution)
+        idata = az.InferenceData(
+            posterior_predictive=xr.Dataset(
+                {
+                    "channel_contribution": xr.DataArray(
+                        rng.normal(100, 20, size=(2, 50, 10, 2)),
+                        dims=("chain", "draw", "date", "channel"),
+                        coords={
+                            "chain": [0, 1],
+                            "draw": np.arange(50),
+                            "date": dates,
+                            "channel": channels,
+                        },
+                    )
+                }
+            )
+        )
+
+        fig, ax = mock_suite_basic.allocated_contribution_by_channel_over_time(
+            samples=idata
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(ax, Axes)
+        plt.close(fig)
+
+    def test_inference_data_without_posterior_predictive_error(self, mock_suite_basic):
+        """Test error when InferenceData has no posterior_predictive."""
+        idata = az.InferenceData()
+
+        with pytest.raises(
+            ValueError, match=r"InferenceData must contain 'posterior_predictive'"
+        ):
+            mock_suite_basic.allocated_contribution_by_channel_over_time(samples=idata)

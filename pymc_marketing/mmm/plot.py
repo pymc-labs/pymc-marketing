@@ -1938,52 +1938,64 @@ class MMMPlotSuite:
         labels = ["Allocated Spend", "Channel Contributions"]
         ax.legend(bars, labels, loc="best")
 
-    def allocated_contribution_by_channel_over_time(
+    def _prepare_allocated_contribution_data(
         self,
-        samples: xr.Dataset,
-        scale_factor: float | None = None,
-        lower_quantile: float = 0.025,
-        upper_quantile: float = 0.975,
+        samples: xr.Dataset | az.InferenceData,
+        dims: dict[str, str | int | list] | None = None,
+        split_by: str | list[str] | None = None,
         original_scale: bool = True,
-        figsize: tuple[float, float] = (10, 6),
-        ax: plt.Axes | None = None,
-    ) -> tuple[Figure, plt.Axes | NDArray[Axes]]:
-        """Plot the allocated contribution by channel with uncertainty intervals.
+        scale_factor: float | None = None,
+    ) -> tuple[xr.DataArray, list[str], list[tuple]]:
+        """Prepare channel contribution data with dimension filtering.
 
-        This function visualizes the mean allocated contributions by channel along with
-        the uncertainty intervals defined by the lower and upper quantiles.
-        If additional dimensions besides 'channel', 'date', and 'sample' are present,
-        creates a subplot for each combination of these dimensions.
+        This method handles validation, data extraction, dimension filtering,
+        and split_by processing for the allocated contribution plot.
 
         Parameters
         ----------
-        samples : xr.Dataset
+        samples : xr.Dataset or az.InferenceData
             The dataset containing the samples of channel contributions.
-            Expected to have 'channel_contribution' variable with dimensions
-            'channel', 'date', and 'sample'.
+            Can be an xr.Dataset with 'sample' dimension, or an az.InferenceData
+            with 'chain' and 'draw' dimensions (from posterior_predictive).
+        dims : dict[str, str | int | list], optional
+            Dimension filters to apply. Example: {"geo": "US"}.
+            If provided, only the selected slice(s) will be included.
+        split_by : str or list of str, optional
+            Dimension(s) to create separate subplots for. Each unique combination
+            of values in these dimensions will get its own subplot.
+        original_scale : bool, default True
+            If True, prefer 'channel_contribution_original_scale' variable.
         scale_factor : float, optional
-            Scale factor to convert to original scale, if original_scale=True.
-            If None and original_scale=True, assumes scale_factor=1.
-        lower_quantile : float, optional
-            The lower quantile for the uncertainty interval. Default is 0.025.
-        upper_quantile : float, optional
-            The upper quantile for the uncertainty interval. Default is 0.975.
-        original_scale : bool, optional
-            If True, the contributions are plotted on the original scale. Default is True.
-        figsize : tuple[float, float], optional
-            The size of the figure to be created. Default is (10, 6).
-        ax : plt.Axes, optional
-            The axis to plot on. If None, a new figure and axis will be created.
-            Only used when no extra dimensions are present.
+            Scale factor to apply to the contributions.
 
         Returns
         -------
-        fig : matplotlib.figure.Figure
-            The Figure object containing the plot.
-        axes : matplotlib.axes.Axes or numpy.ndarray of matplotlib.axes.Axes
-            The Axes object with the plot, or array of Axes for multiple subplots.
+        channel_contribution : xr.DataArray
+            The channel contribution data, filtered and scaled, with 'sample' dim.
+        split_dims : list of str
+            List of dimension names to split by.
+        dim_combinations : list of tuple
+            List of coordinate value combinations for split dimensions.
+
+        Raises
+        ------
+        ValueError
+            If required dimensions or variables are missing.
         """
-        # Check for expected dimensions and variables
+        # Handle InferenceData input - extract posterior_predictive
+        if isinstance(samples, az.InferenceData):
+            if hasattr(samples, "posterior_predictive"):
+                samples = samples.posterior_predictive
+            else:
+                raise ValueError(
+                    "InferenceData must contain 'posterior_predictive' group."
+                )
+
+        # Stack chain and draw into sample if present
+        if "chain" in samples.dims and "draw" in samples.dims:
+            samples = samples.stack(sample=("chain", "draw"))
+
+        # Validate required dimensions
         if "channel" not in samples.dims:
             raise ValueError(
                 "Expected 'channel' dimension in samples dataset, but none found."
@@ -1996,151 +2008,333 @@ class MMMPlotSuite:
             raise ValueError(
                 "Expected 'sample' dimension in samples dataset, but none found."
             )
+
         # Check if any variable contains channel contributions
         if not any(
             "channel_contribution" in var_name for var_name in samples.data_vars
         ):
             raise ValueError(
-                "Expected a variable containing 'channel_contribution' in samples, but none found."
+                "Expected a variable containing 'channel_contribution' in samples, "
+                "but none found."
             )
 
-        # Get channel contributions data
-        channel_contrib_var = next(
-            var_name
-            for var_name in samples.data_vars
-            if "channel_contribution" in var_name
+        # Get channel contributions data - prefer original scale if requested
+        if (
+            original_scale
+            and "channel_contribution_original_scale" in samples.data_vars
+        ):
+            channel_contrib_var = "channel_contribution_original_scale"
+        else:
+            channel_contrib_var = next(
+                var_name
+                for var_name in samples.data_vars
+                if "channel_contribution" in var_name
+            )
+
+        channel_contribution = samples[channel_contrib_var]
+
+        # Apply scale factor if provided
+        if scale_factor is not None:
+            channel_contribution = channel_contribution * scale_factor
+
+        # Apply dimension filtering
+        if dims is not None:
+            selection = {}
+            for key, val in dims.items():
+                if key in channel_contribution.dims:
+                    selection[key] = val
+            if selection:
+                channel_contribution = channel_contribution.sel(**selection)
+
+        # Determine split dimensions and combinations
+        if split_by is not None:
+            split_dims = [split_by] if isinstance(split_by, str) else list(split_by)
+
+            # Validate split dimensions exist in data
+            for dim in split_dims:
+                if dim not in channel_contribution.dims:
+                    available_dims = list(channel_contribution.dims)
+                    raise ValueError(
+                        f"Split dimension '{dim}' not found in data dimensions. "
+                        f"Available dimensions: {available_dims}"
+                    )
+
+            # Get unique combinations for split dimensions
+            unique_values = [
+                channel_contribution.coords[dim].values for dim in split_dims
+            ]
+            dim_combinations = list(itertools.product(*unique_values))
+        else:
+            # Auto-detect extra dimensions for backward compatibility
+            ignored_dims = {"channel", "date", "sample"}
+            extra_dims = [
+                dim for dim in channel_contribution.dims if dim not in ignored_dims
+            ]
+
+            if extra_dims:
+                split_dims = extra_dims
+                unique_values = [
+                    channel_contribution.coords[dim].values for dim in split_dims
+                ]
+                dim_combinations = list(itertools.product(*unique_values))
+            else:
+                split_dims = []
+                dim_combinations = [()]
+
+        return channel_contribution, split_dims, dim_combinations
+
+    def _plot_single_allocated_contribution(
+        self,
+        ax: Axes,
+        data: xr.DataArray,
+        hdi_prob: float = 0.94,
+        title: str = "Allocated Contribution by Channel Over Time",
+    ) -> None:
+        """Plot a single allocated contribution panel with HDI bands.
+
+        This helper method renders a time series plot showing channel contributions
+        over time with uncertainty intervals using HDI.
+
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes
+            The axes object to plot on.
+        data : xr.DataArray
+            DataArray with dimensions including 'sample', 'date', and 'channel'.
+        hdi_prob : float, default 0.94
+            The probability mass for the HDI interval.
+        title : str, default "Allocated Contribution by Channel Over Time"
+            Title for the subplot.
+        """
+        # Plot mean values by channel
+        data.mean(dim="sample").plot(hue="channel", ax=ax)
+
+        # Add HDI intervals for each channel
+        channels = data.coords["channel"].values
+        dates = data.coords["date"].values
+
+        for i, channel in enumerate(channels):
+            channel_data = data.sel(channel=channel)
+
+            # Compute HDI per date using arviz
+            # Transpose to have samples in first dimension: (sample, date) -> (date, sample)
+            # Then compute HDI for each date point
+            n_dates = len(dates)
+            hdi_lower = np.zeros(n_dates)
+            hdi_upper = np.zeros(n_dates)
+
+            for j, date in enumerate(dates):
+                date_samples = channel_data.sel(date=date).values.flatten()
+                hdi_result = az.hdi(date_samples, hdi_prob=hdi_prob)
+                hdi_lower[j] = hdi_result[0]
+                hdi_upper[j] = hdi_result[1]
+
+            ax.fill_between(
+                x=dates,
+                y1=hdi_lower,
+                y2=hdi_upper,
+                alpha=0.15,
+                color=f"C{i}",
+            )
+
+        ax.set_xlabel("Date")
+        ax.set_ylabel("Channel Contribution")
+        ax.set_title(title)
+
+    def allocated_contribution_by_channel_over_time(
+        self,
+        samples: xr.Dataset | az.InferenceData,
+        hdi_prob: float = 0.94,
+        dims: dict[str, str | int | list] | None = None,
+        split_by: str | list[str] | None = None,
+        original_scale: bool = True,
+        scale_factor: float | None = None,
+        figsize: tuple[float, float] | None = None,
+        subplot_kwargs: dict[str, Any] | None = None,
+        **kwargs,
+    ) -> tuple[Figure, Axes] | tuple[Figure, NDArray[Axes]]:
+        """Plot the allocated contribution by channel with uncertainty intervals.
+
+        This function visualizes the mean allocated contributions by channel along
+        with HDI (Highest Density Interval) uncertainty bands. Supports dimension
+        filtering via `dims` and creating separate subplots via `split_by`.
+
+        Parameters
+        ----------
+        samples : xr.Dataset or az.InferenceData
+            The dataset containing the samples of channel contributions.
+            Can be an xr.Dataset with 'sample' dimension, or az.InferenceData
+            (e.g., from sample_response_distribution) with 'chain' and 'draw' dims.
+        hdi_prob : float, default 0.94
+            The probability mass for the HDI interval.
+        dims : dict[str, str | int | list], optional
+            Dimension filters to apply. Example: {"geo": "US"} to filter to a
+            single geo, or {"geo": ["US", "UK"]} to include multiple values.
+        split_by : str or list of str, optional
+            Dimension(s) to create separate subplots for. Each unique combination
+            of values in these dimensions will get its own subplot.
+            If None, auto-detects extra dimensions beyond 'channel', 'date', 'sample'.
+        original_scale : bool, default True
+            If True, prefer 'channel_contribution_original_scale' variable if available.
+        scale_factor : float, optional
+            Scale factor to apply to the contributions.
+        figsize : tuple[float, float], optional
+            The size of the figure. Default is (10, 6) for single panel,
+            scaled automatically for multiple panels.
+        subplot_kwargs : dict, optional
+            Additional keyword arguments for subplot layout. Can include:
+            - 'nrows': Number of rows in subplot grid
+            - 'ncols': Number of columns in subplot grid
+            Only one of 'nrows' or 'ncols' can be specified when using split_by.
+        **kwargs
+            Additional keyword arguments passed to plt.subplots().
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The Figure object containing the plot.
+        axes : matplotlib.axes.Axes or numpy.ndarray of matplotlib.axes.Axes
+            The Axes object with the plot for single panel, or array of Axes
+            for multiple subplots.
+
+        Examples
+        --------
+        Basic usage with optimization samples:
+
+        >>> allocation, _ = mmm.optimize_budget(budget=100_000, num_periods=52)
+        >>> samples = mmm.sample_response_distribution(
+        ...     allocation_strategy=allocation,
+        ...     time_granularity="weekly",
+        ...     num_periods=52,
+        ...     noise_level=0.1,
+        ... )
+        >>> fig, ax = mmm.plot.allocated_contribution_by_channel_over_time(samples)
+
+        Filter to a specific dimension value:
+
+        >>> fig, ax = mmm.plot.allocated_contribution_by_channel_over_time(
+        ...     samples, dims={"geo": "US"}
+        ... )
+
+        Create subplots split by dimension:
+
+        >>> fig, axes = mmm.plot.allocated_contribution_by_channel_over_time(
+        ...     samples, split_by="geo"
+        ... )
+        """
+        # Handle subplot_kwargs
+        if subplot_kwargs is None:
+            subplot_kwargs = {}
+        else:
+            subplot_kwargs = subplot_kwargs.copy()
+
+        # Validate nrows/ncols not both specified
+        if "nrows" in subplot_kwargs and "ncols" in subplot_kwargs:
+            raise ValueError(
+                "Specify only one of 'nrows' or 'ncols' in subplot_kwargs, not both."
+            )
+
+        # Prepare data with dimension filtering and split_by handling
+        channel_contribution, split_dims, dim_combinations = (
+            self._prepare_allocated_contribution_data(
+                samples=samples,
+                dims=dims,
+                split_by=split_by,
+                original_scale=original_scale,
+                scale_factor=scale_factor,
+            )
         )
 
-        # Identify extra dimensions beyond 'channel', 'date', and 'sample'
-        all_dims = list(samples[channel_contrib_var].dims)
-        ignored_dims = {"channel", "date", "sample"}
-        extra_dims = [dim for dim in all_dims if dim not in ignored_dims]
+        n_panels = len(dim_combinations)
 
-        # If no extra dimensions or using provided axis, create a single plot
-        if not extra_dims or ax is not None:
-            if ax is None:
-                fig, ax = plt.subplots(figsize=figsize)
-            else:
-                fig = ax.get_figure()
+        # Single panel case
+        if n_panels == 1:
+            if figsize is None:
+                figsize = (10, 6)
 
-            channel_contribution = samples[channel_contrib_var]
+            fig, ax = plt.subplots(figsize=figsize, **kwargs)
 
-            # Apply scale factor if in original scale
-            if original_scale and scale_factor is not None:
-                channel_contribution = channel_contribution * scale_factor
-
-            # Plot mean values by channel
-            channel_contribution.mean(dim="sample").plot(hue="channel", ax=ax)
-
-            # Add uncertainty intervals for each channel
-            for channel in samples.coords["channel"].values:
-                ax.fill_between(
-                    x=channel_contribution.date.values,
-                    y1=channel_contribution.sel(channel=channel).quantile(
-                        lower_quantile, dim="sample"
-                    ),
-                    y2=channel_contribution.sel(channel=channel).quantile(
-                        upper_quantile, dim="sample"
-                    ),
-                    alpha=0.1,
-                )
-
-            ax.set_xlabel("Date")
-            ax.set_ylabel("Channel Contribution")
-            ax.set_title("Allocated Contribution by Channel Over Time")
+            self._plot_single_allocated_contribution(
+                ax=ax,
+                data=channel_contribution,
+                hdi_prob=hdi_prob,
+                title="Allocated Contribution by Channel Over Time",
+            )
 
             fig.tight_layout()
             return fig, ax
 
-        # For multiple dimensions, create a grid of subplots
-        # Determine layout based on number of extra dimensions
-        if len(extra_dims) == 1:
-            # One extra dimension: use for rows
-            dim_values = [samples.coords[extra_dims[0]].values]
-            nrows = len(dim_values[0])
-            ncols = 1
-            subplot_dims = [extra_dims[0], None]
-        elif len(extra_dims) == 2:
-            # Two extra dimensions: one for rows, one for columns
-            dim_values = [
-                samples.coords[extra_dims[0]].values,
-                samples.coords[extra_dims[1]].values,
-            ]
-            nrows = len(dim_values[0])
-            ncols = len(dim_values[1])
-            subplot_dims = extra_dims
+        # Multiple panels case
+        if figsize is None:
+            figsize = (10, 6)
+
+        # Determine grid layout
+        if "nrows" in subplot_kwargs:
+            nrows = subplot_kwargs.pop("nrows")
+            ncols = int(np.ceil(n_panels / nrows))
+        elif "ncols" in subplot_kwargs:
+            ncols = subplot_kwargs.pop("ncols")
+            nrows = int(np.ceil(n_panels / ncols))
         else:
-            # Three or more: use first two for rows/columns, average over the rest
-            dim_values = [
-                samples.coords[extra_dims[0]].values,
-                samples.coords[extra_dims[1]].values,
-            ]
-            nrows = len(dim_values[0])
-            ncols = len(dim_values[1])
-            subplot_dims = [extra_dims[0], extra_dims[1]]
+            # Default: single column layout
+            nrows = n_panels
+            ncols = 1
 
-        # Calculate figure size based on number of subplots
-        subplot_figsize = (figsize[0] * max(1, ncols), figsize[1] * max(1, nrows))
-        fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=subplot_figsize)
+        # Calculate figure size based on grid
+        subplot_figsize = (figsize[0] * ncols, figsize[1] * nrows)
 
-        # Make axes indexable even for 1x1 grid
-        if nrows == 1 and ncols == 1:
-            axes = np.array([[axes]])
-        elif nrows == 1:
-            axes = axes.reshape(1, -1)
-        elif ncols == 1:
-            axes = axes.reshape(-1, 1)
+        fig, axes_grid = plt.subplots(
+            nrows=nrows,
+            ncols=ncols,
+            figsize=subplot_figsize,
+            layout="constrained",
+            **subplot_kwargs,
+            **kwargs,
+        )
 
-        # Create a subplot for each combination of dimension values
-        for i, row_val in enumerate(dim_values[0]):
-            for j, col_val in enumerate(
-                dim_values[1] if len(dim_values) > 1 else [None]
-            ):
-                ax = axes[i, j]
+        # Normalize axes to 2D array
+        if isinstance(axes_grid, Axes):
+            axes_array = np.array([[axes_grid]])
+        elif axes_grid.ndim == 1:
+            axes_array = (
+                axes_grid.reshape(1, -1) if nrows == 1 else axes_grid.reshape(-1, 1)
+            )
+        else:
+            axes_array = axes_grid
 
-                # Select data for this subplot
-                selection = {subplot_dims[0]: row_val}
-                if col_val is not None:
-                    selection[subplot_dims[1]] = col_val
+        # Flatten for iteration
+        axes_flat = axes_array.flatten()
 
-                # Select channel contributions for this subplot
-                subset = samples[channel_contrib_var].sel(**selection)
+        # Plot each combination
+        for idx, combo in enumerate(dim_combinations):
+            current_ax = axes_flat[idx]
 
-                # Apply scale factor if needed
-                if original_scale and scale_factor is not None:
-                    subset = subset * scale_factor
+            # Filter data for this combination
+            if split_dims and combo:
+                selection = dict(zip(split_dims, combo, strict=False))
+                subset = channel_contribution.sel(**selection)
+            else:
+                subset = channel_contribution
 
-                # Plot mean values by channel for this subset
-                subset.mean(dim="sample").plot(hue="channel", ax=ax)
+            # Build subplot title
+            title = self._build_subplot_title(
+                dims=split_dims,
+                combo=combo,
+                fallback_title="Allocated Contribution by Channel Over Time",
+            )
 
-                # Add uncertainty intervals for each channel
-                for channel in samples.coords["channel"].values:
-                    channel_data = subset.sel(channel=channel)
-                    ax.fill_between(
-                        x=channel_data.date.values,
-                        y1=channel_data.quantile(lower_quantile, dim="sample"),
-                        y2=channel_data.quantile(upper_quantile, dim="sample"),
-                        alpha=0.1,
-                    )
+            self._plot_single_allocated_contribution(
+                ax=current_ax,
+                data=subset,
+                hdi_prob=hdi_prob,
+                title=title,
+            )
 
-                # Add subplot title based on dimension values
-                title_parts = []
-                if subplot_dims[0] is not None:
-                    title_parts.append(f"{subplot_dims[0]}={row_val}")
-                if subplot_dims[1] is not None:
-                    title_parts.append(f"{subplot_dims[1]}={col_val}")
+        # Hide unused axes
+        for ax_extra in axes_flat[n_panels:]:
+            ax_extra.set_visible(False)
 
-                base_title = "Allocated Contribution by Channel Over Time"
-                if title_parts:
-                    ax.set_title(f"{base_title} - {', '.join(title_parts)}")
-                else:
-                    ax.set_title(base_title)
-
-                ax.set_xlabel("Date")
-                ax.set_ylabel("Channel Contribution")
-
-        fig.tight_layout()
-        return fig, axes
+        return fig, axes_array
 
     def sensitivity_analysis(
         self,
