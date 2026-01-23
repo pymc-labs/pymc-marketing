@@ -186,7 +186,7 @@ Notes
 import itertools
 import warnings
 from collections.abc import Iterable
-from typing import Any
+from typing import Any, Literal
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -2155,6 +2155,10 @@ class MMMPlotSuite:
         title: str | None = None,
         add_figure_title: bool = False,
         subplot_title_fallback: str = "Sensitivity Analysis",
+        hue_dim: str | None = None,
+        legend: bool | None = None,
+        legend_kwargs: dict[str, Any] | None = None,
+        x_sweep_axis: Literal["relative", "absolute"] = "relative",
     ) -> tuple[Figure, NDArray[Axes]] | plt.Axes:
         """Plot sensitivity analysis results.
 
@@ -2184,6 +2188,22 @@ class MMMPlotSuite:
         subplot_title_fallback : str, optional
             Fallback title used for subplot titles when no plotting dims exist. Defaults
             to "Sensitivity Analysis".
+        hue_dim : str, optional
+            Dimension to draw multiple lines per subplot (e.g., "channel"). When provided,
+            this dimension is excluded from the subplot grid.
+        legend : bool, optional
+            Whether to show a legend when ``hue_dim`` is provided. Defaults to ``True``
+            when ``hue_dim`` is set.
+        legend_kwargs : dict, optional
+            Keyword arguments forwarded to ``Axes.legend`` when ``hue_dim`` is set.
+        x_sweep_axis : {"relative", "absolute"}, optional
+            Controls how the X-axis values are displayed. Defaults to ``"relative"``.
+
+            - ``"relative"``: Shows sweep multipliers (e.g., 0.5x, 1.0x, 2.0x).
+            - ``"absolute"``: Shows absolute spend values by multiplying sweep values
+              by the ``channel_scale`` from ``idata.constant_data``. Requires ``hue_dim``
+              to be set so each line can be scaled appropriately. Each channel will have
+              its own X-axis range based on its scale factor.
 
         Examples
         --------
@@ -2202,6 +2222,27 @@ class MMMPlotSuite:
             ax = mmm.plot.sensitivity_analysis(
                 hdi_prob=0.9,
                 aggregation={"sum": ("channel",)},
+            )
+
+        With multiple lines per subplot (e.g., channels within each geo):
+
+        .. code-block:: python
+
+            fig, axes = mmm.plot.sensitivity_analysis(
+                hdi_prob=0.9,
+                hue_dim="channel",
+                subplot_kwargs={"nrows": 2, "figsize": (12, 8)},
+            )
+
+        With absolute X-axis values (requires ``hue_dim`` to be set):
+
+        .. code-block:: python
+
+            fig, axes = mmm.plot.sensitivity_analysis(
+                hdi_prob=0.9,
+                hue_dim="channel",
+                x_sweep_axis="absolute",
+                xlabel="Total Spend",
             )
         """
         if not hasattr(self.idata, "sensitivity_analysis"):
@@ -2233,8 +2274,39 @@ class MMMPlotSuite:
                     x = x.mean(dim=dims_list)
                 else:
                     x = x.median(dim=dims_list)
-        # Determine plotting dimensions (excluding sample & sweep)
-        plot_dims = [d for d in x.dims if d not in {"sample", "sweep"}]
+        # Determine plotting dimensions (excluding sample, sweep, and hue)
+        excluded_dims = {"sample", "sweep"}
+        if hue_dim is not None:
+            if hue_dim in excluded_dims:
+                raise ValueError(
+                    f"Invalid hue_dim '{hue_dim}'. It cannot be one of {sorted(excluded_dims)}."
+                )
+            if hue_dim not in x.dims:
+                raise ValueError(
+                    f"Dimension '{hue_dim}' not found in sensitivity analysis results."
+                )
+            excluded_dims.add(hue_dim)
+
+        # Validate and prepare for absolute x-axis
+        channel_scale = None
+        if x_sweep_axis == "absolute":
+            if hue_dim is None:
+                raise ValueError(
+                    "x_sweep_axis='absolute' requires hue_dim to be set "
+                    "(e.g., hue_dim='channel') so each line can be scaled appropriately."
+                )
+            if not hasattr(self.idata, "constant_data"):
+                raise ValueError(
+                    "x_sweep_axis='absolute' requires idata.constant_data to exist."
+                )
+            if "channel_scale" not in self.idata.constant_data:
+                raise ValueError(
+                    "x_sweep_axis='absolute' requires 'channel_scale' in "
+                    "idata.constant_data."
+                )
+            channel_scale = self.idata.constant_data.channel_data.sum(dim="date")
+
+        plot_dims = [d for d in x.dims if d not in excluded_dims]
         if plot_dims:
             dim_combinations = list(
                 itertools.product(*[x.coords[d].values for d in plot_dims])
@@ -2299,38 +2371,52 @@ class MMMPlotSuite:
         if plot_kwargs:
             _plot_kwargs.update(plot_kwargs)
         _line_color = _plot_kwargs.get("color", "C0")
+        legend_on = legend if legend is not None else hue_dim is not None
+        _legend_kwargs = legend_kwargs or {}
+        hue_values: list[Any] = []
+        if hue_dim is not None:
+            hue_values = (
+                list(x.coords[hue_dim].values)
+                if hue_dim in x.coords
+                else list(range(x.sizes[hue_dim]))
+            )
+            hue_colors = plt.rcParams["axes.prop_cycle"].by_key().get("color", ["C0"])
+            color_cycle = itertools.cycle(hue_colors)
 
-        axes_flat = axes_array.flatten()
-        for idx, combo in enumerate(dim_combinations):
-            current_ax = axes_flat[idx]
-            indexers = dict(zip(plot_dims, combo, strict=False)) if plot_dims else {}
-            subset = x.sel(**indexers) if indexers else x
-            subset = subset.squeeze(drop=True)
-            subset = subset.astype(float)
+        def _plot_line(
+            line_data: xr.DataArray,
+            line_kwargs: dict[str, Any],
+            line_color: str,
+            x_override: np.ndarray | None = None,
+        ) -> None:
+            line_data = line_data.squeeze(drop=True).astype(float)
 
-            if "sweep" in subset.dims:
+            if "sweep" in line_data.dims:
                 sweep_dim = "sweep"
             else:
-                cand = [d for d in subset.dims if d != "sample"]
+                cand = [d for d in line_data.dims if d != "sample"]
                 if not cand:
                     raise ValueError(
                         "Expected 'sweep' (or a non-sample) dimension in sensitivity results."
                     )
                 sweep_dim = cand[0]
 
-            sweep = (
-                np.asarray(subset.coords[sweep_dim].values)
-                if sweep_dim in subset.coords
-                else np.arange(subset.sizes[sweep_dim])
-            )
+            if x_override is not None:
+                sweep = x_override
+            else:
+                sweep = (
+                    np.asarray(line_data.coords[sweep_dim].values)
+                    if sweep_dim in line_data.coords
+                    else np.arange(line_data.sizes[sweep_dim])
+                )
 
-            mean = subset.mean("sample") if "sample" in subset.dims else subset
+            mean = line_data.mean("sample") if "sample" in line_data.dims else line_data
             reduce_dims = [d for d in mean.dims if d != sweep_dim]
             if reduce_dims:
                 mean = mean.sum(dim=reduce_dims)
 
-            if "sample" in subset.dims:
-                hdi = az.hdi(subset, hdi_prob=hdi_prob, input_core_dims=[["sample"]])
+            if "sample" in line_data.dims:
+                hdi = az.hdi(line_data, hdi_prob=hdi_prob, input_core_dims=[["sample"]])
                 if isinstance(hdi, xr.Dataset):
                     hdi = hdi[next(iter(hdi.data_vars))]
             else:
@@ -2347,14 +2433,69 @@ class MMMPlotSuite:
             ]:
                 hdi = hdi.transpose(sweep_dim, "hdi")  # type: ignore
 
-            current_ax.plot(sweep, np.asarray(mean.values, dtype=float), **_plot_kwargs)
+            current_ax.plot(sweep, np.asarray(mean.values, dtype=float), **line_kwargs)
             az.plot_hdi(
                 x=sweep,
                 hdi_data=np.asarray(hdi.values, dtype=float),
                 hdi_prob=hdi_prob,
-                color=_line_color,
+                color=line_color,
                 ax=current_ax,
             )
+
+        # Get sweep coordinate values for absolute x-axis computation
+        sweep_coord_values = None
+        if x_sweep_axis == "absolute" and "sweep" in x.coords:
+            sweep_coord_values = np.asarray(x.coords["sweep"].values)
+
+        axes_flat = axes_array.flatten()
+        for idx, combo in enumerate(dim_combinations):
+            current_ax = axes_flat[idx]
+            indexers = dict(zip(plot_dims, combo, strict=False)) if plot_dims else {}
+            subset = x.sel(**indexers) if indexers else x
+
+            if hue_dim is None:
+                _plot_line(subset, _plot_kwargs, _line_color)
+            else:
+                for hue_value in hue_values:
+                    hue_subset = subset.sel({hue_dim: hue_value})
+                    line_kwargs = dict(_plot_kwargs)
+                    if plot_kwargs is None or "color" not in plot_kwargs:
+                        line_color = next(color_cycle)
+                        line_kwargs["color"] = line_color
+                    else:
+                        line_color = line_kwargs.get("color", _line_color)
+                    if "label" not in line_kwargs:
+                        line_kwargs["label"] = f"{hue_dim}={hue_value}"
+
+                    # Compute absolute x-values if requested
+                    x_override = None
+                    if x_sweep_axis == "absolute" and channel_scale is not None:
+                        # Build indexers for channel_scale selection
+                        scale_indexers = {**indexers, hue_dim: hue_value}
+                        # Filter to only dims present in channel_scale
+                        valid_scale_indexers = {
+                            k: v
+                            for k, v in scale_indexers.items()
+                            if k in channel_scale.dims
+                        }
+                        try:
+                            scale_value = float(
+                                channel_scale.sel(**valid_scale_indexers).values
+                            )
+                            if sweep_coord_values is not None:
+                                x_override = sweep_coord_values * scale_value
+                        except (KeyError, ValueError) as err:
+                            warnings.warn(
+                                f"Could not compute absolute x-axis for "
+                                f"{hue_dim}={hue_value}: {err}. "
+                                f"Using relative sweep values.",
+                                RuntimeWarning,
+                                stacklevel=2,
+                            )
+
+                    _plot_line(hue_subset, line_kwargs, line_color, x_override)
+                if legend_on:
+                    current_ax.legend(**_legend_kwargs)
 
             title = self._build_subplot_title(
                 dims=plot_dims,
