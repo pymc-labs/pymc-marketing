@@ -16,6 +16,9 @@
 Note: Fixtures `simple_mmm_data`, `panel_mmm_data`, `simple_fitted_mmm`, and
 `panel_fitted_mmm` are defined in tests/mmm/conftest.py and automatically
 available to all tests in this module.
+
+This is a reduced test suite that removes redundancies while maintaining
+full coverage of the method's functionality.
 """
 
 import numpy as np
@@ -28,120 +31,147 @@ from pymc_marketing.mmm.multidimensional import MMM
 
 
 @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-def test_sample_adstock_curve_basic_functionality(fitted_mmm, request):
-    """Test basic functionality: return type, dimensions, and coordinate range."""
-    mmm = request.getfixturevalue(fitted_mmm)
+class TestSampleAdstockCurveBasics:
+    """Basic functionality tests for sample_adstock_curve."""
 
-    curves = mmm.sample_adstock_curve()
+    def test_returns_dataarray_with_correct_dims(self, fitted_mmm, request):
+        """Test return type and dimensions."""
+        mmm = request.getfixturevalue(fitted_mmm)
+        curves = mmm.sample_adstock_curve()
 
-    # Return type and required dimensions
-    assert isinstance(curves, xr.DataArray)
-    assert "sample" in curves.dims
-    assert "time since exposure" in curves.dims
-    assert curves.sizes["time since exposure"] > 0
-    assert curves.sizes["sample"] > 0
+        assert isinstance(curves, xr.DataArray)
+        assert "sample" in curves.dims
+        assert "time since exposure" in curves.dims
+        assert curves.sizes["time since exposure"] > 0
+        assert curves.sizes["sample"] > 0
 
-    # Time coordinate range: 0 to l_max-1
-    time_coords = curves.coords["time since exposure"].values
-    assert time_coords[0] == pytest.approx(0.0)
-    assert curves.sizes["time since exposure"] == mmm.adstock.l_max
-    assert np.max(time_coords) == pytest.approx(mmm.adstock.l_max - 1)
+    def test_time_coordinate_range(self, fitted_mmm, request):
+        """Test that time coordinates span from 0 to l_max-1."""
+        mmm = request.getfixturevalue(fitted_mmm)
+        curves = mmm.sample_adstock_curve()
+
+        time_coords = curves.coords["time since exposure"].values
+        assert time_coords[0] == pytest.approx(0.0)
+        assert curves.sizes["time since exposure"] == mmm.adstock.l_max
+        assert np.max(time_coords) == pytest.approx(mmm.adstock.l_max - 1)
 
 
-@pytest.mark.parametrize(
-    "num_samples_mode",
-    ["less_than_total", "greater_than_total", "none"],
-)
-def test_sample_adstock_curve_num_samples_behavior(simple_fitted_mmm, num_samples_mode):
-    """Test num_samples parameter behavior for different scenarios."""
-    mmm = simple_fitted_mmm
-    total_available = (
-        mmm.idata.posterior.sizes["chain"] * mmm.idata.posterior.sizes["draw"]
-    )
+@pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
+class TestSampleAdstockCurveNumSamples:
+    """Tests for num_samples parameter behavior."""
 
-    if num_samples_mode == "less_than_total":
+    def test_num_samples_controls_sample_dimension(self, fitted_mmm, request):
+        """Test that num_samples controls the number of posterior samples."""
+        mmm = request.getfixturevalue(fitted_mmm)
+        total_available = (
+            mmm.idata.posterior.sizes["chain"] * mmm.idata.posterior.sizes["draw"]
+        )
+        num_samples = min(5, total_available - 1)
+
         if total_available <= 2:
             pytest.skip("Not enough posterior samples to test subsampling")
-        num_samples = min(5, total_available - 1)
-        expected_samples = num_samples
-    elif num_samples_mode == "greater_than_total":
-        num_samples = 10000
-        expected_samples = total_available
-    else:  # none
-        num_samples = None
-        expected_samples = total_available
 
-    curves = mmm.sample_adstock_curve(num_samples=num_samples)
-    assert curves.sizes["sample"] == expected_samples
+        curves = mmm.sample_adstock_curve(num_samples=num_samples)
+        assert curves.sizes["sample"] == num_samples
 
-
-@pytest.mark.parametrize("amount", [0, -1])
-def test_sample_adstock_curve_raises_on_invalid_amount(simple_fitted_mmm, amount):
-    """Test that invalid amount raises ValidationError."""
-    with pytest.raises(ValidationError):
-        simple_fitted_mmm.sample_adstock_curve(amount=amount)
-
-
-@pytest.mark.parametrize("num_samples", [0, -1])
-def test_sample_adstock_curve_raises_on_invalid_num_samples(
-    simple_fitted_mmm, num_samples
-):
-    """Test that invalid num_samples raises ValidationError."""
-    with pytest.raises(ValidationError):
-        simple_fitted_mmm.sample_adstock_curve(num_samples=num_samples)
-
-
-def test_sample_adstock_curve_raises_on_unfitted_model():
-    """Test that calling on unfitted model raises ValueError."""
-    mmm = MMM(
-        channel_columns=["channel_1", "channel_2"],
-        date_column="date",
-        target_column="target",
-        adstock=GeometricAdstock(l_max=10),
-        saturation=LogisticSaturation(),
-    )
-
-    with pytest.raises(ValueError, match="idata does not exist"):
-        mmm.sample_adstock_curve()
-
-
-def test_sample_adstock_curve_raises_when_no_posterior(simple_mmm_data):
-    """Test that calling raises ValueError when idata exists but has no posterior."""
-    import arviz as az
-
-    X = simple_mmm_data["X"]
-    y = simple_mmm_data["y"]
-
-    mmm = MMM(
-        channel_columns=["channel_1", "channel_2", "channel_3"],
-        date_column="date",
-        target_column="target",
-        adstock=GeometricAdstock(l_max=10),
-        saturation=LogisticSaturation(),
-    )
-
-    mmm.build_model(X, y)
-    mmm.idata = az.InferenceData()
-
-    with pytest.raises(ValueError, match="posterior not found in idata"):
-        mmm.sample_adstock_curve()
-
-
-def test_sample_adstock_curve_with_idata_argument(simple_fitted_mmm):
-    """Test that idata argument uses provided InferenceData instead of self.idata."""
-    mmm = simple_fitted_mmm
-
-    modified_idata = mmm.idata.copy()
-    modified_posterior = modified_idata.posterior.copy()
-    if "adstock_alpha" in modified_posterior:
-        modified_posterior["adstock_alpha"] = np.clip(
-            modified_posterior["adstock_alpha"] * 0.5, 0.01, 0.99
+    def test_uses_all_samples_when_num_samples_exceeds_or_none(
+        self, fitted_mmm, request
+    ):
+        """Test behavior when num_samples exceeds available or is None."""
+        mmm = request.getfixturevalue(fitted_mmm)
+        total_available = (
+            mmm.idata.posterior.sizes["chain"] * mmm.idata.posterior.sizes["draw"]
         )
-    modified_idata.posterior = modified_posterior
 
-    curves_default = mmm.sample_adstock_curve(random_state=42)
-    curves_with_idata = mmm.sample_adstock_curve(idata=modified_idata, random_state=42)
+        # When exceeds available
+        curves_exceed = mmm.sample_adstock_curve(num_samples=10000)
+        assert curves_exceed.sizes["sample"] == total_available
 
-    assert not np.allclose(curves_default.values, curves_with_idata.values), (
-        "Curves with modified idata should differ from default"
+        # When None
+        curves_none = mmm.sample_adstock_curve(num_samples=None)
+        assert curves_none.sizes["sample"] == total_available
+
+
+@pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
+class TestSampleAdstockCurveValidation:
+    """Tests for input validation."""
+
+    @pytest.mark.parametrize(
+        "param,invalid_values",
+        [
+            ("amount", [0, -1]),
+            ("num_samples", [0, -1]),
+        ],
     )
+    def test_raises_on_invalid_parameters(
+        self, fitted_mmm, request, param, invalid_values
+    ):
+        """Test that invalid parameters raise ValidationError."""
+        mmm = request.getfixturevalue(fitted_mmm)
+        for invalid_value in invalid_values:
+            with pytest.raises(ValidationError):
+                mmm.sample_adstock_curve(**{param: invalid_value})
+
+
+class TestSampleAdstockCurveErrorCases:
+    """Tests for error conditions."""
+
+    def test_raises_on_unfitted_model(self):
+        """Test that calling on unfitted model raises ValueError."""
+        mmm = MMM(
+            channel_columns=["channel_1", "channel_2"],
+            date_column="date",
+            target_column="target",
+            adstock=GeometricAdstock(l_max=10),
+            saturation=LogisticSaturation(),
+        )
+
+        with pytest.raises(ValueError, match="idata does not exist"):
+            mmm.sample_adstock_curve()
+
+    def test_raises_when_no_posterior(self, simple_mmm_data):
+        """Test that calling raises ValueError when idata has no posterior."""
+        import arviz as az
+
+        X = simple_mmm_data["X"]
+        y = simple_mmm_data["y"]
+
+        mmm = MMM(
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            date_column="date",
+            target_column="target",
+            adstock=GeometricAdstock(l_max=10),
+            saturation=LogisticSaturation(),
+        )
+
+        mmm.build_model(X, y)
+        mmm.idata = az.InferenceData()  # Empty idata without posterior
+
+        with pytest.raises(ValueError, match="posterior not found in idata"):
+            mmm.sample_adstock_curve()
+
+
+@pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
+class TestSampleAdstockCurveEdgeCases:
+    """Tests for edge cases and special scenarios."""
+
+    def test_idata_argument_uses_provided_posterior(self, fitted_mmm, request):
+        """Test that idata argument uses provided posterior samples."""
+        mmm = request.getfixturevalue(fitted_mmm)
+
+        modified_idata = mmm.idata.copy()
+        modified_posterior = modified_idata.posterior.copy()
+        if "adstock_alpha" in modified_posterior:
+            modified_posterior["adstock_alpha"] = np.clip(
+                modified_posterior["adstock_alpha"] * 0.5, 0.01, 0.99
+            )
+        modified_idata.posterior = modified_posterior
+
+        curves_default = mmm.sample_adstock_curve(random_state=42)
+        curves_with_idata = mmm.sample_adstock_curve(
+            idata=modified_idata, random_state=42
+        )
+
+        assert not np.allclose(curves_default.values, curves_with_idata.values), (
+            "Curves with modified idata should differ from default"
+        )
