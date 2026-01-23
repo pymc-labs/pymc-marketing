@@ -1702,6 +1702,462 @@ class TestWaterfallPlot:
         assert isinstance(fig, Figure)
         assert isinstance(ax, Axes)
 
+    @pytest.fixture(scope="class")
+    def mock_idata_with_geo(self):
+        """Create mock InferenceData with geo dimension for testing split_by."""
+        dates = pd.date_range("2025-01-01", periods=10, freq="W-MON")
+        channels = ["C1", "C2"]
+        geos = ["US", "UK", "DE"]
+
+        idata = az.InferenceData(
+            posterior=xr.Dataset(
+                {
+                    "intercept_contribution_original_scale": xr.DataArray(
+                        np.random.normal(50, 5, size=(2, 50, 10, 3)),
+                        dims=("chain", "draw", "date", "geo"),
+                        coords={
+                            "chain": [0, 1],
+                            "draw": np.arange(50),
+                            "date": dates,
+                            "geo": geos,
+                        },
+                    ),
+                    "channel_contribution_original_scale": xr.DataArray(
+                        np.random.normal(30, 10, size=(2, 50, 10, 2, 3)),
+                        dims=("chain", "draw", "date", "channel", "geo"),
+                        coords={
+                            "chain": [0, 1],
+                            "draw": np.arange(50),
+                            "date": dates,
+                            "channel": channels,
+                            "geo": geos,
+                        },
+                    ),
+                }
+            )
+        )
+        return idata
+
+    @pytest.fixture(scope="class")
+    def mock_suite_with_geo(self, mock_idata_with_geo):
+        """Create MMMPlotSuite with geo dimension for split_by tests."""
+        return MMMPlotSuite(idata=mock_idata_with_geo)
+
+    def test_waterfall_with_dims_filter(self, mock_suite_with_geo):
+        """Test waterfall plot with dimension filtering."""
+        fig, ax = mock_suite_with_geo.waterfall_components_decomposition(
+            var=[
+                "intercept_contribution_original_scale",
+                "channel_contribution_original_scale",
+            ],
+            dims={"geo": "US"},
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(ax, Axes)
+        assert ax.get_title() == "Response Decomposition Waterfall by Components"
+
+    def test_waterfall_with_dims_filter_list(self, mock_suite_with_geo):
+        """Test waterfall plot with dimension filtering using list of values."""
+        fig, ax = mock_suite_with_geo.waterfall_components_decomposition(
+            var=[
+                "intercept_contribution_original_scale",
+                "channel_contribution_original_scale",
+            ],
+            dims={"geo": ["US", "UK"]},
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(ax, Axes)
+
+    def test_waterfall_split_by_single_dim(self, mock_suite_with_geo):
+        """Test waterfall plot with split_by for single dimension."""
+        fig, axes = mock_suite_with_geo.waterfall_components_decomposition(
+            var=[
+                "intercept_contribution_original_scale",
+                "channel_contribution_original_scale",
+            ],
+            split_by="geo",
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        # Should have 3 geos (US, UK, DE), so axes should be 2D array
+        assert axes.size >= 3
+
+        # Check that each subplot has appropriate title
+        axes_flat = axes.flatten()
+        titles = [ax.get_title() for ax in axes_flat if ax.get_visible()]
+        assert len(titles) == 3
+        assert any("US" in t for t in titles)
+        assert any("UK" in t for t in titles)
+        assert any("DE" in t for t in titles)
+
+    def test_waterfall_split_by_with_ncols(self, mock_suite_with_geo):
+        """Test waterfall plot with split_by and ncols specified."""
+        fig, axes = mock_suite_with_geo.waterfall_components_decomposition(
+            var=[
+                "intercept_contribution_original_scale",
+                "channel_contribution_original_scale",
+            ],
+            split_by="geo",
+            subplot_kwargs={"ncols": 3},
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        # With ncols=3 and 3 geos, should be 1 row x 3 cols
+        assert axes.shape == (1, 3)
+
+    def test_waterfall_split_by_with_nrows(self, mock_suite_with_geo):
+        """Test waterfall plot with split_by and nrows specified."""
+        fig, axes = mock_suite_with_geo.waterfall_components_decomposition(
+            var=[
+                "intercept_contribution_original_scale",
+                "channel_contribution_original_scale",
+            ],
+            split_by="geo",
+            subplot_kwargs={"nrows": 3},
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        # With nrows=3 and 3 geos, should be 3 rows x 1 col
+        assert axes.shape == (3, 1)
+
+    def test_waterfall_subplot_kwargs_nrows_ncols_error(self, mock_suite_with_geo):
+        """Test error when both nrows and ncols are specified."""
+        with pytest.raises(ValueError, match=r"Specify only one of 'nrows' or 'ncols'"):
+            mock_suite_with_geo.waterfall_components_decomposition(
+                var=["intercept_contribution_original_scale"],
+                split_by="geo",
+                subplot_kwargs={"nrows": 2, "ncols": 2},
+            )
+
+    def test_waterfall_split_by_invalid_dim_error(self, mock_suite_with_geo):
+        """Test error when split_by dimension doesn't exist."""
+        with pytest.raises(ValueError, match=r"Split dimension 'nonexistent'"):
+            mock_suite_with_geo.waterfall_components_decomposition(
+                var=["intercept_contribution_original_scale"],
+                split_by="nonexistent",
+            )
+
+    def test_waterfall_no_extra_dims_backward_compat(self, mock_suite_for_waterfall):
+        """Test backward compatibility - no extra dims still works as before."""
+        fig, ax = mock_suite_for_waterfall.waterfall_components_decomposition(
+            var=[
+                "intercept_contribution_original_scale",
+                "channel_contribution_original_scale",
+            ]
+        )
+
+        # Should return single figure and axes (not array)
+        assert isinstance(fig, Figure)
+        assert isinstance(ax, Axes)
+        # Default figsize should be applied
+        assert fig.get_figwidth() == 14
+        assert fig.get_figheight() == 7
+
+    def test_waterfall_auto_detect_variables(self, mock_suite_for_waterfall):
+        """Test auto-detection of contribution variables when var is None."""
+        # Should auto-detect original_scale variables
+        fig, ax = mock_suite_for_waterfall.waterfall_components_decomposition()
+
+        assert isinstance(fig, Figure)
+        assert isinstance(ax, Axes)
+        assert ax.get_title() == "Response Decomposition Waterfall by Components"
+
+    def test_waterfall_auto_detect_with_figsize(self, mock_suite_for_waterfall):
+        """Test auto-detection with custom figsize (like old API)."""
+        fig, ax = mock_suite_for_waterfall.waterfall_components_decomposition(
+            figsize=(18, 10)
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(ax, Axes)
+        assert fig.get_figwidth() == 18
+        assert fig.get_figheight() == 10
+
+    def test_waterfall_auto_detect_non_original_scale(self):
+        """Test auto-detection of non-original scale variables."""
+        dates = pd.date_range("2025-01-01", periods=10, freq="W-MON")
+        channels = ["C1", "C2"]
+
+        # Create idata with both original and non-original scale variables
+        idata = az.InferenceData(
+            posterior=xr.Dataset(
+                {
+                    "intercept_contribution": xr.DataArray(
+                        np.random.normal(50, 5, size=(2, 50, 10)),
+                        dims=("chain", "draw", "date"),
+                        coords={
+                            "chain": [0, 1],
+                            "draw": np.arange(50),
+                            "date": dates,
+                        },
+                    ),
+                    "channel_contribution": xr.DataArray(
+                        np.random.normal(30, 10, size=(2, 50, 10, 2)),
+                        dims=("chain", "draw", "date", "channel"),
+                        coords={
+                            "chain": [0, 1],
+                            "draw": np.arange(50),
+                            "date": dates,
+                            "channel": channels,
+                        },
+                    ),
+                    "intercept_contribution_original_scale": xr.DataArray(
+                        np.random.normal(500, 50, size=(2, 50, 10)),
+                        dims=("chain", "draw", "date"),
+                        coords={
+                            "chain": [0, 1],
+                            "draw": np.arange(50),
+                            "date": dates,
+                        },
+                    ),
+                    "channel_contribution_original_scale": xr.DataArray(
+                        np.random.normal(300, 100, size=(2, 50, 10, 2)),
+                        dims=("chain", "draw", "date", "channel"),
+                        coords={
+                            "chain": [0, 1],
+                            "draw": np.arange(50),
+                            "date": dates,
+                            "channel": channels,
+                        },
+                    ),
+                }
+            )
+        )
+
+        suite = MMMPlotSuite(idata=idata)
+
+        # Test with original_scale=True (default)
+        fig1, ax1 = suite.waterfall_components_decomposition(original_scale=True)
+        assert isinstance(fig1, Figure)
+        assert isinstance(ax1, Axes)
+
+        # Test with original_scale=False
+        fig2, ax2 = suite.waterfall_components_decomposition(original_scale=False)
+        assert isinstance(fig2, Figure)
+        assert isinstance(ax2, Axes)
+
+        plt.close(fig1)
+        plt.close(fig2)
+
+    def test_waterfall_auto_detect_no_contribution_vars_error(self):
+        """Test error when no contribution variables are found."""
+        dates = pd.date_range("2025-01-01", periods=5, freq="W-MON")
+
+        # Create idata without any contribution variables
+        idata = az.InferenceData(
+            posterior=xr.Dataset(
+                {
+                    "some_other_var": xr.DataArray(
+                        np.random.normal(50, 5, size=(2, 50, 5)),
+                        dims=("chain", "draw", "date"),
+                        coords={
+                            "chain": [0, 1],
+                            "draw": np.arange(50),
+                            "date": dates,
+                        },
+                    ),
+                }
+            )
+        )
+
+        suite = MMMPlotSuite(idata=idata)
+
+        with pytest.raises(ValueError, match=r"No contribution variables found"):
+            suite.waterfall_components_decomposition()
+
+    def test_waterfall_auto_detect_excludes_total_media(self):
+        """Test that total_media_contribution_original_scale is excluded from auto-detection."""
+        dates = pd.date_range("2025-01-01", periods=10, freq="W-MON")
+        channels = ["C1", "C2"]
+
+        # Create idata with total_media_contribution_original_scale
+        idata = az.InferenceData(
+            posterior=xr.Dataset(
+                {
+                    "intercept_contribution_original_scale": xr.DataArray(
+                        np.random.normal(50, 5, size=(2, 50, 10)),
+                        dims=("chain", "draw", "date"),
+                        coords={
+                            "chain": [0, 1],
+                            "draw": np.arange(50),
+                            "date": dates,
+                        },
+                    ),
+                    "channel_contribution_original_scale": xr.DataArray(
+                        np.random.normal(30, 10, size=(2, 50, 10, 2)),
+                        dims=("chain", "draw", "date", "channel"),
+                        coords={
+                            "chain": [0, 1],
+                            "draw": np.arange(50),
+                            "date": dates,
+                            "channel": channels,
+                        },
+                    ),
+                    # This should be excluded - it's a sum of channel contributions
+                    "total_media_contribution_original_scale": xr.DataArray(
+                        np.random.normal(60, 15, size=(2, 50, 10)),
+                        dims=("chain", "draw", "date"),
+                        coords={
+                            "chain": [0, 1],
+                            "draw": np.arange(50),
+                            "date": dates,
+                        },
+                    ),
+                }
+            )
+        )
+
+        suite = MMMPlotSuite(idata=idata)
+
+        # Get the auto-detected variables
+        dataframe, _, _ = suite._prepare_waterfall_data()
+
+        # Check that total_media_contribution is not in the columns
+        assert "total_media_contribution_original_scale" not in dataframe.columns
+
+        # Plot should work and not include total_media
+        fig, ax = suite.waterfall_components_decomposition()
+        assert isinstance(fig, Figure)
+        assert isinstance(ax, Axes)
+        plt.close(fig)
+
+    def test_prepare_waterfall_data_basic(self, mock_suite_for_waterfall):
+        """Test the _prepare_waterfall_data method."""
+        dataframe, split_dims, dim_combinations = (
+            mock_suite_for_waterfall._prepare_waterfall_data(
+                var=[
+                    "intercept_contribution_original_scale",
+                    "channel_contribution_original_scale",
+                ],
+                agg="mean",
+            )
+        )
+
+        assert isinstance(dataframe, pd.DataFrame)
+        assert len(split_dims) == 0
+        assert dim_combinations == [()]
+
+    def test_prepare_waterfall_data_with_split_by(self, mock_suite_with_geo):
+        """Test _prepare_waterfall_data with split_by dimension."""
+        dataframe, split_dims, dim_combinations = (
+            mock_suite_with_geo._prepare_waterfall_data(
+                var=["intercept_contribution_original_scale"],
+                agg="mean",
+                split_by="geo",
+            )
+        )
+
+        assert isinstance(dataframe, pd.DataFrame)
+        assert split_dims == ["geo"]
+        assert len(dim_combinations) == 3  # US, UK, DE
+
+    def test_prepare_waterfall_data_with_dims_filter(self, mock_suite_with_geo):
+        """Test _prepare_waterfall_data with dimension filtering."""
+        dataframe, _split_dims, _dim_combinations = (
+            mock_suite_with_geo._prepare_waterfall_data(
+                var=["intercept_contribution_original_scale"],
+                agg="mean",
+                dims={"geo": "US"},
+            )
+        )
+
+        assert isinstance(dataframe, pd.DataFrame)
+        # Only US data should be present
+        if "geo" in dataframe.columns:
+            assert all(dataframe["geo"] == "US")
+
+    def test_plot_single_waterfall(self, mock_suite_for_waterfall):
+        """Test the _plot_single_waterfall helper method."""
+        # Create test data
+        df = pd.DataFrame(
+            {
+                "component": ["intercept", "channel__C1", "channel__C2"],
+                "contribution": [100, 50, -10],
+                "percentage": [71.43, 35.71, -7.14],
+            }
+        )
+
+        fig, ax = plt.subplots()
+        mock_suite_for_waterfall._plot_single_waterfall(
+            ax=ax, data=df, title="Test Waterfall"
+        )
+
+        assert ax.get_title() == "Test Waterfall"
+        assert ax.get_xlabel() == "Cumulative Contribution"
+        assert ax.get_ylabel() == "Components"
+
+        # Check that bars were created
+        bars = [
+            child
+            for child in ax.get_children()
+            if isinstance(child, plt.Rectangle) and child.get_width() != 0
+        ]
+        assert len(bars) >= 3  # At least 3 bars for 3 components
+
+        plt.close(fig)
+
+    @pytest.fixture(scope="class")
+    def mock_idata_with_two_dims(self):
+        """Create mock InferenceData with two extra dimensions for testing."""
+        dates = pd.date_range("2025-01-01", periods=5, freq="W-MON")
+        channels = ["C1", "C2"]
+        geos = ["US", "UK"]
+        products = ["A", "B"]
+
+        idata = az.InferenceData(
+            posterior=xr.Dataset(
+                {
+                    "intercept_contribution_original_scale": xr.DataArray(
+                        np.random.normal(50, 5, size=(2, 20, 5, 2, 2)),
+                        dims=("chain", "draw", "date", "geo", "product"),
+                        coords={
+                            "chain": [0, 1],
+                            "draw": np.arange(20),
+                            "date": dates,
+                            "geo": geos,
+                            "product": products,
+                        },
+                    ),
+                    "channel_contribution_original_scale": xr.DataArray(
+                        np.random.normal(30, 10, size=(2, 20, 5, 2, 2, 2)),
+                        dims=("chain", "draw", "date", "channel", "geo", "product"),
+                        coords={
+                            "chain": [0, 1],
+                            "draw": np.arange(20),
+                            "date": dates,
+                            "channel": channels,
+                            "geo": geos,
+                            "product": products,
+                        },
+                    ),
+                }
+            )
+        )
+        return idata
+
+    def test_waterfall_split_by_multiple_dims(self, mock_idata_with_two_dims):
+        """Test waterfall plot with split_by for multiple dimensions."""
+        suite = MMMPlotSuite(idata=mock_idata_with_two_dims)
+        fig, axes = suite.waterfall_components_decomposition(
+            var=[
+                "intercept_contribution_original_scale",
+                "channel_contribution_original_scale",
+            ],
+            split_by=["geo", "product"],
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        # 2 geos x 2 products = 4 combinations
+        axes_flat = axes.flatten()
+        visible_axes = [ax for ax in axes_flat if ax.get_visible()]
+        assert len(visible_axes) == 4
+
 
 class TestPosteriorDistribution:
     """Tests for the posterior_distribution plotting method."""

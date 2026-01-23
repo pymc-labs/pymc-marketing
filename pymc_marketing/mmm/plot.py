@@ -2777,69 +2777,51 @@ class MMMPlotSuite:
 
         return dataframe
 
-    def waterfall_components_decomposition(
+    def _prepare_waterfall_data(
         self,
-        var: list[str],
-        figsize: tuple[int, int] = (14, 7),
-        **kwargs,
-    ) -> tuple[Figure, Axes]:
-        """Create a waterfall plot showing the decomposition of the target into its components.
+        var: list[str] | None = None,
+        agg: str = "mean",
+        dims: dict[str, str | int | list] | None = None,
+        split_by: str | list[str] | None = None,
+        original_scale: bool = True,
+    ) -> tuple[pd.DataFrame, list[str], list[tuple]]:
+        """Prepare data for waterfall plot with optional dimension filtering.
 
-        This plot visualizes how different model components (channels, controls, intercept,
-        seasonality, etc.) contribute to the overall prediction. Each component is shown
-        as a horizontal bar with its contribution value and percentage.
+        This method handles data extraction, aggregation, and dimension processing
+        for the waterfall components decomposition plot.
 
         Parameters
         ----------
-        var : list of str
-            List of contribution variable names from the posterior to include in the plot.
-            Example: ["intercept_contribution_original_scale",
-                     "channel_contribution_original_scale",
-                     "control_contribution_original_scale"]
+        var : list of str, optional
+            List of contribution variable names from the posterior to include.
+            If None, automatically detects all contribution variables.
+        agg : str, default "mean"
+            Aggregation method for samples. Can be "mean" or "median".
+        dims : dict[str, str | int | list], optional
+            Dimension filters to apply. Example: {"geo": "US"}.
+            If provided, only the selected slice(s) will be included.
+        split_by : str or list of str, optional
+            Dimension(s) to create separate subplots for. Each unique combination
+            of values in these dimensions will get its own subplot.
         original_scale : bool, default True
-            If True, plot contributions in the original scale of the target.
-            Typically you'll want to use variables ending with "_original_scale".
-        figsize : tuple of int, default (14, 7)
-            The size of the figure in inches (width, height).
-        **kwargs
-            Additional keyword arguments passed to matplotlib's `subplots` function.
+            If True and var is None, use original scale contribution variables.
+            If False and var is None, use non-original scale contribution variables.
 
         Returns
         -------
-        fig : matplotlib.figure.Figure
-            The Figure object containing the plot.
-        ax : matplotlib.axes.Axes
-            The Axes object with the waterfall plot.
+        dataframe : pd.DataFrame
+            DataFrame with contribution data, ready for processing.
+        split_dims : list of str
+            List of dimension names to split by.
+        dim_combinations : list of tuple
+            List of coordinate value combinations for split dimensions.
 
         Raises
         ------
         ValueError
             If no posterior data is found in idata.
             If none of the requested variables are present in idata.posterior.
-
-        Examples
-        --------
-        Create a waterfall plot with contribution variables:
-
-        .. code-block:: python
-
-            fig, ax = mmm.plot.waterfall_components_decomposition(
-                var=[
-                    "intercept_contribution_original_scale",
-                    "channel_contribution_original_scale",
-                    "control_contribution_original_scale",
-                ]
-            )
-
-        With custom figure size:
-
-        .. code-block:: python
-
-            fig, ax = mmm.plot.waterfall_components_decomposition(
-                var=["channel_contribution", "intercept_contribution"],
-                original_scale=False,
-                figsize=(16, 8),
-            )
+            If split_by dimension is not found in the data.
         """
         if not hasattr(self.idata, "posterior"):
             raise ValueError(
@@ -2847,23 +2829,112 @@ class MMMPlotSuite:
                 "Please ensure the model has been fitted."
             )
 
+        # Auto-detect contribution variables if not specified
+        if var is None:
+            posterior_vars = list(self.idata.posterior.data_vars)
+            # Variables to exclude - total_media_contribution is a sum of channels
+            # and would double-count if included
+            excluded_vars = {
+                "total_media_contribution_original_scale",
+                "total_media_contribution",
+            }
+            if original_scale:
+                # Prefer original scale variables
+                var = [
+                    v
+                    for v in posterior_vars
+                    if v.endswith("_contribution_original_scale")
+                    and v not in excluded_vars
+                ]
+                # If no original scale vars, fall back to regular contribution vars
+                if not var:
+                    var = [
+                        v
+                        for v in posterior_vars
+                        if v.endswith("_contribution") and v not in excluded_vars
+                    ]
+            else:
+                # Use non-original scale contribution variables
+                var = [
+                    v
+                    for v in posterior_vars
+                    if v.endswith("_contribution")
+                    and not v.endswith("_contribution_original_scale")
+                    and v not in excluded_vars
+                ]
+
+            if not var:
+                raise ValueError(
+                    "No contribution variables found in posterior. "
+                    "Please specify the 'var' parameter explicitly."
+                )
+
         # Build contributions DataFrame using the utility function
         dataframe = build_contributions(
             idata=self.idata,
             var=var,
-            agg="mean",
+            agg=agg,
         )
 
-        # Process to get aggregated components with percentages
-        dataframe = self._process_decomposition_components(data=dataframe)
-        total_contribution = dataframe["contribution"].sum()
+        # Apply dimension filtering if provided
+        if dims:
+            for key, val in dims.items():
+                if key in dataframe.columns:
+                    if isinstance(val, (list, tuple, np.ndarray)):
+                        dataframe = dataframe[dataframe[key].isin(val)]
+                    else:
+                        dataframe = dataframe[dataframe[key] == val]
 
-        # Create the waterfall plot
-        fig, ax = plt.subplots(figsize=figsize, layout="constrained", **kwargs)
+        # Determine split dimensions and combinations
+        if split_by is not None:
+            split_dims = [split_by] if isinstance(split_by, str) else list(split_by)
 
+            # Validate split dimensions exist in data
+            for dim in split_dims:
+                if dim not in dataframe.columns:
+                    raise ValueError(
+                        f"Split dimension '{dim}' not found in data columns. "
+                        f"Available columns: {list(dataframe.columns)}"
+                    )
+
+            # Get unique combinations for split dimensions
+            if split_dims:
+                unique_values = [dataframe[dim].unique() for dim in split_dims]
+                dim_combinations = list(itertools.product(*unique_values))
+            else:
+                dim_combinations = [()]
+        else:
+            split_dims = []
+            dim_combinations = [()]
+
+        return dataframe, split_dims, dim_combinations
+
+    def _plot_single_waterfall(
+        self,
+        ax: Axes,
+        data: pd.DataFrame,
+        title: str = "Response Decomposition Waterfall by Components",
+    ) -> None:
+        """Plot a single waterfall chart on the given axes.
+
+        This helper method renders a horizontal waterfall bar chart showing
+        component contributions. It handles both positive and negative values,
+        with cumulative positioning.
+
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes
+            The axes object to plot on.
+        data : pd.DataFrame
+            DataFrame with columns "component", "contribution", and "percentage".
+            Should be sorted by contribution in ascending order.
+        title : str, default "Response Decomposition Waterfall by Components"
+            Title for the subplot.
+        """
+        total_contribution = data["contribution"].sum()
         cumulative_contribution = 0
 
-        for index, row in dataframe.iterrows():
+        for index, row in data.iterrows():
             color = "C0" if row["contribution"] >= 0 else "C3"
 
             bar_start = (
@@ -2897,23 +2968,243 @@ class MMMPlotSuite:
                 fontsize=10,
             )
 
-        ax.set_title("Response Decomposition Waterfall by Components")
+        ax.set_title(title)
         ax.set_xlabel("Cumulative Contribution")
         ax.set_ylabel("Components")
 
-        xticks = np.linspace(0, total_contribution, num=11)
-        xticklabels = [f"{(x / total_contribution) * 100:.0f}%" for x in xticks]
-        ax.set_xticks(xticks)
-        ax.set_xticklabels(xticklabels)
+        if total_contribution > 0:
+            xticks = np.linspace(0, total_contribution, num=11)
+            xticklabels = [f"{(x / total_contribution) * 100:.0f}%" for x in xticks]
+            ax.set_xticks(xticks)
+            ax.set_xticklabels(xticklabels)
 
         ax.spines["right"].set_visible(False)
         ax.spines["top"].set_visible(False)
         ax.spines["left"].set_visible(False)
 
-        ax.set_yticks(np.arange(len(dataframe)))
-        ax.set_yticklabels(dataframe["component"])
+        ax.set_yticks(np.arange(len(data)))
+        ax.set_yticklabels(data["component"])
 
-        return fig, ax
+    def waterfall_components_decomposition(
+        self,
+        var: list[str] | None = None,
+        original_scale: bool = True,
+        dims: dict[str, str | int | list] | None = None,
+        split_by: str | list[str] | None = None,
+        figsize: tuple[int, int] | None = None,
+        subplot_kwargs: dict[str, Any] | None = None,
+        **kwargs,
+    ) -> tuple[Figure, Axes] | tuple[Figure, NDArray[Axes]]:
+        """Create a waterfall plot showing the decomposition of the target into its components.
+
+        This plot visualizes how different model components (channels, controls, intercept,
+        seasonality, etc.) contribute to the overall prediction. Each component is shown
+        as a horizontal bar with its contribution value and percentage.
+
+        Parameters
+        ----------
+        var : list of str, optional
+            List of contribution variable names from the posterior to include in the plot.
+            If None, automatically detects all contribution variables from the posterior.
+            Example: ["intercept_contribution_original_scale",
+                     "channel_contribution_original_scale",
+                     "control_contribution_original_scale"]
+        original_scale : bool, default True
+            If True and var is None, use original scale contribution variables
+            (ending with "_contribution_original_scale").
+            If False and var is None, use non-original scale contribution variables.
+            Ignored if var is explicitly provided.
+        dims : dict[str, str | int | list], optional
+            Dimension filters to apply. Example: {"geo": "US"}.
+            If provided, only the selected slice(s) will be included in the plot.
+        split_by : str or list of str, optional
+            Dimension(s) to create separate subplots for. Each unique combination
+            of values in these dimensions will get its own waterfall plot.
+            Example: "geo" or ["geo", "product"].
+        figsize : tuple of int, optional
+            The size of the figure in inches (width, height).
+            If None, defaults to (14, 7) for single plots, or auto-calculated
+            based on number of subplots.
+        subplot_kwargs : dict, optional
+            Additional keyword arguments for subplot layout configuration.
+            Supports "nrows" or "ncols" to control grid arrangement.
+            Only one of nrows or ncols should be specified.
+        **kwargs
+            Additional keyword arguments passed to matplotlib's `subplots` function.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The Figure object containing the plot(s).
+        ax_or_axes : matplotlib.axes.Axes or np.ndarray of Axes
+            If split_by is None: single Axes object.
+            If split_by is provided: 2D array of Axes objects.
+
+        Raises
+        ------
+        ValueError
+            If no posterior data is found in idata.
+            If none of the requested variables are present in idata.posterior.
+            If split_by dimension is not found in the data.
+            If both nrows and ncols are specified in subplot_kwargs.
+
+        Examples
+        --------
+        Create a waterfall plot with all contribution variables (auto-detected):
+
+        .. code-block:: python
+
+            fig, ax = mmm.plot.waterfall_components_decomposition()
+
+        Create a waterfall plot with specific contribution variables:
+
+        .. code-block:: python
+
+            fig, ax = mmm.plot.waterfall_components_decomposition(
+                var=[
+                    "intercept_contribution_original_scale",
+                    "channel_contribution_original_scale",
+                    "control_contribution_original_scale",
+                ]
+            )
+
+        With custom figure size:
+
+        .. code-block:: python
+
+            fig, ax = mmm.plot.waterfall_components_decomposition(figsize=(18, 10))
+
+        Filter by dimension:
+
+        .. code-block:: python
+
+            fig, ax = mmm.plot.waterfall_components_decomposition(dims={"geo": "US"})
+
+        Create subplots split by dimension:
+
+        .. code-block:: python
+
+            fig, axes = mmm.plot.waterfall_components_decomposition(split_by="geo")
+
+        Control subplot layout:
+
+        .. code-block:: python
+
+            fig, axes = mmm.plot.waterfall_components_decomposition(
+                split_by="geo",
+                subplot_kwargs={"ncols": 2},
+            )
+        """
+        # Prepare the data with filtering and dimension handling
+        dataframe, split_dims, dim_combinations = self._prepare_waterfall_data(
+            var=var,
+            agg="mean",
+            dims=dims,
+            split_by=split_by,
+            original_scale=original_scale,
+        )
+
+        n_panels = len(dim_combinations)
+        subplot_kwargs = {**(subplot_kwargs or {})}
+
+        # Handle subplot grid configuration
+        nrows_user = subplot_kwargs.pop("nrows", None)
+        ncols_user = subplot_kwargs.pop("ncols", None)
+
+        if nrows_user is not None and ncols_user is not None:
+            raise ValueError(
+                "Specify only one of 'nrows' or 'ncols' in subplot_kwargs."
+            )
+
+        # Single panel case (no split_by or single combination)
+        if n_panels == 1:
+            if figsize is None:
+                figsize = (14, 7)
+
+            fig, ax = plt.subplots(
+                figsize=figsize, layout="constrained", **subplot_kwargs, **kwargs
+            )
+
+            # Process data and plot
+            processed_data = self._process_decomposition_components(data=dataframe)
+            self._plot_single_waterfall(
+                ax=ax,
+                data=processed_data,
+                title="Response Decomposition Waterfall by Components",
+            )
+
+            return fig, ax
+
+        # Multiple panels case (split_by provided)
+        if ncols_user is not None:
+            ncols = ncols_user
+            nrows = int(np.ceil(n_panels / ncols))
+        elif nrows_user is not None:
+            nrows = nrows_user
+            ncols = int(np.ceil(n_panels / nrows))
+        else:
+            ncols = max(1, int(np.ceil(np.sqrt(n_panels))))
+            nrows = int(np.ceil(n_panels / ncols))
+
+        if figsize is None:
+            figsize = (ncols * 10, nrows * 6)
+
+        fig, axes_grid = plt.subplots(
+            nrows=nrows,
+            ncols=ncols,
+            figsize=figsize,
+            layout="constrained",
+            **subplot_kwargs,
+            **kwargs,
+        )
+
+        # Normalize axes to 2D array
+        if isinstance(axes_grid, Axes):
+            axes_array = np.array([[axes_grid]])
+        elif axes_grid.ndim == 1:
+            axes_array = (
+                axes_grid.reshape(1, -1) if nrows == 1 else axes_grid.reshape(-1, 1)
+            )
+        else:
+            axes_array = axes_grid
+
+        # Flatten for iteration
+        axes_flat = axes_array.flatten()
+
+        # Plot each combination
+        for idx, combo in enumerate(dim_combinations):
+            current_ax = axes_flat[idx]
+
+            # Filter data for this combination
+            if split_dims:
+                mask = pd.Series(True, index=dataframe.index)
+                for dim, val in zip(split_dims, combo, strict=False):
+                    mask &= dataframe[dim] == val
+                subset = dataframe[mask].copy()
+            else:
+                subset = dataframe.copy()
+
+            # Process and plot
+            processed_data = self._process_decomposition_components(data=subset)
+
+            # Build subplot title
+            title = self._build_subplot_title(
+                dims=split_dims,
+                combo=combo,
+                fallback_title="Response Decomposition Waterfall by Components",
+            )
+
+            self._plot_single_waterfall(
+                ax=current_ax,
+                data=processed_data,
+                title=title,
+            )
+
+        # Hide unused axes
+        for ax_extra in axes_flat[n_panels:]:
+            ax_extra.set_visible(False)
+
+        return fig, axes_array
 
     def channel_contribution_share_hdi(
         self,
