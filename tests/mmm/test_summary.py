@@ -469,8 +469,12 @@ class TestOutputFormats:
     """Test output format parameter correctly controls DataFrame type."""
 
     def test_invalid_output_format_raises(self, mock_mmm_idata_wrapper):
-        """Test that invalid output_format raises ValueError."""
-        with pytest.raises(ValueError, match=r"Unknown output_format.*spark"):
+        """Test that invalid output_format raises ValueError.
+
+        Note: The @validate_call decorator on contributions() catches invalid
+        output_format values via Pydantic validation before our custom error handler.
+        """
+        with pytest.raises(ValueError, match=r"'pandas' or 'polars'"):
             MMMSummaryFactory(mock_mmm_idata_wrapper).contributions(
                 output_format="spark"
             )
