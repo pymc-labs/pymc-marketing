@@ -988,7 +988,7 @@ class TestNonChannelComponents:
         self, mock_mmm_idata_wrapper
     ):
         """Test that requesting missing component raises ValueError."""
-        with pytest.raises(ValueError, match=r"No control contributions found"):
+        with pytest.raises(ValueError, match=r"No controls contributions found"):
             MMMSummaryFactory(mock_mmm_idata_wrapper).contributions(component="control")
 
 

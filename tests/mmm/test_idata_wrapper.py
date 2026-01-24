@@ -1625,6 +1625,56 @@ def test_aggregate_idata_dims_all_values_aggregated():
     assert combined.posterior.sizes["channel"] == 1
 
 
+def test_aggregate_idata_dims_preserves_dims_of_variables_without_aggregated_dim(
+    multidim_idata,
+):
+    """Test that variables without the aggregated dimension keep their original dims.
+
+    Bug reproduction: When aggregating by 'country', variables that only have ('date',)
+    dims (like dayofyear) should NOT gain the 'country' dimension. The expand_dims
+    operation was incorrectly adding the aggregated dimension to ALL variables
+    in the dataset, including those that never had it.
+
+    See: https://github.com/pymc-labs/pymc-marketing/issues/XXX
+    """
+    # Arrange - Add a variable with only ('date',) dims to the existing fixture
+    idata = multidim_idata.copy()
+    dates = idata.constant_data.coords["date"].values
+
+    # Add dayofyear with only ('date',) dimension - should NOT gain 'country' dim
+    idata.constant_data["dayofyear"] = xr.DataArray(
+        np.arange(1, len(dates) + 1),  # Day of year values
+        dims=("date",),
+        coords={"date": dates},
+    )
+
+    # Sanity check - dayofyear should have only ('date',) dims before aggregation
+    assert idata.constant_data.dayofyear.dims == ("date",)
+
+    # Act - Aggregate US and UK into combined_region
+    aggregated = aggregate_idata_dims(
+        idata,
+        dim="country",
+        values=["US", "UK"],
+        new_label="combined_region",
+        method="sum",
+    )
+
+    # Assert - dayofyear should STILL have only ('date',) dims, NOT ('country', 'date')
+    # This is the bug: dayofyear.dims becomes ('date', 'country') instead of ('date',)
+    assert aggregated.constant_data.dayofyear.dims == ("date",), (
+        f"Expected dayofyear dims to be ('date',), "
+        f"but got {aggregated.constant_data.dayofyear.dims}. "
+        f"Variables without the aggregated dimension should keep their original dims."
+    )
+
+    # Also verify the data values are preserved correctly
+    np.testing.assert_array_equal(
+        aggregated.constant_data.dayofyear.values,
+        idata.constant_data.dayofyear.values,
+    )
+
+
 def test_get_target_raises_when_target_data_missing():
     """Test that get_target raises when constant_data/target_data is missing."""
     # Arrange - Create idata without constant_data/target_data
