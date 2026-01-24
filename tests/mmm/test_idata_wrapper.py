@@ -795,11 +795,11 @@ def test_get_contributions_returns_dataset(multidim_idata):
 
     # Assert
     assert isinstance(contributions, xr.Dataset)
-    assert "channel" in contributions
+    assert "channels" in contributions
 
     # Should have channel contribution variable
-    assert "date" in contributions["channel"].dims
-    assert "channel" in contributions["channel"].dims
+    assert "date" in contributions["channels"].dims
+    assert "channel" in contributions["channels"].dims
 
 
 def test_get_contributions_uses_original_scale_variable_if_exists(
@@ -816,7 +816,7 @@ def test_get_contributions_uses_original_scale_variable_if_exists(
     expected = idata_with_original_scale.posterior.channel_contribution_original_scale
     # Align both arrays before comparison to ensure coordinate consistency
     contributions_channel_aligned, expected_aligned = xr.align(
-        contributions["channel"], expected, join="exact"
+        contributions["channels"], expected, join="exact"
     )
     # Compare values using numpy since xarray's assert_equal is strict about
     # coordinate object equality, even when values match
@@ -844,7 +844,7 @@ def test_get_contributions_computes_original_scale_on_the_fly(multidim_idata):
     expected = channel_contrib_aligned * target_scale_aligned
     # Align both arrays before comparison to ensure coordinate consistency
     contributions_channel_aligned, expected_aligned = xr.align(
-        contributions["channel"], expected, join="exact"
+        contributions["channels"], expected, join="exact"
     )
     # Compare values using numpy since xarray's assert_allclose is strict about
     # coordinate object equality, even when values match
@@ -884,22 +884,22 @@ def test_get_contributions_with_options(
 
     # Assert
     assert isinstance(contributions, xr.Dataset)
-    assert "channel" in contributions  # Always included
+    assert "channels" in contributions.data_vars  # Always included
 
     if include_baseline:
-        assert "baseline" in contributions
+        assert "baseline" in contributions.data_vars
     else:
-        assert "baseline" not in contributions
+        assert "baseline" not in contributions.data_vars
 
     if include_controls:
-        assert "control" in contributions
+        assert "controls" in contributions.data_vars
     else:
-        assert "control" not in contributions
+        assert "controls" not in contributions.data_vars
 
     if include_seasonality:
-        assert "seasonality" in contributions
+        assert "seasonality" in contributions.data_vars
     else:
-        assert "seasonality" not in contributions
+        assert "seasonality" not in contributions.data_vars
 
 
 # ============================================================================
@@ -1750,7 +1750,7 @@ def test_get_contributions_controls_with_original_scale_variable():
     # Assert - Should use existing original scale variable
     # Compare values directly since xr.testing.assert_equal is strict about coordinate objects
     np.testing.assert_array_equal(
-        contributions["control"].values,
+        contributions["controls"].values,
         idata.posterior.control_contribution_original_scale.values,
     )
 
@@ -1769,11 +1769,11 @@ def test_get_contributions_controls_scaled(idata_with_all_contributions):
     )
 
     # Assert
-    assert "control" in contributions
+    assert "controls" in contributions
     # Control should be the raw value (not multiplied by target_scale)
     # Compare values directly since xr.testing.assert_equal is strict about coordinate objects
     np.testing.assert_array_equal(
-        contributions["control"].values,
+        contributions["controls"].values,
         idata_with_all_contributions.posterior.control_contribution.values,
     )
 

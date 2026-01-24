@@ -377,6 +377,24 @@ class TestDataFrameSchemas:
         assert "abs_error_94_lower" in df.columns
         assert len(df["channel"].unique()) > 0
 
+    def test_contribution_channel_column_contains_channel_names(
+        self, mock_mmm_idata_wrapper, simple_channels
+    ):
+        """Test that channel column contains actual channel names, not integer indices.
+
+        Regression test for bug where channel coordinate values were replaced
+        with integer indices (0, 1, 2) instead of preserving the original
+        channel names ('TV', 'Radio', 'Social').
+        """
+        df = MMMSummaryFactory(mock_mmm_idata_wrapper).contributions()
+
+        # Channel column should contain string names, not integers
+        channel_values = df["channel"].unique()
+        assert set(channel_values) == set(simple_channels), (
+            f"Expected channel names {simple_channels}, but got {list(channel_values)}. "
+            "Channel coordinate values may have been replaced with integer indices."
+        )
+
     def test_roas_summary_schema(self, mock_mmm_idata_wrapper):
         """Test ROAS summary returns DataFrame with correct schema."""
         df = MMMSummaryFactory(mock_mmm_idata_wrapper, hdi_probs=[0.94]).roas()

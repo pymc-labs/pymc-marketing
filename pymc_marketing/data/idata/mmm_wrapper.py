@@ -215,7 +215,7 @@ class MMMIDataWrapper:
             include_seasonality=False,
         )
         # Extract from Dataset - xarray preserves coordinate structure
-        return contributions["channel"]
+        return contributions["channels"]
 
     def get_contributions(
         self,
@@ -250,9 +250,12 @@ class MMMIDataWrapper:
         contributions = {}
 
         # Channel contributions
+        # Channels variables - use "channels" (plural) as key to avoid xarray
+        # dimension/key name conflict (a key matching a dimension name gets
+        # promoted to a coordinate instead of staying as a data variable)
         if original_scale:
             if "channel_contribution_original_scale" in self.idata.posterior:
-                contributions["channel"] = (
+                contributions["channels"] = (
                     self.idata.posterior.channel_contribution_original_scale
                 )
             else:
@@ -260,9 +263,9 @@ class MMMIDataWrapper:
                 channel_contrib = self.idata.posterior.channel_contribution
                 target_scale = self.get_target_scale()
                 # xarray automatically handles broadcasting when dimensions match
-                contributions["channel"] = channel_contrib * target_scale
+                contributions["channels"] = channel_contrib * target_scale
         else:
-            contributions["channel"] = self.idata.posterior.channel_contribution
+            contributions["channels"] = self.idata.posterior.channel_contribution
 
         # Baseline/intercept
         if include_baseline:
@@ -276,19 +279,21 @@ class MMMIDataWrapper:
                         contributions["baseline"] = baseline
                     break
 
-        # Control variables
+        # Control variables - use "controls" (plural) as key to avoid xarray
+        # dimension/key name conflict (a key matching a dimension name gets
+        # promoted to a coordinate instead of staying as a data variable)
         if include_controls and "control_contribution" in self.idata.posterior:
             control = self.idata.posterior.control_contribution
             if original_scale:
                 if "control_contribution_original_scale" in self.idata.posterior:
-                    contributions["control"] = (
+                    contributions["controls"] = (
                         self.idata.posterior.control_contribution_original_scale
                     )
                 else:
                     target_scale = self.get_target_scale()
-                    contributions["control"] = control * target_scale
+                    contributions["controls"] = control * target_scale
             else:
-                contributions["control"] = control
+                contributions["controls"] = control
 
         # Seasonality
         if (
