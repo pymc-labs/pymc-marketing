@@ -68,6 +68,11 @@ def multidim_idata() -> az.InferenceData:
                     dims=("country",),
                     coords={"country": countries},
                 ),
+                "dayofyear": xr.DataArray(
+                    np.arange(1, len(dates) + 1),  # Day of year values
+                    dims=("date",),
+                    coords={"date": dates},
+                ),
             }
         ),
         posterior=xr.Dataset(
@@ -1638,15 +1643,7 @@ def test_aggregate_idata_dims_preserves_dims_of_variables_without_aggregated_dim
     See: https://github.com/pymc-labs/pymc-marketing/issues/XXX
     """
     # Arrange - Add a variable with only ('date',) dims to the existing fixture
-    idata = multidim_idata.copy()
-    dates = idata.constant_data.coords["date"].values
-
-    # Add dayofyear with only ('date',) dimension - should NOT gain 'country' dim
-    idata.constant_data["dayofyear"] = xr.DataArray(
-        np.arange(1, len(dates) + 1),  # Day of year values
-        dims=("date",),
-        coords={"date": dates},
-    )
+    idata = multidim_idata
 
     # Sanity check - dayofyear should have only ('date',) dims before aggregation
     assert idata.constant_data.dayofyear.dims == ("date",)
@@ -1661,7 +1658,6 @@ def test_aggregate_idata_dims_preserves_dims_of_variables_without_aggregated_dim
     )
 
     # Assert - dayofyear should STILL have only ('date',) dims, NOT ('country', 'date')
-    # This is the bug: dayofyear.dims becomes ('date', 'country') instead of ('date',)
     assert aggregated.constant_data.dayofyear.dims == ("date",), (
         f"Expected dayofyear dims to be ('date',), "
         f"but got {aggregated.constant_data.dayofyear.dims}. "
