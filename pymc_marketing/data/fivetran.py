@@ -66,22 +66,24 @@ can be accessed after importing pymc_marketing.
 
 from collections.abc import Sequence
 
+import narwhals as nw
 import pandas as pd
+from narwhals.typing import IntoFrameT
 
 from pymc_marketing.decorators import copy_docstring
 
 
 def _normalize_and_validate_inputs(
-    df: pd.DataFrame,
+    df: IntoFrameT,
     value_columns: str | Sequence[str],
     date_col: str,
     platform_col: str,
-) -> tuple[pd.DataFrame, list[str]]:
+) -> tuple[IntoFrameT, list[str]]:
     """Validate required columns, coerce date, and normalize metrics list.
 
     Parameters
     ----------
-    df : pandas.DataFrame
+    df : DataFrame-like
         Input dataframe to validate and normalize.
     value_columns : str or Sequence[str]
         Metric column(s) to process.
@@ -92,8 +94,8 @@ def _normalize_and_validate_inputs(
 
     Returns
     -------
-    tuple[pandas.DataFrame, list[str]]
-        - A copy of ``df`` with ``date_col`` coerced to datetime64[ns].
+    tuple[narwhals.DataFrame, list[str]]
+        - A narwhals DataFrame with ``date_col`` coerced to datetime.
         - A normalized list of metric column names.
 
     Raises
@@ -101,32 +103,38 @@ def _normalize_and_validate_inputs(
     ValueError
         If any of the required columns are missing.
     """
+    # Convert to narwhals (works with pandas, polars, pyarrow, etc.)
+    nw_df = nw.from_native(df)
+
+    # Normalize metrics list
     metrics = [value_columns] if isinstance(value_columns, str) else list(value_columns)
 
+    # Validate columns
     required_columns: list[str] = [date_col, platform_col, *metrics]
-    missing_columns = [c for c in required_columns if c not in df.columns]
+    missing_columns = [c for c in required_columns if c not in nw_df.columns]
     if missing_columns:
         raise ValueError(
-            f"Missing required columns: {missing_columns}. Present columns: {list(df.columns)}"
+            f"Missing required columns: {missing_columns}. Present columns: {list(nw_df.columns)}"
         )
 
-    df_local = df.copy()
-    df_local[date_col] = pd.to_datetime(df_local[date_col])
+    # Cast date column to datetime
+    df_local = nw_df.with_columns(nw.col(date_col).cast(nw.Datetime))
+
     return df_local, metrics
 
 
 def _aggregate_and_pivot(
-    df: pd.DataFrame,
+    df: IntoFrameT,
     date_col: str,
     platform_col: str,
     value_columns: list[str],
     agg: str,
-) -> pd.DataFrame:
+) -> IntoFrameT:
     """Aggregate metrics by date and platform, then pivot and flatten columns.
 
     Parameters
     ----------
-    df : pandas.DataFrame
+    df : narwhals.DataFrame
         Input dataframe with coerced date column.
     date_col : str
         Date column name.
@@ -139,43 +147,84 @@ def _aggregate_and_pivot(
 
     Returns
     -------
-    pandas.DataFrame
+    narwhals.DataFrame
         Wide-format dataframe indexed by date with columns named ``{platform}_{metric}``.
     """
+    # Group and aggregate
+    # Map aggregation string to narwhals aggregation method
+    agg_map = {
+        "sum": lambda c: nw.col(c).sum(),
+        "mean": lambda c: nw.col(c).mean(),
+        "min": lambda c: nw.col(c).min(),
+        "max": lambda c: nw.col(c).max(),
+        "count": lambda c: nw.col(c).count(),
+    }
+    if agg not in agg_map:
+        raise ValueError(
+            f"Unsupported aggregation: {agg}. Supported: {list(agg_map.keys())}"
+        )
+
+    agg_fn = agg_map[agg]
+    agg_exprs = [agg_fn(c) for c in value_columns]
     grouped = (
-        df[[date_col, platform_col, *value_columns]]
-        .groupby([date_col, platform_col], dropna=False)
-        .agg(agg)
+        df.select([date_col, platform_col, *value_columns])
+        .group_by([date_col, platform_col], drop_null_keys=False)
+        .agg(agg_exprs)
     )
 
-    wide = grouped.reset_index().pivot(
-        index=date_col, columns=platform_col, values=value_columns
+    # Pivot operation
+    wide = grouped.pivot(
+        on=platform_col,
+        index=date_col,
+        values=value_columns if len(value_columns) > 1 else value_columns[0],
+        aggregate_function=None,  # Already aggregated
+        sort_columns=False,
     )
 
-    if isinstance(wide.columns, pd.MultiIndex):
-        flat_cols = [f"{platform}_{metric}" for metric, platform in wide.columns]
-    else:
+    # Narwhals pivot flattens MultiIndex automatically
+    # Rename columns to ensure {platform}_{metric} format
+    # For single metric: columns are `platform_name`, need to add metric suffix
+    # For multiple metrics: columns are `metric_platform`, need to swap to `platform_metric`
+
+    if len(value_columns) == 1:
+        # Single metric case: columns are platform names, need to add metric suffix
         metric = value_columns[0]
-        flat_cols = [f"{platform}_{metric}" for platform in wide.columns]
-    wide.columns = flat_cols
+        new_cols = {col: f"{col}_{metric}" for col in wide.columns if col != date_col}
+        wide = wide.rename(new_cols)
+    else:
+        # Multiple metrics case: columns are {metric}_{platform}, need to swap to {platform}_{metric}
+        # Strategy: for each metric, find columns starting with that metric prefix and rename
+        new_cols = {}
+        for col in wide.columns:
+            if col == date_col:
+                continue
+            # Try each metric to see if the column starts with it
+            for metric in value_columns:
+                if col.startswith(f"{metric}_"):
+                    # Extract the platform part after the metric
+                    platform = col[len(metric) + 1 :]  # Skip metric and underscore
+                    new_cols[col] = f"{platform}_{metric}"
+                    break
+        wide = wide.rename(new_cols)
+
     return wide
 
 
 def _finalize_wide_output(
-    wide: pd.DataFrame,
+    wide: IntoFrameT,
     *,
     date_col: str,
     rename_date_to: str | None,
     include_missing_dates: bool,
     freq: str,
     fill_value: float | None,
-) -> pd.DataFrame:
+) -> IntoFrameT:
     """Complete wide output: fill dates, fill values, reset, rename, standardize.
 
     Parameters
     ----------
-    wide : pandas.DataFrame
-        Dataframe indexed by date.
+    wide : narwhals.DataFrame
+        Dataframe with date column.
     date_col : str
         Name of the date column in the input.
     rename_date_to : str or None
@@ -189,37 +238,58 @@ def _finalize_wide_output(
 
     Returns
     -------
-    pandas.DataFrame
+    narwhals.DataFrame
         Finalized wide-format dataframe with standardized columns and first column as the date.
     """
     if include_missing_dates:
-        full_index = pd.date_range(
-            start=wide.index.min(), end=wide.index.max(), freq=freq
+        # FBruzzesi's workaround for reindex: use join with full date range
+        # Get min/max dates (may trigger computation for lazy frames)
+        min_date = wide.select(nw.col(date_col).min()).item()
+        max_date = wide.select(nw.col(date_col).max()).item()
+
+        # Generate full date range using pandas (temporary)
+        full_dates_pd = pd.DataFrame(
+            {date_col: pd.date_range(start=min_date, end=max_date, freq=freq)}
         )
-        wide = wide.reindex(full_index)
 
+        # Convert to narwhals using same backend as input
+        full_dates = nw.from_native(full_dates_pd)
+
+        # Left join: keep all dates from full range
+        wide = full_dates.join(wide, on=date_col, how="left")
+
+    # Fill nulls if specified
     if fill_value is not None:
-        wide = wide.fillna(fill_value)
+        # Fill null values in all columns except the date column
+        cols_to_fill = [c for c in wide.columns if c != date_col]
+        fill_exprs = [nw.col(c).fill_null(fill_value).alias(c) for c in cols_to_fill]
+        wide = wide.with_columns(fill_exprs)
 
-    wide = wide.sort_index()
-    wide.index.name = date_col
-    wide = wide.reset_index()
+    # Sort by date
+    wide = wide.sort(date_col)
 
+    # Rename date column if needed
     if rename_date_to is not None and rename_date_to != date_col:
-        wide = wide.rename(columns={date_col: rename_date_to})
+        wide = wide.rename({date_col: rename_date_to})
 
-    # standardize column names
-    wide.columns = [col.lower().replace(" ", "_") for col in wide.columns]
+    # Standardize column names (lowercase, replace spaces)
+    current_cols = wide.columns
+    new_cols = {col: col.lower().replace(" ", "_") for col in current_cols}
+    wide = wide.rename(new_cols)
 
-    # Ensure date column is first and normalized to midnight
+    # Normalize dates to midnight using dt.truncate (FBruzzesi's suggestion!)
     first_col = (
         (rename_date_to if rename_date_to is not None else date_col)
         .lower()
         .replace(" ", "_")
     )
+    wide = wide.with_columns(nw.col(first_col).dt.truncate(every="1d"))
+
+    # Ensure date column is first
     ordered_cols = [first_col] + [c for c in wide.columns if c != first_col]
-    wide[first_col] = pd.to_datetime(wide[first_col]).dt.normalize()
-    return wide[ordered_cols]
+    wide = wide.select(ordered_cols)
+
+    return wide
 
 
 def process_fivetran_ad_reporting(
@@ -289,7 +359,7 @@ def process_fivetran_ad_reporting(
         agg=agg,
     )
 
-    return _finalize_wide_output(
+    result = _finalize_wide_output(
         wide,
         date_col=date_col,
         rename_date_to=rename_date_to,
@@ -297,6 +367,15 @@ def process_fivetran_ad_reporting(
         freq=freq,
         fill_value=fill_value,
     )
+
+    # Convert back to native format (pandas in this case)
+    result_native = nw.to_native(result)
+
+    # Fix column names: narwhals pivot sets columns.names to [""] but pandas expects [None]
+    if hasattr(result_native.columns, "names"):
+        result_native.columns.names = [None]
+
+    return result_native
 
 
 def process_fivetran_shopify_unique_orders(
@@ -329,33 +408,41 @@ def process_fivetran_shopify_unique_orders(
         A dataframe with two columns: ``rename_date_to`` and ``orders``, where
         ``orders`` is the unique order count per day.
     """
+    # Convert to narwhals after coercing datetime (narwhals doesn't support errors="coerce")
+    # Coerce invalid dates to NaT at pandas level first
+    df_copy = df.copy()
+    df_copy[date_col] = pd.to_datetime(df_copy[date_col], errors="coerce")
+    nw_df = nw.from_native(df_copy)
+
     # 1) Required columns
-    missing = [c for c in (date_col, order_key_col) if c not in df.columns]
+    missing = [c for c in (date_col, order_key_col) if c not in nw_df.columns]
     if missing:
         raise ValueError(
-            f"Missing required column(s): {missing}. Present: {list(df.columns)}"
+            f"Missing required column(s): {missing}. Present: {list(nw_df.columns)}"
         )
 
-    # 2) Minimal projection + robust datetime parsing
-    tmp = df[[order_key_col, date_col]].copy()
-    tmp[date_col] = pd.to_datetime(tmp[date_col], errors="coerce")
-    tmp = tmp.dropna(subset=[date_col])
+    # 2) Minimal projection (datetime already coerced above)
+    tmp = nw_df.select([order_key_col, date_col])
 
-    # 3) Daily bucket normalized to midnight, preserving datetime64[ns] dtype
-    tmp["_date"] = tmp[date_col].dt.normalize()
+    # 3) Daily bucket normalized to midnight using dt.truncate
+    tmp = tmp.with_columns(_date=nw.col(date_col).dt.truncate(every="1d"))
+
+    # Filter out nulls (equivalent to dropna)
+    tmp = tmp.filter(~nw.col("_date").is_null())
 
     # 4) De-duplicate by (order, day) before counting
-    tmp = tmp.drop_duplicates(subset=[order_key_col, "_date"])
+    tmp = tmp.unique(subset=[order_key_col, "_date"])
 
     # 5) Count unique orders per day
     out = (
-        tmp.groupby("_date", as_index=False)
-        .agg(orders=(order_key_col, "nunique"))
-        .rename(columns={"_date": rename_date_to})
-        .sort_values(rename_date_to)
-        .reset_index(drop=True)
+        tmp.group_by("_date")
+        .agg(orders=nw.col(order_key_col).n_unique())
+        .rename({"_date": rename_date_to})
+        .sort(rename_date_to)
     )
-    return out
+
+    # Convert back to native format (pandas)
+    return nw.to_native(out)
 
 
 @pd.api.extensions.register_dataframe_accessor("fivetran")
