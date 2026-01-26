@@ -1667,9 +1667,6 @@ class MMM(RegressionModelBuilder):
             ).to_dataset()
 
         dataarrays.append(y_xarray)
-        self.dataarrays = dataarrays
-        self._new_internal_xarray = xr.merge(dataarrays).fillna(0)
-
         return xr.merge(dataarrays).fillna(0)
 
     def _set_xarray_data(
