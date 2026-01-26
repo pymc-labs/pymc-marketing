@@ -99,7 +99,7 @@ def test_fourier_effect(
     dims,
     coords,
 ) -> None:
-    effect = FourierEffect(fourier)
+    effect = FourierEffect(fourier=fourier)
 
     mmm = create_mock_mmm(
         dims=dims,
@@ -168,7 +168,7 @@ def test_fourier_effect_multidimensional(
     prefix = "weekly"
     prior = Prior("Laplace", mu=0, b=0.1, dims=prior_dims)
     fourier = WeeklyFourier(n_order=10, prefix=prefix, prior=prior)
-    fourier_effect = FourierEffect(fourier)
+    fourier_effect = FourierEffect(fourier=fourier)
 
     with mmm.model:
         fourier_effect.create_data(mmm)
@@ -252,7 +252,7 @@ def test_linear_trend_effect(
 ) -> None:
     prefix = "linear_trend"
     effect = LinearTrendEffect(
-        LinearTrend(priors=priors, dims=linear_trend_dims),
+        trend=LinearTrend(priors=priors, dims=linear_trend_dims),
         prefix=prefix,
     )
 
