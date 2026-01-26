@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -14,14 +14,15 @@
 """Media transformation functions for Marketing Mix Models."""
 
 from enum import StrEnum
-from typing import Any, NamedTuple
+from typing import NamedTuple
 
 import numpy as np
 import numpy.typing as npt
 import pymc as pm
 import pytensor.tensor as pt
-from numpy.core.multiarray import normalize_axis_index
+from numpy.lib.array_utils import normalize_axis_index
 from pymc.distributions.dist_math import check_parameters
+from pytensor.tensor.variable import TensorVariable
 
 
 class ConvMode(StrEnum):
@@ -44,7 +45,7 @@ def batched_convolution(
     w,
     axis: int = 0,
     mode: ConvMode | str = ConvMode.After,
-):
+) -> TensorVariable:
     R"""Apply a 1D convolution in a vectorized way across multiple batch dimensions.
 
     .. plot::
@@ -133,7 +134,7 @@ def binomial_adstock(
     normalize: bool = False,
     axis: int = 0,
     mode: ConvMode = ConvMode.After,
-):
+) -> TensorVariable:
     R"""Binomial adstock transformation.
 
     Binomial adstock assumes that the effect of one unit of spend
@@ -215,7 +216,7 @@ def geometric_adstock(
     normalize: bool = False,
     axis: int = 0,
     mode: ConvMode = ConvMode.After,
-):
+) -> TensorVariable:
     R"""Geometric adstock transformation.
 
     Adstock with geometric decay assumes advertising effect peaks at the same
@@ -304,7 +305,7 @@ def delayed_adstock(
     normalize: bool = False,
     axis: int = 0,
     mode: ConvMode = ConvMode.After,
-):
+) -> TensorVariable:
     R"""Delayed adstock transformation.
 
     This transformation is similar to geometric adstock transformation, but it
@@ -390,7 +391,7 @@ def weibull_adstock(
     mode: ConvMode = ConvMode.After,
     type: WeibullType | str = WeibullType.PDF,
     normalize: bool = False,
-):
+) -> TensorVariable:
     R"""Weibull Adstocking Transformation.
 
     This transformation is similar to geometric adstock transformation but has more
@@ -499,7 +500,7 @@ def weibull_adstock(
     return batched_convolution(x, w, axis=axis, mode=mode)
 
 
-def logistic_saturation(x, lam: npt.NDArray | float = 0.5):
+def logistic_saturation(x, lam: npt.NDArray | float = 0.5) -> TensorVariable:
     r"""Logistic saturation transformation.
 
     .. math::
@@ -550,8 +551,10 @@ def logistic_saturation(x, lam: npt.NDArray | float = 0.5):
 
 
 def inverse_scaled_logistic_saturation(
-    x, lam: npt.NDArray | float = 0.5, eps: float = np.log(3)
-):
+    x,
+    lam: npt.NDArray | float = 0.5,
+    eps: float = np.log(3),
+) -> TensorVariable:
     r"""Inverse scaled logistic saturation transformation.
 
     It offers a more intuitive alternative to logistic_saturation,
@@ -676,7 +679,7 @@ def tanh_saturation(
     x: pt.TensorLike,
     b: pt.TensorLike = 0.5,
     c: pt.TensorLike = 0.5,
-) -> pt.TensorVariable:
+) -> TensorVariable:
     R"""Tanh saturation transformation.
 
     .. math::
@@ -747,7 +750,7 @@ def tanh_saturation_baselined(
     x0: pt.TensorLike,
     gain: pt.TensorLike = 0.5,
     r: pt.TensorLike = 0.5,
-) -> pt.TensorVariable:
+) -> TensorVariable:
     r"""Baselined Tanh Saturation.
 
     This parameterization that is easier than :func:`tanh_saturation`
@@ -898,7 +901,7 @@ def michaelis_menten(
     x: float | np.ndarray | npt.NDArray,
     alpha: float | np.ndarray | npt.NDArray,
     lam: float | np.ndarray | npt.NDArray,
-) -> float | Any:
+) -> float | TensorVariable:
     r"""Evaluate the Michaelis-Menten function for given values of x, alpha, and lambda.
 
     .. math::
@@ -982,7 +985,7 @@ def michaelis_menten(
 
 def hill_function(
     x: pt.TensorLike, slope: pt.TensorLike, kappa: pt.TensorLike
-) -> pt.TensorVariable:
+) -> TensorVariable:
     r"""Hill Function.
 
     .. math::
@@ -1059,7 +1062,7 @@ def hill_saturation_sigmoid(
     sigma: pt.TensorLike,
     beta: pt.TensorLike,
     lam: pt.TensorLike,
-) -> pt.TensorVariable:
+) -> TensorVariable:
     r"""Hill Saturation Sigmoid Function.
 
     .. math::
@@ -1192,4 +1195,4 @@ def root_saturation(
         Transformed tensor.
 
     """
-    return x**alpha
+    return pt.as_tensor_variable(x**alpha)

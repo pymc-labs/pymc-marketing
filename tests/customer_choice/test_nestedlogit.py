@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
 #   limitations under the License.
 
 
+import arviz as az
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -74,11 +75,13 @@ def new_utility_eqs():
 
 @pytest.fixture
 def nesting_structure_1():
+    """Single-layer nesting structure."""
     return {"nest1": ["alt", "other"], "nest2": ["option", "another"]}
 
 
 @pytest.fixture
-def nesting_structure_2():
+def nesting_structure_invalid_two_layer():
+    """Two-layer nesting structure that should raise an error."""
     return {
         "nest1": ["alt"],
         "nest2": {"option": ["option"], "another": ["other", "another"]},
@@ -93,9 +96,14 @@ def nstL(sample_df, utility_eqs, nesting_structure_1):
 
 
 @pytest.fixture
-def nstL2(sample_df, utility_eqs, nesting_structure_2):
+def nstL2_invalid(sample_df, utility_eqs, nesting_structure_invalid_two_layer):
+    """NestedLogit instance that will fail with two-layer nesting."""
     return NestedLogit(
-        sample_df, utility_eqs, "choice", ["X1", "X2"], nesting_structure_2
+        sample_df,
+        utility_eqs,
+        "choice",
+        ["X1", "X2"],
+        nesting_structure_invalid_two_layer,
     )
 
 
@@ -111,31 +119,40 @@ def sample_change_df():
 
 
 def test_parse_nesting_standard(nstL):
+    """Test parsing of single-layer nesting structure."""
+    nesting_dict = {"nest1": ["alt", "other"], "nest2": ["option", "another"]}
+    product_indices = {"option": 0, "another": 1, "alt": 2, "other": 3}
+
+    nest_indices = nstL._parse_nesting(nesting_dict, product_indices)
+
+    assert np.array_equal(nest_indices["nest1"], np.array([2, 3]))
+    assert np.array_equal(nest_indices["nest2"], np.array([0, 1]))
+
+
+def test_parse_nesting_no_midlevel(nstL):
+    """Test that single nest works correctly."""
+    nesting_dict = {"nest1": ["alt", "option", "another"]}
+    product_indices = {"alt": 0, "option": 1, "another": 2}
+
+    nest_indices = nstL._parse_nesting(nesting_dict, product_indices)
+
+    assert np.array_equal(nest_indices["nest1"], np.array([0, 1, 2]))
+
+
+def test_parse_nesting_two_layer_raises(nstL):
+    """Test that two-layer nesting raises an error."""
     nesting_dict = {
         "nest1": ["alt"],
         "nest2": {"option": ["option"], "another": ["other", "another"]},
     }
     product_indices = {"option": 0, "another": 1, "alt": 2, "other": 3}
 
-    top_level, mid_level = nstL._parse_nesting(nesting_dict, product_indices)
-
-    assert np.array_equal(top_level["nest1"], np.array([2]))
-    assert np.array_equal(top_level["nest2"], np.array([0, 1, 3]))
-    assert np.array_equal(mid_level["nest2_option"], np.array([0]))
-    assert np.array_equal(mid_level["nest2_another"], np.array([3, 1]))
-
-
-def test_parse_nesting_no_midlevel(nstL):
-    nesting_dict = {"nest1": ["alt", "option", "another"]}
-    product_indices = {"alt": 0, "option": 1, "another": 2}
-
-    top_level, mid_level = nstL._parse_nesting(nesting_dict, product_indices)
-
-    assert np.array_equal(top_level["nest1"], np.array([0, 1, 2]))
-    assert mid_level is None
+    with pytest.raises(ValueError, match=r"must map to a list of alternatives"):
+        nstL._parse_nesting(nesting_dict, product_indices)
 
 
 def test_parse_nesting_empty_dict_raises(nstL):
+    """Test that empty nesting structure raises an error."""
     nesting_dict = {}
     product_indices = {"alt": 0, "option": 1, "another": 2}
 
@@ -161,10 +178,9 @@ def test_preprocess_model_data_sets_attributes(nstL, sample_df, utility_eqs):
     assert nstL.X_data.shape[0] == sample_df.shape[0]
     assert nstL.y.shape[0] == sample_df.shape[0]
 
-    # Check that nest_indices has 'top' and maybe 'mid'
+    # Check that nest_indices has 'top' (but not 'mid' anymore)
     assert "top" in nstL.nest_indices
-    if "mid" in nstL.nest_indices:
-        assert isinstance(nstL.nest_indices["mid"], dict)
+    assert "mid" not in nstL.nest_indices
 
     # Check that all_nests contains the correct names
     expected_nests = ["nest1", "nest2"]
@@ -174,6 +190,10 @@ def test_preprocess_model_data_sets_attributes(nstL, sample_df, utility_eqs):
     for nest in expected_nests:
         assert nest in nstL.lambda_lkup
         assert isinstance(nstL.lambda_lkup[nest], int)
+
+    # Check that nest-specific coordinate dimensions exist
+    assert "nest1_alts" in nstL.coords
+    assert "nest2_alts" in nstL.coords
 
 
 def test_build_model_returns_pymc_model(nstL, sample_df, utility_eqs):
@@ -185,22 +205,41 @@ def test_build_model_returns_pymc_model(nstL, sample_df, utility_eqs):
     assert nstL.covariates == ["X1", "X2"]
 
 
-def test_build_model_2layer_returns_pymc_model(nstL2, sample_df, utility_eqs):
-    X, F, y = nstL2.preprocess_model_data(sample_df, utility_eqs)
-    model = nstL2.make_model(X, F, y)
-    assert isinstance(nstL2.coords, dict)
-    assert isinstance(model, pm.Model)
-    assert nstL2.alternatives == ["alt", "other", "option", "another"]
-    assert nstL2.covariates == ["X1", "X2"]
-    assert "top" in nstL2.nest_indices
-    assert "mid" in nstL2.nest_indices
+def test_build_model_2layer_raises_error(nstL2_invalid, sample_df, utility_eqs):
+    """Test that attempting two-layer nesting raises an informative error."""
+    with pytest.raises(ValueError, match=r"must map to a list of alternatives"):
+        _, _, _ = nstL2_invalid.preprocess_model_data(sample_df, utility_eqs)
 
 
 def test_sample(nstL, sample_df, utility_eqs, mock_pymc_sample):
     X, F, y = nstL.preprocess_model_data(sample_df, utility_eqs)
     _ = nstL.make_model(X, F, y)
+    nstL.sample_prior_predictive(
+        samples=5,
+        extend_idata=True,
+    )
+    assert "prior_predictive" in nstL.idata
     nstL.sample()
     assert hasattr(nstL, "idata")
+
+    nstL.sample_posterior_predictive(
+        extend_idata=False,
+    )
+    assert "posterior_predictive" in nstL.idata
+    assert "fit_data" in nstL.idata
+
+    nstL.sample_posterior_predictive(choice_df=sample_df, extend_idata=True)
+    assert isinstance(nstL.idata, az.InferenceData)
+
+    nstL.fit(choice_df=sample_df, utility_equations=utility_eqs)
+
+    with pytest.raises(
+        RuntimeError, match=r"self.idata must be initialized before extending"
+    ):
+        nstL.idata = None
+        nstL.sample_posterior_predictive(
+            extend_idata=True,
+        )
 
 
 def test_counterfactual(

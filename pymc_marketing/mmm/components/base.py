@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -214,7 +214,12 @@ class Transformation:
         """Get the priors for the function."""
         return self._function_priors
 
-    @function_priors.setter
+    @property
+    def priors(self) -> dict[str, SupportedPrior]:
+        """Get the priors for the function."""
+        return self.function_priors
+
+    @function_priors.setter  # type: ignore
     def function_priors(self, priors: dict[str, Any | Prior] | None) -> None:
         priors = priors or {}
 

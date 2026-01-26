@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -171,6 +171,8 @@ from pymc.util import RandomState
 from pymc_extras.prior import Prior, create_dim_handler
 from scipy.optimize import OptimizeResult
 
+from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
+from pymc_marketing.data.idata.schema import MMMIdataSchema
 from pymc_marketing.mmm import SoftPlusHSGP
 from pymc_marketing.mmm.additive_effect import EventAdditiveEffect, MuEffect
 from pymc_marketing.mmm.budget_optimizer import OptimizerCompatibleModelWrapper
@@ -194,7 +196,7 @@ from pymc_marketing.mmm.lift_test import (
 from pymc_marketing.mmm.plot import MMMPlotSuite
 from pymc_marketing.mmm.scaling import Scaling, VariableScaling
 from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
-from pymc_marketing.mmm.tvp import infer_time_index
+from pymc_marketing.mmm.tvp import create_hsgp_from_config, infer_time_index
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
 from pymc_marketing.mmm.utils import (
     add_noise_to_channel_allocation,
@@ -206,14 +208,6 @@ from pymc_marketing.model_builder import (
 )
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.model_graph import deterministics_to_flat
-
-PYMC_MARKETING_ISSUE = "https://github.com/pymc-labs/pymc-marketing/issues/new"
-warning_msg = (
-    "This functionality is experimental and subject to change. "
-    "If you encounter any issues or have suggestions, please raise them at: "
-    f"{PYMC_MARKETING_ISSUE}"
-)
-warnings.warn(warning_msg, FutureWarning, stacklevel=1)
 
 
 class MMM(RegressionModelBuilder):
@@ -623,6 +617,53 @@ class MMM(RegressionModelBuilder):
         return MMMPlotSuite(idata=self.idata)
 
     @property
+    def data(self) -> Any:  # type: ignore[no-any-return]
+        """Get data wrapper for InferenceData access and manipulation.
+
+        Returns a fresh wrapper on each access. The wrapper is lightweight
+        and wraps the current state of self.idata.
+
+        Validation is explicit - call `.validate()` or `.validate_or_raise()`
+        to check idata structure after modifications.
+
+        Returns
+        -------
+        MMMIDataWrapper
+            Wrapper providing validated access and transformations
+
+        Examples
+        --------
+        .. code-block:: python
+
+            # Access observed data
+            observed = mmm.data.get_target()
+
+            # Get contributions in original scale
+            contributions = mmm.data.get_contributions(original_scale=True)
+
+            # Validate after modifications
+            mmm.add_original_scale_contribution_variable(["channel_contribution"])
+            mmm.data.validate_or_raise()
+
+            # Filter and aggregate
+            monthly = mmm.data.filter_dates("2024-01-01", "2024-12-31").aggregate_time(
+                "monthly"
+            )
+        """
+        self._validate_idata_exists()
+
+        schema = MMMIdataSchema.from_model_config(
+            custom_dims=self.dims if hasattr(self, "dims") and self.dims else (),
+            has_controls=bool(self.control_columns),
+            has_seasonality=bool(self.yearly_seasonality),
+            time_varying=(
+                getattr(self, "time_varying_intercept", False)
+                or getattr(self, "time_varying_media", False)
+            ),
+        )
+        return MMMIDataWrapper(self.idata, schema=schema, validate_on_init=False)
+
+    @property
     def default_model_config(self) -> dict:
         """Define the default model configuration."""
         base_config = {
@@ -682,7 +723,7 @@ class MMM(RegressionModelBuilder):
 
     def _validate_idata_exists(self) -> None:
         """Validate that the idata exists."""
-        if not hasattr(self, "idata"):
+        if not hasattr(self, "idata") or self.idata is None:
             raise ValueError("idata does not exist. Build the model first and fit.")
 
     def _validate_dims_in_multiindex(
@@ -1125,6 +1166,12 @@ class MMM(RegressionModelBuilder):
                     mmm_dims_order += ("channel",)
                 elif v == "control_contribution":
                     mmm_dims_order += ("control",)
+                elif v == "fourier_contribution":
+                    mmm_dims_order += ("fourier_mode",)
+                elif v == "yearly_seasonality_contribution":
+                    pass  # Only has date dim
+                elif v == "intercept_contribution":
+                    pass  # Only has date dim
 
                 deterministic_dims = tuple(
                     [
@@ -1285,10 +1332,10 @@ class MMM(RegressionModelBuilder):
                     "intercept_baseline"
                 )
 
-                intercept_latent_process = SoftPlusHSGP.parameterize_from_data(
+                intercept_latent_process = create_hsgp_from_config(
                     X=time_index,
                     dims=("date", *self.dims),
-                    **self.model_config["intercept_tvp_config"],
+                    config=self.model_config["intercept_tvp_config"],
                 ).create_variable("intercept_latent_process")
 
                 intercept = pm.Deterministic(
@@ -1328,10 +1375,10 @@ class MMM(RegressionModelBuilder):
                     dims=("date", *self.dims, "channel"),
                 )
 
-                media_latent_process = SoftPlusHSGP.parameterize_from_data(
+                media_latent_process = create_hsgp_from_config(
                     X=time_index,
                     dims=("date", *self.dims),
-                    **self.model_config["media_tvp_config"],
+                    config=self.model_config["media_tvp_config"],
                 ).create_variable("media_temporal_latent_multiplier")
 
                 channel_contribution = pm.Deterministic(
@@ -1487,6 +1534,53 @@ class MMM(RegressionModelBuilder):
                 f"Overlapping dates found: {overlapping_dates_str}. "
                 f"Either set include_last_observations=False or use input dates that don't overlap with training data."
             )
+
+    def _subsample_posterior(
+        self,
+        parameters: xr.Dataset,
+        num_samples: int | None = None,
+        random_state: RandomState | None = None,
+    ) -> xr.Dataset:
+        """Subsample posterior parameters if needed.
+
+        Parameters
+        ----------
+        parameters : xr.Dataset
+            Dataset with parameter values (posterior samples).
+        num_samples : int or None, optional
+            Number of posterior samples to use. If None, all samples are used.
+            If less than total available samples, random subsampling is performed.
+        random_state : np.random.Generator, int, or None, optional
+            Random state for reproducible subsampling.
+
+        Returns
+        -------
+        xr.Dataset
+            Subsampled parameters (or original if no subsampling needed).
+        """
+        if num_samples is None:
+            return parameters
+
+        n_chains = parameters.sizes["chain"]
+        n_draws = parameters.sizes["draw"]
+        total_samples = n_chains * n_draws
+
+        if num_samples >= total_samples:
+            return parameters
+
+        rng = np.random.default_rng(random_state)
+        flat_indices = rng.choice(total_samples, size=num_samples, replace=False)
+
+        stacked = parameters.stack(sample=("chain", "draw"))
+        selected = stacked.isel(sample=flat_indices)
+        # Drop chain, draw, and sample to avoid MultiIndex deprecation warning
+        params = (
+            selected.drop_vars(["chain", "draw", "sample"])
+            .rename({"sample": "draw"})
+            .expand_dims("chain")
+        )
+
+        return params
 
     def _posterior_predictive_data_transformation(
         self,
@@ -1720,6 +1814,266 @@ class MMM(RegressionModelBuilder):
             )
 
         return posterior_predictive_samples
+
+    @validate_call(config={"arbitrary_types_allowed": True})
+    def sample_saturation_curve(
+        self,
+        max_value: float = Field(
+            1.0, gt=0, description="Maximum value for curve (in scaled space)."
+        ),
+        num_points: int = Field(100, gt=0, description="Number of points."),
+        num_samples: int | None = Field(
+            500, gt=0, description="Number of posterior samples to use."
+        ),
+        random_state: RandomState | None = None,
+        original_scale: bool = Field(
+            True, description="Whether to return curve in original scale."
+        ),
+    ) -> xr.DataArray:
+        """Sample saturation curves from posterior parameters.
+
+        This method samples the saturation transformation curves using posterior
+        parameters from the fitted model. It allows visualization of the
+        diminishing returns relationship between media spend and contribution.
+
+        Parameters
+        ----------
+        max_value : float, optional
+            Maximum value for the curve x-axis, in scaled space (consistent with
+            model internals). By default 1.0. This represents the maximum spend
+            level in scaled units. To convert from original scale, divide by
+            channel_scale:
+            ``max_scaled = original_max / mmm.data.get_channel_scale().mean()``
+        num_points : int, optional
+            Number of points between 0 and max_value to evaluate the curve at.
+            By default 100. Higher values give smoother curves but take longer.
+        num_samples : int or None, optional
+            Number of posterior samples to use for generating curves. By default 500.
+            Samples are drawn randomly from the full posterior (across all chains
+            and draws). Using fewer samples speeds up computation and reduces memory
+            usage while still capturing posterior uncertainty. If None, all posterior
+            samples are used without subsampling.
+        random_state : int, np.random.Generator, or None, optional
+            Random state for reproducible subsampling. Can be an integer seed,
+            a numpy Generator instance, or None for non-reproducible sampling.
+            Only used when num_samples is not None and less than total available
+            samples.
+        original_scale : bool, optional
+            Whether to return curve y-values in original scale. If True (default),
+            y-axis values (contribution) are multiplied by target_scale to convert
+            from scaled to original units. If False, values remain in scaled space
+            as used internally by the model. Note that x-axis values always remain
+            in scaled space consistent with the max_value parameter.
+
+        Returns
+        -------
+        xr.DataArray
+            Sampled saturation curves with dimensions:
+            - Simple model: (x, channel, sample)
+            - Panel model: (x, *custom_dims, channel, sample)
+
+            The "sample" dimension indexes the posterior samples used.
+            The "x" coordinate represents spend levels in scaled space (consistent
+            with max_value). Y-values are in original scale when original_scale=True,
+            otherwise in scaled space.
+
+        Raises
+        ------
+        ValueError
+            If called before model is fitted (idata doesn't exist)
+        ValueError
+            If original_scale=True but scale factors not found in constant_data
+
+        Examples
+        --------
+        Sample curves with default parameters (original scale):
+
+        >>> curves = mmm.sample_saturation_curve()
+        >>> curves.dims
+        ('sample', 'x', 'channel')
+
+        Sample curves using all posterior samples:
+
+        >>> curves_all = mmm.sample_saturation_curve(num_samples=None)
+
+        Sample curves in scaled space:
+
+        >>> curves_scaled = mmm.sample_saturation_curve(original_scale=False)
+
+        Sample curves with custom max value and reproducible sampling:
+
+        >>> channel_scale = mmm.data.get_channel_scale()
+        >>> max_original = 10000  # $10,000
+        >>> max_scaled = max_original / float(channel_scale.mean())
+        >>> curves = mmm.sample_saturation_curve(
+        ...     max_value=max_scaled, num_points=200, num_samples=1000, random_state=42
+        ... )
+
+
+        Notes
+        -----
+        - The max_value parameter is always in **scaled space**, consistent with how
+          the model operates internally. This matches the pattern of other MMM methods.
+        - For panel models, curves are generated for each combination of custom
+          dimensions (e.g., each country) and channel.
+        - The returned array includes a "sample" dimension for uncertainty
+          quantification. Use `.mean(dim='sample')` for point estimates and
+          `.quantile()` for credible intervals.
+        - Posterior samples are drawn randomly without replacement when num_samples
+          is less than the total available samples, otherwise all samples are used.
+        """
+        self._validate_idata_exists()
+
+        # Validate that posterior exists (model was fitted, not just prior sampled)
+        if (
+            not hasattr(self.idata, "posterior") or self.idata.posterior is None  # type: ignore[union-attr]
+        ):
+            raise ValueError(
+                "posterior not found in idata. "
+                "The model must be fitted (call .fit()) before sampling saturation curves."
+            )
+
+        # Subsample posterior if needed
+        parameters = self._subsample_posterior(
+            parameters=self.idata.posterior,  # type: ignore[union-attr]
+            num_samples=num_samples,
+            random_state=random_state,
+        )
+
+        # Sample curve using transformation's method
+        curve = self.saturation.sample_curve(
+            parameters=parameters,
+            max_value=max_value,
+            num_points=num_points,
+        )
+
+        # Flatten chain and draw dimensions to sample dimension
+        curve = curve.stack(sample=("chain", "draw"))
+
+        # Convert to original scale if requested
+        if original_scale:
+            # Scale y values (contribution) to original target units
+            # Note: x coordinates remain in scaled space (same as max_value input)
+            # since converting to original scale would require per-channel scaling
+            # which complicates plotting and interpretation
+            target_scale = self.data.get_target_scale()
+            # Multiply by target_scale since saturation affects target variable
+            curve = curve * target_scale
+
+        return curve
+
+    @validate_call(config={"arbitrary_types_allowed": True})
+    def sample_adstock_curve(
+        self,
+        amount: float = Field(
+            1.0, gt=0, description="Amount to apply the adstock transformation to."
+        ),
+        num_samples: int | None = Field(
+            500, gt=0, description="Number of posterior samples to use."
+        ),
+        random_state: RandomState | None = None,
+    ) -> xr.DataArray:
+        """Sample adstock curves from posterior parameters.
+
+        This method samples the adstock transformation curves using posterior
+        parameters from the fitted model. It allows visualization of the
+        carryover effect of media exposure over time.
+
+        Parameters
+        ----------
+        amount : float, optional
+            Amount to apply the adstock transformation to. By default 1.0.
+            This represents an impulse of spend at time 0, and the curve
+            shows how this effect decays over subsequent time periods.
+        num_samples : int or None, optional
+            Number of posterior samples to use for generating curves. By default 500.
+            Samples are drawn randomly from the full posterior (across all chains
+            and draws). Using fewer samples speeds up computation and reduces memory
+            usage while still capturing posterior uncertainty. If None, all posterior
+            samples are used without subsampling.
+        random_state : int, np.random.Generator, or None, optional
+            Random state for reproducible subsampling. Can be an integer seed,
+            a numpy Generator instance, or None for non-reproducible sampling.
+            Only used when num_samples is not None and less than total available
+            samples.
+
+        Returns
+        -------
+        xr.DataArray
+            Sampled adstock curves with dimensions:
+            - Simple model: (time since exposure, channel, sample)
+            - Panel model: (time since exposure, *custom_dims, channel, sample)
+
+            The "sample" dimension indexes the posterior samples used.
+            The "time since exposure" coordinate represents time periods from 0
+            to l_max (the maximum lag for the adstock transformation).
+
+        Raises
+        ------
+        ValueError
+            If called before model is fitted (idata doesn't exist)
+        ValueError
+            If idata exists but no posterior (model not fitted)
+
+        Examples
+        --------
+        Sample curves with default parameters:
+
+        >>> curves = mmm.sample_adstock_curve()
+        >>> curves.dims
+        ('sample', 'time since exposure', 'channel')
+
+        Sample curves using all posterior samples:
+
+        >>> curves_all = mmm.sample_adstock_curve(num_samples=None)
+
+        Sample curves with custom amount and reproducible sampling:
+
+        >>> curves = mmm.sample_adstock_curve(
+        ...     amount=100.0, num_samples=1000, random_state=42
+        ... )
+
+        Notes
+        -----
+        - The adstock curve shows the carryover effect of a single impulse of
+          media exposure over time, unlike saturation curves which show
+          diminishing returns.
+        - For panel models, curves are generated for each combination of custom
+          dimensions (e.g., each country) and channel.
+        - The returned array includes a "sample" dimension for uncertainty
+          quantification. Use `.mean(dim='sample')` for point estimates and
+          `.quantile()` for credible intervals.
+        - Posterior samples are drawn randomly without replacement when num_samples
+          is less than the total available samples.
+        """
+        self._validate_idata_exists()
+
+        # Validate that posterior exists
+        if (
+            not hasattr(self.idata, "posterior") or self.idata.posterior is None  # type: ignore[union-attr]
+        ):
+            raise ValueError(
+                "posterior not found in idata. "
+                "The model must be fitted (call .fit()) before sampling adstock curves."
+            )
+
+        # Subsample posterior if needed
+        parameters = self._subsample_posterior(
+            parameters=self.idata.posterior,  # type: ignore[union-attr]
+            num_samples=num_samples,
+            random_state=random_state,
+        )
+
+        # Sample curve using transformation's method
+        curve = self.adstock.sample_curve(
+            parameters=parameters,
+            amount=amount,
+        )
+
+        # Flatten chain and draw dimensions to sample dimension
+        curve = curve.stack(sample=("chain", "draw"))
+
+        return curve
 
     @property
     def sensitivity(self) -> SensitivityAnalysis:
