@@ -2321,6 +2321,349 @@ class TestPosteriorDistribution:
         assert fig.get_figheight() == 8
 
 
+class TestPriorVsPosterior:
+    """Tests for the prior_vs_posterior plotting method."""
+
+    @pytest.fixture(scope="class")
+    def mock_idata_for_prior_vs_posterior(self) -> az.InferenceData:
+        """Mock InferenceData with prior and posterior for testing."""
+        seed = sum(map(ord, "Prior vs Posterior tests"))
+        rng = np.random.default_rng(seed)
+        normal = rng.normal
+
+        channels = ["TV", "Radio", "Digital"]
+        geos = ["US", "UK"]
+
+        prior = xr.Dataset(
+            {
+                "lam": xr.DataArray(
+                    normal(loc=0.5, scale=0.2, size=(2, 10, 3)),
+                    dims=("chain", "draw", "channel"),
+                    coords={
+                        "chain": np.arange(2),
+                        "draw": np.arange(10),
+                        "channel": channels,
+                    },
+                ),
+                "alpha": xr.DataArray(
+                    normal(loc=1.0, scale=0.3, size=(2, 10, 3, 2)),
+                    dims=("chain", "draw", "channel", "geo"),
+                    coords={
+                        "chain": np.arange(2),
+                        "draw": np.arange(10),
+                        "channel": channels,
+                        "geo": geos,
+                    },
+                ),
+            }
+        )
+
+        # Posterior has different means to show learning
+        posterior = xr.Dataset(
+            {
+                "lam": xr.DataArray(
+                    normal(loc=0.7, scale=0.1, size=(2, 10, 3)),
+                    dims=("chain", "draw", "channel"),
+                    coords={
+                        "chain": np.arange(2),
+                        "draw": np.arange(10),
+                        "channel": channels,
+                    },
+                ),
+                "alpha": xr.DataArray(
+                    normal(loc=0.8, scale=0.15, size=(2, 10, 3, 2)),
+                    dims=("chain", "draw", "channel", "geo"),
+                    coords={
+                        "chain": np.arange(2),
+                        "draw": np.arange(10),
+                        "channel": channels,
+                        "geo": geos,
+                    },
+                ),
+            }
+        )
+
+        return az.InferenceData(prior=prior, posterior=posterior)
+
+    @pytest.fixture(scope="class")
+    def mock_suite_for_prior_vs_posterior(self, mock_idata_for_prior_vs_posterior):
+        return MMMPlotSuite(idata=mock_idata_for_prior_vs_posterior)
+
+    def test_prior_vs_posterior_basic(self, mock_suite_for_prior_vs_posterior):
+        """Test basic prior vs posterior plotting."""
+        fig, axes = mock_suite_for_prior_vs_posterior.prior_vs_posterior(
+            var="lam", plot_dim="channel"
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        # Should create one subplot per channel (3 channels)
+        assert axes.shape[0] == 3
+        assert all(isinstance(ax, Axes) for ax in axes.flat)
+
+    def test_prior_vs_posterior_with_additional_dim(
+        self, mock_suite_for_prior_vs_posterior
+    ):
+        """Test prior vs posterior with additional dimensions."""
+        fig, axes = mock_suite_for_prior_vs_posterior.prior_vs_posterior(
+            var="alpha", plot_dim="channel"
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        # Should create one row per channel (3), one col per geo (2)
+        assert axes.shape[0] == 3
+        assert axes.shape[1] == 2
+        assert all(isinstance(ax, Axes) for ax in axes.flat)
+
+    def test_prior_vs_posterior_with_dims_filter(
+        self, mock_suite_for_prior_vs_posterior
+    ):
+        """Test prior vs posterior with dimension filtering."""
+        fig, axes = mock_suite_for_prior_vs_posterior.prior_vs_posterior(
+            var="alpha", plot_dim="channel", dims={"geo": "US"}
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        # Should create 3 subplots (one per channel) for single geo
+        assert axes.shape[0] == 3
+        assert axes.shape[1] == 1
+
+    def test_prior_vs_posterior_alphabetical_sort(
+        self, mock_suite_for_prior_vs_posterior
+    ):
+        """Test prior vs posterior with alphabetical sorting (default)."""
+        fig, axes = mock_suite_for_prior_vs_posterior.prior_vs_posterior(
+            var="lam", plot_dim="channel", alphabetical_sort=True
+        )
+
+        assert isinstance(fig, Figure)
+        # Check titles are in alphabetical order
+        titles = [ax.get_title() for ax in axes[:, 0]]
+        assert "Digital" in titles[0]
+        assert "Radio" in titles[1]
+        assert "TV" in titles[2]
+
+    def test_prior_vs_posterior_difference_sort(
+        self, mock_suite_for_prior_vs_posterior
+    ):
+        """Test prior vs posterior with difference-based sorting."""
+        fig, axes = mock_suite_for_prior_vs_posterior.prior_vs_posterior(
+            var="lam", plot_dim="channel", alphabetical_sort=False
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        # Channels should be sorted by posterior - prior difference
+
+    def test_prior_vs_posterior_invalid_var(self, mock_suite_for_prior_vs_posterior):
+        """Test that invalid variable name raises error."""
+        with pytest.raises(ValueError, match=r"Variable 'invalid_var' not found"):
+            mock_suite_for_prior_vs_posterior.prior_vs_posterior(
+                var="invalid_var", plot_dim="channel"
+            )
+
+    def test_prior_vs_posterior_missing_plot_dim_handled_gracefully(
+        self, mock_suite_for_prior_vs_posterior
+    ):
+        """Test that missing plot_dim is handled gracefully (scalar case)."""
+        # When plot_dim doesn't exist, should treat as scalar and handle gracefully
+        fig, axes = mock_suite_for_prior_vs_posterior.prior_vs_posterior(
+            var="lam", plot_dim="nonexistent_dim"
+        )
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        # Should create subplot(s) based on remaining dimensions
+        assert axes.shape[0] >= 1
+
+    def test_prior_vs_posterior_no_prior(self):
+        """Test that missing prior data raises error."""
+        posterior = xr.Dataset(
+            {
+                "lam": xr.DataArray(
+                    np.random.normal(size=(2, 10, 3)),
+                    dims=("chain", "draw", "channel"),
+                    coords={
+                        "chain": np.arange(2),
+                        "draw": np.arange(10),
+                        "channel": ["A", "B", "C"],
+                    },
+                ),
+            }
+        )
+        idata = az.InferenceData(posterior=posterior)
+        suite = MMMPlotSuite(idata=idata)
+        with pytest.raises(ValueError, match=r"No prior data found"):
+            suite.prior_vs_posterior(var="lam", plot_dim="channel")
+
+    def test_prior_vs_posterior_no_posterior(self):
+        """Test that missing posterior data raises error."""
+        prior = xr.Dataset(
+            {
+                "lam": xr.DataArray(
+                    np.random.normal(size=(2, 10, 3)),
+                    dims=("chain", "draw", "channel"),
+                    coords={
+                        "chain": np.arange(2),
+                        "draw": np.arange(10),
+                        "channel": ["A", "B", "C"],
+                    },
+                ),
+            }
+        )
+        idata = az.InferenceData(prior=prior)
+        suite = MMMPlotSuite(idata=idata)
+        with pytest.raises(ValueError, match=r"No posterior data found"):
+            suite.prior_vs_posterior(var="lam", plot_dim="channel")
+
+    def test_prior_vs_posterior_custom_figsize(self, mock_suite_for_prior_vs_posterior):
+        """Test prior vs posterior with custom figure size."""
+        fig, _ = mock_suite_for_prior_vs_posterior.prior_vs_posterior(
+            var="lam", plot_dim="channel", figsize=(14, 5)
+        )
+
+        assert isinstance(fig, Figure)
+        # Check that custom figsize was applied
+        assert fig.get_figwidth() == 14
+
+    def test_prior_vs_posterior_subplot_content(
+        self, mock_suite_for_prior_vs_posterior
+    ):
+        """Test that prior vs posterior subplots have expected content."""
+        _fig, axes = mock_suite_for_prior_vs_posterior.prior_vs_posterior(
+            var="lam", plot_dim="channel"
+        )
+
+        # Each subplot should have content (lines for KDE and vertical lines)
+        for ax in axes.flat:
+            # Check there are lines in the plot
+            assert len(ax.lines) > 0
+            # Check legend exists
+            assert ax.get_legend() is not None
+
+    def test_prior_vs_posterior_scalar_variable(self):
+        """Test prior vs posterior with scalar variable (no plot_dim dimension)."""
+        # Create idata with a scalar variable (only chain, draw dims)
+        prior = xr.Dataset(
+            {
+                "sigma": xr.DataArray(
+                    np.random.exponential(scale=1.0, size=(2, 10)),
+                    dims=("chain", "draw"),
+                    coords={
+                        "chain": np.arange(2),
+                        "draw": np.arange(10),
+                    },
+                ),
+            }
+        )
+        posterior = xr.Dataset(
+            {
+                "sigma": xr.DataArray(
+                    np.random.exponential(scale=0.5, size=(2, 10)),
+                    dims=("chain", "draw"),
+                    coords={
+                        "chain": np.arange(2),
+                        "draw": np.arange(10),
+                    },
+                ),
+            }
+        )
+        idata = az.InferenceData(prior=prior, posterior=posterior)
+        suite = MMMPlotSuite(idata=idata)
+
+        # Should work without error for scalar variable
+        fig, axes = suite.prior_vs_posterior(var="sigma", plot_dim="channel")
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        # Should create single subplot for scalar
+        assert axes.shape[0] == 1
+        # Check there are lines in the plot
+        assert len(axes[0, 0].lines) > 0
+
+    def test_prior_vs_posterior_scalar_with_one_extra_dim(self):
+        """Test prior vs posterior with scalar that has one non-chain/draw dimension."""
+        geos = ["US", "UK"]
+        prior = xr.Dataset(
+            {
+                "intercept": xr.DataArray(
+                    np.random.normal(size=(2, 10, 2)),
+                    dims=("chain", "draw", "geo"),
+                    coords={
+                        "chain": np.arange(2),
+                        "draw": np.arange(10),
+                        "geo": geos,
+                    },
+                ),
+            }
+        )
+        posterior = xr.Dataset(
+            {
+                "intercept": xr.DataArray(
+                    np.random.normal(loc=1.0, size=(2, 10, 2)),
+                    dims=("chain", "draw", "geo"),
+                    coords={
+                        "chain": np.arange(2),
+                        "draw": np.arange(10),
+                        "geo": geos,
+                    },
+                ),
+            }
+        )
+        idata = az.InferenceData(prior=prior, posterior=posterior)
+        suite = MMMPlotSuite(idata=idata)
+
+        # plot_dim="channel" doesn't exist, but geo does - should handle gracefully
+        fig, axes = suite.prior_vs_posterior(var="intercept", plot_dim="channel")
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        # Should create one subplot per geo (2 geos)
+        assert axes.shape[0] == 2
+
+    def test_prior_vs_posterior_use_geo_as_plot_dim(self):
+        """Test prior vs posterior with geo as plot_dim."""
+        geos = ["US", "UK"]
+        prior = xr.Dataset(
+            {
+                "intercept": xr.DataArray(
+                    np.random.normal(size=(2, 10, 2)),
+                    dims=("chain", "draw", "geo"),
+                    coords={
+                        "chain": np.arange(2),
+                        "draw": np.arange(10),
+                        "geo": geos,
+                    },
+                ),
+            }
+        )
+        posterior = xr.Dataset(
+            {
+                "intercept": xr.DataArray(
+                    np.random.normal(loc=1.0, size=(2, 10, 2)),
+                    dims=("chain", "draw", "geo"),
+                    coords={
+                        "chain": np.arange(2),
+                        "draw": np.arange(10),
+                        "geo": geos,
+                    },
+                ),
+            }
+        )
+        idata = az.InferenceData(prior=prior, posterior=posterior)
+        suite = MMMPlotSuite(idata=idata)
+
+        # Use geo as plot_dim
+        fig, axes = suite.prior_vs_posterior(var="intercept", plot_dim="geo")
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        # Should create one subplot per geo (2 geos)
+        assert axes.shape[0] == 2
+
+
 class TestChannelContributionShareHDI:
     def test_channel_contribution_share_hdi_basic(self, mock_suite_with_constant_data):
         """Test basic functionality of channel_contribution_share_hdi."""

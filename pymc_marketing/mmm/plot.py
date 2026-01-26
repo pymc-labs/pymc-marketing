@@ -1249,6 +1249,405 @@ class MMMPlotSuite:
         fig.tight_layout()
         return fig, axes
 
+    def prior_vs_posterior(
+        self,
+        var: str,
+        plot_dim: str = "channel",
+        alphabetical_sort: bool = True,
+        dims: dict[str, str | int | list] | None = None,
+        figsize: tuple[float, float] | None = None,
+    ) -> tuple[Figure, NDArray[Axes]]:
+        """Plot the prior vs posterior distribution for a variable across a dimension.
+
+        Creates KDE plots showing the prior and posterior distributions with their
+        respective means highlighted. Each subplot represents a value in the plot_dim
+        (e.g., each channel). If additional dimensions are present, creates a grid
+        of subplots for each combination.
+
+        For scalar variables (those without the specified plot_dim), a single subplot
+        is created showing the overall prior vs posterior comparison. If the variable
+        has other dimensions besides chain/draw, subplots are created for each
+        combination of those dimensions.
+
+        Parameters
+        ----------
+        var : str
+            The name of the variable to plot (e.g., 'adstock_alpha', 'lam').
+        plot_dim : str, optional
+            The dimension to create subplots over. Default is "channel".
+            Each value in this dimension will get its own subplot showing
+            prior vs posterior comparison. If the variable does not have this
+            dimension, it is treated as a scalar variable.
+        alphabetical_sort : bool, optional
+            Whether to sort the plot_dim values alphabetically (True) or by the
+            difference between the posterior and prior means (False), with the
+            largest positive difference at the top. Default is True.
+            Only applies when plot_dim exists in the variable.
+        dims : dict[str, str | int | list], optional
+            Dimension filters to apply. Example: {"geo": "US"}.
+            If provided, only the selected slice(s) will be plotted.
+        figsize : tuple[float, float], optional
+            The size of the figure. If None, it will be calculated based on
+            the number of subplots.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The Figure object containing the subplots.
+        axes : np.ndarray of matplotlib.axes.Axes
+            Array of Axes objects corresponding to each subplot.
+
+        Raises
+        ------
+        ValueError
+            If `var` is not found in both prior and posterior.
+            If no prior or posterior data is found in idata.
+
+        Examples
+        --------
+        Plot prior vs posterior distribution of an adstock parameter:
+
+        .. code-block:: python
+
+            mmm.plot.prior_vs_posterior(var="adstock_alpha", plot_dim="channel")
+
+        Plot a scalar variable (no channel dimension):
+
+        .. code-block:: python
+
+            mmm.plot.prior_vs_posterior(var="intercept")
+
+        Plot with dimension filtering:
+
+        .. code-block:: python
+
+            mmm.plot.prior_vs_posterior(
+                var="lam", plot_dim="channel", dims={"geo": "US"}
+            )
+
+        Sort by magnitude of update (largest posterior - prior difference first):
+
+        .. code-block:: python
+
+            mmm.plot.prior_vs_posterior(
+                var="adstock_alpha", plot_dim="channel", alphabetical_sort=False
+            )
+        """
+        # Validate that prior and posterior exist
+        if not hasattr(self.idata, "prior") or self.idata.prior is None:
+            raise ValueError(
+                "No prior data found in 'self.idata'. "
+                "Please ensure 'self.idata' contains a 'prior' group. "
+                "Run 'MMM.sample_prior_predictive()' to generate prior samples."
+            )
+
+        if not hasattr(self.idata, "posterior") or self.idata.posterior is None:
+            raise ValueError(
+                "No posterior data found in 'self.idata'. "
+                "Please ensure 'self.idata' contains a 'posterior' group. "
+                "Run 'MMM.fit()' to generate posterior samples."
+            )
+
+        # Validate variable exists in both prior and posterior
+        if var not in self.idata.prior:
+            raise ValueError(
+                f"Variable '{var}' not found in prior. "
+                f"Available variables: {list(self.idata.prior.data_vars)}"
+            )
+
+        if var not in self.idata.posterior:
+            raise ValueError(
+                f"Variable '{var}' not found in posterior. "
+                f"Available variables: {list(self.idata.posterior.data_vars)}"
+            )
+
+        prior_data = self.idata.prior[var]
+        posterior_data = self.idata.posterior[var]
+
+        all_dims = list(prior_data.dims)
+
+        # Check if plot_dim exists - if not, treat as scalar variable
+        is_scalar = plot_dim not in prior_data.dims
+
+        if is_scalar:
+            # Handle scalar variables (no plot_dim dimension)
+            # Identify additional dimensions beyond chain, draw
+            ignored_dims = {"chain", "draw"}
+            additional_dims = [
+                d for d in all_dims if d not in ignored_dims and d not in (dims or {})
+            ]
+
+            # Validate dims parameter if provided
+            if dims:
+                for key in dims:
+                    if key not in all_dims:
+                        raise ValueError(
+                            f"Dimension '{key}' not found in variable '{var}'. "
+                            f"Available dimensions: {list(prior_data.dims)}"
+                        )
+
+            # Get combinations for additional dims
+            if additional_dims:
+                additional_coords = [
+                    self.idata.prior.coords[dim].values for dim in additional_dims
+                ]
+                additional_combos = list(itertools.product(*additional_coords))
+            else:
+                additional_combos = [()]
+
+            # Calculate figsize if not provided
+            if figsize is None:
+                figsize = (12.0, 4.0)
+
+            n_subplots = max(1, len(additional_combos))
+            fig, axes = self._init_subplots(
+                n_subplots=n_subplots,
+                ncols=1,
+                width_per_col=figsize[0],
+                height_per_row=figsize[1],
+            )
+
+            # Plot for each additional dimension combination (or single plot if scalar)
+            for row_idx, addl_combo in enumerate(additional_combos):
+                ax = axes[row_idx][0]
+
+                # Build indexers for additional dimensions
+                indexers = (
+                    dict(zip(additional_dims, addl_combo, strict=False))
+                    if additional_dims
+                    else {}
+                )
+
+                # Add single-value dims filters
+                if dims:
+                    for k, v in dims.items():
+                        if not isinstance(v, (list, tuple, np.ndarray)):
+                            indexers[k] = v
+
+                # Extract samples
+                prior_samples = prior_data.sel(**indexers).values.flatten()
+                posterior_samples = posterior_data.sel(**indexers).values.flatten()
+                prior_mean = float(np.mean(prior_samples))
+                posterior_mean = float(np.mean(posterior_samples))
+                difference = posterior_mean - prior_mean
+
+                # Plot prior KDE
+                sns.kdeplot(
+                    prior_samples,
+                    ax=ax,
+                    label="Prior",
+                    color="C0",
+                    fill=True,
+                )
+
+                # Add vertical line for prior mean
+                ax.axvline(
+                    prior_mean,
+                    color="C0",
+                    linestyle="--",
+                    linewidth=2,
+                    label=f"Prior Mean: {prior_mean:.2f}",
+                )
+
+                # Plot posterior KDE
+                sns.kdeplot(
+                    posterior_samples,
+                    ax=ax,
+                    label="Posterior",
+                    color="C1",
+                    fill=True,
+                    alpha=0.15,
+                )
+
+                # Add vertical line for posterior mean
+                ax.axvline(
+                    posterior_mean,
+                    color="C1",
+                    linestyle="--",
+                    linewidth=2,
+                    label=f"Posterior Mean: {posterior_mean:.2f} (Diff: {difference:.2f})",
+                )
+
+                # Build title
+                if additional_dims:
+                    title_parts = [
+                        f"{d}={v}"
+                        for d, v in zip(additional_dims, addl_combo, strict=False)
+                    ]
+                    ax.set_title(", ".join(title_parts))
+                else:
+                    ax.set_title(var)
+
+                ax.set_xlabel(var)
+                ax.set_ylabel("Density")
+                ax.legend(loc="upper right", fontsize="small")
+
+            fig.suptitle(
+                f"Prior vs Posterior Distributions | {var}",
+                fontsize=14,
+                fontweight="bold",
+                y=1.02,
+            )
+            fig.tight_layout()
+            return fig, axes
+
+        # Non-scalar case: variable has the plot_dim dimension
+        # Validate dims parameter
+        if dims:
+            self._validate_dims(dims=dims, all_dims=all_dims)
+
+        # Identify additional dimensions (beyond chain, draw, and plot_dim)
+        ignored_dims = {"chain", "draw", plot_dim}
+        additional_dims = [
+            d for d in all_dims if d not in ignored_dims and d not in (dims or {})
+        ]
+
+        # Get combinations for remaining dims
+        if additional_dims:
+            additional_coords = [
+                self.idata.prior.coords[dim].values for dim in additional_dims
+            ]
+            additional_combos = list(itertools.product(*additional_coords))
+        else:
+            additional_combos = [()]
+
+        # Get plot_dim values
+        plot_dim_values = prior_data.coords[plot_dim].values
+
+        # Apply dims filter if provided for plot_dim
+        if dims and plot_dim in dims:
+            filter_val = dims[plot_dim]
+            if isinstance(filter_val, (list, tuple, np.ndarray)):
+                plot_dim_values = [v for v in plot_dim_values if v in filter_val]
+            else:
+                plot_dim_values = [filter_val]
+
+        n_plot_dim = len(plot_dim_values)
+        n_addl = len(additional_combos)
+
+        # Calculate figsize if not provided
+        if figsize is None:
+            figsize = (12.0, 4.0)
+
+        # Create subplots - one row per plot_dim value, one column per additional combo
+        if n_addl > 1:
+            fig, axes = self._init_subplots(
+                n_subplots=n_plot_dim,
+                ncols=n_addl,
+                width_per_col=figsize[0] / max(n_addl, 1),
+                height_per_row=figsize[1],
+            )
+        else:
+            fig, axes = self._init_subplots(
+                n_subplots=n_plot_dim,
+                ncols=1,
+                width_per_col=figsize[0],
+                height_per_row=figsize[1],
+            )
+
+        # For each additional dimension combination, compute means and sort
+        for addl_idx, addl_combo in enumerate(additional_combos):
+            # Build indexers for additional dimensions
+            addl_indexers = (
+                dict(zip(additional_dims, addl_combo, strict=False))
+                if additional_dims
+                else {}
+            )
+
+            # Add single-value dims filters
+            if dims:
+                for k, v in dims.items():
+                    if k not in [plot_dim] and not isinstance(
+                        v, (list, tuple, np.ndarray)
+                    ):
+                        addl_indexers[k] = v
+
+            # Compute prior and posterior means for sorting
+            dim_means = []
+            for dim_val in plot_dim_values:
+                indexers = {**addl_indexers, plot_dim: dim_val}
+                prior_samples = prior_data.sel(**indexers).values.flatten()
+                posterior_samples = posterior_data.sel(**indexers).values.flatten()
+                prior_mean = float(np.mean(prior_samples))
+                posterior_mean = float(np.mean(posterior_samples))
+                difference = posterior_mean - prior_mean
+                dim_means.append((dim_val, prior_mean, posterior_mean, difference))
+
+            # Sort based on alphabetical_sort parameter
+            if alphabetical_sort:
+                sorted_dims = sorted(dim_means, key=lambda x: str(x[0]))
+            else:
+                # Sort by difference (largest positive first)
+                sorted_dims = sorted(dim_means, key=lambda x: x[3], reverse=True)
+
+            # Plot for each plot_dim value
+            for row_idx, (dim_val, prior_mean, posterior_mean, difference) in enumerate(
+                sorted_dims
+            ):
+                ax = axes[row_idx][addl_idx]
+
+                indexers = {**addl_indexers, plot_dim: dim_val}
+
+                # Extract samples
+                prior_samples = prior_data.sel(**indexers).values.flatten()
+                posterior_samples = posterior_data.sel(**indexers).values.flatten()
+
+                # Plot prior KDE
+                sns.kdeplot(
+                    prior_samples,
+                    ax=ax,
+                    label="Prior",
+                    color="C0",
+                    fill=True,
+                )
+
+                # Add vertical line for prior mean
+                ax.axvline(
+                    prior_mean,
+                    color="C0",
+                    linestyle="--",
+                    linewidth=2,
+                    label=f"Prior Mean: {prior_mean:.2f}",
+                )
+
+                # Plot posterior KDE
+                sns.kdeplot(
+                    posterior_samples,
+                    ax=ax,
+                    label="Posterior",
+                    color="C1",
+                    fill=True,
+                    alpha=0.15,
+                )
+
+                # Add vertical line for posterior mean
+                ax.axvline(
+                    posterior_mean,
+                    color="C1",
+                    linestyle="--",
+                    linewidth=2,
+                    label=f"Posterior Mean: {posterior_mean:.2f} (Diff: {difference:.2f})",
+                )
+
+                # Build title
+                title_parts = [f"{plot_dim}={dim_val}"]
+                if additional_dims:
+                    for d, v in zip(additional_dims, addl_combo, strict=False):
+                        title_parts.append(f"{d}={v}")
+                ax.set_title(", ".join(title_parts))
+                ax.set_xlabel(var)
+                ax.set_ylabel("Density")
+                ax.legend(loc="upper right", fontsize="small")
+
+        fig.suptitle(
+            f"Prior vs Posterior Distributions | {var}",
+            fontsize=14,
+            fontweight="bold",
+            y=1.02,
+        )
+        fig.tight_layout()
+        return fig, axes
+
     def saturation_scatterplot(
         self,
         original_scale: bool = False,
