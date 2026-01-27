@@ -30,6 +30,8 @@ Key Features:
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Any, Literal
 
 import arviz as az
@@ -57,6 +59,7 @@ __all__ = [
 ]
 
 
+@dataclass(frozen=True)
 class MMMSummaryFactory:
     """Factory for creating summary DataFrames from MMM data.
 
@@ -64,8 +67,8 @@ class MMMSummaryFactory:
     with shared default settings. Accepts data wrapper (required) and
     optionally the MMM model to access transformations.
 
-    The factory is immutable - use :meth:`configure` to create a new
-    factory with different settings.
+    The factory is immutable (frozen dataclass). To create a factory with
+    different settings, instantiate a new one directly.
 
     Parameters
     ----------
@@ -74,8 +77,9 @@ class MMMSummaryFactory:
     model : MMM, optional
         Fitted MMM model with transformations (saturation, adstock).
         Required for saturation_curves() and adstock_curves() methods.
-    hdi_probs : list of float, optional
-        Default HDI probability levels (default: [0.94])
+    hdi_probs : sequence of float, optional
+        Default HDI probability levels (default: (0.94,)).
+        Accepts list or tuple; stored internally as tuple.
     output_format : {"pandas", "polars"}, default "pandas"
         Default output DataFrame format
 
@@ -93,40 +97,39 @@ class MMMSummaryFactory:
     >>> factory = mmm.summary
     >>> saturation_df = factory.saturation_curves()
     >>>
-    >>> # Configure factory with new defaults (returns new instance)
-    >>> polars_factory = factory.configure(
-    ...     output_format="polars", hdi_probs=[0.80, 0.94]
+    >>> # Create new factory with different settings (direct instantiation)
+    >>> polars_factory = MMMSummaryFactory(
+    ...     mmm.data, model=mmm, output_format="polars", hdi_probs=[0.80, 0.94]
     ... )
     >>> df = polars_factory.contributions()  # Uses configured defaults
     """
 
-    def __init__(
-        self,
-        data: MMMIDataWrapper,
-        model: Any | None = None,  # MMM type, but avoid circular import
-        hdi_probs: list[float] | None = None,
-        output_format: OutputFormat = "pandas",
-    ):
+    data: MMMIDataWrapper
+    model: Any | None = None  # MMM type, but avoid circular import
+    hdi_probs: Sequence[float] = (0.94,)
+    output_format: OutputFormat = "pandas"
+
+    def __post_init__(self) -> None:
+        """Validate data and convert hdi_probs to tuple for immutability."""
+        # Convert hdi_probs to tuple if passed as list (for immutability)
+        if not isinstance(self.hdi_probs, tuple):
+            object.__setattr__(self, "hdi_probs", tuple(self.hdi_probs))
+
         # Validate data structure at initialization (early fail)
-        if hasattr(data, "validate_or_raise") and data.schema is not None:
-            data.validate_or_raise()
+        if hasattr(self.data, "validate_or_raise") and self.data.schema is not None:
+            self.data.validate_or_raise()
 
-        self._data = data
-        self._model = model
-        self._hdi_probs = hdi_probs if hdi_probs is not None else [0.94]
-        self._output_format = output_format
-
-        # Validate HDI probs at init time (uses class method)
-        self._validate_hdi_probs(self._hdi_probs)
+        # Validate HDI probs at init time
+        self._validate_hdi_probs(self.hdi_probs)
 
     # ==================== Private Helper Methods ====================
 
-    def _validate_hdi_probs(self, hdi_probs: list[float]) -> None:
+    def _validate_hdi_probs(self, hdi_probs: Sequence[float]) -> None:
         """Validate HDI probability values are in valid range.
 
         Parameters
         ----------
-        hdi_probs : list of float
+        hdi_probs : sequence of float
             HDI probability levels to validate
 
         Raises
@@ -165,7 +168,7 @@ class MMMSummaryFactory:
         ValueError
             If output_format is not recognized
         """
-        fmt = output_format if output_format is not None else self._output_format
+        fmt = output_format if output_format is not None else self.output_format
         if fmt == "pandas":
             return df
         elif fmt == "polars":
@@ -185,7 +188,7 @@ class MMMSummaryFactory:
     def _compute_summary_stats_with_hdi(
         self,
         data: xr.DataArray,
-        hdi_probs: list[float],
+        hdi_probs: Sequence[float],
         sample_dim: str | None = None,
     ) -> pd.DataFrame:
         """Convert xarray to DataFrame with summary stats and HDI.
@@ -281,22 +284,22 @@ class MMMSummaryFactory:
 
     def _prepare_data_and_hdi(
         self,
-        hdi_probs: list[float] | None = None,
+        hdi_probs: Sequence[float] | None = None,
         frequency: Frequency | None = None,
         output_format: OutputFormat | None = None,
-    ) -> tuple[MMMIDataWrapper, list[float], OutputFormat]:
+    ) -> tuple[MMMIDataWrapper, Sequence[float], OutputFormat]:
         """Prepare data, resolve defaults, and validate.
 
         This is the main "resolve defaults" method that should be called
         at the start of each public summary method. It:
-        1. Resolves hdi_probs default from self._hdi_probs
-        2. Resolves output_format default from self._output_format
+        1. Resolves hdi_probs default from self.hdi_probs
+        2. Resolves output_format default from self.output_format
         3. Validates hdi_probs
         4. Aggregates data by frequency if specified
 
         Parameters
         ----------
-        hdi_probs : list of float or None
+        hdi_probs : sequence of float or None
             HDI probability levels (None uses factory default)
         frequency : Frequency or None
             Time aggregation period (None or "original" means no aggregation)
@@ -305,7 +308,7 @@ class MMMSummaryFactory:
 
         Returns
         -------
-        tuple[MMMIDataWrapper, list[float], OutputFormat]
+        tuple[MMMIDataWrapper, Sequence[float], OutputFormat]
             (prepared_data, effective_hdi_probs, effective_output_format)
         """
         effective_hdi_probs = hdi_probs if hdi_probs is not None else self.hdi_probs
@@ -321,74 +324,6 @@ class MMMSummaryFactory:
 
         return data, effective_hdi_probs, effective_output_format
 
-    @property
-    def data(self) -> MMMIDataWrapper:
-        """Data wrapper containing idata and schema."""
-        return self._data
-
-    @property
-    def model(self) -> Any | None:
-        """Fitted MMM model (None if not provided)."""
-        return self._model
-
-    @property
-    def hdi_probs(self) -> list[float]:
-        """Default HDI probability levels."""
-        return self._hdi_probs
-
-    @property
-    def output_format(self) -> OutputFormat:
-        """Default output DataFrame format."""
-        return self._output_format
-
-    def configure(
-        self,
-        hdi_probs: list[float] | None = None,
-        output_format: OutputFormat | None = None,
-    ) -> MMMSummaryFactory:
-        """Create a new factory with updated configuration.
-
-        Returns a new MMMSummaryFactory instance with the specified settings,
-        keeping all other settings from this factory. This allows for an
-        immutable configuration pattern.
-
-        Parameters
-        ----------
-        hdi_probs : list of float, optional
-            New HDI probability levels. If None, keeps current setting.
-        output_format : {"pandas", "polars"}, optional
-            New output DataFrame format. If None, keeps current setting.
-
-        Returns
-        -------
-        MMMSummaryFactory
-            New factory instance with updated configuration
-
-        Examples
-        --------
-        >>> # Start with default factory
-        >>> factory = mmm.summary
-        >>>
-        >>> # Create new factory with polars output
-        >>> polars_factory = factory.configure(output_format="polars")
-        >>>
-        >>> # Create new factory with custom HDI and polars
-        >>> custom_factory = factory.configure(
-        ...     hdi_probs=[0.80, 0.94], output_format="polars"
-        ... )
-        >>>
-        >>> # Chain configurations
-        >>> result = mmm.summary.configure(output_format="polars").contributions()
-        """
-        return MMMSummaryFactory(
-            data=self.data,
-            model=self.model,
-            hdi_probs=hdi_probs if hdi_probs is not None else self.hdi_probs,
-            output_format=output_format
-            if output_format is not None
-            else self.output_format,
-        )
-
     def _require_model(self, method_name: str) -> None:
         """Raise helpful error if model is required but not provided."""
         if self.model is None:
@@ -399,7 +334,7 @@ class MMMSummaryFactory:
 
     def posterior_predictive(
         self,
-        hdi_probs: list[float] | None = None,
+        hdi_probs: Sequence[float] | None = None,
         frequency: Frequency | None = None,
         output_format: OutputFormat | None = None,
     ) -> DataFrameType:
@@ -410,7 +345,7 @@ class MMMSummaryFactory:
 
         Parameters
         ----------
-        hdi_probs : list of float, optional
+        hdi_probs : sequence of float, optional
             HDI probability levels (default: uses factory default)
         frequency : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}, optional
             Time aggregation period (default: None, no aggregation)
@@ -461,7 +396,7 @@ class MMMSummaryFactory:
 
     def contributions(
         self,
-        hdi_probs: list[float] | None = None,
+        hdi_probs: Sequence[float] | None = None,
         component: Literal["channel", "control", "seasonality", "baseline"] = "channel",
         frequency: Frequency | None = None,
         output_format: OutputFormat | None = None,
@@ -473,7 +408,7 @@ class MMMSummaryFactory:
 
         Parameters
         ----------
-        hdi_probs : list of float, optional
+        hdi_probs : sequence of float, optional
             HDI probability levels (default: uses factory default)
         component : {"channel", "control", "seasonality", "baseline"}, default "channel"
             Which contribution component to summarize
@@ -532,7 +467,7 @@ class MMMSummaryFactory:
 
     def roas(
         self,
-        hdi_probs: list[float] | None = None,
+        hdi_probs: Sequence[float] | None = None,
         frequency: Frequency | None = None,
         output_format: OutputFormat | None = None,
     ) -> DataFrameType:
@@ -543,7 +478,7 @@ class MMMSummaryFactory:
 
         Parameters
         ----------
-        hdi_probs : list of float, optional
+        hdi_probs : sequence of float, optional
             HDI probability levels (default: uses factory default)
         frequency : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}, optional
             Time aggregation period (default: None, no aggregation)
@@ -621,7 +556,7 @@ class MMMSummaryFactory:
 
     def saturation_curves(
         self,
-        hdi_probs: list[float] | None = None,
+        hdi_probs: Sequence[float] | None = None,
         output_format: OutputFormat | None = None,
         data: MMMIDataWrapper | None = None,
         max_value: float = 1.0,
@@ -644,7 +579,7 @@ class MMMSummaryFactory:
 
         Parameters
         ----------
-        hdi_probs : list of float, optional
+        hdi_probs : sequence of float, optional
             HDI probability levels (default: uses factory default)
         output_format : {"pandas", "polars"}, optional
             Output DataFrame format (default: uses factory default)
@@ -740,7 +675,7 @@ class MMMSummaryFactory:
 
     def adstock_curves(
         self,
-        hdi_probs: list[float] | None = None,
+        hdi_probs: Sequence[float] | None = None,
         output_format: OutputFormat | None = None,
         data: MMMIDataWrapper | None = None,
         amount: float = 1.0,
@@ -757,7 +692,7 @@ class MMMSummaryFactory:
 
         Parameters
         ----------
-        hdi_probs : list of float, optional
+        hdi_probs : sequence of float, optional
             HDI probability levels (default: uses factory default)
         output_format : {"pandas", "polars"}, optional
             Output DataFrame format (default: uses factory default)
@@ -840,7 +775,7 @@ class MMMSummaryFactory:
 
     def total_contribution(
         self,
-        hdi_probs: list[float] | None = None,
+        hdi_probs: Sequence[float] | None = None,
         frequency: Frequency | None = None,
         output_format: OutputFormat | None = None,
     ) -> DataFrameType:
@@ -851,7 +786,7 @@ class MMMSummaryFactory:
 
         Parameters
         ----------
-        hdi_probs : list of float, optional
+        hdi_probs : sequence of float, optional
             HDI probability levels (default: uses factory default)
         frequency : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}, optional
             Time aggregation period (default: None, no aggregation)
@@ -918,7 +853,7 @@ class MMMSummaryFactory:
 
     def change_over_time(
         self,
-        hdi_probs: list[float] | None = None,
+        hdi_probs: Sequence[float] | None = None,
         frequency: Frequency | None = None,
         output_format: OutputFormat | None = None,
     ) -> DataFrameType:
@@ -929,7 +864,7 @@ class MMMSummaryFactory:
 
         Parameters
         ----------
-        hdi_probs : list of float, optional
+        hdi_probs : sequence of float, optional
             HDI probability levels (default: uses factory default)
         frequency : {"original", "weekly", "monthly", "quarterly", "yearly"}, optional
             Aggregate to time frequency before computing changes.

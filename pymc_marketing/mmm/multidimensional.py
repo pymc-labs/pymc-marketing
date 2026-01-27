@@ -700,9 +700,11 @@ class MMM(RegressionModelBuilder):
                 hdi_probs=[0.80, 0.94], frequency="monthly", output_format="polars"
             )
 
-            # Configure factory with new defaults (returns new instance)
-            polars_factory = mmm.summary.configure(
-                hdi_probs=[0.50, 0.94], output_format="polars"
+            # Create factory with different defaults (direct instantiation)
+            from pymc_marketing.mmm.summary import MMMSummaryFactory
+
+            polars_factory = MMMSummaryFactory(
+                mmm.data, model=mmm, hdi_probs=[0.50, 0.94], output_format="polars"
             )
             df = polars_factory.contributions()  # Uses configured defaults
 
