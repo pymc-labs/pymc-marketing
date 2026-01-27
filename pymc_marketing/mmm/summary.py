@@ -40,14 +40,6 @@ from pymc.util import RandomState
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 
-try:
-    import polars as pl
-
-    POLARS_INSTALLED = True
-except ImportError:
-    POLARS_INSTALLED = False
-    pl = None  # type: ignore[assignment]
-
 # Type aliases
 # Maps to Component 1's aggregate_time(period) - "original" means no aggregation
 Frequency = Literal["original", "weekly", "monthly", "quarterly", "yearly", "all_time"]
@@ -177,7 +169,9 @@ class MMMSummaryFactory:
         if fmt == "pandas":
             return df
         elif fmt == "polars":
-            if not POLARS_INSTALLED:
+            try:
+                import polars as pl
+            except ImportError:
                 raise ImportError(
                     "Polars is required for output_format='polars'. "
                     "Install it with: pip install pymc-marketing[polars]"
