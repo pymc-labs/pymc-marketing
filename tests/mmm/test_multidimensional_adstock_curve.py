@@ -16,9 +16,6 @@
 Note: Fixtures `simple_mmm_data`, `panel_mmm_data`, `simple_fitted_mmm`, and
 `panel_fitted_mmm` are defined in tests/mmm/conftest.py and automatically
 available to all tests in this module.
-
-This is a reduced test suite that removes redundancies while maintaining
-full coverage of the method's functionality.
 """
 
 import numpy as np
@@ -32,8 +29,6 @@ from pymc_marketing.mmm.multidimensional import MMM
 
 @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
 class TestSampleAdstockCurveBasics:
-    """Basic functionality tests for sample_adstock_curve."""
-
     def test_returns_dataarray_with_correct_dims(self, fitted_mmm, request):
         """Test return type and dimensions."""
         mmm = request.getfixturevalue(fitted_mmm)
@@ -58,8 +53,6 @@ class TestSampleAdstockCurveBasics:
 
 @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
 class TestSampleAdstockCurveNumSamples:
-    """Tests for num_samples parameter behavior."""
-
     def test_num_samples_controls_sample_dimension(self, fitted_mmm, request):
         """Test that num_samples controls the number of posterior samples."""
         mmm = request.getfixturevalue(fitted_mmm)
@@ -94,8 +87,6 @@ class TestSampleAdstockCurveNumSamples:
 
 @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
 class TestSampleAdstockCurveValidation:
-    """Tests for input validation."""
-
     @pytest.mark.parametrize(
         "param,invalid_values",
         [
@@ -114,8 +105,6 @@ class TestSampleAdstockCurveValidation:
 
 
 class TestSampleAdstockCurveErrorCases:
-    """Tests for error conditions."""
-
     def test_raises_on_unfitted_model(self):
         """Test that calling on unfitted model raises ValueError."""
         mmm = MMM(
@@ -153,8 +142,6 @@ class TestSampleAdstockCurveErrorCases:
 
 @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
 class TestSampleAdstockCurveEdgeCases:
-    """Tests for edge cases and special scenarios."""
-
     def test_idata_argument_uses_provided_posterior(self, fitted_mmm, request):
         """Test that idata argument uses provided posterior samples."""
         mmm = request.getfixturevalue(fitted_mmm)

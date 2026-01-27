@@ -32,8 +32,6 @@ from pymc_marketing.mmm.multidimensional import MMM
 
 @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
 class TestSampleSaturationCurveBasics:
-    """Basic functionality tests for sample_saturation_curve."""
-
     def test_returns_dataarray_with_correct_dims(self, fitted_mmm, request):
         """Test return type and dimensions."""
         mmm = request.getfixturevalue(fitted_mmm)
@@ -73,8 +71,6 @@ class TestSampleSaturationCurveBasics:
 
 @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
 class TestSampleSaturationCurveNumSamples:
-    """Tests for num_samples parameter behavior."""
-
     def test_num_samples_controls_sample_dimension(self, fitted_mmm, request):
         """Test that num_samples controls the number of posterior samples."""
         mmm = request.getfixturevalue(fitted_mmm)
@@ -109,8 +105,6 @@ class TestSampleSaturationCurveNumSamples:
 
 @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
 class TestSampleSaturationCurveRandomState:
-    """Tests for random_state parameter."""
-
     def test_reproducibility_and_different_seeds(self, fitted_mmm, request):
         """Test that same seed reproduces results and different seeds differ."""
         mmm = request.getfixturevalue(fitted_mmm)
@@ -141,8 +135,6 @@ class TestSampleSaturationCurveRandomState:
 
 @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
 class TestSampleSaturationCurveOriginalScale:
-    """Tests for original_scale parameter."""
-
     def test_original_scale_affects_values_not_x_coords(self, fitted_mmm, request):
         """Test that original_scale affects y values but not x coordinates."""
         mmm = request.getfixturevalue(fitted_mmm)
@@ -173,8 +165,6 @@ class TestSampleSaturationCurveOriginalScale:
 
 @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
 class TestSampleSaturationCurveValidation:
-    """Tests for input validation."""
-
     @pytest.mark.parametrize(
         "param,invalid_values",
         [
@@ -194,8 +184,6 @@ class TestSampleSaturationCurveValidation:
 
 
 class TestSampleSaturationCurveErrorCases:
-    """Tests for error conditions."""
-
     def test_raises_on_unfitted_model(self):
         """Test that calling on unfitted model raises ValueError."""
         mmm = MMM(
@@ -233,8 +221,6 @@ class TestSampleSaturationCurveErrorCases:
 
 @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
 class TestSampleSaturationCurveEdgeCases:
-    """Tests for edge cases and special scenarios."""
-
     def test_handles_very_large_max_value(self, fitted_mmm, request):
         """Test that method handles very large max_value without overflow."""
         mmm = request.getfixturevalue(fitted_mmm)
