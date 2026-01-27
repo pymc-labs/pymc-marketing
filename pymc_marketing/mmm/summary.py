@@ -189,7 +189,6 @@ class MMMSummaryFactory:
         self,
         data: xr.DataArray,
         hdi_probs: Sequence[float],
-        sample_dim: str | None = None,
     ) -> pd.DataFrame:
         """Convert xarray to DataFrame with summary stats and HDI.
 
@@ -201,12 +200,10 @@ class MMMSummaryFactory:
         Parameters
         ----------
         data : xr.DataArray
-            Must have 'chain' and 'draw' dimensions OR a single 'sample' dimension
+            Must have 'chain' and 'draw' dimensions OR a single 'sample' dimension.
+            The sample dimensions are auto-detected based on which dimensions are present.
         hdi_probs : list of float
             HDI probability levels (e.g., [0.80, 0.94])
-        sample_dim : str, optional
-            Name of the sample dimension. If None, assumes ['chain', 'draw'].
-            Use 'sample' for curve data from sample_*_curve() methods.
 
         Returns
         -------
@@ -221,13 +218,18 @@ class MMMSummaryFactory:
         - Uses az.stats.hdi() for HDI computation when data has chain/draw dims
         - Uses quantile-based HDI for data with sample dimension
         """
-        # Determine sample dimensions
-        if sample_dim is None:
+        # Auto-detect sample dimensions based on what's present in the data
+        if "chain" in data.dims and "draw" in data.dims:
             sample_dims = ["chain", "draw"]
             use_az_hdi = True
-        else:
-            sample_dims = [sample_dim]
+        elif "sample" in data.dims:
+            sample_dims = ["sample"]
             use_az_hdi = False
+        else:
+            raise ValueError(
+                f"Data must have either ('chain', 'draw') or 'sample' dimensions. "
+                f"Found dimensions: {list(data.dims)}"
+            )
 
         # Determine the index columns (all dims except sample dimensions)
         index_cols = [d for d in data.dims if d not in sample_dims]
@@ -667,9 +669,7 @@ class MMMSummaryFactory:
 
         # Compute summary statistics across 'sample' dimension
         # The sample_saturation_curve returns DataArray with 'sample' dim
-        df = self._compute_summary_stats_with_hdi(
-            curve_samples, effective_hdi_probs, sample_dim="sample"
-        )
+        df = self._compute_summary_stats_with_hdi(curve_samples, effective_hdi_probs)
 
         return self._convert_output(df, effective_output_format)
 
@@ -767,9 +767,7 @@ class MMMSummaryFactory:
         )
 
         # Compute summary statistics across 'sample' dimension
-        df = self._compute_summary_stats_with_hdi(
-            curve_samples, effective_hdi_probs, sample_dim="sample"
-        )
+        df = self._compute_summary_stats_with_hdi(curve_samples, effective_hdi_probs)
 
         return self._convert_output(df, effective_output_format)
 
