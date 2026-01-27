@@ -79,9 +79,6 @@ class TestSampleSaturationCurveNumSamples:
         )
         num_samples = min(5, total_available - 1)
 
-        if total_available <= 2:
-            pytest.skip("Not enough posterior samples to test subsampling")
-
         curves = mmm.sample_saturation_curve(num_samples=num_samples)
         assert curves.sizes["sample"] == num_samples
 
