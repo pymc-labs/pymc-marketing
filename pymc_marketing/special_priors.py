@@ -22,6 +22,7 @@ of the same methods.
 
 import warnings
 from abc import ABC, abstractmethod
+from copy import deepcopy
 from typing import Any
 
 import numpy as np
@@ -46,6 +47,14 @@ class SpecialPrior(ABC):
     def _checks(self) -> None:  # pragma: no cover
         """Check that the parameters are correct."""
         pass
+
+    def with_default_dims(self, default_dims: tuple[str]) -> "SpecialPrior":
+        """If self.dims is None, create a copy of self with dims=default_dims, otherwise return self."""
+        if self.dims is not None:
+            return self
+        new = deepcopy(self)
+        new.dims = default_dims  # Is this safe?
+        return new
 
     @abstractmethod
     def create_variable(self, name: str) -> TensorVariable:  # pragma: no cover
