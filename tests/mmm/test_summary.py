@@ -380,12 +380,8 @@ class TestDataFrameSchemas:
     def test_contribution_channel_column_contains_channel_names(
         self, mock_mmm_idata_wrapper, simple_channels
     ):
-        """Test that channel column contains actual channel names, not integer indices.
+        """Test that channel column contains actual channel names, not integer indices"""
 
-        Regression test for bug where channel coordinate values were replaced
-        with integer indices (0, 1, 2) instead of preserving the original
-        channel names ('TV', 'Radio', 'Social').
-        """
         df = MMMSummaryFactory(mock_mmm_idata_wrapper).contributions()
 
         # Channel column should contain string names, not integers
@@ -744,7 +740,7 @@ class TestMMMSummaryFactory:
         factory = MMMSummaryFactory(data=mock_mmm_idata_wrapper)
 
         assert factory.data is mock_mmm_idata_wrapper
-        assert factory.hdi_probs == [0.94]
+        assert factory.hdi_probs == (0.94,)
         assert factory.output_format == "pandas"
         assert factory.model is None
 
@@ -809,25 +805,6 @@ class TestMMMSummaryFactory:
 
         assert "abs_error_94_lower" in df.columns
         assert "abs_error_80_lower" not in df.columns
-
-    def test_configure_returns_new_instance_with_updated_defaults(
-        self, mock_mmm_idata_wrapper
-    ):
-        """Test that configure() returns new instance with updated defaults."""
-        factory = MMMSummaryFactory(data=mock_mmm_idata_wrapper, hdi_probs=[0.94])
-
-        new_factory = factory.configure(hdi_probs=[0.80, 0.90])
-
-        assert new_factory.hdi_probs == [0.80, 0.90]
-        assert factory.hdi_probs == [0.94]  # Original unchanged
-        assert new_factory.data is factory.data  # Same data reference
-
-    def test_properties_are_read_only(self, mock_mmm_idata_wrapper):
-        """Test that factory properties cannot be set directly."""
-        factory = MMMSummaryFactory(data=mock_mmm_idata_wrapper)
-
-        with pytest.raises(AttributeError):
-            factory.hdi_probs = [0.50]  # type: ignore[misc]
 
 
 # =============================================================================

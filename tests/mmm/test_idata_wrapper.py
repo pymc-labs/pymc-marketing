@@ -1633,15 +1633,7 @@ def test_aggregate_idata_dims_all_values_aggregated():
 def test_aggregate_idata_dims_preserves_dims_of_variables_without_aggregated_dim(
     multidim_idata,
 ):
-    """Test that variables without the aggregated dimension keep their original dims.
-
-    Bug reproduction: When aggregating by 'country', variables that only have ('date',)
-    dims (like dayofyear) should NOT gain the 'country' dimension. The expand_dims
-    operation was incorrectly adding the aggregated dimension to ALL variables
-    in the dataset, including those that never had it.
-
-    See: https://github.com/pymc-labs/pymc-marketing/issues/XXX
-    """
+    """Test that variables without the aggregated dimension keep their original dims."""
     # Arrange - Add a variable with only ('date',) dims to the existing fixture
     idata = multidim_idata
 

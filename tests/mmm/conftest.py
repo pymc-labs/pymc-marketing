@@ -197,38 +197,3 @@ def panel_fitted_mmm(panel_mmm_data):
     mock_fit(mmm, X, y)
 
     return mmm
-
-
-# ============================================================================
-# Plotting Test Fixtures (Component 3)
-# ============================================================================
-
-
-@pytest.fixture
-def mock_simple_contributions_df():
-    """Simple contributions DataFrame for testing plotting."""
-    return pd.DataFrame(
-        {
-            "date": pd.date_range("2024-01-01", periods=5),
-            "channel": ["TV", "Radio", "Social", "TV", "Radio"],
-            "mean": [100.0, 200.0, 300.0, 150.0, 250.0],
-            "median": [95.0, 195.0, 295.0, 145.0, 245.0],
-            "abs_error_94_lower": [90.0, 190.0, 290.0, 140.0, 240.0],
-            "abs_error_94_upper": [110.0, 210.0, 310.0, 160.0, 260.0],
-        }
-    )
-
-
-@pytest.fixture
-def mock_panel_contributions_df():
-    """Panel contributions DataFrame with custom dimension for testing."""
-    return pd.DataFrame(
-        {
-            "country": ["US"] * 6 + ["UK"] * 6,
-            "channel": ["TV", "Radio", "Social"] * 4,
-            "mean": [float(x) for x in range(100, 1300, 100)],
-            "median": [float(x) for x in range(100, 1300, 100)],
-            "abs_error_94_lower": [float(x) for x in range(90, 1290, 100)],
-            "abs_error_94_upper": [float(x) for x in range(110, 1310, 100)],
-        }
-    )
