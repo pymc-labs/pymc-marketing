@@ -96,14 +96,9 @@ class VariableSchema(BaseModel):
                 allowed_dtypes = self.dtype
 
             if str(data_array.dtype) not in allowed_dtypes:
-                expected_str = (
-                    self.dtype
-                    if isinstance(self.dtype, str)
-                    else " or ".join(self.dtype)
-                )
                 errors.append(
                     f"Variable '{self.name}' has dtype {data_array.dtype}, "
-                    f"expected {expected_str}"
+                    f"expected one of {allowed_dtypes}"
                 )
 
         return errors
