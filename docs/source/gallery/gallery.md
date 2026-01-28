@@ -183,6 +183,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_case_study.png
 :link: ../notebooks/mmm/mmm_case_study.html
 :::
+
+:::{grid-item-card} Integrating Foundational Time Series Models with PyMC-Marketing MMM
+:img-top: ../gallery/images/mmm_chronos.png
+:link: ../notebooks/mmm/mmm_chronos.html
+:::
 ::::
 
 ## Customer Lifetime Value (CLV) Models

@@ -13,8 +13,11 @@
 #   limitations under the License.
 """Shared fixtures for MMM tests."""
 
+import warnings
+
 import numpy as np
 import pandas as pd
+import pymc as pm
 import pytest
 from pymc_extras.prior import Prior
 
@@ -97,12 +100,43 @@ def panel_mmm_data():
 
 
 # ============================================================================
+# Mock Fit Function
+# ============================================================================
+
+
+def mock_fit(model, X: pd.DataFrame, y: pd.Series, **kwargs):
+    """Mock fit function that mimics the fit process without actual sampling."""
+    model.build_model(X=X, y=y)
+    with model.model:
+        idata = pm.sample_prior_predictive(random_seed=rng, **kwargs)
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            category=UserWarning,
+            message="The group fit_data is not defined in the InferenceData scheme",
+        )
+        idata.add_groups(
+            {
+                "posterior": idata.prior,
+                "fit_data": pd.concat(
+                    [X, pd.Series(y, index=X.index, name="y")], axis=1
+                ).to_xarray(),
+            }
+        )
+    model.idata = idata
+    model.set_idata_attrs(idata=idata)
+
+    return model
+
+
+# ============================================================================
 # Fitted Model Fixtures
 # ============================================================================
 
 
 @pytest.fixture
-def simple_fitted_mmm(simple_mmm_data, mock_pymc_sample):
+def simple_fitted_mmm(simple_mmm_data):
     """Create a simple fitted MMM for testing (no extra dimensions)."""
     X = simple_mmm_data["X"]
     y = simple_mmm_data["y"]
@@ -116,13 +150,13 @@ def simple_fitted_mmm(simple_mmm_data, mock_pymc_sample):
         saturation=LogisticSaturation(),
     )
 
-    mmm.fit(X, y, draws=100, chains=2, random_seed=42, tune=1)
+    mock_fit(mmm, X, y)
 
     return mmm
 
 
 @pytest.fixture
-def panel_fitted_mmm(panel_mmm_data, mock_pymc_sample):
+def panel_fitted_mmm(panel_mmm_data):
     """Create a panel (multidimensional) fitted MMM for testing."""
     X = panel_mmm_data["X"]
     y = panel_mmm_data["y"]
@@ -157,8 +191,9 @@ def panel_fitted_mmm(panel_mmm_data, mock_pymc_sample):
         control_columns=None,
         adstock=adstock,
         saturation=saturation,
+        yearly_seasonality=2,
     )
 
-    mmm.fit(X, y, draws=100, chains=2, random_seed=42, tune=1)
+    mock_fit(mmm, X, y)
 
     return mmm
