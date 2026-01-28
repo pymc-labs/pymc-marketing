@@ -173,6 +173,7 @@ from scipy.optimize import OptimizeResult
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.schema import MMMIdataSchema
+from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm import SoftPlusHSGP
 from pymc_marketing.mmm.additive_effect import EventAdditiveEffect, MuEffect
 from pymc_marketing.mmm.budget_optimizer import OptimizerCompatibleModelWrapper
@@ -682,9 +683,23 @@ class MMM(RegressionModelBuilder):
         }
 
         if self.time_varying_intercept:
-            base_config["intercept_tvp_config"] = {"ls_lower": 0.3, "ls_upper": 2.0}
+            base_config["intercept_tvp_config"] = HSGPKwargs(
+                m=200,
+                L=None,
+                eta_lam=1,
+                ls_mu=5,
+                ls_sigma=10,
+                cov_func=None,
+            )
         if self.time_varying_media:
-            base_config["media_tvp_config"] = {"ls_lower": 0.3, "ls_upper": 2.0}
+            base_config["media_tvp_config"] = HSGPKwargs(
+                m=200,
+                L=None,
+                eta_lam=1,
+                ls_mu=5,
+                ls_sigma=10,
+                cov_func=None,
+            )
 
         return {
             **base_config,
