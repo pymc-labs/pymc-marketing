@@ -373,7 +373,7 @@ class MMM(RegressionModelBuilder):
         sampler_config = sampler_config
         model_config = parse_model_config(
             model_config,  # type: ignore
-            non_distributions=["intercept_tvp_config", "media_tvp_config"],
+            hsgp_kwargs_fields=["intercept_tvp_config", "media_tvp_config"],
         )
 
         if model_config is not None:
@@ -504,6 +504,8 @@ class MMM(RegressionModelBuilder):
             for key, value in new_d.items():
                 if isinstance(value, np.ndarray):
                     new_d[key] = value.tolist()
+                elif isinstance(value, HSGPKwargs):
+                    new_d[key] = value.model_dump()
                 elif isinstance(value, dict):
                     new_d[key] = ndarray_to_list(value)
             return new_d
