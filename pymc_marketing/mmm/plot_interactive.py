@@ -141,15 +141,8 @@ class MMMPlotlyFactory:
         Returns
         -------
         IntoDataFrameT
-            DataFrame with added "{date_col}_formatted" column
+            DataFrame with "{date_col}" column formatted as per the frequency
 
-        Examples
-        --------
-        >>> nw_df = nw.from_native(df, eager_only=True)
-        >>> formatted_df = MMMPlotlyFactory._format_dates(
-        ...     nw_df, "date", frequency="monthly"
-        ... )
-        >>> # Creates "date_formatted" column with "%Y-%m" format
         """
         if date_col not in nw_df.columns:
             raise ValueError(f"Column '{date_col}' not found in DataFrame")
@@ -161,7 +154,7 @@ class MMMPlotlyFactory:
             # Calculate quarter and format as "YYYY-QN"
             nw_df = nw_df.with_columns(
                 **{
-                    f"{date_col}_formatted": (
+                    f"{date_col}": (
                         nw.col(date_col).dt.year().cast(nw.String)
                         + "-Q"
                         + ((nw.col(date_col).dt.month() - 1) // 3 + 1).cast(nw.String)
@@ -171,7 +164,7 @@ class MMMPlotlyFactory:
         else:
             # Use standard strftime formatting for other frequencies
             nw_df = nw_df.with_columns(
-                **{f"{date_col}_formatted": nw.col(date_col).dt.to_string(date_format)}
+                **{f"{date_col}": nw.col(date_col).dt.to_string(date_format)}
             )
 
         return nw_df
@@ -325,6 +318,14 @@ class MMMPlotlyFactory:
             nw_df = nw_df.with_columns(
                 error_upper=(nw.col(upper_col) - nw.col(y)),
                 error_lower=(nw.col(y) - nw.col(lower_col)),
+                y_string=nw.concat_str(
+                    nw.col(y).cast(nw.Int64).cast(nw.String),
+                    nw.lit("  CI: ["),
+                    nw.col(lower_col).cast(nw.Int64).cast(nw.String),
+                    nw.lit(", "),
+                    nw.col(upper_col).cast(nw.Int64).cast(nw.String),
+                    nw.lit("]"),
+                ),
             )
             error_y = "error_upper"
             error_y_minus = "error_lower"
@@ -333,15 +334,21 @@ class MMMPlotlyFactory:
         if color and color in nw_df.columns and self._is_datetime_column(nw_df, color):
             # Format dates based on frequency for better legends
             nw_df = self._format_date_column(nw_df, color, frequency=frequency)
-            color = f"{color}_formatted"
 
         # handle datetime columns in x dimension
         if x and x in nw_df.columns and self._is_datetime_column(nw_df, x):
             nw_df = self._format_date_column(nw_df, x, frequency=frequency)
-            x = f"{x}_formatted"
 
         # set default barmode if not provided
         plotly_kwargs.setdefault("barmode", "group")
+
+        # set hover data
+        hover_data = {x: False}
+        if "y_string" in nw_df.columns:
+            hover_data[yaxis_title] = nw_df.get_column("y_string").to_list()  # type: ignore[index]
+        for facet in ["facet_row", "facet_col"]:
+            if plotly_kwargs.get(facet):
+                hover_data[plotly_kwargs.get(facet)] = False  # type: ignore[index]
 
         # Create bar chart (pass native DataFrame to Plotly)
         fig = px.bar(
@@ -351,7 +358,8 @@ class MMMPlotlyFactory:
             color=color,
             error_y=error_y,
             error_y_minus=error_y_minus,
-            labels={y: yaxis_title or y.capitalize()},
+            labels={y: yaxis_title},  # type: ignore[index]
+            hover_data=hover_data,
             **plotly_kwargs,
         )
 
