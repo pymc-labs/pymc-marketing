@@ -2840,7 +2840,7 @@ class MMMPlotSuite:
         """
         if not hasattr(self.idata, "sensitivity_analysis"):
             raise ValueError(
-                "No sensitivity analysis results found. Run run_sweep() first."
+                "No sensitivity analysis results found. Call .sensitivity.run_sweep() first."
             )
         sa = self.idata.sensitivity_analysis  # type: ignore
         x = sa["x"] if isinstance(sa, xr.Dataset) else sa
@@ -3425,36 +3425,26 @@ class MMMPlotSuite:
         # Auto-detect contribution variables if not specified
         if var is None:
             posterior_vars = list(self.idata.posterior.data_vars)
+
             # Variables to exclude - total_media_contribution is a sum of channels
             # and would double-count if included
-            excluded_vars = {
-                "total_media_contribution_original_scale",
-                "total_media_contribution",
-            }
+            excluded_vars = {"total_media_contribution"}
+
+            default_contribution_vars = [
+                v
+                for v in posterior_vars
+                if v.endswith("_contribution") and v not in excluded_vars
+            ]
+
             if original_scale:
-                # Prefer original scale variables
-                var = [
-                    v
-                    for v in posterior_vars
-                    if v.endswith("_contribution_original_scale")
-                    and v not in excluded_vars
-                ]
-                # If no original scale vars, fall back to regular contribution vars
-                if not var:
-                    var = [
-                        v
-                        for v in posterior_vars
-                        if v.endswith("_contribution") and v not in excluded_vars
-                    ]
+                var = [f"{v}_original_scale" for v in default_contribution_vars]
+                if missing := (set(var) - set(posterior_vars)):
+                    raise ValueError(
+                        f"The following variabes {sorted(missing)} are missing from the model `idata`. "
+                        f"Make sure to add them via `.add_original_scale_contribution_variable`."
+                    )
             else:
-                # Use non-original scale contribution variables
-                var = [
-                    v
-                    for v in posterior_vars
-                    if v.endswith("_contribution")
-                    and not v.endswith("_contribution_original_scale")
-                    and v not in excluded_vars
-                ]
+                var = default_contribution_vars
 
             if not var:
                 raise ValueError(
