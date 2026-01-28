@@ -296,16 +296,16 @@ class MMMIdataSchema(BaseModel):
             constant_data_vars["control_data_"] = VariableSchema(
                 name="control_data_",
                 dims=("date", *custom_dims, "control"),
-                dtype="float64",
+                dtype=("float64", "float32", "int64", "int32"),
                 description="Control variable data",
-                required=True,
+                required=False,
             )
 
         if time_varying:
             constant_data_vars["time_index"] = VariableSchema(
                 name="time_index",
                 dims=("date",),
-                dtype="int64",
+                dtype=("float64", "float32", "int64", "int32"),
                 description="Integer time index",
                 required=True,
             )
@@ -314,7 +314,7 @@ class MMMIdataSchema(BaseModel):
             constant_data_vars["dayofyear"] = VariableSchema(
                 name="dayofyear",
                 dims=("date",),
-                dtype="int64",
+                dtype=("int64", "int32"),
                 description="Day of year (1-365)",
                 required=True,
             )

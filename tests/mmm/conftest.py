@@ -191,6 +191,7 @@ def panel_fitted_mmm(panel_mmm_data):
         control_columns=None,
         adstock=adstock,
         saturation=saturation,
+        yearly_seasonality=2,
     )
 
     mock_fit(mmm, X, y)
