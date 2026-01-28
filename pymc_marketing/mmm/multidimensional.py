@@ -156,7 +156,7 @@ import json
 import warnings
 from collections.abc import Callable, Sequence
 from copy import deepcopy
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, cast
 
 import arviz as az
 import numpy as np
@@ -661,7 +661,65 @@ class MMM(RegressionModelBuilder):
                 or getattr(self, "time_varying_media", False)
             ),
         )
+
         return MMMIDataWrapper(self.idata, schema=schema, validate_on_init=False)
+
+    @property
+    def summary(self) -> Any:  # type: ignore[no-any-return]
+        """Access summary DataFrame generation functionality.
+
+        Returns a factory for creating summary DataFrames from the model's
+        InferenceData with configurable defaults for HDI levels and output format.
+
+        Returns a fresh factory on each access. The factory includes both
+        data and model, enabling all summary methods including transformation curves.
+
+        Returns
+        -------
+        MMMSummaryFactory
+            Factory providing methods for different summary types
+
+        Examples
+        --------
+        .. code-block:: python
+
+            # Get contribution summary (default: pandas, 94% HDI)
+            df = mmm.summary.contributions()
+
+            # Get ROAS summary
+            df = mmm.summary.roas()
+
+            # Get saturation curves (requires model - provided automatically)
+            df = mmm.summary.saturation_curves(n_points=50)
+
+            # Get adstock curves
+            df = mmm.summary.adstock_curves(max_lag=15)
+
+            # Get posterior predictive with custom settings
+            df = mmm.summary.posterior_predictive(
+                hdi_probs=[0.80, 0.94], frequency="monthly", output_format="polars"
+            )
+
+            # Create factory with different defaults (direct instantiation)
+            from pymc_marketing.mmm.summary import MMMSummaryFactory
+
+            polars_factory = MMMSummaryFactory(
+                mmm.data, model=mmm, hdi_probs=[0.50, 0.94], output_format="polars"
+            )
+            df = polars_factory.contributions()  # Uses configured defaults
+
+            # Get change over time
+            df = mmm.summary.change_over_time()
+
+        See Also
+        --------
+        MMMSummaryFactory : Factory class documentation
+        pymc_marketing.mmm.summary : Module with all factory functions
+        """
+        from pymc_marketing.mmm.summary import MMMSummaryFactory
+
+        self._validate_idata_exists()
+        return MMMSummaryFactory(self.data, model=self)  # Pass both data and model
 
     @property
     def default_model_config(self) -> dict:
@@ -1826,6 +1884,9 @@ class MMM(RegressionModelBuilder):
         original_scale: bool = Field(
             True, description="Whether to return curve in original scale."
         ),
+        idata: InstanceOf[az.InferenceData] | None = Field(
+            None, description="Optional InferenceData to sample from."
+        ),
     ) -> xr.DataArray:
         """Sample saturation curves from posterior parameters.
 
@@ -1861,6 +1922,10 @@ class MMM(RegressionModelBuilder):
             from scaled to original units. If False, values remain in scaled space
             as used internally by the model. Note that x-axis values always remain
             in scaled space consistent with the max_value parameter.
+        idata : az.InferenceData or None, optional
+            Optional InferenceData to sample from. If None (default), uses
+            self.idata. This allows sampling curves from different posterior
+            distributions, such as from a different model or a subset of samples.
 
         Returns
         -------
@@ -1877,7 +1942,7 @@ class MMM(RegressionModelBuilder):
         Raises
         ------
         ValueError
-            If called before model is fitted (idata doesn't exist)
+            If called before model is fitted (idata doesn't exist) and no idata provided
         ValueError
             If original_scale=True but scale factors not found in constant_data
 
@@ -1906,6 +1971,11 @@ class MMM(RegressionModelBuilder):
         ...     max_value=max_scaled, num_points=200, num_samples=1000, random_state=42
         ... )
 
+        Sample curves from a different InferenceData:
+
+        >>> external_idata = az.from_netcdf("other_model.nc")
+        >>> curves = mmm.sample_saturation_curve(idata=external_idata)
+
 
         Notes
         -----
@@ -1919,12 +1989,13 @@ class MMM(RegressionModelBuilder):
         - Posterior samples are drawn randomly without replacement when num_samples
           is less than the total available samples, otherwise all samples are used.
         """
-        self._validate_idata_exists()
+        # Use provided idata or fall back to self.idata
+        if idata is None:
+            self._validate_idata_exists()
+            idata = cast(az.InferenceData, self.idata)
 
         # Validate that posterior exists (model was fitted, not just prior sampled)
-        if (
-            not hasattr(self.idata, "posterior") or self.idata.posterior is None  # type: ignore[union-attr]
-        ):
+        if not hasattr(idata, "posterior") or idata.posterior is None:
             raise ValueError(
                 "posterior not found in idata. "
                 "The model must be fitted (call .fit()) before sampling saturation curves."
@@ -1932,7 +2003,7 @@ class MMM(RegressionModelBuilder):
 
         # Subsample posterior if needed
         parameters = self._subsample_posterior(
-            parameters=self.idata.posterior,  # type: ignore[union-attr]
+            parameters=idata.posterior,
             num_samples=num_samples,
             random_state=random_state,
         )
@@ -1953,7 +2024,7 @@ class MMM(RegressionModelBuilder):
             # Note: x coordinates remain in scaled space (same as max_value input)
             # since converting to original scale would require per-channel scaling
             # which complicates plotting and interpretation
-            target_scale = self.data.get_target_scale()
+            target_scale = MMMIDataWrapper(idata).get_target_scale()
             # Multiply by target_scale since saturation affects target variable
             curve = curve * target_scale
 
@@ -1969,6 +2040,9 @@ class MMM(RegressionModelBuilder):
             500, gt=0, description="Number of posterior samples to use."
         ),
         random_state: RandomState | None = None,
+        idata: InstanceOf[az.InferenceData] | None = Field(
+            None, description="Optional InferenceData to sample from."
+        ),
     ) -> xr.DataArray:
         """Sample adstock curves from posterior parameters.
 
@@ -1993,6 +2067,10 @@ class MMM(RegressionModelBuilder):
             a numpy Generator instance, or None for non-reproducible sampling.
             Only used when num_samples is not None and less than total available
             samples.
+        idata : az.InferenceData or None, optional
+            Optional InferenceData to sample from. If None (default), uses
+            self.idata. This allows sampling curves from different posterior
+            distributions, such as from a different model or a subset of samples.
 
         Returns
         -------
@@ -2008,7 +2086,7 @@ class MMM(RegressionModelBuilder):
         Raises
         ------
         ValueError
-            If called before model is fitted (idata doesn't exist)
+            If called before model is fitted (idata doesn't exist) and no idata provided
         ValueError
             If idata exists but no posterior (model not fitted)
 
@@ -2030,6 +2108,11 @@ class MMM(RegressionModelBuilder):
         ...     amount=100.0, num_samples=1000, random_state=42
         ... )
 
+        Sample curves from a different InferenceData:
+
+        >>> external_idata = az.from_netcdf("other_model.nc")
+        >>> curves = mmm.sample_adstock_curve(idata=external_idata)
+
         Notes
         -----
         - The adstock curve shows the carryover effect of a single impulse of
@@ -2043,12 +2126,13 @@ class MMM(RegressionModelBuilder):
         - Posterior samples are drawn randomly without replacement when num_samples
           is less than the total available samples.
         """
-        self._validate_idata_exists()
+        # Use provided idata or fall back to self.idata
+        if idata is None:
+            self._validate_idata_exists()
+            idata = cast(az.InferenceData, self.idata)
 
         # Validate that posterior exists
-        if (
-            not hasattr(self.idata, "posterior") or self.idata.posterior is None  # type: ignore[union-attr]
-        ):
+        if not hasattr(idata, "posterior") or idata.posterior is None:
             raise ValueError(
                 "posterior not found in idata. "
                 "The model must be fitted (call .fit()) before sampling adstock curves."
@@ -2056,7 +2140,7 @@ class MMM(RegressionModelBuilder):
 
         # Subsample posterior if needed
         parameters = self._subsample_posterior(
-            parameters=self.idata.posterior,  # type: ignore[union-attr]
+            parameters=idata.posterior,
             num_samples=num_samples,
             random_state=random_state,
         )

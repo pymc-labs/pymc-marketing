@@ -34,8 +34,8 @@ class VariableSchema(BaseModel):
         Whether this variable must be present
     dims : tuple of str or "*"
         Expected dimension names. Use "*" to accept any dimensions.
-    dtype : str or None
-        Expected numpy dtype (e.g., "float64", "int64").
+    dtype : str, tuple of str, or None
+        Expected numpy dtype(s) (e.g., "float64", "int64", or ("float64", "int64")).
         Use None to skip dtype validation.
     description : str, default ""
         Human-readable description of this variable
@@ -57,7 +57,7 @@ class VariableSchema(BaseModel):
     name: str
     required: bool = True
     dims: tuple[str, ...] | Literal["*"]
-    dtype: str | None = None
+    dtype: str | tuple[str, ...] | None = None
     description: str = ""
 
     def validate_variable(self, data_array: xr.DataArray) -> list[str]:
@@ -89,11 +89,17 @@ class VariableSchema(BaseModel):
                 )
 
         # Check dtype
-        if self.dtype and str(data_array.dtype) != self.dtype:
-            errors.append(
-                f"Variable '{self.name}' has dtype {data_array.dtype}, "
-                f"expected {self.dtype}"
-            )
+        if self.dtype:
+            if isinstance(self.dtype, str):
+                allowed_dtypes: tuple[str, ...] = (self.dtype,)
+            else:
+                allowed_dtypes = self.dtype
+
+            if str(data_array.dtype) not in allowed_dtypes:
+                errors.append(
+                    f"Variable '{self.name}' has dtype {data_array.dtype}, "
+                    f"expected one of {allowed_dtypes}"
+                )
 
         return errors
 
@@ -259,28 +265,28 @@ class MMMIdataSchema(BaseModel):
             "channel_data": VariableSchema(
                 name="channel_data",
                 dims=("date", *custom_dims, "channel"),
-                dtype="float64",
+                dtype=("float64", "float32", "int64", "int32"),
                 description="Raw channel spend/impressions data",
                 required=True,
             ),
             "target_data": VariableSchema(
                 name="target_data",
                 dims=("date", *custom_dims),
-                dtype="float64",
+                dtype=("float64", "float32", "int64", "int32"),
                 description="Raw target variable",
                 required=True,
             ),
             "channel_scale": VariableSchema(
                 name="channel_scale",
                 dims="*",  # Varies by scaling config
-                dtype="float64",
+                dtype=("float64", "float32", "int64", "int32"),
                 description="Scaling factors for channels",
                 required=True,
             ),
             "target_scale": VariableSchema(
                 name="target_scale",
                 dims="*",  # Varies by scaling config
-                dtype="float64",
+                dtype=("float64", "float32", "int64", "int32"),
                 description="Scaling factor for target",
                 required=True,
             ),
@@ -332,7 +338,7 @@ class MMMIdataSchema(BaseModel):
                 dims=("chain", "draw", "date", *custom_dims),
                 dtype="float64",
                 description="Total predicted mean (scaled)",
-                required=True,
+                required=False,
             ),
         }
 
