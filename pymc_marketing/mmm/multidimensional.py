@@ -1368,7 +1368,7 @@ class MMM(RegressionModelBuilder):
             )
             target_data_scaled.name = "target_scaled"
             target_data_scaled.dims = ("date", *self.dims)
-            ## TODO: Find a better way to save it or access it in the pytensor graph.
+            # TODO: Find a better way to save it or access it in the pytensor graph.
             self.target_data_scaled = target_data_scaled
 
             for mu_effect in self.mu_effects:

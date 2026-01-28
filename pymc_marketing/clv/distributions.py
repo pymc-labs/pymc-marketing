@@ -13,6 +13,7 @@
 #   limitations under the License.
 """Distributions for the CLV module."""
 
+import warnings
 from functools import reduce
 
 import numpy as np
@@ -78,7 +79,9 @@ continuous_non_contractual = ContNonContractRV()
 
 
 class ContNonContract(PositiveContinuous):
-    r"""Individual-level model for the customer lifetime value.
+    r"""Deprecated: will be removed in v1.0.
+
+    Individual-level model for the customer lifetime value.
 
     See equation (3) from Fader et al. (2005) [1]_.
 
@@ -106,6 +109,11 @@ class ContNonContract(PositiveContinuous):
     @classmethod
     def dist(cls, lam, p, T, **kwargs):
         """Get the distribution from the parameters."""
+        warnings.warn(
+            "The class ContNonContract has been deprecated and will be removed in v1.0",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return super().dist([lam, p, T], **kwargs)
 
     def logp(value, lam, p, T):
@@ -195,7 +203,9 @@ continuous_contractual = ContContractRV()
 
 
 class ContContract(PositiveContinuous):
-    r"""Distribution class of a continuous contractual data-generating process.
+    r"""Deprecated: will be removed in v1.0.
+
+    Distribution class of a continuous contractual data-generating process.
 
     That is where purchases can occur at any time point (continuous) and churning/dropping
     out is explicit (contractual).
@@ -218,6 +228,11 @@ class ContContract(PositiveContinuous):
     @classmethod
     def dist(cls, lam, p, T, **kwargs):
         """Get the distribution from the parameters."""
+        warnings.warn(
+            "The class ContContract has been deprecated and will be removed in v1.0",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return super().dist([lam, p, T], **kwargs)
 
     def logp(value, lam, p, T):

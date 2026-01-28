@@ -2519,7 +2519,7 @@ class MMM(
         # Extract samples
         group = (
             "predictions"
-            if sample_posterior_predictive_kwargs.get("predictions", False)
+            if sample_posterior_predictive_kwargs.get("predictions")
             else "posterior_predictive"
         )
         posterior_predictive_samples = az.extract(post_pred, group, combined=combined)
