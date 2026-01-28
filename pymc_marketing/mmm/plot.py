@@ -3451,9 +3451,7 @@ class MMMPlotSuite:
                 var = [
                     v
                     for v in posterior_vars
-                    if v.endswith("_contribution")
-                    and not v.endswith("_contribution_original_scale")
-                    and v not in excluded_vars
+                    if v.endswith("_contribution") and v not in excluded_vars
                 ]
 
             if not var:
