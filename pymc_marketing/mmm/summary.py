@@ -451,6 +451,9 @@ class MMMSummaryFactory:
             hdi_probs, frequency, output_format
         )
 
+        if component == "control":
+            component = "controls"
+
         # Get contributions via Component 1 (handles scaling)
         if component.startswith("channel"):
             component_data = data.get_channel_contributions(original_scale=True)
@@ -458,12 +461,10 @@ class MMMSummaryFactory:
             contributions = data.get_contributions(
                 original_scale=True,
                 include_baseline=(component == "baseline"),
-                include_controls=(component == "control"),
+                include_controls=(component == "controls"),
                 include_seasonality=(component == "seasonality"),
             )
 
-            if component == "control":
-                component = "controls"
             if component not in contributions.data_vars:
                 raise ValueError(f"No {component} contributions found in model")
             component_data = contributions[component]
