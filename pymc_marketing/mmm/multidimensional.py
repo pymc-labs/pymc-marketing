@@ -156,7 +156,7 @@ import json
 import warnings
 from collections.abc import Callable, Sequence
 from copy import deepcopy
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any
 
 import arviz as az
 import numpy as np
@@ -224,8 +224,9 @@ class MMM(RegressionModelBuilder):
         The name of the column representing the date in the dataset.
     channel_columns : list[str]
         A list of columns representing the marketing channels.
-    target_column : str
+    target_column : str, optional
         The name of the column representing the target variable to be predicted.
+        Defaluts to `y`.
     adstock : AdstockTransformation
         The adstock transformation to apply to the channel data.
     saturation : SaturationTransformation
@@ -257,11 +258,12 @@ class MMM(RegressionModelBuilder):
     @validate_call
     def __init__(
         self,
+        *,
         date_column: str = Field(..., description="Column name of the date variable."),
         channel_columns: list[str] = Field(
             min_length=1, description="Column names of the media channel variables."
         ),
-        target_column: str = Field(..., description="The name of the target column."),
+        target_column: str = Field("y", description="The name of the target column."),
         adstock: InstanceOf[AdstockTransformation] = Field(
             ..., description="Type of adstock transformation to apply."
         ),
@@ -693,7 +695,7 @@ class MMM(RegressionModelBuilder):
         }
 
     @property
-    def output_var(self) -> Literal["y"]:
+    def output_var(self) -> str:
         """Define target variable for the model.
 
         Returns
@@ -701,7 +703,7 @@ class MMM(RegressionModelBuilder):
         str
             The target variable for the model.
         """
-        return "y"
+        return self.target_column
 
     def post_sample_model_transformation(self) -> None:
         """Post-sample model transformation in order to store the HSGP state from fit."""
@@ -1129,8 +1131,10 @@ class MMM(RegressionModelBuilder):
 
     def _validate_contribution_variable(self, var: str) -> None:
         """Validate that the variable ends with "_contribution" and is in the model."""
-        if not (var.endswith("_contribution") or var == "y"):
-            raise ValueError(f"Variable {var} must end with '_contribution' or be 'y'")
+        if not (var.endswith("_contribution") or var == self.target_column):
+            raise ValueError(
+                f"Variable {var} must end with '_contribution' or be {self.target_column}"
+            )
 
         if var not in self.model.named_vars:
             raise ValueError(f"Variable {var} is not in the model")

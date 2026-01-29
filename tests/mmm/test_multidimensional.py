@@ -104,6 +104,25 @@ def fit_mmm(df, mmm, target_column, mock_pymc_sample):
     return mmm
 
 
+def test_output_var_matches_target_col():
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["C"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+    assert mmm.output_var == "y"
+
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["C"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        target_column="epsilon",
+    )
+    assert mmm.output_var == "epsilon"
+
+
 def test_simple_fit(fit_mmm):
     assert isinstance(fit_mmm.posterior, xr.Dataset)
     assert isinstance(fit_mmm.idata.constant_data, xr.Dataset)
@@ -342,7 +361,7 @@ def test_sample_posterior_predictive_new_data(single_dim_data, mock_pymc_sample)
     mmm.sample_posterior_predictive(X_train, extend_idata=True, random_seed=42)
 
     def no_null_values(ds):
-        return ds.y.isnull().mean()
+        return ds.target.isnull().mean()
 
     np.testing.assert_allclose(no_null_values(mmm.idata.posterior_predictive), 0)
 
@@ -1283,7 +1302,7 @@ def test_target_scaling_and_contributions(
         dims=("country",),
     )
 
-    var_names = ["channel_contribution", "intercept_contribution", "y"]
+    var_names = ["channel_contribution", "intercept_contribution", "target"]
     mmm.build_model(X, y)
     mmm.add_original_scale_contribution_variable(var=var_names)
 
@@ -2459,7 +2478,7 @@ def test_mmm_linear_trend_different_dimensions_original_scale(
 
     mmm.sample_prior_predictive(
         X,
-        var_names=["trend_effect_contribution_original_scale", "y"],
+        var_names=["trend_effect_contribution_original_scale", "target"],
     )
 
     prior = mmm.prior
@@ -3281,7 +3300,7 @@ def test_calibration_spend_reindexing_in_posterior_predictive(
 
     # Verify the posterior predictive was successful
     # When extend_idata=False, it returns an xarray Dataset directly
-    assert "y" in idata_pred
+    assert "target" in idata_pred
 
     # Verify that sampling succeeds without explicit spend data containers
     assert "channel_contribution_original_scale" in mmm.model.named_vars
@@ -3299,7 +3318,7 @@ def test_calibration_spend_reindexing_in_posterior_predictive(
     )
 
     # When extend_idata=False, it returns an xarray Dataset directly
-    assert "y" in idata_pred_with_last
+    assert "target" in idata_pred_with_last
 
 
 def test_calibration_spend_with_different_dtypes(multi_dim_data, mock_pymc_sample):
@@ -3366,7 +3385,7 @@ def test_calibration_spend_with_different_dtypes(multi_dim_data, mock_pymc_sampl
 
     # Verify success
     # When extend_idata=False, it returns an xarray Dataset directly
-    assert "y" in idata_pred
+    assert "target" in idata_pred
 
 
 def test_calibration_duplicate_name_error(multi_dim_data, mock_pymc_sample):
