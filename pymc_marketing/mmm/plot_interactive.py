@@ -11,7 +11,23 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Interactive Plotly plotting factory for MMM."""
+"""Interactive Plotly plotting factory for MMM.
+
+This module provides `MMMPlotlyFactory`, which creates interactive Plotly
+visualizations from MMM summary data produced by `MMMSummaryFactory`.
+
+The factory supports:
+- Bar charts with HDI error bars for contributions/ROAS
+- Automatic faceting based on custom dimensions
+- Both Pandas and Polars DataFrames via Narwhals
+
+Example
+-------
+>>> # Disable auto-faceting and customize
+>>> factory = MMMPlotlyFactory(mmm.summary, auto_facet=False)
+>>> fig = factory.contributions(facet_col="country", title="Channel Effects")
+>>> fig.show()
+"""
 
 from __future__ import annotations
 
@@ -24,7 +40,7 @@ from narwhals.typing import IntoDataFrameT
 
 from pymc_marketing.mmm.summary import MMMSummaryFactory
 
-# Type aliases matching MMMSummaryFactory
+# Type aliases matching MMMSummaryFactory for consistency
 ComponentType = Literal["channel", "control", "seasonality", "baseline"]
 Frequency = Literal["original", "weekly", "monthly", "quarterly", "yearly", "all_time"]
 
@@ -71,6 +87,18 @@ class MMMPlotlyFactory:
         self.summary = summary
         self.auto_facet = auto_facet
 
+    # Date format mapping for different frequencies
+    # Note: "quarterly" is a placeholder - actual formatting handled in _format_date_column
+    _DATE_FORMATS: dict[str | None, str] = {
+        "yearly": "%Y",
+        "monthly": "%Y-%m",
+        "quarterly": "%Y-Q%q",  # Placeholder, requires special handling
+        "all_time": "%Y",  # Fallback for aggregated data
+        "original": "%Y-%m-%d",
+        "weekly": "%Y-%m-%d",
+        None: "%Y-%m-%d",
+    }
+
     @staticmethod
     def _get_date_format(frequency: Frequency | None) -> str:
         """Get date format string based on data frequency.
@@ -78,38 +106,13 @@ class MMMPlotlyFactory:
         Returns the appropriate strftime format string for formatting dates
         based on the aggregation frequency of the data.
 
-
         Examples
         --------
         >>> MMMPlotlyFactory._get_date_format("yearly")
         '%Y'
-        >>> MMMPlotlyFactory._get_date_format("monthly")
-        '%Y-%m'
-        >>> MMMPlotlyFactory._get_date_format("quarterly")
-        '%Y-Q%q'
-        >>> MMMPlotlyFactory._get_date_format("original")
-        '%Y-%m-%d'
 
-        Note
-        ----
-        For quarterly frequency, the format string is a placeholder. Actual
-        formatting is handled specially in _format_dates to produce "YYYY-QN" format.
         """
-        if frequency == "yearly":
-            return "%Y"
-        elif frequency == "monthly":
-            return "%Y-%m"
-        elif frequency == "quarterly":
-            # Note: strftime doesn't have direct quarter format, so we'll use
-            # a format that can be processed. For actual formatting, we'll need
-            # to calculate quarter manually in _format_dates
-            return "%Y-Q%q"
-        elif frequency == "all_time":
-            # For all_time aggregation, dates are typically aggregated to a single value
-            # Use yearly format as fallback
-            return "%Y"
-        else:  # "original" or None
-            return "%Y-%m-%d"
+        return MMMPlotlyFactory._DATE_FORMATS.get(frequency, "%Y-%m-%d")
 
     @staticmethod
     def _is_datetime_column(nw_df: IntoDataFrameT, col: str) -> bool:
@@ -363,7 +366,7 @@ class MMMPlotlyFactory:
             **plotly_kwargs,
         )
 
-        # Clean facet titles if faceting was used
+        # Clean facet titles: remove "column=" prefix, show only value
         if plotly_kwargs.get("facet_row") or plotly_kwargs.get("facet_col"):
             fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
 
@@ -419,7 +422,7 @@ class MMMPlotlyFactory:
         ... )
         >>> fig.show()
         """
-        # Get data from Component 2
+        # Get data from summary factory
         hdi_probs = [hdi_prob] if hdi_prob else []
         df = self.summary.contributions(
             hdi_probs=hdi_probs or [0.94],
