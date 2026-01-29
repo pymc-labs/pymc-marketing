@@ -50,7 +50,7 @@ Multi-dimensional (panel) with dims:
 
     X = pd.DataFrame(
         {
-            "date": pd.date_range("2025-01-01", periods=4, freq="W-MON"),
+            "date": ["2025-01-06", "2025-01-13"] * 2,
             "country": ["A", "A", "B", "B"],
             "C1": [100, 120, 90, 110],
             "C2": [80, 70, 95, 85],
@@ -230,7 +230,10 @@ class MMM(RegressionModelBuilder):
     time_varying_media : bool
         Whether to use time-varying effects for media channels.
     dims : tuple | None
-        Additional dimensions for the model.
+        Additional batch-dimensions for the model.
+        One categorical-like column with the name of each batch dimension should be present in the dataset.
+        This is used to identify which batch-dimension(s) are associated with each row of data.
+        Data must be rectangular these batch dimensions (i.e., same dates and length for each combination)
     scaling : Scaling | dict | None
         Scaling methods to be used for the target variable and the marketing channels.
         Defaults to max scaling for both.
