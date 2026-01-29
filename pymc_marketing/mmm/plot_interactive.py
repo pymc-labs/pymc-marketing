@@ -34,6 +34,7 @@ from __future__ import annotations
 from typing import Literal
 
 import narwhals as nw
+import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from narwhals.typing import IntoDataFrameT
@@ -527,3 +528,531 @@ class MMMPlotlyFactory:
             frequency=frequency,
             **plotly_kwargs,
         )
+
+    def posterior_predictive(
+        self,
+        hdi_prob: float | None = 0.94,
+        frequency: Frequency | None = None,
+        **plotly_kwargs,
+    ) -> go.Figure:
+        """Plot posterior predictive with HDI band.
+
+        Creates an interactive Plotly line chart showing model predictions vs
+        observations, with optional HDI uncertainty band and faceting for
+        multi-dimensional models.
+
+        Parameters
+        ----------
+        hdi_prob : float, optional
+            HDI probability for uncertainty band (default: 0.94). If None, no band.
+        frequency : str, optional
+            Time aggregation (e.g., "monthly", "weekly"). None = no aggregation.
+        **plotly_kwargs
+            Additional Plotly Express arguments including:
+            - title: Figure title (default: "Posterior Predictive")
+            - facet_row: Column for row facets (e.g., "country")
+            - facet_col: Column for column facets (e.g., "region")
+            - facet_col_wrap: Max columns before wrapping
+
+        Returns
+        -------
+        go.Figure
+            Interactive Plotly figure
+
+        Examples
+        --------
+        >>> # Basic posterior predictive plot
+        >>> fig = mmm.plot_interactive.posterior_predictive()
+        >>> fig.show()
+
+        >>> # With faceting by country
+        >>> fig = mmm.plot_interactive.posterior_predictive(
+        ...     facet_col="country", facet_col_wrap=3
+        ... )
+        >>> fig.show()
+
+        >>> # Without HDI band
+        >>> fig = mmm.plot_interactive.posterior_predictive(hdi_prob=None)
+        >>> fig.show()
+        """
+        # Get data from Component 2 with HDI columns
+        hdi_probs = [hdi_prob] if hdi_prob else []
+        df = self.summary.posterior_predictive(
+            hdi_probs=hdi_probs or [0.94],
+            frequency=frequency,
+        )
+
+        # Auto-detect faceting from custom dimensions
+        plotly_kwargs = self._apply_auto_faceting(plotly_kwargs)
+
+        # Convert to Narwhals for unified API
+        nw_df = nw.from_native(df, eager_only=True)
+
+        # Validate required columns
+        required_cols = {"date", "mean", "observed"}
+        if not required_cols.issubset(set(nw_df.columns)):
+            raise ValueError(
+                f"DataFrame missing required columns: {required_cols - set(nw_df.columns)}"
+            )
+
+        # Sort by date for proper line plotting
+        nw_df = nw_df.sort("date")
+
+        # Extract facet params for HDI band logic
+        facet_row = plotly_kwargs.get("facet_row")
+        facet_col = plotly_kwargs.get("facet_col")
+
+        # Identify columns to preserve (date, facet columns)
+        id_cols = ["date"]
+        if facet_row:
+            id_cols.append(facet_row)
+        if facet_col:
+            id_cols.append(facet_col)
+
+        # Create long-format DataFrame with both predicted and observed
+        plot_df = nw_df.select(*id_cols, "mean", "observed").unpivot(
+            on=["mean", "observed"],
+            index=id_cols,
+            variable_name="series",
+            value_name="value",
+        )
+
+        # Rename series values for nicer legend
+        plot_df = plot_df.with_columns(
+            nw.when(nw.col("series") == "mean")
+            .then(nw.lit("Predicted"))
+            .otherwise(nw.lit("Observed"))
+            .alias("series")
+        )
+
+        # Set default title
+        plotly_kwargs.setdefault("title", "Posterior Predictive")
+
+        # Create figure with single px.line call
+        fig = px.line(
+            plot_df.to_native(),
+            x="date",
+            y="value",
+            color="series",
+            labels={"value": "Value", "date": "Date", "series": ""},
+            **plotly_kwargs,
+        )
+
+        # Add HDI band if requested
+        if hdi_prob is not None:
+            lower_col, upper_col = self._get_hdi_columns(nw_df, hdi_prob)
+
+            if facet_row is None and facet_col is None:
+                # Simple case: single plot
+                date_values = nw_df.get_column("date").to_list()
+                lower_values = nw_df.get_column(lower_col).to_list()
+                upper_values = nw_df.get_column(upper_col).to_list()
+                self._add_hdi_band(
+                    fig,
+                    date_values,
+                    lower_values,
+                    upper_values,
+                    name=f"{int(hdi_prob * 100)}% HDI",
+                )
+            else:
+                # Faceted case: add band to each facet
+                self._add_hdi_bands_to_facets(
+                    fig,
+                    nw_df,
+                    facet_row,
+                    facet_col,
+                    lower_col,
+                    upper_col,
+                    hdi_prob,
+                )
+
+        # Clean up facet titles
+        if facet_row or facet_col:
+            fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
+
+        fig.update_layout(hovermode="x")
+        return fig
+
+    def _add_hdi_band(
+        self,
+        fig: go.Figure,
+        x: list,
+        lower: list,
+        upper: list,
+        name: str = "HDI",
+        fillcolor: str | None = None,
+        opacity: float = 0.2,
+        showlegend: bool = True,
+        row: int | None = None,
+        col: int | None = None,
+    ) -> None:
+        """Add HDI band to figure as filled area.
+
+        Parameters
+        ----------
+        fig : go.Figure
+            Plotly figure to add band to
+        x : list
+            X-axis values (e.g., dates)
+        lower : list
+            Lower bound values
+        upper : list
+            Upper bound values
+        name : str
+            Legend name
+        fillcolor : str, optional
+            Fill color (RGBA or hex)
+        opacity : float
+            Fill opacity (0-1)
+        showlegend : bool
+            Whether to show in legend
+        row : int, optional
+            Subplot row (for faceted plots)
+        col : int, optional
+            Subplot column (for faceted plots)
+        """
+        # Convert to numpy for array operations
+        x_arr = np.asarray(x)
+        lower_arr = np.asarray(lower)
+        upper_arr = np.asarray(upper)
+
+        # Create closed polygon: lower forward + upper backward
+        x_concat = np.concatenate([x_arr, x_arr[::-1]])
+        y_concat = np.concatenate([lower_arr, upper_arr[::-1]])
+
+        trace = go.Scatter(
+            x=x_concat,
+            y=y_concat,
+            mode="lines",
+            fill="toself",
+            fillcolor=fillcolor or f"rgba(65,105,225,{opacity})",
+            line=dict(color="rgba(255,255,255,0)"),
+            hoverinfo="none",
+            name=name,
+            showlegend=showlegend,
+        )
+
+        if row is not None and col is not None:
+            fig.add_trace(trace, row=row, col=col)
+        else:
+            fig.add_trace(trace)
+
+    def _add_hdi_bands_to_facets(
+        self,
+        fig: go.Figure,
+        nw_df,
+        facet_row: str | None,
+        facet_col: str | None,
+        lower_col: str,
+        upper_col: str,
+        hdi_prob: float,
+    ) -> None:
+        """Add HDI bands to each facet in a faceted plot.
+
+        Parameters
+        ----------
+        fig : go.Figure
+            Plotly figure with facets
+        nw_df : nw.DataFrame
+            Narwhals DataFrame with data
+        facet_row : str or None
+            Column name used for row facets
+        facet_col : str or None
+            Column name used for column facets
+        lower_col : str
+            Name of lower bound column
+        upper_col : str
+            Name of upper bound column
+        hdi_prob : float
+            HDI probability for legend name
+        """
+        # Get unique facet combinations
+        facet_dims = []
+        if facet_row:
+            facet_dims.append(facet_row)
+        if facet_col:
+            facet_dims.append(facet_col)
+
+        if not facet_dims:
+            return
+
+        # Get unique combinations using Narwhals
+        facet_df = nw_df.select(*facet_dims).unique()
+
+        for i, row_dict in enumerate(facet_df.to_native().to_dict("records")):
+            # Build filter expression
+            filter_expr = nw.lit(True)
+            for dim, val in row_dict.items():
+                filter_expr = filter_expr & (nw.col(dim) == val)
+
+            # Filter data for this facet
+            facet_data = nw_df.filter(filter_expr)
+
+            # Extract values
+            x_values = facet_data.get_column("date").to_list()
+            lower_values = facet_data.get_column(lower_col).to_list()
+            upper_values = facet_data.get_column(upper_col).to_list()
+
+            # Determine subplot indices (1-based for Plotly)
+            if facet_row and facet_col:
+                row_val = row_dict[facet_row]
+                col_val = row_dict[facet_col]
+                row_vals = sorted(nw_df.get_column(facet_row).unique().to_list())
+                col_vals = sorted(nw_df.get_column(facet_col).unique().to_list())
+                row_idx = row_vals.index(row_val) + 1
+                col_idx = col_vals.index(col_val) + 1
+            elif facet_col:
+                row_idx = 1
+                col_val = row_dict[facet_col]
+                col_vals = sorted(nw_df.get_column(facet_col).unique().to_list())
+                col_idx = col_vals.index(col_val) + 1
+            else:  # facet_row
+                row_val = row_dict[facet_row]
+                row_vals = sorted(nw_df.get_column(facet_row).unique().to_list())
+                row_idx = row_vals.index(row_val) + 1
+                col_idx = 1
+
+            self._add_hdi_band(
+                fig,
+                x_values,
+                lower_values,
+                upper_values,
+                name=f"{int(hdi_prob * 100)}% HDI",
+                showlegend=(i == 0),  # Only show once in legend
+                row=row_idx,
+                col=col_idx,
+            )
+
+    def saturation_curves(
+        self,
+        hdi_prob: float | None = 0.94,
+        max_value: float = 1.0,
+        num_points: int = 100,
+        **plotly_kwargs,
+    ) -> go.Figure:
+        """Plot saturation curves by channel.
+
+        Creates an interactive Plotly line chart showing saturation response
+        curves for each channel, with optional HDI uncertainty bands and faceting
+        for multi-dimensional models.
+
+        Parameters
+        ----------
+        hdi_prob : float, optional
+            HDI probability for uncertainty bands (default: 0.94). If None, no bands.
+        max_value : float, default 1.0
+            Maximum value for curve x-axis (in scaled space)
+        num_points : int, default 100
+            Number of points to evaluate curves at
+        **plotly_kwargs
+            Additional Plotly Express arguments including:
+            - title: Figure title (default: "Saturation Curves")
+            - facet_row: Column for row facets
+            - facet_col: Column for column facets
+            - facet_col_wrap: Max columns before wrapping
+
+        Returns
+        -------
+        go.Figure
+            Interactive Plotly figure
+
+        Examples
+        --------
+        >>> # Basic saturation curves
+        >>> fig = mmm.plot_interactive.saturation_curves()
+        >>> fig.show()
+
+        >>> # With faceting by country
+        >>> fig = mmm.plot_interactive.saturation_curves(
+        ...     facet_col="country", facet_col_wrap=3
+        ... )
+        >>> fig.show()
+
+        >>> # Custom x-axis range
+        >>> fig = mmm.plot_interactive.saturation_curves(max_value=2.0, num_points=50)
+        >>> fig.show()
+        """
+        # Get data from Component 2
+        hdi_probs = [hdi_prob] if hdi_prob else []
+        df = self.summary.saturation_curves(
+            hdi_probs=hdi_probs or [0.94],
+            max_value=max_value,
+            num_points=num_points,
+        )
+
+        # Auto-detect faceting from custom dimensions
+        plotly_kwargs = self._apply_auto_faceting(plotly_kwargs)
+
+        return self._plot_curves(
+            df=df,
+            x="x",
+            hdi_prob=hdi_prob,
+            title="Saturation Curves",
+            xaxis_title="Spend (scaled)",
+            yaxis_title="Response",
+            **plotly_kwargs,
+        )
+
+    def adstock_curves(
+        self,
+        hdi_prob: float | None = 0.94,
+        amount: float = 1.0,
+        **plotly_kwargs,
+    ) -> go.Figure:
+        """Plot adstock/decay curves by channel.
+
+        Creates an interactive Plotly line chart showing adstock decay curves
+        for each channel, with optional HDI uncertainty bands and faceting for
+        multi-dimensional models.
+
+        Parameters
+        ----------
+        hdi_prob : float, optional
+            HDI probability for uncertainty bands (default: 0.94). If None, no bands.
+        amount : float, default 1.0
+            Impulse amount at time 0
+        **plotly_kwargs
+            Additional Plotly Express arguments including:
+            - title: Figure title (default: "Adstock Curves")
+            - facet_row: Column for row facets
+            - facet_col: Column for column facets
+            - facet_col_wrap: Max columns before wrapping
+
+        Returns
+        -------
+        go.Figure
+            Interactive Plotly figure
+
+        Examples
+        --------
+        >>> # Basic adstock curves
+        >>> fig = mmm.plot_interactive.adstock_curves()
+        >>> fig.show()
+
+        >>> # With faceting by country
+        >>> fig = mmm.plot_interactive.adstock_curves(facet_col="country")
+        >>> fig.show()
+
+        >>> # Custom impulse amount
+        >>> fig = mmm.plot_interactive.adstock_curves(amount=100.0)
+        >>> fig.show()
+        """
+        # Get data from Component 2
+        hdi_probs = [hdi_prob] if hdi_prob else []
+        df = self.summary.adstock_curves(
+            hdi_probs=hdi_probs or [0.94],
+            amount=amount,
+        )
+
+        # Auto-detect faceting from custom dimensions
+        plotly_kwargs = self._apply_auto_faceting(plotly_kwargs)
+
+        return self._plot_curves(
+            df=df,
+            x="time since exposure",
+            hdi_prob=hdi_prob,
+            title="Adstock Curves",
+            xaxis_title="Time Since Exposure",
+            yaxis_title="Effect Weight",
+            **plotly_kwargs,
+        )
+
+    def _plot_curves(
+        self,
+        df: IntoDataFrameT,
+        x: str,
+        y: str = "mean",
+        color: str = "channel",
+        hdi_prob: float | None = None,
+        title: str | None = None,
+        xaxis_title: str | None = None,
+        yaxis_title: str | None = None,
+        **plotly_kwargs,
+    ) -> go.Figure:
+        """Private helper: Generic curve plotting.
+
+        Parameters
+        ----------
+        df : IntoDataFrameT
+            DataFrame from summary factory
+        x : str
+            Column for x-axis (e.g., "x", "time since exposure")
+        y : str, default "mean"
+            Column for y-axis
+        color : str, default "channel"
+            Column for color encoding
+        hdi_prob : float, optional
+            If provided, adds HDI bands per color value
+        title : str, optional
+            Figure title
+        xaxis_title : str, optional
+            X-axis label
+        yaxis_title : str, optional
+            Y-axis label
+        **plotly_kwargs
+            Additional Plotly Express arguments
+
+        Returns
+        -------
+        go.Figure
+            Plotly figure with curves
+        """
+        # Convert to Narwhals
+        nw_df = nw.from_native(df, eager_only=True)
+
+        # Sort by x column for proper line plotting
+        nw_df = nw_df.sort(x)
+
+        # Extract facet params for HDI band logic
+        facet_row = plotly_kwargs.get("facet_row")
+        facet_col = plotly_kwargs.get("facet_col")
+
+        # Set default title
+        plotly_kwargs.setdefault("title", title or "Curves")
+
+        # Create line chart (pass native DataFrame to Plotly)
+        fig = px.line(
+            nw_df.to_native(),
+            x=x,
+            y=y,
+            color=color,
+            labels={
+                x: xaxis_title or x.capitalize(),
+                y: yaxis_title or y.capitalize(),
+            },
+            **plotly_kwargs,
+        )
+
+        # Add HDI bands per color value if requested
+        if hdi_prob is not None:
+            lower_col, upper_col = self._get_hdi_columns(nw_df, hdi_prob)
+
+            # Get unique values for color column using Narwhals
+            color_values = nw_df.get_column(color).unique().to_list()
+
+            # Add band for each color value (e.g., each channel)
+            for var_val in color_values:
+                # Filter using Narwhals
+                nw_var = nw_df.filter(nw.col(color) == var_val)
+
+                # Extract values for HDI band
+                x_values = nw_var.get_column(x).to_list()
+                lower_values = nw_var.get_column(lower_col).to_list()
+                upper_values = nw_var.get_column(upper_col).to_list()
+
+                # Add band to main plot (faceting handled by px.line)
+                self._add_hdi_band(
+                    fig,
+                    x_values,
+                    lower_values,
+                    upper_values,
+                    name=f"{var_val} HDI",
+                    showlegend=False,
+                )
+
+        # Clean facet titles
+        if facet_row or facet_col:
+            fig.for_each_annotation(lambda a: a.update(text=a.text.split("=")[-1]))
+
+        fig.update_layout(hovermode="x")
+        return fig
