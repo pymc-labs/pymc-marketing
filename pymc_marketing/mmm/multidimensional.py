@@ -35,7 +35,6 @@ Basic MMM fit:
     mmm = MMM(
         date_column="date",
         channel_columns=["C1", "C2"],
-        target_column="y",
         adstock=GeometricAdstock(l_max=10),
         saturation=LogisticSaturation(),
     )
@@ -62,10 +61,9 @@ Multi-dimensional (panel) with dims:
     mmm = MMM(
         date_column="date",
         channel_columns=["C1", "C2"],
-        target_column="y",
-        dims=("country",),
         adstock=GeometricAdstock(l_max=10),
         saturation=LogisticSaturation(),
+        dims=("country",),
     )
     mmm.fit(X, y)
 
@@ -78,7 +76,6 @@ Time-varying parameters and seasonality:
     mmm = MMM(
         date_column="date",
         channel_columns=["C1", "C2"],
-        target_column="y",
         adstock=GeometricAdstock(l_max=10),
         saturation=LogisticSaturation(),
         time_varying_intercept=True,
@@ -95,7 +92,6 @@ Controls (additional regressors):
     mmm = MMM(
         date_column="date",
         channel_columns=["C1", "C2"],
-        target_column="y",
         control_columns=["price_index"],
         adstock=GeometricAdstock(l_max=10),
         saturation=LogisticSaturation(),
@@ -128,7 +124,6 @@ Events:
     mmm = MMM(
         date_column="date",
         channel_columns=["C1", "C2"],
-        target_column="y",
         adstock=GeometricAdstock(l_max=10),
         saturation=LogisticSaturation(),
     )
@@ -223,9 +218,9 @@ class MMM(RegressionModelBuilder):
     date_column : str
         The name of the column representing the date in the dataset.
     channel_columns : list[str]
-        A list of columns representing the marketing channels.
-    target_column : str
-        The name of the column representing the target variable to be predicted.
+        A list of column names representing the marketing channels.
+    target_column : str, optional
+        The name of the column representing the target variable in the dataset. Defaults to `y`.
     adstock : AdstockTransformation
         The adstock transformation to apply to the channel data.
     saturation : SaturationTransformation
@@ -263,7 +258,7 @@ class MMM(RegressionModelBuilder):
         channel_columns: list[str] = Field(
             min_length=1, description="Column names of the media channel variables."
         ),
-        target_column: str = Field(..., description="The name of the target column."),
+        target_column: str = Field("y", description="The name of the target column."),
         adstock: InstanceOf[AdstockTransformation] = Field(
             ..., description="Type of adstock transformation to apply."
         ),
