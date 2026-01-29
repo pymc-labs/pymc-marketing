@@ -156,7 +156,7 @@ import json
 import warnings
 from collections.abc import Callable, Sequence
 from copy import deepcopy
-from typing import Annotated, Any, Literal, cast
+from typing import Annotated, Any, cast
 
 import arviz as az
 import numpy as np
@@ -253,10 +253,12 @@ class MMM(RegressionModelBuilder):
 
     _model_type: str = "MMMM (Multi-Dimensional Marketing Mix Model)"
     version: str = "0.0.2"
+    output_var = "y"
 
     @validate_call
     def __init__(
         self,
+        *,
         date_column: str = Field(..., description="Column name of the date variable."),
         channel_columns: list[str] = Field(
             min_length=1, description="Column names of the media channel variables."
@@ -750,17 +752,6 @@ class MMM(RegressionModelBuilder):
             **self.saturation.model_config,
         }
 
-    @property
-    def output_var(self) -> Literal["y"]:
-        """Define target variable for the model.
-
-        Returns
-        -------
-        str
-            The target variable for the model.
-        """
-        return "y"
-
     def post_sample_model_transformation(self) -> None:
         """Post-sample model transformation in order to store the HSGP state from fit."""
         names = []
@@ -1187,8 +1178,10 @@ class MMM(RegressionModelBuilder):
 
     def _validate_contribution_variable(self, var: str) -> None:
         """Validate that the variable ends with "_contribution" and is in the model."""
-        if not (var.endswith("_contribution") or var == "y"):
-            raise ValueError(f"Variable {var} must end with '_contribution' or be 'y'")
+        if not (var.endswith("_contribution") or var == self.output_var):
+            raise ValueError(
+                f"Variable {var} must end with '_contribution' or be {self.output_var}"
+            )
 
         if var not in self.model.named_vars:
             raise ValueError(f"Variable {var} is not in the model")
@@ -3080,7 +3073,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         ].to_xarray()
 
         var_names = [
-            "y",
+            self.output_var,
             "channel_contribution",
             "total_media_contribution_original_scale",
         ]
