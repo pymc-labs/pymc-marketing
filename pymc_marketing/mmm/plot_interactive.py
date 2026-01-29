@@ -459,3 +459,71 @@ class MMMPlotlyFactory:
             frequency=frequency,
             **plotly_kwargs,
         )
+
+    def roas(
+        self,
+        hdi_prob: float | None = 0.94,
+        frequency: Frequency | None = "all_time",
+        **plotly_kwargs,
+    ) -> go.Figure:
+        """Plot ROAS (Return on Ad Spend) bar chart.
+
+        Creates an interactive Plotly bar chart showing ROAS for each channel,
+        with optional HDI error bars and faceting for multi-dimensional models.
+
+        Parameters
+        ----------
+        hdi_prob : float, optional
+            HDI probability for error bars (default: 0.94). If None, no error bars.
+        frequency : str, optional
+            Time aggregation (default: "all_time"). Options: "original", "weekly",
+            "monthly", "quarterly", "yearly", "all_time".
+        **plotly_kwargs
+            Additional Plotly Express arguments including:
+            - title: Figure title (default: "Return on Ad Spend")
+            - facet_row: Column for row facets (e.g., "country")
+            - facet_col: Column for column facets (e.g., "brand")
+            - facet_col_wrap: Max columns before wrapping
+            - barmode: "group" or "stack"
+
+        Returns
+        -------
+        go.Figure
+            Interactive Plotly figure
+
+        Examples
+        --------
+        >>> # Basic ROAS plot
+        >>> fig = mmm.plot_interactive.roas()
+        >>> fig.show()
+
+        >>> # ROAS by country (auto-faceted)
+        >>> fig = mmm.plot_interactive.roas(facet_col="country")
+        >>> fig.show()
+
+        >>> # Custom frequency and HDI
+        >>> fig = mmm.plot_interactive.roas(frequency="monthly", hdi_prob=0.80)
+        >>> fig.show()
+        """
+        # Get data from summary factory
+        hdi_probs = [hdi_prob] if hdi_prob else []
+        df = self.summary.roas(
+            hdi_probs=hdi_probs or [0.94],
+            frequency=frequency,
+        )
+
+        # Auto-detect faceting from custom dimensions
+        plotly_kwargs = self._apply_auto_faceting(plotly_kwargs)
+
+        # Set default values if not provided
+        plotly_kwargs.setdefault("title", "Return on Ad Spend")
+        plotly_kwargs.setdefault("x", "channel")
+
+        return self._plot_bar(
+            df=df,
+            y="mean",
+            hdi_prob=hdi_prob,
+            yaxis_title="ROAS",
+            frequency=frequency,
+            **plotly_kwargs,
+        )

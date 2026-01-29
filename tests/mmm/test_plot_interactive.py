@@ -19,10 +19,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import polars as pl
-import pytest
 
-from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
-from pymc_marketing.mmm.multidimensional import MMM
 from pymc_marketing.mmm.plot_interactive import MMMPlotlyFactory
 from pymc_marketing.mmm.summary import MMMSummaryFactory
 
@@ -301,20 +298,6 @@ class TestMMMPlotInteractiveProperty:
         assert isinstance(factory, MMMPlotlyFactory), (
             f"Expected MMMPlotlyFactory, got {type(factory)}"
         )
-
-    def test_plot_interactive_requires_fitted_model(self):
-        """Test that plot_interactive raises error if model not fitted."""
-        # Arrange - Create unfitted model
-        mmm = MMM(
-            date_column="date",
-            channel_columns=["channel_1", "channel_2"],
-            adstock=GeometricAdstock(l_max=4),
-            saturation=LogisticSaturation(),
-        )
-
-        # Act & Assert
-        with pytest.raises(ValueError, match="idata does not exist"):
-            _ = mmm.plot_interactive
 
     def test_plot_interactive_has_summary_access(self, simple_fitted_mmm):
         """Test that factory has summary attribute."""

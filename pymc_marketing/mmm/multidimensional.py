@@ -194,6 +194,7 @@ from pymc_marketing.mmm.lift_test import (
     scale_lift_measurements,
 )
 from pymc_marketing.mmm.plot import MMMPlotSuite
+from pymc_marketing.mmm.plot_interactive import MMMPlotlyFactory
 from pymc_marketing.mmm.scaling import Scaling, VariableScaling
 from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
 from pymc_marketing.mmm.tvp import create_hsgp_from_config, infer_time_index
@@ -628,6 +629,53 @@ class MMM(RegressionModelBuilder):
         self._validate_model_was_built()
         self._validate_idata_exists()
         return MMMPlotSuite(idata=self.idata)
+
+    @property
+    def plot_interactive(self) -> MMMPlotlyFactory:
+        """Access interactive Plotly plotting functionality.
+
+        Returns a factory for creating interactive plots using Plotly.
+        Automatically integrates with Component 2 (MMMSummaryFactory)
+        to fetch data and apply faceting for custom dimensions.
+
+        Returns
+        -------
+        MMMPlotlyFactory
+            Factory for creating interactive plots
+
+        Examples
+        --------
+        .. code-block:: python
+
+            # Interactive posterior predictive plot
+            fig = mmm.plot_interactive.posterior_predictive()
+            fig.show()
+
+            # Contributions with faceting
+            fig = mmm.plot_interactive.contributions(facet_col="country")
+            fig.show()
+
+            # ROAS bar chart
+            fig = mmm.plot_interactive.roas()
+            fig.show()
+
+            # Saturation curves
+            fig = mmm.plot_interactive.saturation_curves()
+            fig.show()
+
+            # Adstock curves
+            fig = mmm.plot_interactive.adstock_curves()
+            fig.show()
+
+        See Also
+        --------
+        MMMPlotSuite : Static matplotlib plotting functionality
+        MMMPlotlyFactory : Interactive plotting class documentation
+        """
+        self._validate_model_was_built()
+        self._validate_idata_exists()
+
+        return MMMPlotlyFactory(summary=self.summary)
 
     @property
     def data(self) -> Any:  # type: ignore[no-any-return]
