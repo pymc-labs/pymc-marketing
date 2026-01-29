@@ -320,7 +320,7 @@ class MMMPlotlyFactory:
                 error_lower=(nw.col(y) - nw.col(lower_col)),
                 y_string=nw.concat_str(
                     nw.col(y).cast(nw.Int64).cast(nw.String),
-                    nw.lit("  CI: ["),
+                    nw.lit("HDI: ["),
                     nw.col(lower_col).cast(nw.Int64).cast(nw.String),
                     nw.lit(", "),
                     nw.col(upper_col).cast(nw.Int64).cast(nw.String),
