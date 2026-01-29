@@ -338,6 +338,12 @@ class MMM(RegressionModelBuilder):
         self.adstock_first = adstock_first
 
         dims = dims if dims is not None else ()
+        core_dims = {"date", "channel", "control", "fourier_mode"}
+        if invalid_dims := core_dims & set(dims):
+            raise ValueError(
+                f"Dims {sorted(invalid_dims)} are reserved for internal use"
+            )
+
         self.dims = dims
 
         if isinstance(scaling, dict):

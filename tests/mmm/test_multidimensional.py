@@ -123,6 +123,21 @@ def test_target_column():
     assert mmm_custom.target_column == "epsilon"
 
 
+def test_reserved_dims():
+    other_kwargs = {
+        "date_column": "date",
+        "channel_columns": ["C"],
+        "adstock": GeometricAdstock(l_max=2),
+        "saturation": LogisticSaturation(),
+    }
+    # Calling MMM without a reserved dim is fine
+    MMM(**other_kwargs, dims=("calendar",))
+
+    for reserved_dim in ("date", "channel", "control", "fourier_mode"):
+        with pytest.raises(ValueError, match=r".* reserved for internal use"):
+            MMM(**other_kwargs, dims=(reserved_dim,))
+
+
 def test_simple_fit(fit_mmm):
     assert isinstance(fit_mmm.posterior, xr.Dataset)
     assert isinstance(fit_mmm.idata.constant_data, xr.Dataset)
