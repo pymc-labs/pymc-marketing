@@ -13,12 +13,21 @@
 #   limitations under the License.
 """Shared fixtures for MMM tests."""
 
+import warnings
+
 import numpy as np
 import pandas as pd
+import pymc as pm
 import pytest
+from pymc_extras.prior import Prior
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.multidimensional import MMM
+from pymc_marketing.special_priors import LogNormalPrior
+
+seed: int = sum(map(ord, "pymc_marketing"))
+rng: np.random.Generator = np.random.default_rng(seed=seed)
+
 
 # ============================================================================
 # Data Fixtures
@@ -91,12 +100,43 @@ def panel_mmm_data():
 
 
 # ============================================================================
+# Mock Fit Function
+# ============================================================================
+
+
+def mock_fit(model, X: pd.DataFrame, y: pd.Series, **kwargs):
+    """Mock fit function that mimics the fit process without actual sampling."""
+    model.build_model(X=X, y=y)
+    with model.model:
+        idata = pm.sample_prior_predictive(random_seed=rng, **kwargs)
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            category=UserWarning,
+            message="The group fit_data is not defined in the InferenceData scheme",
+        )
+        idata.add_groups(
+            {
+                "posterior": idata.prior,
+                "fit_data": pd.concat(
+                    [X, pd.Series(y, index=X.index, name="y")], axis=1
+                ).to_xarray(),
+            }
+        )
+    model.idata = idata
+    model.set_idata_attrs(idata=idata)
+
+    return model
+
+
+# ============================================================================
 # Fitted Model Fixtures
 # ============================================================================
 
 
 @pytest.fixture
-def simple_fitted_mmm(simple_mmm_data, mock_pymc_sample):
+def simple_fitted_mmm(simple_mmm_data):
     """Create a simple fitted MMM for testing (no extra dimensions)."""
     X = simple_mmm_data["X"]
     y = simple_mmm_data["y"]
@@ -110,27 +150,49 @@ def simple_fitted_mmm(simple_mmm_data, mock_pymc_sample):
         saturation=LogisticSaturation(),
     )
 
-    mmm.fit(X, y)
+    mock_fit(mmm, X, y)
 
     return mmm
 
 
 @pytest.fixture
-def panel_fitted_mmm(panel_mmm_data, mock_pymc_sample):
+def panel_fitted_mmm(panel_mmm_data):
     """Create a panel (multidimensional) fitted MMM for testing."""
     X = panel_mmm_data["X"]
     y = panel_mmm_data["y"]
 
+    adstock = GeometricAdstock(
+        priors={"alpha": Prior("Beta", alpha=2, beta=5, dims=("country", "channel"))},
+        l_max=10,
+    )
+
+    beta_prior = LogNormalPrior(
+        mean=Prior("Gamma", mu=0.25, sigma=0.10, dims=("channel")),
+        std=Prior("Exponential", scale=0.10, dims=("channel")),
+        dims=("channel", "country"),
+        centered=False,
+    )
+    saturation = LogisticSaturation(
+        priors={
+            "beta": beta_prior,
+            "lam": Prior(
+                "Gamma",
+                mu=0.5,
+                sigma=0.25,
+                dims=("channel"),
+            ),
+        }
+    )
     mmm = MMM(
         channel_columns=["channel_1", "channel_2"],
         date_column="date",
         target_column="target",
         dims=("country",),
         control_columns=None,
-        adstock=GeometricAdstock(l_max=10),
-        saturation=LogisticSaturation(),
+        adstock=adstock,
+        saturation=saturation,
     )
 
-    mmm.fit(X, y)
+    mock_fit(mmm, X, y)
 
     return mmm

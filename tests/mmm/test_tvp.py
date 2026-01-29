@@ -19,7 +19,7 @@ import pytensor.tensor as pt
 import pytest
 
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
-from pymc_marketing.mmm.hsgp import SoftPlusHSGP
+from pymc_marketing.mmm.hsgp import CovFunc, SoftPlusHSGP
 from pymc_marketing.mmm.tvp import (
     create_hsgp_from_config,
     create_time_varying_gp_multiplier,
@@ -37,8 +37,10 @@ def coords():
     }
 
 
-@pytest.fixture
-def model_config() -> dict[str, HSGPKwargs]:
+@pytest.fixture(
+    params=[None, CovFunc.Matern52], ids=["cov_func_none", "cov_func_matern52"]
+)
+def model_config(request) -> dict[str, HSGPKwargs]:
     return {
         "intercept_tvp_config": HSGPKwargs(
             m=200,
@@ -46,6 +48,7 @@ def model_config() -> dict[str, HSGPKwargs]:
             eta_lam=1,
             ls_mu=5,
             ls_sigma=5,
+            cov_func=request.param,
         )
     }
 

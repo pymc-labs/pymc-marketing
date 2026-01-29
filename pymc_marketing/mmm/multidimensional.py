@@ -156,7 +156,7 @@ import json
 import warnings
 from collections.abc import Callable, Sequence
 from copy import deepcopy
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, cast
 
 import arviz as az
 import numpy as np
@@ -208,14 +208,6 @@ from pymc_marketing.model_builder import (
 )
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.model_graph import deterministics_to_flat
-
-PYMC_MARKETING_ISSUE = "https://github.com/pymc-labs/pymc-marketing/issues/new"
-warning_msg = (
-    "This functionality is experimental and subject to change. "
-    "If you encounter any issues or have suggestions, please raise them at: "
-    f"{PYMC_MARKETING_ISSUE}"
-)
-warnings.warn(warning_msg, FutureWarning, stacklevel=1)
 
 
 class MMM(RegressionModelBuilder):
@@ -669,7 +661,65 @@ class MMM(RegressionModelBuilder):
                 or getattr(self, "time_varying_media", False)
             ),
         )
+
         return MMMIDataWrapper(self.idata, schema=schema, validate_on_init=False)
+
+    @property
+    def summary(self) -> Any:  # type: ignore[no-any-return]
+        """Access summary DataFrame generation functionality.
+
+        Returns a factory for creating summary DataFrames from the model's
+        InferenceData with configurable defaults for HDI levels and output format.
+
+        Returns a fresh factory on each access. The factory includes both
+        data and model, enabling all summary methods including transformation curves.
+
+        Returns
+        -------
+        MMMSummaryFactory
+            Factory providing methods for different summary types
+
+        Examples
+        --------
+        .. code-block:: python
+
+            # Get contribution summary (default: pandas, 94% HDI)
+            df = mmm.summary.contributions()
+
+            # Get ROAS summary
+            df = mmm.summary.roas()
+
+            # Get saturation curves (requires model - provided automatically)
+            df = mmm.summary.saturation_curves(n_points=50)
+
+            # Get adstock curves
+            df = mmm.summary.adstock_curves(max_lag=15)
+
+            # Get posterior predictive with custom settings
+            df = mmm.summary.posterior_predictive(
+                hdi_probs=[0.80, 0.94], frequency="monthly", output_format="polars"
+            )
+
+            # Create factory with different defaults (direct instantiation)
+            from pymc_marketing.mmm.summary import MMMSummaryFactory
+
+            polars_factory = MMMSummaryFactory(
+                mmm.data, model=mmm, hdi_probs=[0.50, 0.94], output_format="polars"
+            )
+            df = polars_factory.contributions()  # Uses configured defaults
+
+            # Get change over time
+            df = mmm.summary.change_over_time()
+
+        See Also
+        --------
+        MMMSummaryFactory : Factory class documentation
+        pymc_marketing.mmm.summary : Module with all factory functions
+        """
+        from pymc_marketing.mmm.summary import MMMSummaryFactory
+
+        self._validate_idata_exists()
+        return MMMSummaryFactory(self.data, model=self)  # Pass both data and model
 
     @property
     def default_model_config(self) -> dict:
@@ -1543,6 +1593,53 @@ class MMM(RegressionModelBuilder):
                 f"Either set include_last_observations=False or use input dates that don't overlap with training data."
             )
 
+    def _subsample_posterior(
+        self,
+        parameters: xr.Dataset,
+        num_samples: int | None = None,
+        random_state: RandomState | None = None,
+    ) -> xr.Dataset:
+        """Subsample posterior parameters if needed.
+
+        Parameters
+        ----------
+        parameters : xr.Dataset
+            Dataset with parameter values (posterior samples).
+        num_samples : int or None, optional
+            Number of posterior samples to use. If None, all samples are used.
+            If less than total available samples, random subsampling is performed.
+        random_state : np.random.Generator, int, or None, optional
+            Random state for reproducible subsampling.
+
+        Returns
+        -------
+        xr.Dataset
+            Subsampled parameters (or original if no subsampling needed).
+        """
+        if num_samples is None:
+            return parameters
+
+        n_chains = parameters.sizes["chain"]
+        n_draws = parameters.sizes["draw"]
+        total_samples = n_chains * n_draws
+
+        if num_samples >= total_samples:
+            return parameters
+
+        rng = np.random.default_rng(random_state)
+        flat_indices = rng.choice(total_samples, size=num_samples, replace=False)
+
+        stacked = parameters.stack(sample=("chain", "draw"))
+        selected = stacked.isel(sample=flat_indices)
+        # Drop chain, draw, and sample to avoid MultiIndex deprecation warning
+        params = (
+            selected.drop_vars(["chain", "draw", "sample"])
+            .rename({"sample": "draw"})
+            .expand_dims("chain")
+        )
+
+        return params
+
     def _posterior_predictive_data_transformation(
         self,
         X: pd.DataFrame,
@@ -1628,10 +1725,7 @@ class MMM(RegressionModelBuilder):
             ).to_dataset()
 
         dataarrays.append(y_xarray)
-        self.dataarrays = dataarrays
-        self._new_internal_xarray = xr.merge(dataarrays).fillna(0)
-
-        return xr.merge(dataarrays).fillna(0)
+        return xr.merge(dataarrays, join="outer", compat="no_conflicts").fillna(0)
 
     def _set_xarray_data(
         self,
@@ -1790,6 +1884,9 @@ class MMM(RegressionModelBuilder):
         original_scale: bool = Field(
             True, description="Whether to return curve in original scale."
         ),
+        idata: InstanceOf[az.InferenceData] | None = Field(
+            None, description="Optional InferenceData to sample from."
+        ),
     ) -> xr.DataArray:
         """Sample saturation curves from posterior parameters.
 
@@ -1825,6 +1922,10 @@ class MMM(RegressionModelBuilder):
             from scaled to original units. If False, values remain in scaled space
             as used internally by the model. Note that x-axis values always remain
             in scaled space consistent with the max_value parameter.
+        idata : az.InferenceData or None, optional
+            Optional InferenceData to sample from. If None (default), uses
+            self.idata. This allows sampling curves from different posterior
+            distributions, such as from a different model or a subset of samples.
 
         Returns
         -------
@@ -1841,7 +1942,7 @@ class MMM(RegressionModelBuilder):
         Raises
         ------
         ValueError
-            If called before model is fitted (idata doesn't exist)
+            If called before model is fitted (idata doesn't exist) and no idata provided
         ValueError
             If original_scale=True but scale factors not found in constant_data
 
@@ -1870,6 +1971,11 @@ class MMM(RegressionModelBuilder):
         ...     max_value=max_scaled, num_points=200, num_samples=1000, random_state=42
         ... )
 
+        Sample curves from a different InferenceData:
+
+        >>> external_idata = az.from_netcdf("other_model.nc")
+        >>> curves = mmm.sample_saturation_curve(idata=external_idata)
+
 
         Notes
         -----
@@ -1883,64 +1989,170 @@ class MMM(RegressionModelBuilder):
         - Posterior samples are drawn randomly without replacement when num_samples
           is less than the total available samples, otherwise all samples are used.
         """
-        self._validate_idata_exists()
+        # Use provided idata or fall back to self.idata
+        if idata is None:
+            self._validate_idata_exists()
+            idata = cast(az.InferenceData, self.idata)
 
         # Validate that posterior exists (model was fitted, not just prior sampled)
-        if (
-            not hasattr(self.idata, "posterior") or self.idata.posterior is None  # type: ignore[union-attr]
-        ):
+        if not hasattr(idata, "posterior") or idata.posterior is None:
             raise ValueError(
                 "posterior not found in idata. "
                 "The model must be fitted (call .fit()) before sampling saturation curves."
             )
 
-        # Step 1: Subsample posterior
-        posterior = self.idata.posterior  # type: ignore[union-attr]
+        # Subsample posterior if needed
+        parameters = self._subsample_posterior(
+            parameters=idata.posterior,
+            num_samples=num_samples,
+            random_state=random_state,
+        )
 
-        n_chains = posterior.sizes["chain"]
-        n_draws = posterior.sizes["draw"]
-        total_samples = n_chains * n_draws
-
-        # Subsample from posterior if needed
-        # We need to keep chain/draw dimensions for sample_curve to work
-        if num_samples is not None and num_samples < total_samples:
-            rng = np.random.default_rng(random_state)
-            # Randomly select samples across all chains/draws
-            flat_indices = rng.choice(total_samples, size=num_samples, replace=False)
-
-            # Stack chain/draw into single dimension, select samples, reshape to chain=1
-            stacked = posterior.stack(sample=("chain", "draw"))
-            selected = stacked.isel(sample=flat_indices)
-            # Drop the multi-index coords before renaming to avoid conflicts
-            params = (
-                selected.drop_vars(["chain", "draw"])
-                .rename({"sample": "draw"})
-                .expand_dims("chain")
-            )
-        else:
-            params = posterior
-
-        # Step 2: Sample curve using transformation's method
-        # max_value is already in scaled space
-        # This automatically handles channel dimensions
+        # Sample curve using transformation's method
         curve = self.saturation.sample_curve(
-            parameters=params,
+            parameters=parameters,
             max_value=max_value,
             num_points=num_points,
         )
 
-        # Flatten chain/draw to 'sample' dimension for consistent output
+        # Flatten chain and draw dimensions to sample dimension
         curve = curve.stack(sample=("chain", "draw"))
 
-        # Step 3: Convert to original scale if requested
+        # Convert to original scale if requested
         if original_scale:
             # Scale y values (contribution) to original target units
             # Note: x coordinates remain in scaled space (same as max_value input)
             # since converting to original scale would require per-channel scaling
             # which complicates plotting and interpretation
-            target_scale = self.data.get_target_scale()
+            target_scale = MMMIDataWrapper(idata).get_target_scale()
             # Multiply by target_scale since saturation affects target variable
             curve = curve * target_scale
+
+        return curve
+
+    @validate_call(config={"arbitrary_types_allowed": True})
+    def sample_adstock_curve(
+        self,
+        amount: float = Field(
+            1.0, gt=0, description="Amount to apply the adstock transformation to."
+        ),
+        num_samples: int | None = Field(
+            500, gt=0, description="Number of posterior samples to use."
+        ),
+        random_state: RandomState | None = None,
+        idata: InstanceOf[az.InferenceData] | None = Field(
+            None, description="Optional InferenceData to sample from."
+        ),
+    ) -> xr.DataArray:
+        """Sample adstock curves from posterior parameters.
+
+        This method samples the adstock transformation curves using posterior
+        parameters from the fitted model. It allows visualization of the
+        carryover effect of media exposure over time.
+
+        Parameters
+        ----------
+        amount : float, optional
+            Amount to apply the adstock transformation to. By default 1.0.
+            This represents an impulse of spend at time 0, and the curve
+            shows how this effect decays over subsequent time periods.
+        num_samples : int or None, optional
+            Number of posterior samples to use for generating curves. By default 500.
+            Samples are drawn randomly from the full posterior (across all chains
+            and draws). Using fewer samples speeds up computation and reduces memory
+            usage while still capturing posterior uncertainty. If None, all posterior
+            samples are used without subsampling.
+        random_state : int, np.random.Generator, or None, optional
+            Random state for reproducible subsampling. Can be an integer seed,
+            a numpy Generator instance, or None for non-reproducible sampling.
+            Only used when num_samples is not None and less than total available
+            samples.
+        idata : az.InferenceData or None, optional
+            Optional InferenceData to sample from. If None (default), uses
+            self.idata. This allows sampling curves from different posterior
+            distributions, such as from a different model or a subset of samples.
+
+        Returns
+        -------
+        xr.DataArray
+            Sampled adstock curves with dimensions:
+            - Simple model: (time since exposure, channel, sample)
+            - Panel model: (time since exposure, *custom_dims, channel, sample)
+
+            The "sample" dimension indexes the posterior samples used.
+            The "time since exposure" coordinate represents time periods from 0
+            to l_max (the maximum lag for the adstock transformation).
+
+        Raises
+        ------
+        ValueError
+            If called before model is fitted (idata doesn't exist) and no idata provided
+        ValueError
+            If idata exists but no posterior (model not fitted)
+
+        Examples
+        --------
+        Sample curves with default parameters:
+
+        >>> curves = mmm.sample_adstock_curve()
+        >>> curves.dims
+        ('sample', 'time since exposure', 'channel')
+
+        Sample curves using all posterior samples:
+
+        >>> curves_all = mmm.sample_adstock_curve(num_samples=None)
+
+        Sample curves with custom amount and reproducible sampling:
+
+        >>> curves = mmm.sample_adstock_curve(
+        ...     amount=100.0, num_samples=1000, random_state=42
+        ... )
+
+        Sample curves from a different InferenceData:
+
+        >>> external_idata = az.from_netcdf("other_model.nc")
+        >>> curves = mmm.sample_adstock_curve(idata=external_idata)
+
+        Notes
+        -----
+        - The adstock curve shows the carryover effect of a single impulse of
+          media exposure over time, unlike saturation curves which show
+          diminishing returns.
+        - For panel models, curves are generated for each combination of custom
+          dimensions (e.g., each country) and channel.
+        - The returned array includes a "sample" dimension for uncertainty
+          quantification. Use `.mean(dim='sample')` for point estimates and
+          `.quantile()` for credible intervals.
+        - Posterior samples are drawn randomly without replacement when num_samples
+          is less than the total available samples.
+        """
+        # Use provided idata or fall back to self.idata
+        if idata is None:
+            self._validate_idata_exists()
+            idata = cast(az.InferenceData, self.idata)
+
+        # Validate that posterior exists
+        if not hasattr(idata, "posterior") or idata.posterior is None:
+            raise ValueError(
+                "posterior not found in idata. "
+                "The model must be fitted (call .fit()) before sampling adstock curves."
+            )
+
+        # Subsample posterior if needed
+        parameters = self._subsample_posterior(
+            parameters=idata.posterior,
+            num_samples=num_samples,
+            random_state=random_state,
+        )
+
+        # Sample curve using transformation's method
+        curve = self.adstock.sample_curve(
+            parameters=parameters,
+            amount=amount,
+        )
+
+        # Flatten chain and draw dimensions to sample dimension
+        curve = curve.stack(sample=("chain", "draw"))
 
         return curve
 

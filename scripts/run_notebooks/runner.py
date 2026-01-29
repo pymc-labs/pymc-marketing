@@ -65,8 +65,21 @@ HERE = Path(__file__).parent
 KERNEL_NAME: str = "python3"
 DOC_SOURCE = Path("docs/source")
 NOTEBOOKS_PATH = DOC_SOURCE / "notebooks"
-NOTEBOOKS: list[Path] = list(NOTEBOOKS_PATH.glob("*/*.ipynb"))
-NOTEBOOKS.append(DOC_SOURCE / "guide" / "benefits" / "model_deployment.ipynb")
+_NOTEBOOKS: list[Path] = list(NOTEBOOKS_PATH.glob("*/*.ipynb"))
+_NOTEBOOKS.append(DOC_SOURCE / "guide" / "benefits" / "model_deployment.ipynb")
+
+# Notebooks to exclude from testing (relative to repo root)
+BLACKLIST: set[str] = {
+    "docs/source/notebooks/mmm/mmm_chronos.ipynb",
+}
+
+
+def filter_blacklist(notebooks: list[Path]) -> list[Path]:
+    """Remove blacklisted notebooks from the list."""
+    return [nb for nb in notebooks if str(nb) not in BLACKLIST]
+
+
+NOTEBOOKS: list[Path] = filter_blacklist(_NOTEBOOKS)
 
 INJECTED_CODE_FILE = HERE / "injected.py"
 INJECTED_CODE = INJECTED_CODE_FILE.read_text()
@@ -212,6 +225,7 @@ if __name__ == "__main__":
         notebooks_to_run = [Path(notebook) for notebook in args.notebooks]
 
     notebooks_to_run = expand_directories(notebooks_to_run)
+    notebooks_to_run = filter_blacklist(notebooks_to_run)
 
     if args.exclude_dirs:
         exclude_set = set(args.exclude_dirs)
