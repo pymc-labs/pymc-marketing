@@ -167,12 +167,18 @@ except ImportError:  # pragma: no cover
     raise ImportError(msg)
 
 from mlflow.utils.autologging_utils import autologging_integration
+from packaging import version
 
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.mmm import MMM
 from pymc_marketing.mmm.evaluation import compute_summary_metrics
 from pymc_marketing.mmm.multidimensional import MMM as MultiDimensionalMMM
 from pymc_marketing.version import __version__
+
+# MLflow 2.18.0+ deprecated artifact_path in favor of name
+_MLFLOW_SUPPORTS_NAME_PARAM = version.parse(mlflow.__version__) >= version.parse(
+    "2.18.0"
+)
 
 FLAVOR_NAME = "pymc"
 
@@ -887,10 +893,14 @@ def log_mmm(
         original_scale=original_scale,
     )
 
-    mlflow.pyfunc.log_model(
-        artifact_path=artifact_path,
-        python_model=mlflow_mmm,
-    )
+    # MLflow 2.18.0+ uses 'name' parameter, older versions use 'artifact_path'
+    log_model_kwargs: dict[str, Any] = {"python_model": mlflow_mmm}
+    if _MLFLOW_SUPPORTS_NAME_PARAM:
+        log_model_kwargs["name"] = artifact_path
+    else:
+        log_model_kwargs["artifact_path"] = artifact_path
+
+    mlflow.pyfunc.log_model(**log_model_kwargs)
     run_id = mlflow.active_run().info.run_id
     model_uri = f"runs:/{run_id}/{artifact_path}"
 
