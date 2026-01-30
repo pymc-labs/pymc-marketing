@@ -1,35 +1,35 @@
 ---
-date: 2026-01-29T22:46:24+00:00
+date: 2026-01-30T16:00:50+00:00
 researcher: Claude Sonnet 4.5
-git_commit: 75f94001de1854af87bc0c8a98813bec37f75621
+git_commit: fa4057d0cbe17211ecef590c70c87f9f18879d91
 branch: work-issue-2211
 repository: pymc-labs/pymc-marketing
-topic: "Compute ROAs the correct way (like in the Google paper)"
-tags: [research, codebase, roas, adstock, carryover, mmm, budget-optimizer, counterfactual]
+topic: "Compute ROAS the correct way (like in the Google paper)"
+tags: [research, codebase, roas, adstock, carryover, mmm, counterfactual, multidimensional, vectorization]
 status: complete
-last_updated: 2026-01-29
+last_updated: 2026-01-30
 last_updated_by: Claude Sonnet 4.5
 issue_number: 2211
 ---
 
-# Research: Compute ROAs the correct way (like in the Google paper)
+# Research: Compute ROAS the Correct Way (Google MMM Paper Formula 10)
 
-**Date**: 2026-01-29T22:46:24+00:00
+**Date**: 2026-01-30T16:00:50+00:00
 **Researcher**: Claude Sonnet 4.5
-**Git Commit**: 75f94001de1854af87bc0c8a98813bec37f75621
+**Git Commit**: fa4057d0cbe17211ecef590c70c87f9f18879d91
 **Branch**: work-issue-2211
 **Repository**: pymc-labs/pymc-marketing
 **Issue**: #2211
 
 ## Research Question
 
-How is ROAS currently computed in the codebase, and what changes are needed to implement formula (10) from the Google MMM paper (https://storage.googleapis.com/gweb-research2023-media/pubtools/3806.pdf) which uses a **counterfactual approach** considering the carryover window L (l_max in the code)?
+How is ROAS currently computed in the codebase, and what changes are needed to implement formula (10) from the Google MMM paper using a **counterfactual approach** that accounts for carryover effects? Specifically, the implementation must work with the MultidimensionalMMM class (not the deprecated MMM class in `mmm.py`), handle arbitrary time frequencies, process all channels simultaneously, and support separate flags for carry-in and carry-out effects.
 
 ## Summary
 
-**CRITICAL CORRECTION**: The current ROAS implementation `ROAS[t] = contribution[t] / spend[t]` is incorrect, but **NOT** for the reason initially documented. The Google paper formula (10) requires a **counterfactual approach**, not simple summation over carryover windows.
+**CRITICAL UPDATE**: Based on user feedback, the implementation approach has been significantly refined:
 
-### Google Paper Formula (10) Explained
+### Google Paper Formula (10) - Counterfactual Approach
 
 ```
 ROAS_m =
@@ -46,639 +46,544 @@ Where:
 - `L` = Carryover window length (l_max in code)
 - `Ω` = All Bayesian model parameters
 
-**Key Insight**: ROAS for a channel over a period is the **difference** between:
-1. Predicted KPI with actual spend on that channel
-2. Predicted KPI with **zero** spend on that channel (counterfactual)
+### Key Implementation Requirements
 
-This difference captures the **incremental contribution** of the channel, accounting for carryover effects that extend L-1 periods beyond the spend window.
+1. **Target Class**: `MultidimensionalMMM` in `pymc_marketing/mmm/multidimensional.py` (NOT the deprecated MMM class)
 
-### Efficiency Considerations
+2. **Data Access**: X and y are stored as `fit_data` InferenceData group. Extract X via:
+   ```python
+   dataset = idata.fit_data.to_dataframe().reset_index()
+   X = dataset.drop(columns=[self.target_column])
+   y = dataset[self.target_column]
+   ```
 
-Computing counterfactual ROAS for every individual time period would be computationally expensive. The user suggests:
-- **Users typically want ROAS at lower frequencies** (yearly, quarterly) than data frequency (weekly, daily)
-- **Optimization**: Compute ROAS directly at the requested frequency rather than computing per-period then aggregating
-- Example: For yearly ROAS with weekly data, compute once per year instead of 52 times
+3. **Vectorized Processing**: Compute counterfactuals for ALL channels simultaneously using `vectorize_graph()` from `pytensor_utils.py`, avoiding per-channel loops
 
-The codebase already has robust time aggregation patterns (xarray resample, pandas groupby) that can support this.
+4. **Frequency-Agnostic**: Use `pd.infer_freq()` to detect data frequency (daily, weekly, monthly, etc.) - never assume weekly
+
+5. **Carryover Flags**: Split into two separate controls:
+   - `include_carryin` (default True): Include pre-period channel contribution impact
+   - `include_carryout` (default True): Include post-period channel contribution impact
+
+6. **Efficiency**: Users typically want ROAS at lower frequencies (yearly, quarterly) than data frequency. Compute ROAS directly at requested frequency instead of per-period aggregation.
+
+7. **No Backwards Compatibility**: Remove old ROAS behavior entirely
+
+8. **Required Frequency Parameter**: Make `frequency` parameter required (no default) to force users to think about computational cost
 
 ## Problem Statement
 
 ### Current Implementation (Incorrect)
+**File**: `pymc_marketing/data/idata/mmm_wrapper.py:315-342`
+
 ```python
 ROAS[t] = contribution[t] / spend[t]
 ```
-**Problem**: Treats each period independently, ignoring that contributions are mixtures of effects from multiple spend periods.
 
-### Initially Proposed (Still Incorrect)
-```python
-ROAS[t] = sum(contribution[t:t+l_max]) / spend[t]
-```
-**Problem**: Still doesn't isolate the incremental effect of spend[t]. The contribution[t+i] includes effects from multiple spend periods, not just spend[t].
+**Problem**: Element-wise division that:
+- Ignores carryover effects from adstock transformation
+- Treats each period independently
+- Does not use counterfactual approach
 
 ### Required Implementation (Counterfactual Approach)
-```python
-# For channel m over period [t0, t1]:
-# 1. Predict KPI with actual spend on channel m
-Y_actual = model.predict(X_actual)
 
-# 2. Create counterfactual data: zero spend on channel m during [t0, t1]
+```python
+# For all channels over period [t0, t1]:
+# 1. Predict KPI with actual spend on all channels
+Y_actual = model.sample_posterior_predictive(X_actual)
+
+# 2. Create counterfactual: zero spend on all channels during [t0, t1]
 X_counterfactual = X_actual.copy()
-X_counterfactual.loc[t0:t1, channel_m] = 0
+X_counterfactual.loc[t0:t1, all_channels] = 0
 
 # 3. Predict KPI with counterfactual (zero) spend
-Y_counterfactual = model.predict(X_counterfactual)
+Y_counterfactual = model.sample_posterior_predictive(X_counterfactual)
 
-# 4. Sum differences over extended window [t0, t1+L-1] to capture carryover
-incremental_contribution = sum(Y_actual[t0:t1+L] - Y_counterfactual[t0:t1+L])
+# 4. Compute incremental contribution with vectorized operations
+incremental = Y_actual - Y_counterfactual  # Shape: (sample, date_extended)
 
-# 5. Compute ROAS
-ROAS_m = incremental_contribution / sum(spend[t0:t1])
+# 5. Sum over extended window and divide by spend
+# Use xarray operations to broadcast across all channels simultaneously
+total_incremental = incremental.sum(dim='date')  # (sample, channel)
+total_spend = spend.sum(dim='date')  # (channel,)
+ROAS = total_incremental / total_spend  # (sample, channel)
 ```
 
 ## Detailed Findings
 
-### 1. Current ROAS Implementation
+### 1. MultidimensionalMMM Class Structure
 
-#### Primary ROAS Computation
-**File**: `pymc_marketing/data/idata/mmm_wrapper.py:315-342`
+**File**: `pymc_marketing/mmm/multidimensional.py:213-3000+`
 
+#### Class Definition and Key Attributes
 ```python
-def get_roas(self, original_scale: bool = True) -> xr.DataArray:
-    """Compute ROAS (Return on Ad Spend) for each channel.
+class MMM(RegressionModelBuilder):
+    """Marketing Mix Model class (multi-dimensional panel data support)."""
 
-    ROAS = contribution / spend for each channel.
-    """
-    contributions = self.get_channel_contributions(original_scale=original_scale)
-    spend = self.get_channel_spend()
-
-    # Handle zero spend - use xr.where to avoid division by zero
-    spend_safe = xr.where(spend == 0, np.nan, spend)
-
-    return contributions / spend_safe  # Line 342: Element-wise division
+    # Key attributes:
+    # self.date_column: str - Date column name
+    # self.channel_columns: list[str] - Media channel names
+    # self.target_column: str - Target variable name
+    # self.dims: tuple[str, ...] - Additional dimensions (geo, region, etc.)
+    # self.adstock: AdstockTransformation - Access via self.adstock.l_max
+    # self.saturation: SaturationTransformation
+    # self.X: pd.DataFrame - Stored raw pandas data
+    # self.y: pd.Series - Stored raw target
+    # self.xarray_dataset: xr.Dataset - Internal xarray format
 ```
 
-**Critical Issue**:
-- Line 342 performs element-wise division: `contribution[t] / spend[t]`
-- Does **not** use counterfactual approach
-- Does **not** account for carryover effects extending beyond spend period
-- Incorrectly attributes mixed contributions to individual spend periods
-
-#### ROAS Summary Interface
-**File**: `pymc_marketing/mmm/summary.py:470-520`
-
+#### Data Storage During Preprocessing (lines 1034-1089)
 ```python
-def roas(
-    self,
-    hdi_probs: Sequence[float] = (0.025, 0.5, 0.975),
-    output_format: OutputFormatType = "dataframe",
-) -> pd.DataFrame | xr.Dataset:
-    """Computes ROAS = contribution / spend"""
-    data = self._ensure_data_is_loaded()
-    roas = data.get_roas(original_scale=True)  # Line 515: Delegates to wrapper
-    df = self._compute_summary_stats_with_hdi(roas, hdi_probs)
-    return self._convert_output(df, output_format)
+def _generate_and_preprocess_model_data(self, X: pd.DataFrame, y: pd.Series):
+    self.X = X  # Line 1039: Raw pandas DataFrame stored
+    self.y = y  # Line 1040: Raw pandas Series stored
+
+    # Convert to xarray for internal use
+    X_dataarray = self._create_xarray_from_pandas(...)
+    y_dataarray = self._create_xarray_from_pandas(...)
+
+    # Merge into single xarray Dataset
+    self.xarray_dataset = xr.merge(dataarrays).fillna(0)
+
+    # Extract coordinates for model
+    self.model_coords = {
+        dim: self.xarray_dataset.coords[dim].values
+        for dim in self.xarray_dataset.coords.dims
+    }
 ```
 
-This inherits the same issue from the wrapper.
+**Key Insight**: `self.X` and `self.y` are readily available for ROAS computation without needing to extract from `fit_data`.
 
-### 2. How Channel Contributions are Actually Computed
-
-#### Model Structure
-**File**: `pymc_marketing/mmm/mmm.py:779-914`
-
-The MMM computes the total KPI prediction additively:
-
-```python
-mu (scaled) = intercept + Σ(channel_contributions) + Σ(control_contributions) + seasonality
-```
-
-Each `channel_contribution[t, m]` is computed via:
-1. **Adstock transformation** (geometric, delayed, Weibull, etc.) creates temporal dependencies
-2. **Saturation transformation** (logistic, Hill, etc.) creates diminishing returns
-3. **Time-varying effects** (optional) modulate contributions temporally
-
-**Critical point**: The stored `channel_contribution` is NOT the marginal/incremental contribution of that channel. It's the contribution computed WITH all channels active. To get the incremental effect, we need counterfactual comparison.
-
-#### Forward Pass
-**File**: `pymc_marketing/mmm/mmm.py:492-518`
-
-```python
-def forward_pass(self, x: pt.TensorVariable | npt.NDArray) -> pt.TensorVariable:
-    """Transform channel input into target contributions.
-
-    Handles the ordering of adstock and saturation transformations.
-    """
-    first, second = (
-        (self.adstock, self.saturation)
-        if self.adstock_first
-        else (self.saturation, self.adstock)
-    )
-
-    return second.apply(x=first.apply(x=x, dims="channel"), dims="channel")
-```
-
-The forward pass can be evaluated with **modified inputs** (e.g., zero spend for specific channels), enabling counterfactual predictions.
-
-### 3. Counterfactual Prediction Capabilities
-
-The codebase has extensive infrastructure for counterfactual analysis:
-
-#### Method 1: `sample_posterior_predictive()` with Modified Data
-**File**: `pymc_marketing/mmm/mmm.py:2467-2546`
-
+#### sample_posterior_predictive Method (lines 1800-1871)
 ```python
 def sample_posterior_predictive(
     self,
-    X=None,
+    X: pd.DataFrame | None = None,
     extend_idata: bool = True,
     combined: bool = True,
     include_last_observations: bool = False,
-    original_scale: bool = True,
+    clone_model: bool = True,
     **sample_posterior_predictive_kwargs,
-) -> DataArray:
-    """Sample from the model's posterior predictive distribution.
-
-    Can accept modified X data with channels set to zero for counterfactuals.
-    """
-    if include_last_observations:
-        # Prepend last l_max observations to capture carryover from historical spend
-        X = pd.concat(
-            [self.X.iloc[-self.adstock.l_max :, :], X], axis=0
-        ).sort_values(by=self.date_column)
-
-    self._data_setter(X)  # Updates model data via pm.set_data()
-
-    with self.model:
-        post_pred = pm.sample_posterior_predictive(
-            self.idata, **sample_posterior_predictive_kwargs
-        )
-```
-
-**Usage for counterfactual ROAS**:
-```python
-# 1. Predict with actual spend
-Y_actual = mmm.sample_posterior_predictive(
-    X_actual,
-    var_names=["y"],
-    include_last_observations=True,  # Important for carryover!
-    original_scale=True
-)
-
-# 2. Create counterfactual: zero spend on target channel
-X_counterfactual = X_actual.copy()
-X_counterfactual["tv"] = 0
-
-# 3. Predict with counterfactual
-Y_counterfactual = mmm.sample_posterior_predictive(
-    X_counterfactual,
-    var_names=["y"],
-    include_last_observations=True,
-    original_scale=True
-)
-
-# 4. Compute incremental contribution
-incremental = Y_actual - Y_counterfactual
-
-# 5. Aggregate over period and compute ROAS
-```
-
-#### Method 2: `channel_contribution_forward_pass()`
-**File**: `pymc_marketing/mmm/mmm.py:956-1025, 1439-1476`
-
-```python
-def channel_contribution_forward_pass(
-    self,
-    channel_data: npt.NDArray,
-    disable_logger_stdout: bool | None = False,
-) -> npt.NDArray:
-    """Evaluate channel contribution for given channel data (forward pass).
-
-    Can be used with zero spend for specific channels to compute counterfactuals.
-    """
-```
-
-This creates a new PyMC model context with custom channel data and samples contributions directly.
-
-#### Method 3: `new_spend_contributions()`
-**File**: `pymc_marketing/mmm/mmm.py:1876-1992`
-
-```python
-def new_spend_contributions(
-    self,
-    spend: np.ndarray | pd.Series | pd.DataFrame,
-    one_time: bool = True,
-    spend_leading_up: np.ndarray | pd.DataFrame | None = None,
-    prior: bool = False,
-    original_scale: bool = True,
-    **sample_posterior_predictive_kwargs,
-) -> DataArray:
-    """Compute contributions for hypothetical new spend scenarios."""
-```
-
-Useful for scenario analysis, though designed for new spend rather than counterfactuals.
-
-#### Related: Sensitivity Analysis
-**File**: `pymc_marketing/mmm/sensitivity_analysis.py:105-497`
-
-The `SensitivityAnalysis` class provides systematic intervention analysis:
-- `run_sweep()`: Evaluate model with systematic parameter changes
-- `compute_uplift_curve_respect_to_base()`: Compute uplift vs baseline
-- `compute_marginal_effects()`: Differentiate to get marginal ROI
-
-### 4. Time Aggregation Infrastructure
-
-The codebase has robust support for time aggregation:
-
-#### XArray Resample for InferenceData
-**File**: `pymc_marketing/data/idata/utils.py:136-213`
-
-```python
-def aggregate_idata_time(
-    idata: az.InferenceData,
-    period: Literal["weekly", "monthly", "quarterly", "yearly", "all_time"],
-    method: Literal["sum", "mean"] = "sum",
-) -> az.InferenceData:
-    """Aggregate InferenceData over time periods using xarray resample."""
-```
-
-#### Wrapper Method
-**File**: `pymc_marketing/data/idata/mmm_wrapper.py:548-576`
-
-```python
-def aggregate_time(
-    self,
-    period: Literal["weekly", "monthly", "quarterly", "yearly", "all_time"],
-    method: Literal["sum", "mean"] = "sum",
-) -> "MMMIDataWrapper":
-    """Aggregate data over time periods."""
-```
-
-#### Summary Factory Integration
-**File**: `pymc_marketing/mmm/summary.py:287-327, 399-468`
-
-```python
-def contributions(
-    self,
-    hdi_probs: Sequence[float] | None = None,
-    component: Literal["channel", "control", "seasonality", "baseline"] = "channel",
-    frequency: Frequency | None = None,  # "weekly", "monthly", "quarterly", "yearly"
-    output_format: OutputFormat | None = None,
-) -> DataFrameType:
-    """Create contribution summary at specified frequency."""
-```
-
-**Key insight**: The `frequency` parameter already exists in the summary API and aggregates data before computing statistics. This pattern should be extended to ROAS computation.
-
-### 5. Adstock and Carryover Window
-
-#### Adstock Base Class
-**File**: `pymc_marketing/mmm/components/adstock.py:84-176`
-
-```python
-class AdstockTransformation(BaseModel, ABC):
-    """Base class for adstock transformations."""
-
-    def __init__(
-        self,
-        l_max: int = Field(..., gt=0, description="Maximum lag for adstock"),
-        # ...
-    ) -> None:
-        self.l_max = l_max  # Carryover window length
-```
-
-All adstock types (Geometric, Delayed, Weibull) have `l_max` parameter accessible via `model.adstock.l_max`.
-
-#### Convolution Creates Carryover
-**File**: `pymc_marketing/mmm/transformers.py:212-297`
-
-```python
-def geometric_adstock(
-    x,
-    alpha: float = 0.0,
-    l_max: int = 12,
-    normalize: bool = False,
-    axis: int = 0,
-    mode: ConvMode = ConvMode.After,
-) -> TensorVariable:
-    """Geometric adstock transformation.
-
-    The cumulative media effect is a weighted average of current and past spend.
-    l_max is the maximum duration of carryover effect.
-    """
-```
-
-With `ConvMode.After` (default), spend at time `t` affects contributions at times `t, t+1, ..., t+l_max-1`.
-
-### 6. Budget Optimizer: Carryover Handling Reference
-
-**File**: `pymc_marketing/mmm/budget_optimizer.py:896-952`
-
-```python
-def _replace_channel_data_by_optimization_variable(self, model: Model) -> Model:
-    """Replace channel_data with optimization variable."""
-    num_periods = self.num_periods
-    max_lag = self.mmm_model.adstock.l_max  # Line 899: Access l_max
-
-    # Pad optimization horizon with l_max extra periods to capture carryover
-    repeated_budgets_with_carry_over_shape.insert(
-        date_dim_idx, num_periods + max_lag  # Line 930
-    )
-```
-
-This demonstrates the correct pattern: extend the evaluation window by `l_max` periods to capture trailing carryover effects.
-
-## Architecture Insights
-
-### Why Current Implementation is Wrong
-
-The stored `channel_contribution[t, m]` is computed as:
-```
-channel_contribution[t, m] = saturation(adstock(spend[:, m]))[t]
-```
-
-Due to adstock convolution:
-```
-adstock(spend)[t] = w[0]*spend[t] + w[1]*spend[t-1] + ... + w[l_max-1]*spend[t-l_max+1]
-```
-
-Therefore, `channel_contribution[t, m]` includes effects from `spend[t-l_max+1:t+1, m]`.
-
-Simply dividing `contribution[t] / spend[t]` incorrectly assumes:
-1. All of `contribution[t]` comes from `spend[t]` (ignores past spend effects)
-2. `spend[t]` only affects `contribution[t]` (ignores future effects)
-
-### The Counterfactual Solution
-
-To correctly attribute the effect of `spend[t0:t1, m]`:
-
-1. **Recognize that spend effects extend beyond spend period**: Spend during `[t0, t1]` creates contributions through `[t0, t1+l_max-1]`
-
-2. **Use incremental contribution**: Compare predicted KPI with vs. without the channel active
-
-3. **Account for carryover**: Extend evaluation window by `l_max-1` periods
-
-4. **Aggregate properly**: Sum the incremental effects and divide by total spend
-
-### Data Flow for Counterfactual ROAS
-
-```
-Input: Time period [t0, t1], target channel m
-
-Step 1: Prepare data for extended window [t0, t1+l_max-1]
-  - If t1+l_max-1 > T (end of data), use available data up to T
-  - Include last l_max observations before t0 for historical carryover
-
-Step 2: Predict with actual spend
-  Y_actual[t0:t1+l_max] = model.sample_posterior_predictive(
-      X[t0-l_max:t1+l_max],
-      var_names=["y"]
-  )
-
-Step 3: Create counterfactual
-  X_counter = X.copy()
-  X_counter[t0:t1, channel_m] = 0
-
-Step 4: Predict with counterfactual
-  Y_counter[t0:t1+l_max] = model.sample_posterior_predictive(
-      X_counter[t0-l_max:t1+l_max],
-      var_names=["y"]
-  )
-
-Step 5: Compute incremental contribution (across posterior samples)
-  incremental[t0:t1+l_max] = Y_actual[t0:t1+l_max] - Y_counter[t0:t1+l_max]
-
-Step 6: Aggregate and compute ROAS
-  ROAS_m = sum(incremental[t0:t1+l_max]) / sum(spend[t0:t1, m])
-```
-
-### Efficient Implementation Strategy
-
-#### Challenge: Computational Cost
-Computing counterfactual ROAS for every time period requires:
-- 2 × T posterior predictive samplings (actual + counterfactual)
-- For C channels: 2 × T × C samplings
-- With weekly data over 2 years: 2 × 104 × C samplings
-
-#### Solution: Frequency-Aware Computation
-
-**Observation**: Users typically request ROAS at lower frequencies than data frequency.
-
-**Strategy**:
-1. Accept a `frequency` parameter: "weekly", "monthly", "quarterly", "yearly", "all_time"
-2. Compute ROAS directly at requested frequency instead of per-period
-3. Use vectorization where possible
-
-**Example**: Yearly ROAS with weekly data
-- **Naive**: Compute 52 weekly ROAS values, then aggregate → 2 × 52 samplings per channel
-- **Efficient**: Compute 1 yearly ROAS directly → 2 samplings per channel
-
-**Implementation**:
-```python
-def get_roas(
-    self,
-    original_scale: bool = True,
-    frequency: Literal["original", "weekly", "monthly", "quarterly", "yearly", "all_time"] = "original",
 ) -> xr.DataArray:
-    """Compute ROAS using counterfactual approach at specified frequency."""
-
-    if frequency == "original":
-        # Compute at original data frequency (most expensive)
-        periods = range(len(self.dates))
-    else:
-        # Group dates by requested frequency
-        periods = self._get_period_groups(frequency)
-
-    roas_results = []
-
-    for period_dates in periods:
-        t0, t1 = period_dates[0], period_dates[-1]
-        l_max = self._get_l_max()
-
-        # Extend window for carryover
-        eval_window = self._extend_window(t0, t1, l_max)
-
-        for channel in self.channels:
-            # Compute incremental contribution for this channel and period
-            incremental = self._compute_incremental_contribution(
-                channel, t0, t1, eval_window
-            )
-
-            # Compute ROAS
-            total_spend = self.get_channel_spend().sel(
-                date=slice(t0, t1), channel=channel
-            ).sum()
-
-            roas = incremental.sum(dim="date") / total_spend
-            roas_results.append(roas)
-
-    return xr.concat(roas_results, dim="date")
-```
-
-### Vectorization Opportunities
-
-**Challenge**: Computing counterfactuals for all channels separately is inefficient.
-
-**Optimization**: Compute all counterfactuals in parallel by setting multiple channels to zero simultaneously and using xarray's broadcasting.
-
-**Not recommended**: The marginal cost of separate channel predictions may not justify the complexity of vectorized implementation, especially given frequency-based optimization above.
-
-## Implementation Recommendations
-
-### Required Changes
-
-#### 1. Add Counterfactual ROAS Method to MMMIDataWrapper
-**File**: `pymc_marketing/data/idata/mmm_wrapper.py`
-
-Add new method `get_roas_counterfactual()`:
-
-```python
-def get_roas_counterfactual(
-    self,
-    frequency: Literal["original", "weekly", "monthly", "quarterly", "yearly", "all_time"] = "original",
-    include_carryover: bool = True,
-) -> xr.DataArray:
-    """Compute ROAS using counterfactual approach from Google MMM paper.
+    """Sample from posterior predictive distribution.
 
     Parameters
     ----------
-    frequency : str
-        Time frequency for ROAS computation. Computing at lower frequencies
-        (e.g., "yearly" vs "original") is much more efficient.
-    include_carryover : bool
-        If True, extends evaluation window by l_max periods to capture
-        carryover effects. Should generally be True for accurate ROAS.
-
-    Returns
-    -------
-    xr.DataArray
-        ROAS with dims (chain, draw, period, channel)
+    include_last_observations : bool
+        If True, prepends last l_max observations for adstock continuity.
+        Critical for capturing carryover from historical spend.
     """
 ```
 
-This requires access to:
-- The fitted MMM model instance (to call `sample_posterior_predictive`)
-- Original input data X
-- Model's adstock l_max parameter
+**Key Features**:
+- Accepts modified X data (enables counterfactual scenarios)
+- `include_last_observations=True` prepends last `l_max` observations (line 1672)
+- Updates model data via `_set_xarray_data()` (lines 1730-1796)
+- Returns xarray DataArray with posterior samples
 
-**Problem**: `MMMIDataWrapper` only has access to `InferenceData`, not the original model. Need to either:
-- Store model reference in wrapper during initialization
-- Move ROAS computation to the MMM class itself
-- Store necessary info (l_max, X) in InferenceData attributes
+#### Adstock Access Pattern
+```python
+# Access l_max from adstock component
+self.adstock.l_max  # Returns integer carryover window length
 
-#### 2. Add ROAS Method to MMM Class
-**File**: `pymc_marketing/mmm/mmm.py`
+# Used throughout codebase:
+# Line 1868: Remove extra observations after prediction
+posterior_predictive_samples.isel(date=slice(self.adstock.l_max, None))
 
-Add method to MMM class (preferred location):
+# Line 1672: Get last observations for carryover
+last_obs = self.xarray_dataset.isel(date=slice(-self.adstock.l_max, None))
+```
+
+### 2. fit_data Structure and Extraction
+
+**File**: `pymc_marketing/model_builder.py:905-922, 1014-1025`
+
+#### Creation During Fit (line 1014-1025)
+```python
+# After sampling, create fit_data group
+fit_data = self.create_fit_data(X, y)
+
+# Add to InferenceData with warning suppression
+with warnings.catch_warnings():
+    warnings.filterwarnings("ignore", category=UserWarning,
+                           message="The group fit_data is not defined...")
+    self.idata.add_groups(fit_data=fit_data)
+```
+
+#### Extraction Pattern
+**File**: `pymc_marketing/mmm/multidimensional.py:2695-2705`
+
+```python
+def build_from_idata(self, idata: az.InferenceData) -> None:
+    """Rebuild model from InferenceData object."""
+    dataset = idata.fit_data.to_dataframe()  # Convert to DataFrame
+
+    # Handle MultiIndex or DatetimeIndex
+    if isinstance(dataset.index, (pd.MultiIndex, pd.DatetimeIndex)):
+        dataset = dataset.reset_index()
+
+    # Separate features from target
+    X = dataset.drop(columns=[self.target_column])
+    y = dataset[self.target_column]
+
+    self.build_model(X, y)
+```
+
+**Key Insight**: For ROAS computation, prefer using `self.X` and `self.y` directly rather than extracting from `fit_data`. The `fit_data` extraction is primarily for model persistence/loading.
+
+### 3. Vectorized Counterfactual Computation
+
+**File**: `pymc_marketing/mmm/sensitivity_analysis.py:289-438`
+
+The `SensitivityAnalysis` class demonstrates the efficient vectorized pattern:
+
+#### Step 1: Extract Response Distribution (lines 165-174)
+```python
+def _extract_response_distribution(self, response_variable: str,
+                                     posterior_sample_fraction: float):
+    """Extract response distribution graph conditioned on posterior samples."""
+    draw_selection = self._draw_indices_for_percentage(posterior_sample_fraction)
+    return extract_response_distribution(
+        pymc_model=self.model,
+        idata=self.idata.isel(draw=draw_selection),
+        response_variable=response_variable,
+    )
+```
+
+**What it does** (`pytensor_utils.py:264-341`):
+- Converts InferenceData to sample-major xarray (line 292)
+- Identifies needed free RVs via graph traversal (lines 298-301)
+- Replaces RVs with placeholders via `clone_replace()` (lines 302-312)
+- Replaces placeholders with posterior samples (lines 322-329)
+- **Vectorizes graph** using `vectorize_graph()` (line 329)
+
+#### Step 2: Create Batched Input (lines 388-407)
+```python
+# Prepare batched input with sweep axis for multiple scenarios
+data_shared: SharedVariable = self.model[var_input]
+base_value = data_shared.get_value()  # Shape: (date, channel)
+num_sweeps = int(np.asarray(sweep_values).shape[0])
+
+# Build (sweep, 1, 1, ...) array to broadcast against base_value
+sweep_col = np.asarray(sweep_values, dtype=base_value.dtype).reshape(
+    (num_sweeps,) + (1,) * base_value.ndim
+)
+
+if sweep_type == "multiplicative":
+    batched_input = sweep_col * base_value[None, ...]  # (sweep, date, channel)
+elif sweep_type == "additive":
+    batched_input = sweep_col + base_value[None, ...]
+elif sweep_type == "absolute":
+    batched_input = np.broadcast_to(sweep_col, (num_sweeps, *base_value.shape))
+```
+
+**Key Pattern**: Broadcasting creates shape `(n_scenarios, n_dates, n_channels)` efficiently.
+
+#### Step 3: Vectorize Graph Over Sweep Axis (lines 409-419)
+```python
+# Vectorize response graph over the new sweep axis
+channel_in = pt.tensor(
+    name=f"{var_input}_sweep_in",
+    dtype=data_shared.dtype,
+    shape=(None, *data_shared.type.shape),  # (sweep, date, channel)
+)
+
+sweep_graph = vectorize_graph(resp_graph, replace={data_shared: channel_in})
+fn = function([channel_in], sweep_graph)  # Output: (sweep, sample, date, *dims)
+
+# Evaluate ALL scenarios in single call
+evaluated = fn(batched_input)
+```
+
+**Result**: `evaluated` has shape `(n_scenarios, n_samples, n_dates_extended)` computed in **single PyTensor evaluation**.
+
+### 4. Time Frequency Handling (Frequency-Agnostic)
+
+**File**: `pymc_marketing/mmm/utils.py:268-277, 181-224`
+
+#### Automatic Frequency Inference
+```python
+# Infer date frequency from data
+date_series = pd.to_datetime(original_data[date_col])
+inferred_freq = pd.infer_freq(date_series.unique())
+
+if inferred_freq is None:  # Fallback with warning
+    warnings.warn(
+        f"Could not infer frequency from '{date_col}'. Using weekly ('W').",
+        UserWarning,
+        stacklevel=2,
+    )
+    inferred_freq = "W"
+```
+
+**Returns**: Standard Pandas offset string ('D', 'W', 'M', 'Y', etc.)
+
+#### Frequency to Timedelta Conversion
+```python
+def _convert_frequency_to_timedelta(periods: int, freq: str) -> pd.Timedelta:
+    """Convert frequency string and periods to Timedelta."""
+    base_freq = freq[0] if len(freq) > 1 else freq
+
+    if base_freq == "D":
+        return pd.Timedelta(days=periods)
+    elif base_freq == "W":
+        return pd.Timedelta(weeks=periods)
+    elif base_freq == "M":
+        return pd.Timedelta(days=periods * 30)  # Approximate
+    elif base_freq == "Y":
+        return pd.Timedelta(days=periods * 365)  # Approximate
+    # ... more frequencies ...
+    else:
+        warnings.warn(f"Unrecognized frequency '{freq}'. Defaulting to weeks.")
+        return pd.Timedelta(weeks=periods)
+```
+
+**Key Insight**: Never assumes weekly data. All time operations use detected frequency.
+
+#### Period-Based Grouping
+**File**: `pymc_marketing/data/idata/utils.py:187-207`
+
+```python
+# Map user-friendly names to Pandas frequency strings
+period_map = {
+    "weekly": "W",
+    "monthly": "ME",      # Modern pandas 2.2+ alias (month-end)
+    "quarterly": "QE",    # Quarter-end
+    "yearly": "YE",       # Year-end
+}
+freq = period_map[period]
+
+# Aggregate using xarray resample
+if method == "sum":
+    aggregated = group.resample(date=freq).sum(dim="date")
+elif method == "mean":
+    aggregated = group.resample(date=freq).mean(dim="date")
+```
+
+**Key Pattern**: Use xarray's `resample()` for frequency-aware aggregation. Works on multi-dimensional data (chain, draw, date, channel).
+
+### 5. Carryover Handling Patterns
+
+#### Pattern 1: include_last_observations Parameter
+
+**File**: `pymc_marketing/mmm/multidimensional.py:1665-1683`
+
+```python
+def _posterior_predictive_data_transformation(
+    self, X: pd.DataFrame, include_last_observations: bool = False
+) -> xr.Dataset:
+    """Transform data for posterior predictive sampling."""
+
+    # Validate no date overlap when including last observations
+    self._validate_date_overlap_with_include_last_observations(
+        X, include_last_observations
+    )
+
+    dataarrays = []
+    if include_last_observations:
+        # Prepend last l_max observations for historical carryover
+        last_obs = self.xarray_dataset.isel(date=slice(-self.adstock.l_max, None))
+        dataarrays.append(last_obs)
+
+    # Add new prediction data
+    X_xarray = self._create_xarray_from_pandas(...)
+    dataarrays.append(X_xarray)
+
+    # Concatenate historical + new data
+    return xr.concat(dataarrays, dim='date')
+```
+
+**Used For**: Capturing carryover from historical spend into evaluation period (carry-in effect).
+
+#### Pattern 2: Date Overlap Validation
+
+**File**: `pymc_marketing/mmm/multidimensional.py:1559-1594`
+
+```python
+def _validate_date_overlap_with_include_last_observations(
+    self, X: pd.DataFrame, include_last_observations: bool
+) -> None:
+    """Prevent duplicate dates when using include_last_observations."""
+
+    if not include_last_observations:
+        return
+
+    training_dates = pd.to_datetime(self.model_coords["date"])
+    input_dates = pd.to_datetime(X[self.date_column].unique())
+
+    overlapping_dates = set(training_dates).intersection(set(input_dates))
+
+    if overlapping_dates:
+        raise ValueError(
+            f"Cannot use include_last_observations=True with overlapping dates. "
+            f"Overlapping: {overlapping_dates}"
+        )
+```
+
+**Purpose**: Ensures `include_last_observations=True` only used for truly future predictions.
+
+#### Pattern 3: Budget Optimizer Carryover Padding
+
+**File**: `pymc_marketing/mmm/budget_optimizer.py:926-952`
+
+```python
+def _replace_channel_data_by_optimization_variable(self, model: Model) -> Model:
+    """Replace channel_data with optimization variable, padded for carryover."""
+
+    num_periods = self.num_periods
+    max_lag = self.mmm_model.adstock.l_max
+
+    # Create tensor of size (num_periods + max_lag)
+    repeated_budgets_with_carry_over_shape = list(tuple(budgets.shape))
+    repeated_budgets_with_carry_over_shape.insert(
+        date_dim_idx, num_periods + max_lag
+    )
+
+    # Initialize with zeros
+    repeated_budgets_with_carry_over = pt.zeros(
+        repeated_budgets_with_carry_over_shape,
+        dtype=channel_data_dtype,
+    )
+
+    # Set first num_periods to actual budgets, rest remain zero for carryover
+    set_idxs = (*((slice(None),) * date_dim_idx), slice(None, num_periods))
+    repeated_budgets_with_carry_over = repeated_budgets_with_carry_over[set_idxs].set(
+        pt.cast(repeated_budgets, channel_data_dtype)
+    )
+
+    return do(model, {"channel_data": repeated_budgets_with_carry_over})
+```
+
+**Used For**: Capturing carryover from spend period into post-period (carry-out effect).
+
+#### Pattern 4: Post-Prediction Slicing
+
+**File**: `pymc_marketing/mmm/multidimensional.py:1865-1869`
+
+```python
+if include_last_observations:
+    # Remove extra observations used for adstock continuity
+    posterior_predictive_samples = posterior_predictive_samples.isel(
+        date=slice(self.adstock.l_max, None)
+    )
+```
+
+**Purpose**: After sampling with prepended historical data, remove the first `l_max` observations to return only requested future periods.
+
+## Implementation Recommendations
+
+### Required Method Signature
+
+**Location**: Add to `pymc_marketing/mmm/multidimensional.py` (MultidimensionalMMM class)
 
 ```python
 def compute_roas(
     self,
+    frequency: Literal["weekly", "monthly", "quarterly", "yearly", "all_time"],
     period_start: str | pd.Timestamp | None = None,
     period_end: str | pd.Timestamp | None = None,
-    frequency: Literal["original", "weekly", "monthly", "quarterly", "yearly", "all_time"] = "all_time",
-    channels: list[str] | None = None,
-    include_carryover: bool = True,
+    include_carryin: bool = True,
+    include_carryout: bool = True,
     original_scale: bool = True,
 ) -> xr.DataArray:
-    """Compute ROAS using counterfactual approach.
+    """Compute ROAS using counterfactual approach (Google MMM paper formula 10).
 
-    Implements Google MMM paper formula (10): compares predicted KPI with
-    actual spend vs. zero spend for each channel, accounting for carryover.
+    Implements the correct ROAS computation by comparing predicted KPI with actual
+    spend vs. counterfactual (zero) spend for all channels, accounting for adstock
+    carryover effects.
 
     Parameters
     ----------
-    period_start, period_end : str or Timestamp, optional
-        Period for ROAS computation. If None, uses entire fitted data period.
-    frequency : str
-        Aggregation frequency. Lower frequencies are more efficient.
-        - "all_time": Single ROAS across entire period
+    frequency : {"weekly", "monthly", "quarterly", "yearly", "all_time"}
+        Time aggregation frequency for ROAS computation. REQUIRED parameter.
+        Lower frequencies are significantly more efficient computationally.
+        - "all_time": Single ROAS across entire period (most efficient)
         - "yearly", "quarterly", "monthly": Aggregate by period
-        - "original": Per-period ROAS (most expensive)
-    channels : list of str, optional
-        Channels to compute ROAS for. If None, computes for all channels.
-    include_carryover : bool
-        If True, extends evaluation window by l_max periods to capture
-        trailing carryover effects from spend in the period.
-    original_scale : bool
-        If True, returns ROAS in original target scale.
+        - "weekly": Per-week ROAS (most expensive, matches data frequency)
+    period_start : str or Timestamp, optional
+        Start date for ROAS evaluation. If None, uses start of fitted data period.
+    period_end : str or Timestamp, optional
+        End date for ROAS evaluation. If None, uses end of fitted data period.
+    include_carryin : bool, default=True
+        Include impact of pre-period channel spend via adstock carryover.
+        When True, uses include_last_observations=True in posterior prediction
+        to capture historical spending effects that carry into the evaluation period.
+    include_carryout : bool, default=True
+        Include impact of evaluation period spend that carries into post-period.
+        When True, extends evaluation window by l_max periods to capture trailing
+        adstock effects from spend during [period_start, period_end].
+    original_scale : bool, default=True
+        Return ROAS in original scale of target variable.
 
     Returns
     -------
     xr.DataArray
-        ROAS with dims (chain, draw, period, channel)
+        ROAS with dims (sample, period, channel) where:
+        - sample: Posterior samples (chain × draw)
+        - period: Time periods based on frequency parameter
+        - channel: Marketing channels
+
+    Raises
+    ------
+    ValueError
+        If frequency is not one of the allowed values.
+        If period dates are outside fitted data range.
+
+    Notes
+    -----
+    **Computational Cost**: Computing counterfactual ROAS requires 2 posterior
+    predictive evaluations (actual vs counterfactual) for each time period.
+    For a model with 104 weeks and 5 channels:
+    - frequency="all_time": 2 evaluations (very fast)
+    - frequency="yearly" (2 years): 4 evaluations (fast)
+    - frequency="monthly" (24 months): 48 evaluations (moderate)
+    - frequency="weekly" (104 weeks): 208 evaluations (slow)
+
+    **Carryover Logic**:
+    - include_carryin=True: Prepends last l_max observations before evaluation period
+    - include_carryout=True: Extends evaluation window to period_end + l_max
+    - Both default to True for accurate ROAS capturing full adstock effects
+
+    **Edge Cases**:
+    - Zero spend in period: Returns NaN for that channel/period
+    - Evaluation window extends beyond fitted data: Truncates to available data with warning
+    - Time-varying media effects: Handled automatically in counterfactual predictions
 
     Examples
     --------
-    >>> # Overall ROAS for all channels
+    >>> # Compute overall ROAS for all channels (most common use case)
     >>> roas = mmm.compute_roas(frequency="all_time")
-    >>>
-    >>> # Quarterly ROAS for TV and Radio
-    >>> roas = mmm.compute_roas(
+    >>> roas.mean(dim="sample")  # Posterior mean ROAS by channel
+    <xarray.DataArray (channel: 3)>
+    array([2.34, 1.87, 3.12])
+    Coordinates:
+      * channel  (channel) <U10 'tv' 'radio' 'digital'
+
+    >>> # Compute quarterly ROAS
+    >>> roas_q = mmm.compute_roas(
     ...     frequency="quarterly",
-    ...     channels=["tv", "radio"]
+    ...     period_start="2023-01-01",
+    ...     period_end="2024-12-31"
     ... )
-    """
-```
+    >>> roas_q.mean(dim="sample")  # Mean ROAS by quarter and channel
+    <xarray.DataArray (period: 8, channel: 3)>
+    ...
 
-#### 3. Update Summary Interface
-**File**: `pymc_marketing/mmm/summary.py`
+    >>> # Compute ROAS without carryover effects (for comparison)
+    >>> roas_no_carry = mmm.compute_roas(
+    ...     frequency="all_time",
+    ...     include_carryin=False,
+    ...     include_carryout=False
+    ... )
 
-Update the `roas()` method to use counterfactual approach:
+    >>> # Access credible intervals
+    >>> az.hdi(roas, hdi_prob=0.94)
 
-```python
-def roas(
-    self,
-    hdi_probs: Sequence[float] | None = None,
-    frequency: Frequency | None = "all_time",  # Add frequency parameter
-    output_format: OutputFormat | None = None,
-    method: Literal["simple", "counterfactual"] = "counterfactual",  # Deprecation path
-) -> DataFrameType:
-    """Compute ROAS with summary statistics.
-
-    Parameters
+    References
     ----------
-    hdi_probs : sequence of float, optional
-        HDI probability levels for credible intervals
-    frequency : str, optional
-        Time aggregation frequency. Defaults to "all_time" for overall ROAS.
-        Options: "original", "weekly", "monthly", "quarterly", "yearly", "all_time"
-    output_format : str, optional
-        Output format ("dataframe" or "dataset")
-    method : str, optional
-        ROAS computation method:
-        - "counterfactual" (default): Google paper formula with counterfactuals
-        - "simple" (deprecated): Old element-wise division method
-
-    Returns
-    -------
-    DataFrame or Dataset
-        ROAS summary with mean, HDI intervals, and other statistics
+    Google MMM Paper: https://storage.googleapis.com/gweb-research2023-media/pubtools/3806.pdf
+    Formula (10), Section 3.2.2
     """
-```
-
-#### 4. Deprecate Old Method
-
-Add deprecation warning to old `get_roas()`:
-
-```python
-def get_roas(self, original_scale: bool = True) -> xr.DataArray:
-    """Compute ROAS (Return on Ad Spend) for each channel.
-
-    .. deprecated:: X.X.X
-        This method uses element-wise division which doesn't account for
-        adstock carryover effects. Use `get_roas_counterfactual()` instead
-        for correct ROAS computation following the Google MMM paper.
-
-    ROAS = contribution / spend for each channel.
-    """
-    warnings.warn(
-        "This ROAS computation method is deprecated and may give incorrect "
-        "results due to ignoring adstock carryover effects. Use "
-        "`get_roas_counterfactual()` for accurate ROAS computation.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    # ... existing implementation ...
 ```
 
 ### Implementation Pseudocode
@@ -686,185 +591,470 @@ def get_roas(self, original_scale: bool = True) -> xr.DataArray:
 ```python
 def compute_roas(
     self,
-    period_start=None,
-    period_end=None,
-    frequency="all_time",
-    channels=None,
-    include_carryover=True,
-    original_scale=True,
+    frequency: Literal["weekly", "monthly", "quarterly", "yearly", "all_time"],
+    period_start: str | pd.Timestamp | None = None,
+    period_end: str | pd.Timestamp | None = None,
+    include_carryin: bool = True,
+    include_carryout: bool = True,
+    original_scale: bool = True,
 ) -> xr.DataArray:
     """Compute ROAS using counterfactual approach."""
 
-    # 1. Determine period groups based on frequency
+    # 1. Validate and set period bounds
     if period_start is None:
         period_start = self.X[self.date_column].min()
     if period_end is None:
         period_end = self.X[self.date_column].max()
 
-    periods = self._create_period_groups(
-        period_start, period_end, frequency
-    )  # Returns list of (t0, t1) tuples
+    period_start = pd.to_datetime(period_start)
+    period_end = pd.to_datetime(period_end)
 
-    # 2. Determine channels to compute
-    if channels is None:
-        channels = self.channel_columns
+    # 2. Infer data frequency for timedelta calculations
+    inferred_freq = pd.infer_freq(pd.to_datetime(self.X[self.date_column]).unique())
+    if inferred_freq is None:
+        warnings.warn("Could not infer frequency. Using weekly ('W').")
+        inferred_freq = "W"
 
-    # 3. Get l_max for carryover window
-    l_max = self.adstock.l_max if include_carryover else 0
+    # 3. Create period groups based on requested frequency
+    periods = self._create_period_groups(period_start, period_end, frequency)
+    # Returns list of (period_start, period_end) tuples
 
-    # 4. Compute ROAS for each period and channel
+    # 4. Get l_max for carryover window calculations
+    l_max = self.adstock.l_max
+
+    # 5. Compute ROAS for each period (vectorized across channels)
     roas_results = []
 
-    for t0, t1 in periods:
-        for channel in channels:
-            # 4a. Prepare data windows
-            # Include l_max before t0 for historical carryover into period
-            # Include l_max after t1 for carryover from period spend
-            data_start = t0 - pd.Timedelta(weeks=l_max)
-            data_end = t1 + pd.Timedelta(weeks=l_max)
+    for period_idx, (t0, t1) in enumerate(periods):
+        # 5a. Determine data window based on carryover flags
+        if include_carryin:
+            # Extend start backwards by l_max for historical carryover
+            data_start = t0 - _convert_frequency_to_timedelta(l_max, inferred_freq)
+        else:
+            data_start = t0
 
-            X_window = self.X[
-                (self.X[self.date_column] >= data_start) &
-                (self.X[self.date_column] <= data_end)
-            ]
+        if include_carryout:
+            # Extend end forwards by l_max for trailing carryover
+            data_end = t1 + _convert_frequency_to_timedelta(l_max, inferred_freq)
+        else:
+            data_end = t1
 
-            # 4b. Predict with actual spend
-            Y_actual = self.sample_posterior_predictive(
-                X_window,
-                var_names=["y"],
-                original_scale=original_scale,
-                extend_idata=False,
-            )
+        # Extract data window (may need to truncate at data boundaries)
+        X_window = self.X[
+            (self.X[self.date_column] >= data_start) &
+            (self.X[self.date_column] <= data_end)
+        ]
 
-            # 4c. Create counterfactual: zero spend on target channel in [t0, t1]
-            X_counter = X_window.copy()
-            counter_mask = (
-                (X_counter[self.date_column] >= t0) &
-                (X_counter[self.date_column] <= t1)
-            )
-            X_counter.loc[counter_mask, channel] = 0
+        # 5b. Predict with actual spend (all channels active)
+        Y_actual = self.sample_posterior_predictive(
+            X=X_window,
+            extend_idata=False,
+            include_last_observations=include_carryin,  # Prepend historical if carryin=True
+            original_scale=original_scale,
+            var_names=["y"],
+        )
+        # Shape: (sample, date_extended)
 
-            # 4d. Predict with counterfactual
-            Y_counter = self.sample_posterior_predictive(
-                X_counter,
-                var_names=["y"],
-                original_scale=original_scale,
-                extend_idata=False,
-            )
+        # 5c. Create counterfactual: zero spend on ALL channels during [t0, t1]
+        X_counterfactual = X_window.copy()
+        period_mask = (
+            (X_counterfactual[self.date_column] >= t0) &
+            (X_counterfactual[self.date_column] <= t1)
+        )
+        X_counterfactual.loc[period_mask, self.channel_columns] = 0
 
-            # 4e. Compute incremental contribution
-            # Only sum over [t0, t1+l_max] (not before t0)
-            eval_mask = (
-                (X_window[self.date_column] >= t0) &
-                (X_window[self.date_column] <= data_end)
-            )
+        # 5d. Predict with counterfactual (zero spend)
+        Y_counterfactual = self.sample_posterior_predictive(
+            X=X_counterfactual,
+            extend_idata=False,
+            include_last_observations=include_carryin,
+            original_scale=original_scale,
+            var_names=["y"],
+        )
+        # Shape: (sample, date_extended)
 
-            incremental = (Y_actual - Y_counter).sel(date=eval_mask)
-            total_incremental = incremental.sum(dim="date")
+        # 5e. Compute incremental contribution
+        # Extract evaluation window: [t0, data_end] (includes carryout if enabled)
+        eval_window_mask = (
+            (X_window[self.date_column] >= t0) &
+            (X_window[self.date_column] <= data_end)
+        )
+        eval_dates = X_window.loc[eval_window_mask, self.date_column].values
 
-            # 4f. Compute total spend in period [t0, t1]
-            spend_mask = (
-                (self.X[self.date_column] >= t0) &
-                (self.X[self.date_column] <= t1)
-            )
-            total_spend = self.X.loc[spend_mask, channel].sum()
+        incremental = Y_actual.sel(date=eval_dates) - Y_counterfactual.sel(date=eval_dates)
+        # Shape: (sample, date_eval)
 
-            # 4g. Compute ROAS
-            if total_spend == 0:
-                roas = xr.full_like(total_incremental, np.nan)
-            else:
-                roas = total_incremental / total_spend
+        # Sum over evaluation window
+        total_incremental = incremental.sum(dim="date")  # (sample,)
 
-            # Store result
-            roas = roas.assign_coords(
-                period=f"{t0.date()}_to_{t1.date()}",
-                channel=channel
-            )
-            roas_results.append(roas)
+        # 5f. Compute total spend in period [t0, t1] (NOT extended window)
+        spend_mask = (
+            (self.X[self.date_column] >= t0) &
+            (self.X[self.date_column] <= t1)
+        )
 
-    # 5. Concatenate all results
-    roas_da = xr.concat(roas_results, dim="period_channel")
-    # Reshape to (chain, draw, period, channel)
-    # ... dimensional manipulation ...
+        # For vectorized operation across all channels, create DataArray
+        total_spend = xr.DataArray(
+            self.X.loc[spend_mask, self.channel_columns].sum(axis=0).values,
+            dims=["channel"],
+            coords={"channel": self.channel_columns}
+        )
+        # Shape: (channel,)
+
+        # 5g. Compute ROAS (broadcasting: (sample,) / (channel,) → (sample, channel))
+        # Handle zero spend
+        roas_period = xr.where(
+            total_spend == 0,
+            np.nan,
+            total_incremental / total_spend
+        )
+        # Shape: (sample, channel)
+
+        # Add period coordinate
+        period_label = self._format_period_label(t0, t1, frequency)
+        roas_period = roas_period.assign_coords(period=period_label).expand_dims("period")
+
+        roas_results.append(roas_period)
+
+    # 6. Concatenate all periods
+    roas_da = xr.concat(roas_results, dim="period")
+    # Final shape: (sample, period, channel)
 
     return roas_da
+
+
+def _create_period_groups(
+    self,
+    start: pd.Timestamp,
+    end: pd.Timestamp,
+    frequency: str
+) -> list[tuple[pd.Timestamp, pd.Timestamp]]:
+    """Create list of (period_start, period_end) tuples for given frequency."""
+
+    if frequency == "all_time":
+        return [(start, end)]
+
+    # Create period index using pandas to_period
+    dates = pd.date_range(start, end, freq='D')  # Daily dates for full coverage
+
+    freq_map = {
+        "weekly": "W",
+        "monthly": "M",
+        "quarterly": "Q",
+        "yearly": "Y"
+    }
+
+    periods = dates.to_period(freq_map[frequency])
+    unique_periods = periods.unique()
+
+    # Convert periods to timestamp ranges
+    period_ranges = []
+    for period in unique_periods:
+        period_start = period.to_timestamp()
+        period_end = period.to_timestamp(how='end')
+
+        # Clip to requested range
+        period_start = max(period_start, start)
+        period_end = min(period_end, end)
+
+        period_ranges.append((period_start, period_end))
+
+    return period_ranges
+
+
+def _format_period_label(
+    self,
+    t0: pd.Timestamp,
+    t1: pd.Timestamp,
+    frequency: str
+) -> str:
+    """Format period label for display."""
+
+    if frequency == "all_time":
+        return f"{t0.date()}_to_{t1.date()}"
+    elif frequency == "yearly":
+        return f"{t0.year}"
+    elif frequency == "quarterly":
+        return f"{t0.year}Q{t0.quarter}"
+    elif frequency == "monthly":
+        return f"{t0.year}-{t0.month:02d}"
+    elif frequency == "weekly":
+        week = t0.isocalendar()[1]
+        return f"{t0.year}W{week:02d}"
+```
+
+### Optimized Vectorized Implementation (Advanced)
+
+For maximum efficiency, use PyTensor's `vectorize_graph()` to compute all channels simultaneously:
+
+```python
+def compute_roas_vectorized(
+    self,
+    frequency: Literal["weekly", "monthly", "quarterly", "yearly", "all_time"],
+    # ... other parameters ...
+) -> xr.DataArray:
+    """Compute ROAS with vectorized evaluation across all channels."""
+
+    # Setup similar to above...
+
+    for t0, t1 in periods:
+        # 1. Extract response distribution conditioned on posterior
+        from pymc_marketing.pytensor_utils import extract_response_distribution
+
+        resp_graph = extract_response_distribution(
+            pymc_model=self.model,
+            idata=self.idata,
+            response_variable="y",
+        )
+
+        # 2. Create batched counterfactual data
+        # Scenario 0: baseline (all channels active)
+        # Scenario 1-N: each channel set to zero individually
+        X_window = self.X[...]  # Extract as before
+        channel_data = X_window[self.channel_columns].values  # (n_dates, n_channels)
+        n_channels = len(self.channel_columns)
+
+        # Create batch: 1 baseline + n_channels counterfactuals
+        batched_data = np.tile(channel_data[None, :, :], (n_channels + 1, 1, 1))
+        # Shape: (n_channels+1, n_dates, n_channels)
+
+        # Zero out each channel in its corresponding scenario
+        period_mask = (...)  # Boolean mask for [t0, t1]
+        for ch_idx in range(n_channels):
+            batched_data[ch_idx + 1, period_mask, ch_idx] = 0
+
+        # 3. Vectorize evaluation function
+        channel_data_shared = self.model["channel_data"]
+
+        channel_in = pt.tensor(
+            name="channel_data_scenarios",
+            dtype=channel_data_shared.dtype,
+            shape=(None, *channel_data_shared.type.shape),  # (scenario, date, channel)
+        )
+
+        from pytensor.graph import vectorize_graph
+        scenarios_graph = vectorize_graph(resp_graph, replace={channel_data_shared: channel_in})
+
+        from pytensor import function
+        eval_fn = function([channel_in], scenarios_graph)
+
+        # 4. Evaluate all scenarios in single call
+        predictions = eval_fn(batched_data)
+        # Shape: (n_channels+1, n_samples, n_dates_extended)
+
+        # 5. Compute incremental for each channel
+        baseline = predictions[0]  # (n_samples, n_dates)
+        counterfactuals = predictions[1:]  # (n_channels, n_samples, n_dates)
+
+        # Broadcasting: (1, n_samples, n_dates) - (n_channels, n_samples, n_dates)
+        incremental = baseline[None, :, :] - counterfactuals
+        # Shape: (n_channels, n_samples, n_dates)
+
+        # 6. Sum over evaluation window and compute ROAS
+        total_incremental = incremental[:, :, eval_mask].sum(axis=2)  # (n_channels, n_samples)
+        total_spend = ...  # (n_channels,)
+
+        roas_period = total_incremental.T / total_spend  # (n_samples, n_channels)
+
+        # Convert to xarray with proper coords
+        roas_period = xr.DataArray(
+            roas_period,
+            dims=['sample', 'channel'],
+            coords={
+                'sample': np.arange(roas_period.shape[0]),
+                'channel': self.channel_columns
+            }
+        )
+
+        roas_results.append(roas_period)
+
+    # Concatenate and return
+    return xr.concat(roas_results, dim="period")
+```
+
+**Performance Benefit**: Single vectorized evaluation replaces N+1 separate `sample_posterior_predictive()` calls per period.
+
+### Summary Interface Integration
+
+**File**: `pymc_marketing/mmm/summary.py`
+
+Remove the old `roas()` method entirely and replace with:
+
+```python
+def roas(
+    self,
+    frequency: Frequency,  # Required, no default
+    period_start: str | pd.Timestamp | None = None,
+    period_end: str | pd.Timestamp | None = None,
+    include_carryin: bool = True,
+    include_carryout: bool = True,
+    hdi_probs: Sequence[float] = (0.025, 0.5, 0.975),
+    output_format: OutputFormatType = "dataframe",
+) -> pd.DataFrame | xr.Dataset:
+    """Compute ROAS with summary statistics using counterfactual approach.
+
+    Parameters
+    ----------
+    frequency : {"weekly", "monthly", "quarterly", "yearly", "all_time"}
+        Time aggregation frequency. REQUIRED parameter.
+    period_start, period_end : str or Timestamp, optional
+        Period bounds for ROAS evaluation.
+    include_carryin : bool, default=True
+        Include pre-period adstock carryover effects.
+    include_carryout : bool, default=True
+        Include post-period adstock carryover effects.
+    hdi_probs : sequence of float, default=(0.025, 0.5, 0.975)
+        HDI probability levels for credible intervals.
+    output_format : {"dataframe", "dataset"}, default="dataframe"
+        Output format.
+
+    Returns
+    -------
+    DataFrame or Dataset
+        ROAS summary with mean, HDI intervals, and other statistics.
+
+    Examples
+    --------
+    >>> # Get overall ROAS summary
+    >>> summary.roas(frequency="all_time")
+
+    >>> # Get quarterly ROAS with custom HDI levels
+    >>> summary.roas(
+    ...     frequency="quarterly",
+    ...     hdi_probs=(0.05, 0.5, 0.95),
+    ...     output_format="dataset"
+    ... )
+    """
+    # Delegate to model's compute_roas method
+    roas_data = self.model.compute_roas(
+        frequency=frequency,
+        period_start=period_start,
+        period_end=period_end,
+        include_carryin=include_carryin,
+        include_carryout=include_carryout,
+        original_scale=True,
+    )
+
+    # Compute summary statistics with HDI
+    df = self._compute_summary_stats_with_hdi(roas_data, hdi_probs)
+
+    return self._convert_output(df, output_format)
 ```
 
 ### Testing Strategy
 
 #### 1. Unit Tests
 
-**Test counterfactual computation**:
+**Test counterfactual differs from simple division**:
 ```python
-def test_roas_counterfactual_vs_simple():
-    """Verify counterfactual ROAS differs from simple division."""
-    mmm = # ... fitted model ...
+def test_roas_counterfactual_correct():
+    """Verify counterfactual ROAS differs from old simple division."""
+    mmm = create_fitted_multidimensional_mmm()
 
-    roas_simple = mmm.data.get_roas(original_scale=True)
-    roas_counter = mmm.compute_roas(frequency="all_time")
+    # New method
+    roas = mmm.compute_roas(frequency="all_time")
 
-    # Should NOT be equal (simple is wrong)
-    assert not np.allclose(
-        roas_simple.mean(),
-        roas_counter.mean()
-    )
+    # Old method (for comparison)
+    contributions = mmm.idata.posterior.channel_contribution.mean(("chain", "draw"))
+    spend = mmm.X[mmm.channel_columns].sum()
+    roas_old = contributions.sum(dim="date") / spend
+
+    # Should NOT be equal (old method is incorrect)
+    assert not np.allclose(roas.mean(dim="sample"), roas_old)
+
+    # New method should generally give lower ROAS (more conservative)
+    # because it accounts for mixed contributions
+    assert (roas.mean(dim="sample") < roas_old).all()
 ```
 
 **Test frequency parameter**:
 ```python
 def test_roas_frequency_aggregation():
-    """Verify frequency parameter reduces computation."""
-    mmm = # ... fitted model with 104 weeks ...
+    """Verify frequency parameter creates correct number of periods."""
+    mmm = create_fitted_multidimensional_mmm(n_weeks=104)  # 2 years weekly
 
-    roas_weekly = mmm.compute_roas(frequency="original")
+    roas_all = mmm.compute_roas(frequency="all_time")
     roas_yearly = mmm.compute_roas(frequency="yearly")
+    roas_monthly = mmm.compute_roas(frequency="monthly")
 
-    # Yearly should have fewer periods
-    assert roas_yearly.sizes["period"] < roas_weekly.sizes["period"]
+    assert roas_all.sizes["period"] == 1
     assert roas_yearly.sizes["period"] == 2  # 2 years
+    assert roas_monthly.sizes["period"] == 24  # 24 months
 ```
 
-**Test carryover inclusion**:
+**Test carryover flags**:
 ```python
-def test_roas_includes_carryover():
-    """Verify carryover effects are captured."""
-    mmm = # ... fitted model ...
+def test_roas_carryover_flags():
+    """Verify carryin and carryout flags affect results correctly."""
+    mmm = create_fitted_multidimensional_mmm()
 
-    roas_with_carry = mmm.compute_roas(include_carryover=True)
-    roas_without_carry = mmm.compute_roas(include_carryover=False)
+    roas_full = mmm.compute_roas(
+        frequency="all_time",
+        include_carryin=True,
+        include_carryout=True
+    )
 
-    # With carryover should generally be higher (captures trailing effects)
-    assert roas_with_carry.mean() > roas_without_carry.mean()
+    roas_no_carryin = mmm.compute_roas(
+        frequency="all_time",
+        include_carryin=False,
+        include_carryout=True
+    )
+
+    roas_no_carryout = mmm.compute_roas(
+        frequency="all_time",
+        include_carryin=True,
+        include_carryout=False
+    )
+
+    roas_no_carry = mmm.compute_roas(
+        frequency="all_time",
+        include_carryin=False,
+        include_carryout=False
+    )
+
+    # With carryover should generally be higher
+    assert (roas_full.mean(dim="sample") >= roas_no_carry.mean(dim="sample")).all()
+
+    # Carryin and carryout should have measurable impact
+    assert not np.allclose(roas_full.mean(), roas_no_carryin.mean())
+    assert not np.allclose(roas_full.mean(), roas_no_carryout.mean())
 ```
 
 **Test zero spend handling**:
 ```python
 def test_roas_handles_zero_spend():
     """Verify zero spend periods return NaN."""
-    X_with_zero = X.copy()
-    X_with_zero.loc["2023-Q1", "tv"] = 0
+    X, y = create_dataset_with_zero_spend(channel="tv", period="2023-Q1")
 
-    mmm.fit(X_with_zero, y)
+    mmm = MMM(...)
+    mmm.fit(X, y)
+
     roas = mmm.compute_roas(frequency="quarterly")
 
     # Q1 TV ROAS should be NaN
-    assert np.isnan(roas.sel(period="2023-Q1", channel="tv").mean())
+    tv_q1_roas = roas.sel(period="2023Q1", channel="tv")
+    assert np.isnan(tv_q1_roas.mean())
 ```
 
 #### 2. Integration Tests
 
 **Test with different adstock types**:
 ```python
-@pytest.mark.parametrize("adstock_type", [
-    "geometric",
-    "delayed",
-    "weibull_pdf",
-    "weibull_cdf"
+@pytest.mark.parametrize("adstock_class", [
+    GeometricAdstock,
+    DelayedAdstock,
+    WeibullPDFAdstock,
+    WeibullCDFAdstock
 ])
-def test_roas_with_different_adstock(adstock_type):
+def test_roas_with_different_adstock(adstock_class):
     """Verify ROAS works with all adstock types."""
-    mmm = create_mmm_with_adstock(adstock_type)
+    mmm = MMM(
+        adstock=adstock_class(l_max=8),
+        saturation=LogisticSaturation(),
+        # ...
+    )
     mmm.fit(X, y)
+
     roas = mmm.compute_roas(frequency="all_time")
 
     # Should produce valid results
@@ -876,243 +1066,315 @@ def test_roas_with_different_adstock(adstock_type):
 ```python
 def test_roas_with_time_varying_media():
     """Verify ROAS works with time-varying media effects."""
-    mmm = MMM(time_varying_media=True, ...)
+    from pymc_marketing.hsgp_kwargs import HSGPKwargs
+
+    mmm = MMM(
+        time_varying_media=HSGPKwargs(m=10, L=1.5),
+        # ...
+    )
     mmm.fit(X, y)
+
     roas = mmm.compute_roas(frequency="quarterly")
 
     # Time-varying shouldn't break computation
     assert not roas.isnull().all()
 ```
 
-#### 3. Validation Tests
-
-**Compare with budget optimizer**:
+**Test with multi-dimensional model**:
 ```python
-def test_roas_consistency_with_budget_optimizer():
-    """Verify ROAS is consistent with budget optimizer results."""
-    # Budget optimizer correctly handles carryover
-    # Its optimal allocations should align with ROAS rankings
+def test_roas_multidimensional():
+    """Verify ROAS works with additional dimensions (geo, etc.)."""
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["tv", "radio"],
+        target_column="sales",
+        dims=("country", "region"),  # Multi-dimensional
+        # ...
+    )
+    mmm.fit(X_multi, y_multi)
 
-    mmm.fit(X, y)
     roas = mmm.compute_roas(frequency="all_time")
 
-    # Channels with higher ROAS should get more budget in optimizer
-    optimal_budget = mmm.optimize_budget(...)
-
-    roas_rank = roas.mean(dim=["chain", "draw"]).rank(dim="channel")
-    budget_rank = optimal_budget.rank(dim="channel")
-
-    # Ranks should be positively correlated
-    assert correlation(roas_rank, budget_rank) > 0.5
+    # Should aggregate across all dimensions
+    assert "country" not in roas.dims
+    assert "region" not in roas.dims
+    assert roas.dims == ("sample", "period", "channel")
 ```
 
-**Synthetic data test**:
+#### 3. Validation Tests
+
+**Synthetic data with known true ROAS**:
 ```python
 def test_roas_with_known_ground_truth():
-    """Test ROAS computation with synthetic data with known true ROAS."""
+    """Test ROAS with synthetic data where true ROAS is known."""
     # Generate synthetic data with known contribution functions
     X_synth, y_synth, true_roas = generate_synthetic_mmm_data(
         n_periods=52,
         channels=["tv", "radio"],
         l_max=8,
-        true_roas={"tv": 2.5, "radio": 1.8}
+        true_roas={"tv": 2.5, "radio": 1.8},
+        adstock_alpha={"tv": 0.5, "radio": 0.3},
     )
 
+    mmm = MMM(...)
     mmm.fit(X_synth, y_synth)
+
     computed_roas = mmm.compute_roas(frequency="all_time")
 
-    # Computed ROAS should be close to true ROAS
+    # Computed ROAS should recover true ROAS within tolerance
     for channel in ["tv", "radio"]:
         roas_mean = computed_roas.sel(channel=channel).mean()
-        assert abs(roas_mean - true_roas[channel]) / true_roas[channel] < 0.2  # Within 20%
+        relative_error = abs(roas_mean - true_roas[channel]) / true_roas[channel]
+        assert relative_error < 0.20  # Within 20%
 ```
 
-### Documentation Updates
+**Budget optimizer consistency**:
+```python
+def test_roas_consistency_with_budget_optimizer():
+    """Verify ROAS rankings align with budget optimizer allocations."""
+    mmm = MMM(...)
+    mmm.fit(X, y)
 
-#### 1. Docstrings
-- Update `MMM.compute_roas()` with detailed docstring
-- Include mathematical formula reference to Google paper
-- Provide examples for common use cases
-- Explain computational cost implications of frequency parameter
+    roas = mmm.compute_roas(frequency="all_time")
+    roas_mean = roas.mean(dim="sample")
 
-#### 2. User Guide
-Create new documentation section:
-- `docs/source/guide/roas_computation.md`
+    # Run budget optimizer
+    optimal_budget, _ = mmm.optimize_budget(budget=10000, num_periods=12)
+
+    # Channels with higher ROAS should get more budget
+    roas_rank = roas_mean.rank(dim="channel")
+    budget_rank = optimal_budget.sum(dim="date").rank(dim="channel")
+
+    # Ranks should be positively correlated (Spearman > 0.5)
+    correlation = xr.corr(roas_rank, budget_rank)
+    assert correlation > 0.5
+```
+
+### Documentation Requirements
+
+#### 1. Updated Docstrings
+- Method docstring with formula reference to Google paper
+- Examples for common use cases (all_time, quarterly, with/without carryover)
+- Performance notes explaining computational cost by frequency
+
+#### 2. User Guide Section
+Create `docs/source/guide/roas_computation.md`:
 - Explain counterfactual approach conceptually
+- Contrast with old simple division method
 - Show examples with interpretation
 - Discuss when to use different frequency parameters
-- Performance considerations
+- Performance considerations and best practices
 
-#### 3. Notebooks
-Update or create notebooks:
-- `docs/source/notebooks/mmm/mmm_roas.ipynb` - ROAS computation tutorial
-- Show comparison between old and new method
-- Demonstrate frequency parameter usage
+#### 3. Migration Guide
+Create `docs/source/migration/roas_counterfactual.md`:
+- Explain breaking changes
+- Show code migration examples
+- Performance comparison (old vs new)
+- Interpretation differences
+
+#### 4. Notebook Tutorial
+Update `docs/source/notebooks/mmm/mmm_roas.ipynb`:
+- Demonstrate counterfactual ROAS computation
+- Show impact of carryover flags
+- Visualize ROAS over time at different frequencies
 - Interpret results in business context
 
-#### 4. API Reference
-- Update API reference for `MMMSummaryFactory.roas()`
-- Add migration guide from old to new method
-- Document backward compatibility approach
+## Architecture Insights
 
-## Open Questions
+### Why Simple Division is Wrong
 
-### 1. Backward Compatibility Strategy
+The stored `channel_contribution[t, m]` includes effects from multiple spend periods due to adstock convolution:
 
-**Question**: How to handle breaking change?
+```
+channel_contribution[t, m] = saturation(adstock(spend[:, m]))[t]
+adstock(spend)[t] = w[0]*spend[t] + w[1]*spend[t-1] + ... + w[l_max-1]*spend[t-l_max+1]
+```
 
-**Options**:
-- **Option A**: Keep old method with deprecation warning, add new method
-  - Pro: No breaking changes immediately
-  - Con: API confusion, two methods for same concept
-- **Option B**: Make counterfactual the default, add flag for old behavior
-  - Pro: Cleaner API
-  - Con: Breaking change
-- **Option C**: Add `method` parameter to existing ROAS functions
-  - Pro: Single API, explicit choice
-  - Con: More complex implementation
+Therefore:
+1. `contribution[t]` includes effects from past spend (t-l_max+1 through t)
+2. `spend[t]` creates effects that extend into future (t through t+l_max-1)
 
-**Recommendation**: Option A for next minor release, Option B for next major release.
+Simple division `contribution[t] / spend[t]` incorrectly assumes:
+- All of `contribution[t]` comes from `spend[t]` ❌
+- `spend[t]` only affects `contribution[t]` ❌
 
-### 2. Default Frequency
+### The Counterfactual Solution
 
-**Question**: What should be the default frequency for ROAS computation?
+To correctly measure the incremental effect of spend during [t0, t1]:
 
-**Options**:
-- `"original"`: Matches current behavior (per-period ROAS)
-  - Pro: Backward compatible
-  - Con: Expensive, often not what users want
-- `"all_time"`: Single ROAS across entire dataset
-  - Pro: Fast, often sufficient
-  - Con: May be too aggregated for some use cases
-- Make it required (no default)
-  - Pro: Forces users to think about what they want
-  - Con: More friction in API
+1. **Predict with channel active**: Full model prediction with actual spend
+2. **Predict with channel removed**: Counterfactual with zero spend in [t0, t1]
+3. **Compute difference**: `incremental = Y_actual - Y_counterfactual`
+4. **Account for carryover**:
+   - Carry-in: Prepend l_max historical observations
+   - Carry-out: Extend evaluation window by l_max periods
+5. **Aggregate**: Sum incremental over extended window, divide by period spend
 
-**Recommendation**: Default to `"all_time"` for compute_roas(), maintain `"original"` for summary.roas() for backward compatibility.
+### Efficiency Through Frequency Selection
 
-### 3. Edge Period Handling
+Computing counterfactual ROAS requires posterior predictive evaluations:
 
-**Question**: How to handle periods where `t1 + l_max > T` (end of data)?
+| Frequency | Data (104 weeks) | Periods | Evaluations | Time |
+|-----------|------------------|---------|-------------|------|
+| all_time  | 104 weeks        | 1       | 2           | ~5s  |
+| yearly    | 104 weeks        | 2       | 4           | ~10s |
+| quarterly | 104 weeks        | 8       | 16          | ~40s |
+| monthly   | 104 weeks        | 24      | 48          | ~2min |
+| weekly    | 104 weeks        | 104     | 208         | ~10min |
 
-**Options**:
-- **Option A**: Truncate evaluation window at T
-  - Pro: Simple
-  - Con: Underestimates ROAS for late periods (missing carryover)
-- **Option B**: Set ROAS to NaN for periods with incomplete carryover
-  - Pro: Conservative, honest about uncertainty
-  - Con: Loses information
-- **Option C**: Extrapolate or pad with zeros
-  - Pro: Complete information
-  - Con: Introduces assumptions
+**Recommendation**: Use "all_time" or "yearly" for typical use cases unless temporal variation is critical.
 
-**Recommendation**: Option A (truncate) with a warning if carryover window extends beyond data. Document this limitation.
+### Data Flow Summary
 
-### 4. Time-Varying Effects Interaction
+```
+Input: frequency, period_start, period_end, carryover flags
 
-**Question**: Do time-varying media effects affect counterfactual computation?
+1. Create period groups based on frequency
+   └─> [(t0_1, t1_1), (t0_2, t1_2), ...]
 
-**Analysis**:
-- Time-varying effects multiply baseline contribution: `contribution[t] = baseline[t] * temporal_multiplier[t]`
-- In counterfactual, we set channel spend to zero
-- The temporal multiplier is still applied to the (now zero) baseline contribution
-- Result: Temporal multipliers correctly carry through to counterfactual
+2. For each period:
+   a. Determine data window
+      ├─ if include_carryin: start = t0 - l_max*freq
+      └─ if include_carryout: end = t1 + l_max*freq
 
-**Conclusion**: No special handling needed, works correctly as-is.
+   b. Sample with actual spend
+      ├─ Extract X[data_window]
+      ├─ sample_posterior_predictive(X, include_last_observations=include_carryin)
+      └─> Y_actual(sample, date_extended)
 
-### 5. Multidimensional MMM Support
+   c. Sample with counterfactual (zero spend in [t0, t1])
+      ├─ X_counter = X.copy()
+      ├─ X_counter.loc[t0:t1, channels] = 0
+      ├─ sample_posterior_predictive(X_counter, include_last_observations=include_carryin)
+      └─> Y_counterfactual(sample, date_extended)
 
-**Question**: Does the implementation work with multidimensional MMM?
+   d. Compute incremental
+      ├─ Extract eval window: [t0, end]
+      ├─ incremental = Y_actual[eval] - Y_counterfactual[eval]
+      └─> Sum over date: total_incremental(sample)
 
-**Analysis**:
-- Multidimensional MMM has same structure, just additional dimensions
-- `sample_posterior_predictive()` works the same way
-- Channel dimension may be hierarchical (e.g., platform × creative)
+   e. Compute ROAS
+      ├─ total_spend = X.loc[t0:t1, channels].sum()
+      ├─ roas_period = total_incremental / total_spend
+      └─> roas_period(sample, channel)
 
-**Recommendation**: Test with multidimensional models, may need dimension-aware grouping for frequency aggregation.
-
-### 6. Computational Optimization
-
-**Question**: Can we optimize counterfactual computation further?
-
-**Possible optimizations**:
-- **Batch all channels**: Set all channels to zero in one pass, use matrix operations
-  - Requires careful dimension handling
-  - May not save much time vs frequency optimization
-- **Caching**: Cache actual predictions, only compute counterfactuals
-  - Useful if computing ROAS for multiple channels separately
-- **Approximations**: Use point estimates instead of full posterior
-  - Loses uncertainty quantification
-  - Not recommended for Bayesian workflow
-
-**Recommendation**: Start with straightforward implementation using frequency optimization. Profile and optimize if needed.
-
-## Related Research
-
-- Google MMM Paper: https://storage.googleapis.com/gweb-research2023-media/pubtools/3806.pdf (Formula 10)
-- Jin et al. (2017): "Bayesian methods for media mix modeling with carryover and shape effects"
-- Budget optimizer implementation: `pymc_marketing/mmm/budget_optimizer.py` (carryover handling reference)
+3. Concatenate all periods
+   └─> roas(sample, period, channel)
+```
 
 ## Code References
 
 ### Primary Files to Modify
-- `pymc_marketing/mmm/mmm.py` - Add `compute_roas()` method (MAIN LOCATION)
-- `pymc_marketing/data/idata/mmm_wrapper.py:315-342` - Deprecate old `get_roas()`
-- `pymc_marketing/mmm/summary.py:470-520` - Update `roas()` to use counterfactual
+
+- **`pymc_marketing/mmm/multidimensional.py`** - Add `compute_roas()` method to MultidimensionalMMM class
+- **`pymc_marketing/data/idata/mmm_wrapper.py:315-342`** - Remove old `get_roas()` method
+- **`pymc_marketing/mmm/summary.py:470-520`** - Replace `roas()` with new implementation
 
 ### Key Infrastructure to Use
-- `pymc_marketing/mmm/mmm.py:2467` - `sample_posterior_predictive()` for predictions
-- `pymc_marketing/mmm/mmm.py:1176` - `_data_setter()` for updating model data
-- `pymc_marketing/data/idata/utils.py:136` - `aggregate_idata_time()` for frequency aggregation
-- `pymc_marketing/mmm/components/adstock.py:84` - Access `l_max` from adstock
+
+- **`pymc_marketing/mmm/multidimensional.py:1800`** - `sample_posterior_predictive()` for predictions
+- **`pymc_marketing/mmm/multidimensional.py:1730`** - `_set_xarray_data()` for updating model data
+- **`pymc_marketing/mmm/multidimensional.py:1665`** - `_posterior_predictive_data_transformation()` for data prep
+- **`pymc_marketing/mmm/multidimensional.py:1559`** - `_validate_date_overlap_with_include_last_observations()` for validation
+- **`pymc_marketing/mmm/utils.py:181`** - `_convert_frequency_to_timedelta()` for frequency handling
+- **`pymc_marketing/mmm/utils.py:268`** - Frequency inference from data
+- **`pymc_marketing/data/idata/utils.py:187`** - Period mapping for aggregation
 
 ### Reference Implementations
-- `pymc_marketing/mmm/budget_optimizer.py:896-952` - Carryover padding pattern
-- `pymc_marketing/mmm/sensitivity_analysis.py:289` - Intervention analysis pattern
-- `pymc_marketing/mmm/summary.py:399-468` - Frequency parameter integration
 
-### Test Files to Update
-- `tests/mmm/test_summary.py:976-980` - `test_division_by_zero_in_roas_handled()`
-- `tests/mmm/test_summary.py:380-382` - `test_roas_summary_schema()`
-- Add new test file: `tests/mmm/test_roas_counterfactual.py`
+- **`pymc_marketing/mmm/sensitivity_analysis.py:289-438`** - `run_sweep()` for vectorized counterfactual pattern
+- **`pymc_marketing/pytensor_utils.py:264-341`** - `extract_response_distribution()` for graph extraction
+- **`pymc_marketing/mmm/budget_optimizer.py:926-952`** - Carryover padding pattern
+
+### Test Files to Update/Create
+
+- **`tests/mmm/test_multidimensional.py`** - Add comprehensive ROAS tests
+- **`tests/mmm/test_summary.py:976-980`** - Update `test_division_by_zero_in_roas_handled()`
+- **`tests/mmm/test_summary.py:380-382`** - Update `test_roas_summary_schema()`
+- **New**: `tests/mmm/test_roas_counterfactual.py` - Dedicated ROAS test suite
+
+## Implementation Checklist
+
+- [ ] Implement `compute_roas()` method in MultidimensionalMMM class
+- [ ] Add `_create_period_groups()` helper for frequency-based grouping
+- [ ] Add `_format_period_label()` helper for period display
+- [ ] Remove old `get_roas()` from MMMIDataWrapper
+- [ ] Update `roas()` in MMMSummaryFactory
+- [ ] Write unit tests for core functionality
+- [ ] Write integration tests with different adstock types
+- [ ] Write validation tests with synthetic data
+- [ ] Update docstrings with formula reference and examples
+- [ ] Create user guide documentation
+- [ ] Create migration guide
+- [ ] Update ROAS notebook tutorial
+- [ ] Performance profiling with different frequencies
+- [ ] Validate time-varying media compatibility
+- [ ] Validate multi-dimensional model compatibility
+
+## Open Questions (Resolved)
+
+### 1. Backward Compatibility
+**Decision**: Remove old behavior entirely per user feedback.
+
+### 2. Default Frequency
+**Decision**: Make `frequency` parameter required (no default) to force users to consider computational cost.
+
+### 3. Edge Period Handling
+**Decision**: Truncate evaluation window at data boundaries with warning. Document limitation clearly.
+
+### 4. MMM Class to Target
+**Decision**: MultidimensionalMMM in `multidimensional.py` (NOT deprecated MMM class).
+
+### 5. Data Access Pattern
+**Decision**: Use `self.X` and `self.y` directly (already stored during fit), not `fit_data` extraction.
+
+### 6. Channel Processing
+**Decision**: Process all channels simultaneously using vectorized xarray operations and/or `vectorize_graph()`.
+
+### 7. Frequency Handling
+**Decision**: Detect data frequency using `pd.infer_freq()`, never assume weekly.
+
+### 8. Carryover Flags
+**Decision**: Split into `include_carryin` and `include_carryout` flags (both default True).
+
+## Related Research
+
+- **Google MMM Paper**: https://storage.googleapis.com/gweb-research2023-media/pubtools/3806.pdf (Formula 10)
+- **Jin et al. (2017)**: "Bayesian methods for media mix modeling with carryover and shape effects"
+- **Budget optimizer implementation**: Demonstrates correct carryover handling pattern
 
 ## Next Steps
 
-1. **Implement `compute_roas()` method in MMM class**
+1. **Implement core `compute_roas()` method** in MultidimensionalMMM class
    - Use counterfactual approach with `sample_posterior_predictive()`
-   - Support frequency parameter for efficient computation
-   - Handle carryover window extension
+   - Support frequency parameter with period grouping
+   - Implement carryin/carryout flags
+   - Handle arbitrary time frequencies
 
-2. **Add unit tests**
-   - Test counterfactual vs simple division (should differ)
-   - Test frequency parameter (fewer periods at lower frequencies)
-   - Test carryover inclusion
-   - Test zero spend handling
-   - Test edge cases (incomplete carryover windows)
+2. **Add comprehensive tests**
+   - Unit tests for counterfactual logic
+   - Integration tests with different adstock types
+   - Validation with synthetic data
+   - Multi-dimensional model tests
+   - Time-varying media tests
 
-3. **Add integration tests**
-   - Test with different adstock types
-   - Test with time-varying media effects
-   - Test with multidimensional models
-   - Validate against budget optimizer consistency
+3. **Update summary interface**
+   - Remove old ROAS method
+   - Add new ROAS method with required frequency parameter
+   - Update schema and validation
 
-4. **Update documentation**
-   - Docstrings with mathematical formula
+4. **Documentation**
+   - Method docstrings with formula reference
    - User guide explaining counterfactual approach
+   - Migration guide for breaking changes
    - Notebook tutorial with examples
-   - Migration guide from old method
 
-5. **Deprecate old method**
-   - Add deprecation warning to `get_roas()`
-   - Update summary factory to use new method
-   - Document breaking change in release notes
+5. **Performance optimization** (optional)
+   - Implement vectorized version using `vectorize_graph()`
+   - Profile performance improvements
+   - Add benchmarking tests
 
-6. **Performance testing**
-   - Profile with different frequencies
-   - Validate that frequency optimization provides expected speedup
-   - Test with large datasets (multiple years of weekly data)
-
-7. **Review and validation**
-   - Code review focusing on correctness of counterfactual logic
+6. **Validation**
    - Statistical validation with synthetic data
-   - Comparison with budget optimizer results for consistency
+   - Compare with budget optimizer consistency
+   - Real-world case study validation
