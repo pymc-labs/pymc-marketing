@@ -888,7 +888,7 @@ def log_mmm(
     )
 
     mlflow.pyfunc.log_model(
-        artifact_path=artifact_path,
+        name=artifact_path,
         python_model=mlflow_mmm,
     )
     run_id = mlflow.active_run().info.run_id
