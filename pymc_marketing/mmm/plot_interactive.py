@@ -100,6 +100,11 @@ class MMMPlotlyFactory:
         None: "%Y-%m-%d",
     }
 
+    @property
+    def custom_dims(self) -> list[str]:
+        """Get custom dimensions from summary factory."""
+        return self.summary.data.custom_dims
+
     @staticmethod
     def _get_date_format(frequency: Frequency | None) -> str:
         """Get date format string based on data frequency.
@@ -642,7 +647,7 @@ class MMMPlotlyFactory:
         plotly_kwargs = self._apply_auto_faceting(plotly_kwargs, single_dim_facet)
 
         # Convert to Narwhals for unified API
-        nw_df = nw.from_native(df, eager_only=True)
+        nw_df = nw.from_native(df)
 
         # Validate required columns
         required_cols = {"date", "mean", "observed"}
@@ -654,18 +659,8 @@ class MMMPlotlyFactory:
         # Sort by date for proper line plotting
         nw_df = nw_df.sort("date")
 
-        # Extract facet params for HDI band logic
-        facet_row = plotly_kwargs.get("facet_row")
-        facet_col = plotly_kwargs.get("facet_col")
-
-        # Identify columns to preserve (date, facet columns)
-        id_cols = ["date"]
-        if facet_row:
-            id_cols.append(facet_row)
-        if facet_col:
-            id_cols.append(facet_col)
-
         # Create long-format DataFrame with both predicted and observed
+        id_cols = ["date", *self.custom_dims, "mean", "observed"]
         plot_df = nw_df.select(*id_cols, "mean", "observed").unpivot(
             on=["mean", "observed"],
             index=id_cols,
@@ -684,7 +679,7 @@ class MMMPlotlyFactory:
         # Set default title
         plotly_kwargs.setdefault("title", "Posterior Predictive")
 
-        # Create figure with single px.line call
+        # plot observed and predicted lines
         fig = px.line(
             plot_df.to_native(),
             x="date",
@@ -693,6 +688,10 @@ class MMMPlotlyFactory:
             labels={"value": "Value", "date": "Date", "series": ""},
             **plotly_kwargs,
         )
+
+        # Extract facet params for HDI band logic
+        facet_row = plotly_kwargs.get("facet_row")
+        facet_col = plotly_kwargs.get("facet_col")
 
         # Add HDI band if requested
         if hdi_prob is not None:
@@ -1062,7 +1061,7 @@ class MMMPlotlyFactory:
             Plotly figure with curves
         """
         # Convert to Narwhals
-        nw_df = nw.from_native(df, eager_only=True)
+        nw_df = nw.from_native(df)
 
         # Sort by x column for proper line plotting
         nw_df = nw_df.sort(x)
