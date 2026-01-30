@@ -267,7 +267,7 @@ class MMMPlotlyFactory:
 
     def _plot_bar(
         self,
-        df: IntoDataFrameT,
+        nw_df: nw.DataFrame,
         x: str = "channel",
         y: str = "mean",
         color: str | None = None,
@@ -283,7 +283,7 @@ class MMMPlotlyFactory:
 
         Parameters
         ----------
-        df : IntoDataFrameT
+        nw_df : nw.DataFrame
             DataFrame (Pandas or Polars) from summary factory
         x : str, default "channel"
             Column for x-axis (typically channel or component name)
@@ -308,9 +308,6 @@ class MMMPlotlyFactory:
         go.Figure
             Plotly figure with bar chart
         """
-        # Convert to Narwhals for unified API
-        nw_df = nw.from_native(df, eager_only=True)
-
         # Validate required columns
         if y not in nw_df.columns:
             raise ValueError(f"DataFrame must have '{y}' column.")
@@ -469,7 +466,7 @@ class MMMPlotlyFactory:
             raise ValueError(f"choose either x=`{component}` or color=`{component}`")
 
         return self._plot_bar(
-            df=df,
+            nw_df=nw_df,
             y="mean",
             hdi_prob=hdi_prob,
             yaxis_title="Contribution",
@@ -540,8 +537,17 @@ class MMMPlotlyFactory:
         plotly_kwargs.setdefault("title", "Return on Ad Spend")
         plotly_kwargs.setdefault("x", "channel")
 
+        nw_df = nw.from_native(df)
+        # if `date` column exist then it should either be x or color.
+        x = plotly_kwargs.get("x")
+        color = plotly_kwargs.get("color")
+
+        if "date" in nw_df.columns and len(nw_df["date"].unique()) > 1:
+            if "date" not in [x, color]:
+                raise ValueError("choose either x='date' or color='date'")
+
         return self._plot_bar(
-            df=df,
+            nw_df=nw_df,
             y="mean",
             hdi_prob=hdi_prob,
             yaxis_title="ROAS",
