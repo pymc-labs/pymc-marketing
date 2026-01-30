@@ -274,6 +274,7 @@ class MMMPlotlyFactory:
         hdi_prob: float | None = None,
         yaxis_title: str | None = None,
         frequency: Frequency | None = None,
+        round_digits: int = 0,
         **plotly_kwargs,
     ) -> go.Figure:
         """Create a bar chart with optional error bars.
@@ -294,6 +295,8 @@ class MMMPlotlyFactory:
             If provided, adds error bars using HDI columns
         yaxis_title : str, optional
             Y-axis label
+        round_digits : int, default 0
+            Number of decimal places for rounding values in hover text
         **plotly_kwargs
             Additional Plotly Express arguments including:
             - title: Figure title
@@ -320,16 +323,26 @@ class MMMPlotlyFactory:
         error_y_minus = None
         if hdi_prob is not None:
             lower_col, upper_col = self._get_hdi_columns(nw_df, hdi_prob)
+
+            # Helper to format numbers with specified decimal places, handling NaN
+            # Round, cast to string, then clean up trailing zeros for integers
+            def _fmt_num(col: str) -> nw.Expr:
+                expr = nw.col(col).round(round_digits).cast(nw.String)
+                # Only remove trailing ".0" for integer rounding
+                if round_digits == 0:
+                    expr = expr.str.replace(r"\.0$", "")
+                return expr
+
             # Convert absolute to relative errors using Narwhals
             nw_df = nw_df.with_columns(
                 error_upper=(nw.col(upper_col) - nw.col(y)),
                 error_lower=(nw.col(y) - nw.col(lower_col)),
                 y_string=nw.concat_str(
-                    nw.col(y).cast(nw.Int64).cast(nw.String),
+                    _fmt_num(y),
                     nw.lit(" HDI: ["),
-                    nw.col(lower_col).cast(nw.Int64).cast(nw.String),
+                    _fmt_num(lower_col),
                     nw.lit(", "),
-                    nw.col(upper_col).cast(nw.Int64).cast(nw.String),
+                    _fmt_num(upper_col),
                     nw.lit("]"),
                 ),
             )
@@ -380,6 +393,7 @@ class MMMPlotlyFactory:
         hdi_prob: float | None = 0.94,
         component: ComponentType = "channel",
         frequency: Frequency | None = None,
+        round_digits: int = 0,
         **plotly_kwargs,
     ) -> go.Figure:
         """Plot contributions bar chart with optional error bars and faceting.
@@ -396,6 +410,8 @@ class MMMPlotlyFactory:
             Which contribution component to plot (default: "channel")
         frequency : str, optional
             Time aggregation (e.g., "monthly", "all_time"). None = no aggregation.
+        round_digits : int, default 0
+            Number of decimal places for rounding values in hover text.
         **plotly_kwargs
             Additional Plotly Express arguments including:
             - title: Figure title (default: "{Component} Contributions")
@@ -458,6 +474,7 @@ class MMMPlotlyFactory:
             hdi_prob=hdi_prob,
             yaxis_title="Contribution",
             frequency=frequency,
+            round_digits=round_digits,
             **plotly_kwargs,
         )
 
@@ -465,6 +482,7 @@ class MMMPlotlyFactory:
         self,
         hdi_prob: float | None = 0.94,
         frequency: Frequency | None = "all_time",
+        round_digits: int = 3,
         **plotly_kwargs,
     ) -> go.Figure:
         """Plot ROAS (Return on Ad Spend) bar chart.
@@ -479,6 +497,8 @@ class MMMPlotlyFactory:
         frequency : str, optional
             Time aggregation (default: "all_time"). Options: "original", "weekly",
             "monthly", "quarterly", "yearly", "all_time".
+        round_digits : int, default 3
+            Number of decimal places for rounding values in hover text.
         **plotly_kwargs
             Additional Plotly Express arguments including:
             - title: Figure title (default: "Return on Ad Spend")
@@ -509,7 +529,7 @@ class MMMPlotlyFactory:
         # Get data from summary factory
         hdi_probs = [hdi_prob] if hdi_prob else []
         df = self.summary.roas(
-            hdi_probs=hdi_probs or [0.94],
+            hdi_probs=hdi_probs,
             frequency=frequency,
         )
 
@@ -526,6 +546,7 @@ class MMMPlotlyFactory:
             hdi_prob=hdi_prob,
             yaxis_title="ROAS",
             frequency=frequency,
+            round_digits=round_digits,
             **plotly_kwargs,
         )
 
@@ -578,7 +599,7 @@ class MMMPlotlyFactory:
         # Get data from Component 2 with HDI columns
         hdi_probs = [hdi_prob] if hdi_prob else []
         df = self.summary.posterior_predictive(
-            hdi_probs=hdi_probs or [0.94],
+            hdi_probs=hdi_probs,
             frequency=frequency,
         )
 
@@ -875,7 +896,7 @@ class MMMPlotlyFactory:
         # Get data from Component 2
         hdi_probs = [hdi_prob] if hdi_prob else []
         df = self.summary.saturation_curves(
-            hdi_probs=hdi_probs or [0.94],
+            hdi_probs=hdi_probs,
             max_value=max_value,
             num_points=num_points,
         )
@@ -940,7 +961,7 @@ class MMMPlotlyFactory:
         # Get data from Component 2
         hdi_probs = [hdi_prob] if hdi_prob else []
         df = self.summary.adstock_curves(
-            hdi_probs=hdi_probs or [0.94],
+            hdi_probs=hdi_probs,
             amount=amount,
         )
 

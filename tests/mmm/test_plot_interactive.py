@@ -550,6 +550,30 @@ class TestMMMPlotlyFactoryROAS:
         # Assert
         assert isinstance(fig, go.Figure), "Should return Figure for Polars input"
 
+    def test_roas_handles_nan_values(self):
+        """Test that roas() handles NaN values in data without crashing."""
+        # Arrange - ROAS data with NaN values (e.g., channel with zero spend)
+        df = pd.DataFrame(
+            {
+                "channel": ["TV", "Radio", "Social"],
+                "mean": [2.5, np.nan, 1.8],  # NaN for Radio (zero spend)
+                "median": [2.4, np.nan, 1.9],
+                "abs_error_94_lower": [2.0, np.nan, 1.5],
+                "abs_error_94_upper": [3.0, np.nan, 2.1],
+            }
+        )
+        mock_summary = Mock(spec=MMMSummaryFactory)
+        mock_summary.roas.return_value = df
+        mock_summary.data = Mock(custom_dims=[])
+
+        factory = MMMPlotlyFactory(summary=mock_summary, auto_facet=False)
+
+        # Act & Assert - Should not raise IntCastingNaNError
+        fig = factory.roas(hdi_prob=0.94)
+
+        # Verify figure is returned
+        assert isinstance(fig, go.Figure), f"Expected go.Figure, got {type(fig)}"
+
 
 # ============================================================================
 # Phase 2 Tests: Saturation Curves Plotting
