@@ -14,11 +14,13 @@
 """Utilities for the CLV module."""
 
 import warnings
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
+import narwhals as nw
 import numpy as np
 import pandas
 import xarray
+from narwhals.typing import IntoFrameT
 from numpy import datetime64
 
 __all__ = [
@@ -156,6 +158,30 @@ def customer_lifetime_value(
     return clv.transpose("chain", "draw", "customer_id")
 
 
+def _find_first_transactions_alternative(
+    transactions: IntoFrameT,
+    customer_id_col: str,
+    datetime_col: str,
+    monetary_value_col: str | None = None,
+    datetime_format: str | None = None,
+) -> IntoFrameT:
+    transactions = nw.from_native(transactions)
+
+    first_date = transactions.group_by(customer_id_col).agg(
+        first_date=nw.col(datetime_col).min()
+    )
+
+    agg_cols = [] if monetary_value_col is None else [nw.col(monetary_value_col).sum()]
+    agg = transactions.group_by([customer_id_col, datetime_col]).agg(*agg_cols)
+
+    return (
+        agg.join(first_date, on=customer_id_col)
+        .with_columns(first=nw.col(datetime_col) == nw.col("first_date"))
+        .drop("first_date")
+        .to_native()
+    )
+
+
 def _find_first_transactions(
     transactions: pandas.DataFrame,
     customer_id_col: str,
@@ -262,6 +288,58 @@ def _find_first_transactions(
     )
 
     return period_transactions[select_columns]
+
+
+def rfm_summary_alternative(
+    transactions: IntoFrameT,
+    customer_id_col: str,
+    datetime_col: str,
+    monetary_value_col: str | None = None,
+    datetime_format: str | None = None,
+    observation_period_end: str | pandas.Period | datetime | None = None,
+    time_scaler: float = 1.0,
+) -> IntoFrameT:
+    transactions = nw.from_native(transactions)
+
+    date = nw.col(datetime_col).cast(nw.Datetime)
+
+    if observation_period_end is None:
+        observation_period_end = transactions[datetime_col].cast(nw.Datetime).max()
+
+    repeated_transactions = _find_first_transactions_alternative(
+        transactions,
+        customer_id_col=customer_id_col,
+        datetime_col=datetime_col,
+        monetary_value_col=monetary_value_col,
+        datetime_format=datetime_format,
+    )
+
+    # TODO: Support the various units
+    divisor = timedelta(days=1) * time_scaler
+
+    additional_cols = (
+        [] if monetary_value_col is None else [nw.col(monetary_value_col).mean()]
+    )
+
+    customers = (
+        nw.from_native(repeated_transactions)
+        .group_by(customer_id_col)
+        .agg(
+            *additional_cols,
+            min=date.min(),
+            max=date.max(),
+            count=date.len(),
+        )
+        .with_columns(
+            frequency=nw.col("count") - 1,
+            recency=(nw.col("max") - nw.col("min")) / divisor,
+            T=(observation_period_end - nw.col("min")) / divisor,
+        )
+        .rename({customer_id_col: "customer_id"})
+        # .select(["customer_id", "frequency", "recency"])
+    )
+
+    return customers.to_native()
 
 
 def rfm_summary(

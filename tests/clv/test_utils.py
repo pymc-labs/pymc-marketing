@@ -25,10 +25,12 @@ from pymc_marketing.clv import GammaGammaModel, ParetoNBDModel
 from pymc_marketing.clv.utils import (
     _expected_cumulative_transactions,
     _find_first_transactions,
+    _find_first_transactions_alternative,
     _rfm_quartile_labels,
     customer_lifetime_value,
     rfm_segments,
     rfm_summary,
+    rfm_summary_alternative,
     rfm_train_test_split,
     to_xarray,
 )
@@ -285,6 +287,30 @@ class TestRFM:
             [6, "2015-02-02", 5],
         ]
         return pd.DataFrame(d, columns=["identifier", "date", "monetary_value"])
+
+    def test_alternative(self, transaction_data):
+        _ = _find_first_transactions(
+            transaction_data,
+            "identifier",
+            "date",
+            monetary_value_col="monetary_value",
+        )
+
+        _ = _find_first_transactions_alternative(
+            transaction_data,
+            "identifier",
+            "date",
+            monetary_value_col="monetary_value",
+        )
+
+        _ = rfm_summary_alternative(
+            transaction_data,
+            "identifier",
+            "date",
+            monetary_value_col="monetary_value",
+        )
+
+        assert 0
 
     def test_find_first_transactions_test_period_end_none(self, transaction_data):
         max_date = transaction_data["date"].max()
@@ -854,6 +880,28 @@ class TestRFM:
         # assert max_quartile_range = 4 returns a range function for three labels
         frequency = _rfm_quartile_labels("f_quartile", 4)
         assert frequency == range(1, 4)
+
+    def test_rfm_summary_with_time_scaler(self, transaction_data):
+        today = "2015-02-07"
+        actual = rfm_summary(
+            transaction_data,
+            "identifier",
+            "date",
+            observation_period_end=today,
+            time_scaler=10,
+        )
+        expected = pd.DataFrame(
+            [
+                [1, 1.0, 3.6, 3.7],
+                [2, 0.0, 0.0, 3.7],
+                [3, 2.0, 0.4, 3.7],
+                [4, 2.0, 2.0, 2.2],
+                [5, 2.0, 0.2, 2.2],
+                [6, 0.0, 0.0, 0.5],
+            ],
+            columns=["customer_id", "frequency", "recency", "T"],
+        )
+        assert_frame_equal(actual, expected)
 
 
 def test_expected_cumulative_transactions_dedups_inside_a_time_period(
