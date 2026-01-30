@@ -170,7 +170,11 @@ from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.schema import MMMIdataSchema
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm import SoftPlusHSGP
-from pymc_marketing.mmm.additive_effect import EventAdditiveEffect, MuEffect
+from pymc_marketing.mmm.additive_effect import (
+    EventAdditiveEffect,
+    MuEffect,
+    safe_to_datetime,
+)
 from pymc_marketing.mmm.budget_optimizer import OptimizerCompatibleModelWrapper
 from pymc_marketing.mmm.causal import CausalGraphModel
 from pymc_marketing.mmm.components.adstock import (
@@ -1591,7 +1595,7 @@ class MMM(RegressionModelBuilder):
             return
 
         # Get training dates and input dates
-        training_dates = pd.to_datetime(self.model_coords["date"])
+        training_dates = safe_to_datetime(self.model_coords["date"], "date")
         input_dates = pd.to_datetime(X[self.date_column].unique())
 
         # Check for overlap
@@ -2939,7 +2943,9 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         # If budget_distribution has integer date indices, map them to actual dates
         if np.issubdtype(budget_distribution.coords["date"].dtype, np.integer):
             # Get unique dates from data_xr_stacked
-            unique_dates = pd.to_datetime(data_xr_stacked.coords["date"].values)
+            unique_dates = safe_to_datetime(
+                data_xr_stacked.coords["date"].values, "date"
+            )
             unique_dates_sorted = sorted(unique_dates.unique())
 
             # Map integer indices to actual dates

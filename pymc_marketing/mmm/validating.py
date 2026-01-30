@@ -87,6 +87,16 @@ class ValidateDateColumn:
         if not data[self.date_column].is_unique:
             raise ValueError(f"date_col {self.date_column} has repeated values")
 
+        # Check that the date column has string or datetime dtype, not numeric
+        date_dtype = data[self.date_column].dtype
+        if pd.api.types.is_numeric_dtype(date_dtype):
+            raise ValueError(
+                f"date_col {self.date_column} has numeric dtype ({date_dtype}). "
+                "Date column must have string or datetime dtype to avoid ambiguous date parsing. "
+                "For example, pd.to_datetime([0, 1, 2, 3]) would create dates starting from "
+                "January 1st 1970 with nanosecond intervals, which is likely not intended."
+            )
+
 
 class ValidateChannelColumns:
     """Validate the channel columns."""

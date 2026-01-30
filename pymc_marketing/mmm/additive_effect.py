@@ -38,7 +38,7 @@ Example of a custom additive effect
 
         def create_data(self, mmm):
             # Produce penalty values aligned with model dates (and optional extra dims)
-            dates = pd.to_datetime(mmm.model.coords["date"])
+            dates = safe_to_datetime(mmm.model.coords["date"], "date")
             penalty = self.penalty_provider(dates)
             pm.Data(f"{self.name}_penalty", penalty, dims=("date", *mmm.dims))
 
@@ -59,7 +59,7 @@ Example of a custom additive effect
 
         def set_data(self, mmm, model, X):
             # Update to future dates during posterior predictive
-            dates = pd.to_datetime(model.coords["date"])
+            dates = safe_to_datetime(model.coords["date"], "date")
             penalty = self.penalty_provider(dates)
             pm.set_data({f"{self.name}_penalty": penalty}, model=model)
 
@@ -119,6 +119,62 @@ from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.mmm.utils import create_index
 
 
+def safe_to_datetime(coords_values, coord_name: str = "date") -> pd.DatetimeIndex:
+    """Safely convert coordinates to datetime, with validation.
+
+    This function prevents the issue where numeric values (e.g., [0, 1, 2, 3])
+    get incorrectly converted to dates starting from January 1st 1970 with
+    nanosecond intervals.
+
+    Parameters
+    ----------
+    coords_values : array-like
+        The coordinate values to convert to datetime
+    coord_name : str, optional
+        The name of the coordinate dimension (default: "date")
+
+    Returns
+    -------
+    pd.DatetimeIndex
+        The converted datetime index
+
+    Raises
+    ------
+    ValueError
+        If the coordinate values have numeric dtype, which could lead to
+        ambiguous date parsing
+
+    Examples
+    --------
+    >>> # Good usage - string dates
+    >>> safe_to_datetime(["2024-01-01", "2024-01-02"])
+
+    >>> # Good usage - already datetime
+    >>> safe_to_datetime(pd.to_datetime(["2024-01-01", "2024-01-02"]))
+
+    >>> # Raises error - numeric values
+    >>> safe_to_datetime([0, 1, 2, 3])  # Raises ValueError
+    """
+    # Convert to pandas Series/Index for dtype checking
+    if isinstance(coords_values, pd.DatetimeIndex):
+        # Already datetime, return as-is
+        return coords_values
+
+    temp = pd.Series(coords_values)
+
+    # Check if the values are numeric
+    if pd.api.types.is_numeric_dtype(temp.dtype):
+        raise ValueError(
+            f"Coordinate '{coord_name}' has numeric dtype ({temp.dtype}). "
+            "Date coordinates must have string or datetime dtype to avoid ambiguous parsing. "
+            "For example, pd.to_datetime([0, 1, 2, 3]) would create dates starting from "
+            "January 1st 1970 with nanosecond intervals, which is likely not intended. "
+            "Please ensure your date column is properly formatted as strings or datetime objects."
+        )
+
+    return pd.to_datetime(coords_values)
+
+
 class Model(Protocol):
     """Protocol MMM."""
 
@@ -172,7 +228,7 @@ class FourierEffect:
         model = mmm.model
 
         # Get dates from model coordinates
-        dates = pd.to_datetime(model.coords[self.date_dim_name])
+        dates = safe_to_datetime(model.coords[self.date_dim_name], self.date_dim_name)
 
         # Add weekday data to the model
         pm.Data(
@@ -245,7 +301,9 @@ class FourierEffect:
             The dataset for prediction
         """
         # Get dates from the new dataset
-        new_dates = pd.to_datetime(model.coords[self.date_dim_name])
+        new_dates = safe_to_datetime(
+            model.coords[self.date_dim_name], self.date_dim_name
+        )
 
         # Update the data
         new_data = {
@@ -374,7 +432,7 @@ class LinearTrendEffect:
         model: pm.Model = mmm.model
 
         # Create time index data (normalized between 0 and 1)
-        dates = pd.to_datetime(model.coords[self.date_dim_name])
+        dates = safe_to_datetime(model.coords[self.date_dim_name], self.date_dim_name)
         self.linear_trend_first_date = dates[0]
         t = (dates - self.linear_trend_first_date).days.astype(float)
 
@@ -432,7 +490,9 @@ class LinearTrendEffect:
             The dataset for prediction.
         """
         # Create normalized time index for new data
-        new_dates = pd.to_datetime(model.coords[self.date_dim_name])
+        new_dates = safe_to_datetime(
+            model.coords[self.date_dim_name], self.date_dim_name
+        )
         t = (new_dates - self.linear_trend_first_date).days.astype(float)
 
         # Update the data
@@ -497,7 +557,9 @@ class EventAdditiveEffect(BaseModel):
         """
         model: pm.Model = mmm.model
 
-        model_dates = pd.to_datetime(model.coords[self.date_dim_name])
+        model_dates = safe_to_datetime(
+            model.coords[self.date_dim_name], self.date_dim_name
+        )
 
         model.add_coord(self.prefix, self.df_events["name"].to_numpy())
 
@@ -559,7 +621,9 @@ class EventAdditiveEffect(BaseModel):
 
     def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
         """Set the data for new predictions."""
-        new_dates = pd.to_datetime(model.coords[self.date_dim_name])
+        new_dates = safe_to_datetime(
+            model.coords[self.date_dim_name], self.date_dim_name
+        )
 
         new_data = {
             "days": days_from_reference(new_dates, self.reference_date),
