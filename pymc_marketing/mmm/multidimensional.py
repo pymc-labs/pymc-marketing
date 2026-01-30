@@ -1596,7 +1596,7 @@ class MMM(RegressionModelBuilder):
 
         # Get training dates and input dates
         training_dates = safe_to_datetime(self.model_coords["date"], "date")
-        input_dates = pd.to_datetime(X[self.date_column].unique())
+        input_dates = safe_to_datetime(X[self.date_column].unique(), self.date_column)
 
         # Check for overlap
         overlapping_dates = set(training_dates).intersection(set(input_dates))
@@ -3012,7 +3012,9 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         from pymc_marketing.mmm.utils import _convert_frequency_to_timedelta
 
         # Get date series and infer frequency
-        date_series = pd.to_datetime(data_with_noise[self.date_column])
+        date_series = safe_to_datetime(
+            data_with_noise[self.date_column], self.date_column
+        )
         inferred_freq = pd.infer_freq(date_series.unique())
 
         if inferred_freq is None:  # fall-back if inference fails
