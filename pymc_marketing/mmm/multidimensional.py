@@ -35,7 +35,6 @@ Basic MMM fit:
     mmm = MMM(
         date_column="date",
         channel_columns=["C1", "C2"],
-        target_column="y",
         adstock=GeometricAdstock(l_max=10),
         saturation=LogisticSaturation(),
     )
@@ -51,7 +50,7 @@ Multi-dimensional (panel) with dims:
 
     X = pd.DataFrame(
         {
-            "date": pd.date_range("2025-01-01", periods=4, freq="W-MON"),
+            "date": ["2025-01-06", "2025-01-13"] * 2,
             "country": ["A", "A", "B", "B"],
             "C1": [100, 120, 90, 110],
             "C2": [80, 70, 95, 85],
@@ -62,10 +61,9 @@ Multi-dimensional (panel) with dims:
     mmm = MMM(
         date_column="date",
         channel_columns=["C1", "C2"],
-        target_column="y",
-        dims=("country",),
         adstock=GeometricAdstock(l_max=10),
         saturation=LogisticSaturation(),
+        dims=("country",),
     )
     mmm.fit(X, y)
 
@@ -78,7 +76,6 @@ Time-varying parameters and seasonality:
     mmm = MMM(
         date_column="date",
         channel_columns=["C1", "C2"],
-        target_column="y",
         adstock=GeometricAdstock(l_max=10),
         saturation=LogisticSaturation(),
         time_varying_intercept=True,
@@ -95,7 +92,6 @@ Controls (additional regressors):
     mmm = MMM(
         date_column="date",
         channel_columns=["C1", "C2"],
-        target_column="y",
         control_columns=["price_index"],
         adstock=GeometricAdstock(l_max=10),
         saturation=LogisticSaturation(),
@@ -128,7 +124,6 @@ Events:
     mmm = MMM(
         date_column="date",
         channel_columns=["C1", "C2"],
-        target_column="y",
         adstock=GeometricAdstock(l_max=10),
         saturation=LogisticSaturation(),
     )
@@ -156,7 +151,7 @@ import json
 import warnings
 from collections.abc import Callable, Sequence
 from copy import deepcopy
-from typing import Annotated, Any, Literal, cast
+from typing import Annotated, Any, cast
 
 import arviz as az
 import numpy as np
@@ -224,9 +219,9 @@ class MMM(RegressionModelBuilder):
     date_column : str
         The name of the column representing the date in the dataset.
     channel_columns : list[str]
-        A list of columns representing the marketing channels.
-    target_column : str
-        The name of the column representing the target variable to be predicted.
+        A list of column names representing the marketing channels.
+    target_column : str, optional
+        The name of the column representing the target variable in the dataset. Defaults to `y`.
     adstock : AdstockTransformation
         The adstock transformation to apply to the channel data.
     saturation : SaturationTransformation
@@ -236,7 +231,10 @@ class MMM(RegressionModelBuilder):
     time_varying_media : bool
         Whether to use time-varying effects for media channels.
     dims : tuple | None
-        Additional dimensions for the model.
+        Additional batch-dimensions for the model.
+        One categorical-like column with the name of each batch dimension should be present in the dataset.
+        This is used to identify which batch-dimension(s) are associated with each row of data.
+        Data must be rectangular these batch dimensions (i.e., same dates and length for each combination)
     scaling : Scaling | dict | None
         Scaling methods to be used for the target variable and the marketing channels.
         Defaults to max scaling for both.
@@ -254,15 +252,17 @@ class MMM(RegressionModelBuilder):
 
     _model_type: str = "MMMM (Multi-Dimensional Marketing Mix Model)"
     version: str = "0.0.2"
+    output_var = "y"
 
     @validate_call
     def __init__(
         self,
+        *,
         date_column: str = Field(..., description="Column name of the date variable."),
         channel_columns: list[str] = Field(
             min_length=1, description="Column names of the media channel variables."
         ),
-        target_column: str = Field(..., description="The name of the target column."),
+        target_column: str = Field("y", description="The name of the target column."),
         adstock: InstanceOf[AdstockTransformation] = Field(
             ..., description="Type of adstock transformation to apply."
         ),
@@ -342,6 +342,12 @@ class MMM(RegressionModelBuilder):
         self.adstock_first = adstock_first
 
         dims = dims if dims is not None else ()
+        core_dims = {"date", "channel", "control", "fourier_mode"}
+        if invalid_dims := core_dims & set(dims):
+            raise ValueError(
+                f"Dims {sorted(invalid_dims)} are reserved for internal use"
+            )
+
         self.dims = dims
 
         if isinstance(scaling, dict):
@@ -766,17 +772,6 @@ class MMM(RegressionModelBuilder):
             **self.adstock.model_config,
             **self.saturation.model_config,
         }
-
-    @property
-    def output_var(self) -> Literal["y"]:
-        """Define target variable for the model.
-
-        Returns
-        -------
-        str
-            The target variable for the model.
-        """
-        return "y"
 
     def post_sample_model_transformation(self) -> None:
         """Post-sample model transformation in order to store the HSGP state from fit."""
@@ -1204,8 +1199,10 @@ class MMM(RegressionModelBuilder):
 
     def _validate_contribution_variable(self, var: str) -> None:
         """Validate that the variable ends with "_contribution" and is in the model."""
-        if not (var.endswith("_contribution") or var == "y"):
-            raise ValueError(f"Variable {var} must end with '_contribution' or be 'y'")
+        if not (var.endswith("_contribution") or var == self.output_var):
+            raise ValueError(
+                f"Variable {var} must end with '_contribution' or be {self.output_var}"
+            )
 
         if var not in self.model.named_vars:
             raise ValueError(f"Variable {var} is not in the model")
@@ -3097,7 +3094,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         ].to_xarray()
 
         var_names = [
-            "y",
+            self.output_var,
             "channel_contribution",
             "total_media_contribution_original_scale",
         ]
