@@ -379,7 +379,7 @@ class MMMSummaryFactory:
 
         # Get posterior predictive samples
         if hasattr(data.idata, "posterior_predictive"):
-            pp_samples = data.idata.posterior_predictive["y"]
+            pp_samples = data.to_original_scale(data.idata.posterior_predictive["y"])
         else:
             raise AttributeError("No posterior predictive samples found in idata")
 
