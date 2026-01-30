@@ -136,7 +136,7 @@ def mock_fit(model, X: pd.DataFrame, y: pd.Series, **kwargs):
 
 
 @pytest.fixture
-def simple_fitted_mmm(simple_mmm_data, mock_pymc_sample):
+def simple_fitted_mmm(simple_mmm_data):
     """Create a simple fitted MMM for testing (no extra dimensions)."""
     X = simple_mmm_data["X"]
     y = simple_mmm_data["y"]
@@ -156,7 +156,7 @@ def simple_fitted_mmm(simple_mmm_data, mock_pymc_sample):
 
 
 @pytest.fixture
-def panel_fitted_mmm(panel_mmm_data, mock_pymc_sample):
+def panel_fitted_mmm(panel_mmm_data):
     """Create a panel (multidimensional) fitted MMM for testing."""
     X = panel_mmm_data["X"]
     y = panel_mmm_data["y"]
@@ -191,6 +191,7 @@ def panel_fitted_mmm(panel_mmm_data, mock_pymc_sample):
         control_columns=None,
         adstock=adstock,
         saturation=saturation,
+        yearly_seasonality=2,
     )
 
     mock_fit(mmm, X, y)
