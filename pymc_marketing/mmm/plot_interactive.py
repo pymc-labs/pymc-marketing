@@ -210,11 +210,15 @@ class MMMPlotlyFactory:
             f"Available columns: {nw_df.columns}"
         )
 
-    def _apply_auto_faceting(self, plotly_kwargs: dict) -> dict:
+    def _apply_auto_faceting(
+        self,
+        plotly_kwargs: dict,
+        single_dim_facet: Literal["col", "row"] = "col",
+    ) -> dict:
         """Apply automatic faceting based on custom dimensions.
 
         Strategy:
-        - 1 custom dimension → facet_col with facet_col_wrap=3
+        - 1 custom dimension → facet_col or facet_row with wrap=3
         - 2+ custom dimensions → facet_row=dims[0], facet_col=dims[1]
         - Manual faceting in plotly_kwargs takes precedence
 
@@ -222,6 +226,9 @@ class MMMPlotlyFactory:
         ----------
         plotly_kwargs : dict
             Existing Plotly kwargs (may contain manual faceting)
+        single_dim_facet : {"col", "row"}, default "col"
+            When there is exactly one custom dimension, this controls
+            whether it is applied as facet_col or facet_row.
 
         Returns
         -------
@@ -230,9 +237,13 @@ class MMMPlotlyFactory:
 
         Examples
         --------
-        >>> # Single dimension: country
+        >>> # Single dimension: country (default uses facet_col)
         >>> kwargs = factory._apply_auto_faceting({})
         >>> # Returns: {"facet_col": "country", "facet_col_wrap": 3}
+
+        >>> # Single dimension with single_dim_facet="row"
+        >>> kwargs = factory._apply_auto_faceting({}, single_dim_facet="row")
+        >>> # Returns: {"facet_row": "country"} (no wrap for row faceting)
 
         >>> # Two dimensions: country, region
         >>> kwargs = factory._apply_auto_faceting({})
@@ -257,8 +268,11 @@ class MMMPlotlyFactory:
 
         # Apply faceting based on number of dimensions
         if len(custom_dims) == 1:
-            plotly_kwargs["facet_col"] = custom_dims[0]
-            plotly_kwargs.setdefault("facet_col_wrap", 3)
+            facet_key = f"facet_{single_dim_facet}"
+            plotly_kwargs[facet_key] = custom_dims[0]
+            # Only facet_col_wrap is supported by Plotly (not facet_row_wrap)
+            if single_dim_facet == "col":
+                plotly_kwargs.setdefault("facet_col_wrap", 3)
         elif len(custom_dims) >= 2:
             plotly_kwargs["facet_row"] = custom_dims[0]
             plotly_kwargs["facet_col"] = custom_dims[1]
@@ -391,6 +405,7 @@ class MMMPlotlyFactory:
         component: ComponentType = "channel",
         frequency: Frequency | None = None,
         round_digits: int = 0,
+        single_dim_facet: Literal["col", "row"] = "col",
         **plotly_kwargs,
     ) -> go.Figure:
         """Plot contributions bar chart with optional error bars and faceting.
@@ -409,6 +424,9 @@ class MMMPlotlyFactory:
             Time aggregation (e.g., "monthly", "all_time"). None = no aggregation.
         round_digits : int, default 0
             Number of decimal places for rounding values in hover text.
+        single_dim_facet : {"col", "row"}, default "col"
+            When auto_facet is enabled and there is exactly one custom dimension,
+            this controls whether it is applied as facet_col or facet_row.
         **plotly_kwargs
             Additional Plotly Express arguments including:
             - title: Figure title (default: "{Component} Contributions")
@@ -447,7 +465,7 @@ class MMMPlotlyFactory:
         )
 
         # Auto-detect faceting from custom dimensions
-        plotly_kwargs = self._apply_auto_faceting(plotly_kwargs)
+        plotly_kwargs = self._apply_auto_faceting(plotly_kwargs, single_dim_facet)
 
         # Set default values if not provided
         plotly_kwargs.setdefault("title", f"{component.capitalize()} Contributions")
@@ -480,6 +498,7 @@ class MMMPlotlyFactory:
         hdi_prob: float | None = 0.94,
         frequency: Frequency | None = "all_time",
         round_digits: int = 3,
+        single_dim_facet: Literal["col", "row"] = "col",
         **plotly_kwargs,
     ) -> go.Figure:
         """Plot ROAS (Return on Ad Spend) bar chart.
@@ -496,6 +515,9 @@ class MMMPlotlyFactory:
             "monthly", "quarterly", "yearly", "all_time".
         round_digits : int, default 3
             Number of decimal places for rounding values in hover text.
+        single_dim_facet : {"col", "row"}, default "col"
+            When auto_facet is enabled and there is exactly one custom dimension,
+            this controls whether it is applied as facet_col or facet_row.
         **plotly_kwargs
             Additional Plotly Express arguments including:
             - title: Figure title (default: "Return on Ad Spend")
@@ -531,7 +553,7 @@ class MMMPlotlyFactory:
         )
 
         # Auto-detect faceting from custom dimensions
-        plotly_kwargs = self._apply_auto_faceting(plotly_kwargs)
+        plotly_kwargs = self._apply_auto_faceting(plotly_kwargs, single_dim_facet)
 
         # Set default values if not provided
         plotly_kwargs.setdefault("title", "Return on Ad Spend")
@@ -563,6 +585,7 @@ class MMMPlotlyFactory:
         self,
         hdi_prob: float | None = 0.94,
         frequency: Frequency | None = None,
+        single_dim_facet: Literal["col", "row"] = "row",
         **plotly_kwargs,
     ) -> go.Figure:
         """Plot posterior predictive with HDI band.
@@ -577,6 +600,9 @@ class MMMPlotlyFactory:
             HDI probability for uncertainty band (default: 0.94). If None, no band.
         frequency : str, optional
             Time aggregation (e.g., "monthly", "weekly"). None = no aggregation.
+        single_dim_facet : {"col", "row"}, default "row"
+            When auto_facet is enabled and there is exactly one custom dimension,
+            this controls whether it is applied as facet_col or facet_row.
         **plotly_kwargs
             Additional Plotly Express arguments including:
             - title: Figure title (default: "Posterior Predictive")
@@ -613,7 +639,7 @@ class MMMPlotlyFactory:
         )
 
         # Auto-detect faceting from custom dimensions
-        plotly_kwargs = self._apply_auto_faceting(plotly_kwargs)
+        plotly_kwargs = self._apply_auto_faceting(plotly_kwargs, single_dim_facet)
 
         # Convert to Narwhals for unified API
         nw_df = nw.from_native(df, eager_only=True)
@@ -858,6 +884,7 @@ class MMMPlotlyFactory:
         hdi_prob: float | None = 0.94,
         max_value: float = 1.0,
         num_points: int = 100,
+        single_dim_facet: Literal["col", "row"] = "col",
         **plotly_kwargs,
     ) -> go.Figure:
         """Plot saturation curves by channel.
@@ -874,6 +901,9 @@ class MMMPlotlyFactory:
             Maximum value for curve x-axis (in scaled space)
         num_points : int, default 100
             Number of points to evaluate curves at
+        single_dim_facet : {"col", "row"}, default "col"
+            When auto_facet is enabled and there is exactly one custom dimension,
+            this controls whether it is applied as facet_col or facet_row.
         **plotly_kwargs
             Additional Plotly Express arguments including:
             - title: Figure title (default: "Saturation Curves")
@@ -911,7 +941,7 @@ class MMMPlotlyFactory:
         )
 
         # Auto-detect faceting from custom dimensions
-        plotly_kwargs = self._apply_auto_faceting(plotly_kwargs)
+        plotly_kwargs = self._apply_auto_faceting(plotly_kwargs, single_dim_facet)
 
         return self._plot_curves(
             df=df,
@@ -927,6 +957,7 @@ class MMMPlotlyFactory:
         self,
         hdi_prob: float | None = 0.94,
         amount: float = 1.0,
+        single_dim_facet: Literal["col", "row"] = "col",
         **plotly_kwargs,
     ) -> go.Figure:
         """Plot adstock/decay curves by channel.
@@ -941,6 +972,9 @@ class MMMPlotlyFactory:
             HDI probability for uncertainty bands (default: 0.94). If None, no bands.
         amount : float, default 1.0
             Impulse amount at time 0
+        single_dim_facet : {"col", "row"}, default "col"
+            When auto_facet is enabled and there is exactly one custom dimension,
+            this controls whether it is applied as facet_col or facet_row.
         **plotly_kwargs
             Additional Plotly Express arguments including:
             - title: Figure title (default: "Adstock Curves")
@@ -975,7 +1009,7 @@ class MMMPlotlyFactory:
         )
 
         # Auto-detect faceting from custom dimensions
-        plotly_kwargs = self._apply_auto_faceting(plotly_kwargs)
+        plotly_kwargs = self._apply_auto_faceting(plotly_kwargs, single_dim_facet)
 
         return self._plot_curves(
             df=df,
