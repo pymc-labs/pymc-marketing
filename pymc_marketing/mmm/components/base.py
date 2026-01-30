@@ -184,6 +184,32 @@ class Transformation:
 
         return self
 
+    def with_default_dims(self, default_dims: Dims) -> "Transformation":
+        """Return a copy of self with default dims set to `dims`.
+
+        Parameters
+        ----------
+        dims : Dims
+            The dims for the priors.
+
+        Returns
+        -------
+        Transformation
+        """
+        new = deepcopy(self)
+        new._function_priors = {
+            k: p.with_default_dims(default_dims)
+            for k, p in new._function_priors.items()
+        }
+
+        return new
+
+    def with_new_priors(self, priors: dict[str, Prior]) -> "Transformation":
+        """Return a copy of the transformation with new priors set."""
+        new = deepcopy(self)
+        new.update_priors(priors)
+        return new
+
     def to_dict(self) -> dict[str, Any]:
         """Convert the transformation to a dictionary.
 
@@ -388,14 +414,16 @@ class Transformation:
 
             var = dist.create_variable(variable_name)
 
-            dist_dims = dist.dims
-            if idx is not None and any(dim in idx for dim in dist_dims):
-                var = index_variable(var, dist.dims, idx)
+            if dist_dims := dist.dims:
+                if idx is not None and any(dim in idx for dim in dist_dims):
+                    var = index_variable(var, dist.dims, idx)
 
-                dist_dims = [dim for dim in dist_dims if dim not in idx]
-                dist_dims = ("N", *dist_dims)
+                    dist_dims = [dim for dim in dist_dims if dim not in idx]
+                    dist_dims = ("N", *dist_dims)
 
-            return dim_handler(var, dist_dims)
+                return dim_handler(var, dist_dims)
+            else:
+                return var
 
         return {
             parameter_name: create_variable(parameter_name, variable_name)

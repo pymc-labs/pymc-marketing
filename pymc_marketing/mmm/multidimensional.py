@@ -383,8 +383,12 @@ class MMM(RegressionModelBuilder):
         )
 
         if model_config is not None:
-            self.adstock.update_priors({**self.default_model_config, **model_config})
-            self.saturation.update_priors({**self.default_model_config, **model_config})
+            self.adstock = self.adstock.with_new_priors(
+                {**self.default_model_config, **model_config}
+            ).with_default_dims((*self.dims, "channel"))
+            self.saturation = self.saturation.with_new_priors(
+                {**self.default_model_config, **model_config}
+            ).with_default_dims((*self.dims, "channel"))
 
         self._check_compatible_media_dims()
 
@@ -437,7 +441,9 @@ class MMM(RegressionModelBuilder):
             self.yearly_fourier = YearlyFourier(
                 n_order=self.yearly_seasonality,
                 prefix="fourier_mode",
-                prior=self.model_config["gamma_fourier"],
+                prior=self.model_config["gamma_fourier"].with_default_dims(
+                    (*self.dims, "fourier_mode")
+                ),
                 variable_name="gamma_fourier",
             )
 
@@ -738,7 +744,7 @@ class MMM(RegressionModelBuilder):
             "likelihood": Prior(
                 "Normal",
                 sigma=Prior("HalfNormal", sigma=2, dims=self.dims),
-                dims=self.dims,
+                dims=("date", *self.dims),
             ),
             "gamma_control": Prior(
                 "Normal", mu=0, sigma=2, dims=(*self.dims, "control")
@@ -769,8 +775,8 @@ class MMM(RegressionModelBuilder):
 
         return {
             **base_config,
-            **self.adstock.model_config,
-            **self.saturation.model_config,
+            **self.adstock.with_default_dims((*self.dims, "channel")).model_config,
+            **self.saturation.with_default_dims((*self.dims, "channel")).model_config,
         }
 
     def post_sample_model_transformation(self) -> None:
@@ -1400,8 +1406,10 @@ class MMM(RegressionModelBuilder):
                 isinstance(self.time_varying_intercept, bool)
                 and self.time_varying_intercept
             ):
-                intercept_baseline = self.model_config["intercept"].create_variable(
-                    "intercept_baseline"
+                intercept_baseline = (
+                    self.model_config["intercept"]
+                    .with_default_dims(self.dims)
+                    .create_variable("intercept_baseline")
                 )
 
                 intercept_latent_process = create_hsgp_from_config(
@@ -1417,10 +1425,13 @@ class MMM(RegressionModelBuilder):
                 )
 
             elif isinstance(self.time_varying_intercept, HSGPBase):
-                intercept_baseline = self.model_config["intercept"].create_variable(
-                    "intercept_baseline"
+                intercept_baseline = (
+                    self.model_config["intercept"]
+                    .with_default_dims(self.dims)
+                    .create_variable("intercept_baseline")
                 )
 
+                # TODO: Where are time_varying_intercept dims controlled?
                 # Register internal time index and build latent process
                 self.time_varying_intercept.register_data(time_index)
                 intercept_latent_process = self.time_varying_intercept.create_variable(
@@ -1433,8 +1444,10 @@ class MMM(RegressionModelBuilder):
                     dims=("date", *self.dims),
                 )
             else:
-                intercept = self.model_config["intercept"].create_variable(
-                    name="intercept_contribution"
+                intercept = (
+                    self.model_config["intercept"]
+                    .with_default_dims(self.dims)
+                    .create_variable(name="intercept_contribution")
                 )
 
             # Add media logic
@@ -1512,8 +1525,10 @@ class MMM(RegressionModelBuilder):
             mu_var = intercept + channel_contribution.sum(axis=-1)
 
             if self.control_columns is not None and len(self.control_columns) > 0:
-                gamma_control = self.model_config["gamma_control"].create_variable(
-                    name="gamma_control"
+                gamma_control = (
+                    self.model_config["gamma_control"]
+                    .with_default_dims((*self.dims, "control"))
+                    .create_variable(name="gamma_control")
                 )
 
                 control_data_ = pm.Data(
@@ -1562,12 +1577,14 @@ class MMM(RegressionModelBuilder):
 
             mu_var.name = "mu"
             mu_var.dims = ("date", *self.dims)
-
-            self.model_config["likelihood"].dims = ("date", *self.dims)
-            self.model_config["likelihood"].create_likelihood_variable(
-                name=self.output_var,
-                mu=mu_var,
-                observed=target_data_scaled,
+            (
+                self.model_config["likelihood"]
+                .with_default_dims(("date", *self.dims))
+                .create_likelihood_variable(
+                    name=self.output_var,
+                    mu=mu_var,
+                    observed=target_data_scaled,
+                )
             )
 
     def _validate_date_overlap_with_include_last_observations(
