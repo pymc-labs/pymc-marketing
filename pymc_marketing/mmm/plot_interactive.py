@@ -546,6 +546,9 @@ class MMMPlotlyFactory:
             if "date" not in [x, color]:
                 raise ValueError("choose either x='date' or color='date'")
 
+        if "channel" not in [x, color]:
+            raise ValueError("choose either x='channel' or color='channel'")
+
         return self._plot_bar(
             nw_df=nw_df,
             y="mean",
