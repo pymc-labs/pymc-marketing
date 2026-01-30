@@ -95,7 +95,7 @@ def test_validate_date_col():
     numeric_date_X["date"] = [*range(len(numeric_date_X))]
     with pytest.raises(
         ValueError,
-        match=r"date_col date has numeric dtype.*Date column must have string or datetime dtype",
+        match=r"'date_col date' has numeric dtype.*Date columns must have string or datetime dtype",
     ):
         obj.validate_date_col(numeric_date_X)
 
