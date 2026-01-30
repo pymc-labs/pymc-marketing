@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -143,7 +143,7 @@ class SensitivityAnalysis:
                 "'posterior_sample_fraction' must be in the interval (0, 1]."
             )
 
-        draws = int(self.idata.posterior.dims.get("draw", 0))
+        draws = int(self.idata.posterior.sizes.get("draw", 0))
         if draws <= 1:
             return slice(None)
 

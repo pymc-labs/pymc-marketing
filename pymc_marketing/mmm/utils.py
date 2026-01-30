@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -611,15 +611,10 @@ def build_contributions(
             ds = ds.rename({v: f"{exp_dim}__{v}" for v in ds.data_vars})
             datasets.append(ds)
         else:
-            # Single column variable; use a concise name if possible
-            short = (
-                "intercept"
-                if "intercept" in name
-                else "yearly_seasonality"
-                if "yearly" in name and "season" in name
-                else name
+            short_name = name.removesuffix("_original_scale").removesuffix(
+                "_contribution"
             )
-            datasets.append(da_b.to_dataset(name=short))
+            datasets.append(da_b.to_dataset(name=short_name))
 
     # Merge all datasets
     ds_all = (
