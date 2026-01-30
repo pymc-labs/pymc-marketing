@@ -183,6 +183,45 @@ def test_contributions_over_time_with_multiple_dims_lists(mock_suite: MMMPlotSui
         assert region in title
 
 
+def test_contributions_over_time_combine_dims(mock_suite: MMMPlotSuite):
+    """Test that combine_dims=True plots all dimension combinations on a single axis."""
+    fig, ax = mock_suite.contributions_over_time(
+        var=["intercept"],
+        dims={"country": ["A", "B"]},
+        combine_dims=True,
+    )
+    assert isinstance(fig, Figure)
+    assert isinstance(ax, np.ndarray)
+    # Should create only 1 subplot when combine_dims=True
+    assert ax.shape[0] == 1
+    # Check that the legend contains both countries
+    legend_labels = [t.get_text() for t in ax[0, 0].get_legend().get_texts()]
+    assert any("A" in label for label in legend_labels)
+    assert any("B" in label for label in legend_labels)
+
+
+def test_contributions_over_time_combine_dims_multiple_vars(mock_suite: MMMPlotSuite):
+    """Test combine_dims=True with multiple variables."""
+    fig, ax = mock_suite.contributions_over_time(
+        var=["intercept", "linear_trend"],
+        dims={"country": ["A", "B"]},
+        combine_dims=True,
+    )
+    assert isinstance(fig, Figure)
+    assert isinstance(ax, np.ndarray)
+    assert ax.shape[0] == 1
+    # Check that legend contains entries for both vars and countries
+    legend_labels = [t.get_text() for t in ax[0, 0].get_legend().get_texts()]
+    # Should have at least 4 entries (2 vars x 2 countries, may have more if extra dims)
+    assert len(legend_labels) >= 4
+    # Check that both variables appear
+    assert any("intercept" in label for label in legend_labels)
+    assert any("linear_trend" in label for label in legend_labels)
+    # Check that both countries appear
+    assert any("country=A" in label for label in legend_labels)
+    assert any("country=B" in label for label in legend_labels)
+
+
 def test_posterior_predictive(fit_mmm_with_channel_original_scale, df):
     fit_mmm_with_channel_original_scale.sample_posterior_predictive(
         df.drop(columns=["y"])
@@ -2319,6 +2358,186 @@ class TestPosteriorDistribution:
         # Check that custom figsize was applied
         assert fig.get_figwidth() == 12
         assert fig.get_figheight() == 8
+
+
+class TestChannelParameter:
+    """Tests for the channel_parameter method."""
+
+    @pytest.fixture(scope="class")
+    def mock_idata_with_channel_params(self):
+        """Create mock InferenceData with channel parameters."""
+        seed = sum(map(ord, "channel_params"))
+        rng = np.random.default_rng(seed)
+        normal = rng.normal
+
+        channels = ["TV", "Radio", "Digital"]
+        geos = ["US", "UK"]
+
+        posterior = xr.Dataset(
+            {
+                # Channel-indexed parameter (saturation_alpha)
+                "saturation_alpha": xr.DataArray(
+                    normal(loc=0.5, scale=0.1, size=(2, 10, 3)),
+                    dims=("chain", "draw", "channel"),
+                    coords={
+                        "chain": np.arange(2),
+                        "draw": np.arange(10),
+                        "channel": channels,
+                    },
+                ),
+                # Channel-indexed parameter with additional dimension (adstock_alpha)
+                "adstock_alpha": xr.DataArray(
+                    normal(loc=1.0, scale=0.2, size=(2, 10, 3, 2)),
+                    dims=("chain", "draw", "channel", "geo"),
+                    coords={
+                        "chain": np.arange(2),
+                        "draw": np.arange(10),
+                        "channel": channels,
+                        "geo": geos,
+                    },
+                ),
+                # Scalar parameter (no channel dimension)
+                "intercept": xr.DataArray(
+                    normal(loc=0.0, scale=0.5, size=(2, 10)),
+                    dims=("chain", "draw"),
+                    coords={
+                        "chain": np.arange(2),
+                        "draw": np.arange(10),
+                    },
+                ),
+            }
+        )
+
+        return az.InferenceData(posterior=posterior)
+
+    @pytest.fixture(scope="class")
+    def mock_suite_with_channel_params(self, mock_idata_with_channel_params):
+        return MMMPlotSuite(idata=mock_idata_with_channel_params)
+
+    def test_channel_parameter_basic(self, mock_suite_with_channel_params):
+        """Test basic channel parameter plotting."""
+        fig = mock_suite_with_channel_params.channel_parameter(
+            param_name="saturation_alpha"
+        )
+
+        assert isinstance(fig, Figure)
+        assert len(fig.axes) == 1  # Single subplot for simple case
+        assert all(isinstance(ax, Axes) for ax in fig.axes)
+
+    def test_channel_parameter_with_additional_dim(
+        self, mock_suite_with_channel_params
+    ):
+        """Test channel parameter with additional dimensions."""
+        fig = mock_suite_with_channel_params.channel_parameter(
+            param_name="adstock_alpha"
+        )
+
+        assert isinstance(fig, Figure)
+        # Should create one subplot per geo (2 geos)
+        assert len(fig.axes) == 2
+        assert all(isinstance(ax, Axes) for ax in fig.axes)
+
+    def test_channel_parameter_with_dims_filter(self, mock_suite_with_channel_params):
+        """Test channel parameter with dimension filtering."""
+        fig = mock_suite_with_channel_params.channel_parameter(
+            param_name="adstock_alpha", dims={"geo": "US"}
+        )
+
+        assert isinstance(fig, Figure)
+        # Should create single subplot when filtering to one geo
+        assert len(fig.axes) == 1
+        assert "geo=US" in fig.axes[0].get_title()
+
+    def test_channel_parameter_with_dims_list(self, mock_suite_with_channel_params):
+        """Test channel parameter with list of dimension values."""
+        fig = mock_suite_with_channel_params.channel_parameter(
+            param_name="adstock_alpha", dims={"geo": ["US", "UK"]}
+        )
+
+        assert isinstance(fig, Figure)
+        # Should create one subplot per geo in the list
+        assert len(fig.axes) == 2
+        for i, geo in enumerate(["US", "UK"]):
+            assert f"geo={geo}" in fig.axes[i].get_title()
+
+    def test_channel_parameter_vertical_orientation(
+        self, mock_suite_with_channel_params
+    ):
+        """Test channel parameter with vertical orientation."""
+        fig = mock_suite_with_channel_params.channel_parameter(
+            param_name="saturation_alpha", orient="v"
+        )
+
+        assert isinstance(fig, Figure)
+        ax = fig.axes[0]
+        # For vertical orientation, channel should be on x-axis
+        assert ax.get_xlabel() == "channel"
+        assert ax.get_ylabel() == "saturation_alpha"
+
+    def test_channel_parameter_horizontal_orientation(
+        self, mock_suite_with_channel_params
+    ):
+        """Test channel parameter with horizontal orientation (default)."""
+        fig = mock_suite_with_channel_params.channel_parameter(
+            param_name="saturation_alpha", orient="h"
+        )
+
+        assert isinstance(fig, Figure)
+        ax = fig.axes[0]
+        # For horizontal orientation, channel should be on y-axis
+        assert ax.get_xlabel() == "saturation_alpha"
+        assert ax.get_ylabel() == "channel"
+
+    def test_channel_parameter_scalar_param(self, mock_suite_with_channel_params):
+        """Test channel parameter with scalar (non-channel-indexed) parameter."""
+        fig = mock_suite_with_channel_params.channel_parameter(param_name="intercept")
+
+        assert isinstance(fig, Figure)
+        assert len(fig.axes) == 1
+        ax = fig.axes[0]
+        # Title should contain param name
+        assert "intercept" in ax.get_title()
+
+    def test_channel_parameter_invalid_param(self, mock_suite_with_channel_params):
+        """Test that invalid parameter name raises error."""
+        with pytest.raises(ValueError, match=r"Parameter 'invalid_param' not found"):
+            mock_suite_with_channel_params.channel_parameter(param_name="invalid_param")
+
+    def test_channel_parameter_no_posterior(self):
+        """Test that missing posterior data raises error."""
+        idata = az.InferenceData()
+        suite = MMMPlotSuite(idata=idata)
+        with pytest.raises(ValueError, match=r"No posterior data found"):
+            suite.channel_parameter(param_name="saturation_alpha")
+
+    def test_channel_parameter_custom_figsize(self, mock_suite_with_channel_params):
+        """Test channel parameter with custom figure size."""
+        fig = mock_suite_with_channel_params.channel_parameter(
+            param_name="saturation_alpha", figsize=(12, 8)
+        )
+
+        assert isinstance(fig, Figure)
+        # Check that custom figsize was applied
+        assert fig.get_figwidth() == 12
+        assert fig.get_figheight() == 8
+
+    def test_channel_parameter_returns_figure_for_axvline(
+        self, mock_suite_with_channel_params
+    ):
+        """Test that returned figure can be used to add reference lines."""
+        fig = mock_suite_with_channel_params.channel_parameter(
+            param_name="saturation_alpha"
+        )
+
+        # Verify we can add axvline as done in the notebook
+        ax = fig.axes[0]
+        ax.axvline(x=0.5, color="red", linestyle="--", label="reference")
+        ax.legend()
+
+        assert isinstance(fig, Figure)
+        # Check that the axvline was added
+        lines = ax.get_lines()
+        assert len(lines) >= 1
 
 
 class TestPriorVsPosterior:
