@@ -2840,7 +2840,7 @@ class MMMPlotSuite:
         """
         if not hasattr(self.idata, "sensitivity_analysis"):
             raise ValueError(
-                "No sensitivity analysis results found. Run run_sweep() first."
+                "No sensitivity analysis results found. Call .sensitivity.run_sweep() first."
             )
         sa = self.idata.sensitivity_analysis  # type: ignore
         x = sa["x"] if isinstance(sa, xr.Dataset) else sa
@@ -3451,9 +3451,7 @@ class MMMPlotSuite:
                 var = [
                     v
                     for v in posterior_vars
-                    if v.endswith("_contribution")
-                    and not v.endswith("_contribution_original_scale")
-                    and v not in excluded_vars
+                    if v.endswith("_contribution") and v not in excluded_vars
                 ]
 
             if not var:
