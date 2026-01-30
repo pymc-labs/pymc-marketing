@@ -444,7 +444,7 @@ class MMMPlotlyFactory:
 
         if "date" in nw_df.columns and len(nw_df["date"].unique()) > 1:
             if "date" not in [x, color]:
-                raise ValueError("choose either x=`date` or color=`date`")
+                raise ValueError("choose either x='date' or color='date'")
 
         if component not in [x, color]:
             raise ValueError(f"choose either x=`{component}` or color=`{component}`")
