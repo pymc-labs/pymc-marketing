@@ -307,7 +307,7 @@ class MMMPlotlyFactory:
 
         # Validate required columns
         if y not in nw_df.columns:
-            raise ValueError(f"DataFrame must have '{y}' column. Missing: mean")
+            raise ValueError(f"DataFrame must have '{y}' column.")
 
         if x not in nw_df.columns:
             raise ValueError(f"DataFrame must have '{x}' column")
@@ -425,7 +425,7 @@ class MMMPlotlyFactory:
         # Get data from summary factory
         hdi_probs = [hdi_prob] if hdi_prob else []
         df = self.summary.contributions(
-            hdi_probs=hdi_probs or [0.94],
+            hdi_probs=hdi_probs,
             component=component,
             frequency=frequency,
         )
@@ -437,7 +437,7 @@ class MMMPlotlyFactory:
         plotly_kwargs.setdefault("title", f"{component.capitalize()} Contributions")
         plotly_kwargs.setdefault("x", component)
 
-        nw_df = nw.from_native(df, eager_only=True)
+        nw_df = nw.from_native(df)
         # if `date` column exist then it should either be x or color.
         x = plotly_kwargs.get("x")
         color = plotly_kwargs.get("color")
