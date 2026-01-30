@@ -35,7 +35,6 @@ Basic MMM fit:
     mmm = MMM(
         date_column="date",
         channel_columns=["C1", "C2"],
-        target_column="y",
         adstock=GeometricAdstock(l_max=10),
         saturation=LogisticSaturation(),
     )
@@ -51,7 +50,7 @@ Multi-dimensional (panel) with dims:
 
     X = pd.DataFrame(
         {
-            "date": pd.date_range("2025-01-01", periods=4, freq="W-MON"),
+            "date": ["2025-01-06", "2025-01-13"] * 2,
             "country": ["A", "A", "B", "B"],
             "C1": [100, 120, 90, 110],
             "C2": [80, 70, 95, 85],
@@ -62,10 +61,9 @@ Multi-dimensional (panel) with dims:
     mmm = MMM(
         date_column="date",
         channel_columns=["C1", "C2"],
-        target_column="y",
-        dims=("country",),
         adstock=GeometricAdstock(l_max=10),
         saturation=LogisticSaturation(),
+        dims=("country",),
     )
     mmm.fit(X, y)
 
@@ -78,7 +76,6 @@ Time-varying parameters and seasonality:
     mmm = MMM(
         date_column="date",
         channel_columns=["C1", "C2"],
-        target_column="y",
         adstock=GeometricAdstock(l_max=10),
         saturation=LogisticSaturation(),
         time_varying_intercept=True,
@@ -95,7 +92,6 @@ Controls (additional regressors):
     mmm = MMM(
         date_column="date",
         channel_columns=["C1", "C2"],
-        target_column="y",
         control_columns=["price_index"],
         adstock=GeometricAdstock(l_max=10),
         saturation=LogisticSaturation(),
@@ -128,7 +124,6 @@ Events:
     mmm = MMM(
         date_column="date",
         channel_columns=["C1", "C2"],
-        target_column="y",
         adstock=GeometricAdstock(l_max=10),
         saturation=LogisticSaturation(),
     )
@@ -156,7 +151,7 @@ import json
 import warnings
 from collections.abc import Callable, Sequence
 from copy import deepcopy
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, cast
 
 import arviz as az
 import numpy as np
@@ -223,9 +218,9 @@ class MMM(RegressionModelBuilder):
     date_column : str
         The name of the column representing the date in the dataset.
     channel_columns : list[str]
-        A list of columns representing the marketing channels.
-    target_column : str
-        The name of the column representing the target variable to be predicted.
+        A list of column names representing the marketing channels.
+    target_column : str, optional
+        The name of the column representing the target variable in the dataset. Defaults to `y`.
     adstock : AdstockTransformation
         The adstock transformation to apply to the channel data.
     saturation : SaturationTransformation
@@ -235,7 +230,10 @@ class MMM(RegressionModelBuilder):
     time_varying_media : bool
         Whether to use time-varying effects for media channels.
     dims : tuple | None
-        Additional dimensions for the model.
+        Additional batch-dimensions for the model.
+        One categorical-like column with the name of each batch dimension should be present in the dataset.
+        This is used to identify which batch-dimension(s) are associated with each row of data.
+        Data must be rectangular these batch dimensions (i.e., same dates and length for each combination)
     scaling : Scaling | dict | None
         Scaling methods to be used for the target variable and the marketing channels.
         Defaults to max scaling for both.
@@ -253,15 +251,17 @@ class MMM(RegressionModelBuilder):
 
     _model_type: str = "MMMM (Multi-Dimensional Marketing Mix Model)"
     version: str = "0.0.2"
+    output_var = "y"
 
     @validate_call
     def __init__(
         self,
+        *,
         date_column: str = Field(..., description="Column name of the date variable."),
         channel_columns: list[str] = Field(
             min_length=1, description="Column names of the media channel variables."
         ),
-        target_column: str = Field(..., description="The name of the target column."),
+        target_column: str = Field("y", description="The name of the target column."),
         adstock: InstanceOf[AdstockTransformation] = Field(
             ..., description="Type of adstock transformation to apply."
         ),
@@ -341,6 +341,12 @@ class MMM(RegressionModelBuilder):
         self.adstock_first = adstock_first
 
         dims = dims if dims is not None else ()
+        core_dims = {"date", "channel", "control", "fourier_mode"}
+        if invalid_dims := core_dims & set(dims):
+            raise ValueError(
+                f"Dims {sorted(invalid_dims)} are reserved for internal use"
+            )
+
         self.dims = dims
 
         if isinstance(scaling, dict):
@@ -661,7 +667,65 @@ class MMM(RegressionModelBuilder):
                 or getattr(self, "time_varying_media", False)
             ),
         )
+
         return MMMIDataWrapper(self.idata, schema=schema, validate_on_init=False)
+
+    @property
+    def summary(self) -> Any:  # type: ignore[no-any-return]
+        """Access summary DataFrame generation functionality.
+
+        Returns a factory for creating summary DataFrames from the model's
+        InferenceData with configurable defaults for HDI levels and output format.
+
+        Returns a fresh factory on each access. The factory includes both
+        data and model, enabling all summary methods including transformation curves.
+
+        Returns
+        -------
+        MMMSummaryFactory
+            Factory providing methods for different summary types
+
+        Examples
+        --------
+        .. code-block:: python
+
+            # Get contribution summary (default: pandas, 94% HDI)
+            df = mmm.summary.contributions()
+
+            # Get ROAS summary
+            df = mmm.summary.roas()
+
+            # Get saturation curves (requires model - provided automatically)
+            df = mmm.summary.saturation_curves(n_points=50)
+
+            # Get adstock curves
+            df = mmm.summary.adstock_curves(max_lag=15)
+
+            # Get posterior predictive with custom settings
+            df = mmm.summary.posterior_predictive(
+                hdi_probs=[0.80, 0.94], frequency="monthly", output_format="polars"
+            )
+
+            # Create factory with different defaults (direct instantiation)
+            from pymc_marketing.mmm.summary import MMMSummaryFactory
+
+            polars_factory = MMMSummaryFactory(
+                mmm.data, model=mmm, hdi_probs=[0.50, 0.94], output_format="polars"
+            )
+            df = polars_factory.contributions()  # Uses configured defaults
+
+            # Get change over time
+            df = mmm.summary.change_over_time()
+
+        See Also
+        --------
+        MMMSummaryFactory : Factory class documentation
+        pymc_marketing.mmm.summary : Module with all factory functions
+        """
+        from pymc_marketing.mmm.summary import MMMSummaryFactory
+
+        self._validate_idata_exists()
+        return MMMSummaryFactory(self.data, model=self)  # Pass both data and model
 
     @property
     def default_model_config(self) -> dict:
@@ -691,17 +755,6 @@ class MMM(RegressionModelBuilder):
             **self.adstock.model_config,
             **self.saturation.model_config,
         }
-
-    @property
-    def output_var(self) -> Literal["y"]:
-        """Define target variable for the model.
-
-        Returns
-        -------
-        str
-            The target variable for the model.
-        """
-        return "y"
 
     def post_sample_model_transformation(self) -> None:
         """Post-sample model transformation in order to store the HSGP state from fit."""
@@ -1129,8 +1182,10 @@ class MMM(RegressionModelBuilder):
 
     def _validate_contribution_variable(self, var: str) -> None:
         """Validate that the variable ends with "_contribution" and is in the model."""
-        if not (var.endswith("_contribution") or var == "y"):
-            raise ValueError(f"Variable {var} must end with '_contribution' or be 'y'")
+        if not (var.endswith("_contribution") or var == self.output_var):
+            raise ValueError(
+                f"Variable {var} must end with '_contribution' or be {self.output_var}"
+            )
 
         if var not in self.model.named_vars:
             raise ValueError(f"Variable {var} is not in the model")
@@ -1826,6 +1881,9 @@ class MMM(RegressionModelBuilder):
         original_scale: bool = Field(
             True, description="Whether to return curve in original scale."
         ),
+        idata: InstanceOf[az.InferenceData] | None = Field(
+            None, description="Optional InferenceData to sample from."
+        ),
     ) -> xr.DataArray:
         """Sample saturation curves from posterior parameters.
 
@@ -1861,6 +1919,10 @@ class MMM(RegressionModelBuilder):
             from scaled to original units. If False, values remain in scaled space
             as used internally by the model. Note that x-axis values always remain
             in scaled space consistent with the max_value parameter.
+        idata : az.InferenceData or None, optional
+            Optional InferenceData to sample from. If None (default), uses
+            self.idata. This allows sampling curves from different posterior
+            distributions, such as from a different model or a subset of samples.
 
         Returns
         -------
@@ -1877,7 +1939,7 @@ class MMM(RegressionModelBuilder):
         Raises
         ------
         ValueError
-            If called before model is fitted (idata doesn't exist)
+            If called before model is fitted (idata doesn't exist) and no idata provided
         ValueError
             If original_scale=True but scale factors not found in constant_data
 
@@ -1906,6 +1968,11 @@ class MMM(RegressionModelBuilder):
         ...     max_value=max_scaled, num_points=200, num_samples=1000, random_state=42
         ... )
 
+        Sample curves from a different InferenceData:
+
+        >>> external_idata = az.from_netcdf("other_model.nc")
+        >>> curves = mmm.sample_saturation_curve(idata=external_idata)
+
 
         Notes
         -----
@@ -1919,12 +1986,13 @@ class MMM(RegressionModelBuilder):
         - Posterior samples are drawn randomly without replacement when num_samples
           is less than the total available samples, otherwise all samples are used.
         """
-        self._validate_idata_exists()
+        # Use provided idata or fall back to self.idata
+        if idata is None:
+            self._validate_idata_exists()
+            idata = cast(az.InferenceData, self.idata)
 
         # Validate that posterior exists (model was fitted, not just prior sampled)
-        if (
-            not hasattr(self.idata, "posterior") or self.idata.posterior is None  # type: ignore[union-attr]
-        ):
+        if not hasattr(idata, "posterior") or idata.posterior is None:
             raise ValueError(
                 "posterior not found in idata. "
                 "The model must be fitted (call .fit()) before sampling saturation curves."
@@ -1932,7 +2000,7 @@ class MMM(RegressionModelBuilder):
 
         # Subsample posterior if needed
         parameters = self._subsample_posterior(
-            parameters=self.idata.posterior,  # type: ignore[union-attr]
+            parameters=idata.posterior,
             num_samples=num_samples,
             random_state=random_state,
         )
@@ -1953,7 +2021,7 @@ class MMM(RegressionModelBuilder):
             # Note: x coordinates remain in scaled space (same as max_value input)
             # since converting to original scale would require per-channel scaling
             # which complicates plotting and interpretation
-            target_scale = self.data.get_target_scale()
+            target_scale = MMMIDataWrapper(idata).get_target_scale()
             # Multiply by target_scale since saturation affects target variable
             curve = curve * target_scale
 
@@ -1969,6 +2037,9 @@ class MMM(RegressionModelBuilder):
             500, gt=0, description="Number of posterior samples to use."
         ),
         random_state: RandomState | None = None,
+        idata: InstanceOf[az.InferenceData] | None = Field(
+            None, description="Optional InferenceData to sample from."
+        ),
     ) -> xr.DataArray:
         """Sample adstock curves from posterior parameters.
 
@@ -1993,6 +2064,10 @@ class MMM(RegressionModelBuilder):
             a numpy Generator instance, or None for non-reproducible sampling.
             Only used when num_samples is not None and less than total available
             samples.
+        idata : az.InferenceData or None, optional
+            Optional InferenceData to sample from. If None (default), uses
+            self.idata. This allows sampling curves from different posterior
+            distributions, such as from a different model or a subset of samples.
 
         Returns
         -------
@@ -2008,7 +2083,7 @@ class MMM(RegressionModelBuilder):
         Raises
         ------
         ValueError
-            If called before model is fitted (idata doesn't exist)
+            If called before model is fitted (idata doesn't exist) and no idata provided
         ValueError
             If idata exists but no posterior (model not fitted)
 
@@ -2030,6 +2105,11 @@ class MMM(RegressionModelBuilder):
         ...     amount=100.0, num_samples=1000, random_state=42
         ... )
 
+        Sample curves from a different InferenceData:
+
+        >>> external_idata = az.from_netcdf("other_model.nc")
+        >>> curves = mmm.sample_adstock_curve(idata=external_idata)
+
         Notes
         -----
         - The adstock curve shows the carryover effect of a single impulse of
@@ -2043,12 +2123,13 @@ class MMM(RegressionModelBuilder):
         - Posterior samples are drawn randomly without replacement when num_samples
           is less than the total available samples.
         """
-        self._validate_idata_exists()
+        # Use provided idata or fall back to self.idata
+        if idata is None:
+            self._validate_idata_exists()
+            idata = cast(az.InferenceData, self.idata)
 
         # Validate that posterior exists
-        if (
-            not hasattr(self.idata, "posterior") or self.idata.posterior is None  # type: ignore[union-attr]
-        ):
+        if not hasattr(idata, "posterior") or idata.posterior is None:
             raise ValueError(
                 "posterior not found in idata. "
                 "The model must be fitted (call .fit()) before sampling adstock curves."
@@ -2056,7 +2137,7 @@ class MMM(RegressionModelBuilder):
 
         # Subsample posterior if needed
         parameters = self._subsample_posterior(
-            parameters=self.idata.posterior,  # type: ignore[union-attr]
+            parameters=idata.posterior,
             num_samples=num_samples,
             random_state=random_state,
         )
@@ -2996,7 +3077,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         ].to_xarray()
 
         var_names = [
-            "y",
+            self.output_var,
             "channel_contribution",
             "total_media_contribution_original_scale",
         ]
