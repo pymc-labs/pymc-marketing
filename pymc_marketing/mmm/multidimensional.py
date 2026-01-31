@@ -170,7 +170,11 @@ from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.schema import MMMIdataSchema
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm import SoftPlusHSGP
-from pymc_marketing.mmm.additive_effect import EventAdditiveEffect, MuEffect
+from pymc_marketing.mmm.additive_effect import (
+    EventAdditiveEffect,
+    MuEffect,
+    safe_to_datetime,
+)
 from pymc_marketing.mmm.budget_optimizer import OptimizerCompatibleModelWrapper
 from pymc_marketing.mmm.causal import CausalGraphModel
 from pymc_marketing.mmm.components.adstock import (
@@ -1591,8 +1595,8 @@ class MMM(RegressionModelBuilder):
             return
 
         # Get training dates and input dates
-        training_dates = pd.to_datetime(self.model_coords["date"])
-        input_dates = pd.to_datetime(X[self.date_column].unique())
+        training_dates = safe_to_datetime(self.model_coords["date"], "date")
+        input_dates = safe_to_datetime(X[self.date_column].unique(), self.date_column)
 
         # Check for overlap
         overlapping_dates = set(training_dates).intersection(set(input_dates))
@@ -2939,7 +2943,9 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         # If budget_distribution has integer date indices, map them to actual dates
         if np.issubdtype(budget_distribution.coords["date"].dtype, np.integer):
             # Get unique dates from data_xr_stacked
-            unique_dates = pd.to_datetime(data_xr_stacked.coords["date"].values)
+            unique_dates = safe_to_datetime(
+                data_xr_stacked.coords["date"].values, "date"
+            )
             unique_dates_sorted = sorted(unique_dates.unique())
 
             # Map integer indices to actual dates
@@ -3006,7 +3012,9 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         from pymc_marketing.mmm.utils import _convert_frequency_to_timedelta
 
         # Get date series and infer frequency
-        date_series = pd.to_datetime(data_with_noise[self.date_column])
+        date_series = safe_to_datetime(
+            data_with_noise[self.date_column], self.date_column
+        )
         inferred_freq = pd.infer_freq(date_series.unique())
 
         if inferred_freq is None:  # fall-back if inference fails
