@@ -125,12 +125,21 @@ def parse_model_config(
     parse_errors = []
 
     def handle_prior_config(name, prior_config):
+        from pymc_marketing.mmm.dims import XPrior
+
         # Early return for non-distribution fields - must be first check
         if name in non_distributions_set or name in hsgp_kwargs_set:
             return prior_config
 
-        if isinstance(prior_config, Prior) or isinstance(prior_config, VariableFactory):
+        if isinstance(prior_config, XPrior) or (
+            isinstance(prior_config, VariableFactory)
+            and not isinstance(prior_config, Prior)
+        ):
             return prior_config
+
+        if isinstance(prior_config, Prior):
+            # This will convert Prior to XPrior
+            return XPrior.from_prior(prior_config)
 
         # Skip deserialization for non-dict, non-string sequence types (lists, tuples, etc.)
         # These are not distribution configurations and should never be deserialized
@@ -142,14 +151,25 @@ def parse_model_config(
         if not isinstance(prior_config, dict):
             return prior_config
 
+        # Convert "dist" to "xdist"
+        def _dist_to_xdist(d):
+            return {
+                "xdist" if key == "dist" else key: _dist_to_xdist(value)
+                if isinstance(value, dict)
+                else value
+                for key, value in d.items()
+            }
+
+        xprior_config = _dist_to_xdist(prior_config)
+
         try:
-            dist = deserialize(prior_config)
+            dist = deserialize(xprior_config)
         except Exception as e:
             parse_errors.append(f"Parameter {name}: {e}")
         else:
             msg = (
                 f"{name} is automatically converted to {dist}. "
-                "Use the Prior class to avoid this warning."
+                "Use the XPrior class to avoid this warning."
             )
             warnings.warn(msg, DeprecationWarning, stacklevel=2)
 

@@ -1129,7 +1129,7 @@ class MMM(RegressionModelBuilder):
             else (self.saturation, self.adstock)
         )
 
-        return second.apply(x=first.apply(x=x, dims=dims), dims=dims)
+        return second.apply(x=first.apply(x=x, core_dim="date"), core_dim="date")
 
     def _compute_scales(self) -> None:
         """Compute and save scaling factors for channels and target."""

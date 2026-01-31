@@ -21,12 +21,14 @@ import numpy as np
 from pydantic import validate_call
 from pymc import dims as pmd
 from pymc.distributions.shape_utils import Dims
-from pymc_extras.deserialize import deserialize
+from pymc_extras.deserialize import deserialize, register_deserialization
 from pymc_extras.prior import (
     MuAlreadyExistsError,
+    Prior,
     UnsupportedDistributionError,
     UnsupportedParameterizationError,
     VariableFactory,
+    _dims_to_str,
     _get_pymc_parameters,
 )
 from pytensor import Variable
@@ -82,6 +84,10 @@ class XPrior:
         """The name of the PyMC distribution."""
         return self._distribution
 
+    @staticmethod
+    def _is_xprior_type(data):
+        return "xdist" in data
+
     @distribution.setter
     def distribution(self, distribution: str) -> None:
         if hasattr(self, "_distribution"):
@@ -120,6 +126,39 @@ class XPrior:
             dims = tuple(dims)
 
         self._dims = dims or ()
+
+    def __str__(self) -> str:
+        """Return a string representation of the prior."""
+        param_str = ", ".join(
+            [f"{param}={value}" for param, value in self.parameters.items()]
+        )
+        param_str = "" if not param_str else f", {param_str}"
+
+        dim_str = f", dims={_dims_to_str(self.dims)}" if self.dims else ""
+        centered_str = f", centered={self.centered}" if not self.centered else ""
+        transform_str = f', transform="{self.transform}"' if self.transform else ""
+        return f'{self.__class__.__name__}("{self.distribution}"{param_str}{dim_str}{centered_str}{transform_str})'
+
+    def __repr__(self) -> str:
+        """Return a string representation of the prior."""
+        return self.__str__()
+
+    def __eq__(self, other) -> bool:
+        """Check if two priors are equal."""
+        if type(self) is not type(other):
+            return False
+
+        try:
+            np.testing.assert_equal(self.parameters, other.parameters)
+        except AssertionError:
+            return False
+
+        return (
+            self.distribution == other.distribution
+            and self.dims == other.dims
+            and self.centered == other.centered
+            and self.transform == other.transform
+        )
 
     def __getitem__(self, key: str) -> XPrior | Any:
         """Return the parameter of the prior."""
@@ -273,7 +312,7 @@ class XPrior:
 
     def to_dict(self) -> dict[str, Any]:
         data: dict[str, Any] = {
-            "dist": self.distribution,
+            "xdist": self.distribution,
         }
         if self.parameters:
 
@@ -315,7 +354,7 @@ class XPrior:
             )
             raise ValueError(msg)
 
-        dist = data["dist"]
+        dist = data["xdist"]
         kwargs = data.get("kwargs", {})
 
         def handle_value(value):
@@ -335,6 +374,21 @@ class XPrior:
         transform = data.get("transform")
 
         return cls(dist, dims=dims, centered=centered, transform=transform, **kwargs)
+
+    @classmethod
+    def from_prior(cls, prior: Prior) -> XPrior:
+        prior_dict = prior.to_dict()
+
+        def _dist_to_xdist(d):
+            return {
+                "xdist" if key == "dist" else key: _dist_to_xdist(value)
+                if isinstance(value, dict)
+                else value
+                for key, value in d.items()
+            }
+
+        x_prior_dict = _dist_to_xdist(prior_dict)
+        return cls.from_dict(x_prior_dict)
 
     def __deepcopy__(self, memo) -> XPrior:
         """Return a deep copy of the prior."""
@@ -373,3 +427,6 @@ class XPrior:
         distribution.parameters["mu"] = mu
         distribution.parameters["observed"] = observed
         return distribution.create_variable(name)
+
+
+register_deserialization(is_type=XPrior._is_xprior_type, deserialize=XPrior.from_dict)

@@ -17,16 +17,16 @@ from enum import StrEnum
 from typing import NamedTuple
 
 import numpy as np
-import numpy.typing as npt
 import pytensor.tensor as pt
 import pytensor.xtensor as ptx
 from pymc import logcdf, logp
 from pymc.dims import Weibull
 from pytensor.tensor.signal.conv import Convolve1d
-from pytensor.tensor.variable import TensorVariable
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 from pytensor.xtensor.vectorization import XBlockwise
+
+from pymc_marketing.mmm.dims import XTensorLike
 
 
 class ConvMode(StrEnum):
@@ -50,7 +50,7 @@ def batched_convolution(
     *,
     dim: str,
     mode: ConvMode | str = ConvMode.After,
-) -> TensorVariable:
+) -> XTensorVariable:
     R"""Apply a 1D convolution in a vectorized way across multiple batch dimensions.
 
     .. plot::
@@ -139,14 +139,14 @@ def batched_convolution(
 
 
 def binomial_adstock(
-    x,
-    alpha: float = 0.5,
+    x: XTensorLike,
+    alpha: XTensorLike = 0.5,
     *,
     l_max: int = 12,
     normalize: bool = False,
     mode: ConvMode = ConvMode.After,
     dim: str,
-) -> TensorVariable:
+) -> XTensorVariable:
     R"""Binomial adstock transformation.
 
     Binomial adstock assumes that the effect of one unit of spend
@@ -225,14 +225,14 @@ def binomial_adstock(
 
 
 def geometric_adstock(
-    x,
-    alpha: float = 0.0,
+    x: XTensorLike,
+    alpha: XTensorLike = 0.0,
     l_max: int = 12,
     *,
     dim: str,
     normalize: bool = False,
     mode: ConvMode = ConvMode.After,
-) -> TensorVariable:
+) -> XTensorVariable:
     R"""Geometric adstock transformation.
 
     Adstock with geometric decay assumes advertising effect peaks at the same
@@ -314,15 +314,15 @@ def geometric_adstock(
 
 
 def delayed_adstock(
-    x,
-    alpha: float = 0.0,
-    theta: int = 0,
+    x: XTensorLike,
+    alpha: XTensorLike = 0.0,
+    theta: XTensorLike = 0,
     *,
     l_max: int = 12,
     normalize: bool = False,
     dim: str,
     mode: ConvMode = ConvMode.After,
-) -> TensorVariable:
+) -> XTensorVariable:
     R"""Delayed adstock transformation.
 
     This transformation is similar to geometric adstock transformation, but it
@@ -518,7 +518,7 @@ def weibull_adstock(
     return batched_convolution(x, w, mode=mode, dim=dim)
 
 
-def logistic_saturation(x, lam: npt.NDArray | float = 0.5) -> TensorVariable:
+def logistic_saturation(x: XTensorLike, lam: XTensorLike = 0.5) -> XTensorVariable:
     r"""Logistic saturation transformation.
 
     .. math::
@@ -565,14 +565,16 @@ def logistic_saturation(x, lam: npt.NDArray | float = 0.5) -> TensorVariable:
         Transformed tensor.
 
     """
+    x = as_xtensor(x)
+    lam = as_xtensor(lam)
     return (1 - ptx.math.exp(-lam * x)) / (1 + ptx.math.exp(-lam * x))
 
 
 def inverse_scaled_logistic_saturation(
     x,
-    lam: npt.NDArray | float = 0.5,
-    eps: float = np.log(3),
-) -> TensorVariable:
+    lam: XTensorLike = 0.5,
+    eps: XTensorLike = np.log(3),
+) -> XTensorVariable:
     r"""Inverse scaled logistic saturation transformation.
 
     It offers a more intuitive alternative to logistic_saturation,
@@ -626,22 +628,22 @@ class TanhSaturationParameters(NamedTuple):
 
     Parameters
     ----------
-    b : pt.TensorLike
+    b : XTensorLike
         Saturation
-    c : pt.TensorLike
+    c : XTensorLike
         Customer Aquisition Cost at 0.
 
     """
 
-    b: pt.TensorLike
-    c: pt.TensorLike
+    b: XTensorLike
+    c: XTensorLike
 
-    def baseline(self, x0: pt.TensorLike) -> "TanhSaturationBaselinedParameters":
+    def baseline(self, x0: XTensorLike) -> "TanhSaturationBaselinedParameters":
         """Change the parameterization to baselined at :math:`x_0`.
 
         Parameters
         ----------
-        x0 : pt.TensorLike
+        x0 : XTensorLike
             Baseline spend.
 
         Returns
@@ -661,18 +663,18 @@ class TanhSaturationBaselinedParameters(NamedTuple):
 
     Parameters
     ----------
-    x0 : pt.TensorLike
+    x0 : XTensorLike
         Baseline spend.
-    gain : pt.TensorLike
+    gain : XTensorLike
         ROAS at :math:`x_0`.
-    r : pt.TensorLike
+    r : XTensorLike
         Overspend Fraction.
 
     """
 
-    x0: pt.TensorLike
-    gain: pt.TensorLike
-    r: pt.TensorLike
+    x0: XTensorLike
+    gain: XTensorLike
+    r: XTensorLike
 
     def debaseline(self) -> TanhSaturationParameters:
         """Change the parameterization to baselined to be classic saturation and cac.
@@ -684,20 +686,20 @@ class TanhSaturationBaselinedParameters(NamedTuple):
 
         """
         saturation = (self.gain * self.x0) / self.r
-        cac = self.r / (self.gain * pt.arctanh(self.r))
+        cac = self.r / (self.gain * ptx.math.arctanh(self.r))
         return TanhSaturationParameters(saturation, cac)
 
-    def rebaseline(self, x1: pt.TensorLike) -> "TanhSaturationBaselinedParameters":
+    def rebaseline(self, x1: XTensorLike) -> "TanhSaturationBaselinedParameters":
         """Change the parameterization to baselined at :math:`x_1`."""
         params = self.debaseline()
         return params.baseline(x1)
 
 
 def tanh_saturation(
-    x: pt.TensorLike,
-    b: pt.TensorLike = 0.5,
-    c: pt.TensorLike = 0.5,
-) -> TensorVariable:
+    x: XTensorLike,
+    b: XTensorLike = 0.5,
+    c: XTensorLike = 0.5,
+) -> XTensorVariable:
     R"""Tanh saturation transformation.
 
     .. math::
@@ -760,15 +762,18 @@ def tanh_saturation(
     See https://www.pymc-labs.com/blog-posts/reducing-customer-acquisition-costs-how-we-helped-optimizing-hellofreshs-marketing-budget/ # noqa: E501
 
     """  # noqa: E501
-    return b * pt.tanh(x / (b * c))
+    x = as_xtensor(x)
+    b = as_xtensor(b)
+    c = as_xtensor(c)
+    return b * ptx.math.tanh(x / (b * c))
 
 
 def tanh_saturation_baselined(
-    x: pt.TensorLike,
-    x0: pt.TensorLike,
-    gain: pt.TensorLike = 0.5,
-    r: pt.TensorLike = 0.5,
-) -> TensorVariable:
+    x: XTensorLike,
+    x0: XTensorLike,
+    gain: XTensorLike = 0.5,
+    r: XTensorLike = 0.5,
+) -> XTensorVariable:
     r"""Baselined Tanh Saturation.
 
     This parameterization that is easier than :func:`tanh_saturation`
@@ -912,14 +917,17 @@ def tanh_saturation_baselined(
     Developed by Max Kochurov and Aziz Al-Maeeni doing innovative work in `PyMC Labs <pymc-labs.com>`_.
 
     """
-    return gain * x0 * pt.tanh(x * pt.arctanh(r) / x0) / r
+    x = as_xtensor(x)
+    x0 = as_xtensor(x0)
+    r = as_xtensor(r)
+    return gain * x0 * ptx.math.tanh(x * ptx.math.arctanh(r) / x0) / r
 
 
 def michaelis_menten(
-    x: float | np.ndarray | npt.NDArray,
-    alpha: float | np.ndarray | npt.NDArray,
-    lam: float | np.ndarray | npt.NDArray,
-) -> float | TensorVariable:
+    x: XTensorLike,
+    alpha: XTensorLike,
+    lam: XTensorLike,
+) -> XTensorVariable:
     r"""Evaluate the Michaelis-Menten function for given values of x, alpha, and lambda.
 
     .. math::
@@ -998,12 +1006,15 @@ def michaelis_menten(
         The value of the Michaelis-Menten function given the parameters.
 
     """
+    x = as_xtensor(x)
+    lam = as_xtensor(lam)
+    alpha = as_xtensor(alpha)
     return alpha * x / (lam + x)
 
 
 def hill_function(
-    x: pt.TensorLike, slope: pt.TensorLike, kappa: pt.TensorLike
-) -> TensorVariable:
+    x: XTensorLike, slope: XTensorLike, kappa: XTensorLike
+) -> XTensorVariable:
     r"""Hill Function.
 
     .. math::
@@ -1052,17 +1063,17 @@ def hill_function(
 
     Parameters
     ----------
-    x : float or array-like
+    x : XTensorLike
         The independent variable, typically representing the concentration of a
         substrate or the intensity of a stimulus.
-    slope : float
+    slope : XTensorLike
         The slope of the hill. Must be non-positive.
-    kappa : float
+    kappa : XTensorLike
         The half-saturation point as :math:`f(\kappa) = 0.5` for any value of :math:`s` and :math:`\kappa`.
 
     Returns
     -------
-    float
+    XTensorVariable
         The value of the Hill function given the parameters.
 
     References
@@ -1070,17 +1081,20 @@ def hill_function(
     .. [1] Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017).
 
     """  # noqa: E501
-    return pt.as_tensor_variable(
-        1 - pt.power(kappa, slope) / (pt.power(kappa, slope) + pt.power(x, slope))
+    x = as_xtensor(x)
+    slope = as_xtensor(slope)
+    kappa = as_xtensor(kappa)
+    return 1 - ptx.math.power(kappa, slope) / (
+        ptx.math.power(kappa, slope) + ptx.math.power(x, slope)
     )
 
 
 def hill_saturation_sigmoid(
-    x: pt.TensorLike,
-    sigma: pt.TensorLike,
-    beta: pt.TensorLike,
-    lam: pt.TensorLike,
-) -> TensorVariable:
+    x: XTensorLike,
+    sigma: XTensorLike,
+    beta: XTensorLike,
+    lam: XTensorLike,
+) -> XTensorVariable:
     r"""Hill Saturation Sigmoid Function.
 
     .. math::
@@ -1167,13 +1181,19 @@ def hill_saturation_sigmoid(
         The value of the Hill saturation sigmoid function for each input value of x.
 
     """
-    return sigma / (1 + pt.exp(-beta * (x - lam))) - sigma / (1 + pt.exp(beta * lam))
+    x = as_xtensor(x)
+    sigma = as_xtensor(sigma)
+    beta = as_xtensor(beta)
+    lam = as_xtensor(lam)
+    return sigma / (1 + ptx.math.exp(-beta * (x - lam))) - sigma / (
+        1 + ptx.math.exp(beta * lam)
+    )
 
 
 def root_saturation(
-    x: pt.TensorLike,
-    alpha: pt.TensorLike,
-) -> pt.TensorVariable:
+    x: XTensorLike,
+    alpha: XTensorLike,
+) -> XTensorVariable:
     r"""Root saturation transformation.
 
     .. math::
@@ -1213,4 +1233,6 @@ def root_saturation(
         Transformed tensor.
 
     """
-    return pt.as_tensor_variable(x**alpha)
+    x = as_xtensor(x)
+    alpha = as_xtensor(alpha)
+    return x**alpha

@@ -24,7 +24,8 @@ from pymc_extras.deserialize import (
     register_deserialization,
 )
 from pymc_extras.prior import Prior
-from pytensor.tensor.variable import TensorVariable
+from pytensor.xtensor import as_xtensor
+from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.mmm.components.saturation import (
     SATURATION_TRANSFORMATIONS,
@@ -33,6 +34,7 @@ from pymc_marketing.mmm.components.saturation import (
     SaturationTransformation,
     saturation_from_dict,
 )
+from pymc_marketing.mmm.dims import XPrior
 
 
 @pytest.fixture
@@ -55,8 +57,8 @@ def saturation_functions():
 @pytest.mark.parametrize(
     "x, dims",
     [
-        pytest.param(np.linspace(0, 1, 100), None, id="vector"),
-        pytest.param(np.ones((100, 3)), "channel", id="matrix"),
+        pytest.param(np.linspace(0, 1, 100), ("time",), id="vector"),
+        pytest.param(np.ones((100, 3)), ("time", "channel"), id="matrix"),
     ],
 )
 def test_apply_method(
@@ -65,11 +67,13 @@ def test_apply_method(
     x,
     dims,
 ) -> None:
+    x = as_xtensor(x, dims=dims)
+
     with model:
         y = saturation.apply(x, dims=dims)
 
-    assert isinstance(y, TensorVariable)
-    assert y.eval().shape == x.shape
+    assert isinstance(y, XTensorVariable)
+    assert y.eval().shape == x.type.shape
 
 
 @pytest.mark.parametrize(
@@ -95,7 +99,7 @@ def test_support_for_lift_test_integrations(
         assert isinstance(key, str)
         assert key in function_parameters
 
-    assert len(saturation.variable_mapping) == len(function_parameters) - 1
+    assert len(saturation.variable_mapping) == len(function_parameters) - 2
 
 
 @pytest.mark.parametrize("saturation", saturation_functions())
@@ -200,7 +204,7 @@ def mock_menten_parameters_with_additional_dim() -> xr.Dataset:
 def test_sample_curve_with_additional_dims(
     mock_menten_parameters_with_additional_dim,
 ) -> None:
-    dummy_distribution = Prior("HalfNormal", dims="channel")
+    dummy_distribution = XPrior("HalfNormal", dims="channel")
     priors = {
         "alpha": dummy_distribution,
         "lam": dummy_distribution,
@@ -261,7 +265,7 @@ def test_saturation_from_dict_without_priors(saturation) -> None:
 
     saturation = saturation_from_dict(data)
     assert saturation.default_priors == {
-        k: Prior.from_dict(v) for k, v in saturation.to_dict()["priors"].items()
+        k: XPrior.from_dict(v) for k, v in saturation.to_dict()["priors"].items()
     }
 
 

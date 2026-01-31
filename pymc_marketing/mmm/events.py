@@ -40,7 +40,7 @@ This module provides event transformations for use in Marketing Mix Models.
     )
 
     def difference_in_days(model_dates, event_dates):
-        if hasattr(model_dates, "to_numpy"):
+        if hasattr(mpm.odel_dates, "to_numpy"):
             model_dates = model_dates.to_numpy()
         if hasattr(event_dates, "to_numpy"):
             event_dates = event_dates.to_numpy()
@@ -97,8 +97,8 @@ from typing import Literal, cast
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-import pymc as pm
-import pytensor.tensor as pt
+import pymc.dims as pmd
+import pytensor.xtensor as ptx
 import xarray as xr
 from pydantic import (
     BaseModel,
@@ -108,11 +108,13 @@ from pydantic import (
     model_validator,
     validate_call,
 )
+from pymc import logp
 from pymc_extras.deserialize import deserialize, register_deserialization
 from pymc_extras.prior import Prior, create_dim_handler
-from pytensor.tensor.variable import TensorVariable
+from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.mmm.components.base import Transformation, create_registration_meta
+from pymc_marketing.mmm.dims import XPrior, XTensorLike
 
 BASIS_TRANSFORMATIONS: dict = {}
 BasisMeta = create_registration_meta(BASIS_TRANSFORMATIONS)
@@ -214,8 +216,9 @@ class EventEffect(BaseModel):
 
         return self
 
-    def apply(self, X: pt.TensorLike, name: str = "event") -> TensorVariable:
+    def apply(self, X: XTensorLike, name: str = "event") -> XTensorVariable:
         """Apply the event effect to the data."""
+        # TODO: PORT to Xtensor
         dim_handler = create_dim_handler(("x", *self.dims))
         return self.basis.apply(X, dims=self.dims) * dim_handler(
             self.effect_size.create_variable(f"{name}_effect_size"),
@@ -259,14 +262,14 @@ class GaussianBasis(Basis):
 
     lookup_name = "gaussian"
 
-    def function(self, x: pt.TensorLike, sigma: pt.TensorLike) -> TensorVariable:
+    def function(self, x: XTensorLike, sigma: XTensorLike) -> XTensorVariable:
         """Gaussian bump function."""
-        rv = pm.Normal.dist(mu=0.0, sigma=sigma)
-        out = pm.math.exp(pm.logp(rv, x))
+        rv = pmd.Normal.dist(mu=0.0, sigma=sigma, dim_lengths=x.sizes)
+        out = pmd.math.exp(logp(rv, x))
         return out
 
     default_priors = {
-        "sigma": Prior("Gamma", mu=7, sigma=1),
+        "sigma": XPrior("Gamma", mu=7, sigma=1),
     }
 
 
@@ -318,21 +321,18 @@ class HalfGaussianBasis(Basis):
         self.mode = mode
         self.include_event = include_event
 
-    def function(self, x: pt.TensorLike, sigma: pt.TensorLike) -> TensorVariable:
+    def function(self, x: XTensorLike, sigma: XTensorLike) -> XTensorVariable:
         """One-sided Gaussian bump function."""
-        rv = pm.Normal.dist(mu=0.0, sigma=sigma)
-        out = pm.math.exp(pm.logp(rv, x))
+        rv = pmd.Normal.dist(mu=0.0, sigma=sigma, dim_lengths=x.sizes)
+        out = ptx.math.exp(logp(rv, x))
         # Sign determines if the zeroing happens after or before the event.
         sign = 1 if self.mode == "after" else -1
         # Build boolean mask(s) in x's shape and broadcast to out's shape.
         pre_mask = sign * x < 0
         if not self.include_event:
-            pre_mask = pm.math.or_(pre_mask, sign * x == 0)
+            pre_mask = pre_mask | (sign * x == 0)
 
-        # Ensure mask matches output shape for elementwise switch
-        pre_mask = pt.broadcast_to(pre_mask, out.shape)
-
-        return pt.switch(pre_mask, 0, out)
+        return ptx.math.switch(pre_mask, 0, out)
 
     def to_dict(self) -> dict:
         """Convert the half Gaussian basis to a dictionary."""
@@ -343,7 +343,7 @@ class HalfGaussianBasis(Basis):
         }
 
     default_priors = {
-        "sigma": Prior("Gamma", mu=7, sigma=1),
+        "sigma": XPrior("Gamma", mu=7, sigma=1),
     }
 
 
@@ -398,36 +398,36 @@ class AsymmetricGaussianBasis(Basis):
 
     def function(
         self,
-        x: pt.TensorLike,
-        sigma_before: pt.TensorLike,
-        sigma_after: pt.TensorLike,
-        a_after: pt.TensorLike,
-    ) -> pt.TensorVariable:
+        x: XTensorLike,
+        sigma_before: XTensorLike,
+        sigma_after: XTensorLike,
+        a_after: XTensorLike,
+    ) -> XTensorVariable:
         """Asymmetric Gaussian bump function."""
         match self.event_in:
             case "before":
-                indicator_before = pt.cast(x <= 0, "float32")
-                indicator_after = pt.cast(x > 0, "float32")
+                indicator_before = ptx.math.cast(x <= 0, "float32")
+                indicator_after = ptx.math.cast(x > 0, "float32")
             case "after":
-                indicator_before = pt.cast(x < 0, "float32")
-                indicator_after = pt.cast(x >= 0, "float32")
+                indicator_before = ptx.math.cast(x < 0, "float32")
+                indicator_after = ptx.math.cast(x >= 0, "float32")
             case "exclude":
-                indicator_before = pt.cast(x < 0, "float32")
-                indicator_after = pt.cast(x > 0, "float32")
+                indicator_before = ptx.math.cast(x < 0, "float32")
+                indicator_after = ptx.math.cast(x > 0, "float32")
             case _:
                 raise ValueError(f"Invalid event_in: {self.event_in}")
 
-        rv_before = pm.Normal.dist(mu=0.0, sigma=sigma_before)
-        rv_after = pm.Normal.dist(mu=0.0, sigma=sigma_after)
+        rv_before = pmd.Normal.dist(mu=0.0, sigma=sigma_before, dim_lengths=x.sizes)
+        rv_after = pmd.Normal.dist(mu=0.0, sigma=sigma_after, dim_lengths=x.sizes)
 
-        y_before = pt.switch(
+        y_before = ptx.math.switch(
             indicator_before,
-            pm.math.exp(pm.logp(rv_before, x)),
+            ptx.math.exp(logp(rv_before, x)),
             0,
         )
-        y_after = pt.switch(
+        y_after = ptx.math.switch(
             indicator_after,
-            pm.math.exp(pm.logp(rv_after, x)) * a_after,
+            ptx.math.exp(logp(rv_after, x)) * a_after,
             0,
         )
 
@@ -441,9 +441,9 @@ class AsymmetricGaussianBasis(Basis):
         }
 
     default_priors = {
-        "sigma_before": Prior("Gamma", mu=3, sigma=1),
-        "sigma_after": Prior("Gamma", mu=7, sigma=2),
-        "a_after": Prior("Normal", mu=1, sigma=0.5),
+        "sigma_before": XPrior("Gamma", mu=3, sigma=1),
+        "sigma_after": XPrior("Gamma", mu=7, sigma=2),
+        "a_after": XPrior("Normal", mu=1, sigma=0.5),
     }
 
 

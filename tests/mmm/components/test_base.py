@@ -11,17 +11,21 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+from contextlib import nullcontext
 from unittest.mock import Mock
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pymc as pm
+import pymc.dims as pmd
 import pytensor.tensor as pt
 import pytest
 import xarray as xr
 from pymc_extras.prior import Prior, VariableFactory
 from pytensor.tensor import scalar
 from pytensor.tensor.variable import TensorVariable
+from pytensor.xtensor import as_xtensor
+from xarray import DataArray
 
 from pymc_marketing.mmm.components.base import (
     DuplicatedTransformationError,
@@ -32,6 +36,7 @@ from pymc_marketing.mmm.components.base import (
     index_variable,
 )
 from pymc_marketing.mmm.components.saturation import TanhSaturation
+from pymc_marketing.mmm.dims import XPrior
 
 
 def test_new_transformation_missing_prefix() -> None:
@@ -155,12 +160,12 @@ def new_transformation_class() -> type[Transformation]:
         prefix = "new"
         lookup_name: str = "new_transformation"
 
-        def function(self, x, a, b):
+        def function(self, x, a, b, *, dim: str | None = None):
             return a * b * x
 
         default_priors = {
-            "a": Prior("HalfNormal", sigma=1),
-            "b": Prior("HalfNormal", sigma=1),
+            "a": XPrior("HalfNormal", sigma=1),
+            "b": XPrior("HalfNormal", sigma=1),
         }
 
     return NewTransformation
@@ -173,18 +178,19 @@ def new_transformation(new_transformation_class) -> Transformation:
 
 def test_new_transformation_function_priors(new_transformation) -> None:
     assert new_transformation.function_priors == {
-        "a": Prior("HalfNormal", sigma=1),
-        "b": Prior("HalfNormal", sigma=1),
+        "a": XPrior("HalfNormal", sigma=1),
+        "b": XPrior("HalfNormal", sigma=1),
     }
 
 
-def test_new_transformation_priors_at_init(new_transformation_class) -> None:
-    new_prior = {"a": {"dist": "HalfNormal", "kwargs": {"sigma": 2}}}
+@pytest.mark.parametrize("dist_key", ["dist", "xdist"])
+def test_new_transformation_priors_at_init(new_transformation_class, dist_key) -> None:
+    new_prior = {"a": {dist_key: "HalfNormal", "kwargs": {"sigma": 2}}}
     with pytest.warns(DeprecationWarning, match=r"a is automatically converted"):
         new_transformation = new_transformation_class(priors=new_prior)
     assert new_transformation.function_priors == {
-        "a": Prior("HalfNormal", sigma=2),
-        "b": Prior("HalfNormal", sigma=1),
+        "a": XPrior("HalfNormal", sigma=2),
+        "b": XPrior("HalfNormal", sigma=1),
     }
 
 
@@ -193,7 +199,7 @@ def test_new_transformation_variable_mapping(new_transformation) -> None:
 
 
 def test_apply(new_transformation):
-    x = np.array([1, 2, 3])
+    x = as_xtensor(np.array([1, 2, 3]), dims=("time",))
     expected = np.array([6, 12, 18])
     with pm.Model() as generative_model:
         pm.Deterministic("y", new_transformation.apply(x))
@@ -215,19 +221,25 @@ def test_new_transformation_apply_outside_model(new_transformation) -> None:
 
 def test_model_config(new_transformation) -> None:
     assert new_transformation.model_config == {
-        "new_a": Prior("HalfNormal", sigma=1),
-        "new_b": Prior("HalfNormal", sigma=1),
+        "new_a": XPrior("HalfNormal", sigma=1),
+        "new_b": XPrior("HalfNormal", sigma=1),
     }
 
 
-def test_new_transform_update_priors(new_transformation) -> None:
-    new_transformation.update_priors(
-        {"new_a": Prior("HalfNormal", sigma=2)},
-    )
+@pytest.mark.parametrize("prior_class", (Prior, XPrior))
+def test_new_transform_update_priors(new_transformation, prior_class) -> None:
+    with (
+        pytest.warns(UserWarning, match=r"Use XPrior")
+        if prior_class is Prior
+        else nullcontext()
+    ):
+        new_transformation.update_priors(
+            {"new_a": prior_class("HalfNormal", sigma=2)},
+        )
 
     assert new_transformation.function_priors == {
-        "a": Prior("HalfNormal", sigma=2),
-        "b": Prior("HalfNormal", sigma=1),
+        "a": XPrior("HalfNormal", sigma=2),
+        "b": XPrior("HalfNormal", sigma=1),
     }
 
 
@@ -299,8 +311,8 @@ def test_change_instance_function_priors_has_no_impact_new_instance(
     new_instance = new_transformation_class()
 
     assert new_instance.function_priors == {
-        "a": Prior("HalfNormal", sigma=1),
-        "b": Prior("HalfNormal", sigma=1),
+        "a": XPrior("HalfNormal", sigma=1),
+        "b": XPrior("HalfNormal", sigma=1),
     }
 
 
@@ -313,8 +325,8 @@ def test_change_instance_function_priors_has_no_impact_on_class(
         config.dims = "channel"
 
     assert new_transformation_class.default_priors == {
-        "a": Prior("HalfNormal", sigma=1),
-        "b": Prior("HalfNormal", sigma=1),
+        "a": XPrior("HalfNormal", sigma=1),
+        "b": XPrior("HalfNormal", sigma=1),
     }
 
 
@@ -349,7 +361,7 @@ def test_repr(new_transformation) -> None:
     assert repr(new_transformation) == (
         "NewTransformation("
         "prefix='new', "
-        "priors={'a': Prior(\"HalfNormal\", sigma=1), 'b': Prior(\"HalfNormal\", sigma=1)}"
+        "priors={'a': XPrior(\"HalfNormal\", sigma=1), 'b': XPrior(\"HalfNormal\", sigma=1)}"
         ")"
     )
 
@@ -395,7 +407,7 @@ def test_support_customer_serialization(
         "prefix": "new",
         "priors": {
             "a": {"type": "StandardNormal", "dims": ("channel",)},
-            "b": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
+            "b": {"xdist": "HalfNormal", "kwargs": {"sigma": 1}},
         },
     }
 
@@ -466,9 +478,9 @@ def test_transform_sample_curve_with_variable_factory():
 
         def create_variable(self, name: str):
             with pm.Model(name=name):
-                beta = pm.Normal("beta", dims="dim_b")
-                c = pm.Normal("c", dims=("dim_a", "dim_b"))
-                return pt.dot(c, beta)
+                beta = pmd.Normal("beta", dims="dim_b")
+                c = pmd.Normal("c", dims=("dim_a", "dim_b"))
+                return pmd.math.dot(c, beta)
 
     saturation = TanhSaturation(
         priors={
@@ -482,7 +494,7 @@ def test_transform_sample_curve_with_variable_factory():
         prior = saturation.sample_prior()
 
     curve = saturation.sample_curve(prior, 10)
-    assert curve.dims == ("chain", "draw", "x", "dim_a")
+    assert curve.dims == ("chain", "draw", "dim_a", "x")
 
 
 @pytest.mark.parametrize(
@@ -530,18 +542,18 @@ def test_index_variable(var, dims, idx, expected) -> None:
 def test_apply_idx(new_transformation_class) -> None:
     instance = new_transformation_class(
         priors={
-            "a": Prior(
+            "a": XPrior(
                 "HalfNormal",
                 dims="geo",
             ),
-            "b": Prior(
+            "b": XPrior(
                 "HalfNormal",
                 dims="channel",
             ),
         }
     )
 
-    X = np.array(
+    X = DataArray(
         [
             [0, 0, 0],
             [1, 1, 1],
@@ -549,17 +561,18 @@ def test_apply_idx(new_transformation_class) -> None:
             [0, 0, 0],
             [1, 1, 1],
             [2, 2, 2],
-        ]
+        ],
+        dims=("geo", "channel"),
     )
 
     coords = {"geo": ["A", "B"], "channel": ["TV", "Radio", "Online"]}
     with pm.Model(coords=coords) as model:
-        idx = [0, 0, 0, 1, 1, 1]
-        Y = instance.apply(X, idx={"geo": idx}, dims="channel")
+        idx = as_xtensor([0, 0, 0, 1, 1, 1], dims=("geo",))
+        Y = instance.apply(X, idx=idx, dims=("channel",))
 
         expected = instance.function(
             X,
-            a=model["new_a"][idx, None],
+            a=model["new_a"][idx],
             b=model["new_b"],
         )
 
@@ -583,7 +596,7 @@ def test_apply_idx_more_dims(new_transformation_class) -> None:
         }
     )
 
-    X = np.array(
+    X = DataArray(
         [
             [0, 0, 0],
             [1, 1, 1],
@@ -591,7 +604,8 @@ def test_apply_idx_more_dims(new_transformation_class) -> None:
             [0, 0, 0],
             [1, 1, 1],
             [2, 2, 2],
-        ]
+        ],
+        dims=("product", "channel"),
     )
 
     coords = {
@@ -600,20 +614,17 @@ def test_apply_idx_more_dims(new_transformation_class) -> None:
         "channel": ["TV", "Radio", "Online"],
     }
     with pm.Model(coords=coords) as model:
-        geo_idx = [0, 0, 0, 1, 1, 1]
-        product_idx = [0, 2, 1, 0, 1, 0]
+        geo_idx = as_xtensor([0, 0, 0, 1, 1, 1], dims=("geo",))
+        product_idx = as_xtensor([0, 2, 1, 0, 1, 0], dims=("product",))
         Y = instance.apply(
             X,
-            idx={
-                "geo": geo_idx,
-                "product": product_idx,
-            },
+            idx=(geo_idx, product_idx),
             dims="channel",
         )
 
         expected = instance.function(
             X,
-            a=model["new_a"][geo_idx, product_idx, None],
+            a=model["new_a"][geo_idx, product_idx],
             b=model["new_b"][product_idx],
         )
 
@@ -639,6 +650,7 @@ mock_variable_factory = Mock(spec=VariableFactory)
 @pytest.mark.parametrize(
     "prior_value",
     [
+        XPrior("Normal", mu=0, sigma=1),
         Prior("Normal", mu=0, sigma=1),
         0.5,
         scalar("x"),
@@ -656,12 +668,14 @@ def test_transformation_accepts_supported_priors(prior_value):
     # Compare array-likes properly
     if isinstance(prior_value, list | np.ndarray):
         assert np.array_equal(actual, prior_value)
+    elif isinstance(prior_value, Prior):
+        assert actual == XPrior.from_prior(prior_value)
     else:
         assert actual == prior_value
 
 
 def test_exposed_priors_property() -> None:
-    dist = Prior("Laplace", mu=0, b=1)
+    dist = XPrior("Laplace", mu=0, b=1)
     priors = {"x": dist}
     tfm = DummyTransformation(priors=priors)
     assert tfm.priors == {"x": dist}
