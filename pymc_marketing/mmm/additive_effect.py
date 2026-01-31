@@ -117,38 +117,7 @@ from pymc_marketing.mmm.events import EventEffect, days_from_reference
 from pymc_marketing.mmm.fourier import FourierBase
 from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.mmm.utils import create_index
-
-
-def _validate_non_numeric_dtype(values, name: str) -> None:
-    """Validate that values are not numeric dtype (to prevent ambiguous date parsing).
-
-    Parameters
-    ----------
-    values : array-like
-        The values to validate
-    name : str
-        The name of the column/coordinate for error messages
-
-    Raises
-    ------
-    ValueError
-        If the values have numeric dtype (excluding empty arrays)
-    """
-    temp = pd.Series(values)
-
-    # Skip validation for empty arrays (they default to float64 but are not truly numeric)
-    if len(temp) == 0:
-        return
-
-    # Check if the values are numeric
-    if pd.api.types.is_numeric_dtype(temp.dtype):
-        raise ValueError(
-            f"'{name}' has numeric dtype ({temp.dtype}). "
-            "Date columns must have string or datetime dtype to avoid ambiguous date parsing. "
-            "For example, pd.to_datetime([0, 1, 2, 3]) would create dates starting from "
-            "January 1st 1970 with nanosecond intervals, which is likely not intended. "
-            "Please ensure your date column is properly formatted as strings or datetime objects."
-        )
+from pymc_marketing.mmm.validating import _validate_non_numeric_dtype
 
 
 def safe_to_datetime(coords_values, coord_name: str = "date") -> pd.DatetimeIndex:
