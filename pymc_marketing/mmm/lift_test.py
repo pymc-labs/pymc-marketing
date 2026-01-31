@@ -23,10 +23,13 @@ from typing import Concatenate, ParamSpec
 
 import numpy as np
 import pandas as pd
-import pymc as pm
+import pymc.dims as pmd
 import pytensor.tensor as pt
+import pytensor.xtensor as ptx
 from numpy import typing as npt
+from pymc import Model, modelcontext
 from pytensor.tensor.variable import TensorVariable
+from pytensor.xtensor import as_xtensor
 
 from pymc_marketing.mmm.components.saturation import SaturationTransformation
 
@@ -57,7 +60,7 @@ class UnalignedValuesError(Exception):
         super().__init__(msg)
 
 
-def exact_row_indices(df: pd.DataFrame, model: pm.Model) -> Indices:
+def exact_row_indices(df: pd.DataFrame, model: Model) -> Indices:
     """Get indices in the model for each row in the DataFrame.
 
     Assumes any column in the DataFrame is a coordinate in the model with the
@@ -70,7 +73,7 @@ def exact_row_indices(df: pd.DataFrame, model: pm.Model) -> Indices:
     ----------
     df : pd.DataFrame
         DataFrame with coordinates combinations.
-    model : pm.Model
+    model : Model
         PyMC model with all the coordinates in the DataFrame.
 
     Returns
@@ -105,7 +108,7 @@ def exact_row_indices(df: pd.DataFrame, model: pm.Model) -> Indices:
         )
 
         coords = {"channel": [0, 1, 2], "geo": ["A", "B", "C"]}
-        model = pm.Model(coords=coords)
+        model = Model(coords=coords)
 
         indices = exact_row_indices(df_lift_test, model)
         # {'channel': array([0, 1, 0]), 'geo': array([0, 1, 1])}
@@ -149,14 +152,14 @@ VariableIndexer = Callable[[str], TensorVariable]
 
 
 def create_variable_indexer(
-    model: pm.Model,
+    model: Model,
     indices: Indices,
 ) -> VariableIndexer:
     """Create a function to index variables in the model.
 
     Parameters
     ----------
-    model : pm.Model
+    model : Model
         PyMC model
     indices : dict[str, np.ndarray]
         Dictionary of indices for the indices in the model.
@@ -178,14 +181,14 @@ def create_variable_indexer(
     .. code-block:: python
 
         import numpy as np
-        import pymc as pm
+        import pymc.dims as pmd
 
         from pymc_marketing.mmm.lift_test import create_variable_indexer
 
         coords = {"channel": [0, 1, 2], "geo": ["A", "B", "C"]}
-        with pm.Model(coords=coords) as model:
-            pm.Normal("alpha", dims=("channel", "geo"))
-            pm.Normal("beta", dims="channel")
+        with Model(coords=coords) as model:
+            pmd.Normal("alpha", dims=("channel", "geo"))
+            pmd.Normal("beta", dims="channel")
 
         # Usually from exact_row_indices
         indices = {"channel": [0, 1], "geo": [1, 0]}
@@ -288,12 +291,12 @@ def add_saturation_observations(
     df_lift_test: pd.DataFrame,
     variable_mapping: VariableMapping,
     saturation_function: SaturationFunc,
-    model: pm.Model | None = None,
-    dist: type[pm.Distribution] = pm.Gamma,
+    model: Model | None = None,
+    dist: type[pmd.DimDistribution] = pmd.Gamma,
     name: str = "lift_measurements",
-    get_indices: Callable[[pd.DataFrame, pm.Model], Indices] = exact_row_indices,
+    get_indices: Callable[[pd.DataFrame, Model], Indices] = exact_row_indices,
     variable_indexer_factory: Callable[
-        [pm.Model, Indices], VariableIndexer
+        [Model, Indices], VariableIndexer
     ] = create_variable_indexer,
 ) -> None:
     """Add saturation observations to the likelihood of the model.
@@ -316,16 +319,16 @@ def add_saturation_observations(
         Dictionary of variable names to dimensions.
     saturation_function : Callable[[np.ndarray], np.ndarray]
         Function that takes spend and returns saturation.
-    model : Optional[pm.Model], optional
+    model : Optional[Model], optional
         PyMC model with arbitrary number of coordinates, by default None
-    dist : pm.Distribution class, optional
-        PyMC distribution to use for the likelihood, by default pm.Gamma
+    dist : pymc.dims.DimDistribution class, optional
+        PyMC dim distribution to use for the likelihood, by default Gamma
     name : str, optional
         Name of the likelihood, by default "lift_measurements"
-    get_indices : Callable[[pd.DataFrame, pm.Model], Indices], optional
+    get_indices : Callable[[pd.DataFrame, Model], Indices], optional
         Function to get the indices of the DataFrame in the model, by default exact_row_indices
         which assumes that the columns map exactly to the model coordinates.
-    variable_indexer_factory : Callable[[pm.Model, Indices], Callable[[str], TensorVariable]], optional
+    variable_indexer_factory : Callable[[Model, Indices], Callable[[str], TensorVariable]], optional
         Function to create a variable indexer, by default create_variable_indexer
         which creates a function to index variables in the model. This is used determine
         the values of the parameters to evaluate the saturation function.
@@ -337,6 +340,7 @@ def add_saturation_observations(
     .. code-block:: python
 
         import pymc as pm
+        import pymc.dims as pmd
         import pandas as pd
         from pymc_marketing.mmm.lift_test import add_saturation_observations
 
@@ -365,11 +369,11 @@ def add_saturation_observations(
             "channel": ["channel_1", "channel_2"],
             "date": ["2019-01-01", "2019-01-02", "2019-01-03", "2019-01-04"],
         }
-        with pm.Model(coords=coords) as model:
+        with Model(coords=coords) as model:
             # Usually defined in a larger model.
-            # Distributions dont matter here, just the shape
-            alpha = pm.HalfNormal("alpha_in_model", dims=("channel", "date"))
-            lam = pm.HalfNormal("lam_in_model", dims="channel")
+            # Distributions don't matter here, just the shape
+            alpha = pmd.HalfNormal("alpha_in_model", dims=("channel", "date"))
+            lam = pmd.HalfNormal("lam_in_model", dims="channel")
 
             add_saturation_observations(
                 df_lift_test,
@@ -386,6 +390,7 @@ def add_saturation_observations(
     .. code-block:: python
 
         import pymc as pm
+        import pmyc.dims as pmd
         import pandas as pd
 
         from pymc_marketing.mmm import LogisticSaturation
@@ -409,11 +414,11 @@ def add_saturation_observations(
         coords = {
             "channel": ["channel_1", "channel_2"],
         }
-        with pm.Model(coords=coords) as model:
+        with Model(coords=coords) as model:
             # Usually defined in a larger model.
             # Distributions dont matter here, just the shape
-            lam = pm.HalfNormal("saturation_lam", dims="channel")
-            beta = pm.HalfNormal("saturation_beta", dims="channel")
+            lam = pmd.HalfNormal("saturation_lam", dims="channel")
+            beta = pmd.HalfNormal("saturation_beta", dims="channel")
 
             add_saturation_observations(
                 df_lift_test,
@@ -426,6 +431,7 @@ def add_saturation_observations(
     .. code-block:: python
 
         import pymc as pm
+        import pymc.dims as pmd
         import pandas as pd
 
         from pymc_marketing.mmm import LogisticSaturation
@@ -451,11 +457,11 @@ def add_saturation_observations(
             "channel": ["channel_1", "channel_2"],
             "geo": ["G1", "G2", "G3"],
         }
-        with pm.Model(coords=coords) as model:
+        with Model(coords=coords) as model:
             # Usually defined in a larger model.
             # Distributions dont matter here, just the shape
-            lam = pm.HalfNormal("saturation_lam", dims=("channel", "geo"))
-            beta = pm.HalfNormal("saturation_beta", dims=("channel", "geo"))
+            lam = pmd.HalfNormal("saturation_lam", dims=("channel", "geo"))
+            beta = pmd.HalfNormal("saturation_beta", dims=("channel", "geo"))
 
             add_saturation_observations(
                 df_lift_test,
@@ -468,7 +474,7 @@ def add_saturation_observations(
     assert_is_subset(set(required_columns), set(df_lift_test.columns))
     assert_monotonic(df_lift_test["delta_x"], df_lift_test["delta_y"])
 
-    current_model: pm.Model = pm.modelcontext(model)
+    current_model: Model = modelcontext(model)
 
     var_names = list(variable_mapping.values())
 
@@ -484,8 +490,8 @@ def add_saturation_observations(
     assert_is_subset(set(required_dims), set(df_lift_test.columns))
     indices = get_indices(df_lift_test[required_dims], current_model)
 
-    x_before = pt.as_tensor_variable(df_lift_test["x"].to_numpy())
-    x_after = x_before + pt.as_tensor_variable(df_lift_test["delta_x"].to_numpy())
+    x_before = as_xtensor(df_lift_test["x"].to_numpy(), dims=("date",))
+    x_after = x_before + as_xtensor(df_lift_test["delta_x"], dims=("date",))
 
     variable_indexer = variable_indexer_factory(
         current_model,
@@ -506,7 +512,7 @@ def add_saturation_observations(
     with current_model:
         dist(
             name=name,
-            mu=pt.abs(model_estimated_lift),
+            mu=ptx.math.abs(model_estimated_lift),
             sigma=df_lift_test["sigma"].to_numpy(),
             observed=np.abs(df_lift_test["delta_y"].to_numpy()),
         )
@@ -715,12 +721,12 @@ def add_lift_measurements_to_likelihood_from_saturation(
     df_lift_test: pd.DataFrame,
     saturation: SaturationTransformation,
     time_varying_var_name: str | None = None,
-    model: pm.Model | None = None,
-    dist: type[pm.Distribution] = pm.Gamma,
+    model: Model | None = None,
+    dist: type[pmd.DimDistribution] = pmd.Gamma,
     name: str = "lift_measurements",
-    get_indices: Callable[[pd.DataFrame, pm.Model], Indices] = exact_row_indices,
+    get_indices: Callable[[pd.DataFrame, Model], Indices] = exact_row_indices,
     variable_indexer_factory: Callable[
-        [pm.Model, Indices], Callable[[str], TensorVariable]
+        [Model, Indices], Callable[[str], TensorVariable]
     ] = create_variable_indexer,
 ) -> None:
     """
@@ -743,16 +749,16 @@ def add_lift_measurements_to_likelihood_from_saturation(
         Any SaturationTransformation instance.
     time_varying_var_name : str, optional
         Name of the time-varying variable in model.
-    model : Optional[pm.Model], optional
+    model : Optional[Model], optional
         PyMC model with arbitrary number of coordinates, by default None
-    dist : pm.Distribution class, optional
-        PyMC distribution to use for the likelihood, by default pm.Gamma
+    dist : pymc.dims.Distribution class, optional
+        PyMC distribution to use for the likelihood, by default Gamma
     name : str, optional
         Name of the likelihood, by default "lift_measurements"
-    get_indices : Callable[[pd.DataFrame, pm.Model], Indices], optional
+    get_indices : Callable[[pd.DataFrame, Model], Indices], optional
         Function to get the indices of the DataFrame in the model, by default exact_row_indices
         which assumes that the columns map exactly to the model coordinates.
-    variable_indexer_factory : Callable[[pm.Model, Indices], Callable[[str], TensorVariable]], optional
+    variable_indexer_factory : Callable[[Model, Indices], Callable[[str], TensorVariable]], optional
         Function to create a variable indexer, by default create_variable_indexer
         which creates a function to index variables in the model. This is used determine
         the values of the parameters to evaluate the saturation function.
@@ -784,13 +790,13 @@ def add_lift_measurements_to_likelihood_from_saturation(
 def add_cost_per_target_potentials(
     calibration_df: pd.DataFrame,
     *,
-    model: pm.Model | None = None,
+    model: Model | None = None,
     cpt_value: TensorVariable,
     target_column: str = "cost_per_target",
     name_prefix: str = "cpt_calibration",
-    get_indices: Callable[[pd.DataFrame, pm.Model], Indices] = exact_row_indices,
+    get_indices: Callable[[pd.DataFrame, Model], Indices] = exact_row_indices,
 ) -> None:
-    """Add ``pm.Potential`` penalties to calibrate cost-per-target.
+    """Add ``Potential`` penalties to calibrate cost-per-target.
 
     For each row, we compute the mean of ``cpt_variable_name`` across the date
     dimension for the specified (dims, channel) slice and add a soft quadratic
@@ -805,7 +811,7 @@ def add_cost_per_target_potentials(
         default the target column is assumed to be ``cost_per_target``. The
         DataFrame must also include one column per model dimension found in the
         CPT variable (excluding ``date``).
-    model : pm.Model, optional
+    model : Model, optional
         Model containing the cost-per-target tensor. If None, uses the current model context.
     cpt_value : TensorVariable
         Tensor representing cost-per-target values over the model coordinates.
@@ -813,7 +819,7 @@ def add_cost_per_target_potentials(
         Column in ``calibration_df`` containing the calibration targets.
     name_prefix : str
         Prefix for created potential names.
-    get_indices : Callable[[pd.DataFrame, pm.Model], Indices]
+    get_indices : Callable[[pd.DataFrame, Model], Indices]
         Alignment function mapping rows to model coordinate indices.
 
     Examples
@@ -840,7 +846,7 @@ def add_cost_per_target_potentials(
             name_prefix="cpt_calibration",
         )
     """
-    current_model: pm.Model = pm.modelcontext(model)
+    current_model: Model = Modelcontext(model)
 
     # Basic validation
     required_cols = {"channel", target_column, "sigma"}
@@ -870,8 +876,7 @@ def add_cost_per_target_potentials(
     with current_model:
         # Compute mean over the date dimension once
         cpt_full = cpt_value
-        date_axis = cpt_dims.index("date")
-        cpt_mean = pt.mean(cpt_full, axis=date_axis)
+        cpt_mean = ptx.math.mean(cpt_full, dim="date")
 
         # Build advanced indexing arrays for remaining dims (including channel),
         # preserving the order present in cpt_dims (excluding date)
@@ -885,6 +890,6 @@ def add_cost_per_target_potentials(
         gathered_cpt = cpt_mean[tuple(indexers)]
 
         # Vectorized quadratic penalties and single aggregated Potential
-        deviation = pt.abs(gathered_cpt - targets)
+        deviation = ptx.math.abs(gathered_cpt - targets)
         penalties = -(deviation**2) / (2 * (sigmas**2))
-        pm.Potential(name_prefix, pt.sum(penalties))
+        pmd.Potential(name_prefix, penalties.sum())

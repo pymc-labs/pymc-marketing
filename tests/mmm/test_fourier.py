@@ -23,7 +23,6 @@ from pymc_extras.deserialize import (
     deserialize,
     register_deserialization,
 )
-from pymc_extras.prior import Prior
 
 from pymc_marketing.mmm.fourier import (
     FourierBase,
@@ -44,7 +43,7 @@ from pymc_marketing.mmm.fourier import (
     ],
 )
 def test_prior_without_dims(seasonality) -> None:
-    prior = Prior("Normal")
+    prior = XPrior("Normal")
     periodicity = seasonality(n_order=2, prior=prior)
 
     assert periodicity.prior.dims == (periodicity.prefix,)
@@ -61,7 +60,7 @@ def test_prior_without_dims(seasonality) -> None:
     ],
 )
 def test_prior_doesnt_have_prefix(seasonality) -> None:
-    prior = Prior("Normal", dims="hierarchy")
+    prior = XPrior("Normal", dims="hierarchy")
     with pytest.raises(ValueError, match=r"Prior distribution must have"):
         seasonality(n_order=2, prior=prior)
 
@@ -229,7 +228,7 @@ def test_sample_curve_additional_dims(mock_parameters, seasonality) -> None:
     ],
 )
 def test_additional_dimension(seasonality) -> None:
-    prior = Prior("Normal", dims=("fourier", "additional_dim", "yet_another_dim"))
+    prior = XPrior("Normal", dims=("fourier", "additional_dim", "yet_another_dim"))
     periodicity = YearlyFourier(n_order=2, prior=prior)
 
     coords = {
@@ -258,7 +257,7 @@ def test_additional_dimension(seasonality) -> None:
     ],
 )
 def test_plot_curve(seasonality) -> None:
-    prior = Prior("Normal", dims=("fourier", "additional_dim"))
+    prior = XPrior("Normal", dims=("fourier", "additional_dim"))
     periodicity = seasonality(n_order=2, prior=prior)
 
     coords = {"additional_dim": range(4)}
@@ -465,19 +464,19 @@ def test_serialization_to_json(seasonality) -> None:
 
 @pytest.fixture
 def yearly_fourier() -> YearlyFourier:
-    prior = Prior("Laplace", mu=0, b=1, dims="fourier")
+    prior = XPrior("Laplace", mu=0, b=1, dims="fourier")
     return YearlyFourier(n_order=2, prior=prior)
 
 
 @pytest.fixture
 def monthly_fourier() -> MonthlyFourier:
-    prior = Prior("Laplace", mu=0, b=1, dims="fourier")
+    prior = XPrior("Laplace", mu=0, b=1, dims="fourier")
     return MonthlyFourier(n_order=2, prior=prior)
 
 
 @pytest.fixture
 def weekly_fourier() -> WeeklyFourier:
-    prior = Prior("Laplace", mu=0, b=1, dims="fourier")
+    prior = XPrior("Laplace", mu=0, b=1, dims="fourier")
     return WeeklyFourier(n_order=2, prior=prior)
 
 
@@ -573,7 +572,7 @@ def test_fourier_base_instantiation():
     with pytest.raises(TypeError) as exc_info:
         FourierBase(
             n_order=2,
-            prior=Prior("Laplace", mu=0, b=1, dims="fourier"),
+            prior=XPrior("Laplace", mu=0, b=1, dims="fourier"),
         )
     assert "Can't instantiate abstract class FourierBase" in str(exc_info.value)
 
