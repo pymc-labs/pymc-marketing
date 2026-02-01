@@ -224,6 +224,7 @@ class MMMPlotSuite:
         ncols: int = 1,
         width_per_col: float = 10.0,
         height_per_row: float = 4.0,
+        figsize: tuple[float, float] | None = None,
     ) -> tuple[Figure, NDArray[Axes]]:
         """Initialize a grid of subplots.
 
@@ -237,6 +238,8 @@ class MMMPlotSuite:
             Width (in inches) for each column of subplots.
         height_per_row : float
             Height (in inches) for each row of subplots.
+        figsize : tuple of float, optional
+            If provided, overrides the calculated figure size (width, height) in inches.
 
         Returns
         -------
@@ -245,10 +248,12 @@ class MMMPlotSuite:
         axes : np.ndarray of matplotlib.axes.Axes
             2D array of axes of shape (n_subplots, ncols).
         """
+        if figsize is None:
+            figsize = (width_per_col * ncols, height_per_row * n_subplots)
         fig, axes = plt.subplots(
             nrows=n_subplots,
             ncols=ncols,
-            figsize=(width_per_col * ncols, height_per_row * n_subplots),
+            figsize=figsize,
             squeeze=False,
         )
         return fig, axes
@@ -345,9 +350,35 @@ class MMMPlotSuite:
         return self.idata.prior_predictive  # type: ignore
 
     def _add_median_and_hdi(
-        self, ax: Axes, data: xr.DataArray, var: str, hdi_prob: float = 0.85
+        self,
+        ax: Axes,
+        data: xr.DataArray,
+        var: str,
+        hdi_prob: float = 0.85,
+        label: str | None = None,
     ) -> Axes:
-        """Add median and HDI to the given axis."""
+        """Add median and HDI to the given axis.
+
+        Parameters
+        ----------
+        ax : Axes
+            The matplotlib axes to plot on.
+        data : xr.DataArray
+            The data array containing samples.
+        var : str
+            The variable name (used as key for HDI results).
+        hdi_prob : float, optional
+            The HDI probability mass. Default is 0.85.
+        label : str, optional
+            The label to use in the legend. If None, uses `var`.
+
+        Returns
+        -------
+        Axes
+            The axes with the plot added.
+        """
+        if label is None:
+            label = var
         median = data.median(dim="sample") if "sample" in data.dims else data.median()
         hdi = az.hdi(
             data,
@@ -359,7 +390,7 @@ class MMMPlotSuite:
             raise ValueError(f"Expected 'date' dimension in {var}, but none found.")
         dates = data.coords["date"].values
         # Add median and HDI to the plot
-        ax.plot(dates, median, label=var, alpha=0.9)
+        ax.plot(dates, median, label=label, alpha=0.9)
         ax.fill_between(dates, hdi[var][..., 0], hdi[var][..., 1], alpha=0.2)
         return ax
 
@@ -944,6 +975,8 @@ class MMMPlotSuite:
         var: list[str],
         hdi_prob: float = 0.85,
         dims: dict[str, str | int | list] | None = None,
+        combine_dims: bool = False,
+        figsize: tuple[float, float] | None = None,
     ) -> tuple[Figure, NDArray[Axes]]:
         """Plot the time-series contributions for each variable in `var`.
 
@@ -960,6 +993,13 @@ class MMMPlotSuite:
         dims : dict[str, str | int | list], optional
             Dimension filters to apply. Example: {"country": ["US", "UK"], "user_type": "new"}.
             If provided, only the selected slice(s) will be plotted.
+        combine_dims : bool, optional
+            If True, all dimension combinations are plotted on a single axis with
+            different colors. If False (default), creates separate subplots for each
+            dimension combination.
+        figsize : tuple of float, optional
+            Figure size as (width, height) in inches. If None (default), size is
+            calculated automatically based on the number of subplots.
 
         Returns
         -------
@@ -1016,51 +1056,112 @@ class MMMPlotSuite:
 
         # Prepare subplots: one for each combo of dims_lists and additional_dims
         total_combos = list(itertools.product(dims_combos, dim_combinations))
-        fig, axes = self._init_subplots(len(total_combos), ncols=1)
 
-        for row_idx, (dims_combo, addl_combo) in enumerate(total_combos):
-            ax = axes[row_idx][0]
-            # Build indexers for dims and additional_dims
-            indexers = (
-                dict(zip(additional_dims, addl_combo, strict=False))
-                if additional_dims
-                else {}
-            )
-            if dims:
-                # For dims with lists, use the current value from dims_combo
-                for i, k in enumerate(dims_keys):
-                    indexers[k] = dims_combo[i]
-                # For dims with single values, use as is
-                for k, v in (dims or {}).items():
-                    if k not in dims_keys:
-                        indexers[k] = v
+        if combine_dims:
+            # Single subplot with all dimension combinations overlaid
+            fig, axes = self._init_subplots(1, ncols=1, figsize=figsize)
+            ax = axes[0][0]
 
-            # Plot posterior median and HDI for each var
-            for v in var:
-                data = self.idata.posterior[v]
-                missing_coords = {
-                    key: value for key, value in coords.items() if key not in data.dims
-                }
-                data = data.expand_dims(**missing_coords)
-                data = data.sel(**indexers)  # apply slice
-                data = self._reduce_and_stack(
-                    data, dims_to_ignore={"date", "chain", "draw", "sample"}
+            for dims_combo, addl_combo in total_combos:
+                # Build indexers for dims and additional_dims
+                indexers = (
+                    dict(zip(additional_dims, addl_combo, strict=False))
+                    if additional_dims
+                    else {}
                 )
-                ax = self._add_median_and_hdi(ax, data, v, hdi_prob=hdi_prob)
+                if dims:
+                    # For dims with lists, use the current value from dims_combo
+                    for i, k in enumerate(dims_keys):
+                        indexers[k] = dims_combo[i]
+                    # For dims with single values, use as is
+                    for k, v in (dims or {}).items():
+                        if k not in dims_keys:
+                            indexers[k] = v
 
-            # Title includes both fixed and combo dims
-            title_dims = (
-                list(dims.keys()) + additional_dims if dims else additional_dims
-            )
-            title_combo = tuple(indexers[k] for k in title_dims)
+                # Build label suffix for this dimension combination
+                title_dims = (
+                    list(dims.keys()) + additional_dims if dims else additional_dims
+                )
+                title_combo = tuple(indexers[k] for k in title_dims)
+                label_suffix = self._build_subplot_title(
+                    dims=title_dims, combo=title_combo, fallback_title=""
+                )
 
-            title = self._build_subplot_title(
-                dims=title_dims, combo=title_combo, fallback_title="Time Series"
-            )
-            ax.set_title(title)
+                # Plot posterior median and HDI for each var
+                for v in var:
+                    data = self.idata.posterior[v]
+                    missing_coords = {
+                        key: value
+                        for key, value in coords.items()
+                        if key not in data.dims
+                    }
+                    data = data.expand_dims(**missing_coords)
+                    data = data.sel(**indexers)  # apply slice
+                    data = self._reduce_and_stack(
+                        data, dims_to_ignore={"date", "chain", "draw", "sample"}
+                    )
+                    # Create combined label: "var_name (dim=value, ...)"
+                    if label_suffix:
+                        plot_label = f"{v} ({label_suffix})"
+                    else:
+                        plot_label = v
+                    ax = self._add_median_and_hdi(
+                        ax, data, v, hdi_prob=hdi_prob, label=plot_label
+                    )
+
+            ax.set_title("Time Series Contributions")
             ax.set_xlabel("Date")
             ax.set_ylabel("Posterior Value")
             ax.legend(loc="best")
+        else:
+            # Original behavior: separate subplots for each dimension combination
+            fig, axes = self._init_subplots(len(total_combos), ncols=1, figsize=figsize)
+
+            for row_idx, (dims_combo, addl_combo) in enumerate(total_combos):
+                ax = axes[row_idx][0]
+                # Build indexers for dims and additional_dims
+                indexers = (
+                    dict(zip(additional_dims, addl_combo, strict=False))
+                    if additional_dims
+                    else {}
+                )
+                if dims:
+                    # For dims with lists, use the current value from dims_combo
+                    for i, k in enumerate(dims_keys):
+                        indexers[k] = dims_combo[i]
+                    # For dims with single values, use as is
+                    for k, v in (dims or {}).items():
+                        if k not in dims_keys:
+                            indexers[k] = v
+
+                # Plot posterior median and HDI for each var
+                for v in var:
+                    data = self.idata.posterior[v]
+                    missing_coords = {
+                        key: value
+                        for key, value in coords.items()
+                        if key not in data.dims
+                    }
+                    data = data.expand_dims(**missing_coords)
+                    data = data.sel(**indexers)  # apply slice
+                    data = self._reduce_and_stack(
+                        data, dims_to_ignore={"date", "chain", "draw", "sample"}
+                    )
+                    ax = self._add_median_and_hdi(ax, data, v, hdi_prob=hdi_prob)
+
+                # Title includes both fixed and combo dims
+                title_dims = (
+                    list(dims.keys()) + additional_dims if dims else additional_dims
+                )
+                title_combo = tuple(indexers[k] for k in title_dims)
+
+                title = self._build_subplot_title(
+                    dims=title_dims, combo=title_combo, fallback_title="Time Series"
+                )
+                ax.set_title(title)
+                ax.set_xlabel("Date")
+                ax.set_ylabel("Posterior Value")
+                ax.legend(loc="best")
 
         return fig, axes
 
@@ -1248,6 +1349,199 @@ class MMMPlotSuite:
 
         fig.tight_layout()
         return fig, axes
+
+    def channel_parameter(
+        self,
+        param_name: str,
+        orient: str = "h",
+        dims: dict[str, str | int | list] | None = None,
+        figsize: tuple[float, float] = (10, 6),
+    ) -> Figure:
+        """Plot the posterior distribution of a channel parameter using violin plots.
+
+        Creates violin plots showing the posterior distribution of a parameter
+        for each channel. Handles both channel-indexed parameters (with a "channel"
+        dimension) and scalar parameters gracefully. If additional dimensions are
+        present beyond chain, draw, and channel, creates a subplot for each combination.
+
+        Parameters
+        ----------
+        param_name : str
+            The name of the parameter to plot from posterior. Examples include
+            "saturation_alpha", "saturation_lam", "adstock_alpha".
+        orient : str, optional
+            Orientation of the violin plot. Either "h" (horizontal) or "v" (vertical).
+            Default is "h".
+        dims : dict[str, str | int | list], optional
+            Dimension filters to apply. Example: {"geo": "US", "country": ["A", "B"]}.
+            If provided, only the selected slice(s) will be plotted.
+        figsize : tuple[float, float], optional
+            The size of each subplot. Default is (10, 6).
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The Figure object containing the plot.
+
+        Raises
+        ------
+        ValueError
+            If `param_name` is not found in the posterior.
+            If no posterior data is found in idata.
+
+        Examples
+        --------
+        Plot posterior distribution of saturation alpha parameter:
+
+        .. code-block:: python
+
+            fig = mmm.plot.channel_parameter(param_name="saturation_alpha")
+
+        Plot with dimension filtering:
+
+        .. code-block:: python
+
+            fig = mmm.plot.channel_parameter(
+                param_name="saturation_alpha", dims={"geo": "US"}
+            )
+
+        Plot with vertical orientation:
+
+        .. code-block:: python
+
+            fig = mmm.plot.channel_parameter(
+                param_name="adstock_alpha", orient="v", figsize=(8, 10)
+            )
+
+        Add reference lines after plotting:
+
+        .. code-block:: python
+
+            fig = mmm.plot.channel_parameter(param_name="saturation_alpha")
+            ax = fig.axes[0]
+            ax.axvline(x=0.5, color="red", linestyle="--", label="reference")
+            ax.legend()
+        """
+        if not hasattr(self.idata, "posterior"):
+            raise ValueError(
+                "No posterior data found in 'self.idata'. "
+                "Please ensure 'self.idata' contains a 'posterior' group."
+            )
+
+        if param_name not in self.idata.posterior:
+            raise ValueError(
+                f"Parameter '{param_name}' not found in posterior. "
+                f"Available variables: {list(self.idata.posterior.data_vars)}"
+            )
+
+        var_data = self.idata.posterior[param_name]
+        all_dims = list(var_data.dims)
+
+        # Determine if this is a channel-indexed parameter
+        has_channel_dim = "channel" in all_dims
+
+        # Validate dims parameter
+        if dims:
+            self._validate_dims(dims=dims, all_dims=all_dims)
+
+        # Build all combinations for dims with lists
+        dims_keys, dims_combos = self._dim_list_handler(dims)
+
+        # Identify additional dimensions (beyond chain, draw, and channel if present)
+        ignored_dims = {"chain", "draw"}
+        if has_channel_dim:
+            ignored_dims.add("channel")
+        additional_dims = [
+            d for d in all_dims if d not in ignored_dims and d not in (dims or {})
+        ]
+
+        # Get combinations for remaining dims
+        if additional_dims:
+            additional_coords = [
+                self.idata.posterior.coords[dim].values for dim in additional_dims
+            ]
+            additional_combos = list(itertools.product(*additional_coords))
+        else:
+            additional_combos = [()]
+
+        # Total combinations for subplots
+        total_combos = list(itertools.product(dims_combos, additional_combos))
+        n_subplots = len(total_combos)
+
+        # Create subplots
+        fig, axes = self._init_subplots(
+            n_subplots=n_subplots,
+            ncols=1,
+            width_per_col=figsize[0],
+            height_per_row=figsize[1],
+        )
+
+        for row_idx, (dims_combo, addl_combo) in enumerate(total_combos):
+            ax = axes[row_idx][0]
+
+            # Build indexers
+            indexers = (
+                dict(zip(additional_dims, addl_combo, strict=False))
+                if additional_dims
+                else {}
+            )
+
+            if dims:
+                # For dims with lists, use the current value from dims_combo
+                for i, k in enumerate(dims_keys):
+                    indexers[k] = dims_combo[i]
+                # For dims with single values, use as is
+                for k, v in (dims or {}).items():
+                    if k not in dims_keys:
+                        indexers[k] = v
+
+            # Select data for this subplot
+            subset = var_data.sel(**indexers)
+
+            # Stack chain and draw into sample dimension
+            if "chain" in subset.dims and "draw" in subset.dims:
+                subset = subset.stack(sample=("chain", "draw"))
+
+            if has_channel_dim:
+                # Get channel values for labeling
+                channel_values = subset.coords["channel"].values
+
+                # Convert to DataFrame for seaborn
+                # Transpose so that channel values are columns
+                samples_df = pd.DataFrame(
+                    data=subset.values.T,
+                    columns=channel_values,
+                )
+            else:
+                # Scalar parameter - create a single-column DataFrame
+                samples_df = pd.DataFrame(
+                    data=subset.values,
+                    columns=[param_name],
+                )
+
+            # Create violin plot
+            sns.violinplot(data=samples_df, orient=orient, ax=ax)
+
+            # Build subplot title
+            title_dims = (list(dims.keys()) if dims else []) + additional_dims
+            title_combo = tuple(indexers[k] for k in title_dims)
+            title = self._build_subplot_title(
+                dims=title_dims,
+                combo=title_combo,
+                fallback_title=f"Posterior Distribution: {param_name}",
+            )
+
+            ax.set_title(title)
+
+            if orient == "h":
+                ax.set_xlabel(param_name)
+                ax.set_ylabel("channel" if has_channel_dim else "")
+            else:
+                ax.set_xlabel("channel" if has_channel_dim else "")
+                ax.set_ylabel(param_name)
+
+        fig.tight_layout()
+        return fig
 
     def prior_vs_posterior(
         self,
