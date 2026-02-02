@@ -278,9 +278,14 @@ class MMMPlotlyFactory:
             # Only facet_col_wrap is supported by Plotly (not facet_row_wrap)
             if single_dim_facet == "col":
                 plotly_kwargs.setdefault("facet_col_wrap", 3)
-        elif len(custom_dims) >= 2:
+        elif len(custom_dims) == 2:
             plotly_kwargs["facet_row"] = custom_dims[0]
             plotly_kwargs["facet_col"] = custom_dims[1]
+        else:
+            raise ValueError(
+                f"Unsupported number of custom dimensions: {len(custom_dims)}. "
+                "Please filter the data to 1 or 2 dimensions."
+            )
 
         return plotly_kwargs
 
@@ -679,6 +684,12 @@ class MMMPlotlyFactory:
         # Set default title
         plotly_kwargs.setdefault("title", "Posterior Predictive")
 
+        # set hover data
+        hover_data = {}
+        for facet in ["facet_row", "facet_col"]:
+            if plotly_kwargs.get(facet):
+                hover_data[plotly_kwargs.get(facet)] = False  # type: ignore[index]
+
         # plot observed and predicted lines
         fig = px.line(
             plot_df.to_native(),
@@ -686,6 +697,7 @@ class MMMPlotlyFactory:
             y="value",
             color="series",
             labels={"value": "Value", "date": "Date", "series": ""},
+            hover_data=hover_data,
             **plotly_kwargs,
         )
 
@@ -707,7 +719,7 @@ class MMMPlotlyFactory:
                     date_values,
                     lower_values,
                     upper_values,
-                    name=f"{int(hdi_prob * 100)}% HDI",
+                    name=f"{round(hdi_prob * 100)}% HDI",
                 )
             else:
                 # Faceted case: add band to each facet
@@ -762,7 +774,8 @@ class MMMPlotlyFactory:
         showlegend : bool
             Whether to show in legend
         row : int, optional
-            Subplot row (for faceted plots)
+            Subplot row (for faceted plots).
+            For some reason, in Plotly Express, row 1 is the bottom row.
         col : int, optional
             Subplot column (for faceted plots)
         """
@@ -849,22 +862,24 @@ class MMMPlotlyFactory:
             upper_values = facet_data.get_column(upper_col).to_list()
 
             # Determine subplot indices (1-based for Plotly)
-            if facet_row and facet_col:
+            # Handle row index
+            if facet_row:
                 row_val = row_dict[facet_row]
-                col_val = row_dict[facet_col]
-                row_vals = sorted(nw_df.get_column(facet_row).unique().to_list())
-                col_vals = sorted(nw_df.get_column(facet_col).unique().to_list())
+                # For some reason, in when faceting in Plotly Express, row 1 is the bottom row.
+                # So we need to reverse the index.
+                row_vals = sorted(
+                    nw_df.get_column(facet_row).unique().to_list(), reverse=True
+                )
                 row_idx = row_vals.index(row_val) + 1
-                col_idx = col_vals.index(col_val) + 1
-            elif facet_col:
+            else:
                 row_idx = 1
+
+            # Handle column index
+            if facet_col:
                 col_val = row_dict[facet_col]
                 col_vals = sorted(nw_df.get_column(facet_col).unique().to_list())
                 col_idx = col_vals.index(col_val) + 1
-            else:  # facet_row
-                row_val = row_dict[facet_row]
-                row_vals = sorted(nw_df.get_column(facet_row).unique().to_list())
-                row_idx = row_vals.index(row_val) + 1
+            else:
                 col_idx = 1
 
             self._add_hdi_band(

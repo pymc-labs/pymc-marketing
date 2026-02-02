@@ -108,6 +108,7 @@ class MMMSummaryFactory:
     model: Any | None = None  # MMM type, but avoid circular import
     hdi_probs: Sequence[float] = (0.94,)
     output_format: OutputFormat = "pandas"
+    validate_data: bool = True
 
     def __post_init__(self) -> None:
         """Validate data and convert hdi_probs to tuple for immutability."""
@@ -116,7 +117,11 @@ class MMMSummaryFactory:
             object.__setattr__(self, "hdi_probs", tuple(self.hdi_probs))
 
         # Validate data structure at initialization (early fail)
-        if hasattr(self.data, "validate_or_raise") and self.data.schema is not None:
+        if (
+            self.validate_data
+            and hasattr(self.data, "validate_or_raise")
+            and self.data.schema is not None
+        ):
             self.data.validate_or_raise()
 
         # Validate HDI probs at init time
