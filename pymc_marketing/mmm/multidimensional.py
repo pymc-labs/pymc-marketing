@@ -656,8 +656,10 @@ class MMM(RegressionModelBuilder):
         for self_effect, other_effect in zip(self.mu_effects, other.mu_effects):  # noqa: B905
             if self_effect.__class__ is not other_effect.__class__:
                 return False
-            if hasattr(self_effect, "to_dict") and hasattr(other_effect, "to_dict"):
-                if self_effect.to_dict() != other_effect.to_dict():
+            if hasattr(self_effect, "model_dump") and hasattr(
+                other_effect, "model_dump"
+            ):
+                if self_effect.model_dump() != other_effect.model_dump():
                     return False
 
         # Causal graph
@@ -2965,8 +2967,9 @@ class MMM(RegressionModelBuilder):
                 try:
                     effect = _deserialize_mu_effect(effect_data)
                     self.mu_effects.append(effect)
-                except ValueError as e:
+                except Exception as e:
                     # Log warning but continue - don't fail the load for unsupported effects
+                    # Catches ValueError, KeyError, AttributeError, pydantic.ValidationError, etc.
                     warnings.warn(f"Could not deserialize mu_effect: {e}", stacklevel=2)
 
         dataset = idata.fit_data.to_dataframe()
