@@ -180,10 +180,6 @@ def safe_to_datetime(
     if isinstance(result, pd.Series):
         return pd.DatetimeIndex(result)
     return result
-    # Ensure we always return DatetimeIndex, not Series
-    if isinstance(result, pd.Series):
-        return pd.DatetimeIndex(result)
-    return result
 
 
 class Model(Protocol):
