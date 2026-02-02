@@ -292,33 +292,41 @@ def aggregate_idata_dims(
             aggregated_groups[group_name] = group
             continue
 
-        # Select values to aggregate
-        selected = group.sel({dim: values})
-
-        # Aggregate
-        if method == "sum":
-            aggregated_values = selected.sum(dim=dim)
-        elif method == "mean":
-            aggregated_values = selected.mean(dim=dim)
-        else:
-            raise ValueError(f"Unknown aggregation method: {method}")
-
         # Get other values (not aggregated)
         all_coords = set(group[dim].values)
         other_values = list(all_coords - set(values))
 
-        if other_values:
-            other_data = group.sel({dim: other_values})
+        # Process variables individually to avoid adding dimension to variables
+        # that don't have it (e.g., dayofyear with only 'date' dim when
+        # aggregating 'country')
+        result_vars = {}
+        for var_name, var in group.data_vars.items():
+            if dim not in var.dims:
+                # Variable doesn't have the dimension - preserve as-is
+                result_vars[var_name] = var
+            else:
+                # Variable has the dimension - aggregate it
+                selected_var = var.sel({dim: values})
 
-            # Assign new label to aggregated
-            aggregated_values = aggregated_values.expand_dims({dim: [new_label]})
+                if method == "sum":
+                    aggregated_var = selected_var.sum(dim=dim)
+                elif method == "mean":
+                    aggregated_var = selected_var.mean(dim=dim)
+                else:
+                    raise ValueError(f"Unknown aggregation method: {method}")
 
-            # Concatenate
-            combined = xr.concat([other_data, aggregated_values], dim=dim)
-        else:
-            # All values aggregated
-            combined = aggregated_values.expand_dims({dim: [new_label]})
+                # Add the new label
+                aggregated_var = aggregated_var.expand_dims({dim: [new_label]})
 
+                if other_values:
+                    other_var = var.sel({dim: other_values})
+                    combined_var = xr.concat([other_var, aggregated_var], dim=dim)
+                else:
+                    combined_var = aggregated_var
+
+                result_vars[var_name] = combined_var
+
+        combined = xr.Dataset(result_vars)
         aggregated_groups[group_name] = combined
 
     return az.InferenceData(**aggregated_groups)
