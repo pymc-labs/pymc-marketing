@@ -151,6 +151,7 @@ import json
 import warnings
 from collections.abc import Callable, Sequence
 from copy import deepcopy
+from functools import singledispatch
 from typing import Annotated, Any, cast
 
 import arviz as az
@@ -204,6 +205,126 @@ from pymc_marketing.model_builder import (
 )
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.model_graph import deterministics_to_flat
+
+# ============================================================================
+# MuEffect Serialization Registry
+# ============================================================================
+# Uses singledispatch for serialization (type-based dispatch)
+# and a simple dict registry for deserialization (string-based dispatch)
+
+
+@singledispatch
+def _serialize_mu_effect(effect: MuEffect) -> dict[str, Any]:
+    """Serialize a MuEffect to JSON-compatible dict.
+
+    Default implementation uses Pydantic's model_dump for unknown types.
+    Register new types with: @_serialize_mu_effect.register(YourEffect)
+    """
+    return {
+        "class": effect.__class__.__name__,
+        **effect.model_dump(mode="json"),
+    }
+
+
+def _deserialize_mu_effect(data: dict[str, Any]) -> MuEffect:
+    """Deserialize a MuEffect from dict using class name."""
+    class_name = data.get("class")
+    if class_name not in _MUEFFECT_DESERIALIZERS:
+        raise ValueError(
+            f"Unknown MuEffect class: {class_name}. "
+            f"Registered types: {list(_MUEFFECT_DESERIALIZERS.keys())}"
+        )
+    return _MUEFFECT_DESERIALIZERS[class_name](data)
+
+
+# Deserialization registry: maps class name -> deserializer function
+_MUEFFECT_DESERIALIZERS: dict[str, Callable[[dict[str, Any]], MuEffect]] = {}
+
+
+# Register serializers/deserializers at module load
+# Imports are inside function to avoid circular dependencies
+def _register_mu_effect_handlers():
+    """Register all known MuEffect serialization handlers."""
+    from pymc_marketing.mmm import fourier as fourier_module
+    from pymc_marketing.mmm.additive_effect import (
+        EventAdditiveEffect,
+        FourierEffect,
+        LinearTrendEffect,
+    )
+    from pymc_marketing.mmm.linear_trend import LinearTrend
+
+    # FourierEffect
+    @_serialize_mu_effect.register(FourierEffect)
+    def _(effect: FourierEffect) -> dict[str, Any]:
+        return {
+            "class": "FourierEffect",
+            "fourier": effect.fourier.to_dict(),
+            "date_dim_name": effect.date_dim_name,
+        }
+
+    def _deser_fourier(data: dict[str, Any]) -> FourierEffect:
+        # Get Fourier class from module by name and use its from_dict method
+        fourier_data = data["fourier"]
+        fourier_class_name = fourier_data.get("class")
+        fourier_class = getattr(fourier_module, fourier_class_name, None)
+        if fourier_class is None:
+            raise ValueError(
+                f"Unknown Fourier class: {fourier_class_name}. "
+                f"Not found in pymc_marketing.mmm.fourier module."
+            )
+
+        fourier = fourier_class.from_dict(fourier_data)
+        return FourierEffect(
+            fourier=fourier,
+            date_dim_name=data.get("date_dim_name", "date"),
+        )
+
+    # LinearTrendEffect
+    @_serialize_mu_effect.register(LinearTrendEffect)
+    def _(effect: LinearTrendEffect) -> dict[str, Any]:
+        return {
+            "class": "LinearTrendEffect",
+            "trend": effect.trend.model_dump(mode="json", exclude={"priors"}),
+            "prefix": effect.prefix,
+            "date_dim_name": effect.date_dim_name,
+        }
+
+    def _deser_linear_trend(data: dict[str, Any]) -> LinearTrendEffect:
+        return LinearTrendEffect(
+            trend=LinearTrend.model_validate(data["trend"]),
+            prefix=data["prefix"],
+            date_dim_name=data.get("date_dim_name", "date"),
+        )
+
+    # EventAdditiveEffect
+    @_serialize_mu_effect.register(EventAdditiveEffect)
+    def _(effect: EventAdditiveEffect) -> dict[str, Any]:
+        result = {
+            "class": "EventAdditiveEffect",
+            **effect.model_dump(mode="json", exclude={"df_events", "effect"}),
+        }
+        result["event_names"] = effect.df_events["name"].tolist()
+        return result
+
+    def _deser_event(data: dict[str, Any]) -> EventAdditiveEffect:
+        raise ValueError(
+            "EventAdditiveEffect deserialization not supported: "
+            "requires original df_events DataFrame. "
+            f"Event names in saved model: {data.get('event_names', [])}"
+        )
+
+    # Populate deserialization registry
+    _MUEFFECT_DESERIALIZERS.update(
+        {
+            "FourierEffect": _deser_fourier,
+            "LinearTrendEffect": _deser_linear_trend,
+            "EventAdditiveEffect": _deser_event,
+        }
+    )
+
+
+# Register handlers at module load
+_register_mu_effect_handlers()
 
 
 class MMM(RegressionModelBuilder):
@@ -668,6 +789,10 @@ class MMM(RegressionModelBuilder):
         attrs["dag"] = json.dumps(getattr(self, "dag", None))
         attrs["treatment_nodes"] = json.dumps(getattr(self, "treatment_nodes", None))
         attrs["outcome_node"] = json.dumps(getattr(self, "outcome_node", None))
+
+        # Serialize mu_effects
+        mu_effects_list = [_serialize_mu_effect(effect) for effect in self.mu_effects]
+        attrs["mu_effects"] = json.dumps(mu_effects_list)
 
         return attrs
 
@@ -2823,6 +2948,18 @@ class MMM(RegressionModelBuilder):
             mmm.build_from_idata(idata)
 
         """
+        # Restore mu_effects from idata attrs if present
+        if "mu_effects" in idata.attrs:
+            mu_effects_data = json.loads(idata.attrs["mu_effects"])
+            self.mu_effects = []
+            for effect_data in mu_effects_data:
+                try:
+                    effect = _deserialize_mu_effect(effect_data)
+                    self.mu_effects.append(effect)
+                except ValueError as e:
+                    # Log warning but continue - don't fail the load for unsupported effects
+                    warnings.warn(f"Could not deserialize mu_effect: {e}", stacklevel=2)
+
         dataset = idata.fit_data.to_dataframe()
 
         if isinstance(dataset.index, pd.MultiIndex) or isinstance(
