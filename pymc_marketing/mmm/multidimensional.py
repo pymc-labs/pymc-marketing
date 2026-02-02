@@ -291,16 +291,30 @@ def _register_mu_effect_handlers():
     # LinearTrendEffect
     @_serialize_mu_effect.register(LinearTrendEffect)
     def _(effect: LinearTrendEffect) -> dict[str, Any]:
+        # Serialize trend data, handling priors separately
+        trend_data = effect.trend.model_dump(mode="json", exclude={"priors"})
+        # Manually serialize priors using Prior.to_dict()
+        if effect.trend.priors is not None:
+            trend_data["priors"] = {
+                key: prior.to_dict() for key, prior in effect.trend.priors.items()
+            }
         return {
             "class": "LinearTrendEffect",
-            "trend": effect.trend.model_dump(mode="json", exclude={"priors"}),
+            "trend": trend_data,
             "prefix": effect.prefix,
             "date_dim_name": effect.date_dim_name,
         }
 
     def _deser_linear_trend(data: dict[str, Any]) -> LinearTrendEffect:
+        # Deserialize priors separately using Prior.from_dict()
+        trend_data = data["trend"].copy()
+        if "priors" in trend_data and trend_data["priors"] is not None:
+            trend_data["priors"] = {
+                key: Prior.from_dict(prior_dict)
+                for key, prior_dict in trend_data["priors"].items()
+            }
         return LinearTrendEffect(
-            trend=LinearTrend.model_validate(data["trend"]),
+            trend=LinearTrend.model_validate(trend_data),
             prefix=data["prefix"],
             date_dim_name=data.get("date_dim_name", "date"),
         )
