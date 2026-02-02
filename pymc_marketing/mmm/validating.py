@@ -16,6 +16,7 @@
 from collections.abc import Callable
 from warnings import warn
 
+import numpy.typing as npt
 import pandas as pd
 
 __all__ = [
@@ -28,7 +29,10 @@ __all__ = [
 ]
 
 
-def _validate_non_numeric_dtype(values, name: str) -> None:
+def _validate_non_numeric_dtype(
+    values: pd.Series | pd.Index | list | tuple | pd.DatetimeIndex | npt.NDArray,
+    name: str,
+) -> None:
     """Validate that values are not numeric dtype (to prevent ambiguous date parsing).
 
     Parameters
