@@ -38,11 +38,11 @@ import plotly.express as px
 import plotly.graph_objects as go
 from narwhals.typing import IntoDataFrameT
 
+from pymc_marketing.data.idata.schema import Frequency
 from pymc_marketing.mmm.summary import MMMSummaryFactory
 
 # Type aliases matching MMMSummaryFactory for consistency
 ComponentType = Literal["channel", "control", "seasonality", "baseline"]
-Frequency = Literal["original", "weekly", "monthly", "quarterly", "yearly", "all_time"]
 
 
 class MMMPlotlyFactory:
