@@ -2198,6 +2198,295 @@ class TestWaterfallPlot:
         assert len(visible_axes) == 4
 
 
+class TestWaterfallOriginalScaleOnDemand:
+    """Tests for on-demand original scale computation in waterfall plots."""
+
+    def test_on_the_fly_computation_with_target_scale(self):
+        """Test that original scale is computed on-the-fly when target_scale is available."""
+        dates = pd.date_range("2025-01-01", periods=10, freq="W-MON")
+        channels = ["C1", "C2"]
+        target_scale_value = 10.0
+
+        # Create idata with only base contribution variables (no _original_scale)
+        # but with target_scale in constant_data
+        idata = az.InferenceData(
+            posterior=xr.Dataset(
+                {
+                    "intercept_contribution": xr.DataArray(
+                        np.random.normal(5, 0.5, size=(2, 50, 10)),
+                        dims=("chain", "draw", "date"),
+                        coords={
+                            "chain": [0, 1],
+                            "draw": np.arange(50),
+                            "date": dates,
+                        },
+                    ),
+                    "channel_contribution": xr.DataArray(
+                        np.random.normal(3, 1, size=(2, 50, 10, 2)),
+                        dims=("chain", "draw", "date", "channel"),
+                        coords={
+                            "chain": [0, 1],
+                            "draw": np.arange(50),
+                            "date": dates,
+                            "channel": channels,
+                        },
+                    ),
+                }
+            ),
+            constant_data=xr.Dataset(
+                {
+                    "target_scale": xr.DataArray(target_scale_value),
+                }
+            ),
+        )
+
+        suite = MMMPlotSuite(idata=idata)
+
+        # Should work without warnings - on-the-fly computation
+        fig, ax = suite.waterfall_components_decomposition(original_scale=True)
+        assert isinstance(fig, Figure)
+        assert isinstance(ax, Axes)
+        plt.close(fig)
+
+    def test_warning_when_no_target_scale_available(self):
+        """Test that a warning is raised when falling back to internal scale."""
+        dates = pd.date_range("2025-01-01", periods=10, freq="W-MON")
+        channels = ["C1", "C2"]
+
+        # Create idata with only base contribution variables (no _original_scale)
+        # and WITHOUT target_scale in constant_data
+        idata = az.InferenceData(
+            posterior=xr.Dataset(
+                {
+                    "intercept_contribution": xr.DataArray(
+                        np.random.normal(5, 0.5, size=(2, 50, 10)),
+                        dims=("chain", "draw", "date"),
+                        coords={
+                            "chain": [0, 1],
+                            "draw": np.arange(50),
+                            "date": dates,
+                        },
+                    ),
+                    "channel_contribution": xr.DataArray(
+                        np.random.normal(3, 1, size=(2, 50, 10, 2)),
+                        dims=("chain", "draw", "date", "channel"),
+                        coords={
+                            "chain": [0, 1],
+                            "draw": np.arange(50),
+                            "date": dates,
+                            "channel": channels,
+                        },
+                    ),
+                }
+            )
+        )
+
+        suite = MMMPlotSuite(idata=idata)
+
+        # Should raise UserWarning about falling back to internal scale
+        with pytest.warns(
+            UserWarning,
+            match=r"No '_original_scale' contribution variables found",
+        ):
+            fig, ax = suite.waterfall_components_decomposition(original_scale=True)
+            plt.close(fig)
+
+    def test_mixed_case_some_original_scale_vars_exist(self):
+        """Test mixed case where some _original_scale vars exist, others are computed."""
+        dates = pd.date_range("2025-01-01", periods=10, freq="W-MON")
+        channels = ["C1", "C2"]
+        target_scale_value = 10.0
+
+        # Create idata with only ONE original_scale variable pre-computed
+        # The other should be computed on-the-fly
+        idata = az.InferenceData(
+            posterior=xr.Dataset(
+                {
+                    "intercept_contribution": xr.DataArray(
+                        np.random.normal(5, 0.5, size=(2, 50, 10)),
+                        dims=("chain", "draw", "date"),
+                        coords={
+                            "chain": [0, 1],
+                            "draw": np.arange(50),
+                            "date": dates,
+                        },
+                    ),
+                    # Pre-computed original scale for intercept
+                    "intercept_contribution_original_scale": xr.DataArray(
+                        np.random.normal(50, 5, size=(2, 50, 10)),
+                        dims=("chain", "draw", "date"),
+                        coords={
+                            "chain": [0, 1],
+                            "draw": np.arange(50),
+                            "date": dates,
+                        },
+                    ),
+                    # Only base variable for channel (no _original_scale)
+                    "channel_contribution": xr.DataArray(
+                        np.random.normal(3, 1, size=(2, 50, 10, 2)),
+                        dims=("chain", "draw", "date", "channel"),
+                        coords={
+                            "chain": [0, 1],
+                            "draw": np.arange(50),
+                            "date": dates,
+                            "channel": channels,
+                        },
+                    ),
+                }
+            ),
+            constant_data=xr.Dataset(
+                {
+                    "target_scale": xr.DataArray(target_scale_value),
+                }
+            ),
+        )
+
+        suite = MMMPlotSuite(idata=idata)
+
+        # Should work - uses pre-computed for intercept, computes on-the-fly for channel
+        fig, ax = suite.waterfall_components_decomposition(original_scale=True)
+        assert isinstance(fig, Figure)
+        assert isinstance(ax, Axes)
+        plt.close(fig)
+
+    def test_precomputed_vars_preferred_over_on_the_fly(self):
+        """Test that pre-computed _original_scale vars are used when available."""
+        dates = pd.date_range("2025-01-01", periods=10, freq="W-MON")
+        target_scale_value = 10.0
+
+        # Create specific values to verify pre-computed is used
+        precomputed_values = np.full((2, 50, 10), 999.0)  # Distinctive value
+        base_values = np.full(
+            (2, 50, 10), 1.0
+        )  # Would become 10.0 if multiplied by scale
+
+        idata = az.InferenceData(
+            posterior=xr.Dataset(
+                {
+                    "intercept_contribution": xr.DataArray(
+                        base_values,
+                        dims=("chain", "draw", "date"),
+                        coords={
+                            "chain": [0, 1],
+                            "draw": np.arange(50),
+                            "date": dates,
+                        },
+                    ),
+                    "intercept_contribution_original_scale": xr.DataArray(
+                        precomputed_values,
+                        dims=("chain", "draw", "date"),
+                        coords={
+                            "chain": [0, 1],
+                            "draw": np.arange(50),
+                            "date": dates,
+                        },
+                    ),
+                }
+            ),
+            constant_data=xr.Dataset(
+                {
+                    "target_scale": xr.DataArray(target_scale_value),
+                }
+            ),
+        )
+
+        suite = MMMPlotSuite(idata=idata)
+
+        # Get the data from _prepare_waterfall_data
+        dataframe, _, _ = suite._prepare_waterfall_data(original_scale=True)
+
+        # The value should be close to 999 (pre-computed), not 10 (on-the-fly computed)
+        # Check that the intercept contribution is using pre-computed values
+        intercept_col = [c for c in dataframe.columns if "intercept" in c.lower()]
+        assert len(intercept_col) > 0
+        # Mean should be close to 999, not 10
+        mean_val = dataframe[intercept_col[0]].mean()
+        assert mean_val > 500, f"Expected pre-computed value (~999), got {mean_val}"
+
+    def test_compute_original_scale_contributions_helper(self):
+        """Test the _compute_original_scale_contributions helper method directly."""
+        dates = pd.date_range("2025-01-01", periods=5, freq="W-MON")
+        target_scale_value = 10.0
+
+        # Create idata with base variable only
+        idata = az.InferenceData(
+            posterior=xr.Dataset(
+                {
+                    "intercept_contribution": xr.DataArray(
+                        np.ones((2, 10, 5)),
+                        dims=("chain", "draw", "date"),
+                        coords={
+                            "chain": [0, 1],
+                            "draw": np.arange(10),
+                            "date": dates,
+                        },
+                    ),
+                }
+            ),
+            constant_data=xr.Dataset(
+                {
+                    "target_scale": xr.DataArray(target_scale_value),
+                }
+            ),
+        )
+
+        suite = MMMPlotSuite(idata=idata)
+
+        # Test the helper method
+        dataset, computed_on_fly, fell_back = (
+            suite._compute_original_scale_contributions(["intercept_contribution"])
+        )
+
+        # Should have computed on-the-fly (no pre-computed var)
+        assert computed_on_fly is True
+        assert fell_back is False
+
+        # Result should have _original_scale suffix
+        assert "intercept_contribution_original_scale" in dataset.data_vars
+
+        # Values should be multiplied by target_scale
+        result_values = dataset["intercept_contribution_original_scale"].values
+        np.testing.assert_array_almost_equal(
+            result_values, np.ones((2, 10, 5)) * target_scale_value
+        )
+
+    def test_compute_original_scale_contributions_fallback(self):
+        """Test that helper falls back to internal scale when no target_scale."""
+        dates = pd.date_range("2025-01-01", periods=5, freq="W-MON")
+
+        # Create idata without target_scale
+        idata = az.InferenceData(
+            posterior=xr.Dataset(
+                {
+                    "intercept_contribution": xr.DataArray(
+                        np.ones((2, 10, 5)),
+                        dims=("chain", "draw", "date"),
+                        coords={
+                            "chain": [0, 1],
+                            "draw": np.arange(10),
+                            "date": dates,
+                        },
+                    ),
+                }
+            )
+        )
+
+        suite = MMMPlotSuite(idata=idata)
+
+        # Test the helper method
+        dataset, computed_on_fly, fell_back = (
+            suite._compute_original_scale_contributions(["intercept_contribution"])
+        )
+
+        # Should have fallen back (no target_scale)
+        assert computed_on_fly is False
+        assert fell_back is True
+
+        # Result should NOT have _original_scale suffix (fell back to internal)
+        assert "intercept_contribution" in dataset.data_vars
+        assert "intercept_contribution_original_scale" not in dataset.data_vars
+
+
 class TestPosteriorDistribution:
     """Tests for the posterior_distribution plotting method."""
 

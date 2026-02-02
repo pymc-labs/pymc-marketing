@@ -3664,6 +3664,63 @@ class MMMPlotSuite:
 
         return dataframe
 
+    def _compute_original_scale_contributions(
+        self,
+        contribution_vars: list[str],
+    ) -> tuple[xr.Dataset, bool, bool]:
+        """Compute original scale contributions on-the-fly if needed.
+
+        This method checks for pre-computed '_original_scale' variables in the
+        posterior. If not found, it computes them by multiplying by target_scale.
+        If target_scale is not available, it falls back to internal scale variables.
+
+        Parameters
+        ----------
+        contribution_vars : list of str
+            List of base contribution variable names (without '_original_scale' suffix).
+            Example: ["channel_contribution", "intercept_contribution"]
+
+        Returns
+        -------
+        posterior_with_original_scale : xr.Dataset
+            Dataset containing contribution variables in original scale.
+            Variable names will have '_original_scale' suffix if computed or available,
+            otherwise the original names are used (fallback to internal scale).
+        computed_on_fly : bool
+            True if any variables were computed on-the-fly (multiplied by target_scale).
+        fell_back_to_internal : bool
+            True if target_scale was not available and internal scale was used.
+        """
+        posterior = self.idata.posterior
+
+        # Check if target_scale is available for on-the-fly computation
+        has_target_scale = (
+            hasattr(self.idata, "constant_data")
+            and "target_scale" in self.idata.constant_data
+        )
+
+        computed_vars: dict[str, xr.DataArray] = {}
+        computed_on_fly = False
+        fell_back_to_internal = False
+
+        for var in contribution_vars:
+            original_scale_var = f"{var}_original_scale"
+
+            if original_scale_var in posterior:
+                # Pre-computed original scale variable exists - use it
+                computed_vars[original_scale_var] = posterior[original_scale_var]
+            elif has_target_scale:
+                # Compute on-the-fly by multiplying by target_scale
+                target_scale = self.idata.constant_data.target_scale
+                computed_vars[original_scale_var] = posterior[var] * target_scale
+                computed_on_fly = True
+            else:
+                # No way to convert - fall back to internal scale
+                computed_vars[var] = posterior[var]
+                fell_back_to_internal = True
+
+        return xr.Dataset(computed_vars), computed_on_fly, fell_back_to_internal
+
     def _prepare_waterfall_data(
         self,
         var: list[str] | None = None,
@@ -3716,30 +3773,61 @@ class MMMPlotSuite:
                 "Please ensure the model has been fitted."
             )
 
+        # Variables to exclude - total_media_contribution is a sum of channels
+        # and would double-count if included
+        excluded_vars = {
+            "total_media_contribution_original_scale",
+            "total_media_contribution",
+        }
+
         # Auto-detect contribution variables if not specified
         if var is None:
             posterior_vars = list(self.idata.posterior.data_vars)
-            # Variables to exclude - total_media_contribution is a sum of channels
-            # and would double-count if included
-            excluded_vars = {
-                "total_media_contribution_original_scale",
-                "total_media_contribution",
-            }
+
             if original_scale:
-                # Prefer original scale variables
-                var = [
+                # Get base contribution variables (without _original_scale suffix)
+                base_contribution_vars = [
                     v
                     for v in posterior_vars
-                    if v.endswith("_contribution_original_scale")
+                    if v.endswith("_contribution")
+                    and not v.endswith("_contribution_original_scale")
                     and v not in excluded_vars
                 ]
-                # If no original scale vars, fall back to regular contribution vars
-                if not var:
-                    var = [
-                        v
-                        for v in posterior_vars
-                        if v.endswith("_contribution") and v not in excluded_vars
-                    ]
+
+                if not base_contribution_vars:
+                    raise ValueError(
+                        "No contribution variables found in posterior. "
+                        "Please specify the 'var' parameter explicitly."
+                    )
+
+                # Compute original scale contributions on-the-fly if needed
+                computed_dataset, computed_on_fly, fell_back_to_internal = (
+                    self._compute_original_scale_contributions(base_contribution_vars)
+                )
+
+                # Warn if we fell back to internal scale
+                if fell_back_to_internal:
+                    warnings.warn(
+                        "No '_original_scale' contribution variables found and 'target_scale' "
+                        "is not available in constant_data. Returning results in internal "
+                        "scale. To get original scale results, either:\n"
+                        "  1. Ensure target_scale is in constant_data (standard for fitted "
+                        "MMM models), or\n"
+                        "  2. Use mmm.add_original_scale_contribution_variable() before "
+                        "fitting.",
+                        UserWarning,
+                        stacklevel=3,
+                    )
+
+                # Create a temporary idata-like object with computed variables
+                var = list(computed_dataset.data_vars)
+
+                # Create a simple namespace object with .posterior attribute
+                class _TempIData:
+                    def __init__(self, posterior: xr.Dataset):
+                        self.posterior = posterior
+
+                idata_for_build = _TempIData(computed_dataset)
             else:
                 # Use non-original scale contribution variables
                 var = [
@@ -3748,15 +3836,20 @@ class MMMPlotSuite:
                     if v.endswith("_contribution") and v not in excluded_vars
                 ]
 
-            if not var:
-                raise ValueError(
-                    "No contribution variables found in posterior. "
-                    "Please specify the 'var' parameter explicitly."
-                )
+                if not var:
+                    raise ValueError(
+                        "No contribution variables found in posterior. "
+                        "Please specify the 'var' parameter explicitly."
+                    )
+
+                idata_for_build = self.idata
+        else:
+            # User provided explicit variables - use them directly
+            idata_for_build = self.idata
 
         # Build contributions DataFrame using the utility function
         dataframe = build_contributions(
-            idata=self.idata,
+            idata=idata_for_build,
             var=var,
             agg=agg,
         )
