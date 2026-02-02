@@ -197,7 +197,7 @@ def test_fourier_components_sum_to_contribution(
       - <prefix>_contribution : (date[, extra dims]) == sum_{fourier} components
     """
     fourier = fourier_cls(n_order=4, prefix=prefix)
-    effect = FourierEffect(fourier)
+    effect = FourierEffect(fourier=fourier)
 
     mmm = create_mock_mmm(dims=(), model=create_fourier_model(coords={}))
 
