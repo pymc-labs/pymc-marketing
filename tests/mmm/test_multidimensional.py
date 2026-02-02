@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -1945,6 +1945,290 @@ def test_make_target_transform_single_dim(
         assert np.all(result == input_data / y.max())
     else:  # mean scaling
         assert np.all(result == input_data / y.mean())
+
+
+def test_mmm_equality():
+    """Test MMM.__eq__() method for comparing instances.
+
+    Tests that __eq__ correctly compares all configuration attributes:
+    - Core configuration (date, channels, target, dims, scaling)
+    - Transformations (adstock, saturation, adstock_first)
+    - Time-varying effects (time_varying_intercept, time_varying_media)
+    - Additive effects (mu_effects)
+    - Causal graph (dag, treatment_nodes, outcome_node)
+    - Control columns and seasonality settings
+    - Model and sampler configuration
+    - Model ID (content-based hash)
+    """
+    # Create two identical MMM instances
+    mmm1 = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="sales",
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        dims=("geo",),
+        control_columns=["control_1"],
+        yearly_seasonality=2,
+        adstock_first=True,
+    )
+
+    mmm2 = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="sales",
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        dims=("geo",),
+        control_columns=["control_1"],
+        yearly_seasonality=2,
+        adstock_first=True,
+    )
+
+    # Test: Identical configurations should be equal
+    assert mmm1 == mmm2
+    assert mmm1.id == mmm2.id
+
+    # Test: Different date_column
+    mmm3 = MMM(
+        date_column="date_column",  # Different
+        channel_columns=["channel_1", "channel_2"],
+        target_column="sales",
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        dims=("geo",),
+    )
+    assert mmm1 != mmm3
+
+    # Test: Different channel_columns
+    mmm4 = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_3"],  # Different
+        target_column="sales",
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        dims=("geo",),
+    )
+    assert mmm1 != mmm4
+
+    # Test: Different target_column
+    mmm5 = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="revenue",  # Different
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        dims=("geo",),
+    )
+    assert mmm1 != mmm5
+
+    # Test: Different dims
+    mmm6 = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="sales",
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        dims=("country",),  # Different
+    )
+    assert mmm1 != mmm6
+
+    # Test: Different adstock transformation
+    mmm7 = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="sales",
+        adstock=GeometricAdstock(l_max=10),  # Different l_max
+        saturation=LogisticSaturation(),
+        dims=("geo",),
+    )
+    assert mmm1 != mmm7
+
+    # Test: Different saturation transformation
+    mmm8 = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="sales",
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(
+            priors={"lam": Prior("Normal", mu=0.5, sigma=0.2)}
+        ),  # Different priors
+        dims=("geo",),
+    )
+    assert mmm1 != mmm8
+
+    # Test: Different adstock_first
+    mmm9 = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="sales",
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        dims=("geo",),
+        adstock_first=False,  # Different
+    )
+    assert mmm1 != mmm9
+
+    # Test: Different control_columns
+    mmm10 = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="sales",
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        dims=("geo",),
+        control_columns=["control_2"],  # Different
+    )
+    assert mmm1 != mmm10
+
+    # Test: Different yearly_seasonality
+    mmm11 = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="sales",
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        dims=("geo",),
+        yearly_seasonality=4,  # Different
+    )
+    assert mmm1 != mmm11
+
+    # Test: Different scaling configuration
+    mmm12 = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="sales",
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        dims=("geo",),
+        scaling=Scaling(
+            target=VariableScaling(method="mean", dims=("geo",)),  # Different method
+            channel=VariableScaling(method="max", dims=("geo",)),
+        ),
+    )
+    assert mmm1 != mmm12
+
+    # Test: Different time_varying_intercept
+    mmm13 = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="sales",
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        dims=("geo",),
+        time_varying_intercept=True,  # Different
+    )
+    assert mmm1 != mmm13
+
+    # Test: Different time_varying_media
+    mmm14 = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="sales",
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        dims=("geo",),
+        time_varying_media=True,  # Different
+    )
+    assert mmm1 != mmm14
+
+    # Test: Comparison with non-MMM object
+    assert mmm1 != "not an MMM"
+    assert mmm1 != 42
+    assert mmm1 != None  # noqa: E711
+
+    # Test: With custom HSGP for time-varying effects
+    # Use parameterize_from_data to properly initialize HSGP
+    X_dummy = np.arange(10)
+    hsgp1 = SoftPlusHSGP.parameterize_from_data(X=X_dummy, dims=("date",))
+    hsgp2 = SoftPlusHSGP.parameterize_from_data(X=X_dummy, dims=("date",))
+
+    mmm15 = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="sales",
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        time_varying_intercept=hsgp1,
+    )
+
+    mmm16 = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="sales",
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        time_varying_intercept=hsgp2,
+    )
+
+    # Should be equal if HSGP configs match
+    assert mmm15 == mmm16
+
+    # Test: Different HSGP config (different input data creates different params)
+    X_dummy_different = np.arange(20)  # Different length
+    hsgp3 = SoftPlusHSGP.parameterize_from_data(X=X_dummy_different, dims=("date",))
+    mmm17 = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="sales",
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        time_varying_intercept=hsgp3,
+    )
+    assert mmm15 != mmm17
+
+    # Test: With causal graph configuration
+    dag = """
+    digraph {
+        channel_1 -> sales;
+        channel_2 -> sales;
+        control_1 -> sales;
+    }
+    """
+
+    mmm18 = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="sales",
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        dag=dag,
+        treatment_nodes=["channel_1", "channel_2"],
+        outcome_node="sales",
+    )
+
+    mmm19 = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="sales",
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        dag=dag,
+        treatment_nodes=["channel_1", "channel_2"],
+        outcome_node="sales",
+    )
+
+    assert mmm18 == mmm19
+
+    # Test: Different DAG
+    dag_different = """
+    digraph {
+        channel_1 -> sales;
+    }
+    """
+
+    mmm20 = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="sales",
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        dag=dag_different,  # Different
+        treatment_nodes=["channel_1"],
+        outcome_node="sales",
+    )
+
+    assert mmm18 != mmm20
 
 
 class TestPydanticValidation:
