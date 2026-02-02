@@ -106,6 +106,7 @@ Tips for custom components
 
 from typing import Any, Protocol
 
+import numpy.typing as npt
 import pandas as pd
 import pymc as pm
 import xarray as xr
@@ -120,7 +121,11 @@ from pymc_marketing.mmm.utils import create_index
 from pymc_marketing.mmm.validating import _validate_non_numeric_dtype
 
 
-def safe_to_datetime(coords_values, coord_name: str = "date") -> pd.DatetimeIndex:
+def safe_to_datetime(
+    coords_values: pd.Series | pd.Index | list | tuple | pd.DatetimeIndex | npt.NDArray,
+    coord_name: str = "date",
+    validate_non_numeric: bool = True,
+) -> pd.DatetimeIndex:
     """Safely convert coordinates to datetime, with validation.
 
     This function prevents the issue where numeric values (e.g., [0, 1, 2, 3])
@@ -129,10 +134,13 @@ def safe_to_datetime(coords_values, coord_name: str = "date") -> pd.DatetimeInde
 
     Parameters
     ----------
-    coords_values : array-like
+    coords_values : pd.Series | pd.Index | list | tuple | pd.DatetimeIndex | npt.NDArray
         The coordinate values to convert to datetime
     coord_name : str, optional
         The name of the coordinate dimension (default: "date")
+    validate_non_numeric : bool, optional
+        Whether to validate that values are not numeric dtype. Set to False
+        when intentionally converting numeric time indices. Default: True
 
     Returns
     -------
@@ -142,8 +150,7 @@ def safe_to_datetime(coords_values, coord_name: str = "date") -> pd.DatetimeInde
     Raises
     ------
     ValueError
-        If the coordinate values have numeric dtype, which could lead to
-        ambiguous date parsing
+        If the coordinate values have numeric dtype and validate_non_numeric is True
 
     Examples
     --------
@@ -153,18 +160,30 @@ def safe_to_datetime(coords_values, coord_name: str = "date") -> pd.DatetimeInde
     >>> # Good usage - already datetime
     >>> safe_to_datetime(pd.to_datetime(["2024-01-01", "2024-01-02"]))
 
-    >>> # Raises error - numeric values
+    >>> # Raises error - numeric values with validation
     >>> safe_to_datetime([0, 1, 2, 3])  # Raises ValueError
+
+    >>> # Allowed - numeric time indices with validation disabled
+    >>> safe_to_datetime([0, 1, 2, 3], validate_non_numeric=False)
     """
     # Convert to pandas Series/Index for dtype checking
     if isinstance(coords_values, pd.DatetimeIndex):
         # Already datetime, return as-is
         return coords_values
 
-    # Validate that values are not numeric dtype
-    _validate_non_numeric_dtype(coords_values, f"Coordinate '{coord_name}'")
+    # Validate that values are not numeric dtype (if requested)
+    if validate_non_numeric:
+        _validate_non_numeric_dtype(coords_values, f"Coordinate '{coord_name}'")
 
-    return pd.to_datetime(coords_values)
+    result = pd.to_datetime(coords_values)
+    # Ensure we always return DatetimeIndex, not Series
+    if isinstance(result, pd.Series):
+        return pd.DatetimeIndex(result)
+    return result
+    # Ensure we always return DatetimeIndex, not Series
+    if isinstance(result, pd.Series):
+        return pd.DatetimeIndex(result)
+    return result
 
 
 class Model(Protocol):
@@ -220,7 +239,13 @@ class FourierEffect:
         model = mmm.model
 
         # Get dates from model coordinates
-        dates = safe_to_datetime(model.coords[self.date_dim_name], self.date_dim_name)
+        # Skip validation for non-date coordinates (e.g., numeric "time" indices)
+        validate = self.date_dim_name == "date"
+        dates = safe_to_datetime(
+            model.coords[self.date_dim_name],
+            self.date_dim_name,
+            validate_non_numeric=validate,
+        )
 
         # Add weekday data to the model
         pm.Data(
@@ -293,8 +318,12 @@ class FourierEffect:
             The dataset for prediction
         """
         # Get dates from the new dataset
+        # Skip validation for non-date coordinates (e.g., numeric "time" indices)
+        validate = self.date_dim_name == "date"
         new_dates = safe_to_datetime(
-            model.coords[self.date_dim_name], self.date_dim_name
+            model.coords[self.date_dim_name],
+            self.date_dim_name,
+            validate_non_numeric=validate,
         )
 
         # Update the data
@@ -424,7 +453,13 @@ class LinearTrendEffect:
         model: pm.Model = mmm.model
 
         # Create time index data (normalized between 0 and 1)
-        dates = safe_to_datetime(model.coords[self.date_dim_name], self.date_dim_name)
+        # Skip validation for non-date coordinates (e.g., numeric "time" indices)
+        validate = self.date_dim_name == "date"
+        dates = safe_to_datetime(
+            model.coords[self.date_dim_name],
+            self.date_dim_name,
+            validate_non_numeric=validate,
+        )
         self.linear_trend_first_date = dates[0]
         t = (dates - self.linear_trend_first_date).days.astype(float)
 
@@ -482,8 +517,12 @@ class LinearTrendEffect:
             The dataset for prediction.
         """
         # Create normalized time index for new data
+        # Skip validation for non-date coordinates (e.g., numeric "time" indices)
+        validate = self.date_dim_name == "date"
         new_dates = safe_to_datetime(
-            model.coords[self.date_dim_name], self.date_dim_name
+            model.coords[self.date_dim_name],
+            self.date_dim_name,
+            validate_non_numeric=validate,
         )
         t = (new_dates - self.linear_trend_first_date).days.astype(float)
 
@@ -549,8 +588,12 @@ class EventAdditiveEffect(BaseModel):
         """
         model: pm.Model = mmm.model
 
+        # Skip validation for non-date coordinates (e.g., numeric "time" indices)
+        validate = self.date_dim_name == "date"
         model_dates = safe_to_datetime(
-            model.coords[self.date_dim_name], self.date_dim_name
+            model.coords[self.date_dim_name],
+            self.date_dim_name,
+            validate_non_numeric=validate,
         )
 
         model.add_coord(self.prefix, self.df_events["name"].to_numpy())
@@ -613,8 +656,12 @@ class EventAdditiveEffect(BaseModel):
 
     def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
         """Set the data for new predictions."""
+        # Skip validation for non-date coordinates (e.g., numeric "time" indices)
+        validate = self.date_dim_name == "date"
         new_dates = safe_to_datetime(
-            model.coords[self.date_dim_name], self.date_dim_name
+            model.coords[self.date_dim_name],
+            self.date_dim_name,
+            validate_non_numeric=validate,
         )
 
         new_data = {
