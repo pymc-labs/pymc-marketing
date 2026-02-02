@@ -220,6 +220,15 @@ def _serialize_mu_effect(effect: MuEffect) -> dict[str, Any]:
     Default implementation uses Pydantic's model_dump for unknown types.
     Register new types with: @_serialize_mu_effect.register(YourEffect)
     """
+    # Check if the effect has model_dump (Pydantic BaseModel)
+    if not hasattr(effect, "model_dump"):
+        raise TypeError(
+            f"Cannot serialize MuEffect of type '{effect.__class__.__name__}': "
+            f"MuEffect subclasses must inherit from pydantic.BaseModel. "
+            f"Update your custom effect class to inherit from MuEffect (which is now a BaseModel). "
+            f"See pymc_marketing.mmm.additive_effect.MuEffect for the new base class definition."
+        )
+
     return {
         "class": effect.__class__.__name__,
         **effect.model_dump(mode="json"),
