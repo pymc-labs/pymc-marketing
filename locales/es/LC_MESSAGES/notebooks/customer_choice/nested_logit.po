@@ -178,7 +178,7 @@ msgid ""
 " I_{k} = ln \\sum_{j \\in B_{k}}  e^{Y_{j} / \\lambda_{k}} \\text{ and } "
 "\\lambda_{k} \\sim Beta(1, 1) "
 msgstr ""
-"I_{k} = ln \\sum_{j \\in B_{k}}  e^{Y_{j} / \\lambda_{k}} \\text{ and } "
+"I_{k} = ln \\sum_{j \\in B_{k}} e^{Y_{j} / \\lambda_{k}} \\text{ and } "
 "\\lambda_{k} \\sim Beta(1, 1)"
 
 #: ../source/notebooks/customer_choice/nested_logit.ipynb:90022
@@ -321,10 +321,8 @@ msgid ""
 "We can additionally test counterfactuals about the removal of products from "
 "the market."
 msgstr ""
-"{\n"
-"  \"singular\": \"Podemos además probar contrahechos sobre la eliminación de productos del mercado.\",\n"
-"  \"plural\": \"Podemos además probar contrahechos sobre la eliminación de productos del mercado.\"\n"
-"}"
+"También podemos probar contrafactuales sobre la eliminación de productos del"
+" mercado."
 
 #: ../source/notebooks/customer_choice/nested_logit.ipynb:340002
 #: da539e1adfa8494fa041018687cbaf72

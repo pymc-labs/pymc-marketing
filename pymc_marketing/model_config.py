@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 """Model configuration utilities."""
 
 import warnings
+from collections.abc import Sequence
 from typing import Any
 
 from pymc_extras.deserialize import deserialize
@@ -117,13 +118,28 @@ def parse_model_config(
     non_distributions = non_distributions or []
     hsgp_kwargs_fields = hsgp_kwargs_fields or []
 
+    # Convert to sets for O(1) lookup
+    non_distributions_set = set(non_distributions)
+    hsgp_kwargs_set = set(hsgp_kwargs_fields)
+
     parse_errors = []
 
     def handle_prior_config(name, prior_config):
-        if name in non_distributions or name in hsgp_kwargs_fields:
+        # Early return for non-distribution fields - must be first check
+        if name in non_distributions_set or name in hsgp_kwargs_set:
             return prior_config
 
         if isinstance(prior_config, Prior) or isinstance(prior_config, VariableFactory):
+            return prior_config
+
+        # Skip deserialization for non-dict, non-string sequence types (lists, tuples, etc.)
+        # These are not distribution configurations and should never be deserialized
+        if isinstance(prior_config, Sequence) and not isinstance(prior_config, str):
+            return prior_config
+
+        # Skip deserialization for other non-dict types (strings, numbers, etc.)
+        # These are not distribution configurations
+        if not isinstance(prior_config, dict):
             return prior_config
 
         try:
@@ -140,10 +156,26 @@ def parse_model_config(
             return dist
 
     def handle_hggp_kwargs(name, config):
-        if name not in hsgp_kwargs_fields:
+        if name not in hsgp_kwargs_set:
             return config
 
         if isinstance(config, HSGPKwargs):
+            return config
+
+        # Only convert to HSGPKwargs if the config is a dict that has HSGPKwargs keys
+        # Don't convert old-style configs with ls_lower/ls_upper (parameterize_from_data format)
+        if not isinstance(config, dict):
+            return config
+
+        hsgp_keys = {"m", "L", "eta_lam", "ls_mu", "ls_sigma", "cov_func"}
+        old_style_keys = {"ls_lower", "ls_upper"}
+
+        # If config has old-style keys, keep it as dict for parameterize_from_data
+        if config.keys() & old_style_keys:
+            return config
+
+        # Only convert if config has at least one HSGPKwargs key
+        if not (config.keys() & hsgp_keys):
             return config
 
         try:
@@ -151,6 +183,7 @@ def parse_model_config(
             return hsgp_kwargs
         except Exception as e:
             parse_errors.append(f"Parameter {name}: {e}")
+            return config
 
     # Parse the model configuration to extrat the `Prior` objects.
     result: ModelConfig = {

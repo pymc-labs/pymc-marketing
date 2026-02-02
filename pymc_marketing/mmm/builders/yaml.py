@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -165,7 +165,7 @@ def build_mmm_from_yaml(
         date_col_in_X = date_column in X.columns
 
         if date_column in X.columns:
-            X[date_column] = pd.to_datetime(X[date_column])
+            X.loc[:, date_column] = pd.to_datetime(X[date_column])
 
         if not date_col_in_X:
             raise ValueError(
@@ -181,15 +181,15 @@ def build_mmm_from_yaml(
     # 4 ───────────────────────────────────────────── build PyMC graph
     model.build_model(X, y)  # this **must** precede any idata loading
 
-    # 4b ──────────────────────────────────────────── apply calibration steps (if any)
-    _apply_and_validate_calibration_steps(model, cfg, config_path.parent)
-
     # 5 ───────────────────────── add original scale contribution variables
     original_scale_vars = cfg.get("original_scale_vars", [])
     if original_scale_vars:
         model.add_original_scale_contribution_variable(var=original_scale_vars)
 
-    # 6 ──────────────────────────────────────────── attach inference data
+    # 6 ──────────────────────────────────────────── apply calibration steps (if any)
+    _apply_and_validate_calibration_steps(model, cfg, config_path.parent)
+
+    # 7 ──────────────────────────────────────────── attach inference data
     if (idata_fp := cfg.get("idata_path")) is not None:
         idata_path = Path(idata_fp)
         if os.path.exists(idata_path):

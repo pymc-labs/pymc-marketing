@@ -43,7 +43,7 @@ msgstr "xr.DataArray"
 
 #: bd24c9c9836f42c68b10ce692e0a4bbe of pymc_marketing.plot.plot_samples:8
 msgid "Curve to plot"
-msgstr "Curva a trazar"
+msgstr "Curva a graficar"
 
 #: 3fdf04a0202f44b198f6ac510df440b9 of pymc_marketing.plot.plot_samples:10
 msgid ""

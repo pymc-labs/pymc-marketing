@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ from pymc_extras.deserialize import (
     deserialize,
     register_deserialization,
 )
+from pymc_extras.prior import Prior
 
 from pymc_marketing.mmm.fourier import (
     FourierBase,
@@ -31,7 +32,6 @@ from pymc_marketing.mmm.fourier import (
     YearlyFourier,
     generate_fourier_modes,
 )
-from pymc_marketing.prior import Prior
 
 
 @pytest.mark.parametrize(

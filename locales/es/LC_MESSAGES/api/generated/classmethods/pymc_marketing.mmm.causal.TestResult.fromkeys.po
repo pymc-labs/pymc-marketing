@@ -23,18 +23,12 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.TestResult.fromkeys.rst:2
 #: a50eb6060cb74e9f888a6ca6d20b7f16
 msgid "TestResult.fromkeys"
-msgstr ""
-"{\n"
-"  \"singular\": \"TestResult.fromkeys\",\n"
-"  \"plural\": \"TestResult.fromkeys\"\n"
-"}"
+msgstr "TestResult.fromkeys"
 
 #: bdb64f2582d744e987296dd6ba34cb7e of
 #: pymc_marketing.mmm.causal.TestResult.fromkeys:2
 msgid ""
 "Create a new dictionary with keys from iterable and values set to value."
 msgstr ""
-"{\n"
-"  \"singular\": \"Cree un nuevo diccionario con claves del iterable y valores establecidos en el valor.\",\n"
-"  \"plural\": \"Cree nuevos diccionarios con claves del iterable y valores establecidos en el valor.\"\n"
-"}"
+"Cree un nuevo diccionario con claves del iterable y valores establecidos en "
+"value."

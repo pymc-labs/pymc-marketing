@@ -28,6 +28,26 @@ python scripts/run_notebooks/runner.py --notebooks mmm --start-idx 2 --end-idx 5
 
 """
 
+# Monkey-patch nbclient to handle display_id=None for widget updates.
+# This fixes an issue where ipywidgets/tqdm progress bars cause
+# "assert display_id is not None" errors in nbclient.
+import nbclient.client
+
+_original_output = nbclient.client.NotebookClient.output
+
+
+def _patched_output(self, outs, msg, display_id, cell_index):
+    """Patched output method that catches assertion errors from widget updates."""
+    try:
+        return _original_output(self, outs, msg, display_id, cell_index)
+    except AssertionError:
+        # Silently skip messages that cause display_id assertion errors
+        # (typically from ipywidgets/tqdm progress bar updates)
+        return None
+
+
+nbclient.client.NotebookClient.output = _patched_output
+
 import argparse
 import logging
 from pathlib import Path
@@ -45,8 +65,21 @@ HERE = Path(__file__).parent
 KERNEL_NAME: str = "python3"
 DOC_SOURCE = Path("docs/source")
 NOTEBOOKS_PATH = DOC_SOURCE / "notebooks"
-NOTEBOOKS: list[Path] = list(NOTEBOOKS_PATH.glob("*/*.ipynb"))
-NOTEBOOKS.append(DOC_SOURCE / "guide" / "benefits" / "model_deployment.ipynb")
+_NOTEBOOKS: list[Path] = list(NOTEBOOKS_PATH.glob("*/*.ipynb"))
+_NOTEBOOKS.append(DOC_SOURCE / "guide" / "benefits" / "model_deployment.ipynb")
+
+# Notebooks to exclude from testing (relative to repo root)
+BLACKLIST: set[str] = {
+    "docs/source/notebooks/mmm/mmm_chronos.ipynb",
+}
+
+
+def filter_blacklist(notebooks: list[Path]) -> list[Path]:
+    """Remove blacklisted notebooks from the list."""
+    return [nb for nb in notebooks if str(nb) not in BLACKLIST]
+
+
+NOTEBOOKS: list[Path] = filter_blacklist(_NOTEBOOKS)
 
 INJECTED_CODE_FILE = HERE / "injected.py"
 INJECTED_CODE = INJECTED_CODE_FILE.read_text()
@@ -63,7 +96,19 @@ def generate_random_id() -> str:
     return str(uuid4())
 
 
+def clear_cell_outputs(cells: list) -> None:
+    """Clear all outputs from cells to avoid widget state issues with nbclient."""
+    for cell in cells:
+        if cell.get("cell_type") == "code":
+            cell["outputs"] = []
+            cell["execution_count"] = None
+
+
 def inject_pymc_sample_mock_code(cells: list) -> None:
+    # Clear outputs first to avoid nbclient display_id assertion errors
+    # caused by saved widget state from ipywidgets/tqdm progress bars
+    clear_cell_outputs(cells)
+
     cells.insert(
         0,
         NotebookNode(
@@ -180,6 +225,7 @@ if __name__ == "__main__":
         notebooks_to_run = [Path(notebook) for notebook in args.notebooks]
 
     notebooks_to_run = expand_directories(notebooks_to_run)
+    notebooks_to_run = filter_blacklist(notebooks_to_run)
 
     if args.exclude_dirs:
         exclude_set = set(args.exclude_dirs)

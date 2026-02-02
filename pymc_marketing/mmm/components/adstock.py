@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -70,6 +70,7 @@ from pymc_marketing.mmm.components.base import (
 from pymc_marketing.mmm.transformers import (
     ConvMode,
     WeibullType,
+    binomial_adstock,
     delayed_adstock,
     geometric_adstock,
     weibull_adstock,
@@ -171,6 +172,39 @@ class AdstockTransformation(Transformation, metaclass=AdstockRegistrationMeta): 
             x=x,
             coords=coords,
         )
+
+
+class BinomialAdstock(AdstockTransformation):
+    """Wrapper around the binomial adstock function.
+
+    For more information, see :func:`pymc_marketing.mmm.transformers.binomial_adstock`.
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from pymc_marketing.mmm import BinomialAdstock
+
+        rng = np.random.default_rng(0)
+
+        adstock = BinomialAdstock(l_max=10)
+        prior = adstock.sample_prior(random_seed=rng)
+        curve = adstock.sample_curve(prior)
+        adstock.plot_curve(curve, random_seed=rng)
+        plt.show()
+
+    """
+
+    lookup_name = "binomial"
+
+    def function(self, x, alpha):
+        """Binomial adstock function."""
+        return binomial_adstock(
+            x, alpha=alpha, l_max=self.l_max, normalize=self.normalize, mode=self.mode
+        )
+
+    default_priors = {"alpha": Prior("Beta", alpha=1, beta=3)}
 
 
 class GeometricAdstock(AdstockTransformation):

@@ -1,0 +1,40 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) 2022-2025, PyMC Labs
+# This file is distributed under the same license as the pymc-marketing
+# package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: pymc-marketing local\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-21 09:54+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: es <LL@li.org>\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: ../source/api/generated/classmethods/pymc_marketing.clv.distributions.ShiftedBetaGeometric.support_point.rst:2
+#: e0b83b5b270148628ca8b5eb51a2e545
+msgid "ShiftedBetaGeometric.support\\_point"
+msgstr "ShiftedBetaGeometric.support\\_point"
+
+#: 957f3fc508b54223ae12a804d5fac7fd of
+#: pymc_marketing.clv.distributions.ShiftedBetaGeometric.support_point:2
+msgid "Calculate a reasonable starting point for sampling."
+msgstr "Calcule un punto de partida razonable para el muestreo."
+
+#: a2c6ca311c7540df8fbf0728e979e8da of
+#: pymc_marketing.clv.distributions.ShiftedBetaGeometric.support_point:4
+msgid ""
+"For the Shifted Beta-Geometric distribution, we use a point estimate based "
+"on the expected value of the mixture components."
+msgstr ""
+"Para la distribución Beta-Geométrica Desplazada, utilizamos una estimación "
+"puntual basada en el valor esperado de los componentes de la mezcla."

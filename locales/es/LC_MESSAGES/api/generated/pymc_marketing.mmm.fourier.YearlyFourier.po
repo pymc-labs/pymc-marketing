@@ -684,8 +684,8 @@ msgid ""
 ":py:obj:`days_in_period "
 "<pymc_marketing.mmm.fourier.YearlyFourier.days_in_period>`\\"
 msgstr ""
-":py:obj:`days_in_period "
-"<pymc_marketing.mmm.fourier.YearlyFourier.days_in_period>`"
+":py:obj:`días_en_período "
+"<pymc_marketing.mmm.fourier.YearlyFourier.días_en_período>`"
 
 #: ../source/api/generated/pymc_marketing.mmm.fourier.YearlyFourier.rst:70:<autosummary>:1
 #: a6d0f04291f14b418f23be9b69401cdc

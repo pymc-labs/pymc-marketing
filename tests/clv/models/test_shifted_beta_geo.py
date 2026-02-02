@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -46,7 +46,7 @@ class TestShiftedBetaGeoModel:
         cls.beta_case1_case2 = [15.20, 0.267]
 
         # Instantiate model with research paper data
-        cls.data = pd.read_csv("data/sbg_reg_hi_cohorts.csv").query("T <= 8")
+        cls.data = pd.read_csv("data/sbg_cohorts.csv").query("T <= 8")
         cls.model = ShiftedBetaGeoModel(cls.data)
         cls.model.build_model()
 
@@ -138,6 +138,64 @@ class TestShiftedBetaGeoModel:
         return model
 
     @pytest.fixture(scope="class")
+    def covariate_test_data(self):
+        """Test data with covariates for testing covariate functionality."""
+        return pd.DataFrame(
+            {
+                "customer_id": np.arange(1, 21),
+                "recency": np.array(
+                    [3, 4, 5, 5, 5, 3, 4, 5, 5, 5, 3, 4, 5, 5, 5, 3, 4, 5, 5, 5]
+                ),
+                "T": np.array(
+                    [5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5]
+                ),
+                "cohort": np.array(
+                    [
+                        "A",
+                        "A",
+                        "A",
+                        "A",
+                        "A",
+                        "B",
+                        "B",
+                        "B",
+                        "B",
+                        "B",
+                        "A",
+                        "A",
+                        "A",
+                        "A",
+                        "A",
+                        "B",
+                        "B",
+                        "B",
+                        "B",
+                        "B",
+                    ]
+                ),
+                "channel": np.array(
+                    [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0]
+                ),
+                "tier": np.array(
+                    [2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1]
+                ),
+            }
+        )
+
+    @pytest.fixture(scope="class")
+    def covariate_pred_data(self):
+        """Prediction data with covariates for testing predictions."""
+        return pd.DataFrame(
+            {
+                "customer_id": np.arange(1, 6),
+                "T": np.array([5, 5, 5, 5, 5]),
+                "cohort": np.array(["A", "A", "B", "B", "A"]),
+                "channel": np.array([1, 0, 1, 0, 1]),
+                "tier": np.array([2, 1, 2, 1, 2]),
+            }
+        )
+
+    @pytest.fixture(scope="class")
     def custom_model_config(self):
         return {
             "alpha": Prior("HalfNormal", sigma=10, dims="cohort"),
@@ -170,6 +228,7 @@ class TestShiftedBetaGeoModel:
             assert model.model.coords == {
                 "customer_id": tuple(range(1, self.N + 1)),
                 "cohort": ("highend", "regular"),
+                "dropout_covariate": (),
             }
 
         assert default_model.model.eval_rv_shapes() == {
@@ -608,6 +667,402 @@ class TestShiftedBetaGeoModel:
         np.testing.assert_allclose(
             expected_residual_lifetime_case2, residual_lifetime_case2_obs, rtol=1e-2
         )
+
+    def test_expected_retention_elasticity(self, erl_test_data):
+        """Test expected_retention_elasticity against Table 3 values from the paper.
+        Note no values for retention elasticity are provided in the paper,
+        but can be derived from the DERL and retention rate:
+        retention_elasticity(T) = DERL(T-1) / retention_rate(T)
+        """
+        # Compute expected retention elasticity from the model with discount_rate=0.1
+        expected_retention_elasticity_cohorts = (
+            self.erl_model.expected_retention_elasticity(
+                erl_test_data,
+                discount_rate=0.1,
+            ).mean(("chain", "draw"))
+        )
+
+        # Extract elasticity predictions by cohort
+        expected_retention_elasticity_case1 = expected_retention_elasticity_cohorts.sel(
+            cohort="case1"
+        ).values
+        expected_retention_elasticity_case2 = expected_retention_elasticity_cohorts.sel(
+            cohort="case2"
+        ).values
+
+        ### DERIVE VALUES FROM OTHER EXPRESSIONS FOR VALIDATION ###
+
+        # compute expected retention rates for T (current period)
+        expected_retention_rate_cohorts = self.erl_model.expected_retention_rate(
+            erl_test_data,
+            future_t=0,
+        ).mean(("chain", "draw"))
+
+        expected_retention_rate_case1 = expected_retention_rate_cohorts.sel(
+            cohort="case1"
+        ).values
+        expected_retention_rate_case2 = expected_retention_rate_cohorts.sel(
+            cohort="case2"
+        ).values
+
+        # Create test data for DERL T-1 (one period earlier) to compute DERL(T-1)
+        erl_test_data_T_minus_1 = erl_test_data.copy()
+        erl_test_data_T_minus_1["T"] = erl_test_data_T_minus_1["T"] - 1
+        # Filter out T=0 (can't have T < 1 in the model)
+        erl_test_data_T_minus_1 = erl_test_data_T_minus_1[
+            erl_test_data_T_minus_1["T"] >= 1
+        ]
+
+        # Compute DERL for T-1
+        expected_residual_lifetime_cohorts_T_minus_1 = (
+            self.erl_model.expected_residual_lifetime(
+                erl_test_data_T_minus_1,
+                discount_rate=0.1,
+            ).mean(("chain", "draw"))
+        )
+
+        expected_residual_lifetime_case1_T_minus_1 = (
+            expected_residual_lifetime_cohorts_T_minus_1.sel(cohort="case1").values
+        )
+        expected_residual_lifetime_case2_T_minus_1 = (
+            expected_residual_lifetime_cohorts_T_minus_1.sel(cohort="case2").values
+        )
+
+        # Compute expected elasticity using the formula: DERL(T-1) / retention_rate(T)
+        # Skip T=1 since we don't have T-1=0
+        expected_elasticity_case1_formula = (
+            expected_residual_lifetime_case1_T_minus_1
+            / expected_retention_rate_case1[1:]
+        )
+        expected_elasticity_case2_formula = (
+            expected_residual_lifetime_case2_T_minus_1
+            / expected_retention_rate_case2[1:]
+        )
+
+        ### ASSERTIONS ###
+        # Compare model's elasticity against the formula-based elasticity
+        # Skip first value (T=1) since formula needs T-1
+        np.testing.assert_allclose(
+            expected_retention_elasticity_case1[1:],
+            expected_elasticity_case1_formula,
+            rtol=1e-1,
+            err_msg="Case1: Model elasticity doesn't match DERL(T-1)/retention_rate(T)",
+        )
+        np.testing.assert_allclose(
+            expected_retention_elasticity_case2[1:],
+            expected_elasticity_case2_formula,
+            rtol=2.0,  # T=1 variance is very high, but var for T=5 is 1e-2
+            err_msg="Case2: Model elasticity doesn't match DERL(T-1)/retention_rate(T)",
+        )
+
+        # Additional validation: elasticity properties
+        # The elasticity should be positive
+        assert np.all(expected_retention_elasticity_case1 > 0)
+        assert np.all(expected_retention_elasticity_case2 > 0)
+
+        # Elasticity should generally be higher for the low retention case
+        # (customers with lower retention are more sensitive to retention changes)
+        assert np.mean(expected_retention_elasticity_case2) > np.mean(
+            expected_retention_elasticity_case1
+        )
+
+        # Verify retention rates are valid (between 0 and 1) and increasing with T
+        assert np.all(
+            (expected_retention_rate_case1 > 0) & (expected_retention_rate_case1 < 1)
+        )
+        assert np.all(
+            (expected_retention_rate_case2 > 0) & (expected_retention_rate_case2 < 1)
+        )
+        # Retention rates should increase over time (with more renewals)
+        assert np.all(np.diff(expected_retention_rate_case1) >= 0)
+        assert np.all(np.diff(expected_retention_rate_case2) >= 0)
+
+    def test_model_with_covariates_hierarchical(self, covariate_test_data):
+        """Test model building and fitting with covariates using hierarchical parameterization."""
+        model_config = {
+            "phi": Prior("Uniform", lower=0, upper=1, dims="cohort"),
+            "kappa": Prior("Pareto", alpha=1, m=1, dims="cohort"),
+            "dropout_coefficient": Prior("Normal", mu=0, sigma=2),
+            "dropout_covariate_cols": ["channel", "tier"],
+        }
+
+        model = ShiftedBetaGeoModel(data=covariate_test_data, model_config=model_config)
+        model.build_model()
+
+        # Check that coords include dropout_covariate
+        assert list(model.model.coords["dropout_covariate"]) == ["channel", "tier"]
+
+        # Check that covariate columns are stored
+        assert model.dropout_covariate_cols == ["channel", "tier"]
+
+        # Check that alpha_scale and beta_scale exist (not alpha and beta directly)
+        assert "alpha_scale" in model.model.named_vars
+        assert "beta_scale" in model.model.named_vars
+
+        # Check that customer-level alpha and beta exist
+        assert "alpha" in model.model.named_vars
+        assert "beta" in model.model.named_vars
+
+        # Check that dropout coefficients exist
+        assert "dropout_coefficient_alpha" in model.model.named_vars
+        assert "dropout_coefficient_beta" in model.model.named_vars
+
+        # Check shapes
+        assert model.model["alpha_scale"].eval().shape == (2,)  # 2 cohorts
+        assert model.model["beta_scale"].eval().shape == (2,)  # 2 cohorts
+        assert model.model["alpha"].eval().shape == (20,)  # 20 customers
+        assert model.model["beta"].eval().shape == (20,)  # 20 customers
+        assert model.model["dropout_coefficient_alpha"].eval().shape == (
+            2,
+        )  # 2 covariates
+        assert model.model["dropout_coefficient_beta"].eval().shape == (
+            2,
+        )  # 2 covariates
+
+        # Fit with MAP to verify it runs without errors
+        model.fit(method="map", maxeval=10)
+        assert model.idata is not None
+
+    def test_model_with_covariates_direct(self, covariate_test_data):
+        """Test model building with covariates using direct alpha/beta parameterization."""
+        model_config = {
+            "alpha": Prior("HalfNormal", sigma=10, dims="cohort"),
+            "beta": Prior("HalfNormal", sigma=10, dims="cohort"),
+            "dropout_coefficient": Prior("Normal", mu=0, sigma=2),
+            "dropout_covariate_cols": ["channel"],
+        }
+
+        model = ShiftedBetaGeoModel(data=covariate_test_data, model_config=model_config)
+        model.build_model()
+
+        # Check that coords include dropout_covariate
+        assert "dropout_covariate" in model.model.coords
+        assert list(model.model.coords["dropout_covariate"]) == ["channel"]
+
+        # Check that alpha_scale and beta_scale exist (direct parameterization with covariates)
+        assert "alpha_scale" in model.model.named_vars
+        assert "beta_scale" in model.model.named_vars
+
+        # Check that customer-level alpha and beta exist
+        assert "alpha" in model.model.named_vars
+        assert "beta" in model.model.named_vars
+
+        # Check shapes
+        assert model.model["alpha_scale"].eval().shape == (2,)  # 2 cohorts
+        assert model.model["beta_scale"].eval().shape == (2,)  # 2 cohorts
+        assert model.model["alpha"].eval().shape == (20,)  # 20 customers
+        assert model.model["beta"].eval().shape == (20,)  # 20 customers
+
+        # Fit with MAP to verify it runs without errors
+        model.fit(method="map", maxeval=10)
+        assert model.idata is not None
+
+    def test_predictions_with_covariates(
+        self, covariate_test_data, covariate_pred_data
+    ):
+        """Test that prediction methods work with covariates."""
+        model_config = {
+            "phi": Prior("Uniform", lower=0, upper=1, dims="cohort"),
+            "kappa": Prior("Pareto", alpha=1, m=1, dims="cohort"),
+            "dropout_coefficient": Prior("Normal", mu=0, sigma=2),
+            "dropout_covariate_cols": ["channel"],
+        }
+
+        model = ShiftedBetaGeoModel(data=covariate_test_data, model_config=model_config)
+        model.build_model()
+        model.fit(method="map", maxeval=10)
+
+        # Use only the channel covariate column from pred_data
+        pred_data = covariate_pred_data[
+            ["customer_id", "T", "cohort", "channel"]
+        ].copy()
+
+        # Test each prediction method
+        retention_rate = model.expected_retention_rate(data=pred_data, future_t=1)
+        assert retention_rate.shape == (1, 1, 5)
+        assert np.all(retention_rate > 0) and np.all(retention_rate < 1)
+
+        prob_alive = model.expected_probability_alive(data=pred_data, future_t=0)
+        assert prob_alive.shape == (1, 1, 5)
+        assert np.all(prob_alive > 0) and np.all(prob_alive <= 1)
+
+        residual_lifetime = model.expected_residual_lifetime(
+            data=pred_data, discount_rate=0.05
+        )
+        assert residual_lifetime.shape == (1, 1, 5)
+        assert np.all(residual_lifetime > 0)
+
+        retention_elasticity = model.expected_retention_elasticity(
+            data=pred_data, discount_rate=0.05
+        )
+        assert retention_elasticity.shape == (1, 1, 5)
+        assert np.all(retention_elasticity > 0)
+
+    def test_missing_covariate_columns_raises_error(self, covariate_test_data):
+        """Test that missing covariate columns in data raises an error."""
+        # Create test data without the required covariate columns by dropping them
+        data_missing_covariates = covariate_test_data.drop(
+            columns=["channel", "tier"]
+        ).iloc[:10]
+
+        model_config = {
+            "phi": Prior("Uniform", lower=0, upper=1, dims="cohort"),
+            "kappa": Prior("Pareto", alpha=1, m=1, dims="cohort"),
+            "dropout_coefficient": Prior("Normal", mu=0, sigma=2),
+            "dropout_covariate_cols": ["channel"],
+        }
+
+        with pytest.raises(ValueError, match="missing from the input data"):
+            ShiftedBetaGeoModel(data=data_missing_covariates, model_config=model_config)
+
+    def test_covariate_cols_only_in_config(self, covariate_test_data):
+        """Test that passing only dropout_covariate_cols into model_config (without priors) works."""
+
+        model_config = {
+            "dropout_covariate_cols": ["channel"],
+        }
+
+        # Should not raise ModelConfigError
+        model = ShiftedBetaGeoModel(data=covariate_test_data, model_config=model_config)
+        assert model.dropout_covariate_cols == ["channel"]
+        model.build_model()
+        assert "dropout_covariate" in model.model.coords
+
+    def test_predictions_with_covariates_subset_cohorts(self):
+        # Training data with 3 cohorts
+        train_data = pd.DataFrame(
+            {
+                "customer_id": range(30),
+                "recency": [3, 4, 5] * 10,
+                "T": [5] * 30,
+                "cohort": ["A"] * 10 + ["B"] * 10 + ["C"] * 10,
+                "channel": [0, 1, 0, 1, 0] * 6,
+            }
+        )
+
+        model = ShiftedBetaGeoModel(
+            data=train_data, model_config={"dropout_covariate_cols": ["channel"]}
+        )
+        model.fit(method="map", maxeval=10)
+
+        # Prediction data with subset of cohorts (NOT starting at index 0)
+        pred_data = pd.DataFrame(
+            {
+                "customer_id": [100, 101, 102],
+                "T": [3, 3, 3],
+                "cohort": ["B", "C", "C"],  # Missing cohort "A"
+                "channel": [1, 0, 1],
+            }
+        )
+
+        # Should not raise IndexError
+        prob_alive = model.expected_probability_alive(data=pred_data, future_t=1)
+        assert prob_alive.shape[-1] == 3  # 3 customers
+
+        retention = model.expected_retention_rate(data=pred_data, future_t=1)
+        assert retention.shape[-1] == 3
+
+    def test_covariate_predictions_single_vs_all_cohorts_consistency(self):
+        """Predictions for a cohort must be identical whether queried via
+        all-cohorts or single-cohort data."""
+        train_data = pd.DataFrame(
+            {
+                "customer_id": range(60),
+                "recency": [3, 4, 5, 5, 5, 5] * 10,  # Mix of churned and active
+                "T": [5] * 60,
+                "cohort": ["A"] * 20 + ["B"] * 20 + ["C"] * 20,
+                "channel": [0, 1] * 30,
+            }
+        )
+
+        model = ShiftedBetaGeoModel(
+            data=train_data, model_config={"dropout_covariate_cols": ["channel"]}
+        )
+        model.fit(method="map", maxeval=50)
+
+        # Get active customers for predictions
+        active_all = train_data.query("recency == T").copy()
+        active_B = active_all[active_all["cohort"] == "B"].copy()
+
+        # Scenario A: Predict all cohorts, select cohort B
+        pred_all = model.expected_probability_alive(data=active_all, future_t=2)
+        pred_all_B = pred_all.sel(cohort="B")
+
+        # Scenario B: Predict single cohort B directly
+        pred_single_B = model.expected_probability_alive(data=active_B, future_t=2)
+
+        # Values must be identical (within floating point tolerance)
+        xr.testing.assert_allclose(
+            pred_all_B.mean("cohort"),  # Average over customers in cohort B
+            pred_single_B.mean("cohort"),
+            rtol=1e-10,
+        )
+
+    def test_covariate_effect_preserved_single_cohort(self):
+        """Covariate effects must be identical regardless of query method."""
+        train_data = pd.DataFrame(
+            {
+                "customer_id": range(40),
+                "recency": [4, 4, 4, 4] * 10,  # All active
+                "T": [4] * 40,
+                "cohort": ["X"] * 20 + ["Y"] * 20,
+                "feature": [0.0, 1.0] * 20,  # Binary covariate
+            }
+        )
+
+        model = ShiftedBetaGeoModel(
+            data=train_data, model_config={"dropout_covariate_cols": ["feature"]}
+        )
+        model.fit(method="map", maxeval=50)
+
+        active = train_data.query("recency == T").copy()
+        active_X = active[active["cohort"] == "X"].copy()
+
+        # All cohorts prediction
+        dataset_all = model._extract_predictive_variables(
+            active.assign(future_t=1), customer_varnames=["T", "future_t", "cohort"]
+        )
+
+        # Single cohort prediction
+        dataset_single = model._extract_predictive_variables(
+            active_X.assign(future_t=1), customer_varnames=["T", "future_t", "cohort"]
+        )
+
+        # Alpha values for cohort X customers must match
+        alpha_all_X = dataset_all["alpha"].sel(cohort="X")
+        alpha_single_X = dataset_single["alpha"]
+
+        xr.testing.assert_allclose(alpha_all_X, alpha_single_X, rtol=1e-10)
+
+    def test_covariate_path_coordinate_integrity(self):
+        """Verify customer_id coordinates are preserved through covariate path."""
+        train_data = pd.DataFrame(
+            {
+                "customer_id": [100, 101, 102, 103],
+                "recency": [3, 3, 3, 3],
+                "T": [3] * 4,
+                "cohort": ["P", "P", "Q", "Q"],
+                "cov": [0.5, 1.5, 0.5, 1.5],
+            }
+        )
+
+        model = ShiftedBetaGeoModel(
+            data=train_data, model_config={"dropout_covariate_cols": ["cov"]}
+        )
+        model.fit(method="map", maxeval=10)
+
+        pred_data = train_data.query("recency == T").assign(future_t=1)
+        dataset = model._extract_predictive_variables(
+            pred_data, customer_varnames=["T", "future_t", "cohort"]
+        )
+
+        # Verify customer_id coordinate exists and matches input
+        # (After swap_dims, customer_id becomes a coord on cohort dim)
+        assert "customer_id" in dataset.coords or "cohort" in dataset.dims
+
+        # Verify alpha has proper dimensions
+        assert "alpha" in dataset
+        assert dataset["alpha"].dims[-1] == "cohort"  # After swap_dims
 
 
 class TestShiftedBetaGeoModelIndividual:

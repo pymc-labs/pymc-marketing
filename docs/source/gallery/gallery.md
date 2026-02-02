@@ -36,6 +36,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_multidimensional_example.html
 :::
 
+:::{grid-item-card} Understanding Media Saturation
+:img-top: ../gallery/images/mmm_media_saturation.png
+:link: ../notebooks/mmm/mmm_media_saturation.html
+:::
+
 :::{grid-item-card} Build MMM from YAML Configuration
 :img-top: ../gallery/images/mmm_build_from_yml_example.png
 :link: ../notebooks/mmm/mmm_build_from_yml_example.html
@@ -152,10 +157,20 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_counterfactuals.html
 :::
 
-::::{grid-item-card} Upper-funnel causal approach
-:img-top: ../gallery/images/mmm_causal_identification.png
+:::{grid-item-card} Introduction: Upper-Funnel Impact with PyMC‑Marketing
+:img-top: ../gallery/images/mmm_intro_upper_funnel.png
+:link: ../notebooks/mmm/mmm_intro_upper_funnel.html
+:::
+
+:::{grid-item-card} Advanced: Upper-Funnel Impact with PyMC‑Marketing
+:img-top: ../gallery/images/mmm_upper_funnel_causal_approach.png
 :link: ../notebooks/mmm/mmm_upper_funnel_causal_approach.html
-::::
+:::
+
+:::{grid-item-card} Causal Reasoning and Discovery
+:img-top: ../gallery/images/mmm_causal_reasoning_and_discovery.png
+:link: ../notebooks/mmm/mmm_causal_reasoning_and_discovery.html
+:::
 
 :::::
 
@@ -167,6 +182,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::{grid-item-card} MMM End-to-End Case Study
 :img-top: ../gallery/images/mmm_case_study.png
 :link: ../notebooks/mmm/mmm_case_study.html
+:::
+
+:::{grid-item-card} Integrating Foundational Time Series Models with PyMC-Marketing MMM
+:img-top: ../gallery/images/mmm_chronos.png
+:link: ../notebooks/mmm/mmm_chronos.html
 :::
 ::::
 
@@ -200,7 +220,12 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/clv/gamma_gamma.html
 :::
 
-:::{grid-item-card} sBG Model
+:::{grid-item-card} Shifted BG Model for Cohorts
+:img-top: ../gallery/images/sbg.png
+:link: ../notebooks/clv/sbg.html
+:::
+
+:::{grid-item-card} sBG Model for Individuals
 :img-top: ../gallery/images/sBG_individual.png
 :link: ../notebooks/clv/sBG_individual.html
 :::
@@ -229,6 +254,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::{grid-item-card} Nested Logit Discrete Choice
 :img-top: ../gallery/images/nested_logit.png
 :link: ../notebooks/customer_choice/nested_logit.html
+:::
+
+:::{grid-item-card} Mixed Logit Discrete Choice
+:img-top: ../gallery/images/mixed_logit.png
+:link: ../notebooks/customer_choice/mixed_logit.html
 :::
 ::::
 

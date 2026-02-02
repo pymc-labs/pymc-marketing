@@ -23,29 +23,17 @@ msgstr ""
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.causal.TBF_FCI.get_directed_edges.rst:2
 #: e5db0aba8cb943cc882118930d0d997c
 msgid "TBF\\_FCI.get\\_directed\\_edges"
-msgstr ""
-"{\n"
-"  \"singular\": \"TBF_FCI.obtener_aristas_dirigidas\",\n"
-"  \"plural\": \"TBF_FCI.obtener_aristas_dirigidas\"\n"
-"}"
+msgstr "TBF\\_FCI.get\\_directed\\_edges"
 
 #: 77d7014944b24655b566e7143a9e3f43 of
 #: pymc_marketing.mmm.causal.TBF_FCI.get_directed_edges:2
 msgid "Return directed edges in the time-unrolled graph."
-msgstr ""
-"{\n"
-"  \"singular\": \"Devuelve los bordes dirigidos en el grafo desenrollado en el tiempo.\",\n"
-"  \"plural\": \"Devuelven los bordes dirigidos en el grafo desenrollado en el tiempo.\"\n"
-"}"
+msgstr "Devolver aristas dirigidas en el grafo desenrollado en el tiempo."
 
 #: c92103d9deb24f49954b32467582cd1e of
 #: pymc_marketing.mmm.causal.TBF_FCI.get_directed_edges
 msgid "Returns"
-msgstr ""
-"{\n"
-"  \"singular\": \"Devoluciones\",\n"
-"  \"plural\": \"Devoluciones\"\n"
-"}"
+msgstr "Returns"
 
 #: 6ac9bbbf503245dc83e99108d1455ae4 of
 #: pymc_marketing.mmm.causal.TBF_FCI.get_directed_edges:10
@@ -53,25 +41,16 @@ msgid ""
 ":class:`python:list`\\[:class:`python:tuple`\\[:class:`python:str`, "
 ":class:`python:str`]]"
 msgstr ""
-"{\n"
-"  \"singular\": \":class:`python:list`\\[:class:`python:tuple`\\[:class:`python:str`, :class:`python:str`]]\",\n"
-"  \"plural\": \":class:`python:list`\\[:class:`python:tuple`\\[:class:`python:str`, :class:`python:str`]]\"\n"
-"}"
+":class:`python:list`\\[:class:`python:tuple`\\[:class:`python:str`, "
+":class:`python:str`]]"
 
 #: f6123646a3cd4731b9e402d473bd82c6 of
 #: pymc_marketing.mmm.causal.TBF_FCI.get_directed_edges:11
 msgid "Sorted list of directed edges in the expanded (lagged) graph."
 msgstr ""
-"{\n"
-"  \"singular\": \"Lista ordenada de aristas dirigidas en el gráfico expandido (con retraso).\",\n"
-"  \"plural\": \"Listas ordenadas de aristas dirigidas en los gráficos expandidos (con retraso).\"\n"
-"}"
+"Lista ordenada de aristas dirigidas en el gráfico expandido (con retraso)."
 
 #: b36f314d4ad8403aa2124871db2189f5 of
 #: pymc_marketing.mmm.causal.TBF_FCI.get_directed_edges:23
 msgid "Examples"
-msgstr ""
-"{\n"
-"  \"singular\": \"Ejemplo\",\n"
-"  \"plural\": \"Ejemplos\"\n"
-"}"
+msgstr "Examples"
