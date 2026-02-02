@@ -26,6 +26,12 @@ def pytest_addoption(parser):
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "slow: mark test as slow to run")
+    config.addinivalue_line(
+        "markers", "requires_polars: mark test as requiring polars library"
+    )
+    config.addinivalue_line(
+        "markers", "requires_pyspark: mark test as requiring pyspark library"
+    )
 
 
 def pytest_collection_modifyitems(config, items):
