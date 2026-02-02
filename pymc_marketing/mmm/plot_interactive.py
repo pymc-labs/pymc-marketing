@@ -115,7 +115,7 @@ class MMMPlotlyFactory:
         return MMMPlotlyFactory._DATE_FORMATS.get(frequency, "%Y-%m-%d")
 
     @staticmethod
-    def _is_datetime_column(nw_df: IntoDataFrameT, col: str) -> bool:
+    def _is_datetime_column(nw_df: nw.DataFrame, col: str) -> bool:
         """Check if a column is a datetime type."""
         dtype = nw_df.get_column(col).dtype
         return dtype == nw.Datetime or str(dtype).startswith("Datetime")
@@ -189,7 +189,7 @@ class MMMPlotlyFactory:
         tuple[str, str]
             (lower_col, upper_col) names
         """
-        prob_str = str(int(hdi_prob * 100))
+        prob_str = str(round(hdi_prob * 100))
         lower_col = f"abs_error_{prob_str}_lower"
         upper_col = f"abs_error_{prob_str}_upper"
 
@@ -241,6 +241,8 @@ class MMMPlotlyFactory:
         >>> kwargs = factory._apply_auto_faceting({"facet_row": "brand"})
         >>> # Returns: {"facet_row": "brand"} (auto-faceting skipped)
         """
+        plotly_kwargs = plotly_kwargs.copy()
+
         # Skip if auto_facet disabled
         if not self.auto_facet:
             return plotly_kwargs
