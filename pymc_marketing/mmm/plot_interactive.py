@@ -660,7 +660,7 @@ class MMMPlotlyFactory:
         nw_df = nw_df.sort("date")
 
         # Create long-format DataFrame with both predicted and observed
-        id_cols = ["date", *self.custom_dims, "mean", "observed"]
+        id_cols = ["date", *self.custom_dims]
         plot_df = nw_df.select(*id_cols, "mean", "observed").unpivot(
             on=["mean", "observed"],
             index=id_cols,
