@@ -164,6 +164,7 @@ import xarray as xr
 from pydantic import Field, InstanceOf, StrictBool, validate_call
 from pymc.model.fgraph import clone_model as cm
 from pymc.util import RandomState
+from pymc_extras.deserialize import deserialize
 from pymc_extras.prior import Prior, create_dim_handler
 from scipy.optimize import OptimizeResult
 
@@ -304,11 +305,12 @@ def _register_mu_effect_handlers():
         }
 
     def _deser_linear_trend(data: dict[str, Any]) -> LinearTrendEffect:
-        # Deserialize priors separately using Prior.from_dict()
+        # Deserialize priors separately using generic deserialize()
+        # to support both Prior and SpecialPrior (e.g., LogNormalPrior)
         trend_data = data["trend"].copy()
         if "priors" in trend_data and trend_data["priors"] is not None:
             trend_data["priors"] = {
-                key: Prior.from_dict(prior_dict)
+                key: deserialize(prior_dict)
                 for key, prior_dict in trend_data["priors"].items()
             }
         return LinearTrendEffect(
