@@ -206,12 +206,6 @@ from pymc_marketing.model_builder import (
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.model_graph import deterministics_to_flat
 
-# ============================================================================
-# MuEffect Serialization Registry
-# ============================================================================
-# Uses singledispatch for serialization (type-based dispatch)
-# and a simple dict registry for deserialization (string-based dispatch)
-
 
 @singledispatch
 def _serialize_mu_effect(effect: MuEffect) -> dict[str, Any]:
