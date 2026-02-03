@@ -751,7 +751,7 @@ class MMMPlotlyFactory:
         fig.update_layout(hovermode="x")
         return fig
 
-    def _add_hdi_band(
+    def _add_single_hdi_band(
         self,
         fig: go.Figure,
         x: list,
@@ -764,7 +764,9 @@ class MMMPlotlyFactory:
         row: int | None = None,
         col: int | None = None,
     ) -> None:
-        """Add HDI band to figure as filled area.
+        """Add a single HDI band to figure as filled area.
+
+        This is a low-level helper used internally by `_add_hdi_bands`.
 
         Parameters
         ----------
@@ -938,7 +940,7 @@ class MMMPlotlyFactory:
                         continue
 
                     # Add band to the correct subplot with matching color
-                    self._add_hdi_band(
+                    self._add_single_hdi_band(
                         fig,
                         x=facet_color_data.get_column(x).to_list(),
                         lower=facet_color_data.get_column(lower_col).to_list(),
@@ -951,7 +953,7 @@ class MMMPlotlyFactory:
                     )
             else:
                 # Non-color mode: add single HDI band per facet
-                self._add_hdi_band(
+                self._add_single_hdi_band(
                     fig,
                     x=facet_data.get_column(x).to_list(),
                     lower=facet_data.get_column(lower_col).to_list(),
