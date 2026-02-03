@@ -239,13 +239,21 @@ class MMMPlotlyFactory:
         plotly_kwargs: dict,
         auto_facet: bool = True,
         single_dim_facet: Literal["col", "row"] = "col",
+        supports_line_styling: bool = False,
     ) -> dict:
         """Apply automatic faceting based on custom dimensions.
 
         Strategy:
-        - 1 custom dimension → facet_col or facet_row with wrap=3
-        - 2+ custom dimensions → facet_row=dims[0], facet_col=dims[1]
-        - Manual faceting in plotly_kwargs takes precedence
+        - auto_facet=True:
+          - 1 custom dimension → facet_col or facet_row with wrap=3
+          - 2 custom dimensions → facet_row=dims[0], facet_col=dims[1]
+          - 3 custom dimensions (line charts only) → adds line_dash=dims[2]
+          - More dimensions than supported → raises ValueError
+        - auto_facet=False with supports_line_styling=True:
+          - 1 custom dimension → line_dash=dims[0] (visual differentiation without faceting)
+        - auto_facet=False with supports_line_styling=False:
+          - No automatic styling applied (for bar charts etc.)
+        - Manual faceting/styling in plotly_kwargs takes precedence
 
         Parameters
         ----------
@@ -256,6 +264,9 @@ class MMMPlotlyFactory:
         single_dim_facet : {"col", "row"}, default "col"
             When there is exactly one custom dimension, this controls
             whether it is applied as facet_col or facet_row.
+        supports_line_styling : bool, default False
+            Whether the plot type supports line_dash parameter.
+            Set to True for line charts (px.line), False for bar charts (px.bar).
 
         Returns
         -------
@@ -276,14 +287,33 @@ class MMMPlotlyFactory:
         >>> kwargs = factory._apply_auto_faceting({})
         >>> # Returns: {"facet_row": "country", "facet_col": "region"}
 
+        >>> # Three dimensions on line chart: country, region, segment
+        >>> kwargs = factory._apply_auto_faceting({}, supports_line_styling=True)
+        >>> # Returns: {"facet_row": "country", "facet_col": "region",
+        >>> #          "line_dash": "segment"}
+
         >>> # Manual override
         >>> kwargs = factory._apply_auto_faceting({"facet_row": "brand"})
         >>> # Returns: {"facet_row": "brand"} (auto-faceting skipped)
+
+        >>> # auto_facet=False with custom dimension: country (line chart)
+        >>> kwargs = factory._apply_auto_faceting(
+        ...     {}, auto_facet=False, supports_line_styling=True
+        ... )
+        >>> # Returns: {"line_dash": "country"} (uses line dash for differentiation)
         """
         plotly_kwargs = plotly_kwargs.copy()
 
-        # Skip if auto_facet disabled
+        # Get custom dimensions
+        custom_dims = self.summary.data.custom_dims
+
+        # When auto_facet is disabled, use line_dash to differentiate custom dims
+        # (only for plot types that support these parameters, like line charts)
         if not auto_facet:
+            if supports_line_styling:
+                # Only apply if there are custom dimensions and no manual styling is set
+                if len(custom_dims) >= 1 and "line_dash" not in plotly_kwargs:
+                    plotly_kwargs["line_dash"] = custom_dims[0]
             return plotly_kwargs
 
         # Don't override explicit faceting
@@ -300,14 +330,25 @@ class MMMPlotlyFactory:
             # Only facet_col_wrap is supported by Plotly (not facet_row_wrap)
             if single_dim_facet == "col":
                 plotly_kwargs.setdefault("facet_col_wrap", 3)
-        elif len(custom_dims) == 2:
+        elif len(custom_dims) >= 2:
             plotly_kwargs["facet_row"] = custom_dims[0]
             plotly_kwargs["facet_col"] = custom_dims[1]
-        else:
-            raise ValueError(
-                f"Unsupported number of custom dimensions: {len(custom_dims)}. "
-                "Please filter the data to 1 or 2 dimensions."
-            )
+
+            # For line charts, we can use line_dash for a 3rd dimension
+            if len(custom_dims) >= 3 and supports_line_styling:
+                if "line_dash" not in plotly_kwargs:
+                    plotly_kwargs["line_dash"] = custom_dims[2]
+
+            # Determine max supported dimensions based on plot type
+            max_supported = 3 if supports_line_styling else 2
+
+            if len(custom_dims) > max_supported:
+                raise ValueError(
+                    f"Too many custom dimensions ({len(custom_dims)}) for this plot type. "
+                    f"Maximum supported: {max_supported} "
+                    f"(facet_row, facet_col{', line_dash' if supports_line_styling else ''}). "
+                    "Please filter the data to reduce dimensions."
+                )
 
         return plotly_kwargs
 
@@ -685,7 +726,7 @@ class MMMPlotlyFactory:
 
         # Auto-detect faceting from custom dimensions
         plotly_kwargs = self._apply_auto_faceting(
-            plotly_kwargs, auto_facet, single_dim_facet
+            plotly_kwargs, auto_facet, single_dim_facet, supports_line_styling=True
         )
 
         # Convert to Narwhals for unified API
@@ -1043,7 +1084,7 @@ class MMMPlotlyFactory:
 
         # Auto-detect faceting from custom dimensions
         plotly_kwargs = self._apply_auto_faceting(
-            plotly_kwargs, auto_facet, single_dim_facet
+            plotly_kwargs, auto_facet, single_dim_facet, supports_line_styling=True
         )
 
         return self._plot_curves(
@@ -1116,7 +1157,7 @@ class MMMPlotlyFactory:
 
         # Auto-detect faceting from custom dimensions
         plotly_kwargs = self._apply_auto_faceting(
-            plotly_kwargs, auto_facet, single_dim_facet
+            plotly_kwargs, auto_facet, single_dim_facet, supports_line_styling=True
         )
 
         return self._plot_curves(
