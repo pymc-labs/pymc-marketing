@@ -45,6 +45,31 @@ from pymc_marketing.mmm.summary import MMMSummaryFactory
 # Type aliases matching MMMSummaryFactory for consistency
 ComponentType = Literal["channel", "control", "seasonality", "baseline"]
 
+# Default Plotly color sequence
+PLOTLY_COLORS = px.colors.qualitative.Plotly
+
+
+def _hex_to_rgba(color: str, opacity: float) -> str:
+    """Convert a hex color to rgba string.
+
+    Parameters
+    ----------
+    color : str
+        Hex color string (e.g., "#636EFA")
+    opacity : float
+        Opacity value between 0 and 1
+
+    Returns
+    -------
+    str
+        RGBA color string (e.g., "rgba(99,110,250,0.3)")
+    """
+    hex_color = color.lstrip("#")
+    r = int(hex_color[0:2], 16)
+    g = int(hex_color[2:4], 16)
+    b = int(hex_color[4:6], 16)
+    return f"rgba({r},{g},{b},{opacity})"
+
 
 class MMMPlotlyFactory:
     """Factory for creating interactive Plotly plots from MMM summary data.
@@ -788,12 +813,24 @@ class MMMPlotlyFactory:
         x_concat = np.concatenate([x_arr, x_arr[::-1]])
         y_concat = np.concatenate([lower_arr, upper_arr[::-1]])
 
+        # Determine fill color with opacity
+        if fillcolor:
+            # Convert hex color to rgba with opacity
+            if fillcolor.startswith("#"):
+                fill = _hex_to_rgba(fillcolor, opacity)
+            else:
+                # Assume it's already an rgba or other format
+                fill = fillcolor
+        else:
+            # Default blue color
+            fill = f"rgba(65,105,225,{opacity})"
+
         trace = go.Scatter(
             x=x_concat,
             y=y_concat,
             mode="lines",
             fill="toself",
-            fillcolor=fillcolor or f"rgba(65,105,225,{opacity})",
+            fillcolor=fill,
             line=dict(color="rgba(255,255,255,0)"),
             hoverinfo="none",
             name=name,
@@ -856,11 +893,6 @@ class MMMPlotlyFactory:
             # Filter data for this facet
             facet_data = nw_df.filter(filter_expr)
 
-            # Extract values
-            x_values = facet_data.get_column("date").to_list()
-            lower_values = facet_data.get_column(lower_col).to_list()
-            upper_values = facet_data.get_column(upper_col).to_list()
-
             # Determine subplot indices (1-based for Plotly)
             # Handle row index
             if facet_row:
@@ -884,14 +916,122 @@ class MMMPlotlyFactory:
 
             self._add_hdi_band(
                 fig,
-                x_values,
-                lower_values,
-                upper_values,
+                x=facet_data.get_column("date").to_list(),
+                lower=facet_data.get_column(lower_col).to_list(),
+                upper=facet_data.get_column(upper_col).to_list(),
                 name=f"{int(hdi_prob * 100)}% HDI",
                 showlegend=(i == 0),  # Only show once in legend
                 row=row_idx,
                 col=col_idx,
             )
+
+    def _add_hdi_bands_to_facets_with_color(
+        self,
+        fig: go.Figure,
+        nw_df,
+        facet_row: str | None,
+        facet_col: str | None,
+        color: str,
+        color_values: list,
+        color_map: dict[str, str],
+        x: str,
+        lower_col: str,
+        upper_col: str,
+    ) -> None:
+        """Add HDI bands to each facet and color combination in a faceted plot.
+
+        Parameters
+        ----------
+        fig : go.Figure
+            Plotly figure with facets
+        nw_df : nw.DataFrame
+            Narwhals DataFrame with data
+        facet_row : str or None
+            Column name used for row facets
+        facet_col : str or None
+            Column name used for column facets
+        color : str
+            Column name used for color encoding
+        color_values : list
+            List of unique color values
+        color_map : dict[str, str]
+            Mapping from color values to hex color codes
+        x : str
+            Column name for x-axis
+        lower_col : str
+            Name of lower bound column
+        upper_col : str
+            Name of upper bound column
+        """
+        # Get unique facet combinations
+        facet_dims = []
+        if facet_row:
+            facet_dims.append(facet_row)
+        if facet_col:
+            facet_dims.append(facet_col)
+
+        if not facet_dims:
+            return
+
+        # Get unique combinations using Narwhals
+        facet_df = nw_df.select(*facet_dims).unique()
+
+        for row_dict in facet_df.to_native().to_dict("records"):
+            # Build filter expression for facet
+            filter_expr = nw.lit(True)
+            for dim, val in row_dict.items():
+                filter_expr = filter_expr & (nw.col(dim) == val)
+
+            # Determine subplot indices (1-based for Plotly)
+            # Handle row index
+            if facet_row:
+                row_val = row_dict[facet_row]
+                # For some reason, in when faceting in Plotly Express, row 1 is the bottom row.
+                # So we need to reverse the index.
+                row_vals = sorted(
+                    nw_df.get_column(facet_row).unique().to_list(), reverse=True
+                )
+                row_idx = row_vals.index(row_val) + 1
+            else:
+                row_idx = 1
+
+            # Handle column index
+            if facet_col:
+                col_val = row_dict[facet_col]
+                col_vals = sorted(nw_df.get_column(facet_col).unique().to_list())
+                col_idx = col_vals.index(col_val) + 1
+            else:
+                col_idx = 1
+
+            # Add HDI band for each color value in this facet
+            for color_val in color_values:
+                # Build filter expression for this (facet, color) combination
+                color_filter = filter_expr & (nw.col(color) == color_val)
+
+                # Filter data for this facet and color
+                facet_color_data = nw_df.filter(color_filter)
+
+                # Skip if no data for this combination
+                if len(facet_color_data) == 0:
+                    continue
+
+                # Extract values for HDI band
+                x_values = facet_color_data.get_column(x).to_list()
+                lower_values = facet_color_data.get_column(lower_col).to_list()
+                upper_values = facet_color_data.get_column(upper_col).to_list()
+
+                # Add band to the correct subplot with matching color
+                self._add_hdi_band(
+                    fig,
+                    x_values,
+                    lower_values,
+                    upper_values,
+                    name=f"{color_val} HDI",
+                    fillcolor=color_map[color_val],
+                    showlegend=False,
+                    row=row_idx,
+                    col=col_idx,
+                )
 
     def saturation_curves(
         self,
@@ -1106,26 +1246,49 @@ class MMMPlotlyFactory:
             lower_col, upper_col = self._get_hdi_columns(nw_df, hdi_prob)
 
             # Get unique values for color column using Narwhals
-            color_values = nw_df.get_column(color).unique().to_list()
+            # Sort to ensure consistent ordering with Plotly's color assignment
+            color_values = sorted(nw_df.get_column(color).unique().to_list())
 
-            # Add band for each color value (e.g., each channel)
-            for var_val in color_values:
-                # Filter using Narwhals
-                nw_var = nw_df.filter(nw.col(color) == var_val)
+            # Create color map matching Plotly's default color assignment
+            color_map = {
+                val: PLOTLY_COLORS[i % len(PLOTLY_COLORS)]
+                for i, val in enumerate(color_values)
+            }
 
-                # Extract values for HDI band
-                x_values = nw_var.get_column(x).to_list()
-                lower_values = nw_var.get_column(lower_col).to_list()
-                upper_values = nw_var.get_column(upper_col).to_list()
+            if facet_row is None and facet_col is None:
+                # Simple case: no faceting, add band for each color value
+                for var_val in color_values:
+                    # Filter using Narwhals
+                    nw_var = nw_df.filter(nw.col(color) == var_val)
 
-                # Add band to main plot (faceting handled by px.line)
-                self._add_hdi_band(
+                    # Extract values for HDI band
+                    x_values = nw_var.get_column(x).to_list()
+                    lower_values = nw_var.get_column(lower_col).to_list()
+                    upper_values = nw_var.get_column(upper_col).to_list()
+
+                    # Add band to main plot with matching color
+                    self._add_hdi_band(
+                        fig,
+                        x_values,
+                        lower_values,
+                        upper_values,
+                        name=f"{var_val} HDI",
+                        fillcolor=color_map[var_val],
+                        showlegend=False,
+                    )
+            else:
+                # Faceted case: add band for each (facet, color) combination
+                self._add_hdi_bands_to_facets_with_color(
                     fig,
-                    x_values,
-                    lower_values,
-                    upper_values,
-                    name=f"{var_val} HDI",
-                    showlegend=False,
+                    nw_df,
+                    facet_row,
+                    facet_col,
+                    color,
+                    color_values,
+                    color_map,
+                    x,
+                    lower_col,
+                    upper_col,
                 )
 
         # Clean facet titles
