@@ -105,13 +105,13 @@ Tips for custom components
 """
 
 from abc import ABC, abstractmethod
-from typing import Annotated, Any, Protocol
+from typing import Any, Protocol
 
 import numpy.typing as npt
 import pandas as pd
 import pymc as pm
 import xarray as xr
-from pydantic import BaseModel, Field, InstanceOf, PlainValidator, WithJsonSchema
+from pydantic import BaseModel, Field, InstanceOf
 from pymc_extras.prior import create_dim_handler
 from pytensor import tensor as pt
 
@@ -346,13 +346,6 @@ class FourierEffect(MuEffect):
         pm.set_data(new_data=new_data, model=model)
 
 
-_Timestamp = Annotated[
-    pd.Timestamp,
-    PlainValidator(lambda x: pd.Timestamp(x)),
-    WithJsonSchema({"type": "date-time"}),
-]
-
-
 class LinearTrendEffect(MuEffect):
     """Wrapper for LinearTrend to use with MMM's MuEffect protocol.
 
@@ -459,7 +452,11 @@ class LinearTrendEffect(MuEffect):
     trend: InstanceOf[LinearTrend]
     prefix: str
     date_dim_name: str = Field("date")
-    linear_trend_first_date: _Timestamp | None = Field(None, init=False)
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        # Runtime-only state, not serialized. Set in create_data().
+        self.linear_trend_first_date: pd.Timestamp
 
     def create_data(self, mmm: Model) -> None:
         """Create the required data in the model.
