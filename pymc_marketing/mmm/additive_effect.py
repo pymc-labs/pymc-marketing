@@ -453,6 +453,8 @@ class LinearTrendEffect(MuEffect):
     prefix: str
     date_dim_name: str = Field("date")
 
+    model_config = {"extra": "allow"}
+
     def __init__(self, **data):
         super().__init__(**data)
         # Runtime-only state, not serialized. Set in create_data().
