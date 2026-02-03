@@ -38,7 +38,7 @@ Example of a custom additive effect
 
         def create_data(self, mmm):
             # Produce penalty values aligned with model dates (and optional extra dims)
-            dates = pd.to_datetime(mmm.model.coords["date"])
+            dates = safe_to_datetime(mmm.model.coords["date"], "date")
             penalty = self.penalty_provider(dates)
             pm.Data(f"{self.name}_penalty", penalty, dims=("date", *mmm.dims))
 
@@ -59,7 +59,7 @@ Example of a custom additive effect
 
         def set_data(self, mmm, model, X):
             # Update to future dates during posterior predictive
-            dates = pd.to_datetime(model.coords["date"])
+            dates = safe_to_datetime(model.coords["date"], "date")
             penalty = self.penalty_provider(dates)
             pm.set_data({f"{self.name}_penalty": penalty}, model=model)
 
@@ -104,12 +104,14 @@ Tips for custom components
   - In `set_data`, update the data variables when dates/dims change.
 """
 
+from abc import ABC, abstractmethod
 from typing import Any, Protocol
 
+import numpy.typing as npt
 import pandas as pd
 import pymc as pm
 import xarray as xr
-from pydantic import BaseModel, InstanceOf
+from pydantic import BaseModel, Field, InstanceOf
 from pymc_extras.prior import create_dim_handler
 from pytensor import tensor as pt
 
@@ -117,6 +119,94 @@ from pymc_marketing.mmm.events import EventEffect, days_from_reference
 from pymc_marketing.mmm.fourier import FourierBase
 from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.mmm.utils import create_index
+from pymc_marketing.mmm.validating import _validate_non_numeric_dtype
+
+
+def safe_to_datetime(
+    coords_values: pd.Series | pd.Index | list | tuple | pd.DatetimeIndex | npt.NDArray,
+    coord_name: str = "date",
+    validate_non_numeric: bool = True,
+) -> pd.DatetimeIndex:
+    """Safely convert coordinates to datetime, with validation.
+
+    This function prevents the issue where numeric values (e.g., [0, 1, 2, 3])
+    get incorrectly converted to dates starting from January 1st 1970 with
+    nanosecond intervals.
+
+    Parameters
+    ----------
+    coords_values : pd.Series | pd.Index | list | tuple | pd.DatetimeIndex | npt.NDArray
+        The coordinate values to convert to datetime
+    coord_name : str, optional
+        The name of the coordinate dimension (default: "date")
+    validate_non_numeric : bool, optional
+        Whether to validate that values are not numeric dtype. Set to False
+        when intentionally converting numeric time indices. Default: True
+
+    Returns
+    -------
+    pd.DatetimeIndex
+        The converted datetime index
+
+    Raises
+    ------
+    ValueError
+        If the coordinate values have numeric dtype and validate_non_numeric is True
+
+    Examples
+    --------
+    >>> # Good usage - string dates
+    >>> safe_to_datetime(["2024-01-01", "2024-01-02"])
+
+    >>> # Good usage - already datetime
+    >>> safe_to_datetime(pd.to_datetime(["2024-01-01", "2024-01-02"]))
+
+    >>> # Raises error - numeric values with validation
+    >>> safe_to_datetime([0, 1, 2, 3])  # Raises ValueError
+
+    >>> # Allowed - numeric time indices with validation disabled
+    >>> safe_to_datetime([0, 1, 2, 3], validate_non_numeric=False)
+    """
+    # Convert to pandas Series/Index for dtype checking
+    if isinstance(coords_values, pd.DatetimeIndex):
+        # Already datetime, return as-is
+        return coords_values
+
+    # Validate that values are not numeric dtype (if requested)
+    if validate_non_numeric:
+        _validate_non_numeric_dtype(coords_values, f"Coordinate '{coord_name}'")
+
+    result = pd.to_datetime(coords_values)
+    # Ensure we always return DatetimeIndex, not Series
+    if isinstance(result, pd.Series):
+        return pd.DatetimeIndex(result)
+    return result
+
+
+def _get_datetime_coords(
+    coords: pd.Index | npt.NDArray,
+    coord_name: str,
+) -> pd.DatetimeIndex:
+    """Get datetime coordinates with automatic validation logic.
+
+    Automatically skips numeric validation for non-date coordinate names
+    (e.g., 'time'), allowing numeric indices for customer choice models.
+
+    Parameters
+    ----------
+    coords : pd.Index | npt.NDArray
+        The coordinate values from the model
+    coord_name : str
+        The name of the coordinate dimension
+
+    Returns
+    -------
+    pd.DatetimeIndex
+        The converted datetime index
+    """
+    # Skip validation for non-date coordinates (e.g., numeric "time" indices)
+    validate = coord_name == "date"
+    return safe_to_datetime(coords, coord_name, validate_non_numeric=validate)
 
 
 class Model(Protocol):
@@ -131,35 +221,31 @@ class Model(Protocol):
         """The PyMC model."""
 
 
-class MuEffect(Protocol):
-    """Protocol for arbitrary additive mu effect."""
+class MuEffect(ABC, BaseModel):
+    """Abstract base class for arbitrary additive mu effects.
 
+    All mu_effects must inherit from this Pydantic BaseModel to ensure proper
+    serialization and deserialization when saving/loading MMM models.
+    """
+
+    @abstractmethod
     def create_data(self, mmm: Model) -> None:
         """Create the required data in the model."""
 
+    @abstractmethod
     def create_effect(self, mmm: Model) -> pt.TensorVariable:
         """Create the additive effect in the model."""
 
+    @abstractmethod
     def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
         """Set the data for new predictions."""
 
 
-class FourierEffect:
+class FourierEffect(MuEffect):
     """Fourier seasonality additive effect for MMM."""
 
-    def __init__(self, fourier: FourierBase, date_dim_name: str = "date"):
-        """Initialize the Fourier effect.
-
-        Parameters
-        ----------
-        fourier : FourierBase
-            The FourierBase instance to use for the effect.
-        date_dim_name : str, optional
-            The name of the date dimension in the model, by default "date".
-
-        """
-        self.fourier = fourier
-        self.date_dim_name: str = date_dim_name
+    fourier: InstanceOf[FourierBase]
+    date_dim_name: str = Field("date")
 
     def create_data(self, mmm: Model) -> None:
         """Create the required data in the model.
@@ -172,7 +258,9 @@ class FourierEffect:
         model = mmm.model
 
         # Get dates from model coordinates
-        dates = pd.to_datetime(model.coords[self.date_dim_name])
+        dates = _get_datetime_coords(
+            model.coords[self.date_dim_name], self.date_dim_name
+        )
 
         # Add weekday data to the model
         pm.Data(
@@ -245,7 +333,9 @@ class FourierEffect:
             The dataset for prediction
         """
         # Get dates from the new dataset
-        new_dates = pd.to_datetime(model.coords[self.date_dim_name])
+        new_dates = _get_datetime_coords(
+            model.coords[self.date_dim_name], self.date_dim_name
+        )
 
         # Update the data
         new_data = {
@@ -256,7 +346,7 @@ class FourierEffect:
         pm.set_data(new_data=new_data, model=model)
 
 
-class LinearTrendEffect:
+class LinearTrendEffect(MuEffect):
     """Wrapper for LinearTrend to use with MMM's MuEffect protocol.
 
     This class adapts the LinearTrend component to be used as an additive effect
@@ -268,6 +358,8 @@ class LinearTrendEffect:
         The LinearTrend instance to wrap.
     prefix : str
         The prefix to use for variables in the model.
+    date_dim_name : str
+        The name of the date dimension in the model.
 
     Examples
     --------
@@ -357,11 +449,16 @@ class LinearTrendEffect:
 
     """
 
-    def __init__(self, trend: LinearTrend, prefix: str, date_dim_name: str = "date"):
-        self.trend = trend
-        self.prefix = prefix
+    trend: InstanceOf[LinearTrend]
+    prefix: str
+    date_dim_name: str = Field("date")
+
+    model_config = {"extra": "allow"}
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        # Runtime-only state, not serialized. Set in create_data().
         self.linear_trend_first_date: pd.Timestamp
-        self.date_dim_name: str = date_dim_name
 
     def create_data(self, mmm: Model) -> None:
         """Create the required data in the model.
@@ -374,7 +471,9 @@ class LinearTrendEffect:
         model: pm.Model = mmm.model
 
         # Create time index data (normalized between 0 and 1)
-        dates = pd.to_datetime(model.coords[self.date_dim_name])
+        dates = _get_datetime_coords(
+            model.coords[self.date_dim_name], self.date_dim_name
+        )
         self.linear_trend_first_date = dates[0]
         t = (dates - self.linear_trend_first_date).days.astype(float)
 
@@ -432,14 +531,16 @@ class LinearTrendEffect:
             The dataset for prediction.
         """
         # Create normalized time index for new data
-        new_dates = pd.to_datetime(model.coords[self.date_dim_name])
+        new_dates = _get_datetime_coords(
+            model.coords[self.date_dim_name], self.date_dim_name
+        )
         t = (new_dates - self.linear_trend_first_date).days.astype(float)
 
         # Update the data
         pm.set_data({f"{self.prefix}_t": t}, model=model)
 
 
-class EventAdditiveEffect(BaseModel):
+class EventAdditiveEffect(MuEffect):
     """Event effect class for the MMM.
 
     Parameters
@@ -497,7 +598,9 @@ class EventAdditiveEffect(BaseModel):
         """
         model: pm.Model = mmm.model
 
-        model_dates = pd.to_datetime(model.coords[self.date_dim_name])
+        model_dates = _get_datetime_coords(
+            model.coords[self.date_dim_name], self.date_dim_name
+        )
 
         model.add_coord(self.prefix, self.df_events["name"].to_numpy())
 
@@ -559,7 +662,9 @@ class EventAdditiveEffect(BaseModel):
 
     def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
         """Set the data for new predictions."""
-        new_dates = pd.to_datetime(model.coords[self.date_dim_name])
+        new_dates = _get_datetime_coords(
+            model.coords[self.date_dim_name], self.date_dim_name
+        )
 
         new_data = {
             "days": days_from_reference(new_dates, self.reference_date),
