@@ -48,10 +48,10 @@ class TestMMMPlotlyFactoryContributions:
         """Test that contributions() returns a Plotly Figure object."""
         # Arrange
         mock_summary = self._create_simple_mock_summary()
-        factory = MMMPlotlyFactory(summary=mock_summary, auto_facet=False)
+        factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
-        fig = factory.contributions()
+        fig = factory.contributions(auto_facet=False)
 
         # Assert
         assert isinstance(fig, go.Figure), f"Expected go.Figure, got {type(fig)}"
@@ -81,10 +81,10 @@ class TestMMMPlotlyFactoryContributions:
         )
         mock_summary.data = Mock(custom_dims=[])
 
-        factory = MMMPlotlyFactory(summary=mock_summary, auto_facet=False)
+        factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
-        factory.contributions(hdi_prob=0.80, color="date")
+        factory.contributions(hdi_prob=0.80, color="date", auto_facet=False)
 
         # Assert
         mock_summary.contributions.assert_called_once()
@@ -110,10 +110,10 @@ class TestMMMPlotlyFactoryContributions:
         mock_summary.contributions.return_value = df_polars
         mock_summary.data = Mock(custom_dims=[])
 
-        factory = MMMPlotlyFactory(summary=mock_summary, auto_facet=False)
+        factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
-        fig = factory.contributions(color="date")
+        fig = factory.contributions(color="date", auto_facet=False)
 
         # Assert
         assert isinstance(fig, go.Figure), "Should return Figure for Polars input"
@@ -138,10 +138,10 @@ class TestMMMPlotlyFactoryHDI:
         mock_summary.contributions.return_value = df
         mock_summary.data = Mock(custom_dims=[])
 
-        factory = MMMPlotlyFactory(summary=mock_summary, auto_facet=False)
+        factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
-        fig = factory.contributions(hdi_prob=0.94)
+        fig = factory.contributions(hdi_prob=0.94, auto_facet=False)
 
         # Assert - Check that error bars have correct relative values
         bar_trace = fig.data[0]
@@ -179,10 +179,10 @@ class TestMMMPlotlyFactoryHDI:
         mock_summary.contributions.return_value = df
         mock_summary.data = Mock(custom_dims=[])
 
-        factory = MMMPlotlyFactory(summary=mock_summary, auto_facet=False)
+        factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
-        fig = factory.contributions(hdi_prob=None)
+        fig = factory.contributions(hdi_prob=None, auto_facet=False)
 
         # Assert
         bar_trace = fig.data[0]
@@ -213,10 +213,10 @@ class TestMMMPlotlyFactoryAutoFaceting:
         mock_summary.contributions.return_value = df
         mock_summary.data = Mock(custom_dims=["country"])
 
-        factory = MMMPlotlyFactory(summary=mock_summary, auto_facet=False)
+        factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
-        fig = factory.contributions(color="date")
+        fig = factory.contributions(color="date", auto_facet=False)
 
         # Assert - No faceting means single subplot
         # Plotly creates subplots when faceting is used
@@ -242,10 +242,10 @@ class TestMMMPlotlyFactoryAutoFaceting:
         mock_summary.contributions.return_value = df
         mock_summary.data = Mock(custom_dims=["country", "region"])
 
-        factory = MMMPlotlyFactory(summary=mock_summary, auto_facet=True)
+        factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
-        fig = factory.contributions()
+        fig = factory.contributions(auto_facet=True)
 
         # Assert - 2x2 grid should have 4 subplot annotations
         assert len(fig.layout.annotations) >= 4, (
@@ -267,9 +267,9 @@ class TestMMMPlotlyFactoryAutoFaceting:
         mock_summary.contributions.return_value = df
         mock_summary.data = Mock(custom_dims=[])
 
-        factory = MMMPlotlyFactory(summary=mock_summary, auto_facet=False)
+        factory = MMMPlotlyFactory(summary=mock_summary)
 
-        factory.contributions(component="control")
+        factory.contributions(component="control", auto_facet=False)
 
         # Assert
         call_kwargs = mock_summary.contributions.call_args[1]
@@ -334,10 +334,10 @@ class TestMMMPlotlyFactoryPosteriorPredictive:
         mock_summary.posterior_predictive.return_value = df
         mock_summary.data = Mock(custom_dims=[])
 
-        factory = MMMPlotlyFactory(summary=mock_summary, auto_facet=False)
+        factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
-        fig = factory.posterior_predictive()
+        fig = factory.posterior_predictive(auto_facet=False)
 
         # Assert
         assert isinstance(fig, go.Figure), f"Expected go.Figure, got {type(fig)}"
@@ -359,10 +359,10 @@ class TestMMMPlotlyFactoryPosteriorPredictive:
         mock_summary.posterior_predictive.return_value = df
         mock_summary.data = Mock(custom_dims=[])
 
-        factory = MMMPlotlyFactory(summary=mock_summary, auto_facet=False)
+        factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
-        fig = factory.posterior_predictive()
+        fig = factory.posterior_predictive(auto_facet=False)
 
         # Assert
         # Should have at least 2 traces: Predicted line, Observed line
@@ -392,10 +392,10 @@ class TestMMMPlotlyFactoryPosteriorPredictive:
         mock_summary.posterior_predictive.return_value = df
         mock_summary.data = Mock(custom_dims=[])
 
-        factory = MMMPlotlyFactory(summary=mock_summary, auto_facet=False)
+        factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
-        fig = factory.posterior_predictive(hdi_prob=0.94)
+        fig = factory.posterior_predictive(hdi_prob=0.94, auto_facet=False)
 
         # Assert
         # Find HDI trace (filled area with 'toself')
@@ -422,10 +422,10 @@ class TestMMMPlotlyFactoryPosteriorPredictive:
         mock_summary.posterior_predictive.return_value = df
         mock_summary.data = Mock(custom_dims=[])
 
-        factory = MMMPlotlyFactory(summary=mock_summary, auto_facet=False)
+        factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
-        fig = factory.posterior_predictive(hdi_prob=None)
+        fig = factory.posterior_predictive(hdi_prob=None, auto_facet=False)
 
         # Assert
         # Should only have line traces, no filled areas
@@ -452,10 +452,10 @@ class TestMMMPlotlyFactoryPosteriorPredictive:
         mock_summary.posterior_predictive.return_value = df
         mock_summary.data = Mock(custom_dims=["country"])
 
-        factory = MMMPlotlyFactory(summary=mock_summary, auto_facet=True)
+        factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
-        fig = factory.posterior_predictive()
+        fig = factory.posterior_predictive(auto_facet=True)
 
         # Assert
         # Should have faceted layout (annotations for subplot titles)
@@ -488,10 +488,10 @@ class TestMMMPlotlyFactoryROAS:
         mock_summary.roas.return_value = df
         mock_summary.data = Mock(custom_dims=[])
 
-        factory = MMMPlotlyFactory(summary=mock_summary, auto_facet=False)
+        factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
-        fig = factory.roas()
+        fig = factory.roas(auto_facet=False)
 
         # Assert
         assert isinstance(fig, go.Figure), f"Expected go.Figure, got {type(fig)}"
@@ -512,10 +512,10 @@ class TestMMMPlotlyFactoryROAS:
         mock_summary.roas.return_value = df
         mock_summary.data = Mock(custom_dims=[])
 
-        factory = MMMPlotlyFactory(summary=mock_summary, auto_facet=False)
+        factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
-        fig = factory.roas(hdi_prob=0.94)
+        fig = factory.roas(hdi_prob=0.94, auto_facet=False)
 
         # Assert
         bar_trace = fig.data[0]
@@ -542,10 +542,10 @@ class TestMMMPlotlyFactoryROAS:
         mock_summary.roas.return_value = df_polars
         mock_summary.data = Mock(custom_dims=[])
 
-        factory = MMMPlotlyFactory(summary=mock_summary, auto_facet=False)
+        factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
-        fig = factory.roas()
+        fig = factory.roas(auto_facet=False)
 
         # Assert
         assert isinstance(fig, go.Figure), "Should return Figure for Polars input"
@@ -566,10 +566,10 @@ class TestMMMPlotlyFactoryROAS:
         mock_summary.roas.return_value = df
         mock_summary.data = Mock(custom_dims=[])
 
-        factory = MMMPlotlyFactory(summary=mock_summary, auto_facet=False)
+        factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act & Assert - Should not raise IntCastingNaNError
-        fig = factory.roas(hdi_prob=0.94)
+        fig = factory.roas(hdi_prob=0.94, auto_facet=False)
 
         # Verify figure is returned
         assert isinstance(fig, go.Figure), f"Expected go.Figure, got {type(fig)}"
@@ -600,10 +600,10 @@ class TestMMMPlotlyFactorySaturationCurves:
         mock_summary.saturation_curves.return_value = df
         mock_summary.data = Mock(custom_dims=[])
 
-        factory = MMMPlotlyFactory(summary=mock_summary, auto_facet=False)
+        factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
-        fig = factory.saturation_curves()
+        fig = factory.saturation_curves(auto_facet=False)
 
         # Assert
         assert isinstance(fig, go.Figure), f"Expected go.Figure, got {type(fig)}"
@@ -626,10 +626,10 @@ class TestMMMPlotlyFactorySaturationCurves:
         mock_summary.saturation_curves.return_value = df
         mock_summary.data = Mock(custom_dims=[])
 
-        factory = MMMPlotlyFactory(summary=mock_summary, auto_facet=False)
+        factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
-        fig = factory.saturation_curves()
+        fig = factory.saturation_curves(auto_facet=False)
 
         # Assert
         # Should have at least 2 line traces (one per channel)
@@ -656,10 +656,10 @@ class TestMMMPlotlyFactorySaturationCurves:
         mock_summary.saturation_curves.return_value = df
         mock_summary.data = Mock(custom_dims=[])
 
-        factory = MMMPlotlyFactory(summary=mock_summary, auto_facet=False)
+        factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
-        fig = factory.saturation_curves(hdi_prob=0.94)
+        fig = factory.saturation_curves(hdi_prob=0.94, auto_facet=False)
 
         # Assert
         # Should have filled traces for HDI bands
@@ -687,10 +687,10 @@ class TestMMMPlotlyFactorySaturationCurves:
         mock_summary.saturation_curves.return_value = df
         mock_summary.data = Mock(custom_dims=["country"])
 
-        factory = MMMPlotlyFactory(summary=mock_summary, auto_facet=True)
+        factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
-        fig = factory.saturation_curves()
+        fig = factory.saturation_curves(auto_facet=True)
 
         # Assert
         # Should have faceted layout
@@ -724,10 +724,10 @@ class TestMMMPlotlyFactoryAdstockCurves:
         mock_summary.adstock_curves.return_value = df
         mock_summary.data = Mock(custom_dims=[])
 
-        factory = MMMPlotlyFactory(summary=mock_summary, auto_facet=False)
+        factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
-        fig = factory.adstock_curves()
+        fig = factory.adstock_curves(auto_facet=False)
 
         # Assert
         assert isinstance(fig, go.Figure), f"Expected go.Figure, got {type(fig)}"
@@ -750,10 +750,10 @@ class TestMMMPlotlyFactoryAdstockCurves:
         mock_summary.adstock_curves.return_value = df
         mock_summary.data = Mock(custom_dims=[])
 
-        factory = MMMPlotlyFactory(summary=mock_summary, auto_facet=False)
+        factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
-        fig = factory.adstock_curves(hdi_prob=0.94)
+        fig = factory.adstock_curves(hdi_prob=0.94, auto_facet=False)
 
         # Assert
         hdi_traces = [t for t in fig.data if t.fill == "toself"]
