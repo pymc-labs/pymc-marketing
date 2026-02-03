@@ -753,9 +753,10 @@ class MMMPlotlyFactory:
                     nw_df,
                     facet_row,
                     facet_col,
-                    lower_col,
-                    upper_col,
-                    hdi_prob,
+                    x="date",
+                    lower_col=lower_col,
+                    upper_col=upper_col,
+                    hdi_prob=hdi_prob,
                 )
 
         # Clean up facet titles
@@ -848,97 +849,19 @@ class MMMPlotlyFactory:
         nw_df,
         facet_row: str | None,
         facet_col: str | None,
-        lower_col: str,
-        upper_col: str,
-        hdi_prob: float,
-    ) -> None:
-        """Add HDI bands to each facet in a faceted plot.
-
-        Parameters
-        ----------
-        fig : go.Figure
-            Plotly figure with facets
-        nw_df : nw.DataFrame
-            Narwhals DataFrame with data
-        facet_row : str or None
-            Column name used for row facets
-        facet_col : str or None
-            Column name used for column facets
-        lower_col : str
-            Name of lower bound column
-        upper_col : str
-            Name of upper bound column
-        hdi_prob : float
-            HDI probability for legend name
-        """
-        # Get unique facet combinations
-        facet_dims = []
-        if facet_row:
-            facet_dims.append(facet_row)
-        if facet_col:
-            facet_dims.append(facet_col)
-
-        if not facet_dims:
-            return
-
-        # Get unique combinations using Narwhals
-        facet_df = nw_df.select(*facet_dims).unique()
-
-        for i, row_dict in enumerate(facet_df.to_native().to_dict("records")):
-            # Build filter expression
-            filter_expr = nw.lit(True)
-            for dim, val in row_dict.items():
-                filter_expr = filter_expr & (nw.col(dim) == val)
-
-            # Filter data for this facet
-            facet_data = nw_df.filter(filter_expr)
-
-            # Determine subplot indices (1-based for Plotly)
-            # Handle row index
-            if facet_row:
-                row_val = row_dict[facet_row]
-                # For some reason, in when faceting in Plotly Express, row 1 is the bottom row.
-                # So we need to reverse the index.
-                row_vals = sorted(
-                    nw_df.get_column(facet_row).unique().to_list(), reverse=True
-                )
-                row_idx = row_vals.index(row_val) + 1
-            else:
-                row_idx = 1
-
-            # Handle column index
-            if facet_col:
-                col_val = row_dict[facet_col]
-                col_vals = sorted(nw_df.get_column(facet_col).unique().to_list())
-                col_idx = col_vals.index(col_val) + 1
-            else:
-                col_idx = 1
-
-            self._add_hdi_band(
-                fig,
-                x=facet_data.get_column("date").to_list(),
-                lower=facet_data.get_column(lower_col).to_list(),
-                upper=facet_data.get_column(upper_col).to_list(),
-                name=f"{int(hdi_prob * 100)}% HDI",
-                showlegend=(i == 0),  # Only show once in legend
-                row=row_idx,
-                col=col_idx,
-            )
-
-    def _add_hdi_bands_to_facets_with_color(
-        self,
-        fig: go.Figure,
-        nw_df,
-        facet_row: str | None,
-        facet_col: str | None,
-        color: str,
-        color_values: list,
-        color_map: dict[str, str],
         x: str,
         lower_col: str,
         upper_col: str,
+        hdi_prob: float | None = None,
+        color: str | None = None,
+        color_values: list | None = None,
+        color_map: dict[str, str] | None = None,
     ) -> None:
-        """Add HDI bands to each facet and color combination in a faceted plot.
+        """Add HDI bands to each facet in a faceted plot.
+
+        This method supports two modes:
+        1. Without color: Adds a single HDI band per facet with legend showing HDI probability
+        2. With color: Adds HDI bands for each color value per facet with matching colors
 
         Parameters
         ----------
@@ -950,18 +873,20 @@ class MMMPlotlyFactory:
             Column name used for row facets
         facet_col : str or None
             Column name used for column facets
-        color : str
-            Column name used for color encoding
-        color_values : list
-            List of unique color values
-        color_map : dict[str, str]
-            Mapping from color values to hex color codes
         x : str
             Column name for x-axis
         lower_col : str
             Name of lower bound column
         upper_col : str
             Name of upper bound column
+        hdi_prob : float, optional
+            HDI probability for legend name (used when color is None)
+        color : str, optional
+            Column name used for color encoding
+        color_values : list, optional
+            List of unique color values (required if color is provided)
+        color_map : dict[str, str], optional
+            Mapping from color values to hex color codes (required if color is provided)
         """
         # Get unique facet combinations
         facet_dims = []
@@ -975,6 +900,9 @@ class MMMPlotlyFactory:
 
         # Get unique combinations using Narwhals
         facet_df = nw_df.select(*facet_dims).unique()
+
+        # Track if we've shown the legend (for non-color mode)
+        legend_shown = False
 
         for row_dict in facet_df.to_native().to_dict("records"):
             # Build filter expression for facet
@@ -1003,35 +931,46 @@ class MMMPlotlyFactory:
             else:
                 col_idx = 1
 
-            # Add HDI band for each color value in this facet
-            for color_val in color_values:
-                # Build filter expression for this (facet, color) combination
-                color_filter = filter_expr & (nw.col(color) == color_val)
+            if color is not None and color_values is not None and color_map is not None:
+                # Color mode: add HDI band for each color value in this facet
+                for color_val in color_values:
+                    # Build filter expression for this (facet, color) combination
+                    color_filter = filter_expr & (nw.col(color) == color_val)
 
-                # Filter data for this facet and color
-                facet_color_data = nw_df.filter(color_filter)
+                    # Filter data for this facet and color
+                    facet_color_data = nw_df.filter(color_filter)
 
-                # Skip if no data for this combination
-                if len(facet_color_data) == 0:
-                    continue
+                    # Skip if no data for this combination
+                    if len(facet_color_data) == 0:
+                        continue
 
-                # Extract values for HDI band
-                x_values = facet_color_data.get_column(x).to_list()
-                lower_values = facet_color_data.get_column(lower_col).to_list()
-                upper_values = facet_color_data.get_column(upper_col).to_list()
+                    # Add band to the correct subplot with matching color
+                    self._add_hdi_band(
+                        fig,
+                        x=facet_color_data.get_column(x).to_list(),
+                        lower=facet_color_data.get_column(lower_col).to_list(),
+                        upper=facet_color_data.get_column(upper_col).to_list(),
+                        name=f"{color_val} HDI",
+                        fillcolor=color_map[color_val],
+                        showlegend=False,
+                        row=row_idx,
+                        col=col_idx,
+                    )
+            else:
+                # Non-color mode: add single HDI band per facet
+                facet_data = nw_df.filter(filter_expr)
 
-                # Add band to the correct subplot with matching color
                 self._add_hdi_band(
                     fig,
-                    x_values,
-                    lower_values,
-                    upper_values,
-                    name=f"{color_val} HDI",
-                    fillcolor=color_map[color_val],
-                    showlegend=False,
+                    x=facet_data.get_column(x).to_list(),
+                    lower=facet_data.get_column(lower_col).to_list(),
+                    upper=facet_data.get_column(upper_col).to_list(),
+                    name=f"{int(hdi_prob * 100)}% HDI" if hdi_prob else "HDI",
+                    showlegend=not legend_shown,  # Only show once in legend
                     row=row_idx,
                     col=col_idx,
                 )
+                legend_shown = True
 
     def saturation_curves(
         self,
@@ -1278,17 +1217,17 @@ class MMMPlotlyFactory:
                     )
             else:
                 # Faceted case: add band for each (facet, color) combination
-                self._add_hdi_bands_to_facets_with_color(
+                self._add_hdi_bands_to_facets(
                     fig,
                     nw_df,
                     facet_row,
                     facet_col,
-                    color,
-                    color_values,
-                    color_map,
-                    x,
-                    lower_col,
-                    upper_col,
+                    x=x,
+                    lower_col=lower_col,
+                    upper_col=upper_col,
+                    color=color,
+                    color_values=color_values,
+                    color_map=color_map,
                 )
 
         # Clean facet titles
