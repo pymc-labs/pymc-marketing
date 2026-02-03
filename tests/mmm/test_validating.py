@@ -90,6 +90,15 @@ def test_validate_date_col():
     with pytest.raises(ValueError, match=r"date_col date has repeated values"):
         obj.validate_date_col(pd.concat([toy_X, toy_X], ignore_index=True, axis=0))
 
+    # Test that numeric dates are rejected
+    numeric_date_X = toy_X.copy()
+    numeric_date_X["date"] = [*range(len(numeric_date_X))]
+    with pytest.raises(
+        ValueError,
+        match=r"'date_col date' has numeric dtype.*Date columns must have string or datetime dtype",
+    ):
+        obj.validate_date_col(numeric_date_X)
+
 
 def test_channel_columns():
     obj = ValidateChannelColumns()
