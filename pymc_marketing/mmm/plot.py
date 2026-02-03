@@ -1061,6 +1061,8 @@ class MMMPlotSuite:
             # Single subplot with all dimension combinations overlaid
             fig, axes = self._init_subplots(1, ncols=1, figsize=figsize)
             ax = axes[0][0]
+            # Track variables without indexed dims to avoid duplicate plotting
+            plotted_vars_without_indexed_dims: set[str] = set()
 
             for dims_combo, addl_combo in total_combos:
                 # Build indexers for dims and additional_dims
@@ -1090,18 +1092,27 @@ class MMMPlotSuite:
                 # Plot posterior median and HDI for each var
                 for v in var:
                     data = self.idata.posterior[v]
-                    missing_coords = {
-                        key: value
-                        for key, value in coords.items()
-                        if key not in data.dims
+                    # Only expand 'date' if missing (needed for time series plotting)
+                    # Do NOT expand other dimensions from other variables
+                    if "date" not in data.dims and "date" in coords:
+                        data = data.expand_dims(date=coords["date"])
+                    # Filter indexers to only include dimensions that exist in this variable
+                    var_indexers = {
+                        k: val for k, val in indexers.items() if k in data.dims
                     }
-                    data = data.expand_dims(**missing_coords)
-                    data = data.sel(**indexers)  # apply slice
+                    # Skip if this variable has no indexed dims and was already plotted
+                    if not var_indexers:
+                        if v in plotted_vars_without_indexed_dims:
+                            continue
+                        plotted_vars_without_indexed_dims.add(v)
+                    if var_indexers:
+                        data = data.sel(**var_indexers)
                     data = self._reduce_and_stack(
                         data, dims_to_ignore={"date", "chain", "draw", "sample"}
                     )
                     # Create combined label: "var_name (dim=value, ...)"
-                    if label_suffix:
+                    # Only add suffix if this variable actually has the indexed dimensions
+                    if var_indexers and label_suffix:
                         plot_label = f"{v} ({label_suffix})"
                     else:
                         plot_label = v
@@ -1137,13 +1148,18 @@ class MMMPlotSuite:
                 # Plot posterior median and HDI for each var
                 for v in var:
                     data = self.idata.posterior[v]
-                    missing_coords = {
-                        key: value
-                        for key, value in coords.items()
-                        if key not in data.dims
+                    # Only expand 'date' if missing (needed for time series plotting)
+                    # Do NOT expand other dimensions from other variables
+                    if "date" not in data.dims and "date" in coords:
+                        data = data.expand_dims(date=coords["date"])
+                    # Filter indexers to only include dimensions that exist in this variable
+                    var_indexers = {
+                        k: val for k, val in indexers.items() if k in data.dims
                     }
-                    data = data.expand_dims(**missing_coords)
-                    data = data.sel(**indexers)  # apply slice
+                    if var_indexers:
+                        data = data.sel(
+                            **var_indexers
+                        )  # apply slice only if indexers apply
                     data = self._reduce_and_stack(
                         data, dims_to_ignore={"date", "chain", "draw", "sample"}
                     )
