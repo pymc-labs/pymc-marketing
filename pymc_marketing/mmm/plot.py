@@ -1057,51 +1057,70 @@ class MMMPlotSuite:
         # Prepare subplots: one for each combo of dims_lists and additional_dims
         total_combos = list(itertools.product(dims_combos, dim_combinations))
 
+        # --- Nested helper functions ---
+        def build_indexers(dims_combo: tuple, addl_combo: tuple) -> dict[str, Any]:
+            """Build indexers dictionary for a given dimension combination."""
+            indexers: dict[str, Any] = (
+                dict(zip(additional_dims, addl_combo, strict=False))
+                if additional_dims
+                else {}
+            )
+            if dims:
+                for i, k in enumerate(dims_keys):
+                    indexers[k] = dims_combo[i]
+                for k, v in dims.items():
+                    if k not in dims_keys:
+                        indexers[k] = v
+            return indexers
+
+        def prepare_var_data(
+            var_name: str, indexers: dict[str, Any]
+        ) -> tuple[xr.DataArray, dict[str, Any]]:
+            """Prepare variable data for plotting."""
+            data = self.idata.posterior[var_name]
+            # Only expand 'date' if missing (needed for time series plotting)
+            if "date" not in data.dims and "date" in coords:
+                data = data.expand_dims(date=coords["date"])
+            # Filter indexers to only include dimensions that exist in this variable
+            var_indexers = {k: val for k, val in indexers.items() if k in data.dims}
+            if var_indexers:
+                data = data.sel(**var_indexers)
+            data = self._reduce_and_stack(
+                data, dims_to_ignore={"date", "chain", "draw", "sample"}
+            )
+            return data, var_indexers
+
+        def get_title_dims() -> list[str]:
+            """Get the list of dimensions for title/label building."""
+            return list(dims.keys()) + additional_dims if dims else additional_dims
+
+        # --- End nested helper functions ---
+
+        title_dims = get_title_dims()
+
         if combine_dims:
             # Single subplot with all dimension combinations overlaid
             fig, axes = self._init_subplots(1, ncols=1, figsize=figsize)
             ax = axes[0][0]
+            # Track variables without indexed dims to avoid duplicate plotting
+            plotted_vars_without_indexed_dims: set[str] = set()
 
             for dims_combo, addl_combo in total_combos:
-                # Build indexers for dims and additional_dims
-                indexers = (
-                    dict(zip(additional_dims, addl_combo, strict=False))
-                    if additional_dims
-                    else {}
-                )
-                if dims:
-                    # For dims with lists, use the current value from dims_combo
-                    for i, k in enumerate(dims_keys):
-                        indexers[k] = dims_combo[i]
-                    # For dims with single values, use as is
-                    for k, v in (dims or {}).items():
-                        if k not in dims_keys:
-                            indexers[k] = v
-
-                # Build label suffix for this dimension combination
-                title_dims = (
-                    list(dims.keys()) + additional_dims if dims else additional_dims
-                )
+                indexers = build_indexers(dims_combo, addl_combo)
                 title_combo = tuple(indexers[k] for k in title_dims)
                 label_suffix = self._build_subplot_title(
                     dims=title_dims, combo=title_combo, fallback_title=""
                 )
 
-                # Plot posterior median and HDI for each var
                 for v in var:
-                    data = self.idata.posterior[v]
-                    missing_coords = {
-                        key: value
-                        for key, value in coords.items()
-                        if key not in data.dims
-                    }
-                    data = data.expand_dims(**missing_coords)
-                    data = data.sel(**indexers)  # apply slice
-                    data = self._reduce_and_stack(
-                        data, dims_to_ignore={"date", "chain", "draw", "sample"}
-                    )
+                    data, var_indexers = prepare_var_data(v, indexers)
+                    # Skip if this variable has no indexed dims and was already plotted
+                    if not var_indexers:
+                        if v in plotted_vars_without_indexed_dims:
+                            continue
+                        plotted_vars_without_indexed_dims.add(v)
                     # Create combined label: "var_name (dim=value, ...)"
-                    if label_suffix:
+                    if var_indexers and label_suffix:
                         plot_label = f"{v} ({label_suffix})"
                     else:
                         plot_label = v
@@ -1119,42 +1138,13 @@ class MMMPlotSuite:
 
             for row_idx, (dims_combo, addl_combo) in enumerate(total_combos):
                 ax = axes[row_idx][0]
-                # Build indexers for dims and additional_dims
-                indexers = (
-                    dict(zip(additional_dims, addl_combo, strict=False))
-                    if additional_dims
-                    else {}
-                )
-                if dims:
-                    # For dims with lists, use the current value from dims_combo
-                    for i, k in enumerate(dims_keys):
-                        indexers[k] = dims_combo[i]
-                    # For dims with single values, use as is
-                    for k, v in (dims or {}).items():
-                        if k not in dims_keys:
-                            indexers[k] = v
+                indexers = build_indexers(dims_combo, addl_combo)
 
-                # Plot posterior median and HDI for each var
                 for v in var:
-                    data = self.idata.posterior[v]
-                    missing_coords = {
-                        key: value
-                        for key, value in coords.items()
-                        if key not in data.dims
-                    }
-                    data = data.expand_dims(**missing_coords)
-                    data = data.sel(**indexers)  # apply slice
-                    data = self._reduce_and_stack(
-                        data, dims_to_ignore={"date", "chain", "draw", "sample"}
-                    )
+                    data, _ = prepare_var_data(v, indexers)
                     ax = self._add_median_and_hdi(ax, data, v, hdi_prob=hdi_prob)
 
-                # Title includes both fixed and combo dims
-                title_dims = (
-                    list(dims.keys()) + additional_dims if dims else additional_dims
-                )
                 title_combo = tuple(indexers[k] for k in title_dims)
-
                 title = self._build_subplot_title(
                     dims=title_dims, combo=title_combo, fallback_title="Time Series"
                 )
