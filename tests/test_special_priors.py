@@ -545,6 +545,54 @@ def test_special_prior_equality():
     assert prior_array1 != prior_array3
 
 
+def test_special_prior_hashable():
+    """Test that SpecialPrior instances are hashable and can be used in sets/dicts."""
+    # Test basic hashability
+    prior1 = LogNormalPrior(mu=1.0, sigma=2.0, dims=("channel",))
+    prior2 = LogNormalPrior(mu=1.0, sigma=2.0, dims=("channel",))
+    prior3 = LogNormalPrior(mu=1.0, sigma=3.0, dims=("channel",))
+
+    # Equal objects should have the same hash
+    assert hash(prior1) == hash(prior2)
+
+    # Different objects typically have different hashes (not guaranteed, but expected)
+    # We just verify they're hashable
+    hash(prior3)
+
+    # Test usage in set
+    prior_set = {prior1, prior2, prior3}
+    assert len(prior_set) == 2  # prior1 and prior2 are equal, so only 2 unique
+
+    # Test usage as dict key
+    prior_dict = {prior1: "value1", prior3: "value3"}
+    assert len(prior_dict) == 2
+    assert prior_dict[prior2] == "value1"  # prior2 equals prior1
+
+    # Test with numpy arrays
+    prior_array1 = LogNormalPrior(
+        mu=np.array([1.0, 2.0]), sigma=np.array([0.5, 0.5]), dims=("channel",)
+    )
+    prior_array2 = LogNormalPrior(
+        mu=np.array([1.0, 2.0]), sigma=np.array([0.5, 0.5]), dims=("channel",)
+    )
+
+    # Equal arrays should have same hash
+    assert hash(prior_array1) == hash(prior_array2)
+
+    # Can be used in sets
+    array_set = {prior_array1, prior_array2}
+    assert len(array_set) == 1  # They're equal
+
+    # Test LaplacePrior
+    laplace1 = LaplacePrior(mu=0.5, b=1.5, dims=("geo",))
+    laplace2 = LaplacePrior(mu=0.5, b=1.5, dims=("geo",))
+    assert hash(laplace1) == hash(laplace2)
+
+    # Can mix different SpecialPrior types in a set
+    mixed_set = {prior1, laplace1}
+    assert len(mixed_set) == 2
+
+
 def test_mmm_with_special_prior_save_load_round_trip(tmp_path, mock_pymc_sample):
     """Test that MMM with SpecialPrior in saturation can be saved and loaded with check=True."""
     # Create minimal data

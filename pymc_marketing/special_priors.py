@@ -68,6 +68,29 @@ class SpecialPrior(ABC):
 
         return True
 
+    def __hash__(self):
+        """Compute hash based on class, dims, centered, and parameters."""
+        # Convert parameters to a hashable tuple
+        param_items = []
+        for key in sorted(self.parameters.keys()):
+            value = self.parameters[key]
+            # Convert numpy arrays to tuples for hashing
+            if isinstance(value, np.ndarray):
+                value = tuple(value.flat)
+            # Convert lists to tuples
+            elif isinstance(value, list):
+                value = tuple(value)
+            # For unhashable types, use their string representation
+            try:
+                hash(value)
+            except TypeError:
+                value = str(value)
+            param_items.append((key, value))
+
+        return hash(
+            (self.__class__.__name__, self.dims, self.centered, tuple(param_items))
+        )
+
     @abstractmethod
     def _checks(self) -> None:  # pragma: no cover
         """Check that the parameters are correct."""
