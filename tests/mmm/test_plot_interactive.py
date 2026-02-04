@@ -142,34 +142,12 @@ def _count_line_traces(fig: go.Figure) -> int:
     )
 
 
-def _count_subplots(fig: go.Figure) -> int:
-    """Count the number of subplots from layout annotations."""
-    if not fig.layout.annotations:
-        return 1
-    return len(fig.layout.annotations)
-
-
 def _get_subplot_dimensions(fig: go.Figure) -> tuple[int, int]:
     """Get the (rows, cols) dimensions of a faceted figure.
 
     Returns (1, 1) for non-faceted figures.
     """
-    # Count annotations which correspond to subplot titles
-    n_subplots = max(1, len(fig.layout.annotations))
-
-    # Look at the annotation positions to determine grid dimensions
-    if n_subplots == 1:
-        return (1, 1)
-
-    # Check if it's row-based or col-based by looking at annotation y positions
-    if fig.layout.annotations:
-        y_positions = sorted(set(ann.y for ann in fig.layout.annotations), reverse=True)
-        x_positions = sorted(set(ann.x for ann in fig.layout.annotations))
-        rows = len(y_positions)
-        cols = len(x_positions)
-        return (rows, cols)
-
-    return (1, n_subplots)
+    return len(fig._grid_ref), len(fig._grid_ref[0])
 
 
 def _create_saturation_df_one_custom_dim(
@@ -959,14 +937,49 @@ class TestMMMPlotlyFactoryAdstockCurves:
         )
 
 
-class TestSaturationCurvesOneCustomDim:
-    """Tests for saturation_curves with 1 custom dimension (2 coordinates).
+class TestSaturationCurvesFaceting:
+    @pytest.mark.parametrize(
+        "kwargs, expected_rows, expected_cols",
+        [
+            pytest.param(
+                {},
+                1,
+                2,
+                id="auto_facet_creates_two_subplots",
+            ),
+            pytest.param(
+                {"auto_facet": False},
+                1,
+                1,
+                id="auto_facet_false_creates_one_plot",
+            ),
+            pytest.param(
+                {"facet_col": "geo", "auto_facet": False},
+                1,
+                2,
+                id="facet_col_creates_two_column_subplots",
+            ),
+            pytest.param(
+                {"facet_col": "geo", "auto_facet": True},
+                1,
+                2,
+                id="facet_col_with_auto_facet_true_same_as_auto_facet_false",
+            ),
+            pytest.param(
+                {"facet_row": "geo", "auto_facet": False},
+                2,
+                1,
+                id="facet_row_creates_two_row_subplots",
+            ),
+        ],
+    )
+    def test_saturation_curves_faceting_one_custom_dim(
+        self, kwargs, expected_rows, expected_cols
+    ):
+        """Test saturation_curves faceting behavior with 1 custom dimension.
 
-    With 2 channels and 2 coordinates, there should always be 4 lines total.
-    """
-
-    def test_auto_facet_creates_two_subplots_with_two_lines_each(self):
-        """saturation_curves(hdi_prob=None) → 2 subplots, 2 lines per subplot."""
+        With 2 channels × 2 geo coordinates = 4 lines total.
+        """
         # Arrange
         df = _create_saturation_df_one_custom_dim(
             n_channels=2, n_coords=2, custom_dim="geo"
@@ -975,121 +988,54 @@ class TestSaturationCurvesOneCustomDim:
         factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
-        fig = factory.saturation_curves(hdi_prob=None)
+        fig = factory.saturation_curves(hdi_prob=None, **kwargs)
 
         # Assert
-        n_subplots = _count_subplots(fig)
+        rows, cols = _get_subplot_dimensions(fig)
         n_lines = _count_line_traces(fig)
 
-        assert n_subplots == 2, (
-            f"Expected 2 subplots (one per geo coordinate), got {n_subplots}"
-        )
+        assert rows == expected_rows, f"Expected {expected_rows} rows, got {rows}"
+        assert cols == expected_cols, f"Expected {expected_cols} columns, got {cols}"
         assert n_lines == 4, (
             f"Expected 4 total lines (2 channels × 2 geos), got {n_lines}"
         )
 
-    def test_auto_facet_false_creates_one_plot_with_four_lines(self):
-        """saturation_curves(hdi_prob=None, auto_facet=False) → 1 plot, 4 lines."""
-        # Arrange
-        df = _create_saturation_df_one_custom_dim(
-            n_channels=2, n_coords=2, custom_dim="geo"
-        )
-        mock_summary = _create_saturation_mock_summary(df, custom_dims=["geo"])
-        factory = MMMPlotlyFactory(summary=mock_summary)
+    @pytest.mark.parametrize(
+        "kwargs, expected_rows, expected_cols",
+        [
+            pytest.param(
+                {},
+                2,
+                2,
+                id="auto_facet_true",
+            ),
+            pytest.param(
+                {"facet_col": "geo", "auto_facet": False},
+                1,
+                2,
+                id="facet_col_creates_two_column_subplots",
+            ),
+            pytest.param(
+                {"facet_col": "geo", "auto_facet": True},
+                1,
+                2,
+                id="facet_col_with_auto_facet_true_same_as_auto_facet_false",
+            ),
+            pytest.param(
+                {"facet_row": "geo", "auto_facet": False},
+                2,
+                1,
+                id="facet_row_creates_two_row_subplots",
+            ),
+        ],
+    )
+    def test_saturation_curves_faceting_two_custom_dims(
+        self, kwargs, expected_rows, expected_cols
+    ):
+        """Test saturation_curves faceting behavior with 2 custom dimensions.
 
-        # Act
-        fig = factory.saturation_curves(hdi_prob=None, auto_facet=False)
-
-        # Assert
-        n_subplots = _count_subplots(fig)
-        n_lines = _count_line_traces(fig)
-
-        assert n_subplots == 1, (
-            f"Expected 1 subplot when auto_facet=False, got {n_subplots}"
-        )
-        assert n_lines == 4, (
-            f"Expected 4 lines (2 channels × 2 geos) on single plot, got {n_lines}"
-        )
-
-    def test_facet_col_creates_two_column_subplots_with_two_lines_each(self):
-        """saturation_curves(facet_col='geo', hdi_prob=None, auto_facet=False) →
-        2 subplots (1 row, 2 columns), 2 lines per subplot.
+        With 2 channels × 2 geo × 2 brand coordinates = 8 lines total.
         """
-        # Arrange
-        df = _create_saturation_df_one_custom_dim(
-            n_channels=2, n_coords=2, custom_dim="geo"
-        )
-        mock_summary = _create_saturation_mock_summary(df, custom_dims=["geo"])
-        factory = MMMPlotlyFactory(summary=mock_summary)
-
-        # Act
-        fig = factory.saturation_curves(
-            facet_col="geo", hdi_prob=None, auto_facet=False
-        )
-
-        # Assert
-        rows, cols = _get_subplot_dimensions(fig)
-        n_lines = _count_line_traces(fig)
-
-        assert rows == 1, f"Expected 1 row with facet_col, got {rows}"
-        assert cols == 2, f"Expected 2 columns (one per geo), got {cols}"
-        assert n_lines == 4, f"Expected 4 total lines (2 per subplot), got {n_lines}"
-
-    def test_facet_col_with_auto_facet_true_same_as_auto_facet_false(self):
-        """saturation_curves(facet_col='geo', hdi_prob=None, auto_facet=True) →
-        same as with auto_facet=False because manual faceting takes precedence.
-        """
-        # Arrange
-        df = _create_saturation_df_one_custom_dim(
-            n_channels=2, n_coords=2, custom_dim="geo"
-        )
-        mock_summary = _create_saturation_mock_summary(df, custom_dims=["geo"])
-        factory = MMMPlotlyFactory(summary=mock_summary)
-
-        # Act
-        fig = factory.saturation_curves(facet_col="geo", hdi_prob=None, auto_facet=True)
-
-        # Assert
-        rows, cols = _get_subplot_dimensions(fig)
-        n_lines = _count_line_traces(fig)
-
-        assert rows == 1, f"Expected 1 row with facet_col, got {rows}"
-        assert cols == 2, f"Expected 2 columns (one per geo), got {cols}"
-        assert n_lines == 4, f"Expected 4 total lines, got {n_lines}"
-
-    def test_facet_row_creates_two_row_subplots_with_two_lines_each(self):
-        """saturation_curves(facet_row='geo', hdi_prob=None, auto_facet=False) →
-        2 subplots (2 rows, 1 column), 2 lines per subplot.
-        """
-        # Arrange
-        df = _create_saturation_df_one_custom_dim(
-            n_channels=2, n_coords=2, custom_dim="geo"
-        )
-        mock_summary = _create_saturation_mock_summary(df, custom_dims=["geo"])
-        factory = MMMPlotlyFactory(summary=mock_summary)
-
-        # Act
-        fig = factory.saturation_curves(
-            facet_row="geo", hdi_prob=None, auto_facet=False
-        )
-
-        # Assert
-        rows, cols = _get_subplot_dimensions(fig)
-        n_lines = _count_line_traces(fig)
-
-        assert rows == 2, f"Expected 2 rows (one per geo), got {rows}"
-        assert cols == 1, f"Expected 1 column with facet_row, got {cols}"
-        assert n_lines == 4, f"Expected 4 total lines (2 per subplot), got {n_lines}"
-
-
-class TestSaturationCurvesTwoCustomDims:
-    """Tests for saturation_curves with 2 custom dimensions (2 coordinates each).
-
-    With 2 channels × 2 coords_dim1 × 2 coords_dim2 = 8 lines total.
-    """
-
-    def test_auto_facet_creates_four_subplots_with_two_lines_each(self):
-        """saturation_curves(hdi_prob=None) → 4 subplots (2×2), 2 lines per subplot."""
         # Arrange
         df = _create_saturation_df_two_custom_dims(
             n_channels=2,
@@ -1102,15 +1048,14 @@ class TestSaturationCurvesTwoCustomDims:
         factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
-        fig = factory.saturation_curves(hdi_prob=None)
+        fig = factory.saturation_curves(hdi_prob=None, **kwargs)
 
         # Assert
-        n_subplots = _count_subplots(fig)
+        rows, cols = _get_subplot_dimensions(fig)
         n_lines = _count_line_traces(fig)
 
-        assert n_subplots == 4, (
-            f"Expected 4 subplots (2 geo × 2 brand), got {n_subplots}"
-        )
+        assert rows == expected_rows, f"Expected {expected_rows} rows, got {rows}"
+        assert cols == expected_cols, f"Expected {expected_cols} columns, got {cols}"
         assert n_lines == 8, (
             f"Expected 8 total lines (2 channels × 2 geo × 2 brand), got {n_lines}"
         )
@@ -1135,96 +1080,6 @@ class TestSaturationCurvesTwoCustomDims:
         # Act & Assert - Should raise ValueError because too many combinations
         with pytest.raises(ValueError, match="Too many custom dimensions"):
             factory.saturation_curves(hdi_prob=None, auto_facet=False)
-
-    def test_facet_col_geo_creates_two_subplots_with_four_lines_each(self):
-        """saturation_curves(facet_col='geo', hdi_prob=None, auto_facet=False) →
-        2 subplots (1 row, 2 columns), 4 lines per subplot.
-
-        Each subplot shows 2 channels × 2 brand = 4 lines.
-        """
-        # Arrange
-        df = _create_saturation_df_two_custom_dims(
-            n_channels=2,
-            n_coords_dim1=2,
-            n_coords_dim2=2,
-            custom_dim1="geo",
-            custom_dim2="brand",
-        )
-        mock_summary = _create_saturation_mock_summary(df, custom_dims=["geo", "brand"])
-        factory = MMMPlotlyFactory(summary=mock_summary)
-
-        # Act
-        fig = factory.saturation_curves(
-            facet_col="geo", hdi_prob=None, auto_facet=False
-        )
-
-        # Assert
-        rows, cols = _get_subplot_dimensions(fig)
-        n_lines = _count_line_traces(fig)
-
-        assert rows == 1, f"Expected 1 row with facet_col, got {rows}"
-        assert cols == 2, f"Expected 2 columns (one per geo), got {cols}"
-        assert n_lines == 8, (
-            f"Expected 8 total lines (4 per subplot: 2 channels × 2 brand), got {n_lines}"
-        )
-
-    def test_facet_col_with_auto_facet_true_ignored(self):
-        """saturation_curves(facet_col='geo', hdi_prob=None, auto_facet=True) →
-        same as auto_facet=False because manual facet_col takes precedence.
-        """
-        # Arrange
-        df = _create_saturation_df_two_custom_dims(
-            n_channels=2,
-            n_coords_dim1=2,
-            n_coords_dim2=2,
-            custom_dim1="geo",
-            custom_dim2="brand",
-        )
-        mock_summary = _create_saturation_mock_summary(df, custom_dims=["geo", "brand"])
-        factory = MMMPlotlyFactory(summary=mock_summary)
-
-        # Act
-        fig = factory.saturation_curves(facet_col="geo", hdi_prob=None, auto_facet=True)
-
-        # Assert
-        rows, cols = _get_subplot_dimensions(fig)
-        n_lines = _count_line_traces(fig)
-
-        assert rows == 1, f"Expected 1 row, got {rows}"
-        assert cols == 2, f"Expected 2 columns (one per geo), got {cols}"
-        assert n_lines == 8, f"Expected 8 total lines, got {n_lines}"
-
-    def test_facet_row_geo_creates_two_row_subplots_with_four_lines_each(self):
-        """saturation_curves(facet_row='geo', hdi_prob=None, auto_facet=False) →
-        2 subplots (2 rows, 1 column), 4 lines per subplot.
-
-        Each subplot shows 2 channels × 2 brand = 4 lines.
-        """
-        # Arrange
-        df = _create_saturation_df_two_custom_dims(
-            n_channels=2,
-            n_coords_dim1=2,
-            n_coords_dim2=2,
-            custom_dim1="geo",
-            custom_dim2="brand",
-        )
-        mock_summary = _create_saturation_mock_summary(df, custom_dims=["geo", "brand"])
-        factory = MMMPlotlyFactory(summary=mock_summary)
-
-        # Act
-        fig = factory.saturation_curves(
-            facet_row="geo", hdi_prob=None, auto_facet=False
-        )
-
-        # Assert
-        rows, cols = _get_subplot_dimensions(fig)
-        n_lines = _count_line_traces(fig)
-
-        assert rows == 2, f"Expected 2 rows (one per geo), got {rows}"
-        assert cols == 1, f"Expected 1 column with facet_row, got {cols}"
-        assert n_lines == 8, (
-            f"Expected 8 total lines (4 per subplot: 2 channels × 2 brand), got {n_lines}"
-        )
 
 
 class TestSaturationCurvesOriginalScale:
@@ -1271,52 +1126,26 @@ class TestSaturationCurvesOriginalScale:
         # Assert - Check that x values are scaled by the correct per-(channel, geo) scale
         traces = [t for t in fig.data if t.mode == "lines"]
 
-        # Find traces for each (channel, geo) combination
-        tv_us_trace = next(
-            (t for t in traces if "TV" in t.name and "US" in t.name), None
-        )
-        radio_us_trace = next(
-            (t for t in traces if "Radio" in t.name and "US" in t.name), None
-        )
-        tv_uk_trace = next(
-            (t for t in traces if "TV" in t.name and "UK" in t.name), None
-        )
-        radio_uk_trace = next(
-            (t for t in traces if "Radio" in t.name and "UK" in t.name), None
-        )
+        # Expected scales: TV,US=1000  TV,UK=800  Radio,US=500  Radio,UK=400
+        expected_scales = {
+            ("TV", "US"): 1000.0,
+            ("TV", "UK"): 800.0,
+            ("Radio", "US"): 500.0,
+            ("Radio", "UK"): 400.0,
+        }
 
-        assert tv_us_trace is not None, "Should have TV, US trace"
-        assert radio_us_trace is not None, "Should have Radio, US trace"
-        assert tv_uk_trace is not None, "Should have TV, UK trace"
-        assert radio_uk_trace is not None, "Should have Radio, UK trace"
+        for (channel, geo), scale in expected_scales.items():
+            trace = next(
+                (t for t in traces if channel in t.name and geo in t.name), None
+            )
+            assert trace is not None, f"Should have {channel}, {geo} trace"
 
-        # Check TV, US x values (0 * 1000, 0.5 * 1000, 1.0 * 1000)
-        np.testing.assert_array_almost_equal(
-            tv_us_trace.x,
-            [0.0, 500.0, 1000.0],
-            err_msg="TV, US x values should be scaled by 1000",
-        )
-
-        # Check TV, UK x values (0 * 800, 0.5 * 800, 1.0 * 800)
-        np.testing.assert_array_almost_equal(
-            tv_uk_trace.x,
-            [0.0, 400.0, 800.0],
-            err_msg="TV, UK x values should be scaled by 800",
-        )
-
-        # Check Radio, US x values (0 * 500, 0.5 * 500, 1.0 * 500)
-        np.testing.assert_array_almost_equal(
-            radio_us_trace.x,
-            [0.0, 250.0, 500.0],
-            err_msg="Radio, US x values should be scaled by 500",
-        )
-
-        # Check Radio, UK x values (0 * 400, 0.5 * 400, 1.0 * 400)
-        np.testing.assert_array_almost_equal(
-            radio_uk_trace.x,
-            [0.0, 200.0, 400.0],
-            err_msg="Radio, UK x values should be scaled by 400",
-        )
+            expected_x = [0.0, 0.5 * scale, 1.0 * scale]
+            np.testing.assert_array_almost_equal(
+                trace.x,
+                expected_x,
+                err_msg=f"{channel}, {geo} x values should be scaled by {scale}",
+            )
 
 
 class TestMMMPlotlyFactoryErrorHandling:
