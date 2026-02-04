@@ -431,10 +431,10 @@ def _pivot_polars_lazy(
     """
     # Map aggregation string to narwhals aggregation method
     agg_map = {
-        "sum": lambda c: nw.col(c).sum(),
-        "mean": lambda c: nw.col(c).mean(),
-        "min": lambda c: nw.col(c).min(),
-        "max": lambda c: nw.col(c).max(),
+        "sum": nw.sum,
+        "mean": nw.mean,
+        "min": nw.min,
+        "max": nw.max,
         "count": lambda c: nw.col(c).count(),
     }
     if agg not in agg_map:
@@ -443,13 +443,11 @@ def _pivot_polars_lazy(
         )
 
     agg_fn = agg_map[agg]
-    agg_exprs = [agg_fn(c) for c in value_columns]
+    agg_exprs = agg_fn(value_columns)
 
     # Keep in lazy mode as long as possible
-    grouped_lazy = (
-        df.select([date_col, platform_col, *value_columns])
-        .group_by([date_col, platform_col], drop_null_keys=False)
-        .agg(agg_exprs)
+    grouped_lazy = df.group_by([date_col, platform_col], drop_null_keys=False).agg(
+        agg_exprs
     )
 
     # Must collect here because narwhals LazyFrame doesn't support .pivot() yet
@@ -590,7 +588,7 @@ def _aggregate_and_pivot(
         )
 
     agg_fn = agg_map[agg]
-    agg_exprs = [agg_fn(c) for c in value_columns]
+    agg_exprs = agg_fn(value_columns)
     # Removed .select() to avoid eager evaluation (FBruzzesi's suggestion)
     grouped = df.group_by([date_col, platform_col], drop_null_keys=False).agg(agg_exprs)
 
