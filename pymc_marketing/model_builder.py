@@ -198,6 +198,9 @@ class ModelIO:
             """Serialize objects for deterministic hashing."""
             if hasattr(obj, "to_dict"):
                 return obj.to_dict()
+            if hasattr(obj, "model_dump"):
+                # Handle Pydantic models (e.g., HSGPKwargs)
+                return obj.model_dump(mode="json")
             raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
         hasher = hashlib.sha256()
@@ -237,6 +240,9 @@ class ModelIO:
             """Handle objects that aren't JSON serializable by default."""
             if hasattr(obj, "to_dict"):
                 return obj.to_dict()
+            if hasattr(obj, "model_dump"):
+                # Handle Pydantic models (e.g., HSGPKwargs)
+                return obj.model_dump(mode="json")
             # Let json.dumps raise TypeError for truly non-serializable objects
             raise TypeError(
                 f"Object of type {type(obj).__name__} is not JSON serializable"
